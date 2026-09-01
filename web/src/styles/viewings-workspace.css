@@ -1,0 +1,200 @@
+.viewings-workspace {
+  display: grid;
+  gap: var(--space-6);
+}
+
+/* Three counts, a search, then the stages — the shape Payments, Tenancy
+   requests and Leases use, because it is the same job. */
+.viewings-overview {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0 0 var(--space-8);
+  border-block: var(--border-hairline) solid var(--color-field-200);
+}
+.viewings-overview > div { display: grid; gap: var(--space-1); padding: var(--space-5) 0; }
+.viewings-overview > div + div { padding-left: var(--space-5); border-left: var(--border-hairline) solid var(--color-field-200); }
+.viewings-overview dt { color: var(--color-ink-500); }
+.viewings-overview dd { margin: 0; font-family: var(--font-display); font-size: 1.5rem; line-height: 2rem; font-weight: 600; }
+.viewings-overview [data-tone="confirmed"] { color: var(--color-kola-600); }
+.viewings-overview [data-tone="completed"] { color: var(--color-ink-700); }
+
+.viewings-filters { display: flex; max-width: 100%; gap: var(--space-2); margin-bottom: var(--space-3); overflow-x: auto; scrollbar-width: none; }
+.viewings-filters::-webkit-scrollbar { display: none; }
+.viewings-filters button { min-height: 44px; padding: 0 var(--space-3); color: var(--color-ink-500); background: transparent; border: var(--border-hairline) solid var(--color-field-200); border-radius: 999px; font: inherit; font-size: .875rem; font-weight: 600; white-space: nowrap; cursor: pointer; }
+.viewings-filters button[aria-pressed="true"] { color: var(--color-kola-600); background: var(--color-kola-50); border-color: var(--color-kola-300); }
+.viewings-filters span { color: inherit; opacity: .75; }
+
+.viewings-search { display: block; width: min(100%, 30rem); }
+
+.viewings-search input {
+  width: 100%;
+  min-height: 48px;
+  padding: 0 var(--space-4);
+  color: var(--color-ink-900);
+  background: var(--color-field-0);
+  border: var(--border-hairline) solid var(--color-field-300);
+  border-radius: var(--radius-sm);
+  font: inherit;
+}
+
+.viewings-list {
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+  border-top: var(--border-hairline) solid var(--color-field-200);
+}
+
+.viewing-row {
+  display: grid;
+  grid-template-columns: minmax(13rem, 1.6fr) minmax(8rem, 0.75fr) minmax(9rem, 0.8fr) minmax(11rem, 1fr) 1.5rem;
+  width: 100%;
+  min-height: 76px;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-2);
+  color: inherit;
+  text-align: left; text-decoration: none;
+  background: transparent;
+  border: 0;
+  border-bottom: var(--border-hairline) solid var(--color-field-200);
+  cursor: pointer;
+  transition: background-color 120ms ease;
+}
+
+.viewing-row:hover { background: var(--color-field-0); }
+
+.viewing-row-person,
+.viewing-row-person strong,
+.viewing-row-person span {
+  display: block;
+  min-width: 0;
+}
+
+.viewing-row-person strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.viewing-row-person span,
+.viewing-row-place,
+.viewing-row-time {
+  color: var(--color-ink-500);
+  font-size: 0.875rem;
+  line-height: 1.35;
+}
+
+.viewing-row-state {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  color: var(--color-ink-500);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.viewing-row-state i {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  background: currentColor;
+  border-radius: 50%;
+}
+
+.viewing-row-state.is-good { color: var(--color-kola-600); }
+.viewing-row-state.is-waiting { color: var(--color-harmattan-600); }
+.viewing-row-state.is-attention { color: var(--color-laterite-600); }
+.viewing-row-arrow {
+  color: var(--color-ink-300);
+  font-size: 1.5rem;
+  transition: transform var(--motion-duration-fast) var(--motion-easing-standard),
+    color var(--motion-duration-fast) var(--motion-easing-standard);
+}
+
+.viewing-detail {
+  display: grid;
+  gap: var(--space-5);
+}
+
+.viewing-detail-identity,
+.viewing-detail-identity p { margin: 0; }
+.viewing-detail-identity { display: grid; gap: var(--space-1); }
+.viewing-detail-identity .viewing-row-state { margin-top: var(--space-2); }
+
+.viewing-detail blockquote {
+  padding: var(--space-4);
+  margin: 0;
+  color: var(--color-ink-700);
+  background: var(--color-field-50);
+  border-left: 3px solid var(--color-field-300);
+}
+
+.viewing-schedule {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-4);
+  background: var(--color-kola-50);
+  border-radius: var(--radius-sm);
+}
+
+.viewing-schedule span { color: var(--color-ink-500); font-size: 0.875rem; }
+
+.viewing-detail-section {
+  padding-top: var(--space-4);
+  border-top: var(--border-hairline) solid var(--color-field-200);
+}
+
+.viewing-detail-section h3,
+.viewing-detail-section p { margin: 0; }
+.viewing-detail-section h3 { font-size: 1rem; }
+.viewing-detail-section p { margin-top: var(--space-1); }
+
+.viewing-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.viewing-inline-confirm {
+  display: grid;
+  gap: var(--space-3);
+}
+
+@media (max-width: 900px) {
+  .viewing-row {
+    grid-template-columns: minmax(0, 1fr) minmax(9rem, auto) 1.5rem;
+  }
+  .viewing-row-place { display: none; }
+  .viewing-row-time { grid-column: 1; }
+  .viewing-row-state { grid-column: 2; grid-row: 1 / span 2; }
+  .viewing-row-arrow { grid-column: 3; grid-row: 1 / span 2; }
+}
+
+@media (max-width: 600px) {
+  
+  .viewings-search { width: 100%; }
+  .viewings-overview { grid-template-columns: 1fr; }
+  .viewings-overview > div + div { padding-left: 0; border-left: 0; border-top: var(--border-hairline) solid var(--color-field-200); }
+  
+  
+  .viewing-row {
+    grid-template-columns: minmax(0, 1fr) 1.5rem;
+    gap: var(--space-2);
+    min-height: 88px;
+    padding: var(--space-3) 0;
+  }
+  .viewing-row-person strong { white-space: normal; }
+  .viewing-row-state,
+  .viewing-row-time { grid-column: 1; grid-row: auto; }
+  .viewing-row-arrow { grid-column: 2; grid-row: 1 / span 3; }
+  .viewing-detail { padding-left: var(--space-5); padding-right: var(--space-5); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .viewing-row { transition: none; }
+}
+
+.viewing-row:hover .viewing-row-arrow { transform: translateX(2px); color: var(--color-ink-500); }

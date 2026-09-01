@@ -1,0 +1,173 @@
+/* Agreements, from the tenant's side.
+   The collection answers which home, with whom, how much and for how long, and
+   offers one action. The document — and the decision — open in a responsive
+   record workspace, in reading order, with the buttons at the end rather than
+   the top. */
+
+.agreements { display: grid; gap: var(--space-6); }
+
+.agreement-filter-empty {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-8) 0;
+  border-bottom: var(--border-hairline) solid var(--color-field-200);
+}
+.agreement-filter-empty strong { color: var(--color-ink-900); font-size: .9375rem; }
+.agreement-filter-empty span { color: var(--color-ink-500); font-size: .875rem; }
+
+/* Three counts, a search, then the stages — the shape every other list in
+   the product uses. A tenant reading their agreements is doing the same job
+   from the other side, and should not have to learn a second way of it. */
+.agreements-overview {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0 0 var(--space-8);
+  border-block: var(--border-hairline) solid var(--color-field-200);
+}
+.agreements-overview > div { display: grid; gap: var(--space-1); padding: var(--space-5) 0; }
+.agreements-overview > div + div { padding-left: var(--space-5); border-left: var(--border-hairline) solid var(--color-field-200); }
+.agreements-overview dt { color: var(--color-ink-500); }
+.agreements-overview dd { margin: 0; font-family: var(--font-display); font-size: 1.5rem; line-height: 2rem; font-weight: 600; }
+.agreements-overview [data-tone="in-place"] { color: var(--color-kola-600); }
+
+.agreements-search { display: block; width: min(100%, 30rem); margin-bottom: var(--space-4); }
+.agreements-search input { width: 100%; min-height: 48px; padding: 0 var(--space-4); color: var(--color-ink-900); background: var(--color-field-0); border: var(--border-hairline) solid var(--color-field-300); border-radius: var(--radius-sm); font: inherit; }
+
+.agreements-filters { display: flex; max-width: 100%; gap: var(--space-2); margin-bottom: var(--space-3); overflow-x: auto; scrollbar-width: none; }
+.agreements-filters::-webkit-scrollbar { display: none; }
+.agreements-filters button { min-height: 44px; padding: 0 var(--space-3); color: var(--color-ink-500); background: transparent; border: var(--border-hairline) solid var(--color-field-200); border-radius: 999px; font: inherit; font-size: .875rem; font-weight: 600; white-space: nowrap; cursor: pointer; }
+.agreements-filters button[aria-pressed="true"] { color: var(--color-kola-600); background: var(--color-kola-50); border-color: var(--color-kola-300); }
+.agreements-filters span { color: inherit; opacity: .75; }
+.agreements-search input:focus-visible, .agreements-filters button:focus-visible { outline: 3px solid var(--color-lagoon-600); outline-offset: 2px; }
+
+.agreements-list { display: grid; gap: 0; padding: 0; margin: 0; list-style: none; }
+
+.agreement-row {
+  text-decoration: none;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 15rem) 1.5rem;
+  gap: var(--space-5);
+  align-items: center;
+  width: 100%;
+  padding: var(--space-4) var(--space-5);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-bottom: var(--border-hairline) solid var(--color-field-200);
+  border-radius: 0;
+  cursor: pointer;
+  transition: background var(--motion-duration-fast) var(--motion-easing-standard), box-shadow var(--motion-duration-fast) var(--motion-easing-standard);
+}
+
+/* An offer waiting on the tenant is the one thing on this page that is theirs
+   to do, so it is the one thing that carries the accent. */
+.agreement-row:hover { background: var(--color-field-0); }
+.agreement-row.is-action,
+.agreement-row.is-action:hover { background: var(--color-kola-50); box-shadow: inset 3px 0 0 var(--color-kola-600); }
+/* The chevron every other list ends its row with, and the nudge that says
+   the row is about to take you somewhere. */
+.agreement-row-arrow {
+  align-self: center;
+  color: var(--color-ink-300);
+  font-size: 1.5rem;
+  transition: transform var(--motion-duration-fast) var(--motion-easing-standard),
+    color var(--motion-duration-fast) var(--motion-easing-standard);
+}
+.agreement-row:hover .agreement-row-arrow { transform: translateX(2px); color: var(--color-ink-500); }
+
+.agreement-row-main { display: grid; gap: 2px; min-width: 0; }
+.agreement-home { margin: 0; color: var(--color-ink-900); font-size: 1.0625rem; font-weight: 650; }
+.agreement-with { margin: 0; color: var(--color-ink-500); font-size: .875rem; }
+.agreement-money { margin: var(--space-1) 0 0; color: var(--color-ink-900); font-size: .9375rem; font-weight: 650; }
+.agreement-money span { color: var(--color-ink-500); font-weight: 400; }
+.agreement-dates { margin: 0; color: var(--color-ink-500); font-size: .875rem; }
+.agreement-reason { margin: var(--space-2) 0 0; padding-left: var(--space-3); color: var(--color-ink-700); font-size: .875rem; border-left: 2px solid var(--color-field-300); }
+
+.agreement-row-side { display: grid; align-content: center; }
+
+.agreement-standing { display: flex; align-items: center; gap: var(--space-2); margin: 0; color: var(--color-ink-700); font-size: .875rem; font-weight: 650; }
+.agreement-standing i { display: block; flex: 0 0 auto; width: 8px; height: 8px; background: var(--color-ink-300); border-radius: 50%; }
+.agreement-standing.is-action { color: var(--color-kola-600); }
+.agreement-standing.is-action i { background: var(--color-kola-600); }
+.agreement-standing.is-active i { background: var(--color-kola-300); }
+
+
+/* --- inside the agreement record ----------------------------------------- */
+
+/* The number the decision is actually about. */
+.agreement-total { margin: 0; font-size: 1.625rem; font-weight: 650; line-height: 1.2; }
+.agreement-total span { color: var(--color-ink-500); font-size: .9375rem; font-weight: 400; }
+
+.agreement-terms { display: grid; gap: var(--space-2); margin: 0; }
+.agreement-terms div { display: flex; justify-content: space-between; gap: var(--space-4); min-height: 28px; align-items: baseline; }
+.agreement-terms dt { color: var(--color-ink-500); font-size: .9375rem; }
+.agreement-terms dd { margin: 0; font-size: .9375rem; font-weight: 650; text-align: right; }
+
+/* The landlord's own words, at their own length. Never truncated: water and
+   electricity arrangements are the commonest source of a later argument. */
+.agreement-conditions { max-width: 62ch; margin: 0; white-space: pre-wrap; }
+
+.agreement-acceptances { display: grid; gap: var(--space-1); padding: 0; margin: 0; list-style: none; font-size: .9375rem; }
+.agreement-acceptances span { color: var(--color-ink-500); }
+.agreement-record code { font-family: var(--font-mono, monospace); font-size: .8125rem; overflow-wrap: anywhere; }
+
+/* The decision, at the end of the reading rather than pinned above it. */
+.agreement-decision { display: grid; gap: var(--space-4); padding: var(--space-5); background: var(--color-field-50); border: var(--border-hairline) solid var(--color-field-200); border-radius: var(--radius-lg); }
+.agreement-decision h3 { margin: 0; color: var(--color-ink-500); font-size: .75rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+
+.agreement-actions { display: flex; flex-wrap: wrap; gap: var(--space-3); }
+.agreement-confirm { display: grid; gap: var(--space-3); }
+
+/* What is actually being agreed to, in figures, at the moment of agreeing. */
+.agreement-consequence { max-width: 60ch; margin: 0; font-size: 1rem; font-weight: 650; }
+
+.agreement-reason-field { display: grid; gap: var(--space-2); }
+.agreement-reason-field textarea { padding: var(--space-3); font: inherit; background: var(--color-field-0); border: var(--border-hairline) solid var(--color-field-300); border-radius: var(--radius-md); resize: vertical; }
+
+.agreement-charges { display: grid; gap: var(--space-2); padding: 0; margin: 0; list-style: none; }
+.agreement-charges li { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-4); padding-bottom: var(--space-2); border-bottom: var(--border-hairline) solid var(--color-field-200); }
+.agreement-charges span { display: grid; gap: 2px; }
+.agreement-charges li > span:last-child { text-align: right; font-weight: 650; }
+.agreement-charges em { color: var(--color-ink-500); font-size: .8125rem; font-style: normal; font-weight: 400; }
+.agreement-charges .is-overdue { color: var(--color-laterite-600); }
+
+.tenant-agreement-record {
+  min-width: 0;
+  align-self: start;
+  background: var(--color-field-0);
+  border: var(--border-hairline) solid var(--color-field-200);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+.tenant-agreement-record.is-empty { display: grid; min-height: 18rem; place-items: center; padding: var(--space-6); text-align: center; }
+.tenant-agreement-record-panel { display: grid; gap: var(--space-5); }
+.tenant-agreement-record-head { display: grid; gap: var(--space-3); padding: var(--space-5); border-bottom: var(--border-hairline) solid var(--color-field-200); }
+.tenant-agreement-record-head > div { min-width: 0; }
+.tenant-agreement-record-head h2 { margin: 0; font-size: 1.25rem; line-height: 1.75rem; }
+.tenant-agreement-record-head p { margin: var(--space-1) 0 0; }
+
+/* Agreement detail is a full page now, so the page owns vertical scrolling.
+   Keeping the old split-pane overflow here traps wheel and touch gestures when
+   they begin over the rendered agreement, especially at the body's boundary. */
+.tenant-agreement-record-body { display: grid; min-height: 0; gap: var(--space-5); padding: var(--space-5); }
+
+@media (max-width: 720px) {
+  .agreement-row { grid-template-columns: minmax(0, 1fr) 1.5rem; gap: var(--space-3); }
+  .agreement-row-arrow { grid-column: 2; grid-row: 1 / span 2; }
+  .agreement-row-side { padding-top: var(--space-3); border-top: var(--border-hairline) solid var(--color-field-200); }
+  .agreement-total { font-size: 1.5rem; }
+}
+
+/* Sections inside a record are quieter than the page headings above them: the
+   record title already said what this is. */
+.record-section { display: grid; gap: var(--space-3); }
+.record-section h3 { margin: 0; color: var(--color-ink-500); font-size: .75rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.record-section + .record-section { padding-top: var(--space-5); border-top: var(--border-hairline) solid var(--color-field-200); }
+
+/* A record that is its own page sticks to nothing and is capped by nothing;
+   both rules existed to hold a pane beside a list. */
+@media (max-width: 63.99rem) {
+  .tenant-agreement-record-head h2 { font-size: 1.125rem; line-height: 1.5rem; }
+}

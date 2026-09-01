@@ -1,0 +1,940 @@
+/* The authenticated portal shell.
+ *
+ * Daylight & Ledger, applied to software rather than a page: hairlines instead
+ * of shadows, structure from alignment and typography instead of a card around
+ * every section, nothing rounder than 12px, and 48px targets.
+ *
+ * The layout is a two-column grid above the large breakpoint and a stacked
+ * document below it. The sidebar is not a shrunken desktop sidebar on small
+ * screens — it becomes a slide-over, because a permanent rail on a 360px phone
+ * costs half the width the content needs.
+ */
+
+.portal {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  background: var(--color-field-50);
+}
+
+/* --- the rail ------------------------------------------------------------ */
+
+.portal-rail {
+  display: none;
+  flex-direction: column;
+  gap: var(--space-6);
+  padding: var(--space-5) var(--space-4);
+  background: var(--color-field-0);
+  border-right: var(--border-hairline) solid var(--color-field-200);
+}
+
+.portal-rail-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--target-min);
+}
+
+.portal-brand {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--target-min);
+  padding: 0 var(--space-2);
+  color: var(--color-ink-900);
+  text-decoration: none;
+}
+
+/* Understated on purpose: it sits beside the brand, is the size of the icons
+   it governs, and only picks up ink on hover. A collapse control that shouts
+   is a control competing with the navigation it exists to serve. */
+.portal-collapse {
+  flex: none;
+  width: 2rem;
+  height: 2rem;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-ink-300);
+  cursor: pointer;
+  transition: color var(--motion-duration-instant) var(--motion-easing-standard),
+              background-color var(--motion-duration-instant) var(--motion-easing-standard);
+}
+
+.portal-collapse:hover { background: var(--color-field-50); color: var(--color-ink-700); }
+
+/* Same glyph, reversed: pointing out of the rail means "expand". */
+.portal.is-collapsed .portal-collapse .portal-icon { rotate: 180deg; }
+
+.portal-collapse .portal-icon {
+  color: inherit;
+  transition: rotate var(--motion-duration-base) var(--motion-easing-standard);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .portal-collapse .portal-icon { transition: none; }
+}
+
+/* The stamp again, at nav scale: a square print mark, not a rounded app icon. */
+.portal-brand-mark {
+  flex: none;
+  width: 1.75rem;
+  height: 1.75rem;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-stamp);
+  background: var(--color-kola-600);
+  color: var(--color-field-0);
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  font-weight: 500;
+}
+
+.portal-brand-text { display: grid; line-height: 1.2; min-width: 0; }
+.portal-brand-text strong { font-size: 0.9375rem; font-weight: 600; }
+.portal-brand-text span {
+  color: var(--color-ink-500);
+  font-size: 0.75rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.portal-nav {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-5);
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+.portal-nav-section { display: grid; gap: var(--space-1); }
+
+.portal-nav-title {
+  padding: 0 var(--space-2);
+  margin-bottom: var(--space-1);
+  color: var(--color-ink-500);
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.portal-nav-link {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 2.5rem;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  color: var(--color-ink-700);
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-decoration: none;
+  transition: background-color var(--motion-duration-instant) var(--motion-easing-standard);
+}
+
+.portal-nav-label { flex: 1; min-width: 0; }
+
+/* 20px in a 20px box, never scaled up when the labels go. An oversized glyph
+   is the commonest way a collapsed rail starts looking like a toolbar. */
+.portal-icon { flex: none; width: 20px; height: 20px; color: var(--color-ink-500); }
+.portal-nav-link:hover .portal-icon { color: var(--color-ink-700); }
+.portal-nav-link[aria-current="page"] .portal-icon { color: var(--color-kola-600); }
+
+.portal-nav-link:hover { background: var(--color-field-50); }
+
+.portal-nav-link[aria-current="page"] {
+  background: var(--color-kola-50);
+  color: var(--color-kola-800);
+  font-weight: 600;
+}
+
+/* The active marker is a printed rule down the edge, matching the Stamp. */
+.portal-nav-link[aria-current="page"]::before {
+  content: "";
+  position: absolute;
+  left: calc(var(--space-3) * -1 + 2px);
+  top: 50%;
+  width: var(--border-stamp);
+  height: 1.125rem;
+  translate: 0 -50%;
+  border-radius: var(--radius-stamp);
+  background: var(--color-kola-600);
+}
+
+.portal-nav-hint {
+  display: none;
+  color: var(--color-ink-500);
+  font-size: 0.75rem;
+  font-weight: 400;
+}
+
+.portal-count {
+  flex: none;
+  min-width: 1.25rem;
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-sm);
+  background: var(--color-kola-600);
+  color: var(--color-field-0);
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.25rem;
+  text-align: center;
+}
+
+.portal-nav-link[aria-current="page"] .portal-count { background: var(--color-kola-800); }
+
+/* --- collapsed -------------------------------------------------------------
+   The rail narrows to a single column of icons. Everything that carried text
+   is hidden rather than removed, so the accessible names survive and only the
+   drawing changes. */
+
+.portal.is-collapsed .portal-rail { padding-inline: var(--space-3); }
+
+.portal.is-collapsed .portal-rail-head { justify-content: center; }
+
+.portal.is-collapsed .portal-brand {
+  flex: none;
+  justify-content: center;
+  padding: 0;
+}
+
+.portal.is-collapsed .portal-brand-text { display: none; }
+
+/* The control moves under the mark rather than beside it, where there is no
+   longer room for both — close enough to read as one group rather than as a
+   button someone left behind. */
+.portal.is-collapsed .portal-rail-head {
+  flex-direction: column;
+  gap: 2px;
+  padding-bottom: var(--space-2);
+  border-bottom: var(--border-hairline) solid var(--color-field-200);
+}
+
+.portal.is-collapsed .portal-nav-link {
+  justify-content: center;
+  padding-inline: 0;
+  gap: 0;
+}
+
+.portal.is-collapsed .portal-nav-section { gap: var(--space-1); }
+.portal.is-collapsed .portal-nav { gap: var(--space-4); }
+
+/* The active rule would have nothing to sit beside once the padding goes, so
+   collapsed it becomes the filled tile itself plus a rule at the rail edge. */
+.portal.is-collapsed .portal-nav-link[aria-current="page"]::before {
+  left: calc(var(--space-3) * -1);
+  height: 1.5rem;
+}
+
+/* --- tooltips, collapsed only ---------------------------------------------
+   Decoration over an accessible name that is already there: the label sits in
+   the DOM, visually hidden, so this is `aria-hidden` and nothing depends on
+   it. Positioned clear of the rail so it never covers the icon below. */
+.portal-tip {
+  position: absolute;
+  left: calc(100% + var(--space-3));
+  top: 50%;
+  z-index: 60;
+  translate: 0 -50%;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--color-ink-900);
+  color: var(--color-field-0);
+  font-size: 0.75rem;
+  font-weight: 500;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--motion-duration-instant) var(--motion-easing-standard);
+}
+
+.portal-nav-link:hover .portal-tip,
+.portal-nav-link:focus-visible .portal-tip { opacity: 1; }
+
+@media (prefers-reduced-motion: reduce) {
+  .portal-tip { transition: none; }
+}
+
+/* --- the account control, at the foot of the rail ------------------------ */
+
+.portal-rail-foot {
+  margin-top: auto;
+  padding-top: var(--space-4);
+  border-top: var(--border-hairline) solid var(--color-field-200);
+}
+
+.portal-account { position: relative; }
+
+.portal-account-trigger {
+  width: 100%;
+  min-height: var(--target-min);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2);
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--motion-duration-instant) var(--motion-easing-standard);
+}
+
+.portal-account-trigger:hover { background: var(--color-field-50); }
+
+/* Collapsed it is the avatar and nothing else, centred in the rail and still
+   anchored at the bottom — the same control, drawn smaller. */
+.portal-account-trigger.is-collapsed {
+  justify-content: center;
+  padding: var(--space-2) 0;
+}
+
+.portal-avatar {
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-pill);
+  background: var(--color-kola-600);
+  color: var(--color-field-0);
+  font-family: var(--font-body);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+/* The photo variant. `object-fit: cover` because a portrait held in a circle
+   must crop rather than squash, and a hairline keeps a pale photo from
+   dissolving into a pale rail. */
+.portal-avatar-photo {
+  object-fit: cover;
+  background: var(--color-field-100);
+  box-shadow: inset 0 0 0 1px var(--color-rule);
+}
+
+.portal-account-identity { flex: 1; min-width: 0; display: grid; line-height: 1.25; }
+
+.portal-account-name {
+  font-size: 0.875rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.portal-account-role { color: var(--color-ink-500); font-size: 0.75rem; }
+
+.portal-account-caret { flex: none; color: var(--color-ink-300); }
+.portal-account-trigger[aria-expanded="true"] .portal-account-caret { color: var(--color-ink-700); }
+
+/* --- the account menu ----------------------------------------------------- */
+
+/* Anchored to the trigger, opening upward because the trigger is at the floor
+   of the viewport. One of the two places elevation is allowed. */
+.portal-menu {
+  position: absolute;
+  bottom: calc(100% + var(--space-2));
+  left: 0;
+  z-index: 70;
+  width: max-content;
+  min-width: 15rem;
+  max-width: min(20rem, calc(100vw - var(--space-8)));
+  padding: var(--space-2);
+  border: var(--border-hairline) solid var(--color-field-200);
+  border-radius: var(--radius-lg);
+  background: var(--color-field-0);
+  box-shadow: var(--shadow-modal);
+  animation: portal-menu-in var(--motion-duration-fast) var(--motion-easing-enter);
+}
+
+/* Collapsed, the rail is too narrow to hang a menu under, so it opens beside
+   the avatar instead of over the workspace edge. */
+.portal-menu.is-beside { left: calc(100% + var(--space-2)); bottom: 0; }
+
+/* Flipped when a short window leaves no room above. */
+.portal-menu.is-below { bottom: auto; top: calc(100% + var(--space-2)); }
+.portal-menu.is-beside.is-below { top: 0; bottom: auto; }
+
+@keyframes portal-menu-in {
+  from { opacity: 0; translate: 0 4px; }
+  to { opacity: 1; translate: 0 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .portal-menu { animation-duration: 1ms; }
+}
+
+.portal-menu-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3) var(--space-3);
+}
+
+.portal-menu-who { min-width: 0; display: grid; gap: 1px; line-height: 1.3; }
+.portal-menu-who strong { font-size: 0.875rem; font-weight: 600; }
+.portal-menu-who span {
+  color: var(--color-ink-500);
+  font-size: 0.75rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.portal-menu-mono { font-family: var(--font-mono); }
+
+.portal-menu-group {
+  display: grid;
+  gap: 1px;
+  padding-top: var(--space-2);
+  border-top: var(--border-hairline) solid var(--color-field-200);
+}
+
+.portal-menu-item {
+  width: 100%;
+  min-height: 2.25rem;
+  display: flex;
+  align-items: center;
+  padding: var(--space-2) var(--space-3);
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-ink-900);
+  font: inherit;
+  font-size: 0.875rem;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.portal-menu-item:hover { background: var(--color-field-50); }
+.portal-menu-item.is-quiet { color: var(--color-ink-700); }
+.portal-menu-item:disabled { color: var(--color-ink-300); cursor: wait; }
+
+/* --- the header ---------------------------------------------------------- */
+
+.portal-workspace { min-width: 0; display: flex; flex-direction: column; }
+
+/* Same ground as the workspace, one hairline, no shadow. It should read as
+   the top of the page rather than as a bar sitting on top of it. */
+.portal-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 3.25rem;
+  padding: 0 var(--space-4);
+  border-bottom: var(--border-hairline) solid var(--color-field-200);
+  background: var(--color-field-50);
+}
+
+/* --- Portfolio search ------------------------------------------------------
+ *
+ * A field that stays one size. Growing on focus was the previous behaviour and
+ * it made the header jump under the cursor at the exact moment somebody was
+ * aiming at it; the affordance now comes from the border and a ring, which cost
+ * no layout.
+ */
+
+.portal-search { position: relative; flex: 0 1 22rem; min-width: 0; }
+
+.portal-search-field {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-2);
+  height: 2.25rem;
+  padding: 0 var(--space-3);
+  color: var(--color-ink-500);
+  background: var(--color-field-0);
+  border: var(--border-hairline) solid var(--color-field-200);
+  border-radius: var(--radius-md);
+  transition: border-color var(--motion-duration-fast) var(--motion-easing-standard),
+    box-shadow var(--motion-duration-fast) var(--motion-easing-standard);
+}
+.portal-search-field:focus-within {
+  border-color: var(--color-kola-600);
+  box-shadow: 0 0 0 3px var(--color-kola-50);
+}
+.portal-search-field svg { width: 16px; height: 16px; }
+.portal-search-field input {
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  color: var(--color-ink-900);
+  font: 400 0.875rem/1 var(--font-body);
+  background: none;
+  border: 0;
+  outline: 0;
+  appearance: none;
+}
+.portal-search-field input::placeholder { color: var(--color-ink-300); }
+.portal-search-field input::-webkit-search-cancel-button { appearance: none; }
+
+.portal-search-results {
+  position: absolute;
+  top: calc(100% + var(--space-2));
+  right: 0;
+  left: 0;
+  z-index: 40;
+  padding: var(--space-2);
+  background: var(--color-field-0);
+  border: var(--border-hairline) solid var(--color-field-200);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-modal);
+}
+.portal-search-results ul { display: grid; padding: 0; margin: 0; list-style: none; }
+.portal-search-results li + li { border-top: var(--border-hairline) solid var(--color-field-100); }
+.portal-search-results a {
+  display: grid;
+  grid-template-columns: 2rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 3rem;
+  padding: var(--space-2);
+  color: inherit;
+  text-decoration: none;
+  border-radius: var(--radius-md);
+  transition: background-color var(--motion-duration-fast) var(--motion-easing-standard);
+}
+.portal-search-results a:hover { background: var(--color-field-50); }
+.portal-search-results a > span:first-child {
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  place-items: center;
+  color: var(--color-kola-600);
+  background: var(--color-kola-50);
+  border-radius: var(--radius-md);
+}
+.portal-search-results a > span:nth-child(2) { display: grid; min-width: 0; }
+.portal-search-results strong { overflow: hidden; font-size: 0.875rem; text-overflow: ellipsis; white-space: nowrap; }
+.portal-search-results small { color: var(--color-ink-500); font-size: 0.75rem; }
+.portal-search-results b { color: var(--color-ink-300); }
+.portal-search-results p { margin: 0; padding: var(--space-4); color: var(--color-ink-500); font-size: 0.8125rem; text-align: center; }
+
+/* Below the rail breakpoint the header is already carrying a menu button and a
+   title, and a field between them leaves room for neither. */
+@media (max-width: 47.99rem) {
+  .portal-search { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .portal-search-field, .portal-search-results a { transition: none; }
+}
+
+/* Notifications, and deliberately nothing else. The account menu lives in the
+   rail; a second avatar here would be two controls for one job. */
+.portal-header-updates {
+  position: relative;
+  flex: none;
+  width: var(--target-min);
+  height: var(--target-min);
+  margin-left: var(--space-2);
+  margin-right: 2px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-md);
+  color: var(--color-ink-700);
+  text-decoration: none;
+}
+
+.portal-header-updates:hover { background: var(--color-field-100); }
+
+.portal-header-updates .portal-count {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  pointer-events: none;
+}
+
+/* Collapsed, the count has no room to sit beside a label, so it becomes a
+   mark: the number is still spoken, and the dot is what is drawn. */
+.portal-dot {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 7px;
+  height: 7px;
+  border-radius: var(--radius-pill);
+  background: var(--color-kola-600);
+}
+
+.portal-header-title {
+  min-width: 0;
+  /* Pushes everything after it to the right. It has to live here rather than on
+     the search, which only exists for providers — with it there, a tenant's
+     header had nothing holding the bell against the edge. */
+  margin-right: auto;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.portal-menu-button {
+  flex: none;
+  width: var(--target-min);
+  height: var(--target-min);
+  display: grid;
+  place-items: center;
+  margin-left: calc(var(--space-2) * -1);
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-ink-900);
+  cursor: pointer;
+}
+
+.portal-menu-button:hover { background: var(--color-field-50); }
+
+/* --- content ------------------------------------------------------------- */
+
+.portal-main {
+  flex: 1;
+  width: 100%;
+  max-width: 78rem;
+  padding: var(--space-6) var(--space-4) var(--space-16);
+}
+
+.portal-page-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  padding-bottom: var(--space-5);
+  margin-bottom: var(--space-6);
+  border-bottom: var(--border-hairline) solid var(--color-field-200);
+}
+
+.portal-page-header > div:first-child { min-width: 0; }
+
+.portal-page-header h1 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(1.5rem, 1.15rem + 1.4vw, 1.875rem);
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+
+.portal-page-header p {
+  max-width: 60ch;
+  margin: var(--space-2) 0 0;
+  color: var(--color-ink-500);
+  font-size: 0.875rem;
+}
+
+.portal-page-actions { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+
+/* --- sections ------------------------------------------------------------ */
+
+/* A section is a heading and a hairline, not a card. Containers are used where
+   they carry a boundary that means something — a record, a form — and nowhere
+   else. */
+.portal-section { margin-bottom: var(--space-10); }
+
+.portal-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.portal-section-head h2 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.portal-section-head a { font-size: 0.8125rem; font-weight: 500; }
+
+/* --- record rows --------------------------------------------------------- */
+
+/* The ledger. Rows separated by rules, amounts in tabular mono, nothing
+   floating in its own rounded box. */
+.portal-rows { list-style: none; margin: 0; padding: 0; }
+
+.portal-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-4) 0;
+  border-top: var(--border-hairline) solid var(--color-field-200);
+}
+
+.portal-row:last-child { border-bottom: var(--border-hairline) solid var(--color-field-200); }
+.portal-row-main { min-width: 0; display: grid; gap: var(--space-1); }
+.portal-row-title { font-size: 0.9375rem; font-weight: 600; }
+.portal-row-meta { color: var(--color-ink-500); font-size: 0.8125rem; }
+.portal-row-side { flex: none; display: grid; gap: var(--space-2); justify-items: end; text-align: right; }
+
+.provider-home-action {
+  min-height: var(--target-min);
+  display: inline-flex;
+  align-items: center;
+}
+
+.portal-amount {
+  font-family: var(--font-mono);
+  font-size: 0.9375rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- the one panel we do use --------------------------------------------- */
+
+/* Reserved for a single focal record — the tenancy on tenant home, the review
+   on provider home. It earns its border by being the thing the page is about. */
+.portal-panel {
+  padding: var(--space-5);
+  border: var(--border-hairline) solid var(--color-field-200);
+  border-radius: var(--radius-lg);
+  background: var(--color-field-0);
+}
+
+.portal-panel-lead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.portal-figure { display: grid; gap: var(--space-1); }
+.portal-figure dt { color: var(--color-ink-500); font-size: 0.75rem; }
+.portal-figure dd {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 1.125rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.portal-figures {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr));
+  gap: var(--space-5);
+  margin: var(--space-5) 0 0;
+  padding-top: var(--space-5);
+  border-top: var(--border-hairline) solid var(--color-field-200);
+}
+
+/* --- empty and loading --------------------------------------------------- */
+
+/* "Empty screens are invitations, not apologies." */
+.portal-empty {
+  padding: var(--space-10) var(--space-5);
+  border: var(--border-hairline) dashed var(--color-field-300);
+  border-radius: var(--radius-md);
+  text-align: center;
+}
+
+.portal-empty h3 { margin: 0 0 var(--space-2); font-size: 1rem; font-weight: 600; }
+.portal-empty p { max-width: 44ch; margin: 0 auto var(--space-4); color: var(--color-ink-500); font-size: 0.875rem; }
+.portal-empty > :last-child { margin-bottom: 0; }
+
+/* Skeletons animate opacity only, and hold still under reduced motion. */
+.portal-skeleton {
+  height: 1rem;
+  border-radius: var(--radius-sm);
+  background: var(--color-field-100);
+  animation: portal-pulse 1.4s ease-in-out infinite;
+}
+
+.portal-skeleton-row {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-4) 0;
+  border-top: var(--border-hairline) solid var(--color-field-200);
+}
+
+@keyframes portal-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .portal-skeleton { animation: none; }
+}
+
+/* --- the slide-over, below the rail breakpoint --------------------------- */
+
+.portal-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  border: 0;
+  padding: 0;
+  background: rgb(16 26 23 / 45%);
+  animation: portal-fade var(--motion-duration-fast) var(--motion-easing-enter);
+}
+
+.portal-drawer {
+  position: fixed;
+  inset: 0 auto 0 0;
+  z-index: 50;
+  width: min(19rem, 86vw);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  padding: var(--space-5) var(--space-4);
+  overflow-y: auto;
+  background: var(--color-field-0);
+  border-right: var(--border-hairline) solid var(--color-field-200);
+  animation: portal-slide var(--motion-duration-base) var(--motion-easing-enter);
+}
+
+/* Room to explain, so the drawer carries the hints the rail omits. */
+.portal-drawer .portal-nav-link { min-height: var(--target-min); }
+.portal-drawer .portal-nav-link > span:first-child { display: grid; gap: 2px; }
+.portal-drawer .portal-nav-hint { display: block; }
+
+@keyframes portal-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes portal-slide { from { translate: -100% 0; } to { translate: 0 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .portal-scrim, .portal-drawer { animation-duration: 1ms; }
+}
+
+/* --- breakpoints --------------------------------------------------------- */
+
+/* The rail appears at tablet width and up. Below that it is a drawer, because
+   a 68px strip on a 360px phone is a sixth of the screen spent on chrome. */
+@media (min-width: 48rem) {
+  /* The track follows the rail rather than being sized directly. Transitioning
+     `grid-template-columns` looked equivalent and was not: the interpolation
+     pins the computed value at the start width, so the rail stayed 264px while
+     every other collapsed rule applied — a collapsed sidebar that had not
+     narrowed. Animating the rail's own width is also the cheaper of the two,
+     which is what the design system asks for. */
+  .portal { grid-template-columns: auto minmax(0, 1fr); }
+
+  .portal-rail {
+    display: flex;
+    position: sticky;
+    top: 0;
+    width: 16.5rem;
+    height: 100vh;
+    height: 100dvh;
+  }
+
+  .portal.is-collapsed .portal-rail { width: 4.25rem; }
+
+  /* The workspace takes the reclaimed width as the rail gives it up, in one
+     movement. Enabled only once the stored preference is known, so the first
+     paint settles instead of sliding. */
+  .portal[data-ready] .portal-rail {
+    transition: width var(--motion-duration-base) var(--motion-easing-standard);
+  }
+
+  /* The menu button belongs to the drawer, which does not exist at this width. */
+  .portal-menu-button { display: none; }
+
+  .portal-main { padding: var(--space-8) var(--space-6) var(--space-16); }
+}
+
+@media (min-width: 64rem) {
+  .portal-main { padding-inline: var(--space-8); }
+}
+
+@media (min-width: 90rem) {
+  .portal-main { padding-inline: var(--space-10); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .portal[data-ready] .portal-rail { transition: none; }
+}
+
+/* Below the rail, the page needs its own title back, because the sidebar that
+   was carrying the sense of place is now hidden behind a button. */
+@media (max-width: 40rem) {
+  .portal-page-header { align-items: flex-start; flex-direction: column; gap: var(--space-3); }
+  .portal-page-actions { width: 100%; }
+  .portal-row { align-items: flex-start; flex-direction: column; gap: var(--space-3); }
+  .portal-row-side { justify-items: start; text-align: left; }
+}
+
+/* --- the gate: what a portal route shows with nobody to show it to -------- */
+
+/* Centred and narrow, because it is one sentence and one action. It is not a
+   page of the portal — the rail is absent here — so it carries its own margins
+   rather than sitting in the workspace grid. */
+.portal-gate {
+  max-width: 34rem;
+  margin: clamp(var(--space-10), 12vh, var(--space-16)) auto;
+  padding: 0 var(--space-5);
+  text-align: center;
+}
+
+.portal-gate h1 {
+  margin: 0 0 var(--space-3);
+  font-family: var(--font-display);
+  font-size: clamp(1.375rem, 1.1rem + 1.2vw, 1.75rem);
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.portal-gate p {
+  max-width: 46ch;
+  margin: 0 auto var(--space-6);
+  color: var(--color-ink-500);
+  font-size: 0.9375rem;
+}
+
+.portal-gate-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-5);
+  flex-wrap: wrap;
+}
+
+.portal-gate-button {
+  min-height: var(--target-min);
+  display: inline-flex;
+  align-items: center;
+  padding: 0 var(--space-5);
+  border: var(--border-hairline) solid var(--color-kola-600);
+  border-radius: var(--radius-md);
+  background: var(--color-kola-600);
+  color: var(--color-field-0);
+  font: inherit;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.portal-gate-button:hover { background: var(--color-kola-800); border-color: var(--color-kola-800); }
+.portal-gate-button:disabled { opacity: 0.6; cursor: wait; }
+
+.portal-gate-link { color: var(--color-ink-700); font-size: 0.875rem; }
+
+/* An identity we hold but could not re-confirm. Stated plainly rather than
+   dressed as an error: nothing is wrong with the account, and the figures below
+   are real — just possibly a moment old. */
+.portal-stale {
+  margin: 0 0 var(--space-5);
+  padding: var(--space-3) var(--space-4);
+  border: var(--border-hairline) solid var(--color-harmattan-500);
+  border-radius: var(--radius-md);
+  background: var(--color-harmattan-100);
+  color: var(--color-harmattan-600);
+  font-size: 0.8125rem;
+}

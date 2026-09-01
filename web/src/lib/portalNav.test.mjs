@@ -1,0 +1,144 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+
+import {
+  activeHref,
+  isPortalRoute,
+  isSharedListingRoute,
+  portalSections,
+} from "./portalNav.compiled.mjs";
+
+/**
+ * Navigation is the one thing on every screen, so a wrong answer here is a
+ * wrong answer everywhere. These tests hold the two properties that matter:
+ * the menu is derived from capabilities and never from a role name, and a
+ * tenant is never offered provider sections (or the reverse).
+ */
+
+function account({
+  workspace = "tenant",
+  exists = false,
+  workspaceAccess = false,
+  available = ["discovery", "tenant"],
+} = {}) {
+  return {
+    capabilities: {
+      active_workspace: workspace,
+      available_workspaces: available,
+      provider: { exists, workspace_access: workspaceAccess },
+      tenant: { workspace_access: true },
+    },
+  };
+}
+
+const hrefs = (me) => portalSections(me).flatMap((section) => section.items.map((i) => i.href));
+
+test("a tenant is offered their rental journey, and no provider operations", () => {
+  const links = hrefs(account());
+
+  assert.deepEqual(links, [
+    "/home", "/rentals", "/saved", "/applications", "/leases", "/payments", "/viewings", "/updates",
+  ]);
+  assert.ok(!links.includes("/properties"));
+  assert.ok(!links.includes("/provider"));
+});
+
+test("an approved provider is offered the portfolio, and no tenant shortlist", () => {
+  const links = hrefs(account({
+    workspace: "provider", exists: true, workspaceAccess: true,
+  }));
+
+  assert.deepEqual(links, [
+    "/home", "/properties", "/units", "/tenants", "/leases", "/payments",
+    "/applications", "/viewings", "/updates",
+  ]);
+  assert.ok(!links.includes("/saved"));
+});
+
+test("a provider still in review gets the review, and no operational sections", () => {
+  // Every one of those endpoints would refuse, so offering them would be a menu
+  // of dead ends.
+  const links = hrefs(account({ workspace: "provider", exists: true, workspaceAccess: false }));
+
+  assert.deepEqual(links, ["/home", "/provider", "/updates"]);
+});
+
+test("a provider viewing the tenant side sees the tenant menu", () => {
+  // The workspace leads, not the account type. Someone who crossed over is in
+  // the tenant experience and should be given it.
+  const links = hrefs(account({
+    workspace: "tenant",
+    exists: true,
+    workspaceAccess: true,
+    available: ["discovery", "tenant", "provider"],
+  }));
+
+  assert.ok(links.includes("/saved"));
+  assert.ok(!links.includes("/properties"));
+});
+
+test("the active item is the longest match, not the first", () => {
+  const sections = portalSections(account({
+    workspace: "provider", exists: true, workspaceAccess: true,
+  }));
+
+  assert.equal(activeHref(sections, "/properties"), "/properties");
+  assert.equal(activeHref(sections, "/properties/new"), "/properties");
+  assert.equal(activeHref(sections, "/tenants"), "/tenants");
+  assert.equal(activeHref(sections, "/home"), "/home");
+  assert.equal(activeHref(sections, "/nowhere"), null);
+});
+
+test("portal routes are portal routes; listings belong to whoever is looking", () => {
+  assert.ok(isPortalRoute("/home"));
+  assert.ok(isPortalRoute("/apply/abc"));
+  assert.ok(isPortalRoute("/properties/abc"));
+  assert.ok(!isPortalRoute("/"));
+  assert.ok(!isPortalRoute("/sign-in"));
+
+  // Deliberately not a portal route: the shell decides from the session, so one
+  // listing implementation serves the public site and Explore both.
+  assert.ok(!isPortalRoute("/rentals"));
+  assert.ok(isSharedListingRoute("/rentals"));
+  assert.ok(isSharedListingRoute("/listings/abc"));
+  assert.ok(!isSharedListingRoute("/home"));
+});
+
+test("every item carries an icon, because collapsed there is nothing else", () => {
+  // In the collapsed rail the icon is the whole control. An item without one
+  // would be an invisible row, so this is checked rather than assumed.
+  for (const me of [
+    account(),
+    account({ workspace: "provider", exists: true, workspaceAccess: true }),
+    account({ workspace: "provider", exists: true, workspaceAccess: false }),
+  ]) {
+    for (const section of portalSections(me)) {
+      for (const item of section.items) {
+        assert.ok(item.icon, `${item.href} has no icon`);
+      }
+    }
+  }
+});
+
+test("account is reached through the avatar, not a nav row", () => {
+  // One account control, not two. The menu behind the avatar owns /account,
+  // and duplicating it in the rail is the competing-menus problem.
+  for (const me of [
+    account(),
+    account({ workspace: "provider", exists: true, workspaceAccess: true }),
+  ]) {
+    assert.ok(!hrefs(me).includes("/account"));
+  }
+});
+
+test("the operational section is named after the Portfolio being operated", () => {
+  // "Where am I" has to be answerable without opening a menu, so the rail says
+  // which Portfolio these areas belong to. It falls back to the generic word
+  // rather than rendering an empty heading.
+  const me = account({ workspace: "provider", exists: true, workspaceAccess: true });
+
+  assert.equal(portalSections(me, "Ama Props")[1].title, "Ama Props");
+  assert.equal(portalSections(me, "   ")[1].title, "Portfolio");
+  assert.equal(portalSections(me, null)[1].title, "Portfolio");
+  assert.equal(portalSections(me)[1].title, "Portfolio");
+});

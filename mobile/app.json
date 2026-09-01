@@ -1,0 +1,61 @@
+{
+  "expo": {
+    "name": "Ghana Rental Platform",
+    "slug": "ghana-rental-platform",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "grp",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "backgroundColor": "#F7F6F1",
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#0B5D4E"
+    },
+    "android": {
+      "package": "gh.rentalplatform.app",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "backgroundColor": "#0B5D4E"
+      },
+      "permissions": [
+        "CAMERA",
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION"
+      ],
+      "blockedPermissions": [
+        "READ_CONTACTS",
+        "RECORD_AUDIO"
+      ],
+      "softwareKeyboardLayoutMode": "pan"
+    },
+    "ios": {
+      "bundleIdentifier": "gh.rentalplatform.app",
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSCameraUsageDescription": "Take photos of a property or a document you are submitting.",
+        "NSLocationWhenInUseUsageDescription": "Show properties near where you are."
+      }
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-localization",
+      "expo-asset",
+      "expo-font",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow Rooomly to scan a tenant's temporary viewing check-in QR code.",
+          "recordAudioAndroid": false
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "//apiUrl": "Left unset on purpose. src/api.ts picks 10.0.2.2 for an Android emulator and localhost for an iOS simulator; set EXPO_PUBLIC_API_URL to your machine's LAN address to run on a real phone."
+    }
+  }
+}

@@ -1,0 +1,312 @@
+.tenants-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-5);
+  margin: 0 0 var(--space-5);
+  color: var(--color-ink-500);
+}
+
+.tenants-tabs {
+  display: flex;
+  gap: var(--space-1);
+  margin-bottom: var(--space-7);
+  padding: var(--space-1);
+  width: fit-content;
+  max-width: 100%;
+  overflow-x: auto;
+  border: var(--border-hairline) solid var(--color-field-200);
+  border-radius: var(--radius-md);
+  background: var(--color-field-100);
+}
+
+.tenants-tab {
+  min-height: var(--target-min);
+  padding: var(--space-2) var(--space-4);
+  border: 0;
+  border-radius: calc(var(--radius-md) - 2px);
+  background: transparent;
+  color: var(--color-ink-600);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.tenants-tab[aria-selected="true"] {
+  background: var(--color-field-0);
+  color: var(--color-ink-900);
+  box-shadow: var(--shadow-flat);
+}
+
+.tenants-toolbar {
+  display: grid;
+  grid-template-columns: minmax(15rem, 1fr) minmax(11rem, 14rem);
+  gap: var(--space-3);
+  align-items: end;
+  margin-bottom: var(--space-5);
+}
+
+.tenants-filter {
+  display: grid;
+  gap: var(--space-2);
+  color: var(--color-ink-700);
+}
+
+.tenants-filter select {
+  min-height: var(--target-min);
+  padding: 0 var(--space-3);
+  border: var(--border-hairline) solid var(--color-field-300);
+  border-radius: var(--radius-md);
+  background: var(--color-field-0);
+  color: var(--color-ink-900);
+}
+
+.tenant-table {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: var(--border-hairline) solid var(--color-field-200);
+}
+
+.tenant-table-head,
+.tenant-table-row {
+  display: grid;
+  grid-template-columns: minmax(10rem, 1.15fr) minmax(12rem, 1.4fr) minmax(9rem, 0.8fr) 3rem;
+  gap: var(--space-4);
+  align-items: center;
+}
+
+.tenant-table-head {
+  padding: var(--space-2) var(--space-3);
+  color: var(--color-ink-500);
+}
+
+.tenant-table-row {
+  position: relative;
+  min-height: 76px;
+  padding: var(--space-3);
+  border-bottom: var(--border-hairline) solid var(--color-field-200);
+}
+
+.tenant-table-row:hover {
+  background: var(--color-field-0);
+}
+
+.tenant-table-primary,
+.tenant-table-secondary {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.tenant-table-primary a,
+.tenant-table-link {
+  color: var(--color-ink-900);
+  text-decoration: none;
+}
+
+.tenant-table-primary a::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+
+.tenant-table-meta {
+  overflow-wrap: anywhere;
+  color: var(--color-ink-500);
+}
+
+.tenant-table-rent[data-tone="overdue"] {
+  color: var(--color-laterite-600);
+}
+
+.tenant-table-rent[data-tone="outstanding"] {
+  color: var(--color-harmattan-600);
+}
+
+.tenant-table-link {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  min-width: var(--target-min);
+  min-height: var(--target-min);
+  color: var(--color-kola-600);
+  font-size: 1.25rem;
+}
+
+.tenant-task-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 22rem), 32rem));
+  gap: var(--space-4);
+}
+
+.tenant-access-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
+  gap: var(--space-4);
+}
+
+.tenancy-detail-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(17rem, 0.65fr);
+  gap: var(--space-8);
+  align-items: start;
+}
+
+.tenancy-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0;
+  border-top: var(--border-hairline) solid var(--color-field-200);
+}
+
+.tenancy-fact {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-4) 0;
+  border-bottom: var(--border-hairline) solid var(--color-field-200);
+}
+
+.tenancy-fact:nth-child(odd) {
+  padding-right: var(--space-5);
+}
+
+.tenancy-fact:nth-child(even) {
+  padding-left: var(--space-5);
+  border-left: var(--border-hairline) solid var(--color-field-200);
+}
+
+.tenancy-fact dt {
+  color: var(--color-ink-500);
+}
+
+.tenancy-fact dd {
+  margin: 0;
+}
+
+.tenancy-quick-links {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tenancy-quick-links a {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: var(--target-min);
+  padding: var(--space-2) 0;
+  border-bottom: var(--border-hairline) solid var(--color-field-200);
+  color: var(--color-ink-900);
+  text-decoration: none;
+}
+
+.lease-dialog {
+  width: min(46rem, calc(100vw - 2rem));
+  max-height: min(48rem, calc(100vh - 2rem));
+  padding: var(--space-6);
+  margin: auto;
+  overflow: auto;
+  border: var(--border-hairline) solid var(--color-field-200);
+  border-radius: var(--radius-lg);
+  background: var(--color-field-0);
+  color: var(--color-ink-900);
+  box-shadow: var(--shadow-modal);
+}
+
+.lease-dialog::backdrop {
+  background: rgb(26 31 29 / 52%);
+}
+
+.lease-dialog-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-5);
+}
+
+.lease-dialog-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+  margin-top: var(--space-5);
+}
+
+.lease-dialog textarea {
+  width: 100%;
+  padding: var(--space-3);
+  border: var(--border-hairline) solid var(--color-field-300);
+  border-radius: var(--radius-md);
+  resize: vertical;
+}
+
+@media (max-width: 980px) {
+  .tenants-toolbar,
+  .tenancy-detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .tenant-table-head {
+    display: none;
+  }
+
+  .tenant-table-row {
+    grid-template-columns: 1fr auto;
+    gap: var(--space-2) var(--space-3);
+    min-height: 92px;
+  }
+
+  .tenant-table-secondary,
+  .tenant-table-rent {
+    grid-column: 1;
+  }
+
+  .tenant-table-link {
+    grid-column: 2;
+    grid-row: 1 / span 3;
+  }
+}
+
+@media (max-width: 420px) {
+  .tenants-tabs {
+    width: 100%;
+  }
+
+  .tenants-tab {
+    flex: 1 0 auto;
+    padding-inline: var(--space-3);
+  }
+
+  .tenancy-facts {
+    grid-template-columns: 1fr;
+  }
+
+  .tenancy-fact:nth-child(odd),
+  .tenancy-fact:nth-child(even) {
+    padding-inline: 0;
+    border-left: 0;
+  }
+}
+
+@media (max-width: 600px) {
+  .lease-dialog {
+    width: 100%;
+    max-width: none;
+    max-height: calc(100vh - var(--space-6));
+    margin: auto 0 0;
+    padding: var(--space-5);
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  }
+
+  .lease-dialog-fields {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tenant-table-row,
+  .tenants-tab {
+    transition: none;
+  }
+}

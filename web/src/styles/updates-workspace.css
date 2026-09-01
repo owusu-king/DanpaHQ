@@ -1,0 +1,84 @@
+/* Updates is a log, not a queue. Rows, because each one is a thing that
+   happened — not an object with state to manage. Home owns what is outstanding;
+   nothing here competes with it. */
+
+.updates-workspace { display: grid; gap: var(--space-5); min-width: 0; max-width: 56rem; }
+
+.updates-tabs { display: flex; gap: var(--space-5); border-bottom: var(--border-hairline) solid var(--color-field-200); }
+
+.updates-tab {
+  min-height: 48px;
+  padding: 0 0 var(--space-2);
+  color: var(--color-ink-500);
+  background: none;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  cursor: pointer;
+}
+
+.updates-tab[aria-selected="true"] { color: var(--color-ink-900); border-bottom-color: var(--color-kola-600); }
+.updates-tab span { margin-left: var(--space-2); color: var(--color-ink-500); font-weight: 400; }
+
+.updates-rows { width: 100%; min-width: 0; padding: 0; margin: 0; list-style: none; border-top: var(--border-hairline) solid var(--color-field-200); }
+
+.update-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto 1.5rem;
+  width: 100%;
+  align-items: start;
+  gap: var(--space-2) var(--space-4);
+  padding: var(--space-4) var(--space-4) var(--space-4) var(--space-3);
+  color: inherit;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  /* A rule rather than a coloured dot: it survives being read aloud and does not
+     rely on colour alone. */
+  border-left: var(--border-stamp) solid transparent;
+  border-bottom: var(--border-hairline) solid var(--color-field-200);
+  cursor: pointer;
+  transition: background-color 120ms ease;
+}
+
+.update-row:hover { background: var(--color-field-0); }
+.update-row.is-unread { border-left-color: var(--color-kola-600); }
+
+.update-row-title { grid-column: 1; margin: 0; }
+.update-row-body { grid-column: 1; margin: 0; color: var(--color-ink-500); font-size: .875rem; line-height: 1.4; }
+.update-row-when { grid-column: 1; color: var(--color-ink-500); font-size: .8125rem; }
+
+/* Words first. The colour is reinforcement, never the message. */
+.update-row-flag {
+  grid-column: 2;
+  grid-row: 1;
+  padding: 2px var(--space-2);
+  color: var(--color-laterite-600);
+  font-size: .75rem;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  background: var(--color-laterite-100);
+  border-radius: var(--radius-sm);
+}
+
+.update-row-arrow { grid-column: 3; grid-row: 1; color: var(--color-ink-300); font-size: 1.25rem; }
+
+.updates-note { max-width: 62ch; margin: 0; }
+
+.update-row:focus-visible, .updates-tab:focus-visible {
+  outline: 3px solid var(--color-lagoon-600);
+  outline-offset: -3px;
+}
+
+@media (max-width: 600px) {
+  .updates-tabs { gap: var(--space-4); overflow-x: auto; scrollbar-width: none; }
+  .updates-tab { min-width: max-content; }
+  .update-row { grid-template-columns: minmax(0, 1fr) 1.25rem; padding-right: var(--space-2); }
+  .update-row-flag { grid-column: 1; grid-row: auto; justify-self: start; }
+  .update-row-arrow { grid-column: 2; grid-row: 1 / span 4; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .update-row { transition: none; }
+}

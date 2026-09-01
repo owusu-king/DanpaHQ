@@ -1,0 +1,2282 @@
+# PHASE 3.5 — ARCHITECTURE, IDENTITY, DATABASE & USER-FLOW STABILIZATION
+
+## ROLE
+
+Act as a principal-level multidisciplinary product and engineering review team.
+
+You are simultaneously:
+
+* Principal Software Architect
+* Principal Product Architect
+* Senior Django Architect
+* Senior PostgreSQL/Data Architect
+* Senior Security Architect
+* Senior UX Architect
+* Senior Mobile Architect
+* Senior Web Architect
+* Staff React Native / Expo Engineer
+* Staff Next.js Engineer
+* QA / Test Architect
+* Product Designer
+* Technical Product Manager
+
+The project is a Ghana-focused, mobile-first digital rental platform.
+
+The uploaded project is the **actual current implementation through Phase 3**.
+
+Do NOT treat the original development prompt as proof that something exists.
+
+The source code, migrations, tests, reports, routes, models, APIs and actual implementation are the source of truth for what currently exists.
+
+Your job in this phase is NOT to build Phase 4.
+
+Your job is to **deeply audit, reconcile, simplify and stabilize the existing product before any further feature development.**
+
+---
+
+# 1. CURRENT PROJECT CONTEXT
+
+The product is intended to become a trusted digital rental infrastructure platform for Ghana.
+
+The product has:
+
+* Django
+* Django REST Framework
+* PostgreSQL
+* Redis
+* Celery
+* object storage
+* Next.js web
+* Expo / React Native mobile
+* phone-first authentication
+* OTP verification
+* multi-role users
+* identity verification
+* property and listing management
+* viewing requests
+* rental applications
+* leases
+* rent tracking
+* rental history
+* notifications
+* audit logging
+* transactional outbox architecture
+
+The intended user roles are:
+
+```text
+TENANT = "tenant"
+LANDLORD = "landlord"
+AGENT = "agent"
+PROPERTY_MANAGER = "property_manager"
+SUPPORT = "support"
+ADMIN = "admin"
+```
+
+However, roles must NOT automatically be treated as mutually exclusive account types.
+
+A person may legitimately have multiple roles.
+
+For example:
+
+```text
+Person A
+ ├── TENANT
+ └── LANDLORD
+```
+
+or:
+
+```text
+Person B
+ ├── AGENT
+ └── PROPERTY_MANAGER
+```
+
+The architecture must preserve this principle.
+
+---
+
+# 2. PRIMARY PROBLEM TO SOLVE
+
+The current implementation is substantially functional, but the overall product experience is not yet coherent enough.
+
+The most important problem is the journey from:
+
+```text
+ROOT
+ ↓
+SIGN UP / SIGN IN
+ ↓
+PHONE
+ ↓
+OTP
+ ↓
+ACCOUNT CREATION
+ ↓
+ROLE / INTENT
+ ↓
+ONBOARDING
+ ↓
+HOME
+ ↓
+ROLE-SPECIFIC EXPERIENCE
+```
+
+The current mobile and web implementations do not yet provide one clearly defined, coherent identity and onboarding model.
+
+The product needs a single, understandable mental model.
+
+The user should never be confused about:
+
+* whether they are signing up or signing in
+* what happens after OTP verification
+* why they are being asked for a role
+* whether selecting a role is permanent
+* whether they can have multiple roles
+* what onboarding remains incomplete
+* whether they are a tenant, landlord, agent, property manager, etc.
+* why they are seeing a particular home/dashboard
+* whether mobile and web represent the same account
+* which application they should use for a particular task
+* what they are currently operating as
+* what they are authorized to do
+
+---
+
+# 3. FIRST PRINCIPLE
+
+Do NOT redesign the product around:
+
+```text
+TENANT APP
+LANDLORD APP
+AGENT APP
+ADMIN APP
+```
+
+Instead, design around:
+
+```text
+ONE IDENTITY
+     ↓
+ONE ACCOUNT
+     ↓
+MULTIPLE POSSIBLE ROLES
+     ↓
+MULTIPLE CONTEXTS
+     ↓
+ROLE + RELATIONSHIP + PERMISSION
+     ↓
+APP EXPERIENCE
+```
+
+A person owns an identity.
+
+Roles are capabilities/context.
+
+Permissions determine what they can do.
+
+Relationships determine what resources they can act upon.
+
+The mobile and web applications are experiences over the same identity and authorization system.
+
+---
+
+# 4. SOURCE-OF-TRUTH RULE
+
+Before modifying anything:
+
+1. Inspect the complete repository.
+2. Inspect the Django models.
+3. Inspect migrations.
+4. Inspect serializers.
+5. Inspect services.
+6. Inspect permissions.
+7. Inspect authentication.
+8. Inspect session handling.
+9. Inspect verification.
+10. Inspect onboarding.
+11. Inspect mobile routes.
+12. Inspect mobile authentication state.
+13. Inspect mobile navigation.
+14. Inspect web routes.
+15. Inspect web authentication state.
+16. Inspect web navigation.
+17. Inspect API contracts.
+18. Inspect tests.
+19. Inspect phase reports.
+20. Inspect ADRs.
+21. Inspect known limitations.
+22. Inspect README and runbook.
+23. Inspect database constraints.
+24. Inspect domain boundaries.
+
+Do not infer architecture from filenames alone.
+
+Trace actual data flow.
+
+Trace actual request flow.
+
+Trace actual user flow.
+
+Trace actual authorization decisions.
+
+Trace actual database relationships.
+
+---
+
+# 5. CREATE AN ARCHITECTURE AUDIT BEFORE CHANGING CODE
+
+Before implementing anything, produce an audit with these sections:
+
+## A. What currently exists
+
+Document the actual implementation.
+
+## B. What the architecture intends
+
+Document the intended architecture from the existing project documentation.
+
+## C. Where implementation and architecture disagree
+
+Identify every meaningful discrepancy.
+
+## D. UX inconsistencies
+
+Identify inconsistent user journeys between:
+
+* mobile
+* web
+* API
+* authentication
+* onboarding
+* role selection
+* profile
+* verification
+* property management
+* rental workflows
+
+## E. Database inconsistencies
+
+Identify:
+
+* duplicated concepts
+* inappropriate foreign keys
+* missing relationships
+* overly coupled models
+* incorrect role assumptions
+* incorrect ownership assumptions
+* weak constraints
+* fields that should be normalized
+* fields that should remain denormalized
+* status fields that should be state machines
+* missing indexes
+* missing uniqueness constraints
+* dangerous nullable relationships
+
+## F. Authorization inconsistencies
+
+Identify where the system relies on:
+
+```text
+role == X
+```
+
+when it should rely on:
+
+```text
+role
++
+permission
++
+resource relationship
++
+organization/context
+```
+
+## G. Authentication inconsistencies
+
+Audit:
+
+* signup
+* signin
+* OTP
+* sessions
+* refresh
+* logout
+* device handling
+* account recovery
+* onboarding state
+* incomplete accounts
+
+## H. Mobile/web inconsistencies
+
+Identify where mobile and web behave differently without a legitimate product reason.
+
+---
+
+# 6. DO NOT START WITH UI
+
+The first goal is to establish the canonical product state machine.
+
+Define the user's lifecycle.
+
+At minimum, investigate whether the following states are required:
+
+```text
+UNKNOWN
+ ↓
+PHONE_E
+NTERED
+ ↓
+OTP_SENT
+ ↓
+PHONE_VERIFIED
+ ↓
+ACCOUNT_CREATED
+ ↓
+ONBOARDING_REQUIRED
+ ↓
+ONBOARDING_IN_PROGRESS
+ ↓
+ONBOARDING_COMPLETE
+ ↓
+AUTHENTICATED
+```
+
+But do not blindly implement this exact model.
+
+Determine the correct state machine from the existing architecture.
+
+The critical requirement is:
+
+> Authentication state and onboarding state must be separate concepts.
+
+A user can be:
+
+```text
+authenticated
+```
+
+but still:
+
+```text
+onboarding_incomplete
+```
+
+A user can also be:
+
+```text
+authenticated
++
+tenant role
++
+landlord role
++
+identity verification pending
+```
+
+Those states must not be collapsed into one boolean.
+
+---
+
+# 7. DESIGN THE CANONICAL AUTHENTICATION FLOW
+
+Determine and implement one canonical flow.
+
+The desired conceptual flow is:
+
+```text
+APP ROOT
+   ↓
+Do we have a valid session?
+   │
+   ├── NO
+   │    ↓
+   │  Enter phone
+   │    ↓
+   │  OTP
+   │    ↓
+   │  Verify
+   │
+   └── YES
+        ↓
+     Load current user
+        ↓
+     Determine account state
+        ↓
+     Determine onboarding state
+        ↓
+     Determine available roles
+        ↓
+     Determine current context
+        ↓
+     Route appropriately
+```
+
+There must NOT be arbitrary client-side routing based solely on assumptions such as:
+
+```text
+new user → role
+existing user → home
+authenticated web user → properties
+```
+
+The backend should provide enough state for clients to make the correct routing decision.
+
+---
+
+# 8. INTRODUCE A CANONICAL "ME / SESSION CONTEXT"
+
+Audit the current `/me/` and authentication response.
+
+Determine whether the frontend has enough information to know:
+
+```text
+user identity
+account status
+phone verification status
+roles
+primary role
+available roles
+onboarding status
+profile completeness
+verification state
+current context
+organization memberships
+permissions
+```
+
+If not, design a coherent authenticated-context response.
+
+Do NOT duplicate business logic between:
+
+* mobile
+* web
+* backend
+
+The backend owns truth.
+
+Clients render the experience.
+
+---
+
+# 9. REVISIT PRIMARY ROLE
+
+The existing system supports multiple roles.
+
+Therefore carefully audit all use of:
+
+```text
+primary_role
+```
+
+Determine whether it is:
+
+* a real business concept
+* merely a UI preference
+* a routing preference
+* an authorization concept
+* an onboarding default
+* an obsolete simplification
+
+Do not allow `primary_role` to accidentally become the mechanism that determines authorization.
+
+A user may be:
+
+```text
+TENANT + LANDLORD
+```
+
+and must not lose tenant capabilities merely because LANDLORD is primary.
+
+If a primary role is retained, document exactly what it means.
+
+Prefer a concept such as:
+
+```text
+active_context
+```
+
+for UI navigation when appropriate.
+
+---
+
+# 10. DISTINGUISH ROLE FROM ACTIVE CONTEXT
+
+A person can possess:
+
+```text
+TENANT
+LANDLORD
+AGENT
+```
+
+while currently operating in one context.
+
+For example:
+
+```text
+User
+Roles:
+ ├── Tenant
+ └── Landlord
+
+Current context:
+ LANDLORD
+```
+
+or:
+
+```text
+Current context:
+ TENANT
+```
+
+Determine whether this should be represented explicitly.
+
+If useful, introduce a client-side or server-supported concept such as:
+
+```text
+active_role
+```
+
+or:
+
+```text
+active_context
+```
+
+but do NOT confuse this with authorization.
+
+Changing context must never grant unauthorized permissions.
+
+---
+
+# 11. REDESIGN ONBOARDING AS A PROGRESSIVE FLOW
+
+Do not make onboarding a single giant form.
+
+Determine the minimum information needed to begin using the platform.
+
+A strong conceptual model is:
+
+```text
+Phone verification
+       ↓
+Basic identity
+       ↓
+"What brings you here?"
+       ↓
+Initial role/context
+       ↓
+Minimal onboarding
+       ↓
+Enter product
+       ↓
+Progressively complete verification/profile
+```
+
+The user should not be blocked from useful parts of the product merely because a future role-specific field is incomplete, unless that capability genuinely requires it.
+
+For example:
+
+```text
+Tenant
+ ├── can browse
+ ├── can save listings
+ ├── can request viewing
+ └── later complete identity verification
+```
+
+while:
+
+```text
+Landlord
+ ├── can create basic profile
+ ├── can begin property setup
+ └── must complete required verification before publishing
+```
+
+The exact rules must be determined from the existing implementation.
+
+---
+
+# 12. RECONSIDER THE CURRENT ROLE SCREEN
+
+The current mobile onboarding presents:
+
+```text
+I'm looking for a place
+I have property to rent out
+I find places for people
+```
+
+Audit this carefully.
+
+The system also contains:
+
+```text
+PROPERTY_MANAGER
+SUPPORT
+ADMIN
+```
+
+Determine which roles should:
+
+* appear during public onboarding
+* be granted only after verification
+* be granted by invitation
+* be granted by administrators
+* be organization-based
+* never be self-selected
+
+Do NOT allow a new public user to simply select:
+
+```text
+ADMIN
+SUPPORT
+PROPERTY_MANAGER
+```
+
+unless there is an explicit business reason.
+
+Likely distinction:
+
+```text
+Public self-selected roles:
+TENANT
+LANDLORD
+possibly AGENT
+```
+
+while:
+
+```text
+PROPERTY_MANAGER
+SUPPORT
+ADMIN
+```
+
+may require controlled assignment or organization membership.
+
+Verify this against the actual domain implementation before changing it.
+
+---
+
+# 13. DEFINE ONBOARDING REQUIREMENTS PER ROLE
+
+Create an explicit matrix:
+
+| Role             | Minimum onboarding | Verification | Can self-select? | Can publish? |
+| ---------------- | ------------------ | ------------ | ---------------- | ------------ |
+| Tenant           | ...                | ...          | ...              | N/A          |
+| Landlord         | ...                | ...          | ...              | ...          |
+| Agent            | ...                | ...          | ...              | ...          |
+| Property Manager | ...                | ...          | ...              | ...          |
+| Support          | ...                | ...          | ...              | ...          |
+| Admin            | ...                | ...          | ...              | ...          |
+
+Do not invent requirements without examining the current system.
+
+Where requirements are missing, mark them as product decisions requiring confirmation.
+
+---
+
+# 14. WEB APPLICATION MUST BE RECONSIDERED
+
+The current web application is primarily a console.
+
+However, the product requirement is:
+
+* mobile primarily for tenants
+* web primarily for administrators
+* landlords also use web
+* tenants may use web
+* agents also use web
+* property managers also use web
+* support  uses web
+
+Therefore design the web application as:
+
+```textgentechconsult401@gmail.com
+WEB
+ ├── Public / entry experience
+ ├── Authentication
+ ├── Account
+ ├── Role/context-aware application
+ ├── Landlord workspace
+ ├── Agent workspace
+ ├── Property manager workspace
+ ├── Tenant workspace where useful
+ ├── Support workspace
+ └── Admin workspace
+```
+
+Do not simply expose the same navigation to every authenticated user.
+
+---
+
+# 15. MOBILE APPLICATION MUST BE RECONSIDERED
+
+Mobile is the primary everyday product experience.
+
+It should support at least:
+
+```text
+Tenant
+Landlord
+Agent
+```
+
+where the current user's permissions allow it.
+
+Determine whether property managers should also have mobile functionality.
+
+The mobile root should never render a blank screen.
+
+Audit:
+
+```text
+mobile/app/index.tsx
+mobile/app/_layout.tsx
+mobile/app/(auth)
+mobile/app/(app)
+```
+
+and establish a clean root-routing architecture.
+
+The routing system must make the following states explicit:
+
+```text
+unauthenticated
+authenticated but onboarding incomplete
+authenticated and onboarding complete
+authenticated with multiple roles
+authenticated with incomplete verification
+authenticated with suspended/restricted account
+```
+
+---
+
+# 16. ROOT ROUTING MUST BE INTENTIONAL
+
+The app root should have one clear responsibility:
+
+```text
+Determine where this user belongs.
+```
+
+Do not bury routing logic across:
+
+* index.tsx
+* layouts
+* screens
+* API hooks
+* arbitrary effects
+* navigation callbacks
+
+Create a single understandable routing decision system.
+
+For example:
+
+```text
+resolveEntryRoute(userContext)
+```
+
+or an equivalent architecture appropriate to Expo Router / Next.js.
+
+The exact implementation is up to you.
+
+The principle is not.
+
+---
+
+# 17. WEB ROOT ROUTING MUST ALSO BE INTENTIONAL
+
+The current web sign-in behavior routes authenticated users to a landlord/property-oriented route.
+
+Audit and replace this if necessary.
+
+A newly authenticated tenant should not automatically be sent to a landlord property console.
+
+A landlord should not automatically be sent to a tenant discovery experience unless that is intentional.
+
+An admin should not be sent to the landlord experience.
+
+Define:
+
+```text
+user → active context → destination
+```
+
+rather than:
+
+```text
+successful login → hard-coded destination
+```
+
+---
+
+# 18. DATABASE ARCHITECTURE AUDIT
+
+Perform a complete database review.
+
+Pay particular attention to:
+
+```text
+User
+Profile
+Roles
+Role grants
+Verification
+Organizations
+Property
+Unit
+Listing
+Viewing
+Application
+Lease
+Rent
+Notifications
+Audit
+Outbox
+Files
+```
+
+For every model determine:
+
+* ownership
+* lifecycle
+* aggregate boundary
+* foreign keys
+* uniqueness
+* nullability
+* indexes
+* deletion behavior
+* status transitions
+* audit requirements
+* authorization implications
+
+---
+
+# 19. USER / PROFILE ARCHITECTURE
+
+Preserve the principle:
+
+```text
+ONE PERSON
+ONE IDENTITY
+ONE SHARED CORE PROFILE
+MULTIPLE POSSIBLE ROLES
+```
+
+Do not duplicate:
+
+```text
+name
+phone
+email
+identity information
+```
+
+across role profiles.
+
+Specialized role information may exist where justified.
+
+Audit whether current tenant, landlord and agent profile models follow this principle.
+
+---
+
+# 20. OWNERSHIP ≠ MANAGEMENT ≠ AGENCY
+
+This is mandatory.
+
+Do not assume:
+
+```text
+property.landlord_id
+```
+
+is sufficient.
+
+A property may have:
+
+```text
+Owner
+Property Manager
+Agent
+Listing Manager
+Tenant
+```
+
+as different relationships.
+
+Audit the current property architecture and determine whether explicit relationship models are required.
+
+Example conceptual model:
+
+```text
+Property
+   ↓
+PropertyRelationship
+   ├── OWNER
+   ├── MANAGER
+   ├── AGENT
+   └── OTHER_SUPPORTED_RELATIONSHIP
+```
+
+Do not blindly implement this if the existing model already solves it correctly.
+
+---
+
+# 21. AUTHORIZATION AUDIT
+
+Every protected operation must answer:
+
+```text
+WHO is acting?
+WHAT role do they have?
+WHAT permission do they possess?
+WHAT relationship do they have with the resource?
+WHAT organization/context are they acting within?
+WHAT state is the resource in?
+```
+
+Audit every Phase 1–3 domain.
+
+Look specifically for code that effectively does:
+
+```python
+if user.role == ...
+```
+
+when it should determine resource ownership/management.
+
+The frontend must never be the security boundary.
+
+---
+
+# 22. VERIFICATION AUDIT
+
+Preserve the existing verification architecture.
+
+Verification must remain distinct from:
+
+```text
+phone verified
+account created
+role granted
+profile complete
+```
+
+Audit:
+
+```text
+Verification
+VerificationEvidence
+ReviewQueueEntry
+display_state
+expiry
+superseding checks
+reviewer permissions
+audit
+```
+
+Determine whether all clients present verification states consistently.
+
+---
+
+# 23. PHASE 3 RENTAL DOMAIN AUDIT
+
+Audit the actual implementation of:
+
+```text
+Viewing
+Application
+Lease
+Rent
+Rental history
+Notifications
+```
+
+Compare:
+
+```text
+master plan
+vs
+phase 3 report
+vs
+actual implementation
+vs
+tests
+```
+
+Explicitly identify discrepancies.
+
+For example, the Phase 3 report states that tenant-landlord communication remains incomplete while the broader Phase 3 brief lists communication as a Phase 3 capability.
+
+Do not silently resolve this.
+
+Record:
+
+```text
+implemented
+partially implemented
+not implemented
+intentionally deferred
+incorrectly documented
+```
+
+Then recommend the correct state.
+
+---
+
+# 24. STATE MACHINES
+
+Audit all important lifecycle states.
+
+Do not use loosely related booleans when a state machine is more correct.
+
+Review:
+
+```text
+Viewing
+Application
+Lease
+Rent claim
+Verification
+Listing
+Property
+Notification
+```
+
+For each:
+
+* list valid states
+* list valid transitions
+* identify actor allowed to trigger each transition
+* identify required data
+* identify emitted events
+* identify audit entries
+* identify notifications
+* identify invalid transitions
+* verify database/service enforcement
+
+---
+
+# 25. API CONSISTENCY
+
+Review API conventions across the entire project.
+
+Look for:
+
+* inconsistent endpoint naming
+* inconsistent response shapes
+* inconsistent error formats
+* inconsistent pagination
+* inconsistent authentication behavior
+* inconsistent resource naming
+* duplicate endpoints
+* client-specific business rules
+* role-specific endpoints that should be generalized
+* `/me/...` endpoints that are appropriate
+* direct object endpoints that are appropriate
+
+Establish a coherent API style.
+
+Do not rewrite APIs merely for aesthetics.
+
+Only change them where consistency or correctness materially improves the system.
+
+---
+
+# 26. MOBILE AND WEB SHOULD SHARE BUSINESS TRUTH
+
+Do not duplicate business rules.
+
+Bad:
+
+```text
+mobile decides onboarding complete
+web decides onboarding complete differently
+```
+
+Good:
+
+```text
+backend determines account/onboarding state
+mobile renders it
+web renders it
+```
+
+Similarly:
+
+```text
+backend authorization
+      ↓
+mobile UI
+web UI
+```
+
+Clients may hide unavailable actions for UX.
+
+They must never be responsible for enforcing security.
+
+---
+
+# 27. DESIGN THE USER JOURNEYS BEFORE REFACTORING UI
+
+Produce explicit journey maps for:
+
+## Tenant
+
+```text
+Root
+→ phone
+→ OTP
+→ account
+→ onboarding
+→ tenant home
+→ search
+→ listing
+→ viewing
+→ application
+→ lease
+→ rent
+```
+
+## Landlord
+
+```text
+Root
+→ phone
+→ OTP
+→ account
+→ landlord onboarding
+→ landlord home
+→ property
+→ unit
+→ listing
+→ viewing
+→ applications
+→ lease
+→ rent
+```
+
+## Agent
+
+```text
+Root
+→ phone
+→ OTP
+→ account
+→ agent onboarding
+→ verification
+→ agent workspace
+→ properties/listings
+→ viewings
+→ applications
+```
+
+## Property Manager
+
+Define based on actual domain requirements.
+
+## Support
+
+Define based on actual domain requirements.
+
+## Admin
+
+Define based on actual platform responsibilities.
+
+These flows must be explicit before modifying navigation.
+
+---
+
+# 28. DEFINE WHAT MOBILE IS FOR
+
+Do not let mobile become a miniature copy of the web console.
+
+Mobile should prioritize:
+
+```text
+Tenant:
+- discovery
+- saved properties
+- viewing
+- applications
+- leases
+- rent record
+- notifications
+- communication
+- account/trust
+
+Landlord:
+- property overview
+- listings
+- viewing requests
+- applications
+- leases
+- rent
+- notifications
+- communication
+
+Agent:
+- listings
+- viewings
+- applications
+- communication
+- verification
+```
+
+The exact final navigation should be derived from actual product requirements and current implementation.
+
+---
+
+# 29. DEFINE WHAT WEB IS FOR
+
+Web should exploit desktop space.
+
+Potential experiences:
+
+```text
+Landlord
+ ├── Properties
+ ├── Listings
+ ├── Viewings
+ ├── Applications
+ ├── Leases
+ ├── Rent
+ └── Messages
+
+Agent
+ ├── Listings
+ ├── Properties
+ ├── Viewings
+ ├── Applications
+ └── Messages
+
+Property Manager
+ ├── Portfolio
+ ├── Units
+ ├── Tenants
+ ├── Maintenance
+ ├── Rent
+ └── Reports
+
+Support
+ ├── Users
+ ├── Cases
+ ├── Verification
+ ├── Disputes
+ └── Audit
+
+Admin
+ ├── Platform
+ ├── Users
+ ├── Verification
+ ├── Properties
+ ├── Finance
+ ├── Operations
+ └── Analytics
+```
+
+Do not implement all of these now.
+
+Use them to determine the correct architectural boundaries.
+
+---
+
+# 30. MULTI-ROLE UX
+
+If a user has:
+
+```text
+TENANT
+LANDLORD
+```
+
+do not force them to maintain separate accounts.
+
+Provide a clear mechanism for:
+
+```text
+Tenant experience
+↕
+Landlord experience
+```
+
+The switch must be obvious but not disruptive.
+
+Do not make role switching change the user's underlying identity.
+
+Do not create duplicate profiles.
+
+Do not duplicate sessions.
+
+---
+
+# 31. ORGANIZATION / PROPERTY MANAGEMENT
+
+Audit whether the current system has a robust organization concept.
+
+Determine whether you need:
+
+```text
+Organization
+OrganizationMembership
+OrganizationRole
+```
+
+for:
+
+```text
+property management companies
+real estate agencies
+landlord companies
+support teams
+administrative teams
+```
+
+Do not automatically add a complex organization system if the current product does not require it yet.
+
+But determine whether the existing architecture will prevent it later.
+
+If it will, fix the boundary now.
+
+---
+
+# 32. ACCOUNT RECOVERY
+
+The Phase 1 report identifies loss of the phone number as a known limitation.
+
+Do not ignore this.
+
+Determine:
+
+* whether recovery is required before launch
+* what recovery mechanisms are appropriate
+* whether email can be used
+* whether identity verification can recover an account
+* how SIM-swap risk affects recovery
+* how existing sessions are treated
+* how recovery is audited
+
+Do not implement a dangerous recovery mechanism simply to close the checklist.
+
+If the correct solution requires product/legal decisions, document it.
+
+---
+
+# 33. SECURITY REVIEW
+
+Perform a focused security review of:
+
+```text
+Authentication
+OTP
+Session rotation
+Device trust
+Role grants
+Object permissions
+Verification
+Files
+Property ownership
+Lease access
+Rent records
+Notifications
+Audit
+Admin access
+```
+
+Look for:
+
+* IDOR
+* privilege escalation
+* role confusion
+* horizontal access bugs
+* vertical access bugs
+* stale sessions
+* stale authorization
+* leaked phone numbers
+* leaked verification evidence
+* cross-user notifications
+* unauthorized lease access
+* unauthorized rent access
+
+---
+
+# 34. UX REVIEW
+
+Perform an actual UX review, not just a code review.
+
+Evaluate:
+
+* first launch
+* returning user
+* new user
+* existing user
+* multi-role user
+* incomplete onboarding
+* incomplete verification
+* error states
+* network failure
+* expired OTP
+* wrong OTP
+* account recovery
+* signed-out session
+* revoked role
+* suspended account
+* empty states
+* loading states
+
+The user should always understand:
+
+```text
+Where am I?
+Why am I here?
+What can I do?
+What do I need to do next?
+What is blocking me?
+```
+
+---
+
+# 35. REMOVE CONFUSING TERMINOLOGY
+
+Audit all UI terminology.
+
+Especially:
+
+```text
+Sign up
+Sign in
+Account
+Role
+Profile
+Onboarding
+Verification
+Trust
+Identity
+Workspace
+Home
+Dashboard
+Console
+```
+
+Choose one consistent vocabulary.
+
+For example:
+
+The user should not encounter:
+
+```text
+"Choose account type"
+```
+
+in one place and:
+
+```text
+"What brings you here?"
+```
+
+in another if they mean the same thing.
+
+Likewise, do not call something:
+
+```text
+verification
+```
+
+in one screen and:
+
+```text
+trust check
+```
+
+in another unless the distinction is intentional.
+
+---
+
+# 36. ROOT EXPERIENCE
+
+Design the root experience carefully.
+
+The product must distinguish between:
+
+```text
+PUBLIC
+AUTHENTICATION
+ONBOARDING
+AUTHENTICATED PRODUCT
+```
+
+Do not make `/` or the equivalent root route an accidental implementation detail.
+
+Define:
+
+```text
+Public root
+Authenticated root
+Mobile root
+Web root
+Admin root
+```
+
+and document each one.
+
+---
+
+# 37. DO NOT OVER-REFACTOR
+
+This is extremely important.
+
+The project already contains substantial working architecture.
+
+Do NOT:
+
+* rewrite working domains for style
+* rename everything
+* replace Django
+* replace PostgreSQL
+* replace Expo
+* replace Next.js
+* introduce microservices
+* replace authentication
+* replace the verification system
+* rebuild Phase 1–3 unnecessarily
+
+Preserve working architecture wherever it is sound.
+
+Refactor only when there is a concrete architectural, security, UX, maintainability or correctness reason.
+
+---
+
+# 38. CLASSIFY EVERY PROPOSED CHANGE
+
+Every recommendation must be classified as one of:
+
+```text
+KEEP
+KEEP + DOCUMENT
+SMALL REFACTOR
+ARCHITECTURAL REFACTOR
+DATABASE MIGRATION
+UX REFACTOR
+SECURITY FIX
+BUG FIX
+DEFER
+PRODUCT DECISION REQUIRED
+```
+
+Do not make ambiguous recommendations.
+
+---
+
+# 39. DATABASE MIGRATIONS
+
+If schema changes are required:
+
+1. Explain why.
+2. Identify affected tables.
+3. Identify existing data impact.
+4. Provide migration strategy.
+5. Preserve existing data.
+6. Avoid destructive migrations unless explicitly justified.
+7. Add backwards-compatible transitions where necessary.
+8. Update fixtures/seeds.
+9. Update tests.
+10. Verify migration from the current database state.
+
+Never casually reset the database.
+
+---
+
+# 40. TESTING REQUIREMENTS
+
+Before declaring stabilization complete, add tests for:
+
+## Authentication
+
+* new user
+* existing user
+* OTP
+* expired OTP
+* wrong OTP
+* resend
+* session refresh
+* logout
+* revoked role
+* multi-device
+
+## Onboarding
+
+* new account
+* incomplete onboarding
+* completed onboarding
+* multiple roles
+* role addition
+* role removal
+* invitation-only roles
+
+## Authorization
+
+* tenant access
+* landlord access
+* agent access
+* property manager access
+* support access
+* admin access
+* cross-user access denial
+* cross-property access denial
+* cross-organization access denial
+
+## Routing
+
+Test the canonical route decision for every account state.
+
+## API
+
+Ensure mobile and web can consume the same canonical identity/context responses.
+
+## UI
+
+Where practical, test:
+
+* root
+* login
+* OTP
+* onboarding
+* role/context selection
+* home
+* logout
+* unauthorized routes
+
+---
+
+# 41. REQUIRED ARCHITECTURE ARTIFACTS
+
+Before implementation, produce/update:
+
+```text
+docs/architecture/
+  identity.md
+  authorization.md
+  onboarding.md
+  application-context.md
+  organizations.md
+  user-journeys.md
+  navigation.md
+  database-model.md
+  api-contract.md
+```
+
+And ADRs for significant changes.
+
+Do not create documents merely for bureaucracy.
+
+Each document must answer practical engineering questions.
+
+---
+
+# 42. REQUIRED DELIVERABLE: USER STATE MODEL
+
+Produce a definitive model similar to:
+
+```text
+User
+ ├── authentication_state
+ ├── onboarding_state
+ ├── verification_state
+ ├── roles
+ ├── organizations
+ ├── permissions
+ └── active_context
+```
+
+Define each field/concept.
+
+Define who owns the truth.
+
+Define which values are persisted.
+
+Define which are computed.
+
+Define which are client-only.
+
+---
+
+# 43. REQUIRED DELIVERABLE: CANONICAL ROUTING TABLE
+
+Produce a table like:
+
+| Account state                         | Mobile destination                | Web destination               |
+| ------------------------------------- | --------------------------------- | ----------------------------- |
+| Signed out                            | Authentication                    | Authentication                |
+| Phone verified, onboarding incomplete | Onboarding                        | Onboarding                    |
+| Tenant                                | Tenant home                       | Tenant workspace              |
+| Landlord                              | Landlord home                     | Landlord workspace            |
+| Agent                                 | Agent home                        | Agent workspace               |
+| Property Manager                      | PM workspace                      | PM workspace                  |
+| Support                               | Appropriate restricted experience | Support console               |
+| Admin                                 | Appropriate restricted experience | Admin console                 |
+| Multiple roles                        | Active-context selection/home     | Active-context selection/home |
+| Suspended                             | Restricted state                  | Restricted state              |
+
+Use the actual product architecture to determine the final routes.
+
+---
+
+# 44. REQUIRED DELIVERABLE: ROLE MATRIX
+
+Produce a complete role/permission matrix.
+
+Example:
+
+| Capability          | Tenant |   Landlord |      Agent | Property Manager |    Support | Admin |
+| ------------------- | -----: | ---------: | ---------: | ---------------: | ---------: | ----: |
+| Browse listings     |      ✓ |          ✓ |          ✓ |                ✓ |          ? |     ? |
+| Save listing        |      ✓ |          ✓ |          ✓ |                ? |          ? |     ? |
+| Request viewing     |      ✓ |          ✓ |          ? |                ? |          ? |     ? |
+| Create property     |        |          ✓ |          ? |                ✓ |            |     ✓ |
+| Publish listing     |        |          ✓ |          ✓ |                ✓ |            |     ✓ |
+| Review application  |        |          ✓ |          ? |                ✓ |            |     ✓ |
+| Create lease        |        |          ✓ |          ? |                ✓ |            |     ✓ |
+| View tenant rent    |    own | own/manage | authorized |          managed | restricted |     ✓ |
+| Review verification |        |            |            |                  |          ✓ |     ✓ |
+
+Do not invent final permissions.
+
+Audit the code and document unresolved product decisions.
+
+---
+
+# 45. REQUIRED DELIVERABLE: DATABASE RELATIONSHIP MAP
+
+Produce a clear entity relationship map covering at minimum:
+
+```text
+User
+Profile
+Role
+RoleGrant
+Verification
+Organization
+OrganizationMembership
+Property
+PropertyRelationship
+Unit
+Listing
+Viewing
+Application
+Lease
+RentCharge
+RentPaymentRecord
+Notification
+AuditEvent
+OutboxEvent
+StoredFile
+```
+
+Only include entities that actually exist or are genuinely required.
+
+Clearly label:
+
+```text
+CURRENT
+PROPOSED
+OPTIONAL
+DEFERRED
+```
+
+---
+
+# 46. REQUIRED DELIVERABLE: IMPLEMENTATION PLAN
+
+After the audit, create a prioritized plan.
+
+Use:
+
+```text
+P0 — must fix before Phase 4
+P1 — should fix before Phase 4
+P2 — can fix during Phase 4
+P3 — future improvement
+```
+
+P0 should include anything involving:
+
+* security
+* broken identity semantics
+* broken authorization
+* dangerous database relationships
+* inconsistent account state
+* incorrect routing
+* data corruption
+* serious UX dead ends
+
+---
+
+# 47. IMPLEMENTATION RULE
+
+Only after the audit and plan are complete should code changes begin.
+
+Then implement only the approved stabilization work.
+
+Do not automatically begin Phase 4.
+
+---
+
+# 48. QUALITY GATE
+
+Stabilization is complete only when:
+
+### Architecture
+
+* identity model is coherent
+* role model is coherent
+* authorization model is coherent
+* domain boundaries are preserved
+* organization model is future-safe
+* ownership relationships are correct
+
+### Database
+
+* migrations are valid
+* constraints are correct
+* indexes are appropriate
+* no accidental duplication exists
+* relationships reflect real-world ownership and management
+
+### Authentication
+
+* root flow is coherent
+* OTP flow is coherent
+* session flow is coherent
+* onboarding state is explicit
+* account state is explicit
+
+### Mobile
+
+* root is intentional
+* authentication is intentional
+* onboarding is intentional
+* multi-role users are supported
+* tenant experience is clear
+* landlord experience is clear
+* agent experience is clear where applicable
+
+### Web
+
+* root is intentional
+* authentication is intentional
+* landlord experience is clear
+* admin experience is clear
+* support experience is clear
+* agent/property-manager experience is coherent
+* tenant web experience is not accidentally broken
+
+### UX
+
+A new user can understand:
+
+```text
+1. What the platform is
+2. Why they need a phone number
+3. What the OTP does
+4. Whether they are creating or accessing an account
+5. What onboarding means
+6. What their role means
+7. What they can do next
+8. Why they are seeing their home screen
+```
+
+### Security
+
+* no privilege escalation
+* no IDOR
+* no cross-user data access
+* no role confusion
+* no client-side authorization
+* sessions remain secure
+
+### Testing
+
+Run:
+
+* backend unit tests
+* integration tests
+* API tests
+* permission tests
+* web typecheck
+* web build
+* mobile typecheck
+* mobile build where available
+* route/state tests
+* migration tests
+
+Do not claim device verification unless the application was actually run on a device/emulator.
+
+---
+
+# 49. REPORTING RULE
+
+At the end, produce a stabilization report containing:
+
+## 1. Executive summary
+
+What was wrong and what was fixed.
+
+## 2. Architecture findings
+
+What was already good.
+
+What required change.
+
+## 3. Identity model
+
+Final identity/role/context model.
+
+## 4. Onboarding model
+
+Final user journey.
+
+## 5. Mobile navigation
+
+Final navigation architecture.
+
+## 6. Web navigation
+
+Final navigation architecture.
+
+## 7. Database changes
+
+Every schema change.
+
+## 8. API changes
+
+Every API contract change.
+
+## 9. Security changes
+
+Every security-relevant change.
+
+## 10. UX changes
+
+Every major flow change.
+
+## 11. Tests
+
+Exactly what was run and the result.
+
+## 12. Remaining limitations
+
+Be explicit.
+
+## 13. Product decisions still required
+
+Do not hide unresolved decisions.
+
+## 14. Phase 4 readiness
+
+State:
+
+```text
+READY
+```
+
+or:
+
+```text
+NOT READY
+```
+
+and explain why.
+
+---
+
+# 50. ABSOLUTE RULES
+
+Do not:
+
+* start Phase 4
+* add payments
+* add wallet
+* add AI
+* introduce microservices
+* redesign the entire backend unnecessarily
+* replace working authentication
+* replace working verification
+* fabricate test results
+* claim production readiness without evidence
+* silently change business rules
+* silently change role semantics
+* silently destroy data
+* create separate accounts for different roles
+* make frontend authorization authoritative
+
+The objective is:
+
+> **Make the existing Phase 3 system coherent, internally consistent, secure, understandable and architecturally ready for the next phase.**
+
+---
+
+# FINAL OBJECTIVE
+
+When finished, the product should have one coherent mental model:
+
+```text
+                    PERSON
+                      │
+                   ACCOUNT
+                      │
+              PHONE VERIFIED
+                      │
+                 ONBOARDING
+                      │
+             ┌────────┴────────┐
+             │                 │
+           ROLES            PROFILE
+             │
+      ┌──────┼────────┐
+      │      │        │
+    TENANT LANDLORD AGENT
+             │
+       ┌─────┴─────┐
+       │           │
+     MOBILE       WEB
+       │           │
+       └─────┬─────┘
+             │
+       ACTIVE CONTEXT
+             │
+       PERMISSIONS
+             │
+       RELATIONSHIPS
+             │
+       DOMAIN ACTIONS
+```
+
+The same identity must work everywhere.
+
+The same authorization model must work everywhere.
+
+The backend must own truth.
+
+The mobile application must be the primary everyday experience without becoming tenant-only.
+
+The web application must become a role/context-aware operational experience without becoming a generic dashboard.
+
+The user must never wonder:
+
+> "What am I supposed to do here?"
+
+The system should always know:
+
+> **Who this person is, what state their account is in, what they are trying to accomplish, what context they are operating in, and what they are allowed to do.**
+
+Only after this stabilization gate passes should the project proceed to the next product phase.
+
+
+/docs
+    product.md
+    users.md
+    property-management.md
+    tenant.md
+    marketplace.md
+    payments.md
+    digital-services.md
+    database.md
+
+23. Development order
+
+Don't create all the features simultaneously.
+
+I'd build in this order:
+
+Sprint 1 — Foundation
+Docker
+PostgreSQL
+NestJS
+Prisma
+Authentication
+Users
+Organizations
+Roles
+Sprint 2 — Property
+Properties
+Buildings
+Units
+Beds
+Amenities
+Property photos
+
+Sprint 3 — Tenants
+Tenant profiles
+Invitations
+Join requests
+Occupancy
+Lease
+Sprint 4 — Money
+Invoices
+Invoice items
+Payments
+Receipts
+Arrears
+Payment reconciliation
+
+Sprint 5 — Marketplace
+Listings
+Search
+Filters
+Saved properties
+Applications
+Viewing requests
+Sprint 6 — Tenant app
+Home
+Explore
+Pay
+Services
+Account
+
+Sprint 7 — Property manager
+Dashboard
+Properties
+Units
+Tenants
+Rent
+Maintenance
+
+Sprint 8 — Digital services
+Electricity
+DSTV
+Internet
+Airtime
+Data
+Other services
+
+24. One thing I'd do differently from many startups
+
+Don't integrate DSTV/electricity providers directly into your core application code.
+
+Create an abstraction:
+
+Your Platform
+      │
+      ▼
+Service Integration Layer
+      │
+ ┌────┼─────────┐
+ │    │         │
+Provider A   Provider B   Provider C
+
+Your application says:
+
+"Purchase prepaid electricity."
+
+The integration layer determines which provider/API should process it.
+
+That means if your provider changes later, you don't have to rewrite the tenant application, payment system, invoices, etc.
+
+The same principle applies to payment gateways.
+
+For Tenants / Property Seekers
+Bottom Nav	Purpose
+🏠 Home	Overview, rent status, bills, notifications, quick actions
+🔎 Explore	Browse and search properties/hostels
+💳 Payments	Rent, DSTV, electricity, internet, receipts
+🔧 Services	Maintenance, utilities, service providers, requests
+👤 Account	Profile, properties, documents, settings
+1. 🏠 Home
+
+This should be the tenant's command center.
+
+Good morning, Ama
+
+
+Adom Heights
+Unit B-204
+
+
+Rent
+GHS 2,500
+Due in 12 days
+
+
+[ Pay Rent ]
+
+
+Quick Actions
+[ Electricity ] [ DSTV ]
+[ Internet ]    [ Maintenance ]
+
+
+Recent Activity
+✓ Rent payment
+✓ DSTV payment
+
+The important thing is that Home changes depending on whether the user has a property.
+
+A new user who hasn't rented anything could see:
+
+For a new user:
+
+What would you like to do?
+
+🔎 Find a property
+🏠 I'm a tenant
+🏢 I own/manage property
+
+Don't allow someone to simply search:
+
+"Adom Heights"
+
+and immediately attach themselves to Unit B-204.
+
+You need verification/approval.
+
+Otherwise someone could falsely associate themselves with somebody else's property.
+
+Instead:
+
+Tenant requests access
+
+Tenant:
+
+I want to join Unit B-204.
+
+System:
+
+Request sent to property manager.
+
+Property Manager:
+
+Approve / Reject
+
+After approval:
+
+✅ You are now connected to Adom Heights, Unit B-204.
+Even better: use a property invitation link
+
+Instead of making tenants type codes, the landlord could click:
+
+Invite Tenant
+
+and generate:
+
+Join Property
+
+The tenant receives the link through WhatsApp/SMS.
+
+They click it → create account → confirm their details → join.
+
+For Ghana, I would make phone number + OTP a major part of authentication because you don't want email to be a requirement for everyone.
+
+
+operations@rental.local
+
+Tenant access
+Private join code: B51AF77894. Requests need your approval.

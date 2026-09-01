@@ -1,0 +1,13 @@
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    // Expo's base sets target but not module, which leaves TypeScript on
+    // ES2015 - too old for the dynamic import() the OTP screen uses to break a
+    // circular dependency. Metro bundles ESM anyway.
+    "module": "esnext",
+    "paths": { "@/*": ["./src/*"] }
+  },
+  "include": ["**/*.ts", "**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts"]
+}

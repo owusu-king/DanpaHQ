@@ -1,0 +1,238 @@
+.env
+*.pyc
+__pycache__/
+.venv/
+staticfiles/
+media/
+.coverage
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+node_modules/
+.next/
+out/
+.expo/
+dist/
+build/
+*.log
+.DS_Store
+.idea/
+.vscode/
+.aider*
+
+
+
+# ============================================================
+# Environment / Secrets
+# ============================================================
+
+.env
+.env.*
+!.env.example
+!.env.sample
+
+# Local secret/config files
+*.secret
+*.pem
+*.key
+
+# ============================================================
+# Python / Django
+# ============================================================
+
+__pycache__/
+*.py[cod]
+*$py.class
+
+*.so
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Django
+*.log
+local_settings.py
+
+# Django generated files
+staticfiles/
+media/
+
+# Coverage / testing
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/
+.tox/
+.nox/
+.mypy_cache/
+.ruff_cache/
+
+# Packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# ============================================================
+# PostgreSQL / Database
+# ============================================================
+
+# Local database files
+*.sqlite3
+*.sqlite3-journal
+
+# PostgreSQL local data directories
+postgres-data/
+pgdata/
+
+# ============================================================
+# Node / Next.js / React / Expo
+# ============================================================
+
+node_modules/
+
+# Next.js
+.next/
+out/
+
+# Expo
+.expo/
+.expo-shared/
+
+# React Native
+android/.gradle/
+android/app/build/
+android/build/
+android/local.properties
+
+ios/Pods/
+ios/build/
+
+# Metro
+.metro-health-check*
+
+# TypeScript
+*.tsbuildinfo
+
+# npm
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ============================================================
+# Build / Bundler output
+# ============================================================
+
+dist/
+build/
+.cache/
+.parcel-cache/
+.turbo/
+
+# ============================================================
+# Testing
+# ============================================================
+
+coverage/
+.nyc_output/
+playwright-report/
+test-results/
+
+# ============================================================
+# IDE / Editors
+# ============================================================
+
+# VS Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/tasks.json
+!.vscode/launch.json
+
+# Cursor
+.cursor/
+
+# JetBrains
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# Vim
+*.swp
+*.swo
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+Desktop.ini
+
+# Linux
+.directory
+
+# ============================================================
+# Temporary files
+# ============================================================
+
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+*~
+
+# ============================================================
+# Logs
+# ============================================================
+
+logs/
+*.log
+
+# ============================================================
+# Docker
+# ============================================================
+
+# Local Docker volumes
+docker-data/
+
+# ============================================================
+# Documentation generated output
+# ============================================================
+
+docs/_build/
+docs/.cache/
+
+# ============================================================
+# Local development
+# ============================================================
+
+.tmp/
+temp/
+tmp/
+
+# Local uploads
+uploads/
+
+# ============================================================
+# OS / Misc
+# ============================================================
+
+*.orig
+*.rej
+designs
+
+# Per-developer tool state. `.claude/settings.json` is shared configuration and
+# stays tracked; `settings.local.json` is one machine's permission cache and
+# carries that machine's absolute paths.
+.claude/settings.local.json
+
+# Phase release archives produced by ops/package.py. The build output belongs in
+# a release, not in the tree it was built from.
+ghana-rental-platform-phase-*/

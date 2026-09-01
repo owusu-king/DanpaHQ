@@ -1,0 +1,181 @@
+/* Viewings, from the tenant's side: a schedule, not a status board.
+   A row says where and when. Everything the lifecycle might allow at that
+   moment lives in a full workspace record, and appears only while it can be
+   used. */
+
+.viewings { display: grid; gap: var(--space-6); }
+
+.tenant-viewing-filter-empty {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-8) 0;
+  border-bottom: var(--border-hairline) solid var(--color-field-200);
+}
+.tenant-viewing-filter-empty strong { color: var(--color-ink-900); font-size: .9375rem; }
+.tenant-viewing-filter-empty span { color: var(--color-ink-500); font-size: .875rem; }
+
+/* Three counts, a search, then the stages — the shape every other list in
+   the product uses. Prefixed, because the provider's viewings sheet already
+   owns the unprefixed names and loads before this one. */
+.tenant-viewings-overview {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0 0 var(--space-8);
+  border-block: var(--border-hairline) solid var(--color-field-200);
+}
+.tenant-viewings-overview > div { display: grid; gap: var(--space-1); padding: var(--space-5) 0; }
+.tenant-viewings-overview > div + div { padding-left: var(--space-5); border-left: var(--border-hairline) solid var(--color-field-200); }
+.tenant-viewings-overview dt { color: var(--color-ink-500); }
+.tenant-viewings-overview dd { margin: 0; font-family: var(--font-display); font-size: 1.5rem; line-height: 2rem; font-weight: 600; }
+.tenant-viewings-overview [data-tone="confirmed"] { color: var(--color-kola-600); }
+
+.tenant-viewings-search { display: block; width: min(100%, 30rem); margin-bottom: var(--space-4); }
+.tenant-viewings-search input { width: 100%; min-height: 48px; padding: 0 var(--space-4); color: var(--color-ink-900); background: var(--color-field-0); border: var(--border-hairline) solid var(--color-field-300); border-radius: var(--radius-sm); font: inherit; }
+
+.tenant-viewings-filters { display: flex; max-width: 100%; gap: var(--space-2); margin-bottom: var(--space-3); overflow-x: auto; scrollbar-width: none; }
+.tenant-viewings-filters::-webkit-scrollbar { display: none; }
+.tenant-viewings-filters button { min-height: 44px; padding: 0 var(--space-3); color: var(--color-ink-500); background: transparent; border: var(--border-hairline) solid var(--color-field-200); border-radius: 999px; font: inherit; font-size: .875rem; font-weight: 600; white-space: nowrap; cursor: pointer; }
+.tenant-viewings-filters button[aria-pressed="true"] { color: var(--color-kola-600); background: var(--color-kola-50); border-color: var(--color-kola-300); }
+.tenant-viewings-filters span { color: inherit; opacity: .75; }
+.tenant-viewings-search input:focus-visible, .tenant-viewings-filters button:focus-visible { outline: 3px solid var(--color-lagoon-600); outline-offset: 2px; }
+
+.tenant-viewings-list { display: grid; gap: 0; padding: 0; margin: 0; list-style: none; }
+
+.tenant-viewing-row {
+  text-decoration: none;
+  display: grid;
+  grid-template-columns: 4rem minmax(0, 1fr) 1.5rem;
+  gap: var(--space-3);
+  align-items: center;
+  width: 100%;
+  padding: var(--space-3);
+  color: inherit;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-bottom: var(--border-hairline) solid var(--color-field-200);
+  cursor: pointer;
+}
+
+/* field-50 is what `body` is painted, so hovering to it did nothing at all.
+   White is what reads against that ground, as every other list does. */
+.tenant-viewing-row:hover { background: var(--color-field-0); }
+/* An action row keeps the tint it was given; a bare :hover at the same
+   weight would have stripped it. Its feedback is the chevron. */
+.tenant-viewing-row.is-action,
+.tenant-viewing-row.is-action:hover { background: var(--color-kola-50); box-shadow: inset 3px 0 0 var(--color-kola-600); }
+
+.viewing-photo { display: block; aspect-ratio: 4 / 3; background: var(--color-field-100); border-radius: var(--radius-md); overflow: hidden; }
+.viewing-photo img { display: block; width: 100%; height: 100%; object-fit: cover; }
+
+.viewing-identity { display: grid; gap: 2px; min-width: 0; }
+.viewing-identity strong { color: var(--color-ink-900); font-size: .9375rem; font-weight: 650; }
+.viewing-place { color: var(--color-ink-500); font-size: .8125rem; }
+
+/* The line that makes this a schedule. */
+.viewing-when { margin-top: var(--space-1); color: var(--color-ink-900); font-size: 1.0625rem; font-weight: 650; }
+.viewing-when-big { margin: var(--space-2) 0 0; font-size: 1.375rem; font-weight: 650; }
+
+.viewing-standing { display: flex; align-items: center; gap: var(--space-2); margin: 0; color: var(--color-ink-500); font-size: .8125rem; }
+.viewing-standing i { display: block; flex: 0 0 auto; width: 8px; height: 8px; background: var(--color-ink-300); border-radius: 50%; }
+.viewing-standing.is-action { color: var(--color-kola-600); font-weight: 650; }
+.viewing-standing.is-action i { background: var(--color-kola-600); }
+.viewing-standing.is-upcoming i { background: var(--color-kola-300); }
+
+/* --- inside the viewing record ------------------------------------------- */
+
+.viewing-record-photo { flex: 0 0 auto; display: block; width: 6rem; aspect-ratio: 4 / 3; background: var(--color-field-100); border-radius: var(--radius-md); overflow: hidden; }
+.viewing-record-photo img { display: block; width: 100%; height: 100%; object-fit: cover; }
+
+.viewing-record {
+  display: grid;
+  align-content: start;
+  min-width: 0;
+  overflow: hidden;
+  background: var(--color-field-0);
+  border: var(--border-hairline) solid var(--color-field-200);
+  border-radius: var(--radius-lg);
+}
+.viewing-record.is-empty { padding: var(--space-6); }
+.viewing-record-head {
+  display: grid;
+  grid-template-columns: 6rem minmax(0, 1fr);
+  gap: var(--space-4);
+  padding: var(--space-5);
+  border-bottom: var(--border-hairline) solid var(--color-field-200);
+}
+.viewing-record-head > div { min-width: 0; }
+.viewing-record-head h2,
+.viewing-record-head p { margin: 0; }
+.viewing-record-head h2 { font-size: 1.25rem; line-height: 1.75rem; }
+
+.viewing-record-body { display: grid; gap: var(--space-5); padding: var(--space-5); }
+
+.viewing-when-big { margin: var(--space-2) 0 0; font-size: 1.375rem; font-weight: 650; }
+
+/* Each of these appears only while the lifecycle allows it. The one the
+   lifecycle is pointing at carries the accent; the ways out do not. */
+.viewing-action { display: grid; gap: var(--space-3); padding: var(--space-4); background: var(--color-field-50); border: var(--border-hairline) solid var(--color-field-200); border-radius: var(--radius-lg); }
+.viewing-action.is-primary { background: var(--color-kola-50); border-color: var(--color-kola-300); }
+.viewing-action h3 { margin: 0; font-size: 1.0625rem; }
+
+.viewing-slots { display: grid; gap: var(--space-2); }
+.viewing-slots label { display: flex; gap: var(--space-3); align-items: flex-start; min-height: 52px; padding: var(--space-3); background: var(--color-field-0); border: var(--border-hairline) solid var(--color-field-300); border-radius: var(--radius-md); cursor: pointer; }
+.viewing-slots label.is-selected { border-color: var(--color-kola-600); box-shadow: inset 0 0 0 1px var(--color-kola-600); }
+.viewing-slots span { display: grid; gap: 2px; }
+.viewing-slots em { color: var(--color-ink-500); font-size: .8125rem; font-style: normal; }
+
+.viewing-checkin { display: grid; justify-items: center; gap: var(--space-3); padding: var(--space-5); text-align: center; background: var(--color-kola-50); border-radius: var(--radius-lg); }
+.viewing-checkin h3 { margin: 0; font-size: 1.0625rem; }
+.viewing-qr { display: inline-flex; padding: var(--space-3); background: #fff; border-radius: var(--radius-sm); }
+.viewing-code { margin: 0; font-size: 2rem; font-weight: 700; letter-spacing: .16em; }
+
+.viewing-directions { display: grid; gap: var(--space-1); padding: var(--space-4); background: var(--color-field-50); border-radius: var(--radius-md); }
+.viewing-directions h3 { margin: 0 0 var(--space-1); color: var(--color-ink-500); font-size: .75rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.viewing-directions p { margin: 0; }
+.viewing-address { font-size: 1.0625rem; font-weight: 650; }
+.viewing-map { color: var(--color-kola-600); font-weight: 650; text-decoration: none; }
+.viewing-map:hover { text-decoration: underline; }
+
+.viewing-contact { display: grid; gap: var(--space-1); padding: var(--space-4); border: var(--border-hairline) solid var(--color-field-200); border-radius: var(--radius-md); }
+.viewing-contact h3 { margin: 0; color: var(--color-ink-500); font-size: .75rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.viewing-contact p { margin: 0; font-size: 1rem; font-weight: 650; }
+.viewing-contact a { color: var(--color-kola-600); }
+
+.viewing-note { margin: 0; padding-left: var(--space-4); color: var(--color-ink-700); border-left: 3px solid var(--color-field-300); }
+
+.viewing-history > summary { min-height: 44px; display: flex; align-items: center; color: var(--color-kola-600); font-size: .875rem; font-weight: 650; cursor: pointer; }
+.viewing-history ul { display: grid; gap: var(--space-1); padding: 0; margin: var(--space-2) 0 0; list-style: none; font-size: .9375rem; }
+.viewing-history span { color: var(--color-ink-500); }
+
+.viewing-exits { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.viewing-select { display: grid; gap: var(--space-1); }
+.viewing-select select { min-height: 44px; padding: 0 var(--space-3); font: inherit; background: var(--color-field-0); border: var(--border-hairline) solid var(--color-field-300); border-radius: var(--radius-md); }
+.viewing-when-fields { display: flex; flex-wrap: wrap; gap: var(--space-3); }
+.viewing-when-fields label { display: grid; gap: var(--space-1); }
+.viewing-when-fields input { min-height: 44px; padding: 0 var(--space-3); font: inherit; background: var(--color-field-0); border: var(--border-hairline) solid var(--color-field-300); border-radius: var(--radius-md); }
+
+.viewing-listing-link { margin: 0; }
+.viewing-listing-link a { color: var(--color-kola-600); font-weight: 650; text-decoration: none; }
+
+@media (min-width: 64rem) {
+  
+  .viewing-record { position: sticky; top: var(--space-5); }
+}
+
+@media (max-width: 720px) {
+  .viewing-record-photo { width: 4.5rem; }
+  .viewing-record-head { grid-template-columns: 4.5rem minmax(0, 1fr); }
+  .viewing-when-big { font-size: 1.25rem; }
+}
+
+/* The chevron every list ends its row with, and the nudge that says where
+   the row is about to take you. */
+.tenant-viewing-row-arrow {
+  align-self: center;
+  color: var(--color-ink-300);
+  font-size: 1.5rem;
+  transition: transform var(--motion-duration-fast) var(--motion-easing-standard),
+    color var(--motion-duration-fast) var(--motion-easing-standard);
+}
+.tenant-viewing-row:hover .tenant-viewing-row-arrow { transform: translateX(2px); color: var(--color-ink-500); }

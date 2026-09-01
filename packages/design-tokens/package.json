@@ -1,0 +1,11 @@
+{
+  "name": "@grp/design-tokens",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/theme.ts",
+  "scripts": {
+    "build": "node build.mjs",
+    "check": "node build.mjs --check"
+  }
+}

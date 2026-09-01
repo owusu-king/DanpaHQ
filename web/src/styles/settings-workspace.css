@@ -1,0 +1,109 @@
+/* Settings is a product area, not one long page. A quiet index on the left, one
+   coherent concern on the right. Sections are rules and forms — never a
+   dashboard of cards. */
+
+.settings-shell { display: grid; grid-template-columns: 15rem minmax(0, 1fr); gap: var(--space-8); align-items: start; min-width: 0; }
+
+.settings-index { position: sticky; top: var(--space-6); display: grid; gap: var(--space-5); min-width: 0; }
+.settings-group { display: grid; gap: var(--space-1); }
+.settings-group > p { margin: 0 0 var(--space-1); padding-inline: var(--space-3); }
+.settings-group ul { display: grid; gap: 2px; padding: 0; margin: 0; list-style: none; }
+
+.settings-link {
+  display: block;
+  min-height: 44px;
+  padding: var(--space-2) var(--space-3);
+  color: var(--color-ink-700);
+  line-height: 1.6;
+  text-decoration: none;
+  border-radius: var(--radius-sm);
+  transition: background-color 120ms ease;
+}
+
+.settings-link:hover { background: var(--color-field-0); }
+.settings-link[aria-current="page"] { color: var(--color-ink-900); font-weight: 650; background: var(--color-field-50); }
+
+.settings-panel { display: grid; gap: var(--space-7); min-width: 0; max-width: 44rem; }
+
+.settings-section { display: grid; gap: var(--space-4); padding-top: var(--space-6); border-top: var(--border-hairline) solid var(--color-field-200); }
+.settings-section:first-of-type { padding-top: 0; border-top: 0; }
+.settings-section h2 { margin: 0; font-size: 1.125rem; }
+.settings-section > p { max-width: 62ch; margin: 0; }
+
+/* One line, one fact, one control. The devices list and the toggles share it so
+   Settings reads the same way whatever the concern is. */
+.settings-rows { display: grid; padding: 0; margin: 0; list-style: none; border-top: var(--border-hairline) solid var(--color-field-200); }
+
+.settings-row {
+  display: flex;
+  min-height: 60px;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-3) 0;
+  border-bottom: var(--border-hairline) solid var(--color-field-200);
+}
+
+.settings-row-text { display: grid; min-width: 0; flex: 1 1 16rem; gap: var(--space-1); }
+.settings-row-text span { color: var(--color-ink-500); font-size: .875rem; line-height: 1.35; }
+.settings-row-here { margin-left: var(--space-2); color: var(--color-kola-600); }
+.settings-row-when { color: var(--color-ink-500); font-family: var(--font-mono); font-size: .8125rem; }
+
+/* A preference is a statement with a switch, not a checkbox in a form. */
+.settings-toggle { display: flex; min-height: 60px; align-items: center; justify-content: space-between; gap: var(--space-4); padding: var(--space-3) 0; border-bottom: var(--border-hairline) solid var(--color-field-200); cursor: pointer; }
+.settings-toggle:has(input:disabled) { cursor: default; opacity: .6; }
+
+.settings-actions { display: flex; flex-wrap: wrap; gap: var(--space-3); }
+
+.verification-overview, .verification-task { display: grid; gap: var(--space-6); }
+.verification-heading { display: grid; gap: var(--space-2); max-width: 38rem; }
+.verification-heading > * { margin: 0; }
+.verification-heading h2 { font-size: clamp(1.75rem, 3vw, 2.25rem); line-height: 1.1; letter-spacing: -.025em; }
+.verification-heading > p:last-child { color: var(--color-ink-500); }
+.verification-list { border-top: var(--border-hairline) solid var(--color-field-200); }
+.verification-row { display: grid; grid-template-columns: 2rem minmax(0, 1fr) auto; gap: var(--space-4); align-items: center; min-height: 86px; padding: var(--space-4) 0; border-bottom: var(--border-hairline) solid var(--color-field-200); }
+.verification-marker { display: grid; width: 1.75rem; height: 1.75rem; place-items: center; border: var(--border-hairline) solid var(--color-field-300); border-radius: 50%; color: var(--color-ink-500); font-weight: 700; }
+.verification-row.is-verified .verification-marker { border-color: var(--color-kola-300); background: var(--color-kola-50); color: var(--color-kola-600); }
+.verification-row.is-pending .verification-marker { border-color: var(--color-harmattan-500); color: var(--color-harmattan-600); }
+.verification-row.is-expired .verification-marker { border-color: var(--color-laterite-600); color: var(--color-laterite-600); }
+.verification-copy { display: grid; gap: var(--space-1); min-width: 0; }
+.verification-copy h3, .verification-copy p { margin: 0; }
+.verification-copy h3 { font-size: 1rem; }
+.verification-copy p { color: var(--color-ink-500); font-size: .875rem; line-height: 1.45; }
+.verification-state { display: grid; justify-items: end; gap: var(--space-2); min-width: 7rem; }
+.verification-state > span { color: var(--color-ink-500); font-size: .8125rem; font-weight: 650; }
+.verification-row.is-verified .verification-state > span { color: var(--color-kola-600); }
+.verification-row.is-pending .verification-state > span { color: var(--color-harmattan-600); }
+.verification-row.is-expired .verification-state > span { color: var(--color-laterite-600); }
+.verification-state a, .verification-back { min-height: 44px; display: inline-flex; align-items: center; color: var(--color-kola-600); font-size: .875rem; font-weight: 650; text-decoration: none; }
+.verification-state a:hover, .verification-back:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+.settings-link:focus-visible,
+.settings-toggle input:focus-visible {
+  outline: 3px solid var(--color-lagoon-600);
+  outline-offset: 2px;
+}
+
+@media (max-width: 900px) {
+  /* The grouped desktop index becomes one quiet scrolling row. Group headings
+     inside that row made the active item sit beneath the next group's label. */
+  .settings-shell { grid-template-columns: minmax(0, 1fr); gap: var(--space-6); }
+  .settings-index { position: static; display: flex; justify-content: start; gap: var(--space-1); overflow-x: auto; padding-bottom: var(--space-2); scrollbar-width: none; }
+  .settings-index::-webkit-scrollbar { display: none; }
+  .settings-group { display: contents; }
+  .settings-group > p { display: none; }
+  .settings-group ul { display: flex; justify-content: start; gap: var(--space-1); }
+  .settings-link { min-width: max-content; }
+}
+
+@media (max-width: 600px) {
+  .settings-row, .settings-toggle { align-items: flex-start; }
+  .settings-actions > * { flex: 1 1 auto; }
+  .verification-row { grid-template-columns: 1.75rem minmax(0, 1fr); gap: var(--space-3); }
+  .verification-state { grid-column: 2; grid-auto-flow: column; justify-content: space-between; justify-items: start; width: 100%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .settings-link { transition: none; }
+}

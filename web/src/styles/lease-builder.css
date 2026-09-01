@@ -1,0 +1,56 @@
+.lease-builder { display: grid; gap: var(--space-6); max-width: 78rem; margin: 0 auto; padding-bottom: var(--space-8); }
+.lease-builder-head { display: grid; gap: var(--space-2); max-width: 54rem; }
+.lease-builder-head > * { margin: 0; }
+.lease-builder-head > p:last-child { max-width: 65ch; color: var(--color-ink-500); }
+.lease-checkpoints { display: grid; grid-template-columns: repeat(7, 1fr); border-block: var(--border-hairline) solid var(--color-field-200); }
+.lease-checkpoints button { position: relative; display: grid; justify-items: center; gap: var(--space-2); min-width: 0; padding: var(--space-4) var(--space-2); color: var(--color-ink-400); background: transparent; border: 0; cursor: pointer; }
+.lease-checkpoints button::after { position: absolute; top: 27px; left: calc(50% + 12px); width: calc(100% - 24px); height: 1px; content: ""; background: var(--color-field-300); }
+.lease-checkpoints button:last-child::after { display: none; }
+.lease-checkpoints button span { z-index: 1; display: grid; place-items: center; width: 24px; height: 24px; color: var(--color-ink-500); background: var(--color-field-50); border: var(--border-hairline) solid var(--color-field-300); border-radius: 50%; font-size: .75rem; font-weight: 700; }
+.lease-checkpoints button[aria-current="step"] { color: var(--color-ink-900); }
+.lease-checkpoints button[aria-current="step"] span { color: white; background: var(--color-kola-600); border-color: var(--color-kola-600); box-shadow: 0 0 0 4px var(--color-kola-50); }
+.lease-checkpoints button:not(:disabled):not([aria-current="step"]) span { color: var(--color-kola-600); border-color: var(--color-kola-300); }
+.lease-checkpoints small { max-width: 10rem; text-align: center; font-size: .75rem; }
+.lease-builder-stage { display: grid; grid-template-columns: minmax(0, 1fr) minmax(15rem, 20rem); gap: clamp(var(--space-6), 5vw, var(--space-8)); align-items: start; }
+.lease-builder-form { display: grid; gap: var(--space-5); min-width: 0; }
+.lease-builder-form > p, .lease-builder-form > h2 { margin: 0; }
+.lease-builder-aside { position: sticky; top: var(--space-5); display: grid; gap: var(--space-3); padding-left: var(--space-5); border-left: 2px solid var(--color-kola-300); color: var(--color-ink-500); font-size: .875rem; }
+.lease-builder-aside > * { margin: 0; }
+.lease-builder-aside strong { color: var(--color-ink-900); font-size: 1rem; }
+.lease-builder-aside span { padding-top: var(--space-3); border-top: var(--border-hairline) solid var(--color-field-200); font-size: .75rem; }
+.lease-field-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-5); }
+.lease-select { display: grid; gap: var(--space-2); color: var(--color-ink-500); font-size: .8125rem; }
+.lease-select select { min-height: 48px; padding-inline: var(--space-3); color: var(--color-ink-900); background: var(--color-field-0); border: var(--border-hairline) solid var(--color-field-300); border-radius: var(--radius-sm); font: inherit; }
+.lease-step-copy { display: grid; gap: var(--space-4); max-width: 46rem; }
+.lease-step-copy p, .lease-step-copy small { margin: 0; color: var(--color-ink-500); }
+.lease-step-copy dl { display: grid; margin: 0; border-block: var(--border-hairline) solid var(--color-field-200); }
+.lease-step-copy dl div { display: flex; justify-content: space-between; gap: var(--space-5); padding: var(--space-4) 0; }
+.lease-step-copy dl div + div { border-top: var(--border-hairline) solid var(--color-field-200); }
+.lease-step-copy dd { margin: 0; font-weight: 650; text-align: right; }
+.lease-responsibilities { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-6); }
+.lease-responsibilities > div { display: grid; align-content: start; gap: var(--space-3); }
+.lease-responsibilities h3 { margin: 0 0 var(--space-2); }
+.lease-text-fields { display: grid; gap: var(--space-5); }
+.lease-text-fields > label, .lease-custom-term label { display: grid; gap: var(--space-2); color: var(--color-ink-500); font-size: .8125rem; }
+.lease-text-fields textarea { padding: var(--space-3); color: var(--color-ink-900); background: var(--color-field-0); border: var(--border-hairline) solid var(--color-field-300); border-radius: var(--radius-sm); font: inherit; resize: vertical; }
+.lease-custom-term { display: grid; gap: var(--space-4); padding-top: var(--space-5); border-top: var(--border-hairline) solid var(--color-field-300); }
+.lease-custom-term p { margin: 0; }
+.lease-builder-actions { display: flex; justify-content: space-between; gap: var(--space-3); padding-top: var(--space-4); border-top: var(--border-hairline) solid var(--color-field-200); }
+.lease-document { display: grid; gap: var(--space-5); padding: clamp(var(--space-5), 4vw, var(--space-8)); background: var(--color-field-0); border: var(--border-hairline) solid var(--color-field-200); box-shadow: var(--shadow-low); }
+.lease-document header { text-align: center; }
+.lease-document header > * { margin: 0; }
+.lease-document header p, .lease-document header span { color: var(--color-ink-500); font-size: .75rem; }
+.lease-document header h3 { margin-block: var(--space-2); font-family: var(--font-display); font-size: clamp(1.5rem, 3vw, 2.25rem); }
+.lease-document > section { display: grid; gap: var(--space-2); }
+.lease-document h4, .lease-document section p { margin: 0; }
+.lease-document section p { max-width: 75ch; white-space: pre-wrap; line-height: 1.7; }
+.lease-review-edits { display: flex; flex-wrap: wrap; gap: var(--space-2); padding-block: var(--space-3); border-block: var(--border-hairline) solid var(--color-field-200); }
+.lease-review-edits button { min-height: 40px; padding-inline: var(--space-3); color: var(--color-kola-600); background: transparent; border: 0; font: inherit; font-weight: 650; cursor: pointer; }
+@media (max-width: 760px) {
+  .lease-checkpoints { display: flex; overflow-x: auto; scrollbar-width: none; }
+  .lease-checkpoints button { flex: 0 0 8rem; }
+  .lease-builder-stage { grid-template-columns: 1fr; }
+  .lease-builder-aside { position: static; grid-row: 1; }
+  .lease-field-grid, .lease-responsibilities { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) { .lease-checkpoints *, .lease-builder * { transition: none !important; } }

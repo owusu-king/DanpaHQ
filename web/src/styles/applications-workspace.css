@@ -1,0 +1,291 @@
+/* Applications, from the applicant's side.
+   A photograph, the place, and one line that is both the status and what
+   happens next. Everything a tenant already knows they wrote is behind the row,
+   not on it. */
+
+.applications { display: grid; gap: var(--space-6); }
+
+/* One quiet rail, not five badges. History is always one tap away and the
+   underline carries selection without adding another rounded container. */
+
+.application-filter-empty {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-8) 0;
+  border-bottom: var(--border-hairline) solid var(--color-field-200);
+}
+.application-filter-empty strong { color: var(--color-ink-900); font-size: .9375rem; }
+.application-filter-empty span { color: var(--color-ink-500); font-size: .875rem; }
+
+/* Three counts, a search, then the stages — the shape the provider's lists
+   use. A tenant reading their own applications is doing the same thing from
+   the other side, and should not have to learn a second way of doing it. */
+.applications-overview {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0 0 var(--space-8);
+  border-block: var(--border-hairline) solid var(--color-field-200);
+}
+.applications-overview > div { display: grid; gap: var(--space-1); padding: var(--space-5) 0; }
+.applications-overview > div + div { padding-left: var(--space-5); border-left: var(--border-hairline) solid var(--color-field-200); }
+.applications-overview dt { color: var(--color-ink-500); }
+.applications-overview dd { margin: 0; font-family: var(--font-display); font-size: 1.5rem; line-height: 2rem; font-weight: 600; }
+.applications-overview [data-tone="approved"] { color: var(--color-kola-600); }
+.applications-overview [data-tone="declined"] { color: var(--color-laterite-600); }
+
+.applications-search { display: block; width: min(100%, 30rem); margin-bottom: var(--space-4); }
+.applications-search input { width: 100%; min-height: 48px; padding: 0 var(--space-4); color: var(--color-ink-900); background: var(--color-field-0); border: var(--border-hairline) solid var(--color-field-300); border-radius: var(--radius-sm); font: inherit; }
+
+.applications-filters { display: flex; max-width: 100%; gap: var(--space-2); margin-bottom: var(--space-3); overflow-x: auto; scrollbar-width: none; }
+.applications-filters::-webkit-scrollbar { display: none; }
+.applications-filters button { min-height: 44px; padding: 0 var(--space-3); color: var(--color-ink-500); background: transparent; border: var(--border-hairline) solid var(--color-field-200); border-radius: 999px; font: inherit; font-size: .875rem; font-weight: 600; white-space: nowrap; cursor: pointer; }
+.applications-filters button[aria-pressed="true"] { color: var(--color-kola-600); background: var(--color-kola-50); border-color: var(--color-kola-300); }
+.applications-filters span { color: inherit; opacity: .75; }
+.applications-search input:focus-visible, .applications-filters button:focus-visible { outline: 3px solid var(--color-lagoon-600); outline-offset: 2px; }
+
+.applications-list {
+  display: grid;
+  gap: var(--space-2);
+  padding: 0;
+  margin: 0;
+  list-style: none;
+  container-type: inline-size;
+  container-name: application-list;
+}
+
+/* One row, three columns: what it looks like, what it is, where it stands. */
+/* --- a row that fits the column it is in ---------------------------------
+   These rows were built for a full-width list and then put in the 20rem list
+   column of the list/detail split. Three tracks needing 6rem + 13rem + two gaps
+   + padding is 360px of fixed width in a 320px column: the flexible identity
+   track was crushed to **zero**, and the title and the place each wrapped to
+   five lines. Measured, not guessed.
+
+   So the row is laid out for the narrow case first and opens up when the
+   column can carry it — keyed to the list, not the window, because the same
+   viewport gives this column two very different widths depending on whether
+   the detail panel is beside it. */
+.application-row {
+  text-decoration: none;
+  display: grid;
+  grid-template-columns: 4rem minmax(0, 1fr) 1.5rem;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-3);
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-bottom: var(--border-hairline) solid var(--color-field-200);
+  border-radius: 0;
+  cursor: pointer;
+  transition: background var(--motion-duration-fast) var(--motion-easing-standard), box-shadow var(--motion-duration-fast) var(--motion-easing-standard);
+}
+
+/* Under both, on its own line. Stacked — dot, line, time — it is right in a
+   13rem side column and wrong as a full-width strip, where it read as three
+   short rows and made every list item 200px tall. Across the strip it is one
+   line, with the time pushed to the far end. */
+.application-row .application-standing {
+  /* Photo and identity, not the chevron column beside them. */
+  grid-column: 1 / 3;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding-top: var(--space-2);
+  border-top: var(--border-hairline) solid var(--color-field-200);
+}
+.application-row .application-standing em { margin-left: auto; }
+
+/* Two lines of title, then an ellipsis. A list is scanned, and a name that
+   runs to five lines stops being scannable. */
+.application-identity strong {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+@container application-list (min-width: 38rem) {
+  .application-row {
+    grid-template-columns: 6rem minmax(0, 1fr) minmax(0, 13rem) 1.5rem;
+    gap: var(--space-4);
+  }
+  /* Back to the stacked form, and back to its own metrics: the strip above
+     sets a flex gap and centring that a three-row stack must not inherit. */
+  .application-row .application-standing {
+    grid-column: 3;
+    grid-row: 1;
+    display: grid;
+    align-items: normal;
+    gap: 2px;
+    padding-top: 0;
+    border-top: 0;
+  }
+  .application-row .application-standing em { margin-left: 0; }
+}
+
+.application-row:hover { background: var(--color-field-0); }
+
+.application-photo {
+  display: block;
+  aspect-ratio: 4 / 3;
+  background: var(--color-field-100);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.application-photo img { display: block; width: 100%; height: 100%; object-fit: cover; }
+
+.application-identity { display: grid; align-content: center; gap: 2px; min-width: 0; }
+.application-identity strong { color: var(--color-ink-900); font-size: .9375rem; font-weight: 650; }
+.application-place { color: var(--color-ink-500); font-size: .8125rem; }
+.application-rent { color: var(--color-ink-900); font-size: .875rem; font-weight: 650; }
+.application-rent i { color: var(--color-ink-500); font-size: .8125rem; font-style: normal; font-weight: 400; }
+
+/* Said once, and only while it still predicts the answer. */
+.application-short { margin-top: 2px; color: var(--color-harmattan-600); font-size: .8125rem; }
+
+/* The whole status treatment: a dot, a line, a time. No pill, no badge. */
+.application-standing {
+  display: grid;
+  align-content: center;
+  justify-items: start;
+  gap: 2px;
+  color: var(--color-ink-700);
+  font-size: .875rem;
+  font-weight: 650;
+}
+
+.application-standing i { display: block; width: 8px; height: 8px; background: var(--color-ink-300); border-radius: 50%; }
+.application-standing.is-action { color: var(--color-kola-600); }
+.application-standing.is-action i { background: var(--color-kola-600); }
+.application-standing.is-open i { background: var(--color-harmattan-600); }
+.application-standing em { color: var(--color-ink-500); font-size: .75rem; font-style: normal; font-weight: 400; }
+
+/* The record behind a row. */
+/* --- list beside detail, not detail over list -----------------------------
+   The record was a modal dialog. An application is read *against* the other
+   applications somebody has out — a dialog hid exactly the context that makes
+   it legible, and closed itself on a stray click mid-read. */
+
+.application-detail {
+  display: grid;
+  align-content: start;
+  min-width: 0;
+  overflow: hidden;
+  background: var(--color-field-0);
+  border: var(--border-hairline) solid var(--color-field-200);
+  border-radius: var(--radius-lg);
+}
+.application-detail.is-empty { padding: var(--space-6); }
+
+.application-detail-head {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-5);
+  border-bottom: var(--border-hairline) solid var(--color-field-200);
+}
+.application-detail-head h2 { margin: 0; font-size: 1.125rem; }
+.application-detail-head p { margin: 0; }
+
+/* Only meaningful when the panel has taken the screen, which is a width
+   question — so the control appears and disappears with the layout. */
+
+.application-detail-body { display: grid; gap: var(--space-4); padding: var(--space-5); }
+
+/* The photograph in the record head. Somebody arriving from a list of four
+   needs to know which of the four this is before they read a word. */
+.application-detail-photo {
+  display: block;
+  aspect-ratio: 16 / 7;
+  overflow: hidden;
+  background: var(--color-field-100);
+  border-radius: var(--radius-md);
+}
+.application-detail-photo img { width: 100%; height: 100%; object-fit: cover; }
+
+/* The journey. Three signals per step and never colour alone: the mark
+   changes shape, the label changes weight, and the rail stops at a step that
+   ended things — nothing follows a withdrawal or a refusal. */
+.application-timeline { display: grid; padding: 0; margin: 0; list-style: none; }
+.application-timeline li {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  gap: var(--space-3);
+  padding-bottom: var(--space-4);
+}
+.application-timeline li:last-child { padding-bottom: 0; }
+
+.application-timeline-mark {
+  position: relative;
+  width: 14px;
+  height: 14px;
+  margin-top: .25rem;
+  border-radius: var(--radius-pill);
+  border: 2px solid var(--color-field-300);
+}
+.application-timeline li:not(:last-child) .application-timeline-mark::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  width: 2px;
+  height: calc(100% + var(--space-4));
+  background: var(--color-field-200);
+  transform: translateX(-50%);
+}
+.application-timeline [data-state="done"] .application-timeline-mark {
+  background: var(--color-kola-600);
+  border-color: var(--color-kola-600);
+}
+.application-timeline [data-state="done"] .application-timeline-mark::after { background: var(--color-kola-300); }
+.application-timeline [data-state="current"] .application-timeline-mark {
+  border-color: var(--color-kola-600);
+  box-shadow: inset 0 0 0 2px var(--color-field-0), inset 0 0 0 6px var(--color-kola-600);
+}
+.application-timeline [data-state="stopped"] .application-timeline-mark {
+  background: var(--color-laterite-600);
+  border-color: var(--color-laterite-600);
+}
+
+.application-timeline-text { display: grid; gap: 2px; min-width: 0; }
+.application-timeline-text strong { font-size: .9375rem; font-weight: 500; }
+.application-timeline [data-state="current"] .application-timeline-text strong { font-weight: 700; }
+.application-timeline [data-state="waiting"] .application-timeline-text strong { color: var(--color-ink-500); }
+.application-timeline-text small { color: var(--color-ink-500); font-size: .8125rem; }
+
+.application-detail-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  background: var(--color-field-50);
+  border-top: var(--border-hairline) solid var(--color-field-200);
+}
+
+@media (max-width: 720px) {
+  /* The status stops being a column and becomes the last line of the row —
+     three columns at 360px would be three unreadable ones. */
+  .application-row { grid-template-columns: 4.5rem minmax(0, 1fr); gap: var(--space-3); }
+  .application-standing { grid-column: 1 / -1; grid-auto-flow: column; grid-template-columns: auto auto 1fr; align-items: center; gap: var(--space-2); padding-top: var(--space-2); border-top: var(--border-hairline) solid var(--color-field-200); }
+  .application-standing em { justify-self: end; }
+}
+
+/* The chevron the other four lists have had all along. A row that goes
+   somewhere should look like it goes somewhere, standing still. */
+.application-row-arrow {
+  grid-column: 3;
+  grid-row: 1 / span 2;
+  align-self: center;
+  color: var(--color-ink-300);
+  font-size: 1.5rem;
+  transition: transform var(--motion-duration-fast) var(--motion-easing-standard),
+    color var(--motion-duration-fast) var(--motion-easing-standard);
+}
+@container application-list (min-width: 38rem) {
+  .application-row-arrow { grid-column: 4; grid-row: 1; }
+}
+
+.application-row:hover .application-row-arrow { transform: translateX(2px); color: var(--color-ink-500); }

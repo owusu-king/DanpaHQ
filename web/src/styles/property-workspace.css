@@ -1,0 +1,660 @@
+/* Property management establishes Rooomly's operational detail language.
+   Identity, state and action align first; repeated records use ledger rows;
+   history and configuration disclose only when asked for. */
+
+.entity-path {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-5);
+  color: var(--color-ink-500);
+  font-size: 0.8125rem;
+}
+
+.entity-path-entry { display: contents; }
+.entity-path-item { min-width: 0; }
+.entity-path a { color: var(--color-kola-600); font-weight: 600; }
+.entity-path-separator { color: var(--color-field-300); }
+.entity-path-mobile-label { display: none; }
+
+.entity-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-6);
+  padding-bottom: var(--space-6);
+  margin-bottom: var(--space-6);
+  border-bottom: var(--border-hairline) solid var(--color-field-200);
+}
+
+.entity-header-copy { min-width: 0; }
+.entity-kicker {
+  display: block;
+  margin-bottom: var(--space-1);
+  color: var(--color-ink-500);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.entity-title {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-family: var(--font-display);
+  font-size: clamp(1.5rem, 1.2rem + 1.2vw, 2rem);
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+
+.entity-subtitle {
+  max-width: 68ch;
+  margin: var(--space-2) 0 0;
+  color: var(--color-ink-500);
+  font-size: 0.875rem;
+  overflow-wrap: anywhere;
+}
+
+.entity-header-actions {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.button-link {
+  min-height: var(--target-min);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 var(--space-5);
+  border: var(--border-hairline) solid var(--color-kola-600);
+  border-radius: var(--radius-md);
+  background: var(--color-kola-600);
+  color: var(--color-field-0);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: background var(--motion-duration-fast) var(--motion-easing-standard);
+}
+
+.button-link:hover { background: var(--color-kola-800); }
+.button-link.secondary {
+  border-color: var(--color-field-300);
+  background: var(--color-field-0);
+  color: var(--color-ink-900);
+}
+.button-link.secondary:hover { background: var(--color-field-50); }
+
+.status-line {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 1.25rem;
+  color: var(--color-ink-500);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.status-line-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  flex: none;
+  border-radius: 50%;
+  background: var(--color-ink-300);
+}
+
+.status-line[data-tone="good"] { color: var(--color-kola-600); }
+.status-line[data-tone="good"] .status-line-dot { background: var(--color-kola-600); }
+.status-line[data-tone="waiting"] { color: var(--color-harmattan-600); }
+.status-line[data-tone="waiting"] .status-line-dot { background: var(--color-harmattan-500); }
+.status-line[data-tone="attention"] { color: var(--color-laterite-600); }
+.status-line[data-tone="attention"] .status-line-dot { background: var(--color-laterite-600); }
+
+.inventory-list { list-style: none; margin: 0; padding: 0; }
+
+.inventory-row {
+  border-top: var(--border-hairline) solid var(--color-field-200);
+}
+
+.inventory-row:last-child { border-bottom: var(--border-hairline) solid var(--color-field-200); }
+
+.inventory-row-link {
+  min-height: 5.5rem;
+  display: grid;
+  grid-template-columns: minmax(12rem, 1fr) minmax(9rem, auto) minmax(12rem, auto) 1.5rem;
+  align-items: center;
+  gap: var(--space-5);
+  padding: var(--space-4) var(--space-2);
+  color: inherit;
+  text-decoration: none;
+  transition: background var(--motion-duration-fast) var(--motion-easing-standard);
+}
+
+.inventory-row-link:hover { background: var(--color-field-100); }
+.inventory-row-link:focus-visible { border-radius: var(--radius-sm); }
+.inventory-row-title { margin: 0; font-size: 0.9375rem; font-weight: 650; }
+.inventory-row-meta { margin: var(--space-1) 0 0; color: var(--color-ink-500); font-size: 0.8125rem; }
+.inventory-row-stat { color: var(--color-ink-500); font-size: 0.8125rem; text-align: right; }
+.inventory-row-arrow { color: var(--color-ink-300); font-size: 1.25rem; text-align: right; }
+
+.inventory-row-with-media {
+  grid-template-columns: 6.5rem minmax(12rem, 1fr) minmax(9rem, auto) 1.5rem;
+}
+
+/* Five columns, not four: a Property row keeps its Unit counts beside the
+   status, which a Unit row has nothing equivalent to. */
+.inventory-row-with-media.inventory-row-with-stat {
+  grid-template-columns:
+    6.5rem minmax(10rem, 1fr) minmax(9rem, auto) minmax(11rem, auto) 1.5rem;
+}
+
+.inventory-thumb {
+  width: 6.5rem;
+  height: 4.5rem;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  border: var(--border-hairline) solid var(--color-field-200);
+  border-radius: var(--radius-sm);
+  background: var(--color-field-100);
+  color: var(--color-ink-500);
+  font-size: 0.75rem;
+}
+.inventory-thumb img { width: 100%; height: 100%; object-fit: cover; }
+
+/* Units inside their Property, five across.
+   One per line put a hostel's fortieth room far below the fold, and a row is
+   mostly the whitespace between four short facts. The card itself is the one
+   Units already uses — same Unit, same tile. */
+.unit-columns {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: var(--space-4);
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.attention-band {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-5);
+  margin-bottom: var(--space-8);
+  padding: var(--space-4) 0 var(--space-4) var(--space-4);
+  border-left: var(--border-stamp) solid var(--color-field-300);
+}
+.attention-band[data-tone="waiting"] { border-left-color: var(--color-harmattan-500); }
+.attention-band[data-tone="attention"] { border-left-color: var(--color-laterite-600); }
+.attention-band[data-tone="good"] { border-left-color: var(--color-kola-600); }
+.attention-band h2 { margin: 0; font-size: 1rem; font-weight: 650; }
+.attention-band p { max-width: 62ch; margin: var(--space-1) 0 0; color: var(--color-ink-500); font-size: 0.8125rem; }
+.attention-band-actions { display: flex; gap: var(--space-2); flex-wrap: wrap; justify-content: flex-end; }
+
+.workspace-section { margin-top: var(--space-10); }
+.workspace-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-3);
+}
+.workspace-section-head h2 { margin: 0; font-size: 1rem; font-weight: 650; }
+.workspace-section-head a { font-size: 0.8125rem; font-weight: 600; }
+
+.detail-disclosure {
+  border-top: var(--border-hairline) solid var(--color-field-200);
+}
+.detail-disclosure:last-child { border-bottom: var(--border-hairline) solid var(--color-field-200); }
+.detail-disclosure > summary {
+  min-height: var(--target-min);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  cursor: pointer;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  list-style: none;
+}
+.detail-disclosure > summary::-webkit-details-marker { display: none; }
+.detail-disclosure > summary::after { content: "+"; color: var(--color-ink-500); font-size: 1.125rem; font-weight: 400; }
+.detail-disclosure[open] > summary::after { content: "−"; }
+.detail-disclosure-body { padding: 0 0 var(--space-6); }
+
+.fact-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
+  gap: var(--space-5);
+  margin: 0;
+}
+.fact-grid div { min-width: 0; }
+.fact-grid dt { margin-bottom: var(--space-1); color: var(--color-ink-500); font-size: 0.75rem; }
+.fact-grid dd { margin: 0; font-size: 0.9375rem; overflow-wrap: anywhere; }
+
+.unit-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(17rem, 21rem);
+  gap: var(--space-10);
+  align-items: start;
+}
+.unit-workspace-main { min-width: 0; }
+.unit-workspace-aside { position: sticky; top: var(--space-8); display: grid; gap: var(--space-5); }
+.unit-workspace-aside-panel {
+  padding: var(--space-5);
+  border: var(--border-hairline) solid var(--color-field-200);
+  border-radius: var(--radius-md);
+  background: var(--color-field-0);
+}
+.unit-workspace-aside-panel h2 { margin: 0; font-size: 1rem; }
+.unit-workspace-aside-panel p { margin: var(--space-2) 0 0; color: var(--color-ink-500); font-size: 0.8125rem; }
+
+.media-lead {
+  min-height: 18rem;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  border: var(--border-hairline) solid var(--color-field-200);
+  border-radius: var(--radius-md);
+  background: var(--color-field-100);
+  color: var(--color-ink-500);
+  font-size: 0.8125rem;
+}
+.media-lead img { width: 100%; height: 100%; max-height: 34rem; object-fit: cover; }
+
+.quiet-link {
+  min-height: var(--target-min);
+  display: inline-flex;
+  align-items: center;
+  color: var(--color-kola-600);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+@media (max-width: 64rem) {
+  .unit-columns { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .unit-workspace { grid-template-columns: minmax(0, 1fr); gap: var(--space-6); }
+  .unit-workspace-aside { position: static; order: -1; }
+}
+
+@media (max-width: 48rem) {
+  .unit-columns { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
+  .entity-path {
+    margin-bottom: var(--space-4);
+  }
+  .entity-path-entry,
+  .entity-path-entry .entity-path-item,
+  .entity-path-separator {
+    display: none;
+  }
+  .entity-path-entry:has(.entity-path-item[data-mobile-back="true"]),
+  .entity-path-item[data-mobile-back="true"] {
+    display: block;
+    max-width: 100%;
+  }
+  .entity-path-item[data-mobile-back="true"] a {
+    min-height: var(--target-min);
+    display: inline-flex;
+    align-items: center;
+  }
+  .entity-path-label { display: none; }
+  .entity-path-mobile-label { display: inline; }
+  .entity-path-mobile-label::before {
+    content: "←";
+    margin-right: var(--space-2);
+    font-weight: 400;
+  }
+  .entity-header { flex-direction: column; gap: var(--space-4); }
+  .entity-header-actions { width: 100%; justify-content: flex-start; }
+  .entity-header-actions .button-link { flex: 1; }
+  .inventory-row-link,
+  .inventory-row-with-media,
+  .inventory-row-with-media.inventory-row-with-stat {
+    grid-template-columns: 5rem minmax(0, 1fr) 1.25rem;
+    gap: var(--space-3);
+  }
+  .inventory-row-link:not(.inventory-row-with-media) { grid-template-columns: minmax(0, 1fr) 1.25rem; }
+  .inventory-row-status { margin-top: var(--space-2); }
+  .inventory-row-stat { grid-column: 2; text-align: left; }
+  .inventory-row-link:not(.inventory-row-with-media) .inventory-row-stat { grid-column: 1; }
+  .inventory-row-with-stat .inventory-row-stat { grid-column: 2; grid-row: 3; }
+  .inventory-row-with-stat .inventory-thumb { grid-row: 1 / span 3; }
+  .inventory-row-with-stat .inventory-row-arrow { grid-row: 1 / span 3; }
+  .inventory-thumb { width: 5rem; height: 4rem; }
+  .inventory-row-with-media .inventory-thumb { grid-row: 1 / span 2; }
+  .inventory-row-with-media .inventory-row-status {
+    grid-column: 2;
+    grid-row: 2;
+    margin-top: 0;
+  }
+  .inventory-row-with-media .inventory-row-arrow {
+    grid-column: 3;
+    grid-row: 1 / span 2;
+    align-self: center;
+  }
+  .attention-band { grid-template-columns: minmax(0, 1fr); }
+  .attention-band-actions { justify-content: flex-start; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .inventory-row-link, .button-link { transition: none; }
+}
+
+/* --- one Unit's private access code ---------------------------------------
+   Concise by construction: a state, a sentence, and the one or two things to do
+   about it. Whether it renders at all is `privateAccess`'s decision, so the
+   Unit page and the Tenants tab never disagree about the same Unit. */
+
+.unit-access { display: grid; gap: var(--space-3); padding-top: var(--space-5); margin-top: var(--space-5); border-top: var(--border-hairline) solid var(--color-field-200); }
+.unit-access h3 { margin: 0; color: var(--color-ink-500); font-size: .75rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+
+.unit-access-state { display: grid; gap: 2px; margin: 0; }
+.unit-access-state strong { font-size: 1rem; }
+.unit-access-state span { max-width: 60ch; color: var(--color-ink-500); font-size: .875rem; }
+.unit-access-state[data-tone="active"] strong { color: var(--color-kola-600); }
+.unit-access-state[data-tone="blocked"] strong { color: var(--color-ink-700); }
+
+/* Shown once, so it is made easy to read and to select. */
+.unit-access-code { margin: 0; }
+.unit-access-code code {
+  display: inline-block;
+  padding: var(--space-2) var(--space-3);
+  font-family: var(--font-mono, monospace);
+  font-size: 1.0625rem;
+  letter-spacing: .06em;
+  overflow-wrap: anywhere;
+  background: var(--color-field-50);
+  border: var(--border-hairline) solid var(--color-field-300);
+  border-radius: var(--radius-sm);
+  user-select: all;
+}
+
+.unit-access-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+
+/* --- choosing what kind of property this is ------------------------------
+   Three categories, and the choice decides what may be let inside. It was a
+   dropdown: a control you open, three words with no consequence attached, and
+   a decision that shapes every screen after it. */
+.type-choice { min-inline-size: 0; padding: 0; margin: 0; border: 0; }
+.type-choice legend {
+  padding: 0;
+  color: var(--color-ink-900);
+  font-size: .9375rem;
+  font-weight: 650;
+}
+.type-choice > .type-caption { margin: var(--space-1) 0 var(--space-3); }
+
+.type-choice-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr));
+  gap: var(--space-3);
+}
+
+/* The label is the target, so the whole tile is clickable and the radio stays
+   real — arrow keys, announced state, and a native checked signal to style on. */
+.type-choice-option { position: relative; display: block; cursor: pointer; }
+.type-choice-option input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  margin: 0;
+  cursor: pointer;
+}
+
+.type-choice-face {
+  display: grid;
+  gap: var(--space-1);
+  min-height: 100%;
+  padding: var(--space-4);
+  background: var(--color-field-0);
+  border: var(--border-hairline) solid var(--color-field-200);
+  border-radius: var(--radius-lg);
+  transition: border-color var(--motion-duration-fast) var(--motion-easing-standard),
+    background var(--motion-duration-fast) var(--motion-easing-standard);
+}
+.type-choice-option:hover .type-choice-face { border-color: var(--color-field-300); }
+
+.type-choice-face .portal-icon { width: 22px; height: 22px; color: var(--color-ink-500); }
+.type-choice-name { color: var(--color-ink-900); font-size: .9375rem; font-weight: 650; }
+.type-choice-holds { color: var(--color-ink-500); font-size: .8125rem; }
+
+/* Chosen. The ring is a box-shadow rather than a thicker border, so selecting
+   does not move the tile it is inside by a pixel. */
+.type-choice-option input:checked + .type-choice-face {
+  background: var(--color-kola-50);
+  border-color: var(--color-kola-600);
+  box-shadow: inset 0 0 0 1px var(--color-kola-600);
+}
+.type-choice-option input:checked + .type-choice-face .portal-icon { color: var(--color-kola-600); }
+.type-choice-option input:checked + .type-choice-face .type-choice-name { color: var(--color-kola-600); }
+
+.type-choice-option input:focus-visible + .type-choice-face {
+  outline: var(--border-emphasis) solid var(--color-kola-600);
+  outline-offset: 2px;
+}
+/* The face above is the focus ring. The input drawing it is stretched over the
+   whole tile and has no radius of its own, so the global rule in `globals.css`
+   put a second, square-cornered one right on top of it — and `:where()` makes
+   that rule weigh (0,1,0), which a bare `.type-choice-option input` ties rather
+   than beats. It takes a pseudo-class to answer a pseudo-class. */
+.type-choice-option input:focus-visible { outline: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .type-choice-face { transition: none; }
+}
+
+/* --- the property somebody just built ------------------------------------
+   The review step was a definition list of step names against their status.
+   Somebody had just photographed a building; the last thing they saw before
+   creating it was a progress table. */
+.property-summary {
+  display: grid;
+  gap: var(--space-4);
+  /* Measured against this panel, not the window. The panel sits beside a step
+     list on a wide screen and alone on a narrow one, so the same viewport
+     gives it two very different widths. */
+  container-type: inline-size;
+  container-name: property-summary;
+  padding: var(--space-4);
+  background: var(--color-field-0);
+  border: var(--border-hairline) solid var(--color-field-200);
+  border-radius: var(--radius-lg);
+}
+
+.property-summary-face { display: flex; align-items: center; gap: var(--space-4); }
+.property-summary-photo {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 7.5rem;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  background: var(--color-field-100);
+  border-radius: var(--radius-md);
+  text-align: center;
+}
+.property-summary-photo img { width: 100%; height: 100%; object-fit: cover; }
+
+.property-summary-identity { display: grid; gap: 2px; min-width: 0; }
+.property-summary-identity strong { font-size: 1.125rem; font-weight: 650; }
+.property-summary-kind {
+  color: var(--color-ink-500);
+  font-size: .75rem;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+.property-summary-where { display: flex; align-items: center; gap: var(--space-1); color: var(--color-ink-500); font-size: .875rem; }
+.property-summary-where .portal-icon { width: 15px; height: 15px; flex: 0 0 auto; color: inherit; }
+
+.property-summary-facts { display: grid; gap: var(--space-3); margin: 0; padding-top: var(--space-4); border-top: var(--border-hairline) solid var(--color-field-200); }
+.property-summary-group { display: grid; gap: var(--space-2); }
+.property-summary-group dt {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  color: var(--color-ink-500);
+  font-size: .75rem;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+/* Beside the group it changes, not at the end of the page: somebody who spots
+   a wrong water source wants the water source. */
+.property-summary-group dt button {
+  color: var(--color-kola-600);
+  font-size: .8125rem;
+  font-weight: 650;
+  letter-spacing: 0;
+  text-transform: none;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+.property-summary-group dt button:hover { text-decoration: underline; }
+.property-summary-group dd { margin: 0; }
+
+.property-summary-chips { display: flex; flex-wrap: wrap; gap: var(--space-2); padding: 0; margin: 0; list-style: none; }
+.property-summary-chips li {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  background: var(--color-field-50);
+  border-radius: var(--radius-sm);
+  font-size: .875rem;
+}
+.property-summary-chips li span { color: var(--color-ink-500); font-size: .75rem; }
+.property-summary-list { margin: 0; font-size: .875rem; }
+.property-summary-missing { color: var(--color-ink-500); font-size: .875rem; }
+
+/* Only what is still owed. Six rows saying "Done" is the checklist again. */
+.property-summary-outstanding { display: grid; gap: var(--space-2); }
+.property-summary-outstanding ul { display: grid; gap: var(--space-1); padding: 0; margin: 0; list-style: none; }
+.property-summary-outstanding button {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: var(--target-min);
+  padding: 0 var(--space-3);
+  color: var(--color-kola-600);
+  font-size: .9375rem;
+  font-weight: 650;
+  text-align: left;
+  background: var(--color-field-50);
+  border: 0;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.property-summary-outstanding button span { color: var(--color-ink-500); font-size: .8125rem; font-weight: 400; }
+
+@container property-summary (max-width: 22rem) {
+  .property-summary-face { flex-direction: column; align-items: flex-start; }
+  .property-summary-photo { width: 100%; }
+}
+
+/* --- the photographs a property is checked on --------------------------------
+   Each slot pairs what to photograph with why it matters — "A second angle
+   shows the building as it stands, not as one photograph framed it" — and that
+   line earns its place, because it changes which photograph somebody takes.
+
+   It was laid out as one non-wrapping flex row against a control block of a
+   fixed ~200px: thumbnail, Replace, Remove, none of them allowed to wrap. Every
+   pixel the column lost fell on the text, so in the 420px step the reason ran
+   to three lines and a slot stood 113px tall. The photograph is the control
+   now, which leaves one fixed 64px item per row and nothing else that refuses
+   to shrink. */
+.evidence-slots {
+  display: grid;
+  min-width: 0;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.evidence-slot {
+  display: flex;
+  gap: var(--space-4);
+  align-items: flex-start;
+  padding: var(--space-4) 0;
+  border-top: var(--border-hairline) solid var(--color-field-200);
+}
+.evidence-slot:first-child { padding-top: 0; border-top: 0; }
+
+/* The one thing standing between the fixed tile and an overflowing card: a flex
+   item's default minimum is its content, so a long unbroken word here would
+   push the step panel past its column rather than wrap inside it. */
+.evidence-slot-what {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-1);
+  align-content: start;
+}
+
+/* --- the tile ---------------------------------------------------------------
+   64px square: large enough to recognise a building in, comfortably past the
+   48px minimum for something you tap, and small enough that six slots read as
+   one list instead of a scroll. */
+.evidence-tile {
+  position: relative;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  width: 64px;
+  height: 64px;
+  border-radius: var(--radius-sm);
+  border: var(--border-hairline) solid var(--color-field-200);
+  background: var(--color-field-100);
+}
+
+.evidence-tile-photo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.evidence-tile-mark {
+  font-size: 1.25rem;
+  line-height: 1;
+  color: var(--color-ink-500);
+}
+
+/* Dashed, so an empty slot reads as somewhere a photograph goes rather than as
+   a photograph that failed to load. */
+.evidence-tile-empty {
+  border-style: dashed;
+  border-color: var(--color-field-300);
+  background: transparent;
+}
+
+label.evidence-tile:hover { border-color: var(--color-kola-600); }
+label.evidence-tile:focus-within {
+  outline: 2px solid var(--color-kola-600);
+  outline-offset: 2px;
+}
+
+/* --- remove -----------------------------------------------------------------
+   Quiet and unbordered: it is the only control here that destroys something, so
+   it should not compete with the tile for the eye. */
+.evidence-slot-remove {
+  justify-self: start;
+  margin-top: var(--space-1);
+  padding: 0;
+  background: none;
+  border: none;
+  font-weight: 600;
+  color: var(--color-laterite-600);
+  cursor: pointer;
+}
+.evidence-slot-remove:hover { text-decoration: underline; }
+.evidence-slot-remove:disabled { cursor: progress; opacity: 0.6; }
+
+.evidence-slot-sent { font-weight: 600; }

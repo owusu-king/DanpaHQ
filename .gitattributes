@@ -1,0 +1,31 @@
+# Line endings.
+#
+# Without this file, Git on Windows checks shell scripts and SQL out with CRLF.
+# A .sh file with CRLF fails inside a Linux container with the notoriously
+# unhelpful "not found" error (the shell is looking for an interpreter whose
+# name ends in \r), and psql chokes on CRLF in a heredoc. Forcing LF on
+# everything the containers execute removes that entire class of failure.
+
+* text=auto eol=lf
+
+*.sh          text eol=lf
+*.sql         text eol=lf
+Dockerfile    text eol=lf
+*.yml         text eol=lf
+*.yaml        text eol=lf
+
+# Windows-native tooling keeps CRLF so it opens cleanly in Notepad and runs
+# under PowerShell without complaint.
+*.ps1         text eol=crlf
+*.bat         text eol=crlf
+*.cmd         text eol=crlf
+
+# Binary: never touch.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.woff2 binary
+*.zip binary
+*.pdf binary
+.expo/

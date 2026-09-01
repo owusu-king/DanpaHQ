@@ -1,0 +1,205 @@
+/* Team: who can operate this Portfolio, what they may do, and which Properties
+   they may touch. A roster you read, with the controls that change someone's
+   access kept behind opening that person — not spread across every row. */
+
+.team-workspace { display: grid; gap: var(--space-6); min-width: 0; }
+
+/* Team lives in the Settings shell, so its own heading carries the one action
+   the page offers rather than the page header that is no longer here. */
+.team-head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: var(--space-4); }
+.team-head > div { display: grid; gap: var(--space-2); }
+.team-head h2 { margin: 0; font-size: 1.125rem; }
+.team-head p { max-width: 62ch; margin: 0; }
+
+/* Shown only to an account that belongs to more than one Portfolio. */
+.team-portfolio-switch { display: grid; max-width: 26rem; gap: var(--space-1); }
+.team-portfolio-switch select { min-height: 48px; padding: 0 var(--space-3); color: inherit; font: inherit; background: var(--color-field-0); border: var(--border-hairline) solid var(--color-field-300); border-radius: var(--radius-md); }
+
+.team-search { display: block; max-width: 26rem; }
+.team-search input {
+  width: 100%;
+  min-height: 48px;
+  padding: 0 var(--space-4);
+  color: inherit;
+  font: inherit;
+  background: var(--color-field-0);
+  border: var(--border-hairline) solid var(--color-field-300);
+  border-radius: var(--radius-md);
+}
+
+.team-rows { width: 100%; min-width: 0; padding: 0; margin: 0; list-style: none; border-top: var(--border-hairline) solid var(--color-field-200); }
+
+.team-row {
+  display: grid;
+  grid-template-columns: minmax(12rem, 1.4fr) minmax(8rem, auto) minmax(10rem, auto) 1.5rem;
+  width: 100%;
+  min-height: 72px;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-2);
+  color: inherit;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-bottom: var(--border-hairline) solid var(--color-field-200);
+  cursor: pointer;
+  transition: background-color 120ms ease;
+}
+
+.team-row:hover { background: var(--color-field-0); }
+
+.team-row-person { display: grid; min-width: 0; gap: var(--space-1); }
+.team-row-person strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.team-row-person span,
+.team-row-access { color: var(--color-ink-500); font-size: .875rem; line-height: 1.35; }
+.team-row-role { font-size: .875rem; font-weight: 600; }
+.team-row-arrow { color: var(--color-ink-300); font-size: 1.5rem; }
+
+/* Invitations are people who are not in yet: the same row shape, with the two
+   actions that apply to something still pending. */
+.team-invite-row {
+  display: grid;
+  grid-template-columns: minmax(12rem, 1.4fr) minmax(8rem, auto) auto;
+  min-height: 72px;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-2);
+  border-bottom: var(--border-hairline) solid var(--color-field-200);
+}
+
+.team-invite-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); justify-self: end; }
+
+.team-dialog {
+  width: min(40rem, calc(100vw - 2rem));
+  max-width: none;
+  max-height: min(92vh, 60rem);
+  padding: 0;
+  margin: auto;
+  color: var(--color-ink-900);
+  background: var(--color-field-0);
+  border: 0;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-modal);
+  overflow: hidden;
+}
+
+.team-dialog::backdrop { background: rgb(15 24 20 / .48); }
+.team-dialog-panel { max-height: min(92vh, 60rem); overflow-y: auto; overscroll-behavior: contain; }
+
+.team-dialog-head {
+  position: sticky;
+  z-index: 2;
+  top: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-5) var(--space-6);
+  background: color-mix(in srgb, var(--color-field-0) 94%, transparent);
+  border-bottom: var(--border-hairline) solid var(--color-field-200);
+  backdrop-filter: blur(12px);
+}
+
+.team-dialog-head p, .team-dialog-head h2 { margin: 0; }
+.team-dialog-head h2 { font-size: 1.375rem; line-height: 1.75rem; }
+
+.team-dialog-close {
+  width: 48px;
+  height: 48px;
+  flex: 0 0 auto;
+  color: var(--color-ink-700);
+  background: transparent;
+  border: 0;
+  border-radius: 50%;
+  font: inherit;
+  font-size: 1.75rem;
+  cursor: pointer;
+}
+
+.team-dialog-body { display: grid; gap: var(--space-5); padding: var(--space-6); }
+.team-dialog-section { display: grid; gap: var(--space-3); padding-top: var(--space-5); border-top: var(--border-hairline) solid var(--color-field-200); }
+.team-dialog-section:first-child { padding-top: 0; border-top: 0; }
+.team-dialog-section h3 { margin: 0; font-size: 1rem; }
+.team-dialog-section p { max-width: 60ch; margin: 0; }
+
+/* The member's standing, read the way the Lease record reads its terms: labelled
+   facts, not a caption line under the name. */
+.team-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-4); margin: 0; }
+.team-facts div { display: grid; gap: var(--space-1); }
+.team-facts dt { color: var(--color-ink-500); font-size: .75rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+.team-facts dd { margin: 0; overflow-wrap: anywhere; }
+
+/* Ending someone's access is real, but it is not why this dialog was opened.
+   It sits last and stays quiet until it is asked for. */
+.team-danger { display: grid; gap: var(--space-3); padding-top: var(--space-5); border-top: var(--border-hairline) solid var(--color-field-200); }
+.team-danger > p { max-width: 60ch; margin: 0; }
+.team-danger-open { justify-self: start; min-height: 44px; padding: 0; color: var(--color-laterite-600); background: none; border: 0; font: inherit; font-weight: 650; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+
+.team-form { display: grid; gap: var(--space-5); }
+.team-actions { display: flex; flex-wrap: wrap; gap: var(--space-3); }
+
+/* Unsaved access changes keep their controls in one place instead of appearing
+   between sections and scrolling out of reach. */
+.team-dialog-footer {
+  position: sticky;
+  z-index: 2;
+  bottom: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-6);
+  background: color-mix(in srgb, var(--color-field-0) 94%, transparent);
+  border-top: var(--border-hairline) solid var(--color-field-200);
+  backdrop-filter: blur(12px);
+}
+
+.team-dialog-footer p { flex: 1 1 12rem; margin: 0; }
+
+/* Property scope. Checkboxes in a plain column, because a bordered chip inside a
+   bordered row was a card inside a card and read as more structure than it is. */
+.team-properties { display: grid; gap: var(--space-2); padding: 0; margin: 0; border: 0; }
+.team-properties legend { margin-bottom: var(--space-2); }
+.team-properties .control { overflow-wrap: anywhere; }
+
+.team-empty-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-4); }
+
+/* Every other workspace states its focus ring rather than leaving it to the UA
+   default, which disappears against these surfaces. */
+.team-search input:focus-visible,
+.team-row:focus-visible,
+.team-dialog-close:focus-visible,
+.team-danger-open:focus-visible,
+.team-properties input:focus-visible {
+  outline: 3px solid var(--color-lagoon-600);
+  outline-offset: 2px;
+}
+
+@media (max-width: 760px) {
+  .team-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+  .team-row { grid-template-columns: minmax(0, 1fr) minmax(7rem, auto) 1.5rem; }
+  .team-row-role { grid-column: 2; grid-row: 1 / span 2; }
+  .team-row-access { grid-column: 1; }
+  .team-row-arrow { grid-column: 3; grid-row: 1 / span 3; }
+  .team-invite-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .team-invite-actions { grid-column: 1 / -1; justify-self: start; }
+}
+
+@media (max-width: 600px) {
+  .team-row { grid-template-columns: minmax(0, 1fr) 1.5rem; gap: var(--space-2); min-height: 96px; padding-inline: 0; }
+  .team-row-person strong { white-space: normal; }
+  .team-row-role, .team-row-access { grid-column: 1; grid-row: auto; }
+  .team-row-arrow { grid-column: 2; grid-row: 1 / span 4; }
+  .team-invite-row { grid-template-columns: 1fr; padding-inline: 0; }
+  .team-dialog { width: 100%; max-height: 94dvh; margin: auto 0 0; border-radius: var(--radius-lg) var(--radius-lg) 0 0; }
+  .team-dialog-panel { max-height: 94dvh; }
+  .team-dialog-head, .team-dialog-body, .team-dialog-footer { padding-left: var(--space-5); padding-right: var(--space-5); }
+  .team-facts { grid-template-columns: 1fr; gap: var(--space-3); }
+  .team-actions > * { flex: 1 1 auto; }
+  .team-dialog-footer p { flex-basis: 100%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .team-row { transition: none; }
+}

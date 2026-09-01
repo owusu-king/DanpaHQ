@@ -1,0 +1,82 @@
+.leases-workspace { display: grid; gap: var(--space-6); min-width: 0; }
+/* Three counts, a search, then the stages — the shape Payments and Tenancy
+   requests use, because it is the same job. */
+.leases-overview {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0 0 var(--space-8);
+  border-block: var(--border-hairline) solid var(--color-field-200);
+}
+.leases-overview > div { display: grid; gap: var(--space-1); padding: var(--space-5) 0; }
+.leases-overview > div + div { padding-left: var(--space-5); border-left: var(--border-hairline) solid var(--color-field-200); }
+.leases-overview dt { color: var(--color-ink-500); }
+.leases-overview dd { margin: 0; font-family: var(--font-display); font-size: 1.5rem; line-height: 2rem; font-weight: 600; }
+.leases-overview [data-tone="active"] { color: var(--color-kola-600); }
+.leases-overview [data-tone="awaiting"] { color: var(--color-harmattan-600); }
+
+.leases-search { display: block; width: min(100%, 30rem); }
+.leases-search input { width: 100%; min-height: 48px; padding: 0 var(--space-4); color: var(--color-ink-900); background: var(--color-field-0); border: var(--border-hairline) solid var(--color-field-300); border-radius: var(--radius-sm); font: inherit; }
+.leases-filters { display: flex; max-width: 100%; gap: var(--space-2); margin-bottom: var(--space-3); overflow-x: auto; scrollbar-width: none; }
+.leases-filters::-webkit-scrollbar { display: none; }
+.leases-filters button { min-height: 44px; padding: 0 var(--space-3); color: var(--color-ink-500); background: transparent; border: var(--border-hairline) solid var(--color-field-200); border-radius: 999px; font: inherit; font-size: .875rem; font-weight: 600; white-space: nowrap; cursor: pointer; }
+.leases-filters button[aria-pressed="true"] { color: var(--color-kola-600); background: var(--color-kola-50); border-color: var(--color-kola-300); }
+.leases-filters span { color: inherit; opacity: .75; }
+.leases-list { width: 100%; min-width: 0; padding: 0; margin: 0; list-style: none; border-top: var(--border-hairline) solid var(--color-field-200); }
+.lease-row { display: grid; grid-template-columns: minmax(12rem, 1.25fr) minmax(10rem, .9fr) minmax(9rem, auto) minmax(7rem, auto) 1.5rem; width: 100%; min-height: 76px; align-items: center; gap: var(--space-4); padding: var(--space-3) var(--space-2); color: inherit; text-align: left; text-decoration: none; background: transparent; border: 0; border-bottom: var(--border-hairline) solid var(--color-field-200); cursor: pointer; transition: background-color 120ms ease; }
+.lease-row:hover { background: var(--color-field-0); }
+.lease-row-person, .lease-row-person strong, .lease-row-person span, .lease-row-terms, .lease-row-terms small { display: block; min-width: 0; }
+.lease-row-person strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lease-row-person span, .lease-row-terms, .lease-row-date { color: var(--color-ink-500); font-size: .875rem; line-height: 1.35; }
+.lease-row-terms small { margin-top: var(--space-1); font: inherit; color: var(--color-ink-300); }
+.lease-row-state { display: inline-flex; align-items: center; gap: var(--space-2); min-width: 0; color: var(--color-ink-500); font-size: .875rem; font-weight: 600; }
+.lease-row-state i { width: 8px; height: 8px; flex: 0 0 auto; background: currentColor; border-radius: 50%; }
+.lease-row-state.is-good { color: var(--color-kola-600); }
+.lease-row-state.is-waiting { color: var(--color-harmattan-600); }
+.lease-row-state.is-attention { color: var(--color-laterite-600); }
+.lease-row-state.is-muted { color: var(--color-ink-500); }
+.lease-row-arrow {
+  color: var(--color-ink-300);
+  font-size: 1.5rem;
+  transition: transform var(--motion-duration-fast) var(--motion-easing-standard),
+    color var(--motion-duration-fast) var(--motion-easing-standard);
+}
+.lease-record-detail { display: grid; gap: var(--space-5); }
+.lease-record-place { display: grid; gap: var(--space-1); }
+.lease-record-place p { margin: 0; }
+.lease-record-place .lease-row-state { margin-top: var(--space-2); }
+.lease-record-money { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); padding: var(--space-5); margin: 0; background: var(--color-field-50); border-radius: var(--radius-md); }
+.lease-record-money div, .lease-record-facts div { display: grid; gap: var(--space-1); }
+.lease-record-money dt, .lease-record-facts dt { color: var(--color-ink-500); font-size: .75rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+.lease-record-money dd, .lease-record-facts dd { margin: 0; }
+.lease-record-money dd { font-size: 1.25rem; font-weight: 650; }
+.lease-record-money small { display: block; color: var(--color-ink-500); font-size: .75rem; font-weight: 400; }
+.lease-record-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); margin: 0; }
+.lease-record-section { display: grid; gap: var(--space-2); padding-top: var(--space-4); border-top: var(--border-hairline) solid var(--color-field-200); }
+.lease-record-section h3, .lease-record-section p { margin: 0; }
+.lease-record-evidence { padding: var(--space-4); background: var(--color-field-50); border-radius: var(--radius-sm); }
+.lease-record-evidence summary { min-height: 32px; color: var(--color-kola-600); font-weight: 650; cursor: pointer; }
+.lease-record-evidence p { margin: var(--space-3) 0 var(--space-2); color: var(--color-ink-500); font-size: .875rem; }
+.lease-record-evidence code { display: block; max-width: 100%; overflow-wrap: anywhere; color: var(--color-ink-500); font-size: .75rem; }
+.lease-record-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.lease-record-confirm { display: grid; gap: var(--space-3); }
+.leases-search input:focus-visible, .leases-filters button:focus-visible, .lease-row:focus-visible { outline: 3px solid var(--color-lagoon-600); outline-offset: 2px; }
+@media (max-width: 900px) {
+  .lease-row { grid-template-columns: minmax(0, 1fr) minmax(9rem, auto) 1.5rem; }
+  .lease-row-terms { display: none; }
+  .lease-row-date { grid-column: 1; }
+  .lease-row-state { grid-column: 2; grid-row: 1 / span 2; }
+  .lease-row-arrow { grid-column: 3; grid-row: 1 / span 2; }
+}
+@media (max-width: 600px) {
+  .leases-search { width: 100%; }
+  .leases-overview { grid-template-columns: 1fr; }
+  .leases-overview > div + div { padding-left: 0; border-left: 0; border-top: var(--border-hairline) solid var(--color-field-200); }
+  .lease-row { grid-template-columns: minmax(0, 1fr) 1.5rem; gap: var(--space-2); min-height: 88px; padding: var(--space-3) 0; }
+  .lease-row-person strong { white-space: normal; }
+  .lease-row-state, .lease-row-date { grid-column: 1; grid-row: auto; }
+  .lease-row-arrow { grid-column: 2; grid-row: 1 / span 3; }
+  .lease-record-money, .lease-record-facts { grid-template-columns: 1fr; gap: var(--space-3); }
+}
+@media (prefers-reduced-motion: reduce) { .lease-row { transition: none; } }
+
+.lease-row:hover .lease-row-arrow { transform: translateX(2px); color: var(--color-ink-500); }

@@ -1,0 +1,317 @@
+/* Form controls.
+ *
+ * These were the last things in the product still wearing the browser's own
+ * clothes. The text field had no focus state whatsoever — the input inside it
+ * set `outline: none` and the shell around it never reacted, so tabbing through
+ * a form moved an invisible cursor. Every radio and checkbox was a native
+ * control, rendered by the operating system in whatever grey it likes, next to
+ * type and colour chosen carefully enough to make the mismatch obvious.
+ *
+ * Drawn here rather than inline because the interesting states are all
+ * pseudo-classes — :hover, :focus-visible, :checked, :disabled — and an inline
+ * style cannot express any of them. The real input is always still there,
+ * carrying the semantics and the keyboard behaviour; what changes is only what
+ * gets painted.
+ */
+
+/* --- the frame around a value ---------------------------------------------- */
+
+.field { display: grid; gap: var(--space-2); min-width: 0; }
+.field-label { color: var(--color-ink-700); }
+.field-hint { color: var(--color-ink-500); }
+.field-error { color: var(--color-laterite-600); }
+
+.field-shell {
+  display: flex;
+  /* Stretch, not centre: the input has to fill the box for the whole box to be
+     clickable. Centred, it was 24px of text floating in a 48px frame, and a
+     click on the quiet half of the field did nothing. */
+  align-items: stretch;
+  min-width: 0;
+  min-height: var(--target-min);
+  background: var(--color-field-0);
+  border: var(--border-hairline) solid var(--color-field-300);
+  border-radius: var(--radius-md);
+  transition:
+    border-color var(--motion-duration-fast) var(--motion-easing-standard),
+    box-shadow var(--motion-duration-fast) var(--motion-easing-standard);
+}
+
+.field-shell:hover { border-color: var(--color-ink-300); }
+
+/* A soft ring rather than a hard outline: it reads as the control coming
+   forward instead of as the browser drawing on top of it, and because it is a
+   shadow it moves nothing on the page. */
+.field-shell:focus-within {
+  border-color: var(--color-kola-600);
+  box-shadow: 0 0 0 3px var(--color-kola-50);
+}
+
+.field-shell-error { border-color: var(--color-laterite-600); }
+.field-shell-error:focus-within {
+  border-color: var(--color-laterite-600);
+  box-shadow: 0 0 0 3px var(--color-laterite-100);
+}
+
+.field-shell-disabled {
+  background: var(--color-field-100);
+  border-color: var(--color-field-200);
+}
+.field-shell-disabled:hover { border-color: var(--color-field-200); }
+
+/* The padding lives here rather than on the shell so the input reaches the
+   frame's edges. With it on the shell there was a 12px strip down each side
+   that looked like part of the field and was not part of the control.
+
+   No vertical padding: `min-height` on the shell already sets the height, and
+   an input padded to 48px on top of it made every field 50px — two pixels
+   taller than the buttons and selects beside it, which is exactly the kind of
+   misalignment that reads as unfinished without being nameable. */
+.field-input {
+  flex: 1;
+  min-width: 0;
+  padding: 0 var(--space-3);
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--color-ink-900);
+}
+/* The global rule in `globals.css` gives every input a 2px kola-300 outline on
+   focus. It is wrapped in `:where()`, so it weighs (0,1,0) — exactly what a bare
+   `.field-input` weighs, and it comes later in the cascade, so it won. The input
+   has no radius of its own, so what it painted was a sharp green rectangle
+   fighting the rounded frame around it; once the input was stretched to fill
+   that frame, the rectangle landed right on its edges.
+
+   The field's focus indicator is the ring on the shell. The control inside it
+   must not draw a second one, and saying so needs a pseudo-class to outweigh
+   the pseudo-class it is answering. */
+.field-input:focus-visible { outline: none; }
+
+.field-input::placeholder { color: var(--color-ink-300); }
+.field-input:disabled { color: var(--color-ink-500); cursor: not-allowed; }
+
+.field-prefix {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  padding-inline-start: var(--space-3);
+  color: var(--color-ink-500);
+}
+/* A prefix already carries the left padding, so the input only needs the gap. */
+.field-prefix + .field-input { padding-inline-start: var(--space-2); }
+
+/* --- choosing one of a list ------------------------------------------------- */
+
+.select-shell { position: relative; display: grid; min-width: 0; }
+
+/* Two borders on a rotated square. The operating system's own arrow is the
+   single clearest tell that a control was never designed, and it cannot be
+   recoloured to match anything around it. */
+.select-shell::after {
+  content: "";
+  position: absolute;
+  inset-inline-end: var(--space-4);
+  top: 50%;
+  width: 7px;
+  height: 7px;
+  border-right: var(--border-emphasis) solid var(--color-ink-500);
+  border-bottom: var(--border-emphasis) solid var(--color-ink-500);
+  transform: translateY(-70%) rotate(45deg);
+  pointer-events: none;
+}
+.select-shell-disabled::after { border-color: var(--color-ink-300); }
+
+.select-control {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  min-width: 0;
+  min-height: var(--target-min);
+  padding: 0 calc(var(--space-4) * 2 + 7px) 0 var(--space-3);
+  background: var(--color-field-0);
+  border: var(--border-hairline) solid var(--color-field-300);
+  border-radius: var(--radius-md);
+  color: var(--color-ink-900);
+  cursor: pointer;
+  transition:
+    border-color var(--motion-duration-fast) var(--motion-easing-standard),
+    box-shadow var(--motion-duration-fast) var(--motion-easing-standard);
+}
+.select-control:hover { border-color: var(--color-ink-300); }
+.select-control:focus-visible {
+  outline: none;
+  border-color: var(--color-kola-600);
+  box-shadow: 0 0 0 3px var(--color-kola-50);
+}
+.select-control:disabled {
+  background: var(--color-field-100);
+  border-color: var(--color-field-200);
+  color: var(--color-ink-500);
+  cursor: not-allowed;
+}
+
+/* --- ticking something ------------------------------------------------------ */
+
+.control {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  min-height: var(--target-min);
+  padding: var(--space-2) 0;
+  cursor: pointer;
+}
+.control-disabled { cursor: not-allowed; opacity: 0.55; }
+
+/* Kept in the page, kept focusable, kept announced — only unpainted. A control
+   replaced by a div is a control a keyboard cannot reach. */
+.control-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  margin: 0;
+  pointer-events: none;
+}
+
+/* Same global rule, same answer: this input is 1px and invisible, so its
+   outline was a green fleck beside the box that is the real indicator. */
+.control-input:focus-visible { outline: none; }
+
+.control-box {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  margin-top: 2px;
+  background: var(--color-field-0);
+  border: var(--border-emphasis) solid var(--color-field-300);
+  border-radius: var(--radius-sm);
+  transition:
+    background var(--motion-duration-fast) var(--motion-easing-standard),
+    border-color var(--motion-duration-fast) var(--motion-easing-standard),
+    box-shadow var(--motion-duration-fast) var(--motion-easing-standard);
+}
+.control-box-radio { border-radius: var(--radius-pill); }
+
+.control:hover .control-box { border-color: var(--color-ink-300); }
+.control-input:focus-visible + .control-box {
+  border-color: var(--color-kola-600);
+  box-shadow: 0 0 0 3px var(--color-kola-50);
+}
+.control-input:checked + .control-box {
+  background: var(--color-kola-600);
+  border-color: var(--color-kola-600);
+}
+.control-input:disabled + .control-box { border-color: var(--color-field-200); }
+.control-input:checked:disabled + .control-box {
+  background: var(--color-ink-300);
+  border-color: var(--color-ink-300);
+}
+
+/* The mark, drawn rather than typed: a tick glyph inherits a font's opinion
+   about weight and baseline and never sits where you want it. */
+.control-box::after {
+  content: "";
+  opacity: 0;
+  transition: opacity var(--motion-duration-fast) var(--motion-easing-standard);
+}
+.control-input:checked + .control-box::after { opacity: 1; }
+
+.control-box:not(.control-box-radio)::after {
+  width: 5px;
+  height: 9px;
+  margin-top: -2px;
+  border-right: var(--border-emphasis) solid var(--color-field-0);
+  border-bottom: var(--border-emphasis) solid var(--color-field-0);
+  transform: rotate(45deg);
+}
+.control-box-radio::after {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background: var(--color-field-0);
+}
+
+.control-what { display: grid; gap: 2px; min-width: 0; }
+.control-title { color: var(--color-ink-900); }
+.control-note { color: var(--color-ink-500); }
+
+/* --- picking several out of a set ------------------------------------------- */
+
+/* Amenities and attributes were chips with a native checkbox sitting inside
+   them: a box inside a box, both saying "selected", one of them drawn by the
+   operating system. The chip is the control here — there is nothing to tick
+   inside something you are already tapping. */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--target-min);
+  padding: 0 var(--space-4);
+  background: var(--color-field-0);
+  border: var(--border-hairline) solid var(--color-field-300);
+  border-radius: var(--radius-pill);
+  color: var(--color-ink-900);
+  cursor: pointer;
+  transition:
+    background var(--motion-duration-fast) var(--motion-easing-standard),
+    border-color var(--motion-duration-fast) var(--motion-easing-standard),
+    box-shadow var(--motion-duration-fast) var(--motion-easing-standard);
+}
+.chip:hover { border-color: var(--color-ink-300); }
+
+/* An inset shadow rather than a thicker border, so a chip turning on does not
+   move the twenty chips after it by a pixel. State is carried by weight as well
+   as by colour, which matters where the difference decides what somebody is
+   telling us about a building. */
+.chip:has(.control-input:checked) {
+  background: var(--color-kola-50);
+  border-color: var(--color-kola-600);
+  box-shadow: inset 0 0 0 1px var(--color-kola-600);
+  color: var(--color-kola-800);
+}
+.chip:has(.control-input:focus-visible) {
+  border-color: var(--color-kola-600);
+  box-shadow: 0 0 0 3px var(--color-kola-50);
+}
+.chip:has(.control-input:checked):has(.control-input:focus-visible) {
+  box-shadow: inset 0 0 0 1px var(--color-kola-600), 0 0 0 3px var(--color-kola-50);
+}
+.chip:has(.control-input:disabled) { cursor: not-allowed; opacity: 0.55; }
+
+.chip-set { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+
+/* --- turning something on --------------------------------------------------- */
+
+/* A setting is not a tick. "Send me an email when rent is due" is a thing that
+   is on or off, and a switch says so in a way a checkbox — which reads as one
+   of several answers to a question — does not. Same input underneath. */
+.switch {
+  position: relative;
+  flex: 0 0 auto;
+  width: 44px;
+  height: 26px;
+  background: var(--color-field-300);
+  border-radius: var(--radius-pill);
+  transition:
+    background var(--motion-duration-fast) var(--motion-easing-standard),
+    box-shadow var(--motion-duration-fast) var(--motion-easing-standard);
+}
+.switch::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  inset-inline-start: 3px;
+  width: 20px;
+  height: 20px;
+  background: var(--color-field-0);
+  border-radius: var(--radius-pill);
+  /* Transform, not `left`: the knob is the one thing here that moves, and
+     moving it by offset would lay the row out again on every tap. */
+  transition: transform var(--motion-duration-base) var(--motion-easing-standard);
+}
+.control-input:checked + .switch { background: var(--color-kola-600); }
+.control-input:checked + .switch::after { transform: translateX(18px); }
+.control-input:focus-visible + .switch { box-shadow: 0 0 0 3px var(--color-kola-50); }
+.control-input:disabled + .switch { background: var(--color-field-200); }

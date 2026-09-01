@@ -1,0 +1,31 @@
+{
+  "name": "@grp/web",
+  "version": "0.1.0",
+  "private": true,
+  "//tailwind": "Keep tailwindcss and @tailwindcss/postcss on the same version. Tailwind 4 pulls its native scanner (@tailwindcss/oxide) in through a caret range, so pinning the JS to an old patch while oxide floats forward fails the build with 'Missing field negated on ScannerOptions.sources'.",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint app src",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test src/lib/*.test.mjs"
+  },
+  "dependencies": {
+    "@paystack/inline-js": "^2.24.0",
+    "next": "16.3.1",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "react-qr-code": "^2.2.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "4.3.3",
+    "@types/node": "22.10.2",
+    "@types/react": "19.0.2",
+    "@types/react-dom": "19.0.2",
+    "eslint": "9.39.5",
+    "eslint-config-next": "16.3.1",
+    "tailwindcss": "4.3.3",
+    "typescript": "5.7.2"
+  }
+}

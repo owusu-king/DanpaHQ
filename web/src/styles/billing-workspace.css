@@ -1,0 +1,92 @@
+/* Plan & billing: what this Portfolio is on, what it is using, and what the
+   other plans would give it.
+
+   Usage first, comparison second. A provider opens this page to answer "can I
+   add another property", not to shop — so the meters are the top of the page
+   and the plan ladder is below them. */
+
+.billing-workspace { display: grid; gap: var(--space-6); min-width: 0; }
+
+.billing-head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: var(--space-4); }
+.billing-head > div { display: grid; gap: var(--space-2); }
+.billing-head h2 { margin: 0; font-size: 1.125rem; }
+.billing-head p { max-width: 62ch; margin: 0; }
+
+.billing-plan-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: var(--color-kola-50);
+  border: var(--border-hairline) solid var(--color-kola-300);
+  border-radius: var(--radius-md);
+  color: var(--color-kola-800);
+}
+.billing-plan-badge[data-plan="FREE"] { background: var(--color-field-50); border-color: var(--color-field-300); color: var(--color-ink-700); }
+
+/* --- the meters ---------------------------------------------------------- */
+
+.billing-meters { display: grid; gap: var(--space-4); grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); padding: 0; margin: 0; list-style: none; }
+
+.billing-meter {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  background: var(--color-field-0);
+  border: var(--border-hairline) solid var(--color-field-200);
+  border-radius: var(--radius-md);
+}
+.billing-meter dt { margin: 0; color: var(--color-ink-500); font-size: 0.875rem; }
+.billing-meter .billing-meter-count { font-size: 1.5rem; font-weight: 600; color: var(--color-ink-900); font-variant-numeric: tabular-nums; }
+.billing-meter .billing-meter-of { color: var(--color-ink-500); font-size: 0.9375rem; font-weight: 400; }
+
+.billing-bar { height: 6px; overflow: hidden; background: var(--color-field-100); border-radius: 999px; }
+.billing-bar span { display: block; height: 100%; background: var(--color-kola-600); border-radius: 999px; }
+/* Approaching the ceiling is worth noticing before it is reached; being over it
+   is a state to describe, never an error, because nothing was taken away. */
+.billing-meter[data-state="near"] .billing-bar span { background: var(--color-harmattan-500); }
+.billing-meter[data-state="over"] .billing-bar span { background: var(--color-laterite-600); }
+.billing-meter-note { margin: 0; font-size: 0.875rem; color: var(--color-ink-500); }
+.billing-meter[data-state="over"] .billing-meter-note { color: var(--color-laterite-600); }
+
+/* --- the plan ladder ----------------------------------------------------- */
+
+.billing-plans { display: grid; gap: var(--space-4); grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); padding: 0; margin: 0; list-style: none; }
+
+.billing-plan {
+  display: grid;
+  gap: var(--space-3);
+  align-content: start;
+  padding: var(--space-5);
+  background: var(--color-field-0);
+  border: var(--border-hairline) solid var(--color-field-200);
+  border-radius: var(--radius-md);
+}
+.billing-plan[data-current="true"] { border-color: var(--color-kola-600); box-shadow: inset 0 0 0 1px var(--color-kola-600); }
+.billing-plan h4 { margin: 0; font-size: 1.0625rem; }
+.billing-plan-price { margin: 0; font-size: 1.375rem; font-weight: 600; color: var(--color-ink-900); font-variant-numeric: tabular-nums; }
+.billing-plan-price small { font-size: 0.875rem; font-weight: 400; color: var(--color-ink-500); }
+.billing-plan-description { margin: 0; font-size: 0.9375rem; color: var(--color-ink-500); }
+.billing-plan-current { margin: 0; font-size: 0.875rem; font-weight: 600; color: var(--color-kola-600); }
+
+/* --- the comparison ------------------------------------------------------ */
+
+.billing-compare { width: 100%; overflow-x: auto; }
+.billing-compare table { width: 100%; min-width: 34rem; border-collapse: collapse; }
+.billing-compare caption { padding-bottom: var(--space-3); text-align: left; color: var(--color-ink-500); font-size: 0.875rem; }
+.billing-compare th, .billing-compare td { padding: var(--space-3) var(--space-2); text-align: left; border-bottom: var(--border-hairline) solid var(--color-field-200); }
+.billing-compare thead th { color: var(--color-ink-500); font-size: 0.8125rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
+.billing-compare td { font-variant-numeric: tabular-nums; }
+.billing-compare tbody th { font-weight: 400; }
+.billing-compare tbody th span { display: block; color: var(--color-ink-500); font-size: 0.8125rem; }
+.billing-compare .billing-group-row th { padding-top: var(--space-5); color: var(--color-ink-900); font-size: 0.8125rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; border-bottom: 0; }
+.billing-compare td[data-current="true"] { background: var(--color-kola-50); }
+.billing-yes { color: var(--color-kola-600); font-weight: 600; }
+.billing-no { color: var(--color-ink-300); }
+
+@media (max-width: 640px) {
+  .billing-plan { padding: var(--space-4); }
+}

@@ -1,0 +1,123 @@
+/* Units across the whole Portfolio: find, recognize, open.
+   Cards here carry a photograph, which is the fastest way a person recognizes a
+   room they have stood in. Everything else on the card is one line. */
+
+.units-workspace { display: grid; gap: var(--space-5); min-width: 0; }
+
+.units-controls { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
+.units-search { flex: 1 1 20rem; min-width: 0; }
+.units-search input {
+  width: 100%;
+  min-height: 48px;
+  padding: 0 var(--space-4);
+  color: inherit;
+  font: inherit;
+  background: var(--color-field-0);
+  border: var(--border-hairline) solid var(--color-field-300);
+  border-radius: var(--radius-md);
+}
+
+.units-select { display: flex; align-items: center; gap: var(--space-2); }
+.units-select select {
+  min-height: 48px;
+  max-width: 16rem;
+  padding: 0 var(--space-3);
+  color: inherit;
+  font: inherit;
+  background: var(--color-field-0);
+  border: var(--border-hairline) solid var(--color-field-300);
+  border-radius: var(--radius-md);
+}
+
+.units-tabs { display: flex; gap: var(--space-5); border-bottom: var(--border-hairline) solid var(--color-field-200); }
+.units-tab {
+  min-height: 48px;
+  padding: 0 0 var(--space-2);
+  color: var(--color-ink-500);
+  background: none;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  cursor: pointer;
+}
+.units-tab[aria-selected="true"] { color: var(--color-ink-900); border-bottom-color: var(--color-kola-600); }
+.units-tab span { margin-left: var(--space-2); font-weight: 400; }
+
+.units-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: var(--space-4); padding: 0; margin: 0; list-style: none; }
+
+.unit-card {
+  display: grid;
+  align-content: start;
+  height: 100%;
+  color: inherit;
+  text-decoration: none;
+  background: var(--color-field-0);
+  border: var(--border-hairline) solid var(--color-field-200);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  transition: border-color 120ms ease;
+}
+
+.unit-card:hover { border-color: var(--color-kola-600); }
+
+.unit-card-photo { position: relative; aspect-ratio: 4 / 3; background: var(--color-field-100); }
+.unit-card-photo img { display: block; width: 100%; height: 100%; object-fit: cover; }
+/* Initials would be meaningless for a room, so an empty frame says so quietly. */
+.unit-card-photo span { position: absolute; inset: 0; display: grid; place-items: center; color: var(--color-ink-300); font-size: .8125rem; }
+
+.unit-card-body { display: grid; gap: var(--space-1); padding: var(--space-4); }
+.unit-card-body strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.unit-card-where { overflow: hidden; color: var(--color-ink-500); font-size: .875rem; text-overflow: ellipsis; white-space: nowrap; }
+
+.unit-card-state { display: inline-flex; align-items: center; gap: var(--space-2); font-size: .875rem; font-weight: 600; }
+.unit-card-state i { width: 8px; height: 8px; flex: 0 0 auto; background: currentColor; border-radius: 50%; }
+.unit-card-state.is-available { color: var(--color-kola-600); }
+.unit-card-state.is-occupied { color: var(--color-ink-500); }
+.unit-card-state.is-expired { color: var(--color-harmattan-600); }
+
+/* Shown only when something is actually wrong or waiting. */
+.unit-card-flag { color: var(--color-laterite-600); font-size: .8125rem; font-weight: 650; }
+
+.units-count { color: var(--color-ink-500); font-size: .875rem; }
+
+.units-search input:focus-visible,
+.units-select select:focus-visible,
+.units-tab:focus-visible,
+.unit-card:focus-visible {
+  outline: 3px solid var(--color-lagoon-600);
+  outline-offset: 2px;
+}
+
+/* Choosing which Property a new Unit belongs to. A list, because a provider
+   recognizes a Property by name and there may be many. */
+.unit-property-list { display: grid; gap: 0; padding: 0; margin: 0; list-style: none; border-top: var(--border-hairline) solid var(--color-field-200); }
+.unit-property-row {
+  display: flex;
+  width: 100%;
+  min-height: 64px;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-2);
+  color: inherit;
+  text-align: left;
+  text-decoration: none;
+  background: transparent;
+  border: 0;
+  border-bottom: var(--border-hairline) solid var(--color-field-200);
+  cursor: pointer;
+}
+.unit-property-row:hover { background: var(--color-field-0); }
+.unit-property-row span { color: var(--color-ink-500); font-size: .875rem; }
+
+@media (max-width: 600px) {
+  .units-controls { align-items: stretch; flex-direction: column; }
+  .units-select select { max-width: none; }
+  .units-tabs { gap: var(--space-4); overflow-x: auto; scrollbar-width: none; }
+  .units-tab { min-width: max-content; }
+  .units-grid { grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr)); gap: var(--space-3); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .unit-card { transition: none; }
+}

@@ -1,0 +1,62 @@
+/* Creation checkpoints: architectural, quiet, and shared by Property + Unit. */
+.checkpoint-journey { display: grid; gap: var(--space-4); min-width: 0; }
+.checkpoint-journey-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); color: var(--color-ink-500); }
+.checkpoint-position { color: var(--color-ink-700); white-space: nowrap; }
+
+.checkpoint-row {
+  --checkpoint-count: 1;
+  display: grid;
+  grid-template-columns: repeat(var(--checkpoint-count), minmax(0, 1fr));
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.checkpoint { position: relative; display: grid; justify-items: center; align-content: start; gap: var(--space-2); min-width: 0; color: var(--color-ink-500); }
+.checkpoint-connector { position: absolute; z-index: 0; top: 14px; right: calc(50% + 16px); left: calc(-50% + 16px); height: 1px; background: var(--color-field-300); transition: background-color var(--motion-duration-base) var(--motion-easing-standard); }
+.checkpoint.connector-complete .checkpoint-connector { height: 2px; background: var(--color-kola-600); }
+
+.checkpoint-marker {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  color: var(--color-ink-500);
+  background: var(--color-field-0);
+  border: var(--border-hairline) solid var(--color-field-300);
+  border-radius: var(--radius-stamp);
+  transition:
+    color var(--motion-duration-fast) var(--motion-easing-standard),
+    background-color var(--motion-duration-fast) var(--motion-easing-standard),
+    border-color var(--motion-duration-fast) var(--motion-easing-standard),
+    transform var(--motion-duration-fast) var(--motion-easing-standard),
+    box-shadow var(--motion-duration-fast) var(--motion-easing-standard);
+}
+.checkpoint-marker .portal-icon { width: 15px; height: 15px; }
+.checkpoint-label { max-width: 8.5rem; color: inherit; font-size: .75rem; line-height: 1rem; text-align: center; text-wrap: balance; }
+
+.checkpoint-completed { color: var(--color-kola-600); }
+.checkpoint-completed .checkpoint-marker { color: var(--color-field-0); background: var(--color-kola-600); border-color: var(--color-kola-600); }
+.checkpoint-check, .checkpoint-warning { font-size: .8125rem; font-weight: 750; }
+
+.checkpoint-current { color: var(--color-ink-900); font-weight: 650; }
+.checkpoint-current .checkpoint-marker { color: var(--color-kola-600); border: 2px solid var(--color-kola-600); box-shadow: 0 0 0 4px var(--color-kola-50); transform: translateY(-1px); }
+
+.checkpoint-attention { color: var(--color-harmattan-700); }
+.checkpoint-attention .checkpoint-marker { color: var(--color-harmattan-700); background: var(--color-harmattan-100); border-color: var(--color-harmattan-500); }
+.checkpoint-upcoming { color: var(--color-ink-300); }
+
+.checkpoint-row-compact { display: none; }
+
+@media (max-width: 700px) {
+  .checkpoint-row-wide { display: none; }
+  .checkpoint-row-compact { display: grid; }
+  .checkpoint-current .checkpoint-marker { transform: translateY(-1px) scale(1.06); }
+  .checkpoint-label { max-width: 6.5rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .checkpoint-marker, .checkpoint-connector { transition: none; }
+}
