@@ -40,8 +40,13 @@
   --ph-r-s: 6px;
   --ph-r-m: 10px;
   --ph-r-l: 16px;
-  --ph-serif: var(--font-fraunces), Georgia, "Times New Roman", serif;
-  --ph-ui: var(--font-inter), var(--font-body), system-ui, sans-serif;
+  /* The headline face for figures — a rent, a balance, a gauge reading.
+     Named `--ph-serif` when the product had a serif; it pointed at
+     `--font-fraunces` long after that family was removed, so every figure on
+     this workspace had quietly been falling back to Georgia. Renamed for what
+     it now is, and pointed at the token so it follows the display face. */
+  --ph-display: var(--font-display);
+  --ph-ui: var(--font-body);
   --ph-ease: cubic-bezier(.16, .84, .28, 1);
   --ph-spring: cubic-bezier(.34, 1.4, .64, 1);
 
@@ -122,7 +127,7 @@
 .home-greeting-copy { min-width: 0; }
 .home-greeting h1 {
   margin: 0 0 8px;
-  font-family: var(--ph-serif);
+  font-family: var(--ph-display);
   font-size: clamp(1.6rem, 2.6vw, 2rem);
   font-weight: 500;
   line-height: 1.12;
@@ -311,7 +316,7 @@
   align-items: center;
   justify-content: center;
 }
-.home-ring strong { font-family: var(--ph-serif); font-size: 34px; font-weight: 500; letter-spacing: -.01em; }
+.home-ring strong { font-family: var(--ph-display); font-size: 34px; font-weight: 500; letter-spacing: -.01em; }
 .home-ring small { margin-top: 2px; color: var(--ph-ink-38); font-size: 11px; letter-spacing: .02em; }
 
 /* Added beneath the reading, never in place of it. Absolute, so the figure
@@ -349,7 +354,7 @@
 }
 .home-pulse-metric:hover { transform: translateX(2px); }
 .home-pulse-metric svg { display: none; }
-.home-pulse-metric strong { font-family: var(--ph-serif); font-size: 23px; font-weight: 500; letter-spacing: -.01em; }
+.home-pulse-metric strong { font-family: var(--ph-display); font-size: 23px; font-weight: 500; letter-spacing: -.01em; }
 .home-pulse-metric small { color: var(--ph-ink-55); font-size: 12px; }
 .home-pulse-metric:hover small { color: var(--ph-ink); }
 
@@ -460,7 +465,7 @@
 .home-finance-metrics { display: flex; flex-wrap: wrap; gap: 36px; margin-bottom: 26px; }
 .home-finance-metrics > div { display: grid; }
 .home-finance-metrics span { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; color: var(--ph-ink-55); font-size: 12px; }
-.home-finance-metrics strong { font-family: var(--ph-serif); font-size: 25px; font-weight: 500; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+.home-finance-metrics strong { font-family: var(--ph-display); font-size: 25px; font-weight: 500; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
 .home-finance-metrics small { margin-top: 4px; color: var(--ph-sage); font-size: 11.5px; font-weight: 500; }
 .home-finance-metrics small[data-tone="negative"] { color: var(--ph-brick); }
 .home-finance-metrics i { width: 8px; height: 8px; border-radius: 2px; }
@@ -534,7 +539,7 @@
 
 .home-finance-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: 20px 24px; padding: 20px 0 0; margin: 20px 0 0; border-top: 1px solid var(--ph-line); }
 .home-finance-facts dt { color: var(--ph-ink-55); font-size: 12px; }
-.home-finance-facts dd { margin: 3px 0 0; font-family: var(--ph-serif); font-size: 20px; font-weight: 500; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+.home-finance-facts dd { margin: 3px 0 0; font-family: var(--ph-display); font-size: 20px; font-weight: 500; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
 .home-finance-facts small { color: var(--ph-ink-38); font-size: 11px; }
 
 /* --- panels, activity, viewings ------------------------------------------- */
@@ -583,7 +588,7 @@
 
 .home-flow { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-3); padding: 0; margin: 0 0 var(--space-4); list-style: none; }
 .home-flow li { display: grid; gap: 2px; padding: 12px 14px; background: var(--ph-paper-dim); border: 1px solid var(--ph-line); border-radius: var(--ph-r-m); }
-.home-flow strong { font-family: var(--ph-serif); font-size: 21px; font-weight: 500; letter-spacing: -.01em; }
+.home-flow strong { font-family: var(--ph-display); font-size: 21px; font-weight: 500; letter-spacing: -.01em; }
 .home-flow span { color: var(--ph-ink-55); font-size: 12px; }
 .home-flow small { color: var(--ph-ink-38); font-size: 11px; }
 .home-flow li[data-tone="warning"] strong { color: var(--ph-amber); }
@@ -677,7 +682,7 @@
 .home-property-drawing i:nth-child(3) { height: 38%; }
 
 .home-property-body { padding: 18px 20px 20px; }
-.home-property-body h2 { margin: 0 0 6px; font-family: var(--ph-serif); font-size: 18px; font-weight: 500; }
+.home-property-body h2 { margin: 0 0 6px; font-family: var(--ph-display); font-size: 18px; font-weight: 500; }
 .home-property-body > p:last-of-type { margin: 0 0 14px; color: var(--ph-ink-55); font-size: 12.5px; }
 .home-property-occupancy { display: flex; align-items: center; gap: 10px; }
 .home-property-occupancy > span { flex: 1; height: 5px; background: var(--ph-line-strong); border-radius: 4px; overflow: hidden; }
@@ -793,7 +798,7 @@
   justify-items: center;
   gap: 1px;
 }
-.tenant-gauge-reading strong { font-family: var(--ph-serif); font-size: 34px; font-weight: 500; line-height: 1; letter-spacing: -.01em; }
+.tenant-gauge-reading strong { font-family: var(--ph-display); font-size: 34px; font-weight: 500; line-height: 1; letter-spacing: -.01em; }
 .tenant-gauge-reading small { color: var(--ph-ink-38); font-size: 11px; letter-spacing: .02em; }
 
 /* The scale, at the two ends of the arc. */
@@ -824,7 +829,7 @@
    readings in a 2x2 with an amount among them, and at that size the block read
    as a wall of numbers rather than as four facts. */
 .home-pulse-metric[data-figure="true"] strong {
-  font-family: var(--ph-serif);
+  font-family: var(--ph-display);
   font-size: 19px;
   font-weight: 500;
   letter-spacing: -.01em;

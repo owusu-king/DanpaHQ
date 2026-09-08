@@ -47,16 +47,22 @@ const cssPairs = [
   ["target-min", valueOf(tokens.target.min)],
 ];
 
+/**
+ * Which face a step of the scale is set in is data, not a guess about its name.
+ *
+ * This used to infer the family from the token's name - anything starting
+ * `amount` got mono, `display`/`title` got the display face - which quietly
+ * decided that every money figure was monospaced and that no heading could ever
+ * be set in the body face. Both are design decisions, and they belong in
+ * tokens.json where a designer can see and change them.
+ */
+const FAMILY_VAR = { display: "var(--font-display)", body: "var(--font-body)", mono: "var(--font-mono)" };
+
 const typeClasses = Object.entries(tokens.typography.scale)
   .map(([name, s]) => {
-    const family = name.startsWith("amount")
-      ? "var(--font-mono)"
-      : name.startsWith("display") || name.startsWith("title")
-        ? "var(--font-display)"
-        : "var(--font-body)";
-    const numeric = name.startsWith("amount") ? "\n  font-variant-numeric: tabular-nums;" : "";
+    const numeric = s.numeric ? "\n  font-variant-numeric: tabular-nums;" : "";
     return `.type-${name} {
-  font-family: ${family};
+  font-family: ${FAMILY_VAR[s.family]};
   font-size: ${s.size};
   line-height: ${s.lineHeight};
   font-weight: ${s.weight};
@@ -94,14 +100,51 @@ const nested = (node) => {
   return out;
 };
 
+/**
+ * React Native has no font synthesis worth relying on: asking for weight 600 of
+ * a family that only shipped its regular gives you regular on Android and a
+ * smeared fake bold on some iOS versions. Every weight is therefore its own
+ * loaded family, named the way `@expo-google-fonts` names them, and the scale
+ * carries the resolved name so a screen never has to work it out.
+ *
+ * Mono stays the platform default. Reference codes need fixed advance widths,
+ * not a brand, and shipping a fourth font file to get them is not a trade worth
+ * making on a connection metered by the megabyte.
+ */
+const WEIGHT_SUFFIX = { "400": "Regular", "500": "Medium", "600": "SemiBold", "700": "Bold" };
+
+/* A null `native` means the platform's own face, which React Native selects by
+ * leaving fontFamily unset and letting fontWeight do the work. Only the display
+ * face is worth shipping to a phone. */
+const nativeFamily = (family, weight) => {
+  const base = tokens.typography.family[family].native;
+  if (!base) return null;
+  const suffix = WEIGHT_SUFFIX[String(weight)];
+  return suffix ? `${base}_${weight}${suffix}` : base;
+};
+
+const nativeScale = Object.fromEntries(
+  Object.entries(tokens.typography.scale).map(([name, s]) => [
+    name,
+    nativeFamily(s.family, s.weight)
+      ? { ...s, fontFamily: nativeFamily(s.family, s.weight) }
+      : { ...s },
+  ]),
+);
+
 const theme = {
   color: nested(tokens.color),
   space: nested(tokens.space),
   radius: nested(tokens.radius),
   border: nested(tokens.border),
+  elevation: nested(tokens.elevation),
   motion: nested(tokens.motion),
-  type: tokens.typography.scale,
-  family: nested(tokens.typography.family),
+  type: nativeScale,
+  family: Object.fromEntries(
+    Object.entries(tokens.typography.family)
+      .filter(([, v]) => v.native)
+      .map(([k, v]) => [k, v.native]),
+  ),
   targetMin: parseInt(valueOf(tokens.target.min), 10),
 };
 

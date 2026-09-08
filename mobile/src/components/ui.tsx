@@ -85,24 +85,67 @@ export const motion = {
   },
 };
 
-type TypeName = "display2" | "title1" | "title2" | "body" | "bodyStrong" | "caption" | "label" | "mono";
+/**
+ * The type scale, derived from the shared tokens rather than restated here.
+ *
+ * These sizes used to be hardcoded, which is how mobile came to be a version
+ * behind the design system without anything failing: `display2` was 32px here
+ * and 40px in tokens.json, and nothing existed that could notice.
+ *
+ * The public names stay camelCase because a hundred and sixteen screens call
+ * them, and a rename buys nothing a mapping does not.
+ */
+type TypeName =
+  | "display1" | "display2" | "display3"
+  | "title1" | "title2"
+  | "bodyLg" | "body" | "bodyStrong"
+  | "caption" | "captionStrong"
+  | "label"
+  | "amountXl" | "amountLg" | "amount"
+  | "mono";
 
-const TYPE: Record<TypeName, object> = {
-  display2: { fontSize: 32, lineHeight: 36, fontWeight: "600", color: theme.color.ink["900"] },
-  title1: { fontSize: 24, lineHeight: 30, fontWeight: "600", color: theme.color.ink["900"] },
-  title2: { fontSize: 20, lineHeight: 26, fontWeight: "600", color: theme.color.ink["900"] },
-  body: { fontSize: 16, lineHeight: 24, color: theme.color.ink["900"] },
-  bodyStrong: { fontSize: 16, lineHeight: 24, fontWeight: "600", color: theme.color.ink["900"] },
-  caption: { fontSize: 14, lineHeight: 20, color: theme.color.ink["500"] },
-  label: {
-    fontSize: 12,
-    lineHeight: 16,
-    fontWeight: "600",
-    letterSpacing: 1,
-    color: theme.color.ink["500"],
-  },
-  mono: { fontSize: 14, lineHeight: 20, fontFamily: "monospace", color: theme.color.ink["900"] },
+const TOKEN_KEY: Record<TypeName, keyof typeof theme.type> = {
+  display1: "display-1",
+  display2: "display-2",
+  display3: "display-3",
+  title1: "title-1",
+  title2: "title-2",
+  bodyLg: "body-lg",
+  body: "body",
+  bodyStrong: "body-strong",
+  caption: "caption",
+  captionStrong: "caption-strong",
+  label: "label",
+  amountXl: "amount-xl",
+  amountLg: "amount-lg",
+  amount: "amount",
+  mono: "code",
 };
+
+/** Secondary text is muted; everything else carries full ink. */
+const MUTED: ReadonlySet<TypeName> = new Set<TypeName>(["caption", "captionStrong", "label"]);
+
+const buildType = (name: TypeName) => {
+  const token = theme.type[TOKEN_KEY[name]];
+  const fontSize = px(token.size);
+  // Tracking is authored in em, which React Native does not accept; it wants
+  // absolute points, so it is resolved against the size it belongs to.
+  const em = Number(token.tracking.replace("em", ""));
+  return {
+    fontSize,
+    lineHeight: px(token.lineHeight),
+    fontWeight: token.weight as "400" | "500" | "600",
+    letterSpacing: Number((em * fontSize).toFixed(2)),
+    color: MUTED.has(name) ? theme.color.ink["500"] : theme.color.ink["900"],
+    // Present only for the display face. Body text is deliberately left to the
+    // platform, and an undefined fontFamily is how React Native is told so.
+    ...("fontFamily" in token ? { fontFamily: token.fontFamily as string } : null),
+  };
+};
+
+const TYPE = Object.fromEntries(
+  (Object.keys(TOKEN_KEY) as TypeName[]).map((name) => [name, buildType(name)]),
+) as Record<TypeName, object>;
 
 export function Type({
   variant = "body",
@@ -134,7 +177,7 @@ export function Button({
 }: {
   label: string;
   onPress: () => void;
-  variant?: "primary" | "secondary" | "quiet" | "destructive";
+  variant?: "primary" | "secondary" | "quiet" | "accent" | "destructive";
   busy?: boolean;
   disabled?: boolean;
   busyLabel?: string;
@@ -155,9 +198,12 @@ export function Button({
     // unpicked one and nothing about tapping it looked like a choice.
     ? { bg: theme.color.kola["50"], fg: theme.color.kola["600"], border: theme.color.kola["600"] }
     : {
-      primary: { bg: theme.color.kola["600"], fg: theme.color.field["0"], border: theme.color.kola["600"] },
+      // Ink, not the brand hue: it passes contrast on every surface the app has
+      // and leaves the gold free to mean something where it does appear.
+      primary: { bg: theme.color.ink["900"], fg: theme.color.field["0"], border: theme.color.ink["900"] },
       secondary: { bg: theme.color.field["0"], fg: theme.color.ink["900"], border: theme.color.field["300"] },
-      quiet: { bg: "transparent", fg: theme.color.kola["600"], border: "transparent" },
+      quiet: { bg: "transparent", fg: theme.color.ink["700"], border: "transparent" },
+      accent: { bg: theme.color.gold["500"], fg: theme.color.ink["950"], border: theme.color.gold["500"] },
       destructive: { bg: theme.color.field["0"], fg: theme.color.laterite["600"], border: theme.color.laterite["600"] },
     }[variant];
 
@@ -172,7 +218,7 @@ export function Button({
         ...(selected === undefined ? null : { checked: selected }),
       }}
       accessibilityLabel={busy ? busyLabel : label}
-      {...pressableFeedback(theme.color.kola["300"])}
+      {...pressableFeedback(palette.fg)}
       style={({ pressed }) => [
         styles.button,
         { backgroundColor: palette.bg, borderColor: palette.border },

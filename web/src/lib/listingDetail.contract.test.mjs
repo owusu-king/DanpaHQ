@@ -172,11 +172,26 @@ test("an icon outside the navigation takes the colour of what it labels", () => 
   }
 
   // The pin is the deliberate exception: a quiet mark beside quiet text.
+  //
+  // What matters is that it is *quieter than its own label*, not which token
+  // says so — this asserted the literal `--color-ink-300` and so failed the
+  // moment the palette moved, while a pin that had silently become the same
+  // grey as the text beside it would have passed. So: it must not inherit, and
+  // it must not simply restate the caption colour.
   const explore = read("web/src/styles/explore-workspace.css");
   const pinAt = explore.indexOf(".listing-card-where .portal-icon {");
-  assert.ok(
-    explore.slice(pinAt, explore.indexOf("}", pinAt)).includes("--color-ink-300"),
-    "the pin keeps its own quieter colour",
+  assert.notEqual(pinAt, -1, "the pin has no icon rule");
+  const pinRule = explore.slice(pinAt, explore.indexOf("}", pinAt));
+  assert.ok(/color:/.test(pinRule), "the pin must state a colour");
+  assert.ok(!/color:\s*inherit/.test(pinRule), "the pin does not take its label's colour");
+
+  const captionAt = explore.indexOf(".listing-card-where, .listing-card-facts {");
+  const captionRule = explore.slice(captionAt, explore.indexOf("}", captionAt));
+  const colourOf = (rule) => (rule.match(/color:\s*([^;]+)/) ?? [])[1]?.trim();
+  assert.notEqual(
+    colourOf(pinRule),
+    colourOf(captionRule),
+    "the pin must be quieter than the text it sits beside, not the same grey",
   );
 });
 

@@ -17,6 +17,7 @@ import {
 } from "@/lib/listings";
 import { loadPropertyTypes, type PropertyTypeOption } from "@/lib/propertyTypes";
 import { useSession } from "@/lib/session";
+import { useToast } from "@/components/toast/Toaster";
 import { Check } from "@/components/Check";
 import { Field } from "@/components/Field";
 import { Select } from "@/components/Select";
@@ -58,6 +59,7 @@ const SORTS: ReadonlyArray<readonly [ListingSort, string]> = [
 
 export function ListingBrowser() {
   const { state } = useSession();
+  const { toast } = useToast();
   const signedIn = state.status === "signed_in";
 
   const [listings, setListings] = useState<Listing[] | null>(null);
@@ -226,6 +228,15 @@ export function ListingBrowser() {
         const nextSet = new Set(current);
         if (has) nextSet.add(listing.id); else nextSet.delete(listing.id);
         return nextSet;
+      });
+      // The optimistic heart has just flipped back on its own. Without this the
+      // only signal that anything failed is a control quietly returning to
+      // where it started, which reads as a mis-tap rather than an error — and
+      // the usual response to that is to tap it again.
+      toast({
+        tone: "error",
+        title: has ? "Could not remove that listing" : "Could not save that listing",
+        description: "Check your connection and try again.",
       });
     }
   }

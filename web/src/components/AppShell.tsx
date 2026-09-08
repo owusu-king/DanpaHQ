@@ -2,7 +2,8 @@
 
 import { usePathname } from "next/navigation";
 
-import { Nav } from "@/components/Nav";
+import { SiteNav } from "@/components/SiteNav";
+import { ToastProvider } from "@/components/toast/Toaster";
 import { PortalShell } from "@/components/portal/PortalShell";
 import { isPortalRoute, isSharedListingRoute } from "@/lib/portalNav";
 import { SessionProvider, useSession } from "@/lib/session";
@@ -31,7 +32,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <SessionProvider>
-      <ConsumerChrome pathname={pathname}>{children}</ConsumerChrome>
+      <ToastProvider>
+        <ConsumerChrome pathname={pathname}>{children}</ConsumerChrome>
+      </ToastProvider>
     </SessionProvider>
   );
 }
@@ -64,7 +67,7 @@ function ConsumerChrome({
 
   return (
     <>
-      <Nav />
+      <SiteNav />
       <main id="main">{children}</main>
     </>
   );

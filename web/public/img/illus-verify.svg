@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 240" role="img" aria-label="An identity document being checked">
+  <defs>
+    <linearGradient id="v-bg" x1="0" y1="0" x2="0.6" y2="1">
+      <stop offset="0%" stop-color="#EFF1EC"/><stop offset="100%" stop-color="#DFE5DC"/>
+    </linearGradient>
+  </defs>
+  <rect width="320" height="240" rx="20" fill="url(#v-bg)"/>
+  <g transform="rotate(-7 160 118)">
+    <rect x="56" y="62" width="180" height="116" rx="14" fill="#FFFFFF"/>
+    <rect x="56" y="62" width="180" height="26" rx="14" fill="#16110E"/>
+    <rect x="56" y="76" width="180" height="12" fill="#16110E"/>
+    <circle cx="94" cy="124" r="22" fill="#E8DFD3"/>
+    <circle cx="94" cy="116" r="9" fill="#B9A88F"/>
+    <path d="M78 142a16 16 0 0 1 32 0Z" fill="#B9A88F"/>
+    <rect x="130" y="106" width="82" height="8" rx="4" fill="#16110E"/>
+    <rect x="130" y="122" width="64" height="6" rx="3" fill="#CFC7BC"/>
+    <rect x="130" y="136" width="72" height="6" rx="3" fill="#CFC7BC"/>
+    <rect x="130" y="150" width="44" height="6" rx="3" fill="#CFC7BC"/>
+  </g>
+  <g transform="translate(196 128)">
+    <circle cx="34" cy="34" r="38" fill="#fff" opacity="0.6"/>
+    <path d="M34 6l24 10v18.7C58 49.4 48.1 62.7 34 66.9 19.9 62.7 10 49.4 10 34.7V16L34 6Z" fill="#1B6B4F"/>
+    <path d="m24 35 7 7 14-14" stroke="#fff" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  <g stroke="#16110E" stroke-width="2.6" stroke-linecap="round" opacity="0.28">
+    <path d="M262 60v16M254 68h16"/>
+    <path d="M46 190v12M40 196h12"/>
+  </g>
+</svg>
