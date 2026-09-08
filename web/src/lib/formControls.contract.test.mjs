@@ -243,18 +243,26 @@ test("a field is 48px, and clickable to its own edges", () => {
 });
 
 test("an input that is drawn as something else does not also draw a focus box", () => {
-  // globals.css gives every input a 2px kola-300 outline on focus. It is
+  // foundation.css gives every input a 2px ink outline on focus. It is
   // wrapped in `:where(...)`, which contributes no specificity — so the rule
   // weighs (0,1,0), exactly what a bare class weighs, and it sits later in the
   // cascade. **A single class cannot override it.** It takes a pseudo-class to
   // answer a pseudo-class, and that is not obvious from reading either rule.
   //
+  // The rule used to live in globals.css. It moved to foundation.css with the
+  // rest of the interaction layer; what this test guards is that exactly one
+  // such rule exists and that the controls which draw their own focus still
+  // suppress it, which is unchanged by where it is written.
+  //
   // Wherever an input is hidden behind something that draws the focus state
   // itself, the outline landed on the input's own box — which has no radius —
   // as a square green rectangle over a rounded control. On the property type
   // tiles the input is stretched to `inset: 0`, so it framed the whole tile.
-  const global = read("web/app/globals.css");
-  assert.match(global, /:where\([^)]*input[^)]*\):focus-visible/);
+  const foundation = read("web/src/styles/foundation.css");
+  assert.match(foundation, /:where\([^)]*input[^)]*\):focus-visible/);
+  // And only there, so nothing can quietly reintroduce a second global ring
+  // that the suppressions below were never written against.
+  assert.doesNotMatch(read("web/app/globals.css"), /:where\([^)]*input[^)]*\):focus-visible/);
 
   for (const [sheet, selector] of [
     ["forms.css", ".field-input:focus-visible"],

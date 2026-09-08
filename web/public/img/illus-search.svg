@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 240" role="img" aria-label="Searching listings on a phone">
+  <defs>
+    <linearGradient id="s-bg" x1="0" y1="0" x2="0.6" y2="1">
+      <stop offset="0%" stop-color="#F4EFE8"/><stop offset="100%" stop-color="#E8DFD3"/>
+    </linearGradient>
+  </defs>
+  <rect width="320" height="240" rx="20" fill="url(#s-bg)"/>
+  <g opacity="0.5" stroke="#C4B49C" stroke-width="2" fill="none">
+    <path d="M22 168c40-12 66 8 104-4s58-30 96-20 54 26 76 20"/>
+    <path d="M22 196c46-10 62 6 104-6s62-24 96-14 50 24 76 18"/>
+  </g>
+  <rect x="96" y="30" width="128" height="192" rx="18" fill="#16110E"/>
+  <rect x="104" y="38" width="112" height="176" rx="13" fill="#FFFFFF"/>
+  <rect x="132" y="44" width="56" height="6" rx="3" fill="#16110E" opacity="0.35"/>
+  <rect x="114" y="62" width="92" height="24" rx="12" fill="#F2EEE8"/>
+  <circle cx="130" cy="74" r="6.5" fill="none" stroke="#6E7076" stroke-width="2.4"/>
+  <path d="m135 79 5 5" stroke="#6E7076" stroke-width="2.4" stroke-linecap="round"/>
+  <rect x="144" y="70" width="50" height="7" rx="3.5" fill="#DCD5CB"/>
+  <g>
+    <rect x="114" y="96" width="92" height="52" rx="10" fill="#EFE7DC"/>
+    <path d="M124 138h72l-18-24-14 12-10-8Z" fill="#C9A882"/>
+    <circle cx="187" cy="110" r="7" fill="#F0D8A2"/>
+    <rect x="114" y="154" width="52" height="8" rx="4" fill="#16110E"/>
+    <rect x="114" y="168" width="74" height="6" rx="3" fill="#CFC7BC"/>
+  </g>
+  <g>
+    <rect x="114" y="184" width="92" height="22" rx="8" fill="#F7F4F0"/>
+    <circle cx="127" cy="195" r="6" fill="#1B6B4F"/>
+    <path d="m124 195 2.2 2.4 4.4-4.6" stroke="#fff" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="140" y="192" width="52" height="6" rx="3" fill="#CFC7BC"/>
+  </g>
+  <g>
+    <path d="M252 74c0 16-16 30-16 30s-16-14-16-30a16 16 0 0 1 32 0Z" fill="#C2603C"/>
+    <circle cx="236" cy="74" r="6" fill="#fff"/>
+    <ellipse cx="236" cy="112" rx="14" ry="4" fill="#16110E" opacity="0.14"/>
+  </g>
+  <g>
+    <path d="M76 122c0 14-14 26-14 26s-14-12-14-26a14 14 0 0 1 28 0Z" fill="#16110E"/>
+    <circle cx="62" cy="122" r="5" fill="#fff"/>
+    <ellipse cx="62" cy="155" rx="12" ry="3.5" fill="#16110E" opacity="0.14"/>
+  </g>
+</svg>

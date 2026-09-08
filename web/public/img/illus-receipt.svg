@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 240" role="img" aria-label="A rent payment receipt">
+  <defs>
+    <linearGradient id="r-bg" x1="0" y1="0" x2="0.6" y2="1">
+      <stop offset="0%" stop-color="#F1EEF4"/><stop offset="100%" stop-color="#E2DDE9"/>
+    </linearGradient>
+  </defs>
+  <rect width="320" height="240" rx="20" fill="url(#r-bg)"/>
+  <g>
+    <path d="M92 34h136a8 8 0 0 1 8 8v158l-16-9-16 9-16-9-16 9-16-9-16 9-16-9-16 9V42a8 8 0 0 1 8-8Z" fill="#FFFFFF"/>
+    <rect x="110" y="58" width="70" height="9" rx="4.5" fill="#16110E"/>
+    <rect x="110" y="76" width="46" height="7" rx="3.5" fill="#CFC7BC"/>
+    <path d="M110 98h100" stroke="#E6E1DA" stroke-width="2.5" stroke-dasharray="5 6"/>
+    <rect x="110" y="112" width="42" height="7" rx="3.5" fill="#CFC7BC"/>
+    <rect x="168" y="110" width="42" height="10" rx="5" fill="#16110E"/>
+    <rect x="110" y="134" width="52" height="7" rx="3.5" fill="#CFC7BC"/>
+    <rect x="178" y="132" width="32" height="10" rx="5" fill="#16110E"/>
+    <path d="M110 158h100" stroke="#E6E1DA" stroke-width="2.5" stroke-dasharray="5 6"/>
+    <rect x="110" y="170" width="36" height="8" rx="4" fill="#6E7076"/>
+    <rect x="158" y="166" width="52" height="14" rx="7" fill="#1B6B4F"/>
+  </g>
+  <g transform="translate(196 146)">
+    <circle cx="30" cy="30" r="30" fill="#1B6B4F"/>
+    <path d="m19 31 7.5 7.5L43 22" stroke="#fff" stroke-width="5.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  <g fill="#C2603C" opacity="0.8">
+    <circle cx="62" cy="70" r="7"/><circle cx="48" cy="112" r="4.5"/><circle cx="70" cy="150" r="5.5"/>
+  </g>
+</svg>

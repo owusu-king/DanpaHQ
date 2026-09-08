@@ -2,39 +2,34 @@
 
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 
-type Variant = "primary" | "secondary" | "quiet" | "destructive";
+type Variant = "primary" | "secondary" | "quiet" | "accent" | "destructive";
+type Size = "sm" | "md" | "lg";
 
-const VARIANTS: Record<Variant, React.CSSProperties> = {
-  primary: {
-    background: "var(--color-kola-600)",
-    color: "var(--color-field-0)",
-    border: "var(--border-hairline) solid var(--color-kola-600)",
-  },
-  secondary: {
-    background: "var(--color-field-0)",
-    color: "var(--color-ink-900)",
-    border: "var(--border-hairline) solid var(--color-field-300)",
-  },
-  quiet: {
-    background: "transparent",
-    color: "var(--color-kola-600)",
-    border: "var(--border-hairline) solid transparent",
-  },
-  destructive: {
-    background: "var(--color-field-0)",
-    color: "var(--color-laterite-600)",
-    border: "var(--border-hairline) solid var(--color-laterite-600)",
-  },
-};
-
+/**
+ * Every button in the product.
+ *
+ * The variants used to be inline `style` objects, which meant none of them
+ * could express `:hover`, `:active` or `:focus-visible` — the component even
+ * declared a background transition that had no state to transition to. Nothing
+ * moved when you used it. That is most of why the interface felt like a
+ * rendering of an app rather than one, so the styling now lives in
+ * foundation.css where the states can actually exist.
+ *
+ * `primary` is ink rather than a brand hue. It passes contrast on every surface
+ * the product has, and it leaves the gold to mean something where it appears.
+ */
 export function Button({
   variant = "primary",
+  size = "md",
   busy = false,
   busyLabel = "Working…",
+  block = false,
+  className = "",
   children,
   ...props
 }: ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: Variant;
+  size?: Size;
   /**
    * Buttons that start a network call own their own busy state. On a slow
    * connection an un-disabled button is a double submission, which for a rent
@@ -42,24 +37,23 @@ export function Button({
    */
   busy?: boolean;
   busyLabel?: string;
+  block?: boolean;
   children: ReactNode;
 }) {
+  const classes = [
+    "btn",
+    `btn-${variant}`,
+    size !== "md" ? `btn-${size}` : "",
+    block ? "btn-block" : "",
+    className,
+  ].filter(Boolean).join(" ");
+
   return (
     <button
       {...props}
       disabled={props.disabled || busy}
       aria-busy={busy}
-      className={`type-body-strong ${props.className ?? ""}`}
-      style={{
-        minHeight: "var(--target-min)",
-        padding: "0 var(--space-5)",
-        borderRadius: "var(--radius-md)",
-        cursor: props.disabled || busy ? "not-allowed" : "pointer",
-        opacity: props.disabled ? 0.5 : 1,
-        transition: `background var(--motion-duration-fast) var(--motion-easing-standard)`,
-        ...VARIANTS[variant],
-        ...props.style,
-      }}
+      className={classes}
     >
       {busy ? busyLabel : children}
     </button>

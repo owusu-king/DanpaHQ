@@ -1,0 +1,338 @@
+/* Landing page atmosphere and the two layouts that are not card grids.
+ *
+ * A note on which variables this file reads. Tailwind's `--color-*` names are
+ * resolved once, at `:root`, and inherit as computed values — so a hand-written
+ * rule saying `var(--color-background)` gets the base colour even inside a
+ * scoped override, because the indirection was collapsed before the class
+ * applied. Utilities are fine; Tailwind inlines those. Everything below reads
+ * the raw tokens, which are genuinely re-pointed.
+ */
+
+/* --- green blending into white -------------------------------------------- */
+
+.lp-light {
+  position: relative;
+  isolation: isolate;
+  overflow: clip;
+  background: var(--background);
+}
+
+/* Two soft blooms rather than hard streaks. On white the effect has to be a
+   tint the page fades up out of, not a light source on a dark ground —
+   anything with a visible edge reads as a stray shape. Painted with gradients
+   because a blur large enough to look smooth at 1440px is a quarter of a
+   megabyte as a PNG, and free as a gradient. */
+.lp-light::before,
+.lp-light::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  pointer-events: none;
+  border-radius: 50%;
+  filter: blur(90px);
+}
+
+.lp-light::before {
+  top: -18rem;
+  left: -12%;
+  width: 62%;
+  height: 40rem;
+  background: color-mix(in oklab, var(--brand-glow) 62%, transparent);
+  opacity: 0.5;
+}
+
+.lp-light::after {
+  top: -12rem;
+  right: -14%;
+  width: 54%;
+  height: 34rem;
+  background: color-mix(in oklab, var(--brand-glow) 46%, transparent);
+  opacity: 0.42;
+}
+
+/* A wash sitting directly behind the headline, so the type rises out of green
+   rather than off flat white. */
+.lp-wash {
+  position: absolute;
+  z-index: -1;
+  inset-inline: 0;
+  top: -4rem;
+  height: 40rem;
+  pointer-events: none;
+  background: radial-gradient(
+    54% 46% at 50% 30%,
+    color-mix(in oklab, var(--brand-glow) 34%, transparent) 0%,
+    transparent 70%
+  );
+}
+
+/* --- the checks, as a rail ------------------------------------------------ */
+
+/* Three bordered boxes in a row is the single most recognisable shape of a
+   generated page, and it was on this page twice. This is the same three facts
+   with the packaging taken off: one band, split by hairlines, each column
+   carrying its own weight. Nothing is a card. */
+.lp-rail {
+  display: grid;
+  gap: 0;
+  margin-block-end: 0;
+  padding: 0;
+  list-style: none;
+  border-block: 1px solid var(--border);
+}
+
+@media (min-width: 56rem) {
+  .lp-rail { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .lp-rail > li + li { border-left: 1px solid var(--border); }
+}
+
+@media (max-width: 55.99rem) {
+  .lp-rail > li + li { border-top: 1px solid var(--border); }
+}
+
+.lp-rail > li {
+  padding: clamp(1.75rem, 3vw, 2.75rem) clamp(1.25rem, 2.5vw, 2.25rem);
+}
+
+@media (min-width: 56rem) {
+  .lp-rail > li:first-child { padding-left: 0; }
+  .lp-rail > li:last-child { padding-right: 0; }
+}
+
+/* The mark is a rule, not a chip: a short green stroke above the label, which
+   is enough to group the three without drawing three boxes. */
+.lp-rail-mark {
+  display: block;
+  width: 2.25rem;
+  height: 3px;
+  margin-bottom: 1.5rem;
+  border-radius: 2px;
+  background: var(--brand);
+}
+
+/* --- the steps, staggered ------------------------------------------------- */
+
+/* Two columns, with the second dropped half a step. An even grid of four
+   identical tiles is the other shape this page kept falling into; offsetting
+   the column is what turns a grid into a composition, and it costs one rule. */
+.lp-steps {
+  display: grid;
+  gap: clamp(2rem, 4vw, 3.5rem);
+  margin-block-end: 0;
+  padding: 0;
+  list-style: none;
+}
+
+@media (min-width: 52rem) {
+  .lp-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .lp-steps > li:nth-child(even) { margin-top: clamp(2.5rem, 6vw, 5rem); }
+}
+
+.lp-step-art {
+  position: relative;
+  overflow: hidden;
+  aspect-ratio: 3 / 2;
+  border-radius: 20px;
+  background: var(--brand-tint);
+}
+
+.lp-step-art img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+@media (hover: hover) {
+  .lp-step-art img { transition: scale 480ms cubic-bezier(0.2, 0, 0, 1); }
+  .lp-steps > li:hover .lp-step-art img { scale: 1.03; }
+}
+
+/* The number sits on the artwork, not in the text: it is a label for the
+   picture, and moving it there buys the copy a clean first line. */
+.lp-step-n {
+  position: absolute;
+  z-index: 1;
+  top: 0.875rem;
+  left: 0.875rem;
+  display: grid;
+  place-items: center;
+  min-width: 2rem;
+  height: 2rem;
+  padding-inline: 0.5rem;
+  border-radius: 999px;
+  background: var(--background);
+  color: var(--brand);
+  font-family: var(--font-display);
+  font-size: 0.75rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 1px 3px oklch(0 0 0 / 12%);
+}
+
+/* --- the product, staged -------------------------------------------------- */
+
+.lp-stage {
+  position: relative;
+  display: grid;
+  place-items: center;
+  padding-block: clamp(var(--space-8), 5vw, var(--space-16));
+}
+
+.lp-stage-main {
+  position: relative;
+  z-index: 2;
+  width: min(100%, 30rem);
+  border-radius: 28px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  box-shadow:
+    0 2px 6px oklch(0.17 0.014 165 / 6%),
+    0 30px 80px -24px oklch(0.17 0.014 165 / 28%);
+}
+
+.lp-stage-main img { display: block; width: 100%; height: auto; }
+
+/* The receding siblings. Hidden where they would overlap the subject rather
+   than frame it. */
+.lp-stage-aside {
+  position: absolute;
+  z-index: 1;
+  display: none;
+  width: 17rem;
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: color-mix(in oklab, var(--background) 78%, transparent);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 12px 40px -18px oklch(0.17 0.014 165 / 26%);
+  opacity: 0.72;
+}
+
+@media (min-width: 64rem) {
+  .lp-stage-aside { display: block; }
+}
+
+.lp-stage-aside-left { left: 2%; top: 22%; rotate: -6deg; }
+.lp-stage-aside-right { right: 2%; top: 40%; rotate: 5deg; }
+
+/* The one card that stays sharp and fully lit, because it carries the claim
+   the whole page is making. */
+.lp-stage-proof {
+  position: absolute;
+  z-index: 3;
+  bottom: 8%;
+  left: 50%;
+  translate: -50% 0;
+  width: min(22rem, 88%);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: color-mix(in oklab, var(--background) 94%, transparent);
+  backdrop-filter: blur(18px) saturate(1.3);
+  box-shadow: 0 18px 46px -16px oklch(0.17 0.014 165 / 34%);
+}
+
+@media (min-width: 64rem) {
+  .lp-stage-proof { left: auto; right: 6%; bottom: 12%; translate: none; }
+}
+
+/* --- the phone -------------------------------------------------------------
+ *
+ * A device frame drawn in CSS rather than shipped as a PNG. A mockup image
+ * sharp enough for a 2x display is several hundred kilobytes, goes soft on a
+ * 3x one, and cannot re-colour with the theme; this is a handful of rules that
+ * stay crisp at any density and cost nothing to download.
+ */
+
+.lp-phone {
+  position: relative;
+  z-index: 2;
+  width: min(100%, 19rem);
+  aspect-ratio: 393 / 852;         /* iPhone 15/16 logical resolution */
+  padding: 11px;
+  border-radius: 3.2rem;
+  background: linear-gradient(160deg, #3a3d42 0%, #17191c 38%, #0e1013 100%);
+  box-shadow:
+    inset 0 0 0 1.5px rgb(255 255 255 / 18%),
+    0 2px 6px oklch(0.17 0.014 165 / 10%),
+    0 40px 90px -28px oklch(0.17 0.014 165 / 45%);
+}
+
+/* The side buttons. Small, but their absence is what makes a rounded rectangle
+   read as a rounded rectangle rather than a phone. */
+.lp-phone::before,
+.lp-phone::after {
+  content: "";
+  position: absolute;
+  width: 2px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, #4a4d52, #2a2d31);
+}
+
+.lp-phone::before { left: -2px; top: 22%; height: 5%; box-shadow: 0 8.5% 0 #3a3d42; }
+.lp-phone::after { right: -2px; top: 26%; height: 11%; }
+
+.lp-phone-screen {
+  position: relative;
+  height: 100%;
+  overflow: hidden;
+  border-radius: 2.6rem;
+  background: var(--background);
+}
+
+.lp-phone-screen img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top center;
+}
+
+/* The Dynamic Island. Drawn, because a phone frame without one reads as a
+   phone from 2019. */
+.lp-phone-island {
+  position: absolute;
+  z-index: 3;
+  top: 10px;
+  left: 50%;
+  translate: -50% 0;
+  width: 31%;
+  height: 26px;
+  border-radius: 999px;
+  background: #0b0d0f;
+}
+
+/* --- store badges ---------------------------------------------------------- */
+
+.lp-stores {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: center;
+}
+
+.lp-store {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.625rem;
+  min-height: 3.25rem;
+  padding: 0 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--foreground);
+  color: var(--background);
+  text-decoration: none;
+  transition: translate 120ms cubic-bezier(0.2, 0, 0, 1), box-shadow 160ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.lp-store:hover { box-shadow: 0 10px 26px -10px oklch(0.17 0.014 165 / 40%); }
+.lp-store:active { translate: 0 1px; }
+
+.lp-store svg { flex: none; width: 22px; height: 22px; }
+.lp-store span { display: grid; line-height: 1.15; text-align: left; }
+.lp-store small { font-size: 0.625rem; opacity: 0.72; letter-spacing: 0.02em; }
+.lp-store strong { font-size: 0.9375rem; font-weight: 600; letter-spacing: -0.01em; }

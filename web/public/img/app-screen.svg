@@ -1,0 +1,113 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 393 852" role="img" aria-label="The Ghana Rental app showing a verified listing" preserveAspectRatio="xMidYMin slice">
+  <defs>
+    <linearGradient id="a-hero" x1="0" y1="0" x2="0.4" y2="1">
+      <stop offset="0%" stop-color="#EAF3ED"/><stop offset="100%" stop-color="#D6E7DC"/>
+    </linearGradient>
+    <linearGradient id="a-sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#F3EEE6"/><stop offset="100%" stop-color="#E2D6C4"/>
+    </linearGradient>
+    <clipPath id="a-card1"><rect x="16" y="250" width="361" height="196" rx="18"/></clipPath>
+    <clipPath id="a-card2"><rect x="16" y="556" width="361" height="150" rx="18"/></clipPath>
+  </defs>
+
+  <rect width="393" height="852" fill="#FFFFFF"/>
+
+  <!-- status bar -->
+  <text x="30" y="42" font-family="system-ui, sans-serif" font-size="14" font-weight="600" fill="#17251F">9:41</text>
+  <g fill="#17251F">
+    <rect x="309" y="31" width="3" height="9" rx="1.5"/><rect x="315" y="28" width="3" height="12" rx="1.5"/>
+    <rect x="321" y="25" width="3" height="15" rx="1.5"/><rect x="327" y="22" width="3" height="18" rx="1.5"/>
+    <rect x="339" y="26" width="22" height="12" rx="3" opacity="0.35"/><rect x="341" y="28" width="16" height="8" rx="2"/>
+  </g>
+
+  <!-- app bar -->
+  <circle cx="34" cy="86" r="15" fill="#1B6B4F"/>
+  <text x="34" y="91" font-family="system-ui, sans-serif" font-size="10" font-weight="800" fill="#FFFFFF" text-anchor="middle">GR</text>
+  <text x="59" y="91" font-family="system-ui, sans-serif" font-size="15" font-weight="700" fill="#17251F">Ghana Rental</text>
+  <circle cx="359" cy="86" r="15" fill="#EFF4F0"/>
+  <circle cx="359" cy="82" r="5" fill="#9BAAA1"/>
+  <path d="M350 95a9 9 0 0 1 18 0Z" fill="#9BAAA1"/>
+
+  <!-- search -->
+  <rect x="16" y="118" width="361" height="46" rx="23" fill="#FFFFFF" stroke="#E2EAE5" stroke-width="1.5"/>
+  <circle cx="43" cy="141" r="7" fill="none" stroke="#7C8B83" stroke-width="2"/>
+  <path d="m48 146 5 5" stroke="#7C8B83" stroke-width="2" stroke-linecap="round"/>
+  <text x="64" y="146" font-family="system-ui, sans-serif" font-size="14" fill="#8A978F">East Legon, Accra</text>
+
+  <!-- filter chips -->
+  <rect x="16" y="180" width="86" height="34" rx="17" fill="#1B6B4F"/>
+  <text x="59" y="202" font-family="system-ui, sans-serif" font-size="12.5" font-weight="600" fill="#FFFFFF" text-anchor="middle">All</text>
+  <rect x="110" y="180" width="104" height="34" rx="17" fill="#FFFFFF" stroke="#E2EAE5" stroke-width="1.5"/>
+  <text x="162" y="202" font-family="system-ui, sans-serif" font-size="12.5" font-weight="500" fill="#3C4B43" text-anchor="middle">Apartment</text>
+  <rect x="222" y="180" width="96" height="34" rx="17" fill="#FFFFFF" stroke="#E2EAE5" stroke-width="1.5"/>
+  <text x="270" y="202" font-family="system-ui, sans-serif" font-size="12.5" font-weight="500" fill="#3C4B43" text-anchor="middle">Self-con</text>
+  <rect x="326" y="180" width="51" height="34" rx="17" fill="#FFFFFF" stroke="#E2EAE5" stroke-width="1.5"/>
+  <text x="351" y="202" font-family="system-ui, sans-serif" font-size="12.5" font-weight="500" fill="#3C4B43" text-anchor="middle">2 bed</text>
+
+  <!-- listing one -->
+  <g clip-path="url(#a-card1)">
+    <rect x="16" y="250" width="361" height="196" fill="url(#a-sky)"/>
+    <rect x="60" y="300" width="150" height="146" fill="#FBF7F1"/>
+    <rect x="216" y="330" width="96" height="116" fill="#DCCFBC"/>
+    <g fill="#2F3F49">
+      <rect x="76" y="318" width="30" height="24" rx="2"/><rect x="116" y="318" width="30" height="24" rx="2"/><rect x="156" y="318" width="30" height="24" rx="2"/>
+      <rect x="76" y="356" width="30" height="24" rx="2"/><rect x="156" y="356" width="30" height="24" rx="2"/>
+      <rect x="116" y="394" width="30" height="24" rx="2"/>
+    </g>
+    <g fill="#E8B96B">
+      <rect x="116" y="356" width="30" height="24" rx="2"/><rect x="76" y="394" width="30" height="24" rx="2"/><rect x="156" y="394" width="30" height="24" rx="2"/>
+    </g>
+    <g fill="#3A4A55" opacity="0.4">
+      <rect x="230" y="348" width="26" height="22" rx="2"/><rect x="268" y="348" width="26" height="22" rx="2"/>
+      <rect x="230" y="386" width="26" height="22" rx="2"/><rect x="268" y="386" width="26" height="22" rx="2"/>
+    </g>
+    <ellipse cx="196" cy="446" rx="140" ry="16" fill="#C9B79C" opacity="0.5"/>
+  </g>
+  <rect x="16" y="250" width="361" height="196" rx="18" fill="none" stroke="#E6EDE9" stroke-width="1.5"/>
+
+  <!-- verified chip on the photo -->
+  <rect x="30" y="408" width="94" height="26" rx="13" fill="#17251F" opacity="0.82"/>
+  <path d="M45 421l-3-3 1.6-1.6L45 417.8l4.4-4.4L51 415Z" fill="#7BD3A6"/>
+  <text x="57" y="425" font-family="system-ui, sans-serif" font-size="11" font-weight="600" fill="#FFFFFF">Verified</text>
+
+  <!-- heart -->
+  <circle cx="352" cy="276" r="16" fill="#FFFFFF" opacity="0.94"/>
+  <path d="M352 284s-7-4.3-7-9a3.5 3.5 0 0 1 7-2 3.5 3.5 0 0 1 7 2c0 4.7-7 9-7 9Z" fill="none" stroke="#17251F" stroke-width="1.8"/>
+
+  <text x="16" y="480" font-family="system-ui, sans-serif" font-size="21" font-weight="700" fill="#17251F">GH₵ 2,400</text>
+  <text x="118" y="480" font-family="system-ui, sans-serif" font-size="12.5" fill="#8A978F">/ month</text>
+  <text x="16" y="504" font-family="system-ui, sans-serif" font-size="14.5" font-weight="600" fill="#17251F">Two-bedroom apartment</text>
+  <text x="16" y="526" font-family="system-ui, sans-serif" font-size="12.5" fill="#8A978F">East Legon, Accra · 2 bed · Furnished</text>
+
+  <!-- listing two, peeking -->
+  <g clip-path="url(#a-card2)">
+    <rect x="16" y="556" width="361" height="150" fill="url(#a-hero)"/>
+    <rect x="96" y="596" width="120" height="110" fill="#FBF7F1"/>
+    <g fill="#2F3F49">
+      <rect x="110" y="612" width="26" height="20" rx="2"/><rect x="148" y="612" width="26" height="20" rx="2"/>
+      <rect x="110" y="646" width="26" height="20" rx="2"/>
+    </g>
+    <rect x="148" y="646" width="26" height="20" rx="2" fill="#E8B96B"/>
+    <rect x="228" y="620" width="84" height="86" fill="#D8E4DB"/>
+  </g>
+  <rect x="16" y="556" width="361" height="150" rx="18" fill="none" stroke="#E6EDE9" stroke-width="1.5"/>
+  <text x="16" y="740" font-family="system-ui, sans-serif" font-size="21" font-weight="700" fill="#17251F">GH₵ 950</text>
+
+  <!-- tab bar -->
+  <rect x="0" y="772" width="393" height="80" fill="#FFFFFF"/>
+  <line x1="0" y1="772" x2="393" y2="772" stroke="#EDF2EF" stroke-width="1.5"/>
+  <g fill="#1B6B4F">
+    <path d="M42 800l14-11 14 11v14a2 2 0 0 1-2 2h-7v-10h-10v10h-7a2 2 0 0 1-2-2Z"/>
+    <text x="56" y="832" font-family="system-ui, sans-serif" font-size="10" font-weight="600" text-anchor="middle">Home</text>
+  </g>
+  <g fill="#9BAAA1">
+    <circle cx="149" cy="803" r="9" fill="none" stroke="#9BAAA1" stroke-width="2.2"/>
+    <path d="m156 810 6 6" stroke="#9BAAA1" stroke-width="2.2" stroke-linecap="round"/>
+    <text x="152" y="832" font-family="system-ui, sans-serif" font-size="10" text-anchor="middle">Explore</text>
+    <path d="M248 813s-10-6.2-10-13a5 5 0 0 1 10-2.8A5 5 0 0 1 258 800c0 6.8-10 13-10 13Z" fill="none" stroke="#9BAAA1" stroke-width="2.2"/>
+    <text x="248" y="832" font-family="system-ui, sans-serif" font-size="10" text-anchor="middle">Saved</text>
+    <circle cx="344" cy="799" r="7" fill="none" stroke="#9BAAA1" stroke-width="2.2"/>
+    <path d="M332 815a12 12 0 0 1 24 0" fill="none" stroke="#9BAAA1" stroke-width="2.2" stroke-linecap="round"/>
+    <text x="344" y="832" font-family="system-ui, sans-serif" font-size="10" text-anchor="middle">Account</text>
+  </g>
+</svg>

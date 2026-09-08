@@ -1,0 +1,491 @@
+/* Akwaaba foundation — the interaction layer.
+ *
+ * This file exists because the product had no such layer. Buttons, cards and
+ * chips were built from inline `style` objects, and an inline style cannot
+ * express `:hover`, `:active` or `:focus-visible` — so nothing in the interface
+ * responded to being used. Button.tsx even declared a background transition it
+ * had no way of ever firing. An interface that does not move under the cursor
+ * reads as a picture of an app rather than an app, and that is a large part of
+ * what "feels generated" actually means.
+ *
+ * Everything here animates transform, opacity, colour and shadow only. No
+ * layout property is ever transitioned, so a cheap Android device compositing
+ * this is never asked to reflow mid-gesture.
+ */
+
+/* --- links --------------------------------------------------------------- */
+
+.link {
+  color: var(--color-ink-900);
+  text-decoration-line: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--color-field-300);
+  transition: text-decoration-color var(--motion-duration-fast) var(--motion-easing-standard);
+}
+
+.link:hover { text-decoration-color: var(--color-gold-500); }
+
+/* The one that leads somewhere new, as opposed to the one that submits. */
+.link-accent {
+  color: var(--color-gold-600);
+  font-weight: 600;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.link-accent::after {
+  content: "→";
+  transition: translate var(--motion-duration-base) var(--motion-easing-standard);
+}
+
+.link-accent:hover::after { translate: 4px 0; }
+
+/* --- buttons ------------------------------------------------------------- */
+
+.btn {
+  position: relative;
+  min-height: var(--target-min);
+  padding: 0 var(--space-5);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  border: var(--border-hairline) solid transparent;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-body);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  line-height: 1;
+  white-space: nowrap;
+  text-decoration: none;
+  cursor: pointer;
+  /* Colour and shadow move on their own clock from the press, which needs to
+     feel immediate or it reads as lag rather than feedback. */
+  transition:
+    background-color var(--motion-duration-fast) var(--motion-easing-standard),
+    border-color var(--motion-duration-fast) var(--motion-easing-standard),
+    color var(--motion-duration-fast) var(--motion-easing-standard),
+    box-shadow var(--motion-duration-fast) var(--motion-easing-standard),
+    translate var(--motion-duration-instant) var(--motion-easing-standard);
+}
+
+/* The press. One pixel, on every variant, so the whole product agrees about
+   what being pressed feels like. */
+.btn:not(:disabled):active { translate: 0 1px; }
+
+.btn:disabled { cursor: not-allowed; opacity: 0.45; }
+.btn[aria-busy="true"] { cursor: wait; }
+
+.btn-primary {
+  background: var(--color-ink-900);
+  border-color: var(--color-ink-900);
+  color: var(--color-field-0);
+}
+
+/* Primary is ink rather than a hue: it cannot fail contrast on any surface the
+   product has, and it leaves the gold free to mean something when it appears. */
+.btn-primary:not(:disabled):hover {
+  background: var(--color-ink-800);
+  border-color: var(--color-ink-800);
+  box-shadow: var(--shadow-lifted);
+}
+
+.btn-primary:not(:disabled):active { box-shadow: none; }
+
+.btn-secondary {
+  background: var(--color-field-0);
+  border-color: var(--color-field-300);
+  color: var(--color-ink-900);
+}
+
+.btn-secondary:not(:disabled):hover {
+  border-color: var(--color-ink-300);
+  background: var(--color-field-50);
+  box-shadow: var(--shadow-raised);
+}
+
+.btn-quiet {
+  background: transparent;
+  color: var(--color-ink-700);
+  padding-inline: var(--space-3);
+}
+
+.btn-quiet:not(:disabled):hover {
+  background: var(--color-field-100);
+  color: var(--color-ink-900);
+}
+
+/* Gold is the brand moment, and it is deliberately rare. Ink text on gold
+   rather than white: white on this gold is 2.4:1 and unreadable in the sun. */
+.btn-accent {
+  background: var(--color-gold-500);
+  border-color: var(--color-gold-500);
+  color: var(--color-ink-950);
+}
+
+.btn-accent:not(:disabled):hover {
+  background: var(--color-gold-300);
+  border-color: var(--color-gold-300);
+  box-shadow: var(--shadow-lifted);
+}
+
+/* Pressed goes darker than rest, not lighter: the accent is the one control
+   that brightens on hover, so it needs somewhere to go on the way down. */
+.btn-accent:not(:disabled):active {
+  background: var(--color-gold-700);
+  border-color: var(--color-gold-700);
+  color: var(--color-field-0);
+  box-shadow: none;
+}
+
+.btn-destructive {
+  background: var(--color-field-0);
+  border-color: var(--color-laterite-600);
+  color: var(--color-laterite-600);
+}
+
+.btn-destructive:not(:disabled):hover { background: var(--color-laterite-100); }
+
+/* On ink chrome the light variants invert rather than being restated. */
+.on-ink .btn-secondary {
+  background: transparent;
+  border-color: rgb(255 255 255 / 28%);
+  color: var(--color-field-0);
+}
+
+.on-ink .btn-secondary:not(:disabled):hover {
+  background: rgb(255 255 255 / 10%);
+  border-color: rgb(255 255 255 / 44%);
+}
+
+.btn-sm { min-height: 2.25rem; padding-inline: var(--space-3); font-size: 0.875rem; }
+.btn-lg { min-height: 3.5rem; padding-inline: var(--space-8); font-size: 1rem; }
+.btn-block { width: 100%; }
+
+/* --- focus --------------------------------------------------------------- */
+
+/* Ink, not the brand hue. The ring has to be legible against gold fills and
+   green verified states alike, and only ink is legible against all of them. */
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: var(--border-emphasis) solid var(--color-ink-900);
+  outline-offset: 2px;
+  border-radius: var(--radius-xs);
+}
+
+.on-ink :where(a, button, [tabindex]):focus-visible {
+  outline-color: var(--color-gold-300);
+}
+
+/* --- surfaces ------------------------------------------------------------ */
+
+.card {
+  background: var(--color-field-0);
+  border: var(--border-hairline) solid var(--color-field-200);
+  border-radius: var(--radius-lg);
+}
+
+/* Only where a pointer exists. On a touch screen there is no hover, and a
+   sticky :hover left behind after a tap is worse than none at all. */
+@media (hover: hover) {
+  .card-interactive {
+    transition:
+      translate var(--motion-duration-base) var(--motion-easing-standard),
+      box-shadow var(--motion-duration-base) var(--motion-easing-standard),
+      border-color var(--motion-duration-base) var(--motion-easing-standard);
+  }
+
+  .card-interactive:hover {
+    translate: 0 -2px;
+    border-color: var(--color-field-300);
+    box-shadow: var(--shadow-lifted);
+  }
+}
+
+.card-interactive:active { translate: 0 0; }
+
+/* --- media --------------------------------------------------------------- */
+
+/* Photographs are the product. A rental is a place, and a place is something
+   you look at before you read a word about it. */
+.media {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  background: var(--color-field-100);
+  isolation: isolate;
+}
+
+.media img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+@media (hover: hover) {
+  .media img {
+    transition: scale var(--motion-duration-slow) var(--motion-easing-standard);
+  }
+  .card-interactive:hover .media img { scale: 1.04; }
+}
+
+.media-4x3 { aspect-ratio: 4 / 3; }
+.media-3x2 { aspect-ratio: 3 / 2; }
+.media-16x9 { aspect-ratio: 16 / 9; }
+
+/* A scrim, so white text over an unknown photograph is readable whatever the
+   photograph turns out to be. Bottom-weighted because that is where captions
+   sit; a full-frame wash would flatten the image it exists to protect. */
+.media-scrim::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: linear-gradient(
+    to top,
+    rgb(22 17 14 / 78%) 0%,
+    rgb(22 17 14 / 38%) 32%,
+    rgb(22 17 14 / 0%) 62%
+  );
+  pointer-events: none;
+}
+
+.media-empty {
+  display: grid;
+  place-items: center;
+  color: var(--color-ink-300);
+  font-family: var(--font-body);
+  font-size: 0.8125rem;
+}
+
+/* --- tags ----------------------------------------------------------------- */
+
+/* Named `tag`, not `chip`: forms.css has owned `.chip` since before this file
+   existed, for the 48px selectable control behind amenities. Two components
+   sharing a global class name is decided by import order, which is how a status
+   label on a photograph came to be drawn as a white multi-select control. */
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-pill);
+  background: var(--color-field-100);
+  color: var(--color-ink-700);
+  font-family: var(--font-body);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.tag-verified { background: var(--color-kola-50); color: var(--color-kola-600); }
+.tag-pending { background: var(--color-harmattan-100); color: var(--color-harmattan-600); }
+.tag-problem { background: var(--color-laterite-100); color: var(--color-laterite-600); }
+.tag-info { background: var(--color-lagoon-100); color: var(--color-lagoon-600); }
+/* The only chip with an edge. It marks the new and the noteworthy, and a fill
+   this pale needs a border to hold its shape against the ivory page. */
+.tag-accent {
+  background: var(--color-gold-50);
+  border: var(--border-hairline) solid var(--color-gold-100);
+  color: var(--color-gold-600);
+}
+
+/* On a photograph, where the surface underneath is unknown. */
+.tag-onmedia {
+  background: rgb(22 17 14 / 72%);
+  color: var(--color-field-0);
+  backdrop-filter: blur(6px);
+}
+
+/* --- the verification mark ----------------------------------------------- */
+
+/* States what was checked and when, and says "not checked" as plainly as it
+   says "verified" — a badge with no date lets the interface imply a check it
+   has not earned, which is the exact false confidence this product exists to
+   remove. The rule down the left carries the state colour so the mark reads at
+   a glance without relying on the text being read at all. */
+.stamp {
+  display: inline-grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-left: var(--border-stamp) solid var(--stamp-rule);
+  border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
+  background: var(--stamp-fill);
+  color: var(--stamp-ink);
+  font-family: var(--font-body);
+}
+
+.stamp-what { display: block; font-size: 0.8125rem; font-weight: 600; line-height: 1.3; }
+.stamp-when {
+  display: block;
+  color: var(--color-ink-500);
+  font-size: 0.6875rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.4;
+}
+
+.stamp-verified {
+  --stamp-rule: var(--color-kola-600);
+  --stamp-fill: var(--color-kola-50);
+  --stamp-ink: var(--color-kola-600);
+}
+.stamp-pending {
+  --stamp-rule: var(--color-harmattan-500);
+  --stamp-fill: var(--color-harmattan-100);
+  --stamp-ink: var(--color-harmattan-600);
+}
+.stamp-unverified {
+  --stamp-rule: var(--color-field-300);
+  --stamp-fill: var(--color-field-100);
+  --stamp-ink: var(--color-ink-500);
+}
+.stamp-expired {
+  --stamp-rule: var(--color-laterite-600);
+  --stamp-fill: var(--color-laterite-100);
+  --stamp-ink: var(--color-laterite-600);
+}
+
+/* --- loading ------------------------------------------------------------- */
+
+/* Opacity only. A shimmer that animates background-position repaints the whole
+   block every frame, which on the devices this product targets is a visible
+   stutter on exactly the screens that are already waiting on the network. */
+.skeleton {
+  background: var(--color-field-100);
+  border-radius: var(--radius-sm);
+  animation: skeleton-pulse 1.6s var(--motion-easing-standard) infinite;
+}
+
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+
+.skeleton-text { height: 0.75rem; }
+.skeleton-line { height: 1rem; }
+
+/* --- editorial layout ---------------------------------------------------- */
+
+/* The old landing page ran eyebrow → heading → paragraph → three equal cards,
+   four times in a row. Equal weight everywhere is what a template looks like,
+   so these give a section a way to say which part matters. */
+.shell {
+  width: 100%;
+  max-width: 78rem;
+  margin-inline: auto;
+  padding-inline: clamp(var(--space-5), 4vw, var(--space-12));
+}
+
+.shell-narrow { max-width: 46rem; }
+
+.section { padding-block: clamp(var(--space-16), 9vw, var(--space-32)); }
+.section-tight { padding-block: clamp(var(--space-12), 6vw, var(--space-20)); }
+
+.eyebrow {
+  display: block;
+  margin: 0 0 var(--space-4);
+  color: var(--color-gold-600);
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+/* Deliberately uneven. Two columns that are not the same width read as an
+   editorial decision; two that are read as a grid nobody thought about. */
+.split {
+  display: grid;
+  gap: clamp(var(--space-8), 5vw, var(--space-16));
+  align-items: center;
+}
+
+@media (min-width: 62rem) {
+  .split { grid-template-columns: 1.15fr 0.85fr; }
+  .split-reverse { grid-template-columns: 0.85fr 1.15fr; }
+}
+
+.rule {
+  height: var(--border-hairline);
+  border: 0;
+  margin: 0;
+  background: var(--color-field-200);
+}
+
+/* --- ink chrome ---------------------------------------------------------- */
+
+/* Content on the dark surface. Setting the descendant colours here once is what
+   keeps every component from having to know whether it is on ink or on paper. */
+.on-ink {
+  background: var(--color-ink-950);
+  color: var(--color-field-0);
+}
+
+.on-ink .type-caption,
+.on-ink .muted { color: var(--color-field-300); }
+.on-ink .eyebrow { color: var(--color-gold-300); }
+.on-ink .rule { background: rgb(255 255 255 / 14%); }
+
+.muted { color: var(--color-ink-500); }
+.accent { color: var(--color-gold-600); }
+
+/* Tabular figures wherever numbers are compared down a column rather than read
+   in a sentence. Money is set in the UI face, not a monospace one: mono says
+   "machine output", and a rent is a price. */
+.tnum { font-variant-numeric: tabular-nums; }
+
+/* --- public site header --------------------------------------------------- */
+
+/* Sticky and translucent. The previous header was a static bar holding one
+   unstyled wordmark, which is why the public site read as a page rather than a
+   product with a front door. */
+.sitenav {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: rgb(255 255 255 / 88%);
+  backdrop-filter: blur(14px) saturate(1.4);
+  border-bottom: var(--border-hairline) solid #ECEAE7;
+}
+
+.sitenav-inner {
+  min-height: 4.5rem;
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.sitenav-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  color: #111114;
+  font-family: var(--font-display);
+  font-size: 1.125rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  text-decoration: none;
+}
+
+.sitenav-mark {
+  width: 2.125rem;
+  height: 2.125rem;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: #111114;
+  color: #fff;
+  font-family: var(--font-display);
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.sitenav-actions { margin-left: auto; display: flex; align-items: center; gap: var(--space-4); }

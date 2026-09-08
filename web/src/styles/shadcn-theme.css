@@ -1,0 +1,178 @@
+/* The shadcn token layer.
+ *
+ * shadcn components are written against a fixed vocabulary — `bg-background`,
+ * `text-muted-foreground`, `border-border` and so on. This file is the single
+ * place those names are given values, so the components arrive already wearing
+ * this product's palette instead of the stone default they ship with, and a
+ * palette change never means editing component source.
+ *
+ * Values are the premium landing palette: near-black ink, warm paper, one
+ * restrained clay accent. Written in OKLCH because interpolating a hover or a
+ * gradient in it stays perceptually even, where the same move in hex or HSL
+ * drifts muddy through the middle.
+ */
+
+:root {
+  --radius: 0.875rem;
+
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.17 0.014 165);
+
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.17 0.014 165);
+
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.17 0.014 165);
+
+  /* Primary is ink. It cannot fail contrast on any surface this product has,
+     and it leaves the accent free to actually accent. */
+  --primary: oklch(0.17 0.014 165);
+  --primary-foreground: oklch(0.99 0.006 150);
+
+  --secondary: oklch(0.972 0.010 160);
+  --secondary-foreground: oklch(0.18 0.02 165);
+
+  --muted: oklch(0.972 0.010 160);
+  --muted-foreground: oklch(0.50 0.014 165);
+
+  --accent: oklch(0.962 0.016 160);
+  --accent-foreground: oklch(0.18 0.02 165);
+
+  /* Green, on white.
+   *
+   * `--brand` is deep enough to carry white text at 6.1:1, so it can be a
+   * filled button and a body link without a second value for each. `--glow` is
+   * the mint the washes are mixed from — it never sits under text, so it is
+   * free to be as light as it needs to be to blend into white. `--brand-tint`
+   * is the quiet fill: selected rows, icon plates, soft bands. */
+  --brand: oklch(0.50 0.105 162);
+  --brand-foreground: oklch(0.99 0.006 150);
+  --brand-glow: oklch(0.86 0.10 160);
+  --brand-tint: oklch(0.96 0.022 160);
+
+  --destructive: oklch(0.52 0.153 27);
+  --destructive-foreground: oklch(0.99 0.002 90);
+
+  --success: oklch(0.50 0.105 162);
+  --success-foreground: oklch(0.99 0.002 90);
+
+  --border: oklch(0.925 0.006 160);
+  --input: oklch(0.905 0.008 160);
+  --ring: oklch(0.50 0.105 162);
+}
+
+/* One deep band, for the section that has to stop the page.
+ *
+ * Kept as an opt-in class rather than a colour scheme: this is a deliberate
+ * inversion on a light page, not a theme the whole product switches into.
+ * Anything rendered inside picks up the inverted vocabulary automatically,
+ * including a shadcn component that knows nothing about where it landed. */
+.brand-band {
+  --background: oklch(0.24 0.045 165);
+  --foreground: oklch(0.98 0.008 150);
+
+  --card: oklch(0.29 0.045 165);
+  --card-foreground: oklch(0.98 0.008 150);
+
+  --popover: oklch(0.29 0.045 165);
+  --popover-foreground: oklch(0.98 0.008 150);
+
+  --primary: oklch(0.98 0.008 150);
+  --primary-foreground: oklch(0.24 0.045 165);
+
+  --secondary: oklch(0.34 0.045 165);
+  --secondary-foreground: oklch(0.98 0.008 150);
+
+  --muted: oklch(0.34 0.045 165);
+  --muted-foreground: oklch(0.78 0.024 160);
+
+  --accent: oklch(0.34 0.045 165);
+  --accent-foreground: oklch(0.98 0.008 150);
+
+  --brand: oklch(0.80 0.13 160);
+  --brand-foreground: oklch(0.20 0.04 165);
+  --brand-tint: oklch(1 0 0 / 10%);
+
+  --border: oklch(1 0 0 / 12%);
+  --input: oklch(1 0 0 / 18%);
+  --ring: oklch(0.80 0.13 160);
+}
+
+/* `inline` so these resolve against the custom properties above at use time,
+   which is what lets `.dark-band` re-point them further down the tree. */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-brand: var(--brand);
+  --color-brand-foreground: var(--brand-foreground);
+  --color-brand-glow: var(--brand-glow);
+  --color-brand-tint: var(--brand-tint);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  /* Radii are deliberately absent. tokens.css already owns the `--radius-*`
+     scale for the hand-written stylesheets, and defining it twice would mean
+     whichever file imported last silently decided how the whole product is
+     rounded. shadcn's `rounded-md`/`rounded-lg` resolve against that same
+     scale, so the two systems round identically by construction. */
+
+  --font-sans: var(--font-body);
+}
+
+/* The accordion open/close, defined here rather than inherited.
+ *
+ * tw-animate-css composes its `animate-accordion-down` from a stack of
+ * `--tw-animation-*` custom properties whose fill-mode defaults to `none`. The
+ * keyframes run correctly — the panel measures the right
+ * `--radix-accordion-content-height` — and then, having no fill, the element
+ * snaps back to the height it had before the animation: zero. An accordion that
+ * reports `aria-expanded="true"` while showing nothing is worse than one that
+ * does not animate at all, so these are pinned with `forwards`.
+ *
+ * This block is imported after tw-animate-css, so redefining the two theme
+ * keys is enough; nothing else it provides is affected.
+ */
+@theme inline {
+  --animate-accordion-down: accordion-down 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  --animate-accordion-up: accordion-up 0.18s cubic-bezier(0.3, 0, 0.8, 0.15) forwards;
+}
+
+@keyframes accordion-down {
+  from { height: 0; opacity: 0; }
+  to { height: var(--radix-accordion-content-height); opacity: 1; }
+}
+
+@keyframes accordion-up {
+  from { height: var(--radix-accordion-content-height); opacity: 1; }
+  to { height: 0; opacity: 0; }
+}
+
+/* An accordion that jumps open is still an accordion that works. Height is not
+   a transform, so under reduced motion it is not animated at all.
+ *
+ * Written against the element rather than the theme key: `@theme` is only valid
+ * at the top level, and nesting it inside a media query does not scope the
+ * override — it discards the variable outright, which left the accordion with
+ * `animation: none` for everybody. */
+@media (prefers-reduced-motion: reduce) {
+  [data-slot="accordion-content"] {
+    animation: none !important;
+  }
+}

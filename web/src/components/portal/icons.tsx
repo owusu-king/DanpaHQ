@@ -43,7 +43,12 @@ export type IconName =
   | "shop"
   | "details"
   | "photos"
-  | "amenities";
+  | "amenities"
+  | "clock"
+  | "info"
+  | "warning"
+  | "heart"
+  | "heart-filled";
 
 const PATHS: Record<IconName, React.ReactNode> = {
   home: <path d="M3.5 8.5 10 3l6.5 5.5V16a1 1 0 0 1-1 1h-3v-5h-5v5h-3a1 1 0 0 1-1-1Z" />,
@@ -209,6 +214,39 @@ const PATHS: Record<IconName, React.ReactNode> = {
       <path d="M15.5 10H8.5" />
       <path d="m11 6.5-3 3.5 3 3.5" />
     </>
+  ),
+  clock: (
+    <>
+      <circle cx="10" cy="10" r="6.75" />
+      <path d="M10 6.25V10l2.5 1.75" />
+    </>
+  ),
+  info: (
+    <>
+      <circle cx="10" cy="10" r="6.75" />
+      <path d="M10 9.25v4" />
+      <path d="M10 6.75h.01" />
+    </>
+  ),
+  warning: (
+    <>
+      <path d="M10 3.5 17 16H3l7-12.5Z" />
+      <path d="M10 8.5v3" />
+      <path d="M10 13.75h.01" />
+    </>
+  ),
+  /* Saving a listing is the one control in the product that was drawn with a
+     text glyph — a literal heart character, which inherits the reader's emoji
+     font and lands next to a set of matched 1.5px line icons looking like it
+     wandered in from somewhere else. */
+  heart: (
+    <path d="M10 16.25S3.75 12.4 3.75 8.15A3.1 3.1 0 0 1 10 6.4a3.1 3.1 0 0 1 6.25 1.75c0 4.25-6.25 8.1-6.25 8.1Z" />
+  ),
+  "heart-filled": (
+    <path
+      d="M10 16.25S3.75 12.4 3.75 8.15A3.1 3.1 0 0 1 10 6.4a3.1 3.1 0 0 1 6.25 1.75c0 4.25-6.25 8.1-6.25 8.1Z"
+      fill="currentColor"
+    />
   ),
 };
 

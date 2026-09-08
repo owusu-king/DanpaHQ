@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 240" role="img" aria-label="Keys handed over at a door">
+  <defs>
+    <linearGradient id="k-bg" x1="0" y1="0" x2="0.6" y2="1">
+      <stop offset="0%" stop-color="#F6EFE4"/><stop offset="100%" stop-color="#EADCC7"/>
+    </linearGradient>
+  </defs>
+  <rect width="320" height="240" rx="20" fill="url(#k-bg)"/>
+  <rect x="42" y="34" width="122" height="184" rx="10" fill="#FBF8F4"/>
+  <rect x="54" y="46" width="98" height="172" rx="7" fill="#3F5A63"/>
+  <rect x="54" y="46" width="98" height="7" rx="3.5" fill="#FFFFFF" opacity="0.3"/>
+  <g fill="#FFFFFF" opacity="0.14">
+    <rect x="68" y="64" width="70" height="46" rx="4"/>
+    <rect x="68" y="122" width="70" height="46" rx="4"/>
+  </g>
+  <circle cx="138" cy="140" r="6" fill="#DDB35A"/>
+  <ellipse cx="103" cy="226" rx="70" ry="7" fill="#16110E" opacity="0.12"/>
+  <g transform="rotate(18 236 120)">
+    <circle cx="236" cy="92" r="24" fill="none" stroke="#C08A2E" stroke-width="11"/>
+    <rect x="230" y="110" width="12" height="72" rx="5" fill="#C08A2E"/>
+    <rect x="242" y="140" width="18" height="11" rx="4" fill="#C08A2E"/>
+    <rect x="242" y="162" width="14" height="11" rx="4" fill="#C08A2E"/>
+  </g>
+  <g transform="rotate(-14 200 126)" opacity="0.9">
+    <circle cx="200" cy="104" r="18" fill="none" stroke="#8C7A63" stroke-width="8"/>
+    <rect x="196" y="118" width="9" height="54" rx="4" fill="#8C7A63"/>
+    <rect x="205" y="142" width="13" height="8" rx="3" fill="#8C7A63"/>
+  </g>
+  <g stroke="#16110E" stroke-width="2.4" stroke-linecap="round" opacity="0.24">
+    <path d="M282 176v12M276 182h12"/>
+  </g>
+</svg>
