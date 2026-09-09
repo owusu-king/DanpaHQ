@@ -156,6 +156,18 @@ export function safeCheckoutUrl(intent: PaymentIntent): string | null {
   }
 }
 
+/** Paystack returns to the configured Rooomly web callback after checkout.
+ * Mobile intercepts that navigation inside its WebView and asks the API for the
+ * real outcome; arriving at this URL is never treated as proof of payment. */
+export function isPaymentReturnUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.pathname.replace(/\/$/, "") === "/payments/return";
+  } catch {
+    return false;
+  }
+}
+
 export function paymentMethodLabel(method: ReceiptPaymentMethod): string {
   return {
     mobile_money: "Mobile money", card: "Card", bank_transfer: "Bank transfer",

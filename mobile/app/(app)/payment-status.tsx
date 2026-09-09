@@ -1,8 +1,9 @@
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Linking, ScrollView, View } from "react-native";
+import { ScrollView, View } from "react-native";
 
 import { ApiFailure } from "@/api";
+import { PaystackCheckoutModal } from "@/components/payments/PaystackCheckoutModal";
 import { Button, Notice, Type, space } from "@/components/ui";
 import {
   getPaymentIntent,
@@ -21,6 +22,7 @@ export default function PaymentStatusScreen() {
   const [loading, setLoading] = useState(true);
   const [checking, setChecking] = useState(false);
   const [error, setError] = useState("");
+  const [checkoutIntent, setCheckoutIntent] = useState<PaymentIntent | null>(null);
   const opened = useRef(false);
 
   const check = useCallback(async () => {
@@ -48,8 +50,8 @@ export default function PaymentStatusScreen() {
   useEffect(() => {
     if (params.openCheckout !== "1" || !checkoutUrl || opened.current) return;
     opened.current = true;
-    void Linking.openURL(checkoutUrl).catch(() => setError("Secure checkout could not be opened. Try again below."));
-  }, [checkoutUrl, params.openCheckout]);
+    setCheckoutIntent(intent);
+  }, [checkoutUrl, intent, params.openCheckout]);
 
   async function retry() {
     if (!intent) return;
@@ -59,7 +61,7 @@ export default function PaymentStatusScreen() {
       const next = await retryPaymentIntent(intent.id);
       setIntent(next);
       const url = safeCheckoutUrl(next);
-      if (url) await Linking.openURL(url);
+      if (url) setCheckoutIntent(next);
     } catch (cause) {
       setError(cause instanceof ApiFailure ? cause.error.message : "A new payment attempt could not be started.");
     } finally {
@@ -91,8 +93,8 @@ export default function PaymentStatusScreen() {
           <Notice tone="info" title="Still confirming" body="This can take a moment. Do not start another payment for the same charge." />
           <Type variant="display2">{intent.amount_formatted}</Type>
           <Button label="Check again" busy={checking} onPress={() => void check()} />
-          {checkoutUrl ? <Button label="Continue secure checkout" variant="secondary" onPress={() => void Linking.openURL(checkoutUrl)} /> : null}
-          <Type variant="caption">After paying in the secure browser, return to Rooomly. This screen checks the processor again whenever it becomes active.</Type>
+          {checkoutUrl ? <Button label="Continue secure checkout" variant="secondary" onPress={() => setCheckoutIntent(intent)} /> : null}
+          <Type variant="caption">Secure checkout opens inside Rooomly. This screen asks the processor for the result before updating your rent.</Type>
         </>
       ) : unsuccessful ? (
         <>
@@ -100,6 +102,17 @@ export default function PaymentStatusScreen() {
           <Button label="Try again" busy={checking} onPress={() => void retry()} />
         </>
       ) : intent?.status === "cancelled" ? <Notice tone="info" title="Payment was cancelled" body="No rent was marked paid." /> : null}
+      <PaystackCheckoutModal
+        intent={checkoutIntent}
+        onClose={() => {
+          setCheckoutIntent(null);
+          void check();
+        }}
+        onCheckoutReturn={() => {
+          setCheckoutIntent(null);
+          void check();
+        }}
+      />
     </ScrollView>
   );
 }

@@ -158,6 +158,16 @@ test("Units is a destination beside Properties, and both open the same Unit", ()
   assert.match(units, /\/properties\/\$\{unit\.property_id\}\/spaces\/\$\{unit\.id\}/);
 });
 
+test("the nested spaces segment is an explicit route boundary", () => {
+  const boundary = read("web/app/properties/[id]/spaces/page.tsx");
+
+  // Next's development matcher must discover the segment before resolving its
+  // `new` and `[spaceId]` children. The segment itself has no competing index;
+  // a bare visit returns to the Property that owns those Units.
+  assert.match(boundary, /params: Promise<\{ id: string \}>/);
+  assert.match(boundary, /redirect\(`\/properties\/\$\{id\}`\)/);
+});
+
 test("Unit detail exposes the backend-owned archive or delete decision", () => {
   const page = read("web/app/properties/[id]/spaces/[spaceId]/page.tsx");
   const actions = read("web/src/components/property/UnitLifecycleActions.tsx");

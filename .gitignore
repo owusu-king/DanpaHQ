@@ -236,3 +236,4 @@ designs
 # Phase release archives produced by ops/package.py. The build output belongs in
 # a release, not in the tree it was built from.
 ghana-rental-platform-phase-*/
+deployment_resources.md

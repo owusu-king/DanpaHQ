@@ -1,4 +1,4 @@
-package gh.rentalplatform.app
+package com.rentalplatform.app
 
 import android.app.Application
 import android.content.res.Configuration

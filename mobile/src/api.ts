@@ -69,9 +69,11 @@ function resolveBaseUrl(): string {
 
   // Emulators, where the host loopback has a special address.
   return Platform.OS === "android"
-    ? "http://10.0.2.2:8000/api/v1"
+    ? "http://10.0.2.2:8000/api/v1" 
     : "http://localhost:8000/api/v1";
 }
+
+//  for android
 
 /** Shown on the sign-in screen so a connection failure is diagnosable. */
 export function apiBaseUrl(): string {

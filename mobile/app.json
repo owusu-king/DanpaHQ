@@ -13,7 +13,7 @@
       "backgroundColor": "#0B5D4E"
     },
     "android": {
-      "package": "gh.rentalplatform.app",
+      "package": "com.rentalplatform.app",
       "versionCode": 1,
       "adaptiveIcon": {
         "backgroundColor": "#0B5D4E"
@@ -21,7 +21,8 @@
       "permissions": [
         "CAMERA",
         "ACCESS_COARSE_LOCATION",
-        "ACCESS_FINE_LOCATION"
+        "ACCESS_FINE_LOCATION",
+        "android.permission.CAMERA"
       ],
       "blockedPermissions": [
         "READ_CONTACTS",

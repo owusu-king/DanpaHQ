@@ -11,6 +11,7 @@ test("mobile checkout is a dedicated journey with a server-authoritative return"
   const account = read("mobile/app/(app)/rent-account.tsx");
   const checkout = read("mobile/app/(app)/payment-checkout.tsx");
   const status = read("mobile/app/(app)/payment-status.tsx");
+  const modal = read("mobile/src/components/payments/PaystackCheckoutModal.tsx");
   const api = read("mobile/src/payments.ts");
 
   assert.match(account, /digital_payment\.available/);
@@ -20,7 +21,14 @@ test("mobile checkout is a dedicated journey with a server-authoritative return"
   assert.match(status, /useFocusEffect/);
   assert.match(status, /refreshPaymentIntent\(current\.id\)/);
   assert.match(status, /retryPaymentIntent\(intent\.id\)/);
+  assert.doesNotMatch(status, /Linking\.openURL/);
+  assert.match(checkout, /PaystackCheckoutModal/);
+  assert.match(status, /PaystackCheckoutModal/);
+  assert.match(modal, /from "react-native-webview"/);
+  assert.match(modal, /isPaymentReturnUrl/);
+  assert.match(modal, /Rooomly confirms the result with Paystack/i);
   assert.match(api, /hostname\.endsWith\("\.paystack\.com"\)/);
+  assert.match(api, /pathname\.replace\(\/\\\/\$\//);
 });
 
 test("mobile payment success keeps settlement distinct and opens a receipt screen", () => {

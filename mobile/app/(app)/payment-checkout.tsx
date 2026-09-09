@@ -4,6 +4,7 @@ import { ScrollView, View } from "react-native";
 
 import { ApiFailure } from "@/api";
 import { Button, Notice, Surface, Type, space } from "@/components/ui";
+import { PaystackCheckoutModal } from "@/components/payments/PaystackCheckoutModal";
 import { getLeaseLedger, type LeaseLedger } from "@/leases";
 import {
   createPaymentIntent,
@@ -26,6 +27,7 @@ export default function PaymentCheckoutScreen() {
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [checkoutIntent, setCheckoutIntent] = useState<PaymentIntent | null>(null);
 
   const load = useCallback(async () => {
     if (!leaseId || !obligationId) {
@@ -52,15 +54,23 @@ export default function PaymentCheckoutScreen() {
   function openStatus(intent: PaymentIntent) {
     router.replace({
       pathname: "/(app)/payment-status",
-      params: { intentId: intent.id, openCheckout: safeCheckoutUrl(intent) ? "1" : "0" },
+      params: { intentId: intent.id },
     } as never);
+  }
+
+  function openCheckout(intent: PaymentIntent) {
+    if (safeCheckoutUrl(intent)) {
+      setCheckoutIntent(intent);
+      return;
+    }
+    openStatus(intent);
   }
 
   async function start() {
     setBusy(true);
     setError("");
     try {
-      openStatus(await createPaymentIntent(obligationId, method));
+      openCheckout(await createPaymentIntent(obligationId, method));
     } catch (cause) {
       setError(cause instanceof ApiFailure ? cause.error.message : "Checkout could not be started.");
     } finally {
@@ -108,11 +118,24 @@ export default function PaymentCheckoutScreen() {
             </View>
             <Type variant="caption">Any payment processing fee is paid by the property owner.</Type>
           </Surface>
-          {existing ? <Button label="Continue payment" onPress={() => openStatus(existing)} /> : ledger.digital_payment.available ? <Button label="Continue securely" busy={busy} busyLabel="Starting checkout…" onPress={() => void start()} /> : null}
+          {existing ? <Button label="Continue payment" onPress={() => openCheckout(existing)} /> : ledger.digital_payment.available ? <Button label="Continue securely" busy={busy} busyLabel="Starting checkout…" onPress={() => void start()} /> : null}
           <Type variant="caption">Rooomly confirms payment with the processor. Returning to the app alone never marks rent as paid.</Type>
         </>
       ) : null}
       {!loading && ledger && !charge ? <Notice tone="error" title="This charge is no longer available." /> : null}
+      <PaystackCheckoutModal
+        intent={checkoutIntent}
+        onClose={() => {
+          const current = checkoutIntent;
+          setCheckoutIntent(null);
+          if (current) openStatus(current);
+        }}
+        onCheckoutReturn={() => {
+          const current = checkoutIntent;
+          setCheckoutIntent(null);
+          if (current) openStatus(current);
+        }}
+      />
     </ScrollView>
   );
 }
