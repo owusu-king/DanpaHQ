@@ -46,7 +46,12 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en-GH" className={`${display.variable} ${body.variable}`}>
+    <html
+      lang="en-GH"
+      className={`${display.variable} ${body.variable}`}
+      data-scroll-behavior="smooth"
+      suppressHydrationWarning
+    >
       <head>
         {/*
           Motion serialises its `initial` state into the server-rendered HTML,
@@ -66,7 +71,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           />
         </noscript>
       </head>
-      <body>
+      {/* Browser extensions such as Grammarly and ColorZilla inject attributes
+          on body before React hydrates. Suppress only this root element's
+          attribute mismatch; application content mismatches still surface. */}
+      <body suppressHydrationWarning>
         <a href="#main" className="type-caption skip-link">
           Skip to content
         </a>

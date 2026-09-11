@@ -181,7 +181,7 @@ export default function ProviderLeaseScreen() {
             ) : null}
             {lease.agreement.rendered_document.sections.map((section) => (
               <View
-                key={section.key}
+                key={section.id}
                 style={{
                   gap: space[2],
                   paddingTop: space[4],

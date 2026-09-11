@@ -319,7 +319,7 @@ function AgreementDocument({ document }: { document: RenderedAgreement }) {
       </header>
       {document.production_notice ? <Notice tone="warning" title="Pre-production legal review" body={document.production_notice} /> : null}
       {document.sections.map((section) => (
-        <section key={section.key}><h4>{section.title}</h4><p>{section.body}</p></section>
+        <section key={section.id}><h4>{section.title}</h4><p>{section.body}</p></section>
       ))}
     </article>
   );

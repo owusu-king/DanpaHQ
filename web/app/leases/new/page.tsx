@@ -578,7 +578,7 @@ function ReviewStep({
         </button>
       </div>
       {document.sections.map((section) => (
-        <section key={section.key}>
+        <section key={section.id}>
           <h4>{section.title}</h4>
           <p>{section.body}</p>
         </section>

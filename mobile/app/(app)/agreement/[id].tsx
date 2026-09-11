@@ -199,7 +199,7 @@ export default function AgreementScreen() {
             ) : null}
             {rendered.sections.map((section) => (
               <View
-                key={section.key}
+                key={section.id}
                 style={{
                   gap: space[2],
                   paddingTop: space[4],

@@ -1881,7 +1881,7 @@ export type RenderedAgreement = {
   reference_number: string;
   production_notice?: string;
   template: { code: string; version: string; review_status: string };
-  sections: { key: string; title: string; body: string; kind?: string }[];
+  sections: { id: string; title: string; body: string; kind?: string }[];
 };
 
 export function listGrantedLeases() {
