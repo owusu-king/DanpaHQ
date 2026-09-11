@@ -355,6 +355,9 @@ def create_join_request(*, user, prop, unit, bed=None, access_code: str, message
         raise NotFound("We could not find a space with that access code.")
     if unit_is_occupied(unit):
         raise Conflict("This space is occupied and is not accepting requests.")
+    from apps.billing import enforcement as billing
+
+    billing.assert_accepting_requests(unit=unit)
     if Occupancy.objects.filter(
         user=user,
         unit=unit,
@@ -410,6 +413,9 @@ def create_join_request_from_viewing(*, user, viewing, message: str = ""):
     unit = Unit.objects.select_for_update().select_related("property").get(id=listing.unit_id)
     prop = unit.property
     _validate_space(prop=prop, unit=unit)
+    from apps.billing import enforcement as billing
+
+    billing.assert_accepting_requests(unit=unit)
     if unit_is_occupied(unit):
         raise Conflict("This space is occupied and is not accepting requests.")
     if PropertyJoinRequest.objects.filter(
@@ -476,6 +482,13 @@ def decide_join_request(*, join_request, actor, approved: bool, note: str = ""):
             prop=join_request.property,
             user=actor,
             capability=PropertyCapability.TENANT_ACCESS,
+        )
+        # Approving is how a new tenant starts. Declining stays open, so a
+        # restricted space's waiting requests can still be answered.
+        from apps.billing import enforcement as billing
+
+        billing.assert_open_for_new_activity(
+            unit=join_request.unit, action="approve_tenancy_request"
         )
         join_request.status = JoinRequestStatus.APPROVED
     else:

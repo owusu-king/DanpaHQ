@@ -68,6 +68,17 @@ class Subscription(BaseModel):
     #: than a duration it has to recompute from the failure it did not see.
     grace_expires_at = models.DateTimeField(null=True, blank=True)
 
+    #: A cheaper paid plan this moves to when the current paid period ends. The
+    #: Portfolio paid for the period it is in and keeps it. Moving to Free at the
+    #: end of a period is `cancel_at_period_end`, never this.
+    scheduled_plan = models.ForeignKey(
+        "billing.Plan",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="+",
+    )
+
     class Meta:
         db_table = "billing_subscription"
         ordering = ("-created_at",)
@@ -79,7 +90,16 @@ class Subscription(BaseModel):
                 fields=["billing_account"],
                 condition=models.Q(status__in=LIVE_STATUSES),
                 name="billing_one_live_subscription_per_account",
-            )
+            ),
+            # One pending change at a time. "Cancel at period end, and also
+            # move to Pro at period end" is not a state anything should have
+            # to interpret.
+            models.CheckConstraint(
+                condition=~(
+                    models.Q(cancel_at_period_end=True) & models.Q(scheduled_plan__isnull=False)
+                ),
+                name="billing_one_scheduled_change",
+            ),
         ]
         indexes = [
             models.Index(fields=["status", "current_period_end"], name="billing_sub_period_idx"),
@@ -103,6 +123,11 @@ class BillingEventType(models.TextChoices):
     EXPIRED = "expired", "Expired"
     OVERRIDE_APPLIED = "override_applied", "Entitlement override applied"
     OVERRIDE_REMOVED = "override_removed", "Entitlement override removed"
+    #: A server-confirmed payment bought the next period of the same plan.
+    RENEWED = "renewed", "Renewed"
+    #: A move to a cheaper paid plan, waiting for the paid period to end.
+    CHANGE_SCHEDULED = "change_scheduled", "Plan change scheduled"
+    SCHEDULED_CHANGE_CANCELLED = "scheduled_change_cancelled", "Scheduled change cancelled"
 
 
 class BillingEvent(BaseModel):

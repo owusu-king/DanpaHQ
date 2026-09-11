@@ -356,6 +356,30 @@ class TestBillingPermissions:
         assert response.data["limits"]["PROPERTY_LIMIT"] == 1
         assert response.data["usage"]["PROPERTY_COUNT"] == 0
         assert response.data["entitlements"]["ADVANCED_REPORTING"]["value"] is False
+        assert response.data["subscription"]["plan"]["code"] == "FREE"
+        assert response.data["billing_account"]["status"] == "active"
+        assert response.data["history"][0]["event_type"] == "subscription_created"
+
+    def test_a_past_due_paid_subscription_remains_visible_in_billing(
+        self, landlord, portfolio, sign_in_as
+    ):
+        upgrade_portfolio(portfolio, "PRO")
+        subscription = Subscription.objects.get(
+            billing_account__organization=portfolio,
+            status=SubscriptionStatus.ACTIVE,
+        )
+        subscription.status = SubscriptionStatus.PAST_DUE
+        subscription.save(update_fields=["status", "updated_at"])
+
+        api = self._api(sign_in_as, landlord, "billing-past-due")
+        response = api.get(f"/api/v1/organizations/{portfolio.id}/billing/")
+
+        assert response.status_code == 200, response.data
+        assert response.data["subscription"]["status"] == "past_due"
+        assert response.data["subscription"]["plan"]["code"] == "PRO"
+        # Past due stops granting premium creation while the historical paid
+        # subscription remains visible for recovery and explanation.
+        assert response.data["plan"]["code"] == "FREE"
 
     def test_a_stranger_cannot_read_another_portfolios_billing(
         self, landlord, agent, portfolio, sign_in_as

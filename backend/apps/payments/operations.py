@@ -38,8 +38,12 @@ def payment_operations_snapshot(*, status: str = "", kind: str = "", limit: int 
     exceptions = ReconciliationException.objects.select_related(
         "intent__tenant",
         "intent__lease__unit__property",
+        "intent__billing_invoice__plan",
+        "intent__billing_invoice__billing_account__organization",
         "transaction__intent__tenant",
         "transaction__intent__lease__unit__property",
+        "transaction__intent__billing_invoice__plan",
+        "transaction__intent__billing_invoice__billing_account__organization",
         "settlement__beneficiary_organization",
     )
     if status:
@@ -52,6 +56,8 @@ def payment_operations_snapshot(*, status: str = "", kind: str = "", limit: int 
         .select_related(
             "intent__tenant",
             "intent__lease__unit__property",
+            "intent__billing_invoice__plan",
+            "intent__billing_invoice__billing_account__organization",
             "settlement__beneficiary_organization",
         )
         .prefetch_related("refunds")
@@ -101,6 +107,41 @@ def payment_operations_snapshot(*, status: str = "", kind: str = "", limit: int 
     }
 
 
+def _who_and_what(intent) -> dict:
+    """Who paid and for what — a tenant's home, or a Portfolio's plan.
+
+    A subscription payment has no tenant, property or unit, and reading those
+    off it is how this workspace would crash on the first one it met.
+    """
+    if intent is None:
+        return {
+            "purpose": "",
+            "tenant": "",
+            "property": "",
+            "unit": "",
+            "portfolio": "",
+            "description": "",
+        }
+    if intent.is_subscription:
+        invoice = intent.billing_invoice
+        return {
+            "purpose": intent.purpose,
+            "tenant": "",
+            "property": "",
+            "unit": "",
+            "portfolio": invoice.billing_account.organization.name,
+            "description": f"{invoice.plan.name} subscription · {invoice.number}",
+        }
+    return {
+        "purpose": intent.purpose,
+        "tenant": intent.tenant.display_name,
+        "property": intent.lease.unit.property.title,
+        "unit": intent.lease.unit.label,
+        "portfolio": "",
+        "description": "",
+    }
+
+
 def _exception_row(row: ReconciliationException) -> dict:
     intent = row.intent or (row.transaction.intent if row.transaction_id else None)
     return {
@@ -120,9 +161,7 @@ def _exception_row(row: ReconciliationException) -> dict:
             "intent_id": str(intent.id) if intent else "",
             "transaction_id": str(row.transaction_id or ""),
             "settlement_id": str(row.settlement_id or ""),
-            "tenant": intent.tenant.display_name if intent else "",
-            "property": intent.lease.unit.property.title if intent else "",
-            "unit": intent.lease.unit.label if intent else "",
+            **_who_and_what(intent),
             "amount_formatted": (
                 _money(intent.amount_minor, intent.amount_currency) if intent else ""
             ),
@@ -143,9 +182,7 @@ def _transaction_row(row: PaymentTransaction) -> dict:
         # Provider adapters call this event timestamp ``occurred_at``; the
         # durable transaction model names the same fact ``paid_at``.
         "occurred_at": _iso(row.paid_at),
-        "tenant": row.intent.tenant.display_name,
-        "property": row.intent.lease.unit.property.title,
-        "unit": row.intent.lease.unit.label,
+        **_who_and_what(row.intent),
         "settlement": (
             {
                 "status": settlement.status,

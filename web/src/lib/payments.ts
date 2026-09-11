@@ -150,10 +150,15 @@ export function getPaymentReceiptDocument(id: string) {
   return authedBlob(`/payments/receipts/${id}/document.pdf?disposition=inline`);
 }
 
+/** What the checkout helpers read from any server-created payment attempt —
+ * a tenant's rent intent or a Portfolio's subscription checkout. One popup and
+ * one redirect guard serve both, so there is one payment client, not two. */
+export type ProviderCheckout = Pick<PaymentIntent, "provider" | "next_action">;
+
 /** Only the PSP-hosted origin may receive a tenant from Rooomly. The URL is
  * server-created, but this second boundary prevents a compromised payload from
  * turning checkout into an open redirect. */
-export function safeCheckoutUrl(intent: PaymentIntent): string | null {
+export function safeCheckoutUrl(intent: ProviderCheckout): string | null {
   if (intent.next_action?.type !== "redirect" || !intent.next_action.url) return null;
   try {
     const url = new URL(intent.next_action.url);
@@ -167,7 +172,7 @@ export function safeCheckoutUrl(intent: PaymentIntent): string | null {
 /** Paystack's transaction access code is safe to pass to InlineJS and is not a
  * reusable payment authorization. Reject whitespace/control characters before
  * handing any server payload to the third-party popup library. */
-export function paystackAccessCode(intent: PaymentIntent): string | null {
+export function paystackAccessCode(intent: ProviderCheckout): string | null {
   if (intent.provider.toLowerCase() !== "paystack") return null;
   const value = intent.next_action?.access_code?.trim() ?? "";
   return value && /^[A-Za-z0-9._=-]+$/.test(value) ? value : null;

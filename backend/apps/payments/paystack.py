@@ -79,10 +79,18 @@ METHOD_TO_CHANNELS = {
 
 #: Paystack's transaction statuses, in ours. Anything unlisted is deliberately
 #: left unmapped so it reaches reconciliation instead of being guessed at.
+#:
+#: `abandoned` is not a failure. It is what Paystack reports for a transaction
+#: that was opened and not completed — including one the payer is completing
+#: in the checkout window right now. Read as `failed`, the status check that
+#: runs as checkout opens failed every payment before anybody could make it,
+#: and the money that arrived seconds later had nothing left to settle. It
+#: stays payable until Rooomly's own intent window closes, which is what ends
+#: an unpaid checkout (`services.expire_due_intents`).
 STATUS_MAP = {
     "success": "succeeded",
     "failed": "failed",
-    "abandoned": "failed",
+    "abandoned": "pending",
     "reversed": "reversed",
     "pending": "pending",
     "ongoing": "processing",
@@ -207,12 +215,15 @@ class PaystackPaymentProvider(PaymentProvider):
     # --- the five operations -------------------------------------------------
 
     def initiate(self, *, intent) -> InitiationResult:
-        """Open a hosted checkout for one intent.
+        """Open a hosted checkout for one intent, or hand back the one already open.
 
-        `reference` is our own `client_reference`, which makes it the outbound
-        idempotency key: initiating twice with the same reference returns the
-        same transaction rather than charging twice. That is exactly the
-        property `retry_intent` depends on.
+        `reference` is our own `client_reference`, the outbound idempotency key.
+        Paystack refuses a second initialize for a reference it already holds
+        ("Duplicate Transaction Reference") rather than returning the same
+        transaction, so an intent that already has a hosted checkout gets that
+        checkout back — the same reference, page and access code — and nothing
+        is sent. That is the property `retry_intent` depends on: a retry lands on
+        the same provider transaction, and nothing can be charged twice.
 
         `channels` is restricted to the method the tenant chose. Without it, a
         payer offered every channel could pay by card against an intent that
@@ -225,9 +236,15 @@ class PaystackPaymentProvider(PaymentProvider):
             self._secret_key()
             return InitiationResult(provider_reference="", status="pending")
 
+        held = str(getattr(intent, "provider_reference", "") or "")
+        opened = dict(getattr(intent, "next_action", None) or {})
+        if held and opened.get("url"):
+            return InitiationResult(provider_reference=held, status="pending", next_action=opened)
+
         if intent.amount_currency != "GHS":
             raise ValidationFailed("Paystack settlement for Rooomly is configured for GHS only.")
 
+        subscription = _is_subscription(intent)
         payload = {
             "email": _payer_email(intent),
             # Already in pesewas. Rooomly's `amount_minor` and Paystack's
@@ -237,27 +254,40 @@ class PaystackPaymentProvider(PaymentProvider):
             "currency": intent.amount_currency,
             "reference": intent.client_reference,
             "channels": METHOD_TO_CHANNELS.get(intent.payment_method, []),
-            "metadata": {
-                "rooomly_intent_id": str(intent.id),
-                "rooomly_obligation_id": str(intent.obligation_id),
-                "rooomly_lease_id": str(intent.lease_id),
-            },
+            "metadata": (
+                {
+                    "rooomly_intent_id": str(intent.id),
+                    "rooomly_purpose": "subscription_invoice",
+                    "rooomly_billing_invoice_id": str(intent.billing_invoice_id),
+                }
+                if subscription
+                else {
+                    "rooomly_intent_id": str(intent.id),
+                    "rooomly_obligation_id": str(intent.obligation_id),
+                    "rooomly_lease_id": str(intent.lease_id),
+                }
+            ),
         }
-        subaccount = str(getattr(intent, "provider_subaccount_reference", "") or "").strip()
-        bearer = str(getattr(intent, "provider_fee_bearer", "") or "").strip()
-        if not subaccount:
-            raise ValidationFailed("This payment has no verified provider settlement account.")
-        if bearer not in {"account", "subaccount"}:
-            raise ValidationFailed("This payment has no configured transaction-fee policy.")
-        payload.update(
-            {
-                "subaccount": subaccount,
-                # An explicit flat amount freezes the commercial split for this
-                # intent even if the subaccount default is changed later.
-                "transaction_charge": int(intent.platform_charge_minor),
-                "bearer": bearer,
-            }
-        )
+        if not subscription:
+            # Rent settles to the receiving Portfolio's subaccount. A Rooomly
+            # subscription does not: Rooomly is the merchant, so the whole
+            # amount stays in the platform account with no split, no subaccount
+            # and no transaction charge.
+            subaccount = str(getattr(intent, "provider_subaccount_reference", "") or "").strip()
+            bearer = str(getattr(intent, "provider_fee_bearer", "") or "").strip()
+            if not subaccount:
+                raise ValidationFailed("This payment has no verified provider settlement account.")
+            if bearer not in {"account", "subaccount"}:
+                raise ValidationFailed("This payment has no configured transaction-fee policy.")
+            payload.update(
+                {
+                    "subaccount": subaccount,
+                    # An explicit flat amount freezes the commercial split for
+                    # this intent even if the subaccount default changes later.
+                    "transaction_charge": int(intent.platform_charge_minor),
+                    "bearer": bearer,
+                }
+            )
         callback = str(getattr(settings, "PAYSTACK_CALLBACK_URL", "")).strip()
         if callback:
             payload["callback_url"] = callback
@@ -642,18 +672,28 @@ class PaystackPaymentProvider(PaymentProvider):
         raise ProviderUnavailable("Paystack returned too many pages in one request.")
 
 
+def _is_subscription(intent) -> bool:
+    # Read loosely: an intent built before purposes existed is a rent intent.
+    return str(getattr(intent, "purpose", "") or "") == "subscription_invoice"
+
+
 def _payer_email(intent) -> str:
     """Paystack requires an email; Rooomly's accounts are phone-first.
 
-    A tenant who has given an email gets theirs, so their own receipt from
-    Paystack reaches them. Anybody else gets a routable per-account address on
-    Rooomly's domain rather than a shared placeholder, so a bounce or a dispute
-    can still be traced to one account.
+    A payer who has given an email gets theirs, so their own receipt from
+    Paystack reaches them. Anybody else gets a routable address on Rooomly's
+    domain rather than a shared placeholder, so a bounce or a dispute can still
+    be traced — to one tenant for rent, and to one Portfolio for a subscription,
+    because the Portfolio is what pays for a plan.
     """
+    domain = str(getattr(settings, "PAYMENT_RECEIPT_EMAIL_DOMAIN", "receipts.rooomly.com"))
+    if _is_subscription(intent):
+        account = intent.billing_invoice.billing_account
+        email = (account.billing_email or getattr(intent.initiated_by, "email", "") or "").strip()
+        return email or f"portfolio-{account.organization_id}@{domain}"
     email = (getattr(intent.tenant, "email", "") or "").strip()
     if email:
         return email
-    domain = str(getattr(settings, "PAYMENT_RECEIPT_EMAIL_DOMAIN", "receipts.rooomly.com"))
     return f"tenant-{intent.tenant_id}@{domain}"
 
 

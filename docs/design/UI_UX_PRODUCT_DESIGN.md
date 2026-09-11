@@ -648,39 +648,170 @@ Settings level. Do not place a permanent settings sidebar on mobile.
 
 ### Plan and billing
 
-Built. Web at `/settings/billing` beside Team, mobile under More → Plan, and a
-management console section at `/management/billing`.
+Built. Web at `/settings/billing` beside Team, mobile under More → Plan &
+billing, and a management console section at `/management/billing`.
 
-**Usage first, shopping second.** A provider opens this to answer "can I add
-another property", not to browse plans — so the meters are the top of the screen
-and the plan ladder sits under them. Three meters, one per limit that actually
-bites: Properties, Units, Team members. Each shows the live count against the
-ceiling, a bar, and a sentence saying how many are left.
+**Redesigned with subscription checkout — 11 September 2026.** The page
+answers seven questions without study, in this order: what plan, what it costs,
+how long it is paid for, how much of it is in use, what it includes, how to
+change it, and what has been paid to Rooomly. Glance → Understand → Act.
 
-**A bar changes colour twice, and neither means failure.** Amber at 80% is a
-warning that the ceiling is close. Terracotta means the Portfolio holds more
-than its plan includes — which is a legitimate state after a downgrade, not an
-error, because nothing was deleted. The copy says so explicitly wherever it
-appears: *"Nothing has been removed and nothing will be."*
+**One plan surface, two zones, one attention strip.** The plan's name, tagline,
+price and a single standing line lead; the three live meters sit beside them on
+wide screens and under them on narrow ones. An attention strip appears inside
+the same surface only when a person is needed — renewal due, past due, a payment
+pending, a change about to happen — and it carries at most one action. When that
+action matters most, `Change plan` steps down to a secondary button. Free, Pro
+and Business are never a permanent pricing grid on the page, and the numbers are
+never scattered into KPI cards.
+
+**Standing is derived once, from server state.** `billingPresentation.standingOf`
+turns the subscription into one badge, one line and at most one strip, so the
+header, a notice and a section never repeat each other. Free has no badge and
+says *No billing required*. An administrative grant says *Included by Rooomly ·
+no charge*. A paid plan says *Paid until {date}* — never "Renews", because
+Rooomly subscriptions are prepaid and nothing is charged automatically. Grace is
+*Renewal due* (warning); past due is critical and says the lower limits apply,
+that anything above them is restricted — never removed — and that renewing lets
+it be reactivated; a scheduled downgrade or cancellation is neutral, says records
+stay safe, and offers *Keep {plan}*; a pending payment is info and offers *Check
+payment*. With none of those, restrictions take the strip (warning, no action):
+*7 properties are above Free's limits*.
+
+**Tone is spent sparingly.** Positive for an active plan; neutral for ending,
+changing and ended; info for a pending payment; warning for grace and for meters
+at 80% or full; critical only for past due and a meter above its limit. A meter
+above its limit — team members after a downgrade — is a legitimate state, not an
+error, and the usage note says nothing has been removed. Status is always a
+word; colour only reinforces it.
+
+**Nothing moves that the person did not move.** Content that changes height — a
+cycle switch, a disclosed table, the next step — must not shift what is around
+it. The page reserves its scrollbar's width (`scrollbar-gutter: stable` on
+`html`), so a dialog locking the page's scroll, or a page growing past one
+screen, does not jolt everything centred sideways on Windows; the dialog body
+reserves its own, so a step that grows past the fold does not also narrow and
+reflow. The dialog is anchored to the top of the viewport rather than
+re-centred, so only its bottom edge moves. Every plan card keeps its second price
+line in both cycles — the annual equivalent or the yearly alternative — so
+switching cycle changes words, not the height of every card. A long chooser list
+scrolls inside a fixed height on wide screens, gutter reserved; on a phone it
+extends the sheet instead of nesting a scroll.
+
+**Change plan is one dialog that becomes a bottom sheet.** Compare → review →
+pay or confirm → result, in a native modal `<dialog>`: focus moves to each
+step's heading and returns to the opener; Escape and the backdrop close it
+except while a payment is starting. Escape is handled on the dialog itself as
+well as through the browser's cancel request, so a close request the browser
+declines to raise still takes the same guard. Under 640px it is a full-width
+sheet with a sticky footer above the safe area, whose two actions share a line
+when their labels fit and stack when they do not; under 960px the plan cards
+become wide rows rather than squeezed columns. A plan with nothing to do has no
+empty button slot — stacked on a phone, one reads as a missing button. Each plan
+shows its price for the chosen cycle,
+its three headline limits and up to four server-chosen highlights (`GET /plans/`
+`highlights`, only ever capabilities the plan grants), with *Everything in
+{previous}, plus* where the rung below has capabilities of its own. *Current
+plan* is an ink edge and a named flag and is never offered as a purchase. A
+quiet *Recommended* appears only on a rung above the current one. *Compare every
+feature* discloses the full matrix. On a phone that matrix is not a table
+scrolling sideways to show one plan at a time: each capability takes its own
+line, its three answers sit under plan names pinned while the list scrolls, and
+explicit table roles keep it a table to assistive technology once it is laid out
+as a grid.
+
+**A paid change is a server-confirmed payment.** Review shows the list price,
+any credit for unused paid time, the amount due today, the period it covers and
+the payment method — all from `GET billing/quote/`. *Pay {amount}* opens a
+server-priced checkout; the modal steps out of the top layer so the provider's
+own window is usable, and comes back to a *Confirming payment* step that polls
+Rooomly's record and periodically asks the provider. The provider's success
+callback only triggers that check. Succeeded, failed, expired and pending are
+distinct steps, a failed payment says *You're still on {plan}*, and the page
+re-reads billing from the server after every outcome.
+
+**A downgrade is a review, not a warning — and above the allowance, a choice.**
+Within the lower plan's limits it compares what the Portfolio runs with what that
+plan includes, using the server's projection — overrides included — and says when
+the change happens: at the end of the period already paid for, or straight away.
+When the move would take the Portfolio above the allowance, the review leads with
+the server's facts in the approved words — *You're using 8 properties* / *Free
+includes 1* — and asks *Choose the property you want to keep fully active.* One
+place is a set of radios; several are checkboxes that stop at the limit, with *2
+of 3 chosen* beside them. When the properties kept hold more units than the plan
+runs, the same question follows for their units. Under each list the consequence
+is one sentence: *7 other properties will remain accessible. Existing tenancies
+can continue, but new rental activity on those properties will be restricted.* A
+limit the choice does not settle — team members — gets its own plain line: what
+is there stays, adding more waits.
+
+The review opens on the server's own selection — the saved choice, or the
+documented fallback — so leaving it alone is shown, not implied. *Confirm
+downgrade* waits for a whole choice, exactly as many as the plan runs, so the
+screen never says one thing while the server fills a place another way; and a
+choice is sent only when one was asked for. *Your records stay safe* always
+closes the review: *Downgrading never deletes your properties, units, tenants,
+agreements, payments, or history. Resources above your new plan limits may have
+restricted management capabilities. Existing tenancies can continue to
+completion, but starting new rental activity on restricted properties requires
+available plan capacity or an upgrade.* The earlier promise that everything
+stayed lettable was not true and is gone; contract tests on both clients hold
+the approved words. *Keep {plan}* and *Confirm downgrade* keep their names from
+review to result. On a phone each limit names itself on its own line, with what
+the Portfolio has beside what the lower plan includes, so no count breaks
+mid-phrase.
+
+**Above the allowance, the page shows what is restricted and the way back.**
+Meters count what runs in full and say beside the number how many more are
+restricted (*1 / 1 · Limit reached · 7 restricted*): a bar reading 8 of 1 would
+describe the old plan, not this one. A section, *Above your plan's limits*, lists
+each restricted property or unit with its state as a word — *Winding down*
+(warning; existing tenancies continue, no new rental activity) or *Read-only*
+(neutral; records stay available) — and offers *Reactivate* only where the server
+reports room; otherwise it says how room is made: upgrade, or archive something
+fully active. Reactivating is always the provider's act, never automatic. A
+restricted property's and unit's own pages carry a notice in the server's words
+and stop offering *Add Unit*; the API refuses regardless.
+
+**Records are quiet, distinct and real.** Plan, subscription, invoice and payment
+stay separate concepts. Billing terms — cycle, next payment, last paid with,
+billing email — exist only for a paid subscription; a Free or complimentary plan
+shows none of them. Payments are invoice rows: description, period, number,
+amount, status and the frozen receipt PDF, listed only when the payment reached
+the provider. Plan history is a collapsed list of plain sentences. Staff reasons
+written in the console never reach the customer.
+
+**Nothing on these screens decides anything.** Prices, limits, highlights, the
+ladder, who may change the plan (`viewer.can_change_plan`), which live count each
+limit is measured against (`usage_for_limit`) and every standing come from the
+server. No billing component contains a plan code, and the contract test fails
+if one does. Every limit is re-checked on the server when something is created,
+and a plan moves only when the server has confirmed the payment with the
+provider. Accountants read the page and its invoices; only owners and
+administrators are offered changes; anyone else sees who manages billing rather
+than an error to retry.
 
 **Unlimited is the word "Unlimited".** Never a large number. The first person to
 read "999999 properties" on a billing screen learns something false about the
 product, and contract tests on both clients fail if that number appears.
 
-**Nothing on these screens decides anything.** Every limit is re-checked on the
-server inside the transaction that takes the slot. The screens render the same
-numbers the backend enforces with, and where the two could disagree the server
-wins. No client recounts properties.
+**On a phone, changing plan is a short journey of focused screens.** More → Plan
+& billing shows the same plan surface, the restricted section and the quiet
+records, stacked, and reads the server again whenever it comes back into view.
+*Change plan* opens the plans — billing cycle as two pills, one card per plan
+whose second price line is always present, the full matrix behind *Compare
+every feature* — a plan opens its review, and a paid review hands over to the
+shared secure checkout sheet on a *Payment* screen that polls the server and
+ends in *You're on {plan}*, *Payment not completed* or *Checkout expired*. The
+back gesture always means one step; *Done* returns to Plan & billing. The
+downgrade chooser is the web's, for a thumb: whole rows to press and a mark that
+keeps one size ticked or not. The rules deciding what a choice keeps and when it
+can be confirmed are the same text in both clients, held by a contract test.
 
-**Names come from the server.** Every entitlement's label, description and
-section is read from `GET /plans/`. No screen contains the string "Automated
-rent reminders" or its own copy of the plan ladder, so moving a capability
-between plans is a data change rather than a release of three frontends.
-
-**There is no checkout.** Choosing a paid plan opens a notice saying it is not
-available to buy yet, that nothing has been charged, and that the plan has not
-changed. A button that took money before the payment path was finished is the
-one thing this architecture has been careful not to build.
+**Subscription billing is not rent.** It shares the Payments Core — the provider
+adapter, the Paystack popup on the web and checkout sheet on mobile, webhook,
+ledger and receipt pipeline — and nothing else: separate endpoints, separate
+events, a separate receipt document, and no rent record is ever touched.
 
 The console adds what support actually needs: plan beside live usage in one row,
 because the first billing question is always "why can't this customer add a

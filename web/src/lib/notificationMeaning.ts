@@ -75,6 +75,8 @@ export function destination(item: { target_type: string; target_id: string }): s
       return "/settings/team";
     case "portfolio_invitation":
       return "/portfolio-invitations";
+    case "billing":
+      return "/settings/billing";
     default:
       return "/home";
   }

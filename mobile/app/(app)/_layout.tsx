@@ -82,7 +82,12 @@ export default function AppLayout() {
       <Stack.Screen name="provider-tenancy" options={{ title: "Tenancy" }} />
       <Stack.Screen name="organization-setup" options={{ title: "Create Portfolio" }} />
       <Stack.Screen name="team" options={{ title: "Team" }} />
-      <Stack.Screen name="billing" options={{ title: "Plan" }} />
+      {/* Changing plan is a journey of focused screens — choose, review, pay
+          and see the result — so the back gesture always means one step. */}
+      <Stack.Screen name="billing" options={{ title: "Plan & billing" }} />
+      <Stack.Screen name="billing-plans" options={{ title: "Change plan" }} />
+      <Stack.Screen name="billing-review" options={{ title: "Review" }} />
+      <Stack.Screen name="billing-payment" options={{ title: "Payment" }} />
       <Stack.Screen name="team-member" options={{ title: "Team member" }} />
       <Stack.Screen name="notification-settings" options={{ title: "Notifications" }} />
       <Stack.Screen name="portfolio-invitations" options={{ title: "Portfolio invitations" }} />

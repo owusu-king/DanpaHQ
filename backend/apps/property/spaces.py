@@ -144,6 +144,18 @@ def assert_not_occupied_for_sensitive_change(unit: Unit) -> None:
         )
 
 
+def assert_not_read_only(unit: Unit) -> None:
+    """Refuse a change to a space that is read-only on its Portfolio's plan.
+
+    Winding down is not read-only: a space whose tenancy is still running keeps
+    its upkeep. Only a restricted space with nothing running has its details held
+    as they are — its records stay readable either way.
+    """
+    from apps.billing import enforcement as billing
+
+    billing.assert_details_editable(unit=unit)
+
+
 # --- details -----------------------------------------------------------------
 
 
@@ -161,6 +173,7 @@ def update_space(*, unit: Unit, user, data: dict) -> Unit:
     unit = Unit.objects.select_for_update().select_related("property").get(id=unit.id)
     payload = {key: value for key, value in data.items() if key in EDITABLE_FIELDS}
     assert_can_manage(unit, user)
+    assert_not_read_only(unit)
     from apps.core.policy import enforce
 
     from .policies import can_edit_operational_space, can_edit_space
@@ -231,6 +244,7 @@ def change_space_type(*, unit: Unit, user, space_type: str) -> Unit:
 
     unit = Unit.objects.select_for_update().select_related("property").get(id=unit.id)
     assert_can_manage(unit, user)
+    assert_not_read_only(unit)
     assert_not_occupied_for_sensitive_change(unit)
     assert_editable(unit)
 
@@ -304,6 +318,7 @@ def set_space_amenities(*, unit: Unit, user, amenity_ids: list, notes: dict | No
     """
     unit = Unit.objects.select_for_update().select_related("property").get(id=unit.id)
     assert_can_manage(unit, user)
+    assert_not_read_only(unit)
     assert_not_occupied_for_sensitive_change(unit)
     assert_editable(unit)
 
@@ -384,8 +399,11 @@ def set_property_amenities(*, prop: Property, user, amenity_ids: list, notes: di
     """The same, one level up: what the compound has."""
     from django.utils import timezone
 
+    from apps.billing import enforcement as billing
+
     if not prop.is_managed_by(user):
         raise PermissionDenied("You do not have access to that property.")
+    billing.assert_details_editable(prop=prop)
 
     notes = notes or {}
     wanted = {str(value) for value in amenity_ids}
@@ -480,6 +498,7 @@ def attach_photo(
 
     unit = Unit.objects.select_for_update().select_related("property").get(id=unit.id)
     assert_can_manage(unit, user)
+    assert_not_read_only(unit)
     assert_not_occupied_for_sensitive_change(unit)
     assert_editable(unit)
 
@@ -553,6 +572,7 @@ def remove_photo(*, unit: Unit, user, media_id) -> None:
 
     unit = Unit.objects.select_for_update().select_related("property").get(id=unit.id)
     assert_can_manage(unit, user)
+    assert_not_read_only(unit)
     assert_not_occupied_for_sensitive_change(unit)
     assert_editable(unit)
 
@@ -587,6 +607,7 @@ def set_primary_photo(*, unit: Unit, user, media_id) -> UnitMedia:
     """Choose the first image. Allowed after verification: it reorders what was
     already approved rather than changing it."""
     assert_can_manage(unit, user)
+    assert_not_read_only(unit)
 
     media = UnitMedia.objects.filter(unit=unit, id=media_id).first()
     if media is None:

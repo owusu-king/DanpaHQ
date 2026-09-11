@@ -255,6 +255,21 @@ CELERY_BEAT_SCHEDULE = {
         "task": "payments.alert_open_exceptions",
         "schedule": timedelta(minutes=30),
     },
+    # A paid period that has ended is moved on: to Free if it was cancelled, to
+    # the plan chosen for it, or into grace while renewal is due. Fifteen
+    # minutes keeps "renews on the 30th" true on the 30th without a job per
+    # subscription.
+    "billing-advance-subscriptions": {
+        "task": "billing.advance_subscriptions",
+        "schedule": timedelta(minutes=15),
+    },
+    # Restrictions are applied inside the transaction that lowers a limit. This
+    # catches what time alone changes: a wind-down whose last tenancy ended by a
+    # path that did not say so, and an override that ran out.
+    "billing-reconcile-resource-access": {
+        "task": "billing.reconcile_resource_access",
+        "schedule": timedelta(minutes=15),
+    },
     "rent-due-reminders": {
         "task": "rent.emit_due_reminders",
         # Ghana has no daylight-saving shift. Hourly keeps the task tolerant of

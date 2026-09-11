@@ -1,92 +1,826 @@
-/* Plan & billing: what this Portfolio is on, what it is using, and what the
-   other plans would give it.
+/* Plan & billing — a Portfolio's plan at a glance, and how it pays Rooomly.
 
-   Usage first, comparison second. A provider opens this page to answer "can I
-   add another property", not to shop — so the meters are the top of the page
-   and the plan ladder is below them. */
+   One strong surface for the plan and its usage, quiet records beneath it, and
+   the three-plan comparison only inside Change plan. Hairlines rather than
+   shadows; tone only where a state needs a person; motion only where it
+   explains a change — a bar filling to its value, a dialog arriving, a step
+   moving on, a payment being confirmed. Every value is a design token. */
 
-.billing-workspace { display: grid; gap: var(--space-6); min-width: 0; }
+/* Settings keeps its panel narrow for forms. This surface reads a plan beside
+   its usage, so it takes the width it needs and no more. */
+.settings-panel:has(> .billing-page) { max-width: 60rem; }
 
-.billing-head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: var(--space-4); }
-.billing-head > div { display: grid; gap: var(--space-2); }
-.billing-head h2 { margin: 0; font-size: 1.125rem; }
-.billing-head p { max-width: 62ch; margin: 0; }
+.billing-page { display: grid; gap: var(--space-8); min-width: 0; }
 
-.billing-plan-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-2) var(--space-3);
+.billing-page-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+.billing-page-head h2 {
+  margin: 0;
+  color: var(--color-ink-950);
+  font-family: var(--font-display);
+  font-size: 1.75rem;
+  line-height: 2.25rem;
   font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  background: var(--color-kola-50);
-  border: var(--border-hairline) solid var(--color-kola-300);
-  border-radius: var(--radius-md);
-  color: var(--color-kola-800);
+  letter-spacing: -0.02em;
 }
-.billing-plan-badge[data-plan="FREE"] { background: var(--color-field-50); border-color: var(--color-field-300); color: var(--color-ink-700); }
+.billing-page-head p { margin: var(--space-1) 0 0; color: var(--color-ink-500); }
+.billing-portfolio-switch { width: min(100%, 17rem); }
+.billing-state { display: grid; justify-items: start; gap: var(--space-4); }
 
-/* --- the meters ---------------------------------------------------------- */
+.billing-eyebrow { margin: 0; color: var(--color-ink-500); text-transform: uppercase; }
 
-.billing-meters { display: grid; gap: var(--space-4); grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); padding: 0; margin: 0; list-style: none; }
-
-.billing-meter {
-  display: grid;
-  gap: var(--space-2);
-  padding: var(--space-4);
-  background: var(--color-field-0);
-  border: var(--border-hairline) solid var(--color-field-200);
-  border-radius: var(--radius-md);
-}
-.billing-meter dt { margin: 0; color: var(--color-ink-500); font-size: 0.875rem; }
-.billing-meter .billing-meter-count { font-size: 1.5rem; font-weight: 600; color: var(--color-ink-900); font-variant-numeric: tabular-nums; }
-.billing-meter .billing-meter-of { color: var(--color-ink-500); font-size: 0.9375rem; font-weight: 400; }
-
-.billing-bar { height: 6px; overflow: hidden; background: var(--color-field-100); border-radius: 999px; }
-.billing-bar span { display: block; height: 100%; background: var(--color-kola-600); border-radius: 999px; }
-/* Approaching the ceiling is worth noticing before it is reached; being over it
-   is a state to describe, never an error, because nothing was taken away. */
-.billing-meter[data-state="near"] .billing-bar span { background: var(--color-harmattan-500); }
-.billing-meter[data-state="over"] .billing-bar span { background: var(--color-laterite-600); }
-.billing-meter-note { margin: 0; font-size: 0.875rem; color: var(--color-ink-500); }
-.billing-meter[data-state="over"] .billing-meter-note { color: var(--color-laterite-600); }
-
-/* --- the plan ladder ----------------------------------------------------- */
-
-.billing-plans { display: grid; gap: var(--space-4); grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); padding: 0; margin: 0; list-style: none; }
+/* --- the plan ---------------------------------------------------------------- */
 
 .billing-plan {
   display: grid;
-  gap: var(--space-3);
+  grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr);
+  overflow: hidden;
+  background: var(--color-field-0);
+  border: var(--border-hairline) solid var(--color-field-200);
+  border-radius: var(--radius-lg);
+}
+
+.billing-plan-summary {
+  display: grid;
   align-content: start;
-  padding: var(--space-5);
+  gap: var(--space-3);
+  padding: var(--space-8);
+  /* The plan's rung on the ladder, as a quiet rule rather than a colour flood. */
+  box-shadow: inset 3px 0 0 var(--billing-accent, var(--color-field-300));
+}
+.billing-plan[data-rank="1"] { --billing-accent: var(--color-gold-500); }
+.billing-plan[data-rank="2"] { --billing-accent: var(--color-kola-600); }
+
+.billing-plan-identity {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-1);
+}
+.billing-plan-identity h3 {
+  margin: 0;
+  color: var(--color-ink-950);
+  font-family: var(--font-display);
+  font-size: 2.5rem;
+  line-height: 1;
+  font-weight: 600;
+  letter-spacing: -0.035em;
+}
+.billing-plan-tagline { max-width: 36ch; margin: 0; color: var(--color-ink-500); line-height: 1.5; }
+
+.billing-plan-price { display: flex; align-items: baseline; gap: var(--space-2); margin: var(--space-3) 0 0; }
+.billing-plan-price strong {
+  color: var(--color-ink-950);
+  font-family: var(--font-display);
+  font-size: 2rem;
+  line-height: 1;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+.billing-plan-price span { color: var(--color-ink-500); font-size: 0.9375rem; }
+.billing-plan-line { margin: 0; color: var(--color-ink-700); font-size: 0.9375rem; font-variant-numeric: tabular-nums; }
+.billing-plan-actions { display: flex; flex-wrap: wrap; gap: var(--space-3); margin-top: var(--space-3); }
+.billing-plan-permission { margin: var(--space-2) 0 0; color: var(--color-ink-500); font-size: 0.875rem; }
+
+/* A state is a word first; the dot only reinforces it. */
+.billing-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 1.75rem;
+  padding: 0 var(--space-3);
+  color: var(--badge-ink);
+  background: var(--badge-fill);
+  border-radius: var(--radius-pill);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.billing-badge i { width: 0.5rem; height: 0.5rem; background: var(--badge-dot); border-radius: 50%; }
+.billing-badge[data-tone="positive"] { --badge-fill: var(--color-kola-50); --badge-ink: var(--color-kola-800); --badge-dot: var(--color-kola-600); }
+.billing-badge[data-tone="neutral"] { --badge-fill: var(--color-field-100); --badge-ink: var(--color-ink-700); --badge-dot: var(--color-ink-300); }
+.billing-badge[data-tone="info"] { --badge-fill: var(--color-lagoon-100); --badge-ink: var(--color-lagoon-600); --badge-dot: var(--color-lagoon-600); }
+.billing-badge[data-tone="warning"] { --badge-fill: var(--color-harmattan-100); --badge-ink: var(--color-harmattan-600); --badge-dot: var(--color-harmattan-500); }
+.billing-badge[data-tone="critical"] { --badge-fill: var(--color-laterite-100); --badge-ink: var(--color-laterite-600); --badge-dot: var(--color-laterite-600); }
+
+/* --- usage ------------------------------------------------------------------- */
+
+.billing-usage {
+  display: grid;
+  align-content: start;
+  gap: var(--space-5);
+  padding: var(--space-8);
+  background: var(--color-field-50);
+  border-left: var(--border-hairline) solid var(--color-field-200);
+}
+.billing-meters { display: grid; gap: var(--space-5); margin: 0; padding: 0; list-style: none; }
+.billing-meter { display: grid; gap: var(--space-2); min-width: 0; }
+.billing-meter-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); }
+.billing-meter-name { color: var(--color-ink-700); font-size: 0.9375rem; }
+.billing-meter-count { color: var(--color-ink-950); font-size: 1.0625rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.billing-meter-count span { color: var(--color-ink-500); font-weight: 500; }
+.billing-meter-track { height: 6px; overflow: hidden; background: var(--color-field-200); border-radius: var(--radius-pill); }
+.billing-meter-fill {
+  display: block;
+  height: 100%;
+  background: var(--meter-colour, var(--color-kola-600));
+  border-radius: inherit;
+  transform: scaleX(var(--fill));
+  transform-origin: left center;
+  /* Fills to the server's number once, then eases when that number changes.
+     The count beside it never waits for the bar. */
+  animation: billing-fill var(--motion-duration-slow) var(--motion-easing-enter) backwards;
+  transition:
+    transform var(--motion-duration-slow) var(--motion-easing-standard),
+    background-color var(--motion-duration-base) var(--motion-easing-standard);
+}
+.billing-meter[data-state="near"],
+.billing-meter[data-state="full"] { --meter-colour: var(--color-harmattan-500); }
+.billing-meter[data-state="over"] { --meter-colour: var(--color-laterite-600); }
+.billing-meter[data-state="unlimited"] .billing-meter-track {
+  background: repeating-linear-gradient(90deg, var(--color-field-300) 0 6px, transparent 6px 11px);
+}
+.billing-meter-note { margin: 0; color: var(--color-ink-500); font-size: 0.8125rem; font-variant-numeric: tabular-nums; }
+.billing-meter[data-state="near"] .billing-meter-note,
+.billing-meter[data-state="full"] .billing-meter-note { color: var(--color-harmattan-600); }
+.billing-meter[data-state="over"] .billing-meter-note { color: var(--color-laterite-600); font-weight: 600; }
+.billing-usage-note {
+  margin: 0;
+  padding-top: var(--space-4);
+  color: var(--color-ink-700);
+  border-top: var(--border-hairline) solid var(--color-field-200);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+/* --- attention: only when something needs a person ------------------------------ */
+
+.billing-attention {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4) var(--space-6);
+  padding: var(--space-5) var(--space-8);
+  background: var(--attention-fill);
+  border-top: var(--border-hairline) solid var(--color-field-200);
+  box-shadow: inset 3px 0 0 var(--attention-rule);
+  animation: billing-rise var(--motion-duration-base) var(--motion-easing-enter) backwards;
+}
+.billing-attention[data-tone="neutral"] { --attention-fill: var(--color-field-50); --attention-rule: var(--color-ink-300); }
+.billing-attention[data-tone="positive"] { --attention-fill: var(--color-kola-50); --attention-rule: var(--color-kola-600); }
+.billing-attention[data-tone="info"] { --attention-fill: var(--color-lagoon-100); --attention-rule: var(--color-lagoon-600); }
+.billing-attention[data-tone="warning"] { --attention-fill: var(--color-harmattan-100); --attention-rule: var(--color-harmattan-500); }
+.billing-attention[data-tone="critical"] { --attention-fill: var(--color-laterite-100); --attention-rule: var(--color-laterite-600); }
+.billing-attention-copy { display: grid; gap: var(--space-1); max-width: 44rem; }
+.billing-attention-title { margin: 0; color: var(--color-ink-950); font-weight: 600; }
+.billing-attention-body { margin: 0; color: var(--color-ink-700); font-size: 0.9375rem; line-height: 1.5; }
+
+/* --- records ----------------------------------------------------------------- */
+
+.billing-records { display: grid; gap: var(--space-8); }
+.billing-section { display: grid; gap: var(--space-4); }
+.billing-section h3 { margin: 0; color: var(--color-ink-900); font-size: 1.125rem; }
+
+.billing-terms { display: grid; margin: 0; border-top: var(--border-hairline) solid var(--color-field-200); }
+.billing-terms > div {
+  display: grid;
+  grid-template-columns: minmax(9rem, 13rem) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-4);
+  min-height: 56px;
+  padding: var(--space-2) 0;
+  border-bottom: var(--border-hairline) solid var(--color-field-200);
+}
+.billing-terms dt { color: var(--color-ink-500); font-size: 0.9375rem; }
+.billing-terms dd {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+  margin: 0;
+  color: var(--color-ink-900);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.billing-inline-action,
+.billing-receipt {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--target-min);
+  padding: 0 var(--space-3);
+  color: var(--color-ink-900);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-sm);
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background-color var(--motion-duration-fast) var(--motion-easing-standard),
+    translate var(--motion-duration-instant) var(--motion-easing-standard);
+}
+.billing-inline-action:hover,
+.billing-receipt:hover { background: var(--color-field-100); }
+.billing-inline-action:active,
+.billing-receipt:not(:disabled):active { translate: 0 1px; }
+.billing-receipt:disabled { cursor: progress; opacity: 0.6; }
+
+.billing-payments { display: grid; margin: 0; padding: 0; list-style: none; border-top: var(--border-hairline) solid var(--color-field-200); }
+.billing-payment {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 7.5rem 5.5rem 7rem;
+  align-items: center;
+  gap: var(--space-4);
+  min-height: 72px;
+  padding: var(--space-3) 0;
+  border-bottom: var(--border-hairline) solid var(--color-field-200);
+}
+.billing-payment-what { display: grid; gap: 2px; min-width: 0; }
+.billing-payment-title { margin: 0; color: var(--color-ink-900); font-weight: 600; }
+.billing-payment-meta { margin: 0; color: var(--color-ink-500); font-size: 0.8125rem; font-variant-numeric: tabular-nums; }
+/* Wrap between facts, never through a date or an invoice number. */
+.billing-payment-fact { white-space: nowrap; }
+.billing-payment-failure { margin: 0; color: var(--color-laterite-600); font-size: 0.8125rem; }
+.billing-payment-amount { margin: 0; color: var(--color-ink-950); font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; }
+.billing-payment .billing-badge { justify-self: start; }
+.billing-payment-receipt { justify-self: end; }
+
+.billing-history { border-top: var(--border-hairline) solid var(--color-field-200); border-bottom: var(--border-hairline) solid var(--color-field-200); }
+.billing-history summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 56px;
+  color: var(--color-ink-900);
+  font-weight: 600;
+  list-style: none;
+  cursor: pointer;
+}
+.billing-history summary::-webkit-details-marker { display: none; }
+.billing-history summary svg { color: var(--color-ink-500); transition: transform var(--motion-duration-base) var(--motion-easing-standard); }
+.billing-history[open] summary svg { transform: rotate(180deg); }
+.billing-history ol { display: grid; margin: 0 0 var(--space-3); padding: 0; list-style: none; }
+.billing-history li {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-3) 0;
+  color: var(--color-ink-700);
+  border-top: var(--border-hairline) solid var(--color-field-100);
+  font-size: 0.9375rem;
+}
+.billing-history time { color: var(--color-ink-500); font-size: 0.875rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* --- change plan ------------------------------------------------------------- */
+
+html:has(.billing-dialog[open]) { overflow: hidden; }
+
+/* Anchored near the top rather than centred. A centred dialog moves both edges
+   whenever its content changes height — a cycle switch, a disclosed table, the
+   next step — and that reads as a jolt. Anchored, only the bottom edge moves,
+   and the title and close button stay where the pointer left them. */
+.billing-dialog {
+  --billing-dialog-inset: clamp(1rem, 6dvh, 3.5rem);
+  width: min(66rem, calc(100vw - 2rem));
+  max-width: none;
+  max-height: min(calc(100dvh - 2 * var(--billing-dialog-inset)), 56rem);
+  margin: var(--billing-dialog-inset) auto auto;
+  padding: 0;
+  overflow: hidden;
+  color: var(--color-ink-900);
+  background: var(--color-field-0);
+  border: 0;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-modal);
+}
+.billing-dialog[open] { display: flex; animation: billing-dialog-in var(--motion-duration-base) var(--motion-easing-enter); }
+.billing-dialog::backdrop { background: rgb(22 17 14 / 52%); }
+.billing-dialog[open]::backdrop { animation: billing-fade var(--motion-duration-base) var(--motion-easing-standard); }
+
+.billing-dialog-panel { display: flex; flex-direction: column; width: 100%; min-height: 0; max-height: inherit; }
+.billing-dialog-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-4) var(--space-4) var(--space-6);
+  border-bottom: var(--border-hairline) solid var(--color-field-200);
+}
+.billing-dialog-titles { flex: 1 1 auto; min-width: 0; }
+.billing-dialog-titles h2 {
+  margin: 0;
+  color: var(--color-ink-950);
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  line-height: 1.875rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+/* Focus lands here to announce each step; it is not a control, so no ring. */
+.billing-dialog-titles h2:focus { outline: none; }
+.billing-dialog-titles p { margin: 2px 0 0; color: var(--color-ink-500); font-size: 0.9375rem; }
+.billing-dialog-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: var(--target-min);
+  height: var(--target-min);
+  color: var(--color-ink-700);
+  background: transparent;
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: background-color var(--motion-duration-fast) var(--motion-easing-standard), color var(--motion-duration-fast) var(--motion-easing-standard);
+}
+.billing-dialog-icon:hover { color: var(--color-ink-950); background: var(--color-field-100); }
+.billing-dialog-icon:disabled { cursor: not-allowed; opacity: 0.4; }
+.billing-dialog-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: var(--space-6);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  /* Room for the scrollbar is kept whether or not it is showing, so content
+     that grows past the fold does not also get 15px narrower and reflow. */
+  scrollbar-gutter: stable;
+  animation: billing-step-in var(--motion-duration-base) var(--motion-easing-enter);
+}
+.billing-dialog-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-6);
+  background: var(--color-field-0);
+  border-top: var(--border-hairline) solid var(--color-field-200);
+}
+
+/* compare */
+
+.billing-compare { display: grid; gap: var(--space-6); }
+
+.billing-cycle {
+  display: inline-grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  justify-self: start;
+  gap: 2px;
+  padding: 3px;
+  background: var(--color-field-100);
+  border-radius: var(--radius-pill);
+}
+.billing-cycle-option {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: 42px;
+  padding: 0 var(--space-5);
+  color: var(--color-ink-700);
+  border-radius: var(--radius-pill);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color var(--motion-duration-fast) var(--motion-easing-standard), box-shadow var(--motion-duration-fast) var(--motion-easing-standard);
+}
+.billing-cycle-option small { color: var(--color-kola-600); font-size: 0.75rem; font-weight: 700; }
+.billing-cycle-option:hover { color: var(--color-ink-950); }
+.billing-cycle-option:has(input:checked) { color: var(--color-ink-950); background: var(--color-field-0); box-shadow: var(--shadow-raised); }
+.billing-cycle-option:has(input:focus-visible) { outline: var(--border-emphasis) solid var(--color-ink-900); outline-offset: 2px; }
+
+.billing-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-4); margin: 0; padding: 0; list-style: none; }
+.billing-option {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  min-width: 0;
+  padding: var(--space-6);
   background: var(--color-field-0);
   border: var(--border-hairline) solid var(--color-field-200);
   border-radius: var(--radius-md);
+  transition:
+    border-color var(--motion-duration-base) var(--motion-easing-standard),
+    box-shadow var(--motion-duration-base) var(--motion-easing-standard),
+    translate var(--motion-duration-base) var(--motion-easing-standard);
 }
-.billing-plan[data-current="true"] { border-color: var(--color-kola-600); box-shadow: inset 0 0 0 1px var(--color-kola-600); }
-.billing-plan h4 { margin: 0; font-size: 1.0625rem; }
-.billing-plan-price { margin: 0; font-size: 1.375rem; font-weight: 600; color: var(--color-ink-900); font-variant-numeric: tabular-nums; }
-.billing-plan-price small { font-size: 0.875rem; font-weight: 400; color: var(--color-ink-500); }
-.billing-plan-description { margin: 0; font-size: 0.9375rem; color: var(--color-ink-500); }
-.billing-plan-current { margin: 0; font-size: 0.875rem; font-weight: 600; color: var(--color-kola-600); }
+@media (hover: hover) {
+  .billing-option:not([data-current="true"]):hover { translate: 0 -2px; border-color: var(--color-field-300); box-shadow: var(--shadow-lifted); }
+}
+/* Unmistakable without shouting: an ink edge and a named flag. */
+.billing-option[data-current="true"] { background: var(--color-field-50); border-color: var(--color-ink-900); box-shadow: inset 0 0 0 1px var(--color-ink-900); }
 
-/* --- the comparison ------------------------------------------------------ */
+.billing-option-intro,
+.billing-option-detail { display: grid; align-content: start; gap: var(--space-3); }
+.billing-option-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); min-height: 26px; }
+.billing-option-name { margin: 0; color: var(--color-ink-950); font-size: 0.8125rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+.billing-option-flag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-pill);
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.billing-option-flag[data-kind="current"] { color: var(--color-field-0); background: var(--color-ink-900); }
+.billing-option-flag[data-kind="recommended"] { color: var(--color-gold-700); background: var(--color-gold-50); box-shadow: inset 0 0 0 1px var(--color-gold-100); }
+.billing-option-tagline { margin: 0; color: var(--color-ink-500); font-size: 0.9375rem; line-height: 1.45; }
+.billing-option-price { display: grid; gap: var(--space-1); margin: var(--space-1) 0 0; }
+.billing-option-price strong {
+  color: var(--color-ink-950);
+  font-family: var(--font-display);
+  font-size: 2rem;
+  line-height: 1.1;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+.billing-option-price strong span { color: var(--color-ink-500); font-family: var(--font-body); font-size: 0.9375rem; font-weight: 500; letter-spacing: 0; }
+/* A line is kept for the note even when it has nothing to say, so a plan with no
+   other cycle to name lines up with the plans beside it. */
+.billing-option-price small { min-height: 1lh; color: var(--color-ink-500); font-size: 0.8125rem; font-variant-numeric: tabular-nums; }
+.billing-option-price .billing-option-unoffered { color: var(--color-ink-500); font-size: 1.25rem; }
+.billing-option-limits {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-4) 0 0;
+  color: var(--color-ink-900);
+  border-top: var(--border-hairline) solid var(--color-field-200);
+  font-size: 0.9375rem;
+  font-variant-numeric: tabular-nums;
+  list-style: none;
+}
+.billing-option-features { display: grid; gap: var(--space-2); }
+.billing-option-features > p { margin: 0; color: var(--color-ink-500); font-size: 0.8125rem; }
+.billing-option-features ul { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
+.billing-option-features li { display: flex; gap: var(--space-2); color: var(--color-ink-700); font-size: 0.9375rem; line-height: 1.4; }
+.billing-option-features svg { flex: 0 0 auto; margin-top: 2px; color: var(--color-kola-600); }
+.billing-option-action { margin-top: auto; min-height: var(--target-min); display: grid; align-items: end; }
+.billing-option-note { margin: 0; color: var(--color-ink-500); font-size: 0.875rem; }
 
-.billing-compare { width: 100%; overflow-x: auto; }
-.billing-compare table { width: 100%; min-width: 34rem; border-collapse: collapse; }
-.billing-compare caption { padding-bottom: var(--space-3); text-align: left; color: var(--color-ink-500); font-size: 0.875rem; }
-.billing-compare th, .billing-compare td { padding: var(--space-3) var(--space-2); text-align: left; border-bottom: var(--border-hairline) solid var(--color-field-200); }
-.billing-compare thead th { color: var(--color-ink-500); font-size: 0.8125rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
-.billing-compare td { font-variant-numeric: tabular-nums; }
-.billing-compare tbody th { font-weight: 400; }
-.billing-compare tbody th span { display: block; color: var(--color-ink-500); font-size: 0.8125rem; }
-.billing-compare .billing-group-row th { padding-top: var(--space-5); color: var(--color-ink-900); font-size: 0.8125rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; border-bottom: 0; }
-.billing-compare td[data-current="true"] { background: var(--color-kola-50); }
-.billing-yes { color: var(--color-kola-600); font-weight: 600; }
-.billing-no { color: var(--color-ink-300); }
+.billing-compare-toggle {
+  justify-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--target-min);
+  padding: 0 var(--space-4);
+  color: var(--color-ink-700);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-pill);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color var(--motion-duration-fast) var(--motion-easing-standard);
+}
+.billing-compare-toggle:hover { color: var(--color-ink-950); background: var(--color-field-100); }
+.billing-compare-toggle svg { transition: transform var(--motion-duration-base) var(--motion-easing-standard); }
+.billing-compare-toggle[aria-expanded="true"] svg { transform: rotate(180deg); }
+
+.billing-matrix-scroll {
+  overflow-x: auto;
+  border: var(--border-hairline) solid var(--color-field-200);
+  border-radius: var(--radius-md);
+  animation: billing-rise var(--motion-duration-base) var(--motion-easing-enter) backwards;
+}
+.billing-matrix { width: 100%; min-width: 34rem; border-collapse: collapse; font-size: 0.9375rem; }
+.billing-matrix th,
+.billing-matrix td { padding: var(--space-3) var(--space-4); text-align: left; border-bottom: var(--border-hairline) solid var(--color-field-100); }
+.billing-matrix thead th { color: var(--color-ink-950); font-weight: 700; }
+.billing-matrix tbody th[scope="row"] { color: var(--color-ink-900); font-weight: 500; }
+.billing-matrix td { color: var(--color-ink-700); font-variant-numeric: tabular-nums; }
+/* The preflight makes every svg a block; a check mark is a glyph in the line,
+   centred with the dashes beside it when the cell is. */
+.billing-matrix td svg { display: inline-block; color: var(--color-kola-600); vertical-align: -3px; }
+.billing-matrix [data-current="true"] { background: var(--color-field-50); }
+.billing-matrix-group th {
+  padding-top: var(--space-5);
+  color: var(--color-ink-500);
+  background: var(--color-field-0);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* review */
+
+.billing-review { display: grid; gap: var(--space-5); width: min(100%, 36rem); margin-inline: auto; }
+.billing-summary { display: grid; margin: 0; overflow: hidden; border: var(--border-hairline) solid var(--color-field-200); border-radius: var(--radius-md); }
+.billing-summary > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-5);
+  border-bottom: var(--border-hairline) solid var(--color-field-100);
+}
+.billing-summary > div:last-child { border-bottom: 0; }
+.billing-summary dt { color: var(--color-ink-700); }
+.billing-summary dd { margin: 0; color: var(--color-ink-950); font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.billing-summary-credit dd { color: var(--color-kola-600); }
+.billing-summary-total { background: var(--color-field-50); }
+.billing-summary-total dt { color: var(--color-ink-950); font-weight: 600; }
+.billing-summary-total dd { font-family: var(--font-display); font-size: 1.5rem; line-height: 1.2; }
+.billing-review-note { margin: 0; color: var(--color-ink-700); font-size: 0.9375rem; line-height: 1.55; }
+.billing-gains { display: flex; flex-wrap: wrap; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
+.billing-gains li { padding: var(--space-1) var(--space-3); color: var(--color-kola-800); background: var(--color-kola-50); border-radius: var(--radius-pill); font-size: 0.875rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+.billing-methods { display: grid; min-width: 0; margin: 0; padding: 0; border: 0; }
+.billing-methods legend { margin-bottom: var(--space-2); padding: 0; color: var(--color-ink-900); font-weight: 600; }
+.billing-methods .control {
+  align-items: center;
+  min-height: 56px;
+  padding: var(--space-3) var(--space-4);
+  border: var(--border-hairline) solid var(--color-field-200);
+  border-bottom-width: 0;
+  transition: background-color var(--motion-duration-fast) var(--motion-easing-standard);
+}
+.billing-methods .control:first-of-type { border-radius: var(--radius-md) var(--radius-md) 0 0; }
+.billing-methods .control:last-of-type { border-bottom-width: 1px; border-radius: 0 0 var(--radius-md) var(--radius-md); }
+.billing-methods .control:has(input:checked) { background: var(--color-field-50); }
+.billing-methods .control-box { margin-top: 0; }
+
+.billing-trust { display: flex; align-items: center; gap: var(--space-2); margin: 0; color: var(--color-ink-500); font-size: 0.8125rem; }
+.billing-error { margin: 0; padding: var(--space-3) var(--space-4); color: var(--color-laterite-600); background: var(--color-laterite-100); border-radius: var(--radius-sm); font-size: 0.9375rem; }
+.billing-notice { display: grid; gap: var(--space-1); padding: var(--space-4) var(--space-5); background: var(--color-field-50); border-radius: var(--radius-md); box-shadow: inset 3px 0 0 var(--color-ink-300); }
+.billing-notice[data-tone="warning"] { background: var(--color-harmattan-100); box-shadow: inset 3px 0 0 var(--color-harmattan-500); }
+.billing-notice p { margin: 0; color: var(--color-ink-900); line-height: 1.5; }
+
+.billing-downgrade { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.billing-downgrade th,
+.billing-downgrade td { padding: var(--space-3) var(--space-2) var(--space-3) 0; text-align: left; vertical-align: baseline; border-bottom: var(--border-hairline) solid var(--color-field-200); }
+.billing-downgrade thead th { color: var(--color-ink-500); font-size: 0.8125rem; font-weight: 600; }
+.billing-downgrade tbody th { color: var(--color-ink-700); font-weight: 500; }
+.billing-downgrade td { color: var(--color-ink-950); font-weight: 600; }
+.billing-downgrade tr[data-over="true"] td:last-child { color: var(--color-laterite-600); }
+.billing-over {
+  display: inline-block;
+  margin-left: var(--space-2);
+  padding: 1px var(--space-2);
+  color: var(--color-laterite-600);
+  background: var(--color-laterite-100);
+  border-radius: var(--radius-pill);
+  font-size: 0.75rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.billing-reassure { display: grid; gap: var(--space-1); padding: var(--space-4) var(--space-5); background: var(--color-kola-50); border-radius: var(--radius-md); }
+.billing-reassure p { margin: 0; color: var(--color-ink-700); font-size: 0.9375rem; line-height: 1.5; }
+.billing-reassure .billing-reassure-title { color: var(--color-kola-800); font-size: 1rem; font-weight: 700; }
+
+/* payment and result */
+
+.billing-status { display: grid; justify-items: center; gap: var(--space-3); width: min(100%, 30rem); margin: var(--space-6) auto; text-align: center; }
+.billing-status .billing-error { justify-self: stretch; text-align: left; }
+.billing-spinner {
+  width: 56px;
+  height: 56px;
+  border: 3px solid var(--color-field-200);
+  border-top-color: var(--color-ink-900);
+  border-radius: 50%;
+  animation: billing-spin 900ms linear infinite;
+}
+.billing-status-title { margin: var(--space-2) 0 0; color: var(--color-ink-950); font-size: 1.125rem; font-weight: 600; }
+.billing-status-body { margin: 0; color: var(--color-ink-700); line-height: 1.55; }
+.billing-result-mark {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  animation: billing-pop var(--motion-duration-base) var(--motion-easing-spring) backwards;
+}
+.billing-result-mark[data-tone="positive"] { color: var(--color-kola-600); background: var(--color-kola-50); }
+.billing-result-mark[data-tone="neutral"] { color: var(--color-ink-700); background: var(--color-field-100); }
+.billing-result-mark[data-tone="critical"] { color: var(--color-laterite-600); background: var(--color-laterite-100); }
+.billing-check path { stroke-dasharray: 24; stroke-dashoffset: 24; animation: billing-draw var(--motion-duration-slow) var(--motion-easing-enter) 120ms forwards; }
+
+/* loading */
+
+.billing-skeleton-stack { display: grid; gap: var(--space-2); }
+.billing-skeleton-title { display: block; width: 12rem; height: 2rem; }
+.billing-skeleton-line { display: block; width: 100%; height: 0.875rem; }
+.billing-skeleton-short { width: 40%; }
+.billing-skeleton-name { display: block; width: 8rem; height: 2.5rem; }
+.billing-skeleton-price { display: block; width: 7rem; height: 2rem; margin-top: var(--space-2); }
+.billing-skeleton-button { display: block; width: 9rem; height: var(--target-min); margin-top: var(--space-3); }
+.billing-skeleton-bar { display: block; width: 100%; height: 6px; }
+.billing-skeleton-block { display: block; width: 100%; height: 9rem; }
+
+/* --- motion ------------------------------------------------------------------ */
+
+@keyframes billing-fill { from { transform: scaleX(0); } }
+@keyframes billing-rise { from { opacity: 0; transform: translateY(4px); } }
+@keyframes billing-fade { from { opacity: 0; } }
+@keyframes billing-dialog-in { from { opacity: 0; transform: translateY(12px) scale(0.985); } }
+@keyframes billing-sheet-in { from { transform: translateY(100%); } }
+@keyframes billing-step-in { from { opacity: 0; transform: translateX(8px); } }
+@keyframes billing-spin { to { transform: rotate(360deg); } }
+@keyframes billing-pop { from { opacity: 0; transform: scale(0.6); } }
+@keyframes billing-draw { to { stroke-dashoffset: 0; } }
+
+/* --- above the allowance ------------------------------------------------------- */
+
+.billing-restricted-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--space-1) var(--space-4); }
+.billing-restricted-head p { margin: 0; color: var(--color-ink-500); font-size: 0.875rem; font-variant-numeric: tabular-nums; }
+.billing-restricted-list { display: grid; margin: 0; padding: 0; list-style: none; }
+.billing-restricted-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+  padding: var(--space-4) 0;
+  border-top: var(--border-hairline) solid var(--color-field-200);
+}
+.billing-restricted-row:last-child { border-bottom: var(--border-hairline) solid var(--color-field-200); }
+.billing-restricted-what { min-width: 0; }
+.billing-restricted-name { margin: 0; overflow-wrap: anywhere; color: var(--color-ink-950); font-weight: 600; }
+.billing-restricted-name span { color: var(--color-ink-500); font-weight: 500; }
+.billing-restricted-meta { margin: 2px 0 0; color: var(--color-ink-500); font-size: 0.875rem; }
+/* The same width whether or not the button is there, so rows stay aligned. */
+.billing-restricted-action { display: flex; justify-content: flex-end; min-width: 8.5rem; }
+.billing-restricted-note { margin: var(--space-3) 0 0; color: var(--color-ink-500); font-size: 0.875rem; }
+
+/* The downgrade chooser: what stays fully active. */
+.billing-keep { display: grid; gap: var(--space-3); }
+.billing-keep-usage { display: grid; gap: 2px; font-variant-numeric: tabular-nums; }
+.billing-keep-using { margin: 0; color: var(--color-ink-950); font-size: 1.0625rem; line-height: 1.4; font-weight: 700; }
+.billing-keep-includes { margin: 0; color: var(--color-ink-700); font-size: 0.9375rem; line-height: 1.4; }
+.billing-keep-set { display: grid; gap: var(--space-2); min-width: 0; margin: 0; padding: 0; border: 0; }
+.billing-keep-title { margin: 0 0 var(--space-2); padding: 0; color: var(--color-ink-900); font-size: 0.9375rem; line-height: 1.4; font-weight: 600; }
+.billing-keep-hint { margin: 0; color: var(--color-ink-500); font-size: 0.875rem; font-variant-numeric: tabular-nums; }
+.billing-keep-list {
+  display: grid;
+  max-height: 18rem;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  overscroll-behavior: contain;
+  list-style: none;
+  border: var(--border-hairline) solid var(--color-field-200);
+  border-radius: var(--radius-md);
+}
+.billing-keep-list > li { border-top: var(--border-hairline) solid var(--color-field-200); }
+.billing-keep-list > li:first-child { border-top: 0; }
+.billing-keep-list .control { padding: var(--space-3) var(--space-4); }
+.billing-keep-list > li:has(input:checked) { background: var(--color-field-50); }
+.billing-keep-consequence { margin: 0; color: var(--color-ink-700); font-size: 0.9375rem; line-height: 1.5; }
+
+/* --- tablet ------------------------------------------------------------------- */
+
+@media (max-width: 960px) {
+  .billing-plan { grid-template-columns: minmax(0, 1fr); }
+  .billing-usage { border-top: var(--border-hairline) solid var(--color-field-200); border-left: 0; }
+  .billing-meters { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-6); }
+
+  /* The chooser becomes a list of wide rows: what the plan is on the left,
+     what it includes on the right, the choice under it. */
+  .billing-options { grid-template-columns: minmax(0, 1fr); }
+  .billing-option {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas: "intro detail" "action detail";
+    column-gap: var(--space-8);
+    row-gap: var(--space-4);
+  }
+  .billing-option-intro { grid-area: intro; }
+  .billing-option-detail { grid-area: detail; }
+  .billing-option-action { grid-area: action; margin-top: 0; }
+  .billing-option-limits { padding-top: 0; border-top: 0; }
+}
+
+/* --- mobile ------------------------------------------------------------------- */
 
 @media (max-width: 640px) {
-  .billing-plan { padding: var(--space-4); }
+  .billing-page { gap: var(--space-6); }
+  .billing-page-head h2 { font-size: 1.5rem; line-height: 2rem; }
+  .billing-portfolio-switch { width: 100%; }
+  .billing-plan-summary,
+  .billing-usage { padding: var(--space-5); }
+  .billing-plan-identity h3 { font-size: 2.125rem; }
+  .billing-plan-price strong { font-size: 1.75rem; }
+  .billing-plan-actions .btn { flex: 1 1 100%; }
+  .billing-meters { grid-template-columns: minmax(0, 1fr); gap: var(--space-4); }
+  .billing-attention { padding: var(--space-4) var(--space-5); }
+  .billing-attention .btn { flex: 1 1 100%; }
+
+  .billing-terms > div { grid-template-columns: minmax(0, 1fr); align-items: start; gap: var(--space-1); padding: var(--space-3) 0; }
+  .billing-payment {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "what amount" "status receipt";
+    row-gap: var(--space-2);
+  }
+  .billing-payment-what { grid-area: what; }
+  .billing-payment-amount { grid-area: amount; }
+  .billing-payment .billing-badge { grid-area: status; }
+  .billing-payment-receipt { grid-area: receipt; }
+
+  /* A bottom sheet, the width of the screen, above the thumb. */
+  .billing-dialog {
+    width: 100%;
+    max-width: 100%;
+    max-height: 94dvh;
+    margin: auto 0 0;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  }
+  .billing-dialog[open] { animation-name: billing-sheet-in; }
+  .billing-dialog-head { padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4); }
+  .billing-dialog-titles h2 { font-size: 1.25rem; line-height: 1.625rem; }
+  .billing-dialog-body { padding: var(--space-4); }
+  .billing-dialog-foot { padding: var(--space-3) var(--space-4) calc(var(--space-3) + env(safe-area-inset-bottom)); }
+  /* Two actions share the line when their labels fit and each takes a line of
+     its own when they do not; the primary stays last, under the thumb. */
+  .billing-dialog-foot .btn { flex: 1 1 auto; }
+  .billing-cycle { justify-self: stretch; }
+  .billing-option { display: flex; padding: var(--space-5); }
+  .billing-option-limits { padding-top: var(--space-4); border-top: var(--border-hairline) solid var(--color-field-200); }
+  .billing-summary > div { padding: var(--space-3) var(--space-4); }
+
+  /* A restricted row stacks: what it is and its state, then its one action. */
+  .billing-restricted-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "what badge" "action action";
+  }
+  .billing-restricted-what { grid-area: what; }
+  .billing-restricted-row .billing-badge { grid-area: badge; }
+  .billing-restricted-action { grid-area: action; min-width: 0; }
+  .billing-restricted-action:empty { display: none; }
+  .billing-restricted-action .btn { flex: 1 1 auto; }
+  .billing-keep-list { max-height: none; }
+
+  /* Three narrow columns break "8 properties" across two lines. Each limit
+     names itself on its own line; what the Portfolio has sits beside what the
+     lower plan includes. */
+  .billing-downgrade,
+  .billing-downgrade thead,
+  .billing-downgrade tbody { display: block; }
+  .billing-downgrade tr {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: var(--space-3);
+    border-bottom: var(--border-hairline) solid var(--color-field-200);
+  }
+  .billing-downgrade th,
+  .billing-downgrade td { padding: 0; border-bottom: 0; }
+  .billing-downgrade thead th { padding-bottom: var(--space-2); }
+  .billing-downgrade thead th:first-child { grid-column: 1 / -1; height: 0; padding: 0; overflow: hidden; }
+  .billing-downgrade tbody th { grid-column: 1 / -1; padding: var(--space-3) 0 var(--space-1); }
+  .billing-downgrade td { padding-bottom: var(--space-3); }
+  .billing-downgrade .billing-over { display: block; width: fit-content; margin: var(--space-1) 0 0; }
+
+  /* Three plans beside the names of what they include leave a phone no room:
+     the table scrolls sideways and shows one plan at a time. Instead each
+     capability takes its own line, its three answers sit under the plan names,
+     and the names stay in view while the list scrolls. */
+  .billing-matrix-scroll { overflow: visible; border: 0; border-radius: 0; }
+  .billing-matrix { display: block; min-width: 0; }
+  .billing-matrix thead,
+  .billing-matrix tbody { display: block; }
+  .billing-matrix thead { position: sticky; top: 0; z-index: 1; background: var(--color-field-0); box-shadow: 0 1px 0 var(--color-field-200); }
+  .billing-matrix tr { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .billing-matrix thead th { padding: var(--space-3) var(--space-1); text-align: center; border-bottom: 0; }
+  .billing-matrix thead th:first-child { grid-column: 1 / -1; height: 0; padding: 0; overflow: hidden; }
+  .billing-matrix tbody th[scope="row"],
+  .billing-matrix-group th { grid-column: 1 / -1; padding-inline: 0; }
+  .billing-matrix tbody th[scope="row"] { padding-bottom: 0; border-bottom: 0; }
+  .billing-matrix td { padding: var(--space-1) var(--space-1) var(--space-3); text-align: center; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .billing-meter-fill,
+  .billing-attention,
+  .billing-dialog[open],
+  .billing-dialog[open]::backdrop,
+  .billing-dialog-body,
+  .billing-matrix-scroll,
+  .billing-result-mark,
+  .billing-check path { animation: none; }
+  .billing-check path { stroke-dashoffset: 0; }
+  /* Still, but not frozen mid-turn: a static arc and the words beside it. */
+  .billing-spinner { animation: none; border-right-color: var(--color-ink-900); }
+  .billing-meter-fill,
+  .billing-option,
+  .billing-history summary svg,
+  .billing-compare-toggle svg { transition: none; }
 }

@@ -46,6 +46,13 @@
 html {
   -webkit-text-size-adjust: 100%;
 
+  /* The page keeps its width when a scrollbar comes or goes. Without a reserved
+     gutter, a page growing past one screen — or a dialog or drawer locking the
+     page's scroll — takes the scrollbar's 15px out of the layout on Windows, and
+     everything centred jumps sideways by half of it. Overlay scrollbars (macOS,
+     phones) take no space, so there this changes nothing. */
+  scrollbar-gutter: stable;
+
   /* The header is sticky and 5rem tall, so an in-page anchor that scrolls its
      target to y=0 leaves that section's first line underneath it — which is how
      every "How it works" and "Verification" link in the navigation landed.

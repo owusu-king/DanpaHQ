@@ -31,6 +31,9 @@ from apps.core.exceptions import DomainError
 from ..catalogue import UPGRADE_ORDER
 from ..models import (
     ENTITLED_STATUSES,
+    LIVE_STATUSES,
+    BillingAccount,
+    BillingEvent,
     Entitlement,
     Plan,
     PlanEntitlement,
@@ -141,8 +144,19 @@ def _override(*, organization, key: str) -> PortfolioPlanOverride | None:
 
 def grant(*, organization, key: str) -> Grant:
     """Resolve one entitlement for one Portfolio."""
-    plan = current_plan(organization=organization)
+    return grant_on_plan(
+        organization=organization, plan=current_plan(organization=organization), key=key
+    )
 
+
+def grant_on_plan(*, organization, plan: Plan, key: str) -> Grant:
+    """Resolve one entitlement as it would be on `plan`, overrides included.
+
+    The same resolution `grant` enforces with, for a plan the Portfolio is not
+    on yet. A downgrade review that compared usage with the bare plan row would
+    tell a Portfolio holding a negotiated override that it will be over a limit
+    it will in fact keep.
+    """
     override = _override(organization=organization, key=key)
     if override is not None:
         return Grant(
@@ -175,7 +189,15 @@ def can(*, organization, key: str) -> bool:
 
 def limit(*, organization, key: str) -> int | None:
     """The ceiling for a counted entitlement. `None` means unlimited."""
-    resolved = grant(organization=organization, key=key)
+    return _ceiling(grant(organization=organization, key=key))
+
+
+def limit_on_plan(*, organization, plan: Plan, key: str) -> int | None:
+    """The ceiling this Portfolio would have on `plan`. `None` means unlimited."""
+    return _ceiling(grant_on_plan(organization=organization, plan=plan, key=key))
+
+
+def _ceiling(resolved: Grant) -> int | None:
     if resolved.is_unlimited:
         return None
     if resolved.value is None:
@@ -212,16 +234,28 @@ def assert_within_limit(*, organization, key: str, metric: str, adding: int = 1)
     current = usage_service.current(organization=organization, metric=metric)
     if ceiling is None or current + adding <= ceiling:
         return current + adding
+    raise limit_reached(
+        organization=organization,
+        key=key,
+        current=current,
+        ceiling=ceiling,
+        needed=current + adding,
+    )
 
+
+def limit_reached(
+    *, organization, key: str, current: int, ceiling: int, needed: int, message: str = ""
+) -> PlanLimitReached:
+    """The refusal for a limit, with what to offer next. Built once, raised by the caller."""
     entitlement = Entitlement.objects.filter(key=key).first()
-    raise PlanLimitReached(
-        _limit_message(entitlement.name if entitlement else key, ceiling),
+    return PlanLimitReached(
+        message or _limit_message(entitlement.name if entitlement else key, ceiling),
         details={
             "entitlement": key,
             "current": current,
             "limit": ceiling,
             "current_plan": current_plan(organization=organization).code,
-            "recommended_plan": recommended_plan(key=key, needed=current + adding),
+            "recommended_plan": recommended_plan(key=key, needed=needed),
         },
     )
 
@@ -266,10 +300,25 @@ def snapshot(*, organization) -> dict:
     **never decides with it** — every one of these checks is repeated on the
     server at the moment of the write.
     """
-    from . import usage_service
+    from . import invoice_service, usage_service
 
     plan = current_plan(organization=organization)
-    subscription = active_subscription(organization=organization)
+    account = BillingAccount.objects.filter(organization=organization).first()
+    # The subscription is the Portfolio's billing relationship, which is not the
+    # same fact as the plan it is currently entitled to. A past-due Pro
+    # subscription no longer grants Pro, but it is still Pro and must be shown
+    # as Pro so the screen can say what needs attention; a relationship that
+    # ended is shown as ended rather than disappearing. Live first, then the
+    # most recent.
+    subscription = None
+    if account is not None:
+        rows = Subscription.objects.filter(billing_account=account).select_related(
+            "plan", "billing_account", "scheduled_plan"
+        )
+        subscription = (
+            rows.filter(status__in=LIVE_STATUSES).order_by("-created_at").first()
+            or rows.order_by("-created_at").first()
+        )
     keys = list(Entitlement.objects.values_list("key", flat=True))
     usage = usage_service.snapshot(organization=organization)
 
@@ -293,26 +342,105 @@ def snapshot(*, organization) -> dict:
         "subscription": (
             {
                 "status": subscription.status,
+                "is_live": subscription.status in LIVE_STATUSES,
+                "funding": invoice_service.funding(subscription),
                 "billing_interval": subscription.billing_interval,
-                "current_period_end": (
-                    subscription.current_period_end.isoformat()
-                    if subscription.current_period_end
+                "current_period_start": _iso(subscription.current_period_start),
+                "current_period_end": _iso(subscription.current_period_end),
+                "grace_expires_at": _iso(subscription.grace_expires_at),
+                "cancelled_at": _iso(subscription.cancelled_at),
+                "cancel_at_period_end": subscription.cancel_at_period_end,
+                "scheduled_plan": (
+                    {
+                        "code": subscription.scheduled_plan.code,
+                        "name": subscription.scheduled_plan.name,
+                    }
+                    if subscription.scheduled_plan_id
                     else None
                 ),
-                "cancel_at_period_end": subscription.cancel_at_period_end,
+                "updated_at": _iso(subscription.updated_at),
+                "plan": {
+                    "code": subscription.plan.code,
+                    "name": subscription.plan.name,
+                    "description": subscription.plan.description,
+                    "monthly_price_minor": subscription.plan.monthly_price_minor,
+                    "annual_price_minor": subscription.plan.annual_price_minor,
+                    "currency": subscription.plan.monthly_price_currency,
+                },
             }
             if subscription is not None
             else None
         ),
+        "billing_account": (
+            {
+                "status": account.status,
+                "currency": account.currency,
+                "billing_email": account.billing_email,
+            }
+            if account is not None
+            else None
+        ),
+        # The customer-facing timeline. `reason` is deliberately absent: staff
+        # write it for the audit trail when they change a plan from the console,
+        # and an internal note is not a message to the customer.
+        "history": [
+            {
+                "id": str(event.id),
+                "event_type": event.event_type,
+                "event_type_display": event.get_event_type_display(),
+                "from_plan_code": event.from_plan_code,
+                "to_plan_code": event.to_plan_code,
+                "from_status": event.from_status,
+                "to_status": event.to_status,
+                "occurred_at": event.occurred_at.isoformat(),
+            }
+            for event in (
+                BillingEvent.objects.filter(billing_account=account).order_by("-occurred_at")[:10]
+                if account is not None
+                else []
+            )
+        ],
         "entitlements": entitlements,
         "usage": usage,
-        "limits": {
-            "PROPERTY_LIMIT": limit(organization=organization, key="PROPERTY_LIMIT"),
-            "UNIT_LIMIT": limit(organization=organization, key="UNIT_LIMIT"),
-            "TEAM_MEMBER_LIMIT": limit(organization=organization, key="TEAM_MEMBER_LIMIT"),
-        },
+        "limits": {key: limit(organization=organization, key=key) for key, _ in LIMIT_METRICS},
+        # Which live count answers which limit, so no client keeps its own map.
+        "usage_for_limit": dict(LIMIT_METRICS),
         "over_limit": over_limit(organization=organization),
+        **_access_blocks(organization=organization, usage=usage),
     }
+
+
+def _access_blocks(*, organization, usage: dict) -> dict:
+    """What is run, as distinct from what is held.
+
+    After a downgrade a Portfolio can hold more than its plan runs in full, and
+    the allowance is measured against what runs. `usage` stays the count of
+    everything held; `active_usage` is what the meters compare with the limits;
+    `resource_access` says what is restricted and how much room is left.
+    """
+    from . import resource_access_service, usage_service
+
+    access = resource_access_service.summary(organization=organization)
+    return {
+        "active_usage": {
+            **usage,
+            usage_service.PROPERTY_COUNT: access["properties"]["active"],
+            usage_service.UNIT_COUNT: access["units"]["active"],
+        },
+        "resource_access": access,
+    }
+
+
+#: Each counted limit and the live usage it is measured against.
+LIMIT_METRICS = [
+    ("PROPERTY_LIMIT", "PROPERTY_COUNT"),
+    ("UNIT_LIMIT", "UNIT_COUNT"),
+    ("TEAM_MEMBER_LIMIT", "TEAM_MEMBER_COUNT"),
+]
+
+
+def _iso(value):
+    return value.isoformat() if value else None
 
 
 def over_limit(*, organization) -> list[dict]:
@@ -322,19 +450,28 @@ def over_limit(*, organization) -> list[dict]:
     more than its plan allows. That is a state to describe, not an error: it
     stops new creation and nothing else.
     """
+    return _exceeded(
+        organization=organization, ceiling=lambda key: limit(organization=organization, key=key)
+    )
+
+
+def projected_over_limit(*, organization, plan: Plan) -> list[dict]:
+    """Where this Portfolio would sit above `plan`'s limits, overrides included."""
+    return _exceeded(
+        organization=organization,
+        ceiling=lambda key: limit_on_plan(organization=organization, plan=plan, key=key),
+    )
+
+
+def _exceeded(*, organization, ceiling) -> list[dict]:
     from . import usage_service
 
-    pairs = [
-        ("PROPERTY_LIMIT", usage_service.PROPERTY_COUNT),
-        ("UNIT_LIMIT", usage_service.UNIT_COUNT),
-        ("TEAM_MEMBER_LIMIT", usage_service.TEAM_MEMBER_COUNT),
-    ]
     exceeded = []
-    for key, metric in pairs:
-        ceiling = limit(organization=organization, key=key)
-        if ceiling is None:
+    for key, metric in LIMIT_METRICS:
+        allowed = ceiling(key)
+        if allowed is None:
             continue
         current = usage_service.current(organization=organization, metric=metric)
-        if current > ceiling:
-            exceeded.append({"entitlement": key, "current": current, "limit": ceiling})
+        if current > allowed:
+            exceeded.append({"entitlement": key, "current": current, "limit": allowed})
     return exceeded

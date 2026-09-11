@@ -42,10 +42,13 @@ def property_count(*, organization) -> int:
 def unit_count(*, organization) -> int:
     from apps.property.models import Unit
 
+    # An archived property's units are archived with it, even though each unit
+    # keeps its own `is_active`: they are not operated, so they are not counted.
     return (
         Unit.objects.filter(
             property__organization_relationships__organization=organization,
             property__organization_relationships__ended_at__isnull=True,
+            property__deleted_at__isnull=True,
             is_active=True,
         )
         .distinct()

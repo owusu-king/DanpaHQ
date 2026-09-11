@@ -10,6 +10,9 @@ function read(relative) {
   return readFileSync(resolve(root, relative), "utf8");
 }
 
+// Comments explain; they must never be what satisfies an assertion.
+const code = (text) => text.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+
 test("dashboard navigation suppresses horizontal scrolling", () => {
   const portalCss = read("web/src/styles/portal.css");
   const managementCss = read("web/app/globals.css");
@@ -75,10 +78,17 @@ test("account sessions can sign out another device but not the current one", () 
 });
 
 test("mobile removes a deleted device row instead of redrawing its action", () => {
-  const security = read("mobile/app/(app)/security.tsx");
+  const security = code(read("mobile/app/(app)/security.tsx"));
 
-  assert.match(security, /filter\(\(item\) => item\.id !== device\.id\)/);
-  assert.match(security, /removingDevice === device\.id \? "Removing…"/);
+  // Once the server has signed the device out or barred it, its row leaves
+  // local state straight away — a state update right after the awaited action
+  // that filters that device out — rather than staying on screen with an action
+  // that no longer applies. The busy label's wording is not the behaviour.
+  assert.match(
+    security,
+    /await [^;]+;\s*setDevices\(\((\w+)\) => \1\?\.filter\(\((\w+)\) => \2\.id !== device\.id\)[^;]*\);/,
+  );
+  // And while one device is being acted on, no device action takes another press.
   assert.match(security, /disabled=\{removingDevice !== null\}/);
 });
 

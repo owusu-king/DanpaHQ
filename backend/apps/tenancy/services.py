@@ -112,6 +112,12 @@ def end_tenancy(*, tenancy: Tenancy, actor=None, reason: str = "", ended_on=None
     tenancy.ended_reason = reason[:300]
     tenancy.save(update_fields=["status", "ended_on", "ended_reason", "updated_at"])
 
+    # A space winding down above its Portfolio's plan allowance becomes
+    # read-only once nothing is running in it.
+    from apps.billing import enforcement as billing
+
+    billing.rental_activity_ended(unit=tenancy.unit, actor=actor)
+
     record(
         action=AuditAction.UPDATE,
         aggregate_type="tenancy",

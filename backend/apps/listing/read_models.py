@@ -26,7 +26,8 @@ from .models import Listing, ListingStatus, RentPeriod
 
 
 def public_listings() -> QuerySet[Listing]:
-    """Listings a tenant may act on: published, available and unoccupied."""
+    """Listings a tenant may act on: published, available, unoccupied and fully active."""
+    from apps.billing import enforcement as billing
 
     active_occupancy = Occupancy.objects.filter(
         unit_id=OuterRef("unit_id"),
@@ -37,6 +38,11 @@ def public_listings() -> QuerySet[Listing]:
         Listing.objects.filter(status=ListingStatus.ACTIVE)
         .annotate(unit_is_occupied=Exists(active_occupancy))
         .filter(unit_is_occupied=False)
+        # A unit above its Portfolio's plan allowance takes no new tenants, so it
+        # is offered to nobody. The listing itself is left exactly as it was, and
+        # is back in discovery the moment the unit is deliberately reactivated.
+        .annotate(unit_is_restricted=billing.restricted_unit_exists("unit_id"))
+        .filter(unit_is_restricted=False)
     )
 
 

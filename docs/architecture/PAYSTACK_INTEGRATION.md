@@ -142,12 +142,45 @@ network directory and remains subject to the sandbox checks below.
 2. **Which events Paystack actually sends for a failure.** `charge.success` is
    certain. Whether a failed hosted-checkout payment produces a webhook at all,
    or only shows up on verify, changes how quickly a tenant is told. The status
-   map covers `failed` and `abandoned` either way.
+   map covers `failed` either way; `abandoned` is not a failure (see below).
 3. **`data.id` versus `data.reference` for refunds.** `refund_payment` sends the
    transaction id; Paystack accepts either in some versions.
 4. **Settlement timing for Ghana**, which varies by channel and account.
 
 None of these block writing the adapter. All of them block trusting it.
+
+---
+
+## Checkout status, retries and failures — 11 September 2026
+
+Seen against the Ghana test sandbox during subscription checkout, and fixed:
+
+- **`abandoned` is an open checkout, not a failure.** Verify reports it for a
+  transaction that was initialized and not completed — including one the payer
+  is completing right now. Both clients check a payment's status as its
+  checkout opens, so mapping `abandoned` to `failed` failed every subscription
+  checkout within a second, before anybody could pay. The payments that
+  followed succeeded at Paystack under the *same* transaction id, which the
+  immutable failure record had already claimed, so none of them could be
+  posted. `abandoned` now maps to `pending`; Rooomly's own intent window
+  (`PAYMENT_INTENT_TTL_MINUTES`) is what ends an unpaid checkout.
+- **Paystack refuses a second initialize for a reference it already holds**
+  ("Duplicate Transaction Reference"); it does not hand back the same
+  transaction. A retry therefore resumes the hosted checkout already open for
+  the intent — the same reference, page and access code — instead of
+  initializing again, which surfaced as a 422.
+- **A retry asks first.** A success is applied instead of retried, and a payment
+  Paystack is still confirming (`ongoing`, `queued`, `processing`) refuses with
+  `payment_confirming`, so nobody is charged twice by pressing "Try again".
+- **Reconciliation asks about recent failures too.** Money Paystack took after
+  Rooomly recorded a failure is posted when it can be, and otherwise opened as
+  `provider_succeeded_internal_failed` for a person.
+
+Still open: a reservation whose initialize *response* was lost cannot be resumed
+against Paystack until its window closes — re-initializing the reference is
+refused, and verify does not return the checkout link. Whether a hosted checkout
+accepts a further attempt once Paystack has marked a transaction `failed` has not
+been exercised.
 
 ---
 

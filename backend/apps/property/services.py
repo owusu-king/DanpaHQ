@@ -1024,12 +1024,15 @@ def update_property(*, prop: Property, user, data: dict) -> Property:
     render it; this is where it is enforced, so hiding a field is a courtesy and
     not the boundary.
     """
+    from apps.billing import enforcement as billing
     from apps.core.policy import enforce
 
     from .policies import can_edit_property
 
     assert_can_manage(prop, user)
     prop = Property.objects.select_for_update().get(id=prop.id)
+    # Read-only on its Portfolio's plan: the record stays, the details stay put.
+    billing.assert_details_editable(prop=prop)
 
     # One gate, and it is the policy. `can_edit_property` refuses outright once a
     # property is verified or with a reviewer, so there is no partial write left
@@ -1091,7 +1094,9 @@ def add_unit(*, prop: Property, user, data: dict) -> Unit:
     # that makes a pre-billing property unusable.
     portfolio = billing.portfolio_for_property(prop)
     if portfolio is not None:
-        billing.assert_can_add_unit(organization=portfolio)
+        # Room for another fully active unit, in a property that is not itself
+        # restricted above the plan's allowance.
+        billing.assert_can_add_unit(organization=portfolio, prop=prop)
 
     building_id = data.get("building_id")
     if (
@@ -1144,7 +1149,10 @@ def add_unit(*, prop: Property, user, data: dict) -> Unit:
 
 @transaction.atomic
 def add_building(*, prop: Property, user, data: dict) -> Building:
+    from apps.billing import enforcement as billing
+
     assert_can_manage(prop, user)
+    billing.assert_open_for_new_activity(prop=prop, action="add_building")
     name = str(data.get("name", "")).strip()
     if not name:
         raise ValidationFailed("Give the building or block a name.")
@@ -1181,6 +1189,10 @@ def add_bed(*, unit: Unit, user, data: dict) -> Bed:
     # what kind of space this is from which refusal came back.
     unit = Unit.objects.select_for_update().select_related("property").get(id=unit.id)
     assert_can_manage(unit.property, user)
+    # Another bed is another place to let, which a restricted space does not take.
+    from apps.billing import enforcement as billing
+
+    billing.assert_open_for_new_activity(unit=unit, action="add_bed")
     enforce(can_add_bed_to_space(actor=user, target=unit))
     assert_accepts_bed_spaces(unit=unit)
 
@@ -1207,6 +1219,9 @@ def attach_media(
     *, prop: Property, user, file, kind: str = "exterior", caption: str = "", sort_order: int = 0
 ) -> PropertyMedia:
     assert_can_manage(prop, user)
+    from apps.billing import enforcement as billing
+
+    billing.assert_details_editable(prop=prop)
     if not file.is_usable:
         raise ValidationFailed("That file is not ready yet — wait a moment and try again.")
     if not file.is_owned_by(user):

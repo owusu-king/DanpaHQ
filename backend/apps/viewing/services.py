@@ -136,6 +136,9 @@ def request_viewing(
         raise Conflict("That place is no longer being advertised.")
     if unit_is_occupied(listing.unit):
         raise Conflict("That place is now occupied and is not accepting viewing requests.")
+    from apps.billing import enforcement as billing
+
+    billing.assert_accepting_requests(unit=listing.unit)
 
     if listing.unit.property.is_managed_by(tenant):
         raise ValidationFailed("This is your own listing.")
@@ -186,6 +189,9 @@ def offer_slots(
 ) -> ViewingRequest:
     """Offer free viewing times. Rooomly has no viewing-fee concept."""
     assert_host(request, user)
+    from apps.billing import enforcement as billing
+
+    billing.assert_open_for_new_activity(unit=request.listing.unit, action="offer_viewing")
 
     if (
         request.status
@@ -359,6 +365,9 @@ def confirm_slot(*, request: ViewingRequest, user, slot_id) -> ViewingRequest:
     """The counterparty accepts an offered time and creates an immutable appointment."""
     if request.status != ViewingStatus.OFFERED:
         raise Conflict("There are no times to choose from yet.")
+    from apps.billing import enforcement as billing
+
+    billing.assert_accepting_requests(unit=request.listing.unit)
 
     slot = request.slots.filter(id=slot_id).first()
     if slot is None:
@@ -445,6 +454,9 @@ def reschedule(*, request: ViewingRequest, user, slots: list[dict]) -> ViewingRe
     assert_participant(request, user)
     if request.status != ViewingStatus.CONFIRMED:
         raise Conflict("Only a confirmed viewing can be rescheduled.")
+    from apps.billing import enforcement as billing
+
+    billing.assert_accepting_requests(unit=request.listing.unit)
     now = timezone.now()
     cleaned = _validated_slots(slots, now=now)
     old_slot = request.confirmed_slot

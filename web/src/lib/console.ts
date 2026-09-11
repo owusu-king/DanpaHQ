@@ -90,7 +90,17 @@ export type Property = {
   /** What this person may do to this property, decided by the backend. The page
    *  renders these; hiding one the API refuses is a courtesy, not the boundary. */
   permitted_actions: Record<string, PermittedAction>;
+  /** Where it stands against its Portfolio's plan allowance. `wind_down` and
+   *  `read_only` take no new rental activity; the API refuses it regardless. */
+  billing_access?: BillingAccessState;
   created_at: string;
+};
+
+/** A property's or unit's access against its Portfolio's plan, in the server's words. */
+export type BillingAccessState = {
+  state: "full" | "wind_down" | "read_only";
+  label: string;
+  message: string;
 };
 
 /** Every state a property's verification can actually be in. */
@@ -444,6 +454,8 @@ export type Unit = {
   access_code: AccessCodeState;
   /** Deprecated. Raw codes are returned only by create/rotate. */
   join_code: string | null;
+  /** Its own access against the plan, or its property's when that is stricter. */
+  billing_access?: BillingAccessState;
   created_at: string;
 };
 
@@ -2102,75 +2114,6 @@ export function attachVerificationEvidence(
   });
 }
 
-/* ---------------------------------------------------------------- billing --
-
-  What a Portfolio is entitled to, and what it would get on another plan.
-
-  Two calls, deliberately. The catalogue is the same for everybody and carries
-  the names and grouping of every entitlement, so no screen hardcodes the word
-  "Properties" or decides which section a capability belongs to. The snapshot is
-  this Portfolio's own state. Renaming an entitlement or moving it between plans
-  stays a backend change.
-
-  Neither is authority. Every limit here is checked again on the server inside
-  the transaction that takes the slot — these types exist to render a page, not
-  to decide whether a write is allowed.
-*/
-
-export type EntitlementValue = { value: number | boolean | null; unlimited: boolean };
-
-export type EntitlementMeta = {
-  key: string;
-  group: string;
-  name: string;
-  description: string;
-  value_type: "integer" | "boolean";
-};
-
-export type PlanSummary = {
-  code: "FREE" | "PRO" | "BUSINESS";
-  name: string;
-  description: string;
-  monthly_price_minor: number;
-  annual_price_minor: number;
-  currency: string;
-  entitlements: Record<string, EntitlementValue>;
-};
-
-export type PlanCatalogue = {
-  entitlements: EntitlementMeta[];
-  groups: string[];
-  headline_limits: string[];
-  upgrade_order: string[];
-  plans: PlanSummary[];
-};
-
-export type PortfolioBilling = {
-  plan: {
-    code: string;
-    name: string;
-    description: string;
-    monthly_price_minor: number;
-    currency: string;
-  };
-  subscription: {
-    status: string;
-    billing_interval: string;
-    current_period_end: string | null;
-    cancel_at_period_end: boolean;
-  } | null;
-  entitlements: Record<string, EntitlementValue & { source: string }>;
-  usage: Record<string, number>;
-  limits: Record<string, number | null>;
-  over_limit: Array<{ entitlement: string; current: number; limit: number }>;
-};
-
-export function getPlanCatalogue() {
-  return authedFetch<PlanCatalogue>("/plans/", { cache: "no-store" });
-}
-
-export function getPortfolioBilling(organizationId: string) {
-  return authedFetch<PortfolioBilling>(`/organizations/${organizationId}/billing/`, {
-    cache: "no-store",
-  });
-}
+/* Billing — plans, a Portfolio's subscription and its payments to Rooomly —
+   lives in `@/lib/billing`. It is a different business concept from the rent
+   and Portfolio operations in this file, and it has one client, not two. */

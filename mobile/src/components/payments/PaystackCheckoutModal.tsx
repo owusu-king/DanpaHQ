@@ -12,22 +12,26 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { WebView, type WebViewNavigation } from "react-native-webview";
 
 import { Type, radius, space } from "@/components/ui";
-import { isPaymentReturnUrl, safeCheckoutUrl, type PaymentIntent } from "@/payments";
+import { isPaymentReturnUrl, safeCheckoutUrl, type ProviderCheckout } from "@/payments";
 import { pressableFeedback } from "@/platform";
 import { theme } from "@/theme";
 
 type Props = {
-  intent: PaymentIntent | null;
+  /** Any payment the server opened with the provider: a rent intent or a subscription checkout. */
+  intent: ProviderCheckout | null;
   onClose: () => void;
   onCheckoutReturn: () => void;
+  /** What a confirmed payment updates, for the sentence under the checkout. */
+  settles?: string;
 };
 
 /**
  * Paystack's hosted checkout runs as a top-level page inside an app-owned sheet.
  * The sheet never decides that money was received: its only success signal closes
- * checkout and lets the Payments API verify the intent server-side.
+ * checkout and lets the Payments API verify the intent server-side. Rent and a
+ * Rooomly subscription share it, because they share the Payments Core.
  */
-export function PaystackCheckoutModal({ intent, onClose, onCheckoutReturn }: Props) {
+export function PaystackCheckoutModal({ intent, onClose, onCheckoutReturn, settles = "your rent" }: Props) {
   const checkoutUrl = intent ? safeCheckoutUrl(intent) : null;
   const webView = useRef<WebView>(null);
   const [progress, setProgress] = useState(0);
@@ -155,7 +159,7 @@ export function PaystackCheckoutModal({ intent, onClose, onCheckoutReturn }: Pro
         <View style={styles.footer}>
           <Ionicons name="shield-checkmark-outline" size={16} color={theme.color.ink["500"]} />
           <Type variant="caption" style={styles.footerCopy}>
-            Rooomly confirms the result with Paystack before updating your rent.
+            Rooomly confirms the result with Paystack before updating {settles}.
           </Type>
         </View>
       </SafeAreaView>

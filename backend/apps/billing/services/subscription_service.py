@@ -93,10 +93,13 @@ def change_plan(
     """Move a Portfolio between plans.
 
     **A downgrade never removes anything.** A Business Portfolio with 24
-    properties that moves to Free keeps all 24: they stay readable, editable and
-    lettable, and what changes is that a 25th cannot be created. Deleting a
-    provider's properties because their card expired would be the single worst
-    thing this system could do, so the code does not contain a path that could.
+    properties that moves to Free keeps all 24, with every tenancy, agreement,
+    payment and record attached. What changes is what it may *run*: the property
+    Free includes stays fully active, and the rest are restricted — tenancies
+    already running continue to their end, and nothing new starts on them
+    (`resource_access_service`). Deleting a provider's properties because their
+    card expired would be the single worst thing this system could do, so the
+    code does not contain a path that could.
 
     Paid activation does not happen here. Moving *to* a paid plan through this
     function is for an administrative grant — the customer-facing route is
@@ -125,19 +128,24 @@ def change_plan(
     subscription.plan = plan
     subscription.status = SubscriptionStatus.ACTIVE
     subscription.cancel_at_period_end = False
+    subscription.scheduled_plan = None
     subscription.grace_expires_at = None
-    if plan.code == "FREE":
-        # Back to Free: no period to renew, and no provider reference to keep
-        # pointing at a subscription nobody is paying.
-        subscription.current_period_end = None
-        subscription.provider = ""
-        subscription.provider_subscription_reference = ""
+    # Nothing was paid for the plan this moves to, so there is no paid period
+    # to renew. On Free that is simply true; on a paid plan it is what makes
+    # this an administrative grant — shown as complimentary, never billed, and
+    # never sent into grace by the period-end sweep for money nobody owed.
+    subscription.current_period_start = timezone.now()
+    subscription.current_period_end = None
+    subscription.provider = ""
+    subscription.provider_subscription_reference = ""
     subscription.save(
         update_fields=[
             "plan",
             "status",
             "cancel_at_period_end",
+            "scheduled_plan",
             "grace_expires_at",
+            "current_period_start",
             "current_period_end",
             "provider",
             "provider_subscription_reference",
@@ -157,6 +165,12 @@ def change_plan(
         management_actor=management_actor,
         reason=reason,
     )
+    # A plan with less room restricts what is above it, in the same transaction
+    # as the change itself. A plan with more room restricts nothing and promotes
+    # nothing: anything already restricted waits for somebody to reactivate it.
+    from . import resource_access_service
+
+    resource_access_service.reconcile(organization=organization, actor=actor)
     return subscription
 
 

@@ -43,6 +43,7 @@ from .models import (
     PaymentAllocation,
     PaymentAttempt,
     PaymentIntent,
+    PaymentPurpose,
     PaymentTransaction,
     ProviderFeeBearer,
     ProviderWebhook,
@@ -52,7 +53,12 @@ from .models import (
     WebhookStatus,
 )
 from .providers import UnhandledProviderEvent, VerifiedProviderEvent, get_payment_provider
-from .receipts import build_external_snapshot, build_snapshot, render_pdf
+from .receipts import (
+    build_external_snapshot,
+    build_snapshot,
+    build_subscription_snapshot,
+    render_pdf,
+)
 
 
 def _intent_ttl() -> timedelta:
@@ -107,8 +113,11 @@ def resolve_payable_amount(*, obligation: RentCharge, requested_minor: int | Non
 
 
 def get_intent_or_404(pk, *, user) -> PaymentIntent:
+    # Rent attempts only. A subscription payment belongs to a Portfolio's
+    # billing, is read through billing's own endpoints, and has no tenant or
+    # lease to authorise against here.
     intent = (
-        PaymentIntent.objects.filter(id=pk)
+        PaymentIntent.objects.filter(id=pk, purpose=PaymentPurpose.RENT_OBLIGATION)
         .select_related("lease__unit__property", "tenant", "obligation")
         .first()
     )
@@ -131,6 +140,7 @@ def get_receipt_or_404(pk, *, user) -> Receipt:
         .select_related(
             "transaction__intent__tenant",
             "transaction__intent__lease__unit__property",
+            "transaction__intent__billing_invoice__billing_account__organization",
             "rent_record__lease__tenant",
             "rent_record__lease__unit__property",
         )
@@ -138,9 +148,20 @@ def get_receipt_or_404(pk, *, user) -> Receipt:
     )
     if receipt is None:
         raise NotFound("We could not find that receipt.")
-    lease = (
-        receipt.transaction.intent.lease if receipt.transaction_id else receipt.rent_record.lease
-    )
+    intent = receipt.transaction.intent if receipt.transaction_id else None
+    if intent is not None and intent.is_subscription:
+        # A Portfolio's receipt for its plan. Readable by whoever may read that
+        # Portfolio's invoices, and indistinguishable from a missing receipt to
+        # anybody else.
+        from apps.billing.policies import entitlement_policy
+
+        organization = intent.billing_invoice.billing_account.organization
+        if not entitlement_policy.can(
+            organization=organization, user=user, permission=entitlement_policy.VIEW_INVOICES
+        ):
+            raise NotFound("We could not find that receipt.")
+        return receipt
+    lease = intent.lease if intent is not None else receipt.rent_record.lease
     is_tenant = str(lease.tenant_id) == str(user.id)
     if not is_tenant and not lease.unit.property.is_managed_by(user):
         raise PermissionDenied("You do not have access to that receipt.")
@@ -372,8 +393,9 @@ def _resume_or_refuse(
     unrecoverable — the tenant was told to wait for something that would never
     finish, on an intent nothing would ever re-initiate.
     """
-    if str(existing.tenant_id) != str(user.id):
-        raise Conflict("A payment attempt for this obligation is already in progress.")
+    subject = "plan change" if existing.is_subscription else "obligation"
+    if str(existing.payer_id) != str(user.id):
+        raise Conflict(f"A payment attempt for this {subject} is already in progress.")
 
     same_request = (
         existing.amount_minor == amount_minor and existing.payment_method == payment_method
@@ -387,7 +409,7 @@ def _resume_or_refuse(
         # A different amount or method, against a checkout that is live at the
         # provider. Two open checkouts for one charge is exactly what the
         # one-open-intent constraint exists to prevent.
-        raise Conflict("A payment for this obligation is already open. Finish or cancel it first.")
+        raise Conflict(f"A payment for this {subject} is already open. Finish or cancel it first.")
 
     # A different request, against a reservation that never reached the
     # provider. Nothing is at risk, so it is cancelled rather than left holding
@@ -439,8 +461,11 @@ def _record_initiation(
     *, intent_id, status: str, provider_reference: str, next_action: dict, user, resumed: bool
 ) -> PaymentIntent:
     """Phase three: the provider's answer, written under a lock and committed."""
+    # `of=("self",)`: the rent relations are nullable now that an intent can
+    # settle a subscription invoice, and PostgreSQL refuses FOR UPDATE on the
+    # nullable side of an outer join. Only the intent row is ever the lock.
     intent = (
-        PaymentIntent.objects.select_for_update()
+        PaymentIntent.objects.select_for_update(of=("self",))
         .select_related("lease", "obligation")
         .get(id=intent_id)
     )
@@ -476,7 +501,7 @@ def _record_initiation(
             "payment.intent_created.v1",
             "payment_intent",
             str(intent.id),
-            {"tenant_id": str(intent.tenant_id), "lease_id": str(intent.lease_id)},
+            _intent_event_payload(intent),
         )
     )
     return intent
@@ -620,17 +645,25 @@ def _conclude_attempt(
     )
 
 
-def retry_intent(*, intent: PaymentIntent, user) -> PaymentAttempt:
+def retry_intent(*, intent: PaymentIntent, user) -> PaymentAttempt | None:
     """Try again at the same obligation, without creating a second obligation.
 
     The point of the intent surviving a failure is exactly this: the person is
     still paying *that* charge, and the record should say they tried more than
     once rather than leaving a trail of abandoned intents.
 
+    **The provider is asked first.** "Try again" is pressed by somebody who
+    believes the last try failed. Sometimes the provider took the money after
+    Rooomly last looked, or is still taking it, and a new try would then charge
+    them twice. A success is applied through the one boundary instead of being
+    retried, and a payment the provider is still confirming refuses.
+
     Split the same three ways as `create_intent`, and for the same reason: the
     provider call in the middle held a transaction open for as long as the
     provider took. Nothing is held while it runs.
     """
+    if _paid_before_retrying(intent=intent, user=user):
+        return intent.attempts.order_by("-sequence").first()
     _open_retry(intent_id=intent.id, user=user)
 
     provider = get_payment_provider(intent.provider)
@@ -647,18 +680,64 @@ def retry_intent(*, intent: PaymentIntent, user) -> PaymentAttempt:
     )
 
 
+def _paid_before_retrying(*, intent: PaymentIntent, user) -> bool:
+    """Whether the try being replaced was paid after all — and applied, if so.
+
+    Only a success, or a payment the provider is still confirming, stops the
+    retry. A provider that says unpaid, has no record or cannot answer lets it
+    go ahead: the retry reaches the same provider transaction either way.
+    """
+    _assert_payer(intent, user)
+    retryable = (IntentStatus.FAILED, IntentStatus.PROCESSING, IntentStatus.PENDING)
+    if not intent.provider_reference or intent.status not in retryable:
+        return False
+    try:
+        provider = get_payment_provider(intent.provider)
+        state = provider.query_payment(provider_reference=intent.provider_reference)
+    except (ProviderUnavailable, PermissionDenied, NotImplementedError):
+        return False
+    if not state.found:
+        return False
+    if state.status == "processing":
+        raise Conflict(
+            "This payment is still being confirmed. Wait for it to finish before trying again.",
+            details={"reason": "payment_confirming"},
+        )
+    if state.status != "succeeded":
+        return False
+    try:
+        apply_provider_state(
+            intent=intent, state=state, evidence_source="provider_query", requested_by=user
+        )
+    except Conflict as exc:
+        # The provider took the money and it cannot be posted as things stand —
+        # most often a checkout replaced in the meantime. Charging again is the
+        # one thing that must not follow; reconciliation takes it to a person.
+        raise Conflict(
+            "The payment provider shows this as paid, so do not pay again. It needs "
+            "checking before it can be applied.",
+            details={"reason": "paid_needs_review"},
+        ) from exc
+    return True
+
+
 @transaction.atomic
 def _open_retry(*, intent_id, user) -> None:
     """Phase one: check it may be retried, and close the try being replaced."""
     intent = PaymentIntent.objects.select_for_update().get(id=intent_id)
-    if str(intent.tenant_id) != str(user.id):
-        raise PermissionDenied("That payment does not belong to you.")
+    _assert_payer(intent, user)
     if intent.status not in (IntentStatus.FAILED, IntentStatus.PROCESSING, IntentStatus.PENDING):
         raise Conflict("That payment cannot be retried.")
     if intent.is_expired:
         raise Conflict("That payment attempt has expired; start a new one.")
     if PaymentAttempt.objects.filter(intent=intent, status=AttemptStatus.SUCCEEDED).exists():
         raise Conflict("That payment already succeeded.")
+    if intent.is_subscription:
+        # A new try at an invoice that has been replaced or has gone stale would
+        # pay a price the Portfolio is no longer being offered.
+        from apps.billing.services import checkout_service
+
+        checkout_service.assert_open_for_new_attempt(intent.billing_invoice)
 
     _conclude_attempt(intent, AttemptStatus.ABANDONED, code="superseded_by_retry")
 
@@ -717,8 +796,7 @@ def refresh_intent_from_provider(*, intent: PaymentIntent, user) -> PaymentInten
     webhooks applies it. This closes the lost-webhook gap without accepting any
     status, amount, method or transaction id from the client.
     """
-    if str(intent.tenant_id) != str(user.id):
-        raise PermissionDenied("That payment does not belong to you.")
+    _assert_payer(intent, user)
     if intent.status in (IntentStatus.SUCCEEDED, IntentStatus.CANCELLED):
         return intent
     if not intent.provider_reference:
@@ -730,6 +808,8 @@ def refresh_intent_from_provider(*, intent: PaymentIntent, user) -> PaymentInten
     if not state.found:
         if intent.is_expired:
             return _expire_intent_if_due(intent_id=intent.id)
+        if intent.is_subscription:
+            return PaymentIntent.objects.get(id=intent.id)
         return get_intent_or_404(intent.id, user=user)
     return apply_provider_state(
         intent=intent,
@@ -999,7 +1079,7 @@ def _process_verified_event(
     if not provider_name:
         raise ValidationFailed("The provider evidence has no payment provider.")
     intent = (
-        PaymentIntent.objects.select_for_update()
+        PaymentIntent.objects.select_for_update(of=("self",))
         .select_related("obligation", "lease__tenant", "lease__landlord", "lease__unit__property")
         .filter(provider=provider_name, provider_reference=event.provider_reference)
         .first()
@@ -1076,10 +1156,16 @@ def _process_verified_event(
         )
         emit(
             DomainEvent(
-                "payment.failed.v1",
+                # Rent and subscription failures reach different people with
+                # different consequences, so they are different events.
+                (
+                    "billing.subscription_payment_failed.v1"
+                    if intent.is_subscription
+                    else "payment.failed.v1"
+                ),
                 "payment_intent",
                 str(intent.id),
-                {"tenant_id": str(intent.tenant_id), "lease_id": str(intent.lease_id)},
+                _intent_event_payload(intent),
             )
         )
         _finish_provider_evidence(webhook)
@@ -1093,6 +1179,15 @@ def _process_verified_event(
             raise Conflict("That succeeded intent does not match this provider transaction.")
         _finish_provider_evidence(webhook)
         return intent
+
+    if intent.is_subscription:
+        return _settle_subscription_payment(
+            intent=intent,
+            event=event,
+            webhook=webhook,
+            evidence_source=evidence_source,
+            requested_by=requested_by,
+        )
 
     obligation = RentCharge.objects.select_for_update().get(id=intent.obligation_id)
     # An upper bound, not an equality. A part payment is deliberately less than
@@ -1237,26 +1332,27 @@ def _expire_intent(intent: PaymentIntent) -> None:
             "payment.intent_expired.v1",
             "payment_intent",
             str(intent.id),
-            {"tenant_id": str(intent.tenant_id), "lease_id": str(intent.lease_id)},
+            _intent_event_payload(intent),
         )
     )
 
 
 def _cancel_competing_intents(winner: PaymentIntent) -> None:
-    rows = (
-        PaymentIntent.objects.select_for_update()
-        .filter(
-            obligation_id=winner.obligation_id,
-            status__in=OPEN_INTENT_STATUSES,
-        )
-        .exclude(id=winner.id)
-    )
-    for intent in rows:
+    rows = PaymentIntent.objects.select_for_update().filter(status__in=OPEN_INTENT_STATUSES)
+    if winner.is_subscription:
+        rows = rows.filter(billing_invoice_id=winner.billing_invoice_id)
+    else:
+        rows = rows.filter(obligation_id=winner.obligation_id)
+    for intent in rows.exclude(id=winner.id):
         previous = intent.status
         intent.status = IntentStatus.CANCELLED
         intent.next_action = {}
-        intent.failure_code = "obligation_settled"
-        intent.failure_message = "Another provider-confirmed payment settled this obligation."
+        if winner.is_subscription:
+            intent.failure_code = "invoice_settled"
+            intent.failure_message = "Another confirmed payment settled this invoice."
+        else:
+            intent.failure_code = "obligation_settled"
+            intent.failure_message = "Another provider-confirmed payment settled this obligation."
         intent.save(
             update_fields=[
                 "status",
@@ -1299,9 +1395,16 @@ def _rent_method(payment_method: str) -> str:
 
 def _create_ledger(transaction_row: PaymentTransaction) -> None:
     occurred_at = transaction_row.paid_at or timezone.now()
+    intent = transaction_row.intent
+    if intent.is_subscription:
+        settled = f"subscription_invoice:{intent.billing_invoice_id}"
+        description = "Provider-confirmed Rooomly subscription payment"
+    else:
+        settled = f"rent_obligation:{intent.obligation_id}"
+        description = "Provider-confirmed rent obligation payment"
     lines = [
         (1, f"psp_settlement_in_transit:{transaction_row.provider}", LedgerDirection.DEBIT),
-        (2, f"rent_obligation:{transaction_row.intent.obligation_id}", LedgerDirection.CREDIT),
+        (2, settled, LedgerDirection.CREDIT),
     ]
     for number, account, direction in lines:
         entry = LedgerEntry(
@@ -1309,7 +1412,7 @@ def _create_ledger(transaction_row: PaymentTransaction) -> None:
             line_number=number,
             account_reference=account,
             direction=direction,
-            description="Provider-confirmed rent obligation payment",
+            description=description,
             occurred_at=occurred_at,
         )
         entry.amount_minor = transaction_row.amount_minor
@@ -1393,3 +1496,374 @@ def _create_pending_settlement(transaction_row: PaymentTransaction) -> Settlemen
         setattr(row, f"{field}_amount_currency", transaction_row.amount_currency)
     row.save()
     return row
+
+
+# --- one rail, two purposes ----------------------------------------------------
+
+
+def _assert_payer(intent: PaymentIntent, user) -> None:
+    """The one answer to "may this person act on this payment attempt"."""
+    if intent.is_subscription:
+        from apps.billing.services import checkout_service
+
+        checkout_service.assert_may_pay(intent=intent, user=user)
+        return
+    if str(intent.tenant_id) != str(user.id):
+        raise PermissionDenied("That payment does not belong to you.")
+
+
+def _intent_event_payload(intent: PaymentIntent) -> dict:
+    """Who an intent's events are about. Rent payloads are unchanged."""
+    if intent.is_subscription:
+        return {
+            "purpose": intent.purpose,
+            "billing_invoice_id": str(intent.billing_invoice_id),
+            "organization_id": str(intent.billing_invoice.billing_account.organization_id),
+            "initiated_by_id": str(intent.initiated_by_id),
+        }
+    return {"tenant_id": str(intent.tenant_id), "lease_id": str(intent.lease_id)}
+
+
+def create_invoice_intent(*, invoice, user, payment_method: str) -> PaymentIntent:
+    """Create — or resume — the payment for one Rooomly subscription invoice.
+
+    The same three phases as `create_intent`, for the same reasons: reserve under
+    a lock and commit, call the provider holding nothing, record its answer under
+    a lock. The invoice is the obligation, so resuming is keyed on it: calling
+    this again for the same invoice, amount and method reaches the same provider
+    transaction instead of opening a second.
+    """
+    intent, resumed = _reserve_invoice_intent(
+        invoice_id=invoice.id, user=user, payment_method=payment_method
+    )
+    if intent.provider_reference and intent.status in OPEN_INTENT_STATUSES:
+        return intent
+    return _initiate_reserved_intent(intent=intent, user=user, resumed=resumed)
+
+
+@transaction.atomic
+def _reserve_invoice_intent(*, invoice_id, user, payment_method: str):
+    from apps.billing.services import checkout_service
+
+    invoice = checkout_service.lock_invoice_for_new_payment(invoice_id=invoice_id, user=user)
+    if payment_method not in DigitalPaymentMethod.values:
+        raise ValidationFailed("Choose a supported digital payment method.")
+
+    for expired in PaymentIntent.objects.select_for_update().filter(
+        billing_invoice=invoice,
+        status__in=OPEN_INTENT_STATUSES,
+        expires_at__lte=timezone.now(),
+    ):
+        _expire_intent(expired)
+
+    existing = (
+        PaymentIntent.objects.select_for_update()
+        .filter(billing_invoice=invoice, status__in=OPEN_INTENT_STATUSES)
+        .first()
+    )
+    if existing is not None:
+        resumed = _resume_or_refuse(
+            existing=existing,
+            user=user,
+            payment_method=payment_method,
+            amount_minor=invoice.amount_minor,
+        )
+        if resumed is not None:
+            return resumed, True
+
+    provider = get_payment_provider()
+    provider.ensure_available()
+
+    intent = PaymentIntent(
+        purpose=PaymentPurpose.SUBSCRIPTION_INVOICE,
+        billing_invoice=invoice,
+        initiated_by=user,
+        payment_method=payment_method,
+        provider=provider.name,
+        expires_at=timezone.now() + _intent_ttl(),
+        metadata={
+            "invoice_number": invoice.number,
+            "billing_interval": invoice.billing_interval,
+        },
+    )
+    # Priced by the invoice, which was priced by the plan row. Nothing the
+    # client sent reaches this number.
+    intent.amount_minor = invoice.amount_minor
+    intent.amount_currency = invoice.amount_currency
+    intent.client_reference = f"rmb_{intent.id.hex}"
+    intent.save()
+
+    record(
+        action=AuditAction.CREATE,
+        aggregate_type="payment_intent",
+        aggregate_id=intent.id,
+        actor=user,
+        metadata={
+            "purpose": intent.purpose,
+            "billing_invoice_id": str(invoice.id),
+            "organization_id": str(invoice.billing_account.organization_id),
+            "amount_minor": intent.amount_minor,
+            "currency": intent.amount_currency,
+            "provider": intent.provider,
+            "phase": "reserved",
+        },
+    )
+    return intent, False
+
+
+def cancel_invoice_intent(*, intent: PaymentIntent, user) -> PaymentIntent:
+    """Stop an unpaid subscription checkout, once the provider agrees nothing was taken.
+
+    A payer who closes the checkout and picks a different plan must be able to
+    move on without waiting out the attempt's window. A payer whose mobile-money
+    approval is still travelling must not have that payment orphaned. So: ask
+    first. Confirmed money is applied through the one boundary; a payment still
+    being confirmed refuses; only an attempt the provider says is unpaid — or
+    one that never reached it — is cancelled. An unanswerable provider refuses
+    too, because "we could not check" is not "nothing was taken".
+    """
+    if not intent.is_subscription:
+        raise NotFound("We could not find that payment.")
+    _assert_payer(intent, user)
+    if intent.status not in OPEN_INTENT_STATUSES:
+        return intent
+    if intent.provider_reference:
+        try:
+            provider = get_payment_provider(intent.provider)
+            state = provider.query_payment(provider_reference=intent.provider_reference)
+        except (ProviderUnavailable, PermissionDenied, NotImplementedError) as exc:
+            raise Conflict(
+                "We could not confirm with the payment provider that nothing was taken. "
+                "Try again in a moment."
+            ) from exc
+        if state.found and state.status == "succeeded":
+            return apply_provider_state(
+                intent=intent, state=state, evidence_source="provider_query", requested_by=user
+            )
+        if state.found and state.status == "processing":
+            raise Conflict(
+                "This payment is still being confirmed. Wait for it to finish before cancelling."
+            )
+    return _record_cancellation(intent_id=intent.id, user=user)
+
+
+@transaction.atomic
+def _record_cancellation(*, intent_id, user) -> PaymentIntent:
+    intent = PaymentIntent.objects.select_for_update().get(id=intent_id)
+    if intent.status not in OPEN_INTENT_STATUSES:
+        return intent
+    previous = intent.status
+    intent.status = IntentStatus.CANCELLED
+    intent.next_action = {}
+    intent.failure_code = "cancelled_by_payer"
+    intent.failure_message = "Cancelled before the payment was completed."
+    intent.save(
+        update_fields=["status", "next_action", "failure_code", "failure_message", "updated_at"]
+    )
+    _conclude_attempt(intent, AttemptStatus.ABANDONED, code="cancelled_by_payer")
+    record(
+        action=AuditAction.UPDATE,
+        aggregate_type="payment_intent",
+        aggregate_id=intent.id,
+        actor=user,
+        changes={"status": [previous, IntentStatus.CANCELLED]},
+        metadata={"reason": "cancelled_by_payer"},
+    )
+    return intent
+
+
+def release_invoice_intents(*, invoice_id) -> None:
+    """Close whatever holds an invoice open so billing can void it — or refuse.
+
+    Runs inside billing's own transaction. An attempt live at the provider is a
+    payment somebody may be approving right now, so it refuses before touching
+    anything; an attempt whose window has passed expires, and one that never
+    reached a provider is cancelled.
+    """
+    rows = PaymentIntent.objects.select_for_update().filter(
+        billing_invoice_id=invoice_id, status__in=OPEN_INTENT_STATUSES
+    )
+    for intent in rows:
+        if intent.provider_reference and not intent.is_expired:
+            raise Conflict(
+                "A payment for this plan change is already in progress. Continue it, "
+                "or cancel it before choosing again.",
+                details={"reason": "checkout_in_progress", "payment_id": str(intent.id)},
+            )
+    for intent in rows:
+        if intent.is_expired:
+            _expire_intent(intent)
+            continue
+        previous = intent.status
+        intent.status = IntentStatus.CANCELLED
+        intent.next_action = {}
+        intent.failure_code = "superseded_before_initiation"
+        intent.failure_message = "Replaced before it reached the payment provider."
+        intent.save(
+            update_fields=["status", "next_action", "failure_code", "failure_message", "updated_at"]
+        )
+        record(
+            action=AuditAction.UPDATE,
+            aggregate_type="payment_intent",
+            aggregate_id=intent.id,
+            actor=None,
+            changes={"status": [previous, IntentStatus.CANCELLED]},
+            metadata={"reason": "superseded_before_initiation"},
+        )
+
+
+def allocate_to_invoice(*, transaction_row: PaymentTransaction, invoice, amount_minor: int):
+    """Record that confirmed money settled a Rooomly subscription invoice.
+
+    The same two invariants as `allocate`, refused rather than clamped: a
+    transaction cannot allocate more than it carried, and an invoice cannot be
+    allocated more than it charged.
+    """
+    if amount_minor <= 0:
+        raise ValidationFailed("An allocation must be for a positive amount.")
+    if transaction_row.amount_currency != invoice.amount_currency:
+        raise ValidationFailed("An allocation cannot cross currencies.")
+    already_allocated = sum(row.amount_minor for row in transaction_row.allocations.all())
+    if already_allocated + amount_minor > transaction_row.amount_minor:
+        raise Conflict("That allocation would exceed the money this transaction carried.")
+    against_invoice = sum(
+        row.amount_minor for row in PaymentAllocation.objects.filter(billing_invoice=invoice)
+    )
+    if against_invoice + amount_minor > invoice.amount_minor:
+        raise Conflict("That allocation would overpay the invoice.")
+
+    allocation = PaymentAllocation(
+        transaction=transaction_row,
+        billing_invoice=invoice,
+        allocated_at=transaction_row.paid_at or timezone.now(),
+        note="Provider-confirmed Rooomly subscription payment",
+    )
+    allocation.amount_minor = amount_minor
+    allocation.amount_currency = transaction_row.amount_currency
+    allocation.save()
+    record(
+        action=AuditAction.MONEY_MOVEMENT,
+        aggregate_type="payment_allocation",
+        aggregate_id=allocation.id,
+        actor=None,
+        metadata={
+            "transaction_id": str(transaction_row.id),
+            "billing_invoice_id": str(invoice.id),
+            "amount_minor": amount_minor,
+            "currency": allocation.amount_currency,
+        },
+    )
+    return allocation
+
+
+def _settle_subscription_payment(
+    *, intent: PaymentIntent, event, webhook, evidence_source: str, requested_by
+) -> PaymentIntent:
+    """Post a confirmed Rooomly subscription payment.
+
+    Runs inside `_process_verified_event`'s transaction, after every check the
+    signed webhook, the provider query and the reconciliation sweep share. It
+    writes what rent gets — an immutable transaction, an allocation, two ledger
+    lines, a frozen receipt — against the invoice rather than a `RentCharge`,
+    and no settlement row: the money is Rooomly's, so there is no beneficiary
+    payout to track. The invoice and the plan move in this same transaction
+    through `billing.invoice_service`, so a Portfolio is never on a plan it has
+    not paid for, and never charged for a plan it did not get.
+    """
+    from apps.billing.services import invoice_service
+
+    if PaymentTransaction.objects.filter(
+        provider=intent.provider, provider_transaction_id=event.provider_transaction_id
+    ).exists():
+        raise Conflict("That provider transaction was already assigned to another payment.")
+    invoice = invoice_service.lock_payable(
+        invoice_id=intent.billing_invoice_id,
+        amount_minor=intent.amount_minor,
+        currency=intent.amount_currency,
+    )
+
+    transaction_row = PaymentTransaction(
+        intent=intent,
+        provider=intent.provider,
+        provider_transaction_id=event.provider_transaction_id,
+        payment_method=intent.payment_method,
+        status=TransactionStatus.SUCCEEDED,
+        paid_at=event.occurred_at,
+        raw_provider_status=event.raw_status[:80],
+    )
+    transaction_row.amount_minor = intent.amount_minor
+    transaction_row.amount_currency = intent.amount_currency
+    transaction_row.save()
+
+    allocate_to_invoice(
+        transaction_row=transaction_row,
+        invoice=invoice,
+        amount_minor=transaction_row.amount_minor,
+    )
+    invoice_service.settle(invoice=invoice, paid_at=event.occurred_at, provider=intent.provider)
+    _conclude_attempt(intent, AttemptStatus.SUCCEEDED)
+    _cancel_competing_intents(intent)
+    _create_ledger(transaction_row)
+    receipt = _create_subscription_receipt(transaction_row, invoice)
+
+    previous_status = intent.status
+    intent.status = IntentStatus.SUCCEEDED
+    intent.failure_code = ""
+    intent.failure_message = ""
+    intent.next_action = {}
+    intent.save(
+        update_fields=["status", "failure_code", "failure_message", "next_action", "updated_at"]
+    )
+    record(
+        action=AuditAction.MONEY_MOVEMENT,
+        aggregate_type="payment_transaction",
+        aggregate_id=transaction_row.id,
+        actor=None,
+        metadata={
+            "intent_id": str(intent.id),
+            "purpose": intent.purpose,
+            "billing_invoice_id": str(invoice.id),
+            "organization_id": str(invoice.billing_account.organization_id),
+            "amount_minor": intent.amount_minor,
+            "currency": intent.amount_currency,
+            "provider": intent.provider,
+            "server_confirmed": True,
+            "evidence_source": evidence_source,
+            "requested_by_id": str(requested_by.id) if requested_by is not None else None,
+            "intent_status": [previous_status, IntentStatus.SUCCEEDED],
+        },
+    )
+    emit(
+        DomainEvent(
+            "billing.subscription_payment_succeeded.v1",
+            "payment_transaction",
+            str(transaction_row.id),
+            {
+                **_intent_event_payload(intent),
+                "intent_id": str(intent.id),
+                "receipt_id": str(receipt.id),
+            },
+        )
+    )
+    _finish_provider_evidence(webhook)
+    return intent
+
+
+def _create_subscription_receipt(transaction_row: PaymentTransaction, invoice) -> Receipt:
+    receipt_number = f"RM-{transaction_row.created_at:%Y}-{transaction_row.id.hex[-12:].upper()}"
+    issued_at = transaction_row.paid_at or timezone.now()
+    snapshot = build_subscription_snapshot(
+        transaction_row=transaction_row,
+        invoice=invoice,
+        receipt_number=receipt_number,
+        issued_at=issued_at,
+    )
+    final_pdf = render_pdf(snapshot)
+    return Receipt.objects.create(
+        transaction=transaction_row,
+        receipt_number=receipt_number,
+        issued_at=issued_at,
+        breakdown=snapshot,
+        final_pdf=final_pdf,
+        final_pdf_hash=hashlib.sha256(final_pdf).hexdigest(),
+    )

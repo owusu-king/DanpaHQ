@@ -114,6 +114,17 @@ export default function SpaceScreen() {
       />
 
       {error ? <Notice tone="error" title={error} body="Some information may be out of date. Try again." /> : null}
+      {unit.billing_access && unit.billing_access.state !== "full" ? (
+        <Notice
+          tone={unit.billing_access.state === "wind_down" ? "warning" : "info"}
+          title={
+            unit.billing_access.state === "wind_down"
+              ? "Winding down on your current plan"
+              : "Read-only on your current plan"
+          }
+          body={`${unit.billing_access.message} Manage this in More → Plan & billing.`}
+        />
+      ) : null}
       <WhatIsNext unit={unit} listing={listing} onChanged={load} />
 
       <View style={{ height: 220, borderRadius: 8, overflow: "hidden", backgroundColor: theme.color.field["100"], alignItems: "center", justifyContent: "center" }}>

@@ -33,17 +33,23 @@ type ReconciliationException = {
   resolved_at: string | null;
   resolved_by_management_id: string;
   resolution_note: string;
-  subject: {
+  subject: PaymentSubject & {
     intent_id: string;
     transaction_id: string;
     settlement_id: string;
-    tenant: string;
-    property: string;
-    unit: string;
     amount_formatted: string;
   };
 };
-type Transaction = {
+/** Rent names a tenant and a home; a Rooomly subscription names a Portfolio and a plan. */
+type PaymentSubject = {
+  purpose: "" | "rent_obligation" | "subscription_invoice";
+  tenant: string;
+  property: string;
+  unit: string;
+  portfolio: string;
+  description: string;
+};
+type Transaction = PaymentSubject & {
   id: string;
   provider_transaction_id: string;
   provider: string;
@@ -51,9 +57,6 @@ type Transaction = {
   amount_formatted: string;
   payment_method: string;
   occurred_at: string;
-  tenant: string;
-  property: string;
-  unit: string;
   settlement: null | {
     status: string;
     gross_formatted: string;
@@ -171,7 +174,7 @@ export default function PaymentOperationsPage() {
                   aria-pressed={selectedId === item.id}
                   onClick={() => { setSelectedId(item.id); setDecision(null); setNote(""); }}
                 >
-                  <span><strong>{item.kind_display}</strong><small>{item.subject.property || item.provider} {item.subject.unit ? `· ${item.subject.unit}` : ""}</small></span>
+                  <span><strong>{item.kind_display}</strong><small>{item.subject.property || item.subject.description || item.provider} {item.subject.unit ? `· ${item.subject.unit}` : ""}</small></span>
                   <span><Status value={item.status} /><small>{formatDate(item.detected_at)}</small></span>
                 </button>
               ))}
@@ -189,8 +192,8 @@ export default function PaymentOperationsPage() {
                 <Status value={selected.status} />
               </div>
               <dl>
-                <Fact label="Tenant" value={selected.subject.tenant || "Not attached"} />
-                <Fact label="Property / Unit" value={[selected.subject.property, selected.subject.unit].filter(Boolean).join(" · ") || "Not attached"} />
+                <Fact label="Paid by" value={selected.subject.tenant || selected.subject.portfolio || "Not attached"} />
+                <Fact label="Paid for" value={[selected.subject.property, selected.subject.unit].filter(Boolean).join(" · ") || selected.subject.description || "Not attached"} />
                 <Fact label="Amount" value={selected.subject.amount_formatted || "Not attached"} />
                 <Fact label="Provider reference" value={selected.provider_reference || "Not supplied"} mono />
               </dl>
@@ -233,13 +236,14 @@ export default function PaymentOperationsPage() {
 
       <Panel title="Confirmed payment history" meta={`${resource.data?.transactions.length ?? 0} shown`}>
         <DataTable label="Confirmed online payments">
-          <thead><tr><th>Tenant</th><th>Home</th><th>Payment</th><th>Settlement</th><th>Refund record</th><th>Confirmed</th></tr></thead>
+          <thead><tr><th>Paid by</th><th>Paid for</th><th>Payment</th><th>Settlement</th><th>Refund record</th><th>Confirmed</th></tr></thead>
           <tbody>{resource.data?.transactions.map((item) => (
             <tr key={item.id}>
-              <td><strong>{item.tenant}</strong><span className="management-subtext">{item.provider_transaction_id}</span></td>
-              <td>{item.property}<span className="management-subtext">{item.unit}</span></td>
+              <td><strong>{item.tenant || item.portfolio}</strong><span className="management-subtext">{item.provider_transaction_id}</span></td>
+              <td>{item.property || item.description}<span className="management-subtext">{item.unit}</span></td>
               <td><strong>{item.amount_formatted}</strong><span className="management-subtext">{item.payment_method.replaceAll("_", " ")} · {item.provider}</span></td>
-              <td><Status value={item.settlement?.status ?? "missing"} />{item.settlement?.organization ? <span className="management-subtext">{item.settlement.organization}</span> : null}</td>
+              {/* A subscription is Rooomly's own revenue: there is no beneficiary payout to settle. */}
+              <td>{item.purpose === "subscription_invoice" ? <span className="management-subtext">Rooomly revenue · no payout</span> : <><Status value={item.settlement?.status ?? "missing"} />{item.settlement?.organization ? <span className="management-subtext">{item.settlement.organization}</span> : null}</>}</td>
               <td>{item.refunds.count ? `${item.refunds.count} recorded` : "None"}</td>
               <td>{formatDate(item.occurred_at)}</td>
             </tr>

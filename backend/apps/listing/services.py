@@ -144,6 +144,9 @@ def suspend_for_verification(*, subject_type: str, subject_id, kind: str, reason
 def create_listing(*, user, unit: Unit, data: dict) -> Listing:
     if not unit.property.is_managed_by(user):
         raise PermissionDenied("You cannot create a listing for a property you do not manage.")
+    from apps.billing import enforcement as billing
+
+    billing.assert_open_for_new_activity(unit=unit, action="create_listing")
     if Listing.objects.filter(unit=unit, status__in=["draft", "pending_review", "active"]).exists():
         raise Conflict("This unit already has an active or pending listing. Withdraw it first.")
 
@@ -291,6 +294,11 @@ def publish_listing(*, listing: Listing, user) -> Listing:
         can_publish(prop=listing.unit.property, unit=listing.unit),
         confirmed=True,
     )
+    # A space above its Portfolio's plan allowance is not put in front of new
+    # tenants, and a listing withdrawn before is not put back up.
+    from apps.billing import enforcement as billing
+
+    billing.assert_open_for_new_activity(unit=listing.unit, action="publish_listing")
 
     if listing.status not in (
         ListingStatus.DRAFT,

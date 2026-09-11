@@ -104,6 +104,10 @@ class ReconciliationKind(models.TextChoices):
         "provider_succeeded_internal_pending",
         "Provider says paid, Rooomly says pending",
     )
+    PROVIDER_SUCCEEDED_INTERNAL_FAILED = (
+        "provider_succeeded_internal_failed",
+        "Provider says paid, Rooomly says failed",
+    )
     INTERNAL_SUCCEEDED_PROVIDER_MISSING = (
         "internal_succeeded_provider_missing",
         "Rooomly says paid, provider has no record",
@@ -149,22 +153,71 @@ class WebhookStatus(models.TextChoices):
     IGNORED = "ignored", "Ignored"
 
 
+class PaymentPurpose(models.TextChoices):
+    """What an intent settles. The rail is shared; the business reason is not.
+
+    Rent and a Rooomly subscription move through one payment implementation —
+    the same provider adapter, webhook, attempt, transaction, ledger and receipt
+    boundary — but they are different obligations with different owners: a
+    `RentCharge` a tenant owes a Portfolio, and a `BillingInvoice` a Portfolio
+    owes Rooomly. Nothing about one may be inferred from the other, which is why
+    every branch in `services` asks this field rather than guessing from which
+    foreign key happens to be set.
+    """
+
+    RENT_OBLIGATION = "rent_obligation", "Rent obligation"
+    SUBSCRIPTION_INVOICE = "subscription_invoice", "Rooomly subscription"
+
+
 class PaymentIntent(BaseModel):
     """One server-priced attempt to settle one authoritative obligation.
 
-    MVP intents settle a complete outstanding RentCharge. The model keeps the
-    attempt separate from the resulting transaction: pending and failed work is
-    financial history too and must not disappear.
+    A rent intent settles an outstanding `RentCharge` for its tenant; a
+    subscription intent settles one `BillingInvoice` for the Portfolio that owes
+    it. The model keeps the attempt separate from the resulting transaction:
+    pending and failed work is financial history too and must not disappear.
     """
 
+    purpose = models.CharField(
+        max_length=24, choices=PaymentPurpose.choices, default=PaymentPurpose.RENT_OBLIGATION
+    )
     tenant = models.ForeignKey(
-        "identity.User", on_delete=models.PROTECT, related_name="payment_intents"
+        "identity.User",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="payment_intents",
     )
     lease = models.ForeignKey(
-        "lease.Lease", on_delete=models.PROTECT, related_name="payment_intents"
+        "lease.Lease",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="payment_intents",
     )
     obligation = models.ForeignKey(
-        "rent.RentCharge", on_delete=models.PROTECT, related_name="payment_intents"
+        "rent.RentCharge",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="payment_intents",
+    )
+    #: The invoice a subscription payment settles. Never set for rent.
+    billing_invoice = models.ForeignKey(
+        "billing.BillingInvoice",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="payment_intents",
+    )
+    #: The owner or administrator who started a subscription payment. The
+    #: Portfolio owes the invoice; this is the person who acted on it.
+    initiated_by = models.ForeignKey(
+        "identity.User",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="+",
     )
     amount = MoneyField()
     status = models.CharField(
@@ -214,12 +267,49 @@ class PaymentIntent(BaseModel):
                 fields=["obligation"],
                 condition=models.Q(status__in=OPEN_INTENT_STATUSES),
                 name="payments_one_open_intent_per_obligation",
-            )
+            ),
+            models.UniqueConstraint(
+                fields=["billing_invoice"],
+                condition=models.Q(status__in=OPEN_INTENT_STATUSES),
+                name="payments_one_open_intent_per_invoice",
+            ),
+            # Exactly one kind of obligation, and exactly the fields it needs.
+            # A rent intent with an invoice, or a subscription intent that names
+            # a tenant, is a row that two confirmation paths could both claim.
+            models.CheckConstraint(
+                condition=(
+                    models.Q(
+                        purpose="rent_obligation",
+                        tenant__isnull=False,
+                        lease__isnull=False,
+                        obligation__isnull=False,
+                        billing_invoice__isnull=True,
+                    )
+                    | models.Q(
+                        purpose="subscription_invoice",
+                        billing_invoice__isnull=False,
+                        initiated_by__isnull=False,
+                        tenant__isnull=True,
+                        lease__isnull=True,
+                        obligation__isnull=True,
+                    )
+                ),
+                name="payments_intent_settles_one_kind_of_obligation",
+            ),
         ]
 
     @property
     def is_expired(self) -> bool:
         return self.expires_at <= timezone.now()
+
+    @property
+    def is_subscription(self) -> bool:
+        return self.purpose == PaymentPurpose.SUBSCRIPTION_INVOICE
+
+    @property
+    def payer_id(self):
+        """The person this attempt belongs to, whatever it settles."""
+        return self.initiated_by_id if self.is_subscription else self.tenant_id
 
 
 class PaymentTransaction(BaseModel):
@@ -504,7 +594,21 @@ class PaymentAllocation(BaseModel):
         PaymentTransaction, on_delete=models.PROTECT, related_name="allocations"
     )
     obligation = models.ForeignKey(
-        "rent.RentCharge", on_delete=models.PROTECT, related_name="allocations"
+        "rent.RentCharge",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="allocations",
+    )
+    #: A Rooomly subscription invoice this money settled. Exactly one of this
+    #: and `obligation` is set, so "which debt did this money answer for" has
+    #: one answer for every confirmed payment, rent or not.
+    billing_invoice = models.ForeignKey(
+        "billing.BillingInvoice",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="allocations",
     )
     amount = MoneyField()
     allocated_at = models.DateTimeField()
@@ -520,9 +624,20 @@ class PaymentAllocation(BaseModel):
             models.UniqueConstraint(
                 fields=["transaction", "obligation"], name="payments_allocation_unique"
             ),
+            models.UniqueConstraint(
+                fields=["transaction", "billing_invoice"],
+                name="payments_allocation_invoice_unique",
+            ),
             models.CheckConstraint(
                 condition=models.Q(amount_minor__gt=0),
                 name="payments_allocation_positive",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(obligation__isnull=False, billing_invoice__isnull=True)
+                    | models.Q(obligation__isnull=True, billing_invoice__isnull=False)
+                ),
+                name="payments_allocation_exactly_one_obligation",
             ),
         ]
 

@@ -178,7 +178,7 @@ PLANS: list[dict] = [
     {
         "code": "FREE",
         "name": "Free",
-        "description": "For individual landlords getting started.",
+        "description": "For individual landlords getting started",
         "monthly_price": Decimal("0"),
         "annual_price": Decimal("0"),
         "display_order": 1,
@@ -202,7 +202,7 @@ PLANS: list[dict] = [
     {
         "code": "PRO",
         "name": "Pro",
-        "description": "For landlords managing a growing portfolio.",
+        "description": "For growing landlords who need automation and deeper management tools",
         "monthly_price": Decimal("89"),
         "annual_price": Decimal("890"),
         "display_order": 2,
@@ -226,7 +226,7 @@ PLANS: list[dict] = [
     {
         "code": "BUSINESS",
         "name": "Business",
-        "description": "For professional property operations and teams.",
+        "description": "For professional property operations and teams",
         "monthly_price": Decimal("299"),
         "annual_price": Decimal("2990"),
         "display_order": 3,
@@ -256,6 +256,34 @@ PLANS: list[dict] = [
 #: What to suggest when a limit is reached. Ordered, so the recommendation is
 #: the next plan that actually clears the limit rather than the most expensive.
 UPGRADE_ORDER = ["FREE", "PRO", "BUSINESS"]
+
+#: The few capabilities a plan chooser leads with, per plan, in display order.
+#:
+#: Presentation, like `ENTITLEMENT_GROUPS`: a chooser that printed every
+#: entitlement for every plan would be the full comparison table squeezed into a
+#: card. The API only ever returns a highlight the plan actually grants, so
+#: moving a capability off a plan removes its highlight without touching this.
+PLAN_HIGHLIGHTS: dict[str, list[str]] = {
+    "FREE": [],
+    "PRO": [AUTOMATED_RENT_REMINDERS, ADVANCED_REPORTING, PORTFOLIO_ANALYTICS, TEAM_MANAGEMENT],
+    "BUSINESS": [BULK_OPERATIONS, PROPERTY_ASSIGNMENTS, ACCOUNTANT_ACCESS, API_ACCESS],
+}
+
+#: The plan that suits most growing providers, marked quietly in the chooser.
+#: Never shown to a Portfolio already on it or above it: "recommended" on a
+#: cheaper plan reads as a nudge to downgrade.
+RECOMMENDED_PLAN = "PRO"
+
+#: How long an unpaid invoice may still start a payment. Long enough to find a
+#: phone and approve a mobile-money prompt; short enough that a credit for
+#: unused time is never stale by more than a rounding error.
+INVOICE_TTL_MINUTES = 60
+
+#: Days a lapsed paid period keeps its plan's entitlements while renewal is due.
+GRACE_DAYS = 7
+
+#: How close to the end of a paid period a Portfolio may pay for the next one.
+RENEWAL_WINDOW_DAYS = 14
 
 
 def sync_catalogue(apps=None) -> None:

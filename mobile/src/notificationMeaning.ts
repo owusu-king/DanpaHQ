@@ -70,6 +70,8 @@ export function destination(
       return { pathname: "/(app)/team" };
     case "portfolio_invitation":
       return { pathname: "/(app)/portfolio-invitations" };
+    case "billing":
+      return { pathname: "/(app)/billing" };
     default:
       // Whichever side the person is on. There is no standalone home route on
       // mobile: the tab groups are the home for each workspace.

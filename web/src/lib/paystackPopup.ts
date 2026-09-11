@@ -1,4 +1,4 @@
-import { paystackAccessCode, type PaymentIntent } from "@/lib/payments";
+import { paystackAccessCode, type ProviderCheckout } from "@/lib/payments";
 
 export type PaystackPopupCallbacks = {
   onSuccess: () => void;
@@ -10,7 +10,7 @@ export type PaystackPopupCallbacks = {
  * official in-page checkout. The callback is navigation/status UX only; the
  * backend webhook/verification endpoint remains the payment authority. */
 export async function openPaystackPopup(
-  intent: PaymentIntent,
+  intent: ProviderCheckout,
   callbacks: PaystackPopupCallbacks,
 ): Promise<boolean> {
   const accessCode = paystackAccessCode(intent);

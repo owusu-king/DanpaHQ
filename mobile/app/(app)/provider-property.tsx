@@ -84,7 +84,11 @@ export default function ProviderPropertyScreen() {
         ),
       )
     : [];
-  const canAddUnit = property?.capabilities.private_inventory?.allowed ?? false;
+  // A property above its Portfolio's plan allowance takes no new units. The API
+  // refuses regardless; this only stops offering what it would refuse.
+  const access = property?.billing_access;
+  const restricted = Boolean(access && access.state !== "full");
+  const canAddUnit = (property?.capabilities.private_inventory?.allowed ?? false) && !restricted;
   const status = property ? propertyStatus(property.verification) : null;
   const fullAddress = property
     ? [
@@ -128,6 +132,13 @@ export default function ProviderPropertyScreen() {
               title={property.title || "Untitled Property"}
               subtitle={fullAddress || `${property.address.locality_name}, ${property.address.district_name}`}
               status={status ? <StatusLine label={status.label} tone={status.tone} /> : undefined}
+            />
+          ) : null}
+          {access && restricted ? (
+            <Notice
+              tone={access.state === "wind_down" ? "warning" : "info"}
+              title={access.state === "wind_down" ? "Winding down on your current plan" : "Read-only on your current plan"}
+              body={`${access.message} Manage this in More → Plan & billing.`}
             />
           ) : null}
           {property ? <PropertyLifecycle property={property} steps={steps} onChanged={load} compact /> : null}

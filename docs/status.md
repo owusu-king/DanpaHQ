@@ -802,6 +802,166 @@ is the next phase and settles through the existing Payments Core — a
 server-priced invoice paid by a `PaymentIntent`, activated on confirmed payment,
 never because a client came back from a checkout page. Reasoning in ADR 0032.
 
+## Provider subscription checkout and the Plan & billing redesign — 11 September 2026
+
+Superseding the "no checkout" statements above: a Portfolio owner or
+administrator can now upgrade, renew and downgrade from **Settings → Plan &
+billing** on the web. The plan still moves only on a server-confirmed payment.
+
+**Backend.** `BillingInvoice` (server-priced, credit for unused paid time, one
+open per account, paid/void final at the engine); `PaymentIntent.purpose` so the
+existing Payments Core settles an invoice as well as a `RentCharge`; settlement
+inside the one confirmation transaction with an allocation, ledger lines and a
+subscription receipt, and no beneficiary settlement; a period-end sweep for
+prepaid periods (grace, past due, scheduled downgrades, cancellation to Free);
+customer quote, checkout, refresh, retry, cancel, downgrade and keep-plan
+endpoints; payer notifications for subscription payment success and failure;
+the operations workspace shows subscription payments by Portfolio. Held by
+`tests/integration/test_billing_checkout.py` (45 tests) and the unchanged rent
+payment suites. See ADR 0032's amendment.
+
+**Web.** The page was rebuilt from Codex's draft, which had fabricated a
+`suspended` account status the model does not have, used an undefined spacing
+token, repeated plan, price and status three times, showed empty billing rows
+for Free, exposed staff-written event reasons, decided permission from a visible
+role, and ended every plan change in a "not connected" dead end. It is now one
+plan surface with usage and a single attention strip, quiet billing terms and
+invoice rows only where real, and a Change plan dialog — bottom sheet on small
+screens — that reviews, pays through the shared Paystack popup and waits for the
+server. Rules in `docs/design/UI_UX_PRODUCT_DESIGN.md` → Plan and billing.
+
+**Seen, not only asserted.** Every subscription state and each step of the
+dialog — upgrade with credit, pending, confirmed and failed payments, a
+downgrade above the lower plan's limits — was walked through in a temporary
+mocked-data route at 1440, 768, 430, 375 and 320px, then the route was removed.
+The phone pass changed three things: the full comparison and the downgrade
+review no longer squeeze three columns (each capability or limit takes its own
+line), a plan with nothing to do no longer leaves an empty button slot, and the
+sheet's two actions share a line when they fit. Escape now takes the same guard
+as the close button from anywhere in the dialog. **Not yet seen against the real
+API in a browser:** the in-app browser was signed out, so the page after a
+genuine confirmation and reload is held by the integration tests, which assert
+the billing read after the provider's webhook, rather than by a screenshot.
+
+**Not yet:** automatic recurring charges, grace reminders, refunds, native mobile
+checkout (mobile still reads plan and usage only).
+
+## Safe downgrade restrictions, mobile Plan & billing, and a steadier dialog — 11 September 2026
+
+**A downgrade still deletes nothing, and a paid plan's capacity no longer
+outlives it.** Superseding "stay readable, editable and lettable" (ADR 0032 §8,
+amended): what sits above the new plan's allowance is restricted, never removed.
+A property or unit with a tenancy or agreement still running is `WIND_DOWN` —
+tenants, rent obligations, payments and receipts carry on to the tenancy's end,
+and nothing new starts. One with nothing running is `READ_ONLY` — every record
+stays, and nothing new starts. Access is its own `billing.ResourceAccess` state;
+no property, tenancy or lease status is ever written because of a plan.
+
+**Backend.** `resource_access_service` restricts wherever the enforced limits
+fall (immediate and scheduled downgrades, grace ending in past due, lapsed or
+revoked overrides), keeps the provider's `KeepActiveChoice` or a documented
+fallback (most running units, then oldest), settles wind-down to read-only when
+the last tenancy or agreement ends (in that transaction, with a 15-minute sweep
+behind it), and never lifts a restriction by itself. Reactivation is a
+deliberate, capacity-checked endpoint, and restoring an archived property or
+unit is capacity-checked too. Enforcement sits behind `billing.enforcement` in
+the property, unit, building, bed, listing, discovery, application, viewing,
+join-request, access-code, lease and tenancy services; the API refuses with
+`409 resource_restricted`. The quote carries `resource_choice`, the billing read
+`active_usage` and `resource_access`, and property and unit reads
+`billing_access`. Held by `tests/integration/test_billing_resource_access.py`
+(37 tests) and a two-connection reactivation race.
+
+**Web.** The downgrade review asks what stays fully active in the approved words
+(*You're using 8 properties* / *Free includes 1* / *Choose the property you want
+to keep fully active.*), opens on the server's own selection, waits for a whole
+choice, and closes with *Your records stay safe*. Meters count what runs in full
+and name what is restricted; *Above your plan's limits* lists restricted
+resources and offers *Reactivate* only where the server reports room; property
+and unit pages say when they are restricted and stop offering *Add Unit*.
+
+**The plan dialog no longer shakes.** Measured cause: neither the page nor the
+dialog body reserved a scrollbar gutter, the dialog re-centred whenever its
+content changed height, and plan cards dropped their second price line in one
+billing cycle. The page and dialog body now reserve their gutters, the dialog is
+anchored to the top, and every card keeps its price note. Re-measured at
+1440×900 and 1366×768: switching monthly ↔ annual and opening the full comparison
+move the dialog's top, left and width by 0px and every plan card by 0px, and
+opening the dialog leaves the page where it was.
+
+**Mobile caught up with the redesign.** Plan & billing is the web page stacked —
+plan surface, restrictions with *Reactivate*, quiet records — and changing plan
+is a short journey of screens: plans, a review (paid, or the downgrade chooser),
+and a payment screen that follows a server-priced checkout in the shared secure
+sheet and waits for the server. The rules deciding what a downgrade keeps are the
+same text in both clients, held by a contract test. Property and unit screens
+carry the restriction notice. This supersedes the "mobile still reads plan and
+usage only" line above.
+
+**Checked.** Backend: the full suite and ruff. Web: tsc, eslint, 16 contract
+tests, 25 of 25 mutations caught. Mobile: tsc, eslint, 122 contract tests, 17 of
+17 mutations caught. Walked through in temporary mocked-data routes, since
+removed: the web chooser for one property, for ten of 38 properties and for units
+only, a swap in progress, the restricted section with and without room and a
+reactivation; the mobile screens at 390 and 320px, with no horizontal overflow or
+clipped text and plan cards keeping their heights across a cycle switch. **Not
+seen against the real API in a browser:** the in-app browser is signed out, so
+the real flows are held by the integration tests.
+
+**Not yet:** reactivation is one property or unit at a time; team members above a
+lower plan's limit are not chosen on downgrade (they keep access, and adding more
+waits); automatic recurring charges, grace reminders and refunds.
+
+## Subscription checkout failed every payment — fixed 11 September 2026
+
+**What happened.** Upgrading against Paystack's test mode ended in *You're still
+on Free — the payment was not completed* on the web, and on mobile the checkout
+never opened, although Paystack took the payment. Seven test payments that day
+succeeded at Paystack; Rooomly recorded every one as failed, and nothing told
+anybody.
+
+**Why.** The Paystack adapter mapped `abandoned` to `failed`. Paystack reports
+`abandoned` for a checkout that is open and not yet paid, and both clients ask
+for a payment's status as its checkout opens — so every checkout was marked
+failed within a second, before the payer could approve it. The failure was
+written as an immutable transaction under Paystack's transaction id; when the
+payment then succeeded under the same id it could not be posted, and refresh
+had stopped asking about a failed payment. On mobile the payment screen opens
+the checkout sheet only for a payment still pending, so it never opened. "Try
+again" made it worse: it re-initialized Paystack with the reference it already
+held, which Paystack refuses (the 422s), and the client then priced the change
+again, inviting a second payment.
+
+**Fixed.**
+- `abandoned` maps to `pending`; Rooomly's intent window closes an unpaid
+  checkout.
+- A retry asks the provider first: a success is applied instead of retried, and
+  a payment still being confirmed refuses (`payment_confirming`). The Paystack
+  adapter resumes the checkout already open for an intent instead of sending a
+  duplicate reference. When a retry is refused because money may already have
+  been taken, web and mobile keep the payer on the failed step with the reason
+  rather than offering the price again.
+- Reconciliation also asks about payments that failed in the last day. Money the
+  provider took is posted when it can be, and otherwise opened as
+  `provider_succeeded_internal_failed` for a person (migration `payments.0017`).
+
+Held by new tests in `test_paystack_adapter.py`, `test_paystack_lifecycle.py` (an
+`abandoned` checkout then paid under the same transaction id; a retry resuming
+the open checkout; a retry after Paystack took the money; a retry while it is
+still confirming) and `test_billing_checkout.py`, and by contract tests on both
+clients. Details in `docs/architecture/PAYSTACK_INTEGRATION.md`.
+
+**The test payments already taken** stay recorded as failed, and none of them
+upgraded the Portfolio. Rooomly cannot post them — their failure records hold the
+same Paystack transaction ids. Once the Celery worker runs this code, the hourly
+reconciliation opens a `provider_succeeded_internal_failed` exception for each
+payment Paystack took within the last day; in test mode nothing needs refunding.
+
+**Still open.** A reservation whose initialize response was lost cannot be
+resumed against Paystack until its window closes, and whether Paystack's hosted
+checkout accepts another attempt after it has marked a transaction `failed` has
+not been exercised.
+
 ## CI
 
 Three of the four jobs pass. `backend` is the exception, on its type-check and

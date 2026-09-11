@@ -23,6 +23,7 @@ from datetime import timedelta
 
 from django.conf import settings
 from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
 
 from apps.audit.models import AuditAction
@@ -72,6 +73,11 @@ ALERT_EVENT_BREACHED = "payment_reconciliation_exception_breached"
 #: unanswered one because somebody has it, but not silent: an investigation
 #: that stalls is still a tenant's payment nobody has accounted for.
 ALERT_EVENT_STALLED = "payment_reconciliation_exception_stalled"
+
+#: How far back the open-intent sweep also asks about payments Rooomly recorded
+#: as failed. A payer can still complete the provider transaction a failure was
+#: recorded against, and that money is invisible to a sweep of open intents.
+FAILED_INTENT_LOOKBACK = timedelta(hours=24)
 
 
 def _ageing_hours() -> int:
@@ -350,9 +356,17 @@ def sweep_open_intents(*, limit: int = 200, min_age_seconds: int = 300) -> dict[
     and tapped refresh, and no operator could put it right either: the exception
     queue is deliberately unable to move money.
 
+    **A recent failure is asked about too.** A payer can still complete the
+    provider transaction a failure was recorded against, and a failure can be
+    recorded before they have finished. Money the provider took after Rooomly
+    wrote "failed" is as real as money whose callback was lost, and a sweep of
+    open intents never saw it. Failures from the last day are included.
+
     Anything the confirmation boundary refuses — a mismatched amount, an
     obligation that changed underneath, a transaction id already spent — opens
-    an exception and stops, exactly as before.
+    an exception and stops, exactly as before: `provider_succeeded_internal_failed`
+    when Rooomly had recorded a failure, because applying or refunding that
+    money is a person's decision.
 
     ``min_age_seconds`` keeps the sweep off payments whose callback is merely in
     flight, so a perfectly ordinary checkout does not surface as an incident.
@@ -361,10 +375,12 @@ def sweep_open_intents(*, limit: int = 200, min_age_seconds: int = 300) -> dict[
 
     opened = 0
     recovered = 0
-    cutoff = timezone.now() - timedelta(seconds=min_age_seconds)
+    now = timezone.now()
+    cutoff = now - timedelta(seconds=min_age_seconds)
     stale = (
         PaymentIntent.objects.filter(
-            status__in=OPEN_INTENT_STATUSES,
+            Q(status__in=OPEN_INTENT_STATUSES)
+            | Q(status=IntentStatus.FAILED, updated_at__gte=now - FAILED_INTENT_LOOKBACK),
             created_at__lte=cutoff,
         )
         .exclude(provider_reference="")
@@ -402,7 +418,11 @@ def sweep_open_intents(*, limit: int = 200, min_age_seconds: int = 300) -> dict[
                     evidence_source="reconciliation_sweep",
                 )
             except (Conflict, NotFound, ValidationFailed, ProviderUnavailable) as exc:
-                kind = ReconciliationKind.PROVIDER_SUCCEEDED_INTERNAL_PENDING
+                kind = (
+                    ReconciliationKind.PROVIDER_SUCCEEDED_INTERNAL_FAILED
+                    if intent.status == IntentStatus.FAILED
+                    else ReconciliationKind.PROVIDER_SUCCEEDED_INTERNAL_PENDING
+                )
                 refusal = str(getattr(exc, "message", "") or exc)[:300]
             else:
                 recovered += 1

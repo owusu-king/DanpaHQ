@@ -86,7 +86,11 @@ export default function PropertyDetailPage() {
     ),
   );
   const status = propertyStatus(property);
-  const canAddUnit = property.capabilities.private_inventory?.allowed ?? false;
+  // A property above its Portfolio's plan allowance takes no new units. The API
+  // refuses regardless; this only stops offering what it would refuse.
+  const access = property.billing_access;
+  const restricted = Boolean(access && access.state !== "full");
+  const canAddUnit = (property.capabilities.private_inventory?.allowed ?? false) && !restricted;
   const edit = property.permitted_actions.edit;
   // Unfinished and exceptional states own their next action in the lifecycle
   // band beside the explanation. The entity header becomes operational only
@@ -110,6 +114,13 @@ export default function PropertyDetailPage() {
       />
 
       {error ? <Notice tone="error" title={error} body="Some information may be out of date. Try again." /> : null}
+      {access && restricted ? (
+        <Notice
+          tone={access.state === "wind_down" ? "warning" : "info"}
+          title={access.state === "wind_down" ? "Winding down on your current plan" : "Read-only on your current plan"}
+          body={`${access.message} Manage this in Settings → Plan & billing.`}
+        />
+      ) : null}
       <PropertyLifecycle property={property} steps={steps} onChanged={load} compact />
 
       <section className="workspace-section" aria-labelledby="units-heading">

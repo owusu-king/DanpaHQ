@@ -137,6 +137,11 @@ def draft_lease(
         user=user,
         capability=PropertyCapability.LEASES,
     )
+    # A space above its Portfolio's plan allowance starts no new agreement — not
+    # for a new tenant, and not a new period for one already there.
+    from apps.billing import enforcement as billing
+
+    billing.assert_open_for_new_activity(unit=unit, action="draft_lease")
     if str(tenant.id) == str(user.id):
         raise ValidationFailed("A landlord cannot lease a place to themselves.")
 
@@ -308,6 +313,11 @@ def amend_lease(*, lease: Lease, user, data: dict) -> Lease:
     snapshot.
     """
     assert_landlord_side(lease, user)
+    # An amendment is a new agreement over a new period. The running agreement
+    # continues untouched; a replacement waits for plan capacity.
+    from apps.billing import enforcement as billing
+
+    billing.assert_open_for_new_activity(unit=lease.unit, action="renew_lease")
     if lease.workflow_version != LeaseWorkflow.CANONICAL:
         raise Conflict("Only a guided agreement can be amended.")
     if lease.status != LeaseStatus.ACTIVE:
@@ -421,6 +431,11 @@ def ready_lease(*, lease: Lease, user) -> Lease:
 def offer_lease(*, lease: Lease, user, request=None) -> Lease:
     """Send it to the tenant. This is the landlord's acceptance."""
     assert_landlord_side(lease, user)
+    # An offer already sent before a restriction can still be accepted — it
+    # counts as running. A new one waits for plan capacity.
+    from apps.billing import enforcement as billing
+
+    billing.assert_open_for_new_activity(unit=lease.unit, action="offer_lease")
     required_status = (
         LeaseStatus.READY
         if lease.workflow_version == LeaseWorkflow.CANONICAL
@@ -811,6 +826,12 @@ def decline_lease(*, lease: Lease, user, reason: str = "", confirmed: bool = Tru
     lease.decline_reason = reason[:300]
     lease.save(update_fields=["status", "declined_at", "decline_reason", "updated_at"])
 
+    # The offer no longer counts as running, so a space winding down on a
+    # restricted plan may now be read-only.
+    from apps.billing import enforcement as billing
+
+    billing.rental_activity_ended(unit=lease.unit, actor=user)
+
     # The application behind this is no longer a live claim on the Unit.
     # Local import: `lease` and `application` are separate domains and must
     # not import each other at module scope.
@@ -845,6 +866,11 @@ def cancel_lease(*, lease: Lease, user, reason: str = "") -> Lease:
     lease.cancelled_at = timezone.now()
     lease.decline_reason = reason[:300]
     lease.save(update_fields=["status", "cancelled_at", "decline_reason", "updated_at"])
+
+    # A withdrawn offer no longer counts as running on a restricted space.
+    from apps.billing import enforcement as billing
+
+    billing.rental_activity_ended(unit=lease.unit, actor=user)
 
     # The application behind this is no longer a live claim on the Unit.
     # Local import: `lease` and `application` are separate domains and must

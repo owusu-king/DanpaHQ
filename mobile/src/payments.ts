@@ -145,10 +145,14 @@ export function getPaymentReceipt(id: string) {
   return apiFetch<PaymentReceipt>(`/payments/receipts/${id}/`);
 }
 
-export function safeCheckoutUrl(intent: PaymentIntent): string | null {
-  if (intent.next_action?.type !== "redirect" || !intent.next_action.url) return null;
+/** What the secure checkout needs from any payment the server opened with the
+ * provider — a rent intent or a subscription checkout. */
+export type ProviderCheckout = { id: string; next_action: { type?: string; url?: string } };
+
+export function safeCheckoutUrl(checkout: ProviderCheckout): string | null {
+  if (checkout.next_action?.type !== "redirect" || !checkout.next_action.url) return null;
   try {
-    const url = new URL(intent.next_action.url);
+    const url = new URL(checkout.next_action.url);
     const paystackHost = url.hostname === "paystack.com" || url.hostname.endsWith(".paystack.com");
     return url.protocol === "https:" && paystackHost ? url.toString() : null;
   } catch {

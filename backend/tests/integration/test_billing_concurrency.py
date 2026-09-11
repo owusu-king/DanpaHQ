@@ -103,3 +103,57 @@ def test_two_concurrent_creations_cannot_both_take_the_last_slot(landlord, portf
     assert len(refused) == 1, f"expected exactly one refusal, got {results}"
     assert isinstance(refused[0], entitlement_service.PlanLimitReached)
     assert usage_service.property_count(organization=portfolio) == ceiling
+
+
+def test_two_concurrent_reactivations_cannot_both_take_the_last_place(landlord, portfolio):
+    """The same race, after a downgrade: two restricted properties, room for one.
+
+    Reactivation takes the Portfolio lock and counts what is fully active under
+    it, so the second request waits, then finds the place taken.
+    """
+    from apps.billing.models import Entitlement, PortfolioPlanOverride, ResourceAccess
+    from apps.billing.services import resource_access_service, subscription_service
+
+    upgrade_portfolio(portfolio, "BUSINESS")
+    _make_property(landlord, portfolio, "Kept", "1 Keep Road")
+    waiting = [
+        _make_property(landlord, portfolio, "Waiting A", "2 Wait Road"),
+        _make_property(landlord, portfolio, "Waiting B", "3 Wait Road"),
+    ]
+    subscription_service.change_plan(
+        organization=portfolio, plan_code="FREE", actor=landlord, reason="test downgrade"
+    )
+    PortfolioPlanOverride.objects.create(
+        organization=portfolio,
+        entitlement=Entitlement.objects.get(key="PROPERTY_LIMIT"),
+        value=2,
+        reason="Room for one more",
+        created_by=landlord,
+    )
+
+    results: list[object] = []
+    barrier = threading.Barrier(2)
+
+    def attempt(prop):
+        barrier.wait()
+        try:
+            results.append(
+                resource_access_service.reactivate(
+                    organization=portfolio, user=landlord, property_ids=[str(prop.id)]
+                )
+            )
+        except Exception as exc:
+            results.append(exc)
+        finally:
+            connections.close_all()
+
+    threads = [threading.Thread(target=attempt, args=(prop,)) for prop in waiting]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=30)
+
+    refused = [row for row in results if isinstance(row, Exception)]
+    assert len(refused) == 1, f"expected exactly one refusal, got {results}"
+    assert isinstance(refused[0], entitlement_service.PlanLimitReached)
+    assert ResourceAccess.objects.filter(organization=portfolio, kind="property").count() == 1

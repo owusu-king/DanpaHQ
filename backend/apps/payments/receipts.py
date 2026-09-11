@@ -20,10 +20,72 @@ from reportlab.platypus import (
 )
 
 SNAPSHOT_VERSION = "rooomly.payment_receipt.v1"
+#: A different document, not a variant of the rent one: it records what a
+#: Portfolio paid Rooomly for its plan, and names no tenant, premises or lease.
+SUBSCRIPTION_SNAPSHOT_VERSION = "rooomly.subscription_receipt.v1"
 STAMP_NOTICE = (
     "Any stamping requirement has not been assessed by Rooomly. This document records a "
     "processor-confirmed payment and is not a certification of legal compliance."
 )
+SUBSCRIPTION_NOTICE = (
+    "This receipt records a processor-confirmed payment to Rooomly for a Portfolio "
+    "subscription. It is not a rent receipt."
+)
+
+
+def build_subscription_snapshot(
+    *, transaction_row, invoice, receipt_number: str, issued_at
+) -> dict:
+    """Freeze what a Portfolio paid Rooomly for, from the settled invoice."""
+
+    intent = transaction_row.intent
+    account = invoice.billing_account
+    organization = account.organization
+    return {
+        "schema_version": SUBSCRIPTION_SNAPSHOT_VERSION,
+        "receipt_number": receipt_number,
+        "issued_at": issued_at.isoformat(),
+        "portfolio": {
+            "organization_id": str(organization.id),
+            "name": organization.name,
+            "billing_email": account.billing_email,
+        },
+        "paid_by": {
+            "account_id": str(intent.initiated_by_id),
+            "name": intent.initiated_by.display_name,
+        },
+        "invoice": {
+            "id": str(invoice.id),
+            "number": invoice.number,
+            "kind": invoice.kind,
+            "kind_label": invoice.get_kind_display(),
+            "plan_code": invoice.plan.code,
+            "plan_name": invoice.plan.name,
+            "billing_interval": invoice.billing_interval,
+            "billing_interval_label": invoice.get_billing_interval_display(),
+            "period_start": invoice.period_start.isoformat() if invoice.period_start else None,
+            "period_end": invoice.period_end.isoformat() if invoice.period_end else None,
+            "list_price_minor": invoice.list_price_minor,
+            "credit_minor": invoice.credit_minor,
+            "amount_minor": invoice.amount_minor,
+            "currency": invoice.amount_currency,
+        },
+        "payment": {
+            "amount_minor": transaction_row.amount_minor,
+            "currency": transaction_row.amount_currency,
+            "method": transaction_row.payment_method,
+            "method_label": transaction_row.get_payment_method_display(),
+            "paid_at": (transaction_row.paid_at or issued_at).isoformat(),
+            "source": "PLATFORM_PSP",
+            "source_label": "Processed through Rooomly",
+        },
+        "processor": {
+            "name": transaction_row.provider,
+            "transaction_id": transaction_row.provider_transaction_id,
+            "provider_reference": intent.provider_reference,
+        },
+        "evidence": {"status": "PSP_CONFIRMED", "label": "Processor confirmed"},
+    }
 
 
 def build_snapshot(*, transaction_row, obligation, receipt_number: str, issued_at) -> dict:
@@ -215,6 +277,7 @@ def render_pdf(snapshot: dict) -> bytes:
 
     buffer = io.BytesIO()
     receipt_number = str(snapshot.get("receipt_number", "Rooomly receipt"))
+    is_subscription = snapshot.get("schema_version") == SUBSCRIPTION_SNAPSHOT_VERSION
     doc = SimpleDocTemplate(
         buffer,
         pagesize=A4,
@@ -224,7 +287,7 @@ def render_pdf(snapshot: dict) -> bytes:
         bottomMargin=18 * mm,
         title=f"Rooomly receipt {receipt_number}",
         author="Rooomly",
-        subject="Rental payment receipt",
+        subject="Subscription payment receipt" if is_subscription else "Rental payment receipt",
     )
     styles = getSampleStyleSheet()
     ink = colors.HexColor("#17352C")
@@ -288,6 +351,19 @@ def render_pdf(snapshot: dict) -> bytes:
     def cell(value, style=body):
         return Paragraph(escape(str(value or "—"), quote=False), style)
 
+    if is_subscription:
+        return _render_subscription_pdf(
+            doc=doc,
+            buffer=buffer,
+            snapshot=snapshot,
+            receipt_number=receipt_number,
+            amount_label=amount_label,
+            styles={"title": title_style, "amount": amount_style, "small": small},
+            cell=cell,
+            rule=rule,
+            muted=muted,
+        )
+
     rows = [
         [cell("Tenant", small), cell(tenant.get("name"))],
         [cell("Received by", small), cell(received_by)],
@@ -347,6 +423,95 @@ def render_pdf(snapshot: dict) -> bytes:
 
     doc.build(story, onFirstPage=footer, onLaterPages=footer)
     return buffer.getvalue()
+
+
+def _render_subscription_pdf(
+    *, doc, buffer, snapshot, receipt_number, amount_label, styles, cell, rule, muted
+) -> bytes:
+    """The subscription receipt: Portfolio, plan, period, invoice and evidence."""
+    small = styles["small"]
+    invoice = snapshot.get("invoice", {})
+    payment = snapshot.get("payment", {})
+    processor = snapshot.get("processor", {})
+    evidence = snapshot.get("evidence", {})
+    period = "Not applicable"
+    if invoice.get("period_start") and invoice.get("period_end"):
+        period = (
+            f"{_datetime_date_label(invoice['period_start'])} to "
+            f"{_datetime_date_label(invoice['period_end'])}"
+        )
+    plan = f"{invoice.get('plan_name', '')} · {invoice.get('billing_interval_label', '')}"
+    rows = [
+        [cell("Portfolio", small), cell(snapshot.get("portfolio", {}).get("name"))],
+        [cell("Paid by", small), cell(snapshot.get("paid_by", {}).get("name"))],
+        [cell("Plan", small), cell(plan)],
+        [cell("Payment for", small), cell(invoice.get("kind_label"))],
+        [cell("Period covered", small), cell(period)],
+        [cell("Invoice", small), cell(invoice.get("number"))],
+    ]
+    if int(invoice.get("credit_minor") or 0) > 0:
+        currency = invoice.get("currency", "GHS")
+        list_price = Decimal(int(invoice.get("list_price_minor", 0))) / Decimal(100)
+        credit = Decimal(int(invoice.get("credit_minor", 0))) / Decimal(100)
+        rows.extend(
+            [
+                [cell("Plan price", small), cell(f"{currency} {list_price:,.2f}")],
+                [cell("Unused time credited", small), cell(f"-{currency} {credit:,.2f}")],
+            ]
+        )
+    rows.extend(
+        [
+            [cell("Paid", small), cell(_datetime_label(payment.get("paid_at")))],
+            [cell("Method", small), cell(payment.get("method_label"))],
+            [cell("Evidence", small), cell(evidence.get("label"))],
+            [cell("Processor", small), cell(str(processor.get("name", "")).title())],
+            [cell("Transaction reference", small), cell(processor.get("transaction_id"))],
+        ]
+    )
+    table = Table(rows, colWidths=[42 * mm, 124 * mm])
+    table.setStyle(
+        TableStyle(
+            [
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("LINEBELOW", (0, 0), (-1, -2), 0.35, rule),
+                ("TOPPADDING", (0, 0), (-1, -1), 6),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+            ]
+        )
+    )
+    story = [
+        Paragraph("Rooomly subscription receipt", styles["title"]),
+        Paragraph(f"Receipt {escape(receipt_number, quote=False)}", small),
+        Paragraph(amount_label, styles["amount"]),
+        table,
+        Spacer(1, 7 * mm),
+        Paragraph(escape(SUBSCRIPTION_NOTICE), small),
+    ]
+
+    def footer(canvas, doc_instance):
+        canvas.saveState()
+        canvas.setStrokeColor(rule)
+        canvas.line(20 * mm, 13 * mm, A4[0] - 20 * mm, 13 * mm)
+        canvas.setFillColor(muted)
+        canvas.setFont("Helvetica", 7.5)
+        canvas.drawString(20 * mm, 8 * mm, f"Rooomly · {receipt_number}")
+        canvas.drawRightString(A4[0] - 20 * mm, 8 * mm, f"Page {doc_instance.page}")
+        canvas.restoreState()
+
+    doc.build(story, onFirstPage=footer, onLaterPages=footer)
+    return buffer.getvalue()
+
+
+def _datetime_date_label(value) -> str:
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+        return str(value or "—")
+    if parsed.tzinfo is not None:
+        parsed = parsed.astimezone(UTC)
+    return f"{parsed.day} {parsed:%B %Y}"
 
 
 def _date_label(value) -> str:

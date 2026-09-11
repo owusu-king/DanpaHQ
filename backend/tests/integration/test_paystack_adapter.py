@@ -116,7 +116,7 @@ class TestTranslation:
         [
             ("success", "succeeded"),
             ("failed", "failed"),
-            ("abandoned", "failed"),
+            ("abandoned", "pending"),
             ("reversed", "reversed"),
             ("pending", "pending"),
             ("ongoing", "processing"),
@@ -225,6 +225,31 @@ class TestOutboundCalls:
         assert state.status == "succeeded"
         assert state.amount_minor == 150000
         assert state.payment_method == "card"
+
+    def test_a_checkout_the_payer_has_not_finished_is_not_a_failure(self):
+        """Paystack's `abandoned` is an open checkout, not a declined payment.
+
+        The status check that runs as checkout opens always sees it: nobody has
+        had time to pay. Read as `failed`, it failed every payment before the
+        payer could approve it.
+        """
+        payload = {
+            "status": True,
+            "data": {
+                "id": 302962,
+                "status": "abandoned",
+                "amount": 8900,
+                "currency": "GHS",
+                "channel": "mobile_money",
+                "paid_at": None,
+            },
+        }
+        with patch("apps.payments.paystack.requests.request", return_value=self._response(payload)):
+            state = PaystackPaymentProvider().query_payment(provider_reference="rmb_abc123")
+
+        assert state.found is True
+        assert state.status == "pending"
+        assert state.raw_status == "abandoned"
 
     def test_a_timeout_is_not_reported_as_a_failed_payment(self):
         """The distinction that stops money going missing.

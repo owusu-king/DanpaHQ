@@ -176,6 +176,44 @@ def unit_availability(unit) -> dict:
     return {"state": "available", "label": "Available"}
 
 
+#: A unit and its property can both be restricted; the stricter state is in force.
+_ACCESS_ORDER = {"full": 0, "wind_down": 1, "read_only": 2}
+
+
+def _billing_states(serializer, *, wanted: set[str], key) -> dict:
+    """The plan restrictions the rows being rendered touch, read once per response.
+
+    Asking per row would put a query on every property and unit in a list, so the
+    collection's answer is read the first time and held on the list serializer;
+    anything it did not cover, such as a nested record, is read when asked for.
+    Presentation only — the services refuse restricted actions whatever this says.
+    """
+    from django.db.models import Model
+
+    from apps.billing import enforcement as billing
+
+    holder = (
+        serializer.parent
+        if isinstance(serializer.parent, serializers.ListSerializer)
+        else serializer
+    )
+    cache = getattr(holder, "_billing_state_cache", None)
+    if cache is None:
+        cache = {"checked": set(), "properties": {}, "units": {}}
+        holder._billing_state_cache = cache
+        instances = holder.instance
+        if instances is not None:
+            rows = [instances] if isinstance(instances, Model) else list(instances)
+            wanted = {*wanted, *(str(key(row)) for row in rows)}
+    missing = {identifier for identifier in wanted if identifier not in cache["checked"]}
+    if missing:
+        states = billing.access_states(property_ids=missing)
+        cache["properties"].update(states["properties"])
+        cache["units"].update(states["units"])
+        cache["checked"].update(missing)
+    return cache
+
+
 class UnitSerializer(serializers.ModelSerializer):
     """A rentable space, as its provider sees it.
 
@@ -201,6 +239,9 @@ class UnitSerializer(serializers.ModelSerializer):
     photo_count = serializers.SerializerMethodField()
     permitted_actions = serializers.SerializerMethodField()
     access_code = serializers.SerializerMethodField()
+    #: Where this space stands against its Portfolio's plan allowance. Rendered,
+    #: never decided on: the services refuse restricted actions regardless.
+    billing_access = serializers.SerializerMethodField()
     # Deprecated compatibility field for installed clients. Raw access codes
     # are no longer readable after their one-time creation response.
     join_code = serializers.SerializerMethodField()
@@ -238,6 +279,7 @@ class UnitSerializer(serializers.ModelSerializer):
             "permitted_actions",
             "access_code",
             "join_code",
+            "billing_access",
             "created_at",
         ]
         read_only_fields = ["id", "property_id", "access_code", "join_code", "created_at"]
@@ -333,6 +375,19 @@ class UnitSerializer(serializers.ModelSerializer):
         if user is None:
             return {}
         return permitted_actions("space", actor=user, target=obj)
+
+    def get_billing_access(self, obj) -> dict:
+        """The space's access against its plan: its own, or its property's when stricter."""
+        from apps.billing import enforcement as billing
+
+        states = _billing_states(
+            self, wanted={str(obj.property_id)}, key=lambda row: row.property_id
+        )
+        own = states["units"].get(str(obj.id), "full")
+        inherited = states["properties"].get(str(obj.property_id), "full")
+        return billing.access_payload(
+            max(own, inherited, key=_ACCESS_ORDER.__getitem__), noun="unit"
+        )
 
 
 class UnitDetailSerializer(UnitSerializer):
@@ -480,6 +535,9 @@ class PropertySerializer(serializers.ModelSerializer):
     condition_state = serializers.SerializerMethodField()
     capabilities = serializers.SerializerMethodField()
     permitted_actions = serializers.SerializerMethodField()
+    #: Where this property stands against its Portfolio's plan allowance.
+    #: Rendered, never decided on: the services refuse restricted actions.
+    billing_access = serializers.SerializerMethodField()
     #: Where this property stands, as one state rather than two half-answers.
     #:
     #: `authority_state` stays beside it and is unchanged, because installed
@@ -522,6 +580,7 @@ class PropertySerializer(serializers.ModelSerializer):
             "verification",
             "capabilities",
             "permitted_actions",
+            "billing_access",
             "created_at",
         ]
         read_only_fields = [
@@ -721,6 +780,15 @@ class PropertySerializer(serializers.ModelSerializer):
         if user is None:
             return {}
         return permitted_actions("property", actor=user, target=obj)
+
+    def get_billing_access(self, obj) -> dict:
+        """The property's access against its Portfolio's plan allowance."""
+        from apps.billing import enforcement as billing
+
+        states = _billing_states(self, wanted={str(obj.id)}, key=lambda row: row.id)
+        return billing.access_payload(
+            states["properties"].get(str(obj.id), "full"), noun="property"
+        )
 
 
 class ProviderApplicationSerializer(serializers.ModelSerializer):

@@ -14,9 +14,16 @@ from .models import (
 
 @admin.register(PaymentIntent)
 class PaymentIntentAdmin(admin.ModelAdmin):
-    list_display = ("client_reference", "provider", "status", "amount_minor", "created_at")
-    list_filter = ("provider", "status", "payment_method")
-    raw_id_fields = ("tenant", "lease", "obligation")
+    list_display = (
+        "client_reference",
+        "purpose",
+        "provider",
+        "status",
+        "amount_minor",
+        "created_at",
+    )
+    list_filter = ("purpose", "provider", "status", "payment_method")
+    raw_id_fields = ("tenant", "lease", "obligation", "billing_invoice", "initiated_by")
     readonly_fields = ("client_reference", "provider_reference", "amount_minor", "amount_currency")
 
 

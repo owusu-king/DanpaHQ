@@ -173,6 +173,7 @@ What each kind means and what actually fixes it:
 | Kind | What happened | What to do |
 |---|---|---|
 | `provider_succeeded_internal_pending` | The sweep found a provider-confirmed payment it could **not** post | Read `detail.confirmation_refused`. This is the reason the automatic recovery was refused; it is usually an obligation that changed underneath the payment |
+| `provider_succeeded_internal_failed` | The provider took money for a payment Rooomly had recorded as failed, and the sweep could **not** post it | Read `detail.confirmation_refused`. Usually a payer told the payment failed who then replaced the checkout or paid again. Decide with the payer whether it is applied or refunded at the provider — nothing in Rooomly moves it |
 | `amount_mismatch` / `currency_mismatch` | Rooomly and the provider disagree about the figure | Never "correct" Rooomly to match. Establish which is right with the provider first |
 | `settlement_amount_mismatch` | A payout batch paid a figure Rooomly did not expect | Compare against the provider's settlement report; fees are the usual cause |
 | `reversal` | The provider reversed a confirmed payment | Treat as a chargeback: the obligation is unpaid again, and that needs a product decision, not an edit |

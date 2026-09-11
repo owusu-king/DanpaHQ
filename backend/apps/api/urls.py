@@ -387,6 +387,51 @@ organization_patterns = [
         billing_views.PortfolioBillingView.as_view(),
         name="organization-billing",
     ),
+    path(
+        "organizations/<uuid:pk>/billing/quote/",
+        billing_views.PlanChangeQuoteView.as_view(),
+        name="organization-billing-quote",
+    ),
+    path(
+        "organizations/<uuid:pk>/billing/checkout/",
+        billing_views.CheckoutView.as_view(),
+        name="organization-billing-checkout",
+    ),
+    path(
+        "organizations/<uuid:pk>/billing/checkout/<uuid:intent_pk>/",
+        billing_views.CheckoutDetailView.as_view(),
+        name="organization-billing-checkout-detail",
+    ),
+    path(
+        "organizations/<uuid:pk>/billing/checkout/<uuid:intent_pk>/refresh/",
+        billing_views.CheckoutRefreshView.as_view(),
+        name="organization-billing-checkout-refresh",
+    ),
+    path(
+        "organizations/<uuid:pk>/billing/checkout/<uuid:intent_pk>/retry/",
+        billing_views.CheckoutRetryView.as_view(),
+        name="organization-billing-checkout-retry",
+    ),
+    path(
+        "organizations/<uuid:pk>/billing/checkout/<uuid:intent_pk>/cancel/",
+        billing_views.CheckoutCancelView.as_view(),
+        name="organization-billing-checkout-cancel",
+    ),
+    path(
+        "organizations/<uuid:pk>/billing/plan-change/",
+        billing_views.PlanChangeView.as_view(),
+        name="organization-billing-plan-change",
+    ),
+    path(
+        "organizations/<uuid:pk>/billing/keep-plan/",
+        billing_views.KeepPlanView.as_view(),
+        name="organization-billing-keep-plan",
+    ),
+    path(
+        "organizations/<uuid:pk>/billing/resource-access/reactivate/",
+        billing_views.ResourceReactivateView.as_view(),
+        name="organization-billing-reactivate",
+    ),
     path("plans/", billing_views.PlanCatalogueView.as_view(), name="plan-catalogue"),
     path(
         "organizations/<uuid:pk>/payout-destination/",

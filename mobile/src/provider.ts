@@ -113,6 +113,9 @@ export type Property = {
    *  `revoked` into `unverified`, so a page cannot be state-aware on it. */
   verification: PropertyVerification;
   permitted_actions: Record<string, PermittedAction>;
+  /** Where it stands against the Portfolio's plan allowance — never its lifecycle.
+   *  Above the allowance it keeps its status, its records and its tenancies. */
+  billing_access?: import("@/billing").BillingAccess;
   /** The Ghana-specific facts that decide what this property must photograph.
    *  Both default to `unknown`, which is the state the details step exists to
    *  leave — see `trust.evidence_policy`. */
@@ -272,6 +275,8 @@ export type Unit = {
   primary_photo: SpacePhoto | null;
   photo_count: number;
   permitted_actions: Record<string, PermittedAction>;
+  /** Where it stands against the Portfolio's plan allowance — never its lifecycle. */
+  billing_access?: import("@/billing").BillingAccess;
   access_code: AccessCodeState;
   /** Deprecated. Raw codes are returned only by create/rotate. */
   join_code: string | null;

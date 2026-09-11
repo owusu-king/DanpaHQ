@@ -1,384 +1,277 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
+import { BillingRecords } from "@/components/billing/BillingRecords";
+import { CurrentPlan } from "@/components/billing/CurrentPlan";
+import { PlanChangeDialog, type PlanChangeStart } from "@/components/billing/PlanChangeDialog";
+import { RestrictedResources } from "@/components/billing/RestrictedResources";
+import { Button } from "@/components/Button";
 import { Notice } from "@/components/Notice";
 import { Select } from "@/components/Select";
-import { LoadingRows } from "@/components/portal/PageHeader";
+import { useToast } from "@/components/toast/Toaster";
 import { ApiFailure } from "@/lib/api";
 import {
   getPlanCatalogue,
   getPortfolioBilling,
-  listOrganizations,
-  type EntitlementMeta,
-  type EntitlementValue,
-  type Organization,
+  keepCurrentPlan,
+  reactivateResources,
   type PlanCatalogue,
-  type PlanSummary,
   type PortfolioBilling,
-} from "@/lib/console";
+  type RestrictedResource,
+} from "@/lib/billing";
+import type { StandingAction } from "@/lib/billingPresentation";
+import { listOrganizations, type Organization } from "@/lib/console";
 import { useSession } from "@/lib/session";
 
+type View =
+  | { status: "loading" }
+  | { status: "empty" }
+  | { status: "error"; message: string }
+  | { status: "forbidden"; organization: Organization }
+  | { status: "ready"; organization: Organization; billing: PortfolioBilling; catalogue: PlanCatalogue };
+
 /**
- * Plan & billing.
+ * Plan & billing: one Portfolio's plan, usage and payments to Rooomly.
  *
- * A provider opens this to answer one question — "can I add another property"
- * — so the meters are the top of the page and the plan ladder sits under them.
- * Shopping is the secondary job.
+ * Glance → understand → act. The plan, its price, how long it is paid for and
+ * how much of it is in use lead the page; anything held above the plan's limits
+ * comes next, with the way back; how it is billed and what has been paid sit
+ * quietly under it; the three-plan comparison lives inside Change plan rather
+ * than on the page.
  *
- * Nothing on this page decides anything. Every limit shown is checked again on
- * the server inside the transaction that takes the slot; this renders the same
- * numbers the backend enforces with, and if the two ever disagree the server is
- * right. Names and grouping come from the catalogue rather than from constants
- * here, so moving a capability between plans stays a backend change.
- *
- * There is no checkout. Paid plans are not live, and a button that took money
- * before the payment path was finished is the one thing this whole architecture
- * has been careful not to build.
+ * Everything shown comes from the server — the catalogue, this Portfolio's
+ * billing read, and what the signed-in person may do with it — and the page
+ * reads it again after every change rather than trusting what it sent.
  */
 export default function BillingPage() {
   const { state, activeContext } = useSession();
+  const { toast } = useToast();
   const [organizations, setOrganizations] = useState<Organization[]>([]);
-  const [organization, setOrganization] = useState<Organization | null>(null);
-  const [billing, setBilling] = useState<PortfolioBilling | null>(null);
-  const [catalogue, setCatalogue] = useState<PlanCatalogue | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [chosen, setChosen] = useState<string | null>(null);
-  // Set only when this page's own switcher is used. Until then the session's
-  // active Portfolio decides, so arriving here shows the one you were just in.
   const [picked, setPicked] = useState<string | null>(null);
+  const [view, setView] = useState<View>({ status: "loading" });
+  const [dialog, setDialog] = useState<PlanChangeStart | null>(null);
+  const [busyAction, setBusyAction] = useState<StandingAction["kind"] | null>(null);
+  const [reactivating, setReactivating] = useState<string | null>(null);
 
-  const sessionId = activeContext?.startsWith("organization:")
-    ? activeContext.slice("organization:".length)
-    : "";
-  const activeId = picked ?? sessionId;
+  const sessionId = activeContext?.startsWith("organization:") ? activeContext.slice("organization:".length) : "";
+  const wanted = picked ?? sessionId;
+  const signedIn = state.status === "signed_in";
 
   const load = useCallback(async () => {
-    setLoading(true);
-    setError("");
+    let organization: Organization | undefined;
     try {
-      const orgs = await listOrganizations();
-      setOrganizations(orgs);
-      const target = orgs.find((row) => row.id === activeId) ?? orgs[0] ?? null;
-      setOrganization(target);
-      if (!target) {
-        setBilling(null);
+      const rows = await listOrganizations();
+      setOrganizations(rows);
+      organization = rows.find((row) => row.id === wanted) ?? rows[0];
+      if (!organization) {
+        setView({ status: "empty" });
         return;
       }
-      // The catalogue is public and the same for everybody; the snapshot is
-      // this Portfolio's own. Fetched together so the page renders once.
-      const [plans, snapshot] = await Promise.all([
-        getPlanCatalogue(),
-        getPortfolioBilling(target.id),
-      ]);
-      setCatalogue(plans);
-      setBilling(snapshot);
-    } catch (cause) {
-      setError(
-        cause instanceof ApiFailure ? cause.error.message : "Could not load this Portfolio's plan.",
+      const chosen = organization;
+      setView((current) =>
+        current.status === "ready" && current.organization.id === chosen.id ? current : { status: "loading" },
       );
-    } finally {
-      setLoading(false);
+      const [catalogue, billing] = await Promise.all([getPlanCatalogue(), getPortfolioBilling(chosen.id)]);
+      setView({ status: "ready", organization: chosen, billing, catalogue });
+    } catch (cause) {
+      if (organization && cause instanceof ApiFailure && cause.status === 403) {
+        setView({ status: "forbidden", organization });
+        return;
+      }
+      const message = cause instanceof ApiFailure ? cause.error.message : "Check your connection and try again.";
+      setView((current) => (current.status === "ready" ? current : { status: "error", message }));
     }
-  }, [activeId]);
+  }, [wanted]);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    if (signedIn) void load();
+  }, [signedIn, load]);
 
-  const meters = useMemo(() => {
-    if (!billing || !catalogue) return [];
-    return catalogue.headline_limits.map((key) => {
-      const meta = catalogue.entitlements.find((item) => item.key === key);
-      const limit = billing.limits[key] ?? null;
-      const used = billing.usage[USAGE_FOR[key] ?? ""] ?? 0;
-      return { key, name: meta?.name ?? key, used, limit };
-    });
-  }, [billing, catalogue]);
+  const organizationId = view.status === "ready" ? view.organization.id : null;
 
-  if (state.status !== "signed_in") return <LoadingRows rows={4} />;
-  if (loading && !billing) {
-    return (
-      <div className="billing-workspace">
-        <section className="settings-section">
-          <h2>Plan &amp; billing</h2>
-        </section>
-        <LoadingRows rows={4} />
-      </div>
-    );
-  }
+  /** Take the server's answer when there is one; otherwise read it again. */
+  const changed = useCallback(
+    async (next?: PortfolioBilling) => {
+      if (!organizationId) return;
+      if (next) {
+        setView((current) => (current.status === "ready" ? { ...current, billing: next } : current));
+        return;
+      }
+      try {
+        const billing = await getPortfolioBilling(organizationId);
+        setView((current) =>
+          current.status === "ready" && current.organization.id === organizationId ? { ...current, billing } : current,
+        );
+      } catch {
+        // The page keeps what it last knew; the next read corrects it.
+      }
+    },
+    [organizationId],
+  );
 
-  if (error) {
-    return (
-      <div className="billing-workspace">
-        <Notice tone="warning" title="Could not load this" body={error} />
-      </div>
-    );
-  }
+  const act = useCallback(
+    async (action: StandingAction) => {
+      if (view.status !== "ready") return;
+      const { billing, organization } = view;
+      const subscription = billing.subscription;
+      if (action.kind === "continue_payment" && billing.checkout.open) {
+        setDialog({ step: "payment", checkout: billing.checkout.open });
+      } else if (action.kind === "renew" && subscription) {
+        setDialog({ step: "review", plan: subscription.plan.code, interval: subscription.billing_interval });
+      } else if (action.kind === "keep") {
+        setBusyAction("keep");
+        try {
+          const next = await keepCurrentPlan(organization.id);
+          await changed(next);
+          toast({ tone: "success", title: `You're keeping ${next.subscription?.plan.name ?? "your plan"}` });
+        } catch (cause) {
+          toast({
+            tone: "error",
+            title: "Your plan was not changed",
+            description: cause instanceof ApiFailure ? cause.error.message : "Check your connection and try again.",
+          });
+        } finally {
+          setBusyAction(null);
+        }
+      }
+    },
+    [view, changed, toast],
+  );
 
-  if (!organization || !billing || !catalogue) {
-    return (
-      <div className="billing-workspace">
-        <Notice
-          tone="info"
-          title="No Portfolio yet"
-          body="A plan belongs to a property business, not to your account. Create a Portfolio and it starts on Free."
-        />
-      </div>
-    );
-  }
+  const reactivate = useCallback(
+    async (resource: RestrictedResource) => {
+      if (view.status !== "ready") return;
+      setReactivating(resource.id);
+      try {
+        // The server decides whether there is room; the page only says what it asked.
+        const next = await reactivateResources(
+          view.organization.id,
+          resource.kind === "property" ? { property_ids: [resource.id] } : { unit_ids: [resource.id] },
+        );
+        await changed(next);
+        toast({ tone: "success", title: `${resource.name} is fully active again` });
+      } catch (cause) {
+        toast({
+          tone: "error",
+          title: `${resource.name} is still restricted`,
+          description: cause instanceof ApiFailure ? cause.error.message : "Check your connection and try again.",
+        });
+        void changed();
+      } finally {
+        setReactivating(null);
+      }
+    },
+    [view, changed, toast],
+  );
 
-  const plan = billing.plan;
-  const canManage =
-    organization.current_user_role === "owner" || organization.current_user_role === "admin";
-  const cheaperFirst = catalogue.plans;
-  const currentIndex = catalogue.upgrade_order.indexOf(plan.code);
-  const selected = cheaperFirst.find((row) => row.code === chosen) ?? null;
+  if (!signedIn || view.status === "loading") return <BillingSkeleton />;
+
+  const organization = view.status === "ready" || view.status === "forbidden" ? view.organization : null;
 
   return (
-    <div className="billing-workspace">
-      <div className="billing-head">
+    <div className="billing-page">
+      <header className="billing-page-head">
         <div>
           <h2>Plan &amp; billing</h2>
-          <p className="type-caption">
-            {organization.name} is on a plan. Everyone you invite works inside it — a plan belongs
-            to the business, not to a person.
-          </p>
+          {organization ? <p>{organization.name}</p> : null}
         </div>
-        <span className="billing-plan-badge" data-plan={plan.code}>
-          {plan.name}
-        </span>
-      </div>
+        {organizations.length > 1 && organization ? (
+          <div className="billing-portfolio-switch">
+            <Select
+              label="Portfolio"
+              value={organization.id}
+              onChange={(value) => {
+                setDialog(null);
+                setPicked(value);
+              }}
+              options={organizations.map((row) => [row.id, row.name] as const)}
+            />
+          </div>
+        ) : null}
+      </header>
 
-      {organizations.length > 1 ? (
-        <div className="team-portfolio-switch">
-          <Select
-            label="Portfolio"
-            value={organization.id}
-            onChange={(value) => {
-              setChosen(null);
-              setPicked(value);
-            }}
-            options={organizations.map((row) => [row.id, row.name] as const)}
-          />
+      {view.status === "error" ? (
+        <div className="billing-state">
+          <Notice tone="error" title="Plan & billing didn't load" body={view.message} />
+          <Button variant="secondary" onClick={() => void load()}>
+            Try again
+          </Button>
         </div>
       ) : null}
 
-      {billing.over_limit.length ? (
-        <Notice
-          tone="warning"
-          title="This Portfolio holds more than its plan includes"
-          body={`${describeOver(billing.over_limit, catalogue.entitlements)} Nothing has been removed and nothing will be — everything stays readable, editable and lettable. What changes is that you cannot add more until you move to a larger plan.`}
-        />
-      ) : null}
-
-      <section className="settings-section">
-        <h3 className="type-label">WHAT YOU ARE USING</h3>
-        <dl className="billing-meters">
-          {meters.map((meter) => {
-            const fill = meterState(meter.used, meter.limit);
-            return (
-              <div className="billing-meter" key={meter.key} data-state={fill}>
-                <dt>{meter.name}</dt>
-                <dd className="billing-meter-count">
-                  {meter.used}
-                  <span className="billing-meter-of">
-                    {" "}
-                    of {meter.limit === null ? "unlimited" : meter.limit}
-                  </span>
-                </dd>
-                <div
-                  className="billing-bar"
-                  role="img"
-                  aria-label={`${meter.used} of ${meter.limit === null ? "unlimited" : meter.limit}`}
-                >
-                  <span style={{ width: `${barWidth(meter.used, meter.limit)}%` }} />
-                </div>
-                <p className="billing-meter-note">{meterNote(meter.used, meter.limit)}</p>
-              </div>
-            );
-          })}
-        </dl>
-      </section>
-
-      <section className="settings-section">
-        <h3 className="type-label">PLANS</h3>
-        <ul className="billing-plans">
-          {cheaperFirst.map((row) => {
-            const isCurrent = row.code === plan.code;
-            const rank = catalogue.upgrade_order.indexOf(row.code);
-            return (
-              <li className="billing-plan" key={row.code} data-current={isCurrent}>
-                <h4>{row.name}</h4>
-                <p className="billing-plan-price">
-                  {formatMoney(row.monthly_price_minor, row.currency)}
-                  {row.monthly_price_minor > 0 ? <small> /month</small> : null}
-                </p>
-                <p className="billing-plan-description">{row.description}</p>
-                {isCurrent ? (
-                  <p className="billing-plan-current">Your current plan</p>
-                ) : rank > currentIndex ? (
-                  <button
-                    type="button"
-                    className="button button-secondary"
-                    onClick={() => setChosen(row.code)}
-                    disabled={!canManage}
-                  >
-                    Upgrade to {row.name}
-                  </button>
-                ) : null}
-                {!canManage && rank > currentIndex ? (
-                  <p className="type-caption">Only an owner or administrator can change the plan.</p>
-                ) : null}
-              </li>
-            );
-          })}
-        </ul>
-      </section>
-
-      {selected ? (
+      {view.status === "forbidden" ? (
         <Notice
           tone="info"
-          title={`${selected.name} is not available to buy yet`}
-          body="Paid plans are still being finished. Nothing has been charged and your plan has not changed. We will let you know the moment they open."
+          title="Plan & billing is kept to the Portfolio's owner, administrators and accountants"
+          body="Ask the Portfolio owner if you need to know what this Portfolio is on."
         />
       ) : null}
 
-      <section className="settings-section">
-        <h3 className="type-label">WHAT EACH PLAN INCLUDES</h3>
-        <div className="billing-compare">
-          <table>
-            <caption>
-              Every limit here is checked on the server when you create something, not in this page.
-            </caption>
-            <thead>
-              <tr>
-                <th scope="col">Included</th>
-                {cheaperFirst.map((row) => (
-                  <th scope="col" key={row.code}>
-                    {row.name}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {catalogue.groups.map((group) => (
-                <Group
-                  key={group}
-                  group={group}
-                  entitlements={catalogue.entitlements.filter((item) => item.group === group)}
-                  plans={cheaperFirst}
-                  currentCode={plan.code}
-                />
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
+      {view.status === "empty" ? (
+        <Notice tone="info" title="No Portfolio yet" body="A plan belongs to a Portfolio. Create one and it starts on Free." />
+      ) : null}
 
-      <p className="type-caption">
-        Moving to a smaller plan never deletes properties, tenants, leases or payment records.
-      </p>
+      {view.status === "ready" ? (
+        <>
+          <CurrentPlan
+            billing={view.billing}
+            catalogue={view.catalogue}
+            busyAction={busyAction}
+            onChangePlan={() => setDialog({ step: "compare" })}
+            onAction={(action) => void act(action)}
+          />
+          <RestrictedResources
+            billing={view.billing}
+            busyId={reactivating}
+            onReactivate={(resource) => void reactivate(resource)}
+          />
+          <BillingRecords
+            billing={view.billing}
+            catalogue={view.catalogue}
+            onPayEarly={() => void act({ kind: "renew", label: "" })}
+          />
+          <PlanChangeDialog
+            open={dialog !== null}
+            start={dialog ?? { step: "compare" }}
+            organizationId={view.organization.id}
+            billing={view.billing}
+            catalogue={view.catalogue}
+            onClose={() => setDialog(null)}
+            onChanged={changed}
+          />
+        </>
+      ) : null}
     </div>
   );
 }
 
-function Group({
-  group,
-  entitlements,
-  plans,
-  currentCode,
-}: {
-  group: string;
-  entitlements: EntitlementMeta[];
-  plans: PlanSummary[];
-  currentCode: string;
-}) {
-  if (!entitlements.length) return null;
+function BillingSkeleton() {
   return (
-    <>
-      <tr className="billing-group-row">
-        <th scope="colgroup" colSpan={plans.length + 1}>
-          {group}
-        </th>
-      </tr>
-      {entitlements.map((item) => (
-        <tr key={item.key}>
-          <th scope="row">
-            {item.name}
-            {item.description ? <span>{item.description}</span> : null}
-          </th>
-          {plans.map((row) => (
-            <td key={row.code} data-current={row.code === currentCode}>
-              {renderValue(row.entitlements[item.key], item.value_type)}
-            </td>
+    <div className="billing-page" aria-busy="true" aria-label="Loading Plan and billing">
+      <div className="billing-page-head" aria-hidden="true">
+        <div className="billing-skeleton-stack">
+          <span className="skeleton billing-skeleton-title" />
+          <span className="skeleton billing-skeleton-line billing-skeleton-short" />
+        </div>
+      </div>
+      <div className="billing-plan" aria-hidden="true">
+        <div className="billing-plan-summary">
+          <span className="skeleton billing-skeleton-line billing-skeleton-short" />
+          <span className="skeleton billing-skeleton-name" />
+          <span className="skeleton billing-skeleton-line" />
+          <span className="skeleton billing-skeleton-price" />
+          <span className="skeleton billing-skeleton-button" />
+        </div>
+        <div className="billing-usage">
+          {[0, 1, 2].map((row) => (
+            <div key={row} className="billing-skeleton-stack">
+              <span className="skeleton billing-skeleton-line" />
+              <span className="skeleton billing-skeleton-bar" />
+            </div>
           ))}
-        </tr>
-      ))}
-    </>
+        </div>
+      </div>
+    </div>
   );
-}
-
-/** Which live count answers which limit. */
-const USAGE_FOR: Record<string, string> = {
-  PROPERTY_LIMIT: "PROPERTY_COUNT",
-  UNIT_LIMIT: "UNIT_COUNT",
-  TEAM_MEMBER_LIMIT: "TEAM_MEMBER_COUNT",
-};
-
-function renderValue(value: EntitlementValue | undefined, type: EntitlementMeta["value_type"]) {
-  if (!value) return <span className="billing-no">—</span>;
-  // Unlimited is a flag, never a large number. Printing "999999 properties"
-  // would tell somebody something false about the product.
-  if (value.unlimited) return <span className="billing-yes">Unlimited</span>;
-  if (type === "boolean") {
-    return value.value ? (
-      <span className="billing-yes">Included</span>
-    ) : (
-      <span className="billing-no">—</span>
-    );
-  }
-  return <>{value.value ?? <span className="billing-no">—</span>}</>;
-}
-
-function meterState(used: number, limit: number | null): "ok" | "near" | "over" {
-  if (limit === null) return "ok";
-  if (used > limit) return "over";
-  if (limit > 0 && used / limit >= 0.8) return "near";
-  return "ok";
-}
-
-function barWidth(used: number, limit: number | null): number {
-  if (limit === null || limit <= 0) return used > 0 ? 100 : 0;
-  return Math.min(100, Math.round((used / limit) * 100));
-}
-
-function meterNote(used: number, limit: number | null): string {
-  if (limit === null) return "No limit on your plan.";
-  if (used > limit) return `${used - limit} over what this plan includes.`;
-  const left = limit - used;
-  if (left === 0) return "You have used all of these.";
-  return `${left} left.`;
-}
-
-function describeOver(
-  rows: PortfolioBilling["over_limit"],
-  entitlements: EntitlementMeta[],
-): string {
-  return rows
-    .map((row) => {
-      const name = entitlements.find((item) => item.key === row.entitlement)?.name ?? row.entitlement;
-      return `${name}: ${row.current} against a limit of ${row.limit}.`;
-    })
-    .join(" ");
-}
-
-function formatMoney(minor: number, currency: string): string {
-  if (minor === 0) return "Free";
-  const major = minor / 100;
-  return `${currency === "GHS" ? "GH₵" : currency} ${major.toLocaleString("en-GH", {
-    minimumFractionDigits: major % 1 === 0 ? 0 : 2,
-    maximumFractionDigits: 2,
-  })}`;
 }

@@ -85,7 +85,7 @@ export default function ProviderMoreScreen() {
         <Row icon="lock-closed-outline" label="Security" onPress={() => router.push("/(app)/security" as never)} />
         <Row icon="options-outline" label="Notifications" onPress={() => router.push("/(app)/notification-settings" as never)} />
         <Row icon="people-circle-outline" label="Team" onPress={() => router.push("/(app)/team" as never)} />
-        <Row icon="pricetag-outline" label="Plan" onPress={() => router.push("/(app)/billing" as never)} />
+        <Row icon="pricetag-outline" label="Plan & billing" onPress={() => router.push("/(app)/billing" as never)} />
         <Row icon="archive-outline" label="Archive" onPress={() => router.push("/(app)/archive" as never)} />
       </Group>
 

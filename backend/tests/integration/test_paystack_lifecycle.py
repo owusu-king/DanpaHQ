@@ -617,6 +617,121 @@ class TestFailureRetryAndAbandonment:
         assert PaymentTransaction.objects.count() == 2
         assert PaymentAttempt.objects.filter(intent=intent).count() == 2
 
+    def test_a_checkout_the_payer_has_not_finished_stays_payable(
+        self, live, landlord, user, obligation
+    ):
+        """Paystack reports `abandoned` for every checkout nobody has paid yet.
+
+        The status check that runs as checkout opens used to read it as failed,
+        and the payment made seconds later — same reference, same transaction —
+        then had nothing left to settle.
+        """
+        _, charge = obligation
+        intent = payment_services.create_intent(
+            obligation=charge, user=user, payment_method="mobile_money"
+        )
+        live.charge(
+            intent.provider_reference,
+            amount=charge.amount_minor,
+            status="abandoned",
+            id=800001,
+            paid_at=None,
+        )
+
+        asked = payment_services.refresh_intent_from_provider(intent=intent, user=user)
+        assert asked.status == IntentStatus.PROCESSING
+        assert PaymentTransaction.objects.count() == 0
+
+        live.charge(intent.provider_reference, amount=charge.amount_minor, id=800001)
+        paid = payment_services.refresh_intent_from_provider(intent=asked, user=user)
+
+        charge.refresh_from_db()
+        assert paid.status == IntentStatus.SUCCEEDED
+        assert charge.status == ChargeStatus.PAID
+        assert PaymentTransaction.objects.count() == 1
+
+    def test_trying_again_resumes_the_checkout_paystack_already_holds(
+        self, live, landlord, user, obligation
+    ):
+        """Paystack refuses a second initialize for a reference it already holds.
+
+        Retrying used to send one anyway and got "Duplicate Transaction
+        Reference" back as a 422. What a retry should reach is the checkout
+        already open: the same reference and access code, and nothing sent.
+        """
+        _, charge = obligation
+        intent = payment_services.create_intent(
+            obligation=charge, user=user, payment_method="mobile_money"
+        )
+        opened = dict(intent.next_action)
+        failed = live.charge(
+            intent.provider_reference, amount=charge.amount_minor, status="failed", id=700101
+        )
+        body, headers = signed(charge_event(failed, event="charge.failed"))
+        payment_services.process_webhook(provider_name="paystack", raw_body=body, headers=headers)
+        initialized = live.initialize_count
+
+        intent.refresh_from_db()
+        payment_services.retry_intent(intent=intent, user=user)
+
+        intent.refresh_from_db()
+        assert live.initialize_count == initialized
+        assert intent.status == IntentStatus.PENDING
+        assert intent.next_action == opened
+
+    def test_trying_again_after_paystack_took_the_money_charges_nothing(
+        self, live, landlord, user, obligation
+    ):
+        _, charge = obligation
+        intent = payment_services.create_intent(
+            obligation=charge, user=user, payment_method="mobile_money"
+        )
+        failed = live.charge(
+            intent.provider_reference, amount=charge.amount_minor, status="failed", id=700201
+        )
+        body, headers = signed(charge_event(failed, event="charge.failed"))
+        payment_services.process_webhook(provider_name="paystack", raw_body=body, headers=headers)
+        # The payer tried again inside Paystack's own window, and it went through.
+        live.charge(intent.provider_reference, amount=charge.amount_minor, id=700202)
+        initialized = live.initialize_count
+
+        intent.refresh_from_db()
+        payment_services.retry_intent(intent=intent, user=user)
+
+        intent.refresh_from_db()
+        charge.refresh_from_db()
+        assert intent.status == IntentStatus.SUCCEEDED
+        assert charge.status == ChargeStatus.PAID
+        assert live.initialize_count == initialized
+        assert RentPayment.objects.count() == 1
+
+    def test_trying_again_waits_while_paystack_is_still_confirming(
+        self, live, landlord, user, obligation
+    ):
+        _, charge = obligation
+        intent = payment_services.create_intent(
+            obligation=charge, user=user, payment_method="mobile_money"
+        )
+        failed = live.charge(
+            intent.provider_reference, amount=charge.amount_minor, status="failed", id=700301
+        )
+        body, headers = signed(charge_event(failed, event="charge.failed"))
+        payment_services.process_webhook(provider_name="paystack", raw_body=body, headers=headers)
+        live.charge(
+            intent.provider_reference,
+            amount=charge.amount_minor,
+            status="ongoing",
+            id=700301,
+            paid_at=None,
+        )
+
+        intent.refresh_from_db()
+        with pytest.raises(Conflict, match="still being confirmed"):
+            payment_services.retry_intent(intent=intent, user=user)
+
+        intent.refresh_from_db()
+        assert intent.status == IntentStatus.FAILED
+
     def test_a_timeout_during_initiation_leaves_a_resumable_reservation(
         self, live, landlord, user, obligation
     ):

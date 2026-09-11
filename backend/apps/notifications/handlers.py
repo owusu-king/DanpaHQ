@@ -885,6 +885,82 @@ def on_payment_failed(event) -> None:
     )
 
 
+# --- Rooomly subscription payments --------------------------------------------
+#
+# Separate events from rent on purpose. A Portfolio paying Rooomly for its plan
+# has no tenant, lease or landlord, and the person told is the owner or
+# administrator who started the payment.
+
+
+@subscribe("billing.subscription_payment_succeeded.v1")
+def on_subscription_payment_succeeded(event) -> None:
+    from apps.billing.models import InvoiceKind
+    from apps.core.money import Money
+    from apps.payments.models import PaymentTransaction
+
+    payment = (
+        PaymentTransaction.objects.filter(id=event.aggregate_id)
+        .select_related(
+            "intent__initiated_by",
+            "intent__billing_invoice__plan",
+            "intent__billing_invoice__billing_account__organization",
+            "receipt",
+        )
+        .first()
+    )
+    if payment is None or not payment.intent.is_subscription:
+        return
+    invoice = payment.intent.billing_invoice
+    portfolio = invoice.billing_account.organization
+    notify(
+        user=payment.intent.initiated_by,
+        kind="billing.subscription_payment_succeeded",
+        title=(
+            f"{invoice.plan.name} renewed for {portfolio.name}"
+            if invoice.kind == InvoiceKind.RENEWAL
+            else f"{portfolio.name} is now on {invoice.plan.name}"
+        ),
+        body=(
+            f"{Money(payment.amount_minor, payment.amount_currency)} paid. "
+            f"Receipt {payment.receipt.receipt_number} is in Plan & billing."
+        ),
+        dedupe_key=_key(event, payment.intent.initiated_by_id),
+        target_type="billing",
+        target_id=portfolio.id,
+    )
+
+
+@subscribe("billing.subscription_payment_failed.v1")
+def on_subscription_payment_failed(event) -> None:
+    from apps.payments.models import PaymentIntent
+
+    intent = (
+        PaymentIntent.objects.filter(id=event.aggregate_id)
+        .select_related(
+            "initiated_by",
+            "billing_invoice__plan",
+            "billing_invoice__billing_account__organization",
+        )
+        .first()
+    )
+    if intent is None or not intent.is_subscription:
+        return
+    invoice = intent.billing_invoice
+    portfolio = invoice.billing_account.organization
+    notify(
+        user=intent.initiated_by,
+        kind="billing.subscription_payment_failed",
+        title=f"Payment for {invoice.plan.name} was not completed",
+        body=(
+            f"Nothing was charged and {portfolio.name}'s plan has not changed. "
+            "You can try again from Plan & billing."
+        ),
+        dedupe_key=_key(event, intent.initiated_by_id),
+        target_type="billing",
+        target_id=portfolio.id,
+    )
+
+
 def _where_unit(unit) -> str:
     address = getattr(unit.property, "address", None)
     locality = getattr(address, "locality", None)

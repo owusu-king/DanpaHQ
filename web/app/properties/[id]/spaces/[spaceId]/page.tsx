@@ -130,6 +130,17 @@ export default function SpaceWorkspacePage() {
       />
 
       {error ? <Notice tone="error" title={error} body="Some information may be out of date. Try again." /> : null}
+      {space.billing_access && space.billing_access.state !== "full" ? (
+        <Notice
+          tone={space.billing_access.state === "wind_down" ? "warning" : "info"}
+          title={
+            space.billing_access.state === "wind_down"
+              ? "Winding down on your current plan"
+              : "Read-only on your current plan"
+          }
+          body={`${space.billing_access.message} Manage this in Settings → Plan & billing.`}
+        />
+      ) : null}
 
       <div className="unit-workspace">
         <div className="unit-workspace-main">

@@ -63,6 +63,7 @@ def _generate() -> str:
 
 
 def _usable(unit: Unit, *, now=None) -> bool:
+    from apps.billing import enforcement as billing
     from apps.occupancy.services import unit_is_occupied
     from apps.trust.gates import property_verification_ok, space_condition_ok
 
@@ -77,10 +78,15 @@ def _usable(unit: Unit, *, now=None) -> bool:
         and unit.access_code_revoked_at is None
         and unit.access_code_expires_at
         and unit.access_code_expires_at > current
+        # A space above its Portfolio's plan allowance takes no new tenants, so
+        # its code resolves to nothing — the same answer as any unusable code,
+        # which says nothing about why. Reactivating the space brings it back.
+        and billing.accepts_new_activity(unit=unit)
     )
 
 
 def state(unit: Unit, *, now=None) -> str:
+    from apps.billing import enforcement as billing
     from apps.occupancy.services import unit_is_occupied
     from apps.trust.gates import property_verification_ok, space_condition_ok
 
@@ -91,6 +97,7 @@ def state(unit: Unit, *, now=None) -> str:
         or not property_verification_ok(unit.property)
         or not space_condition_ok(unit)
         or unit_is_occupied(unit)
+        or not billing.accepts_new_activity(unit=unit)
     ):
         return "unavailable"
     if not unit.access_code_hash:
@@ -146,6 +153,9 @@ def rotate(*, unit: Unit, actor) -> tuple[Unit, str]:
         user=actor,
         capability=PropertyCapability.TENANT_ACCESS,
     )
+    from apps.billing import enforcement as billing
+
+    billing.assert_open_for_new_activity(unit=unit, action="access_code")
 
     previous = state(unit)
     raw = _generate()

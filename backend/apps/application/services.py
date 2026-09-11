@@ -96,6 +96,11 @@ def submit_application(*, listing, tenant, data: dict) -> RentalApplication:
         raise Conflict("That place is no longer being advertised.")
     if unit_is_occupied(listing.unit):
         raise Conflict("That place is now occupied and is not accepting requests.")
+    # A unit above its Portfolio's plan allowance takes no new tenants, however
+    # the request reached it.
+    from apps.billing import enforcement as billing
+
+    billing.assert_accepting_requests(unit=listing.unit)
     if listing.unit.property.is_managed_by(tenant):
         raise ValidationFailed("This is your own listing.")
     if RentalApplication.objects.filter(

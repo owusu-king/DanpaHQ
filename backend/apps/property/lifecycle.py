@@ -172,6 +172,12 @@ def restore_property(*, prop: Property, actor, elevated: bool = False) -> Proper
     prop.deleted_reason = ""
     prop.save(update_fields=["deleted_at", "deleted_reason", "updated_at"])
 
+    # Back in the Portfolio, it counts again: fully active if the plan has room,
+    # restricted if not. Restoring is never a way past the allowance.
+    from apps.billing import enforcement as billing
+
+    billing.property_restored(prop=prop, actor=None if elevated else actor)
+
     record_transition(
         action="restore",
         target_type="property",
@@ -259,6 +265,11 @@ def restore_space(*, unit: Unit, actor, elevated: bool = False) -> Unit:
 
     unit.is_active = True
     unit.save(update_fields=["is_active", "updated_at"])
+
+    # It counts again: fully active if the plan has room, restricted if not.
+    from apps.billing import enforcement as billing
+
+    billing.unit_restored(unit=unit, actor=None if elevated else actor)
 
     record_transition(
         action="restore",
