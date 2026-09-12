@@ -208,16 +208,13 @@ def test_provider_to_tenant_core_lifecycle(sms, lifecycle_storage):
         decided_at=timezone.now(),
     )
 
-    organization = provider_api.post(
-        "/api/v1/organizations/",
-        {
-            "name": "Lifecycle Homes",
-            "organization_type": "individual_owner",
-            "activities": ["residential"],
-        },
-        format="json",
-    )
-    assert organization.status_code == 201, organization.data
+    # The decision above provisioned this provider's one Portfolio. Nobody sets
+    # a workspace up, so the journey reads the one it was given.
+    organization = provider_api.get("/api/v1/organizations/")
+    assert organization.status_code == 200, organization.data
+    assert len(organization.data) == 1, organization.data
+    portfolio_id = organization.data[0]["id"]
+    assert organization.data[0]["current_user_role"] == "owner"
 
     region = Region.objects.create(name="Greater Accra", code="SMOKE-GA")
     district = District.objects.create(region=region, name="La Dade-Kotopon Municipal")
@@ -238,7 +235,7 @@ def test_provider_to_tenant_core_lifecycle(sms, lifecycle_storage):
     assert address.status_code == 201, address.data
 
     created = provider_api.post(
-        f"/api/v1/organizations/{organization.data['id']}/properties/",
+        f"/api/v1/organizations/{portfolio_id}/properties/",
         {
             "title": "Lifecycle Court",
             "property_type": "residential",

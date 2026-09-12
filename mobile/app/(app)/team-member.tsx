@@ -5,9 +5,10 @@ import { Alert, ScrollView, View } from "react-native";
 import { ApiFailure } from "@/api";
 import { Button, Choice, Notice, Type, space } from "@/components/ui";
 import {
+  GRANTABLE_ROLES,
   PropertyScope,
-  ROLES,
   accessLabel,
+  accessStateLabel,
   isScoped,
   roleConsequence,
 } from "@/components/team/TeamPatterns";
@@ -152,18 +153,30 @@ export default function TeamMemberScreen() {
       {notice && !dirty ? <Notice tone="success" title={notice} /> : null}
 
       <Section title="What they may do">
-        <Choice
-          label="Role"
-          value={role}
-          options={ROLES.map((row) => ({ ...row }))}
-          onChange={(value) => setRole(value as PortfolioMember["role"])}
-        />
-        <Type variant="caption">{roleConsequence(role)}</Type>
-        {roleChanged && role === "owner" ? (
+        {member.role === "owner" ? (
           <Notice
-            tone="warning"
-            title="Owners can change anyone's access"
-            body="Only an owner can grant this, and a Portfolio can never lose its last owner."
+            tone="info"
+            title="This is the Portfolio's owner"
+            body="Ownership carries the Portfolio's verification, its plan and its settlement account, so it is transferred deliberately rather than changed from the roster."
+          />
+        ) : (
+          <>
+            <Choice
+              label="Role"
+              value={role}
+              options={GRANTABLE_ROLES.map((row) => ({ ...row }))}
+              onChange={(value) => setRole(value as PortfolioMember["role"])}
+            />
+            <Type variant="caption">{roleConsequence(role)}</Type>
+          </>
+        )}
+        {accessStateLabel(member) ? (
+          <Notice
+            tone="info"
+            title={`Their access is ${accessStateLabel(member)}`}
+            body={member.access.requirements.includes("identity")
+              ? "They have not verified their identity yet, so tenant-facing work and any Portfolio-wide administration wait for it. Their own Verification screen is where that happens."
+              : "This Portfolio's provider verification is not current, so tenant-facing work is paused for everyone in it."}
           />
         ) : null}
       </Section>

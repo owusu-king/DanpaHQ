@@ -138,17 +138,21 @@ def make_private_property(owner, organization, address):
     )
 
 
-class TestOrganizationCreation:
+class TestOrganizationActivities:
     def test_api_accepts_and_returns_commercial_activity(self, registered, sign_in_as):
+        from apps.organization import services as organization_services
         from tests.conftest import approve_provider_standing
 
         owner = registered("0202000059", first_name="Commercial", account_type="provider")
         approve_provider_standing(owner)
+        portfolio = organization_services.provision_provider_portfolio(user=owner)
         api = APIClient()
         sign_in_as(api, user=owner)
 
-        response = api.post(
-            "/api/v1/organizations/",
+        # What a Portfolio does is the owner's to say, on the Portfolio Rooomly
+        # provisioned for them.
+        response = api.patch(
+            f"/api/v1/organizations/{portfolio.id}/",
             {
                 "name": "Market Street Portfolio",
                 "organization_type": "property_company",
@@ -157,7 +161,7 @@ class TestOrganizationCreation:
             format="json",
         )
 
-        assert response.status_code == 201
+        assert response.status_code == 200, response.data
         assert set(response.data["activities"]) == {"residential", "commercial", "hostel"}
 
 

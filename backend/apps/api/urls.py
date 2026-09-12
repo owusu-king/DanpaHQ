@@ -317,7 +317,7 @@ property_patterns = [
 organization_patterns = [
     path(
         "organizations/",
-        organization_views.OrganizationListCreateView.as_view(),
+        organization_views.OrganizationListView.as_view(),
         name="organizations",
     ),
     path(
@@ -349,6 +349,11 @@ organization_patterns = [
         "me/portfolio-invitations/",
         organization_views.MyOrganizationInvitationView.as_view(),
         name="my-organization-invitations",
+    ),
+    path(
+        "portfolio-invitations/<uuid:invitation_pk>/",
+        organization_views.OrganizationInvitationResolveView.as_view(),
+        name="organization-invitation-detail",
     ),
     path(
         "portfolio-invitations/<uuid:invitation_pk>/accept/",

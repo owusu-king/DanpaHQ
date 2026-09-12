@@ -21,7 +21,7 @@ function ChooseRoleContent() {
   const { state, refresh } = useSession();
   const requested = searchParams.get("next");
   const [intent, setIntent] = useState(
-    requested === "/organization/setup"
+    requested === "/properties/new"
       ? "manage_property"
       : requested === "/tenant/setup"
         ? "current_tenant"

@@ -63,7 +63,13 @@ export default function VerificationSettingsPage() {
   }, []);
 
   const loadSettlement = useCallback(async () => {
-    if (state.status !== "signed_in" || !state.me.capabilities.provider.exists) {
+    // The Portfolio's settlement account, which belongs to whoever operates the
+    // Portfolio — an invited administrator included. Gating this on their own
+    // provider journey hid it from exactly the people it is a task for.
+    const operating = state.status === "signed_in"
+      && (state.me.capabilities.provider.workspace_access
+        || state.me.capabilities.provider.exists);
+    if (!operating) {
       setSettlement(null);
       return;
     }
@@ -144,7 +150,7 @@ export default function VerificationSettingsPage() {
             />
           ) : null}
 
-          {me?.capabilities.provider.exists ? (
+          {me?.capabilities.provider.workspace_access || me?.capabilities.provider.exists ? (
             <SettlementRow settlement={settlement} error={settlementError} />
           ) : null}
         </div>

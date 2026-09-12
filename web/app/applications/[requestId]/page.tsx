@@ -84,7 +84,7 @@ function ProviderRequest() {
         <>
           <PageHeader
             title="Request not found"
-            description="It may have been withdrawn, or it belongs to a Portfolio you no longer manage."
+            description="It may have been withdrawn, or it belongs to a Portfolio other than the one you are in. Switching Portfolio from the account menu opens that Portfolio's requests."
           />
           <p className="type-caption">
             <Link href="/applications">Back to tenancy requests</Link>

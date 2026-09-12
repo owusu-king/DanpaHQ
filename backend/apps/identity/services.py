@@ -1632,6 +1632,12 @@ def apply_provider_decision(
     client is offered. Nothing reads it to answer whether an action is allowed,
     which is why it can be maintained here as a consequence rather than being
     something a client can ask for.
+
+    Approval is also the moment somebody becomes a provider, and a provider is
+    somebody with a Portfolio — so Rooomly provisions it here. It is the only
+    place in the product where a Portfolio comes into existence: a workspace
+    that is furnished when its owner first walks into it, rather than a setup
+    form standing between them and the work they came to do.
     """
     user = User.objects.filter(id=verification.subject_id).first()
     if user is None:
@@ -1645,6 +1651,9 @@ def apply_provider_decision(
         )
         if not user.has_role(Role.LANDLORD):
             grant_role(user=user, role=Role.LANDLORD, granted_by=None, make_primary=True)
+        from apps.organization.services import provision_provider_portfolio
+
+        provision_provider_portfolio(user=user, actor=decided_by)
         return
     if user.has_role(Role.LANDLORD):
         revoke_role(
@@ -1742,20 +1751,35 @@ WORKSPACE_BY_INTENT = {
 
 
 def declared_provider_journey(user) -> bool:
-    """Has this person entered the provider journey, by any route.
+    """Has this person entered the provider journey on their own account.
 
-    True for an account registered as a provider, for one that has chosen the
-    provider workspace, and for one with a verification of any outcome. All
-    three mean "show them the provider journey"; none of them means "let them
-    operate", which is what the verification decides.
+    True for an account registered as a provider and for one with a provider
+    verification of any outcome. Both mean "show them the provider journey";
+    neither means "let them operate", which is what the verification decides.
+
+    Deliberately not true for somebody who merely asked for the provider
+    workspace. That used to count, back when asking was itself a declaration —
+    and once Team members could open the workspace too it would have put every
+    invited manager in front of an independent provider verification they do not
+    need and were never asked for.
     """
     from .models import AccountType
 
     if user.account_type == AccountType.PROVIDER:
         return True
-    if user.intent_selections.filter(intent="manage_property").exists():
-        return True
     return provider_verification(user) is not None
+
+
+def _may_enter_provider(user) -> bool:
+    """Whether the provider experience is open to this account at all.
+
+    Two independent doors. The first is their own journey; the second is a
+    Portfolio somebody else stands behind, which is what an accepted Team
+    invitation is — and the reason a member is never routed to onboarding.
+    """
+    from apps.organization.services import operates_through_membership
+
+    return declared_provider_journey(user) or operates_through_membership(user)
 
 
 def account_capabilities(user) -> dict:
@@ -1791,8 +1815,17 @@ def account_capabilities(user) -> dict:
     else:
         status = latest.status
 
+    from apps.organization.services import operates_through_membership
+
     provider_exists = declared_provider_journey(user)
     tenant_access = user.has_role(Role.TENANT)
+    # The second way into the provider workspace, and the one this used to miss:
+    # a Portfolio somebody else stands behind, entered by invitation. It opens
+    # the workspace without making the member a provider — `exists` stays false
+    # for them, because they declared nothing and are owed no review of their
+    # own. What they may do inside is decided per Portfolio; see
+    # `organization.services.membership_access`.
+    team_access = operates_through_membership(user)
 
     # Onboarding is finished the moment evidence is submitted. Waiting on a
     # reviewer is not an unfinished account, and treating it as one would send
@@ -1812,7 +1845,7 @@ def account_capabilities(user) -> dict:
     available = [WORKSPACE_DISCOVERY]
     if tenant_access:
         available.append(WORKSPACE_TENANT)
-    if provider_exists:
+    if provider_exists or team_access:
         available.append(WORKSPACE_PROVIDER)
 
     return {
@@ -1825,12 +1858,15 @@ def account_capabilities(user) -> dict:
             "exists": provider_exists,
             "verification_status": status if provider_exists else None,
             "onboarding_complete": onboarding_complete,
-            # Two questions that happen to have the same answer today: may they
-            # enter the workspace, and may they create a property in it. They
-            # are named separately because they are not the same question — if
-            # the workspace ever gains something a pending provider can use,
-            # only the first of these moves.
-            "workspace_access": approved_to_operate,
+            # Two questions that no longer have the same answer, which is why
+            # they were always named separately. The workspace opens on this
+            # person's own approval *or* on a Portfolio membership; creating a
+            # Property as oneself still waits for the person's own approval. A
+            # Team administrator creates against their Portfolio's standing
+            # instead — `organization.membership_access` carries that answer,
+            # per Portfolio, because it is a fact about one Portfolio and not
+            # about the account.
+            "workspace_access": approved_to_operate or team_access,
             "can_create_property": approved_to_operate,
         },
         "tenant": {
@@ -1852,7 +1888,13 @@ def active_workspace(user) -> str:
         user.intent_selections.filter(is_primary=True).values_list("intent", flat=True).first()
     )
     if selection in WORKSPACE_BY_INTENT:
-        return WORKSPACE_BY_INTENT[selection]
+        chosen = WORKSPACE_BY_INTENT[selection]
+        # The one thing that overrides the stated choice: a provider workspace
+        # nobody can enter. Somebody whose Team membership ended keeps the
+        # choice they made while they had one, and reporting it would leave them
+        # standing in a workspace that is no longer theirs.
+        if chosen != WORKSPACE_PROVIDER or _may_enter_provider(user):
+            return chosen
     if user.account_type == AccountType.PROVIDER:
         return WORKSPACE_PROVIDER
     if user.has_role(Role.TENANT):
@@ -1919,7 +1961,11 @@ def choose_workspace(*, user, workspace: str):
     if not user.is_registration_complete:
         raise PermissionDenied("Finish setting up your account first.")
 
-    if workspace == WORKSPACE_PROVIDER and not declared_provider_journey(user):
+    # Asking for the provider side does not make anybody a provider. It is
+    # allowed for an account that already declared one, and for a Team member,
+    # whose Portfolio was declared by whoever invited them — being invited is
+    # the declaration, made by somebody the platform already approved.
+    if workspace == WORKSPACE_PROVIDER and not _may_enter_provider(user):
         raise NotAProvider()
 
     if workspace == WORKSPACE_TENANT and not user.has_role(Role.TENANT):

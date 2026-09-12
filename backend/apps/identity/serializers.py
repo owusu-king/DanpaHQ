@@ -542,14 +542,20 @@ class MeSerializer(serializers.ModelSerializer):
         provider = capabilities["provider"]
         workspace = capabilities["active_workspace"]
 
-        if workspace == "provider" and provider["exists"]:
+        if workspace == "provider":
+            # Access first, and declaration second. A Team member has access
+            # without having declared anything, and the previous order sent them
+            # to the provider onboarding form — asking an invited manager to
+            # become an independent provider before they could open the
+            # Portfolio that invited them.
             if provider["workspace_access"]:
                 return {"mobile": "/(app)/(provider-tabs)", "web": "/home"}
-            # Declared but not yet approved. The provider screen is the
-            # destination whether they have submitted or not: before, it is the
-            # form; after, it is where their review stands. Neither is the
-            # tenant experience, and neither is an empty workspace.
-            return {"mobile": "/(app)/provider", "web": "/provider"}
+            if provider["exists"]:
+                # Declared but not yet approved. The provider screen is the
+                # destination whether they have submitted or not: before, it is
+                # the form; after, it is where their review stands. Neither is
+                # the tenant experience, and neither is an empty workspace.
+                return {"mobile": "/(app)/provider", "web": "/provider"}
 
         if workspace == "tenant" and capabilities["tenant"]["workspace_access"]:
             # A tenant with no occupancy still belongs here. Joining a property

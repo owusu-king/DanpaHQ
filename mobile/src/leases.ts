@@ -6,7 +6,7 @@
  * so before the button.
  */
 
-import { apiFetch, idempotentMutation } from "@/api";
+import { apiFetch, idempotentMutation, scopeQuery, type PortfolioScope } from "@/api";
 
 export type Lease = {
   id: string;
@@ -312,8 +312,8 @@ export function waiveRentCharge(id: string, amountMinor: number, reason: string)
   return adjustRentCharge(id, "waive", amountMinor, reason);
 }
 
-export function listGrantedLeases() {
-  return apiFetch<Lease[]>("/me/granted-leases/");
+export function listGrantedLeases(scope?: PortfolioScope) {
+  return apiFetch<Lease[]>(`/me/granted-leases/${scopeQuery(scope)}`);
 }
 
 export function getLease(id: string) {

@@ -259,14 +259,8 @@ class TestStandingGatesPropertyActions:
         )
         trust_services.decide(verification, approved=True, decided_by=staff)
 
-        organization = organization_services.create_organization(
-            user=manager,
-            data={
-                "name": "Standing Properties",
-                "organization_type": "individual_owner",
-                "activities": ["residential"],
-            },
-        )
+        # The decision above provisioned it; this is the same Portfolio.
+        organization = organization_services.provision_provider_portfolio(user=manager)
         prop = property_services.create_private_property(
             user=manager,
             organization=organization,
@@ -381,16 +375,15 @@ class TestPropertyCreationNeedsApproval:
     """
 
     def _organization(self, user):
+        """The account's one Portfolio, whatever their standing is.
+
+        Approval provisions it. These tests are about what a *pending* provider
+        may do inside one, so the Portfolio is asked for directly rather than
+        waiting for a decision that is the thing under test.
+        """
         from apps.organization import services as organization_services
 
-        return organization_services.create_organization(
-            user=user,
-            data={
-                "name": "Standing Properties",
-                "organization_type": "individual_owner",
-                "activities": ["residential"],
-            },
-        )
+        return organization_services.provision_provider_portfolio(user=user)
 
     def test_a_pending_provider_cannot_create_a_property(self, registered, storage, address):
         from apps.identity import services
@@ -475,14 +468,7 @@ class TestBuildingsAndUnitsArePropertyScoped:
         approve_identity(owner)
         verification = submit_provider_documents(owner, storage)
         trust_services.decide(verification, approved=True, decided_by=staff)
-        organization = organization_services.create_organization(
-            user=owner,
-            data={
-                "name": f"{phone} Properties",
-                "organization_type": "individual_owner",
-                "activities": ["residential"],
-            },
-        )
+        organization = organization_services.provision_provider_portfolio(user=owner)
         prop = property_services.create_private_property(
             user=owner,
             organization=organization,

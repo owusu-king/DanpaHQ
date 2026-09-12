@@ -77,6 +77,46 @@ test("a provider viewing the tenant side sees the tenant menu", () => {
   assert.ok(!links.includes("/properties"));
 });
 
+test("a Portfolio member is offered their role, and a role is offered what it reaches", () => {
+  // Somebody invited into a Portfolio has no provider journey of their own —
+  // `exists` is false and stays false — and the workspace is still theirs.
+  const member = account({
+    workspace: "provider",
+    exists: false,
+    workspaceAccess: true,
+    available: ["discovery", "tenant", "provider"],
+  });
+  const portfolioAccess = (can) => ({
+    state: "limited",
+    requirements: [],
+    scope: "assigned_properties",
+    can: {
+      operate_properties: false,
+      create_properties: false,
+      view_finances: false,
+      view_billing: false,
+      manage_team: false,
+      ...can,
+    },
+  });
+  const links = (access) =>
+    portalSections(member, "Kente", access).flatMap((section) => section.items.map((i) => i.href));
+
+  // An accountant reads rent and payment records for the Properties they are
+  // assigned. Properties, Units and tenancy requests would every one refuse.
+  assert.deepEqual(
+    links(portfolioAccess({ view_finances: true, view_billing: true })),
+    ["/home", "/payments", "/updates"],
+  );
+
+  // A property manager gets the operational workspace.
+  const manager = links(portfolioAccess({ operate_properties: true, view_finances: true }));
+  assert.ok(manager.includes("/properties"));
+  assert.ok(manager.includes("/tenants"));
+  assert.ok(manager.includes("/applications"));
+  assert.ok(!manager.includes("/saved"));
+});
+
 test("the active item is the longest match, not the first", () => {
   const sections = portalSections(account({
     workspace: "provider", exists: true, workspaceAccess: true,

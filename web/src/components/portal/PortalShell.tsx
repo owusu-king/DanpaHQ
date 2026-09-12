@@ -10,6 +10,7 @@ import { activeHref, portalSections, type PortalSection } from "@/lib/portalNav"
 
 import { AccountMenu } from "./AccountMenu";
 import { PortalGate } from "./PortalGate";
+import { PortfolioMenu } from "./PortfolioMenu";
 import { PortalSearch } from "./PortalSearch";
 import { Icon } from "./icons";
 
@@ -134,11 +135,15 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
 
   const me = state.me;
   // The rail names the Portfolio being operated, so "what am I managing" is
-  // answered on every screen rather than only inside the account menu.
-  const portfolioName = me.contexts.find((context) => context.id === activeContext)?.label
-    ?? me.contexts.find((context) => context.type === "organization")?.label
+  // answered on every screen rather than only inside the account menu — and the
+  // same context decides which sections belong to the role holding it.
+  const portfolio = me.contexts.find(
+    (context) => context.type === "organization" && context.id === activeContext,
+  ) ?? me.contexts.find((context) => context.type === "organization") ?? null;
+  const portfolioName = portfolio?.label
+    ?? me.contexts.find((context) => context.id === activeContext)?.label
     ?? null;
-  const sections = portalSections(me, portfolioName);
+  const sections = portalSections(me, portfolioName, portfolio?.access ?? null);
   const current = activeHref(sections, pathname);
   const currentLabel = sections
     .flatMap((section) => section.items)
@@ -220,18 +225,37 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
             />
           ) : null}
 
-          <Link href="/updates" className="portal-header-updates">
-            <Icon name="updates" />
-            <span className="sr-only">
-              {unread > 0 ? `Updates, ${unread} unread` : "Updates"}
-            </span>
-            {unread > 0 ? (
-              <span className="portal-count" aria-hidden="true">{unread}</span>
-            ) : null}
-          </Link>
+          {/* Two utilities, one control.
+              Which Portfolio this all belongs to, and what is new in it: both
+              are about the workspace rather than about the page, both are
+              always there, and neither is worth a card of its own. So they
+              share a container and a hairline instead of floating as two loose
+              icons a few pixels apart. Identity is not a utility — the avatar
+              stays in the rail, where an account anchor belongs. */}
+          <div className="portal-utility">
+            <PortfolioMenu me={me} />
+            <span className="portal-utility-rule" aria-hidden="true" />
+            <Link href="/updates" className="portal-header-updates">
+              <Icon name="updates" />
+              <span className="sr-only">
+                {unread > 0 ? `Updates, ${unread} unread` : "Updates"}
+              </span>
+              {/* A mark that there is something, not a figure to do arithmetic
+                  on. Past nine it says so, and the exact number stays in the
+                  accessible name above. */}
+              {unread > 0 ? (
+                <span className="portal-count" aria-hidden="true">{unread > 9 ? "9+" : unread}</span>
+              ) : null}
+            </Link>
+          </div>
         </header>
 
-        <main id="main" className="portal-main">
+        {/*
+          Keyed by the Portfolio: switching remounts everything below, so a
+          screen cannot show the Portfolio somebody has just left while the next
+          one loads. Page state is about that Portfolio, and it goes with it.
+        */}
+        <main id="main" className="portal-main" key={activeContext ?? "no-context"}>
           {state.stale ? (
             <p className="portal-stale" role="status">
               Showing your last confirmed details — we could not reach the service just now.

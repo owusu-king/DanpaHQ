@@ -34,7 +34,7 @@ and signing out.
 | listing publish | management authority + current phone/identity/provider standing/property authority + staff-approved listing |
 | private Unit access / tenancy-request approval | current phone, identity, provider standing and Property authority; direct invitations are retired |
 | lease creation/activation | private access + current phone, identity and provider standing, rechecked at activation |
-| provider workspace | an approved account-level provider verification, read live; never a role name |
+| provider workspace | an approved account-level provider verification, or an active membership of somebody's Portfolio; read live, never a role name |
 | provider-side payment record/confirmation | lease access + current identity/authority + verified receiving account |
 | internal expense record | scoped private property access; records a cost but never transfers money |
 | occupancy | occupant or authorized property actor |
@@ -60,9 +60,9 @@ than deriving access from `account_type` or a role name:
 | `registration_state` | how far through account creation they are |
 | `active_workspace` | which experience they are currently in: `discovery`, `tenant` or `provider` |
 | `available_workspaces` | which experiences they may enter, derived from the capabilities below |
-| `provider.exists` | they have declared as a provider or started a provider verification |
-| `provider.verification_status` | `not_started`, `pending`, `needs_more_info`, `approved`, `rejected`, `revoked`, `expired` |
-| `provider.workspace_access` | an approved provider verification is current |
+| `provider.exists` | they have declared as a provider or started a provider verification. A Team member has not, and never needs to |
+| `provider.verification_status` | `not_started`, `pending`, `needs_more_info`, `approved`, `rejected`, `revoked`, `expired`; `null` for somebody who only belongs to a Portfolio |
+| `provider.workspace_access` | an approved provider verification is current, **or** an active Portfolio membership exists. This — not `exists` — is what decides whether the provider experience opens |
 | `provider.private_inventory_access` | may build private buildings and units while a review is outstanding |
 | `tenant.workspace_access` | holds the tenant capability |
 
@@ -116,10 +116,31 @@ Sensitive membership, authority, moderation and occupancy decisions are written
 to the audit/outbox boundary.
 
 Team membership is additive to, never a substitute for, the trust gates below.
-An assigned manager still needs their own current phone, identity and provider
-standing, plus the Property's current authority, before tenant access, lease,
-publication or payment-sensitive actions can proceed. Selecting a Portfolio
+An assigned manager still needs their own current phone and identity, plus the
+Property's current authority, before tenant access, lease, publication or
+payment-sensitive actions can proceed. What they do *not* need is a provider
+verification of their own: standing is the Portfolio's, held by an active owner
+whose provider verification is current, and a member operates on it. That is the
+whole of what being invited into a Portfolio means, and the reason the missing
+requirement is named `portfolio_standing` for a member and `provider_standing`
+for somebody whose own review is the thing to finish. Selecting a Portfolio
 context changes navigation and query scope only.
+
+Portfolio-wide authority is stricter than an assigned role, and it is checked
+live rather than at the door: Team administration and creating Properties for the
+business require a current identity verification, so a lapsed check suspends them
+(`pending_verification`) without disturbing the member's scope. Ending somebody's
+access is deliberately exempt — stopping a person must never wait on paperwork.
+Ownership is not a role the Team grants at all; it transfers through its own
+workflow. See [organizations](organizations.md) for the states and abilities each
+membership carries.
+
+> Not yet closed: billing administration and payout-destination changes read
+> `role in {owner, admin}` inside `apps.billing` and `apps.payments`, so a role
+> whose identity verification has *lapsed* still passes them. Nobody can obtain
+> the role unverified — acceptance and promotion both refuse — and those modules
+> should adopt `organization.services.elevated_authority_missing` when they are
+> next open for change.
 
 ## Progressive property capabilities
 

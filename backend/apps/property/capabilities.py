@@ -89,6 +89,70 @@ def _collection_missing(*, prop, user, cache: dict | None) -> list[str]:
     return ["payout_destination"]
 
 
+def _actor_organizations(*, prop, user) -> list[tuple]:
+    """(Portfolio, this actor's role in it) for the Portfolios holding this property."""
+    prepared = getattr(prop, "_property_list_organization_relationships", None)
+    if prepared is not None:
+        return [
+            (relationship.organization_id, membership.role)
+            for relationship in prepared
+            for membership in relationship.organization._property_list_actor_memberships
+        ]
+
+    from apps.organization.models import OrganizationMembership
+
+    return list(
+        OrganizationMembership.objects.filter(
+            user=user,
+            ended_at__isnull=True,
+            organization__is_active=True,
+            organization__property_relationships__property=prop,
+            organization__property_relationships__ended_at__isnull=True,
+        )
+        .values_list("organization_id", "role")
+        .distinct()
+    )
+
+
+def _standing_for_actor(*, prop, user, cache: dict | None) -> tuple[bool, str]:
+    """Whether somebody stands behind this work, and whose standing that is.
+
+    An independent provider brings their own. A Team member brings their
+    Portfolio's, which is the whole meaning of being invited into one: the
+    Portfolio was approved to operate, and the member operates inside it. Asking
+    a property manager for a provider verification of their own would be asking
+    them to become the business they were hired by.
+
+    Returns the requirement to name when neither holds, because those are
+    different sentences — one person must finish their own review, the other is
+    waiting on the Portfolio they joined.
+    """
+    from apps.organization.models import MembershipRole
+    from apps.organization.services import has_portfolio_standing
+    from apps.trust.models import SubjectType, VerificationKind
+    from apps.trust.services import current_for
+
+    if current_for(SubjectType.USER, user.id, VerificationKind.PROVIDER) is not None:
+        return True, "provider_standing"
+    memberships = _actor_organizations(prop=prop, user=user)
+    if not memberships:
+        return False, "provider_standing"
+    # Shared across a loop over many properties: a Portfolio's standing does not
+    # vary by row.
+    store = cache if cache is not None else {}
+    answers = store.setdefault("portfolio_standing", {})
+    for organization_id, _role in memberships:
+        key = str(organization_id)
+        if key not in answers:
+            answers[key] = has_portfolio_standing(organization_id)
+        if answers[key]:
+            return True, "portfolio_standing"
+    # Nobody stands behind it. An owner's own verification *is* their Portfolio's
+    # standing, so they are told about theirs — it is the thing they can act on.
+    owns = any(role == MembershipRole.OWNER for _, role in memberships)
+    return False, "provider_standing" if owns else "portfolio_standing"
+
+
 def property_capabilities(*, prop, user, cache: dict | None = None) -> dict[str, dict]:
     """Return actor-specific capabilities; no value is a persisted trust flag.
 
@@ -161,19 +225,23 @@ def property_capabilities(*, prop, user, cache: dict | None = None) -> dict[str,
             ]
     authority_for_actor = direct_authority or bool(authorized_organization_ids)
 
-    # Who the actor is, and whether they may operate here at all. Provider
-    # standing is included because a rejected or revoked provider must not keep
-    # reaching tenants through a property they had already created — closing
-    # that only in the navigation would leave the API itself still open.
-    provider_standing = current_for(SubjectType.USER, user.id, VerificationKind.PROVIDER)
+    # Who the actor is, and whether anybody stands behind the work they are
+    # doing. Standing is included because a rejected or revoked provider must
+    # not keep reaching tenants through a property they had already created —
+    # closing that only in the navigation would leave the API itself still open.
+    #
+    # The actor's own phone and identity are theirs to answer either way: the
+    # tenant on the other side of tenant access, a lease or a listing is meeting
+    # *this person*, whoever they work for.
+    standing, standing_requirement = _standing_for_actor(prop=prop, user=user, cache=cache)
 
     account_missing: list[str] = []
     if phone is None:
         account_missing.append("phone")
     if identity is None:
         account_missing.append("identity")
-    if provider_standing is None:
-        account_missing.append("provider_standing")
+    if not standing:
+        account_missing.append(standing_requirement)
 
     # Whether the actor's control of *this* property has been reviewed.
     #
@@ -235,6 +303,7 @@ def assert_property_capability(*, prop, user, capability: PropertyCapability) ->
         "phone": "phone verification",
         "identity": "identity verification",
         "provider_standing": "approved provider verification",
+        "portfolio_standing": "an approved provider verification for this Portfolio's owner",
         "property_authority": "approved ownership or management authority",
         "payout_destination": ("a Portfolio settlement account the payment provider has verified"),
         "payment_rail": "an available payment provider",

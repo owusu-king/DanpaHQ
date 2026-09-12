@@ -22,6 +22,7 @@ import {
   removePortfolioMember,
   revokePortfolioInvitation,
   unassignPortfolioProperty,
+  updateOrganization,
   type Organization,
   type PortfolioInvitation,
   type PortfolioMember,
@@ -31,6 +32,20 @@ import {
 import { useSession } from "@/lib/session";
 import { Check } from "@/components/Check";
 
+/** What a Portfolio is, in the words its owner would use about their business. */
+const PORTFOLIO_TYPES: ReadonlyArray<readonly [Organization["organization_type"], string]> = [
+  ["individual_owner", "Individual property owner"],
+  ["property_company", "Property company"],
+  ["property_manager", "Property management company"],
+  ["hostel_operator", "Student hostel operator"],
+];
+
+const ACTIVITIES: ReadonlyArray<readonly [Organization["activities"][number], string]> = [
+  ["residential", "Residential"],
+  ["commercial", "Commercial"],
+  ["hostel", "Student hostel"],
+];
+
 const ROLES: ReadonlyArray<readonly [PortfolioMember["role"], string]> = [
   ["owner", "Owner"],
   ["admin", "Administrator"],
@@ -38,6 +53,17 @@ const ROLES: ReadonlyArray<readonly [PortfolioMember["role"], string]> = [
   ["accountant", "Accountant"],
   ["staff", "Staff"],
 ];
+
+/**
+ * The roles this page may hand out.
+ *
+ * Owner is absent, and not only because the backend refuses it. An owner
+ * carries the Portfolio's standing to operate, its plan and the account its
+ * rent settles into; that moves through its own deliberate transfer rather than
+ * a line in an invitation form. `ROLES` keeps it, so an existing owner still
+ * reads as "Owner" everywhere they appear.
+ */
+const GRANTABLE_ROLES = ROLES.filter(([value]) => value !== "owner");
 
 const SCOPED_ROLES = ["property_manager", "accountant", "staff"];
 const isScoped = (role: string) => SCOPED_ROLES.includes(role);
@@ -52,13 +78,13 @@ const isScoped = (role: string) => SCOPED_ROLES.includes(role);
  * every row made the page a wall of selects and checkboxes at rest.
  */
 export default function TeamPage() {
-  const { state, activeContext, setActiveContext } = useSession();
+  const { state, activeContext, refresh } = useSession();
   const me = state.status === "signed_in" ? state.me : null;
   const [organization, setOrganization] = useState<Organization | null>(null);
-  // Only ever rendered when there is more than one. With the Portfolio page gone
-  // this is the last place that knows which Portfolio you are looking at, so it
-  // owns the switch rather than leaving a multi-Portfolio account stranded.
-  const [organizations, setOrganizations] = useState<Organization[]>([]);
+  // Switching between Portfolios is the header's job now — a select sitting
+  // above every Team page was a control somebody had to read past to reach the
+  // people they came for. This page only needs the one it is about, and whether
+  // there is one at all.
   const [hasPortfolio, setHasPortfolio] = useState<boolean | null>(null);
   const [members, setMembers] = useState<PortfolioMember[]>([]);
   const [invitations, setInvitations] = useState<PortfolioInvitation[]>([]);
@@ -69,6 +95,15 @@ export default function TeamPage() {
   const [openMemberId, setOpenMemberId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [canManageTeam, setCanManageTeam] = useState(false);
+  // The Portfolio's own details, editable here because this is the only place
+  // they can be edited: Rooomly provisions the Portfolio and names it, and the
+  // owner is the one who decides what it should actually be called.
+  const [details, setDetails] = useState<{
+    name: string;
+    organization_type: Organization["organization_type"];
+    activities: Organization["activities"];
+  } | null>(null);
+  const [savingDetails, setSavingDetails] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
@@ -81,7 +116,6 @@ export default function TeamPage() {
     setError("");
     try {
       const orgs = await listOrganizations();
-      setOrganizations(orgs);
       const chosen = orgs.find((row) => row.id === activeId) ?? orgs[0];
       setHasPortfolio(orgs.length > 0);
       if (!chosen) {
@@ -97,6 +131,11 @@ export default function TeamPage() {
         listOrganizationProperties(chosen.id),
       ]);
       setOrganization(detail);
+      setDetails({
+        name: detail.name,
+        organization_type: detail.organization_type,
+        activities: [...detail.activities],
+      });
       setProperties(portfolioProperties);
       const mayManage = detail.current_user_role === "owner" || detail.current_user_role === "admin";
       setCanManageTeam(mayManage);
@@ -123,6 +162,36 @@ export default function TeamPage() {
 
   useEffect(() => { void load(); }, [load]);
 
+  async function saveDetails() {
+    if (!organization || !details) return;
+    setSavingDetails(true);
+    setError("");
+    setNotice("");
+    try {
+      const saved = await updateOrganization(organization.id, {
+        name: details.name.trim(),
+        organization_type: details.organization_type,
+        activities: details.activities,
+      });
+      setOrganization(saved);
+      setDetails({
+        name: saved.name,
+        organization_type: saved.organization_type,
+        activities: [...saved.activities],
+      });
+      // The name is on the header switcher, the rail and every receipt, so the
+      // session has to hear about it rather than waiting for the next reload.
+      await refresh();
+      setNotice("Portfolio details saved.");
+    } catch (cause) {
+      setError(
+        cause instanceof ApiFailure ? cause.error.message : "Could not save these details.",
+      );
+    } finally {
+      setSavingDetails(false);
+    }
+  }
+
   const visibleMembers = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase("en-GH");
     return members.filter(
@@ -132,6 +201,14 @@ export default function TeamPage() {
 
   const pending = invitations.filter((row) => row.status === "pending");
   const openMember = members.find((member) => member.id === openMemberId) ?? null;
+  // Reading the roster is one thing; changing who may operate the business is
+  // another, and the second waits on the backend's own answer about this
+  // person. Ending access deliberately does not: stopping somebody must never
+  // wait on paperwork.
+  const access = me?.contexts.find(
+    (context) => context.organization_id === organization?.id,
+  )?.access ?? null;
+  const canGrant = access ? access.can.manage_team : canManageTeam;
 
   if (loading && !organization) {
     return (
@@ -147,12 +224,11 @@ export default function TeamPage() {
       <div className="team-workspace">
         <section className="settings-section"><h2>Team</h2></section>
         <Empty
-          title="A Team needs a Portfolio first"
-          body="Your personal Portfolio is created with your first Property. Full business setup is for a company, hostel operation, professional manager, or a Team from the start."
+          title="Your Portfolio is on its way"
+          body="Rooomly gives you your Portfolio when your provider verification is approved, and your Team lives inside it. Nothing to set up."
           action={
             <div className="team-empty-actions">
-              <Link href="/properties/new" className="button-link">Add first Property</Link>
-              <Link href="/organization/setup" className="type-body-strong">Set up a property business →</Link>
+              <Link href="/provider" className="button-link">See your verification status</Link>
             </div>
           }
         />
@@ -164,24 +240,18 @@ export default function TeamPage() {
     <div className="team-workspace">
       <section className="settings-section team-head">
         <h2>Team</h2>
-        {canManageTeam ? <Button onClick={() => setInviting(true)}>Invite someone</Button> : null}
+        {canGrant ? <Button onClick={() => setInviting(true)}>Invite someone</Button> : null}
       </section>
 
       {error ? <Notice tone="error" title={error} /> : null}
       {notice ? <Notice tone="success" title={notice} /> : null}
 
-      {organizations.length > 1 ? (
-        <label className="team-portfolio-switch">
-          <span className="type-caption">Portfolio</span>
-          <select
-            value={organization?.id ?? ""}
-            onChange={(event) => setActiveContext(`organization:${event.target.value}`)}
-          >
-            {organizations.map((row) => (
-              <option key={row.id} value={row.id}>{row.name}</option>
-            ))}
-          </select>
-        </label>
+      {canManageTeam && !canGrant ? (
+        <Notice
+          tone="info"
+          title="Verify your identity to change who may operate this Portfolio"
+          body="Inviting somebody, changing a role or assigning a Property decides who reaches your tenants and your money, so Rooomly confirms who you are first. You can still see the roster and end somebody's access."
+        />
       ) : null}
 
       {organization && !canManageTeam ? (
@@ -190,6 +260,65 @@ export default function TeamPage() {
           title={`You are ${roleArticle(organization.current_user_role)} in this Portfolio`}
           body="Owners and administrators manage membership, so the roster is not shown to you. The Properties you may operate appear throughout the Portfolio, and the backend checks your scope on every action."
         />
+      ) : null}
+
+      {canManageTeam && details ? (
+        <Section title="Portfolio details">
+          {/* Rooomly names the Portfolio when it provisions it, which is why
+              nobody is asked to invent one up front — and why this has to
+              exist. The name here is the one tenants, agreements and receipts
+              will carry. */}
+          <form
+            className="team-portfolio-details"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void saveDetails();
+            }}
+          >
+            <Field
+              label="Portfolio name"
+              hint="What your tenants, agreements and receipts will carry."
+              value={details.name}
+              onChange={(event) => setDetails({ ...details, name: event.target.value })}
+            />
+            <Select
+              label="Portfolio type"
+              value={details.organization_type}
+              onChange={(value) =>
+                setDetails({
+                  ...details,
+                  organization_type: value as Organization["organization_type"],
+                })
+              }
+              options={PORTFOLIO_TYPES}
+            />
+            <fieldset className="team-portfolio-activities">
+              <legend className="type-caption">What this Portfolio does</legend>
+              {ACTIVITIES.map(([value, label]) => (
+                <Check
+                  key={value}
+                  label={label}
+                  checked={details.activities.includes(value)}
+                  onChange={(checked) =>
+                    setDetails({
+                      ...details,
+                      activities: checked
+                        ? [...details.activities, value]
+                        : details.activities.filter((row) => row !== value),
+                    })
+                  }
+                />
+              ))}
+            </fieldset>
+            <Button
+              type="submit"
+              busy={savingDetails}
+              disabled={!details.name.trim() || details.activities.length === 0}
+            >
+              Save details
+            </Button>
+          </form>
+        </Section>
       ) : null}
 
       {canManageTeam ? (
@@ -271,6 +400,7 @@ export default function TeamPage() {
           organization={organization}
           properties={properties}
           assignments={assignments}
+          canGrant={canGrant}
           isCurrentUser={openMember?.user_id === me?.id}
           onClose={() => setOpenMemberId(null)}
           onChanged={async (message) => {
@@ -454,7 +584,7 @@ function InviteDialog({
           label="Role"
           value={role}
           onChange={(value) => { setRole(value as PortfolioMember["role"]); setPropertyIds([]); }}
-          options={ROLES}
+          options={GRANTABLE_ROLES}
         />
         <p className="type-caption">{roleConsequence(role)}</p>
         {isScoped(role) ? (
@@ -500,6 +630,7 @@ function MemberDialog({
   organization,
   properties,
   assignments,
+  canGrant,
   isCurrentUser,
   onClose,
   onChanged,
@@ -509,6 +640,7 @@ function MemberDialog({
   organization: Organization;
   properties: Property[];
   assignments: PropertyAssignment[];
+  canGrant: boolean;
   isCurrentUser: boolean;
   onClose: () => void;
   onChanged: (message: string) => Promise<void>;
@@ -613,24 +745,40 @@ function MemberDialog({
 
           <section className="team-dialog-section">
             <h3>What they may do</h3>
-            <Select
-              label="Role"
-              value={role}
-              onChange={(value) => setRole(value as PortfolioMember["role"])}
-              options={ROLES}
-              disabled={busy}
-            />
-            <p className="type-caption">{roleConsequence(role)}</p>
-            {roleChanged && role === "owner" ? (
+            {member.role === "owner" ? (
               <Notice
-                tone="warning"
-                title="Owners can change anyone's access"
-                body="Only an owner can grant this, and a Portfolio can never lose its last owner."
+                tone="info"
+                title="This is the Portfolio's owner"
+                body="Ownership carries the Portfolio's verification, its plan and its settlement account, so it is transferred deliberately rather than changed from this roster."
+              />
+            ) : canGrant ? (
+              <>
+                <Select
+                  label="Role"
+                  value={role}
+                  onChange={(value) => setRole(value as PortfolioMember["role"])}
+                  options={GRANTABLE_ROLES}
+                  disabled={busy}
+                />
+                <p className="type-caption">{roleConsequence(role)}</p>
+              </>
+            ) : (
+              <p className="type-caption">
+                {roleLabel(member.role)}. {roleConsequence(member.role)}
+              </p>
+            )}
+            {member.access?.state !== "active" ? (
+              <Notice
+                tone="info"
+                title={`Their access is ${member.access.state === "pending_verification" ? "waiting on verification" : "limited"}`}
+                body={member.access.requirements.includes("identity")
+                  ? "They have not verified their identity, so tenant-facing work — and any Portfolio-wide administration — waits for it. They do that from their own Verification screen."
+                  : "This Portfolio's provider verification is not current, so tenant-facing work is paused for everyone in it."}
               />
             ) : null}
           </section>
 
-          {isScoped(role) ? (
+          {isScoped(role) && canGrant && member.role !== "owner" ? (
             <section className="team-dialog-section">
               <h3>Which Properties they may touch</h3>
               <PropertyScope properties={properties} selected={scope} onChange={setScope} disabled={busy} />
@@ -735,10 +883,21 @@ function roleConsequence(role: string) {
 }
 
 function accessLabel(member: PortfolioMember) {
-  if (member.effective_access === "portfolio_wide") return "Every Property";
-  const count = member.assigned_properties.length;
-  if (member.effective_access === "assigned_financial") {
-    return count ? `${count} assigned · financial` : "Financial · nothing assigned";
-  }
-  return count ? `${count} assigned ${count === 1 ? "Property" : "Properties"}` : "Nothing assigned yet";
+  const scope = member.effective_access === "portfolio_wide"
+    ? "Every Property"
+    : member.effective_access === "assigned_financial"
+      ? member.assigned_properties.length
+        ? `${member.assigned_properties.length} assigned · financial`
+        : "Financial · nothing assigned"
+      : member.assigned_properties.length
+        ? `${member.assigned_properties.length} assigned ${member.assigned_properties.length === 1 ? "Property" : "Properties"}`
+        : "Nothing assigned yet";
+  // A role that is in place but not yet whole says so here. Somebody who reads
+  // "Administrator" and then meets a refusal concludes the product is broken.
+  const waiting = member.access?.state === "pending_verification"
+    ? " · verification needed"
+    : member.access?.state === "limited"
+      ? " · limited"
+      : "";
+  return `${scope}${waiting}`;
 }

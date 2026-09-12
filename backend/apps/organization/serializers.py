@@ -40,16 +40,6 @@ class OrganizationSerializer(serializers.ModelSerializer):
         return membership.role if membership else None
 
 
-class CreateOrganizationSerializer(serializers.Serializer):
-    name = serializers.CharField(max_length=180)
-    organization_type = serializers.ChoiceField(choices=OrganizationType.values)
-    activities = serializers.ListField(
-        child=serializers.ChoiceField(choices=OrganizationActivityType.values),
-        min_length=1,
-        max_length=len(OrganizationActivityType.values),
-    )
-
-
 class UpdateOrganizationSerializer(serializers.Serializer):
     name = serializers.CharField(max_length=180, required=False)
     organization_type = serializers.ChoiceField(choices=OrganizationType.values, required=False)
@@ -67,6 +57,9 @@ class MembershipSerializer(serializers.ModelSerializer):
 
     assigned_properties = serializers.SerializerMethodField()
     effective_access = serializers.SerializerMethodField()
+    access = serializers.SerializerMethodField()
+    portfolio = serializers.SerializerMethodField()
+    context_id = serializers.SerializerMethodField()
 
     class Meta:
         model = OrganizationMembership
@@ -80,6 +73,9 @@ class MembershipSerializer(serializers.ModelSerializer):
             "ended_at",
             "assigned_properties",
             "effective_access",
+            "access",
+            "portfolio",
+            "context_id",
         ]
         read_only_fields = fields
 
@@ -94,9 +90,41 @@ class MembershipSerializer(serializers.ModelSerializer):
             return "assigned_financial"
         return "assigned_properties"
 
+    def get_access(self, obj) -> dict:
+        """State, outstanding requirements and abilities, decided in the service."""
+        from .services import membership_access
+
+        return membership_access(obj, standing=self.context.get("portfolio_standing"))
+
+    def get_portfolio(self, obj) -> dict:
+        return {
+            "id": str(obj.organization_id),
+            "name": obj.organization.name,
+            "type": obj.organization.organization_type,
+        }
+
+    def get_context_id(self, obj) -> str:
+        """The workspace context this membership is, named the way `/me/` names it.
+
+        Returned so a client that has just accepted an invitation can select the
+        Portfolio it joined without assembling the identifier itself.
+        """
+        return f"organization:{obj.organization_id}"
+
+
+#: Said the same way wherever somebody asks for the owner role, because it is
+#: the same answer: ownership is not a role a Team screen hands out.
+OWNERSHIP_IS_SEPARATE = (
+    "Ownership is not granted from the Team. Transferring a Portfolio is its own "
+    "deliberate workflow."
+)
+
 
 class CreateInvitationSerializer(serializers.Serializer):
     phone = serializers.CharField(max_length=32)
+    # `owner` stays a valid choice so the refusal can explain itself; a choice
+    # field would answer "is not a valid choice", which tells nobody where
+    # ownership does move.
     role = serializers.ChoiceField(
         choices=["owner", "admin", "property_manager", "accountant", "staff"]
     )
@@ -110,6 +138,11 @@ class CreateInvitationSerializer(serializers.Serializer):
         except PhoneNumberError as exc:
             raise serializers.ValidationError(str(exc)) from exc
 
+    def validate_role(self, value: str) -> str:
+        if value == "owner":
+            raise serializers.ValidationError(OWNERSHIP_IS_SEPARATE)
+        return value
+
 
 class InvitationActionSerializer(serializers.Serializer):
     token = serializers.CharField(max_length=1000)
@@ -120,13 +153,28 @@ class ChangeMembershipRoleSerializer(serializers.Serializer):
         choices=["owner", "admin", "property_manager", "accountant", "staff"]
     )
 
+    def validate_role(self, value: str) -> str:
+        if value == "owner":
+            raise serializers.ValidationError(OWNERSHIP_IS_SEPARATE)
+        return value
+
 
 class OrganizationInvitationSerializer(serializers.ModelSerializer):
+    """One invitation, said differently to the Portfolio and to the invitee.
+
+    A `viewer` in the context means "this is being read by somebody who followed
+    a link". Then the number is only shown to the person it belongs to, and
+    `addressed_to_you` and `requirements` answer the two questions a recipient
+    actually has: is this for me, and is there anything I must do first.
+    """
+
     portfolio = serializers.SerializerMethodField()
     invitee_phone = serializers.SerializerMethodField()
     invited_by_name = serializers.CharField(source="invited_by.display_name", read_only=True)
     properties = serializers.SerializerMethodField()
     token = serializers.SerializerMethodField()
+    addressed_to_you = serializers.SerializerMethodField()
+    requirements = serializers.SerializerMethodField()
 
     class Meta:
         model = OrganizationInvitation
@@ -142,8 +190,14 @@ class OrganizationInvitationSerializer(serializers.ModelSerializer):
             "responded_at",
             "created_at",
             "token",
+            "addressed_to_you",
+            "requirements",
         ]
         read_only_fields = fields
+
+    def _addressed_to_viewer(self, obj) -> bool:
+        viewer = self.context.get("viewer")
+        return viewer is not None and viewer.phone == obj.invitee_phone
 
     def get_portfolio(self, obj) -> dict:
         return {
@@ -153,7 +207,13 @@ class OrganizationInvitationSerializer(serializers.ModelSerializer):
         }
 
     def get_invitee_phone(self, obj) -> str:
-        return format_national(obj.invitee_phone)
+        national = format_national(obj.invitee_phone)
+        if self.context.get("viewer") is None or self._addressed_to_viewer(obj):
+            return national
+        # Somebody else's link, opened by the wrong account. They are told what
+        # it is and that it is not theirs, without being handed the number.
+        parts = national.split(" ")
+        return f"{parts[0]} ••• {parts[-1]}" if len(parts) >= 3 else "•••"
 
     def get_properties(self, obj) -> list[dict]:
         rows = obj.property_selections.select_related("property")
@@ -162,9 +222,26 @@ class OrganizationInvitationSerializer(serializers.ModelSerializer):
     def get_token(self, obj) -> str | None:
         if not self.context.get("include_token") or obj.status != "pending":
             return None
+        if self.context.get("viewer") is not None and not self._addressed_to_viewer(obj):
+            return None
         from .services import invitation_token
 
         return invitation_token(obj)
+
+    def get_addressed_to_you(self, obj) -> bool:
+        return self._addressed_to_viewer(obj)
+
+    def get_requirements(self, obj) -> list[str]:
+        """What this reader must do before the invitation can become access."""
+        from .models import MembershipRole
+        from .services import elevated_authority_missing
+
+        viewer = self.context.get("viewer")
+        if viewer is None or obj.status != "pending" or not self._addressed_to_viewer(obj):
+            return []
+        if obj.role in {MembershipRole.OWNER, MembershipRole.ADMIN}:
+            return elevated_authority_missing(viewer)
+        return []
 
 
 class PropertyAssignmentSerializer(serializers.ModelSerializer):

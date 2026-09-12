@@ -14,19 +14,40 @@ import {
   type Organization,
 } from "@/organizations";
 import { pressableFeedback } from "@/platform";
+import { useBlankOnPortfolioSwitch } from "@/portfolioScope";
 import { theme } from "@/theme";
 
 export default function ProviderPropertiesScreen() {
   const router = useRouter();
   const { state, activeContext } = useAuth();
-  const provider = state.status === "signed_in" ? state.me.capabilities.provider : null;
-  const canCreateProperty = provider?.can_create_property ?? false;
+  const me = state.status === "signed_in" ? state.me : null;
+  const provider = me?.capabilities.provider ?? null;
+  // Two ways to be allowed: an approved provider adding to anything of theirs,
+  // or a Portfolio administrator adding to the Portfolio that invited them —
+  // which its standing and their identity check decide, on the backend.
+  const portfolioAccess = me?.contexts.find(
+    (row) => row.type === "organization" && row.id === activeContext,
+  )?.access ?? me?.contexts.find((row) => row.type === "organization")?.access ?? null;
+  const canCreateProperty =
+    (provider?.can_create_property ?? false) || Boolean(portfolioAccess?.can.create_properties);
+  // A role whose reach is decided by assignment has a different empty state
+  // from an owner's: there is nothing for them to add, and somebody else
+  // decides which Properties they see.
+  const assignedOnly = portfolioAccess ? portfolioAccess.scope !== "portfolio_wide" : false;
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [organizationId, setOrganizationId] = useState("");
   const [properties, setProperties] = useState<ManagedProperty[]>([]);
   const [loading, setLoading] = useState(true);
-  const [choosingPortfolio, setChoosingPortfolio] = useState(false);
   const [error, setError] = useState("");
+
+  // A switch takes the Portfolio being left off the screen with it, name and
+  // count included. Returning to this tab is not a switch, so what is already
+  // here stays while it refreshes.
+  useBlankOnPortfolioSwitch(activeContext, () => {
+    setProperties([]);
+    setOrganizationId("");
+    setLoading(true);
+  });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -49,60 +70,21 @@ export default function ProviderPropertiesScreen() {
 
   useFocusEffect(useCallback(() => { void load(); }, [load]));
 
-  async function chooseOrganization(id: string) {
-    setLoading(true);
-    try {
-      setOrganizationId(id);
-      setProperties(await listOrganizationProperties(id));
-      setChoosingPortfolio(false);
-      setError("");
-    } catch (cause) {
-      setError(cause instanceof ApiFailure ? cause.error.message : "Could not switch Portfolio.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
   const currentPortfolio = organizations.find((organization) => organization.id === organizationId);
+  // Never a count under a name the count is not about: until the Portfolio is
+  // resolved there is nothing to say except that we are finding out.
+  const caption = currentPortfolio
+    ? `${currentPortfolio.name} · ${properties.length} ${properties.length === 1 ? "Property" : "Properties"}`
+    : loading
+      ? "Loading your Portfolio…"
+      : "Your Portfolio";
 
   return (
     <ScrollView contentContainerStyle={{ padding: space[5], paddingBottom: space[12] }}>
       <View style={{ gap: space[2], paddingBottom: space[5] }}>
         <Type variant="title1">Properties</Type>
-        <Type variant="caption">
-          {currentPortfolio?.name ?? "Your Portfolio"} · {properties.length} {properties.length === 1 ? "Property" : "Properties"}
-        </Type>
-        {organizations.length > 1 ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityState={{ expanded: choosingPortfolio }}
-            onPress={() => setChoosingPortfolio((value) => !value)}
-            style={{ minHeight: 48, alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: space[2] }}
-            {...pressableFeedback(theme.color.field["200"])}
-          >
-            <Type variant="bodyStrong" style={{ color: theme.color.kola["600"] }}>Switch Portfolio</Type>
-            <Ionicons name={choosingPortfolio ? "chevron-up" : "chevron-down"} size={18} color={theme.color.kola["600"]} />
-          </Pressable>
-        ) : null}
+        <Type variant="caption">{caption}</Type>
       </View>
-
-      {choosingPortfolio ? (
-        <View style={{ marginBottom: space[5], borderTopWidth: 1, borderTopColor: theme.color.field["200"] }}>
-          {organizations.map((organization) => (
-            <Pressable
-              key={organization.id}
-              accessibilityRole="radio"
-              accessibilityState={{ selected: organization.id === organizationId }}
-              onPress={() => void chooseOrganization(organization.id)}
-              style={{ minHeight: 52, flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderBottomWidth: 1, borderBottomColor: theme.color.field["200"] }}
-              {...pressableFeedback(theme.color.field["200"])}
-            >
-              <Type variant="bodyStrong">{organization.name}</Type>
-              {organization.id === organizationId ? <Ionicons name="checkmark" size={20} color={theme.color.kola["600"]} /> : null}
-            </Pressable>
-          ))}
-        </View>
-      ) : null}
 
       {provider && !canCreateProperty ? (
         <Notice tone="info" title="Property creation is not available yet" body="You can review this Portfolio while your provider verification is in progress." />
@@ -118,9 +100,13 @@ export default function ProviderPropertiesScreen() {
       {loading ? <LoadingRows rows={4} /> : null}
       {!loading && properties.length === 0 ? (
         <View style={{ paddingVertical: space[10], gap: space[3], alignItems: "center" }}>
-          <Type variant="bodyStrong">No Properties yet</Type>
+          <Type variant="bodyStrong">
+            {assignedOnly ? "No Property is assigned to you" : "No Properties yet"}
+          </Type>
           <Type variant="caption" style={{ textAlign: "center" }}>
-            Add the first Property in this Portfolio. A personal Portfolio is created automatically when needed.
+            {assignedOnly
+              ? `An owner or administrator of ${currentPortfolio?.name ?? "this Portfolio"} decides which Properties you operate. The ones assigned to you appear here.`
+              : "Add the first Property in this Portfolio."}
           </Type>
         </View>
       ) : null}

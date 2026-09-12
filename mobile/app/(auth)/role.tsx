@@ -47,7 +47,7 @@ export default function RoleScreen() {
   const { refreshMe, signOut } = useAuth();
   const insets = useSafeAreaInsets();
   const [selected, setSelected] = useState(
-    next === "/(app)/organization-setup"
+    next === "/(app)/private-property"
       ? "manage_property"
       : next === "/(app)/tenant-setup"
         ? "current_tenant"

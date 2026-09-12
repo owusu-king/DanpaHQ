@@ -962,6 +962,171 @@ resumed against Paystack until its window closes, and whether Paystack's hosted
 checkout accepts another attempt after it has marked a transaction `failed` has
 not been exercised.
 
+## Team invitations open a workspace — 11 September 2026
+
+Accepting a Portfolio invitation always created the membership; nothing
+downstream read it. The provider workspace opened on the *member's own* provider
+verification — which an invited person does not have and is never asked for — so
+somebody accepted an invitation and was returned to the tenant tabs, or sent to
+provider onboarding for an account they had no reason to open.
+
+- **Membership is the second door into the workspace.**
+  `organization.operates_through_membership` answers it for every role except
+  owner, whose own verification *is* the Portfolio's standing. Capabilities,
+  entry routing and `POST /me/workspace/` all read it, so an invited manager
+  enters with their ordinary account.
+- **Standing belongs to the Portfolio** (`has_portfolio_standing`: an active
+  owner whose provider verification is current). A member's tenant-facing work
+  rests on that plus their own phone and identity, and the refusal names
+  `portfolio_standing` for a member, `provider_standing` for somebody whose own
+  review is the thing to finish.
+- **Ownership left the Team.** `OWNER` cannot be invited, granted from the
+  roster, or accepted from an invitation written before the rule.
+- **Elevated roles are checked live, not at the door.** Accepting or being
+  promoted to `ADMIN` requires a current identity verification; if it later
+  lapses the membership reads `pending_verification`, granting access stops, and
+  *ending* access deliberately does not.
+- **Every membership answers for itself.** `membership_access` returns the state
+  (`active`, `limited`, `pending_verification`, `revoked`), the outstanding
+  requirements, the Property scope and the abilities both clients build
+  navigation from — one answer, instead of role names matched in a browser.
+- **A link can be read in any state.** `GET /portfolio-invitations/<id>/?token=…`
+  resolves one that expired, was withdrawn, was already used, or belongs to
+  another number; `/me/portfolio-invitations/?include=history` says what became
+  of the rest. Accepting twice returns the membership the first press created.
+- **After accepting**, both clients switch the workspace, re-read the account,
+  select the Portfolio, and confirm the join with the role's reach and anything
+  still waiting on verification — then open it.
+
+Held by `TestTeamMemberWorkspace` in `test_portfolio_team.py` (a tenant joining,
+a number invited before it had an account, duplicate acceptance, the
+administrator verification gate, ownership refused on both paths, a lapsed
+administrator, a member's tenant work on the Portfolio's standing,
+cross-Portfolio denial, revocation, and a used-up link) and by contract tests on
+both clients. Details in `architecture/organizations.md`.
+
+**Still open.** Billing administration and payout-destination changes read
+`role in {owner, admin}` inside `apps.billing` and `apps.payments`, so a *lapsed*
+identity verification does not suspend them — nobody can obtain the role
+unverified, since acceptance and promotion both refuse. Those modules should
+adopt `organization.services.elevated_authority_missing` when they are next open
+for change.
+
+## Provider Properties belong to one Portfolio — 11 September 2026
+
+The Properties page read the account-wide list (`GET /properties/`, every
+Property the account can reach) while its header claimed to be about "this
+Portfolio", so a provider's personal houses and a company's blocks arrived in one
+roster and switching Portfolio changed nothing.
+
+- **The scope is a request, decided on the backend.**
+  `GET /properties/?organization=<id>` requires membership — a non-member, or a
+  malformed id, gets the same 404 a stranger gets — and returns the Portfolio's
+  Properties for an owner or administrator and only the assigned ones for a
+  property manager or staff member. The unscoped list stays what it always was
+  and is documented as *not* a Portfolio view.
+- **Both clients hold the Portfolio in one place.** Web reads the session's
+  active context, sends it with the request, and blanks the list while the next
+  Portfolio loads; the mobile tab's own picker now moves that shared context
+  instead of only its own list, so Home, Payments and Team follow the switch
+  rather than staying on the Portfolio the person thought they had left.
+- **Adding a Property files it into the Portfolio being operated**, not into
+  whichever Portfolio the API listed first.
+
+Held by `test_property_portfolio_scope.py` (switching between two Portfolios,
+personal versus company isolation, owner/admin visibility, an assigned manager's
+visibility, cross-Portfolio refusal, and a revoked member losing the list) and by
+contract tests on both clients.
+
+**The same rule, the rest of the provider surface.** Agreements, viewing
+requests and tenancy requests hung off Properties and each asked for everything
+the account could reach, so one Portfolio's records sat on screen while another
+was selected — and Home counted all of them against one Portfolio's Properties.
+They now scope through one service, `organization.services.properties_in_scope`,
+which `GET /me/granted-leases/`, `GET /me/viewing-requests/`,
+`GET /me/received-applications/` and `GET /properties/` all use. Web's tenancy
+requests hook read every Portfolio and flattened them; it reads the one being
+operated. Home stopped fetching every Unit to sift three account-wide lists by
+hand — it had been matching viewings by Property *title*, which two Properties
+can share.
+
+## One icon for the Portfolio you are in — 11 September 2026
+
+Switching Portfolio had grown several answers: a select above the Team roster,
+another above Tenants, and a picker on the mobile Properties tab — persistent
+controls asking a question most sessions never ask, and able to disagree with
+each other, since Tenants remembered a Portfolio of its own. The switch is now
+one icon in the workspace chrome and nothing else.
+
+- **Web.** A header icon sharing one bordered control with Updates: two
+  utilities of the workspace, one container, a hairline between them, the same
+  40px target and the same hover, press and focus on both — and each still its
+  own button or link. Tooltip "Switch portfolio", and a small mark — never a
+  count, which would read as unread work — when there is more than one Portfolio
+  to be in. The glyph is a stack of workspaces rather than a building, which is
+  already what Properties means. The control borrows the search field's surface
+  and height so the right of the header sits on one band; Search is what gives
+  way first when the width runs out, and the avatar stays at the foot of the
+  rail, because identity is an anchor rather than a utility. It opens a popover titled *Your
+  Portfolios*: each row carries the name, the Portfolio's type and the role held
+  in it, the active one is marked and checked, arrow keys and Escape work, and
+  Portfolio settings and Create Portfolio sit below a line rather than in the
+  list being scanned. A search box appears once there are seven Portfolios.
+- **Mobile.** The same content as a bottom sheet, from an icon at the head of the
+  provider tabs.
+- **Nothing of the last Portfolio during the switch.** Web remounts the
+  workspace beneath the header, keyed by the active context. A tab navigator
+  cannot remount without discarding which tab somebody is on, so mobile Home,
+  Properties and tenancy requests blank their Portfolio-scoped state through
+  `useBlankOnPortfolioSwitch` and reload. Returning to a tab is not a switch and
+  refreshes in place.
+- **Removed.** The Team and Tenants selects, the mobile Properties picker, and
+  the dead CSS behind the first.
+
+Plan & billing keeps a Portfolio select of its own, and it moves that page only.
+It belongs to the billing work and was left alone.
+
+## One Portfolio per provider, provisioned by Rooomly — 12 September 2026
+
+A Portfolio was something a provider set up, so an account could accumulate
+them — and two Portfolios one person owns is two of everything: two
+subscriptions, two Teams, two places a Property could have been filed with one
+of them wrong, and a switcher offering a choice nobody meant to make.
+
+- **Approval provisions it.** A reviewer's decision on provider access now
+  calls `organization.services.provision_provider_portfolio`, which is the only
+  place in the product a Portfolio comes into existence. It is idempotent —
+  standing lapses and is reviewed again — and locks the account row, so two
+  decisions arriving together resolve to one Portfolio.
+- **Named from what the account already says**: a company's or agency's
+  registered name for a business, `{First name}'s Portfolio` otherwise, typed to
+  match. Nobody is asked for a name, because the owner edits it afterwards.
+- **Nothing creates one.** `POST /organizations/` is gone (405), the service
+  itself refuses a second for an account that owns one (409), and the
+  `/organization/setup` route, the mobile `organization-setup` screen, both
+  `createOrganization` wrappers and every "Create Portfolio" control were
+  removed. Billing never had a multi-Portfolio entitlement; its limits are
+  Properties, Units and seats *inside* one Portfolio.
+- **Editing replaced creating.** Team on both clients now carries the Portfolio's
+  own details — name, type, activities — because a provisioned name that nobody
+  can change would be worse than the form it replaced. It is the only Portfolio
+  write a provider makes.
+- **The Property flows stopped making a second one.** `ensure_personal_organization`
+  matched only `individual_owner`, so an owner whose Portfolio is a company got
+  a personal one beside it the first time they added a Property of their own. It
+  defers to provisioning now.
+- **Membership is untouched.** Being in several Portfolios is normal and stays
+  normal: Kwame owns one and is a manager in one and an accountant in another,
+  all three on his switcher, exactly one of them his.
+
+Held by `test_portfolio_provisioning.py` — provisioning on a real reviewed
+approval, business and agency naming, a second decision after a lapse, the
+service refusing a second Portfolio, the endpoint answering 405, an owner
+renaming and retyping theirs, a member refused that, and one account owning one
+Portfolio while working in two more — plus contract tests on both clients
+asserting nothing offers to create one. Accounts that already owned more than
+one keep them; this stops new ones and deletes nothing.
+
 ## CI
 
 Three of the four jobs pass. `backend` is the exception, on its type-check and

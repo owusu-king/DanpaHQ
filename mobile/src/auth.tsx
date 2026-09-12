@@ -17,6 +17,9 @@ import { apiFetch, ApiFailure, setAuthTokenProvider } from "@/api";
 import { forgetPhotoUrls } from "@/photo";
 import { contextBelongsToWorkspace } from "@/navigation";
 import { clearPendingOnboardingIntent } from "@/onboardingIntent";
+// The shape a Portfolio context carries. Type-only, so this stays a one-way
+// dependency: the API module knows nothing about the session that reads it.
+import type { PortfolioAccess } from "@/organizations";
 import { secure } from "@/secure";
 
 const REFRESH_KEY = "auth.refresh_token";
@@ -75,8 +78,13 @@ export type Capabilities = {
     /** Evidence submitted. True while a review is still pending. */
     onboarding_complete: boolean;
     /** May enter the provider workspace — pending reviews included. */
+    /**
+     * May enter the provider workspace: an approved provider, or a member of
+     * somebody's Portfolio. Not the same question as `exists`, which is only
+     * about this person's own journey.
+     */
     workspace_access: boolean;
-    /** Approved. The only state in which a property may be created. */
+    /** Approved. The only state in which a property may be created for oneself. */
     can_create_property: boolean;
   };
   tenant: { workspace_access: boolean };
@@ -118,8 +126,11 @@ export type Me = {
     mobile_route: string;
     web_route: string;
     organization_id?: string;
+    organization_type?: string;
     occupancy_id?: string;
     role?: string;
+    /** Portfolio contexts only: the role's live reach, and what it waits on. */
+    access?: PortfolioAccess;
   }[];
   default_context_id: string | null;
   permissions: string[];

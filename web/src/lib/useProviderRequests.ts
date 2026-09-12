@@ -22,20 +22,38 @@ import {
   listReceivedApplications,
   type Lease,
 } from "@/lib/console";
+import { useSession } from "@/lib/session";
 import { requestCreatedAt, type RequestItem } from "@/lib/tenancyRequests";
 
 export function useProviderRequests() {
+  const { activeContext } = useSession();
+  // One Portfolio: the one being operated. This used to read every Portfolio
+  // the account belonged to and flatten them into a single list, so a request
+  // from a personal Portfolio sat beside a company's while the company was on
+  // screen — and answering it decided something the page was not about.
+  const preferred = activeContext?.startsWith("organization:")
+    ? activeContext.slice("organization:".length)
+    : "";
   const [items, setItems] = useState<RequestItem[] | null>(null);
   const [error, setError] = useState("");
   const [unauthorised, setUnauthorised] = useState(false);
 
   const load = useCallback(async () => {
+    // Blank first: a switch must not leave the previous Portfolio's requests on
+    // screen while the next Portfolio's are still in flight.
+    setItems(null);
     try {
       const organizations = await listOrganizations();
-      const [applications, leases, portfolios] = await Promise.all([
-        listReceivedApplications(false),
-        listGrantedLeases(),
-        Promise.all(organizations.map((organization) => getOrganizationPortfolio(organization.id))),
+      const scope = organizations.find((row) => row.id === preferred) ?? organizations[0] ?? null;
+      if (!scope) {
+        setItems([]);
+        setError("");
+        return;
+      }
+      const [applications, leases, portfolio] = await Promise.all([
+        listReceivedApplications(false, { organization: scope.id }),
+        listGrantedLeases({ organization: scope.id }),
+        getOrganizationPortfolio(scope.id),
       ]);
 
       const leaseByApplication = new Map<string, Lease>(
@@ -48,9 +66,11 @@ export function useProviderRequests() {
         application,
         lease: leaseByApplication.get(application.id) ?? null,
       }));
-      const privateItems: RequestItem[] = portfolios
-        .flatMap((portfolio) => portfolio.tenancy_requests)
-        .map((request) => ({ key: `private:${request.id}`, kind: "private", request }));
+      const privateItems: RequestItem[] = portfolio.tenancy_requests.map((request) => ({
+        key: `private:${request.id}`,
+        kind: "private",
+        request,
+      }));
 
       setItems(
         [...publicItems, ...privateItems].sort((a, b) =>
@@ -66,7 +86,7 @@ export function useProviderRequests() {
       setError(cause instanceof ApiFailure ? cause.error.message : "Could not load tenancy requests.");
       setItems([]);
     }
-  }, []);
+  }, [preferred]);
 
   useEffect(() => {
     void load();

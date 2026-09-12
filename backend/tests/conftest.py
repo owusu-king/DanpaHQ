@@ -136,7 +136,14 @@ def provider_standing(db):
 
 def approve_provider_standing(user):
     """Approve the account to operate as a provider, and say nothing about any
-    property. Tests that want the property side too use ``approve_provider``."""
+    property. Tests that want the property side too use ``approve_provider``.
+
+    It writes the approved row rather than taking an account through a review,
+    so the consequences a reviewer's *decision* carries do not happen here —
+    the landlord role, and the Portfolio Rooomly provisions. A test that needs
+    the Portfolio asks for it: ``organization.services.provision_provider_portfolio``
+    is what the decision calls, and it is safe to call twice.
+    """
     from django.utils import timezone
 
     from apps.trust.models import (

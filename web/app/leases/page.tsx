@@ -321,6 +321,12 @@ function AgreementRow({
  */
 function ProviderLeases() {
   const router = useRouter();
+  // An agreement belongs to the Portfolio whose Property granted it, so this
+  // list is about the Portfolio being operated and no other.
+  const { activeContext } = useSession();
+  const preferred = activeContext?.startsWith("organization:")
+    ? activeContext.slice("organization:".length)
+    : "";
   const [leases, setLeases] = useState<Lease[] | null>(null);
   const [error, setError] = useState("");
 
@@ -330,8 +336,9 @@ function ProviderLeases() {
   const query = search.get("q") ?? "";
 
   const load = useCallback(async () => {
+    setLeases(null);
     try {
-      setLeases(await listGrantedLeases());
+      setLeases(await listGrantedLeases(preferred ? { organization: preferred } : undefined));
       setError("");
     } catch (cause) {
       if (cause instanceof ApiFailure && (cause.status === 401 || cause.status === 403)) {
@@ -341,7 +348,7 @@ function ProviderLeases() {
       setError(cause instanceof ApiFailure ? cause.error.message : "Could not load agreements.");
       setLeases([]);
     }
-  }, [router]);
+  }, [preferred, router]);
 
   useEffect(() => { void load(); }, [load]);
 

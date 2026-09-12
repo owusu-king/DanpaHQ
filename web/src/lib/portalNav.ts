@@ -1,4 +1,5 @@
 import type { IconName } from "@/components/portal/icons";
+import type { PortfolioAccess } from "@/lib/console";
 import type { Me } from "@/lib/session";
 
 /**
@@ -30,13 +31,26 @@ export type PortalSection = {
 };
 
 /**
- * The provider workspace is not "a provider account" — it is an *approved* one.
- * Someone still under review gets a portal with the review in it and no
- * operational sections, because every one of them would refuse.
+ * The provider workspace is not "a provider account" — it is an *approved* one,
+ * or a Portfolio somebody was invited into. Someone still under review gets a
+ * portal with the review in it and no operational sections, because every one
+ * of them would refuse.
+ *
+ * `access` is the Portfolio context the person is looking at, and it decides
+ * which of the operational sections are theirs. It comes from the backend
+ * whole: an accountant is not offered Properties because the backend says their
+ * role does not operate Properties, not because this file knows what an
+ * accountant is.
  */
-export function portalSections(me: Me, portfolioName?: string | null): PortalSection[] {
+export function portalSections(
+  me: Me,
+  portfolioName?: string | null,
+  access?: PortfolioAccess | null,
+): PortalSection[] {
   const provider = me.capabilities.provider;
-  const inProvider = me.capabilities.active_workspace === "provider" && provider.exists;
+  const inProvider =
+    me.capabilities.active_workspace === "provider"
+    && (provider.workspace_access || provider.exists);
 
   if (inProvider && !provider.workspace_access) {
     return [
@@ -57,27 +71,39 @@ export function portalSections(me: Me, portfolioName?: string | null): PortalSec
   }
 
   if (inProvider) {
-    return [
-      { items: [{ href: "/home", label: "Home", icon: "home" }] },
-      {
-        // Named after the Portfolio being operated, so the rail answers "what am
-        // I managing" without anyone having to open a menu to check.
-        title: portfolioName?.trim() || "Portfolio",
-        items: [
+    // No Portfolio context yet (an approved provider before their first one)
+    // means nothing to scope by, and the whole workspace is theirs.
+    const operates = access ? access.can.operate_properties : true;
+    const finances = access ? access.can.view_finances : true;
+    const portfolio: PortalItem[] = [
+      ...(operates
+        ? ([
           { href: "/properties", label: "Properties", icon: "properties", hint: "Buildings and their Units" },
           { href: "/units", label: "Units", icon: "units", hint: "Every rentable space in the Portfolio" },
           { href: "/tenants", label: "Tenants", icon: "users", hint: "Access, requests, tenancies and rent" },
           { href: "/leases", label: "Leases", icon: "leases", hint: "Agreements you have granted" },
-          { href: "/payments", label: "Payments", icon: "payments", hint: "Rent balances and payment records" },
-        ],
-      },
-      {
-        title: "Requests",
-        items: [
-          { href: "/applications", label: "Tenancy requests", icon: "applications", hint: "Review people asking to rent" },
-          { href: "/viewings", label: "Viewings", icon: "viewings", hint: "Requests to see a place" },
-        ],
-      },
+        ] as PortalItem[])
+        : []),
+      ...(finances
+        ? ([{ href: "/payments", label: "Payments", icon: "payments", hint: "Rent balances and payment records" }] as PortalItem[])
+        : []),
+    ];
+    return [
+      { items: [{ href: "/home", label: "Home", icon: "home" }] },
+      // Named after the Portfolio being operated, so the rail answers "what am
+      // I managing" without anyone having to open a menu to check.
+      ...(portfolio.length
+        ? [{ title: portfolioName?.trim() || "Portfolio", items: portfolio }]
+        : []),
+      ...(operates
+        ? [{
+          title: "Requests",
+          items: [
+            { href: "/applications", label: "Tenancy requests", icon: "applications", hint: "Review people asking to rent" },
+            { href: "/viewings", label: "Viewings", icon: "viewings", hint: "Requests to see a place" },
+          ] as PortalItem[],
+        }]
+        : []),
       ACCOUNT_SECTION,
     ];
   }

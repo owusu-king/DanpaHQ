@@ -157,11 +157,27 @@ class PropertyListCreateView(APIView):
     permission_classes = [IsAuthenticated, IsPhoneVerified]
 
     def get(self, request):
-        from apps.organization.services import properties_for_user
+        """The Properties this person may operate, one Portfolio at a time.
+
+        `?organization=<id>` is the provider's operational scope, and it is
+        decided here rather than filtered in a browser: membership is required —
+        a non-member gets the same 404 a stranger gets — and a role without
+        Portfolio-wide access sees only the Properties assigned to it.
+
+        Without the parameter this stays the account-wide list: everything the
+        person can reach, across every Portfolio they belong to. That is a fair
+        answer to "what do I have" and it is *not* a Portfolio view. Rendering
+        it as one is what put a personal Portfolio's houses in a company's
+        roster.
+        """
+        from apps.organization.services import properties_in_scope
+
+        rows = properties_in_scope(
+            user=request.user, organization=request.query_params.get("organization")
+        )
 
         props = (
-            properties_for_user(request.user)
-            .select_related("address__locality__district__region", "owner")
+            rows.select_related("address__locality__district__region", "owner")
             # The Property's own photographs, without a query per row. The
             # condition evidence the cover falls back to cannot be prefetched —
             # `subject_id` is not a foreign key — and is batched in the

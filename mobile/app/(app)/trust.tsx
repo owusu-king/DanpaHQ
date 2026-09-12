@@ -64,7 +64,10 @@ export default function VerificationScreen() {
       setError(cause instanceof ApiFailure ? cause.error.message : "Could not load verification.");
     }
 
-    if (!me?.capabilities.provider.exists) {
+    // The Portfolio's settlement account belongs to whoever operates the
+    // Portfolio — an invited administrator included. Gating it on their own
+    // provider journey hid it from exactly the people it is a task for.
+    if (!me?.capabilities.provider.workspace_access && !me?.capabilities.provider.exists) {
       setSettlement(null);
       return;
     }
@@ -147,7 +150,7 @@ export default function VerificationScreen() {
             />
           ) : null}
 
-          {me?.capabilities.provider.exists ? (
+          {me?.capabilities.provider.workspace_access || me?.capabilities.provider.exists ? (
             <SettlementRow
               settlement={settlement}
               error={settlementError}

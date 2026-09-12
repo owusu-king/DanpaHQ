@@ -20,6 +20,17 @@ export const ROLES = [
   { value: "staff", label: "Staff" },
 ] as const;
 
+/**
+ * The roles a Team screen may actually hand out.
+ *
+ * Owner is absent, and not because the backend would refuse it — though it
+ * does. An owner carries the Portfolio's standing to operate, its plan and the
+ * account its rent settles into; that moves through its own deliberate
+ * transfer, never as a line in an invitation form. `ROLES` keeps it so an
+ * existing owner still reads as "Owner" everywhere.
+ */
+export const GRANTABLE_ROLES = ROLES.filter((role) => role.value !== "owner");
+
 const SCOPED_ROLES = ["property_manager", "accountant", "staff"];
 
 /** Roles whose reach is decided by Property assignment rather than the Portfolio. */
@@ -45,6 +56,27 @@ export function roleConsequence(role: string) {
         : role === "property_manager"
           ? "Manages only the Properties you assign, including tenants and lettings."
           : "Operates only the Properties you assign, without Team or high-trust actions.";
+}
+
+/**
+ * What a membership is waiting on, if anything — the server's own answer.
+ *
+ * A role that is in place but not yet whole has to say so. Somebody who reads
+ * "Administrator" and then finds the Team controls refused concludes the
+ * product is broken; "Administrator · verification needed" is the same fact
+ * before they meet it.
+ */
+export function accessStateLabel(member: PortfolioMember): string {
+  switch (member.access?.state) {
+    case "pending_verification":
+      return "verification needed";
+    case "limited":
+      return "limited";
+    case "revoked":
+      return "access ended";
+    default:
+      return "";
+  }
 }
 
 /** The server's effective access, said in the roster's voice. */

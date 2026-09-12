@@ -80,7 +80,6 @@ export default function AppLayout() {
       <Stack.Screen name="unit-new" options={{ title: "Add Unit" }} />
       <Stack.Screen name="space-new" options={{ title: "Add Unit" }} />
       <Stack.Screen name="provider-tenancy" options={{ title: "Tenancy" }} />
-      <Stack.Screen name="organization-setup" options={{ title: "Create Portfolio" }} />
       <Stack.Screen name="team" options={{ title: "Team" }} />
       {/* Changing plan is a journey of focused screens — choose, review, pay
           and see the result — so the back gesture always means one step. */}

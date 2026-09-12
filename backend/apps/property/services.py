@@ -882,6 +882,47 @@ def assert_can_create_property(user) -> None:
         )
 
 
+def assert_can_create_property_for(*, user, organization, membership=None) -> None:
+    """Whether this person may add a Property to *this* Portfolio.
+
+    Two bases, and the second is what a Team administrator works on. An approved
+    provider creates on their own standing, anywhere they have authority. Inside
+    a Portfolio that an approved provider already owns, an administrator creates
+    on that Portfolio's standing plus their own identity verification — which is
+    what being invited as an administrator means, and why joining a Team never
+    asks anybody to open an independent provider account of their own.
+
+    The account-level gate stays the rule where there is no Portfolio behind the
+    person yet: creating their first Property, or creating a Portfolio at all.
+    """
+    from apps.identity.services import account_capabilities
+    from apps.organization.services import elevated_authority_missing, has_portfolio_standing
+
+    if user.is_staff:
+        return
+    if account_capabilities(user)["provider"]["can_create_property"]:
+        return
+    if has_portfolio_standing(organization):
+        if not elevated_authority_missing(user):
+            return
+        raise PermissionDenied(
+            "Verify your identity before adding a Property to this Portfolio.",
+            details={"reason": "verification_required", "requirements": ["identity"]},
+        )
+    # Nobody stands behind this Portfolio yet. For its owner that is their own
+    # review, and it is the same sentence they have always been given, because
+    # it is still the same thing they have to do.
+    from apps.organization.models import MembershipRole
+
+    if membership is None or membership.role == MembershipRole.OWNER:
+        assert_can_create_property(user)
+        return
+    raise PermissionDenied(
+        "This Portfolio's provider verification is not current, so no Property can be added "
+        "to it right now."
+    )
+
+
 @transaction.atomic
 def create_private_property(*, user, organization, data: dict) -> Property:
     """Create an operational property without claiming it is verified or public."""
@@ -895,8 +936,8 @@ def create_private_property(*, user, organization, data: dict) -> Property:
         OrganizationType,
     )
 
-    assert_can_create_property(user)
-
+    # Membership first: the role is what makes this person's business this
+    # Portfolio's business, and only then does it matter who stands behind it.
     membership = OrganizationMembership.objects.filter(
         organization=organization,
         user=user,
@@ -907,6 +948,7 @@ def create_private_property(*, user, organization, data: dict) -> Property:
         MembershipRole.ADMIN,
     }:
         raise PermissionDenied("Only a Portfolio owner or administrator can create Properties.")
+    assert_can_create_property_for(user=user, organization=organization, membership=membership)
 
     # Inside this transaction, and after the permission check so that a stranger
     # learns nothing about somebody else's plan. `billing.enforcement` locks the

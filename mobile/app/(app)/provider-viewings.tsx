@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState } from "react";
 import { FlatList, Pressable, RefreshControl, View } from "react-native";
 
 import { ApiFailure } from "@/api";
+import { useAuth } from "@/auth";
 import { Field, Notice, Type, space } from "@/components/ui";
 import { pressableFeedback } from "@/platform";
 import { theme } from "@/theme";
@@ -14,6 +15,10 @@ type ViewingView = "action" | "upcoming" | "history";
 /** A scannable provider queue. One Viewing opens into its own workflow screen. */
 export default function ProviderViewingsScreen() {
   const router = useRouter();
+  const { activeContext } = useAuth();
+  const preferred = activeContext?.startsWith("organization:")
+    ? activeContext.slice("organization:".length)
+    : "";
   const [items, setItems] = useState<Viewing[] | null>(null);
   const [view, setView] = useState<ViewingView>("action");
   const [query, setQuery] = useState("");
@@ -21,14 +26,19 @@ export default function ProviderViewingsScreen() {
   const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
+    // A viewing is asked of a listing on a Property, so it belongs to that
+    // Property's Portfolio — this list is about the one being operated.
+    setItems(null);
     try {
-      setItems(await listReceivedViewings(false));
+      setItems(
+        await listReceivedViewings(false, preferred ? { organization: preferred } : undefined),
+      );
       setError("");
     } catch (cause) {
       setItems([]);
       setError(cause instanceof ApiFailure ? cause.error.message : "Could not load Viewings.");
     }
-  }, []);
+  }, [preferred]);
 
   useFocusEffect(useCallback(() => { void load(); }, [load]));
 

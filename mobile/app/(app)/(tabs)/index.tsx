@@ -158,10 +158,13 @@ export default function DiscoveryHomeScreen() {
     if (state.status !== "signed_in") return;
 
     // A signed-in tenant cannot become a provider by pressing this. Say so here
-    // rather than sending a request the backend will refuse.
-    if (!state.me.capabilities.provider.exists) {
+    // rather than sending a request the backend will refuse — but ask the
+    // backend's question, not a narrower one: somebody invited into a Portfolio
+    // has no provider journey of their own and still belongs in the workspace.
+    if (!state.me.capabilities.available_workspaces.includes("provider")) {
       setWorkspaceError(
-        "This account is registered as a tenant. Provider accounts are created at sign-up.",
+        "This account is registered as a tenant. Provider accounts are created at sign-up, and "
+        + "a Portfolio owner can invite you into their Team.",
       );
       return;
     }
@@ -263,7 +266,7 @@ export default function DiscoveryHomeScreen() {
                 </Type>
               </View>
               <Button label="Search rentals" onPress={() => router.push("/(app)/(tabs)/explore")} />
-              {!me || me.capabilities.provider.exists ? (
+              {!me || me.capabilities.available_workspaces.includes("provider") ? (
                 <Button
                   label={me?.capabilities.provider.workspace_access ? "Open property tools" : "I own/manage property"}
                   variant="secondary"

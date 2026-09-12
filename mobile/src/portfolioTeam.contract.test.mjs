@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -27,13 +27,126 @@ test("mobile provider Team supports the same membership lifecycle", () => {
   assert.match(invitations, /respondToPortfolioInvitation/);
 });
 
-test("mobile first Property creates a personal Portfolio automatically", () => {
+test("mobile accepting an invitation opens the Portfolio it granted", () => {
+  const code = (text) => text.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+  const screen = code(read("mobile/app/(app)/portfolio-invitations.tsx"));
+  const patterns = code(read("mobile/src/components/team/TeamPatterns.tsx"));
+  const team = code(read("mobile/app/(app)/team.tsx"));
+
+  // Be in the provider experience, re-read the account so the Portfolio is a
+  // context at all, then select it. Any other order leaves the person where
+  // they were, which is what an accepted invitation used to do.
+  assert.match(
+    screen,
+    /await chooseWorkspace\("provider"\);\s*await refreshMe\(member\.context_id\);/,
+  );
+  assert.match(screen, /Open \$\{joined\.portfolio\.name\}/);
+  assert.match(screen, /listMyPortfolioInvitations\(\{ history: true \}\)/);
+  assert.match(screen, /invitation\.addressed_to_you/);
+  assert.match(screen, /invitation\.requirements\[0\]/);
+
+  // Ownership is not a role a Team screen hands out, and granting access waits
+  // on the backend's own answer about the person doing it.
+  assert.match(patterns, /GRANTABLE_ROLES = ROLES\.filter\(\(role\) => role\.value !== "owner"\)/);
+  assert.match(team, /options=\{GRANTABLE_ROLES\.map/);
+  assert.match(team, /access \? access\.can\.manage_team : canManage/);
+});
+
+test("the mobile Properties tab switches the whole context, not just its list", () => {
+  const code = (text) => text.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+  const screen = code(read("mobile/app/(app)/(provider-tabs)/properties.tsx"));
+
+  // The tab follows the shared context and no longer carries a switcher of its
+  // own: one picker on one tab moved that tab alone, while Home, Payments and
+  // Team stayed on the Portfolio the person believed they had left.
+  assert.doesNotMatch(screen, /Switch Portfolio/);
+  assert.doesNotMatch(screen, /setActiveContext/);
+  // Scoped to that Portfolio by the endpoint that enforces membership.
+  assert.match(screen, /listOrganizationProperties\(selected\)/);
+  assert.match(screen, /\}, \[activeContext\]\);/);
+});
+
+test("the mobile Portfolio switcher is a header icon and a bottom sheet", () => {
+  const code = (text) => text.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+  const switcher = code(read("mobile/src/components/portfolio/PortfolioSwitcher.tsx"));
+  const layout = code(read("mobile/app/(app)/(provider-tabs)/_layout.tsx"));
+
+  // Workspace identity on the left of the header, the create action on the
+  // right, and the sheet comes up from the thumb.
+  assert.match(layout, /headerLeft: \(\) => <PortfolioHeaderButton/);
+  assert.match(switcher, /<Modal[\s\S]*animationType="slide"/);
+  assert.match(switcher, /YOUR PORTFOLIOS/);
+
+  // Name, type and role on every row; a tick on the one you are in.
+  assert.match(switcher, /describe\(portfolio\)/);
+  assert.match(switcher, /accessibilityState=\{\{ selected: isCurrent \}\}/);
+  assert.match(switcher, /name="checkmark"/);
+  assert.match(switcher, /portfolios\.length >= SEARCHABLE_FROM/);
+
+  // One tap switches the whole context; settings sit below a line, and there is
+  // nothing to create — an account is provisioned its one Portfolio, and every
+  // other one in this list arrived as somebody's invitation.
+  assert.match(switcher, /await setActiveContext\(id\)/);
+  assert.match(switcher, /Portfolio settings/);
+  assert.doesNotMatch(switcher, /Create Portfolio/);
+});
+
+test("switching Portfolio leaves nothing of the last one on screen", () => {
+  const code = (text) => text.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+
+  // Reloading is not the same as blanking: a reload takes a moment, and for
+  // that moment the figures on screen are the ones the person just switched
+  // away from, sitting under the new Portfolio's name.
+  assert.match(code(read("mobile/src/portfolioScope.ts")), /export function useBlankOnPortfolioSwitch/);
+  for (const screen of [
+    "mobile/app/(app)/(provider-tabs)/index.tsx",
+    "mobile/app/(app)/(provider-tabs)/properties.tsx",
+    "mobile/app/(app)/provider-applications.tsx",
+  ]) {
+    assert.match(
+      code(read(screen)),
+      /useBlankOnPortfolioSwitch\(activeContext, \(\) => \{/,
+      `${screen} holds the Portfolio it just left on screen`,
+    );
+  }
+  // These two hold one list each and already empty it at the top of every load.
+  for (const screen of ["mobile/app/(app)/provider-viewings.tsx", "mobile/app/(app)/leases.tsx"]) {
+    assert.match(code(read(screen)), /setItems\(null\);/, `${screen} keeps its rows through a switch`);
+  }
+});
+
+test("mobile provider lists are about the Portfolio on screen", () => {
+  const code = (text) => text.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+  const requests = code(read("mobile/app/(app)/provider-applications.tsx"));
+  const leases = code(read("mobile/app/(app)/leases.tsx"));
+  const viewings = code(read("mobile/app/(app)/provider-viewings.tsx"));
+  const home = code(read("mobile/app/(app)/(provider-tabs)/index.tsx"));
+
+  // Tenancy requests were read from every Portfolio and flattened together, so
+  // one Portfolio's request could be answered while another was on screen.
+  assert.doesNotMatch(requests, /organizations\.map\(\(organization\) => getPortfolioSummary/);
+  assert.match(requests, /listReceivedApplications\(false, scope\)/);
+  assert.match(requests, /\}, \[activeContext\]\);/);
+
+  assert.match(leases, /listGrantedLeases\(preferred \? \{ organization: preferred \} : undefined\)/);
+  assert.match(viewings, /listReceivedViewings\(false, preferred \? \{ organization: preferred \} : undefined\)/);
+
+  // Home counted viewings, tenancy requests and agreements from every
+  // Portfolio against one Portfolio's Properties.
+  assert.match(home, /listReceivedViewings\(true, scope\)/);
+  assert.match(home, /listGrantedLeases\(scope\)/);
+});
+
+test("a mobile first Property files into the Portfolio the account already has", () => {
   const property = read("mobile/app/(app)/private-property.tsx");
   const properties = read("mobile/app/(app)/(provider-tabs)/properties.tsx");
   const providerHome = read("mobile/app/(app)/(provider-tabs)/index.tsx");
 
   assert.match(property, /createPersonalPortfolioProperty/);
-  assert.match(property, /Your personal Portfolio starts here/);
+  // The Portfolio is not created here. It was provisioned when this account's
+  // provider access was approved, and the form says where the Property goes.
+  assert.match(property, /This goes into your Rooomly Portfolio/);
+  assert.doesNotMatch(property, /Portfolio starts here/);
   assert.doesNotMatch(property, /propertyTypes\s*\.filter/);
   assert.match(properties, /label="Add Property"/);
   assert.doesNotMatch(properties, /label=\{organizations\.length \? "Create property" : "Create workspace"\}/);
@@ -43,14 +156,29 @@ test("mobile first Property creates a personal Portfolio automatically", () => {
   assert.match(providerHome, /label="Add first Property"/);
 });
 
-test("full mobile Portfolio setup is a deliberate business path", () => {
-  const setup = read("mobile/app/(app)/organization-setup.tsx");
-  const team = read("mobile/app/(app)/team.tsx");
+test("nothing in the mobile app creates a Portfolio", () => {
+  // Every provider owns exactly one Portfolio and Rooomly provisions it when
+  // provider access is approved. There is no setup screen, no API wrapper to
+  // call one, and no control that offers it — the owner renames what they were
+  // given, and joins anything else by invitation.
+  assert.equal(existsSync(resolve(root, "mobile/app/(app)/organization-setup.tsx")), false);
+  assert.doesNotMatch(read("mobile/src/organizations.ts"), /export function createOrganization/);
+  for (const screen of [
+    "mobile/app/(app)/_layout.tsx",
+    "mobile/app/(app)/team.tsx",
+    "mobile/app/(auth)/role.tsx",
+    "mobile/src/components/portfolio/PortfolioSwitcher.tsx",
+    "mobile/app/(app)/(provider-tabs)/index.tsx",
+  ]) {
+    assert.doesNotMatch(read(screen), /organization-setup/, `${screen} still points at Portfolio setup`);
+  }
 
-  assert.match(setup, /Set up a property business/);
-  assert.match(setup, /useState<Organization\["activities"\]>\(\[\]\)/);
-  assert.doesNotMatch(setup, /useState<Organization\["activities"\]>\(\["residential"/);
-  assert.match(team, /Set up a property business/);
+  // The Portfolio an owner was given is theirs to name and to describe, and
+  // this is the only place that can be done.
+  const team = read("mobile/app/(app)/team.tsx");
+  assert.match(team, /updateOrganization\(organization\.id, \{/);
+  assert.match(team, /label="Portfolio name"/);
+  assert.match(team, /Edit Portfolio details/);
 });
 
 test("mobile Property and Unit screens mirror the operational hierarchy", () => {

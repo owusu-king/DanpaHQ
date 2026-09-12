@@ -488,8 +488,35 @@ export type UnitDetail = Unit & {
   };
 };
 
-export function listProperties() {
-  return authedFetch<Property[]>("/properties/");
+/** The Portfolio a provider list is about. */
+export type PortfolioScope = { organization?: string };
+
+/**
+ * That Portfolio, as a query string.
+ *
+ * The scope travels in the request rather than being filtered out of the
+ * answer: the backend decides it from the membership behind it, so a client can
+ * neither widen it nor forget to apply it once the answer arrives. Every
+ * provider list that hangs off Properties uses this one builder — Properties,
+ * agreements, viewing requests, tenancy requests — so they cannot drift into
+ * scoping themselves four different ways, which is how they came to disagree.
+ */
+function scopeQuery(scope?: PortfolioScope, extra?: Record<string, string>) {
+  const query = new URLSearchParams(extra);
+  if (scope?.organization) query.set("organization", scope.organization);
+  const value = query.toString();
+  return value ? `?${value}` : "";
+}
+
+/**
+ * The Properties of one Portfolio, or — with no Portfolio named — every one
+ * this account can reach.
+ *
+ * `no-store`, because switching Portfolio must never be able to re-serve the
+ * Portfolio somebody has just left.
+ */
+export function listProperties(scope?: PortfolioScope) {
+  return authedFetch<Property[]>(`/properties/${scopeQuery(scope)}`, { cache: "no-store" });
 }
 
 /**
@@ -949,6 +976,28 @@ export function provisionPayoutDestination(
   );
 }
 
+/**
+ * What one Portfolio membership reaches right now, decided by the backend.
+ *
+ * `can` is the whole of what a client needs to build Team navigation. Matching
+ * role names in the browser was a second authorization model, and it drifted:
+ * the rail offered a manager pages every endpoint behind them refused.
+ * `requirements` names what a capability is waiting on, so a workspace can
+ * explain itself instead of going quiet.
+ */
+export type PortfolioAccess = {
+  state: "active" | "limited" | "pending_verification" | "revoked";
+  requirements: string[];
+  scope: "portfolio_wide" | "assigned_financial" | "assigned_properties";
+  can: {
+    operate_properties: boolean;
+    create_properties: boolean;
+    view_finances: boolean;
+    view_billing: boolean;
+    manage_team: boolean;
+  };
+};
+
 export type PortfolioMember = {
   id: string;
   user_id: string;
@@ -959,6 +1008,10 @@ export type PortfolioMember = {
   ended_at: string | null;
   assigned_properties: Array<{ id: string; title: string }>;
   effective_access: "portfolio_wide" | "assigned_financial" | "assigned_properties";
+  access: PortfolioAccess;
+  portfolio: { id: string; name: string; type: Organization["organization_type"] };
+  /** The workspace context id to select after joining, as `/me/` names it. */
+  context_id: string;
 };
 
 export type PortfolioInvitation = {
@@ -973,6 +1026,10 @@ export type PortfolioInvitation = {
   responded_at: string | null;
   created_at: string;
   token: string | null;
+  /** Whether the signed-in account is the number this was sent to. */
+  addressed_to_you: boolean;
+  /** What this reader must do before it can be accepted, e.g. `["identity"]`. */
+  requirements: string[];
 };
 
 export type PropertyAssignment = {
@@ -995,10 +1052,25 @@ export function listPortfolioInvitations(organizationId: string) {
   });
 }
 
-export function listMyPortfolioInvitations() {
-  return authedFetch<PortfolioInvitation[]>("/me/portfolio-invitations/", {
-    cache: "no-store",
-  });
+export function listMyPortfolioInvitations(options?: { history?: boolean }) {
+  return authedFetch<PortfolioInvitation[]>(
+    options?.history ? "/me/portfolio-invitations/?include=history" : "/me/portfolio-invitations/",
+    { cache: "no-store" },
+  );
+}
+
+/**
+ * One invitation named by a secure link, in whatever state it is now.
+ *
+ * Separate from the list because a link outlives the pending state: it is
+ * opened after it expired, after somebody withdrew it, or by the wrong account.
+ * The list can say none of that, and saying nothing was the bug.
+ */
+export function getPortfolioInvitation(invitationId: string, token: string) {
+  return authedFetch<PortfolioInvitation>(
+    `/portfolio-invitations/${invitationId}/?token=${encodeURIComponent(token)}`,
+    { cache: "no-store" },
+  );
 }
 
 export function invitePortfolioMember(
@@ -1239,17 +1311,6 @@ export function recordPropertyExpense(organizationId: string, input: {
     method: "POST",
     body: JSON.stringify(input),
     ...idempotentMutation(),
-  });
-}
-
-export function createOrganization(input: {
-  name: string;
-  organization_type: Organization["organization_type"];
-  activities: Organization["activities"];
-}) {
-  return authedFetch<Organization>("/organizations/", {
-    method: "POST",
-    body: JSON.stringify(input),
   });
 }
 
@@ -1567,8 +1628,11 @@ export type Viewing = {
 };
 
 /** What tenants have asked of me. `open` hides the finished ones. */
-export function listHostViewings(openOnly = false) {
-  return authedFetch<Viewing[]>(`/me/viewing-requests/${openOnly ? "?open=true" : ""}`);
+export function listHostViewings(openOnly = false, scope?: PortfolioScope) {
+  return authedFetch<Viewing[]>(
+    `/me/viewing-requests/${scopeQuery(scope, openOnly ? { open: "true" } : undefined)}`,
+    { cache: "no-store" },
+  );
 }
 
 export function offerSlots(
@@ -1711,9 +1775,10 @@ export type RentalApplication = {
   concluded_at: string | null;
 };
 
-export function listReceivedApplications(openOnly = false) {
+export function listReceivedApplications(openOnly = false, scope?: PortfolioScope) {
   return authedFetch<RentalApplication[]>(
-    `/me/received-applications/${openOnly ? "?open=true" : ""}`,
+    `/me/received-applications/${scopeQuery(scope, openOnly ? { open: "true" } : undefined)}`,
+    { cache: "no-store" },
   );
 }
 
@@ -1896,8 +1961,8 @@ export type RenderedAgreement = {
   sections: { id: string; title: string; body: string; kind?: string }[];
 };
 
-export function listGrantedLeases() {
-  return authedFetch<Lease[]>("/me/granted-leases/");
+export function listGrantedLeases(scope?: PortfolioScope) {
+  return authedFetch<Lease[]>(`/me/granted-leases/${scopeQuery(scope)}`, { cache: "no-store" });
 }
 
 export function draftLease(input: {

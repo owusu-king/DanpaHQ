@@ -3,6 +3,7 @@ import { Tabs, useRouter } from "expo-router";
 import { Pressable, useWindowDimensions } from "react-native";
 
 import { MainTabBar } from "@/components/nav/MainTabBar";
+import { PortfolioHeaderButton } from "@/components/portfolio/PortfolioSwitcher";
 import { theme } from "@/theme";
 
 export default function ProviderTabsLayout() {
@@ -16,6 +17,7 @@ export default function ProviderTabsLayout() {
         headerStyle: { backgroundColor: theme.color.field["50"] },
         headerShadowVisible: false,
         headerTitleStyle: { fontSize: compact ? 16 : 18, fontWeight: "600" },
+        headerLeft: () => <PortfolioHeaderButton compact={compact} />,
         headerRight: () => (
           <Pressable
             accessibilityRole="button"

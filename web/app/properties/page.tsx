@@ -21,37 +21,57 @@ function PropertiesContent() {
   const search = useSearchParams();
   const justCreated = Boolean(search.get("created"));
   const { state, activeContext } = useSession();
-  const provider = state.status === "signed_in" ? state.me.capabilities.provider : null;
-  const canCreateProperty = provider?.can_create_property ?? false;
+  const me = state.status === "signed_in" ? state.me : null;
+  const provider = me?.capabilities.provider ?? null;
+  // Two ways to be allowed: an approved provider adding to anything of theirs,
+  // or a Portfolio administrator adding to the Portfolio that invited them —
+  // which its own standing and their identity check decide, on the backend.
+  const portfolioAccess = me?.contexts.find(
+    (context) => context.type === "organization" && context.id === activeContext,
+  )?.access ?? me?.contexts.find((context) => context.type === "organization")?.access ?? null;
+  const canCreateProperty =
+    (provider?.can_create_property ?? false) || Boolean(portfolioAccess?.can.create_properties);
   const [properties, setProperties] = useState<Property[] | null>(null);
   const [organizations, setOrganizations] = useState<Organization[] | null>(null);
   const [error, setError] = useState("");
 
+  // The Portfolio this page is about, taken from the shared session context —
+  // so switching Portfolio anywhere switches this page with it — and sent to
+  // the backend, which decides the scope from the membership behind it. This
+  // page used to read the account-wide list, which is how one provider's
+  // personal houses turned up in a company's roster.
+  const preferred = activeContext?.startsWith("organization:")
+    ? activeContext.slice("organization:".length)
+    : "";
+
   const load = useCallback(async () => {
+    // Blank first: a switch must never leave the previous Portfolio's
+    // Properties on screen while the next Portfolio's are still in flight.
+    setProperties(null);
     try {
-      const [rows, orgs] = await Promise.all([
-        listProperties(),
-        listOrganizations().catch(() => [] as Organization[]),
-      ]);
-      setProperties(rows);
+      const orgs = await listOrganizations();
       setOrganizations(orgs);
+      const scope = orgs.find((organization) => organization.id === preferred) ?? orgs[0] ?? null;
+      setProperties(scope ? await listProperties({ organization: scope.id }) : []);
       setError("");
     } catch (cause) {
       setError(cause instanceof ApiFailure ? cause.error.message : "Could not load properties.");
       setProperties([]);
       setOrganizations([]);
     }
-  }, []);
+  }, [preferred]);
 
   useEffect(() => { void load(); }, [load]);
 
-  const preferred = activeContext?.startsWith("organization:")
-    ? activeContext.slice("organization:".length)
-    : "";
-  const organizationId =
-    organizations?.find((organization) => organization.id === preferred)?.id
-    ?? organizations?.[0]?.id
-    ?? "";
+  const activeOrganization =
+    organizations?.find((organization) => organization.id === preferred)
+    ?? organizations?.[0]
+    ?? null;
+  const organizationId = activeOrganization?.id ?? "";
+  // A role whose reach is decided by assignment has a different empty state
+  // from an owner's: there is nothing for them to add, and somebody else
+  // decides what they see.
+  const assignedOnly = portfolioAccess ? portfolioAccess.scope !== "portfolio_wide" : false;
   const loading = properties === null || organizations === null;
   const next = propertyNextStep({
     canCreateProperty,
@@ -66,7 +86,7 @@ function PropertiesContent() {
         description={
           loading
             ? "Buildings and rentable spaces in this Portfolio."
-            : `${properties.length} ${properties.length === 1 ? "Property" : "Properties"} in this Portfolio.`
+            : `${properties.length} ${properties.length === 1 ? "Property" : "Properties"} in ${activeOrganization?.name ?? "this Portfolio"}.`
         }
         actions={
           loading || !canCreateProperty
@@ -90,8 +110,16 @@ function PropertiesContent() {
       {loading ? <LoadingRows rows={4} /> : null}
       {!loading && properties.length === 0 ? (
         <Empty
-          title={organizations.length ? "No Properties yet" : "Add your first Property"}
-          body={next.reason}
+          title={
+            assignedOnly
+              ? "No Property is assigned to you"
+              : organizations.length ? "No Properties yet" : "Add your first Property"
+          }
+          body={
+            assignedOnly
+              ? `An owner or administrator of ${activeOrganization?.name ?? "this Portfolio"} decides which Properties you operate. The ones assigned to you appear here.`
+              : next.reason
+          }
           action={
             canCreateProperty
               ? <Link href={next.href as never} className="button-link">Add property</Link>

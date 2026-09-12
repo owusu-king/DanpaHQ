@@ -40,6 +40,7 @@ import {
 } from "@/lib/console";
 import { describePropertySetup } from "@/lib/propertySetup";
 import { loadPropertyTypes, type PropertyTypeOption } from "@/lib/propertyTypes";
+import { useSession } from "@/lib/session";
 
 /** The whole journey, as it stands before anything exists. */
 const OUTLINE = describePropertySetup({
@@ -54,6 +55,7 @@ const OUTLINE = describePropertySetup({
 function NewPropertyContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { activeContext } = useSession();
   const [organizations, setOrganizations] = useState<Organization[] | null>(null);
   const [organizationId, setOrganizationId] = useState(searchParams.get("organization") ?? "");
   const [title, setTitle] = useState("");
@@ -83,10 +85,19 @@ function NewPropertyContent() {
     void listOrganizations()
       .then((rows) => {
         setOrganizations(rows);
-        setOrganizationId((current) => current || rows[0]?.id || "");
+        // The Portfolio being operated, not whichever Portfolio came back
+        // first. This form files the Property, and filing it into the wrong
+        // one is how a personal house ends up on a company's roster — the
+        // picker below still lets somebody say otherwise on purpose.
+        const preferred = activeContext?.startsWith("organization:")
+          ? activeContext.slice("organization:".length)
+          : "";
+        setOrganizationId(
+          (current) => current || rows.find((row) => row.id === preferred)?.id || rows[0]?.id || "",
+        );
       })
       .catch(() => { setOrganizations([]); setError("Could not load your Portfolios."); });
-  }, []);
+  }, [activeContext]);
 
   useEffect(() => {
     if (locality || query.trim().length < 2) return;
@@ -186,7 +197,7 @@ function NewPropertyContent() {
               {organizations.length === 0 ? (
                 <Notice
                   tone="info"
-                  title="A personal Portfolio will be created with it"
+                  title="This goes into your Rooomly Portfolio"
                 />
               ) : null}
 

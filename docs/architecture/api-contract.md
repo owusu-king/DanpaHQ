@@ -114,8 +114,11 @@ is absent. See ADR 0027.
 
 ## Organizations and private inventory
 
-- `GET|POST /organizations/`
-- `GET|PATCH /organizations/:id/`
+- `GET /organizations/` — the Portfolios this account can work in. Read-only:
+  a Portfolio is provisioned when provider access is approved and there is
+  exactly one per provider, so nothing creates one. A `POST` is a 405.
+- `GET|PATCH /organizations/:id/` — the owner renames their Portfolio and says
+  what it does here; it is the only Portfolio write a provider makes.
 - `GET|POST /organizations/:id/memberships/` (owner/admin for administration)
 - `GET|POST /organizations/:id/properties/`
 - `GET|POST /organizations/:id/property-assignments/`

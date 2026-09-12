@@ -281,6 +281,12 @@ function ViewingRow({
  */
 function ProviderViewings() {
   const router = useRouter();
+  // A viewing is asked of a listing on a Property, so it belongs to that
+  // Property's Portfolio and to no other.
+  const { activeContext } = useSession();
+  const preferred = activeContext?.startsWith("organization:")
+    ? activeContext.slice("organization:".length)
+    : "";
   const [viewings, setViewings] = useState<Viewing[] | null>(null);
   const [error, setError] = useState("");
 
@@ -291,8 +297,11 @@ function ProviderViewings() {
   const query = search.get("q") ?? "";
 
   const load = useCallback(async () => {
+    setViewings(null);
     try {
-      setViewings(await listHostViewings(false));
+      setViewings(
+        await listHostViewings(false, preferred ? { organization: preferred } : undefined),
+      );
       setError("");
     } catch (cause) {
       if (cause instanceof ApiFailure && (cause.status === 401 || cause.status === 403)) {
@@ -302,7 +311,7 @@ function ProviderViewings() {
       setError(cause instanceof ApiFailure ? cause.error.message : "Could not load viewings.");
       setViewings([]);
     }
-  }, [router]);
+  }, [preferred, router]);
 
   useEffect(() => { void load(); }, [load]);
 

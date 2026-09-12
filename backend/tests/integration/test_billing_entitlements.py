@@ -99,28 +99,36 @@ class TestEveryPortfolioStartsOnFree:
         assert subscription.current_period_end is None
 
     def test_the_portfolio_subscribes_and_not_the_user(self, landlord, registered):
-        """Two Portfolios owned by one person can be on different plans."""
-        approve_provider_standing(landlord)
-        second = organization_services.create_organization(
-            user=landlord,
-            data={
-                "name": "Second Portfolio",
-                "organization_type": "individual_owner",
-                "activities": ["residential"],
-            },
-        )
-        first = organization_services.create_organization(
-            user=landlord,
-            data={
-                "name": "First Portfolio",
-                "organization_type": "individual_owner",
-                "activities": ["residential"],
-            },
-        )
-        upgrade_portfolio(first, "PRO")
+        """One person in two Portfolios; the plan follows the Portfolio.
 
-        assert entitlement_service.current_plan(organization=first).code == "PRO"
-        assert entitlement_service.current_plan(organization=second).code == "FREE"
+        One owned and one joined is the only way to be in two — nobody owns a
+        second — and the subscription belongs to each Portfolio rather than to
+        the person standing in both of them.
+        """
+        approve_provider_standing(landlord)
+        mine = organization_services.provision_provider_portfolio(user=landlord)
+
+        host = registered("0559990077", first_name="Yaa", account_type="provider")
+        approve_provider_standing(host)
+        theirs = organization_services.provision_provider_portfolio(user=host)
+        # Seats to invite with: Free includes the owner and nobody else.
+        upgrade_portfolio(theirs, "BUSINESS")
+        invitation = organization_services.create_invitation(
+            organization=theirs,
+            actor=host,
+            invitee_phone=landlord.phone,
+            role="property_manager",
+        )
+        organization_services.accept_invitation(
+            invitation=invitation,
+            actor=landlord,
+            token=organization_services.invitation_token(invitation),
+        )
+
+        upgrade_portfolio(mine, "PRO")
+
+        assert entitlement_service.current_plan(organization=mine).code == "PRO"
+        assert entitlement_service.current_plan(organization=theirs).code == "BUSINESS"
 
     def test_assignment_is_idempotent(self, landlord, portfolio):
         """A backfill or a repair must not produce a second subscription."""

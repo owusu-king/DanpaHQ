@@ -5,6 +5,7 @@ import { apiFetch, ApiFailure } from "@/api";
 import { useAuth, type Me, type Workspace } from "@/auth";
 import { isNotAProvider } from "@/formErrors";
 import { resolveEntryRoute } from "@/navigation";
+import { describeDevice } from "@/device";
 import { chooseWorkspace } from "@/workspace";
 
 /**
@@ -90,6 +91,10 @@ export function useSignInFlow({
           phone,
           password,
           platform: Platform.OS === "ios" ? "ios" : "android",
+          // Which phone this is, not merely that it is one. Somebody reviewing
+          // where their account is signed in has to recognise the device in
+          // their hand — or fail to recognise one they have never held.
+          device_label: describeDevice(),
           device_fingerprint: deviceFingerprint,
         },
       });

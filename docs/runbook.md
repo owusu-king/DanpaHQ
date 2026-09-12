@@ -69,6 +69,25 @@ healthy pods and turn degradation into an outage.
 
 ## When something is wrong
 
+**A web page 404s, and its route file is right there on disk.**
+The route was never registered by the dev server, not deleted. Next builds its
+route map when it starts, and on a Windows bind mount a directory appearing or
+changing inside `web/app` does not reliably reach the container's watcher —
+`WATCHPACK_POLLING` rebuilds modules it already knows about, which is a
+different thing. The symptom is a plain Next 404 for every account while the API
+answers 200 for the same record:
+
+```bash
+docker compose logs web --tail 50 | grep " 404 "   # the page, not the API
+docker compose restart web                          # the fix
+```
+
+Confirm the API is innocent before restarting, so a real authorization 404 is
+not mistaken for this: `docker compose exec api python manage.py shell` and call
+the endpoint with `APIClient().force_authenticate(user=…)`. A 500 with
+`Manifest file is empty` in the first seconds after a restart is the dev server
+compiling several routes at once; it clears on the next request.
+
 **Outbox events are not being delivered.**
 Check `beat` is running (it schedules the dispatcher every 5 seconds) and that
 `worker` is consuming the `default` queue. Then:

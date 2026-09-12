@@ -44,15 +44,21 @@ type ProviderLeaseStage = "send" | "current" | "history";
 
 function ProviderLeasesScreen() {
   const router = useRouter();
+  // An agreement belongs to the Portfolio whose Property granted it.
+  const { activeContext } = useAuth();
+  const preferred = activeContext?.startsWith("organization:")
+    ? activeContext.slice("organization:".length)
+    : "";
   const [items, setItems] = useState<Lease[] | null>(null);
   const [stage, setStage] = useState<ProviderLeaseStage>("send");
   const [query, setQuery] = useState("");
   const [error, setError] = useState("");
   const [refreshing, setRefreshing] = useState(false);
   const load = useCallback(async () => {
-    try { setItems(await listGrantedLeases()); setError(""); }
+    setItems(null);
+    try { setItems(await listGrantedLeases(preferred ? { organization: preferred } : undefined)); setError(""); }
     catch (cause) { setItems([]); setError(cause instanceof ApiFailure ? cause.error.message : "We could not load these agreements."); }
-  }, []);
+  }, [preferred]);
   useEffect(() => { void load(); }, [load]);
   const counts = useMemo(() => ({
     send: (items ?? []).filter((item) => providerLeaseStage(item) === "send").length,

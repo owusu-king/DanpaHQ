@@ -61,8 +61,10 @@ function PaymentsWorkspace() {
   const { state } = useSession();
   if (state.status === "loading") return <><PageHeader title="Payments" /><LoadingRows rows={5} /></>;
   if (state.status !== "signed_in") return null;
+  // A Team member is in the provider experience without having declared a
+  // provider journey of their own, so access is the question, not `exists`.
   const inProvider = state.me.capabilities.active_workspace === "provider"
-    && state.me.capabilities.provider.exists;
+    && (state.me.capabilities.provider.workspace_access || state.me.capabilities.provider.exists);
   return inProvider ? <ProviderPaymentsContent /> : <TenantPaymentsWorkspace />;
 }
 

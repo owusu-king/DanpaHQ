@@ -124,10 +124,19 @@ class LandlordLeasesView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        from apps.organization.services import properties_for_user
+        """`?organization=<id>` scopes this to one Portfolio, decided here.
+
+        An agreement belongs to the Portfolio whose Property it was granted on,
+        so a provider looking at one Portfolio is never shown another's.
+        """
+        from apps.organization.services import properties_in_scope
 
         leases = (
-            Lease.objects.filter(unit__property__in=properties_for_user(request.user))
+            Lease.objects.filter(
+                unit__property__in=properties_in_scope(
+                    user=request.user, organization=request.query_params.get("organization")
+                )
+            )
             .select_related(*SELECT)
             .prefetch_related("agreement__acceptances__user")
         )

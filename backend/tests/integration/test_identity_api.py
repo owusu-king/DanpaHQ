@@ -257,12 +257,8 @@ class TestRegistrationJourney:
         api.credentials(HTTP_AUTHORIZATION=f"Bearer {ticket}")
 
         blocked = api.post(
-            "/api/v1/organizations/",
-            {
-                "name": "Too Early",
-                "organization_type": "individual_owner",
-                "activities": ["residential"],
-            },
+            "/api/v1/portfolio/properties/",
+            {"title": "Too Early", "property_type": "residential"},
             format="json",
         )
 

@@ -147,6 +147,26 @@ export function provisionPayoutDestination(
   );
 }
 
+/**
+ * What one Portfolio membership reaches right now, decided by the backend.
+ *
+ * `can` is the whole of what a screen needs to build Team navigation, and
+ * `requirements` names what a capability is waiting on — so a limited role gets
+ * an explanation rather than a screen that quietly does nothing.
+ */
+export type PortfolioAccess = {
+  state: "active" | "limited" | "pending_verification" | "revoked";
+  requirements: string[];
+  scope: "portfolio_wide" | "assigned_financial" | "assigned_properties";
+  can: {
+    operate_properties: boolean;
+    create_properties: boolean;
+    view_finances: boolean;
+    view_billing: boolean;
+    manage_team: boolean;
+  };
+};
+
 export type PortfolioMember = {
   id: string;
   user_id: string;
@@ -157,6 +177,10 @@ export type PortfolioMember = {
   ended_at: string | null;
   assigned_properties: { id: string; title: string }[];
   effective_access: "portfolio_wide" | "assigned_financial" | "assigned_properties";
+  access: PortfolioAccess;
+  portfolio: { id: string; name: string; type: Organization["organization_type"] };
+  /** The workspace context id to select after joining, as `/me/` names it. */
+  context_id: string;
 };
 
 export type PortfolioInvitation = {
@@ -168,7 +192,13 @@ export type PortfolioInvitation = {
   invited_by_name: string;
   properties: { id: string; title: string }[];
   expires_at: string;
+  created_at: string;
+  responded_at: string | null;
   token: string | null;
+  /** Whether the signed-in account is the number this was sent to. */
+  addressed_to_you: boolean;
+  /** What this reader must do before it can be accepted, e.g. `["identity"]`. */
+  requirements: string[];
 };
 
 export type PropertyAssignment = {
@@ -187,8 +217,23 @@ export function listPortfolioInvitations(organizationId: string) {
   return apiFetch<PortfolioInvitation[]>(`/organizations/${organizationId}/invitations/`);
 }
 
-export function listMyPortfolioInvitations() {
-  return apiFetch<PortfolioInvitation[]>("/me/portfolio-invitations/");
+export function listMyPortfolioInvitations(options?: { history?: boolean }) {
+  return apiFetch<PortfolioInvitation[]>(
+    options?.history ? "/me/portfolio-invitations/?include=history" : "/me/portfolio-invitations/",
+  );
+}
+
+/**
+ * One invitation named by a secure link, in whatever state it is now.
+ *
+ * Separate from the list because a link outlives the pending state: it is
+ * opened after it expired, after somebody withdrew it, or on the wrong account.
+ * The list can say none of that, and saying nothing was the bug.
+ */
+export function getPortfolioInvitation(invitationId: string, token: string) {
+  return apiFetch<PortfolioInvitation>(
+    `/portfolio-invitations/${invitationId}/?token=${encodeURIComponent(token)}`,
+  );
 }
 
 export function invitePortfolioMember(
@@ -205,7 +250,9 @@ export function respondToPortfolioInvitation(
   decision: "accept" | "decline",
   token: string,
 ) {
-  return apiFetch(`/portfolio-invitations/${invitationId}/${decision}/`, {
+  // Accepting answers with the membership it created — the Portfolio to select,
+  // the role, its assignments and whatever is still waiting on verification.
+  return apiFetch<PortfolioMember>(`/portfolio-invitations/${invitationId}/${decision}/`, {
     method: "POST", body: { token },
   });
 }
@@ -389,14 +436,6 @@ export type PropertyExpense = {
   incurred_on: string;
   note: string;
 };
-
-export function createOrganization(input: {
-  name: string;
-  organization_type: Organization["organization_type"];
-  activities: Organization["activities"];
-}) {
-  return apiFetch<Organization>("/organizations/", { method: "POST", body: input });
-}
 
 export function listOrganizationProperties(organizationId: string) {
   return apiFetch<ManagedProperty[]>(`/organizations/${organizationId}/properties/`);

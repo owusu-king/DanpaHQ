@@ -1,5 +1,5 @@
-import { useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useFocusEffect, useRouter } from "expo-router";
+import { useCallback, useEffect, useState } from "react";
 import { Image, ScrollView, View } from "react-native";
 
 import { ApiFailure } from "@/api";
@@ -8,6 +8,7 @@ import { AuthPrompt } from "@/components/AuthPrompt";
 import { Group, QuietLink, Row } from "@/components/account/IndexRows";
 import { Notice, Type, space } from "@/components/ui";
 import { resolveEntryRoute } from "@/navigation";
+import { listMyPortfolioInvitations } from "@/organizations";
 import { resolvePhotoUrl } from "@/photo";
 import { theme } from "@/theme";
 import { chooseWorkspace } from "@/workspace";
@@ -28,6 +29,19 @@ export default function ProfileTab() {
   const [leaving, setLeaving] = useState(false);
   const [error, setError] = useState("");
   const [photoUri, setPhotoUri] = useState<string | null>(null);
+
+  // Somebody invited into a Portfolio may not be a provider at all, so the way
+  // in cannot sit behind a provider-only screen. It appears only while an
+  // invitation is waiting — a permanent row for a rare event is the noise that
+  // buried it — and on focus, so answering one clears it on the way back.
+  const [invitationsWaiting, setInvitationsWaiting] = useState(0);
+  useFocusEffect(
+    useCallback(() => {
+      void listMyPortfolioInvitations()
+        .then((rows) => setInvitationsWaiting(rows.filter((row) => row.status === "pending").length))
+        .catch(() => setInvitationsWaiting(0));
+    }, []),
+  );
 
   const avatarEndpoint = state.status === "signed_in" ? state.me.profile?.avatar_url ?? null : null;
   useEffect(() => {
@@ -80,6 +94,17 @@ export default function ProfileTab() {
           happened, and burying it under "Your history" made it the third row of
           a group it never belonged to. Explore's header reaches the same place
           for anyone already browsing. */}
+      {invitationsWaiting ? (
+        <Group title="Waiting for you">
+          <Row
+            icon="people-circle-outline"
+            label="Portfolio invitations"
+            count={invitationsWaiting}
+            onPress={() => router.push("/(app)/portfolio-invitations" as never)}
+          />
+        </Group>
+      ) : null}
+
       <Group title="Your shortlist">
         <Row icon="bookmark-outline" label="Saved places" onPress={() => router.push("/(app)/(tabs)/saved" as never)} />
       </Group>

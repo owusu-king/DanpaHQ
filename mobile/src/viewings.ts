@@ -5,7 +5,7 @@
  * is then verified by one server-issued QR/code credential before completion.
  */
 
-import { apiFetch, idempotentMutation } from "@/api";
+import { apiFetch, idempotentMutation, scopeQuery, type PortfolioScope } from "@/api";
 
 export type ViewingSlot = {
   id: string;
@@ -145,8 +145,10 @@ export function listMyViewings() {
 }
 
 /** Viewing requests for Properties the current provider may manage. */
-export function listReceivedViewings(openOnly = false) {
-  return apiFetch<Viewing[]>(`/me/viewing-requests/${openOnly ? "?open=true" : ""}`);
+export function listReceivedViewings(openOnly = false, scope?: PortfolioScope) {
+  return apiFetch<Viewing[]>(
+    `/me/viewing-requests/${scopeQuery(scope, openOnly ? { open: "true" } : undefined)}`,
+  );
 }
 
 export function getViewing(viewingId: string) {

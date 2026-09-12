@@ -12,7 +12,6 @@ import { ApiFailure } from "@/lib/api";
 import {
   listOrganizations,
   listOrganizationProperties,
-  listPortfolioUnits,
   listReceivedApplications,
   listGrantedLeases,
   listHostViewings,
@@ -21,7 +20,6 @@ import {
   type OrganizationPortfolio,
   type Property,
   type RentalApplication,
-  type Unit,
   type Viewing,
 } from "@/lib/console";
 import { propertyNextStep } from "@/lib/providerSetup";
@@ -79,8 +77,13 @@ export default function HomePage() {
   if (state.status !== "signed_in") return null;
 
   const me = state.me;
+  // Either door into the provider experience: this person's own declared
+  // journey, or a Portfolio they were invited into. Reading `exists` alone gave
+  // an invited member the tenant Home while they stood in the provider
+  // workspace, which is most of what "the invitation went nowhere" looked like.
   const inProvider =
-    me.capabilities.active_workspace === "provider" && me.capabilities.provider.exists;
+    me.capabilities.active_workspace === "provider"
+    && (me.capabilities.provider.workspace_access || me.capabilities.provider.exists);
 
   return inProvider ? <ProviderHome me={me} activeContext={activeContext} /> : <TenantHome me={me} />;
 }
@@ -834,6 +837,13 @@ type ProviderAttention = {
 
 function ProviderHome({ me, activeContext }: { me: Me; activeContext: string | null }) {
   const provider = me.capabilities.provider;
+  // The Portfolio being operated and what this person's role reaches in it. A
+  // member sees their assigned Properties, so "nothing here yet" means
+  // something different to them than it does to the owner.
+  const portfolioContext = me.contexts.find(
+    (context) => context.type === "organization" && context.id === activeContext,
+  ) ?? me.contexts.find((context) => context.type === "organization") ?? null;
+  const access = portfolioContext?.access ?? null;
   const [properties, setProperties] = useState<Property[]>([]);
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [applications, setApplications] = useState<RentalApplication[]>([]);
@@ -859,26 +869,21 @@ function ProviderHome({ me, activeContext }: { me: Me; activeContext: string | n
           ? activeContext.slice("organization:".length)
           : "";
         const organization = orgs.find((row) => row.id === preferredId) ?? orgs[0];
-        if (!organization) return { orgs, props: [], unitRows: [], apps: [], views: [], leases: [], summary: null };
-        const [props, unitRows, apps, views, leases, summary] = await Promise.all([
+        if (!organization) return { orgs, props: [], apps: [], views: [], leases: [], summary: null };
+        // Each list is asked for this Portfolio, so nothing is sifted here.
+        // Home used to fetch every Unit purely to filter three account-wide
+        // lists by hand — and viewings by *Property title*, which two
+        // Properties can share, so a viewing could be dropped, or kept against
+        // the wrong building entirely.
+        const scope = { organization: organization.id };
+        const [props, apps, views, leases, summary] = await Promise.all([
           listOrganizationProperties(organization.id).catch(() => [] as Property[]),
-          listPortfolioUnits(organization.id).catch(() => [] as Unit[]),
-          listReceivedApplications(true).catch(() => [] as RentalApplication[]),
-          listHostViewings(true).catch(() => [] as Viewing[]),
-          listGrantedLeases().catch(() => [] as Lease[]),
+          listReceivedApplications(true, scope).catch(() => [] as RentalApplication[]),
+          listHostViewings(true, scope).catch(() => [] as Viewing[]),
+          listGrantedLeases(scope).catch(() => [] as Lease[]),
           getOrganizationPortfolio(organization.id).catch(() => null),
         ]);
-        const unitIds = new Set(unitRows.map((row) => row.id));
-        const propertyTitles = new Set(props.map((row) => row.title));
-        return {
-          orgs,
-          props,
-          unitRows,
-          apps: apps.filter((row) => unitIds.has(row.unit_id)),
-          views: views.filter((row) => row.property_title && propertyTitles.has(row.property_title)),
-          leases: leases.filter((row) => unitIds.has(row.unit)),
-          summary,
-        };
+        return { orgs, props, apps, views, leases, summary };
       })
       .then((result) => {
         if (!result || cancelled) return;
@@ -934,8 +939,9 @@ function ProviderHome({ me, activeContext }: { me: Me; activeContext: string | n
     );
   }
 
+  const canAddProperty = provider.can_create_property || Boolean(access?.can.create_properties);
   const next = propertyNextStep({
-    canCreateProperty: provider.can_create_property,
+    canCreateProperty: canAddProperty,
     hasWorkspace: organizations.length > 0,
     organizationId: organizations[0]?.id ?? "",
   });
@@ -994,15 +1000,30 @@ function ProviderHome({ me, activeContext }: { me: Me; activeContext: string | n
         </div>
         {error ? <Notice tone="error" title={error} /> : null}
         <div className="home-start">
-          <h2>Your Portfolio starts here</h2>
-          <p className="type-body">
-            Add your first Property and Rooomly will help you organize its Units, tenants,
-            agreements and rent.
-          </p>
-          {provider.can_create_property ? (
-            <p><Link href={next.href as never} className="button-link">{next.label}</Link></p>
+          {access && access.scope !== "portfolio_wide" ? (
+            // A member with nothing assigned is not an empty Portfolio, and
+            // telling them to add their first Property would be advice they
+            // cannot take: assignment is the owner's decision, not theirs.
+            <>
+              <h2>Nothing is assigned to you yet</h2>
+              <p className="type-body">
+                You are in {portfolioContext?.label ?? "this Portfolio"}. The Properties you may
+                operate appear here as soon as an owner or administrator assigns them to you.
+              </p>
+            </>
           ) : (
-            <p className="type-caption">{next.reason}</p>
+            <>
+              <h2>Your Portfolio starts here</h2>
+              <p className="type-body">
+                Add your first Property and Rooomly will help you organize its Units, tenants,
+                agreements and rent.
+              </p>
+              {canAddProperty ? (
+                <p><Link href={next.href as never} className="button-link">{next.label}</Link></p>
+              ) : (
+                <p className="type-caption">{next.reason}</p>
+              )}
+            </>
           )}
         </div>
       </div>

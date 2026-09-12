@@ -1,11 +1,15 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const read = (relative) => readFileSync(resolve(root, relative), "utf8");
+const exists = (relative) => existsSync(resolve(root, relative));
+
+// Comments explain; they must never be what satisfies an assertion.
+const code = (text) => text.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
 
 test("provider web exposes Portfolio Team, settings, invitations and assignments", () => {
   const settingsIndex = read("web/app/settings/layout.tsx");
@@ -28,10 +32,211 @@ test("provider web exposes Portfolio Team, settings, invitations and assignments
   assert.match(profile, /listMyPortfolioInvitations/);
   assert.match(profile, /\/portfolio-invitations/);
 
-  // Switching belongs to the one surface that still knows which Portfolio you
-  // are looking at, and only when there is more than one.
-  assert.match(team, /organizations\.length > 1/);
-  assert.match(team, /setActiveContext\(`organization:\$\{event\.target\.value\}`\)/);
+  // Switching is the header's job, so the Team page no longer carries a select
+  // above the roster somebody came there to read.
+  assert.doesNotMatch(team, /setActiveContext/);
+  assert.doesNotMatch(team, /<select/);
+});
+
+test("the Portfolio switcher is one header icon and a quick context", () => {
+  const switcher = code(read("web/src/components/portal/PortfolioMenu.tsx"));
+  const shell = code(read("web/src/components/portal/PortalShell.tsx"));
+  const css = read("web/src/styles/portal.css");
+
+  // One icon, between Search and Updates, with a mark when there is somewhere
+  // else to be — never a count, which would read as unread work.
+  assert.match(shell, /<PortalSearch[\s\S]*<PortfolioMenu me=\{me\} \/>[\s\S]*portal-header-updates/);
+  assert.match(switcher, /portal-header-dot/);
+  assert.match(switcher, /title="Switch portfolio"/);
+
+  // Name, what the Portfolio is, and the role held in it: the three things
+  // somebody needs to pick the right one at a glance.
+  assert.match(switcher, /portfolio-row-name/);
+  assert.match(switcher, /portfolio-row-meta/);
+  assert.match(switcher, /aria-checked=\{isCurrent\}/);
+  // A search box for three Portfolios is furniture; it appears when a list is
+  // long enough that reading it beats scanning it.
+  assert.match(switcher, /portfolios\.length >= SEARCHABLE_FROM/);
+
+  // Settling a Portfolio's affairs is not switching between them.
+  assert.match(switcher, /portfolio-menu-foot/);
+  assert.match(switcher, /Portfolio settings/);
+  // And creating one is not an option anywhere: an account is provisioned its
+  // one Portfolio, and the others on this list are somebody's invitation.
+  assert.doesNotMatch(switcher, /Create Portfolio/);
+
+  // Switching remounts the page, so the Portfolio just left cannot be on screen
+  // while the next one loads.
+  assert.match(shell, /key=\{activeContext \?\? "no-context"\}/);
+
+  // One switcher, in the chrome. A page that keeps a Portfolio select of its
+  // own is a second answer to "which Portfolio am I in", and the two disagree
+  // the moment somebody uses either one.
+  for (const page of ["web/app/settings/team/page.tsx", "web/app/tenants/page.tsx"]) {
+    assert.doesNotMatch(
+      code(read(page)),
+      /setActiveContext/,
+      `${page} still switches Portfolio from inside the page`,
+    );
+  }
+  // Tenants follows the header rather than remembering a Portfolio of its own.
+  assert.match(code(read("web/app/tenants/page.tsx")), /rows\.find\(\(row\) => row\.id === preferred\)\?\.id \?\? rows\[0\]\?\.id/);
+
+  // Hover, press, focus and selected are all drawn, not left to the browser.
+  for (const state of [":hover", ":active", ":focus-visible", '\\[data-active="true"\\]']) {
+    assert.match(css, new RegExp(`\\.portfolio-row${state}`), `no ${state} state on a Portfolio row`);
+  }
+});
+
+test("Portfolio and Updates are one utility control, not two loose icons", () => {
+  const shell = code(read("web/src/components/portal/PortalShell.tsx"));
+  const switcher = code(read("web/src/components/portal/PortfolioMenu.tsx"));
+  const icons = read("web/src/components/portal/icons.tsx");
+  const css = read("web/src/styles/portal.css");
+
+  // One container, in order, with a hairline between — and each action still
+  // its own button or link.
+  assert.match(
+    shell,
+    /<div className="portal-utility">\s*<PortfolioMenu me=\{me\} \/>\s*<span className="portal-utility-rule" aria-hidden="true" \/>\s*<Link href="\/updates" className="portal-header-updates">/,
+  );
+  // A tenant has no Portfolio, so there is nothing for the hairline to divide.
+  assert.match(css, /\.portal-utility-rule:first-child \{ display: none; \}/);
+
+  // Equal sizing and alignment, and the same hover, press and focus on both.
+  for (const state of ["", ":hover", ":active", ":focus-visible"]) {
+    assert.match(
+      css,
+      new RegExp(`\\.portal-header-icon${state},\\s*\\.portal-header-updates${state}`),
+      `the two utility actions do not share ${state || "their sizing"}`,
+    );
+  }
+
+  // One band down the right of the header — the field and the group are the
+  // same height — and a finger gets more of it than a cursor does.
+  assert.match(css, /\.portal-utility \{[^}]*height: 2\.5rem;/);
+  assert.match(css, /\.portal-search-field \{[^}]*height: 2\.5rem;/);
+  assert.match(css, /@media \(pointer: coarse\)/);
+  // Search is what gives way first when the header runs out of room.
+  assert.match(css, /@media \(max-width: 47\.99rem\) \{\s*\.portal-search \{ display: none; \}/);
+
+  // A stack of workspaces, not the building that already means Properties.
+  assert.match(switcher, /<Icon name="portfolio" \/>/);
+  assert.doesNotMatch(switcher, /<Icon name="properties"/);
+  assert.match(icons, /portfolio: \(/);
+
+  // The bell carries a mark, not a figure to do arithmetic on; the exact number
+  // stays in the accessible name.
+  assert.match(shell, /unread > 9 \? "9\+" : unread/);
+  assert.match(shell, /\`Updates, \$\{unread\} unread\`/);
+});
+
+test("accepting an invitation takes the person into the Portfolio it granted", () => {
+  const page = code(read("web/app/portfolio-invitations/page.tsx"));
+
+  // The three moves that make a new membership usable, in the order that makes
+  // them stick: be in the provider experience, re-read the account so the
+  // Portfolio is a context at all, then select it. Selecting first did nothing
+  // at all — the id did not yet exist — which is how somebody accepted an
+  // invitation and stayed exactly where they were.
+  assert.match(page, /await chooseWorkspace\("provider"\);\s*await refresh\(member\.context_id\);/);
+  assert.match(page, /setJoined\(member\)/);
+  // The confirmation names what was joined and opens it.
+  assert.match(page, /Open \{member\.portfolio\.name\}/);
+  assert.match(page, /scopeSentence/);
+});
+
+test("an invitation link says what it is, in every state it can be in", () => {
+  const page = code(read("web/app/portfolio-invitations/page.tsx"));
+  const api = code(read("web/src/lib/console.ts"));
+
+  // A link outlives the pending state, so the page reads the invitation the
+  // link names rather than hoping it is still in the waiting list.
+  assert.match(api, /\/portfolio-invitations\/\$\{invitationId\}\/\?token=/);
+  assert.match(page, /getPortfolioInvitation\(linkedId, linkedToken\)/);
+  assert.match(page, /listMyPortfolioInvitations\(\{ history: true \}\)/);
+  for (const ending of ["accepted", "declined", "revoked", "expired"]) {
+    assert.ok(page.includes(`${ending}:`), `an invitation that is ${ending} has nothing to say`);
+  }
+  // Two things a list of pending invitations could never tell somebody.
+  assert.match(page, /invitation\.addressed_to_you/);
+  assert.match(page, /invitation\.requirements\[0\]/);
+});
+
+test("the Team roster never hands out ownership, and grants only once verified", () => {
+  const team = code(read("web/app/settings/team/page.tsx"));
+
+  assert.match(team, /const GRANTABLE_ROLES = ROLES\.filter\(\(\[value\]\) => value !== "owner"\)/);
+  assert.match(team, /options=\{GRANTABLE_ROLES\}/);
+  assert.doesNotMatch(team, /options=\{ROLES\}/);
+  // Granting access waits on the backend's own answer about this person;
+  // ending it deliberately does not.
+  assert.match(team, /access \? access\.can\.manage_team : canManageTeam/);
+  assert.match(team, /\{canGrant \? <Button onClick=\{\(\) => setInviting\(true\)\}/);
+  assert.match(team, /Remove from this Portfolio/);
+});
+
+test("the Provider Properties page is one Portfolio at a time", () => {
+  const page = code(read("web/app/properties/page.tsx"));
+  const api = code(read("web/src/lib/console.ts"));
+  const view = read("backend/apps/property/views.py");
+
+  // The Portfolio travels in the request and the backend decides the scope from
+  // the membership behind it. A filter applied after the fact would still have
+  // asked for everything, and everything is what mixed a personal Portfolio's
+  // houses into a company's roster.
+  assert.match(api, /query\.set\("organization", scope\.organization\)/);
+  assert.match(view, /properties_in_scope\(/);
+  assert.match(page, /listProperties\(\{ organization: scope\.id \}\)/);
+  assert.doesNotMatch(page, /listProperties\(\)/);
+
+  // The scope is the shared session context, so switching Portfolio anywhere
+  // switches this page too…
+  assert.match(page, /const preferred = activeContext\?\.startsWith\("organization:"\)/);
+  assert.match(page, /\}, \[preferred\]\);/);
+  // …and the Portfolio being left takes its Properties off the screen with it.
+  assert.match(page, /setProperties\(null\);/);
+
+  // Adding a Property files it into the Portfolio being operated. Defaulting to
+  // whichever Portfolio came back first is the same mixing, one step later:
+  // the house lands in a roster its provider was not looking at.
+  const form = code(read("web/app/properties/new/page.tsx"));
+  assert.match(form, /rows\.find\(\(row\) => row\.id === preferred\)\?\.id \|\| rows\[0\]\?\.id/);
+  assert.match(form, /\}, \[activeContext\]\);/);
+});
+
+test("every provider list is about the Portfolio on screen", () => {
+  const services = read("backend/apps/organization/services.py");
+  const hook = code(read("web/src/lib/useProviderRequests.ts"));
+  const leases = code(read("web/app/leases/page.tsx"));
+  const viewings = code(read("web/app/viewings/page.tsx"));
+  const home = code(read("web/app/home/page.tsx"));
+
+  // Properties, agreements, viewing requests and tenancy requests all hang off
+  // Properties, so they scope through one service rather than four opinions.
+  assert.match(services, /def properties_in_scope\(\*, user, organization=None\)/);
+  for (const app of ["property", "lease", "viewing", "application"]) {
+    assert.match(
+      read(`backend/apps/${app}/views.py`),
+      /properties_in_scope\(/,
+      `${app} still answers a provider list without a Portfolio`,
+    );
+  }
+
+  // Tenancy requests used to be every Portfolio's, flattened into one list.
+  assert.doesNotMatch(hook, /organizations\.map\(\(organization\) => getOrganizationPortfolio/);
+  assert.match(hook, /getOrganizationPortfolio\(scope\.id\)/);
+  assert.match(hook, /listReceivedApplications\(false, \{ organization: scope\.id \}\)/);
+  assert.match(hook, /\}, \[preferred\]\);/);
+
+  assert.match(leases, /listGrantedLeases\(preferred \? \{ organization: preferred \} : undefined\)/);
+  assert.match(viewings, /listHostViewings\(false, preferred \? \{ organization: preferred \} : undefined\)/);
+
+  // Home asked for everything and sifted it by Unit id — and viewings by
+  // Property *title*, which two Properties can share.
+  assert.match(home, /listReceivedApplications\(true, scope\)/);
+  assert.match(home, /listHostViewings\(true, scope\)/);
+  assert.doesNotMatch(home, /propertyTitles/);
 });
 
 test("an individual web provider creates a first Property without setup detour", () => {
@@ -41,14 +246,15 @@ test("an individual web provider creates a first Property without setup detour",
   const tenants = read("web/app/tenants/page.tsx");
 
   assert.match(property, /createPersonalPortfolioProperty/);
-  // The rule is that the individual path says a personal Portfolio comes
-  // with the Property; the sentence carrying it got shorter, not removed.
-  assert.match(property, /personal Portfolio will be created with it/);
+  // The Property is filed into the Portfolio the account already has, and the
+  // form says so. It no longer promises to create one, because approval did.
+  assert.match(property, /This goes into your Rooomly Portfolio/);
+  assert.doesNotMatch(property, /will be created/);
   assert.doesNotMatch(property, /propertyTypes\.filter/);
   assert.match(next, /href: "\/properties\/new"/);
   assert.doesNotMatch(next, /label: "Create workspace"/);
   assert.doesNotMatch(home, /Set up your workspace first/);
-  assert.doesNotMatch(tenants, /href="\/organization\/setup"[^>]*>Set up workspace/);
+  assert.doesNotMatch(tenants, /organization\/setup/);
 });
 
 test("provider Home is a control center that only states what it can calculate", () => {
@@ -184,14 +390,28 @@ test("provider Payments is first-class navigation and an actionable destination"
   assert.match(read("web/app/payments/[leaseId]/page.tsx"), /getLeaseLedger/);
 });
 
-test("full web Portfolio setup is explicit business setup without a Residential default", () => {
-  const setup = read("web/app/organization/setup/page.tsx");
-  const team = read("web/app/settings/team/page.tsx");
+test("nothing in the web console creates a Portfolio", () => {
+  // Every provider owns exactly one Portfolio and Rooomly provisions it when
+  // provider access is approved. There is no setup route, no API wrapper to
+  // call one, and no control that offers it — the owner renames what they were
+  // given, and joins anything else by invitation.
+  assert.equal(exists("web/app/organization/setup/page.tsx"), false);
+  assert.equal(exists("web/app/organization"), false);
+  assert.doesNotMatch(read("web/src/lib/console.ts"), /createOrganization/);
+  for (const page of [
+    "web/src/components/portal/PortfolioMenu.tsx",
+    "web/app/settings/team/page.tsx",
+    "web/app/choose-role/page.tsx",
+    "web/app/properties/new/page.tsx",
+    "web/app/home/page.tsx",
+    "web/app/tenants/page.tsx",
+  ]) {
+    assert.doesNotMatch(read(page), /organization\/setup/, `${page} still points at Portfolio setup`);
+  }
 
-  assert.match(setup, /Set up a property business/);
-  assert.match(setup, /useState<Organization\["activities"\]>\(\[\]\)/);
-  assert.doesNotMatch(setup, /useState<Organization\["activities"\]>\(\["residential"\]\)/);
-  assert.match(team, /href="\/organization\/setup"/);
+  // The Portfolio an owner was given is theirs to name and to describe.
+  const team = read("web/app/settings/team/page.tsx");
+  assert.match(team, /updateOrganization/);
 });
 
 test("web Property and Unit pages keep one operational hierarchy", () => {

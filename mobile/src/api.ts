@@ -122,6 +122,24 @@ export function idempotentMutation() {
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+/** The Portfolio a provider list is about. */
+export type PortfolioScope = { organization?: string };
+
+/**
+ * That Portfolio, as a query string.
+ *
+ * The scope travels in the request and the backend decides it from the
+ * membership behind it, so a screen can neither widen it nor forget to apply it
+ * once the answer arrives. Every provider list that hangs off Properties uses
+ * this one builder, so they cannot drift into scoping themselves differently.
+ */
+export function scopeQuery(scope?: PortfolioScope, extra?: Record<string, string>): string {
+  const query = new URLSearchParams(extra);
+  if (scope?.organization) query.set("organization", scope.organization);
+  const value = query.toString();
+  return value ? `?${value}` : "";
+}
+
 export async function apiFetch<T>(
   path: string,
   options: {

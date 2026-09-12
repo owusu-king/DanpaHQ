@@ -17,6 +17,7 @@ import { apiFetch, ApiFailure } from "./api";
 import { authedFetch, clearAccessToken } from "./auth";
 import { forgetPhotoUrls } from "./photo";
 import { contextBelongsToWorkspace } from "./navigation";
+import type { PortfolioAccess } from "./console";
 
 export type Workspace = "discovery" | "tenant" | "provider";
 
@@ -53,9 +54,15 @@ export type Capabilities = {
     verification_status: ProviderVerificationStatus | null;
     /** Evidence submitted. True while a review is still pending. */
     onboarding_complete: boolean;
-    /** May enter the provider workspace — pending reviews included. */
+    /**
+     * May enter the provider workspace: an approved provider, or a member of
+     * somebody's Portfolio. Not the same question as `exists`, which is only
+     * about this person's own journey — a Team member has access and has
+     * declared nothing, so anything asking "is this the provider experience"
+     * reads this.
+     */
     workspace_access: boolean;
-    /** Approved. The only state in which a property may be created. */
+    /** Approved. The only state in which a property may be created for oneself. */
     can_create_property: boolean;
   };
   tenant: { workspace_access: boolean };
@@ -102,8 +109,11 @@ export type Me = {
     mobile_route: string;
     web_route: string;
     organization_id?: string;
+    organization_type?: string;
     occupancy_id?: string;
     role?: string;
+    /** Portfolio contexts only: the role's live reach, and what it waits on. */
+    access?: PortfolioAccess;
   }>;
   default_context_id: string | null;
   permissions: string[];
@@ -145,7 +155,15 @@ type SessionState =
 
 type SessionValue = {
   state: SessionState;
-  refresh: () => Promise<void>;
+  /**
+   * Re-read `/me/`, optionally selecting a context the caller has just earned.
+   *
+   * The parameter exists for exactly one moment: accepting a Portfolio
+   * invitation. The context is new in this response, so a caller cannot select
+   * it beforehand — `setActiveContext` would reject an id the previous `/me/`
+   * did not contain, and the person would land back in whatever they were in.
+   */
+  refresh: (preferredContext?: string) => Promise<void>;
   signOut: () => Promise<void>;
   activeContext: string | null;
   setActiveContext: (context: string) => void;
@@ -203,13 +221,16 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<SessionState>({ status: "loading" });
   const [activeContext, setActiveContextState] = useState<string | null>(null);
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (preferredContext?: string) => {
     try {
       const me = await authedFetch<Me>("/me/");
       const stored = window.localStorage.getItem("account.active_context");
-      const context = stored && validContextIds(me).includes(stored)
-        ? stored
-        : me.default_context_id ?? me.default_context;
+      const available = validContextIds(me);
+      const context = preferredContext && available.includes(preferredContext)
+        ? preferredContext
+        : stored && available.includes(stored)
+          ? stored
+          : me.default_context_id ?? me.default_context;
       setActiveContextState(context);
       if (context) window.localStorage.setItem("account.active_context", context);
       setState({ status: "signed_in", me });

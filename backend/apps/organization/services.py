@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import uuid
 from datetime import date, timedelta
 
 from django.core import signing
@@ -37,8 +38,44 @@ ASSIGNABLE_ROLES = {
     MembershipRole.ACCOUNTANT,
     MembershipRole.STAFF,
 }
+#: Roles a Team invitation or a Team role change may grant.
+#:
+#: OWNER is deliberately absent. An owner carries the Portfolio's standing to
+#: operate, its subscription and the destination its rent settles into, so
+#: ownership moves through its own explicit transfer — never as a role on an
+#: invitation somebody accepts from an SMS.
+INVITABLE_ROLES = {
+    MembershipRole.ADMIN,
+    MembershipRole.PROPERTY_MANAGER,
+    MembershipRole.ACCOUNTANT,
+    MembershipRole.STAFF,
+}
 INVITATION_LIFETIME = timedelta(days=7)
+#: How far back an invitee's own list looks for invitations already answered.
+INVITATION_HISTORY_WINDOW = timedelta(days=30)
 INVITATION_SIGNING_SALT = "organization.portfolio-invitation.v1"
+
+#: What each role may reach, before verification is considered.
+#:
+#: Clients render Team navigation from this rather than matching role names of
+#: their own — a menu built from a role string in a browser is a second
+#: authorization model, and it was drifting from this one.
+ROLE_ABILITIES: dict[str, frozenset[str]] = {
+    MembershipRole.OWNER: frozenset(
+        {"operate_properties", "create_properties", "view_finances", "view_billing", "manage_team"}
+    ),
+    MembershipRole.ADMIN: frozenset(
+        {"operate_properties", "create_properties", "view_finances", "view_billing", "manage_team"}
+    ),
+    MembershipRole.PROPERTY_MANAGER: frozenset({"operate_properties", "view_finances"}),
+    MembershipRole.STAFF: frozenset({"operate_properties", "view_finances"}),
+    MembershipRole.ACCOUNTANT: frozenset({"view_finances", "view_billing"}),
+}
+#: Abilities a Portfolio-wide role only exercises once the person behind it is
+#: currently identified. Everything here changes who may operate or what the
+#: business owes, which is exactly what a lapsed verification must not carry.
+ELEVATED_ABILITIES = frozenset({"manage_team", "create_properties"})
+ABILITIES = frozenset().union(*ROLE_ABILITIES.values())
 
 
 def _shift_month(value: date, offset: int) -> date:
@@ -126,6 +163,168 @@ def assert_can_manage_organization(organization: Organization, user) -> Organiza
     if membership is None or membership.role not in FULL_ORGANIZATION_ROLES:
         raise PermissionDenied("You do not have permission to manage this organization.")
     return membership
+
+
+def _has_current_verification(user, kind) -> bool:
+    from apps.trust.models import SubjectType
+    from apps.trust.services import current_for
+
+    return current_for(SubjectType.USER, user.id, kind) is not None
+
+
+def elevated_authority_missing(user) -> list[str]:
+    """What stands between this person and Portfolio-wide authority.
+
+    Being made an administrator is not the same as being able to act as one.
+    Team administration and creating Properties for the business wait on a
+    current identity verification, and they keep waiting if that verification
+    later lapses — which is the difference between checking somebody once at the
+    door and knowing who they are while they work.
+
+    An approved provider verification contains an identity review: a reviewer
+    read their government ID to decide it, and the decision writes an identity
+    record of its own. That is why an owner approved to operate is never asked
+    for a second document here.
+    """
+    from apps.trust.models import VerificationKind
+
+    if getattr(user, "is_staff", False):
+        return []
+    if _has_current_verification(user, VerificationKind.IDENTITY):
+        return []
+    if _has_current_verification(user, VerificationKind.PROVIDER):
+        return []
+    return ["identity"]
+
+
+def assert_elevated_authority(user) -> None:
+    """Refuse a Portfolio-wide act by somebody we cannot currently identify."""
+    missing = elevated_authority_missing(user)
+    if missing:
+        raise PermissionDenied(
+            "Verify your identity before changing who may operate this Portfolio.",
+            details={"reason": "verification_required", "requirements": missing},
+        )
+
+
+def has_portfolio_standing(organization) -> bool:
+    """Whether this Portfolio itself may operate.
+
+    A Portfolio stands on its owners: at least one active owner whose provider
+    verification is current. Every other role operates on that standing instead
+    of holding one of their own, which is what being invited into a Portfolio
+    means — a property manager is not asked to become an independent provider
+    before doing the job they were invited to do.
+
+    Memoized only inside a declared read; see `apps.core.memo`.
+    """
+    from apps.core.memo import cached
+
+    organization_id = getattr(organization, "pk", organization)
+    return cached(
+        ("organization.portfolio_standing", str(organization_id)),
+        lambda: _has_portfolio_standing(organization_id),
+    )
+
+
+def _has_portfolio_standing(organization_id) -> bool:
+    from apps.trust.models import SubjectType, VerificationKind
+    from apps.trust.services import current_for
+
+    owner_ids = OrganizationMembership.objects.filter(
+        organization_id=organization_id,
+        organization__is_active=True,
+        role=MembershipRole.OWNER,
+        ended_at__isnull=True,
+    ).values_list("user_id", flat=True)
+    return any(
+        current_for(SubjectType.USER, owner_id, VerificationKind.PROVIDER) is not None
+        for owner_id in owner_ids
+    )
+
+
+def operates_through_membership(user) -> bool:
+    """Whether a Portfolio somebody else stands behind is open to this person.
+
+    The Team half of "may this account enter the provider workspace". An owner's
+    own provider verification answers that for them; every other role answers it
+    with the membership.
+
+    Without this, accepting an invitation created a membership no screen would
+    open: the Portfolio appeared in ``/me/.contexts`` while the workspace itself
+    still refused, because access was read from the member's own provider
+    verification — which nobody had asked them for and which the invitation was
+    never about.
+    """
+    return (
+        OrganizationMembership.objects.filter(
+            user=user,
+            ended_at__isnull=True,
+            organization__is_active=True,
+        )
+        .exclude(role=MembershipRole.OWNER)
+        .exists()
+    )
+
+
+def membership_access(membership, *, standing: bool | None = None) -> dict:
+    """What one membership actually reaches right now.
+
+    Membership, role and Property assignment decide its shape; current
+    verification decides how much of that shape is live. Four states, and the
+    difference between them is what the person is told:
+
+    * ``active`` — the role is whole.
+    * ``limited`` — they are in, and some capabilities name what they wait on.
+      This is the ordinary first state of a new member, and it is a workspace
+      with explanations in it rather than an empty one.
+    * ``pending_verification`` — a Portfolio-wide role whose holder we cannot
+      currently identify. They keep their scope; the elevated acts wait.
+    * ``revoked`` — the membership has ended, so it reaches nothing.
+
+    `standing` is passed by callers rendering a roster, so the Portfolio's
+    standing is resolved once rather than once per member.
+    """
+    role = membership.role
+    scope = (
+        "portfolio_wide"
+        if role in FULL_ORGANIZATION_ROLES
+        else "assigned_financial"
+        if role == MembershipRole.ACCOUNTANT
+        else "assigned_properties"
+    )
+    if membership.ended_at is not None:
+        return {
+            "state": "revoked",
+            "requirements": [],
+            "scope": scope,
+            "can": {ability: False for ability in sorted(ABILITIES)},
+        }
+
+    missing = elevated_authority_missing(membership.user)
+    portfolio_stands = (
+        has_portfolio_standing(membership.organization_id) if standing is None else standing
+    )
+    abilities = ROLE_ABILITIES.get(role, frozenset())
+    can = {
+        ability: ability in abilities and not (ability in ELEVATED_ABILITIES and missing)
+        for ability in sorted(ABILITIES)
+    }
+    # Adding a Property commits the Portfolio to something strangers are later
+    # shown, so it waits for the Portfolio's own standing as well.
+    can["create_properties"] = can["create_properties"] and portfolio_stands
+
+    requirements = [*missing]
+    if not portfolio_stands:
+        requirements.append("portfolio_standing")
+    state = (
+        "pending_verification"
+        if role in FULL_ORGANIZATION_ROLES and missing
+        else "limited"
+        if requirements
+        else "active"
+    )
+    return {"state": state, "requirements": requirements, "scope": scope, "can": can}
 
 
 def _organization_property_memberships(*, prop, user) -> QuerySet:
@@ -254,6 +453,33 @@ def properties_for_organization_member(*, organization: Organization, user):
             member_assignments__ended_at__isnull=True,
         )
     return rows.distinct()
+
+
+def properties_in_scope(*, user, organization=None):
+    """The Properties a provider-side list is about.
+
+    One Portfolio when the caller names one — membership is required, and a role
+    without Portfolio-wide access sees only what is assigned to it — and
+    otherwise every Property the account can reach.
+
+    Every provider list hangs off Properties: the Properties themselves, the
+    agreements granted on their Units, the viewing requests against their
+    listings, the tenancy requests to move into them. Each asked this question
+    for itself and each answered "everything, everywhere", which is how one
+    Portfolio's agreements stayed on screen while another Portfolio was
+    selected. There is one answer now, and this is it.
+    """
+    if not organization:
+        return properties_for_user(user)
+    try:
+        scope = uuid.UUID(str(organization))
+    except ValueError as exc:
+        # An unparseable id is not a different answer from an id that belongs to
+        # somebody else: both are "no such Portfolio here".
+        raise NotFound("We could not find that Portfolio.") from exc
+    return properties_for_organization_member(
+        organization=get_organization_or_404(scope, user), user=user
+    )
 
 
 def portfolio_summary(*, organization: Organization, user) -> dict:
@@ -637,8 +863,107 @@ def portfolio_summary(*, organization: Organization, user) -> dict:
     }
 
 
+def owned_portfolio(user) -> Organization | None:
+    """The one Portfolio this account owns, or nothing if it has none yet.
+
+    Ownership is an active OWNER membership. A Portfolio somebody was invited
+    into is theirs to work in and never theirs to own, which is the whole
+    difference this function exists to state.
+    """
+    membership = (
+        OrganizationMembership.objects.filter(
+            user=user,
+            role=MembershipRole.OWNER,
+            ended_at__isnull=True,
+            organization__is_active=True,
+        )
+        .select_related("organization")
+        .order_by("created_at")
+        .first()
+    )
+    return membership.organization if membership else None
+
+
+def provisioned_portfolio_identity(user) -> tuple[str, str]:
+    """What Rooomly calls the Portfolio it is about to provision.
+
+    A business provider's Portfolio is the business: it takes the company or
+    agency name the account registered, because that is the name its tenants,
+    agreements and receipts will carry. An individual's is their own, and
+    "{First name}'s Portfolio" is how a person refers to it out loud.
+
+    Both are a starting point, not a decision. The owner renames it in
+    Portfolio settings, which is the one Portfolio detail they may always
+    change — and it is why Rooomly never has to ask for a name up front.
+    """
+    # A reverse one-to-one that does not exist raises an AttributeError
+    # subclass, so the default here is reached rather than jumped over.
+    landlord = getattr(user, "landlord_profile", None)
+    agent = getattr(user, "agent_profile", None)
+    company = (getattr(landlord, "company_name", "") or "").strip()
+    agency = (getattr(agent, "agency_name", "") or "").strip()
+    if getattr(landlord, "is_company", False) and company:
+        return company[:180], OrganizationType.PROPERTY_COMPANY
+    if agency:
+        return agency[:180], OrganizationType.PROPERTY_MANAGER
+    first = (getattr(user, "first_name", "") or "").strip()
+    if not first:
+        first = (getattr(user, "display_name", "") or "").strip().split(" ")[0]
+    return (f"{first}'s Portfolio" if first else "My Portfolio")[:180], (
+        OrganizationType.INDIVIDUAL_OWNER
+    )
+
+
 @transaction.atomic
-def create_organization(*, user, data: dict) -> Organization:
+def provision_provider_portfolio(*, user, actor=None) -> Organization:
+    """Every provider owns exactly one Portfolio, and Rooomly makes it.
+
+    Called when provider access is approved, which is the moment somebody
+    becomes a provider. Idempotent by necessity as well as by design: approval
+    can be decided more than once over an account's life — a lapse, a re-check,
+    a restored account — and this is also the repair path for the accounts
+    approved before Rooomly provisioned anything. Two calls, one Portfolio.
+
+    The row lock is on the account, so two approvals arriving together resolve
+    into the same Portfolio instead of racing to create a second one.
+    """
+    from apps.identity.models import User
+
+    User.objects.select_for_update().filter(pk=user.pk).first()
+    existing = owned_portfolio(user)
+    if existing is not None:
+        return existing
+
+    name, organization_type = provisioned_portfolio_identity(user)
+    return create_organization(
+        user=user,
+        actor=actor,
+        provisioned=True,
+        data={
+            "name": name,
+            "organization_type": organization_type,
+            # Residential is where a Ghanaian provider almost always starts, and
+            # the owner adds the rest in Portfolio settings. Asking first would
+            # be a setup form, which is the thing this replaced.
+            "activities": [OrganizationActivityType.RESIDENTIAL],
+        },
+    )
+
+
+@transaction.atomic
+def create_organization(*, user, data: dict, actor=None, provisioned: bool = False) -> Organization:
+    """Write one Portfolio down. Deliberately not reachable from the API.
+
+    Rooomly decides when a Portfolio exists — `provision_provider_portfolio` is
+    the only caller in the product, and there is no endpoint behind which a
+    normal user can reach this. A Portfolio used to be something somebody set
+    up, which meant an account could accumulate them, and two Portfolios one
+    person owns is two of everything: two subscriptions, two Teams, two places
+    a Property could have been filed and one of them wrong.
+
+    The guard below is the rule itself rather than a caller's good manners: an
+    account owns one Portfolio, and a second is refused here.
+    """
     name = str(data.get("name", "")).strip()
     organization_type = data.get("organization_type")
     activities = set(data.get("activities") or [])
@@ -648,6 +973,12 @@ def create_organization(*, user, data: dict) -> Organization:
         raise ValidationFailed("Choose a valid management type.")
     if not activities or not activities.issubset(set(OrganizationActivityType.values)):
         raise ValidationFailed("Choose at least one valid property activity.")
+    if owned_portfolio(user) is not None:
+        raise Conflict(
+            "This account already has its Rooomly Portfolio. "
+            "Rename it in Portfolio settings, or join another Portfolio by invitation.",
+            details={"reason": "portfolio_already_provisioned"},
+        )
 
     organization = Organization.objects.create(
         name=name,
@@ -661,7 +992,7 @@ def create_organization(*, user, data: dict) -> Organization:
         organization=organization,
         user=user,
         role=MembershipRole.OWNER,
-        invited_by=user,
+        invited_by=actor or user,
         joined_at=timezone.now(),
     )
     # A Portfolio is the subscriber, so it gets its billing account and its Free
@@ -669,20 +1000,32 @@ def create_organization(*, user, data: dict) -> Organization:
     # payment details; Free is the plan you are on until you choose otherwise.
     from apps.billing import enforcement as billing
 
-    billing.on_portfolio_created(organization=organization, actor=user)
+    billing.on_portfolio_created(organization=organization, actor=actor or user)
     record(
         action=AuditAction.CREATE,
         aggregate_type="organization",
         aggregate_id=organization.id,
-        actor=user,
-        metadata={"organization_type": organization_type, "activities": sorted(activities)},
+        actor=actor or user,
+        metadata={
+            "organization_type": organization_type,
+            "activities": sorted(activities),
+            # Who decided this Portfolio should exist. Everything Rooomly
+            # provisions says so, so an audit reader never has to infer it from
+            # the absence of a form.
+            "provisioned": provisioned,
+            "owner_id": str(user.id),
+        },
     )
     emit(
         DomainEvent(
             "organization.created.v1",
             "organization",
             str(organization.id),
-            {"owner_id": str(user.id), "organization_type": organization_type},
+            {
+                "owner_id": str(user.id),
+                "organization_type": organization_type,
+                "provisioned": provisioned,
+            },
         )
     )
     return organization
@@ -794,15 +1137,22 @@ def create_invitation(
 ) -> OrganizationInvitation:
     from apps.billing import enforcement as billing
 
-    actor_membership = assert_can_manage_organization(organization, actor)
+    assert_can_manage_organization(organization, actor)
     if role not in MembershipRole.values:
         raise ValidationFailed("Choose a valid Portfolio role.")
+    if role not in INVITABLE_ROLES:
+        raise ValidationFailed(
+            "Ownership is not granted by invitation. Transferring a Portfolio is its own "
+            "deliberate workflow.",
+            details={"reason": "ownership_transfer_required"},
+        )
     # Told now rather than at the door. Inviting somebody the plan has no seat
     # for turns one person's problem into two people's.
     billing.assert_feature(organization=organization, key="TEAM_MANAGEMENT")
     billing.assert_can_add_team_member(organization=organization)
-    if role == MembershipRole.OWNER and actor_membership.role != MembershipRole.OWNER:
-        raise PermissionDenied("Only a Portfolio owner can invite another owner.")
+    # Deciding who may operate a business is the elevated act, so it is asked of
+    # the person doing it now rather than once, whenever they joined.
+    assert_elevated_authority(actor)
 
     from apps.identity.models import User
 
@@ -879,19 +1229,73 @@ def expire_invitation(invitation: OrganizationInvitation) -> OrganizationInvitat
     return invitation
 
 
-def invitations_for_invitee(user):
-    rows = list(
-        OrganizationInvitation.objects.filter(
-            invitee_phone=user.phone,
-            status=OrganizationInvitationStatus.PENDING,
-        ).select_related("organization", "invited_by")
+def invitations_for_invitee(user, *, include_history: bool = False):
+    """Invitations addressed to this person's number.
+
+    Pending ones are the work. Recent history is included on request, because
+    "nothing is waiting" and "the one you were sent expired last week" are
+    different things to be told, and a screen that could say only the first was
+    the screen people reported as broken after following an old link.
+    """
+    rows = OrganizationInvitation.objects.filter(invitee_phone=user.phone)
+    if not include_history:
+        rows = rows.filter(status=OrganizationInvitationStatus.PENDING)
+    else:
+        rows = rows.filter(
+            Q(status=OrganizationInvitationStatus.PENDING)
+            | Q(created_at__gte=timezone.now() - INVITATION_HISTORY_WINDOW)
+        )
+    resolved = [
+        expire_invitation(row)
+        for row in rows.select_related("organization", "invited_by").order_by("-created_at")[:40]
+    ]
+    if not include_history:
+        resolved = [row for row in resolved if row.status == OrganizationInvitationStatus.PENDING]
+    # Pending first; the rest stay newest-first behind them.
+    return sorted(resolved, key=lambda row: row.status != OrganizationInvitationStatus.PENDING)
+
+
+def invitation_by_token(*, invitation_id, token: str) -> OrganizationInvitation:
+    """The invitation a secure link points at, whatever state it is now in.
+
+    The signature is checked without an age limit on purpose. Age is not what
+    decides this: the invitation's own status does, and an expired link whose
+    holder is told "expired" is a working screen, while one that 403s on the
+    signature is the blank page this endpoint exists to replace. A bad or
+    unmatched signature is a 404, so the endpoint cannot be used to discover
+    that an invitation exists.
+    """
+    invitation = (
+        OrganizationInvitation.objects.filter(id=invitation_id)
+        .select_related("organization", "invited_by")
+        .first()
     )
-    pending = []
-    for row in rows:
-        refreshed = expire_invitation(row)
-        if refreshed.status == OrganizationInvitationStatus.PENDING:
-            pending.append(refreshed)
-    return pending
+    if invitation is None:
+        raise NotFound("We could not find that Portfolio invitation.")
+    try:
+        payload = signing.loads(token, salt=INVITATION_SIGNING_SALT)
+    except signing.BadSignature as exc:
+        raise NotFound("We could not find that Portfolio invitation.") from exc
+    if payload != {"invitation_id": str(invitation.id), "nonce": invitation.nonce}:
+        raise NotFound("We could not find that Portfolio invitation.")
+    return expire_invitation(invitation)
+
+
+#: Why an invitation can no longer be answered, said to the person holding it.
+#:
+#: "No longer pending" was the whole of what four different endings used to say,
+#: and a client with one sentence for all of them cannot tell somebody whether to
+#: wait, ask again, or look at the account they are signed in as.
+INVITATION_REFUSALS = {
+    OrganizationInvitationStatus.EXPIRED: (
+        "That Portfolio invitation expired. Ask them to send a new one."
+    ),
+    OrganizationInvitationStatus.DECLINED: (
+        "That Portfolio invitation was declined. Ask them to send a new one."
+    ),
+    OrganizationInvitationStatus.REVOKED: "That Portfolio invitation was withdrawn.",
+    OrganizationInvitationStatus.ACCEPTED: "That Portfolio invitation has already been used.",
+}
 
 
 @transaction.atomic
@@ -902,15 +1306,54 @@ def accept_invitation(*, invitation: OrganizationInvitation, actor, token: str):
         .get(id=invitation.id)
     )
     _assert_invitation_token(invitation, token)
-    invitation = expire_invitation(invitation)
-    if invitation.status != OrganizationInvitationStatus.PENDING:
-        raise Conflict("That Portfolio invitation is no longer pending.")
+    # Before the state of the invitation, because its state is not a stranger's
+    # business: whoever opened this link either is the invitee or learns nothing.
     if actor.phone != invitation.invitee_phone:
-        raise PermissionDenied("This Portfolio invitation belongs to another phone number.")
-    if OrganizationMembership.objects.filter(
+        raise PermissionDenied(
+            "This Portfolio invitation belongs to another phone number.",
+            details={"reason": "wrong_account"},
+        )
+    invitation = expire_invitation(invitation)
+    existing = OrganizationMembership.objects.filter(
         organization=invitation.organization, user=actor, ended_at__isnull=True
-    ).exists():
-        raise Conflict("You already belong to this Portfolio.")
+    ).first()
+    if invitation.status == OrganizationInvitationStatus.ACCEPTED:
+        # Accepting twice is one person pressing a button twice — a double tap, a
+        # retried request, the link opened again from the SMS. The first one
+        # decided it, so this returns what it decided instead of an error about
+        # a membership they already hold.
+        if invitation.invitee_user_id == actor.id and existing is not None:
+            return existing
+        raise Conflict(
+            INVITATION_REFUSALS[OrganizationInvitationStatus.ACCEPTED],
+            details={"reason": "already_used"},
+        )
+    if invitation.status != OrganizationInvitationStatus.PENDING:
+        raise Conflict(
+            INVITATION_REFUSALS.get(invitation.status, "That Portfolio invitation is closed."),
+            details={"reason": invitation.status},
+        )
+    if existing is not None:
+        raise Conflict(
+            "You already belong to this Portfolio.", details={"reason": "already_member"}
+        )
+    if invitation.role not in INVITABLE_ROLES:
+        # A pending invitation written before ownership left this path.
+        raise Conflict(
+            "Ownership is not granted by invitation. Transferring a Portfolio is its own "
+            "deliberate workflow.",
+            details={"reason": "ownership_transfer_required"},
+        )
+    if invitation.role in FULL_ORGANIZATION_ROLES:
+        # Routine roles walk in and are told what their first tasks need. A
+        # Portfolio-wide one reaches the Team, the plan and the money, so it is
+        # the one role whose holder we insist on identifying first.
+        missing = elevated_authority_missing(actor)
+        if missing:
+            raise PermissionDenied(
+                "Verify your identity before accepting administrator access to a Portfolio.",
+                details={"reason": "verification_required", "requirements": missing},
+            )
 
     # The authoritative seat check, inside the transaction that takes the seat.
     # The invitation was checked too, but a plan can change or another invitee
@@ -1001,11 +1444,17 @@ def accept_invitation(*, invitation: OrganizationInvitation, actor, token: str):
 def decline_invitation(*, invitation: OrganizationInvitation, actor, token: str):
     invitation = OrganizationInvitation.objects.select_for_update().get(id=invitation.id)
     _assert_invitation_token(invitation, token)
+    if actor.phone != invitation.invitee_phone:
+        raise PermissionDenied(
+            "This Portfolio invitation belongs to another phone number.",
+            details={"reason": "wrong_account"},
+        )
     invitation = expire_invitation(invitation)
     if invitation.status != OrganizationInvitationStatus.PENDING:
-        raise Conflict("That Portfolio invitation is no longer pending.")
-    if actor.phone != invitation.invitee_phone:
-        raise PermissionDenied("This Portfolio invitation belongs to another phone number.")
+        raise Conflict(
+            INVITATION_REFUSALS.get(invitation.status, "That Portfolio invitation is closed."),
+            details={"reason": invitation.status},
+        )
     invitation.status = OrganizationInvitationStatus.DECLINED
     invitation.invitee_user = actor
     invitation.responded_at = timezone.now()
@@ -1060,6 +1509,7 @@ def add_membership(*, organization: Organization, actor, user, role: str):
 @transaction.atomic
 def assign_property(*, organization: Organization, property, membership, actor):
     assert_can_manage_organization(organization, actor)
+    assert_elevated_authority(actor)
     if membership.organization_id != organization.id or membership.ended_at is not None:
         raise ValidationFailed("Choose an active member of this organization.")
     if membership.role not in ASSIGNABLE_ROLES:
@@ -1109,20 +1559,35 @@ def _assert_actor_may_manage_target(*, organization, actor_membership, target_me
 @transaction.atomic
 def change_membership_role(*, organization, membership, actor, role: str):
     actor_membership = assert_can_manage_organization(organization, actor)
+    assert_elevated_authority(actor)
     if membership.organization_id != organization.id or membership.ended_at is not None:
         raise NotFound("We could not find that active Portfolio member.")
     if role not in MembershipRole.values:
         raise ValidationFailed("Choose a valid Portfolio role.")
+    if role not in INVITABLE_ROLES:
+        raise ValidationFailed(
+            "Ownership is not granted from the Team roster. Transferring a Portfolio is its own "
+            "deliberate workflow.",
+            details={"reason": "ownership_transfer_required"},
+        )
     _assert_actor_may_manage_target(
         organization=organization,
         actor_membership=actor_membership,
         target_membership=membership,
     )
-    if role == MembershipRole.OWNER and actor_membership.role != MembershipRole.OWNER:
-        raise PermissionDenied("Only a Portfolio owner can grant owner access.")
     previous = membership.role
     if previous == role:
         return membership
+    if role in FULL_ORGANIZATION_ROLES:
+        # The same rule acceptance applies, applied to a promotion: nobody holds
+        # Portfolio-wide authority whose identity is not currently established.
+        missing = elevated_authority_missing(membership.user)
+        if missing:
+            raise Conflict(
+                f"{membership.user.display_name} must verify their identity before taking "
+                "administrator access.",
+                details={"reason": "grantee_verification_required", "requirements": missing},
+            )
     if previous == MembershipRole.OWNER and role != MembershipRole.OWNER:
         remaining = organization.memberships.filter(
             role=MembershipRole.OWNER, ended_at__isnull=True
@@ -1235,77 +1700,60 @@ def unassign_property(*, organization, assignment, actor):
 
 
 def organization_contexts_for_user(user) -> list[dict]:
+    """The Portfolios this person may work in, and what each one currently is.
+
+    Each context carries its own `access`, so a client can put the Portfolio in
+    the switcher, offer only the navigation the role allows, and explain a
+    capability that is waiting on verification — rather than matching role names
+    of its own and finding out from a refusal.
+    """
+    from apps.core.memo import memoized
+
     memberships = OrganizationMembership.objects.filter(
         user=user,
         ended_at__isnull=True,
         organization__is_active=True,
-    ).select_related("organization")
-    return [
-        {
-            "id": f"organization:{membership.organization_id}",
-            "type": "organization",
-            "label": membership.organization.name,
-            "subtitle": (
-                "Personal Portfolio"
-                if membership.organization.organization_type == OrganizationType.INDIVIDUAL_OWNER
-                else "Property business"
-            ),
-            "organization_id": str(membership.organization_id),
-            "organization_type": membership.organization.organization_type,
-            "role": membership.role,
-            "mobile_route": "/(app)/(provider-tabs)",
-            "web_route": "/properties",
-        }
-        for membership in memberships
-    ]
+    ).select_related("organization", "user")
+    # A pure read, and the same identity check is asked once per Portfolio.
+    with memoized():
+        return [
+            {
+                "id": f"organization:{membership.organization_id}",
+                "type": "organization",
+                "label": membership.organization.name,
+                "subtitle": (
+                    "Personal Portfolio"
+                    if membership.organization.organization_type
+                    == OrganizationType.INDIVIDUAL_OWNER
+                    else "Property business"
+                ),
+                "organization_id": str(membership.organization_id),
+                "organization_type": membership.organization.organization_type,
+                "role": membership.role,
+                "access": membership_access(membership),
+                "mobile_route": "/(app)/(provider-tabs)",
+                "web_route": "/properties",
+            }
+            for membership in memberships
+        ]
 
 
 @transaction.atomic
 def ensure_personal_organization(*, owner, actor=None, activity=None) -> Organization:
-    membership = (
-        OrganizationMembership.objects.filter(
-            user=owner,
-            role=MembershipRole.OWNER,
-            ended_at__isnull=True,
-            organization__organization_type=OrganizationType.INDIVIDUAL_OWNER,
-            organization__is_active=True,
-        )
-        .select_related("organization")
-        .first()
-    )
-    if membership:
-        organization = membership.organization
-    else:
-        organization = Organization.objects.create(
-            name=f"{owner.display_name} Portfolio",
-            organization_type=OrganizationType.INDIVIDUAL_OWNER,
-            created_by=owner,
-        )
-        OrganizationMembership.objects.create(
-            organization=organization,
-            user=owner,
-            role=MembershipRole.OWNER,
-            invited_by=actor or owner,
-            joined_at=timezone.now(),
-        )
-        record(
-            action=AuditAction.CREATE,
-            aggregate_type="organization",
-            aggregate_id=organization.id,
-            actor=actor or owner,
-            metadata={
-                "action": "personal_portfolio_created",
-                "organization_type": OrganizationType.INDIVIDUAL_OWNER,
-            },
-        )
-        emit(
-            DomainEvent(
-                "organization.personal_portfolio_created.v1",
-                "organization",
-                str(organization.id),
-                {"owner_id": str(owner.id)},
-            )
-        )
+    """This provider's Portfolio, for a path that needs it to exist right now.
+
+    Provisioning happens when provider access is approved, so by the time
+    anybody adds a Property the Portfolio is already there and this returns it.
+    It stays because a Property flow must not depend on that having happened —
+    accounts approved before Rooomly provisioned anything still exist, and this
+    is where they get theirs.
+
+    It no longer creates a *personal* Portfolio in particular. Matching only
+    `individual_owner` meant an owner whose Portfolio is a company got a second
+    one the first time they added a Property of their own, which is the exact
+    accumulation this architecture exists to prevent.
+    """
+    organization = provision_provider_portfolio(user=owner, actor=actor)
     chosen_activity = (
         activity
         if activity in OrganizationActivityType.values
@@ -1327,7 +1775,6 @@ def ensure_personal_organization_for_property(*, owner, prop, actor=None) -> Org
             property=prop,
             relationship_type=OrganizationPropertyRole.OWNER,
             ended_at__isnull=True,
-            organization__organization_type=OrganizationType.INDIVIDUAL_OWNER,
         )
         .select_related("organization")
         .first()

@@ -8,9 +8,10 @@ const ACCOUNT_SECTION = {
   ],
 };
 
-export function portalSections(me, portfolioName) {
+export function portalSections(me, portfolioName, access) {
   const provider = me.capabilities.provider;
-  const inProvider = me.capabilities.active_workspace === "provider" && provider.exists;
+  const inProvider = me.capabilities.active_workspace === "provider"
+    && (provider.workspace_access || provider.exists);
 
   if (inProvider && !provider.workspace_access) {
     return [
@@ -26,25 +27,35 @@ export function portalSections(me, portfolioName) {
   }
 
   if (inProvider) {
-    return [
-      { items: [{ href: "/home", label: "Home", icon: "home" }] },
-      {
-        title: portfolioName?.trim() || "Portfolio",
-        items: [
+    const operates = access ? access.can.operate_properties : true;
+    const finances = access ? access.can.view_finances : true;
+    const portfolio = [
+      ...(operates
+        ? [
           { href: "/properties", label: "Properties", icon: "properties", hint: "Buildings and their Units" },
           { href: "/units", label: "Units", icon: "units", hint: "Every rentable space in the Portfolio" },
           { href: "/tenants", label: "Tenants", icon: "users", hint: "Access, requests, tenancies and rent" },
           { href: "/leases", label: "Leases", icon: "leases", hint: "Agreements you have granted" },
-          { href: "/payments", label: "Payments", icon: "payments", hint: "Rent balances and payment records" },
-        ],
-      },
-      {
-        title: "Requests",
-        items: [
-          { href: "/applications", label: "Tenancy requests", icon: "applications", hint: "Review people asking to rent" },
-          { href: "/viewings", label: "Viewings", icon: "viewings", hint: "Requests to see a place" },
-        ],
-      },
+        ]
+        : []),
+      ...(finances
+        ? [{ href: "/payments", label: "Payments", icon: "payments", hint: "Rent balances and payment records" }]
+        : []),
+    ];
+    return [
+      { items: [{ href: "/home", label: "Home", icon: "home" }] },
+      ...(portfolio.length
+        ? [{ title: portfolioName?.trim() || "Portfolio", items: portfolio }]
+        : []),
+      ...(operates
+        ? [{
+          title: "Requests",
+          items: [
+            { href: "/applications", label: "Tenancy requests", icon: "applications", hint: "Review people asking to rent" },
+            { href: "/viewings", label: "Viewings", icon: "viewings", hint: "Requests to see a place" },
+          ],
+        }]
+        : []),
       ACCOUNT_SECTION,
     ];
   }

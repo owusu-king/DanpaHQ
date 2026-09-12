@@ -23,7 +23,7 @@ type TenantView = "tenants" | "access";
 type TenantFilter = "all" | "attention" | "overdue" | "current";
 
 export default function ProviderTenantsPage() {
-  const { state, activeContext, setActiveContext } = useSession();
+  const { state, activeContext } = useSession();
   const [organizations, setOrganizations] = useState<Organization[] | null>(null);
   const [organizationId, setOrganizationId] = useState("");
   const [portfolio, setPortfolio] = useState<OrganizationPortfolio | null>(null);
@@ -56,12 +56,10 @@ export default function ProviderTenantsPage() {
           ? activeContext.slice("organization:".length)
           : "";
         setOrganizations(rows);
-        setOrganizationId((current) =>
-          rows.find((row) => row.id === current)?.id
-          ?? rows.find((row) => row.id === preferred)?.id
-          ?? rows[0]?.id
-          ?? "",
-        );
+        // The header says which Portfolio this is, so this page follows it
+        // rather than remembering a choice of its own. Keeping the local one
+        // was how Tenants stayed on the Portfolio somebody had switched out of.
+        setOrganizationId(rows.find((row) => row.id === preferred)?.id ?? rows[0]?.id ?? "");
         setError("");
       })
       .catch((cause) => {
@@ -137,27 +135,9 @@ export default function ProviderTenantsPage() {
       {!loadingOrganizations && organizations?.length === 0 ? (
         <Empty
           title="Add a Property first"
-          body="Tenant operations begin with a Unit. Rooomly creates your personal Portfolio with the first Property."
+          body="Tenant operations begin with a Unit. Add the first Property in your Rooomly Portfolio."
           action={<Link href="/properties/new" className="type-body-strong">Add Property →</Link>}
         />
-      ) : null}
-
-      {(organizations?.length ?? 0) > 1 ? (
-        <label className="tenants-filter" style={{ maxWidth: "28rem", marginBottom: "var(--space-5)" }}>
-          <span className="type-caption">Portfolio</span>
-          <select
-            value={organizationId}
-            onChange={(event) => {
-              const next = event.target.value;
-              setOrganizationId(next);
-              setActiveContext(`organization:${next}`);
-            }}
-          >
-            {organizations?.map((organization) => (
-              <option key={organization.id} value={organization.id}>{organization.name}</option>
-            ))}
-          </select>
-        </label>
       ) : null}
 
       {loadingPortfolio ? <LoadingRows rows={5} /> : null}

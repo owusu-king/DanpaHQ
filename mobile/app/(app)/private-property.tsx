@@ -160,7 +160,7 @@ export default function PrivatePropertyScreen() {
       {organizations.length === 0 ? (
         <Notice
           tone="info"
-          title="Your personal Portfolio starts here"
+          title="This goes into your Rooomly Portfolio"
           />
       ) : null}
       <Field label="Property name" hint="An internal name, such as Adom Heights" value={title} onChangeText={setTitle} />

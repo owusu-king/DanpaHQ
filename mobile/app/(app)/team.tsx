@@ -6,9 +6,10 @@ import { ApiFailure } from "@/api";
 import { useAuth } from "@/auth";
 import { Button, Choice, Field, Notice, Type, space } from "@/components/ui";
 import {
+  GRANTABLE_ROLES,
   PropertyScope,
-  ROLES,
   accessLabel,
+  accessStateLabel,
   isScoped,
   roleArticle,
   roleConsequence,
@@ -21,6 +22,7 @@ import {
   listPortfolioInvitations,
   listPortfolioMembers,
   revokePortfolioInvitation,
+  updateOrganization,
   type ManagedProperty,
   type Organization,
   type PortfolioInvitation,
@@ -33,6 +35,26 @@ type Row =
   | { kind: "member"; member: PortfolioMember }
   | { kind: "invitation"; invitation: PortfolioInvitation };
 
+/** What a Portfolio is, in the words its owner would use about their business. */
+const PORTFOLIO_TYPES: { value: Organization["organization_type"]; label: string }[] = [
+  { value: "individual_owner", label: "Individual owner" },
+  { value: "property_company", label: "Property company" },
+  { value: "property_manager", label: "Management company" },
+  { value: "hostel_operator", label: "Hostel operator" },
+];
+
+const ACTIVITIES: { value: Organization["activities"][number]; label: string }[] = [
+  { value: "residential", label: "Residential" },
+  { value: "commercial", label: "Commercial" },
+  { value: "hostel", label: "Student hostel" },
+];
+
+type Details = {
+  name: string;
+  organization_type: Organization["organization_type"];
+  activities: Organization["activities"];
+};
+
 /**
  * Team: who can operate this Portfolio, what they may do, and which Properties
  * they may touch.
@@ -43,8 +65,13 @@ type Row =
  */
 export default function TeamScreen() {
   const router = useRouter();
-  const { activeContext } = useAuth();
+  const { activeContext, state, refreshMe } = useAuth();
   const [organization, setOrganization] = useState<Organization | null>(null);
+  // The Portfolio's own details. Rooomly provisions the Portfolio and names it,
+  // so this is where an owner makes it the name their tenants will see.
+  const [details, setDetails] = useState<Details | null>(null);
+  const [savingDetails, setSavingDetails] = useState(false);
+  const [editingDetails, setEditingDetails] = useState(false);
   const [hasPortfolio, setHasPortfolio] = useState<boolean | null>(null);
   const [members, setMembers] = useState<PortfolioMember[]>([]);
   const [invitations, setInvitations] = useState<PortfolioInvitation[]>([]);
@@ -65,6 +92,11 @@ export default function TeamScreen() {
       const current = orgs.find((row) => row.id === preferred) ?? orgs[0] ?? null;
       setOrganization(current);
       if (!current) return;
+      setDetails({
+        name: current.name,
+        organization_type: current.organization_type,
+        activities: [...current.activities],
+      });
       setProperties(await listOrganizationProperties(current.id));
       if (["owner", "admin"].includes(current.current_user_role)) {
         const [memberRows, inviteRows] = await Promise.all([
@@ -85,9 +117,45 @@ export default function TeamScreen() {
 
   useFocusEffect(useCallback(() => { void load(); }, [load]));
 
+  async function saveDetails() {
+    if (!organization || !details) return;
+    setSavingDetails(true);
+    setError("");
+    setNotice("");
+    try {
+      const saved = await updateOrganization(organization.id, {
+        name: details.name.trim(),
+        organization_type: details.organization_type,
+        activities: details.activities,
+      });
+      setOrganization(saved);
+      setDetails({
+        name: saved.name,
+        organization_type: saved.organization_type,
+        activities: [...saved.activities],
+      });
+      // The name is on the header switcher and every screen's caption, so the
+      // session hears about it rather than waiting for the next sign-in.
+      await refreshMe();
+      setEditingDetails(false);
+      setNotice("Portfolio details saved.");
+    } catch (cause) {
+      setError(cause instanceof ApiFailure ? cause.error.message : "Could not save these details.");
+    } finally {
+      setSavingDetails(false);
+    }
+  }
+
   const canManage = organization
     ? ["owner", "admin"].includes(organization.current_user_role)
     : false;
+  // Reading the roster is one thing; changing who may operate the business is
+  // another, and the second waits on the backend's own answer about this
+  // person. Ending access deliberately does not.
+  const access = state.status === "signed_in"
+    ? state.me.contexts.find((row) => row.organization_id === organization?.id)?.access ?? null
+    : null;
+  const canGrant = access ? access.can.manage_team : canManage;
   const pending = invitations.filter((row) => row.status === "pending");
 
   const rows = useMemo<Row[]>(() => {
@@ -130,10 +198,12 @@ export default function TeamScreen() {
 
             {hasPortfolio === false ? (
               <View style={{ gap: space[3], paddingLeft: space[4], borderLeftWidth: 3, borderLeftColor: theme.color.kola["600"] }}>
-                <Type variant="title2" accessibilityRole="header">A Team needs a Portfolio first</Type>
-                <Type variant="caption">Your personal Portfolio is created with your first Property.</Type>
-                <Button label="Add first Property" onPress={() => router.push("/(app)/private-property" as never)} />
-                <Button label="Set up a property business" variant="secondary" onPress={() => router.push("/(app)/organization-setup" as never)} />
+                <Type variant="title2" accessibilityRole="header">Your Portfolio is on its way</Type>
+                <Type variant="caption">
+                  Rooomly gives you your Portfolio when your provider verification is approved,
+                  and your Team lives inside it. Nothing to set up.
+                </Type>
+                <Button label="See your verification status" onPress={() => router.push("/(app)/provider" as never)} />
               </View>
             ) : null}
 
@@ -145,9 +215,103 @@ export default function TeamScreen() {
               />
             ) : null}
 
+            {canManage && !canGrant ? (
+              <Notice
+                tone="info"
+                title="Verify your identity to change who may operate this Portfolio"
+                body="Inviting somebody, changing a role or assigning a Property decides who reaches your tenants and your money, so Rooomly confirms who you are first. You can still see the roster and end somebody's access."
+              />
+            ) : null}
+
+            {canManage && details ? (
+              <View style={{ gap: space[3] }}>
+                {/* Rooomly names the Portfolio when it provisions it, which is
+                    why nobody is asked to invent one up front — and why this
+                    has to exist. */}
+                {editingDetails ? (
+                  <View style={{ gap: space[3] }}>
+                    <Field
+                      label="Portfolio name"
+                      hint="What your tenants, agreements and receipts will carry."
+                      value={details.name}
+                      onChangeText={(value) => setDetails({ ...details, name: value })}
+                    />
+                    <Choice
+                      label="Portfolio type"
+                      value={details.organization_type}
+                      options={PORTFOLIO_TYPES}
+                      onChange={(value) => setDetails({ ...details, organization_type: value })}
+                    />
+                    <View style={{ gap: space[2] }}>
+                      <Type variant="caption" style={{ color: theme.color.ink["700"] }}>
+                        What this Portfolio does
+                      </Type>
+                      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: space[2] }}>
+                        {ACTIVITIES.map((activity) => {
+                          const on = details.activities.includes(activity.value);
+                          return (
+                            <Pressable
+                              key={activity.value}
+                              accessibilityRole="checkbox"
+                              accessibilityState={{ checked: on }}
+                              accessibilityLabel={activity.label}
+                              onPress={() =>
+                                setDetails({
+                                  ...details,
+                                  activities: on
+                                    ? details.activities.filter((row) => row !== activity.value)
+                                    : [...details.activities, activity.value],
+                                })
+                              }
+                              {...pressableFeedback(theme.color.kola["50"])}
+                              style={{
+                                minHeight: 44,
+                                justifyContent: "center",
+                                paddingHorizontal: space[4],
+                                borderRadius: 22,
+                                borderWidth: on ? 2 : 1,
+                                borderColor: on ? theme.color.kola["600"] : theme.color.field["300"],
+                                backgroundColor: on ? theme.color.kola["50"] : "transparent",
+                              }}
+                            >
+                              <Type variant="body">{activity.label}</Type>
+                            </Pressable>
+                          );
+                        })}
+                      </View>
+                    </View>
+                    <Button
+                      label="Save details"
+                      busy={savingDetails}
+                      disabled={!details.name.trim() || details.activities.length === 0}
+                      onPress={() => void saveDetails()}
+                    />
+                    <Button
+                      label="Cancel"
+                      variant="secondary"
+                      onPress={() => {
+                        setEditingDetails(false);
+                        setDetails({
+                          name: organization!.name,
+                          organization_type: organization!.organization_type,
+                          activities: [...organization!.activities],
+                        });
+                      }}
+                    />
+                  </View>
+                ) : (
+                  <Button
+                    label="Edit Portfolio details"
+                    variant="secondary"
+                    onPress={() => setEditingDetails(true)}
+                  />
+                )}
+              </View>
+            ) : null}
+
             {canManage ? (
               <>
-                <Button label="Invite someone" onPress={() => setInviting(true)} />
+                {canGrant ? <Button label="Invite someone" onPress={() => setInviting(true)} /> : null}
                 {members.length > 6 ? (
                   <Field
                     label="Search members"
@@ -220,7 +384,8 @@ export default function TeamScreen() {
 }
 
 function MemberRow({ member, onPress }: { member: PortfolioMember; onPress: () => void }) {
-  const access = accessLabel(member);
+  const waiting = accessStateLabel(member);
+  const access = waiting ? `${accessLabel(member)} · ${waiting}` : accessLabel(member);
   return (
     <Pressable
       accessibilityRole="link"
@@ -344,7 +509,7 @@ function InviteSheet({
         <Choice
           label="Role"
           value={role}
-          options={ROLES.map((row) => ({ ...row }))}
+          options={GRANTABLE_ROLES.map((row) => ({ ...row }))}
           onChange={(value) => { setRole(value as PortfolioMember["role"]); setSelected([]); }}
         />
         <Type variant="caption">{roleConsequence(role)}</Type>

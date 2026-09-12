@@ -11,9 +11,21 @@
 .team-head h2 { margin: 0; font-size: 1.125rem; }
 .team-head p { max-width: 62ch; margin: 0; }
 
-/* Shown only to an account that belongs to more than one Portfolio. */
-.team-portfolio-switch { display: grid; max-width: 26rem; gap: var(--space-1); }
-.team-portfolio-switch select { min-height: 48px; padding: 0 var(--space-3); color: inherit; font: inherit; background: var(--color-field-0); border: var(--border-hairline) solid var(--color-field-300); border-radius: var(--radius-md); }
+/* The Portfolio's own details. Rooomly provisions the Portfolio and names it,
+   so this is where an owner makes it the name their tenants and receipts will
+   carry — a short form, not a setup wizard. */
+.team-portfolio-details { display: grid; gap: var(--space-4); max-width: 32rem; }
+.team-portfolio-details > button { justify-self: start; }
+
+.team-portfolio-activities {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-5);
+  padding: 0;
+  margin: 0;
+  border: 0;
+}
+.team-portfolio-activities legend { padding: 0 0 var(--space-2); color: var(--color-ink-500); }
 
 .team-search { display: block; max-width: 26rem; }
 .team-search input {

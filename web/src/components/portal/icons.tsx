@@ -24,6 +24,7 @@ export type IconName =
   | "applications"
   | "viewings"
   | "properties"
+  | "portfolio"
   | "units"
   | "leases"
   | "payments"
@@ -79,6 +80,15 @@ const PATHS: Record<IconName, React.ReactNode> = {
       <path d="M3.25 17.25V6.5l5-2.75V17.25" />
       <path d="M8.25 8.5h7a1.5 1.5 0 0 1 1.5 1.5v7.25H8.25" />
       <path d="M11 11.75h3M11 14.5h3" />
+    </>
+  ),
+  // Stacked workspaces, not a building: `properties` is already a building, and
+  // switching Portfolio is not navigating to Properties. One square in front,
+  // the others behind it — the thing you are in, and the ones you could be in.
+  portfolio: (
+    <>
+      <rect x="2.75" y="7.75" width="9.5" height="9.5" rx="2" />
+      <path d="M5.75 7.75V6.75a2 2 0 0 1 2-2h5.5a2 2 0 0 1 2 2v5.5a2 2 0 0 1-2 2h-1" />
     </>
   ),
   units: (

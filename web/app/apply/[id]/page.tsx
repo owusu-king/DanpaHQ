@@ -75,7 +75,9 @@ export default function ApplyPage() {
 
     setSwitchingWorkspace(true);
     void chooseWorkspace("tenant")
-      .then(refresh)
+      // Re-read the account, not "select the Me we were just handed": `refresh`
+      // takes an optional context to select, and the resolved workspace is not one.
+      .then(() => refresh())
       .catch((cause) => {
         setWorkspaceError(
           cause instanceof ApiFailure

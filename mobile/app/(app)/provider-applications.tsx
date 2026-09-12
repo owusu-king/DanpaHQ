@@ -4,9 +4,11 @@ import { FlatList, Pressable, RefreshControl, View } from "react-native";
 
 import { type RentalApplication, listReceivedApplications } from "@/applications";
 import { ApiFailure } from "@/api";
+import { useAuth } from "@/auth";
 import { Field, Notice, Type, space } from "@/components/ui";
 import { type Lease, listGrantedLeases } from "@/leases";
 import { getPortfolioSummary, listOrganizations, type PortfolioSummary } from "@/organizations";
+import { useBlankOnPortfolioSwitch } from "@/portfolioScope";
 import { theme } from "@/theme";
 
 type Stage = "action" | "agreement" | "history";
@@ -17,6 +19,7 @@ type RequestItem =
 
 export default function ProviderApplicationsScreen() {
   const router = useRouter();
+  const { activeContext } = useAuth();
   const [summaries, setSummaries] = useState<PortfolioSummary[] | null>(null);
   const [applications, setApplications] = useState<RentalApplication[] | null>(null);
   const [leases, setLeases] = useState<Lease[]>([]);
@@ -25,18 +28,42 @@ export default function ProviderApplicationsScreen() {
   const [error, setError] = useState("");
   const [refreshing, setRefreshing] = useState(false);
 
+  // The private tenancy requests come from the Portfolio summary, so they too
+  // go when the Portfolio does — a request answered on this screen decides
+  // somebody's tenancy, and it must be one this Portfolio actually received.
+  useBlankOnPortfolioSwitch(activeContext, () => {
+    setSummaries(null);
+    setApplications(null);
+    setLeases([]);
+  });
+
   const load = useCallback(async () => {
+    // One Portfolio: the one being operated. Reading every Portfolio and
+    // flattening them put a personal Portfolio's request beside a company's,
+    // and answering it decided something this screen was not about.
+    setApplications(null);
     try {
       const organizations = await listOrganizations();
-      const [nextSummaries, nextApplications, nextLeases] = await Promise.all([
-        Promise.all(organizations.map((organization) => getPortfolioSummary(organization.id))), listReceivedApplications(false), listGrantedLeases(),
+      const preferred = activeContext?.startsWith("organization:")
+        ? activeContext.slice("organization:".length)
+        : "";
+      const organization = organizations.find((row) => row.id === preferred) ?? organizations[0];
+      if (!organization) {
+        setSummaries([]); setApplications([]); setLeases([]); setError("");
+        return;
+      }
+      const scope = { organization: organization.id };
+      const [summary, nextApplications, nextLeases] = await Promise.all([
+        getPortfolioSummary(organization.id),
+        listReceivedApplications(false, scope),
+        listGrantedLeases(scope),
       ]);
-      setSummaries(nextSummaries); setApplications(nextApplications); setLeases(nextLeases); setError("");
+      setSummaries([summary]); setApplications(nextApplications); setLeases(nextLeases); setError("");
     } catch (cause) {
       setApplications([]);
       setError(cause instanceof ApiFailure ? cause.error.message : "Could not load tenancy requests.");
     }
-  }, []);
+  }, [activeContext]);
 
   useFocusEffect(useCallback(() => { void load(); }, [load]));
 

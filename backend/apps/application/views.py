@@ -74,11 +74,15 @@ class HostApplicationsView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        from apps.organization.services import properties_for_user
+        """`?organization=<id>` scopes this to one Portfolio, decided here."""
+        from apps.organization.services import properties_in_scope
 
         applications = (
             RentalApplication.objects.filter(
-                unit__property__in=properties_for_user(request.user), superseded_by__isnull=True
+                unit__property__in=properties_in_scope(
+                    user=request.user, organization=request.query_params.get("organization")
+                ),
+                superseded_by__isnull=True,
             )
             .select_related(*SELECT)
             .prefetch_related(*PREFETCH)

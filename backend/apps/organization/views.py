@@ -20,7 +20,6 @@ from .models import (
 from .serializers import (
     ChangeMembershipRoleSerializer,
     CreateInvitationSerializer,
-    CreateOrganizationSerializer,
     CreatePropertyAssignmentSerializer,
     InvitationActionSerializer,
     MembershipSerializer,
@@ -31,7 +30,17 @@ from .serializers import (
 )
 
 
-class OrganizationListCreateView(APIView):
+class OrganizationListView(APIView):
+    """GET /organizations/ — the Portfolios this account can work in.
+
+    Read-only, and deliberately so. A Portfolio is provisioned when provider
+    access is approved and there is exactly one per provider; every other
+    Portfolio on this list arrived through an invitation somebody else sent.
+    There is no POST here any more — nothing a client can send creates a second
+    Portfolio, which is what `create_organization`'s own guard says again one
+    layer down.
+    """
+
     permission_classes = [IsAuthenticated, IsPhoneVerified]
 
     def get(self, request):
@@ -42,19 +51,6 @@ class OrganizationListCreateView(APIView):
         ).distinct()
         return Response(
             OrganizationSerializer(rows, many=True, context={"user": request.user}).data
-        )
-
-    def post(self, request):
-        # A Portfolio is provider administration, not a tenant-side shortcut.
-        # The same approved-provider capability that opens Property creation
-        # must be present before full company/Team setup can be created.
-        property_services.assert_can_create_property(request.user)
-        payload = CreateOrganizationSerializer(data=request.data)
-        payload.is_valid(raise_exception=True)
-        organization = services.create_organization(user=request.user, data=payload.validated_data)
-        return Response(
-            OrganizationSerializer(organization, context={"user": request.user}).data,
-            status=status.HTTP_201_CREATED,
         )
 
 
@@ -75,14 +71,23 @@ class OrganizationDetailView(APIView):
         return Response(OrganizationSerializer(organization, context={"user": request.user}).data)
 
 
+def _membership_context(organization) -> dict:
+    """Resolve the Portfolio's standing once, not once per member rendered."""
+    return {"portfolio_standing": services.has_portfolio_standing(organization)}
+
+
 class OrganizationMembershipView(APIView):
     permission_classes = [IsAuthenticated, IsPhoneVerified]
 
     def get(self, request, pk):
         organization = services.get_organization_or_404(pk, request.user)
         services.assert_can_manage_organization(organization, request.user)
-        rows = organization.memberships.filter(ended_at__isnull=True).select_related("user")
-        return Response(MembershipSerializer(rows, many=True).data)
+        rows = organization.memberships.filter(ended_at__isnull=True).select_related(
+            "user", "organization"
+        )
+        return Response(
+            MembershipSerializer(rows, many=True, context=_membership_context(organization)).data
+        )
 
 
 class OrganizationMembershipDetailView(APIView):
@@ -93,7 +98,9 @@ class OrganizationMembershipDetailView(APIView):
         payload = ChangeMembershipRoleSerializer(data=request.data)
         payload.is_valid(raise_exception=True)
         membership = (
-            organization.memberships.filter(id=membership_pk).select_related("user").first()
+            organization.memberships.filter(id=membership_pk)
+            .select_related("user", "organization")
+            .first()
         )
         if membership is None:
             raise NotFound("We could not find that Portfolio member.")
@@ -103,12 +110,16 @@ class OrganizationMembershipDetailView(APIView):
             actor=request.user,
             role=payload.validated_data["role"],
         )
-        return Response(MembershipSerializer(membership).data)
+        return Response(
+            MembershipSerializer(membership, context=_membership_context(organization)).data
+        )
 
     def delete(self, request, pk, membership_pk):
         organization = services.get_organization_or_404(pk, request.user)
         membership = (
-            organization.memberships.filter(id=membership_pk).select_related("user").first()
+            organization.memberships.filter(id=membership_pk)
+            .select_related("user", "organization")
+            .first()
         )
         if membership is None:
             raise NotFound("We could not find that Portfolio member.")
@@ -160,17 +171,56 @@ class OrganizationInvitationView(APIView):
 
 
 class MyOrganizationInvitationView(APIView):
+    """GET /me/portfolio-invitations/ — what has been offered to this number.
+
+    `?include=history` adds the recently answered ones. A screen that can only
+    list pending invitations has nothing to say to somebody who followed a link
+    that expired, and "no invitation is waiting" reads as the product losing it.
+    """
+
     permission_classes = [IsAuthenticated, IsPhoneVerified]
 
     def get(self, request):
-        rows = services.invitations_for_invitee(request.user)
-        rows = (
-            OrganizationInvitation.objects.filter(id__in=[row.id for row in rows])
+        include_history = request.query_params.get("include") == "history"
+        rows = services.invitations_for_invitee(request.user, include_history=include_history)
+        order = {row.id: index for index, row in enumerate(rows)}
+        rows = sorted(
+            OrganizationInvitation.objects.filter(id__in=list(order))
             .select_related("organization", "invited_by")
-            .prefetch_related("property_selections__property")
+            .prefetch_related("property_selections__property"),
+            key=lambda row: order[row.id],
         )
         return Response(
-            OrganizationInvitationSerializer(rows, many=True, context={"include_token": True}).data
+            OrganizationInvitationSerializer(
+                rows,
+                many=True,
+                context={"include_token": True, "viewer": request.user},
+            ).data
+        )
+
+
+class OrganizationInvitationResolveView(APIView):
+    """GET /portfolio-invitations/<id>/?token=… — what this link actually is.
+
+    A link is opened long after it was sent: by the right person on a phone they
+    have only just registered, by the wrong account, or after it expired, was
+    withdrawn or was already accepted. Each of those is a different thing to
+    say, and the clients could say none of them while the only endpoint they had
+    listed pending invitations and nothing else.
+    """
+
+    permission_classes = [IsAuthenticated, IsPhoneVerified]
+
+    def get(self, request, invitation_pk):
+        invitation = services.invitation_by_token(
+            invitation_id=invitation_pk,
+            token=request.query_params.get("token", ""),
+        )
+        return Response(
+            OrganizationInvitationSerializer(
+                invitation,
+                context={"include_token": True, "viewer": request.user},
+            ).data
         )
 
 
@@ -189,14 +239,24 @@ class OrganizationInvitationDecisionView(APIView):
                 actor=request.user,
                 token=payload.validated_data["token"],
             )
-            return Response(MembershipSerializer(membership).data)
+            # The membership as the client now needs it: the Portfolio to select,
+            # the role, the assignments it activated, and what is still waiting
+            # on verification — so the screen that follows says what was joined
+            # instead of leaving somebody to find out by navigating.
+            return Response(
+                MembershipSerializer(
+                    membership, context=_membership_context(membership.organization)
+                ).data
+            )
         if decision == "decline":
             invitation = services.decline_invitation(
                 invitation=invitation,
                 actor=request.user,
                 token=payload.validated_data["token"],
             )
-            return Response(OrganizationInvitationSerializer(invitation).data)
+            return Response(
+                OrganizationInvitationSerializer(invitation, context={"viewer": request.user}).data
+            )
         raise NotFound("We could not find that invitation action.")
 
 

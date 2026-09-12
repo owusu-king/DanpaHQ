@@ -20,10 +20,17 @@ import { useSession } from "@/lib/session";
  */
 export default function SettingsLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { state } = useSession();
+  const { state, activeContext } = useSession();
   const me = state.status === "signed_in" ? state.me : null;
   const isProvider =
     me?.capabilities.active_workspace === "provider" && me.capabilities.provider.workspace_access;
+  // Which Portfolio this person is in, and what their role there may reach.
+  // Team stays listed for every member — it is where somebody reads their own
+  // role and standing — while the panels a role cannot use are not offered.
+  const portfolio = me?.contexts.find(
+    (context) => context.type === "organization" && context.id === activeContext,
+  ) ?? me?.contexts.find((context) => context.type === "organization");
+  const can = portfolio?.access?.can;
 
   return (
     <div>
@@ -45,15 +52,19 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
                 <p className="type-label">PORTFOLIO</p>
                 <ul>
                   <IndexLink href="/settings/team" pathname={pathname}>Team</IndexLink>
-                  <IndexLink href="/settings/billing" pathname={pathname}>Plan &amp; billing</IndexLink>
+                  {can?.view_billing ?? true ? (
+                    <IndexLink href="/settings/billing" pathname={pathname}>Plan &amp; billing</IndexLink>
+                  ) : null}
                 </ul>
               </div>
-              <div className="settings-group">
-                <p className="type-label">RECORDS</p>
-                <ul>
-                  <IndexLink href="/settings/archive" pathname={pathname}>Archive</IndexLink>
-                </ul>
-              </div>
+              {can?.operate_properties ?? true ? (
+                <div className="settings-group">
+                  <p className="type-label">RECORDS</p>
+                  <ul>
+                    <IndexLink href="/settings/archive" pathname={pathname}>Archive</IndexLink>
+                  </ul>
+                </div>
+              ) : null}
             </>
           ) : null}
         </nav>

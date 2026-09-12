@@ -7,7 +7,7 @@
  * spend a viewing on it.
  */
 
-import { apiFetch, idempotentMutation } from "@/api";
+import { apiFetch, idempotentMutation, scopeQuery, type PortfolioScope } from "@/api";
 
 export type ApplicationStatus =
   | "submitted"
@@ -70,9 +70,9 @@ export function listMyApplications() {
 }
 
 /** Applications concerning Units the current provider may manage. */
-export function listReceivedApplications(openOnly = false) {
+export function listReceivedApplications(openOnly = false, scope?: PortfolioScope) {
   return apiFetch<RentalApplication[]>(
-    `/me/received-applications/${openOnly ? "?open=true" : ""}`,
+    `/me/received-applications/${scopeQuery(scope, openOnly ? { open: "true" } : undefined)}`,
   );
 }
 

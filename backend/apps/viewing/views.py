@@ -103,11 +103,14 @@ class HostViewingsView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        from apps.organization.services import properties_for_user
+        """`?organization=<id>` scopes this to one Portfolio, decided here."""
+        from apps.organization.services import properties_in_scope
 
         viewings = (
             ViewingRequest.objects.filter(
-                listing__unit__property__in=properties_for_user(request.user)
+                listing__unit__property__in=properties_in_scope(
+                    user=request.user, organization=request.query_params.get("organization")
+                )
             )
             .select_related(*BASE_SELECT)
             .prefetch_related(

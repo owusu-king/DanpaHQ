@@ -26,8 +26,9 @@ def _has_adjustment_authority(*, charge, user, capability: ObligationCapability)
         return True
 
     from apps.organization.models import MembershipRole, OrganizationMembership
+    from apps.organization.services import elevated_authority_missing
 
-    return OrganizationMembership.objects.filter(
+    portfolio_wide = OrganizationMembership.objects.filter(
         user=user,
         ended_at__isnull=True,
         role__in=[MembershipRole.OWNER, MembershipRole.ADMIN],
@@ -35,6 +36,11 @@ def _has_adjustment_authority(*, charge, user, capability: ObligationCapability)
         organization__property_relationships__property=prop,
         organization__property_relationships__ended_at__isnull=True,
     ).exists()
+    # Portfolio-wide authority is only live while the person holding it is
+    # currently identified. Writing off somebody's debt is precisely the act a
+    # lapsed identity verification must not carry, and the role alone — granted
+    # once, possibly long ago — is not that assurance.
+    return portfolio_wide and not elevated_authority_missing(user)
 
 
 def is_post_tenancy_obligation(*, charge) -> bool:

@@ -1,11 +1,11 @@
 /**
  * What a provider's next step actually is, before they can add a property.
  *
- * Provider approval is the only prerequisite an individual must handle first:
+ * Provider approval is the only prerequisite, and it is the whole of it:
  *
  * 1. the account is approved to operate  (`can_create_property`)
- * 2. their first Property creates a personal Portfolio automatically
- * 3. an explicit Portfolio setup remains available for a business or team
+ * 2. that approval provisions the one Portfolio the account will ever own
+ * 3. the Property is filed into it — there is nothing to set up, ever
  */
 
 export type NextStep = {
@@ -38,7 +38,7 @@ export function propertyNextStep({
       label: "Create property",
       href: "/properties/new",
       reason:
-        "Your personal Portfolio will be created automatically with this first Property. You can rename it or add a Team later.",
+        "Rooomly files it into your Portfolio — the one your account was given when it was approved. You can rename it or add a Team later.",
     };
   }
 

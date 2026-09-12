@@ -30,6 +30,7 @@ import {
   type PortfolioSummary,
 } from "@/organizations";
 import { hapticsPolicy, pressableFeedback } from "@/platform";
+import { useBlankOnPortfolioSwitch } from "@/portfolioScope";
 import { theme } from "@/theme";
 
 type AttentionSignal = {
@@ -70,33 +71,54 @@ export default function ProviderHomeScreen() {
   const [error, setError] = useState("");
   const [openedAt] = useState(() => Date.now());
 
+  // Home is every figure about one Portfolio at once, so it is the screen where
+  // the previous Portfolio's occupancy, money and attention list would sit
+  // longest under the new one's name. Switching empties it back to its skeleton.
+  useBlankOnPortfolioSwitch(activeContext, () => {
+    setSummary(null);
+    setProperties([]);
+    setViewings([]);
+    setApplications(0);
+    setLeases([]);
+    setLoading(true);
+  });
+
   const load = useCallback(async () => {
     setLoading(true);
-    const enquiries = await Promise.allSettled([
-      listReceivedViewings(true),
-      listReceivedApplications(true),
-      listGrantedLeases(),
-    ]);
-    setViewings(enquiries[0].status === "fulfilled" ? enquiries[0].value : []);
-    setApplications(enquiries[1].status === "fulfilled" ? enquiries[1].value.length : 0);
-    setLeases(enquiries[2].status === "fulfilled" ? enquiries[2].value : []);
     try {
       const organizations = await listOrganizations();
       const preferred = activeContext?.startsWith("organization:")
         ? activeContext.slice("organization:".length)
         : "";
       const organization = organizations.find((row) => row.id === preferred) ?? organizations[0];
-      if (organization) {
-        const [next, propertyRows] = await Promise.all([
-          getPortfolioSummary(organization.id),
-          listOrganizationProperties(organization.id),
-        ]);
-        setSummary(next);
-        setProperties(propertyRows);
-      } else {
+      if (!organization) {
         setSummary(null);
         setProperties([]);
+        setViewings([]);
+        setApplications(0);
+        setLeases([]);
+        setError("");
+        return;
       }
+      // Every figure here is about one Portfolio, so the Portfolio is resolved
+      // first and each list is asked for it. Fetching the enquiries first meant
+      // Home counted viewings, tenancy requests and agreements from every
+      // Portfolio the account belonged to against one Portfolio's Properties.
+      const scope = { organization: organization.id };
+      const [enquiries, next, propertyRows] = await Promise.all([
+        Promise.allSettled([
+          listReceivedViewings(true, scope),
+          listReceivedApplications(true, scope),
+          listGrantedLeases(scope),
+        ]),
+        getPortfolioSummary(organization.id),
+        listOrganizationProperties(organization.id),
+      ]);
+      setViewings(enquiries[0].status === "fulfilled" ? enquiries[0].value : []);
+      setApplications(enquiries[1].status === "fulfilled" ? enquiries[1].value.length : 0);
+      setLeases(enquiries[2].status === "fulfilled" ? enquiries[2].value : []);
+      setSummary(next);
+      setProperties(propertyRows);
       setError("");
     } catch {
       setError("Could not refresh your Portfolio.");

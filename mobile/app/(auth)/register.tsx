@@ -11,6 +11,7 @@ import { resolveEntryRoute } from "@/navigation";
 import { clearPendingOnboardingIntent, pendingOnboardingIntent } from "@/onboardingIntent";
 import { pressableFeedback } from "@/platform";
 import { theme } from "@/theme";
+import { describeDevice } from "@/device";
 import { chooseWorkspace } from "@/workspace";
 
 /**
@@ -136,6 +137,7 @@ export default function RegisterScreen() {
           email: email.trim() || null,
           password,
           platform: Platform.OS,
+          device_label: describeDevice(),
           device_fingerprint: deviceFingerprint,
         },
       });
