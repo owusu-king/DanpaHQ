@@ -1,4 +1,3 @@
-from django.db.models import Q
 from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
@@ -7,15 +6,17 @@ from rest_framework.views import APIView
 from apps.core.exceptions import NotFound
 from apps.core.pagination import StandardCursorPagination
 from apps.files.models import StoredFile
+from apps.geo.serializers import PlaceSerializer
 from apps.identity.permissions import IsPhoneVerified
 from apps.property.models import Amenity, Unit
 
-from . import read_models, services
+from . import read_models, search, services
 from .models import Listing, SavedListing
 from .serializers import (
     AmenitySerializer,
     CreateListingSerializer,
     ListingDetailSerializer,
+    ListingMapSerializer,
     ListingMediaSerializer,
     ListingSearchSerializer,
     ListingSerializer,
@@ -35,45 +36,13 @@ class ListingSearchView(APIView):
         params.is_valid(raise_exception=True)
         data = params.validated_data
 
+        # One definition of the search for the list and the map: see `search`.
+        area = search.resolve_area(data)
         qs = (
-            read_models.public_listings()
+            search.filtered_listings(data, area)
             .select_related("unit__property__address__locality__district", "created_by")
             .prefetch_related("media__file", "unit__media__file", "highlighted_amenities")
-            .order_by("-created_at")
         )
-
-        if data.get("q"):
-            query = data["q"].strip()
-            qs = qs.filter(
-                Q(headline__icontains=query)
-                | Q(description__icontains=query)
-                | Q(unit__property__address__locality__name__icontains=query)
-                | Q(unit__property__address__locality__aliases__icontains=query)
-                | Q(unit__property__address__locality__district__name__icontains=query)
-            )
-        if "locality_id" in data:
-            qs = qs.filter(locality_id_cache=data["locality_id"])
-        if "property_type" in data:
-            qs = qs.filter(unit__property__property_type=data["property_type"])
-        if "space_type" in data:
-            qs = qs.filter(unit__space_type=data["space_type"])
-        if "bedrooms_min" in data:
-            qs = qs.filter(bedrooms_cache__gte=data["bedrooms_min"])
-        if "bedrooms_max" in data:
-            qs = qs.filter(bedrooms_cache__lte=data["bedrooms_max"])
-        if "rent_min" in data:
-            qs = qs.filter(rent_minor__gte=data["rent_min"])
-        if "rent_max" in data:
-            qs = qs.filter(rent_minor__lte=data["rent_max"])
-        if "advance_max" in data:
-            qs = qs.filter(advance_months__lte=data["advance_max"])
-        if data.get("furnished") is not None:
-            qs = qs.filter(unit__is_furnished=data["furnished"])
-        if data.get("amenity_ids"):
-            qs = qs.filter(
-                unit__unit_amenities__amenity_id__in=data["amenity_ids"],
-                unit__unit_amenities__removed_at__isnull=True,
-            ).distinct()
 
         # The cursor *is* the ordering, so a sort choice has to move the
         # paginator with it. Every option ends in `-created_at` so the cursor
@@ -89,6 +58,35 @@ class ListingSearchView(APIView):
         paginator.ordering = ordering
         page = paginator.paginate_queryset(qs, request)
         return paginator.get_paginated_response(ListingSerializer(page, many=True).data)
+
+
+class ListingMapView(APIView):
+    """GET /listings/map/ — the same search as /listings/, as price markers.
+
+    Same parameters, same eligibility, same area — `search.filtered_listings`
+    serves both — so the markers and the cards cannot describe different
+    rentals. Markers are grouped on the server for the window and zoom on
+    screen, which keeps a response small however many listings match.
+    """
+
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        params = ListingMapSerializer(data=request.query_params)
+        params.is_valid(raise_exception=True)
+        data = params.validated_data
+
+        area = search.resolve_area(data)
+        qs = search.filtered_listings(data, area)
+        features, truncated = search.map_features(
+            qs, window=search.map_window(data, area), zoom=data["zoom"]
+        )
+        body = {"zoom": data["zoom"], "features": features, "truncated": truncated}
+        if data.get("summary") is not False:
+            body.update(search.map_summary(qs))
+            if area is not None and area.place is not None:
+                body["place"] = PlaceSerializer(area.place).data
+        return Response(body)
 
 
 class ListingDetailView(APIView):

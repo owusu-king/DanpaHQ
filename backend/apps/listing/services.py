@@ -13,6 +13,7 @@ from apps.core.money import Money
 from apps.outbox.services import emit
 from apps.property.models import Unit
 
+from .location import apply_public_location, public_location_for
 from .models import (
     AvailabilityState,
     Listing,
@@ -160,6 +161,7 @@ def create_listing(*, user, unit: Unit, data: dict) -> Listing:
     except Exception as exc:
         raise ValidationFailed("That rent amount is not valid.") from exc
 
+    public_point, public_point_precision = public_location_for(unit)
     listing = Listing.objects.create(
         unit=unit,
         created_by=user,
@@ -178,6 +180,8 @@ def create_listing(*, user, unit: Unit, data: dict) -> Listing:
         # address is a non-null FK, so this always resolves.
         locality_id_cache=unit.property.address.locality_id,
         bedrooms_cache=unit.bedrooms,
+        public_point=public_point,
+        public_point_precision=public_point_precision,
     )
 
     record(
@@ -336,12 +340,15 @@ def publish_listing(*, listing: Listing, user) -> Listing:
     listing.moderation_state = ModerationState.APPROVED
     listing.availability_state = AvailabilityState.AVAILABLE
     listing.review_note = ""
+    # Entering discovery is the moment the public point must be current.
+    located = apply_public_location(listing)
     listing.save(
         update_fields=[
             "publication_state",
             "moderation_state",
             "availability_state",
             "review_note",
+            *located,
             "updated_at",
         ]
     )

@@ -1,5 +1,7 @@
 "use client";
 
+import { Suspense } from "react";
+
 import { ListingBrowser } from "@/components/listings/ListingBrowser";
 import { PageHeader } from "@/components/portal/PageHeader";
 import { Reveal } from "@/components/motion/Reveal";
@@ -17,6 +19,10 @@ import { useSession } from "@/lib/session";
  *
  * The surrounding chrome is chosen by AppShell from the same session, so no
  * "public mode" flag exists anywhere for these two to disagree about.
+ *
+ * The search is read from the address bar, so the browser sits in a Suspense
+ * boundary: a statically rendered page that reads search params without one
+ * fails the production build.
  */
 export default function RentalsPage() {
   const { state } = useSession();
@@ -28,7 +34,9 @@ export default function RentalsPage() {
           title="Explore"
           description="Every active listing comes from an approved property relationship."
         />
-        <ListingBrowser />
+        <Suspense fallback={<ExploreFallback />}>
+          <ListingBrowser />
+        </Suspense>
       </>
     );
   }
@@ -67,8 +75,15 @@ export default function RentalsPage() {
       </div>
 
       <div className="mx-auto w-full max-w-[76rem] px-5 pb-24 sm:px-8 lg:px-12">
-        <ListingBrowser />
+        <Suspense fallback={<ExploreFallback />}>
+          <ListingBrowser />
+        </Suspense>
       </div>
     </div>
   );
+}
+
+/** The tray's footprint while the search is read, so nothing jumps when it arrives. */
+function ExploreFallback() {
+  return <div className="explore-discovery explore-discovery-pending" aria-hidden="true" />;
 }

@@ -847,6 +847,14 @@ export type Listing = {
   is_furnished: boolean | null;
   map_latitude: string | null;
   map_longitude: string | null;
+  /** The only position a public map may draw: a snapped ~300 m cell or the
+   *  neighbourhood's centre, decided by the backend. Never the address. */
+  public_location: {
+    latitude: number;
+    longitude: number;
+    precision: "area" | "locality";
+    radius_m: number;
+  } | null;
   provider_label: string;
   trust_stamps: {
     phone: { state: "verified" | "pending" | "unverified" | "expired" };

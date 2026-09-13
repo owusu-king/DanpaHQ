@@ -12,7 +12,7 @@ from rest_framework import serializers
 
 from apps.core.digital_address import DigitalAddressError, normalise_digital_address
 
-from .models import Address, District, Locality, Region
+from .models import Address, District, Locality, Place, Region
 
 
 class RegionSerializer(serializers.ModelSerializer):
@@ -128,3 +128,47 @@ class CreateAddressSerializer(serializers.Serializer):
         if not Locality.objects.filter(id=value, is_active=True).exists():
             raise serializers.ValidationError("We do not know that locality.")
         return value
+
+
+class PlaceSerializer(serializers.ModelSerializer):
+    """A place as a suggestion and as a map target: what it is called and where it is."""
+
+    kind_label = serializers.CharField(source="get_kind_display", read_only=True)
+    display_name = serializers.SerializerMethodField()
+    center = serializers.SerializerMethodField()
+    bounds = serializers.SerializerMethodField()
+    locality_id = serializers.UUIDField(read_only=True, allow_null=True)
+
+    class Meta:
+        model = Place
+        fields = [
+            "slug",
+            "name",
+            "kind",
+            "kind_label",
+            "context",
+            "display_name",
+            "center",
+            "bounds",
+            "locality_id",
+        ]
+        read_only_fields = fields
+
+    def get_display_name(self, obj) -> str:
+        """The name and the first part of its context: "East Legon, Accra"."""
+        anchor = obj.context.split(",")[0].strip() if obj.context else ""
+        if not anchor or anchor in {obj.name, "Ghana"}:
+            return obj.name
+        return f"{obj.name}, {anchor}"
+
+    def get_center(self, obj) -> dict:
+        return {"lat": round(obj.center.y, 6), "lng": round(obj.center.x, 6)}
+
+    def get_bounds(self, obj) -> dict:
+        west, south, east, north = obj.bounds.extent
+        return {
+            "west": round(west, 6),
+            "south": round(south, 6),
+            "east": round(east, 6),
+            "north": round(north, 6),
+        }

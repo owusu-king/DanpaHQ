@@ -157,6 +157,9 @@ geo_patterns = [
     path("geo/regions/", geo_views.RegionListView.as_view(), name="geo-regions"),
     path("geo/districts/", geo_views.DistrictListView.as_view(), name="geo-districts"),
     path("geo/localities/", geo_views.LocalityListView.as_view(), name="geo-localities"),
+    path("geo/places/", geo_views.PlaceSearchView.as_view(), name="geo-places"),
+    path("geo/places/<slug:slug>/", geo_views.PlaceDetailView.as_view(), name="geo-place"),
+    path("map/config/", geo_views.MapConfigView.as_view(), name="map-config"),
     path("geo/addresses/", geo_views.AddressListCreateView.as_view(), name="geo-addresses"),
     path("geo/addresses/<uuid:pk>/", geo_views.AddressDetailView.as_view(), name="geo-address"),
 ]
@@ -537,6 +540,7 @@ occupancy_patterns = [
 
 listing_patterns = [
     path("listings/", listing_views.ListingSearchView.as_view(), name="listings"),
+    path("listings/map/", listing_views.ListingMapView.as_view(), name="listings-map"),
     path("listings/<uuid:pk>/", listing_views.ListingDetailView.as_view(), name="listing-detail"),
     # Before the <str:action> route, which would otherwise swallow these names.
     path(

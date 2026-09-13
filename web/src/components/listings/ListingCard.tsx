@@ -12,18 +12,28 @@ import type { Listing } from "@/lib/console";
  * Its reading order is deliberate: image → rent/advance → identity → place →
  * essentials → trust. Search data is enough; the card never fetches detail or
  * reconstructs a Property/Unit relationship in the client.
+ *
+ * The place line is its own destination: it opens the listing at its Location
+ * section, not a map of the whole search — somebody tapping an address is
+ * asking where *this* rental is.
  */
 export function ListingCard({
   listing,
   saved = false,
   onSave,
   onNavigate,
+  highlighted = false,
+  onHoverChange,
 }: {
   listing: Listing;
   saved?: boolean;
   onSave?: () => void;
   /** Lets Explore preserve its exact return position before leaving. */
   onNavigate?: () => void;
+  /** Its marker is selected or hovered on the map beside it. */
+  highlighted?: boolean;
+  /** Lets the map mark this rental while the pointer is over its card. */
+  onHoverChange?: (hovering: boolean) => void;
 }) {
   const photos = cardPhotos(listing);
   const [activePhoto, setActivePhoto] = useState(0);
@@ -37,6 +47,7 @@ export function ListingCard({
   const verified = listing.trust_stamps.identity.state === "verified"
     && listing.trust_stamps.property.state === "verified";
   const href = `/listings/${listing.id}` as never;
+  const locationHref = `/listings/${listing.id}#location` as never;
 
   function showPhoto(index: number) {
     if (!photos.length) return;
@@ -74,7 +85,11 @@ export function ListingCard({
   }
 
   return (
-    <li className="listing-card card-interactive">
+    <li
+      className={`listing-card card-interactive${highlighted ? " is-highlighted" : ""}`}
+      onPointerEnter={onHoverChange ? () => onHoverChange(true) : undefined}
+      onPointerLeave={onHoverChange ? () => onHoverChange(false) : undefined}
+    >
       <div className="listing-card-photo media">
         <Link
           href={href}
@@ -182,8 +197,14 @@ export function ListingCard({
         </h3>
 
         <p className="listing-card-where">
-          <Icon name="pin" />
-          <span>{where || "Ghana"}</span>
+          <Link
+            href={locationHref}
+            onClick={onNavigate}
+            aria-label={`See where ${listing.headline} is: ${where || "Ghana"}`}
+          >
+            <Icon name="pin" />
+            <span>{where || "Ghana"}</span>
+          </Link>
         </p>
 
         {facts.length ? (

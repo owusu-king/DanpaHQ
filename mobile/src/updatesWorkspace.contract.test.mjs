@@ -61,3 +61,36 @@ test("Explore keeps quick filters close and puts the complete set in a bottom sh
   assert.match(search, /q: locality \? undefined : place\.trim\(\) \|\| undefined/);
   assert.doesNotMatch(search, /presentationStyle=/);
 });
+
+test("Explore on the phone shows each choice once, and turning one on moves nothing", () => {
+  const search = read("mobile/app/(app)/search.tsx");
+
+  // Filters leads the rail: at the end it sat past the right edge of a phone.
+  const rail = search.slice(search.indexOf('accessibilityLabel="Quick rental filters"'));
+  assert.ok(rail.indexOf('label="Filters"') < rail.indexOf("label={rentLabel}"));
+  assert.match(rail, /count=\{refinementCount\}/);
+
+  // The one Clear all sits beside the count it changes.
+  const status = search.slice(search.indexOf('accessibilityLiveRegion="polite"'), search.indexOf("renderItem="));
+  assert.match(status, /onPress=\{clearFilters\}/);
+
+  // Furnished is the platform switch, and the row owns the touch.
+  assert.match(search, /<View pointerEvents="none"[^>]*>\s*<Switch\s+value=\{selected\}/);
+
+  // A chip or pill turning on gives back the pixel its doubled edge takes.
+  const chip = search.slice(search.indexOf("function FilterChip("), search.indexOf("function ChoiceRow("));
+  assert.match(chip, /paddingHorizontal: selected \? space\[4\] - 1 : space\[4\]/);
+  assert.match(chip, /borderWidth: selected \? 2 : 1/);
+  const pill = search.slice(search.indexOf("function CompactFilter("), search.indexOf("function FilterChip("));
+  assert.match(pill, /paddingLeft: \(icon \? space\[3\] : space\[4\]\) - edge/);
+  assert.match(pill, /borderWidth: 1 \+ edge/);
+
+  // The search box's ring sits behind it; its border no longer thickens.
+  const box = search.slice(search.indexOf("function SearchBox("), search.indexOf("function ActiveFilter("));
+  assert.doesNotMatch(box, /borderWidth: focused/);
+  assert.match(box, /clearButtonMode="never"/);
+
+  // One title per sheet, and the same word for results everywhere.
+  assert.doesNotMatch(search, /REFINE YOUR SEARCH/);
+  assert.doesNotMatch(search, /homes/);
+});

@@ -1,0 +1,761 @@
+/* Explore on a map (ADR 0033): the same search, drawn where it is.
+
+   The basemap is quiet so the markers can carry the colour. Price markers are
+   white pills that read at a glance; a hovered one takes kola's edge, a chosen
+   one fills with deep kola, a visited one steps back into the ground. Clusters
+   are solid kola discs whose halo says "more here". Informational notes are
+   lagoon, failures laterite, the brand moment gold — the semantic palette,
+   used for what it means. */
+
+/* --- the page tray's way into the map ------------------------------------- */
+
+.explore-discovery-pending { min-height: 11.5rem; }
+
+.explore-map-toggle {
+  gap: var(--space-2);
+  margin-left: auto;
+  padding-inline: var(--space-3) var(--space-4);
+  color: var(--color-field-0);
+  background: var(--color-kola-800);
+  border-color: var(--color-kola-800);
+}
+.explore-map-toggle > .portal-icon { width: 17px; height: 17px; color: var(--color-kola-300); }
+.explore-map-toggle:hover { background: var(--color-kola-900); border-color: var(--color-kola-900); }
+.explore-map-toggle:active { background: var(--color-kola-900); }
+
+/* An area drawn on the map is where, not a filter, so it takes lagoon — as the
+   location field marks regions and districts — rather than a filter's kola. */
+.explore-area-chip {
+  color: var(--color-lagoon-600);
+  background: var(--color-lagoon-100);
+  border-color: color-mix(in oklab, var(--color-lagoon-600) 40%, transparent);
+}
+.explore-area-chip .portal-icon { color: var(--color-lagoon-600); }
+.explore-area-chip:hover { background: color-mix(in oklab, var(--color-lagoon-100) 84%, var(--color-lagoon-600)); border-color: var(--color-lagoon-600); }
+.explore-area-chip:active { background: color-mix(in oklab, var(--color-lagoon-100) 72%, var(--color-lagoon-600)); }
+
+/* --- the location field ------------------------------------------------------ */
+
+.explore-place-search:has(.explore-search-spinner) input { padding-right: 88px; }
+.explore-search-spinner {
+  position: absolute;
+  z-index: 2;
+  top: 50%;
+  right: 52px;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--color-kola-50);
+  border-top-color: var(--color-kola-600);
+  border-radius: 50%;
+  translate: 0 -50%;
+  animation: explore-spin 700ms linear infinite;
+}
+.explore-suggestions ul { display: grid; gap: 2px; padding: 0; margin: 0; list-style: none; }
+.explore-suggestions-heading {
+  margin: 0;
+  padding: var(--space-2) var(--space-3) 2px;
+  color: var(--color-ink-500);
+  font-size: .75rem;
+  font-weight: 600;
+}
+.explore-suggestions-status { margin: 0; padding: var(--space-3); color: var(--color-ink-700); font-size: .875rem; }
+.explore-suggestions mark { color: var(--color-kola-800); background: transparent; font-weight: 750; }
+.explore-suggestion-kind {
+  flex: 0 0 auto;
+  margin-left: auto;
+  padding: 3px 8px;
+  color: var(--color-ink-500);
+  font-size: .6875rem;
+  font-weight: 650;
+  letter-spacing: .01em;
+  background: var(--color-field-100);
+  border-radius: var(--radius-pill);
+}
+.explore-suggestions .is-highlighted .explore-suggestion-kind { background: var(--color-field-0); }
+.explore-suggestion-copy { flex: 1 1 auto; }
+.explore-suggestion-copy strong,
+.explore-suggestion-copy > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* What kind of place it is, told by colour as well as by the tag beside it. */
+.explore-suggestion-mark.is-city,
+.explore-suggestion-mark.is-town { color: var(--color-field-0); background: var(--color-ink-800); }
+.explore-suggestion-mark.is-region,
+.explore-suggestion-mark.is-district { color: var(--color-lagoon-600); background: var(--color-lagoon-100); }
+.explore-suggestion-mark.is-landmark { color: var(--color-gold-700); background: var(--color-gold-100); }
+.explore-suggestions .is-highlighted .explore-suggestion-mark.is-city,
+.explore-suggestions .is-highlighted .explore-suggestion-mark.is-town { background: var(--color-ink-900); }
+
+/* --- the map view ------------------------------------------------------------ */
+
+.explore-map-view {
+  position: fixed;
+  z-index: 90;
+  inset: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  color: var(--color-ink-900);
+  background: var(--color-field-100);
+  animation: explore-fade-in var(--motion-duration-base) var(--motion-easing-standard);
+}
+
+.explore-map-bar {
+  position: relative;
+  z-index: 5;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-field-0);
+  border-bottom: var(--border-hairline) solid var(--color-field-200);
+  box-shadow: var(--shadow-lifted);
+}
+.explore-map-close {
+  display: inline-flex;
+  height: 44px;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-4) 0 var(--space-3);
+  color: var(--color-ink-900);
+  font: 600 .875rem/1 var(--font-body);
+  white-space: nowrap;
+  background: var(--color-field-100);
+  border: 0;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  transition: background-color var(--motion-duration-fast) var(--motion-easing-standard);
+}
+.explore-map-close .portal-icon { width: 18px; height: 18px; color: var(--color-kola-600); }
+.explore-map-close:hover { background: var(--color-field-200); }
+.explore-map-close:focus-visible { outline: var(--border-emphasis) solid var(--color-kola-600); outline-offset: 2px; }
+.explore-map-controls { min-width: 0; }
+.explore-map-controls > .notice,
+.explore-map-controls > [role="alert"],
+.explore-map-controls > [role="status"] { margin-top: var(--space-2); }
+
+.explore-discovery[data-variant="map"] {
+  gap: var(--space-2);
+  padding: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+.explore-discovery[data-variant="map"] .explore-search input { height: 44px; background: var(--color-field-50); box-shadow: none; }
+.explore-discovery[data-variant="map"] .explore-search input:focus-visible { background: var(--color-field-0); }
+.explore-discovery[data-variant="map"] .explore-feedback { padding-top: 0; border-top: 0; }
+.explore-discovery[data-variant="map"] .explore-advanced { top: calc(100% + var(--space-3)); }
+
+.explore-map-body {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(22rem, 27rem) minmax(0, 1fr);
+  min-height: 0;
+}
+
+.explore-map-results {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: var(--color-field-50);
+  border-right: var(--border-hairline) solid var(--color-field-200);
+}
+.explore-map-count {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--color-ink-900);
+  font: 650 1rem/1.3 var(--font-body);
+  letter-spacing: -.005em;
+}
+.explore-map-note {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  color: var(--color-lagoon-600);
+  font-size: .8125rem;
+  line-height: 1.4;
+  background: var(--color-lagoon-100);
+  border-radius: var(--radius-md);
+}
+.explore-map-list { display: grid; gap: var(--space-4); padding: 0; margin: 0; list-style: none; }
+.explore-map-list .listing-card-photo { aspect-ratio: 16 / 9; }
+.explore-map-results .explore-more { width: 100%; min-height: 48px; }
+.explore-map-empty-list { display: grid; gap: var(--space-2); padding: var(--space-6) var(--space-2); }
+.explore-map-empty-list p { margin: 0; }
+
+/* A card and its marker point at each other. */
+.listing-card.is-highlighted {
+  border-color: var(--color-kola-600);
+  box-shadow: 0 0 0 1px var(--color-kola-600), var(--shadow-lifted);
+}
+
+.explore-map-stage { position: relative; min-width: 0; min-height: 0; overflow: hidden; }
+.explore-map-frame,
+.explore-map-canvas { position: absolute; inset: 0; }
+.explore-map-loading {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, var(--color-field-100) 30%, var(--color-field-50) 50%, var(--color-field-100) 70%);
+  background-size: 300% 100%;
+  animation: explore-shimmer 1.4s ease-in-out infinite;
+}
+.explore-map-failed {
+  position: absolute;
+  z-index: 3;
+  right: var(--space-4);
+  bottom: var(--space-4);
+  left: var(--space-4);
+  display: grid;
+  gap: 2px;
+  max-width: 26rem;
+  padding: var(--space-4);
+  background: var(--color-field-0);
+  border-left: 3px solid var(--color-laterite-600);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-floating);
+}
+.explore-map-failed span { color: var(--color-ink-700); font-size: .875rem; }
+
+.explore-map-overlay-top {
+  position: absolute;
+  z-index: 3;
+  top: var(--space-4);
+  left: 50%;
+  display: grid;
+  justify-items: center;
+  gap: var(--space-2);
+  translate: -50% 0;
+  pointer-events: none;
+}
+.explore-map-overlay-top > * { pointer-events: auto; }
+
+/* Subtle, because moving the map is not a request to search it — but it is
+   the brightest thing on the map while it is offered. */
+.explore-search-area {
+  display: inline-flex;
+  height: 40px;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-4) 0 var(--space-3);
+  color: var(--color-kola-800);
+  font: 650 .875rem/1 var(--font-body);
+  white-space: nowrap;
+  background: var(--color-field-0);
+  border: var(--border-hairline) solid color-mix(in oklab, var(--color-kola-600) 35%, transparent);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-floating);
+  cursor: pointer;
+  animation: explore-pop-in var(--motion-duration-fast) var(--motion-easing-enter);
+  transition: background-color var(--motion-duration-fast) var(--motion-easing-standard);
+}
+.explore-search-area .portal-icon { width: 17px; height: 17px; color: var(--color-kola-600); }
+.explore-search-area:hover { background: var(--color-kola-50); }
+.explore-search-area:focus-visible,
+.explore-map-retry:focus-visible,
+.explore-view-switch:focus-visible { outline: var(--border-emphasis) solid var(--color-kola-600); outline-offset: 2px; }
+
+/* Said on the map, where the missing markers are, not in a list a phone never
+   shows beside it. */
+.explore-map-hint {
+  margin: 0;
+  padding: 6px var(--space-3);
+  color: var(--color-lagoon-600);
+  font: 600 .8125rem/1.3 var(--font-body);
+  background: var(--color-lagoon-100);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-floating);
+}
+
+.explore-map-progress {
+  position: relative;
+  display: block;
+  width: 5rem;
+  height: 4px;
+  overflow: hidden;
+  background: color-mix(in oklab, var(--color-field-0) 80%, var(--color-kola-50));
+  border-radius: var(--radius-pill);
+  box-shadow: 0 1px 3px rgb(22 17 14 / 15%);
+}
+.explore-map-progress::after {
+  position: absolute;
+  inset: 0;
+  width: 40%;
+  background: var(--color-kola-600);
+  border-radius: inherit;
+  content: "";
+  animation: explore-progress 900ms var(--motion-easing-standard) infinite;
+}
+
+.explore-map-retry {
+  height: 36px;
+  padding: 0 var(--space-4);
+  color: var(--color-laterite-600);
+  font: 600 .8125rem/1 var(--font-body);
+  background: var(--color-field-0);
+  border: var(--border-hairline) solid var(--color-laterite-100);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-lifted);
+  cursor: pointer;
+}
+
+.explore-map-empty {
+  position: absolute;
+  z-index: 3;
+  bottom: var(--space-6);
+  left: 50%;
+  display: grid;
+  width: max-content;
+  max-width: min(26rem, calc(100% - 2rem));
+  justify-items: center;
+  gap: var(--space-1);
+  padding: var(--space-4) var(--space-5);
+  text-align: center;
+  background: var(--color-field-0);
+  border: var(--border-hairline) solid var(--color-field-200);
+  border-top: 3px solid var(--color-gold-300);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-floating);
+  translate: -50% 0;
+}
+.explore-map-empty span { color: var(--color-ink-700); font-size: .875rem; }
+.explore-map-empty div { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--space-2); margin-top: var(--space-1); }
+
+/* MapLibre's controls, in the product's clothes. */
+.explore-map-stage .maplibregl-ctrl-group,
+.listing-location-map .maplibregl-ctrl-group {
+  overflow: hidden;
+  background: var(--color-field-0);
+  border: var(--border-hairline) solid var(--color-field-200);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lifted);
+}
+.explore-map-stage .maplibregl-ctrl-group button,
+.listing-location-map .maplibregl-ctrl-group button { width: 36px; height: 36px; }
+.explore-map-stage .maplibregl-ctrl-group button + button,
+.listing-location-map .maplibregl-ctrl-group button + button { border-top-color: var(--color-field-200); }
+.explore-map-stage .maplibregl-ctrl-bottom-right { margin: 0 var(--space-3) var(--space-3) 0; }
+.explore-map-stage .maplibregl-ctrl-attrib,
+.listing-location-map .maplibregl-ctrl-attrib { font-family: var(--font-body); font-size: .6875rem; }
+
+/* --- markers ------------------------------------------------------------------ */
+
+/* MapLibre positions a marker with an inline `transform`, so emphasis uses the
+   separate `scale` property, which composes with it instead of replacing it. */
+.explore-marker { margin: 0; font-family: var(--font-body); cursor: pointer; }
+
+.explore-price-marker {
+  display: inline-flex;
+  height: 30px;
+  align-items: center;
+  padding: 0 11px;
+  color: var(--color-ink-900);
+  font-size: .8125rem;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -.01em;
+  white-space: nowrap;
+  background: var(--color-field-0);
+  border: var(--border-hairline) solid color-mix(in oklab, var(--color-ink-900) 16%, transparent);
+  border-radius: var(--radius-pill);
+  box-shadow: 0 2px 6px rgb(22 17 14 / 20%);
+  transform-origin: 50% 100%;
+  transition:
+    background-color var(--motion-duration-fast) var(--motion-easing-standard),
+    color var(--motion-duration-fast) var(--motion-easing-standard),
+    border-color var(--motion-duration-fast) var(--motion-easing-standard),
+    scale var(--motion-duration-fast) var(--motion-easing-standard);
+}
+.explore-price-marker::after {
+  position: absolute;
+  bottom: -5px;
+  left: 50%;
+  width: 9px;
+  height: 9px;
+  background: inherit;
+  border-right: inherit;
+  border-bottom: inherit;
+  border-bottom-right-radius: 2px;
+  content: "";
+  translate: -50% 0;
+  rotate: 45deg;
+}
+.explore-price-marker:hover,
+.explore-price-marker.is-hovered {
+  z-index: 2;
+  color: var(--color-kola-800);
+  border-color: var(--color-kola-600);
+  scale: 1.08;
+}
+.explore-price-marker.is-visited { color: var(--color-ink-500); background: var(--color-field-100); }
+.explore-price-marker.is-selected {
+  z-index: 3;
+  color: var(--color-field-0);
+  background: var(--color-kola-800);
+  border-color: var(--color-kola-800);
+  box-shadow: 0 6px 16px rgb(12 58 42 / 38%);
+  scale: 1.12;
+}
+
+.explore-cluster-marker {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  padding: 0;
+  color: var(--color-field-0);
+  font-size: .8125rem;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+  background: var(--color-kola-600);
+  border: 2px solid var(--color-field-0);
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 5px color-mix(in oklab, var(--color-kola-600) 24%, transparent),
+    0 3px 10px rgb(12 58 42 / 32%);
+  transition:
+    background-color var(--motion-duration-fast) var(--motion-easing-standard),
+    scale var(--motion-duration-fast) var(--motion-easing-standard);
+}
+.explore-cluster-marker[data-size="m"] { width: 44px; height: 44px; font-size: .875rem; }
+.explore-cluster-marker[data-size="l"] {
+  width: 54px;
+  height: 54px;
+  font-size: .9375rem;
+  box-shadow:
+    0 0 0 8px color-mix(in oklab, var(--color-kola-600) 22%, transparent),
+    0 4px 12px rgb(12 58 42 / 34%);
+}
+.explore-cluster-marker:hover,
+.explore-cluster-marker.is-hovered { z-index: 2; background: var(--color-kola-800); scale: 1.08; }
+
+/* A stack: several rentals on one public point. It opens, it does not zoom. */
+.explore-cluster-marker.is-stack {
+  display: inline-flex;
+  width: auto;
+  height: 32px;
+  gap: 6px;
+  padding: 0 11px 0 4px;
+  color: var(--color-ink-900);
+  background: var(--color-field-0);
+  border: var(--border-hairline) solid color-mix(in oklab, var(--color-ink-900) 16%, transparent);
+  border-radius: var(--radius-pill);
+  box-shadow: 0 2px 6px rgb(22 17 14 / 20%);
+}
+.explore-cluster-marker.is-stack .explore-cluster-count {
+  display: grid;
+  min-width: 24px;
+  height: 24px;
+  place-items: center;
+  padding: 0 6px;
+  color: var(--color-field-0);
+  font-size: .75rem;
+  background: var(--color-kola-600);
+  border-radius: var(--radius-pill);
+}
+.explore-cluster-from { font-size: .8125rem; font-weight: 750; white-space: nowrap; }
+.explore-cluster-marker.is-stack:hover,
+.explore-cluster-marker.is-stack.is-hovered { color: var(--color-kola-800); background: var(--color-field-0); border-color: var(--color-kola-600); }
+.explore-cluster-marker.is-stack.is-visited { background: var(--color-field-100); }
+.explore-cluster-marker.is-stack.is-selected {
+  z-index: 3;
+  color: var(--color-field-0);
+  background: var(--color-kola-800);
+  border-color: var(--color-kola-800);
+  box-shadow: 0 6px 16px rgb(12 58 42 / 38%);
+  scale: 1.08;
+}
+.explore-cluster-marker.is-stack.is-selected .explore-cluster-count { color: var(--color-kola-800); background: var(--color-field-0); }
+
+.explore-marker:focus-visible {
+  z-index: 4;
+  outline: var(--border-emphasis) solid var(--color-kola-600);
+  outline-offset: 3px;
+}
+
+/* --- the preview a marker opens ------------------------------------------------ */
+
+.explore-preview-popup { z-index: 5; }
+.explore-preview-popup .maplibregl-popup-content { padding: 0; background: transparent; border-radius: 0; box-shadow: none; }
+.explore-preview-popup .maplibregl-popup-tip { display: none; }
+
+.explore-preview {
+  position: relative;
+  width: min(21rem, calc(100vw - 2rem));
+  overflow: hidden;
+  color: var(--color-ink-900);
+  font-family: var(--font-body);
+  text-align: left;
+  background: var(--color-field-0);
+  border: var(--border-hairline) solid var(--color-field-200);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-modal);
+  animation: explore-pop-in var(--motion-duration-fast) var(--motion-easing-enter);
+}
+.explore-preview.is-sheet { width: 100%; border-radius: var(--radius-xl); }
+.explore-preview-body { position: relative; }
+.explore-preview-link {
+  display: grid;
+  grid-template-columns: 7.5rem minmax(0, 1fr) auto;
+  min-height: 7.5rem;
+  color: inherit;
+  text-decoration: none;
+}
+.explore-preview.is-sheet .explore-preview-link { grid-template-columns: 8.5rem minmax(0, 1fr) auto; min-height: 8.5rem; }
+.explore-preview-link:hover .explore-preview-headline { color: var(--color-kola-800); }
+.explore-preview-link:focus-visible { outline: var(--border-emphasis) solid var(--color-kola-600); outline-offset: -2px; border-radius: var(--radius-lg); }
+.explore-preview-photo { position: relative; display: block; overflow: hidden; background: var(--color-field-100); }
+.explore-preview-photo img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.explore-preview-photo-empty { position: absolute; inset: 0; display: grid; place-items: center; color: var(--color-ink-300); }
+.explore-preview-copy { display: grid; align-content: center; gap: 3px; min-width: 0; padding: var(--space-3) 2.25rem var(--space-3) var(--space-3); }
+.explore-preview-price { font: 650 1.0625rem/1.25 var(--font-display); letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.explore-preview-price span { color: var(--color-ink-500); font: 400 .75rem/1 var(--font-body); letter-spacing: 0; }
+.explore-preview-kind { color: var(--color-kola-800); font-size: .75rem; font-weight: 700; }
+.explore-preview-headline { overflow: hidden; font-size: .875rem; font-weight: 600; line-height: 1.3; text-overflow: ellipsis; white-space: nowrap; }
+.explore-preview-where {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+  overflow: hidden;
+  color: var(--color-ink-500);
+  font-size: .75rem;
+  white-space: nowrap;
+}
+.explore-preview-where .portal-icon { width: 13px; height: 13px; flex: 0 0 auto; color: var(--color-kola-600); }
+.explore-preview-go { display: grid; width: 2rem; place-items: center; color: var(--color-kola-600); }
+.explore-preview-go .portal-icon { width: 18px; height: 18px; rotate: -90deg; }
+.explore-preview-close {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  padding: 0;
+  color: var(--color-ink-700);
+  background: var(--color-field-100);
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+}
+.explore-preview-close:hover { color: var(--color-ink-900); background: var(--color-field-200); }
+.explore-preview-close .portal-icon { width: 14px; height: 14px; }
+.explore-preview-save {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  padding: 0;
+  color: var(--color-ink-900);
+  background: rgb(255 255 255 / 92%);
+  border: 0;
+  border-radius: 50%;
+  box-shadow: 0 1px 4px rgb(22 17 14 / 22%);
+  cursor: pointer;
+}
+.explore-preview-save[aria-pressed="true"] { color: var(--destructive); }
+.explore-preview-save .portal-icon { width: 16px; height: 16px; }
+.explore-preview-pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: 4px 6px;
+  color: var(--color-ink-700);
+  font-size: .75rem;
+  font-weight: 650;
+  background: var(--color-field-50);
+  border-top: var(--border-hairline) solid var(--color-field-200);
+}
+.explore-preview-pager button {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  padding: 0;
+  color: var(--color-kola-800);
+  background: transparent;
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+}
+.explore-preview-pager button:hover { background: var(--color-kola-50); }
+.explore-preview-pager .portal-icon { width: 16px; height: 16px; }
+.explore-preview-pager button:first-child .portal-icon { rotate: 90deg; }
+.explore-preview-pager button:last-child .portal-icon { rotate: -90deg; }
+.explore-preview-close:focus-visible,
+.explore-preview-save:focus-visible,
+.explore-preview-pager button:focus-visible { outline: var(--border-emphasis) solid var(--color-kola-600); outline-offset: 2px; }
+.explore-preview-skeleton { display: grid; grid-template-columns: 7.5rem minmax(0, 1fr); min-height: 7.5rem; }
+.explore-preview-skeleton .explore-preview-photo,
+.explore-preview-lines span {
+  background: linear-gradient(100deg, var(--color-field-100) 30%, var(--color-field-50) 50%, var(--color-field-100) 70%);
+  background-size: 300% 100%;
+  animation: explore-shimmer 1.4s ease-in-out infinite;
+}
+.explore-preview-lines { display: grid; align-content: center; gap: 8px; padding: var(--space-3); }
+.explore-preview-lines span { height: 10px; border-radius: var(--radius-pill); }
+.explore-preview-lines span:nth-child(1) { width: 60%; height: 14px; }
+.explore-preview-lines span:nth-child(2) { width: 85%; }
+.explore-preview-lines span:nth-child(3) { width: 45%; }
+.explore-preview-failed { display: grid; justify-items: start; gap: var(--space-2); padding: var(--space-4) 2.75rem var(--space-4) var(--space-4); font-size: .875rem; }
+.explore-preview-failed p { margin: 0; }
+
+.explore-map-sheet {
+  position: absolute;
+  z-index: 6;
+  right: var(--space-3);
+  bottom: calc(max(var(--space-4), env(safe-area-inset-bottom)) + 56px);
+  left: var(--space-3);
+  animation: explore-sheet-in var(--motion-duration-base) var(--motion-easing-enter);
+}
+
+/* A phone's one switch between the list and the map, dark so it floats over
+   photographs and tiles alike: "List · 12" on the map, "Map" on the list. */
+.explore-view-switch {
+  position: absolute;
+  z-index: 7;
+  bottom: max(var(--space-4), env(safe-area-inset-bottom));
+  left: 50%;
+  display: inline-flex;
+  height: 44px;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-5);
+  color: var(--color-field-0);
+  font: 650 .9375rem/1 var(--font-body);
+  white-space: nowrap;
+  background: var(--color-ink-900);
+  border: 0;
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-floating);
+  translate: -50% 0;
+  cursor: pointer;
+}
+.explore-view-switch .portal-icon { width: 18px; height: 18px; color: var(--color-kola-300); }
+.explore-view-switch:hover { background: var(--color-ink-800); }
+.explore-map-float { display: none; }
+
+/* --- the address on a card, and the listing's Location section ------------------ */
+
+.listing-card-where a {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-1);
+  color: inherit;
+  text-decoration: none;
+  border-radius: var(--radius-xs);
+}
+.listing-card-where a:hover { color: var(--color-kola-800); text-decoration: underline; text-underline-offset: 3px; }
+.listing-card-where a:hover .portal-icon { color: var(--color-kola-600); }
+
+/* No scroll margin of its own: the root's scroll-padding already clears the
+   sticky header for every anchor, and a margin here doubled the gap. */
+.listing-location { outline: none; }
+.listing-location-where { display: flex; align-items: center; gap: var(--space-2); margin: 0; color: var(--color-ink-700); }
+.listing-location-where .portal-icon { width: 16px; height: 16px; flex: 0 0 auto; color: var(--color-kola-600); }
+.listing-location-map {
+  position: relative;
+  height: clamp(16rem, 36vw, 22rem);
+  overflow: hidden;
+  background: var(--color-field-100);
+  border: var(--border-hairline) solid var(--color-field-200);
+  border-radius: var(--radius-lg);
+}
+.listing-location-map.is-loading {
+  background: linear-gradient(100deg, var(--color-field-100) 30%, var(--color-field-50) 50%, var(--color-field-100) 70%);
+  background-size: 300% 100%;
+  animation: explore-shimmer 1.4s ease-in-out infinite;
+}
+.listing-location-map.is-failed { display: grid; place-items: center; color: var(--color-ink-500); font-size: .875rem; }
+.listing-location-dot {
+  width: 18px;
+  height: 18px;
+  background: var(--color-kola-600);
+  border: 3px solid var(--color-field-0);
+  border-radius: 50%;
+  box-shadow: 0 0 0 6px color-mix(in oklab, var(--color-kola-600) 24%, transparent), 0 2px 6px rgb(12 58 42 / 35%);
+}
+.listing-location-note {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-3);
+  color: var(--color-lagoon-600);
+  font-size: .875rem;
+  line-height: 1.45;
+  background: var(--color-lagoon-100);
+  border-radius: var(--radius-md);
+}
+.listing-location-note .portal-icon { width: 16px; height: 16px; flex: 0 0 auto; margin-top: 2px; color: inherit; }
+
+/* --- widths ----------------------------------------------------------------------- */
+
+@media (min-width: 80rem) {
+  .explore-discovery[data-variant="map"] {
+    grid-template-columns: minmax(20rem, 28rem) minmax(0, 1fr);
+    align-items: center;
+    column-gap: var(--space-4);
+  }
+  .explore-discovery[data-variant="map"] .explore-feedback { grid-column: 1 / -1; }
+}
+
+@media (min-width: 100rem) {
+  .explore-map-body { grid-template-columns: minmax(0, 46rem) minmax(0, 1fr); }
+  .explore-map-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (min-width: 64rem) {
+  .explore-view-switch { display: none; }
+}
+
+/* Phones and tablets: the map takes the screen, the list page is one switch
+   away, and the preview rises from the bottom. A close button in the bar and a
+   list inside the map both led to a list, under the same icon; the floating
+   switch is now the only way between the two. */
+@media (max-width: 63.999rem) {
+  .explore-map-bar { grid-template-columns: minmax(0, 1fr); gap: var(--space-2); padding: var(--space-2) var(--space-3) var(--space-3); }
+  .explore-map-close { display: none; }
+  .explore-map-results { display: none; }
+  .explore-map-toggle { display: none; }
+  .explore-map-body { grid-template-columns: minmax(0, 1fr); }
+  .explore-map-overlay-top { top: var(--space-3); }
+  .explore-map-empty { bottom: calc(max(var(--space-4), env(safe-area-inset-bottom)) + 60px); }
+  .explore-map-float { position: fixed; z-index: 15; display: inline-flex; }
+  /* Room under the last card, so the switch never covers the end of the list. */
+  .explore { padding-bottom: calc(44px + var(--space-6)); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .explore-map-view,
+  .explore-preview,
+  .explore-map-sheet,
+  .explore-search-area,
+  .explore-map-loading,
+  .explore-preview-skeleton .explore-preview-photo,
+  .explore-preview-lines span,
+  .listing-location-map.is-loading,
+  .explore-search-spinner,
+  .explore-map-progress::after { animation: none; }
+  .explore-price-marker,
+  .explore-cluster-marker { transition: none; }
+}
+
+@keyframes explore-shimmer {
+  from { background-position: 100% 0; }
+  to { background-position: 0 0; }
+}
+
+@keyframes explore-progress {
+  from { translate: -100% 0; }
+  to { translate: 250% 0; }
+}

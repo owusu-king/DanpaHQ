@@ -85,15 +85,21 @@ export async function apiFetch<T>(
   path: string,
   init: ApiRequestInit = {},
 ): Promise<T> {
-  const { timeoutMs = DEFAULT_TIMEOUT_MS, idempotencyKey, maxAttempts, ...rest } = init;
+  const { timeoutMs = DEFAULT_TIMEOUT_MS, idempotencyKey, maxAttempts, signal: caller, ...rest } = init;
   const method = (rest.method ?? "GET").toUpperCase();
   const attempts = maxAttempts ?? (method === "GET" ? 3 : 1);
   const id = requestId();
   let lastError: ApiFailure | null = null;
 
   for (let attempt = 1; attempt <= attempts; attempt++) {
+    // The caller's signal used to be replaced by the timeout's, so a search
+    // superseded by the next keystroke or map move ran — and retried — to the
+    // end anyway. Now it is followed, and an abort is final: no retry.
+    if (caller?.aborted) throw aborted(id);
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const follow = () => controller.abort();
+    caller?.addEventListener("abort", follow, { once: true });
 
     try {
       const response = await fetch(`${BASE_URL}${path}`, {
@@ -129,6 +135,7 @@ export async function apiFetch<T>(
 
       if (!RETRYABLE_STATUS.has(response.status)) throw lastError;
     } catch (cause) {
+      if (caller?.aborted) throw aborted(id);
       if (cause instanceof ApiFailure && !RETRYABLE_STATUS.has(cause.status)) throw cause;
       if (!(cause instanceof ApiFailure)) {
         const offline = typeof navigator !== "undefined" && navigator.onLine === false;
@@ -146,6 +153,7 @@ export async function apiFetch<T>(
       }
     } finally {
       clearTimeout(timer);
+      caller?.removeEventListener("abort", follow);
     }
 
     if (attempt < attempts) await sleep(2 ** attempt * 400);
@@ -160,4 +168,16 @@ export async function apiFetch<T>(
     },
     UNREACHABLE,
   );
+}
+
+/** A request its caller withdrew. Not a failure to show anyone: check `isAborted`. */
+function aborted(id: string) {
+  return new ApiFailure(
+    { code: "aborted", message: "The request was replaced by a newer one.", details: {}, requestId: id },
+    UNREACHABLE,
+  );
+}
+
+export function isAborted(cause: unknown): boolean {
+  return cause instanceof ApiFailure && cause.error.code === "aborted";
 }

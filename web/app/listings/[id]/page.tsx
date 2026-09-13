@@ -9,6 +9,7 @@ import { Notice } from "@/components/Notice";
 import { Icon } from "@/components/portal/icons";
 import { Stamp } from "@/components/Stamp";
 import { ListingCard } from "@/components/listings/ListingCard";
+import { ListingLocation } from "@/components/listings/ListingLocation";
 import { ApiFailure } from "@/lib/api";
 import { isLive } from "@/lib/applicationMeaning";
 import {
@@ -258,6 +259,8 @@ export default function PublicListingPage() {
               </ul>
             ) : null}
           </section>
+
+          <ListingLocation listing={listing} where={where} landmark={place.landmark} />
         </div>
 
         <aside className="listing-panel">

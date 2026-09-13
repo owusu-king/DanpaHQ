@@ -46,6 +46,7 @@ DJANGO_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "django.contrib.postgres",
+    "django.contrib.gis",
 ]
 
 THIRD_PARTY_APPS = [
@@ -120,7 +121,7 @@ TEMPLATES = [
 # --- Data -------------------------------------------------------------------
 DATABASES = {
     "default": {
-        "ENGINE": "django.db.backends.postgresql",
+        "ENGINE": "django.contrib.gis.db.backends.postgis",
         "NAME": env("POSTGRES_DB", "grp"),
         "USER": env("POSTGRES_USER", "grp"),
         "PASSWORD": env("POSTGRES_PASSWORD", "grp"),
@@ -134,6 +135,22 @@ DATABASES = {
         "ATOMIC_REQUESTS": False,
     }
 }
+# --- Maps (ADR 0033) --------------------------------------------------------
+#: The public-read bucket holding the basemap: vector tiles and label fonts. It
+#: is the one public bucket; see `publish_map_assets` for why it stands apart.
+MAP_ASSETS_BUCKET = env("MAP_ASSETS_BUCKET", "rooomly-map")
+#: That bucket's public base URL — a CDN in production. Empty means the object
+#: store's own public endpoint, which follows the caller's host as photos do.
+MAP_ASSETS_PUBLIC_URL = env("MAP_ASSETS_PUBLIC_URL", "")
+MAP_TILES_ARCHIVE = env("MAP_TILES_ARCHIVE", "ghana.pmtiles")
+MAP_ATTRIBUTION = env("MAP_ATTRIBUTION", "© OpenStreetMap contributors · Protomaps")
+#: West, south, east, north: Ghana with a margin.
+MAP_BOUNDS = [-3.35, 4.6, 1.3, 11.25]
+MAP_DEFAULT_VIEW = {"lat": 5.6037, "lng": -0.187, "zoom": 11}
+#: Public listing points are snapped to a grid this many degrees across — about
+#: 300 m in Ghana — so a published marker cannot be walked back to a door.
+LISTING_PUBLIC_CELL_DEGREES = 0.0027
+
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 AUTH_USER_MODEL = "identity.User"
 

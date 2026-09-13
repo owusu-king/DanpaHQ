@@ -94,15 +94,25 @@ defeats the separation they exist for.
 
 ## 2. PostgreSQL
 
-**WHAT** — a managed PostgreSQL 16 instance. `docker-compose.yml` runs
-`postgres:16-alpine` for development; do not run that container in production.
+**WHAT** — a managed PostgreSQL 16 instance with the **`postgis`** and
+**`pg_trgm`** extensions allowed. `docker-compose.yml` runs
+`postgis/postgis:16-3.5-alpine` for development; do not run that container in
+production.
 **WHERE** — `POSTGRES_DB/USER/PASSWORD/HOST/PORT`, plus `DB_CONN_MAX_AGE`
 (default 60) and `DB_SSLMODE` (default `require`).
 **WHY** — the schema depends on PostgreSQL specifics that are not portable:
 partial unique indexes carry the financial invariants, `pg_advisory_xact_lock`
 carries HTTP idempotency, row-level security makes the audit log append-only,
 and PL/pgSQL triggers make transactions, ledger lines, receipts, allocations and
-obligation adjustments append-only.
+obligation adjustments append-only. Map search (ADR 0033) adds a spatial index
+on listings' public points and a trigram index on place names.
+
+Migration `geo.0002` runs `CREATE EXTENSION postgis` and `CREATE EXTENSION
+pg_trgm`. Where the migration role may not create extensions, have an
+administrator create both first; `IF NOT EXISTS` then makes the migration a
+no-op. The API image must carry GDAL, GEOS and PROJ from Debian bookworm (see
+`backend/Dockerfile`): the trixie versions are newer than Django 5.1 supports and
+crashed the test process intermittently.
 **HOW** — after the first `migrate`, run as the **database owner**:
 
 ```bash
@@ -216,6 +226,17 @@ be **private**: there is no public download path in the code
 (`tests/unit/test_schema_invariants.py::test_no_public_download_path_exists`
 holds that), and a public bucket would route around the entire authorization and
 audit boundary. Give the app an IAM identity scoped to that one bucket.
+
+**Map assets are the one public bucket, and a separate one** (ADR 0033).
+`MAP_ASSETS_BUCKET` (default `rooomly-map`) holds the Ghana basemap archive and
+its label fonts: public geography, identical for every visitor, read by range
+request. Serve it through a CDN and set `MAP_ASSETS_PUBLIC_URL` to that origin;
+left empty, clients are pointed at the object store's public endpoint. It needs
+a CORS rule allowing `GET` and `HEAD` with the `Range` header from the web
+origins, and exposing `ETag`, `Content-Range` and `Content-Length`.
+`publish_map_assets` applies the rule where the provider supports bucket CORS, and
+MinIO answers every origin itself. Nothing a person uploads is ever written
+there, and the upload bucket above stays private.
 
 ---
 

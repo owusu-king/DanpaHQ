@@ -63,7 +63,8 @@ test("search and filters form one responsive discovery system", () => {
   // The old page was a bordered form with a Search button: every adjustment
   // was a round trip through submit.
   assert.doesNotMatch(browser, /type="submit"/);
-  assert.doesNotMatch(browser, /onSubmit/);
+  // A callback named onSubmitText is not a form submit; a form or its handler would be.
+  assert.doesNotMatch(browser, /<form\b|onSubmit=\{/);
   assert.match(browser, /className="explore-discovery"/);
   assert.match(browser, /Search by location or property/);
   assert.match(browser, /aria-label="Quick rental filters"/);
@@ -89,10 +90,15 @@ test("search and filters form one responsive discovery system", () => {
 
 test("place leads, because that is the first question", () => {
   const browser = read("web/src/components/listings/ListingBrowser.tsx");
+  const places = read("web/src/components/explore/PlaceSearch.tsx");
+  const query = read("web/src/lib/exploreQuery.ts");
   const mobile = read("mobile/app/(app)/search.tsx");
 
-  assert.match(browser, /searchLocalities/);
-  assert.match(browser, /locality_id/);
+  // Web chooses a place — a slug with a centre and a box — not a locality string.
+  assert.match(browser, /<PlaceSearch\s/);
+  assert.match(places, /searchPlaces\(typed, controller\.signal\)/);
+  // A link made before places still filters by its locality.
+  assert.match(query, /params\.set\("locality_id", query\.localityId\)/);
   assert.match(mobile, /searchLocalities/);
   assert.match(mobile, /locality_id/);
   // Free text must be sent when no suggested locality has been chosen.
@@ -104,9 +110,11 @@ test("place leads, because that is the first question", () => {
 
 test("property and unit filters use the backend-owned vocabulary on both clients", () => {
   const browser = read("web/src/components/listings/ListingBrowser.tsx");
+  // The web search spells its vocabulary once, where the query becomes parameters.
+  const web = browser + read("web/src/lib/exploreQuery.ts");
   const mobile = read("mobile/app/(app)/search.tsx");
 
-  for (const source of [browser, mobile]) {
+  for (const source of [web, mobile]) {
     assert.match(source, /loadPropertyTypes/);
     assert.match(source, /property_type/);
     assert.match(source, /space_type/);
@@ -221,4 +229,130 @@ test("saved cards keep the same heart interaction and optimistically remove", ()
     assert.match(source, /onSave/);
     assert.match(source, /setItems|setSaved/);
   }
+});
+
+test("every Explore choice is shown once and removed one way", () => {
+  const browser = read("web/src/components/listings/ListingBrowser.tsx");
+  const css = read("web/src/styles/explore-workspace.css");
+  const mobile = read("mobile/app/(app)/search.tsx");
+
+  // The search field drew two clears: the designed one and the browser's own
+  // search-cancel cross beside it.
+  assert.match(css, /\.explore-search input::-webkit-search-cancel-button,[\s\S]{0,80}appearance: none/);
+  const places = read("web/src/components/explore/PlaceSearch.tsx");
+  const query = read("web/src/lib/exploreQuery.ts");
+  assert.equal(places.match(/aria-label="Clear search"/g)?.length, 1);
+  assert.doesNotMatch(browser, /aria-label="Clear search"/);
+
+  for (const source of [browser, mobile]) {
+    // Chips carry only what no pill shows. Place had a chip as well as the
+    // field's clear, and every pill was repeated as a chip below it.
+    const start = source.indexOf("const unshown = [");
+    const chips = source.slice(start, source.indexOf("].filter(Boolean)", start));
+    assert.ok(start > 0 && chips.length > 0, "chip list not found");
+    assert.doesNotMatch(chips, /locality|rentMin|rentMax|propertyType &&|bedrooms|furnished &&/);
+    assert.match(chips, /spaceType && \{/);
+    assert.match(chips, /advanceMax && \{/);
+    assert.match(chips, /sort !== "newest" && \{/);
+
+    // `bedrooms_min=0` is `>= 0` to the backend: a studio choice that was Any.
+    assert.doesNotMatch(source, /\["0", "/);
+  }
+
+  // Clear all clears filters. Place has its own clear, in the field.
+  const mobileClearStart = mobile.indexOf("function clearFilters() {");
+  assert.ok(mobileClearStart > 0, "mobile clearFilters not found");
+  const mobileClear = mobile.slice(mobileClearStart, mobile.indexOf("}", mobileClearStart));
+  assert.match(mobileClear, /setSort\("newest"\)/);
+  assert.match(mobileClear, /setFurnished\(false\)/);
+  assert.doesNotMatch(mobileClear, /setLocality|setQ\(|setPlace\(/);
+  const webClearStart = browser.indexOf("function clearFilters() {");
+  assert.ok(webClearStart > 0, "web clearFilters not found");
+  assert.match(browser.slice(webClearStart, browser.indexOf("}", webClearStart)), /update\(withoutFilters\(query\)\);/);
+  const keptStart = query.indexOf("export function withoutFilters(");
+  assert.ok(keptStart > 0, "withoutFilters not found");
+  const kept = query.slice(keptStart, query.indexOf("\n}", keptStart));
+  assert.match(kept, /\.\.\.EMPTY_EXPLORE_QUERY,/);
+  for (const field of ["place", "bbox", "q", "localityId", "localityName", "view"]) {
+    assert.match(kept, new RegExp("\\b" + field + ": query\\." + field + ","));
+  }
+
+  // The count badge counts refinements; place is not one of them.
+  const countStart = query.indexOf("export function refinementCount(");
+  assert.ok(countStart > 0, "refinementCount not found");
+  const counted = query.slice(countStart, query.indexOf("].filter(Boolean)", countStart));
+  assert.doesNotMatch(counted, /place|locality|bbox|query\.q\b/);
+  assert.match(browser, /const filterCount = refinementCount\(query\);/);
+
+  // One Clear all on the surface; the empty state guides instead of repeating it.
+  const emptyStart = browser.indexOf('className="explore-empty"');
+  assert.doesNotMatch(browser.slice(emptyStart, browser.indexOf("</div>", emptyStart)), /<button/);
+  const mobileEmpty = mobile.slice(mobile.indexOf("ListEmptyComponent={"), mobile.indexOf("<FilterSheet"));
+  assert.doesNotMatch(mobileEmpty, /<Button|clearFilters/);
+});
+
+test("quick filters open designed menus, not the operating system's list", () => {
+  const browser = read("web/src/components/listings/ListingBrowser.tsx");
+  const icons = read("web/src/components/portal/icons.tsx");
+  const css = read("web/src/styles/explore-workspace.css");
+
+  // A native select invisibly stretched over the pill opened the OS list, and
+  // the panel's Selects did the same behind a drawn arrow.
+  // A tag followed by its attributes: the component's own comment names the
+  // old `<select>` it replaced, and that mention is not a use.
+  assert.doesNotMatch(browser, /<select\s|<Select\s/);
+  const quick = browser.slice(browser.indexOf("function QuickSelectFilter("));
+  assert.match(quick, /<DropdownMenu\.RadioGroup value=\{value\} onValueChange=\{onChange\}>/);
+  assert.match(quick, /<DropdownMenu\.ItemIndicator className="explore-menu-check">\s*<Icon name="check" \/>/);
+  assert.match(quick, /<Icon name="chevron-down" \/>/);
+  // Portalled, because the rail scrolls sideways on a phone and would clip it.
+  assert.match(quick, /<DropdownMenu\.Portal>\s*<DropdownMenu\.Content className="explore-menu"/);
+  // Touch and pen wait for the tap, so a swipe along the rail opens nothing.
+  assert.match(quick, /if \(event\.pointerType !== "mouse"\) event\.preventDefault\(\);/);
+  assert.match(quick, /if \(pointer\.current === "touch" \|\| pointer\.current === "pen"\) setOpen/);
+
+  // Glyphs are drawn to the shared icon construction rather than typed.
+  for (const name of ["chevron-down", "close", "check", "filters"]) {
+    assert.match(icons, new RegExp(`\\n  "?${name}"?: [(<]`));
+  }
+  assert.doesNotMatch(browser, /[×⌄]/);
+  assert.doesNotMatch(browser, /function FilterGlyph/);
+  assert.doesNotMatch(css, /explore-pill-chevron::before/);
+
+  // The panel's short sets are chips over real radios, one name per set.
+  const choice = browser.slice(browser.indexOf("function ChoiceSet("));
+  assert.match(choice, /<input\s+type="radio"\s+name=\{name\}/);
+  assert.match(choice, /className="chip explore-choice"/);
+  assert.match(browser, /<Switch checked=\{query\.furnished\} onChange=\{\(checked\) => update\(\{ furnished: checked \}\)\} label="Furnished only" \/>/);
+  // Colour belongs to `.chip`: restated here it would outrank the checked state.
+  const choiceRule = css.slice(css.indexOf(".explore-choice {"), css.indexOf("}", css.indexOf(".explore-choice {")));
+  assert.doesNotMatch(choiceRule, /background|color/);
+});
+
+test("the Filters panel behaves as the dialog it announces", () => {
+  const browser = read("web/src/components/listings/ListingBrowser.tsx");
+  const css = read("web/src/styles/explore-workspace.css");
+
+  assert.match(browser, /role="dialog"\s+aria-modal="true"/);
+  // Focus goes in on open, stays in on Tab, and the scrim is not a tab stop.
+  assert.match(browser, /if \(advancedOpen\) advancedPanel\.current\?\.focus\(\{ preventScroll: true \}\);/);
+  assert.match(browser, /onKeyDown=\{keepFocusInPanel\}/);
+  assert.match(browser, /if \(event\.shiftKey && \(current === first \|\| current === event\.currentTarget\)\) \{\s*event\.preventDefault\(\);\s*last\.focus\(\);/);
+  assert.match(browser, /else if \(!event\.shiftKey && current === last\) \{\s*event\.preventDefault\(\);\s*first\.focus\(\);/);
+  assert.match(browser, /<div className="explore-filter-scrim" aria-hidden="true" \/>/);
+  // The suggestions are a real listbox the keyboard can walk and dismiss.
+  const places = read("web/src/components/explore/PlaceSearch.tsx");
+  assert.match(places, /role="combobox"/);
+  assert.match(places, /role="listbox"/);
+  assert.match(places, /event\.key === "Escape"\) \{\s*if \(listOpen\) \{[\s\S]{0,160}setOpen\(false\);/);
+
+  // Filters leads the rail, so its count is never scrolled out of sight.
+  const rail = browser.slice(browser.indexOf('aria-label="Quick rental filters"'));
+  assert.ok(rail.indexOf("explore-more-filters") < rail.indexOf("<QuickSelectFilter"));
+  // The sheet rises out of the tray's stacking context, above the portal's sticky header.
+  assert.match(css, /@media \(max-width: 63\.999rem\)[\s\S]*\.explore-discovery:has\(> \.explore-advanced\) \{ z-index: 80; \}/);
+  // A 15px field makes iOS zoom the page on focus.
+  assert.doesNotMatch(css, /\.explore-search input \{[^}]*font-size: \.9375rem/);
+  // The count and the panel speak the same word.
+  assert.doesNotMatch(browser, /homes/);
 });

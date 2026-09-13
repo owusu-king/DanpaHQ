@@ -13,18 +13,21 @@ ADR 0002 and tests/unit/test_module_boundaries.py.
 
 from __future__ import annotations
 
+from django.conf import settings
 from django.db.models import Q
 from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import Address, District, Locality, Region
+from .models import Address, District, Locality, Place, Region
+from .places import search_places
 from .serializers import (
     AddressSerializer,
     CreateAddressSerializer,
     DistrictSerializer,
     LocalitySerializer,
+    PlaceSerializer,
     RegionSerializer,
 )
 
@@ -114,3 +117,71 @@ class AddressDetailView(APIView):
 
             raise NotFound("We could not find that address.")
         return Response(AddressSerializer(address).data)
+
+
+class PlaceSearchView(APIView):
+    """GET /geo/places/?q=east leg — ranked place suggestions for the location field.
+
+    Readable signed out, like the rest of the reference data. Cacheable, because
+    the answer changes with an import rather than with the request.
+    """
+
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        try:
+            limit = int(request.query_params.get("limit") or 8)
+        except ValueError:
+            limit = 8
+        places = search_places(request.query_params.get("q") or "", limit=limit)
+        response = Response(PlaceSerializer(places, many=True).data)
+        response["Cache-Control"] = "public, max-age=300"
+        return response
+
+
+class PlaceDetailView(APIView):
+    """GET /geo/places/<slug>/ — one place, to restore a refreshed or shared search."""
+
+    permission_classes = [AllowAny]
+
+    def get(self, request, slug):
+        place = Place.objects.filter(slug=slug, is_active=True).first()
+        if place is None:
+            from apps.core.exceptions import NotFound
+
+            raise NotFound("We could not find that area.", details={"place": slug})
+        return Response(PlaceSerializer(place).data)
+
+
+class MapConfigView(APIView):
+    """GET /map/config/ — where the basemap and its label fonts are served from.
+
+    Clients never hard-code a tile host, so moving the basemap — to a CDN, a
+    newer extract or another MapLibre-compatible source — is a setting rather
+    than a client release (ADR 0033).
+    """
+
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        base = settings.MAP_ASSETS_PUBLIC_URL.rstrip("/") or self._storage_base()
+        return Response(
+            {
+                "tiles_url": f"pmtiles://{base}/tiles/{settings.MAP_TILES_ARCHIVE}",
+                "glyphs_url": f"{base}/fonts/{{fontstack}}/{{range}}.pbf",
+                "attribution": settings.MAP_ATTRIBUTION,
+                "bounds": list(settings.MAP_BOUNDS),
+                "default_view": settings.MAP_DEFAULT_VIEW,
+                "min_zoom": 6,
+                "max_zoom": 18,
+            }
+        )
+
+    @staticmethod
+    def _storage_base() -> str:
+        # The object store's public address, following the caller's host the
+        # way photo URLs do, so a phone on the network reaches the same bucket.
+        from apps.files.storage import S3StorageBackend
+
+        endpoint = S3StorageBackend().public_endpoint().rstrip("/")
+        return f"{endpoint}/{settings.MAP_ASSETS_BUCKET}"

@@ -57,6 +57,48 @@ Design tokens are built with Node on the host, since the generated files are
 committed: `node packages/design-tokens/build.mjs` (add `--check` to fail on
 drift, which is what CI runs).
 
+## Maps and places
+
+Map search (ADR 0033) needs three kinds of data the repository does not carry:
+a Ghana basemap, its label fonts, and the places table. A fresh database or an
+empty MinIO has none of them, and Explore's map then says it could not load.
+
+**Places**, from OpenStreetMap through Overpass. Public servers answer small
+queries more reliably than one large one, and a busy server can close the
+connection mid-response, so validate the file before importing it:
+
+```bash
+# Fetch (host): regions, districts, towns, suburbs, landmarks and villages.
+node ops/fetch-osm-places.mjs ghana-places.osm.json
+
+docker compose cp ghana-places.osm.json api:/tmp/ghana-places.osm.json
+docker compose exec api python manage.py import_osm_places /tmp/ghana-places.osm.json --prune
+docker compose exec api python manage.py refresh_listing_locations
+```
+
+On Git Bash, prefix `docker compose exec` with `MSYS_NO_PATHCONV=1`, or
+`/tmp/…` is rewritten into a Windows path and the import reports "No export".
+The import is idempotent — slugs survive re-imports — and lists the Rooomly
+localities it could not match, which operations can alias or extend.
+`refresh_listing_locations` must follow it: it is what gives listings their
+approximate public point from the newly centred localities.
+
+**Basemap and fonts**, from Protomaps' daily OpenStreetMap build, cut to Ghana:
+
+```bash
+pmtiles extract https://build.protomaps.com/<YYYYMMDD>.pmtiles map-assets/tiles/ghana.pmtiles \
+  --bbox=-3.35,4.60,1.30,11.25 --maxzoom=15
+# Fonts: the fonts/ folder of github.com/protomaps/basemaps-assets, as map-assets/fonts/
+
+docker compose cp map-assets api:/tmp/map-assets
+docker compose exec api python manage.py publish_map_assets /tmp/map-assets --skip-existing
+```
+
+`publish_map_assets` creates the public-read `rooomly-map` bucket if it is
+missing. It is the only public bucket, and nothing uploaded by a person goes in
+it. Check a tile answers a range request with `curl -r 0-126 -I
+http://localhost:9000/rooomly-map/tiles/ghana.pmtiles`, which should return `206`.
+
 ## Health
 
 - `GET /healthz` — liveness. Touches nothing. If this fails the process is

@@ -4690,6 +4690,146 @@ made discovery feel like form completion. Mobile returns to the compact Filters
 entry and page sheet, with active filters visible and individually removable on
 the Explore surface. Same filtering capability, platform-appropriate density.
 
+**Refinement — search and filter controls (2026-09-12).** After the listing
+redesign the discovery tray still read as default form parts. The structure is
+unchanged; the controls were redrawn and de-duplicated on both clients.
+
+- **Each choice is shown once and removed one way.** The web search field showed
+  two clears — its own and the browser's `type="search"` cancel cross — and a
+  location chip added a third while counting place on the Filters badge. Place
+  now lives only in the field. Rent, property type, bedrooms and furnishing show
+  on their own pills; chips carry only what no pill shows (unit type, maximum
+  advance, a non-default sort). Clear all clears filters, never place, and
+  appears once, beside the result count; empty states guide instead of
+  repeating it.
+- **Designed menus, not the operating system's list.** Web quick filters were a
+  native `<select>` stretched invisibly over each pill under a CSS-border
+  chevron. They are Radix menus of radio items with a kola check, portalled out
+  of the scrolling rail; touch waits for the tap, so swiping the rail opens
+  nothing. The panel's `Select`s became chip sets over real radios and
+  furnishing a switch — on the phone too, where the sheet's drawn tick box had
+  announced itself as a switch.
+- **Filters leads the rail** on both clients. At the end it sat past the right
+  edge of a 375px phone, taking its count with it.
+- **Shared glyphs.** Chevron, close, check and filters joined the portal icon set
+  at its 1.5px construction, replacing typed crosses, the CSS chevron and a
+  one-off filter glyph drawn at 1.25px.
+- **Warm tray, white controls, kola for state.** Rail controls share one height
+  (40px; 44px on coarse pointers) and the chip radius; chosen is an inset kola
+  edge, so a pill turning on moves nothing; floating surfaces share radius-lg
+  and the floating shadow. Filter controls take the kola focus ring the form
+  controls use.
+- **The panel is the dialog it announced.** Focus moves in on open, Tab stays
+  inside, Escape and Close return focus to the trigger, and the scrim is no
+  longer a tab stop. The suggestions are a combobox and listbox: arrows move,
+  Enter chooses, the first Escape closes the list, and blur closes it.
+- **Found on the way.** "Single room / studio" sent `bedrooms_min=0`, which the
+  backend reads as `>= 0` — Any under another name — so it went, and old links
+  carrying `0` restore as Any. The narrow web search field was 15px, which makes
+  iOS zoom the page on focus. Web said "rentals" while its panel and the phone
+  said "homes"; both say rentals.
+
+Guarded by contract tests on both clients, mutation-checked 30 ways against a
+mirror of the files, so neither the dev server nor Metro loaded a broken build.
+Not verified: the signed-in portal shell (the same component as the public page,
+which was checked at 1280px and 390px) and the phone sheet on a device — Expo web
+confirmed the header and rail only.
+
+### Journey: Explore — place search and the map (web)
+
+**Status:** web phase complete, 2026-09-13; mobile map-first Explore follows after
+user testing. Architecture in ADR 0033.
+
+**Problems solved:**
+
+- **The location field was a text box.** It suggested Rooomly localities by
+  substring, with no towns, landmarks or regions and no geometry. It now searches
+  8,227 curated places imported from OpenStreetMap — regions to villages, plus
+  airports, universities, malls, stadiums and hospitals. Each suggestion is a
+  place with a centre and a box: kind icon in its semantic colour (lagoon for
+  regions and districts, ink for cities and towns, gold for landmarks), the typed
+  part highlighted, a context line ("Accra, Greater Accra") and a kind tag.
+  Recent searches show on focus. Enter takes the highlighted suggestion; with
+  none, it searches listings for the text, and the list says so first.
+- **There was no map, and nothing had a position.** Choosing a place opens a
+  full-screen map fitted to that place. Results sit beside it on wide screens.
+  On a phone the map fills the screen, and one floating switch moves between
+  it and the list page — "List · 3" on the map, "Map" on the list. Nothing else
+  does: a close button in the bar and a list inside the map both led to a list,
+  under the same icon.
+- **The search had no durable state.** The address bar is the search:
+  `?place=adabraka-accra&view=map&rent_max=2500`. Refresh, Back, a shared link
+  and a return from a listing all rebuild the same search. Closing the map
+  changes the view and nothing else.
+
+**Important decisions:**
+
+- **A marker is never a door.** Public points are snapped to a 300 m grid or sit
+  at the neighbourhood centre (ADR 0022). The listing's Location section draws a
+  kola area and says in words how approximate it is.
+- **One search, two views.** The cards, the markers and the count come from the
+  same backend filter and the same client parameter builder, so they cannot
+  disagree.
+- **Price markers, not pins.** A marker is a white pill (`₵1.2k`) that takes
+  kola's edge on hover, fills deep kola when chosen and steps back into the
+  ground once visited. Clusters are haloed kola discs that grow with their
+  count; a stack of rentals on one point is a pill with its count and lowest
+  rent ("3 from ₵700") that opens a paged preview instead of zooming. Emphasis
+  uses `scale`, because MapLibre owns the marker's `transform`.
+- **Marker → preview → listing.** A tap opens a compact card: photo, price,
+  type and bedrooms, headline, place, and save when signed in. Only the card
+  leaves the map. On desktop it rides above its marker, moving the map only as
+  far as it must to show the whole card; on narrow screens it rises from the
+  bottom.
+- **The map searches a new area only when asked.** A "Search this area" pill
+  appears once the tenant has panned or zoomed well beyond what was searched. A
+  pan otherwise only redraws markers for the window; the count belongs to the
+  search.
+- **An area drawn on the map is shown wherever it narrows the rentals.**
+  Searching an area keeps the place and adds the area, and a lagoon "Map area"
+  chip then sits in the controls both views share — on the list page as well as
+  in the map's bar. It is where, not a filter, so Clear all leaves it; the chip
+  is its one way back to the whole place.
+- **The basemap is quiet so the markers can be loud.** Rooomly's flavour of the
+  Protomaps style uses field neutrals for ground, kola parkland, a lagoon wash
+  for water and ink-scale labels. It has no point-of-interest icons: the listings
+  are the points of interest.
+- **A card's address is its own destination.** It opens
+  `/listings/<id>#location`, and the page arrives at that section at once, as an
+  anchor does — even in a tab opened in the background, where the site's smooth
+  scrolling never starts.
+
+**States:** the empty area keeps the map, says "No available rentals in <place>"
+on a gold-ruled card and offers Zoom out and, where filters exist, Clear filters.
+Loading keeps the last markers and shows a thin kola progress bar. A failed
+marker request offers Retry without touching the search, and a basemap that
+cannot load says the rentals are still listed. Listings without a map position
+are counted in a lagoon note beside the results, and when an area has more
+markers than one view can draw, the map itself asks for a closer zoom. An area
+no longer offered keeps every filter and says so.
+
+**Verified:**
+
+- The backend: the full suite (1,587 tests), and the map search tests on three
+  runs in a row on the pinned GIS libraries. Ruff is clean, and mypy finds
+  nothing in the new code; the listing app's older errors are unchanged.
+- The web: typecheck and lint are clean, 346 contract tests pass, and a mirror
+  caught 42 of 42 mutations of what they promise.
+- On the live page, at 1280px and 390px: place suggestions; opening the map
+  from a place, from the Map pill and from its URL; closing it keeps the place,
+  and Back returns to the list; a filter updates the results and the address
+  bar together; the Map area chip in both views, and removing it; the phone's
+  one switch both ways, stepping aside for the Filters sheet; the map view above
+  the site header; the empty state; and a card's address arriving at the
+  Location section.
+- The basemap style validated against MapLibre's style spec, with every font and
+  tile layer it uses present in the published assets.
+
+**Not verified:** painted tiles and markers. The browser pane was hidden, so
+WebGL never drew a frame. The preview popup's position and "Search this area"
+after a real pan need a person at the map. The signed-in portal shell uses the
+same component and was not opened.
+
 **Next:** Stop for user testing. Then Listing Detail.
 
 ### Journey: Units — first-class across the Portfolio

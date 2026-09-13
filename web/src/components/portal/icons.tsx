@@ -49,7 +49,14 @@ export type IconName =
   | "info"
   | "warning"
   | "heart"
-  | "heart-filled";
+  | "heart-filled"
+  | "chevron-down"
+  | "close"
+  | "check"
+  | "filters"
+  | "map"
+  | "city"
+  | "landmark";
 
 const PATHS: Record<IconName, React.ReactNode> = {
   home: <path d="M3.5 8.5 10 3l6.5 5.5V16a1 1 0 0 1-1 1h-3v-5h-5v5h-3a1 1 0 0 1-1-1Z" />,
@@ -257,6 +264,44 @@ const PATHS: Record<IconName, React.ReactNode> = {
       d="M10 16.25S3.75 12.4 3.75 8.15A3.1 3.1 0 0 1 10 6.4a3.1 3.1 0 0 1 6.25 1.75c0 4.25-6.25 8.1-6.25 8.1Z"
       fill="currentColor"
     />
+  ),
+  /* Explore's controls were drawn with whatever was to hand: a rotated CSS
+     border for a chevron, a typed "×" for close in three places, and a
+     filter glyph at its own 1.25px stroke. Beside this set each one looked
+     borrowed, so they are drawn here to the same 1.5px construction. */
+  "chevron-down": <path d="m5.75 8 4.25 4.25L14.25 8" />,
+  close: <path d="m5.75 5.75 8.5 8.5M14.25 5.75l-8.5 8.5" />,
+  check: <path d="m4.75 10.25 3.5 3.5 7-7.5" />,
+  // Two sliders with open knobs: the line breaks around each knob instead of a
+  // filled circle, so it reads correctly on a tinted pill as well as on white.
+  filters: (
+    <>
+      <path d="M3.5 6.5h7M14.5 6.5h2M3.5 13.5h2M9.5 13.5h7" />
+      <circle cx="12.5" cy="6.5" r="2" />
+      <circle cx="7.5" cy="13.5" r="2" />
+    </>
+  ),
+  /* The kinds of place a location suggestion can be. A folded map for a region
+     or district, a skyline for a city or town, a flag for a landmark; a
+     neighbourhood keeps the pin the cards already use for "where". */
+  map: (
+    <>
+      <path d="M3.5 5.25 7.75 3.5l4.5 1.75 4.25-1.75v11.25l-4.25 1.75-4.5-1.75-4.25 1.75Z" />
+      <path d="M7.75 3.5v11.25M12.25 5.25V16.5" />
+    </>
+  ),
+  city: (
+    <>
+      <path d="M3 17h14" />
+      <path d="M4.75 17V9h3.75v8M8.5 17V4.25h4.75V17M13.25 17v-6h2.5v6" />
+      <path d="M10.25 7.25h1.25M10.25 10h1.25M10.25 12.75h1.25" />
+    </>
+  ),
+  landmark: (
+    <>
+      <path d="M5.25 17.25V3.25" />
+      <path d="M5.25 4h9.5l-1.9 3.25 1.9 3.25h-9.5" />
+    </>
   ),
 };
 

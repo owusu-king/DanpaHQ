@@ -24,6 +24,8 @@ Ghana-specific listing fields:
 
 from __future__ import annotations
 
+from django.contrib.gis.db.models import PointField
+from django.contrib.postgres.indexes import GistIndex
 from django.db import models
 
 from apps.core.fields import MoneyField
@@ -45,6 +47,16 @@ class ListingStatus(models.TextChoices):
 class RentPeriod(models.TextChoices):
     MONTHLY = "monthly", "Per month"
     YEARLY = "yearly", "Per year"
+
+
+class LocationPrecision(models.TextChoices):
+    """How closely a listing's public map point describes where it is.
+
+    Neither is the address. See `apps.listing.location`.
+    """
+
+    AREA = "area", "Within about 300 metres"
+    LOCALITY = "locality", "Somewhere in the neighbourhood"
 
 
 class _KeepsAxesInStep:
@@ -213,6 +225,13 @@ class Listing(SoftDeleteModel):
     # primary key in this schema is a UUIDv7, geo.Locality included.
     locality_id_cache = models.UUIDField(null=True, blank=True, db_index=True)
     bedrooms_cache = models.PositiveSmallIntegerField(null=True, blank=True)
+    #: Where the listing may be drawn on a public map: never the address, only a
+    #: snapped cell centre or the neighbourhood's centre. Derived by
+    #: `apps.listing.location`, and indexed for map search (ADR 0033).
+    public_point = PointField(srid=4326, null=True, blank=True, spatial_index=False)
+    public_point_precision = models.CharField(
+        max_length=10, choices=LocationPrecision.choices, blank=True
+    )
 
     # --- derivation -----------------------------------------------------------
 
@@ -335,6 +354,12 @@ class Listing(SoftDeleteModel):
                 condition=models.Q(status="active"),
             ),
             models.Index(fields=["created_by", "-created_at"], name="listing_owner_idx"),
+            # Only live listings are searched on the map, so only they are indexed.
+            GistIndex(
+                fields=["public_point"],
+                name="listing_public_point_gist",
+                condition=models.Q(status="active"),
+            ),
         ]
 
     def __str__(self) -> str:

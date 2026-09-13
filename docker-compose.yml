@@ -24,7 +24,9 @@ x-backend: &backend
 
 services:
   db:
-    image: postgres:16-alpine
+    # PostgreSQL 16 with PostGIS, on the same Alpine base as the previous
+    # postgres:16-alpine image so an existing data volume keeps its collation.
+    image: postgis/postgis:16-3.5-alpine
     environment:
       POSTGRES_DB: grp
       POSTGRES_USER: grp

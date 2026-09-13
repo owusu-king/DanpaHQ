@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from rest_framework import serializers
 
 from apps.core.money import Money
@@ -90,6 +92,7 @@ class ListingSerializer(serializers.ModelSerializer):
     provider_label = serializers.SerializerMethodField()
     cover_url = serializers.SerializerMethodField()
     card_media = serializers.SerializerMethodField()
+    public_location = serializers.SerializerMethodField()
 
     class Meta:
         model = Listing
@@ -126,6 +129,7 @@ class ListingSerializer(serializers.ModelSerializer):
             "is_furnished",
             "map_latitude",
             "map_longitude",
+            "public_location",
             "trust_stamps",
             "provider_label",
             "review_note",
@@ -187,6 +191,12 @@ class ListingSerializer(serializers.ModelSerializer):
         avoids either client calling Listing Detail once per card.
         """
         return self._card_media_items(obj)
+
+    def get_public_location(self, obj) -> dict | None:
+        """The approximate public point, never the address. See `listing.location`."""
+        from .location import public_location_payload
+
+        return public_location_payload(obj)
 
     def _card_media_items(self, obj) -> list[dict]:
         cache = getattr(self, "_card_media_cache", None)
@@ -715,3 +725,57 @@ class ListingSearchSerializer(serializers.Serializer):
     sort = serializers.ChoiceField(
         choices=["newest", "rent_asc", "rent_desc"], required=False, default="newest"
     )
+    #: A place's slug. Its area is the search area unless a box is sent.
+    place = serializers.SlugField(required=False, max_length=160)
+    #: An explicit search box, sent whole: what "Search this area" searched.
+    west = serializers.FloatField(required=False, min_value=-180, max_value=180)
+    south = serializers.FloatField(required=False, min_value=-90, max_value=90)
+    east = serializers.FloatField(required=False, min_value=-180, max_value=180)
+    north = serializers.FloatField(required=False, min_value=-90, max_value=90)
+    #: Specific listings, for a map preview — still only what public search allows.
+    ids = serializers.CharField(required=False, max_length=40 * 37)
+
+    def validate_ids(self, value: str) -> list[UUID]:
+        parts = [part.strip() for part in value.split(",") if part.strip()]
+        if len(parts) > 40:
+            raise serializers.ValidationError("Ask for at most 40 listings at a time.")
+        try:
+            return [UUID(part) for part in parts]
+        except ValueError as exc:
+            raise serializers.ValidationError("Listing ids must be UUIDs.") from exc
+
+    def validate(self, attrs):
+        return _whole_bounds(attrs)
+
+
+def _whole_bounds(attrs: dict, prefix: str = "") -> dict:
+    """A box arrives with all four edges, the right way round, or not at all."""
+    edges = [f"{prefix}{edge}" for edge in ("west", "south", "east", "north")]
+    present = [edge for edge in edges if edge in attrs]
+    if present and len(present) != 4:
+        raise serializers.ValidationError(
+            {f"{prefix}bounds": "Send west, south, east and north together."}
+        )
+    if present and (attrs[edges[0]] >= attrs[edges[2]] or attrs[edges[1]] >= attrs[edges[3]]):
+        raise serializers.ValidationError(
+            {f"{prefix}bounds": "West must be less than east, and south less than north."}
+        )
+    return attrs
+
+
+class ListingMapSerializer(ListingSearchSerializer):
+    """The same search as `ListingSearchSerializer`, drawn for a map at a zoom level."""
+
+    zoom = serializers.IntegerField(required=False, min_value=0, max_value=22, default=12)
+    #: The part of the map on screen. Markers are drawn for it; the count is not.
+    view_west = serializers.FloatField(required=False, min_value=-180, max_value=180)
+    view_south = serializers.FloatField(required=False, min_value=-90, max_value=90)
+    view_east = serializers.FloatField(required=False, min_value=-180, max_value=180)
+    view_north = serializers.FloatField(required=False, min_value=-90, max_value=90)
+    #: False when only the window moved: the count and extent belong to the
+    #: search, so a pan need not pay for them again. Nullable, because a
+    #: missing boolean in a query string would otherwise read as False.
+    summary = serializers.BooleanField(required=False, allow_null=True, default=None)
+
+    def validate(self, attrs):
+        return _whole_bounds(super().validate(attrs), prefix="view_")
