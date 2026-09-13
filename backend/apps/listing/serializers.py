@@ -89,6 +89,7 @@ class ListingSerializer(serializers.ModelSerializer):
     trust_stamps = serializers.SerializerMethodField()
     provider_label = serializers.SerializerMethodField()
     cover_url = serializers.SerializerMethodField()
+    card_media = serializers.SerializerMethodField()
 
     class Meta:
         model = Listing
@@ -114,6 +115,7 @@ class ListingSerializer(serializers.ModelSerializer):
             "amenities",
             "media",
             "cover_url",
+            "card_media",
             "locality_name",
             "district_name",
             "landmark",
@@ -174,6 +176,26 @@ class ListingSerializer(serializers.ModelSerializer):
         records. A provider reading their own draft is authorized by the
         endpoint itself.
         """
+        items = self._card_media_items(obj)
+        return items[0]["download_url"] if items else None
+
+    def get_card_media(self, obj) -> list[dict]:
+        """A small, ordered photo set for discovery-card swiping.
+
+        Search already prefetches both sources for ``cover_url``. Returning up
+        to five resolved photographs uses that same data and file policy; it
+        avoids either client calling Listing Detail once per card.
+        """
+        return self._card_media_items(obj)
+
+    def _card_media_items(self, obj) -> list[dict]:
+        cache = getattr(self, "_card_media_cache", None)
+        if cache is None:
+            cache = self._card_media_cache = {}
+        key = str(obj.id)
+        if key in cache:
+            return cache[key]
+
         ordered = [
             *sorted(
                 obj.unit.media.all(),
@@ -184,11 +206,26 @@ class ListingSerializer(serializers.ModelSerializer):
                 key=lambda media: (not media.is_cover, media.sort_order, media.created_at),
             ),
         ]
+        seen: set[str] = set()
+        items: list[dict] = []
         for media in ordered:
+            file_id = str(media.file_id)
+            if file_id in seen:
+                continue
             url = _listing_photo_url(media.file, public=obj.is_live)
             if url is not None:
-                return url
-        return None
+                seen.add(file_id)
+                items.append(
+                    {
+                        "file_id": file_id,
+                        "caption": media.caption,
+                        "download_url": url,
+                    }
+                )
+            if len(items) == 5:
+                break
+        cache[key] = items
+        return items
 
     def get_advance_label(self, obj) -> str:
         """ "24 months" is how it is stored; "2 years" is how it is understood.

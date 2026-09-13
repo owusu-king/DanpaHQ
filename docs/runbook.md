@@ -88,6 +88,49 @@ the endpoint with `APIClient().force_authenticate(user=…)`. A 500 with
 `Manifest file is empty` in the first seconds after a restart is the dev server
 compiling several routes at once; it clears on the next request.
 
+**Redis will not start, and one page answers 500 while the rest are fine.**
+An unclean shutdown — a host crash, a power cut — can leave a partial write at
+the end of Redis's append-only file. Redis refuses to load it and exits 1 on
+every start:
+
+```bash
+docker compose ps -a | grep redis                      # Exited (1)
+docker compose logs redis --tail 5 | grep "Bad file format"
+```
+
+Repair the AOF rather than deleting the volume; the fix truncates the unparseable
+tail and keeps everything before it:
+
+```bash
+docker run --rm -v rental_redisdata:/data redis:7-alpine \
+  sh -lc 'cd /data/appendonlydir && echo y | redis-check-aof --fix appendonly.aof.manifest'
+docker compose up -d --wait redis
+```
+
+What is lost is whatever was written in the last moments before the crash:
+cached values, which are re-read, and any Celery task still queued, which is why
+a dead Redis is a degradation rather than a data loss. Application code must
+treat it that way too:
+
+* a read-through cache goes through `apps.core.cache.cache_get` / `cache_set`,
+  never `cache.get` directly, so an unreachable Redis costs a query and not a
+  page;
+* a rate limit subclasses `apps.core.throttling.CacheAwareRateThrottle` and
+  states its `fail_open`. DRF reads throttle history straight from the cache, so
+  a throttle left on `SimpleRateThrottle` answers 500 from inside
+  `allow_request` no matter how careful the view behind it is. Cost and
+  throughput limits fail open; anything in front of a credential fails closed
+  with a 503 rather than opening a guessing window;
+* a limit DRF cannot express — the Management sign-in cap is twenty attempts in
+  fifteen minutes — counts with `apps.core.throttling.count_attempt`, never with
+  `cache.get` then `cache.set`. That read-modify-write let simultaneous attempts
+  all read the same number, so the cap never closed; `count_attempt` is atomic
+  (`add` then `incr`) and refuses with a 503 when it cannot count.
+
+`apps/core/health.py` is the exception to all of it: saying whether the cache is
+reachable is its whole job, so it reads the cache directly and must keep
+failing loudly.
+
 **Outbox events are not being delivered.**
 Check `beat` is running (it schedules the dispatcher every 5 seconds) and that
 `worker` is consuming the `default` queue. Then:

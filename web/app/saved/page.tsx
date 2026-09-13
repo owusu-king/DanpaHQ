@@ -7,6 +7,7 @@ import { ListingCard } from "@/components/listings/ListingCard";
 import { Notice } from "@/components/Notice";
 import { Empty, LoadingRows, PageHeader } from "@/components/portal/PageHeader";
 import { ApiFailure } from "@/lib/api";
+import { unsavePublicListing } from "@/lib/listings";
 import { listSavedListings, type SavedListing } from "@/lib/tenant";
 
 /**
@@ -30,6 +31,21 @@ export default function SavedPage() {
         );
       });
   }, []);
+
+  async function removeSaved(listingId: string) {
+    if (!saved) return;
+    const previous = saved;
+    setSaved((current) => current?.filter((row) => row.listing.id !== listingId) ?? []);
+    setError("");
+    try {
+      await unsavePublicListing(listingId);
+    } catch (cause) {
+      setSaved(previous);
+      setError(
+        cause instanceof ApiFailure ? cause.error.message : "Could not update your shortlist.",
+      );
+    }
+  }
 
   return (
     <>
@@ -56,7 +72,12 @@ export default function SavedPage() {
           }}
         >
           {saved.map((row) => (
-            <ListingCard key={row.id} listing={row.listing} />
+            <ListingCard
+              key={row.id}
+              listing={row.listing}
+              saved
+              onSave={() => void removeSaved(row.listing.id)}
+            />
           ))}
         </ul>
       )}

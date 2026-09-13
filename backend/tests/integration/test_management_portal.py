@@ -63,6 +63,80 @@ def test_management_login_uses_email_password_and_an_isolated_cookie():
     assert AuditLog.objects.filter(action=AuditAction.LOGIN, management_actor_id=user.id).exists()
 
 
+def test_management_sign_in_is_capped_per_address():
+    """Twenty attempts in fifteen minutes, and the twenty-first is refused.
+
+    The cap used to be read-modify-write over the cache — every attempt read a
+    number, added one, and wrote it back — so simultaneous attempts all read the
+    same number and the cap never closed. It counts atomically now.
+    """
+    management_user()
+    client = APIClient()
+    wrong = {"email": "ops@example.com", "password": "not-the-password"}
+
+    for attempt in range(20):
+        response = client.post(
+            "/api/v1/management/auth/login/",
+            wrong,
+            format="json",
+            HTTP_ORIGIN="http://localhost:3000",
+        )
+        assert response.status_code == 403, f"attempt {attempt + 1}: {response.data}"
+
+    refused = client.post(
+        "/api/v1/management/auth/login/",
+        wrong,
+        format="json",
+        HTTP_ORIGIN="http://localhost:3000",
+    )
+    assert refused.status_code == 429
+    assert refused.data["error"]["code"] == "rate_limited"
+
+    # And the cap is about attempts, not about whether the password was right:
+    # the correct one is refused too while the window holds.
+    correct = client.post(
+        "/api/v1/management/auth/login/",
+        {"email": "ops@example.com", "password": PASSWORD},
+        format="json",
+        HTTP_ORIGIN="http://localhost:3000",
+    )
+    assert correct.status_code == 429
+
+
+def test_management_sign_in_refuses_when_its_limiter_cannot_count(monkeypatch):
+    """A password form whose limiter is blind must not open.
+
+    The cache went down with a corrupt append-only file and this view answered
+    500 from inside `cache.get`. The tempting fix — treat the failure as zero
+    attempts — would have left the Management password form unlimited for the
+    length of the outage. It fails closed instead, and says so in a way the
+    person on the other end can act on.
+    """
+    from django.core.cache import cache
+
+    management_user()
+
+    def unreachable(*args, **kwargs):
+        raise OSError("[Errno -2] Name or service not known")
+
+    for method in ("get", "set", "add", "incr", "touch"):
+        monkeypatch.setattr(cache, method, unreachable)
+
+    response = APIClient().post(
+        "/api/v1/management/auth/login/",
+        {"email": "ops@example.com", "password": PASSWORD},
+        format="json",
+        HTTP_ORIGIN="http://localhost:3000",
+    )
+
+    assert response.status_code == 503
+    assert response.data["error"]["code"] == "provider_unavailable"
+    assert response.data["error"]["details"]["reason"] == "rate_limit_unavailable"
+    # Nobody was signed in on the way past the limiter.
+    assert "grp_management_session" not in response.cookies
+    assert not AuditLog.objects.filter(action=AuditAction.LOGIN).exists()
+
+
 def test_consumer_and_django_sessions_cannot_authenticate_management(user):
     consumer_session = Session.objects.create(
         user=user,

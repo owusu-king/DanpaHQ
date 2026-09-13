@@ -1,14 +1,19 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useRouter } from "expo-router";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   ActivityIndicator,
   FlatList,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
+  TextInput,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ApiFailure } from "@/api";
 import { useAuth } from "@/auth";
@@ -27,6 +32,7 @@ import {
   type SearchFilters,
 } from "@/listings";
 import { pressableFeedback } from "@/platform";
+import { loadPropertyTypes, type PropertyTypeOption } from "@/propertyTypes";
 import { theme } from "@/theme";
 
 /**
@@ -61,40 +67,64 @@ const SORTS: readonly (readonly [ListingSort, string])[] = [
   ["rent_desc", "Rent: high to low"],
 ];
 
+type FilterMode = "all" | "price" | "type" | "bedrooms";
+
 export default function SearchScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { state } = useAuth();
   const signedIn = state.status === "signed_in";
 
   const [listings, setListings] = useState<Listing[] | null>(null);
   const [next, setNext] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [querying, setQuerying] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
 
   const [place, setPlace] = useState("");
   const [matches, setMatches] = useState<Locality[]>([]);
   const [locality, setLocality] = useState<Locality | null>(null);
+  const [propertyTypes, setPropertyTypes] = useState<PropertyTypeOption[]>([]);
+  const [propertyType, setPropertyType] = useState("");
+  const [spaceType, setSpaceType] = useState("");
   const [bedrooms, setBedrooms] = useState("");
+  const [rentMin, setRentMin] = useState("");
   const [rentMax, setRentMax] = useState("");
   const [advanceMax, setAdvanceMax] = useState("");
   const [furnished, setFurnished] = useState(false);
   const [sort, setSort] = useState<ListingSort>("newest");
-  const [filtering, setFiltering] = useState<"bedrooms" | "price" | "advance" | "sort" | null>(null);
+  const [filterMode, setFilterMode] = useState<FilterMode | null>(null);
   const [saved, setSaved] = useState<Set<string>>(new Set());
   const requestId = useRef(0);
 
+  const spaceTypes = useMemo(() => {
+    const source = propertyType
+      ? propertyTypes.filter((type) => type.value === propertyType)
+      : propertyTypes;
+    const unique = new Map<string, string>();
+    for (const type of source) {
+      for (const space_ of type.space_types) unique.set(space_.value, space_.label);
+    }
+    return [...unique].map(([value, label]) => ({ value, label }));
+  }, [propertyType, propertyTypes]);
+
   const filters = useMemo<SearchFilters>(() => ({
+    q: locality ? undefined : place.trim() || undefined,
     locality_id: locality?.id,
+    property_type: propertyType || undefined,
+    space_type: spaceType || undefined,
     bedrooms_min: bedrooms === "" ? undefined : Number(bedrooms),
+    rent_min: rentMin ? Math.round(Number(rentMin) * 100) : undefined,
     rent_max: rentMax ? Math.round(Number(rentMax) * 100) : undefined,
     advance_max: advanceMax ? Number(advanceMax) : undefined,
     furnished: furnished || undefined,
     sort,
-  }), [locality, bedrooms, rentMax, advanceMax, furnished, sort]);
+  }), [place, locality, propertyType, spaceType, bedrooms, rentMin, rentMax, advanceMax, furnished, sort]);
 
   const load = useCallback(async () => {
     const id = ++requestId.current;
+    setQuerying(true);
     try {
       const page = await searchListings(filters);
       // A slower earlier request must never overwrite a newer answer.
@@ -107,15 +137,24 @@ export default function SearchScreen() {
       setListings([]);
       setNext(null);
       setError(cause instanceof ApiFailure ? cause.error.message : "We could not load places right now.");
+    } finally {
+      if (id === requestId.current) setQuerying(false);
     }
   }, [filters]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    const timer = setTimeout(() => { void load(); }, 250);
+    return () => clearTimeout(timer);
+  }, [load]);
 
   useEffect(() => {
     if (!signedIn) return;
     void listSaved().then((rows) => setSaved(new Set(rows.map((row) => row.listing.id)))).catch(() => undefined);
   }, [signedIn]);
+
+  useEffect(() => {
+    void loadPropertyTypes().then(setPropertyTypes).catch(() => setPropertyTypes([]));
+  }, []);
 
   useEffect(() => {
     if (locality || place.trim().length < 2) { setMatches([]); return; }
@@ -126,7 +165,10 @@ export default function SearchScreen() {
   }, [place, locality]);
 
   const active = [
+    propertyType && { label: propertyTypes.find((row) => row.value === propertyType)?.label ?? propertyType, clear: () => setPropertyType("") },
+    spaceType && { label: spaceTypes.find((row) => row.value === spaceType)?.label ?? spaceType, clear: () => setSpaceType("") },
     bedrooms !== "" && { label: `${BEDROOMS.find(([value]) => value === bedrooms)?.[1]} bed`, clear: () => setBedrooms("") },
+    rentMin && { label: `From GH₵${rentMin}`, clear: () => setRentMin("") },
     rentMax && { label: `Up to GH₵${rentMax}`, clear: () => setRentMax("") },
     advanceMax && { label: ADVANCE.find(([value]) => value === advanceMax)?.[1] ?? "", clear: () => setAdvanceMax("") },
     furnished && { label: "Furnished", clear: () => setFurnished(false) },
@@ -154,21 +196,31 @@ export default function SearchScreen() {
     }
   }
 
+  function resetFilters() {
+    setLocality(null); setPlace(""); setPropertyType(""); setSpaceType(""); setBedrooms("");
+    setRentMin(""); setRentMax(""); setAdvanceMax(""); setFurnished(false); setSort("newest");
+  }
+
   function clearAll() {
-    setLocality(null); setPlace(""); setBedrooms("");
-    setRentMax(""); setAdvanceMax(""); setFurnished(false); setSort("newest");
-    setFiltering(null);
+    resetFilters();
+    setFilterMode(null);
+  }
+
+  function changePropertyType(value: string) {
+    setPropertyType(value);
+    if (!spaceType) return;
+    const allowed = propertyTypes.find((type) => type.value === value)?.space_types ?? [];
+    if (value && !allowed.some((space_) => space_.value === spaceType)) setSpaceType("");
   }
 
   const bedroomLabel = bedrooms === ""
     ? "Bedrooms"
     : `${BEDROOMS.find(([value]) => value === bedrooms)?.[1] ?? bedrooms} bed`;
-  const advanceLabel = advanceMax === ""
-    ? "Advance"
-    : ADVANCE.find(([value]) => value === advanceMax)?.[1] ?? "Advance";
-  const sortLabel = sort === "newest"
-    ? "Sort"
-    : SORTS.find(([value]) => value === sort)?.[1] ?? "Sort";
+  const propertyLabel = propertyType
+    ? propertyTypes.find((row) => row.value === propertyType)?.label ?? "Type"
+    : spaceType
+      ? spaceTypes.find((row) => row.value === spaceType)?.label ?? "Type"
+      : "Type";
 
   return (
     <>
@@ -205,16 +257,14 @@ export default function SearchScreen() {
               <Type variant="display2" accessibilityRole="header">Find a place</Type>
             </View>
 
-            <Field
-              label="Where"
+            <SearchBox
               value={locality ? locality.name : place}
               onChangeText={(text) => { setLocality(null); setPlace(text); }}
-              placeholder="East Legon, Adenta, Asokwa…"
-              returnKeyType="search"
+              onClear={() => { setLocality(null); setPlace(""); setMatches([]); }}
             />
 
             {matches.length ? (
-              <View style={{ borderWidth: 1, borderColor: theme.color.field["200"], borderRadius: 8 }}>
+              <View style={{ overflow: "hidden", borderWidth: 1, borderColor: theme.color.field["200"], borderRadius: 12, backgroundColor: theme.color.field["0"] }}>
                 {matches.slice(0, 5).map((row) => (
                   <Pressable
                     key={row.id}
@@ -222,10 +272,13 @@ export default function SearchScreen() {
                     accessibilityLabel={`${row.name}, ${row.district_name}`}
                     onPress={() => { setLocality(row); setMatches([]); }}
                     {...pressableFeedback(theme.color.field["200"])}
-                    style={{ minHeight: 52, justifyContent: "center", paddingHorizontal: space[3] }}
+                    style={{ minHeight: 56, flexDirection: "row", alignItems: "center", gap: space[3], paddingHorizontal: space[4], borderBottomWidth: 1, borderBottomColor: theme.color.field["100"] }}
                   >
-                    <Type variant="bodyStrong">{row.name}</Type>
-                    <Type variant="caption">{row.district_name}</Type>
+                    <Ionicons name="location-outline" size={18} color={theme.color.kola["600"]} />
+                    <View style={{ flex: 1 }}>
+                      <Type variant="bodyStrong">{row.name}</Type>
+                      <Type variant="caption">{row.district_name}</Type>
+                    </View>
                   </Pressable>
                 ))}
               </View>
@@ -236,25 +289,25 @@ export default function SearchScreen() {
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={{ gap: space[2], paddingRight: space[2] }}
               accessibilityRole="toolbar"
-              accessibilityLabel="Rental filters"
+              accessibilityLabel="Quick rental filters"
             >
+              <CompactFilter
+                label={rentMax ? `Up to GH₵${Number(rentMax).toLocaleString("en-GH")}` : "Price"}
+                selected={Boolean(rentMin || rentMax)}
+                disclosure
+                onPress={() => setFilterMode("price")}
+              />
+              <CompactFilter
+                label={propertyLabel}
+                selected={Boolean(propertyType || spaceType)}
+                disclosure
+                onPress={() => setFilterMode("type")}
+              />
               <CompactFilter
                 label={bedroomLabel}
                 selected={bedrooms !== ""}
-                expanded={filtering === "bedrooms"}
-                onPress={() => setFiltering((value) => value === "bedrooms" ? null : "bedrooms")}
-              />
-              <CompactFilter
-                label={rentMax ? `Up to GH₵${Number(rentMax).toLocaleString("en-GH")}` : "Price"}
-                selected={Boolean(rentMax)}
-                expanded={filtering === "price"}
-                onPress={() => setFiltering((value) => value === "price" ? null : "price")}
-              />
-              <CompactFilter
-                label={advanceLabel}
-                selected={advanceMax !== ""}
-                expanded={filtering === "advance"}
-                onPress={() => setFiltering((value) => value === "advance" ? null : "advance")}
+                disclosure
+                onPress={() => setFilterMode("bedrooms")}
               />
               <CompactFilter
                 label="Furnished"
@@ -262,85 +315,36 @@ export default function SearchScreen() {
                 onPress={() => setFurnished((value) => !value)}
               />
               <CompactFilter
-                label={sortLabel}
-                selected={sort !== "newest"}
-                expanded={filtering === "sort"}
-                onPress={() => setFiltering((value) => value === "sort" ? null : "sort")}
+                label="Filters"
+                icon="options-outline"
+                count={active.length}
+                selected={filterMode === "all"}
+                onPress={() => setFilterMode("all")}
               />
-              {active.length ? <CompactFilter label="Reset" quiet onPress={clearAll} /> : null}
             </ScrollView>
 
-            {filtering ? (
-              <View
-                style={{
-                  gap: space[3], padding: space[4], backgroundColor: theme.color.field["0"],
-                  borderWidth: 1, borderColor: theme.color.field["200"], borderRadius: 10,
-                  shadowColor: theme.color.ink["900"], shadowOpacity: 0.06,
-                  shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 2,
-                }}
+            {active.length ? (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ gap: space[2], paddingRight: space[2] }}
+                accessibilityLabel="Active rental filters"
               >
-                {filtering === "bedrooms" ? <>
-                  <Type variant="label">BEDROOMS</Type>
-                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: space[2] }}>
-                    {BEDROOMS.map(([value, label]) => (
-                      <FilterChip
-                        key={value || "any"}
-                        label={label}
-                        selected={bedrooms === value}
-                        onPress={() => { setBedrooms(value); setFiltering(null); }}
-                      />
-                    ))}
-                  </View>
-                </> : null}
-
-                {filtering === "price" ? <>
-                  <Field
-                    label="Maximum monthly rent (GH₵)"
-                    value={rentMax}
-                    onChangeText={(text) => setRentMax(text.replace(/[^0-9]/g, ""))}
-                    keyboardType="number-pad"
-                    placeholder="3000"
-                  />
-                  <Button label="Done" onPress={() => setFiltering(null)} />
-                </> : null}
-
-                {filtering === "advance" ? <>
-                  <Type variant="label">ADVANCE</Type>
-                  <View style={{ borderBottomWidth: 1, borderBottomColor: theme.color.field["200"] }}>
-                    {ADVANCE.map(([value, label]) => (
-                      <ChoiceRow
-                        key={value || "any"}
-                        label={label}
-                        selected={advanceMax === value}
-                        onPress={() => { setAdvanceMax(value); setFiltering(null); }}
-                      />
-                    ))}
-                  </View>
-                </> : null}
-
-                {filtering === "sort" ? <>
-                  <Type variant="label">SORT</Type>
-                  <View style={{ borderBottomWidth: 1, borderBottomColor: theme.color.field["200"] }}>
-                    {SORTS.map(([value, label]) => (
-                      <ChoiceRow
-                        key={value}
-                        label={label}
-                        selected={sort === value}
-                        onPress={() => { setSort(value); setFiltering(null); }}
-                      />
-                    ))}
-                  </View>
-                </> : null}
-              </View>
+                {active.map((item) => <ActiveFilter key={item.label} label={item.label} onPress={item.clear} />)}
+                <Pressable accessibilityRole="button" accessibilityLabel="Clear all filters" onPress={clearAll} style={{ minHeight: 36, justifyContent: "center", paddingHorizontal: space[2] }}>
+                  <Type variant="captionStrong" style={{ color: theme.color.kola["600"] }}>Clear all</Type>
+                </Pressable>
+              </ScrollView>
             ) : null}
 
             {error ? <Notice tone="error" title={error} /> : null}
 
-            <Type variant="caption">
-              {listings === null
-                ? "Finding rentals…"
-                : `${listings.length}${next ? "+" : ""} place${listings.length === 1 ? "" : "s"}`}
-            </Type>
+            <View style={{ minHeight: 24, flexDirection: "row", alignItems: "center", gap: space[2] }}>
+              {listings === null || querying ? <ActivityIndicator size="small" color={theme.color.kola["600"]} /> : null}
+              <Type variant="caption">
+                {listings === null ? "Finding rentals…" : querying ? "Updating results…" : `${listings.length}${next ? "+" : ""} home${listings.length === 1 ? "" : "s"}`}
+              </Type>
+            </View>
           </View>
         }
         renderItem={({ item }) => (
@@ -371,7 +375,278 @@ export default function SearchScreen() {
         }
       />
 
+      <FilterSheet
+        mode={filterMode}
+        onClose={() => setFilterMode(null)}
+        bottomInset={insets.bottom}
+        propertyTypes={propertyTypes}
+        propertyType={propertyType}
+        onPropertyTypeChange={changePropertyType}
+        spaceTypes={spaceTypes}
+        spaceType={spaceType}
+        onSpaceTypeChange={setSpaceType}
+        bedrooms={bedrooms}
+        onBedroomsChange={setBedrooms}
+        rentMin={rentMin}
+        onRentMinChange={setRentMin}
+        rentMax={rentMax}
+        onRentMaxChange={setRentMax}
+        advanceMax={advanceMax}
+        onAdvanceMaxChange={setAdvanceMax}
+        furnished={furnished}
+        onFurnishedChange={setFurnished}
+        sort={sort}
+        onSortChange={setSort}
+        onReset={resetFilters}
+        resultLabel={listings === null || querying ? "Updating homes…" : `Show ${listings.length}${next ? "+" : ""} homes`}
+      />
+
     </>
+  );
+}
+
+function SearchBox({
+  value,
+  onChangeText,
+  onClear,
+}: {
+  value: string;
+  onChangeText: (value: string) => void;
+  onClear: () => void;
+}) {
+  const [focused, setFocused] = useState(false);
+  return (
+    <View
+      style={{
+        minHeight: 56,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: space[3],
+        paddingLeft: space[4],
+        paddingRight: space[2],
+        borderWidth: focused ? 2 : 1,
+        borderColor: focused ? theme.color.kola["600"] : theme.color.field["300"],
+        borderRadius: 13,
+        backgroundColor: theme.color.field["0"],
+      }}
+    >
+      <Ionicons name="search-outline" size={20} color={focused ? theme.color.kola["600"] : theme.color.ink["500"]} />
+      <TextInput
+        accessibilityLabel="Search area, neighbourhood or property"
+        value={value}
+        onChangeText={onChangeText}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        placeholder="Search area, neighbourhood or property"
+        placeholderTextColor={theme.color.ink["300"]}
+        returnKeyType="search"
+        maxFontSizeMultiplier={1.35}
+        style={{ flex: 1, minWidth: 0, minHeight: 52, paddingVertical: 0, color: theme.color.ink["900"], fontSize: 16, fontWeight: "600" }}
+      />
+      {value ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Clear search"
+          hitSlop={6}
+          onPress={onClear}
+          {...pressableFeedback(theme.color.field["100"])}
+          style={{ width: 40, height: 40, alignItems: "center", justifyContent: "center", borderRadius: 20 }}
+        >
+          <Ionicons name="close" size={19} color={theme.color.ink["500"]} />
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
+
+function ActiveFilter({ label, onPress }: { label: string; onPress: () => void }) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`Remove ${label} filter`}
+      onPress={onPress}
+      {...pressableFeedback(theme.color.kola["50"])}
+      style={{
+        minHeight: 36,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: space[1],
+        paddingHorizontal: space[3],
+        borderWidth: 1,
+        borderColor: theme.color.kola["300"],
+        borderRadius: 18,
+        backgroundColor: theme.color.kola["50"],
+      }}
+    >
+      <Type variant="captionStrong" style={{ color: theme.color.kola["800"] }}>{label}</Type>
+      <Ionicons name="close" size={14} color={theme.color.kola["600"]} />
+    </Pressable>
+  );
+}
+
+function FilterSheet({
+  mode,
+  onClose,
+  bottomInset,
+  propertyTypes,
+  propertyType,
+  onPropertyTypeChange,
+  spaceTypes,
+  spaceType,
+  onSpaceTypeChange,
+  bedrooms,
+  onBedroomsChange,
+  rentMin,
+  onRentMinChange,
+  rentMax,
+  onRentMaxChange,
+  advanceMax,
+  onAdvanceMaxChange,
+  furnished,
+  onFurnishedChange,
+  sort,
+  onSortChange,
+  onReset,
+  resultLabel,
+}: {
+  mode: FilterMode | null;
+  onClose: () => void;
+  bottomInset: number;
+  propertyTypes: PropertyTypeOption[];
+  propertyType: string;
+  onPropertyTypeChange: (value: string) => void;
+  spaceTypes: { value: string; label: string }[];
+  spaceType: string;
+  onSpaceTypeChange: (value: string) => void;
+  bedrooms: string;
+  onBedroomsChange: (value: string) => void;
+  rentMin: string;
+  onRentMinChange: (value: string) => void;
+  rentMax: string;
+  onRentMaxChange: (value: string) => void;
+  advanceMax: string;
+  onAdvanceMaxChange: (value: string) => void;
+  furnished: boolean;
+  onFurnishedChange: (value: boolean) => void;
+  sort: ListingSort;
+  onSortChange: (value: ListingSort) => void;
+  onReset: () => void;
+  resultLabel: string;
+}) {
+  const visible = mode !== null;
+  const heading = mode === "price" ? "Rent" : mode === "type" ? "Property & unit" : mode === "bedrooms" ? "Bedrooms" : "All filters";
+  const showPrice = mode === "all" || mode === "price";
+  const showType = mode === "all" || mode === "type";
+  const showBedrooms = mode === "all" || mode === "bedrooms";
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" statusBarTranslucent onRequestClose={onClose}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Close filters" onPress={onClose} style={{ flex: 1, backgroundColor: "rgba(22,17,14,0.42)" }} />
+        <View
+          style={{
+            maxHeight: "88%",
+            overflow: "hidden",
+            borderTopLeftRadius: 20,
+            borderTopRightRadius: 20,
+            backgroundColor: theme.color.field["0"],
+            shadowColor: theme.color.ink["950"],
+            shadowOpacity: 0.22,
+            shadowRadius: 28,
+            shadowOffset: { width: 0, height: -8 },
+            elevation: 16,
+          }}
+        >
+          <View style={{ alignSelf: "center", width: 36, height: 4, marginTop: space[2], borderRadius: 2, backgroundColor: theme.color.field["300"] }} />
+          <View style={{ minHeight: 68, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: space[5], borderBottomWidth: 1, borderBottomColor: theme.color.field["200"] }}>
+            <View style={{ gap: 2 }}>
+              <Type variant="label" style={{ color: theme.color.kola["600"] }}>REFINE YOUR SEARCH</Type>
+              <Type variant="title2" accessibilityRole="header">{heading}</Type>
+            </View>
+            <Pressable accessibilityRole="button" accessibilityLabel="Close filters" hitSlop={6} onPress={onClose} {...pressableFeedback(theme.color.field["100"])} style={{ width: 44, height: 44, alignItems: "center", justifyContent: "center", borderRadius: 22 }}>
+              <Ionicons name="close" size={22} color={theme.color.ink["700"]} />
+            </Pressable>
+          </View>
+
+          <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: space[5], gap: space[6] }}>
+            {showPrice ? (
+              <SheetGroup title="Price">
+                <View style={{ gap: space[3] }}>
+                  <Field label="Minimum rent" prefix="GH₵" value={rentMin} onChangeText={(text) => onRentMinChange(text.replace(/[^0-9]/g, ""))} keyboardType="number-pad" placeholder="No minimum" />
+                  <Field label="Maximum rent" prefix="GH₵" value={rentMax} onChangeText={(text) => onRentMaxChange(text.replace(/[^0-9]/g, ""))} keyboardType="number-pad" placeholder="No maximum" />
+                </View>
+              </SheetGroup>
+            ) : null}
+
+            {showType ? (
+              <SheetGroup title="Property type">
+                <View style={{ borderBottomWidth: 1, borderBottomColor: theme.color.field["200"] }}>
+                  <ChoiceRow label="Any property type" selected={!propertyType} onPress={() => onPropertyTypeChange("")} />
+                  {propertyTypes.map((type) => <ChoiceRow key={type.value} label={type.label} selected={propertyType === type.value} onPress={() => onPropertyTypeChange(type.value)} />)}
+                </View>
+                <Type variant="captionStrong" style={{ marginTop: space[2], color: theme.color.ink["700"] }}>Unit type</Type>
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: space[2] }}>
+                  <FilterChip label="Any" selected={!spaceType} onPress={() => onSpaceTypeChange("")} />
+                  {spaceTypes.map((space_) => <FilterChip key={space_.value} label={space_.label} selected={spaceType === space_.value} onPress={() => onSpaceTypeChange(space_.value)} />)}
+                </View>
+              </SheetGroup>
+            ) : null}
+
+            {showBedrooms ? (
+              <SheetGroup title="Bedrooms">
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: space[2] }}>
+                  {BEDROOMS.map(([value, label]) => <FilterChip key={value || "any"} label={label} selected={bedrooms === value} onPress={() => onBedroomsChange(value)} />)}
+                </View>
+              </SheetGroup>
+            ) : null}
+
+            {mode === "all" ? (
+              <>
+                <SheetGroup title="Rental terms">
+                  <Type variant="captionStrong" style={{ color: theme.color.ink["700"] }}>Maximum advance</Type>
+                  <View style={{ borderBottomWidth: 1, borderBottomColor: theme.color.field["200"] }}>
+                    {ADVANCE.map(([value, label]) => <ChoiceRow key={value || "any"} label={label} selected={advanceMax === value} onPress={() => onAdvanceMaxChange(value)} />)}
+                  </View>
+                  <FilterToggle label="Furnished only" selected={furnished} onPress={() => onFurnishedChange(!furnished)} />
+                </SheetGroup>
+                <SheetGroup title="Order results">
+                  <View style={{ borderBottomWidth: 1, borderBottomColor: theme.color.field["200"] }}>
+                    {SORTS.map(([value, label]) => <ChoiceRow key={value} label={label} selected={sort === value} onPress={() => onSortChange(value)} />)}
+                  </View>
+                </SheetGroup>
+              </>
+            ) : null}
+          </ScrollView>
+
+          <View style={{ flexDirection: "row", alignItems: "center", gap: space[3], paddingTop: space[3], paddingHorizontal: space[5], paddingBottom: Math.max(bottomInset, space[4]), borderTopWidth: 1, borderTopColor: theme.color.field["200"], backgroundColor: theme.color.field["50"] }}>
+            <Pressable accessibilityRole="button" onPress={onReset} {...pressableFeedback(theme.color.field["100"])} style={{ minWidth: 72, minHeight: 48, alignItems: "center", justifyContent: "center", borderRadius: 10 }}>
+              <Type variant="bodyStrong" style={{ color: theme.color.kola["600"] }}>Reset</Type>
+            </Pressable>
+            <View style={{ flex: 1 }}><Button label={resultLabel} onPress={onClose} /></View>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
+function SheetGroup({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <View style={{ gap: space[3] }}>
+      <Type variant="bodyStrong">{title}</Type>
+      {children}
+    </View>
+  );
+}
+
+function FilterToggle({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
+  return (
+    <Pressable accessibilityRole="switch" accessibilityState={{ checked: selected }} accessibilityLabel={label} onPress={onPress} {...pressableFeedback(theme.color.field["100"])} style={{ minHeight: 52, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: space[3], paddingHorizontal: space[3], borderWidth: 1, borderColor: selected ? theme.color.kola["300"] : theme.color.field["300"], borderRadius: 10, backgroundColor: selected ? theme.color.kola["50"] : theme.color.field["0"] }}>
+      <Type variant="bodyStrong" style={{ color: selected ? theme.color.kola["800"] : theme.color.ink["900"] }}>{label}</Type>
+      <View style={{ width: 22, height: 22, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: selected ? theme.color.kola["600"] : theme.color.field["300"], borderRadius: 6, backgroundColor: selected ? theme.color.kola["600"] : theme.color.field["0"] }}>
+        {selected ? <Ionicons name="checkmark" size={16} color={theme.color.field["0"]} /> : null}
+      </View>
+    </Pressable>
   );
 }
 
@@ -379,12 +654,18 @@ function CompactFilter({
   label,
   selected = false,
   expanded,
+  disclosure = false,
+  icon,
+  count,
   quiet = false,
   onPress,
 }: {
   label: string;
   selected?: boolean;
   expanded?: boolean;
+  disclosure?: boolean;
+  icon?: keyof typeof Ionicons.glyphMap;
+  count?: number;
   quiet?: boolean;
   onPress: () => void;
 }) {
@@ -403,11 +684,17 @@ function CompactFilter({
         opacity: pressed ? 0.82 : 1,
       })}
     >
+      {icon ? <Ionicons name={icon} size={17} color={selected || expanded ? theme.color.kola["600"] : theme.color.ink["500"]} /> : null}
       <Type
         variant="bodyStrong"
         style={{ color: quiet || selected || expanded ? theme.color.kola["600"] : theme.color.ink["700"] }}
       >{label}</Type>
-      {expanded !== undefined ? (
+      {count ? (
+        <View style={{ minWidth: 21, height: 21, alignItems: "center", justifyContent: "center", paddingHorizontal: 5, borderRadius: 11, backgroundColor: theme.color.kola["600"] }}>
+          <Type variant="label" style={{ color: theme.color.field["0"], fontSize: 10, lineHeight: 12 }}>{count}</Type>
+        </View>
+      ) : null}
+      {expanded !== undefined || disclosure ? (
         <Ionicons
           name={expanded ? "chevron-up" : "chevron-down"}
           size={15}

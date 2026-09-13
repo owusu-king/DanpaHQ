@@ -22,10 +22,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from django.core.cache import cache
 from django.db.models import Q
 from django.utils import timezone
 
+from apps.core.cache import cache_get, cache_set
 from apps.core.exceptions import DomainError
 
 from ..catalogue import UPGRADE_ORDER
@@ -115,16 +115,21 @@ def _plan_values(plan: Plan) -> dict[str, PlanEntitlement]:
     is the one thing worth caching. Keyed on the plan and invalidated by time
     only — a limit raised through the admin is visible within the window, and
     the window is short enough that nobody notices except under load.
+
+    Through `apps.core.cache`, because this is a saved query and nothing more.
+    Reading Django's cache directly meant an unreachable Redis raised from here,
+    and since every entitlement resolves through this function, a cache outage
+    turned Plan & billing — and every limit check behind it — into a 500.
     """
     key = f"billing:plan-values:{plan.pk}"
-    cached = cache.get(key)
+    cached = cache_get(key)
     if cached is not None:
         return cached
     values = {
         row.entitlement.key: row
         for row in PlanEntitlement.objects.filter(plan=plan).select_related("entitlement")
     }
-    cache.set(key, values, 60)
+    cache_set(key, values, 60)
     return values
 
 

@@ -5,25 +5,53 @@
 
 .explore { display: grid; gap: var(--space-5); min-width: 0; }
 
-/* One row of controls, not a sidebar and not a form to submit. */
-.explore-bar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
-.explore-search { position: relative; flex: 1 1 22rem; min-width: 0; }
+/* Search and refinement are one quiet instrument panel. The edge and shallow
+   lift establish that relationship without competing with the listing cards. */
+.explore-discovery {
+  position: relative;
+  z-index: 4;
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background: color-mix(in oklab, var(--background) 97%, var(--color-field-100));
+  border: var(--border-hairline) solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 8px 26px -22px oklch(0.17 0.014 165 / 38%), 0 1px 2px oklch(0.17 0.014 165 / 5%);
+}
+
+.explore-bar { display: flex; min-width: 0; }
+.explore-search { position: relative; flex: 1 1 auto; min-width: 0; }
+.explore-search > .portal-icon {
+  position: absolute;
+  z-index: 1;
+  top: 50%;
+  left: var(--space-4);
+  width: 20px;
+  height: 20px;
+  color: var(--brand);
+  translate: 0 -50%;
+  pointer-events: none;
+}
+.explore-search label { display: block; }
 .explore-search input {
   width: 100%;
-  min-height: 56px;
-  padding: 0 var(--space-5);
+  min-height: 58px;
+  padding: 0 3.25rem 0 3rem;
   color: inherit;
   font: inherit;
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.35;
   background: var(--background);
   border: var(--border-hairline) solid var(--input);
-  border-radius: 999px;
-  box-shadow: 0 1px 2px oklch(0.17 0.014 165 / 4%);
-  transition: border-color 140ms ease, box-shadow 140ms ease;
+  border-radius: 13px;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 50%);
+  transition: border-color 140ms ease, box-shadow 140ms ease, background-color 140ms ease;
 }
 
 .explore-search input::placeholder { color: var(--muted-foreground); }
 
-.explore-search input:hover { border-color: var(--brand); }
+.explore-search input:hover { border-color: color-mix(in oklab, var(--brand) 62%, var(--input)); }
 
 .explore-search input:focus-visible {
   outline: none;
@@ -31,9 +59,32 @@
   box-shadow: 0 0 0 3px color-mix(in oklab, var(--brand) 18%, transparent);
 }
 
+.explore-search-clear {
+  position: absolute;
+  z-index: 2;
+  top: 50%;
+  right: var(--space-3);
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  padding: 0;
+  color: var(--muted-foreground);
+  font: inherit;
+  font-size: 1.35rem;
+  font-weight: 500;
+  line-height: 1;
+  background: transparent;
+  border: 0;
+  border-radius: 50%;
+  translate: 0 -50%;
+  cursor: pointer;
+}
+.explore-search-clear:hover { color: var(--foreground); background: var(--accent); }
+
 .explore-suggestions {
   position: absolute;
-  z-index: 5;
+  z-index: 30;
   top: calc(100% + var(--space-1));
   right: 0;
   left: 0;
@@ -48,9 +99,11 @@
 }
 
 .explore-suggestions button {
-  display: block;
+  display: flex;
   width: 100%;
-  min-height: 48px;
+  min-height: 58px;
+  align-items: center;
+  gap: var(--space-3);
   padding: var(--space-2) var(--space-4);
   color: inherit;
   font: inherit;
@@ -61,23 +114,57 @@
 }
 
 .explore-suggestions button:hover { background: var(--accent); }
-.explore-suggestions span { color: var(--muted-foreground); font-size: .875rem; }
+.explore-suggestions .portal-icon { width: 17px; height: 17px; flex: 0 0 auto; color: var(--brand); }
+.explore-suggestion-copy { display: grid; min-width: 0; color: inherit; font-size: .9375rem; }
+.explore-suggestion-copy > span { color: var(--muted-foreground); font-size: .8125rem; }
 
-.explore-control {
-  min-height: 56px;
-  border-radius: 999px;
-  padding: 0 var(--space-3);
-  color: inherit;
+.explore-quick { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); min-width: 0; }
+.explore-filter-pill,
+.explore-reset-all,
+.explore-show-results,
+.explore-panel-close,
+.explore-clear-all {
   font: inherit;
-  background: var(--background);
-  border: var(--border-hairline) solid var(--input);
-  border-radius: 14px;
   cursor: pointer;
 }
-
-.explore-bar-actions { display: flex; align-items: center; gap: var(--space-3); }
-
-.explore-mobile-filters { display: none; }
+.explore-filter-pill {
+  position: relative;
+  display: inline-flex;
+  min-height: 44px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-4);
+  color: var(--foreground);
+  font-size: .875rem;
+  font-weight: 650;
+  white-space: nowrap;
+  background: var(--background);
+  border: var(--border-hairline) solid var(--input);
+  border-radius: 10px;
+  transition: color 140ms ease, background-color 140ms ease, border-color 140ms ease, translate 140ms ease;
+}
+.explore-filter-pill:hover { border-color: color-mix(in oklab, var(--brand) 55%, var(--input)); translate: 0 -1px; }
+.explore-filter-pill:active { translate: 0 0; }
+.explore-filter-pill.is-active { color: var(--brand); background: var(--brand-tint); border-color: color-mix(in oklab, var(--brand) 72%, var(--input)); }
+.explore-quick-select select { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+.explore-pill-chevron { display: grid; width: 12px; height: 12px; place-items: center; color: transparent; font-size: 0; }
+.explore-pill-chevron::before { content: ""; width: 6px; height: 6px; border-right: 1.5px solid var(--muted-foreground); border-bottom: 1.5px solid var(--muted-foreground); rotate: 45deg; translate: 0 -2px; }
+.explore-more-filters { margin-left: auto; color: var(--brand); }
+.explore-filter-glyph { width: 18px; height: 18px; fill: var(--background); stroke: currentColor; stroke-width: 1.25; }
+.explore-filter-count {
+  display: grid;
+  min-width: 21px;
+  height: 21px;
+  place-items: center;
+  padding: 0 5px;
+  color: var(--background);
+  font-size: .6875rem;
+  line-height: 1;
+  background: var(--brand);
+  border-radius: 999px;
+}
 
 .explore-more {
   min-height: 52px;
@@ -91,35 +178,62 @@
   cursor: pointer;
 }
 
-/* Filters are part of Explore, not a task hidden behind a disclosure. The two
-   quiet rules separate the controls without turning them into another card. */
-.explore-drawer {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
-  gap: var(--space-4);
-  align-items: end;
-  padding: var(--space-4) 0;
-  border-block: var(--border-hairline) solid var(--border);
+.explore-filter-scrim { display: none; }
+.explore-advanced {
+  position: absolute;
+  z-index: 25;
+  top: calc(100% + var(--space-2));
+  right: 0;
+  width: min(100%, 58rem);
+  max-height: min(42rem, calc(100vh - 8rem));
+  overflow: auto;
+  background: var(--background);
+  border: var(--border-hairline) solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 24px 68px -22px oklch(0.17 0.014 165 / 34%);
+  animation: explore-panel-in 180ms cubic-bezier(.2, 0, 0, 1);
 }
+.explore-advanced-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); padding: var(--space-5); border-bottom: var(--border-hairline) solid var(--border); }
+.explore-advanced-head p, .explore-advanced-head h2 { margin: 0; }
+.explore-advanced-head p { color: var(--brand); }
+.explore-panel-close { display: grid; width: 40px; height: 40px; place-items: center; padding: 0; color: var(--muted-foreground); font-size: 1.45rem; background: transparent; border: 0; border-radius: 50%; }
+.explore-panel-close:hover { color: var(--foreground); background: var(--accent); }
+.explore-advanced-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.explore-filter-group { display: grid; align-content: start; gap: var(--space-4); min-width: 0; padding: var(--space-5); border-bottom: var(--border-hairline) solid var(--border); }
+.explore-filter-group:nth-child(odd) { border-right: var(--border-hairline) solid var(--border); }
+.explore-filter-group h3 { margin: 0; }
+.explore-price-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
+.explore-advanced-actions { position: sticky; bottom: 0; display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-4) var(--space-5); background: color-mix(in oklab, var(--background) 96%, var(--color-field-100)); border-top: var(--border-hairline) solid var(--border); }
+.explore-reset-all { min-height: 44px; padding: 0 var(--space-3); color: var(--brand); font-weight: 650; background: transparent; border: 0; border-radius: 10px; }
+.explore-reset-all:hover { background: var(--brand-tint); }
+.explore-show-results { min-height: 46px; padding: 0 var(--space-5); color: var(--background); font-weight: 650; background: var(--foreground); border: 0; border-radius: 10px; box-shadow: 0 6px 16px -10px oklch(0.17 0.014 165 / 45%); }
+.explore-show-results:hover { background: color-mix(in oklab, var(--foreground) 90%, var(--brand)); translate: 0 -1px; }
 
-
-.explore-active { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.explore-feedback { display: flex; min-width: 0; align-items: center; gap: var(--space-3); padding-top: var(--space-1); border-top: var(--border-hairline) solid color-mix(in oklab, var(--border) 72%, transparent); }
+.explore-active { display: flex; min-width: 0; flex: 1 1 auto; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
 .explore-chip {
   display: inline-flex;
-  min-height: 36px;
+  min-height: 32px;
   align-items: center;
   gap: var(--space-2);
-  padding: 0 var(--space-3);
+  padding: 0 .625rem;
   color: var(--brand);
-  font-size: .875rem;
+  font-size: .8125rem;
   font-weight: 600;
   background: var(--brand-tint);
   border: var(--border-hairline) solid var(--brand);
   border-radius: 999px;
   cursor: pointer;
 }
+.explore-chip:hover { background: color-mix(in oklab, var(--brand-tint) 70%, var(--background)); }
+.explore-clear-all { flex: 0 0 auto; min-height: 32px; padding: 0 var(--space-2); color: var(--brand); font-size: .8125rem; font-weight: 650; background: transparent; border: 0; }
+.explore-clear-all:hover { text-decoration: underline; text-underline-offset: 3px; }
+.explore-count { flex: 0 0 auto; margin: 0; color: var(--muted-foreground); font-size: .8125rem; }
 
-.explore-count { color: var(--muted-foreground); font-size: .875rem; }
+@keyframes explore-panel-in {
+  from { opacity: 0; translate: 0 -6px; }
+  to { opacity: 1; translate: 0 0; }
+}
 
 .explore-grid {
   display: grid;
@@ -130,29 +244,129 @@
   list-style: none;
 }
 
-.listing-card { position: relative; display: grid; align-content: start; height: 100%; }
+.listing-card {
+  position: relative;
+  display: grid;
+  align-content: start;
+  height: 100%;
+  overflow: hidden;
+  background: var(--background);
+  border: var(--border-hairline) solid var(--border);
+  border-radius: var(--radius-lg);
+}
 
-/* Geometry only. The frame, the crop and the hover scale come from `.media`
-   in foundation.css so a photograph behaves the same wherever one appears. */
-.listing-card-photo { position: relative; }
-.listing-card-photo-link { position: absolute; inset: 0; display: block; color: inherit; }
-.listing-card-photo-link > span { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted-foreground); font-size: .875rem; }
+/* A wider crop keeps the card image-led without making one result consume an
+   entire mobile viewport. It stays stable before the presigned image arrives. */
+.listing-card-photo { position: relative; aspect-ratio: 16 / 10; border-radius: 0; }
+.listing-card-photo-link {
+  position: absolute;
+  inset: 0;
+  display: block;
+  color: inherit;
+  cursor: grab;
+  touch-action: pan-y;
+  user-select: none;
+}
+.listing-card-photo-link:active { cursor: grabbing; }
+.listing-photo-track {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  will-change: transform;
+  transition: transform 380ms var(--motion-easing-standard);
+}
+.listing-card-photo-link.is-dragging .listing-photo-track { transition: none; }
+.listing-photo-slide { position: relative; height: 100%; flex: 0 0 100%; overflow: hidden; }
+.listing-photo-slide img { width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
+.listing-photo-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  color: var(--muted-foreground);
+  font-size: .8125rem;
+}
+.listing-photo-empty .portal-icon { width: 17px; height: 17px; }
 
-/* Bottom-left, opposite the save control, so the two never collide. */
-.listing-card-badge { position: absolute; z-index: 2; left: var(--space-3); bottom: var(--space-3); font-size: .75rem; }
+.listing-photo-dots {
+  position: absolute;
+  z-index: 2;
+  bottom: var(--space-3);
+  left: 50%;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 7px;
+  background: rgb(22 17 14 / 48%);
+  border-radius: var(--radius-pill);
+  backdrop-filter: blur(5px);
+  translate: -50% 0;
+}
+.listing-photo-dots button {
+  position: relative;
+  display: grid;
+  width: 16px;
+  height: 16px;
+  place-items: center;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+.listing-photo-dots button::after {
+  width: 5px;
+  height: 5px;
+  background: rgb(255 255 255 / 58%);
+  border-radius: 50%;
+  content: "";
+  transition: width var(--motion-duration-fast) var(--motion-easing-standard), background-color var(--motion-duration-fast) var(--motion-easing-standard);
+}
+.listing-photo-dots button[data-current="true"]::after { width: 13px; background: var(--color-field-0); border-radius: var(--radius-pill); }
+
+/* Direction controls belong to the current hover/focus session: they remain
+   usable across several photos, then leave when the pointer leaves. */
+.listing-photo-control {
+  position: absolute;
+  z-index: 3;
+  top: 50%;
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  padding: 0 0 2px;
+  color: var(--color-ink-900);
+  font: 500 1.55rem/1 var(--font-body);
+  background: rgb(255 255 255 / 88%);
+  backdrop-filter: blur(7px);
+  border: var(--border-hairline) solid rgb(255 255 255 / 52%);
+  border-radius: 50%;
+  box-shadow: 0 5px 14px rgb(22 17 14 / 10%);
+  cursor: pointer;
+  opacity: 0;
+  translate: 0 -50%;
+  transition: opacity var(--motion-duration-fast) var(--motion-easing-standard), background-color var(--motion-duration-fast) var(--motion-easing-standard);
+}
+.listing-photo-control.is-previous { left: var(--space-3); }
+.listing-photo-control.is-next { right: var(--space-3); }
+.listing-card-photo:hover .listing-photo-control,
+.listing-photo-control:focus-visible { opacity: .9; }
+.listing-photo-control:hover { background: rgb(255 255 255 / 92%); }
+.listing-photo-control:active { opacity: .7; }
 
 /* Over the photograph, because it belongs to the picture rather than the text. */
 .listing-save {
   position: absolute;
   z-index: 2;
-  top: var(--space-2);
-  right: var(--space-2);
+  top: var(--space-3);
+  right: var(--space-3);
   display: grid;
-  width: 40px;
-  height: 40px;
+  width: 42px;
+  height: 42px;
   place-items: center;
   color: var(--foreground);
-  background: color-mix(in srgb, var(--background) 92%, transparent);
+  background: color-mix(in srgb, var(--background) 90%, transparent);
   backdrop-filter: blur(6px);
   border: 0;
   border-radius: 50%;
@@ -168,20 +382,30 @@
 .listing-save:active { scale: 0.92; transition-timing-function: var(--motion-easing-spring); }
 .listing-save[aria-pressed="true"] { color: var(--destructive); }
 
-.listing-card-body { display: grid; gap: 2px; padding: var(--space-4) 2px 0; }
+.listing-card-body { display: grid; gap: var(--space-2); padding: var(--space-4); }
 .listing-card-body a { color: inherit; text-decoration: none; }
-.listing-card-body a:hover { text-decoration: underline; }
+.listing-card-body a:hover { color: var(--brand); }
+
+.listing-card-price-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-width: 0;
+}
 
 /* The rent, in the display face. It is the number the card exists to carry and
    the one a tenant compares across a page of them, so it gets the voice and the
    tabular figures that make a column of them line up. */
 .listing-price {
-  margin: 0 0 var(--space-1);
+  min-width: 0;
+  margin: 0;
   font-family: var(--font-display);
-  font-size: 1.375rem;
-  font-weight: 600;
-  letter-spacing: -0.02em;
+  font-size: clamp(1.25rem, 2vw, 1.5rem);
+  font-weight: 650;
+  letter-spacing: -0.03em;
   font-variant-numeric: tabular-nums;
+  line-height: 1.15;
 }
 .listing-price span {
   color: var(--muted-foreground);
@@ -189,9 +413,24 @@
   font-size: .8125rem;
   font-weight: 400;
   letter-spacing: 0;
+  white-space: nowrap;
 }
-.listing-card-headline { margin: 0 0 var(--space-1); }
-.listing-card-where, .listing-card-facts { color: var(--muted-foreground); font-size: .875rem; }
+.listing-advance {
+  flex: 0 0 auto;
+  margin: 0;
+  color: var(--color-ink-700);
+  font-size: .78rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.listing-card-headline {
+  margin: var(--space-1) 0 0;
+  color: var(--foreground);
+  font-size: 1rem;
+  font-weight: 650;
+  letter-spacing: -.01em;
+  line-height: 1.35;
+}
 
 /* Card-scoped names. The listing *detail* page also defines `.listing-where`
    and `.listing-terms`, and its stylesheet loads second — the card's row was
@@ -202,27 +441,51 @@
    The pin sits on the line rather than above it, at the size of the text it
    belongs to: the shared set draws at 20px for a navigation rail, which on a
    caption is a badge rather than a mark. */
-.listing-card-where { display: flex; align-items: center; gap: var(--space-1); }
+.listing-card-where {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  margin: calc(var(--space-1) * -1) 0 0;
+  color: var(--muted-foreground);
+  font-size: .825rem;
+}
+.listing-card-where span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* Quieter than the line it sits on, deliberately. The pin is orientation, not
    information — the place name beside it is the thing being read — so it is
    mixed back from the caption colour rather than sharing it. It briefly did
    share it, which flattened the row into one grey. */
-.listing-card-where .portal-icon { width: 15px; height: 15px; flex: 0 0 auto; color: color-mix(in oklab, var(--muted-foreground) 58%, transparent); }
+.listing-card-where .portal-icon { width: 14px; height: 14px; flex: 0 0 auto; color: color-mix(in oklab, var(--muted-foreground) 58%, transparent); }
 
-/* Trust and cost, weighed against each other. Stacked they were two more short
-   rows on a card that is scanned, not read. */
-.listing-card-terms {
+.listing-card-facts {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0;
+  min-height: 1.25rem;
+  margin: var(--space-1) 0 0;
+  padding: 0;
+  color: var(--color-ink-700);
+  font-size: .8rem;
+  list-style: none;
+}
+.listing-card-facts li { display: inline-flex; align-items: center; }
+.listing-card-facts li + li::before { margin-inline: .45rem; color: var(--color-ink-300); content: "·"; }
+
+.listing-card-trust {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
-  margin: 0;
+  min-width: 0;
+  margin-top: var(--space-1);
+  padding-top: var(--space-3);
+  color: var(--muted-foreground);
+  font-size: .75rem;
+  border-top: var(--border-hairline) solid var(--color-field-200);
 }
-.listing-advance { color: var(--foreground); font-size: .875rem; }
-
-/* Verification is reassurance, not the headline. One quiet mark, never a row of
-   stamps competing with the price. */
-.listing-verified { display: inline-flex; align-items: center; gap: var(--space-1); color: var(--brand); font-size: .8125rem; font-weight: 600; }
+.listing-card-trust > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.listing-verified { display: inline-flex; flex: 0 0 auto; align-items: center; gap: var(--space-1); color: var(--brand); font-weight: 650; }
 /* `portal.css` colours every icon ink-500 for the navigation rail. Outside
    it, an icon belongs to the thing it labels and should take its colour —
    the verified shield was rendering grey beside green text. */
@@ -231,13 +494,17 @@
 .explore-empty { display: grid; gap: var(--space-3); justify-items: start; padding: var(--space-8) 0; }
 
 .explore-search input:focus-visible,
-.explore-control:focus-visible,
+.explore-search-clear:focus-visible,
 .explore-filter-pill:focus-visible,
-.explore-filter-reset:focus-visible,
-.explore-price-done:focus-visible,
+.explore-panel-close:focus-visible,
+.explore-reset-all:focus-visible,
+.explore-show-results:focus-visible,
+.explore-clear-all:focus-visible,
 .explore-more:focus-visible,
 .explore-chip:focus-visible,
 .listing-save:focus-visible,
+.listing-photo-control:focus-visible,
+.listing-photo-dots button:focus-visible,
 .listing-card-photo-link:focus-visible,
 .listing-card-body a:focus-visible {
   outline: var(--border-emphasis) solid var(--foreground);
@@ -245,18 +512,24 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .explore-advanced { animation: none; }
+  .explore-filter-pill, .explore-show-results { transition: none; }
   .listing-save { transition: none; }
   .listing-save:hover, .listing-save:active { scale: 1; }
+  .listing-photo-track, .listing-photo-control, .listing-photo-dots button::after { transition: none; }
 }
 
-/* Desktop keeps the full comparison rail. Smaller web layouts use a horizontal
-   run of closed controls: visible enough to discover, compact enough that the
-   first rental remains close. */
+@media (pointer: coarse) {
+  .listing-photo-control { opacity: .86; }
+}
+
+/* Tablet and phone widths keep the quick choices in one thumb-reachable rail.
+   The complete set becomes a true bottom sheet rather than inserting a form
+   between the controls and the listings. */
 @media (max-width: 63.999rem) {
-  .explore-bar-actions { display: none; }
-  .explore-drawer { display: none; }
-  .explore-mobile-filters { display: grid; gap: var(--space-3); min-width: 0; }
-  .explore-filter-rail {
+  .explore-discovery { gap: var(--space-3); padding: var(--space-3); }
+  .explore-quick {
+    flex-wrap: nowrap;
     display: flex;
     gap: var(--space-2);
     padding: 1px 1px var(--space-1);
@@ -265,50 +538,68 @@
     scrollbar-width: none;
     -webkit-overflow-scrolling: touch;
   }
-  .explore-filter-rail::-webkit-scrollbar { display: none; }
-  .explore-filter-pill,
-  .explore-filter-reset {
-    position: relative;
-    display: inline-flex;
-    min-height: 46px;
-    flex: 0 0 auto;
-    align-items: center;
-    justify-content: center;
-    gap: var(--space-2);
-    padding: 0 var(--space-4);
-    color: var(--foreground);
-    font: inherit;
-    font-size: .9375rem;
-    font-weight: 600;
-    white-space: nowrap;
-    background: var(--background);
-    border: var(--border-hairline) solid var(--input);
-    border-radius: 14px;
-    cursor: pointer;
+  .explore-quick::-webkit-scrollbar, .explore-active::-webkit-scrollbar { display: none; }
+  .explore-more-filters { margin-left: 0; }
+  .explore-filter-pill { min-height: 42px; padding: 0 var(--space-3); }
+  .explore-filter-scrim {
+    position: fixed;
+    z-index: 69;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+    padding: 0;
+    background: oklch(0.12 0.012 70 / 43%);
+    border: 0;
   }
-  .explore-filter-pill.is-active { color: var(--brand); background: var(--brand-tint); border-color: var(--brand); }
-  .explore-pill-chevron { margin-top: -3px; color: var(--muted-foreground); font-size: 1rem; line-height: 1; }
-  .explore-mobile-select select { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
-  .explore-filter-reset { color: var(--brand); background: transparent; border-color: transparent; }
-  .explore-mobile-price {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: var(--space-3);
-    align-items: end;
-    padding: var(--space-4);
-    background: var(--background);
-    border: var(--border-hairline) solid var(--border);
-    border-radius: 14px;
-    box-shadow: 0 10px 28px rgb(15 24 20 / .06);
+  .explore-advanced {
+    position: fixed;
+    z-index: 70;
+    top: auto;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    max-height: min(88dvh, 48rem);
+    border-width: var(--border-hairline) 0 0;
+    border-radius: 18px 18px 0 0;
+    animation-name: explore-sheet-in;
   }
-  .explore-price-done { min-height: 48px; padding: 0 var(--space-4); color: var(--background); font: inherit; font-weight: 650; background: var(--brand); border: 0; border-radius: 14px; cursor: pointer; }
-  .explore-active { display: none; }
+  .explore-advanced-grid { grid-template-columns: minmax(0, 1fr); }
+  .explore-filter-group, .explore-filter-group:nth-child(odd) { border-right: 0; }
+  .explore-feedback { align-items: flex-start; flex-direction: column; gap: var(--space-2); }
+  .explore-active {
+    width: 100%;
+    flex-wrap: nowrap;
+    padding-bottom: 1px;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+  }
+  .explore-clear-all { position: sticky; right: 0; background: var(--background); }
 }
 
 @media (max-width: 700px) {
-  .explore-bar { align-items: stretch; flex-direction: column; }
-  .explore-search { flex: none; width: 100%; }
-  .explore-mobile-price { grid-template-columns: minmax(0, 1fr); }
-  .explore-price-done { width: 100%; }
+  .explore-search input { min-height: 54px; padding-left: 2.75rem; font-size: .9375rem; }
+  .explore-search > .portal-icon { left: var(--space-3); width: 18px; height: 18px; }
+  .explore-advanced-head, .explore-filter-group { padding: var(--space-4); }
+  .explore-price-fields { grid-template-columns: minmax(0, 1fr); }
+  .explore-advanced-actions { padding: var(--space-3) var(--space-4) max(var(--space-3), env(safe-area-inset-bottom)); }
   .explore-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr)); gap: var(--space-4); }
+}
+
+@keyframes explore-sheet-in {
+  from { opacity: .75; translate: 0 24px; }
+  to { opacity: 1; translate: 0 0; }
+}
+
+/* At legacy-phone widths the three financial fragments cannot remain on one
+   line without reading as one run-on amount. Preserve their relationship, but
+   let the advance sit immediately below the price instead of shrinking either
+   into illegibility. */
+@media (max-width: 23.5rem) {
+  .listing-card-body { gap: .4rem; padding: .875rem; }
+  .listing-card-price-row { align-items: flex-start; flex-direction: column; gap: .2rem; }
+  .listing-price { font-size: 1.2rem; }
+  .listing-advance { font-size: .75rem; }
 }

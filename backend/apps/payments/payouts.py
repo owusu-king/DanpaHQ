@@ -32,12 +32,12 @@ import re
 from datetime import timedelta
 
 from django.conf import settings
-from django.core.cache import cache
 from django.db import connection, transaction
 from django.utils import timezone
 
 from apps.audit.models import AuditAction
 from apps.audit.services import record
+from apps.core.cache import cache_get, cache_set
 from apps.core.events import DomainEvent
 from apps.core.exceptions import (
     Conflict,
@@ -189,13 +189,19 @@ def refresh_payout_verification(*, organization, user, profile_id=None) -> Payou
 
 
 def payout_institutions(*, organization, user, method: str) -> list[dict]:
-    """Paystack's active Ghana institutions, cached as non-sensitive reference data."""
+    """Paystack's active Ghana institutions, cached as non-sensitive reference data.
+
+    Read through `apps.core.cache`: the list comes from Paystack, so an
+    unreachable cache means asking Paystack again — slower, and the right
+    answer. Reading Django's cache directly meant a dead Redis raised from here
+    and the payout-account screen answered 500 instead.
+    """
     assert_may_manage_payouts(organization=organization, user=user)
     method = str(method or "").strip()
     if method not in PayoutMethod.values:
         raise ValidationFailed("Choose Mobile Money or a bank account.")
     cache_key = f"payments:payout-institutions:paystack:ghana:{method}:v1"
-    cached = cache.get(cache_key)
+    cached = cache_get(cache_key)
     if isinstance(cached, list):
         return cached
     provider = get_payment_provider("paystack")
@@ -206,7 +212,7 @@ def payout_institutions(*, organization, user, method: str) -> list[dict]:
         {"code": row.code, "name": row.name, "method": row.method}
         for row in provider.list_payout_institutions(method=method)
     ]
-    cache.set(
+    cache_set(
         cache_key,
         rows,
         timeout=int(getattr(settings, "PAYOUT_INSTITUTION_CACHE_SECONDS", 21600)),
@@ -236,7 +242,10 @@ def resolve_payout_account(
         account_number=account_number,
     )
     cache_key = f"payments:payout-resolution:paystack:{fingerprint}:v1"
-    cached = cache.get(cache_key)
+    # Same rule as the institution list, with one extra consequence: without the
+    # cache each confirmation is another Paystack resolution call. That is a
+    # cost, not a wrong answer, and it beats refusing to confirm an account.
+    cached = cache_get(cache_key)
     if isinstance(cached, dict):
         return cached
     provider = get_payment_provider("paystack")
@@ -252,7 +261,7 @@ def resolve_payout_account(
         "account_name": result.account_name,
         "masked_account": result.masked_account,
     }
-    cache.set(
+    cache_set(
         cache_key,
         response,
         timeout=int(getattr(settings, "PAYOUT_ACCOUNT_RESOLUTION_CACHE_SECONDS", 3600)),

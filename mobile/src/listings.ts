@@ -17,6 +17,12 @@ export type ListingMedia = {
   download_url: string | null;
 };
 
+export type ListingCardMedia = {
+  file_id: string;
+  caption: string;
+  download_url: string;
+};
+
 export type Listing = {
   id: string;
   unit: string;
@@ -38,10 +44,13 @@ export type Listing = {
   /** The one photograph a card shows: the Unit's own primary image, then the
    *  campaign's. `media` is optional campaign media and is usually empty. */
   cover_url: string | null;
+  card_media: ListingCardMedia[];
+  amenities: { id: string; name: string; category: string; icon: string }[];
   locality_name: string | null;
   district_name: string | null;
   landmark: string | null;
   property_type: string | null;
+  space_type: string | null;
   bedrooms: number | null;
   bathrooms: number | null;
   is_furnished: boolean | null;
@@ -79,7 +88,9 @@ export type SearchFilters = {
   q?: string;
   locality_id?: string;
   property_type?: string;
+  space_type?: string;
   bedrooms_min?: number;
+  rent_min?: number;
   rent_max?: number;
   /** The one that actually decides things: months of advance a tenant can raise. */
   advance_max?: number;

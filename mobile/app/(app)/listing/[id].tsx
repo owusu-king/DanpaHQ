@@ -408,6 +408,7 @@ export default function ListingDetailScreen() {
                   <View key={item.id} style={{ width: Math.min(Math.round(width * 0.78), 300) }}>
                     <ListingCard
                       listing={item}
+                      photoSwipe={false}
                       onPress={() => router.push({
                         pathname: "/(app)/listing/[id]",
                         params: { id: item.id },

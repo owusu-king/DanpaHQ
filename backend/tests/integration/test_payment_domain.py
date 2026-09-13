@@ -1347,6 +1347,69 @@ class TestPayoutDestination:
         assert resolved["Cache-Control"] == "private, no-store"
         assert calls == {"list": 1, "resolve": 1}
 
+    def test_payout_setup_survives_an_unreachable_cache(self, landlord, portfolio, monkeypatch):
+        """Redis died with a corrupt append-only file, and Plan & billing 500ed.
+
+        These two reads had the same shape — `cache.get` on the way to a
+        Paystack call — so an unreachable cache would have refused to list a
+        bank or confirm an account name. Both come from Paystack, so losing the
+        cache costs a provider call and nothing else.
+        """
+        from django.core.cache import cache as django_cache
+
+        organization, _ = portfolio
+        calls = {"list": 0, "resolve": 0}
+
+        class Provider:
+            name = "paystack"
+
+            def initiate(self, *, intent):
+                return InitiationResult(provider_reference="")
+
+            def list_payout_institutions(self, *, method):
+                calls["list"] += 1
+                return (ProviderPayoutInstitution(code="040", name="GCB Bank", method=method),)
+
+            def resolve_payout_account(self, **kwargs):
+                calls["resolve"] += 1
+                return ProviderResolvedPayoutAccount(
+                    account_name="OSU PROPERTIES",
+                    masked_account="****** 6047",
+                )
+
+        def unreachable(*args, **kwargs):
+            raise OSError("[Errno -2] Name or service not known")
+
+        # The proxy every module imports, so the cache is gone for the whole
+        # process rather than for one module's name for it.
+        monkeypatch.setattr(django_cache, "get", unreachable)
+        monkeypatch.setattr(django_cache, "set", unreachable)
+
+        api = APIClient()
+        api.force_authenticate(user=landlord)
+        institutions_url = f"/api/v1/organizations/{organization.id}/payout-institutions/"
+        resolve_url = f"/api/v1/organizations/{organization.id}/payout-destination/resolve/"
+        body = {"method": "bank", "bank_code": "040", "account_number": "0123456047"}
+        with patch("apps.payments.payouts.get_payment_provider", return_value=Provider()):
+            institutions = api.get(institutions_url, {"method": "bank"})
+            again = api.get(institutions_url, {"method": "bank"})
+            resolved = api.post(resolve_url, body, format="json")
+
+        assert institutions.status_code == 200, institutions.data
+        assert institutions.data["results"] == [
+            {"code": "040", "name": "GCB Bank", "method": "bank"}
+        ]
+        assert again.data == institutions.data
+        assert resolved.status_code == 200, resolved.data
+        assert resolved.data == {
+            "account_name": "OSU PROPERTIES",
+            "masked_account": "****** 6047",
+        }
+        assert "0123456047" not in json.dumps(resolved.data)
+        # The degradation, stated: every read reaches Paystack while the cache
+        # is down, where one call each would have served both requests.
+        assert calls == {"list": 2, "resolve": 1}
+
 
 class TestPaystackSplitRouting:
     @override_settings(

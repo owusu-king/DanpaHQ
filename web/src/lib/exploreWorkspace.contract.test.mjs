@@ -55,29 +55,36 @@ test("desktop Explore gives each rental one of three generous columns", () => {
   );
 });
 
-test("filters open on PC and become a closed horizontal control rail on smaller screens", () => {
+test("search and filters form one responsive discovery system", () => {
   const browser = read("web/src/components/listings/ListingBrowser.tsx");
   const css = read("web/src/styles/explore-workspace.css");
+  const mobile = read("mobile/app/(app)/search.tsx");
 
   // The old page was a bordered form with a Search button: every adjustment
   // was a round trip through submit.
   assert.doesNotMatch(browser, /type="submit"/);
   assert.doesNotMatch(browser, /onSubmit/);
-  assert.match(browser, /className="explore-filter-rail"/);
-  assert.match(browser, /function MobileSelectFilter/);
-  assert.match(browser, /aria-controls="explore-mobile-price"/);
-  assert.doesNotMatch(browser, /<Modal|filtersOpen/);
-  // The base rule is the PC experience. Below 64rem only compact, closed
-  // controls are visible; the full field grid remains out of the first paint.
-  assert.match(css, /\.explore-drawer \{[\s\S]{0,180}display: grid/);
-  assert.match(css, /@media \(max-width: 63\.999rem\)[\s\S]{0,180}\.explore-drawer \{ display: none; \}/);
-  assert.match(css, /@media \(max-width: 63\.999rem\)[\s\S]{0,260}\.explore-mobile-filters \{ display: grid/);
-  assert.match(css, /\.explore-filter-rail \{[\s\S]{0,240}overflow-x: auto/);
-  assert.match(css, /\.explore-search \{ flex: none; width: 100%; \}/);
+  assert.match(browser, /className="explore-discovery"/);
+  assert.match(browser, /Search by location or property/);
+  assert.match(browser, /aria-label="Quick rental filters"/);
+  assert.match(browser, /function QuickSelectFilter/);
+  assert.match(browser, /className="explore-advanced"/);
+  assert.match(browser, /className="explore-filter-scrim"/);
+  // One anchored desktop panel becomes a bottom sheet on narrow web layouts.
+  assert.match(css, /\.explore-advanced \{[\s\S]{0,180}position: absolute/);
+  assert.match(css, /@media \(max-width: 63\.999rem\)[\s\S]{0,1600}\.explore-advanced \{[\s\S]{0,100}position: fixed/);
+  assert.match(css, /@media \(max-width: 63\.999rem\)[\s\S]{0,700}\.explore-quick \{[\s\S]{0,240}overflow-x: auto/);
   assert.match(browser, /explore-chip/);
   assert.match(browser, /Clear all/);
+  // Native uses the same hierarchy, with its complete set in a true sheet.
+  assert.match(mobile, /function SearchBox/);
+  assert.match(mobile, /function FilterSheet/);
+  assert.match(mobile, /<Modal visible=\{visible\} transparent animationType="slide"/);
+  assert.match(mobile, /label="Filters"/);
+  assert.match(mobile, /ActiveFilter/);
   // A newer answer must win even when an older request is slower.
   assert.match(browser, /requestId\.current/);
+  assert.match(mobile, /requestId\.current/);
 });
 
 test("place leads, because that is the first question", () => {
@@ -88,9 +95,23 @@ test("place leads, because that is the first question", () => {
   assert.match(browser, /locality_id/);
   assert.match(mobile, /searchLocalities/);
   assert.match(mobile, /locality_id/);
+  // Free text must be sent when no suggested locality has been chosen.
+  assert.match(mobile, /q: locality \? undefined : place\.trim\(\) \|\| undefined/);
   // Advance is a first-class control on both, not a hidden backend field.
   assert.match(browser, /advance_max/);
   assert.match(mobile, /advance_max/);
+});
+
+test("property and unit filters use the backend-owned vocabulary on both clients", () => {
+  const browser = read("web/src/components/listings/ListingBrowser.tsx");
+  const mobile = read("mobile/app/(app)/search.tsx");
+
+  for (const source of [browser, mobile]) {
+    assert.match(source, /loadPropertyTypes/);
+    assert.match(source, /property_type/);
+    assert.match(source, /space_type/);
+    assert.match(source, /Property &amp; unit|Property & unit/);
+  }
 });
 
 test("sorting exists and is the backend's, not the client's", () => {
@@ -120,15 +141,23 @@ test("saving is offered where it can work, and reverts when it fails", () => {
   }
 });
 
-test("trust and cost share a row, and each fact carries its own mark", () => {
+test("the card follows the rental decision hierarchy without badge clutter", () => {
   const card = read("web/src/components/listings/ListingCard.tsx");
+  const mobileCard = read("mobile/src/components/listings/ListingCard.tsx");
   const css = read("web/src/styles/explore-workspace.css");
 
-  // Verified and the advance were two stacked rows of a card that is scanned,
-  // not read. They are the two things weighed against each other before
-  // opening anything, so they sit on one line.
-  assert.match(card, /className="listing-card-terms"/);
-  assert.match(css, /\.listing-card-terms \{[\s\S]{0,160}justify-content: space-between/);
+  // Cost and its important Ghana-specific advance term are considered
+  // together, while trust closes the card instead of competing on the photo.
+  assert.match(card, /className="listing-card-price-row"/);
+  assert.match(css, /\.listing-card-price-row \{[\s\S]{0,160}justify-content: space-between/);
+  assert.ok(card.indexOf("listing-card-price-row") < card.indexOf("listing-card-headline"));
+  assert.ok(card.indexOf("listing-card-headline") < card.indexOf("listing-card-where"));
+  assert.ok(card.indexOf("listing-card-where") < card.indexOf("listing-card-facts"));
+  assert.ok(card.indexOf("listing-card-facts") < card.indexOf("listing-card-trust"));
+  assert.ok(mobileCard.indexOf("styles.priceRow") < mobileCard.indexOf("styles.headline"));
+  assert.ok(mobileCard.indexOf("styles.headline") < mobileCard.indexOf("styles.location"));
+  assert.ok(mobileCard.indexOf("styles.location") < mobileCard.indexOf("styles.facts"));
+  assert.ok(mobileCard.indexOf("styles.facts") < mobileCard.indexOf("styles.trust"));
 
   // The shield is the glyph verification already wears in the navigation, so
   // the mark means one thing across the product rather than two.
@@ -143,6 +172,53 @@ test("trust and cost share a row, and each fact carries its own mark", () => {
   assert.match(read("web/src/styles/listing-workspace.css"), /\.listing-where \{ display: grid/);
 
   // 20px is a navigation size; on a caption it is a badge.
-  assert.match(css, /\.listing-card-where \.portal-icon \{ width: 15px/);
+  assert.match(css, /\.listing-card-where \.portal-icon \{ width: 14px/);
   assert.match(css, /\.listing-verified \.portal-icon \{ width: 15px/);
+});
+
+test("mobile photos swipe inside the feed without making the API card heavy", () => {
+  const serializer = read("backend/apps/listing/serializers.py");
+  const webCard = read("web/src/components/listings/ListingCard.tsx");
+  const mobileCard = read("mobile/src/components/listings/ListingCard.tsx");
+  const related = read("mobile/app/(app)/listing/[id].tsx");
+  const css = read("web/src/styles/explore-workspace.css");
+
+  assert.match(serializer, /card_media = serializers\.SerializerMethodField\(\)/);
+  assert.match(serializer, /if len\(items\) == 5:[\s\S]{0,40}break/);
+  assert.match(mobileCard, /horizontal/);
+  assert.match(mobileCard, /pagingEnabled/);
+  assert.match(mobileCard, /directionalLockEnabled/);
+  assert.match(mobileCard, /nestedScrollEnabled/);
+  assert.match(mobileCard, /snapToInterval=\{mediaWidth\}/);
+  assert.doesNotMatch(mobileCard, /contentOffset=/);
+  assert.match(webCard, /onPointerDown=\{startSwipe\}/);
+  assert.match(webCard, /onPointerMove=\{moveSwipe\}/);
+  assert.match(webCard, /onPointerUp=\{finishSwipe\}/);
+  assert.match(webCard, /className="listing-photo-track"/);
+  // Direction controls remain discoverable and hide after use instead of
+  // lingering because a pointer click left focus behind.
+  for (const source of [webCard, mobileCard]) {
+    assert.match(source, /Previous photo/);
+    assert.match(source, /Next photo/);
+  }
+  assert.doesNotMatch(webCard, /controlsSuppressed/);
+  assert.doesNotMatch(css, /controls-suppressed/);
+  assert.match(mobileCard, /Animated\.timing\(controlsOpacity/);
+  assert.match(mobileCard, /pointerEvents=\{controlsInteractive \? "box-none" : "none"\}/);
+  // The related-rental rail is already horizontal, so it deliberately avoids
+  // a horizontal gesture nested inside another horizontal gesture.
+  assert.match(related, /photoSwipe=\{false\}/);
+  assert.match(css, /aspect-ratio: 16 \/ 10/);
+});
+
+test("saved cards keep the same heart interaction and optimistically remove", () => {
+  const webSaved = read("web/app/saved/page.tsx");
+  const mobileSaved = read("mobile/app/(app)/saved.tsx");
+
+  for (const source of [webSaved, mobileSaved]) {
+    assert.match(source, /unsave/i);
+    assert.match(source, /saved/);
+    assert.match(source, /onSave/);
+    assert.match(source, /setItems|setSaved/);
+  }
 });

@@ -806,6 +806,12 @@ export type ListingMedia = {
   download_url: string | null;
 };
 
+export type ListingCardMedia = {
+  file_id: string;
+  caption: string;
+  download_url: string;
+};
+
 export type Listing = {
   id: string;
   unit: string;
@@ -829,6 +835,8 @@ export type Listing = {
   /** The one photograph a card shows: the Unit's own primary image, then the
    *  campaign's. `media` is optional campaign media and is usually empty. */
   cover_url: string | null;
+  card_media: ListingCardMedia[];
+  amenities: Array<{ id: string; name: string; category: string; icon: string }>;
   locality_name: string | null;
   district_name: string | null;
   landmark: string | null;

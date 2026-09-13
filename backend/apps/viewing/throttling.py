@@ -1,10 +1,15 @@
-"""Brute-force bounds for temporary viewing check-in credentials."""
+"""Brute-force bounds for temporary viewing check-in credentials.
 
-from rest_framework.throttling import SimpleRateThrottle
+A check-in code is a credential, so these fail closed when the cache is
+unreachable; see `apps.core.throttling`.
+"""
+
+from apps.core.throttling import CacheAwareRateThrottle
 
 
-class ViewingCheckInUserThrottle(SimpleRateThrottle):
+class ViewingCheckInUserThrottle(CacheAwareRateThrottle):
     scope = "viewing_checkin_user"
+    fail_open = False
 
     def get_cache_key(self, request, view):
         user = getattr(request, "user", None)
@@ -13,8 +18,9 @@ class ViewingCheckInUserThrottle(SimpleRateThrottle):
         return self.cache_format % {"scope": self.scope, "ident": str(user.id)}
 
 
-class ViewingCheckInIpThrottle(SimpleRateThrottle):
+class ViewingCheckInIpThrottle(CacheAwareRateThrottle):
     scope = "viewing_checkin_ip"
+    fail_open = False
 
     def get_cache_key(self, request, view):
         return self.cache_format % {"scope": self.scope, "ident": self.get_ident(request)}

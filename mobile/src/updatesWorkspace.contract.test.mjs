@@ -43,16 +43,21 @@ test("the feed is rows, and unread does not depend on colour", () => {
   assert.match(screen, /Unread/);
 });
 
-test("Explore uses a horizontal quick-filter rail with one inline control at a time", () => {
+test("Explore keeps quick filters close and puts the complete set in a bottom sheet", () => {
   const search = read("mobile/app/(app)/search.tsx");
 
-  // The closed filters remain visible and thumb-reachable. Opening one reveals
-  // only its choices, rather than replacing Explore with a full-page modal.
+  // The closed filters remain visible and thumb-reachable. More detailed work
+  // leaves the listing rhythm intact in one dismissible bottom sheet.
   assert.match(search, /horizontal[\s\S]{0,180}accessibilityRole="toolbar"/);
   assert.match(search, /function CompactFilter/);
   assert.match(search, /function FilterChip/);
   assert.match(search, /function ChoiceRow/);
+  assert.match(search, /function FilterSheet/);
+  assert.match(search, /<Modal visible=\{visible\} transparent animationType="slide"/);
+  assert.match(search, /label="Filters"/);
+  assert.match(search, /resultLabel/);
+  assert.match(search, /function ActiveFilter/);
   assert.match(search, /accessibilityRole="radio"/);
-  assert.match(search, /filtering === "price"/);
-  assert.doesNotMatch(search, /<Modal|presentationStyle=|<Switch/);
+  assert.match(search, /q: locality \? undefined : place\.trim\(\) \|\| undefined/);
+  assert.doesNotMatch(search, /presentationStyle=/);
 });

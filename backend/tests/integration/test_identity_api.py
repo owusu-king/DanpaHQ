@@ -38,6 +38,35 @@ class TestPublicEndpoints:
         assert response.status_code == 201
         assert "challenge_id" in response.data
 
+    def test_a_limiter_that_cannot_count_refuses_instead_of_allowing(self, api, sms, monkeypatch):
+        """The sign-in surface fails closed when its cache is unreachable.
+
+        DRF reads throttle history straight from the cache, so a dead Redis used
+        to raise from inside `allow_request` and every throttled endpoint
+        answered 500. Two things were wrong with that: the person was told it
+        was a bug on our side with no way forward, and the alternative anybody
+        reaching for a quick fix would pick — swallow it and carry on — would
+        have left unlimited code guessing on the one surface these limits exist
+        to protect.
+
+        So: 503, ours, retryable, and no code goes out. `apps.core.throttling`
+        is where that choice is written down, per scope.
+        """
+        from django.core.cache import cache
+
+        def unreachable(*args, **kwargs):
+            raise OSError("[Errno -2] Name or service not known")
+
+        monkeypatch.setattr(cache, "get", unreachable)
+        monkeypatch.setattr(cache, "set", unreachable)
+
+        response = api.post("/api/v1/auth/challenge/", {"phone": "0241234599"}, format="json")
+
+        assert response.status_code == 503
+        assert response.data["error"]["code"] == "provider_unavailable"
+        assert response.data["error"]["details"]["reason"] == "rate_limit_unavailable"
+        assert sms.outbox == []
+
     def test_the_response_never_reveals_whether_an_account_exists(self, api, user, sms):
         known = api.post("/api/v1/auth/challenge/", {"phone": user.phone}, format="json")
         unknown = api.post("/api/v1/auth/challenge/", {"phone": "0248889999"}, format="json")

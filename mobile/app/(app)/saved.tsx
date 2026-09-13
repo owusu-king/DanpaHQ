@@ -4,7 +4,7 @@ import { FlatList, RefreshControl, View } from "react-native";
 
 import { ApiFailure } from "@/api";
 import { Notice, Surface, Type, space } from "@/components/ui";
-import { listSaved, type SavedListing } from "@/listings";
+import { listSaved, type SavedListing, unsaveListing } from "@/listings";
 import { theme } from "@/theme";
 import { ListingCard } from "@/components/listings/ListingCard";
 
@@ -37,6 +37,21 @@ export default function SavedScreen() {
     void load();
   }, [load]);
 
+  const removeSaved = useCallback(async (listingId: string) => {
+    if (!items) return;
+    const previous = items;
+    setItems((current) => current?.filter((item) => item.listing.id !== listingId) ?? []);
+    setError("");
+    try {
+      await unsaveListing(listingId);
+    } catch (cause) {
+      setItems(previous);
+      setError(
+        cause instanceof ApiFailure ? cause.error.message : "We could not update your shortlist.",
+      );
+    }
+  }, [items]);
+
   return (
     <FlatList
       data={items ?? []}
@@ -63,6 +78,8 @@ export default function SavedScreen() {
         <View style={{ gap: space[2] }}>
           <ListingCard
             listing={item.listing}
+            saved
+            onSave={() => void removeSaved(item.listing.id)}
             onPress={() => router.push({ pathname: "/(app)/listing/[id]", params: { id: item.listing.id } })}
           />
           {item.note ? (

@@ -130,6 +130,40 @@ class TestEveryPortfolioStartsOnFree:
         assert entitlement_service.current_plan(organization=mine).code == "PRO"
         assert entitlement_service.current_plan(organization=theirs).code == "BUSINESS"
 
+    def test_a_cache_outage_is_a_slow_read_and_not_a_broken_page(
+        self, landlord, portfolio, monkeypatch
+    ):
+        """Redis went down with a corrupt append-only file and Plan & billing
+        answered 500 for every Portfolio.
+
+        A plan's packaging is cached because it is read on nearly every write,
+        and `cache.get` raising took the whole billing read with it — the page,
+        the usage figures and every limit check behind them. The cache is a
+        saved query, so losing it must cost the query and nothing else.
+        """
+
+        from django.core.cache import cache
+
+        def unreachable(*args, **kwargs):
+            raise OSError("[Errno -2] Name or service not known")
+
+        # The proxy every module imports, so this breaks the cache for the
+        # whole process rather than for one module's name for it — a test that
+        # patched `apps.core.cache.cache` would have passed against the direct
+        # `cache.get` call this replaced.
+        monkeypatch.setattr(cache, "get", unreachable)
+        monkeypatch.setattr(cache, "set", unreachable)
+
+        snapshot = entitlement_service.snapshot(organization=portfolio)
+
+        assert snapshot["plan"]["code"] == "FREE"
+        assert snapshot["limits"], "no limits resolved without the cache"
+        # And the answers are the real ones, read from the plan itself.
+        assert (
+            entitlement_service.grant(organization=portfolio, key="PROPERTY_LIMIT").plan_code
+            == "FREE"
+        )
+
     def test_assignment_is_idempotent(self, landlord, portfolio):
         """A backfill or a repair must not produce a second subscription."""
         subscription_service.ensure_free_subscription(organization=portfolio)

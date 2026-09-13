@@ -4,7 +4,6 @@ from datetime import timedelta
 from typing import ClassVar
 
 from django.conf import settings
-from django.core.cache import cache
 from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
@@ -18,6 +17,7 @@ from apps.audit.services import record
 from apps.core.context import get_context
 from apps.core.exceptions import Conflict, NotFound, PermissionDenied, RateLimited
 from apps.core.phone import mask
+from apps.core.throttling import count_attempt
 from apps.idempotency.services import idempotent_mutation
 
 from . import services
@@ -72,12 +72,16 @@ class LoginView(APIView):
         if origin and origin not in settings.CORS_ALLOWED_ORIGINS:
             raise PermissionDenied("This Management sign-in origin is not allowed.")
 
+        # Twenty attempts in fifteen minutes, per address. Counted through
+        # `core.throttling` rather than here: read-modify-write over the cache
+        # let simultaneous attempts all read the same number and never close the
+        # cap, and an unreachable cache made this password form answer 500 —
+        # where it now answers "not right now", which is the honest thing for a
+        # limiter that cannot count to say on a credential surface.
         ip = _client_ip(request) or "unknown"
-        rate_key = f"management-login:{ip}"
-        attempts = cache.get(rate_key, 0)
-        if attempts >= 20:
+        attempts = count_attempt(f"management-login:{ip}", window=15 * 60, scope="management_login")
+        if attempts > 20:
             raise RateLimited("Too many Management sign-in attempts. Try again later.")
-        cache.set(rate_key, attempts + 1, timeout=15 * 60)
 
         payload = LoginSerializer(data=request.data)
         payload.is_valid(raise_exception=True)

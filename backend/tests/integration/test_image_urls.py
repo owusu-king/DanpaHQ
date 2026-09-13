@@ -193,12 +193,42 @@ class TestTheCardFindsThePhotograph:
             listing=live_listing, file=_file(landlord, "campaign.jpg"), is_cover=True
         )
 
-        assert "the-room.jpg" in ListingSerializer(live_listing).data["cover_url"]
+        data = ListingSerializer(live_listing).data
+        assert "the-room.jpg" in data["cover_url"]
+        assert [row["file_id"] for row in data["card_media"]] == [
+            str(live_listing.unit.media.get().file_id),
+            str(live_listing.media.get().file_id),
+        ]
+
+    def test_card_media_is_small_ordered_and_deduplicated(self, landlord, live_listing):
+        from apps.listing.models import ListingMedia
+        from apps.listing.serializers import ListingSerializer
+        from apps.property.models import UnitMedia
+
+        files = [_file(landlord, f"room-{index}.jpg") for index in range(6)]
+        for index, stored in enumerate(files):
+            UnitMedia.objects.create(
+                unit=live_listing.unit,
+                file=stored,
+                is_primary=index == 2,
+                sort_order=index,
+            )
+        # Reusing a Unit file for campaign marketing must not create a repeated
+        # swipe page on the card.
+        ListingMedia.objects.create(listing=live_listing, file=files[2], is_cover=True)
+
+        data = ListingSerializer(live_listing).data
+        assert len(data["card_media"]) == 5
+        assert data["card_media"][0]["file_id"] == str(files[2].id)
+        assert len({row["file_id"] for row in data["card_media"]}) == 5
+        assert data["cover_url"] == data["card_media"][0]["download_url"]
 
     def test_a_listing_with_no_photographs_anywhere_says_so_honestly(self, live_listing):
         from apps.listing.serializers import ListingSerializer
 
-        assert ListingSerializer(live_listing).data["cover_url"] is None
+        data = ListingSerializer(live_listing).data
+        assert data["cover_url"] is None
+        assert data["card_media"] == []
 
 
 class TestThePropertyRowFindsAPhotograph:

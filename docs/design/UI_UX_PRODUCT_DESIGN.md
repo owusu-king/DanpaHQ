@@ -4578,8 +4578,9 @@ area.
   option ends in `-created_at` so the cursor stays stable when two rents match.
 - **The web card led with the wrong things.** Locality in small caps above the
   headline, rent in body weight, and **two full verification stamps** taking more
-  room than the price. Now: photograph, rent, headline, place, facts, advance,
-  and one quiet ✓ Verified only when both identity and property checks passed.
+  room than the price. The permanent discovery order is now **Image → Price +
+  advance → Identity → Place → Essentials → Trust**. One quiet verification
+  line appears only when both identity and property checks passed.
 - **Filtering was a form with a Search button.** Every adjustment was a round
   trip through submit. Controls now narrow as you set them, debounced, with a
   request guard so a slower earlier response cannot overwrite a newer one.
@@ -4596,32 +4597,51 @@ area.
   is a locality autocomplete rather than a keyword box hoping for a match. Free
   text still works when no locality is chosen.
 - **Advance is a first-class filter, not a hidden field.** It is often what
-  decides whether a place is possible at all, so it has its own control and its
-  own line on the card.
-- **The surface follows the available space.** Place and sort begin a search;
-  rent, bedrooms, advance and furnishing refine it. Web keeps all filters visible
-  in a quiet horizontal band. On mobile, an always-visible Filters control and
-  active-choice chips preserve the scan; the complete set opens in a focused
-  page sheet. Results still update live while choices change.
-- **Verification is reassurance, not the headline.** One mark, and only when both
-  checks passed — never a row of stamps competing with the price.
+  decides whether a place is possible at all, so it has its own control and sits
+  beside the price as one financial decision.
+- **Search → narrow → browse is one system.** Location is the dominant control;
+  rent, Property type, bedrooms and furnishing are the short comparison rail.
+  Active choices sit below it as individually removable feedback rather than
+  being hidden inside controls. The complete supported set opens as an anchored
+  panel on desktop and a bottom sheet on narrow web and native mobile. Results
+  still update live while choices change, with stale responses refused and a
+  quiet updating state instead of clearing the feed.
+- **Property and Unit are not the same filter.** Both clients read the backend's
+  Property/space vocabulary and send `property_type` and `space_type` as their
+  separate API concepts. A Property choice narrows the valid Unit choices; no
+  client-owned category list can drift from the domain rules.
+- **Verification is reassurance, not the headline.** It closes the reading order
+  below the essentials: one mark, and only when both checks passed — never a row
+  of stamps competing with the photograph or price.
 - **The card shows nothing a tenant cannot decide on.** No description, no
   minimum lease, no move-in total, no amenity list. Those belong to the listing.
 - Explore lists Units through their Listings; the Property → Unit → Listing
   relationship is untouched, and no Property detail is duplicated onto a card.
 
-**Reusable patterns:** the recognition card, now shared — `ListingCard` moved out
-of the search screen into `components/listings`, where Explore, the tenant home
-and Saved all use it. The heart appears only where saving is offered, so the
-tenant home and Saved get the same card without one.
+**Reusable patterns:** the recognition card is shared from `components/listings`
+across Explore, Saved, tenant-home recommendations and related rentals. Explore
+and Saved expose the same optimistic heart interaction; recommendation surfaces
+remain navigational. The lightweight search projection supplies at most five
+`card_media` photographs assembled from the already-prefetched Unit and campaign
+media, with Unit imagery first. This keeps cards visual without detail requests,
+N+1 queries, or client-side reconstruction of Property/Unit relationships.
 
 **Responsive/mobile:**
 
-- Web is an auto-filling grid from one column upward, controls stacking below
-  700px, suggestions as an overlay rather than a layout shift.
-- Mobile is a virtualized list with 4:3 imagery, infinite scroll on
-  `onEndReached` with a spinner footer, pull-to-refresh, and a focused filter
-  sheet. A failed page never empties what has already been scrolled past.
+- Web is an auto-filling grid capped naturally at three generous columns in the
+  Explore workspace. Its cards use calm 16:10 imagery and responsive type rather
+  than stretching a mobile layout. Multiple photographs move on one continuous
+  horizontal track and settle with restrained motion; drag/swipe, quiet position
+  markers and hover-scoped previous/next controls keep several photos reachable
+  without leaving carousel chrome behind after the pointer exits.
+- Mobile is a virtualized list with compact 16:10 imagery. Horizontal gestures
+  page through a card's photographs; vertical gestures retain ownership of the
+  Explore feed. Photo position is conveyed with quiet dots, and the Save control
+  remains an independent 42px target. A card embedded in the already-horizontal
+  Related rentals rail disables its nested photo gesture and opens detail on tap.
+- Infinite scroll remains on `onEndReached`, with a spinner footer,
+  pull-to-refresh and focused filters. A failed page never empties what has
+  already been scrolled past.
 - Both keep browsing position: nothing navigates away to filter.
 
 **Known limitations:**
@@ -4632,10 +4652,10 @@ tenant home and Saved get the same card without one.
   not enough to exercise the second page. Pagination is covered by contract
   rather than by data.
 - Listing detail is deliberately untouched, as scoped.
-- The search endpoint has `space_type` and `amenity_ids` filters that neither
-  client exposes. Space type would be genuinely useful to students hunting a
-  single room; it is left out of this pass rather than added without a place in
-  the control hierarchy.
+- The search endpoint supports `amenity_ids`, but Explore does not yet have a
+  stable public amenity-option catalogue in its discovery client. Amenities are
+  deliberately not shown as an inert checklist; Property and Unit type are now
+  exposed from the existing backend-owned vocabulary.
 - No map. `map_latitude`/`map_longitude` come from the locality, not the
   building, so a map would place every listing in a neighbourhood at the same
   point. That needs property-level coordinates before it would mean anything.
