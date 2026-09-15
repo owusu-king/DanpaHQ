@@ -1,0 +1,8 @@
+/* Google's advanced markers wrap Rooomly's marker HTML in their own element,
+   and it is that element which takes keyboard focus. The ring is drawn on the
+   marker inside it, in the product's focus colour, and names no Explore class. */
+gmp-advanced-marker:focus { outline: none; }
+gmp-advanced-marker:focus-visible .rooomly-map-marker > * {
+  outline: var(--border-emphasis) solid var(--color-kola-600);
+  outline-offset: 3px;
+}

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { Animated, View } from "react-native";
+import { Animated, StyleSheet, View } from "react-native";
 
 import { ph, useHomeDensity } from "@/components/home/plinth";
 import { motion } from "@/components/ui";
@@ -13,11 +13,11 @@ import { useReduceMotion } from "@/motion";
  * geometry cost nothing and buy two things: the layout does not jump, and the
  * wait reads as this screen loading rather than as this screen being empty.
  *
- * Paper on stone, in the places the Overview, the attention panel and the homes
- * will occupy. The pulse is the quietest one that still says "working" —
- * opacity between 0.45 and 1, on the shared `base` duration. Reduce Motion
- * holds it still rather than removing it, because the shape is the point and
- * the movement is only the reassurance.
+ * White paper on the green ground, in the places the Overview, the attention
+ * panel and the homes will occupy. The pulse is the quietest one that still
+ * says "working" — opacity between 0.45 and 1, on the shared `base` duration.
+ * Reduce Motion holds it still rather than removing it, because the shape is
+ * the point and the movement is only the reassurance.
  */
 export function HomeSkeleton() {
   const density = useHomeDensity();
@@ -51,8 +51,8 @@ export function HomeSkeleton() {
     height,
     borderRadius: density.compact ? 14 : 16,
     backgroundColor: ph.paper,
-    borderWidth: 1,
-    borderColor: ph.line,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: ph.edge,
   });
 
   return (

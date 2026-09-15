@@ -1,7 +1,8 @@
 # ADR 0033 — Map search uses PostGIS, curated places and approximate public points
 
 **Status:** accepted · 13 September 2026 · Location and map search, web phase ·
-supersedes the "No PostGIS in Phase 0" section of ADR 0003
+supersedes the "No PostGIS in Phase 0" section of ADR 0003 · sections 2 and 5
+superseded by ADR 0034 (Google Maps Platform)
 
 ## Problem
 

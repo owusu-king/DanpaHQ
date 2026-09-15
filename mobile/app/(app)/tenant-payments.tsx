@@ -79,11 +79,7 @@ export default function TenantPaymentsScreen() {
   }
 
   return <ScrollView contentContainerStyle={{ padding: space[5], paddingBottom: space[12], gap: space[5] }}>
-    <View style={{ gap: space[1] }}>
-      <Type variant="label">RENT & PAYMENTS</Type>
-      <Type variant="display2" accessibilityRole="header">Payments</Type>
-      <Type variant="body">Rent due, secure payments and the records you keep.</Type>
-    </View>
+    <Type variant="body" style={{ color: theme.color.ink["700"] }}>Rent due, secure payments and the records you keep.</Type>
     {error ? <Notice tone="error" title={error} /> : null}
     {accounts === null ? <Type variant="caption">Loading your payments…</Type> : null}
     {accounts?.length === 0 && !error ? <Notice tone="info" title="No rent account yet" body="Your payments will appear here when an agreement creates a rent schedule." /> : null}

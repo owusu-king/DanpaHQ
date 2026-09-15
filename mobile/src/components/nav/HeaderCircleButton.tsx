@@ -4,7 +4,7 @@ import { Animated, Image, Pressable, StyleSheet, View } from "react-native";
 
 import { radius, space } from "@/components/ui";
 import { isAndroid } from "@/platform";
-import { theme } from "@/theme";
+import { shell } from "@/shell";
 
 /** The visible disc. Smaller than the target it sits in, on purpose. */
 const DISC = 40;
@@ -15,8 +15,11 @@ const DISC = 40;
  * The disc is 40pt and the touch target is the system's 48pt floor, reached
  * with hit slop rather than by drawing a bigger circle — a header full of 48pt
  * discs looks heavy, and a 40pt one that is only 40pt to a thumb is the more
- * common mistake. The provider header's `+` is 42pt with no slop and misses the
- * floor; this is the shape that should replace it.
+ * common mistake.
+ *
+ * A translucent white well on the kola chrome, with its glyph in white. It was a
+ * paper disc while headers stood on the page; on green, solid white discs would
+ * be the loudest thing in the frame.
  *
  * The press language is the tab bar's, deliberately: the same spring, the same
  * bounded Android ripple. Two navigation affordances on one screen that respond
@@ -51,7 +54,7 @@ export function HeaderCircleButton({
         hitSlop={space[1]}
         android_ripple={
           isAndroid
-            ? { color: theme.color.kola["50"], radius: DISC / 2, borderless: true }
+            ? { color: shell.chromePressed, radius: DISC / 2, borderless: true }
             : undefined
         }
         style={({ pressed }) => [styles.disc, pressed && !isAndroid ? styles.pressed : null]}
@@ -59,7 +62,7 @@ export function HeaderCircleButton({
         {imageUri ? (
           <Image source={{ uri: imageUri }} accessible={false} style={styles.photo} />
         ) : (
-          <Ionicons name={icon} size={20} color={theme.color.ink["700"]} />
+          <Ionicons name={icon} size={20} color={shell.onChrome} />
         )}
       </Pressable>
     </Animated.View>
@@ -85,10 +88,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden",
-    backgroundColor: theme.color.field["100"],
+    backgroundColor: shell.chromeRaised,
   },
   pressed: {
-    backgroundColor: theme.color.field["200"],
+    backgroundColor: shell.chromePressed,
   },
   photo: {
     width: "100%",

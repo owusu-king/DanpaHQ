@@ -8,8 +8,9 @@
  * address reproduces it for somebody else.
  *
  * The geographic part of a search is its *area*: a box searched on the map, or
- * else a chosen place (a stable slug, never the text that was typed), or else a
- * locality from a link made before places existed.
+ * else a chosen place — its name, its box and where it came from, all in the
+ * address — or else a locality from a link made before places existed. A place
+ * is resolved once, when it is chosen; a shared link asks no provider again.
  */
 
 import type { ListingSort } from "./listings";
@@ -17,9 +18,17 @@ import type { GeoBounds } from "./places";
 
 export type ExploreView = "list" | "map";
 
+/** A chosen place, as the address bar keeps it. */
+export type ExploreArea = {
+  /** "East Legon, Accra" */
+  name: string;
+  bounds: GeoBounds;
+  /** `provider:reference` — where it came from. Kept, never asked again to search. */
+  ref: string;
+};
+
 export type ExploreQuery = {
-  /** A place's slug, e.g. `east-legon-accra`. */
-  place: string;
+  area: ExploreArea | null;
   /** An area searched with "Search this area". Narrows the place, never replaces it. */
   bbox: GeoBounds | null;
   /** Free text, when somebody searched without choosing a place. */
@@ -40,7 +49,7 @@ export type ExploreQuery = {
 };
 
 export const EMPTY_EXPLORE_QUERY: ExploreQuery = {
-  place: "",
+  area: null,
   bbox: null,
   q: "",
   localityId: "",
@@ -82,11 +91,19 @@ export function formatBounds(bounds: GeoBounds): string {
   return [bounds.west, bounds.south, bounds.east, bounds.north].map(roundCoordinate).join(",");
 }
 
+/** A place from the address bar: a name and a box, or nothing. */
+function parseArea(params: URLSearchParams): ExploreArea | null {
+  const bounds = parseBounds(params.get("area"));
+  const name = (params.get("area_name") ?? "").trim().slice(0, 160);
+  if (!bounds || !name) return null;
+  return { name, bounds, ref: (params.get("area_ref") ?? "").trim().slice(0, 320) };
+}
+
 export function parseExploreQuery(params: URLSearchParams): ExploreQuery {
   const sort = params.get("sort");
   const bedrooms = digits(params.get("bedrooms_min"));
   return {
-    place: (params.get("place") ?? "").trim().slice(0, 160),
+    area: parseArea(params),
     bbox: parseBounds(params.get("bbox")),
     q: (params.get("q") ?? "").slice(0, 120),
     localityId: params.get("locality_id") ?? "",
@@ -107,8 +124,11 @@ export function parseExploreQuery(params: URLSearchParams): ExploreQuery {
 /** The address-bar form. Defaults are left out, so a plain search stays a plain URL. */
 export function serializeExploreQuery(query: ExploreQuery): URLSearchParams {
   const params = new URLSearchParams();
-  if (query.place) params.set("place", query.place);
-  else if (query.localityId) {
+  if (query.area) {
+    params.set("area_name", query.area.name);
+    params.set("area", formatBounds(query.area.bounds));
+    if (query.area.ref) params.set("area_ref", query.area.ref);
+  } else if (query.localityId) {
     params.set("locality_id", query.localityId);
     if (query.localityName) params.set("locality_name", query.localityName);
   } else if (query.q.trim()) params.set("q", query.q.trim());
@@ -130,21 +150,20 @@ export function serializeExploreQuery(query: ExploreQuery): URLSearchParams {
  *
  * One function, so the list and the map cannot be asked different questions.
  * Rent travels in pesewas; the area is the searched box when there is one,
- * otherwise the place, otherwise the legacy locality.
+ * otherwise the chosen place's box, otherwise the legacy locality.
  */
 export function listingSearchParams(query: ExploreQuery): URLSearchParams {
   const params = new URLSearchParams();
-  if (query.bbox) {
-    params.set("west", String(query.bbox.west));
-    params.set("south", String(query.bbox.south));
-    params.set("east", String(query.bbox.east));
-    params.set("north", String(query.bbox.north));
-  } else if (query.place) {
-    params.set("place", query.place);
+  const box = query.bbox ?? query.area?.bounds ?? null;
+  if (box) {
+    params.set("west", String(box.west));
+    params.set("south", String(box.south));
+    params.set("east", String(box.east));
+    params.set("north", String(box.north));
   } else if (query.localityId) {
     params.set("locality_id", query.localityId);
   }
-  if (!query.place && !query.localityId && query.q.trim()) params.set("q", query.q.trim());
+  if (!query.area && !query.localityId && query.q.trim()) params.set("q", query.q.trim());
   if (query.propertyType) params.set("property_type", query.propertyType);
   if (query.spaceType) params.set("space_type", query.spaceType);
   if (query.bedrooms) params.set("bedrooms_min", query.bedrooms);
@@ -173,11 +192,48 @@ export function refinementCount(query: ExploreQuery): number {
 export function withoutFilters(query: ExploreQuery): ExploreQuery {
   return {
     ...EMPTY_EXPLORE_QUERY,
-    place: query.place,
+    area: query.area,
     bbox: query.bbox,
     q: query.q,
     localityId: query.localityId,
     localityName: query.localityName,
     view: query.view,
   };
+}
+
+/**
+ * Monthly rent in whole cedis, as the stops on the Filters panel's range: close
+ * together where most rents are, further apart where few are. The first stop is
+ * no minimum and the last no maximum. The phone's sheet draws the same track.
+ */
+export const RENT_STOPS = [0, 250, 500, 750, 1000, 1500, 2000, 2500, 3000, 4000, 5000, 7500, 10000, 15000, 20000] as const;
+export const RENT_LAST = RENT_STOPS.length - 1;
+
+/** Whole cedis, as the panel says them. */
+export function cedis(amount: string | number): string {
+  return `GH₵${Number(amount).toLocaleString("en-GH")}`;
+}
+
+/** The stop nearest a rent from the address bar, which a link may have set off the track, or `fallback`. */
+export function rentStopIndex(amount: string, fallback: number): number {
+  const value = Number(amount);
+  if (!amount || !Number.isFinite(value)) return fallback;
+  let nearest = 0;
+  RENT_STOPS.forEach((stop, index) => {
+    if (Math.abs(stop - value) < Math.abs((RENT_STOPS[nearest] ?? 0) - value)) nearest = index;
+  });
+  return nearest;
+}
+
+/** A stop as the query keeps it: either end of the track is no limit at all. */
+export function rentAtStop(index: number, edge: number): string {
+  return index === edge ? "" : String(RENT_STOPS[index] ?? 0);
+}
+
+/** What a rent range means, in words: "Any price", "From GH₵1,000", "GH₵750 – GH₵3,000". */
+export function rentRangeLabel(minimum: string, maximum: string): string {
+  if (minimum && maximum) return `${cedis(minimum)} – ${cedis(maximum)}`;
+  if (minimum) return `From ${cedis(minimum)}`;
+  if (maximum) return `Up to ${cedis(maximum)}`;
+  return "Any price";
 }

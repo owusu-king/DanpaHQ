@@ -26,8 +26,8 @@ export type Shortcut = {
  * overdue rent charge.
  *
  * Which is also why these are the one thing on Home that is *not* a paper
- * surface: tiles on the stone ground, outlined rather than filled, so they read
- * as the edge of the page rather than as another card of content.
+ * surface: frosted glass on the green ground rather than white cards, so they
+ * read as the edge of the page rather than as another card of content.
  *
  * A count appears only when there is something to count. "Saved · 0" is not
  * information, and a row of zeroes reads as a product nobody uses.
@@ -45,10 +45,11 @@ export function HomeShortcuts({ shortcuts }: { shortcuts: Shortcut[] }) {
 
   return (
     <View style={{ gap: space[2], marginTop: density.compact ? space[1] : space[2] }}>
+      {/* On the ground, not on a card, so it is set dark enough to read there. */}
       <Type
         variant="label"
         accessibilityRole="header"
-        style={{ fontSize: density.labelSize, lineHeight: 14, color: ph.ink38 }}
+        style={{ fontSize: density.labelSize, lineHeight: 14, color: ph.ink70 }}
       >
         EVERYTHING ELSE
       </Type>
@@ -92,9 +93,11 @@ function ShortcutTile({ shortcut }: { shortcut: Shortcut }) {
           paddingVertical: space[3],
           paddingHorizontal: density.compact ? space[2] : space[3],
           borderRadius: density.compact ? 12 : 14,
+          // Frosted glass: the ground shows through, and a bright rim catches
+          // the light where a card would carry a shadow.
           borderWidth: 1,
-          borderColor: ph.lineStrong,
-          backgroundColor: "transparent",
+          borderColor: ph.glassEdge,
+          backgroundColor: ph.glass,
           opacity: pressed && !isAndroid ? 0.72 : 1,
         })}
       >

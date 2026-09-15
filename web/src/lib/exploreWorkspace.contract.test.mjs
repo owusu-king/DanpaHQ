@@ -67,22 +67,26 @@ test("search and filters form one responsive discovery system", () => {
   assert.doesNotMatch(browser, /<form\b|onSubmit=\{/);
   assert.match(browser, /className="explore-discovery"/);
   assert.match(browser, /Search by location or property/);
-  assert.match(browser, /aria-label="Quick rental filters"/);
-  assert.match(browser, /function QuickSelectFilter/);
+  // One search bar and one Filters button, as on the phone: no rail of quick
+  // pills, and no chips repeating what the panel holds.
+  const bar = browser.slice(browser.indexOf('<div className="explore-bar">'), browser.indexOf("{advancedOpen ? ("));
+  assert.match(bar, /<PlaceSearch\s/);
+  assert.match(bar, /className=\{`explore-filters-button\$\{filterCount \? " is-active" : ""\}\$\{advancedOpen \? " is-open" : ""\}`\}/);
+  assert.doesNotMatch(browser, /QuickSelectFilter|explore-quick|explore-filter-pill|DropdownMenu/);
   assert.match(browser, /className="explore-advanced"/);
   assert.match(browser, /className="explore-filter-scrim"/);
   // One anchored desktop panel becomes a bottom sheet on narrow web layouts.
   assert.match(css, /\.explore-advanced \{[\s\S]{0,180}position: absolute/);
   assert.match(css, /@media \(max-width: 63\.999rem\)[\s\S]{0,1600}\.explore-advanced \{[\s\S]{0,100}position: fixed/);
-  assert.match(css, /@media \(max-width: 63\.999rem\)[\s\S]{0,700}\.explore-quick \{[\s\S]{0,240}overflow-x: auto/);
   assert.match(browser, /explore-chip/);
   assert.match(browser, /Clear all/);
-  // Native uses the same hierarchy, with its complete set in a true sheet.
+  // Native keeps one search bar and one Filters button over its map, with the
+  // complete set in a true sheet.
   assert.match(mobile, /function SearchBox/);
+  assert.match(mobile, /function FiltersButton/);
   assert.match(mobile, /function FilterSheet/);
-  assert.match(mobile, /<Modal visible=\{visible\} transparent animationType="slide"/);
-  assert.match(mobile, /label="Filters"/);
-  assert.match(mobile, /ActiveFilter/);
+  // The complete set sits in the shared sheet a thumb can swipe away.
+  assert.match(mobile, /<BottomSheet\s+visible=\{visible\}\s+onClose=\{onClose\}\s+title="Filters"/);
   // A newer answer must win even when an older request is slower.
   assert.match(browser, /requestId\.current/);
   assert.match(mobile, /requestId\.current/);
@@ -94,17 +98,19 @@ test("place leads, because that is the first question", () => {
   const query = read("web/src/lib/exploreQuery.ts");
   const mobile = read("mobile/app/(app)/search.tsx");
 
-  // Web chooses a place — a slug with a centre and a box — not a locality string.
+  // Web chooses a place — resolved to a centre and a box — not a locality string.
   assert.match(browser, /<PlaceSearch\s/);
-  assert.match(places, /searchPlaces\(typed, controller\.signal\)/);
+  assert.match(places, /suggestPlaces\(typed, session\.current, controller\.signal\)/);
   // A link made before places still filters by its locality.
   assert.match(query, /params\.set\("locality_id", query\.localityId\)/);
-  assert.match(mobile, /searchLocalities/);
-  assert.match(mobile, /locality_id/);
-  // Free text must be sent when no suggested locality has been chosen.
-  assert.match(mobile, /q: locality \? undefined : place\.trim\(\) \|\| undefined/);
+  // The phone chooses places the same way, through the same API.
+  assert.match(mobile, /suggestPlaces\(typed, session\.current\)/);
+  assert.match(mobile, /west: box\?\.west/);
+  // Free text must be sent when no suggested place has been chosen.
+  assert.match(mobile, /q: area \? undefined : place\.trim\(\) \|\| undefined/);
   // Advance is a first-class control on both, not a hidden backend field.
-  assert.match(browser, /advance_max/);
+  assert.match(browser, /name="explore-advance"/);
+  assert.match(browser, /onChange=\{\(value\) => update\(\{ advanceMax: value \}\)\}/);
   assert.match(mobile, /advance_max/);
 });
 
@@ -118,8 +124,10 @@ test("property and unit filters use the backend-owned vocabulary on both clients
     assert.match(source, /loadPropertyTypes/);
     assert.match(source, /property_type/);
     assert.match(source, /space_type/);
-    assert.match(source, /Property &amp; unit|Property & unit/);
   }
+  // Both ask each as its own dropdown, in one compact panel or sheet.
+  assert.match(browser, /<FilterSelect\s+name="explore-property-type"\s+label="Property type"[\s\S]*<FilterSelect\s+name="explore-space-type"\s+label="Unit type"/);
+  assert.match(mobile, /<SelectField\s+label="Property type"[\s\S]*<SelectField\s+label="Unit type"/);
 });
 
 test("sorting exists and is the backend's, not the client's", () => {
@@ -203,16 +211,16 @@ test("mobile photos swipe inside the feed without making the API card heavy", ()
   assert.match(webCard, /onPointerMove=\{moveSwipe\}/);
   assert.match(webCard, /onPointerUp=\{finishSwipe\}/);
   assert.match(webCard, /className="listing-photo-track"/);
-  // Direction controls remain discoverable and hide after use instead of
-  // lingering because a pointer click left focus behind.
-  for (const source of [webCard, mobileCard]) {
-    assert.match(source, /Previous photo/);
-    assert.match(source, /Next photo/);
-  }
+  // On the web, direction controls remain discoverable and hide after use
+  // instead of lingering because a pointer click left focus behind.
+  assert.match(webCard, /Previous photo/);
+  assert.match(webCard, /Next photo/);
   assert.doesNotMatch(webCard, /controlsSuppressed/);
   assert.doesNotMatch(css, /controls-suppressed/);
-  assert.match(mobileCard, /Animated\.timing\(controlsOpacity/);
-  assert.match(mobileCard, /pointerEvents=\{controlsInteractive \? "box-none" : "none"\}/);
+  // On a phone the swipe is the control and the dots say where it is: arrows
+  // drawn over a small photograph only got in the thumb's way.
+  assert.doesNotMatch(mobileCard, /Previous photo|Next photo|controlsOpacity/);
+  assert.match(mobileCard, /styles\.photoDotActive/);
   // The related-rental rail is already horizontal, so it deliberately avoids
   // a horizontal gesture nested inside another horizontal gesture.
   assert.match(related, /photoSwipe=\{false\}/);
@@ -244,18 +252,18 @@ test("every Explore choice is shown once and removed one way", () => {
   assert.equal(places.match(/aria-label="Clear search"/g)?.length, 1);
   assert.doesNotMatch(browser, /aria-label="Clear search"/);
 
+  // Neither client repeats a choice as a pill or a chip: every one lives in the
+  // Filters panel or sheet, the button counts what is on, and the one chip left
+  // is the map area, which is where rather than what.
   for (const source of [browser, mobile]) {
-    // Chips carry only what no pill shows. Place had a chip as well as the
-    // field's clear, and every pill was repeated as a chip below it.
-    const start = source.indexOf("const unshown = [");
-    const chips = source.slice(start, source.indexOf("].filter(Boolean)", start));
-    assert.ok(start > 0 && chips.length > 0, "chip list not found");
-    assert.doesNotMatch(chips, /locality|rentMin|rentMax|propertyType &&|bedrooms|furnished &&/);
-    assert.match(chips, /spaceType && \{/);
-    assert.match(chips, /advanceMax && \{/);
-    assert.match(chips, /sort !== "newest" && \{/);
+    assert.doesNotMatch(source, /const unshown = \[|function CompactFilter|function ActiveFilter|QuickSelectFilter/);
+  }
+  assert.match(browser, /\{filterCount \? <span className="explore-filter-count" aria-hidden="true">\{filterCount\}<\/span> : null\}/);
+  assert.match(browser, /aria-label=\{filterCount \? `Filters, \$\{filterCount\} active` : "Filters"\}/);
+  assert.match(mobile, /<FiltersButton\s+count=\{refinementCount\}/);
 
-    // `bedrooms_min=0` is `>= 0` to the backend: a studio choice that was Any.
+  // `bedrooms_min=0` is `>= 0` to the backend: a studio choice that was Any.
+  for (const source of [browser, mobile]) {
     assert.doesNotMatch(source, /\["0", "/);
   }
 
@@ -273,7 +281,7 @@ test("every Explore choice is shown once and removed one way", () => {
   assert.ok(keptStart > 0, "withoutFilters not found");
   const kept = query.slice(keptStart, query.indexOf("\n}", keptStart));
   assert.match(kept, /\.\.\.EMPTY_EXPLORE_QUERY,/);
-  for (const field of ["place", "bbox", "q", "localityId", "localityName", "view"]) {
+  for (const field of ["area", "bbox", "q", "localityId", "localityName", "view"]) {
     assert.match(kept, new RegExp("\\b" + field + ": query\\." + field + ","));
   }
 
@@ -281,7 +289,7 @@ test("every Explore choice is shown once and removed one way", () => {
   const countStart = query.indexOf("export function refinementCount(");
   assert.ok(countStart > 0, "refinementCount not found");
   const counted = query.slice(countStart, query.indexOf("].filter(Boolean)", countStart));
-  assert.doesNotMatch(counted, /place|locality|bbox|query\.q\b/);
+  assert.doesNotMatch(counted, /place|area|locality|bbox|query\.q\b/);
   assert.match(browser, /const filterCount = refinementCount\(query\);/);
 
   // One Clear all on the surface; the empty state guides instead of repeating it.
@@ -291,42 +299,33 @@ test("every Explore choice is shown once and removed one way", () => {
   assert.doesNotMatch(mobileEmpty, /<Button|clearFilters/);
 });
 
-test("quick filters open designed menus, not the operating system's list", () => {
+test("filters open one designed panel, never the operating system's list", () => {
   const browser = read("web/src/components/listings/ListingBrowser.tsx");
   const icons = read("web/src/components/portal/icons.tsx");
   const css = read("web/src/styles/explore-workspace.css");
 
-  // A native select invisibly stretched over the pill opened the OS list, and
-  // the panel's Selects did the same behind a drawn arrow.
-  // A tag followed by its attributes: the component's own comment names the
-  // old `<select>` it replaced, and that mention is not a use.
+  // A native select invisibly stretched over a pill opened the OS list, and the
+  // panel's Selects did the same behind a drawn arrow.
+  // A tag followed by its attributes: a comment naming the old `<select>` is a
+  // mention, not a use.
   assert.doesNotMatch(browser, /<select\s|<Select\s/);
-  const quick = browser.slice(browser.indexOf("function QuickSelectFilter("));
-  assert.match(quick, /<DropdownMenu\.RadioGroup value=\{value\} onValueChange=\{onChange\}>/);
-  assert.match(quick, /<DropdownMenu\.ItemIndicator className="explore-menu-check">\s*<Icon name="check" \/>/);
-  assert.match(quick, /<Icon name="chevron-down" \/>/);
-  // Portalled, because the rail scrolls sideways on a phone and would clip it.
-  assert.match(quick, /<DropdownMenu\.Portal>\s*<DropdownMenu\.Content className="explore-menu"/);
-  // Touch and pen wait for the tap, so a swipe along the rail opens nothing.
-  assert.match(quick, /if \(event\.pointerType !== "mouse"\) event\.preventDefault\(\);/);
-  assert.match(quick, /if \(pointer\.current === "touch" \|\| pointer\.current === "pen"\) setOpen/);
 
   // Glyphs are drawn to the shared icon construction rather than typed.
-  for (const name of ["chevron-down", "close", "check", "filters"]) {
+  for (const name of ["close", "filters"]) {
     assert.match(icons, new RegExp(`\\n  "?${name}"?: [(<]`));
   }
   assert.doesNotMatch(browser, /[×⌄]/);
   assert.doesNotMatch(browser, /function FilterGlyph/);
-  assert.doesNotMatch(css, /explore-pill-chevron::before/);
+  // The quick menus and their pills are gone, style and all.
+  assert.doesNotMatch(css, /explore-pill-chevron|explore-menu|explore-quick|explore-filter-pill/);
 
-  // The panel's short sets are chips over real radios, one name per set.
-  const choice = browser.slice(browser.indexOf("function ChoiceSet("));
-  assert.match(choice, /<input\s+type="radio"\s+name=\{name\}/);
-  assert.match(choice, /className="chip explore-choice"/);
+  // Lists are the panel's own listbox, bedrooms are real radios drawn as
+  // segments, and furnishing is a switch; see exploreFilters.contract.test.mjs.
+  const fields = read("web/src/components/explore/FilterFields.tsx");
+  assert.match(fields, /role="listbox"/);
+  assert.match(fields, /<input type="radio" name=\{name\}/);
   assert.match(browser, /<Switch checked=\{query\.furnished\} onChange=\{\(checked\) => update\(\{ furnished: checked \}\)\} label="Furnished only" \/>/);
-  // Colour belongs to `.chip`: restated here it would outrank the checked state.
-  const choiceRule = css.slice(css.indexOf(".explore-choice {"), css.indexOf("}", css.indexOf(".explore-choice {")));
-  assert.doesNotMatch(choiceRule, /background|color/);
+  assert.doesNotMatch(fields, /<select\s|<Select\s/);
 });
 
 test("the Filters panel behaves as the dialog it announces", () => {
@@ -346,9 +345,10 @@ test("the Filters panel behaves as the dialog it announces", () => {
   assert.match(places, /role="listbox"/);
   assert.match(places, /event\.key === "Escape"\) \{\s*if \(listOpen\) \{[\s\S]{0,160}setOpen\(false\);/);
 
-  // Filters leads the rail, so its count is never scrolled out of sight.
-  const rail = browser.slice(browser.indexOf('aria-label="Quick rental filters"'));
-  assert.ok(rail.indexOf("explore-more-filters") < rail.indexOf("<QuickSelectFilter"));
+  // The button sits beside the search bar, and says what it opens and whether it is open.
+  const bar = browser.slice(browser.indexOf('<div className="explore-bar">'), browser.indexOf("{advancedOpen ? ("));
+  assert.ok(bar.indexOf("<PlaceSearch") < bar.indexOf("explore-filters-button"));
+  assert.match(bar, /aria-haspopup="dialog"\s+aria-expanded=\{advancedOpen\}\s+aria-controls="explore-advanced-filters"/);
   // The sheet rises out of the tray's stacking context, above the portal's sticky header.
   assert.match(css, /@media \(max-width: 63\.999rem\)[\s\S]*\.explore-discovery:has\(> \.explore-advanced\) \{ z-index: 80; \}/);
   // A 15px field makes iOS zoom the page on focus.

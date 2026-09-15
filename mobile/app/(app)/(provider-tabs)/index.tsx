@@ -18,6 +18,7 @@ import {
   tile,
   useHomeDensity,
 } from "@/components/home/plinth";
+import { HomeGround } from "@/components/home/HomeGround";
 import { formatMinor } from "@/listings";
 import { listReceivedApplications } from "@/applications";
 import { listGrantedLeases, type Lease } from "@/leases";
@@ -43,10 +44,10 @@ type AttentionSignal = {
 /**
  * The provider's control center, composed for a phone.
  *
- * The same design language as the web dashboard — warm stone ground, paper
- * surfaces, registration ticks on the two that carry the screen, one gauge and
- * one chart — recomposed for a device that scrolls in one column and cannot
- * hover.
+ * The web dashboard's design language — paper surfaces, registration ticks on
+ * the two that carry the screen, one gauge and one chart — recomposed for a
+ * device that scrolls in one column and cannot hover, and set on the soft green
+ * ground both phone Homes share.
  *
  * What that costs and what it buys: the leasing pipeline is gone, as it is on
  * web, because Home answers *what needs me* and a pipeline of everything in
@@ -58,6 +59,16 @@ type AttentionSignal = {
  * behind the percentage, and tapping a column reads that period.
  */
 export default function ProviderHomeScreen() {
+  // Behind every state — a first Property, the skeleton and the Portfolio
+  // itself — so Home never changes colour as its figures arrive.
+  return (
+    <HomeGround>
+      <ProviderHome />
+    </HomeGround>
+  );
+}
+
+function ProviderHome() {
   const router = useRouter();
   const density = useHomeDensity();
   const { activeContext, state } = useAuth();
@@ -189,12 +200,13 @@ export default function ProviderHomeScreen() {
     return (
       <ScrollView contentContainerStyle={{ padding: density.pagePadding, gap: density.sectionGap }}>
         <View style={{ gap: space[1] }}>
-          <Type variant="label">YOUR PORTFOLIO</Type>
+          {/* The type's muted default is set for ivory; on the green it is darker. */}
+          <Type variant="label" style={{ color: ph.ink70 }}>YOUR PORTFOLIO</Type>
           <Type variant="display2" accessibilityRole="header" style={{ fontSize: density.headingSize, lineHeight: density.headingLine }}>Good day, {name}</Type>
         </View>
         <View style={{ gap: space[3], paddingLeft: space[4], borderLeftWidth: 3, borderLeftColor: theme.color.kola["600"] }}>
           <Type variant="title2" accessibilityRole="header">Your Portfolio starts here</Type>
-          <Type variant="caption">
+          <Type variant="caption" style={{ color: ph.ink70 }}>
             Add your first Property and Rooomly will help you organize its Units, tenants,
             agreements and rent.
           </Type>
@@ -208,7 +220,7 @@ export default function ProviderHomeScreen() {
     return (
       <ScrollView contentContainerStyle={{ padding: density.pagePadding, paddingBottom: space[12], gap: density.sectionGap }}>
         <View style={{ gap: space[1] }}>
-          <Type variant="label">YOUR PORTFOLIO</Type>
+          <Type variant="label" style={{ color: ph.ink70 }}>YOUR PORTFOLIO</Type>
           <Type variant="display2" accessibilityRole="header" style={{ fontSize: density.headingSize, lineHeight: density.headingLine }}>Good day, {name}</Type>
         </View>
         <ProviderDashboardSkeleton />
@@ -218,7 +230,6 @@ export default function ProviderHomeScreen() {
 
   return (
     <ScrollView
-      style={{ backgroundColor: ph.stone }}
       contentContainerStyle={{ padding: density.pagePadding, paddingBottom: space[12], gap: density.sectionGap }}
       refreshControl={
         <RefreshControl
@@ -229,7 +240,7 @@ export default function ProviderHomeScreen() {
       }
     >
       <View style={{ gap: space[1], paddingBottom: density.compact ? space[1] : space[2] }}>
-        <Type variant="label" style={{ fontSize: density.labelSize, lineHeight: 14, color: ph.ink38 }}>
+        <Type variant="label" style={{ fontSize: density.labelSize, lineHeight: 14, color: ph.ink70 }}>
           {summary?.organization.name.toUpperCase() ?? "YOUR PORTFOLIO"}
         </Type>
         <Type variant="display2" accessibilityRole="header" style={{ fontSize: density.headingSize, lineHeight: density.headingLine, color: ph.ink }}>
@@ -361,7 +372,7 @@ function PortfolioHighlight({
         overflow: "hidden",
         backgroundColor: ph.paper,
         borderWidth: 1,
-        borderColor: ph.line,
+        borderColor: ph.edge,
         borderRadius: density.compact ? 14 : 16,
         opacity: pressed ? 0.88 : 1,
         transform: [{ scale: pressed ? 0.992 : 1 }],
@@ -993,7 +1004,7 @@ function ProviderDashboardSkeleton() {
     borderRadius: density.compact ? 14 : 16,
     backgroundColor: ph.paper,
     borderWidth: 1,
-    borderColor: ph.line,
+    borderColor: ph.edge,
     opacity: 0.7,
   });
   return (

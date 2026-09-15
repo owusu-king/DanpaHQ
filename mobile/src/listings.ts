@@ -87,6 +87,11 @@ export type ListingSort = "newest" | "rent_asc" | "rent_desc";
 export type SearchFilters = {
   q?: string;
   locality_id?: string;
+  /** The search box, sent whole: a chosen place's bounds, or what "Search this area" searched. */
+  west?: number;
+  south?: number;
+  east?: number;
+  north?: number;
   property_type?: string;
   space_type?: string;
   bedrooms_min?: number;
@@ -102,6 +107,15 @@ type Page<T> = { next: string | null; previous: string | null; results: T[] };
 
 export type ListingPage = { results: Listing[]; next: string | null };
 
+/** The query the list and the map both send, so they cannot be asked different questions. */
+export function listingQuery(filters: SearchFilters): string {
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(filters)) {
+    if (value !== undefined && value !== "") query.set(key, String(value));
+  }
+  return query.toString();
+}
+
 /**
  * One page of results, and the cursor for the next.
  *
@@ -109,11 +123,8 @@ export type ListingPage = { results: Listing[]; next: string | null };
  * the first twenty rentals however many existed.
  */
 export async function searchListings(filters: SearchFilters = {}): Promise<ListingPage> {
-  const query = new URLSearchParams();
-  for (const [key, value] of Object.entries(filters)) {
-    if (value !== undefined && value !== "") query.set(key, String(value));
-  }
-  const suffix = query.toString() ? `?${query}` : "";
+  const query = listingQuery(filters);
+  const suffix = query ? `?${query}` : "";
   const page = await apiFetch<Page<Listing>>(`/listings/${suffix}`, { anonymous: true });
   return { results: page.results, next: page.next };
 }

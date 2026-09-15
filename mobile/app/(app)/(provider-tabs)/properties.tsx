@@ -71,18 +71,18 @@ export default function ProviderPropertiesScreen() {
   useFocusEffect(useCallback(() => { void load(); }, [load]));
 
   const currentPortfolio = organizations.find((organization) => organization.id === organizationId);
-  // Never a count under a name the count is not about: until the Portfolio is
-  // resolved there is nothing to say except that we are finding out.
+  // The header names the tab and the Portfolio; this says how many. Never a count
+  // before the Portfolio is resolved: until then there is nothing to say except
+  // that we are finding out.
   const caption = currentPortfolio
-    ? `${currentPortfolio.name} · ${properties.length} ${properties.length === 1 ? "Property" : "Properties"}`
+    ? `${properties.length} ${properties.length === 1 ? "Property" : "Properties"}`
     : loading
       ? "Loading your Portfolio…"
       : "Your Portfolio";
 
   return (
     <ScrollView contentContainerStyle={{ padding: space[5], paddingBottom: space[12] }}>
-      <View style={{ gap: space[2], paddingBottom: space[5] }}>
-        <Type variant="title1">Properties</Type>
+      <View style={{ paddingBottom: space[5] }}>
         <Type variant="caption">{caption}</Type>
       </View>
 

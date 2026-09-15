@@ -39,7 +39,14 @@ export function searchLocalities(query: string) {
 }
 
 export function createAddress(input: {
-  locality_id: string;
+  locality_id?: string;
+  place?: {
+    provider: string;
+    reference: string;
+    session?: string;
+    name: string;
+    context?: string;
+  };
   digital_address?: string;
   street?: string;
   house_number?: string;

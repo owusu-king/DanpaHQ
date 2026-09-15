@@ -424,8 +424,9 @@
 
 .portal-workspace { min-width: 0; display: flex; flex-direction: column; }
 
-/* Same ground as the workspace, one hairline, no shadow. It should read as
-   the top of the page rather than as a bar sitting on top of it. */
+/* The Provider header is a three-zone instrument: workspace context, a truly
+   centred search, then personal utilities. Equal outer tracks keep the search
+   geometrically centred instead of merely placed after whatever came first. */
 .portal-header {
   position: sticky;
   top: 0;
@@ -433,10 +434,33 @@
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  min-height: 3.25rem;
-  padding: 0 var(--space-4);
+  min-height: 4rem;
+  padding: 0 var(--space-5);
   border-bottom: var(--border-hairline) solid var(--color-field-200);
-  background: var(--color-field-50);
+  background: color-mix(in srgb, var(--color-field-0) 94%, var(--color-kola-50));
+}
+
+.portal-header.is-provider {
+  display: grid;
+  grid-template-columns: minmax(11rem, 1fr) minmax(18rem, 36rem) minmax(11rem, 1fr);
+  gap: var(--space-5);
+}
+
+.portal-header-context,
+.portal-header-actions {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.portal-header-context { justify-content: flex-start; }
+.portal-header-actions { justify-content: flex-end; gap: var(--space-2); }
+.portal-header:not(.is-provider) .portal-header-context { flex: 1; }
+
+.portal-header.is-provider .portal-search {
+  width: 100%;
+  max-width: 36rem;
+  justify-self: center;
 }
 
 /* --- Portfolio search ------------------------------------------------------
@@ -454,18 +478,19 @@
   grid-template-columns: 16px minmax(0, 1fr);
   align-items: center;
   gap: var(--space-2);
-  height: 2.5rem;
-  padding: 0 var(--space-3);
+  height: 2.75rem;
+  padding: 0 var(--space-4);
   color: var(--color-ink-500);
-  background: var(--color-field-0);
-  border: var(--border-hairline) solid var(--color-field-200);
-  border-radius: var(--radius-md);
+  background: var(--color-field-50);
+  border: var(--border-hairline) solid var(--color-field-300);
+  border-radius: var(--radius-pill);
   transition: border-color var(--motion-duration-fast) var(--motion-easing-standard),
     box-shadow var(--motion-duration-fast) var(--motion-easing-standard);
 }
 .portal-search-field:focus-within {
   border-color: var(--color-kola-600);
-  box-shadow: 0 0 0 3px var(--color-kola-50);
+  background: var(--color-field-0);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-kola-600) 13%, transparent), var(--shadow-raised);
 }
 .portal-search-field svg { width: 16px; height: 16px; }
 .portal-search-field input {
@@ -525,60 +550,12 @@
 .portal-search-results b { color: var(--color-ink-300); }
 .portal-search-results p { margin: 0; padding: var(--space-4); color: var(--color-ink-500); font-size: 0.8125rem; text-align: center; }
 
-/* Below the rail breakpoint the header is already carrying a menu button and a
-   title, and a field between them leaves room for neither. */
-@media (max-width: 47.99rem) {
-  .portal-search { display: none; }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .portal-search-field, .portal-search-results a { transition: none; }
 }
 
-/* --- the utility group -----------------------------------------------------
- *
- * The Portfolio being operated, and what is new in it.
- *
- * Both are about the workspace rather than about the page, both are always
- * there, and neither is a destination. Drawn as two separate icons they read as
- * two things that happen to be adjacent — the spacing between them says as much
- * as the spacing to anything else. One container, one hairline between them and
- * one set of states says what they are: a single utility control with two
- * actions, each still its own target.
- *
- * It borrows the search field's surface and height, so the whole right side of
- * the header sits on one band. The account avatar is deliberately not in it and
- * not in the header at all: identity is the anchor somebody returns to, not a
- * utility, and it keeps its place at the foot of the rail.
- */
-.portal-utility {
-  position: relative;
-  flex: none;
-  display: flex;
-  align-items: center;
-  height: 2.5rem;
-  background: var(--color-field-0);
-  border: var(--border-hairline) solid var(--color-field-200);
-  border-radius: var(--radius-md);
-  transition: border-color var(--motion-duration-fast) var(--motion-easing-standard);
-}
-
-.portal-utility:hover { border-color: var(--color-field-300); }
-
-/* Hairline, not a border: it divides two actions rather than boxing either. It
-   has nothing to divide when there is no Portfolio to switch — a tenant, or a
-   provider before their first one — and removes itself. */
-.portal-utility-rule {
-  flex: none;
-  width: 1px;
-  height: 1.25rem;
-  background: var(--color-field-200);
-}
-
-.portal-utility-rule:first-child { display: none; }
-
-/* The popover hangs from the group, not from the icon inside it, so its edge
-   lines up with the control rather than with the middle of it. */
+/* Header actions retain shared primitives even though Provider context and
+   account identity now receive their own visual weights. */
 .portal-header-portfolio { position: static; display: flex; height: 100%; }
 
 /* One size, one stroke, one alignment, one set of states — for both. */
@@ -602,10 +579,8 @@
     color var(--motion-duration-fast) var(--motion-easing-standard);
 }
 
-/* Square where they meet, round where the container is. */
-.portal-header-icon { border-radius: 9px 0 0 9px; }
-.portal-header-updates { border-radius: 0 9px 9px 0; }
-.portal-utility-rule:first-child + .portal-header-updates { border-radius: 9px; }
+.portal-header-icon,
+.portal-header-updates { border-radius: var(--radius-md); }
 
 .portal-header-icon:hover,
 .portal-header-updates:hover {
@@ -632,15 +607,147 @@
   color: var(--color-ink-900);
 }
 
-/* A finger needs more than a cursor does, and the field beside it follows. */
+/* Provider workspace context. It names the Portfolio, not the page; changing
+   it changes every page underneath and therefore belongs in global chrome. */
+.portal-header-context .portal-header-portfolio {
+  position: relative;
+  height: auto;
+  min-width: 0;
+}
+
+.portal-context-switcher {
+  position: relative;
+  display: grid;
+  grid-template-columns: 2rem minmax(0, 1fr) 1rem;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: 16rem;
+  min-height: 2.75rem;
+  padding: 3px var(--space-3) 3px 3px;
+  color: var(--color-ink-700);
+  font: inherit;
+  text-align: left;
+  background: transparent;
+  border: var(--border-hairline) solid transparent;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: color var(--motion-duration-fast) var(--motion-easing-standard),
+    background-color var(--motion-duration-fast) var(--motion-easing-standard),
+    border-color var(--motion-duration-fast) var(--motion-easing-standard);
+}
+
+.portal-context-switcher:hover,
+.portal-context-switcher[aria-expanded="true"] {
+  color: var(--color-ink-900);
+  background: var(--color-kola-50);
+  border-color: color-mix(in srgb, var(--color-kola-600) 18%, var(--color-field-200));
+}
+
+.portal-context-switcher:focus-visible {
+  outline: 3px solid var(--color-lagoon-600);
+  outline-offset: 2px;
+}
+
+.portal-context-icon {
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  place-items: center;
+  color: var(--color-kola-800);
+  background: var(--color-kola-50);
+  border-radius: var(--radius-sm);
+}
+
+.portal-context-copy { display: grid; min-width: 0; gap: 1px; line-height: 1.15; }
+.portal-context-copy > span { color: var(--color-ink-500); font-size: .625rem; font-weight: 650; letter-spacing: .07em; text-transform: uppercase; }
+.portal-context-copy strong { overflow: hidden; font-size: .8125rem; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.portal-context-switcher > .portal-icon { width: 14px; height: 14px; color: var(--color-ink-300); }
+.portal-header-context .portfolio-menu { right: auto; left: 0; }
+
+/* Bell and identity are separate, equally weighted targets. Their tinted
+   grounds give the white header structure without turning it into a toolbar of
+   bordered boxes. */
+.portal-header-actions .portal-header-updates,
+.portal-account.is-header .portal-account-trigger {
+  width: 2.75rem;
+  height: 2.75rem;
+  min-height: 2.75rem;
+  padding: 0;
+  border: var(--border-hairline) solid var(--color-field-200);
+  border-radius: var(--radius-md);
+  background: var(--color-field-50);
+  color: var(--color-ink-700);
+}
+
+.portal-header-actions .portal-header-updates {
+  --utility-surface: var(--color-field-50);
+}
+
+.portal-header-actions .portal-header-updates:hover,
+.portal-account.is-header .portal-account-trigger:hover {
+  --utility-surface: var(--color-kola-50);
+  color: var(--color-kola-800);
+  background: var(--color-kola-50);
+  border-color: var(--color-kola-300);
+}
+
+.portal-header-actions .portal-header-updates:active,
+.portal-account.is-header .portal-account-trigger:active { translate: 0 1px; }
+
+.portal-header-actions .portal-header-updates:focus-visible,
+.portal-account.is-header .portal-account-trigger:focus-visible {
+  outline: 3px solid var(--color-lagoon-600);
+  outline-offset: 2px;
+}
+
+.portal-account.is-header .portal-account-trigger { display: grid; place-items: center; }
+.portal-account.is-header .portal-avatar { box-shadow: 0 0 0 2px var(--color-field-0); }
+.portal-account.is-header .portal-menu.is-header {
+  top: calc(100% + var(--space-2));
+  right: 0;
+  bottom: auto;
+  left: auto;
+}
+
+/* A phone gets navigation and utilities; full Portfolio search stays one tap
+   away in the content experiences rather than becoming a 120px token field. */
+@media (max-width: 47.99rem) {
+  .portal-search { display: none; }
+  .portal-header { min-height: 3.75rem; padding-inline: var(--space-3); }
+  .portal-header.is-provider { display: flex; gap: var(--space-2); }
+  .portal-header.is-provider .portal-header-context { flex: 1; }
+  .portal-header.is-provider .portal-context-switcher {
+    grid-template-columns: 2rem;
+    width: 2.75rem;
+    padding: 3px;
+  }
+  .portal-header.is-provider .portal-context-copy,
+  .portal-header.is-provider .portal-context-switcher > .portal-icon { display: none; }
+}
+
+@media (min-width: 48rem) and (max-width: 74.99rem) {
+  .portal-header.is-provider {
+    grid-template-columns: minmax(6.5rem, 1fr) minmax(16rem, 30rem) minmax(6.5rem, 1fr);
+    gap: var(--space-3);
+    padding-inline: var(--space-4);
+  }
+  .portal-header.is-provider .portal-context-switcher {
+    grid-template-columns: 2rem;
+    width: 2.75rem;
+    padding: 3px;
+  }
+  .portal-header.is-provider .portal-context-copy,
+  .portal-header.is-provider .portal-context-switcher > .portal-icon { display: none; }
+}
+
+/* Coarse pointers retain a full 44px target even outside Provider mode. */
 @media (pointer: coarse) {
-  .portal-utility { height: 2.75rem; }
   .portal-header-icon, .portal-header-updates { width: 2.75rem; }
   .portal-search-field { height: 2.75rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .portal-utility, .portal-header-icon, .portal-header-updates { transition: none; }
+  .portal-header-icon, .portal-header-updates, .portal-context-switcher { transition: none; }
 }
 
 /* Only a mark that there is somewhere else to be. A count would invite reading

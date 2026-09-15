@@ -63,7 +63,7 @@ class LeaseSerializer(serializers.ModelSerializer):
     unit_label = serializers.CharField(source="unit.label", read_only=True)
     property_title = serializers.CharField(source="unit.property.title", read_only=True)
     locality_name = serializers.CharField(
-        source="unit.property.address.locality.name", read_only=True, default=None
+        source="unit.property.address.locality_label", read_only=True, default=None
     )
     landlord_name = serializers.CharField(source="landlord.display_name", read_only=True)
     tenant_name = serializers.CharField(source="tenant.display_name", read_only=True)

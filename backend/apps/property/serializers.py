@@ -20,9 +20,9 @@ class AddressShortSerializer(serializers.Serializer):
     """Enough of an address to show where a property is, without a second call."""
 
     id = serializers.UUIDField(read_only=True)
-    locality_name = serializers.CharField(source="locality.name", read_only=True)
-    district_name = serializers.CharField(source="locality.district.name", read_only=True)
-    region_name = serializers.CharField(source="locality.district.region.name", read_only=True)
+    locality_name = serializers.CharField(source="locality_label", read_only=True)
+    district_name = serializers.CharField(source="district_label", read_only=True)
+    region_name = serializers.CharField(source="region_label", read_only=True)
     digital_address = serializers.CharField(read_only=True)
     street = serializers.CharField(read_only=True)
     house_number = serializers.CharField(read_only=True)

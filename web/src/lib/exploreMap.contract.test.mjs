@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import { dirname, join, relative, resolve } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
-const read = (relative) => readFileSync(resolve(root, relative), "utf8");
+const read = (file) => readFileSync(resolve(root, file), "utf8");
 
 /** The text between two markers, so an assertion lands inside one function or rule. */
 function between(source, start, end) {
@@ -16,9 +16,26 @@ function between(source, start, end) {
   return source.slice(from, to);
 }
 
+/** Every TypeScript and CSS source under a directory, as [repo-relative path, text]. */
+function sources(directory) {
+  const found = [];
+  const walk = (folder) => {
+    for (const name of readdirSync(folder)) {
+      const full = join(folder, name);
+      if (statSync(full).isDirectory()) walk(full);
+      else if (/\.(ts|tsx|css)$/.test(name)) {
+        found.push([relative(root, full).replaceAll("\\", "/"), readFileSync(full, "utf8")]);
+      }
+    }
+  };
+  walk(resolve(root, directory));
+  return found;
+}
+
 test("the search lives in the address bar, and the list and the map ask it the same question", () => {
   const browser = read("web/src/components/listings/ListingBrowser.tsx");
   const view = read("web/src/components/explore/ExploreMapView.tsx");
+  const query = read("web/src/lib/exploreQuery.ts");
 
   // Read from the URL on every render, never copied into component state.
   assert.match(browser, /const params = useSearchParams\(\);/);
@@ -38,8 +55,14 @@ test("the search lives in the address bar, and the list and the map ask it the s
   // page did not.
   assert.doesNotMatch(update, /history\.state/);
 
+  // A chosen place travels whole — name, box and provenance — and its box is
+  // what both views search, so restoring or sharing a search resolves nothing.
+  assert.match(query, /params\.set\("area", formatBounds\(query\.area\.bounds\)\);/);
+  assert.match(query, /const box = query\.bbox \?\? query\.area\?\.bounds \?\? null;/);
+  assert.doesNotMatch(browser, /resolvePlace|getPlace/);
+
   // The map keeps no filter of its own to drift from the search.
-  assert.doesNotMatch(view, /\bset(Rent|Property|Space|Bedroom|Furnish|Advance|Sort|Place|Bbox|Query)\w*/);
+  assert.doesNotMatch(view, /\bset(Rent|Property|Space|Bedroom|Furnish|Advance|Sort|Place|Area|Bbox|Query)\w*/);
   assert.doesNotMatch(view, /useState[^;\n]*\bquery\./);
   // useSearchParams in a statically rendered page needs a Suspense boundary.
   const page = read("web/app/rentals/page.tsx");
@@ -51,35 +74,40 @@ test("the map is a view of the search: opening, closing and failing never clear 
   const places = read("web/src/components/explore/PlaceSearch.tsx");
 
   // Choosing a place opens the map on it, pushed so Back returns to the list.
-  const choose = between(browser, "function choosePlace(row: Place) {", "\n  }");
-  assert.match(choose, /update\(\{ \.\.\.NO_LOCATION, place: row\.slug, view: "map" \}, query\.view === "map" \? "replace" : "push"\);/);
-  // Closing changes the view and nothing else.
-  assert.match(browser, /onClose=\{\(\) => update\(\{ view: "list" \}\)\}/);
+  const choose = between(browser, "function choosePlace(place: ResolvedPlace) {", "\n  }");
+  assert.match(choose, /const area = \{ name: place\.display_name, bounds: place\.bounds, ref: `\$\{place\.provider\}:\$\{place\.reference\}` \};/);
+  assert.match(choose, /update\(\{ \.\.\.NO_LOCATION, area, view: "map" \}, query\.view === "map" \? "replace" : "push"\);/);
+  // Opening the map is pushed; returning to the list changes the view and nothing else.
+  assert.match(browser, /function showMap\(\) \{ update\(\{ view: "map" \}, "push"\); \}/);
+  assert.match(browser, /function showList\(\) \{ update\(\{ view: "list" \}\); \}/);
   // A failed request keeps the last results rather than emptying the page.
   const fetchResults = between(browser, "const page = await searchListingsFor(", "}, 250);");
   assert.match(fetchResults, /setListings\(\(current\) => current \?\? \[\]\);/);
   assert.doesNotMatch(fetchResults, /setListings\(\[\]\)/);
   // The field puts back what is actually searched when left without a choice.
-  assert.match(places, /if \(editing\) setDraft\(committed\);/);
+  assert.match(places, /if \(editing && !resolving\) setDraft\(committed\);/);
 });
 
-test("on a phone one switch moves between the list and the map, and nothing else does", () => {
+test("one control per width moves between the list and the map, and says where it goes", () => {
   const browser = read("web/src/components/listings/ListingBrowser.tsx");
   const view = read("web/src/components/explore/ExploreMapView.tsx");
   const mapCss = read("web/src/styles/explore-map.css");
   const phone = between(mapCss, "@media (max-width: 63.999rem) {", "\n}");
 
-  // The map's switch leaves for the list page. There is no list inside the map
-  // to switch to, and no second way out in the bar.
-  assert.match(view, /<button type="button" className="explore-view-switch" onClick=\{onClose\}>/);
-  assert.doesNotMatch(view, /setPane|is-list/);
-  assert.match(phone, /\.explore-map-close \{ display: none; \}/);
-  assert.match(phone, /\.explore-map-results \{ display: none; \}/);
-  // The list page's switch returns, and the rail's Map pill steps aside for it.
-  assert.match(browser, /className="explore-view-switch explore-map-float"\s+onClick=\{\(\) => update\(\{ view: "map" \}, "push"\)\}/);
+  // Wide screens: a pill at the end of the results row. Phones: one floating
+  // switch. Both are named for where they go, and the map keeps no way out of
+  // its own.
+  assert.match(browser, /className="explore-map-toggle"\s+onClick=\{mapView \? showList : showMap\}/);
+  assert.match(between(browser, 'className="explore-feedback"', "\n  const notices"), /className="explore-map-toggle"/);
+  assert.equal(browser.match(/className="explore-view-switch"/g)?.length, 1);
+  assert.match(browser, /<button type="button" className="explore-view-switch" onClick=\{mapView \? showList : showMap\}>/);
+  // Its own prop, not the preview's `onClose`, which closes a preview.
+  assert.doesNotMatch(view, /onClose: \(\) => void|explore-map-close|explore-view-switch|setPane/);
+  assert.match(between(mapCss, ".explore-view-switch {", "}"), /display: none;/);
+  assert.match(phone, /\.explore-view-switch \{ display: inline-flex; \}/);
   assert.match(phone, /\.explore-map-toggle \{ display: none; \}/);
-  assert.match(phone, /\.explore-map-float \{ position: fixed;[^}]*display: inline-flex; \}/);
-  assert.match(between(mapCss, "@media (min-width: 64rem) {", "\n}"), /\.explore-view-switch \{ display: none; \}/);
+  // A phone has no list beside the map to switch within.
+  assert.match(phone, /\.explore-map-results \{ display: none; \}/);
 });
 
 test("an area drawn on the map is shown, and removable, wherever it narrows the rentals", () => {
@@ -87,14 +115,15 @@ test("an area drawn on the map is shown, and removable, wherever it narrows the 
   const view = read("web/src/components/explore/ExploreMapView.tsx");
   const query = read("web/src/lib/exploreQuery.ts");
 
-  // One chip, in the controls both views share, so the list page says so too.
-  const controls = between(browser, 'function discovery(variant: "page" | "map"): ReactNode {', "\n  const notices");
-  assert.match(controls, /\{variant === "page" \|\| query\.bbox \|\| unshown\.length \|\| filterCount \? \(/);
+  // One chip, in the controls both views share, so the list says so too.
+  const controls = between(browser, "function discovery(): ReactNode {", "\n  const notices");
   assert.match(controls, /\{query\.bbox \? \(\s*<button\s+type="button"\s+className="explore-chip explore-area-chip"/);
   assert.match(controls, /onClick=\{\(\) => \{ update\(\{ bbox: null \}\); advancedTrigger\.current\?\.focus\(\); \}\}/);
   assert.doesNotMatch(view, /Map area|onClearArea/);
-  // Where, not a filter: Clear all keeps it.
-  assert.match(between(query, "export function withoutFilters(", "\n}"), /bbox: query\.bbox,/);
+  // Where, not a filter: Clear all keeps the map area and the chosen place.
+  const clear = between(query, "export function withoutFilters(", "\n}");
+  assert.match(clear, /bbox: query\.bbox,/);
+  assert.match(clear, /area: query\.area,/);
 });
 
 test("an older request can never overwrite a newer answer", () => {
@@ -116,20 +145,51 @@ test("an older request can never overwrite a newer answer", () => {
   assert.match(view, /controller = fetchMarkers\(view, false\);/);
   assert.match(view, /const controller = fetchMarkers\(viewRef\.current, true\);/);
   // Suggestions: the next keystroke withdraws the last request.
-  assert.match(places, /searchPlaces\(typed, controller\.signal\)/);
+  assert.match(places, /suggestPlaces\(typed, session\.current, controller\.signal\)/);
   assert.match(places, /window\.clearTimeout\(timer\);\s*controller\.abort\(\);/);
+  // Choosing again withdraws a resolve still on its way.
+  assert.match(places, /choosing\.current\?\.abort\(\);\s*const controller = new AbortController\(\);/);
+});
+
+test("one search is one Places session, spent by the place it chooses", () => {
+  const places = read("web/src/components/explore/PlaceSearch.tsx");
+  const lib = read("web/src/lib/places.ts");
+
+  // Made with the first request and carried by every one after it.
+  assert.match(places, /session\.current \?\?= newPlacesSession\(\);/);
+  // Resolving the choice carries the same token, and spends it.
+  const choose = between(places, "async function choose(row: PlaceSuggestion) {", "\n  }\n");
+  assert.match(choose, /await resolvePlace\(row, session\.current, controller\.signal\);/);
+  assert.match(choose, /session\.current = null;/);
+  // Nothing is typed into the field on the way: new text would ask for suggestions again.
+  assert.doesNotMatch(between(places, "function commit(place: ResolvedPlace) {", "\n  }\n"), /setDraft\(/);
+  // Searching the text instead ends the session too.
+  assert.match(between(places, "function submit() {", "\n  }\n"), /session\.current = null;/);
+  // A recent place skips the provider, and keeps its coordinates thirty days at most.
+  assert.match(places, /const RECENT_MAX_AGE_MS = 30 \* 24 \* 60 \* 60 \* 1000;/);
+  assert.match(places, /choose: \(\) => commit\(place\),/);
+  // The client asks Rooomly, never a Places endpoint, and holds no Places key.
+  assert.match(lib, /`\/geo\/places\/suggest\/\?\$\{params\.toString\(\)\}`/);
+  assert.match(lib, /`\/geo\/places\/resolve\/\?\$\{params\.toString\(\)\}`/);
+  assert.doesNotMatch(lib + places, /places\.googleapis|X-Goog|GOOGLE_MAPS/);
+  // Google's suggestions, shown where there may be no Google map, carry its name.
+  assert.match(places, /attribution === "google"/);
 });
 
 test("a marker previews a rental; only the preview leaves the map", () => {
   const map = read("web/src/components/explore/ExploreMap.tsx");
+  const google = read("web/src/lib/maps/google/map.ts");
   const view = read("web/src/components/explore/ExploreMapView.tsx");
   const preview = read("web/src/components/explore/MapListingPreview.tsx");
 
-  // Markers are buttons a keyboard can reach, with states as classes.
-  assert.match(map, /const element = document\.createElement\("button"\);/);
+  // A marker with a click is named and keyboard-reachable; the provider decides how.
+  assert.match(map, /title: describe\(feature\),\s*onClick: \(\) => \{/);
+  assert.match(google, /gmpClickable: Boolean\(onClick\),/);
+  assert.match(google, /pin\.addEventListener\("gmp-click", \(\) => onClick\(\)\);/);
   for (const state of ["is-selected", "is-hovered", "is-visited"]) {
     assert.match(map, new RegExp(`element\\.classList\\.toggle\\("${state}", `));
   }
+  assert.match(map, /entry\.marker\.setPressed\(selected\);/);
   // Selecting sets a selection; it never navigates.
   const select = between(view, "function selectListing(feature: MapListingFeature) {", "\n  }");
   assert.match(select, /setSelection\(\{ key: `listing:\$\{feature\.id\}`, ids: \[feature\.id\]/);
@@ -139,6 +199,8 @@ test("a marker previews a rental; only the preview leaves the map", () => {
   assert.match(cluster, /if \(feature\.stacked && feature\.ids\?\.length\) \{/);
   // The preview is where the listing opens.
   assert.match(preview, /<Link href=\{href\} className="explore-preview-link" onClick=\{\(\) => onOpen\(listing\)\}>/);
+  // A tap on a marker, or on the preview drawn as one, is not a tap on the map.
+  assert.match(google, /target\.closest\("gmp-advanced-marker"\)/);
 });
 
 test("the map searches a new area only when asked", () => {
@@ -168,58 +230,107 @@ test("a card's address opens that rental's location, drawn only as the backend p
   assert.match(detail, /<ListingLocation listing=\{listing\} where=\{where\} landmark=\{place\.landmark\} \/>/);
   // The approximate public point is the only coordinate a map draws.
   assert.match(location, /const location = listing\.public_location;/);
+  // An area, in a page that scrolls: the map waits for a deliberate gesture.
+  assert.match(locationMap, /gestures: "cooperative",/);
+  assert.match(locationMap, /map\.addArea\(\{/);
   // Uses, not mentions: the section's comment names the street it withholds.
   for (const source of [location, locationMap, map]) {
     assert.doesNotMatch(source, /map_latitude|map_longitude|\.address\b|\.street\b|house_number|digital_address/);
   }
 });
 
-test("the basemap is Rooomly's, credited, and its worker is served from an allow-list", () => {
-  const map = read("web/src/components/explore/ExploreMap.tsx");
-  const setup = read("web/src/components/explore/maplibreSetup.ts");
-  const route = read("web/app/maplibre/[file]/route.ts");
-  const settings = read("backend/config/settings/base.py");
+test("Google Maps sits behind Rooomly's map interface, configured by the build and failing plainly", () => {
+  // Only the provider's folder knows Google exists; everything else draws through `@/lib/maps`.
+  for (const [path, text] of [...sources("web/src"), ...sources("web/app")]) {
+    assert.doesNotMatch(text, /maplibre|pmtiles|protomaps/i, `${path} still mentions the old basemap`);
+    if (path.startsWith("web/src/lib/maps/google/")) continue;
+    assert.doesNotMatch(
+      text,
+      /@googlemaps\/|google\.maps\b|gmp-advanced-marker|NEXT_PUBLIC_GOOGLE/,
+      `${path} reaches past the map interface`,
+    );
+  }
+  assert.doesNotMatch(read("web/package.json"), /maplibre|pmtiles|protomaps/);
 
-  assert.match(setup, /setWorkerUrl\(new URL\("\/maplibre\/maplibre-gl-worker\.mjs", window\.location\.origin\)\.href\);/);
-  assert.match(setup, /addProtocol\("pmtiles", new Protocol\(\)\.tile\);/);
-  assert.match(map, /prepareMapLibre\(\);/);
-  assert.match(route, /const FILES = new Set\(\["maplibre-gl-worker\.mjs", "maplibre-gl-shared\.mjs"\]\);/);
-  assert.match(route, /if \(!FILES\.has\(file\)\) return new Response\("Not found", \{ status: 404 \}\);/);
-  // OpenStreetMap's licence requires the credit on every map.
-  assert.match(map, /new AttributionControl\(\{ compact: true, customAttribution: config\.attribution \}\)/);
-  assert.match(settings, /MAP_ATTRIBUTION = env\("MAP_ATTRIBUTION", "© OpenStreetMap contributors · Protomaps"\)/);
+  const config = read("web/src/lib/maps/google/config.ts");
+  const loader = read("web/src/lib/maps/google/loader.ts");
+  const google = read("web/src/lib/maps/google/map.ts");
+  // A browser key and a map ID from the build. Production without a map ID has
+  // no map rather than an unstyled one; development borrows Google's demo ID.
+  assert.match(config, /process\.env\.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY/);
+  assert.match(config, /process\.env\.NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID \|\|\s*\(process\.env\.NODE_ENV === "production" \? "" : "DEMO_MAP_ID"\)/);
+  assert.match(google, /mapId: GOOGLE_MAPS_MAP_ID,/);
+  // No key: no request at all, and the page says the map is unavailable.
+  assert.match(loader, /if \(!googleMapsConfigured\(\)\) return Promise\.reject\(new MapUnavailable\("not_configured"\)\);/);
+  assert.match(loader, /setOptions\(\{ key: GOOGLE_MAPS_KEY, v: "weekly", language: "en", region: "GH" \}\);/);
+  // A refused key is said in words, not left as a darkened map.
+  assert.match(loader, /window\.gm_authFailure = \(\) => \{/);
+  assert.match(read("web/src/components/explore/ExploreMap.tsx"), /unsubscribe\.push\(onMapRefused\(fail\)\);/);
+  assert.match(read("web/src/components/explore/ExploreMapView.tsx"), /const mapAvailable = mapsConfigured\(\);/);
+  // A developer is told which setting would draw the map, so a missing key never
+  // passes for a map that stopped updating; production builds never say it.
+  assert.match(config, /if \(process\.env\.NODE_ENV === "production" \|\| googleMapsConfigured\(\)\) return null;/);
+  assert.match(read("web/src/components/explore/ExploreMapView.tsx"), /\{setupHint \? <span>\{setupHint\}<\/span> : null\}/);
+  assert.match(read("web/src/components/listings/ListingLocationMap.tsx"), /const hint = state === "unavailable" \? mapSetupHint\(\) : null;/);
+  // Points of interest would open Google's own cards; on Rooomly a tap means a rental.
+  assert.match(google, /clickableIcons: false,/);
+  // The browser key never meets Places: suggestions go through Rooomly's API.
+  assert.doesNotMatch(loader + google, /importLibrary\("places"\)/);
 });
 
-test("markers and menus are drawn so MapLibre's positioning and the full-screen map both survive", () => {
+test("markers keep their own styling, and the map stays inside the page", () => {
   const mapCss = read("web/src/styles/explore-map.css");
-  const exploreCss = read("web/src/styles/explore-workspace.css");
+  const browser = read("web/src/components/listings/ListingBrowser.tsx");
+  const view = read("web/src/components/explore/ExploreMapView.tsx");
 
-  // MapLibre positions a marker with an inline transform; emphasis must not replace it.
+  // The provider positions a wrapper around each marker; emphasis never replaces a transform.
   const markerRules = between(mapCss, ".explore-price-marker {", ".explore-cluster-marker {");
   assert.doesNotMatch(markerRules, /\btransform:/);
   assert.match(between(mapCss, ".explore-price-marker.is-selected {", "}"), /scale: 1\.12;/);
   assert.match(mapCss, /\.explore-price-marker\.is-visited \{/);
   assert.match(mapCss, /\.explore-price-marker:hover,\s*\.explore-price-marker\.is-hovered \{/);
 
-  // The full-screen view portals to the body. Rendered in place, the public
-  // page's isolated wrapper kept it under the site's sticky header.
-  const view = read("web/src/components/explore/ExploreMapView.tsx");
-  assert.match(view, /return inBrowser \? createPortal\(content, document\.body\) : null;/);
-  assert.match(view, /useSyncExternalStore\(noSubscription, \(\) => true, \(\) => false\)/);
-
-  // The quick-filter menus portal to the body, so they must sit above the map view.
-  const viewLayer = Number(between(mapCss, ".explore-map-view {", "}").match(/z-index: (\d+);/)?.[1]);
-  const menuLayer = Number(between(exploreCss, ".explore-menu {", "}").match(/z-index: (\d+);/)?.[1]);
-  assert.ok(Number.isFinite(viewLayer) && Number.isFinite(menuLayer), "z-index not found");
-  assert.ok(menuLayer > viewLayer, `menus (${menuLayer}) must stack above the map view (${viewLayer})`);
+  // The map takes the list's place, under the site header and the search. It
+  // first shipped as a layer over the whole page — portalled, fixed, and
+  // locking the page's scroll — which read as leaving Explore.
+  assert.match(browser, /\{mapView \? \(\s*<ExploreMapView/);
+  assert.doesNotMatch(view, /createPortal|document\.body|documentElement\.style\.overflow/);
+  assert.doesNotMatch(between(mapCss, ".explore-map-view {", "}"), /position: fixed/);
+  // The search sticks under the site's header once scrolled past, on a band of
+  // the page's ground; the map sticks beneath the search, whose height the page
+  // measures. The portal's header is shorter than the public site's.
+  const workspaceCss = read("web/src/styles/explore-workspace.css");
+  const stick = between(workspaceCss, ".explore-stick {", "}");
+  assert.match(stick, /position: sticky;/);
+  assert.match(stick, /top: var\(--explore-stick-top\);/);
+  assert.match(browser, /<div ref=\{stickRef\} className=\{`explore-stick\$\{stuck \? " is-stuck" : ""\}`\}>\s*\{discovery\(\)\}/);
+  assert.match(workspaceCss, /\.explore-stick\.is-stuck::before,\s*\.explore-stick\.is-stuck::after \{ opacity: 1; \}/);
+  // Filters opened from the stuck search stay pinned under it, so the panel is
+  // sized to that room or its actions sit past the bottom of a short window.
+  assert.match(between(workspaceCss, ".explore-advanced {", "}"), /max-height: min\(46rem, calc\(100dvh - var\(--explore-stick-top\) - var\(--space-4\) - var\(--explore-bar-height\) - var\(--space-2\) - var\(--space-4\)\)\);/);
+  assert.match(browser, /explore\.style\.setProperty\("--explore-tray-height", `\$\{Math\.ceil\(stick\.getBoundingClientRect\(\)\.height\)\}px`\)/);
+  assert.match(mapCss, /--explore-sticky-top: calc\(var\(--explore-stick-top\) \+ var\(--explore-tray-height, 9\.25rem\) \+ var\(--space-3\)\);/);
+  assert.match(between(mapCss, ".portal .explore {", "}"), /--explore-stick-top: calc\(3\.25rem \+ var\(--space-2\)\);/);
+  const stage = between(mapCss, ".explore-map-stage {", "}");
+  assert.match(stage, /position: sticky;/);
+  assert.match(stage, /top: var\(--explore-sticky-top\);/);
+  // The map's own layers stay inside it, beneath the stuck search.
+  assert.match(stage, /isolation: isolate;/);
+  // Opening the map brings the search to where it sticks, rather than leaving
+  // the map below the page's introduction. Arrival jumps: a smooth scroll does
+  // not move a hidden tab. A search already stuck stays where it is.
+  assert.match(browser, /if \(distance <= 8\) return;\s*window\.scrollTo\(\{ top: window\.scrollY \+ distance, behavior: arriving \? "instant" : "smooth" \}\);/);
 });
 
 test("the backend answers the list and the map from one filtered search", () => {
   const views = read("backend/apps/listing/views.py");
   const serializers = read("backend/apps/listing/serializers.py");
+  const search = read("backend/apps/listing/search.py");
 
   assert.match(between(views, "class ListingSearchView(APIView):", "class ListingMapView(APIView):"), /search\.filtered_listings\(data, area\)/);
   assert.match(between(views, "class ListingMapView(APIView):", "class ListingDetailView(APIView):"), /search\.filtered_listings\(data, area\)/);
+  // The area is the box the client sends; the search never looks a place up.
+  assert.doesNotMatch(search, /from apps\.geo|providers/);
   // Cards publish the approximate point, never the address's coordinates.
   assert.match(between(serializers, "def get_public_location(self, obj)", "def _card_media_items"), /return public_location_payload\(obj\)/);
 });

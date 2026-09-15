@@ -530,6 +530,32 @@ Act       → Where do I resolve or continue it?
   hierarchy, retain Daylight & Ledger contrast and do not become a generic
   gradient dashboard treatment.
 
+### 11.1 Provider global header
+
+The Provider header is workspace chrome, not a second page heading. A page name
+already visible in navigation or content must not be repeated in the global
+bar. Its stable reading order is:
+
+```text
+Portfolio context → centred Portfolio search → Updates → Account
+```
+
+- Use equal flexible outer tracks so search is geometrically centred, not merely
+  placed after the left control.
+- Portfolio context may show the active name on wide screens and collapse to a
+  labelled icon at tablet widths. Its popover remains the place to switch scope.
+- Updates and Account use distinct, equal 44px targets with visible hover,
+  pressed and keyboard-focus states. Unread meaning is never communicated by
+  color alone.
+- A quiet Kola-tinted ground, semantic focus ring and restrained icon wells may
+  establish hierarchy; the bar must not become a row of pale floating pills.
+- Search yields before navigation and identity at constrained widths. Do not
+  compress it into an unusable token field.
+- Keep provider identity in this shared header on every Provider page. Do not
+  duplicate the same account control in the rail.
+- This rule changes global chrome only. Individual content headers still own
+  page context, breadcrumbs and contextual actions where the task needs them.
+
 ## 12. Mobile Design Principles
 
 - Design the mobile task independently; do not squeeze the desktop result.
@@ -544,10 +570,18 @@ Act       → Where do I resolve or continue it?
 - Avoid dense multi-column comparisons. Convert them into scan-friendly rows or
   staged detail.
 - Meet the existing 48dp minimum touch target.
+- Back and close glyphs sit inside a true centred 44×44 header control with
+  additional hit slop. Never create optical placement with asymmetric padding;
+  it shifts Ionicons visibly off-axis in iOS custom headers.
 - Use restrained rendering and transform/opacity motion for low-end Android
   performance.
 - Support small displays and large text without clipped actions or inaccessible
   content.
+- The shared mobile type scale has three bounded widths: regular above 375dp,
+  compact through 375dp, and narrow through 340dp. Compact scaling reduces
+  display, title, amount, body and supporting text proportionally; it never uses
+  a whole-screen transform, changes touch-target size, disables system font
+  scaling or overrides a component's deliberate fit adjustment.
 - Settings becomes a navigable list of focused screens, not a miniature desktop
   sidebar.
 - On operational Home surfaces, order regions by decision value. Combine related
@@ -555,6 +589,67 @@ Act       → Where do I resolve or continue it?
 - Keep rings and gauges compact enough to share a phone row with the statement
   they explain; the number and its plain-language meaning remain visible without
   interaction.
+- The shell is Rooomly green. The band behind the status bar and every header,
+  tab or pushed, is kola (`kola-600`), with titles and the way back in white and
+  header controls as translucent white wells; the create action is a solid white
+  disc with a kola glyph. Pages stand on warm ivory (`field-50`); cards, sheets,
+  inputs and the tab bar are paper (`field-0`), separated by hairlines. Dark ink
+  and gold are not shell colours: the tokens' ink chrome and gold accent read as
+  dark and brown, and the product owner chose green (2026-09-14). `field-100` is
+  a quiet fill, never a page.
+- The two Homes are dashboards and stand on their own ground: `kola-600` let
+  down into `field-50` — 14% under the header, 10% mid-page, 6% where the list
+  runs out — with a faint white sheen across the top corner and a pool of green
+  low on the far side, painted once behind the scroller so content moves over a
+  still ground. It is a tone, never a raw green: each step stays under 20%
+  saturation, a heading on it reads at 13.9:1 and an eyebrow (`ink` at 70%) at
+  5.9:1. Cards on it are white with a hairline edge and a shadow tinted
+  `kola-900` (opacity 0.04, and 0.07 on the two that carry a screen); fills inside
+  a card stay warm and neutral, and the shortcuts are frosted glass rather than
+  more cards. Every other tab keeps the ivory page.
+- The tab bar is paper under a hairline, with a 24pt glyph over an 11pt name in
+  cells at least 56pt wide and 62pt tall. The tab you are on has a pale kola
+  indicator (`kola-50`, 60×32) that widens behind it, its glyph fills in deep
+  kola (`kola-800`), and its name turns bold; the other tabs are outlines in a
+  muted kola (`kola-900` at 72%), never a brown grey. The indicator is the bar's
+  quality, not clutter — removing it made the bar poorer. Glyph and name
+  crossfade on the native driver, a press springs the glyph and its indicator,
+  and iOS lifts the shelf with a whisper of shadow while Android keeps the
+  hairline.
+- A page's name is said once, by its header. The body opens with content or one
+  line of context, never an eyebrow and a title repeating the header. A page
+  that names itself — Home's greeting — carries Rooomly's wordmark in the header
+  instead of a second title. On the provider side Portfolio scope remains in the
+  labelled switcher; never stack the Portfolio name above the page title. Tab
+  titles use a compact bold scale (20px normally, 18px at 360px and below), a
+  56/52px row, and both top and horizontal safe-area insets. Android
+  edge-to-edge headers use the larger of the safe-area inset and the native
+  status-bar height, so older compact devices never place controls beneath the
+  clock, network or battery indicators. This contract applies equally to tab
+  headers and pushed Stack screens; a page must not add a second display title
+  immediately below either header.
+- A bottom sheet can always be swiped away. Its handle and title row drag it,
+  its body drags it from the top of its scroll, and a release past a quarter of
+  its height, past 160pt or on a downward flick closes it; anything less springs
+  home. It stays below the status bar, keeps its actions above the home
+  indicator, and closes from the back button, the scrim, its close button and
+  VoiceOver's escape.
+- A filter sheet or panel asks each question in one row, with its answer on the
+  same line, in the same order on the phone and the web. A range is two thumbs on
+  one track that snap to the same stops, never cross, say what they mean ("From
+  GH₵1,000", "Any price") and search once the dragging settles. A list is a
+  dropdown with its answer ticked that closes on a choice and is never open beside
+  another. On the phone it opens in place; on the web it floats from its button,
+  below it when it fits and above when there is more room, because the panel
+  scrolls and would clip it. A few short answers are a segmented control, and on
+  or off is a switch. A set answer tints its field in kola, and choosing changes
+  colour, never size. Where a web panel has room for two 17rem columns, the rows
+  pair up two to a line under the full-width rent range. Explore's phone sheet
+  opens 588pt tall on a 390×844 screen; the web panel is 640×403px in a 1280×860
+  window, and a one-column sheet 611px tall at 390px, with nothing to scroll.
+- A launch, a sign-in and a sign-out show Rooomly's name on the green chrome until
+  authentication, role and route are all resolved. Never a spinner, and never
+  the signed-out or another workspace's version of a screen first.
 
 ## 13. Responsive Design Principles
 
@@ -2037,11 +2132,11 @@ never refined. Three failures, all of them ones §5 and §8 name:
 
 ### Journey: Notifications
 
-**Status:** COMPLETE — 2026-08-24; awaiting user testing.
+**Status:** COMPLETE — refined 2026-09-14; awaiting user testing.
 
 **Problems solved:**
 
-- The backend emits 26 event kinds and the feed rendered every one identically. A
+- The backend emits many event kinds and the feed rendered every one identically. A
   viewing request waiting on a reply looked exactly like a receipt for a payment
   that already went through.
 - **Three of the seven target types were a dead tap on mobile.** `organization`,
@@ -2061,9 +2156,14 @@ never refined. Three failures, all of them ones §5 and §8 name:
   outstanding." Home derives attention from live domain state; a notification
   only knows whether it has been read. Two attention queues that disagree is
   worse than one.
-- One split, not a taxonomy: *did this want something from me?* `Waiting on you`
-  is unread-and-actionable — the only honest proxy the record supports, and it
-  clears itself when the row is opened.
+- The communication centre has a small **presentation vocabulary**, not a second
+  domain lifecycle: All, Unread, Action needed, Rental, Applications, Payments
+  and System. Categories that have no records do not take up space. Maintenance
+  is not exposed until the backend emits maintenance notifications; an empty
+  filter would be dishonest affordance.
+- `Action needed` is unread-and-actionable — the only honest proxy the record
+  supports, and it clears itself when the row is opened. It is pulled ahead of
+  the timeline in All. Home still owns the authoritative live work.
 - Actionability is a property of the kind alone, because each kind reaches
   exactly one side of the relationship. `viewing.requested` only ever reaches the
   host, `lease.offered` only ever the tenant, so nothing has to know who is
@@ -2079,21 +2179,39 @@ never refined. Three failures, all of them ones §5 and §8 name:
   step, a second checks every classified kind is one the backend actually emits,
   a third checks every emitted target type has a destination on both clients.
   That last one is the guard the dead taps needed.
-- Status in words before colour: `Needs a reply` is text, and reaches the screen
-  reader through the row label rather than only the eye.
+- Status in words before colour: `Action needed`, `Unread`, `Completed`,
+  `Important` and `Read` are explicit text and reach the screen reader through
+  the row label. Semantic colour reinforces that language: kola for successful
+  completion, harmattan for action/warning, laterite for critical failure,
+  lagoon for information and ink/field for neutral history.
+- Source labels translate internal kinds into stable human context — Viewings,
+  Applications, Agreements, Payments, Plan & billing and Portfolio. The UI never
+  exposes event names.
 
 **Responsive/mobile:**
 
-- Web rows are a three-column grid that collapses at 600px, with the flag moving
-  under the title. Tabs scroll rather than wrap.
-- Native uses a virtualized list with separators instead of cards, 76px rows, and
-  one accessibility label per row carrying the flag, title, body, age and unread
-  state.
+- The shell owns the page title. Neither client repeats “Updates” inside the
+  content, and neither adds a dashboard-style summary card above a feed whose
+  filters already carry the useful counts.
+- Web begins with a horizontally scrollable filter rail and grouped row
+  surfaces. The wider canvas improves scanning without turning the feed into a
+  table or a two-pane admin tool.
+- Native uses a `SectionList` ordered Needs your attention → Today → This week →
+  Earlier, with compact filters and one accessibility label per row carrying
+  source, title, body, age and status.
+- Both clients present at most ten records per page. Filtering still applies to
+  the complete bounded history returned by the notification API, so page counts
+  and category counts do not change merely because an item sits on a later page.
+  Web uses compact Previous/Next controls; native uses the same paging model with
+  thumb-sized directional controls.
 - Unread is a left rule on both, never a coloured dot.
+- Opening an item navigates immediately while the read acknowledgement settles;
+  the network request can no longer make a tap feel dead. Longer context remains
+  on the destination screen rather than in a notification modal.
 
 **Known limitations:**
 
-- `Waiting on you` cannot know an item was dealt with elsewhere. Answer a viewing
+- `Action needed` cannot know an item was dealt with elsewhere. Answer a viewing
   on the Viewings page and its notification stays flagged until opened. Fixing
   that properly means the notification tracking its target's resolution, which is
   a domain change, not a UI one — deliberately not invented in the client.
@@ -4737,8 +4855,9 @@ confirmed the header and rail only.
 
 ### Journey: Explore — place search and the map (web)
 
-**Status:** web phase complete, 2026-09-13; mobile map-first Explore follows after
-user testing. Architecture in ADR 0033.
+**Status:** web phase complete, 2026-09-13. A day later its basemap and place
+table gave way to Google Maps, and the phone gained its map — see the next
+entry. Architecture in ADR 0033, and ADR 0034 for what replaced them.
 
 **Problems solved:**
 
@@ -4751,12 +4870,16 @@ user testing. Architecture in ADR 0033.
   part highlighted, a context line ("Accra, Greater Accra") and a kind tag.
   Recent searches show on focus. Enter takes the highlighted suggestion; with
   none, it searches listings for the text, and the list says so first.
-- **There was no map, and nothing had a position.** Choosing a place opens a
-  full-screen map fitted to that place. Results sit beside it on wide screens.
-  On a phone the map fills the screen, and one floating switch moves between
-  it and the list page — "List · 3" on the map, "Map" on the list. Nothing else
-  does: a close button in the bar and a list inside the map both led to a list,
-  under the same icon.
+- **There was no map, and nothing had a position.** Choosing a place, or the
+  Map pill, turns the results into a map fitted to that place — inside the page,
+  in the list's place, so the site header, the search and the filters stay
+  where they were. It first shipped as a full-screen layer over the whole page,
+  which read as leaving Explore. Opening it slides the search up under the
+  header so the map fills the screen below. Wide screens keep the results
+  beside a map that stays in view as they scroll, and the rail's pill is named
+  for where it goes, "Map" or "List". On a phone the map takes the page's width
+  and one floating switch moves between the two — "List · 3" on the map, "Map"
+  on the list.
 - **The search had no durable state.** The address bar is the search:
   `?place=adabraka-accra&view=map&rent_max=2500`. Refresh, Back, a shared link
   and a return from a listing all rebuild the same search. Closing the map
@@ -4814,14 +4937,14 @@ no longer offered keeps every filter and says so.
   runs in a row on the pinned GIS libraries. Ruff is clean, and mypy finds
   nothing in the new code; the listing app's older errors are unchanged.
 - The web: typecheck and lint are clean, 346 contract tests pass, and a mirror
-  caught 42 of 42 mutations of what they promise.
+  caught 48 of 48 mutations of what they promise.
 - On the live page, at 1280px and 390px: place suggestions; opening the map
-  from a place, from the Map pill and from its URL; closing it keeps the place,
-  and Back returns to the list; a filter updates the results and the address
-  bar together; the Map area chip in both views, and removing it; the phone's
-  one switch both ways, stepping aside for the Filters sheet; the map view above
-  the site header; the empty state; and a card's address arriving at the
-  Location section.
+  from a place, from the Map pill and from its URL; returning to the list keeps
+  the place, and Back returns to the list; a filter updates the results and the
+  address bar together; the Map area chip in both views, and removing it; the
+  phone's one switch both ways, stepping aside for the Filters sheet; the map
+  inside the page, under the site header and the search; the empty state; and
+  a card's address arriving at the Location section.
 - The basemap style validated against MapLibre's style spec, with every font and
   tile layer it uses present in the published assets.
 
@@ -4831,6 +4954,460 @@ after a real pan need a person at the map. The signed-in portal shell uses the
 same component and was not opened.
 
 **Next:** Stop for user testing. Then Listing Detail.
+
+### Journey: Explore — Google Maps, and the map on the phone
+
+**Status:** built 2026-09-14; waiting for Google Maps keys, then user testing on
+the web, Android and iPhone. Architecture in ADR 0034.
+
+**Problems solved:**
+
+- **Place search knew only what an import knew.** The field now asks Places API
+  (New), limited to Ghana, through Rooomly's API, so the streets, estates and
+  businesses a tenant names can be found. Each suggestion shows its kind in
+  colour: lagoon for areas, gold for landmarks, kola for addresses. Google's
+  suggestions carry "Google Maps" beneath them, as Google requires when they
+  appear without its map. Typing through to a choice is one Places session.
+- **The map was a self-hosted OpenStreetMap basemap** that someone had to
+  extract, publish and serve from a public bucket. The web now draws Google
+  Maps, and the price pills, clusters and stacks stay Rooomly's own markers. A
+  listing's Location section draws its approximate area on the same map.
+- **The phone had no map.** Explore on the phone is now map-first. The search
+  box and quick filters sit over the map, and the rentals rise in a sheet: a
+  peek with the count, half the screen to compare, the whole screen to read. A
+  price marker opens a preview card over the map, a stack pages through its
+  rentals, and a cluster zooms in. When the list fills the screen, a kola "Show
+  map" pill floats over it.
+- **A shared link had to look its place up again.** The address bar now holds
+  the area itself — `?area_name=Adabraka,+Accra+Metropolitan&area=-0.22639,5.54896,-0.19939,5.57596&area_ref=rooomly:<id>&view=map`
+  — so a reload or a shared link asks nobody.
+
+**Important decisions:**
+
+- **Google stays behind Rooomly's interfaces.** One folder per layer knows it:
+  the API's location providers, the web's `lib/maps/google` and the phone's
+  `RooomlyMap.native.tsx`. No Property, Unit or Listing field names Google.
+- **No key is a working screen, not a broken one.** Without keys the web says
+  the map is not available and keeps every rental in the list, the phone shows
+  Explore as its list, and suggestions come from Rooomly's localities.
+- **The preview never shows rent without the advance.** On the phone the advance
+  sits in a gold chip under the price, because the lump sum on day one decides
+  whether a tenant can take a place.
+- **"Search this area" means what the tenant can see.** The phone measures the
+  map between the header and the sheet rather than trusting a provider's region,
+  and Google's logo stays above the sheet.
+- **The sheet moves before the list scrolls.** Dragging the rentals moves the
+  sheet until it fills the screen, and only then does the list scroll. For a
+  screen reader the handle is adjustable: swipe up or down to show more or less.
+- **Expo Go on an iPhone draws Apple Maps.** Google's iOS SDK cannot load there;
+  every build Rooomly ships draws Google's.
+
+**Verified:**
+
+- The backend: the full suite (1,589 tests), including place lookups against a
+  stand-in for Google — suggestions, resolving, the fallback to localities, a
+  missing key, a place Google no longer knows, and malformed session tokens.
+- The web: typecheck and lint are clean, and 350 contract tests pass. In the
+  browser without keys, suggestions and the resolve share one session; choosing
+  a place writes the area into the address and opens the map view, which says
+  the map is not available while the list shows the rentals; and reloading that
+  link makes no place lookup.
+- The phone: typecheck and lint are clean, and 136 contract tests pass.
+- A mirror of the files caught 116 of 116 mutations of what the web and phone
+  contract tests promise.
+
+**Not verified:** anything Google draws or answers. No keys were available, so
+the painted map, its markers, the Map ID and Google's suggestions were not seen
+on the web, on Android or on an iPhone. The phone screen has not run on a
+device: the sheet's drag, the preview card and "Search this area" after a real
+pan need a person with a phone.
+
+**Next:** add keys (`docs/runbook.md`, Maps and places), then test on the web, an
+Android phone and an iPhone. After that, property location capture with a
+pin-confirmed point.
+
+### Journey: Explore on the phone — two controls, a sheet that reaches the top, markers that keep their shape
+
+**Status:** built 2026-09-14 after the first test on a phone; waiting for the next.
+
+**Problems solved:**
+
+- **The top of the map was crowded.** A search box, a rail of five filter pills
+  and a row of chips sat over the map. Now there is one search bar, drawn in the
+  "Search this area" pill's language — white, a kola edge, a soft shadow — and
+  one Filters button beside it that carries the count of what is on. Every
+  filter opens in the existing sheet. Below 340 points of width the button drops
+  its word and keeps its icon and count. An area searched from the map shows as
+  a lagoon "Map area" chip in the results sheet.
+- **The results sheet stopped short.** Dragging the rentals up could leave the
+  sheet halfway: the photographs in the cards swiped sideways and could take a
+  drag meant for the sheet, and a release only snapped to the nearest stop. The
+  photographs now swipe only once the sheet is full. A release snaps to where it
+  is heading, a deliberate flick always moves at least one stop, and the sheet
+  never bounces past it. Full is the whole Explore content area under the search
+  bar, which settles onto the page as the sheet arrives. Only there does the list
+  scroll, so scrolling never fights the sheet; the sheet's header drags it back
+  down, and its Map button returns to the map. Collapsed shows exactly the
+  sheet's measured header, so a larger font or an error never clips it.
+- **"Search this area" floated over the rentals.** It now rides a step above the
+  sheet's top edge and fades before the sheet can crowd it. It is gone while the
+  sheet is full or a preview is open, and returns with the map. It appears once
+  the map has moved a quarter of the view, or most of a zoom level, away from
+  where the results were shown.
+- **Price markers broke on Android.** react-native-maps snapshots a marker's
+  views into a bitmap sized by a layout hook the New Architecture never calls,
+  so every marker became a 100×100-pixel square: a cropped pill on a dense
+  screen, extra space on a coarse one. Android now draws each marker face once,
+  offscreen at its natural size, and places that image; iOS places the live
+  face. A face sizes itself from its text and the system font size, capped at
+  1.3×, and nothing it draws reaches outside its frame: the tail is made from
+  borders rather than a rotated square, and there is no shadow. A marker keeps
+  its plain face while its selected one is drawn, rather than vanishing.
+- **Photo arrows sat under the thumb.** The previous and next buttons are gone
+  from the phone's cards; the swipe and its dots remain.
+
+**Verified:** typecheck and lint are clean with no warnings, 137 phone and 350
+web contract tests pass, and a mirror caught 150 of 150 mutations of what the
+web and phone contract tests promise.
+
+**Not verified:** anything on a device — the sheet's drag and snapping, the fade
+of "Search this area", and the drawn markers on an Android phone. The count
+still reads "rentals", the word the web and the filter sheet's button use.
+
+**Next:** test on an Android phone and an iPhone.
+
+### Journey: Explore on the web — the phone's two controls
+
+**Status:** built 2026-09-14; waiting for user testing.
+
+**Problems solved:**
+
+- **The search sat above a rail of five pills and a row of chips.** The web now
+  has the phone's pair: one search bar and one Filters button, both white pills
+  edged in kola like "Search this area", on a warm tray with a breath of kola in
+  its corner. Rent, property type, unit, bedrooms, advance, furnishing and order
+  all live in the Filters panel. The button carries their count in a kola badge,
+  takes kola's doubled edge while any are on, and fills with kola's tint while
+  its panel is open. The Rent, Property type and Bedrooms menus, the Furnished
+  pill and the chips that repeated them are gone.
+- **The way to the map was the last pill in the rail.** It is now a deep-kola
+  pill at the end of the results row, named for where it goes — "Map" or "List"
+  — beside the count, the lagoon "Map area" chip and the one Clear all. Phones
+  keep their floating switch.
+- **The panel opened under the whole tray.** It now opens beneath the Filters
+  button, aligned to its edge; narrow screens still get it as a bottom sheet.
+- **The search scrolled away with the results.** The tray now sticks under the
+  site's header once the page scrolls past it: 8px below the public site's 80px
+  header, and under the portal's shorter one when signed in. Stuck, it stands on
+  a band of the page's own ground with a hairline beneath and a lifted shadow, so
+  results pass under it rather than through it; unstuck, neither shows. The map
+  view sticks beneath the tray at a height the page measures, and Filters opened
+  from the stuck tray are sized to the room under it, so their actions never sit
+  past the bottom of a short window.
+
+**Responsive decisions:** below 30rem the button drops its word and keeps its
+icon and count, which its label still says to a screen reader ("Filters, 1
+active"), so the search bar keeps its width: at 375px, 253px of field beside a
+48px button, with nothing scrolling sideways.
+
+**Verified:** typecheck and lint are clean; the web contract tests pass except
+one Updates test, which fails on a separate edit to `web/app/updates/page.tsx`;
+a mirror caught 162 of 162 mutations across web and phone. On the live page, at
+desktop width and at 375px: the bar and button at 52px (48px on a phone) with no
+rail or chips; turning Furnished on gives the button its badge and kola edge and
+brings Clear all; Clear all returns focus to the button; the panel opens under
+the button with focus inside it, and Escape returns focus; on a phone it is a
+full-width sheet over a scrim, and the floating switch steps aside; the map
+view's pill reads "List". Scrolled past, the tray sat at 88px under the 80px
+header with its band and hairline showing and the lifted shadow on; the map
+stage stuck at 246px, the tray's measured 146px plus the gap; Filters opened
+while stuck sat 8px under the button; at 375px the tray stuck at 88px with
+nothing scrolling sideways, and the Filters sheet opened above the header.
+
+**Not verified:** the painted look. The browser pane was hidden, so there was no
+screenshot, and the measurements above stand in for one. The signed-in portal's
+Explore uses the same component and was not opened.
+
+**Next:** user testing.
+
+### Journey: The mobile shell — one ground, one name, and a launch that waits
+
+**Status:** built 2026-09-14; waiting for testing on an Android phone and an
+iPhone.
+
+**Problems solved:**
+
+- **A refresh showed the wrong page first.** The gate let the navigator draw
+  whatever screen the address named while the session was still loading, and
+  only moved afterwards. A tenant's Home drew its signed-out browsing page, a tab
+  drew its sign-in prompt, and `/` said "Loading your account…" under a native
+  header titled "index". The gate now decides while rendering. Until the session
+  is known and the route is the one it calls for, Rooomly's name stands over
+  everything: the three o's rising in turn in kola, on the canvas, above a short
+  gold rule. Redirects behind it do not animate and the screen behind it is
+  hidden from screen readers; it lifts over 220ms once the right screen has had
+  140ms to draw, and after eight seconds it says it is still connecting.
+- **`/payments` opened the provider's tab for anybody.** Both workspaces have a
+  Payments tab at that address, and a refresh opened whichever group sorts first.
+  Signed in, the provider tabs now open only inside the provider workspace, and a
+  tenant is moved to their own Payments tab; signed out, the renter's public tab
+  is shown rather than the welcome journey.
+- **The app looked framed by a white shell.** Tab screens set no background and
+  fell through to React Navigation's default cool grey under near-white headers
+  and a white tab bar with a shadow. A Rooomly navigation theme now paints every
+  navigator surface. Pages stand on canvas (`field-100`) and the two Homes on
+  stone; each tab declares its ground once, and its header — the strip behind
+  the status bar included — and the tab bar take it from there. The bar's
+  hairline is the only edge left.
+- **Pages titled themselves twice.** Services said "YOUR HOUSEHOLD / Services"
+  under a header that said Services, and both Payments tabs, Tenants,
+  Properties, More and Archive did the same. A tab header now carries the name
+  at the title-1 size, aligned with the content, and on the provider side names
+  the Portfolio above it; the pages open with their one line of context or their
+  content. Home's greeting is its title, so Home's header keeps only its
+  controls — the provider's switcher and create action — or a breath under the
+  status bar.
+- **Header discs vanished.** Explore's Saved and Profile discs were `field-100`,
+  which is now the canvas. They, the Portfolio switcher and the create action are
+  paper wells: 40pt, edged with a hairline, reaching the 48pt floor with slop.
+  The create action was 42pt with none.
+
+**Decisions:** the curtain is the transition only for a change of who is looking
+— launch, sign-in and sign-out; ordinary navigation keeps each platform's
+animation. Edge to edge, the status bar is given no colour of its own, and
+`needsStatusBarBackground` is gone. The splash and root background in `app.json`
+are the canvas, so a build goes from splash to curtain to page in one colour.
+
+**Verified:** mobile typecheck and lint are clean; 142 mobile contract tests pass,
+including a new shell suite and the welcome gate assertion rewritten for the
+render-time decision; a mirror caught 30 of 30 shell mutations, and the map
+suite still catches 162 of 162. On Expo web at 390px and 360px: the Services
+and Explore headers at 24px on the canvas; the tab bar on the same colour with a
+hairline and no shadow; Explore's discs white, hairline-edged, 40px; five 70px
+tabs at 360px with nothing scrolling sideways; a signed-out `/payments` stayed
+on the renter's Payments tab; `/` went to the welcome journey; and the curtain
+settled on every route.
+
+**Not verified:** the painted look and the curtain lifting. The browser pane was
+hidden, so there were no screenshots and no animation frames — the curtain
+settled but stayed drawn. Signed-in screens, the Homes on stone and the provider
+header's Portfolio line, were not rendered. Nothing ran on a device, so
+edge-to-edge behaviour in Expo Go and TalkBack or VoiceOver on the curtain are
+unconfirmed.
+
+**Next:** on an Android phone and an iPhone, signed in as a tenant and as a
+provider: a cold launch, a reload, signing in and out, and each tab's header.
+
+### Journey: Mobile colour, a quiet tab bar, and a sheet that lets go
+
+**Status:** built 2026-09-14. Its ink chrome, gold active tab and bare tab bar
+were superseded the same day by the green shell in "Green shell, a compact
+filter sheet and the dashboard ground"; its swipeable bottom sheet stands.
+
+**Problems solved:**
+
+- **The shell was one flat beige.** Header, page and tab bar all stood on
+  `field-100`, which the tokens reserve for quiet fills, so nothing said which
+  part was chrome and which was content. The shell now keeps the tokens' roles:
+  ink chrome (`ink-950`) behind the status bar and every header, tab or pushed;
+  ivory pages (`field-50`); paper cards, sheets and tab bar (`field-0`); and gold
+  as the one accent. Header controls are raised `ink-800` wells with ivory
+  glyphs. The provider's create action, being the primary action, inverts to an
+  ivory disc with an ink plus, and the back chevron takes the header's ivory
+  tint. The launch curtain and a build's splash are the same ink, with the mark's
+  o's in gold, and both Homes carry that wordmark as their header title, so their
+  band is never empty. The status bar's glyphs are light over the ink and dark
+  only on the ivory sign-in journey.
+- **The tab bar had a kola pill.** It is now a classic shelf: paper under a
+  hairline, a 24pt glyph over an 11pt name in 56pt cells, and no pill, rule or
+  shadow. The tab you are on is the filled glyph in `gold-600` over a semibold
+  name; the rest are `ink-500` outlines. Changing tab crossfades the outline into
+  the filled glyph, and one weight of the name into the other, on the native
+  driver; a press springs the glyph alone, with a small ripple on Android and a
+  selection haptic on iOS.
+- **The filter sheet could not be swiped away.** It had a grab handle and no
+  gesture behind it: a `Modal` that slid its scrim up with it. It is now the
+  shared `BottomSheet`. The handle and title row drag it either way; the body
+  drags it down from the top of its scroll; and a release past a quarter of its
+  height, past 160pt or on a downward flick closes it, falling at the finger's
+  speed. Anything less springs home without overshooting. The sheet claims the
+  gesture under the platforms' touch slop and holds its scroll view still while
+  it moves. Its scrim follows its position, it stays below the status bar, its
+  actions sit above the home indicator, and the back button, scrim, close button
+  and VoiceOver's escape all close it.
+
+**Decisions:** Ink, not kola, is the chrome, because the tokens give kola to
+verified and success. The tab bar is paper rather than ink: it is the surface
+the thumb works on, it follows the calm light bars of WhatsApp and momondo, and
+on Android it keeps the system navigation handle dark and visible without adding
+a native module. The sheet has two resting places — open at its content's height,
+and closed — because a middle detent would push its pinned results button off
+screen, and changing height instead of position would animate layout rather than
+transform.
+
+**Verified:** mobile typecheck and lint are clean; 148 mobile contract tests pass,
+including a new bottom-sheet suite and rewritten shell and navigation suites; a
+mirror caught 58 of 58 shell, navigation and sheet mutations, and the map suite
+still catches 162 of 162; the web contract tests pass except the Updates test
+that fails on a separate edit. In headless Chrome on Expo web at 390×844 and
+360×780, driven by real touch events: headers measured `rgb(22, 17, 14)` and the
+tab bar white; Explore, Services, Payments, the Home wordmark and a pushed listing
+header were captured. The filter sheet opened; sprang back to the same top after
+a 70pt drag on its title; closed on a 360pt drag; closed on a drag down from the
+top of its body; stayed open and scrolled its body instead when the body was
+already scrolled; and closed from its button.
+
+**Not verified:** anything on a device. The native scroll view's competition for
+the drag on Android and iOS, the status bar's glyph colour, the Android navigation
+handle over the paper bar, VoiceOver and TalkBack, and signed-in screens — both
+Homes on stone under the wordmark, and the provider header's wells and ivory
+create action — were not seen.
+
+**Next:** on an Android phone and an iPhone: swipe the filter sheet down from its
+handle, from the top of its body and from a scrolled body; then look at each tab
+signed in as a tenant and as a provider.
+
+### Journey: Green shell, a compact filter sheet and the dashboard ground
+
+**Status:** built 2026-09-14; waiting for testing on an Android phone and an
+iPhone.
+
+**Problems solved:**
+
+- **The ink shell read as dark and brown.** The product owner turned down the
+  ink headers and the gold active tab and asked for Rooomly's green, used
+  harmoniously. The band behind the status bar and every header is now
+  `kola-600`, with white titles, translucent white header wells and a white
+  create disc; the launch curtain, the splash and the wordmark share the green.
+  The tab bar keeps its paper shelf, and the tab you are on regains a pale kola
+  indicator (`kola-50`, 60×32) that widens behind a deep kola glyph and a bold
+  name, over outlines in a muted kola. Removing that indicator, in the previous
+  entry, made the bar poorer rather than calmer.
+- **The filter sheet was too tall.** Two labelled rent fields, a chip for every
+  property and unit type — eleven for units — chips for bedrooms and advance, and
+  a list of sort rows reached from the home indicator to the status bar. Each
+  question is now one row. Rent is a two-thumb range over fifteen stops, from no
+  minimum to no maximum, that reads "From GH₵1,000" or "GH₵750 – GH₵3,000" and
+  searches once, when a thumb is let go. Property type, unit type, maximum
+  advance and sort are dropdowns that open in place, one at a time, with the
+  answer ticked. Bedrooms is a segmented control and furnished stays a switch.
+  The sheet opens 588pt tall on a 390×844 screen.
+- **The dashboards stood on a warm stone** that read as a second, duller brand
+  under the green header, with cream cards a shade of the same beige. Both Homes
+  now stand on `kola-600` let down into `field-50` — 14%, 10% and 6% from the
+  header to the foot — with a faint white sheen across the top corner and a pool
+  of green low on the far side, painted once behind the scroller. Cards are
+  white, with a hairline edge and a `kola-900` shadow at 0.04 (0.07 on the two
+  primary surfaces). Fills inside cards stay warm and neutral, the shortcuts are
+  frosted glass, and eyebrows standing on the ground went from 38% to 70% ink.
+  Every other tab keeps the ivory page.
+
+**Decisions:** The rent range snaps to stops rather than sliding freely, because
+a rent filter wants round figures and a thumb held in the sun cannot place
+GH₵1,137. Dropdowns open in the sheet's own flow rather than as floating menus,
+so the sheet's edge can never clip one and Android never loses its touch. The
+ground is derived from the tokens in code rather than added to `tokens.json`,
+because that file also compiles into the web stylesheet, whose dashboards keep
+their own ground. Only the Homes are green: a green page under every tab would
+make the whole product green and leave the dashboards nothing to be.
+
+**Verified:** mobile typecheck and lint are clean. 158 mobile contract tests
+pass, including new suites for the filter fields and for the ground; the ground
+suite computes its colours from the tokens and asserts contrast — headings at
+13.9:1, eyebrows at 5.9:1 and shortcut names on glass above 4.5:1. The Explore
+web contract tests pass. Mirrors caught 33 of 33 filter mutations, 30 of 30
+ground mutations, 67 of 67 shell mutations and 162 of 162 map mutations.
+
+In headless Chrome on Expo web, at 390×844 and 360×780, with real touch events:
+
+- **Chrome:** headers measured `rgb(27, 107, 79)` and the tab bar white.
+- **Sheet:** it opened 588pt tall with all seven rows.
+- **Rent range:** the minimum thumb moved to "From GH₵1,000" and stopped one stop
+  short of the maximum. Alternating drags of the two thumbs read "GH₵750 –
+  GH₵7,500" and later "GH₵1,500 – GH₵2,000".
+- **Choices:** Property type and Sort by opened in place and closed on a choice.
+- **Persistence:** rent, a property type, bedrooms and an order survived a swipe
+  away and back, with the Filters button counting 4.
+- **Clearing and closing:** the sheet's own Clear all reset it and kept it open,
+  and a drag from the top of its body closed it.
+
+Two earlier runs dropped a thumb drag; both overlapped a Metro rebuild, and the
+clean run did not. The tenant dashboard was captured from a temporary route with
+two mock tenancies, since removed.
+
+**Not verified:** anything on a device: the thumbs against the sheet's native
+scroll view on iOS and Android, TalkBack and VoiceOver stepping the thumbs,
+`LayoutAnimation` as a dropdown opens, the ground's gradient and card shadows on
+Android, and the provider's dashboard, which needs a signed-in Portfolio.
+
+**Next:** on an Android phone and an iPhone, drag both rent thumbs, open each
+dropdown and swipe the sheet away. Then open both Homes signed in, as a tenant
+and as a provider.
+
+### Journey: Explore on the web — the phone's compact filters
+
+**Status:** built 2026-09-14; waiting for user testing.
+
+**Problems solved:**
+
+- **The Filters panel was a form.** Rent was two labelled boxes, every property
+  and unit type was a chip — the eleven unit types alone ran to several lines —
+  bedrooms and advance were more chips, and the order was a fourth group, each
+  under its own heading. The panel now asks what the phone asks, in the phone's
+  order, as rows with the answer on the same line: a two-thumb rent range over
+  the phone's fifteen stops, dropdowns for property type, unit type, maximum
+  advance and sort, a segmented control for bedrooms and a switch for furnishing.
+- **The panel was taller than it needed to be.** Under the full-width rent range,
+  the rows pair up two to a line wherever the panel has room for two 17rem
+  columns: property and unit, bedrooms and advance, furnishing and order. The
+  panel narrowed from 46rem to 40rem and measures 403px tall in a 1280×860
+  window, with nothing to scroll. At 390px it becomes a one-column sheet 611px
+  tall, also without scrolling.
+- **Lists fit wherever they open.** The dropdowns are the panel's own
+  select-only comboboxes, never the operating system's list. Arrow keys, Home,
+  End, Enter and Escape walk them, and Escape closes the list without closing
+  the panel. A list is fixed to the window, because the panel scrolls and would
+  clip it, and opens below its button when it fits and above when there is more
+  room.
+
+**Decisions:** The range is two real range inputs over one drawn rail, so each
+thumb keeps native keyboard, pointer and screen-reader behaviour; only the thumbs
+take the pointer, so the one on top never blocks the other. The stops live in
+`exploreQuery`, and a contract test holds them equal to the phone's. The panel's
+own Escape listener now ignores a key a control inside has already used: Next
+hydrates React onto the document itself, where stopping propagation cannot keep
+a key from a sibling listener.
+
+**Verified:** typecheck and lint are clean. The web contract tests pass except
+two that fail on edits made outside this change, to `web/app/updates/page.tsx`
+and to the portal header in `PortalShell.tsx`. A new filter suite runs beside the
+updated Explore suite. Mirrors caught 36 of 36 filter mutations, and the map
+suite still catches 162 of 162.
+
+In headless Chrome on the live page:
+
+- **Desktop, 1280×860, mouse and keyboard:** the panel measured 640×403px, with
+  two 283px columns.
+  - **Rent:** dragging the thumbs read "From GH₵750" and then "GH₵750 –
+    GH₵5,000". Two arrow presses moved the minimum to GH₵1,500, each change
+    reaching the address bar after the pause.
+  - **Lists:** Property type opened below its button and took "Residential"
+    from ArrowDown and Enter. Unit type and Sort by opened above theirs, and End
+    walked to the last option. Escape closed a list and left the panel open.
+  - **Clearing:** bedrooms, furnishing and an order brought the Filters count to
+    5, and Clear all emptied the address bar.
+- **Phone, 390×844, touch:** the sheet measured 611px, in one column.
+  - A drag set "From GH₵1,000".
+  - Unit type's ten options scrolled in a 320px list above the button, inside
+    the window.
+  - A tap chose "House" without closing the sheet.
+
+**Not verified:** Safari and Firefox, where the thumbs rely on
+`::-webkit-slider-thumb` and `::-moz-range-thumb`; a screen reader on the
+dropdowns; and a real phone.
+
+**Next:** try the panel with a mouse and a keyboard in each browser, and on a
+phone.
 
 ### Journey: Units — first-class across the Portfolio
 
@@ -5061,8 +5638,8 @@ written for.
   which is what a person goes looking for.
 - `Messages` led to Updates. Renamed to match the area.
 - The header was the word "More" over a sentence explaining the screen. It now
-  carries the Portfolio name above the title — identity instead of explanation,
-  matching Home and the web rail.
+  carries that page name once; Portfolio identity stays available through the
+  labelled switcher instead of forming a second stacked title.
 
 **Important decisions:**
 

@@ -118,7 +118,7 @@ class LeaseChargesView(APIView):
                     "tenant_name": lease.tenant.display_name,
                     "property_title": prop.title,
                     "unit_label": lease.unit.label,
-                    "location": address.locality.name if address else "",
+                    "location": address.locality_label if address else "",
                     "ended_on": lease.ended_on,
                 },
                 "financial_summary": services.closing_financial_summary(lease=lease),

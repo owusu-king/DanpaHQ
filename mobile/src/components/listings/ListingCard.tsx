@@ -1,7 +1,6 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import {
-  Animated,
   Image,
   Pressable,
   ScrollView,
@@ -14,16 +13,18 @@ import {
 
 import { Type, radius, space } from "@/components/ui";
 import { formatMinor, type Listing } from "@/listings";
-import { useReduceMotion } from "@/motion";
 import { pressableFeedback, surfaceElevation } from "@/platform";
 import { theme } from "@/theme";
 
 /**
  * The shared recognition card for Explore, Saved and tenant recommendations.
  *
- * Image → rent/advance → identity → place → essentials → trust. The optional
- * photo swipe is disabled only inside a horizontal related-rentals rail, where
- * a second horizontal gesture would fight the parent carousel.
+ * Image → rent/advance → identity → place → essentials → trust. Photos page by
+ * swiping, and the dots say where you are: on a phone the swipe is the control,
+ * and arrows drawn over a small photograph only got in the thumb's way. The
+ * swipe is off wherever another gesture owns the same direction — inside a
+ * horizontal related-rentals rail, and in Explore's results sheet until it
+ * fills the screen.
  */
 export function ListingCard({
   listing,
@@ -40,13 +41,9 @@ export function ListingCard({
   photoSwipe?: boolean;
 }) {
   const { width: viewportWidth } = useWindowDimensions();
-  const reduceMotion = useReduceMotion();
   const photos = cardPhotos(listing);
-  const mediaScrollRef = useRef<ScrollView>(null);
-  const controlsOpacity = useRef(new Animated.Value(1)).current;
   const [mediaWidth, setMediaWidth] = useState(Math.max(1, viewportWidth - space[10]));
   const [activePhoto, setActivePhoto] = useState(0);
-  const [controlsInteractive, setControlsInteractive] = useState(true);
   const where = [listing.locality_name, listing.district_name].filter(Boolean).join(", ");
   const facts = essentialFacts(listing);
   const verified = listing.trust_stamps?.identity.state === "verified"
@@ -63,30 +60,15 @@ export function ListingCard({
     verified ? "Verified rental" : "",
   ].filter(Boolean).join(". ");
 
+  // A card that stops swiping shows its first photograph, so its dots start there again.
+  useEffect(() => {
+    if (!photoSwipe) setActivePhoto(0);
+  }, [photoSwipe]);
+
   function updatePhoto(event: NativeSyntheticEvent<NativeScrollEvent>) {
     if (!mediaWidth) return;
     const next = Math.max(0, Math.min(photos.length - 1, Math.round(event.nativeEvent.contentOffset.x / mediaWidth)));
     setActivePhoto((current) => current === next ? current : next);
-  }
-
-  function setControlsVisible(visible: boolean) {
-    controlsOpacity.stopAnimation();
-    if (visible) setControlsInteractive(true);
-    Animated.timing(controlsOpacity, {
-      toValue: visible ? 1 : 0,
-      duration: reduceMotion ? 0 : 150,
-      useNativeDriver: true,
-    }).start(({ finished }) => {
-      if (finished && !visible) setControlsInteractive(false);
-    });
-  }
-
-  function showPhoto(index: number) {
-    if (!photos.length) return;
-    const next = (index + photos.length) % photos.length;
-    setActivePhoto(next);
-    mediaScrollRef.current?.scrollTo({ x: next * mediaWidth, y: 0, animated: !reduceMotion });
-    setControlsVisible(false);
   }
 
   return (
@@ -101,7 +83,6 @@ export function ListingCard({
         {photos.length ? (
           photoSwipe && photos.length > 1 ? (
             <ScrollView
-              ref={mediaScrollRef}
               horizontal
               pagingEnabled
               snapToInterval={mediaWidth}
@@ -111,11 +92,7 @@ export function ListingCard({
               decelerationRate="fast"
               showsHorizontalScrollIndicator={false}
               onScroll={updatePhoto}
-              onScrollBeginDrag={() => setControlsVisible(true)}
-              onMomentumScrollEnd={(event) => {
-                updatePhoto(event);
-                setControlsVisible(false);
-              }}
+              onMomentumScrollEnd={updatePhoto}
               scrollEventThrottle={16}
               style={styles.image}
             >
@@ -161,32 +138,6 @@ export function ListingCard({
               ))}
             </View>
           </View>
-        ) : null}
-
-        {photoSwipe && photos.length > 1 ? (
-          <Animated.View
-            pointerEvents={controlsInteractive ? "box-none" : "none"}
-            style={[styles.photoControls, { opacity: controlsOpacity }]}
-          >
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Previous photo"
-              onPress={() => showPhoto(activePhoto - 1)}
-              {...pressableFeedback(theme.color.field["200"])}
-              style={({ pressed }) => [styles.photoControl, styles.photoControlPrevious, pressed && styles.photoControlPressed]}
-            >
-              <Ionicons name="chevron-back" size={18} color={theme.color.ink["900"]} />
-            </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Next photo"
-              onPress={() => showPhoto(activePhoto + 1)}
-              {...pressableFeedback(theme.color.field["200"])}
-              style={({ pressed }) => [styles.photoControl, styles.photoControlNext, pressed && styles.photoControlPressed]}
-            >
-              <Ionicons name="chevron-forward" size={18} color={theme.color.ink["900"]} />
-            </Pressable>
-          </Animated.View>
         ) : null}
 
         {onSave ? (
@@ -275,12 +226,13 @@ function essentialFacts(listing: Listing): string[] {
   ].filter((fact): fact is string => Boolean(fact));
 }
 
-function advanceTerm(label: string): string {
+/** The lump sum on day one, named beside the rent wherever a rental is summarised. */
+export function advanceTerm(label: string): string {
   if (!label || label.toLocaleLowerCase("en-GH").startsWith("no advance")) return "No advance";
   return `${label} advance`;
 }
 
-function rentPeriod(period: string): string {
+export function rentPeriod(period: string): string {
   return ({ monthly: "month", yearly: "year", weekly: "week", daily: "day" } as Record<string, string>)[period]
     ?? period.replaceAll("_", " ");
 }
@@ -334,22 +286,6 @@ const styles = StyleSheet.create({
   },
   photoDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.58)" },
   photoDotActive: { width: 11, borderRadius: radius.pill, backgroundColor: theme.color.field["0"] },
-  photoControls: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0 },
-  photoControl: {
-    position: "absolute",
-    top: "50%",
-    width: 36,
-    height: 36,
-    marginTop: -18,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(255,255,255,0.9)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.54)",
-  },
-  photoControlPrevious: { left: space[3], borderRadius: 18 },
-  photoControlNext: { right: space[3], borderRadius: 18 },
-  photoControlPressed: { opacity: 0.7 },
   body: { gap: space[2], padding: space[4] },
   bodyPressed: { opacity: 0.88, transform: [{ scale: 0.997 }] },
   priceRow: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", gap: space[3] },

@@ -89,7 +89,7 @@ export default function ProviderPaymentsScreen() {
     refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await load(); setRefreshing(false); }} tintColor={theme.color.kola["600"]} />}
     ItemSeparatorComponent={() => <View style={{ height: 1, backgroundColor: theme.color.field["200"] }} />}
     ListHeaderComponent={<View style={{ gap: space[4], marginBottom: space[3] }}>
-      <View style={{ gap: space[1] }}><Type variant="label">RENT & PAYOUTS</Type><Type variant="display2" accessibilityRole="header">Payments</Type><Type variant="body">See what tenants paid and what reached your settlement account.</Type></View>
+      <Type variant="body" style={{ color: theme.color.ink["700"] }}>See what tenants paid and what reached your settlement account.</Type>
       {error ? <Notice tone="error" title={error} /> : null}
       {canManagePayouts && organizationId && payoutDestination && payoutDestination.active_profile?.status !== "verified" ? (
         <AttentionRow

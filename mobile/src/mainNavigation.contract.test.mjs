@@ -21,19 +21,35 @@ test("both mobile worlds use one first-class navigation surface", () => {
   assert.match(provider, /name="add" options=\{\{ href: null \}\}/);
 });
 
-test("active navigation is stated by form, tone and type", () => {
-  // One indicator, not two. The bar used to draw a 22x2 rule across the top of
-  // the active cell *and* a lozenge behind its glyph — two "you are here" marks
-  // four points apart, with the rule colliding with the shelf's own hairline
-  // border directly above it. The lozenge is the stronger of the two and the
-  // one that doubles as a touch affordance, so the rule went.
-  assert.match(bar, /styles\.activePill/);
-  assert.doesNotMatch(bar, /activeRule/);
+test("the tab you are on grows a pale kola indicator, fills in deep kola and turns bold", () => {
+  const source = code(bar);
 
-  // Colour is never the only cue: the glyph fills, the tone moves and the
-  // label thickens, so the state survives both kinds of colour blindness.
-  assert.match(bar, /focused \? activeColor : inactiveColor/);
-  assert.match(bar, /focused \? styles\.activeLabel : null/);
+  // One shape marks where you are: a pale kola lozenge that widens behind the
+  // active glyph. A release took it away for a bare coloured glyph, and the bar
+  // read as poorer for it — the indicator is the bar's quality, not its clutter.
+  assert.match(source, /style=\{\[styles\.indicator, \{ opacity: focusProgress, transform: \[\{ scaleX: widen \}\] \}\]\}/);
+  assert.match(source, /indicator: \{\s*\.\.\.StyleSheet\.absoluteFillObject,\s*borderRadius: radius\.pill,\s*backgroundColor: shell\.activeGround,/);
+  // And only the one: no rule across the cell as well.
+  assert.doesNotMatch(source, /activeRule/);
+
+  // Both glyphs are drawn, and one fades into the other.
+  assert.match(source, /tabBarIcon\?\.\(\{ focused: false, color: RESTING, size: ICON_SIZE \}\)/);
+  assert.match(source, /tabBarIcon\?\.\(\{ focused: true, color: ACTIVE, size: ICON_SIZE \}\)/);
+
+  // Rooomly's green throughout: deep kola for the tab you are on and a muted kola
+  // for the rest — never gold, and never a brown grey.
+  assert.match(source, /const ACTIVE = shell\.active;/);
+  assert.match(source, /const RESTING = shell\.resting;/);
+  const palette = code(read("src/shell.ts"));
+  assert.match(palette, /active: theme\.color\.kola\["800"\],/);
+  assert.match(palette, /activeGround: theme\.color\.kola\["50"\],/);
+  assert.match(palette, /resting: alpha\(theme\.color\.kola\["900"\], 0\.72\),/);
+  assert.doesNotMatch(source, /gold|ink\["500"\]/);
+
+  // Colour is never the only cue: the indicator appears, the glyph fills and the
+  // name turns bold, so the state survives both kinds of colour blindness.
+  assert.match(source, /restingLabel: \{ color: RESTING, fontWeight: "500" \}/);
+  assert.match(source, /activeLabel: \{[^}]*color: ACTIVE, fontWeight: "700" \}/);
   for (const layout of [renter, provider]) {
     assert.match(layout, /focused \? "home" : "home-outline"/);
   }
@@ -47,10 +63,12 @@ test("every tab is a safe, accessible target", () => {
   assert.ok(floor >= 44, `expected a real touch floor, saw ${floor}`);
 
   const rowHeight = Number(/const ITEM_HEIGHT = (\d+);/.exec(bar)?.[1]);
-  const pillWidth = Number(/const PILL_WIDTH = (\d+);/.exec(bar)?.[1]);
+  const cellWidth = Number(/const CELL_MIN_WIDTH = (\d+);/.exec(bar)?.[1]);
+  const indicatorWidth = Number(/const INDICATOR_WIDTH = (\d+);/.exec(bar)?.[1]);
   assert.ok(rowHeight >= floor, `row ${rowHeight} is under the ${floor} floor`);
-  assert.ok(pillWidth >= floor, `cell ${pillWidth} is under the ${floor} floor`);
-  assert.match(bar, /minWidth: PILL_WIDTH/);
+  assert.ok(cellWidth >= floor, `cell ${cellWidth} is under the ${floor} floor`);
+  assert.ok(indicatorWidth >= floor, `indicator ${indicatorWidth} is under the ${floor} floor`);
+  assert.match(bar, /minWidth: CELL_MIN_WIDTH/);
 
   assert.match(bar, /accessibilityRole="tablist"/);
   assert.match(bar, /accessibilityRole="tab"/);
@@ -98,13 +116,20 @@ test("motion is quiet, optional and platform-aware", () => {
   assert.match(bar, /Animated\.spring/);
   assert.match(bar, /hapticsPolicy\.onSelection/);
 
-  // The press moves the glyph, not the label: type that rubber-bands under a
-  // thumb reads as a toy.
+  // The indicator widens into place while the glyph and its name crossfade, all
+  // on the native driver, so nothing jumps and nothing redraws on the JS thread.
+  assert.match(bar, /const resting = useMemo\(\(\) => focusProgress\.interpolate\(\{ inputRange: \[0, 1\], outputRange: \[1, 0\] \}\), \[focusProgress\]\);/);
+  assert.match(bar, /const widen = useMemo\(\(\) => focusProgress\.interpolate\(\{ inputRange: \[0, 1\], outputRange: \[0\.55, 1\] \}\), \[focusProgress\]\);/);
+  assert.match(bar, /opacity: resting/);
+  assert.match(bar, /opacity: focusProgress/);
+
+  // The press moves the glyph and its indicator, not the label: type that
+  // rubber-bands under a thumb reads as a toy.
   assert.match(bar, /styles\.iconStage, \{ transform: \[\{ scale: pressScale \}\] \}/);
 
-  // Android ripples inside the target rather than flooding the whole shelf.
+  // Android ripples inside the indicator rather than flooding the whole shelf.
   assert.match(bar, /android_ripple=\{\s*isAndroid/);
-  assert.match(bar, /radius: PILL_WIDTH \/ 2, borderless: true/);
+  assert.match(bar, /radius: INDICATOR_WIDTH \/ 2, borderless: true/);
 });
 
 test("a route hidden from the bar stays hidden", () => {

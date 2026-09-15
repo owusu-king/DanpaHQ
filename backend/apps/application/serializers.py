@@ -26,7 +26,7 @@ class RentalApplicationSerializer(serializers.ModelSerializer):
     listing_id = serializers.UUIDField(source="listing.id", read_only=True)
     listing_headline = serializers.CharField(source="listing.headline", read_only=True)
     locality_name = serializers.CharField(
-        source="listing.unit.property.address.locality.name", read_only=True, default=None
+        source="listing.unit.property.address.locality_label", read_only=True, default=None
     )
     rent_minor = serializers.IntegerField(source="listing.rent_minor", read_only=True)
     rent_formatted = serializers.SerializerMethodField()

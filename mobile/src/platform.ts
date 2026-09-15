@@ -10,10 +10,22 @@
  * a future change is a decision rather than a drift.
  */
 
-import { Platform } from "react-native";
+import { Platform, StatusBar as NativeStatusBar } from "react-native";
 
 export const isAndroid = Platform.OS === "android";
 export const isIOS = Platform.OS === "ios";
+
+/**
+ * The space interactive header content must keep above itself.
+ *
+ * Android edge-to-edge can report a zero safe-area inset while its status bar
+ * still occupies the top of an older device. The native measurement is a
+ * floor, not an added margin, so correct cutout insets are never doubled.
+ */
+export const safeHeaderTop = (safeAreaTop: number) =>
+  isAndroid
+    ? Math.max(safeAreaTop, NativeStatusBar.currentHeight ?? 0)
+    : safeAreaTop;
 
 export const platformName = Platform.select({ android: "android", ios: "ios", default: "web" });
 
@@ -121,9 +133,3 @@ export const maxFontSizeMultiplier = isIOS ? 2.0 : 1.6;
 /** Android needs explicit ripple config; iOS uses opacity on press. */
 export const pressableFeedback = (color: string) =>
   isAndroid ? { android_ripple: { color, borderless: false } } : {};
-
-/**
- * The status bar sits over the app on Android and needs explicit background
- * handling; iOS handles it through the safe area.
- */
-export const needsStatusBarBackground = isAndroid;

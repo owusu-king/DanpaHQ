@@ -6,7 +6,7 @@
  * single blended one.
  */
 
-import { forwardRef, useState, type ReactNode } from "react";
+import { createContext, forwardRef, useContext, useState, type ReactNode } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -15,6 +15,7 @@ import {
   TextInput,
   type TextInputProps,
   type TextProps,
+  useWindowDimensions,
   View,
   type ViewProps,
 } from "react-native";
@@ -147,16 +148,94 @@ const TYPE = Object.fromEntries(
   (Object.keys(TOKEN_KEY) as TypeName[]).map((name) => [name, buildType(name)]),
 ) as Record<TypeName, object>;
 
+type TypeDensity = "regular" | "compact" | "narrow";
+
+const TypeDensityContext = createContext<TypeDensity>("regular");
+
+/**
+ * One window subscription for the whole app, rather than one per text node.
+ * Portrait phones at 375dp and below receive a deliberately bounded type scale;
+ * 340dp-class devices step down once more. Touch targets and layout dimensions
+ * are unchanged, and system font scaling is still applied after these bases.
+ */
+export function TypographyScaleProvider({ children }: { children: ReactNode }) {
+  const { width } = useWindowDimensions();
+  const density: TypeDensity = width <= 340 ? "narrow" : width <= 375 ? "compact" : "regular";
+  return <TypeDensityContext.Provider value={density}>{children}</TypeDensityContext.Provider>;
+}
+
+type TypeMeasure = readonly [fontSize: number, lineHeight: number];
+
+const COMPACT_MEASURE: Record<TypeName, TypeMeasure> = {
+  display1: [44, 48],
+  display2: [34, 38],
+  display3: [28, 34],
+  title1: [22, 27],
+  title2: [19, 25],
+  bodyLg: [17, 26],
+  body: [15, 23],
+  bodyStrong: [15, 23],
+  caption: [13, 19],
+  captionStrong: [13, 19],
+  label: [11, 15],
+  amountXl: [34, 38],
+  amountLg: [25, 30],
+  amount: [15, 21],
+  mono: [13, 19],
+};
+
+const NARROW_MEASURE: Record<TypeName, TypeMeasure> = {
+  display1: [40, 44],
+  display2: [31, 35],
+  display3: [26, 31],
+  title1: [21, 26],
+  title2: [18, 24],
+  bodyLg: [16, 24],
+  body: [15, 22],
+  bodyStrong: [15, 22],
+  caption: [13, 18],
+  captionStrong: [13, 18],
+  label: [10.5, 14],
+  amountXl: [31, 35],
+  amountLg: [24, 29],
+  amount: [15, 20],
+  mono: [13, 18],
+};
+
+const buildDensityType = (measure: Record<TypeName, TypeMeasure>) =>
+  Object.fromEntries(
+    (Object.keys(measure) as TypeName[]).map((name) => {
+      const [fontSize, lineHeight] = measure[name];
+      const token = theme.type[TOKEN_KEY[name]];
+      const em = Number(token.tracking.replace("em", ""));
+      return [name, {
+        fontSize,
+        lineHeight,
+        letterSpacing: Number((em * fontSize).toFixed(2)),
+      }];
+    }),
+  ) as Record<TypeName, object>;
+
+const COMPACT_TYPE = buildDensityType(COMPACT_MEASURE);
+const NARROW_TYPE = buildDensityType(NARROW_MEASURE);
+
 export function Type({
   variant = "body",
   style,
   ...props
 }: TextProps & { variant?: TypeName }) {
+  const density = useContext(TypeDensityContext);
+  const responsiveType = density === "narrow"
+    ? NARROW_TYPE[variant]
+    : density === "compact"
+      ? COMPACT_TYPE[variant]
+      : null;
+
   return (
     <Text
       {...props}
       maxFontSizeMultiplier={maxFontSizeMultiplier}
-      style={[TYPE[variant], style]}
+      style={[TYPE[variant], responsiveType, style]}
     />
   );
 }

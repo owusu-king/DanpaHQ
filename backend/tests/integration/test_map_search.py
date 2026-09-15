@@ -1,28 +1,22 @@
-"""Map search: places, approximate public points, and one query for cards and markers.
+"""Map search: approximate public points, and one query for cards and markers.
 
-Three promises are pinned here.
+Two promises are pinned here. Where a typed place name comes from is
+`test_place_lookup`.
 
-* **A place is somewhere, not a string.** Suggestions rank the way a tenant
-  expects and carry a centre and a box the map can fit.
 * **A marker is never a door.** A property's coordinates are published only
   snapped to a fixed grid cell, and a neighbourhood centre stands in when the
   property has none (ADR 0022, ADR 0033).
 * **Cards and markers are one search.** The same filters, eligibility and area
-  produce the same set of listings whichever endpoint answers.
+  produce the same set of listings whichever endpoint answers, and the area is
+  a box the client sends — the API never looks a place up to search it.
 """
 
 from __future__ import annotations
 
-import json
-
 import pytest
-from django.contrib.gis.geos import Point, Polygon
-from django.core.management import call_command
-from django.utils.text import slugify
 from rest_framework.test import APIClient
 
-from apps.geo.models import Address, District, Locality, Place, PlaceBoundsSource, PlaceKind, Region
-from apps.geo.places import search_text_for
+from apps.geo.models import Address, District, Locality, Region
 from apps.listing.location import refresh_public_locations, snap_to_cell
 from apps.listing.models import Listing, ListingStatus, LocationPrecision
 from apps.property.models import Property, PropertyType, Unit
@@ -56,39 +50,6 @@ def accra(db):
         ),
         "unplaced": Locality.objects.create(district=district, name="Map Unplaced"),
     }
-
-
-def _place(
-    name,
-    *,
-    kind=PlaceKind.NEIGHBOURHOOD,
-    center=EAST_LEGON,
-    half=0.01,
-    locality=None,
-    aliases=(),
-    importance=50.0,
-    active=True,
-):
-    lng, lat = center
-    bounds = Polygon.from_bbox((lng - half, lat - half, lng + half, lat + half))
-    bounds.srid = 4326
-    slug = slugify(name)
-    return Place.objects.create(
-        slug=slug,
-        name=name,
-        kind=kind,
-        context="Accra, Greater Accra",
-        aliases=list(aliases),
-        search_text=search_text_for(name, list(aliases)),
-        center=Point(lng, lat, srid=4326),
-        bounds=bounds,
-        bounds_source=PlaceBoundsSource.ESTIMATED,
-        locality=locality,
-        importance=importance,
-        source="test",
-        source_ref=f"test/{slug}",
-        is_active=active,
-    )
 
 
 def _listing(
@@ -153,58 +114,6 @@ def _bbox(center, half=0.02):
     return f"west={lng - half}&south={lat - half}&east={lng + half}&north={lat + half}"
 
 
-class TestPlaceSearch:
-    def test_the_exact_name_leads_then_prefix_then_a_later_word(self, api):
-        _place("East Legon Hills", kind=PlaceKind.SUBURB, importance=62)
-        _place("East Legon", importance=58)
-        _place("Legon Campus", kind=PlaceKind.LANDMARK, importance=48)
-
-        exact = api.get("/api/v1/geo/places/?q=East Legon")
-        assert [row["name"] for row in exact.data][:2] == ["East Legon", "East Legon Hills"]
-
-        typing = api.get("/api/v1/geo/places/?q=east leg")
-        assert typing.data[0]["name"] == "East Legon"
-
-        later_word = api.get("/api/v1/geo/places/?q=legon")
-        assert later_word.data[0]["name"] == "Legon Campus"
-        assert {row["name"] for row in later_word.data} >= {"East Legon", "East Legon Hills"}
-
-    def test_the_name_people_use_finds_the_place_filed_under_another(self, api):
-        _place("Sakumono", aliases=["Spintex"], center=(-0.08, 5.63))
-        response = api.get("/api/v1/geo/places/?q=spintex")
-        assert [row["name"] for row in response.data] == ["Sakumono"]
-
-    def test_a_misspelling_still_finds_the_place(self, api):
-        _place("Dzorwulu", center=(-0.2, 5.61))
-        assert api.get("/api/v1/geo/places/?q=dzorwolu").data[0]["name"] == "Dzorwulu"
-
-    def test_inactive_places_and_one_letter_queries_return_nothing(self, api):
-        _place("Retired Place", active=False)
-        _place("Adenta", center=(-0.16, 5.7))
-        assert api.get("/api/v1/geo/places/?q=retired").data == []
-        assert api.get("/api/v1/geo/places/?q=a").data == []
-
-    def test_a_suggestion_is_somewhere_a_map_can_fit(self, api, accra):
-        _place("Map East Legon", locality=accra["east_legon"])
-        row = api.get("/api/v1/geo/places/?q=map east").data[0]
-
-        assert row["slug"] == "map-east-legon"
-        assert row["kind"] == "neighbourhood"
-        assert row["display_name"] == "Map East Legon, Accra"
-        assert row["center"] == {"lat": EAST_LEGON[1], "lng": EAST_LEGON[0]}
-        assert row["bounds"]["west"] < row["center"]["lng"] < row["bounds"]["east"]
-        assert row["bounds"]["south"] < row["center"]["lat"] < row["bounds"]["north"]
-        assert row["locality_id"] == str(accra["east_legon"].id)
-
-    def test_a_shared_search_restores_its_place_by_slug(self, api):
-        _place("Airport Residential Area", center=(-0.18, 5.6))
-        assert api.get("/api/v1/geo/places/airport-residential-area/").data["name"] == (
-            "Airport Residential Area"
-        )
-        missing = api.get("/api/v1/geo/places/nowhere-at-all/")
-        assert missing.status_code == 404
-
-
 class TestPublicPoint:
     def test_property_coordinates_are_published_snapped_never_exact(self, api, landlord, accra):
         exact = (-0.162345, 5.637891)
@@ -256,18 +165,15 @@ class TestAreaSearch:
         response = api.get(f"/api/v1/listings/?{_bbox(EAST_LEGON)}")
         assert _ids(response) == {str(inside.id)}
 
-    def test_a_place_includes_what_is_filed_under_it_even_without_a_point(
-        self, api, landlord, accra
-    ):
-        place = _place("Map Unplaced", locality=accra["unplaced"], center=(-0.3, 5.9))
-        filed = _listing(landlord, accra["unplaced"], headline="Filed here")
+    def test_a_chosen_place_is_searched_as_the_box_the_client_sends(self, api, landlord, accra):
+        inside = _listing(landlord, accra["east_legon"], headline="Inside")
 
-        assert _ids(api.get(f"/api/v1/listings/?place={place.slug}")) == {str(filed.id)}
-        summary = api.get(f"/api/v1/listings/map/?place={place.slug}&zoom=14").data
-        assert summary["total"] == 1
-        assert summary["unmapped"] == 1
-        assert summary["features"] == []
-        assert summary["place"]["slug"] == place.slug
+        # A link from before providers still carries a place slug. It is ignored,
+        # not an error, and nothing looks it up.
+        response = api.get(f"/api/v1/listings/?{_bbox(EAST_LEGON)}&place=map-east-legon")
+        assert response.status_code == 200
+        assert _ids(response) == {str(inside.id)}
+        assert "place" not in api.get(f"/api/v1/listings/map/?{_bbox(EAST_LEGON)}&zoom=14").data
 
     def test_what_a_tenant_cannot_act_on_is_on_neither_the_list_nor_the_map(
         self, api, landlord, accra
@@ -301,12 +207,6 @@ class TestAreaSearch:
         assert partial.status_code == 422
         inverted = api.get("/api/v1/listings/?west=0.1&south=5.5&east=-0.1&north=5.7")
         assert inverted.status_code == 422
-
-    def test_an_area_that_no_longer_exists_says_so(self, api):
-        response = api.get("/api/v1/listings/?place=a-place-that-was-removed")
-        assert response.status_code == 404
-        assert response.data["error"]["code"] == "not_found"
-        assert response.data["error"]["details"] == {"place": "a-place-that-was-removed"}
 
 
 class TestMarkers:
@@ -358,107 +258,12 @@ class TestMarkers:
 
 
 class TestMapConfig:
-    def test_clients_learn_where_the_basemap_lives(self, api):
-        config = api.get("/api/v1/map/config/").data
-        assert config["tiles_url"].startswith("pmtiles://")
-        assert config["tiles_url"].endswith(".pmtiles")
-        assert "{fontstack}" in config["glyphs_url"]
-        assert "{range}" in config["glyphs_url"]
-        assert "OpenStreetMap" in config["attribution"]
+    def test_the_shared_map_config_names_no_provider_and_carries_no_key(self, api, settings):
+        settings.GOOGLE_MAPS_SERVER_API_KEY = "server-key-must-not-leak"
+        response = api.get("/api/v1/map/config/")
+        config = response.data
+
+        assert set(config) == {"bounds", "default_view", "min_zoom", "max_zoom"}
         assert len(config["bounds"]) == 4
-
-
-class TestOsmImport:
-    def _export(self, tmp_path, elements):
-        path = tmp_path / "places.json"
-        path.write_text(json.dumps({"elements": elements}), encoding="utf-8")
-        return str(path)
-
-    def test_places_are_merged_linked_and_given_centres(self, tmp_path):
-        region = Region.objects.create(name="Import Greater Accra", code="IGA")
-        district = District.objects.create(region=region, name="Import Ayawaso West")
-        locality = Locality.objects.create(
-            district=district, name="Import Legon", aliases=["Legon"]
-        )
-        elements = [
-            {
-                "type": "relation",
-                "id": 1,
-                "tags": {
-                    "boundary": "administrative",
-                    "admin_level": "4",
-                    "name": "Import Greater Accra Region",
-                },
-                "center": {"lat": 5.8, "lon": -0.2},
-                "bounds": {"minlat": 5.4, "minlon": -0.6, "maxlat": 6.2, "maxlon": 0.2},
-            },
-            {
-                "type": "node",
-                "id": 2,
-                "lat": 5.56,
-                "lon": -0.2,
-                "tags": {"place": "city", "name": "Accra"},
-            },
-            {
-                "type": "node",
-                "id": 3,
-                "lat": 5.636,
-                "lon": -0.161,
-                "tags": {"place": "suburb", "name": "Import Legon", "alt_name": "Legon Village"},
-            },
-            {
-                "type": "way",
-                "id": 4,
-                "tags": {"place": "suburb", "name": "Import Legon"},
-                "center": {"lat": 5.637, "lon": -0.160},
-                "bounds": {"minlat": 5.62, "minlon": -0.18, "maxlat": 5.65, "maxlon": -0.14},
-            },
-            # The same name in another region is somewhere else entirely.
-            {
-                "type": "node",
-                "id": 5,
-                "lat": 9.4,
-                "lon": -0.85,
-                "tags": {"place": "village", "name": "Import Legon"},
-            },
-            {
-                "type": "way",
-                "id": 6,
-                "tags": {"aeroway": "aerodrome", "name": "Import Airport"},
-                "center": {"lat": 5.6, "lon": -0.17},
-            },
-        ]
-        export = self._export(tmp_path, elements)
-
-        call_command("import_osm_places", export)
-
-        legon = Place.objects.get(locality=locality)
-        assert legon.source_ref == "way/4", "the mapped outline wins the merge"
-        assert legon.bounds_source == PlaceBoundsSource.MAPPED
-        assert "Legon Village" in legon.aliases
-        assert legon.context == "Accra, Import Greater Accra"
-        assert legon.region == region
-        assert (
-            Place.objects.filter(name="Import Legon").count() == 2
-        ), "the far village stays separate"
-        assert Place.objects.get(name="Import Airport").kind == PlaceKind.LANDMARK
-        assert Place.objects.get(name="Import Greater Accra").kind == PlaceKind.REGION
-
-        locality.refresh_from_db()
-        assert (float(locality.latitude), float(locality.longitude)) == (5.637, -0.16)
-
-        slug = legon.slug
-        call_command("import_osm_places", export)
-        assert Place.objects.get(source_ref="way/4").slug == slug
-        assert Place.objects.filter(source="osm").count() == 5
-
-    def test_an_incomplete_download_is_refused_rather_than_half_imported(self, tmp_path):
-        path = tmp_path / "broken.json"
-        path.write_text(
-            '{"elements": [{"type": "node", "id": 1, "tags": {"name": "E', encoding="utf-8"
-        )
-        from django.core.management.base import CommandError
-
-        with pytest.raises(CommandError, match="not complete JSON"):
-            call_command("import_osm_places", str(path))
-        assert Place.objects.count() == 0
+        assert config["default_view"]["zoom"] >= config["min_zoom"]
+        assert "server-key-must-not-leak" not in response.content.decode()

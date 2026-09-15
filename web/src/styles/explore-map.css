@@ -9,19 +9,33 @@
 
 /* --- the page tray's way into the map ------------------------------------- */
 
-.explore-discovery-pending { min-height: 11.5rem; }
+.explore-discovery-pending { min-height: 8.75rem; }
 
+/* At the end of the results row, named for where it goes, in kola's deepest
+   shade: moving to the map is the one step the row offers. */
 .explore-map-toggle {
+  display: inline-flex;
+  height: 36px;
+  flex: 0 0 auto;
+  align-items: center;
   gap: var(--space-2);
   margin-left: auto;
-  padding-inline: var(--space-3) var(--space-4);
+  padding: 0 var(--space-4) 0 var(--space-3);
   color: var(--color-field-0);
+  font: 650 .875rem/1 var(--font-body);
+  white-space: nowrap;
   background: var(--color-kola-800);
-  border-color: var(--color-kola-800);
+  border: var(--border-hairline) solid var(--color-kola-800);
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  transition: background-color var(--motion-duration-fast) var(--motion-easing-standard);
 }
 .explore-map-toggle > .portal-icon { width: 17px; height: 17px; color: var(--color-kola-300); }
 .explore-map-toggle:hover { background: var(--color-kola-900); border-color: var(--color-kola-900); }
 .explore-map-toggle:active { background: var(--color-kola-900); }
+@media (pointer: coarse) {
+  .explore-map-toggle { height: 44px; }
+}
 
 /* An area drawn on the map is where, not a filter, so it takes lagoon — as the
    location field marks regions and districts — rather than a filter's kola. */
@@ -75,102 +89,48 @@
 .explore-suggestion-copy { flex: 1 1 auto; }
 .explore-suggestion-copy strong,
 .explore-suggestion-copy > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* What kind of place it is, told by colour as well as by the tag beside it. */
-.explore-suggestion-mark.is-city,
-.explore-suggestion-mark.is-town { color: var(--color-field-0); background: var(--color-ink-800); }
-.explore-suggestion-mark.is-region,
-.explore-suggestion-mark.is-district { color: var(--color-lagoon-600); background: var(--color-lagoon-100); }
+/* What kind of place it is, told by colour as well as by the tag beside it:
+   lagoon for an area, gold for a landmark, kola for an address. */
+.explore-suggestion-mark.is-area { color: var(--color-lagoon-600); background: var(--color-lagoon-100); }
 .explore-suggestion-mark.is-landmark { color: var(--color-gold-700); background: var(--color-gold-100); }
-.explore-suggestions .is-highlighted .explore-suggestion-mark.is-city,
-.explore-suggestions .is-highlighted .explore-suggestion-mark.is-town { background: var(--color-ink-900); }
+/* Google's suggestions shown without a Google map carry its name, in the type
+   and contrast its attribution guidelines ask for. */
+.explore-suggestions-attribution {
+  margin: 0;
+  padding: 2px var(--space-3) var(--space-1);
+  color: var(--color-ink-700);
+  font: 500 .75rem/1.3 Roboto, var(--font-body);
+  text-align: right;
+}
 
 /* --- the map view ------------------------------------------------------------ */
 
+/* The map takes the list's place inside the page instead of covering it: the
+   site header, the search and the filters stay where they were. The search
+   sticks a breath under the site's header — the public site's 5rem, the
+   portal's 3.25rem — on the page's own ground; the map sticks beneath the
+   search, whose height the page measures, and stays in view as the results
+   scroll. The portal's band stops at its column, clear of the navigation rail. */
+.explore {
+  --explore-stick-top: calc(5rem + var(--space-2));
+  --explore-ground: var(--background);
+  --explore-bleed: 100vmax;
+  --explore-sticky-top: calc(var(--explore-stick-top) + var(--explore-tray-height, 9.25rem) + var(--space-3));
+}
+.portal .explore {
+  --explore-stick-top: calc(3.25rem + var(--space-2));
+  --explore-ground: var(--color-field-50);
+  --explore-bleed: var(--space-4);
+}
+
 .explore-map-view {
-  position: fixed;
-  z-index: 90;
-  inset: 0;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
-  color: var(--color-ink-900);
-  background: var(--color-field-100);
-  animation: explore-fade-in var(--motion-duration-base) var(--motion-easing-standard);
-}
-
-.explore-map-bar {
-  position: relative;
-  z-index: 5;
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) minmax(22rem, 46%);
   align-items: start;
-  gap: var(--space-3);
-  padding: var(--space-3) var(--space-4);
-  background: var(--color-field-0);
-  border-bottom: var(--border-hairline) solid var(--color-field-200);
-  box-shadow: var(--shadow-lifted);
-}
-.explore-map-close {
-  display: inline-flex;
-  height: 44px;
-  align-items: center;
-  gap: var(--space-2);
-  padding: 0 var(--space-4) 0 var(--space-3);
-  color: var(--color-ink-900);
-  font: 600 .875rem/1 var(--font-body);
-  white-space: nowrap;
-  background: var(--color-field-100);
-  border: 0;
-  border-radius: var(--radius-pill);
-  cursor: pointer;
-  transition: background-color var(--motion-duration-fast) var(--motion-easing-standard);
-}
-.explore-map-close .portal-icon { width: 18px; height: 18px; color: var(--color-kola-600); }
-.explore-map-close:hover { background: var(--color-field-200); }
-.explore-map-close:focus-visible { outline: var(--border-emphasis) solid var(--color-kola-600); outline-offset: 2px; }
-.explore-map-controls { min-width: 0; }
-.explore-map-controls > .notice,
-.explore-map-controls > [role="alert"],
-.explore-map-controls > [role="status"] { margin-top: var(--space-2); }
-
-.explore-discovery[data-variant="map"] {
-  gap: var(--space-2);
-  padding: 0;
-  background: transparent;
-  border: 0;
-  box-shadow: none;
-}
-.explore-discovery[data-variant="map"] .explore-search input { height: 44px; background: var(--color-field-50); box-shadow: none; }
-.explore-discovery[data-variant="map"] .explore-search input:focus-visible { background: var(--color-field-0); }
-.explore-discovery[data-variant="map"] .explore-feedback { padding-top: 0; border-top: 0; }
-.explore-discovery[data-variant="map"] .explore-advanced { top: calc(100% + var(--space-3)); }
-
-.explore-map-body {
-  position: relative;
-  display: grid;
-  grid-template-columns: minmax(22rem, 27rem) minmax(0, 1fr);
-  min-height: 0;
+  gap: var(--space-5);
 }
 
-.explore-map-results {
-  display: flex;
-  min-height: 0;
-  flex-direction: column;
-  gap: var(--space-3);
-  padding: var(--space-4);
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  background: var(--color-field-50);
-  border-right: var(--border-hairline) solid var(--color-field-200);
-}
-.explore-map-count {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  margin: 0;
-  color: var(--color-ink-900);
-  font: 650 1rem/1.3 var(--font-body);
-  letter-spacing: -.005em;
-}
+.explore-map-results { display: grid; min-width: 0; gap: var(--space-4); }
 .explore-map-note {
   margin: 0;
   padding: var(--space-2) var(--space-3);
@@ -180,8 +140,14 @@
   background: var(--color-lagoon-100);
   border-radius: var(--radius-md);
 }
-.explore-map-list { display: grid; gap: var(--space-4); padding: 0; margin: 0; list-style: none; }
-.explore-map-list .listing-card-photo { aspect-ratio: 16 / 9; }
+.explore-map-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(16.5rem, 1fr));
+  gap: var(--space-4);
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
 .explore-map-results .explore-more { width: 100%; min-height: 48px; }
 .explore-map-empty-list { display: grid; gap: var(--space-2); padding: var(--space-6) var(--space-2); }
 .explore-map-empty-list p { margin: 0; }
@@ -192,7 +158,21 @@
   box-shadow: 0 0 0 1px var(--color-kola-600), var(--shadow-lifted);
 }
 
-.explore-map-stage { position: relative; min-width: 0; min-height: 0; overflow: hidden; }
+.explore-map-stage {
+  position: sticky;
+  top: var(--explore-sticky-top);
+  min-width: 0;
+  height: calc(100vh - var(--explore-sticky-top) - var(--space-5));
+  height: calc(100svh - var(--explore-sticky-top) - var(--space-5));
+  min-height: 24rem;
+  overflow: hidden;
+  /* The map's own layers stay inside it, beneath the stuck search. */
+  isolation: isolate;
+  background: var(--color-field-100);
+  border: var(--border-hairline) solid var(--color-field-200);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lifted);
+}
 .explore-map-frame,
 .explore-map-canvas { position: absolute; inset: 0; }
 .explore-map-loading {
@@ -255,6 +235,7 @@
 .explore-search-area:hover { background: var(--color-kola-50); }
 .explore-search-area:focus-visible,
 .explore-map-retry:focus-visible,
+.explore-map-toggle:focus-visible,
 .explore-view-switch:focus-visible { outline: var(--border-emphasis) solid var(--color-kola-600); outline-offset: 2px; }
 
 /* Said on the map, where the missing markers are, not in a list a phone never
@@ -323,27 +304,11 @@
 .explore-map-empty span { color: var(--color-ink-700); font-size: .875rem; }
 .explore-map-empty div { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--space-2); margin-top: var(--space-1); }
 
-/* MapLibre's controls, in the product's clothes. */
-.explore-map-stage .maplibregl-ctrl-group,
-.listing-location-map .maplibregl-ctrl-group {
-  overflow: hidden;
-  background: var(--color-field-0);
-  border: var(--border-hairline) solid var(--color-field-200);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-lifted);
-}
-.explore-map-stage .maplibregl-ctrl-group button,
-.listing-location-map .maplibregl-ctrl-group button { width: 36px; height: 36px; }
-.explore-map-stage .maplibregl-ctrl-group button + button,
-.listing-location-map .maplibregl-ctrl-group button + button { border-top-color: var(--color-field-200); }
-.explore-map-stage .maplibregl-ctrl-bottom-right { margin: 0 var(--space-3) var(--space-3) 0; }
-.explore-map-stage .maplibregl-ctrl-attrib,
-.listing-location-map .maplibregl-ctrl-attrib { font-family: var(--font-body); font-size: .6875rem; }
-
 /* --- markers ------------------------------------------------------------------ */
 
-/* MapLibre positions a marker with an inline `transform`, so emphasis uses the
-   separate `scale` property, which composes with it instead of replacing it. */
+/* The map positions a wrapper around each marker, never the marker itself, but
+   emphasis still uses the separate `scale` property so it composes with any
+   transform rather than replacing it. */
 .explore-marker { margin: 0; font-family: var(--font-body); cursor: pointer; }
 
 .explore-price-marker {
@@ -477,9 +442,8 @@
 
 /* --- the preview a marker opens ------------------------------------------------ */
 
-.explore-preview-popup { z-index: 5; }
-.explore-preview-popup .maplibregl-popup-content { padding: 0; background: transparent; border-radius: 0; box-shadow: none; }
-.explore-preview-popup .maplibregl-popup-tip { display: none; }
+/* The preview rides the map above its marker, clear of the price pill and its tail. */
+.explore-preview-anchor { padding-bottom: 44px; }
 
 .explore-preview {
   position: relative;
@@ -608,9 +572,11 @@
 .explore-preview-failed { display: grid; justify-items: start; gap: var(--space-2); padding: var(--space-4) 2.75rem var(--space-4) var(--space-4); font-size: .875rem; }
 .explore-preview-failed p { margin: 0; }
 
+/* Fixed to the screen rather than to the map, which can run past the fold: a
+   preview rising from the map's own bottom edge would open out of sight. */
 .explore-map-sheet {
-  position: absolute;
-  z-index: 6;
+  position: fixed;
+  z-index: 16;
   right: var(--space-3);
   bottom: calc(max(var(--space-4), env(safe-area-inset-bottom)) + 56px);
   left: var(--space-3);
@@ -618,13 +584,14 @@
 }
 
 /* A phone's one switch between the list and the map, dark so it floats over
-   photographs and tiles alike: "List · 12" on the map, "Map" on the list. */
+   photographs and tiles alike: "List · 12" on the map, "Map" on the list. Wide
+   screens use the rail's pill instead. */
 .explore-view-switch {
-  position: absolute;
-  z-index: 7;
+  position: fixed;
+  z-index: 15;
   bottom: max(var(--space-4), env(safe-area-inset-bottom));
   left: 50%;
-  display: inline-flex;
+  display: none;
   height: 44px;
   align-items: center;
   gap: var(--space-2);
@@ -641,7 +608,6 @@
 }
 .explore-view-switch .portal-icon { width: 18px; height: 18px; color: var(--color-kola-300); }
 .explore-view-switch:hover { background: var(--color-ink-800); }
-.explore-map-float { display: none; }
 
 /* --- the address on a card, and the listing's Location section ------------------ */
 
@@ -700,43 +666,31 @@
 
 /* --- widths ----------------------------------------------------------------------- */
 
-@media (min-width: 80rem) {
-  .explore-discovery[data-variant="map"] {
-    grid-template-columns: minmax(20rem, 28rem) minmax(0, 1fr);
-    align-items: center;
-    column-gap: var(--space-4);
-  }
-  .explore-discovery[data-variant="map"] .explore-feedback { grid-column: 1 / -1; }
-}
-
-@media (min-width: 100rem) {
-  .explore-map-body { grid-template-columns: minmax(0, 46rem) minmax(0, 1fr); }
-  .explore-map-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
-
-@media (min-width: 64rem) {
-  .explore-view-switch { display: none; }
-}
-
-/* Phones and tablets: the map takes the screen, the list page is one switch
-   away, and the preview rises from the bottom. A close button in the bar and a
-   list inside the map both led to a list, under the same icon; the floating
-   switch is now the only way between the two. */
+/* Phones and tablets: the map takes the page's width in the list's place, the
+   list is one switch away, and the preview rises from the bottom. A close
+   button and a list inside the map both once led to a list under the same
+   icon; the floating switch is the only way between the two. */
 @media (max-width: 63.999rem) {
-  .explore-map-bar { grid-template-columns: minmax(0, 1fr); gap: var(--space-2); padding: var(--space-2) var(--space-3) var(--space-3); }
-  .explore-map-close { display: none; }
+  .explore-map-view { grid-template-columns: minmax(0, 1fr); }
   .explore-map-results { display: none; }
+  .explore-map-stage {
+    position: relative;
+    top: auto;
+    height: calc(100vh - var(--explore-sticky-top) - var(--space-3));
+    height: calc(100svh - var(--explore-sticky-top) - var(--space-3));
+    min-height: 22rem;
+    border-radius: var(--radius-lg);
+  }
   .explore-map-toggle { display: none; }
-  .explore-map-body { grid-template-columns: minmax(0, 1fr); }
+  .explore-view-switch { display: inline-flex; }
   .explore-map-overlay-top { top: var(--space-3); }
-  .explore-map-empty { bottom: calc(max(var(--space-4), env(safe-area-inset-bottom)) + 60px); }
-  .explore-map-float { position: fixed; z-index: 15; display: inline-flex; }
+  /* Near the top, where it is on screen even while the map runs past the fold. */
+  .explore-map-empty { top: calc(var(--space-3) + 3.25rem); bottom: auto; }
   /* Room under the last card, so the switch never covers the end of the list. */
   .explore { padding-bottom: calc(44px + var(--space-6)); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .explore-map-view,
   .explore-preview,
   .explore-map-sheet,
   .explore-search-area,

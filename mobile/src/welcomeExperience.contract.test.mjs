@@ -34,7 +34,10 @@ test("the story plays once; the choice is always there", () => {
   // on — which is why returning does not mean being shown an introduction
   // again, and does not mean losing it either.
   const body = code(gate());
-  assert.match(body, /router\.replace\("\/\(auth\)\/welcome"\)/);
+  // The gate decides while rendering and replaces the route in one effect; a
+  // signed-out person with nowhere public to be is sent to the journey.
+  assert.match(body, /return renterTwin \?\? "\/\(auth\)\/welcome";/);
+  assert.match(body, /if \(redirect\) router\.replace\(redirect as never\);/);
   assert.doesNotMatch(body, /hasSeenWelcome/);
 
   // The journey reads the flag and opens at the far end for anybody who has

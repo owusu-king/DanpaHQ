@@ -6,8 +6,9 @@ import { ApiFailure } from "@/api";
 import { listMyApplications, type RentalApplication } from "@/applications";
 import { useAuth } from "@/auth";
 import { listNotifications, type Notification } from "@/notifications";
+import { HomeGround } from "@/components/home/HomeGround";
 import { TenantHome } from "@/components/home/TenantHome";
-import { ph, useHomeDensity } from "@/components/home/plinth";
+import { useHomeDensity } from "@/components/home/plinth";
 import { ListingCard } from "@/components/listings/ListingCard";
 import { Button, Notice, Type, space } from "@/components/ui";
 import { listMyLeases, type Lease } from "@/leases";
@@ -17,8 +18,21 @@ import { listMyJoinRequests, listMyTenancies, type MyJoinRequest, type Tenancy }
 import { listMyViewings, type Viewing } from "@/viewings";
 import { chooseWorkspace } from "@/workspace";
 
-
+/**
+ * Signed in, Home is the tenant's dashboard and stands on the soft green
+ * ground; signed out it is the public browsing page on the ordinary ivory. The
+ * ground only stops painting, so signing in never remounts the screen under it.
+ */
 export default function DiscoveryHomeScreen() {
+  const { state } = useAuth();
+  return (
+    <HomeGround active={state.status === "signed_in"}>
+      <DiscoveryHome />
+    </HomeGround>
+  );
+}
+
+function DiscoveryHome() {
   const router = useRouter();
   const density = useHomeDensity();
   const { providerError } = useLocalSearchParams<{ providerError?: string }>();
@@ -198,11 +212,10 @@ export default function DiscoveryHomeScreen() {
     <FlatList
       data={browsing ? listings.slice(0, 6) : []}
       keyExtractor={(item) => item.id}
-      // The tenant control center is drawn on the warm ground its surfaces sit
-      // against — paper on stone is what separates its regions, so the ground
-      // belongs to the scroller rather than to any one card. Browsing keeps the
-      // ordinary page: a wall of listing cards on stone would be a dashboard.
-      style={tenantMode ? { backgroundColor: ph.stone } : undefined}
+      // Signed in, the soft green ground behind this list (`HomeGround`) is what
+      // sets the dashboard's white cards apart, so the list paints nothing of its
+      // own. Browsing keeps the ordinary ivory page: a wall of listing cards on
+      // the ground would read as a dashboard.
       contentContainerStyle={{
         padding: tenantMode ? density.pagePadding : space[5],
         paddingBottom: tenantMode ? space[12] : space[5],

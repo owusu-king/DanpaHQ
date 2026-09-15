@@ -87,7 +87,14 @@ export function getProviderReadiness(propertyId?: string) {
 }
 
 export function createAddress(input: {
-  locality_id: string;
+  locality_id?: string;
+  place?: {
+    provider: string;
+    reference: string;
+    session?: string;
+    name: string;
+    context?: string;
+  };
   digital_address?: string;
   street?: string;
   landmark?: string;

@@ -108,6 +108,10 @@ services:
     command: ["sh", "/app/docker-entrypoint.sh"]
     environment:
       NEXT_PUBLIC_API_URL: http://localhost:8000/api/v1
+      # The browser map key and map ID, from .env. Empty means Explore keeps its
+      # list and says the map is not available here (docs/runbook.md, Maps).
+      NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: ${NEXT_PUBLIC_GOOGLE_MAPS_API_KEY:-}
+      NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID: ${NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID:-}
       # File changes on a Windows bind mount do not raise inotify events inside
       # the container, so webpack's watcher never fires and edits look ignored
       # until you restart. Polling is slower but it actually works.

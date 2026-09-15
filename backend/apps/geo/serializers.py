@@ -12,7 +12,8 @@ from rest_framework import serializers
 
 from apps.core.digital_address import DigitalAddressError, normalise_digital_address
 
-from .models import Address, District, Locality, Place, Region
+from .models import Address, District, Locality, Region
+from .providers import PROVIDER_NAMES
 
 
 class RegionSerializer(serializers.ModelSerializer):
@@ -51,9 +52,9 @@ class LocalitySerializer(serializers.ModelSerializer):
 
 
 class AddressSerializer(serializers.ModelSerializer):
-    locality_name = serializers.CharField(source="locality.name", read_only=True)
-    district_name = serializers.CharField(source="locality.district.name", read_only=True)
-    region_name = serializers.CharField(source="locality.district.region.name", read_only=True)
+    locality_name = serializers.CharField(source="locality_label", read_only=True)
+    district_name = serializers.CharField(source="district_label", read_only=True)
+    region_name = serializers.CharField(source="region_label", read_only=True)
 
     class Meta:
         model = Address
@@ -69,6 +70,8 @@ class AddressSerializer(serializers.ModelSerializer):
             "landmark",
             "latitude",
             "longitude",
+            "place_provider",
+            "place_reference",
             "created_at",
         ]
         read_only_fields = [
@@ -76,8 +79,20 @@ class AddressSerializer(serializers.ModelSerializer):
             "locality_name",
             "district_name",
             "region_name",
+            "place_provider",
+            "place_reference",
             "created_at",
         ]
+
+
+class AddressPlaceSerializer(serializers.Serializer):
+    """A town/neighbourhood chosen from Rooomly's provider-backed search."""
+
+    provider = serializers.ChoiceField(choices=list(PROVIDER_NAMES))
+    reference = serializers.RegexField(r"^[A-Za-z0-9_-]{1,300}$", max_length=300)
+    session = serializers.UUIDField(required=False)
+    name = serializers.CharField(max_length=160)
+    context = serializers.CharField(max_length=160, required=False, allow_blank=True)
 
 
 class CreateAddressSerializer(serializers.Serializer):
@@ -88,7 +103,8 @@ class CreateAddressSerializer(serializers.Serializer):
     and nothing more, and a form that refuses that is a form people abandon.
     """
 
-    locality_id = serializers.UUIDField()
+    locality_id = serializers.UUIDField(required=False)
+    place = AddressPlaceSerializer(required=False)
     digital_address = serializers.CharField(max_length=12, required=False, allow_blank=True)
     street = serializers.CharField(max_length=160, required=False, allow_blank=True)
     house_number = serializers.CharField(max_length=32, required=False, allow_blank=True)
@@ -129,46 +145,49 @@ class CreateAddressSerializer(serializers.Serializer):
             raise serializers.ValidationError("We do not know that locality.")
         return value
 
+    def validate(self, attrs):
+        if bool(attrs.get("locality_id")) == bool(attrs.get("place")):
+            raise serializers.ValidationError(
+                "Choose one town or neighbourhood from the location results."
+            )
+        return attrs
 
-class PlaceSerializer(serializers.ModelSerializer):
-    """A place as a suggestion and as a map target: what it is called and where it is."""
 
-    kind_label = serializers.CharField(source="get_kind_display", read_only=True)
-    display_name = serializers.SerializerMethodField()
+class PlaceSuggestQuerySerializer(serializers.Serializer):
+    """What the location field sends while somebody types."""
+
+    q = serializers.CharField(required=False, allow_blank=True, max_length=120)
+    #: One per typing session, made by the client: a UUID, as Google recommends.
+    session = serializers.UUIDField(required=False)
+    limit = serializers.IntegerField(required=False, min_value=1, max_value=8, default=5)
+    scope = serializers.ChoiceField(
+        choices=("all", "areas"), required=False, default="all"
+    )
+
+
+class PlaceResolveQuerySerializer(serializers.Serializer):
+    """A chosen suggestion, named the way it was suggested."""
+
+    provider = serializers.ChoiceField(choices=list(PROVIDER_NAMES))
+    reference = serializers.RegexField(r"^[A-Za-z0-9_-]{1,300}$", max_length=300)
+    #: The session the suggestion came from; resolving closes it.
+    session = serializers.UUIDField(required=False)
+    #: The suggestion's own label, shown as the place's name.
+    name = serializers.CharField(required=False, allow_blank=True, max_length=160)
+
+
+class ResolvedPlaceSerializer(serializers.Serializer):
+    """A place as a map target: what it is called, where it is and how far it reaches."""
+
+    provider = serializers.CharField()
+    reference = serializers.CharField()
+    display_name = serializers.CharField()
+    kind = serializers.CharField()
     center = serializers.SerializerMethodField()
     bounds = serializers.SerializerMethodField()
-    locality_id = serializers.UUIDField(read_only=True, allow_null=True)
 
-    class Meta:
-        model = Place
-        fields = [
-            "slug",
-            "name",
-            "kind",
-            "kind_label",
-            "context",
-            "display_name",
-            "center",
-            "bounds",
-            "locality_id",
-        ]
-        read_only_fields = fields
+    def get_center(self, obj) -> dict[str, float]:
+        return obj.center.as_dict()
 
-    def get_display_name(self, obj) -> str:
-        """The name and the first part of its context: "East Legon, Accra"."""
-        anchor = obj.context.split(",")[0].strip() if obj.context else ""
-        if not anchor or anchor in {obj.name, "Ghana"}:
-            return obj.name
-        return f"{obj.name}, {anchor}"
-
-    def get_center(self, obj) -> dict:
-        return {"lat": round(obj.center.y, 6), "lng": round(obj.center.x, 6)}
-
-    def get_bounds(self, obj) -> dict:
-        west, south, east, north = obj.bounds.extent
-        return {
-            "west": round(west, 6),
-            "south": round(south, 6),
-            "east": round(east, 6),
-            "north": round(north, 6),
-        }
+    def get_bounds(self, obj) -> dict[str, float]:
+        return obj.bounds.as_dict()

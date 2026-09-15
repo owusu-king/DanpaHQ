@@ -7,15 +7,21 @@ import { fileURLToPath } from "node:url";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const read = (relative) => readFileSync(resolve(root, relative), "utf8");
 
-test("mobile Updates separates what wanted a reply from what merely happened", () => {
+test("mobile Updates is a grouped, semantic communication centre", () => {
   const screen = read("mobile/app/(app)/notifications.tsx");
 
-  assert.match(screen, /Waiting on you/);
+  assert.match(screen, /SectionList/);
+  assert.match(screen, /Action needed/);
   assert.match(screen, /needsYou/);
-  assert.match(screen, /Needs a reply/);
-  assert.match(screen, /accessibilityRole="tablist"/);
-  // The flag has to reach a screen reader, not only the eye.
-  assert.match(screen, /\$\{flagged \? "Needs a reply\. " : ""\}/);
+  assert.match(screen, /notificationCategory/);
+  assert.match(screen, /notificationSource/);
+  assert.match(screen, /notificationStatus/);
+  assert.match(screen, /notificationTone/);
+  assert.match(screen, /Needs your attention/);
+  assert.match(screen, /This week/);
+  assert.match(screen, /accessibilityRole="toolbar"/);
+  assert.doesNotMatch(screen, /Your inbox/);
+  assert.doesNotMatch(screen, /accessibilityRole="summary"/);
 });
 
 test("no notification is a dead tap any more", () => {
@@ -35,58 +41,74 @@ test("no notification is a dead tap any more", () => {
 test("the feed is rows, and unread does not depend on colour", () => {
   const screen = read("mobile/app/(app)/notifications.tsx");
 
-  // Every item used to be a Surface — a card per line in a feed.
   assert.doesNotMatch(screen, /<Surface/);
   assert.match(screen, /borderLeftWidth: 3/);
-  assert.match(screen, /ItemSeparatorComponent/);
-  assert.match(screen, /minHeight: 76/);
-  assert.match(screen, /Unread/);
+  assert.match(screen, /notificationStatus\(item\)/);
+  assert.match(screen, /accessibilityLabel=.*notificationSource/s);
+  assert.match(screen, /tonePalette/);
 });
 
-test("Explore keeps quick filters close and puts the complete set in a bottom sheet", () => {
+test("opening an update does not wait for the read acknowledgement", () => {
+  const screen = read("mobile/app/(app)/notifications.tsx");
+
+  assert.match(screen, /void markRead\(\[item\.id\]\)\.catch/);
+  assert.match(screen, /router\.push\(destination\(item, isProvider\)/);
+});
+
+test("mobile Updates presents ten records per page", () => {
+  const screen = read("mobile/app/(app)/notifications.tsx");
+
+  assert.match(screen, /const PAGE_SIZE = 10/);
+  assert.match(screen, /orderedVisible\.slice\(\(currentPage - 1\) \* PAGE_SIZE, currentPage \* PAGE_SIZE\)/);
+  assert.match(screen, /\.\.\.visible\.filter\(needsYou\)/);
+  assert.match(screen, /function MobilePagination/);
+  assert.match(screen, /accessibilityLabel="Updates pages"/);
+});
+
+test("Explore keeps one search bar and one Filters button over the map, and every filter in a bottom sheet", () => {
   const search = read("mobile/app/(app)/search.tsx");
 
-  // The closed filters remain visible and thumb-reachable. More detailed work
-  // leaves the listing rhythm intact in one dismissible bottom sheet.
-  assert.match(search, /horizontal[\s\S]{0,180}accessibilityRole="toolbar"/);
-  assert.match(search, /function CompactFilter/);
-  assert.match(search, /function FilterChip/);
-  assert.match(search, /function ChoiceRow/);
+  // Two floating controls, not a rail: pills and chips crowded a phone's map,
+  // and every one of them is in the sheet already.
+  assert.match(search, /function SearchBox/);
+  assert.match(search, /function FiltersButton/);
+  assert.doesNotMatch(search, /accessibilityRole="toolbar"|function CompactFilter|function ActiveFilter/);
+  assert.match(search, /onPress=\{\(\) => \{ Keyboard\.dismiss\(\); setFiltersOpen\(true\); \}\}/);
+  // Each question is one row — a rent range, dropdowns, a segmented choice and a
+  // switch; see filterFields.contract.test.mjs.
+  assert.match(search, /<PriceRange\n/);
+  assert.match(search, /<SelectField\s+label="Property type"/);
   assert.match(search, /function FilterSheet/);
-  assert.match(search, /<Modal visible=\{visible\} transparent animationType="slide"/);
-  assert.match(search, /label="Filters"/);
+  // The shared sheet a thumb can swipe away; see bottomSheet.contract.test.mjs.
+  assert.match(search, /<BottomSheet\s+visible=\{visible\}\s+onClose=\{onClose\}\s+title="Filters"/);
   assert.match(search, /resultLabel/);
-  assert.match(search, /function ActiveFilter/);
-  assert.match(search, /accessibilityRole="radio"/);
-  assert.match(search, /q: locality \? undefined : place\.trim\(\) \|\| undefined/);
+  assert.match(read("mobile/src/components/filters/FilterFields.tsx"), /accessibilityRole="radio"/);
+  assert.match(search, /q: area \? undefined : place\.trim\(\) \|\| undefined/);
   assert.doesNotMatch(search, /presentationStyle=/);
 });
 
 test("Explore on the phone shows each choice once, and turning one on moves nothing", () => {
   const search = read("mobile/app/(app)/search.tsx");
+  const fields = read("mobile/src/components/filters/FilterFields.tsx");
 
-  // Filters leads the rail: at the end it sat past the right edge of a phone.
-  const rail = search.slice(search.indexOf('accessibilityLabel="Quick rental filters"'));
-  assert.ok(rail.indexOf('label="Filters"') < rail.indexOf("label={rentLabel}"));
-  assert.match(rail, /count=\{refinementCount\}/);
+  // The button counts the refinements, and names the count for a screen reader.
+  const button = search.slice(search.indexOf("function FiltersButton("), search.indexOf("function FilterSheet("));
+  assert.match(button, /accessibilityLabel=\{active \? `Filters, \$\{count\} active` : "Filters"\}/);
+  assert.match(search, /<FiltersButton\s+count=\{refinementCount\}/);
 
   // The one Clear all sits beside the count it changes.
   const status = search.slice(search.indexOf('accessibilityLiveRegion="polite"'), search.indexOf("renderItem="));
   assert.match(status, /onPress=\{clearFilters\}/);
 
   // Furnished is the platform switch, and the row owns the touch.
-  assert.match(search, /<View pointerEvents="none"[^>]*>\s*<Switch\s+value=\{selected\}/);
+  assert.match(fields, /<View pointerEvents="none"[^>]*>\s*<Switch\s+value=\{value\}/);
 
-  // A chip or pill turning on gives back the pixel its doubled edge takes.
-  const chip = search.slice(search.indexOf("function FilterChip("), search.indexOf("function ChoiceRow("));
-  assert.match(chip, /paddingHorizontal: selected \? space\[4\] - 1 : space\[4\]/);
-  assert.match(chip, /borderWidth: selected \? 2 : 1/);
-  const pill = search.slice(search.indexOf("function CompactFilter("), search.indexOf("function FilterChip("));
-  assert.match(pill, /paddingLeft: \(icon \? space\[3\] : space\[4\]\) - edge/);
-  assert.match(pill, /borderWidth: 1 \+ edge/);
+  // A choice changes colour, never size: every segment keeps its one-point edge.
+  assert.match(fields, /segment: \{[^}]*borderWidth: 1,[^}]*borderColor: "transparent",/);
+  assert.doesNotMatch(fields, /(segmentChosen|selectChosen|selectOpen): \{[^}]*borderWidth/);
 
-  // The search box's ring sits behind it; its border no longer thickens.
-  const box = search.slice(search.indexOf("function SearchBox("), search.indexOf("function ActiveFilter("));
+  // The search bar's ring is drawn behind it; its border never thickens.
+  const box = search.slice(search.indexOf("function SearchBox("), search.indexOf("function FiltersButton("));
   assert.doesNotMatch(box, /borderWidth: focused/);
   assert.match(box, /clearButtonMode="never"/);
 

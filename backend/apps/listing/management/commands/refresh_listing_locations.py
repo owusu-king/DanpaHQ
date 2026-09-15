@@ -2,8 +2,8 @@
 
     python manage.py refresh_listing_locations
 
-Run after `import_osm_places` has given localities their centres, and after
-properties gain coordinates in bulk. Safe to repeat: a listing whose point is
+Run after operations give localities their centres, and after properties gain
+coordinates in bulk. Safe to repeat: a listing whose point is
 already right is not written. See `apps.listing.location` for what a public
 point is, and why it is never the address.
 """

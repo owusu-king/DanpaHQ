@@ -56,10 +56,10 @@ class ListingSerializer(serializers.ModelSerializer):
     # tenant is choosing between identical grey cards. The search queryset
     # already selects this chain, so it costs nothing.
     locality_name = serializers.CharField(
-        source="unit.property.address.locality.name", read_only=True, default=None
+        source="unit.property.address.locality_label", read_only=True, default=None
     )
     district_name = serializers.CharField(
-        source="unit.property.address.locality.district.name", read_only=True, default=None
+        source="unit.property.address.district_label", read_only=True, default=None
     )
     landmark = serializers.CharField(
         source="unit.property.address.landmark", read_only=True, default=None
@@ -457,16 +457,14 @@ class ListingDetailSerializer(ListingSerializer):
 
         prop = obj.unit.property
         address = prop.address
-        locality = address.locality
-
         return {
             "id": str(prop.id),
             "title": prop.title,
             "property_type": prop.property_type,
             "property_type_label": prop.get_property_type_display(),
-            "locality_name": locality.name if locality else None,
-            "district_name": locality.district.name if locality else None,
-            "region_name": locality.district.region.name if locality else None,
+            "locality_name": address.locality_label or None,
+            "district_name": address.district_label or None,
+            "region_name": address.region_label or None,
             "landmark": address.landmark,
             # Kept for installed-client compatibility. New clients render the
             # combined top-level gallery, but this array now draws from the
@@ -725,9 +723,8 @@ class ListingSearchSerializer(serializers.Serializer):
     sort = serializers.ChoiceField(
         choices=["newest", "rent_asc", "rent_desc"], required=False, default="newest"
     )
-    #: A place's slug. Its area is the search area unless a box is sent.
-    place = serializers.SlugField(required=False, max_length=160)
-    #: An explicit search box, sent whole: what "Search this area" searched.
+    #: The search box, sent whole: what "Search this area" searched, or the
+    #: bounds of the place the tenant chose.
     west = serializers.FloatField(required=False, min_value=-180, max_value=180)
     south = serializers.FloatField(required=False, min_value=-90, max_value=90)
     east = serializers.FloatField(required=False, min_value=-180, max_value=180)

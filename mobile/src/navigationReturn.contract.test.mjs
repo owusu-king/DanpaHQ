@@ -104,8 +104,10 @@ test("the control is a thumb-sized target", () => {
   const source = control();
   // 44pt is the smallest reliably hittable target, and the measurement that
   // decides whether a header control feels considered or fiddly.
-  assert.match(source, /minWidth: 44/);
-  assert.match(source, /minHeight: 44/);
+  assert.match(source, /width: 44/);
+  assert.match(source, /height: 44/);
+  assert.match(source, /alignItems: "center"/);
+  assert.match(source, /width: 28, height: 28, alignItems: "center", justifyContent: "center"/);
   assert.match(source, /accessibilityRole="button"/);
   assert.match(source, /accessibilityLabel=\{mode === "close" \? "Close" : "Go back"\}/);
 });

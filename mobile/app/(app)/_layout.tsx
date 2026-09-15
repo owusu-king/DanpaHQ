@@ -1,23 +1,23 @@
 import { Stack } from "expo-router";
 
 import { backHeaderLeft, closeHeaderLeft } from "@/components/nav/BackControl";
+import { StackHeader } from "@/components/nav/StackHeader";
 import { gestureBackEnabled, stackAnimation } from "@/platform";
-import { theme } from "@/theme";
+import { shell } from "@/shell";
 
 export default function AppLayout() {
   return (
     <Stack
       screenOptions={{
+        // Pushed screens use the same measured edge-to-edge boundary as tabs.
+        header: (props) => <StackHeader {...props} />,
         headerShadowVisible: false,
-        headerStyle: { backgroundColor: theme.color.field["50"] },
-        headerTitleStyle: { fontSize: 18, fontWeight: "600", color: theme.color.ink["900"] },
-        headerTintColor: theme.color.kola["600"],
         // One way out, drawn the same on every screen and present even when the
         // stack has no history to offer — see `BackControl`. It replaces the
         // platform button rather than joining it, so `headerBackVisible` goes.
         headerLeft: backHeaderLeft,
         headerBackVisible: false,
-        contentStyle: { backgroundColor: theme.color.field["50"] },
+        contentStyle: { backgroundColor: shell.canvas },
         animation: stackAnimation,
         gestureEnabled: gestureBackEnabled,
       }}
@@ -40,7 +40,7 @@ export default function AppLayout() {
           can all coexist there. Agreements follow the same rule: the full
           legal and financial record is resumable work, not a quick sheet. */}
       <Stack.Screen name="application/[id]" options={{ title: "Application" }} />
-      <Stack.Screen name="provider-viewings" options={{ title: "Viewing requests" }} />
+      <Stack.Screen name="provider-viewings" options={{ title: "Viewings" }} />
       <Stack.Screen name="provider-viewing" options={{ title: "Viewing" }} />
       <Stack.Screen name="provider-viewing-check-in" options={{ title: "Check in tenant" }} />
       <Stack.Screen name="provider-applications" options={{ title: "Tenancy requests" }} />

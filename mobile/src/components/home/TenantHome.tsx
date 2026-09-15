@@ -46,7 +46,7 @@ import type { Viewing } from "@/viewings";
  * where does my rent and agreement stand, and what is coming next.* Everything
  * on the screen answers one of them.
  *
- * Drawn in the language both Homes now share — warm stone ground, paper
+ * Drawn in the language both Homes now share — a soft green ground, white paper
  * surfaces, registration ticks on the surface that carries the screen, one
  * instrument — recomposed for a device that scrolls in one column and cannot
  * hover. `components/home/plinth.tsx` holds the vocabulary so the provider's
@@ -166,7 +166,7 @@ export function TenantHome({
           reachable in every state — that was the point of the original fix —
           just no longer as an ambiguous glyph. */}
       <View style={{ gap: space[1], paddingBottom: density.compact ? space[1] : space[2] }}>
-        <Type variant="label" style={{ fontSize: density.labelSize, lineHeight: 14, color: ph.ink38 }} numberOfLines={1}>
+        <Type variant="label" style={{ fontSize: density.labelSize, lineHeight: 14, color: ph.ink70 }} numberOfLines={1}>
           {ranked[0] ? ranked[0].property.title.toUpperCase() : "YOUR RENTALS"}
         </Type>
         <Type
@@ -765,7 +765,7 @@ function Group({ heading, children }: { heading: string; children: React.ReactNo
   const density = useHomeDensity();
   return (
     <View style={{ gap: space[2] }}>
-      <Type variant="label" accessibilityRole="header" style={{ fontSize: density.labelSize, lineHeight: 14, color: ph.ink38 }}>
+      <Type variant="label" accessibilityRole="header" style={{ fontSize: density.labelSize, lineHeight: 14, color: ph.ink70 }}>
         {heading.toUpperCase()}
       </Type>
       {children}

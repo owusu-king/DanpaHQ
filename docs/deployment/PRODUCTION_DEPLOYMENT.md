@@ -86,6 +86,11 @@ defeats the separation they exist for.
 | `IDEMPOTENCY_TTL_HOURS` | 24 | replay window |
 | `LOG_FORMAT` | `json` | keep JSON in production; the formatter redacts phone numbers and long digit runs |
 | `LOG_LEVEL` | `INFO` | |
+| `LOCATION_PROVIDER` | `google` | `localities` never asks Google; `google` without a key answers from the localities (§9a) |
+| `GOOGLE_MAPS_SERVER_API_KEY` | empty | Places API (New); server-only and IP-restricted (§9a) |
+| `GOOGLE_PLACES_REGION_CODES` | `gh` | countries suggestions may come from, comma-separated |
+| `GOOGLE_PLACES_LANGUAGE` | `en` | language of suggestions and addresses |
+| `GOOGLE_PLACES_TIMEOUT_SECONDS` | 4 | per Google call; suggestions fall back to the localities past it |
 
 `config/settings/production.py` also hard-sets `STORAGE_BACKEND = "s3"` and
 `LEASE_TEMPLATE_REQUIRE_APPROVAL = True` regardless of environment.
@@ -105,7 +110,7 @@ partial unique indexes carry the financial invariants, `pg_advisory_xact_lock`
 carries HTTP idempotency, row-level security makes the audit log append-only,
 and PL/pgSQL triggers make transactions, ledger lines, receipts, allocations and
 obligation adjustments append-only. Map search (ADR 0033) adds a spatial index
-on listings' public points and a trigram index on place names.
+on listings' public points.
 
 Migration `geo.0002` runs `CREATE EXTENSION postgis` and `CREATE EXTENSION
 pg_trgm`. Where the migration role may not create extensions, have an
@@ -227,16 +232,8 @@ be **private**: there is no public download path in the code
 holds that), and a public bucket would route around the entire authorization and
 audit boundary. Give the app an IAM identity scoped to that one bucket.
 
-**Map assets are the one public bucket, and a separate one** (ADR 0033).
-`MAP_ASSETS_BUCKET` (default `rooomly-map`) holds the Ghana basemap archive and
-its label fonts: public geography, identical for every visitor, read by range
-request. Serve it through a CDN and set `MAP_ASSETS_PUBLIC_URL` to that origin;
-left empty, clients are pointed at the object store's public endpoint. It needs
-a CORS rule allowing `GET` and `HEAD` with the `Range` header from the web
-origins, and exposing `ETag`, `Content-Range` and `Content-Length`.
-`publish_map_assets` applies the rule where the provider supports bucket CORS, and
-MinIO answers every origin itself. Nothing a person uploads is ever written
-there, and the upload bucket above stays private.
+**Nothing is public.** The basemap bucket ADR 0033 added went with the
+OpenStreetMap basemap; maps now come from Google (ADR 0034, §9a).
 
 ---
 
@@ -264,10 +261,17 @@ value, or a non-`https://` value, fails the build with a named error.
 **HOW**
 
 ```bash
-NEXT_PUBLIC_API_URL=https://api.rooomly.com/api/v1 npm run build
+NEXT_PUBLIC_API_URL=https://api.rooomly.com/api/v1 \
+NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=<web key> \
+NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID=<map ID> \
+npm run build
 ```
 
 Add that origin to the API's `CORS_ALLOWED_ORIGINS` and `CSRF_TRUSTED_ORIGINS`.
+
+The two map values are build inputs as well (§9a). A build with the key but no
+Map ID has no map, rather than one without its price markers; a build with
+neither still works, as a list.
 
 ---
 
@@ -283,9 +287,85 @@ loudly in QA instead of silently failing every request in the field.
 **HOW** — set it in the EAS build profile. There is no `eas.json` in the
 repository yet; creating one is part of the first mobile release.
 
+The same profile carries the map keys, `GOOGLE_MAPS_ANDROID_API_KEY` and
+`GOOGLE_MAPS_IOS_API_KEY`, as EAS environment variables with sensitive
+visibility (§9a). `mobile/app.config.js` writes them into the native projects,
+and JavaScript never receives them. A build without its platform's key ships
+Explore as a list. iOS draws Google's map only in a build: Expo Go on an iPhone
+draws Apple's.
+
 An app store release is not a rollback you can perform in minutes. Treat mobile
 as the slowest-moving surface and keep the API backward-compatible with the
 oldest release in the field.
+
+---
+
+## 9a. Google Maps Platform — maps and places
+
+**WHAT** — a production Google Cloud project with billing, four API keys, a Map
+ID, a budget and quotas (ADR 0034).
+**WHERE** — `GOOGLE_MAPS_SERVER_API_KEY` in the API and worker environments;
+`NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` and `NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID` at the web
+build (§8); `GOOGLE_MAPS_ANDROID_API_KEY` and `GOOGLE_MAPS_IOS_API_KEY` in the
+EAS build profile (§9).
+**WHY** — the web and the phone draw Google Maps, and place search asks Places
+API (New) through the API. Every request is billed to the project, and three of
+the four keys ship inside public artifacts where only their restrictions protect
+them. None of this blocks a release — without keys Explore is a list — but no key
+may go live unrestricted or without a budget.
+**HOW**
+
+1. **Project.** Create a production project with billing enabled. Development
+   uses a separate project, so its keys and quota never touch production's.
+2. **APIs.** In APIs & Services → Library, enable exactly these:
+   * **Places API (New)** — suggestions and place details. Not the legacy
+     "Places API".
+   * **Maps JavaScript API** — the web map.
+   * **Maps SDK for Android** and **Maps SDK for iOS** — the apps.
+
+   Leave the Geocoding API off; nothing calls it.
+3. **Keys.** In APIs & Services → Credentials, create one API key per surface,
+   named for it, each with an application restriction and an API restriction to
+   its one API:
+
+   | Key | Application restriction | API restriction |
+   |---|---|---|
+   | `GOOGLE_MAPS_SERVER_API_KEY` | IP addresses: the API's egress addresses | Places API (New) |
+   | `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` | Websites: `https://rooomly.com/*` and every other origin that serves the web app | Maps JavaScript API |
+   | `GOOGLE_MAPS_ANDROID_API_KEY` | Android apps: `com.rentalplatform.app`, with the SHA-1 of Play's app signing key and of the upload key | Maps SDK for Android |
+   | `GOOGLE_MAPS_IOS_API_KEY` | iOS apps: `gh.rentalplatform.app` | Maps SDK for iOS |
+
+   If the API has no fixed egress address, give it one (a NAT gateway): an
+   unrestricted server key is the one that gets abused. The server key goes in
+   the secret manager (§11). The other three are build inputs, and they stay out
+   of the repository all the same.
+4. **Map ID.** In Google Maps Platform → Map management, create a JavaScript Map
+   ID and set `NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID`. The web's price markers are
+   Advanced Markers and cannot draw without one. Development borrows Google's
+   `DEMO_MAP_ID`; production has no fallback. The map's look belongs to the Map
+   ID's style and changes in the console without a release — keep it quiet, so
+   the markers carry the colour.
+5. **Budget and quotas.** In Billing → Budgets & alerts, set a monthly budget
+   with alerts at 50%, 90% and 100% to a named owner. On each enabled API's
+   Quotas page, cap requests per day at a multiple of expected traffic. The API
+   also throttles place lookups (`places`, 240 a minute per person or address),
+   which bounds one client, not the whole.
+6. **Attribution.** Google's suggestions are shown without a Google map, so both
+   clients print "Google Maps" beneath them. The maps carry Google's logo, which
+   the phone keeps above its results sheet. Keep both through any redesign.
+7. **Verify** on the deployment:
+   * `GET /api/v1/geo/places/suggest/?q=osu&session=<a UUID>` answers
+     `"provider": "google"`.
+   * On the web, Explore's map draws its price markers and the browser console
+     shows no `…MapError`.
+   * An Android build from Play's internal track draws the map. A blank map
+     beneath the markers means a SHA-1 mismatch.
+   * An iOS TestFlight build draws Google's map.
+
+**Storage.** Google's terms allow Place IDs to be stored and coordinates from
+Places to be kept for at most 30 days. The API stores neither today. Property
+location capture will store a provider reference together with a point the
+provider confirms on a pin (ADR 0034 §3).
 
 ---
 
@@ -476,6 +556,9 @@ yours to write.
     Django admin → Management users (§18 step 12).
 12. Automated backups with a **rehearsed** restore (§15).
 13. Error monitoring (§14).
+14. If maps are switched on: all four Google Maps Platform keys restricted, a
+    Map ID, a billing budget with alerts, and quotas (§9a). Without keys Explore
+    is a list, a working product, so maps can wait; unrestricted keys cannot.
 
 ### REQUIRED BEFORE ACCEPTING REAL MONEY
 
@@ -523,7 +606,8 @@ yours to write.
    private S3 bucket.
 2. Create DNS records for `api.` and the web host; issue TLS certificates.
 3. Load every secret from §1 into the secret manager. Generate each one
-   independently.
+   independently. If maps are on, set up Google Maps Platform first (§9a) and
+   load `GOOGLE_MAPS_SERVER_API_KEY` with the rest.
 4. Build the backend image from `backend/Dockerfile` **without**
    `INSTALL_DEV=true`.
 5. Run `migrate` as the database **owner**, then `harden_database`, then
@@ -536,8 +620,9 @@ yours to write.
 8. Deploy the Celery worker (all four queues). Deploy beat with
    **`replicas: 1`**. Confirm `outbox.dispatch_pending` is running — everything
    downstream of a domain event depends on it.
-9. Build and deploy the web app with `NEXT_PUBLIC_API_URL`. Confirm sign-in
-   reaches the API and CORS/CSRF are correct.
+9. Build and deploy the web app with `NEXT_PUBLIC_API_URL` and, if maps are on,
+   `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` and `NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID`.
+   Confirm sign-in reaches the API and CORS/CSRF are correct.
 10. Configure the SMS adapter and send one real code to a real handset. **Do not
     proceed past this step without it** (§0).
 11. Point log shipping at the platform; bind the alert events from §14; connect
@@ -559,7 +644,8 @@ yours to write.
     payment of a small amount** on one Portfolio, and verify the whole chain:
     transaction → allocation → ledger → receipt → pending settlement → imported
     settlement.
-18. Build and submit the Android and iOS releases with `EXPO_PUBLIC_API_URL`.
+18. Build and submit the Android and iOS releases with `EXPO_PUBLIC_API_URL` and,
+    if maps are on, their Google Maps keys (§9).
 19. Widen access.
 
 ---
@@ -591,6 +677,9 @@ CI.
     allocation, two balanced ledger lines, a receipt with a downloadable PDF,
     and a **pending** settlement. Then verify the redelivered webhook changes
     nothing.
+12. Maps, if on: type a place into Explore, choose one of Google's suggestions,
+    and confirm the map fits it and draws markers on the web, on Android and on
+    iOS (§9a, step 7).
 
 ---
 

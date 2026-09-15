@@ -1,50 +1,34 @@
 "use client";
 
-import "maplibre-gl/dist/maplibre-gl.css";
-
-import {
-  AttributionControl,
-  Map as MapLibreMap,
-  Marker,
-  NavigationControl,
-  Popup,
-} from "maplibre-gl";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
+import {
+  createMap,
+  onMapRefused,
+  type MapMarker,
+  type MapMove,
+  type MapPadding,
+  type RooomlyMap,
+} from "@/lib/maps";
 import { compactRent, type MapClusterFeature, type MapFeature, type MapListingFeature } from "@/lib/mapSearch";
 import type { GeoBounds, MapConfig } from "@/lib/places";
 
-import { prepareMapLibre } from "./maplibreSetup";
-import { rooomlyMapStyle } from "./mapStyle";
-
 /**
- * The Explore map: Rooomly's basemap, price markers and the preview they open.
+ * The Explore map: price markers and the preview they open.
  *
  * It owns no search. It is given the features to draw and the area to fit, and
  * it reports what the tenant does — moves, taps a marker, taps the ground — so
- * the one search state stays with Explore and the map cannot drift from it.
+ * the one search state stays with Explore and the map cannot drift from it. It
+ * draws through `@/lib/maps` and never touches a mapping library itself.
  *
- * Markers are real buttons, not symbols painted into the canvas: a keyboard can
- * reach them, a screen reader can name them, and their states are CSS. The
- * server caps how many there are, which is what makes that affordable.
+ * Markers are Rooomly's own HTML whose states are CSS classes; the map makes
+ * each one keyboard-reachable and names it for a screen reader. The server caps
+ * how many there are, which is what makes that affordable.
  */
 
-export type MapMove = { bounds: GeoBounds; zoom: number; byUser: boolean };
+export type { MapMove };
 export type MapSelection = { key: string; ids: string[] } | null;
-
-/** Clear of a price marker and its tail, whichever side the popup opens on. */
-const PREVIEW_OFFSET = {
-  center: [0, -22],
-  top: [0, 10],
-  "top-left": [8, 10],
-  "top-right": [-8, 10],
-  bottom: [0, -42],
-  "bottom-left": [8, -42],
-  "bottom-right": [-8, -42],
-  left: [20, -18],
-  right: [-20, -18],
-} satisfies Record<string, [number, number]>;
 
 const currency = new Intl.NumberFormat("en-GH", {
   style: "currency",
@@ -68,9 +52,7 @@ function describe(feature: MapFeature): string {
     : `${feature.count} rentals nearby${from}. Zoom in to see them.`;
 }
 
-function paint(element: HTMLButtonElement, feature: MapFeature) {
-  element.type = "button";
-  element.setAttribute("aria-label", describe(feature));
+function paint(element: HTMLElement, feature: MapFeature) {
   if (feature.type === "listing") {
     element.className = "explore-marker explore-price-marker";
     element.textContent = compactRent(feature.rent_minor, feature.rent_period);
@@ -91,8 +73,10 @@ function paint(element: HTMLButtonElement, feature: MapFeature) {
   }
 }
 
-function reducedMotion() {
-  return typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+function previewAnchor(): HTMLDivElement {
+  const node = document.createElement("div");
+  node.className = "explore-preview-anchor";
+  return node;
 }
 
 export function ExploreMap({
@@ -115,11 +99,11 @@ export function ExploreMap({
   features: MapFeature[];
   /** An area to fit; a new `key` fits again, the same key never refits. */
   fit: { key: string; bounds: GeoBounds; maxZoom?: number } | null;
-  padding: { top: number; right: number; bottom: number; left: number };
+  padding: MapPadding;
   selection: MapSelection;
   hoveredId: string | null;
   visited: ReadonlySet<string>;
-  /** Rendered in a popup anchored above the selected marker, when given a position. */
+  /** Drawn above the selected marker, when given a position. */
   preview: ReactNode;
   previewAt: { lat: number; lng: number } | null;
   onMove: (move: MapMove) => void;
@@ -129,91 +113,76 @@ export function ExploreMap({
   onFailure: () => void;
 }) {
   const container = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<MapLibreMap | null>(null);
-  const markers = useRef(new Map<string, { marker: Marker; element: HTMLButtonElement; feature: MapFeature }>());
-  const popup = useRef<Popup | null>(null);
-  const [popupNode] = useState(() => (typeof document === "undefined" ? null : document.createElement("div")));
-  const [ready, setReady] = useState(false);
+  const mapRef = useRef<RooomlyMap | null>(null);
+  const markers = useRef(new Map<string, { marker: MapMarker; element: HTMLElement; feature: MapFeature }>());
+  const previewPin = useRef<MapMarker | null>(null);
+  const [previewNode] = useState(() => (typeof document === "undefined" ? null : previewAnchor()));
+  // Counts maps made, so drawing follows a map that arrived after the features.
+  const [mapped, setMapped] = useState(0);
   const [failed, setFailed] = useState(false);
 
   // Callbacks change every render; the map's listeners are bound once and read
-  // these. Refreshed after each render, never during it — the listeners only
-  // fire once the map exists, which is after the first commit.
+  // these. Refreshed after each render, never during it.
   const latest = useRef({ onMove, onSelectListing, onSelectCluster, onBackgroundClick, onFailure });
   useEffect(() => {
     latest.current = { onMove, onSelectListing, onSelectCluster, onBackgroundClick, onFailure };
   });
 
   useEffect(() => {
-    if (!container.current) return;
-    prepareMapLibre();
+    const element = container.current;
+    if (!element) return;
+    let cancelled = false;
+    let created: RooomlyMap | null = null;
+    const unsubscribe: Array<() => void> = [];
+    const fail = () => {
+      if (cancelled) return;
+      setFailed(true);
+      latest.current.onFailure();
+    };
     const [west, south, east, north] = config.bounds;
-    const map = new MapLibreMap({
-      container: container.current,
-      style: rooomlyMapStyle(config),
-      center: [config.default_view.lng, config.default_view.lat],
+
+    createMap(element, {
+      center: { lat: config.default_view.lat, lng: config.default_view.lng },
       zoom: config.default_view.zoom,
       minZoom: config.min_zoom,
       maxZoom: config.max_zoom,
-      maxBounds: [[west - 1, south - 1], [east + 1, north + 1]],
-      dragRotate: false,
-      pitchWithRotate: false,
-      touchPitch: false,
-      attributionControl: false,
-      fadeDuration: reducedMotion() ? 0 : 150,
-    });
-    map.touchZoomRotate.disableRotation();
-    map.keyboard.disableRotation();
-    map.addControl(new NavigationControl({ showCompass: false }), "bottom-right");
-    map.addControl(new AttributionControl({ compact: true, customAttribution: config.attribution }), "bottom-left");
-
-    let loaded = false;
-    map.on("load", () => {
-      loaded = true;
-      setReady(true);
-    });
-    map.on("error", (event) => {
-      // A missing tile is a gap; a basemap that never loads is a failure worth saying.
-      if (loaded) return;
-      console.warn("Map failed to load", event.error);
-      setFailed(true);
-      latest.current.onFailure();
-    });
-    map.on("moveend", (event) => {
-      const box = map.getBounds();
-      latest.current.onMove({
-        bounds: { west: box.getWest(), south: box.getSouth(), east: box.getEast(), north: box.getNorth() },
-        zoom: map.getZoom(),
-        byUser: Boolean((event as { originalEvent?: unknown }).originalEvent),
+      limits: { west: west - 1, south: south - 1, east: east + 1, north: north + 1 },
+      gestures: "greedy",
+    })
+      .then((map) => {
+        if (cancelled) {
+          map.destroy();
+          return;
+        }
+        created = map;
+        mapRef.current = map;
+        unsubscribe.push(map.onMove((move) => latest.current.onMove(move)));
+        unsubscribe.push(map.onBackgroundClick(() => latest.current.onBackgroundClick()));
+        setMapped((count) => count + 1);
+      })
+      .catch((cause: unknown) => {
+        console.warn("The map could not load", cause);
+        fail();
       });
-    });
-    map.on("click", (event) => {
-      const target = event.originalEvent?.target as Element | null;
-      if (target?.closest(".explore-marker, .explore-preview-popup")) return;
-      latest.current.onBackgroundClick();
-    });
+    unsubscribe.push(onMapRefused(fail));
 
-    const resize = new ResizeObserver(() => map.resize());
-    resize.observe(container.current);
-    mapRef.current = map;
     const markerMap = markers.current;
-
     return () => {
-      resize.disconnect();
+      cancelled = true;
+      for (const stop of unsubscribe) stop();
       for (const entry of markerMap.values()) entry.marker.remove();
       markerMap.clear();
-      popup.current?.remove();
-      popup.current = null;
-      map.remove();
+      previewPin.current?.remove();
+      previewPin.current = null;
+      created?.destroy();
       mapRef.current = null;
     };
-    // The map is created once per config; everything else is applied below.
   }, [config]);
 
   // Draw the features, reusing a marker whose identity has not changed.
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !ready) return;
+    if (!map || !mapped) return;
     const wanted = new Set<string>();
     for (const feature of features) {
       const key = markerKey(feature);
@@ -222,22 +191,25 @@ export function ExploreMap({
       if (existing) {
         existing.feature = feature;
         paint(existing.element, feature);
-        existing.marker.setLngLat([feature.lng, feature.lat]);
+        existing.marker.setPosition({ lat: feature.lat, lng: feature.lng });
+        existing.marker.setTitle(describe(feature));
         continue;
       }
-      const element = document.createElement("button");
+      const element = document.createElement("span");
       element.dataset.key = key;
       paint(element, feature);
-      element.addEventListener("click", (event) => {
-        event.stopPropagation();
-        const current = markers.current.get(key)?.feature;
-        if (!current) return;
-        if (current.type === "listing") latest.current.onSelectListing(current);
-        else latest.current.onSelectCluster(current);
+      const marker = map.addMarker({
+        position: { lat: feature.lat, lng: feature.lng },
+        element,
+        anchor: feature.type === "listing" ? "bottom" : "center",
+        title: describe(feature),
+        onClick: () => {
+          const current = markers.current.get(key)?.feature;
+          if (!current) return;
+          if (current.type === "listing") latest.current.onSelectListing(current);
+          else latest.current.onSelectCluster(current);
+        },
       });
-      const marker = new Marker({ element, anchor: feature.type === "listing" ? "bottom" : "center" })
-        .setLngLat([feature.lng, feature.lat])
-        .addTo(map);
       markers.current.set(key, { marker, element, feature });
     }
     for (const [key, entry] of markers.current) {
@@ -245,57 +217,43 @@ export function ExploreMap({
       entry.marker.remove();
       markers.current.delete(key);
     }
-  }, [features, ready]);
+  }, [features, mapped]);
 
   // Selected, hovered and visited are classes, so the transitions are CSS's.
   useEffect(() => {
     for (const [key, entry] of markers.current) {
       const ids = entry.feature.type === "listing" ? [entry.feature.id] : entry.feature.ids ?? [];
       const selected = selection !== null && (selection.key === key || (entry.feature.type === "listing" && selection.ids.includes(entry.feature.id)));
+      const hovered = !selected && hoveredId !== null && ids.includes(hoveredId);
       entry.element.classList.toggle("is-selected", selected);
-      entry.element.classList.toggle("is-hovered", !selected && hoveredId !== null && ids.includes(hoveredId));
+      entry.element.classList.toggle("is-hovered", hovered);
       entry.element.classList.toggle("is-visited", !selected && ids.length > 0 && ids.every((id) => visited.has(id)));
-      entry.element.setAttribute("aria-pressed", String(selected));
+      entry.marker.setPressed(selected);
+      entry.marker.setZIndex(selected ? 3 : hovered ? 2 : 1);
     }
-  }, [selection, hoveredId, visited, features]);
+  }, [selection, hoveredId, visited, features, mapped]);
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !ready || !fit) return;
-    map.fitBounds(
-      [[fit.bounds.west, fit.bounds.south], [fit.bounds.east, fit.bounds.north]],
-      { padding, maxZoom: fit.maxZoom ?? 15, duration: reducedMotion() ? 0 : 650 },
-    );
+    if (!map || !mapped || !fit) return;
+    map.fitBounds(fit.bounds, { padding, maxZoom: fit.maxZoom ?? 15 });
     // Fit only when the area changes, never because padding was recomputed.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fit?.key, ready]);
+  }, [fit?.key, mapped]);
 
-  // The preview rides a popup above its marker, and the map moves only as far
+  // The preview rides the map above its marker, and the map moves only as far
   // as it must to show the whole card — never re-centring on every tap.
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !ready || !popupNode) return;
-    if (!previewAt) {
-      popup.current?.remove();
-      popup.current = null;
-      return;
-    }
-    if (!popup.current) {
-      popup.current = new Popup({
-        closeButton: false,
-        closeOnClick: false,
-        closeOnMove: false,
-        focusAfterOpen: false,
-        maxWidth: "none",
-        offset: PREVIEW_OFFSET,
-        className: "explore-preview-popup",
-      }).setDOMContent(popupNode);
-    }
-    popup.current.setLngLat([previewAt.lng, previewAt.lat]).addTo(map);
+    if (!map || !mapped || !previewNode) return;
+    previewPin.current?.remove();
+    previewPin.current = null;
+    if (!previewAt) return;
+    previewPin.current = map.addMarker({ position: previewAt, element: previewNode, anchor: "bottom", zIndex: 1000 });
     const frame = requestAnimationFrame(() => {
-      const card = popup.current?.getElement()?.getBoundingClientRect();
+      const card = previewNode.getBoundingClientRect();
       const frameBox = container.current?.getBoundingClientRect();
-      if (!card || !frameBox) return;
+      if (!frameBox || !card.width) return;
       const margin = 16;
       const dx = card.left < frameBox.left + margin
         ? card.left - frameBox.left - margin
@@ -303,23 +261,23 @@ export function ExploreMap({
       const dy = card.top < frameBox.top + padding.top
         ? card.top - frameBox.top - padding.top
         : card.bottom > frameBox.bottom - margin ? card.bottom - frameBox.bottom + margin : 0;
-      if (dx || dy) map.panBy([dx, dy], { duration: reducedMotion() ? 0 : 300 });
+      if (dx || dy) map.panBy(dx, dy);
     });
     return () => cancelAnimationFrame(frame);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [previewAt?.lat, previewAt?.lng, ready, popupNode]);
+  }, [previewAt?.lat, previewAt?.lng, mapped, previewNode]);
 
   return (
     <div className="explore-map-frame">
       <div ref={container} className="explore-map-canvas" role="region" aria-label="Map of rentals" />
-      {!ready && !failed ? <div className="explore-map-loading" aria-hidden="true" /> : null}
+      {!mapped && !failed ? <div className="explore-map-loading" aria-hidden="true" /> : null}
       {failed ? (
         <div className="explore-map-failed" role="status">
           <strong>The map could not load right now.</strong>
           <span>Your search is unchanged, and the rentals are still listed.</span>
         </div>
       ) : null}
-      {popupNode && previewAt && preview ? createPortal(preview, popupNode) : null}
+      {previewNode && previewAt && preview ? createPortal(preview, previewNode) : null}
     </div>
   );
 }

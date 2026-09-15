@@ -59,45 +59,69 @@ drift, which is what CI runs).
 
 ## Maps and places
 
-Map search (ADR 0033) needs three kinds of data the repository does not carry:
-a Ghana basemap, its label fonts, and the places table. A fresh database or an
-empty MinIO has none of them, and Explore's map then says it could not load.
+Maps and place search run on Google Maps Platform (ADR 0034), and every key is
+optional. Without keys Explore is a list, a listing's Location section says its
+map is not available, and place suggestions come from Rooomly's localities that
+have a centre. `seed_geo` seeds names without centres, so a fresh database
+suggests nothing until centres exist.
 
-**Places**, from OpenStreetMap through Overpass. Public servers answer small
-queries more reliably than one large one, and a busy server can close the
-connection mid-response, so validate the file before importing it:
+**Keys, locally.** Use keys from a development Google Cloud project, never
+production's (`docs/deployment/PRODUCTION_DEPLOYMENT.md` §9a has the setup).
+Put them in the root `.env`, then recreate the containers that read them:
+Compose reads `.env` when it creates a container, and Next inlines
+`NEXT_PUBLIC_*` values when it compiles.
 
 ```bash
-# Fetch (host): regions, districts, towns, suburbs, landmarks and villages.
-node ops/fetch-osm-places.mjs ghana-places.osm.json
+# .env
+GOOGLE_MAPS_SERVER_API_KEY=...        # Places API (New); only the API uses it
+NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=...   # Maps JavaScript API; allow http://localhost:3000/*
+NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID=       # empty in development uses Google's DEMO_MAP_ID
 
-docker compose cp ghana-places.osm.json api:/tmp/ghana-places.osm.json
-docker compose exec api python manage.py import_osm_places /tmp/ghana-places.osm.json --prune
+docker compose up -d --force-recreate api web
+```
+
+Check the API reaches Google:
+
+```bash
+curl "http://localhost:8000/api/v1/geo/places/suggest/?q=osu&session=5b1f0c9e-3d2a-4b7c-9e8f-1a2b3c4d5e6f"
+```
+
+`"provider": "google"` means it does. `"rooomly"` means Google was not asked or
+did not answer. With no key in the container nothing is logged: the localities
+answer by design. Otherwise the API log shows `place_suggestions_fell_back`
+beside `location_provider_refused`, which carries Google's status, or
+`location_provider_unreachable`.
+
+**The web map.** A map that says it is not available was built without
+`NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` (or, in a production build, without a Map ID):
+recreate `web`. A map that starts to load and then gives up was refused by
+Google, and the browser console names why: `RefererNotAllowedMapError` (add the
+origin to the key's website restrictions), `ApiNotActivatedMapError` (enable the
+Maps JavaScript API), `BillingNotEnabledMapError` or `InvalidKeyMapError`. A map
+that draws but shows no price markers has an invalid Map ID.
+
+**The phone.** Expo Go needs no keys. On Android it draws Google Maps with Expo
+Go's own key; on an iPhone it draws Apple Maps, because Expo Go cannot load
+Google's iOS SDK. A development or release build reads its keys when its native
+project is generated, from the environment or `mobile/.env`:
+
+```bash
+GOOGLE_MAPS_ANDROID_API_KEY=... GOOGLE_MAPS_IOS_API_KEY=... npx expo run:android
+```
+
+A build without its platform's key shows Explore as a list. An Android build
+that draws a blank map beneath its markers has a key whose restriction does not
+match the build's package name and SHA-1 fingerprint, and `adb logcat` reports
+an authorization failure. After `react-native-maps` or `app.config.js` changes,
+restart Metro with `npx expo start -c`.
+
+**Listing positions.** `refresh_listing_locations` recomputes every listing's
+approximate public point (ADR 0033 §3). Run it after property coordinates or
+locality centres change:
+
+```bash
 docker compose exec api python manage.py refresh_listing_locations
 ```
-
-On Git Bash, prefix `docker compose exec` with `MSYS_NO_PATHCONV=1`, or
-`/tmp/…` is rewritten into a Windows path and the import reports "No export".
-The import is idempotent — slugs survive re-imports — and lists the Rooomly
-localities it could not match, which operations can alias or extend.
-`refresh_listing_locations` must follow it: it is what gives listings their
-approximate public point from the newly centred localities.
-
-**Basemap and fonts**, from Protomaps' daily OpenStreetMap build, cut to Ghana:
-
-```bash
-pmtiles extract https://build.protomaps.com/<YYYYMMDD>.pmtiles map-assets/tiles/ghana.pmtiles \
-  --bbox=-3.35,4.60,1.30,11.25 --maxzoom=15
-# Fonts: the fonts/ folder of github.com/protomaps/basemaps-assets, as map-assets/fonts/
-
-docker compose cp map-assets api:/tmp/map-assets
-docker compose exec api python manage.py publish_map_assets /tmp/map-assets --skip-existing
-```
-
-`publish_map_assets` creates the public-read `rooomly-map` bucket if it is
-missing. It is the only public bucket, and nothing uploaded by a person goes in
-it. Check a tile answers a range request with `curl -r 0-126 -I
-http://localhost:9000/rooomly-map/tiles/ghana.pmtiles`, which should return `206`.
 
 ## Health
 

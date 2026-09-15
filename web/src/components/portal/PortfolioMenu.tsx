@@ -10,13 +10,10 @@ import { Icon } from "./icons";
 /**
  * Which Portfolio is being operated, and the way to change it.
  *
- * One icon in the header, sharing a container with Updates: both are utilities
- * of the workspace rather than of the page. Switching Portfolio changes what
- * every screen is about — the Properties, the agreements, the requests, the
- * money — so it belongs to the workspace chrome; it is not an account setting,
- * and it is not worth a persistent selector taking a row of every page it
- * appears on. The shape of the interaction is the whole design: one icon, a
- * quick look at where you are, a switch, back to work.
+ * Switching Portfolio changes what every screen is about — the Properties, the
+ * agreements, the requests and the money — so it is the header's navigation
+ * context rather than a page title or account setting. Compact mode keeps only
+ * the icon at constrained widths; desktop names the active Portfolio in place.
  *
  * Selecting one changes navigation and query scope only. Every endpoint behind
  * it re-checks the membership, and the shell remounts the page beneath so no
@@ -56,7 +53,7 @@ function describe(portfolio: Portfolio): string {
   return role ? `${type} · ${role}` : type;
 }
 
-export function PortfolioMenu({ me }: { me: Me }) {
+export function PortfolioMenu({ me, context = false }: { me: Me; context?: boolean }) {
   const { activeContext, setActiveContext } = useSession();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -145,7 +142,7 @@ export function PortfolioMenu({ me }: { me: Me }) {
       <button
         type="button"
         ref={triggerRef}
-        className="portal-header-icon"
+        className={context ? "portal-context-switcher" : "portal-header-icon"}
         aria-haspopup="menu"
         aria-expanded={open}
         // The tooltip is the short version; the accessible name carries where
@@ -154,7 +151,14 @@ export function PortfolioMenu({ me }: { me: Me }) {
         aria-label={`Portfolio: ${current.label}. Switch portfolio`}
         onClick={() => setOpen((value) => !value)}
       >
-        <Icon name="portfolio" />
+        <span className="portal-context-icon"><Icon name="portfolio" /></span>
+        {context ? (
+          <span className="portal-context-copy">
+            <span>Portfolio</span>
+            <strong>{current.label}</strong>
+          </span>
+        ) : null}
+        {context ? <Icon name="chevron-down" /> : null}
         {several ? <span className="portal-header-dot" aria-hidden="true" /> : null}
       </button>
 

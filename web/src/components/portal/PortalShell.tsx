@@ -148,6 +148,8 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
   const currentLabel = sections
     .flatMap((section) => section.items)
     .find((item) => item.href === current)?.label ?? "Portal";
+  const isProviderSpace = me.capabilities.active_workspace === "provider"
+    && me.capabilities.provider.workspace_access;
 
   const isCollapsed = collapsed === true;
 
@@ -189,33 +191,29 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
         inert={drawerOpen ? true : undefined}
         aria-hidden={drawerOpen || undefined}
       >
-        {/*
-          Quiet by design: the workspace background, one hairline, no shadow.
-          It carries where you are and what is new — and deliberately no second
-          account control, because the avatar in the rail is the only one and
-          two menus for one thing is the confusion this shell is meant to avoid.
-        */}
-        <header className="portal-header">
-          <button
-            type="button"
-            className="portal-menu-button"
-            aria-expanded={drawerOpen}
-            aria-controls="portal-drawer"
-            onClick={() => setDrawerOpen(true)}
-          >
-            <span aria-hidden="true" style={{ display: "grid", gap: 4, width: 18 }}>
-              <span style={RULE} /><span style={RULE} /><span style={RULE} />
-            </span>
-            <span className="sr-only">Open navigation</span>
-          </button>
+        {/* Provider chrome carries workspace context rather than repeating the
+            page heading. Equal outer zones keep search centred while account
+            actions stay in a predictable place on every provider screen. */}
+        <header className={`portal-header${isProviderSpace ? " is-provider" : ""}`}>
+          <div className="portal-header-context">
+            <button
+              type="button"
+              className="portal-menu-button"
+              aria-expanded={drawerOpen}
+              aria-controls="portal-drawer"
+              onClick={() => setDrawerOpen(true)}
+            >
+              <span aria-hidden="true" style={{ display: "grid", gap: 4, width: 18 }}>
+                <span style={RULE} /><span style={RULE} /><span style={RULE} />
+              </span>
+              <span className="sr-only">Open navigation</span>
+            </button>
+            {isProviderSpace ? <PortfolioMenu me={me} context /> : (
+              <span className="portal-header-title">{currentLabel}</span>
+            )}
+          </div>
 
-          <span className="portal-header-title">{currentLabel}</span>
-
-          {/* Getting anywhere is a shell concern, so it sits beside navigation
-              rather than on one page. Providers only: a tenant has no Portfolio
-              to search. */}
-          {me.capabilities.active_workspace === "provider"
-            && me.capabilities.provider.workspace_access ? (
+          {isProviderSpace ? (
             <PortalSearch
               organizationId={
                 activeContext?.startsWith("organization:")
@@ -225,28 +223,17 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
             />
           ) : null}
 
-          {/* Two utilities, one control.
-              Which Portfolio this all belongs to, and what is new in it: both
-              are about the workspace rather than about the page, both are
-              always there, and neither is worth a card of its own. So they
-              share a container and a hairline instead of floating as two loose
-              icons a few pixels apart. Identity is not a utility — the avatar
-              stays in the rail, where an account anchor belongs. */}
-          <div className="portal-utility">
-            <PortfolioMenu me={me} />
-            <span className="portal-utility-rule" aria-hidden="true" />
+          <div className="portal-header-actions">
             <Link href="/updates" className="portal-header-updates">
               <Icon name="updates" />
               <span className="sr-only">
                 {unread > 0 ? `Updates, ${unread} unread` : "Updates"}
               </span>
-              {/* A mark that there is something, not a figure to do arithmetic
-                  on. Past nine it says so, and the exact number stays in the
-                  accessible name above. */}
               {unread > 0 ? (
                 <span className="portal-count" aria-hidden="true">{unread > 9 ? "9+" : unread}</span>
               ) : null}
             </Link>
+
           </div>
         </header>
 
@@ -283,9 +270,11 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
               collapsed={false}
               withHints
             />
-            <div className="portal-rail-foot">
-              <AccountMenu me={me} collapsed={false} />
-            </div>
+            {!isProviderSpace ? (
+              <div className="portal-rail-foot">
+                <AccountMenu me={me} collapsed={false} />
+              </div>
+            ) : null}
           </div>
         </>
       ) : null}

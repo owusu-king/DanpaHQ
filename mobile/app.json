@@ -7,10 +7,10 @@
     "scheme": "grp",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
-    "backgroundColor": "#F7F6F1",
+    "backgroundColor": "#FAF8F5",
     "splash": {
       "resizeMode": "contain",
-      "backgroundColor": "#0B5D4E"
+      "backgroundColor": "#1B6B4F"
     },
     "android": {
       "package": "com.rentalplatform.app",

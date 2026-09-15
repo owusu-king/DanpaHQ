@@ -1,35 +1,52 @@
 import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { Animated, Easing, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { motion, radius, space } from "@/components/ui";
 import { useReduceMotion } from "@/motion";
 import { hapticsPolicy, isAndroid, isIOS } from "@/platform";
+import { shell } from "@/shell";
 import { theme } from "@/theme";
 
 const BAR_MAX_WIDTH = 560;
 
-/** Comfortably past the system's 48pt floor, without a bar that eats the page. */
-const ITEM_HEIGHT = 60;
+/** A 48pt target with air above and below it, and room for the indicator to breathe. */
+const ITEM_HEIGHT = 62;
 
-/** The lozenge behind an active icon. Sized to hold a 24pt glyph with air. */
-const PILL_WIDTH = 56;
-const PILL_HEIGHT = 32;
+/** The narrowest a destination may be. Five of them still fit a 320pt phone. */
+const CELL_MIN_WIDTH = 56;
+
+/** The pale kola indicator behind the tab you are on, and the circle a ripple stays in. */
+const INDICATOR_WIDTH = 60;
+const INDICATOR_HEIGHT = 32;
+
 const ICON_SIZE = 24;
+
+/** The tab you are on: deep kola, over its pale kola indicator. */
+const ACTIVE = shell.active;
+
+/** Every other tab: kola's darkest shade, muted to a green-grey. */
+const RESTING = shell.resting;
 
 /**
  * The app's primary wayfinding surface.
  *
- * It is intentionally a shelf rather than a floating pill. Daylight & Ledger
- * uses edges and rules to establish hierarchy; lifting the whole navigation
- * into a rounded capsule would make it look imported from another product.
+ * A paper shelf under a hairline, each destination a glyph over its name, all in
+ * Rooomly's green. The tab you are on is drawn three ways at once — a pale kola
+ * indicator widens behind its glyph, the outline fills in deep kola, and its name
+ * turns bold — so the state never rests on colour alone. The other tabs are
+ * outlines in a muted kola, which keeps the whole bar green rather than brown
+ * grey.
  *
- * Every duration, curve, radius and gap below is a shared token. The bar
- * previously hardcoded `220`, `140` and two bezier curves that were
- * character-for-character `motion.duration.base`, `motion.duration.fast`,
- * `motion.easing.enter` and `motion.easing.exit` — agreeing with the system
- * right up until someone revised one of them.
+ * Everything moves on the native driver: the indicator widens into place as the
+ * glyph crossfades from outline to filled and the name from one weight to the
+ * other, and leaving is quicker than arriving. A press springs the glyph and its
+ * indicator, never the label, with a ripple bounded to the indicator on Android
+ * and a selection haptic on iOS. On iOS a whisper of shadow lifts the shelf off
+ * the page; Android keeps the hairline, which reads cleanly on its panels.
+ *
+ * Every duration, curve, radius and gap below is a shared token.
  */
 export function MainTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
@@ -52,7 +69,7 @@ export function MainTabBar({ state, descriptors, navigation }: BottomTabBarProps
     <View
       accessibilityRole="tablist"
       accessibilityLabel="Main navigation"
-      style={[styles.shell, isIOS ? styles.iosShadow : null]}
+      style={[styles.bar, isIOS ? styles.lift : null]}
     >
       <View style={[styles.routeRow, { paddingBottom: bottomInset }]}>
         {visible.map((entry, position) => (
@@ -105,6 +122,8 @@ function TabItem({ route, position, count, focused, options, navigation }: TabIt
   const reduceMotion = useReduceMotion();
   const focusProgress = useRef(new Animated.Value(focused ? 1 : 0)).current;
   const pressScale = useRef(new Animated.Value(1)).current;
+  const resting = useMemo(() => focusProgress.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }), [focusProgress]);
+  const widen = useMemo(() => focusProgress.interpolate({ inputRange: [0, 1], outputRange: [0.55, 1] }), [focusProgress]);
   const label =
     typeof options.tabBarLabel === "string"
       ? options.tabBarLabel
@@ -158,9 +177,6 @@ function TabItem({ route, position, count, focused, options, navigation }: TabIt
     navigation.emit({ type: "tabLongPress", target: route.key });
   };
 
-  const activeColor = theme.color.kola["800"];
-  const inactiveColor = theme.color.ink["500"];
-  const color = focused ? activeColor : inactiveColor;
   const badge = options.tabBarBadge;
 
   return (
@@ -171,11 +187,11 @@ function TabItem({ route, position, count, focused, options, navigation }: TabIt
         accessibilityLabel={options.tabBarAccessibilityLabel ?? `${label}, ${position} of ${count}`}
         testID={options.tabBarButtonTestID}
         hitSlop={space[1]}
-        // Bounded to a circle around the glyph rather than flooding the whole
-        // cell — Material ripples inside the target, not across the shelf.
+        // Bounded to the indicator rather than flooding the whole cell —
+        // Material ripples inside the target, not across the shelf.
         android_ripple={
           isAndroid
-            ? { color: theme.color.kola["50"], radius: PILL_WIDTH / 2, borderless: true }
+            ? { color: shell.activeGround, radius: INDICATOR_WIDTH / 2, borderless: true }
             : undefined
         }
         onPress={onPress}
@@ -185,29 +201,21 @@ function TabItem({ route, position, count, focused, options, navigation }: TabIt
         style={styles.pressTarget}
       >
         {/*
-          The press scales the glyph and its lozenge, and deliberately not the
+          The press scales the glyph and its indicator, and deliberately not the
           label: type that rubber-bands under a thumb reads as a toy. The label
           holds still and only the thing being aimed at responds.
         */}
         <Animated.View style={[styles.iconStage, { transform: [{ scale: pressScale }] }]}>
           <Animated.View
             pointerEvents="none"
-            style={[
-              styles.activePill,
-              {
-                opacity: focusProgress,
-                transform: [
-                  {
-                    scaleX: focusProgress.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [0.62, 1],
-                    }),
-                  },
-                ],
-              },
-            ]}
+            style={[styles.indicator, { opacity: focusProgress, transform: [{ scaleX: widen }] }]}
           />
-          {options.tabBarIcon?.({ focused, color, size: ICON_SIZE })}
+          <Animated.View pointerEvents="none" style={[styles.glyph, { opacity: resting }]}>
+            {options.tabBarIcon?.({ focused: false, color: RESTING, size: ICON_SIZE })}
+          </Animated.View>
+          <Animated.View pointerEvents="none" style={[styles.glyph, { opacity: focusProgress }]}>
+            {options.tabBarIcon?.({ focused: true, color: ACTIVE, size: ICON_SIZE })}
+          </Animated.View>
           {badge !== undefined ? (
             <View style={styles.badge}>
               <Text numberOfLines={1} style={styles.badgeText}>
@@ -217,29 +225,40 @@ function TabItem({ route, position, count, focused, options, navigation }: TabIt
           ) : null}
         </Animated.View>
 
-        <Text
-          numberOfLines={1}
-          maxFontSizeMultiplier={1.25}
-          style={[styles.label, { color }, focused ? styles.activeLabel : null]}
-        >
-          {label}
-        </Text>
+        {/* Both weights of the name share one box, so the crossfade moves nothing. */}
+        <View style={styles.labelStage}>
+          <Animated.Text
+            numberOfLines={1}
+            maxFontSizeMultiplier={1.25}
+            style={[styles.label, styles.restingLabel, { opacity: resting }]}
+          >
+            {label}
+          </Animated.Text>
+          <Animated.Text
+            numberOfLines={1}
+            maxFontSizeMultiplier={1.25}
+            style={[styles.label, styles.activeLabel, { opacity: focusProgress }]}
+          >
+            {label}
+          </Animated.Text>
+        </View>
       </Pressable>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  shell: {
-    backgroundColor: theme.color.field["0"],
-    borderTopColor: theme.color.field["200"],
+  bar: {
+    backgroundColor: shell.paper,
+    borderTopColor: shell.rule,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
-  iosShadow: {
-    shadowColor: theme.color.ink["900"],
-    shadowOpacity: 0.055,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: -5 },
+  // iOS only: the shelf lifts off the page by a whisper, in kola rather than grey.
+  lift: {
+    shadowColor: theme.color.kola["900"],
+    shadowOpacity: 0.06,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: -6 },
   },
   routeRow: {
     width: "100%",
@@ -251,7 +270,7 @@ const styles = StyleSheet.create({
   },
   itemCell: {
     flex: 1,
-    minWidth: PILL_WIDTH,
+    minWidth: CELL_MIN_WIDTH,
   },
   pressTarget: {
     minHeight: ITEM_HEIGHT,
@@ -261,27 +280,32 @@ const styles = StyleSheet.create({
     paddingTop: space[1],
   },
   iconStage: {
-    width: PILL_WIDTH,
-    height: PILL_HEIGHT,
+    width: INDICATOR_WIDTH,
+    height: INDICATOR_HEIGHT,
     alignItems: "center",
     justifyContent: "center",
   },
-  activePill: {
+  indicator: {
     ...StyleSheet.absoluteFillObject,
     borderRadius: radius.pill,
-    backgroundColor: theme.color.kola["50"],
+    backgroundColor: shell.activeGround,
+  },
+  glyph: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  labelStage: {
+    alignSelf: "stretch",
   },
   label: {
-    maxWidth: "100%",
     fontSize: 11,
     lineHeight: 14,
-    fontWeight: "600",
     letterSpacing: 0.1,
     textAlign: "center",
   },
-  activeLabel: {
-    fontWeight: "700",
-  },
+  restingLabel: { color: RESTING, fontWeight: "500" },
+  activeLabel: { position: "absolute", top: 0, right: 0, left: 0, color: ACTIVE, fontWeight: "700" },
   badge: {
     position: "absolute",
     top: -space[1] / 2,
@@ -294,7 +318,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: theme.color.laterite["600"],
     borderWidth: 2,
-    borderColor: theme.color.field["0"],
+    borderColor: shell.paper,
   },
   badgeText: {
     color: theme.color.field["0"],

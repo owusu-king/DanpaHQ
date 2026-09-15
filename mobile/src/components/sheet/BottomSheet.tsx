@@ -1,0 +1,363 @@
+import Ionicons from "@expo/vector-icons/Ionicons";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  Animated,
+  Easing,
+  Keyboard,
+  KeyboardAvoidingView,
+  Modal,
+  PanResponder,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  View,
+  useWindowDimensions,
+  type LayoutChangeEvent,
+  type PanResponderGestureState,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+import { Type, motion, space } from "@/components/ui";
+import { useReduceMotion } from "@/motion";
+import { isAndroid, pressableFeedback, safeHeaderTop } from "@/platform";
+import { shell } from "@/shell";
+import { theme } from "@/theme";
+
+/** Past this share of its own height, a drag lets the sheet go… */
+const DISMISS_SHARE = 0.25;
+/** …or past this many points, so a tall sheet is never a long pull. */
+const DISMISS_DISTANCE = 160;
+/** A downward flick at this speed, in points per millisecond, lets go from anywhere. */
+const DISMISS_VELOCITY = 0.8;
+/** A pull upwards gives this much, and then holds. */
+const OVERPULL = 24;
+/**
+ * Movement before a touch becomes a drag. Below both platforms' own touch slop,
+ * so the sheet claims the gesture before a scroll view inside it can start one.
+ */
+const DRAG_SLOP = 4;
+
+type BottomSheetProps = {
+  visible: boolean;
+  onClose: () => void;
+  /** Said once, at the top, beside the close button. */
+  title: string;
+  /** What closing does — "Close filters" — for the close button and the scrim. */
+  closeLabel: string;
+  /** Actions pinned under the scrolling body, above the home indicator. */
+  footer?: ReactNode;
+  children: ReactNode;
+};
+
+/**
+ * A sheet from the bottom edge that a thumb can always put away.
+ *
+ * Explore's filters opened in a transparent `Modal` that slid up with its scrim,
+ * under a grab handle with no gesture behind it: the only ways out were the
+ * close button, the scrim and the results button. A handle that does not drag is
+ * a promise the sheet does not keep — on iOS, where every sheet swipes away, and
+ * on Android, where the handle is the same invitation.
+ *
+ * It has two resting places — open at the height its content needs, capped below
+ * the status bar, and gone — and it follows the finger between them:
+ *
+ * - **The handle and title row drag it** in either direction, even when the drag
+ *   starts on the close button. Upwards it gives a little and holds.
+ * - **The body drags it down only from the top of its scroll.** Anywhere else a
+ *   drag scrolls, as it should. The sheet claims its gesture below the
+ *   platforms' touch slop, and while it moves the scroll view stands still.
+ * - **Letting go past a quarter of its height, past 160pt, or on a downward
+ *   flick closes it**, falling from wherever the finger left it at least as fast
+ *   as the finger was going. Anything less springs home without overshooting.
+ *
+ * It draws its own entrance and exit on the native driver, and the scrim's
+ * opacity follows the sheet's position, so a half-dragged sheet has a half-lifted
+ * scrim. The Android back button, the scrim, the close button and VoiceOver's
+ * escape all close it; the footer stays clear of the home indicator, and on iOS
+ * the keyboard pushes the sheet up rather than covering its fields.
+ */
+export function BottomSheet({ visible, onClose, title, closeLabel, footer, children }: BottomSheetProps) {
+  const insets = useSafeAreaInsets();
+  const { height: windowHeight } = useWindowDimensions();
+  const reduceMotion = useReduceMotion();
+
+  const [mounted, setMounted] = useState(false);
+  const [height, setHeight] = useState(0);
+  const [dragging, setDragging] = useState(false);
+
+  const translate = useRef(new Animated.Value(windowHeight)).current;
+  const scrollTop = useRef(0);
+  const dragBase = useRef(0);
+  const releaseSpeed = useRef(0);
+  const opening = useRef(false);
+  // Read by gestures and effects that must not restart whenever these change.
+  const travel = useRef(windowHeight);
+  travel.current = height || windowHeight;
+  const isMounted = useRef(mounted);
+  isMounted.current = mounted;
+  const still = useRef(reduceMotion);
+  still.current = reduceMotion;
+  const close = useRef(onClose);
+  close.current = onClose;
+
+  useEffect(() => {
+    if (visible) {
+      releaseSpeed.current = 0;
+      if (isMounted.current) {
+        // Opened again while it was still falling: it rises from where it is.
+        Animated.timing(translate, {
+          toValue: 0,
+          duration: still.current ? 0 : motion.duration.slow,
+          easing: Easing.bezier(...motion.easing.enter),
+          useNativeDriver: true,
+        }).start();
+      } else {
+        // Held below the edge until its height is known; `measure` starts the rise.
+        opening.current = true;
+        translate.setValue(travel.current);
+        setMounted(true);
+      }
+      return;
+    }
+    if (!isMounted.current) return;
+    let cancelled = false;
+    let fall: Animated.CompositeAnimation | null = null;
+    translate.stopAnimation((from) => {
+      if (cancelled) return;
+      const remaining = Math.max(0, travel.current - from);
+      // As fast as the finger that let it go, and never slower than crossing the
+      // whole sheet in the base duration.
+      const speed = Math.max(releaseSpeed.current, travel.current / motion.duration.base);
+      fall = Animated.timing(translate, {
+        toValue: travel.current,
+        duration: still.current ? 0 : Math.min(motion.duration.base, remaining / speed),
+        easing: Easing.bezier(...motion.easing.exit),
+        useNativeDriver: true,
+      });
+      fall.start(({ finished }) => {
+        if (finished) setMounted(false);
+      });
+    });
+    return () => {
+      cancelled = true;
+      fall?.stop();
+    };
+  }, [translate, visible]);
+
+  const measure = (event: LayoutChangeEvent) => {
+    const next = Math.round(event.nativeEvent.layout.height);
+    if (next !== height) setHeight(next);
+    if (!opening.current) return;
+    opening.current = false;
+    travel.current = next;
+    translate.setValue(next);
+    Animated.timing(translate, {
+      toValue: 0,
+      duration: reduceMotion ? 0 : motion.duration.slow,
+      easing: Easing.bezier(...motion.easing.enter),
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const [grab, pull] = useMemo(() => {
+    const settle = (gesture: PanResponderGestureState) => {
+      setDragging(false);
+      const position = dragBase.current + gesture.dy;
+      const letGo = Math.min(travel.current * DISMISS_SHARE, DISMISS_DISTANCE);
+      if (position > letGo || (gesture.vy > DISMISS_VELOCITY && gesture.dy > 0)) {
+        releaseSpeed.current = Math.max(0, gesture.vy);
+        close.current();
+        return;
+      }
+      // Not far enough and not fast enough: home, carrying the finger's speed.
+      Animated.spring(translate, {
+        toValue: 0,
+        velocity: gesture.vy * 1000,
+        overshootClamping: true,
+        useNativeDriver: true,
+      }).start();
+    };
+    const vertical = (gesture: PanResponderGestureState) =>
+      Math.abs(gesture.dy) > DRAG_SLOP && Math.abs(gesture.dy) > Math.abs(gesture.dx);
+    const responder = (claims: (gesture: PanResponderGestureState) => boolean) =>
+      PanResponder.create({
+        onMoveShouldSetPanResponderCapture: (_, gesture) => claims(gesture),
+        onPanResponderGrant: () => {
+          Keyboard.dismiss();
+          setDragging(true);
+          dragBase.current = 0;
+          translate.stopAnimation((value) => {
+            dragBase.current = value;
+          });
+        },
+        onPanResponderMove: (_, gesture) => {
+          const next = dragBase.current + gesture.dy;
+          translate.setValue(next >= 0 ? next : -OVERPULL * (1 - Math.exp(next / OVERPULL)));
+        },
+        // Once the sheet is moving, nothing inside it may take the drag away.
+        onPanResponderTerminationRequest: () => false,
+        onPanResponderRelease: (_, gesture) => settle(gesture),
+        onPanResponderTerminate: (_, gesture) => settle(gesture),
+      });
+    return [
+      // The handle and title row, in either direction, over any control in them.
+      responder(vertical),
+      // The body, downwards from the top of its scroll; any other drag scrolls.
+      responder((gesture) => scrollTop.current <= 0 && gesture.dy > 0 && vertical(gesture)),
+    ] as const;
+  }, [translate]);
+
+  const scrim = useMemo(
+    () => translate.interpolate({
+      inputRange: [0, Math.max(1, height || windowHeight)],
+      outputRange: [1, 0],
+      extrapolate: "clamp",
+    }),
+    [translate, height, windowHeight],
+  );
+
+  if (!mounted) return null;
+
+  return (
+    <Modal visible transparent animationType="none" statusBarTranslucent navigationBarTranslucent onRequestClose={onClose}>
+      <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+        <Animated.View style={[StyleSheet.absoluteFill, styles.scrim, { opacity: scrim }]}>
+          <Pressable accessibilityRole="button" accessibilityLabel={closeLabel} onPress={onClose} style={styles.fill} />
+        </Animated.View>
+        <View pointerEvents="box-none" style={styles.stage}>
+          <Animated.View
+            accessibilityViewIsModal
+            onAccessibilityEscape={onClose}
+            onLayout={measure}
+            style={[
+              styles.sheet,
+              {
+                maxHeight: windowHeight - safeHeaderTop(insets.top) - space[3],
+                transform: [{ translateY: translate }],
+              },
+            ]}
+          >
+            <View style={styles.clip}>
+              <View collapsable={false} {...grab.panHandlers}>
+                <View style={styles.grabber} />
+                <View style={styles.header}>
+                  <Type variant="title2" accessibilityRole="header">{title}</Type>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={closeLabel}
+                    hitSlop={6}
+                    onPress={onClose}
+                    {...pressableFeedback(theme.color.field["200"])}
+                    style={({ pressed }) => [styles.close, pressed && !isAndroid ? styles.closePressed : null]}
+                  >
+                    <Ionicons name="close" size={20} color={theme.color.ink["700"]} />
+                  </Pressable>
+                </View>
+              </View>
+              <View collapsable={false} style={styles.body} {...pull.panHandlers}>
+                <ScrollView
+                  scrollEnabled={!dragging}
+                  bounces={false}
+                  overScrollMode="never"
+                  scrollEventThrottle={16}
+                  onScroll={(event) => {
+                    scrollTop.current = event.nativeEvent.contentOffset.y;
+                  }}
+                  keyboardShouldPersistTaps="handled"
+                  contentContainerStyle={styles.bodyContent}
+                >
+                  {children}
+                </ScrollView>
+              </View>
+              {footer ? (
+                <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, space[4]) }]}>
+                  {footer}
+                </View>
+              ) : null}
+            </View>
+          </Animated.View>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
+const styles = StyleSheet.create({
+  fill: {
+    flex: 1,
+  },
+  // `ink-950` at 44%: the tokens give the deepest chrome to scrims.
+  scrim: {
+    backgroundColor: "rgba(22,17,14,0.44)",
+  },
+  stage: {
+    flex: 1,
+    justifyContent: "flex-end",
+  },
+  // The tokens' sheet: paper, the generous radius, a soft shadow thrown upwards.
+  sheet: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    backgroundColor: shell.paper,
+    shadowColor: theme.color.ink["900"],
+    shadowOpacity: 0.22,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: -8 },
+    elevation: 16,
+  },
+  // The radius clips here, so iOS does not clip the shadow above with it.
+  clip: {
+    flexShrink: 1,
+    overflow: "hidden",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+  },
+  grabber: {
+    alignSelf: "center",
+    width: 36,
+    height: 4,
+    marginTop: space[2],
+    borderRadius: 2,
+    backgroundColor: theme.color.field["300"],
+  },
+  header: {
+    minHeight: 56,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingLeft: space[5],
+    paddingRight: space[3],
+    borderBottomWidth: 1,
+    borderBottomColor: shell.rule,
+  },
+  close: {
+    width: 40,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 20,
+    backgroundColor: theme.color.field["100"],
+  },
+  closePressed: {
+    opacity: 0.72,
+  },
+  body: {
+    flexShrink: 1,
+  },
+  bodyContent: {
+    paddingHorizontal: space[5],
+    paddingVertical: space[1],
+  },
+  footer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space[3],
+    paddingTop: space[3],
+    paddingLeft: space[2],
+    paddingRight: space[5],
+    borderTopWidth: 1,
+    borderTopColor: shell.rule,
+    backgroundColor: shell.canvas,
+  },
+});

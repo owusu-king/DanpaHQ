@@ -10,7 +10,7 @@
 import { apiFetch } from "./api";
 import type { Listing } from "./console";
 import { roundCoordinate } from "./exploreQuery";
-import type { GeoBounds, Place } from "./places";
+import type { GeoBounds } from "./places";
 
 export type MapListingFeature = {
   type: "listing";
@@ -47,7 +47,6 @@ export type MapResults = {
   total?: number;
   unmapped?: number;
   extent?: GeoBounds | null;
-  place?: Place;
 };
 
 export function searchListingMap(

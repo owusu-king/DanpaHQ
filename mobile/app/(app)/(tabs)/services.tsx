@@ -94,15 +94,10 @@ export default function ServicesScreen() {
     <ScrollView
       contentContainerStyle={{ padding: space[5], paddingBottom: space[12], gap: space[6] }}
     >
-      <View style={{ gap: space[1] }}>
-        <Type variant="label">YOUR HOUSEHOLD</Type>
-        <Type variant="display2" accessibilityRole="header">
-          Services
-        </Type>
-        <Type variant="body" style={{ color: theme.color.ink["700"] }}>
-          Power, screens, network and the people who come round — paid for in one place.
-        </Type>
-      </View>
+      {/* The header says "Services"; the page opens with what it is for. */}
+      <Type variant="body" style={{ color: theme.color.ink["700"] }}>
+        Power, screens, network and the people who come round — paid for in one place.
+      </Type>
 
       {error ? <Notice tone="info" title={error} /> : null}
 

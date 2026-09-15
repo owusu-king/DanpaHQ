@@ -49,7 +49,7 @@ def public_location_for(unit) -> tuple[Point | None, str]:
         return Point(longitude, latitude, srid=4326), LocationPrecision.AREA
 
     locality = address.locality
-    if locality.latitude is not None and locality.longitude is not None:
+    if locality is not None and locality.latitude is not None and locality.longitude is not None:
         point = Point(float(locality.longitude), float(locality.latitude), srid=4326)
         return point, LocationPrecision.LOCALITY
 

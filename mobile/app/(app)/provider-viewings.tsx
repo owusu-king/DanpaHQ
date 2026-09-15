@@ -75,10 +75,6 @@ export default function ProviderViewingsScreen() {
       }
       ListHeaderComponent={(
         <View style={{ gap: space[4], paddingBottom: space[4] }}>
-          <View style={{ gap: space[2] }}>
-            <Type variant="display2" accessibilityRole="header">Viewings</Type>
-            <Type variant="body">Schedule visits, verify attendance and close the loop.</Type>
-          </View>
           <Field label="Search viewings" placeholder="Tenant, Property or location" value={query} onChangeText={setQuery} />
           <View accessibilityRole="tablist" style={{ flexDirection: "row", gap: space[2] }}>
             <ViewingTab label="Action" count={counts.action} selected={view === "action"} onPress={() => setView("action")} />

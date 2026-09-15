@@ -414,8 +414,8 @@ class ProvidersView(ManagementAPIView):
                     "relationship": item.relationship_type,
                     "title": item.title,
                     "property_type": item.property_type,
-                    "locality": item.address.locality.name,
-                    "region": item.address.locality.district.region.name,
+                    "locality": item.address.locality_label,
+                    "region": item.address.region_label,
                     "status": (
                         property_lifecycle(item.property)["review_state"]
                         if item.property_id
@@ -763,6 +763,8 @@ class PropertiesView(ManagementAPIView):
             rows = rows.filter(
                 Q(title__icontains=query)
                 | Q(address__locality__name__icontains=query)
+                | Q(address__place_name__icontains=query)
+                | Q(address__place_context__icontains=query)
                 | Q(owner__first_name__icontains=query)
                 | Q(owner__last_name__icontains=query)
             )
@@ -803,7 +805,6 @@ def _property_row(item) -> dict:
         attachment = "claimed_unverified"
 
     address = getattr(item, "address", None)
-    locality = address.locality if address else None
 
     return {
         "id": str(item.id),
@@ -816,8 +817,8 @@ def _property_row(item) -> dict:
         #: distinction a reviewer is looking at this list to make.
         "relationship": attachment,
         "authority_verified": bool(holder),
-        "locality": locality.name if locality else "",
-        "region": locality.district.region.name if locality else "",
+        "locality": address.locality_label if address else "",
+        "region": address.region_label if address else "",
         "relationship_count": sum(1 for rel in item.relationships.all() if rel.ended_at is None),
         "created_at": _iso(item.created_at),
     }
@@ -833,7 +834,7 @@ def _listing_row(item):
         "provider": item.created_by.display_name,
         "provider_phone": mask(item.created_by.phone),
         "property": item.unit.property.title,
-        "locality": item.unit.property.address.locality.name,
+        "locality": item.unit.property.address.locality_label,
         "review_note": item.review_note,
         "created_at": _iso(item.created_at),
         "reviewed_at": _iso(item.reviewed_at),

@@ -10,11 +10,11 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
 } from "react";
-import { DropdownMenu } from "radix-ui";
 
 import { Notice } from "@/components/Notice";
 import { ListingCard } from "@/components/listings/ListingCard";
 import { ExploreMapView } from "@/components/explore/ExploreMapView";
+import { FilterSelect, RentRange, SegmentedChoice } from "@/components/explore/FilterFields";
 import { PlaceSearch } from "@/components/explore/PlaceSearch";
 import { ApiFailure, isAborted } from "@/lib/api";
 import type { Listing } from "@/lib/console";
@@ -34,12 +34,11 @@ import {
   type ListingSort,
 } from "@/lib/listings";
 import { searchListingsFor } from "@/lib/mapSearch";
-import { getPlace, type GeoBounds, type Place } from "@/lib/places";
+import type { GeoBounds, ResolvedPlace } from "@/lib/places";
 import { loadPropertyTypes, type PropertyTypeOption } from "@/lib/propertyTypes";
 import { useSession } from "@/lib/session";
 import { useToast } from "@/components/toast/Toaster";
 import { Switch } from "@/components/Check";
-import { Field } from "@/components/Field";
 import { Icon } from "@/components/portal/icons";
 
 /**
@@ -54,35 +53,35 @@ import { Icon } from "@/components/portal/icons";
  * those two and one line to everything else. Verification is reassurance, not
  * the headline: one quiet mark rather than a row of stamps beside the rent.
  *
- * The search lives in the address bar (`exploreQuery`). The field, the pills,
- * the panel, the cards, the map and the count all read it and write it back, so
- * none of them keeps a copy to fall out of step, and opening the map, closing
- * it, leaving for a listing, refreshing or sharing the link all return the same
- * search. Choosing a place opens the map on it; the map is a view of the search,
- * never its owner.
+ * The search lives in the address bar (`exploreQuery`). The bar, the panel, the
+ * cards, the map and the count all read it and write it back, so none of them
+ * keeps a copy to fall out of step, and opening the map, closing it, leaving for
+ * a listing, refreshing or sharing the link all return the same search. Choosing
+ * a place opens the map on it; the map is a view of the search, never its owner.
  *
- * Every choice is shown once and removed one way. Place lives in the search
- * field, which owns the only clear for it; rent, property type, bedrooms and
- * furnishing are shown on their own pills; the chips below carry only what no
- * pill shows.
+ * The controls are one search bar and one Filters button — the pair the phone
+ * floats over its map. Place lives in the bar, which owns the only clear for it;
+ * rent, type, unit, bedrooms, advance, furnishing and order live in the panel
+ * the button opens, and the button carries the count of what is on. A rail of
+ * quick pills and a row of chips used to repeat what the panel holds.
  */
 
 /** `bedrooms_min=0` matched every listing — the backend filters `>=` — so a
  * "Single room / studio" choice was Any under another name. Rooms and studios
  * are Unit types, and are chosen there. */
 const BEDROOMS = [
-  ["", "Any bedrooms", "Any"],
-  ["1", "1+ bedroom", "1+"],
-  ["2", "2+ bedrooms", "2+"],
-  ["3", "3+ bedrooms", "3+"],
+  ["", "Any"],
+  ["1", "1+"],
+  ["2", "2+"],
+  ["3", "3+"],
 ] as const;
 
 /** Advance is the question that decides whether a place is possible at all. */
 const ADVANCE = [
-  ["", "Any advance", "Any"],
-  ["6", "6 months or less", "Up to 6 months"],
-  ["12", "1 year or less", "Up to 1 year"],
-  ["24", "2 years or less", "Up to 2 years"],
+  ["", "Any"],
+  ["6", "Up to 6 months"],
+  ["12", "Up to 1 year"],
+  ["24", "Up to 2 years"],
 ] as const;
 
 const SORTS: ReadonlyArray<readonly [ListingSort, string]> = [
@@ -91,19 +90,8 @@ const SORTS: ReadonlyArray<readonly [ListingSort, string]> = [
   ["rent_desc", "Rent: high to low"],
 ];
 
-const RENT_PRESETS = [
-  ["", "Any rent"],
-  ["1000", "Up to GH₵1,000"],
-  ["1500", "Up to GH₵1,500"],
-  ["2500", "Up to GH₵2,500"],
-  ["4000", "Up to GH₵4,000"],
-  ["6000", "Up to GH₵6,000"],
-] as const;
-
-const cedis = (value: string) => Number(value).toLocaleString("en-GH");
-
 /** Place is not a filter: clearing filters keeps it, and choosing one clears the others' area. */
-const NO_LOCATION: Partial<ExploreQuery> = { place: "", q: "", bbox: null, localityId: "", localityName: "" };
+const NO_LOCATION: Partial<ExploreQuery> = { area: null, q: "", bbox: null, localityId: "", localityName: "" };
 
 export function ListingBrowser() {
   const { state } = useSession();
@@ -114,14 +102,13 @@ export function ListingBrowser() {
   const paramsKey = params.toString();
   const query = useMemo(() => parseExploreQuery(new URLSearchParams(paramsKey)), [paramsKey]);
   const search = useMemo(() => listingSearchParams(query).toString(), [query]);
+  const mapView = query.view === "map";
 
   const [listings, setListings] = useState<Listing[] | null>(null);
   const [next, setNext] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const [querying, setQuerying] = useState(false);
   const [error, setError] = useState("");
-  const [place, setPlace] = useState<Place | null>(null);
-  const [placeMissing, setPlaceMissing] = useState(false);
   const [propertyTypes, setPropertyTypes] = useState<PropertyTypeOption[]>([]);
   const [rentMinDraft, setRentMinDraft] = useState(query.rentMin);
   const [rentMaxDraft, setRentMaxDraft] = useState(query.rentMax);
@@ -129,11 +116,15 @@ export function ListingBrowser() {
 
   const [saved, setSaved] = useState<Set<string>>(new Set());
   const requestId = useRef(0);
-  const knownPlaces = useRef(new Map<string, Place>());
   const advancedPanel = useRef<HTMLDivElement>(null);
   const advancedTrigger = useRef<HTMLButtonElement>(null);
   const advancedClose = useRef<HTMLButtonElement>(null);
   const advancedShow = useRef<HTMLButtonElement>(null);
+  const exploreRef = useRef<HTMLDivElement>(null);
+  const stickRef = useRef<HTMLDivElement>(null);
+  const stickLine = useRef<HTMLDivElement>(null);
+  const viewShown = useRef(false);
+  const [stuck, setStuck] = useState(false);
 
   /**
    * Write the search back to the address bar. Read from `window.location`, not
@@ -176,7 +167,7 @@ export function ListingBrowser() {
   }
 
   useEffect(() => {
-    if (listings === null || query.view === "map") return;
+    if (listings === null) return;
     const stored = sessionStorage.getItem("rentals:return-scroll");
     const shouldRestore = Boolean(window.history.state?.rentalsReturn);
     if (!stored || !shouldRestore) {
@@ -188,7 +179,60 @@ export function ListingBrowser() {
     delete historyState.rentalsReturn;
     window.history.replaceState(historyState, "", window.location.href);
     requestAnimationFrame(() => window.scrollTo({ top: Number(stored), behavior: "auto" }));
-  }, [listings, query.view]);
+  }, [listings]);
+
+  // The search sticks under the header once it is scrolled past, and stuck, it
+  // sits on a band of the page's ground. The line it measures against is where
+  // the search would be if it scrolled away with the page.
+  useEffect(() => {
+    const stick = stickRef.current;
+    const line = stickLine.current;
+    if (!stick || !line) return;
+    let stickTop = 0;
+    const measure = () => setStuck(line.getBoundingClientRect().top < stickTop - 1);
+    const place = () => {
+      stickTop = Number.parseFloat(getComputedStyle(stick).top) || 0;
+      measure();
+    };
+    place();
+    window.addEventListener("scroll", measure, { passive: true });
+    window.addEventListener("resize", place);
+    return () => {
+      window.removeEventListener("scroll", measure);
+      window.removeEventListener("resize", place);
+    };
+  }, []);
+
+  // The map sticks beneath the search, so it has to know how tall the search
+  // is: a map area chip or a wrapped row changes that.
+  useEffect(() => {
+    const stick = stickRef.current;
+    const explore = exploreRef.current;
+    if (!stick || !explore) return;
+    const publish = () => explore.style.setProperty("--explore-tray-height", `${Math.ceil(stick.getBoundingClientRect().height)}px`);
+    publish();
+    const observer = new ResizeObserver(publish);
+    observer.observe(stick);
+    return () => observer.disconnect();
+  }, []);
+
+  // Opening the map brings it into view: the search rises to where it sticks
+  // under the header and the map fills the screen below it, instead of starting
+  // below the fold beneath the page's introduction. Arriving on a map link
+  // jumps, as an anchor does — a smooth scroll does not move a tab that is not
+  // being shown — and switching glides. A search already stuck stays where it
+  // is, and a return from a listing keeps its own place.
+  useEffect(() => {
+    const arriving = !viewShown.current;
+    viewShown.current = true;
+    if (!mapView || window.history.state?.rentalsReturn) return;
+    const stick = stickRef.current;
+    const line = stickLine.current;
+    if (!stick || !line) return;
+    const distance = line.getBoundingClientRect().top - (Number.parseFloat(getComputedStyle(stick).top) || 0);
+    if (distance <= 8) return;
+    window.scrollTo({ top: window.scrollY + distance, behavior: arriving ? "instant" : "smooth" });
+  }, [mapView]);
 
   // Results follow the controls. Nothing here waits for a Search button — the
   // old form made every adjustment a round trip through a submit.
@@ -221,39 +265,12 @@ export function ListingBrowser() {
     };
   }, [search]);
 
-  // The slug in the address bar becomes the place it names — its name, its box.
-  useEffect(() => {
-    if (!query.place) {
-      setPlace(null);
-      setPlaceMissing(false);
-      return;
-    }
-    const known = knownPlaces.current.get(query.place);
-    if (known) {
-      setPlace(known);
-      setPlaceMissing(false);
-      return;
-    }
-    const controller = new AbortController();
-    getPlace(query.place, controller.signal)
-      .then((row) => {
-        knownPlaces.current.set(row.slug, row);
-        setPlace(row);
-        setPlaceMissing(false);
-      })
-      .catch((cause) => {
-        if (isAborted(cause)) return;
-        if (cause instanceof ApiFailure && cause.status === 404) setPlaceMissing(true);
-      });
-    return () => controller.abort();
-  }, [query.place]);
-
   useEffect(() => {
     void loadPropertyTypes().then(setPropertyTypes).catch(() => setPropertyTypes([]));
   }, []);
 
-  // Rent is typed a digit at a time, so the fields keep the draft and the search
-  // takes it once the typing settles.
+  // Rent moves a stop at a time as a thumb is dragged, so the range keeps the
+  // draft and the search takes it once the dragging settles.
   useEffect(() => { setRentMinDraft(query.rentMin); }, [query.rentMin]);
   useEffect(() => { setRentMaxDraft(query.rentMax); }, [query.rentMax]);
   useEffect(() => {
@@ -271,7 +288,10 @@ export function ListingBrowser() {
   useEffect(() => {
     if (!advancedOpen) return;
     function closeFromKeyboard(event: KeyboardEvent) {
-      if (event.key !== "Escape") return;
+      // An open list inside the panel uses Escape to close itself, and says so.
+      // React listens on the document too, so stopping propagation cannot keep
+      // the key from here.
+      if (event.key !== "Escape" || event.defaultPrevented) return;
       setAdvancedOpen(false);
       advancedTrigger.current?.focus();
     }
@@ -292,12 +312,12 @@ export function ListingBrowser() {
   // must not scroll. The root keeps its reserved scrollbar gutter, so nothing
   // moves sideways when the lock goes on.
   useEffect(() => {
-    if (!advancedOpen || query.view === "map" || !window.matchMedia("(max-width: 63.999rem)").matches) return;
+    if (!advancedOpen || !window.matchMedia("(max-width: 63.999rem)").matches) return;
     const root = document.documentElement;
     const previous = root.style.overflow;
     root.style.overflow = "hidden";
     return () => { root.style.overflow = previous; };
-  }, [advancedOpen, query.view]);
+  }, [advancedOpen]);
 
   useEffect(() => {
     if (!signedIn) return;
@@ -306,35 +326,7 @@ export function ListingBrowser() {
       .catch(() => undefined);
   }, [signedIn]);
 
-  const propertyLabel = propertyTypes.find((row) => row.value === query.propertyType)?.label ?? query.propertyType;
-  const spaceLabel = spaceTypes.find((row) => row.value === query.spaceType)?.label ?? query.spaceType;
-  const bedroomsLabel = BEDROOMS.find(([value]) => value === query.bedrooms)?.[1] ?? query.bedrooms;
-  const rentLabel = query.rentMin && query.rentMax
-    ? `GH₵${cedis(query.rentMin)}–${cedis(query.rentMax)}`
-    : query.rentMax
-      ? `Up to GH₵${cedis(query.rentMax)}`
-      : query.rentMin
-        ? `From GH₵${cedis(query.rentMin)}`
-        : null;
-  const rentOptions = query.rentMax && !RENT_PRESETS.some(([value]) => value === query.rentMax)
-    ? [...RENT_PRESETS, [query.rentMax, `Up to GH₵${cedis(query.rentMax)}`] as const]
-    : RENT_PRESETS;
   const filterCount = refinementCount(query);
-
-  // Chips for the refinements no pill shows, and only those.
-  const unshown = [
-    query.spaceType && { key: "space_type", label: spaceLabel, clear: () => update({ spaceType: "" }) },
-    query.advanceMax && {
-      key: "advance_max",
-      label: `Advance ${ADVANCE.find(([value]) => value === query.advanceMax)?.[2].toLowerCase() ?? query.advanceMax}`,
-      clear: () => update({ advanceMax: "" }),
-    },
-    query.sort !== "newest" && {
-      key: "sort",
-      label: SORTS.find(([value]) => value === query.sort)?.[1] ?? query.sort,
-      clear: () => update({ sort: "newest" }),
-    },
-  ].filter(Boolean) as Array<{ key: string; label: string; clear: () => void }>;
 
   const resultCount = listings === null ? "" : `${listings.length}${next ? "+" : ""}`;
   const resultWord = listings?.length === 1 && !next ? "rental" : "rentals";
@@ -346,25 +338,22 @@ export function ListingBrowser() {
     update({ propertyType: value, spaceType: keepSpace ? query.spaceType : "" });
   }
 
-  /** The Rent pill is the whole range: Any clears both ends, and a maximum
-   * below the chosen minimum would be a range nothing can match. */
-  function chooseRent(value: string) {
-    if (!value) { update({ rentMin: "", rentMax: "" }); return; }
-    update({ rentMax: value, rentMin: query.rentMin && Number(query.rentMin) > Number(value) ? "" : query.rentMin });
-  }
-
-  // Filters, not place: the search field owns the one clear for that.
+  // Filters, not place: the search bar owns the one clear for that.
   function clearFilters() {
     update(withoutFilters(query));
   }
 
-  function choosePlace(row: Place) {
-    knownPlaces.current.set(row.slug, row);
-    setPlace(row);
-    setPlaceMissing(false);
+  function choosePlace(place: ResolvedPlace) {
     // Choosing a place opens the map on it. Pushed, so Back returns to the list.
-    update({ ...NO_LOCATION, place: row.slug, view: "map" }, query.view === "map" ? "replace" : "push");
+    // The place travels whole, so neither a refresh nor a shared link resolves it again.
+    const area = { name: place.display_name, bounds: place.bounds, ref: `${place.provider}:${place.reference}` };
+    update({ ...NO_LOCATION, area, view: "map" }, query.view === "map" ? "replace" : "push");
   }
+
+  // Opening the map is pushed, so Back returns to the list; returning to the
+  // list changes the view and nothing else.
+  function showMap() { update({ view: "map" }, "push"); }
+  function showList() { update({ view: "list" }); }
 
   function closeAdvanced() {
     setAdvancedOpen(false);
@@ -431,86 +420,34 @@ export function ListingBrowser() {
     }
   }
 
-  function discovery(variant: "page" | "map"): ReactNode {
+  function discovery(): ReactNode {
     return (
-      <div className="explore-discovery" data-variant={variant}>
+      <div className="explore-discovery">
+        {/* One search bar and one Filters button, the pair the phone floats over
+            its map. Every other choice is in the panel the button opens. */}
         <div className="explore-bar">
           <PlaceSearch
             label="Search by location or property"
-            variant={variant === "map" ? "map" : "tray"}
-            place={place}
-            text={query.place ? "" : query.localityName || query.q}
+            area={query.area}
+            text={query.area ? "" : query.localityName || query.q}
             onChoosePlace={choosePlace}
             onSubmitText={(text) => update({ ...NO_LOCATION, q: text })}
             onClear={() => update(NO_LOCATION)}
           />
-        </div>
-
-        {/* Filters leads the rail. At the end it was scrolled out of sight on a
-            phone, taking the count of hidden choices with it. */}
-        <div className="explore-quick" role="group" aria-label="Quick rental filters">
           <button
             ref={advancedTrigger}
             type="button"
-            className={`explore-filter-pill explore-more-filters${advancedOpen ? " is-open" : ""}`}
+            className={`explore-filters-button${filterCount ? " is-active" : ""}${advancedOpen ? " is-open" : ""}`}
+            aria-label={filterCount ? `Filters, ${filterCount} active` : "Filters"}
             aria-haspopup="dialog"
             aria-expanded={advancedOpen}
             aria-controls="explore-advanced-filters"
             onClick={() => setAdvancedOpen((open) => !open)}
           >
             <Icon name="filters" />
-            <span>Filters</span>
-            {filterCount ? (
-              <span className="explore-filter-count">
-                <span aria-hidden="true">{filterCount}</span>
-                <span className="sr-only">, {filterCount} active</span>
-              </span>
-            ) : null}
+            <span className="explore-filters-label">Filters</span>
+            {filterCount ? <span className="explore-filter-count" aria-hidden="true">{filterCount}</span> : null}
           </button>
-          <span className="explore-quick-divider" aria-hidden="true" />
-          <QuickSelectFilter
-            label="Rent"
-            heading="Maximum monthly rent"
-            display={rentLabel}
-            value={query.rentMax || (query.rentMin ? "from" : "")}
-            onChange={chooseRent}
-            options={rentOptions}
-          />
-          <QuickSelectFilter
-            label="Property type"
-            heading="Property type"
-            display={query.propertyType ? propertyLabel : null}
-            value={query.propertyType}
-            onChange={changePropertyType}
-            options={[
-              ["", "Any property type"] as const,
-              ...propertyTypes.map((type) => [type.value, type.label] as const),
-            ]}
-          />
-          <QuickSelectFilter
-            label="Bedrooms"
-            heading="Bedrooms"
-            display={query.bedrooms ? bedroomsLabel : null}
-            value={query.bedrooms}
-            onChange={(value) => update({ bedrooms: value })}
-            options={BEDROOMS.map(([value, label]) => [value, label] as const)}
-          />
-          <button
-            type="button"
-            className={`explore-filter-pill is-toggle${query.furnished ? " is-active" : ""}`}
-            aria-pressed={query.furnished}
-            onClick={() => update({ furnished: !query.furnished })}
-          >Furnished</button>
-          {variant === "page" ? (
-            <button
-              type="button"
-              className="explore-filter-pill explore-map-toggle"
-              onClick={() => update({ view: "map" }, "push")}
-            >
-              <Icon name="map" />
-              <span>Map</span>
-            </button>
-          ) : null}
         </div>
 
         {advancedOpen ? (
@@ -538,69 +475,57 @@ export function ListingBrowser() {
               </div>
 
               <div className="explore-advanced-body">
-                <section className="explore-filter-group" aria-labelledby="filter-price-heading">
-                  <h3 id="filter-price-heading">Price</h3>
-                  <FilterRow label="Monthly rent" fields>
-                    <div className="explore-price-fields">
-                      <Field label="Minimum rent" prefix="GH₵" inputMode="numeric" value={rentMinDraft} onChange={(event) => setRentMinDraft(event.target.value.replace(/\D/g, ""))} placeholder="No minimum" />
-                      <Field label="Maximum rent" prefix="GH₵" inputMode="numeric" value={rentMaxDraft} onChange={(event) => setRentMaxDraft(event.target.value.replace(/\D/g, ""))} placeholder="No maximum" />
-                    </div>
-                  </FilterRow>
-                </section>
-
-                <section className="explore-filter-group" aria-labelledby="filter-space-heading">
-                  <h3 id="filter-space-heading">Property &amp; unit</h3>
-                  <ChoiceSet
+                {/* The phone's rows, paired two to a line where the panel has the
+                    room: rent across the top, then the rest in the phone's order. */}
+                <RentRange
+                  minimum={rentMinDraft}
+                  maximum={rentMaxDraft}
+                  onChange={(minimum, maximum) => { setRentMinDraft(minimum); setRentMaxDraft(maximum); }}
+                />
+                <div className="explore-filter-grid">
+                  <FilterSelect
                     name="explore-property-type"
                     label="Property type"
                     value={query.propertyType}
                     onChange={changePropertyType}
                     options={[["", "Any"] as const, ...propertyTypes.map((type) => [type.value, type.label] as const)]}
                   />
-                  <ChoiceSet
+                  <FilterSelect
                     name="explore-space-type"
                     label="Unit type"
                     value={query.spaceType}
                     onChange={(value) => update({ spaceType: value })}
                     options={[["", "Any"] as const, ...spaceTypes.map((space) => [space.value, space.label] as const)]}
                   />
-                  <ChoiceSet
+                  <SegmentedChoice
                     name="explore-bedrooms"
                     label="Bedrooms"
                     value={query.bedrooms}
                     onChange={(value) => update({ bedrooms: value })}
-                    options={BEDROOMS.map(([value, , short]) => [value, short] as const)}
+                    options={BEDROOMS}
                   />
-                </section>
-
-                <section className="explore-filter-group" aria-labelledby="filter-terms-heading">
-                  <h3 id="filter-terms-heading">Rental terms</h3>
-                  <ChoiceSet
+                  <FilterSelect
                     name="explore-advance"
                     label="Maximum advance"
                     value={query.advanceMax}
                     onChange={(value) => update({ advanceMax: value })}
-                    options={ADVANCE.map(([value, , short]) => [value, short] as const)}
+                    options={ADVANCE}
                   />
                   {/* On or off, so a switch: a tick reads as one answer of several. */}
-                  <label className="explore-filter-row explore-switch-row">
+                  <label className="explore-filter-cell explore-switch-row">
                     <span className="explore-filter-label">Furnished only</span>
                     <span className="explore-switch">
                       <Switch checked={query.furnished} onChange={(checked) => update({ furnished: checked })} label="Furnished only" />
                     </span>
                   </label>
-                </section>
-
-                <section className="explore-filter-group" aria-labelledby="filter-order-heading">
-                  <h3 id="filter-order-heading">Order results</h3>
-                  <ChoiceSet
+                  <FilterSelect
                     name="explore-sort"
                     label="Sort by"
                     value={query.sort}
                     onChange={(value) => update({ sort: value as ListingSort })}
                     options={SORTS}
                   />
-                </section>
+                </div>
               </div>
 
               <div className="explore-advanced-actions">
@@ -621,276 +546,129 @@ export function ListingBrowser() {
           </>
         ) : null}
 
-        {variant === "page" || query.bbox || unshown.length || filterCount ? (
-          <div className="explore-feedback">
-            {variant === "page" ? (
-              <p className="explore-count" aria-live="polite">
-                {listings === null || querying ? (
-                  <>
-                    <span className="explore-count-spinner" aria-hidden="true" />
-                    {listings === null ? "Finding rentals…" : "Updating results…"}
-                  </>
-                ) : (
-                  <span><strong>{resultCount}</strong> {resultWord}</span>
-                )}
-              </p>
-            ) : null}
-            {/* An area drawn on the map narrows the list too, so both views show
-                it. It is where, not a filter: Clear all leaves it, and this chip
-                is its one way back. */}
-            {query.bbox ? (
-              <button
-                type="button"
-                className="explore-chip explore-area-chip"
-                aria-label={place ? `Remove map area, back to all of ${place.name}` : "Remove map area"}
-                onClick={() => { update({ bbox: null }); advancedTrigger.current?.focus(); }}
-              >
-                <span>Map area</span>
-                <Icon name="close" />
-              </button>
-            ) : null}
-            {unshown.length ? (
-              <ul className="explore-active" aria-label="Other active filters">
-                {unshown.map((item) => (
-                  <li key={item.key}>
-                    <button
-                      type="button"
-                      className="explore-chip"
-                      aria-label={`Remove filter: ${item.label}`}
-                      onClick={() => { item.clear(); advancedTrigger.current?.focus(); }}
-                    >
-                      <span>{item.label}</span>
-                      <Icon name="close" />
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-            {filterCount ? (
-              <button
-                type="button"
-                className="explore-clear-all"
-                onClick={() => { clearFilters(); advancedTrigger.current?.focus(); }}
-              >Clear all</button>
-            ) : null}
-          </div>
-        ) : null}
-      </div>
-    );
-  }
-
-  const notices = (
-    <>
-      {placeMissing ? (
-        <Notice tone="warning" title="That area is no longer offered. Your filters are unchanged." />
-      ) : null}
-      {error && !placeMissing ? <Notice tone="error" title={error} /> : null}
-    </>
-  );
-
-  if (query.view === "map") {
-    return (
-      <ExploreMapView
-        query={query}
-        search={search}
-        place={place}
-        controls={<>{discovery("map")}{notices}</>}
-        listings={listings}
-        next={next}
-        loadingMore={loadingMore}
-        querying={querying}
-        savedIds={saved}
-        onSave={signedIn ? (listing) => void toggleSave(listing) : undefined}
-        onLoadMore={() => void loadMore()}
-        onOpenListing={() => undefined}
-        onSearchArea={(bounds: GeoBounds) => update({ bbox: bounds })}
-        onClearFilters={clearFilters}
-        onClose={() => update({ view: "list" })}
-        hasFilters={filterCount > 0}
-      />
-    );
-  }
-
-  return (
-    <div className="explore">
-      {discovery("page")}
-      {notices}
-
-      <section aria-live="polite" aria-busy={listings === null || querying}>
-        {listings?.length ? (
-          <ul className="explore-grid">
-            {listings.map((listing) => (
-              <ListingCard
-                key={listing.id}
-                listing={listing}
-                saved={saved.has(listing.id)}
-                onSave={signedIn ? () => void toggleSave(listing) : undefined}
-                onNavigate={rememberExplorePosition}
-              />
-            ))}
-          </ul>
-        ) : null}
-
-        {/* Guidance only. The one Clear all sits directly above, beside the
-            count it would change; a second one here said the same thing twice. */}
-        {listings?.length === 0 && !error ? (
-          <div className="explore-empty">
-            <p className="type-body-strong">Nothing matches yet</p>
-            <p className="type-caption">Try a wider rent, a longer advance, or a nearby area.</p>
-          </div>
-        ) : null}
-
-        {next ? (
-          <p style={{ marginTop: "var(--space-6)" }}>
+        <div className="explore-feedback">
+          <p className="explore-count" aria-live="polite">
+            {listings === null || querying ? (
+              <>
+                <span className="explore-count-spinner" aria-hidden="true" />
+                {listings === null ? "Finding rentals…" : "Updating results…"}
+              </>
+            ) : (
+              <span><strong>{resultCount}</strong> {resultWord}</span>
+            )}
+          </p>
+          {/* An area drawn on the map narrows the list too, so both views show
+              it. It is where, not a filter: Clear all leaves it, and this chip
+              is its one way back. */}
+          {query.bbox ? (
             <button
               type="button"
-              className="explore-more"
-              disabled={loadingMore}
-              onClick={() => void loadMore()}
-            >{loadingMore ? "Loading…" : "Show more rentals"}</button>
-          </p>
-        ) : null}
-      </section>
+              className="explore-chip explore-area-chip"
+              aria-label={query.area ? `Remove map area, back to all of ${query.area.name}` : "Remove map area"}
+              onClick={() => { update({ bbox: null }); advancedTrigger.current?.focus(); }}
+            >
+              <span>Map area</span>
+              <Icon name="close" />
+            </button>
+          ) : null}
+          {filterCount ? (
+            <button
+              type="button"
+              className="explore-clear-all"
+              onClick={() => { clearFilters(); advancedTrigger.current?.focus(); }}
+            >Clear all</button>
+          ) : null}
+          {/* Named for where it goes. On a phone the floating switch does this. */}
+          <button
+            type="button"
+            className="explore-map-toggle"
+            onClick={mapView ? showList : showMap}
+          >
+            <Icon name={mapView ? "listings" : "map"} />
+            <span>{mapView ? "List" : "Map"}</span>
+          </button>
+        </div>
+      </div>
+    );
+  }
 
-      {/* A phone scrolls the rail's Map pill out of sight, so the switch floats
-          where a thumb is; CSS shows one or the other. Not over the sheet. */}
+  const notices = error ? <Notice tone="error" title={error} /> : null;
+
+  return (
+    <div className="explore" ref={exploreRef}>
+      {/* Where the search would be if it scrolled away: once this line passes
+          under the header, the search is stuck. */}
+      <div ref={stickLine} className="explore-stick-line" aria-hidden="true" />
+      <div ref={stickRef} className={`explore-stick${stuck ? " is-stuck" : ""}`}>
+        {discovery()}
+      </div>
+      {notices}
+
+      {/* The map takes the list's place in the page; it never covers the page. */}
+      {mapView ? (
+        <ExploreMapView
+          query={query}
+          search={search}
+          area={query.area}
+          listings={listings}
+          next={next}
+          loadingMore={loadingMore}
+          querying={querying}
+          savedIds={saved}
+          onSave={signedIn ? (listing) => void toggleSave(listing) : undefined}
+          onLoadMore={() => void loadMore()}
+          onOpenListing={rememberExplorePosition}
+          onSearchArea={(bounds: GeoBounds) => update({ bbox: bounds })}
+          onClearFilters={clearFilters}
+          hasFilters={filterCount > 0}
+        />
+      ) : (
+        <section aria-live="polite" aria-busy={listings === null || querying}>
+          {listings?.length ? (
+            <ul className="explore-grid">
+              {listings.map((listing) => (
+                <ListingCard
+                  key={listing.id}
+                  listing={listing}
+                  saved={saved.has(listing.id)}
+                  onSave={signedIn ? () => void toggleSave(listing) : undefined}
+                  onNavigate={rememberExplorePosition}
+                />
+              ))}
+            </ul>
+          ) : null}
+
+          {/* Guidance only. The one Clear all sits directly above, beside the
+              count it would change; a second one here said the same thing twice. */}
+          {listings?.length === 0 && !error ? (
+            <div className="explore-empty">
+              <p className="type-body-strong">Nothing matches yet</p>
+              <p className="type-caption">Try a wider rent, a longer advance, or a nearby area.</p>
+            </div>
+          ) : null}
+
+          {next ? (
+            <p style={{ marginTop: "var(--space-6)" }}>
+              <button
+                type="button"
+                className="explore-more"
+                disabled={loadingMore}
+                onClick={() => void loadMore()}
+              >{loadingMore ? "Loading…" : "Show more rentals"}</button>
+            </p>
+          ) : null}
+        </section>
+      )}
+
+      {/* A phone's one switch between the two views, floating where a thumb is.
+          Wider screens switch from the end of the results row; CSS shows one or
+          the other, and this steps aside for the Filters sheet. */}
       {advancedOpen ? null : (
-        <button
-          type="button"
-          className="explore-view-switch explore-map-float"
-          onClick={() => update({ view: "map" }, "push")}
-        >
-          <Icon name="map" />
-          <span>Map</span>
+        <button type="button" className="explore-view-switch" onClick={mapView ? showList : showMap}>
+          <Icon name={mapView ? "listings" : "map"} />
+          <span>{mapView ? `List${listings === null ? "" : ` · ${resultCount}`}` : "Map"}</span>
         </button>
       )}
-    </div>
-  );
-}
-
-/**
- * A quick filter: a pill that opens a designed menu of answers.
- *
- * It was a native `<select>` stretched invisibly over the pill, so opening it
- * showed the operating system's own list — its grey, its highlight, its
- * position — under an arrow drawn from two CSS borders. The menu is Radix's:
- * arrow keys, typeahead, Escape and focus return all come with it, and it
- * portals out of the rail, which scrolls and would otherwise clip it.
- */
-function QuickSelectFilter({
-  label,
-  heading,
-  display,
-  value,
-  onChange,
-  options,
-}: {
-  label: string;
-  heading: string;
-  /** The chosen answer as the pill should say it, or null while idle. */
-  display: string | null;
-  value: string;
-  onChange: (value: string) => void;
-  options: readonly (readonly [string, string])[];
-}) {
-  const [open, setOpen] = useState(false);
-  const pointer = useRef("");
-  const openAtPress = useRef(false);
-  const active = display !== null;
-
-  return (
-    <DropdownMenu.Root open={open} onOpenChange={setOpen} modal={false}>
-      <DropdownMenu.Trigger
-        className={`explore-filter-pill${active ? " is-active" : ""}`}
-        aria-label={active ? `${label}: ${display}` : label}
-        onPointerDown={(event) => {
-          pointer.current = event.pointerType;
-          openAtPress.current = open;
-          // Radix opens on pointerdown for every pointer. On a rail that
-          // scrolls sideways that turned the start of a swipe into an open
-          // menu, so touch and pen wait for the tap to complete instead.
-          if (event.pointerType !== "mouse") event.preventDefault();
-        }}
-        onClick={() => {
-          // Decided from the state at the press, not now: Radix's outside
-          // dismissal can close the menu first, and a toggle then reopened it.
-          if (pointer.current === "touch" || pointer.current === "pen") setOpen(!openAtPress.current);
-          pointer.current = "";
-        }}
-      >
-        <span className="explore-pill-label">{display ?? label}</span>
-        <span className="explore-pill-chevron" aria-hidden="true"><Icon name="chevron-down" /></span>
-      </DropdownMenu.Trigger>
-      <DropdownMenu.Portal>
-        <DropdownMenu.Content className="explore-menu" align="start" sideOffset={8} collisionPadding={12}>
-          <DropdownMenu.Label className="explore-menu-heading">{heading}</DropdownMenu.Label>
-          <DropdownMenu.RadioGroup value={value} onValueChange={onChange}>
-            {options.map(([key, text]) => (
-              <DropdownMenu.RadioItem key={key || "any"} value={key} className="explore-menu-item">
-                <span>{text}</span>
-                <DropdownMenu.ItemIndicator className="explore-menu-check">
-                  <Icon name="check" />
-                </DropdownMenu.ItemIndicator>
-              </DropdownMenu.RadioItem>
-            ))}
-          </DropdownMenu.RadioGroup>
-        </DropdownMenu.Content>
-      </DropdownMenu.Portal>
-    </DropdownMenu.Root>
-  );
-}
-
-/** A label column and a control column, so every row in the panel starts its
- * answers on the same line. */
-function FilterRow({ label, fields = false, children }: { label: string; fields?: boolean; children: ReactNode }) {
-  return (
-    <div className={`explore-filter-row${fields ? " is-fields" : ""}`}>
-      <span className="explore-filter-label">{label}</span>
-      <div className="explore-filter-control">{children}</div>
-    </div>
-  );
-}
-
-/**
- * One answer from a short set, drawn as chips.
- *
- * These were `Select`s: a label, a closed box and the operating system's list
- * behind it, so seeing the options took a click and comparing them took two.
- * The radios stay real — one name, arrow keys between them — and are only
- * unpainted, the way `forms.css` draws every other choice in the product.
- */
-function ChoiceSet({
-  name,
-  label,
-  value,
-  onChange,
-  options,
-}: {
-  name: string;
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  options: readonly (readonly [string, string])[];
-}) {
-  const labelId = `${name}-label`;
-  return (
-    <div className="explore-filter-row">
-      <span id={labelId} className="explore-filter-label">{label}</span>
-      <div className="chip-set explore-choice-set" role="radiogroup" aria-labelledby={labelId}>
-        {options.map(([key, text]) => (
-          <label key={key || "any"} className="chip explore-choice">
-            <input
-              type="radio"
-              name={name}
-              value={key}
-              checked={value === key}
-              onChange={() => onChange(key)}
-              className="control-input"
-            />
-            {text}
-          </label>
-        ))}
-      </div>
     </div>
   );
 }

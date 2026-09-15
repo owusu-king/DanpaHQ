@@ -114,7 +114,7 @@ class ReviewerVerificationSerializer(VerificationSerializer):
                 return (
                     f"{application.applicant.display_name} - "
                     f"{application.get_relationship_type_display()} - "
-                    f"{application.address.locality.name}"
+                    f"{application.address.locality_label}"
                 )
         if obj.subject_type == "property":
             from apps.property.models import Property
@@ -146,9 +146,9 @@ class ReviewerVerificationSerializer(VerificationSerializer):
             "relationship": application.get_relationship_type_display(),
             "property_title": application.title,
             "property_type": application.get_property_type_display(),
-            "locality": address.locality.name,
-            "district": address.locality.district.name,
-            "region": address.locality.district.region.name,
+            "locality": address.locality_label,
+            "district": address.district_label,
+            "region": address.region_label,
             "digital_address": address.digital_address,
             "street": address.street,
             "owner_name": application.owner_name,

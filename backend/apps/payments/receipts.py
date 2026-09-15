@@ -96,9 +96,6 @@ def build_snapshot(*, transaction_row, obligation, receipt_number: str, issued_a
     unit = lease.unit
     prop = unit.property
     address = prop.address
-    locality = address.locality
-    district = locality.district
-    region = district.region
     organization = intent.beneficiary_organization
     bed = lease.bed
     address_display = str(address)
@@ -139,9 +136,9 @@ def build_snapshot(*, transaction_row, obligation, receipt_number: str, issued_a
                 "street": address.street,
                 "landmark": address.landmark,
                 "digital_address": address.digital_address,
-                "locality": locality.name,
-                "district": district.name,
-                "region": region.name,
+                "locality": address.locality_label,
+                "district": address.district_label,
+                "region": address.region_label,
             },
         },
         "obligation": {
@@ -180,9 +177,6 @@ def build_external_snapshot(*, payment, receipt_number: str, issued_at) -> dict:
     unit = lease.unit
     prop = unit.property
     address = prop.address
-    locality = address.locality
-    district = locality.district
-    region = district.region
     bed = lease.bed
     evidence_file = payment.evidence_file
     address_display = str(address)
@@ -220,9 +214,9 @@ def build_external_snapshot(*, payment, receipt_number: str, issued_at) -> dict:
                 "street": address.street,
                 "landmark": address.landmark,
                 "digital_address": address.digital_address,
-                "locality": locality.name,
-                "district": district.name,
-                "region": region.name,
+                "locality": address.locality_label,
+                "district": address.district_label,
+                "region": address.region_label,
             },
         },
         "obligation": {

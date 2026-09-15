@@ -7,24 +7,30 @@ import { fileURLToPath } from "node:url";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const read = (relative) => readFileSync(resolve(root, relative), "utf8");
 
-test("Updates separates what wanted a reply from what merely happened", () => {
+test("Updates presents action, unread and domain filters as one communication system", () => {
   const page = read("web/app/updates/page.tsx");
 
-  assert.match(page, /Waiting on you/);
+  assert.match(page, /Action needed/);
+  assert.match(page, /notificationCategory/);
+  assert.match(page, /notificationSource/);
+  assert.match(page, /notificationStatus/);
+  assert.match(page, /notificationTone/);
   assert.match(page, /needsYou/);
-  // Words first, colour as reinforcement — never the message.
-  assert.match(page, /Needs a reply/);
-  assert.match(page, /role="tablist"/);
-  assert.match(page, /ArrowLeft/);
+  assert.match(page, /Needs your attention/);
+  assert.match(page, /Today/);
+  assert.match(page, /This week/);
+  assert.match(page, /Earlier/);
 });
 
-test("Updates is a log and says so, rather than competing with Home", () => {
+test("Updates stays a log without repeating the shell title or adding a dashboard summary", () => {
   const page = read("web/app/updates/page.tsx");
   const meaning = read("web/src/lib/notificationMeaning.ts");
 
   // Home derives what is outstanding from live domain state. A notification only
   // knows whether it has been read, so this must not claim to be a queue.
-  assert.match(page, /Home is where you see what is still outstanding/);
+  assert.doesNotMatch(page, /<PageHeader/);
+  assert.doesNotMatch(page, /updates-overview/);
+  assert.doesNotMatch(page, /communication centre/i);
   assert.match(meaning, /return !item\.is_read && wantsAReply\(item\.kind\)/);
 });
 
@@ -48,6 +54,26 @@ test("rows are rows, not cards, and unread does not depend on colour", () => {
 
   assert.match(css, /\.update-row\b/);
   assert.match(css, /border-left: var\(--border-stamp\) solid transparent/);
+  assert.match(css, /\.update-row\[data-tone="critical"\]/);
+  assert.match(css, /\.update-row\.is-unread/);
   assert.match(css, /\.update-row:focus-visible/);
   assert.match(css, /@media \(prefers-reduced-motion: reduce\)/);
+});
+
+test("a row navigates immediately while its read acknowledgement settles", () => {
+  const page = read("web/app/updates/page.tsx");
+
+  assert.match(page, /void markNotificationsRead\(\[item\.id\]\)\.catch/);
+  assert.match(page, /router\.push\(destination\(item\)/);
+});
+
+test("Updates presents at most ten records at once", () => {
+  const page = read("web/app/updates/page.tsx");
+
+  assert.match(page, /const PAGE_SIZE = 10/);
+  assert.match(page, /orderedVisible\.slice\(\(currentPage - 1\) \* PAGE_SIZE, currentPage \* PAGE_SIZE\)/);
+  assert.match(page, /\.\.\.visible\.filter\(needsYou\)/);
+  assert.match(page, /aria-label="Updates pages"/);
+  assert.match(page, />Previous</);
+  assert.match(page, />Next</);
 });

@@ -19,13 +19,12 @@ import {
   type PropertyTypeOption,
 } from "@/propertyTypes";
 import { PropertyTypeChoice } from "@/components/property/PropertyTypeChoice";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Pressable, ScrollView, View } from "react-native";
 
 import { ApiFailure } from "@/api";
 import { useAuth } from "@/auth";
 import { Button, Choice, Field, Notice, Type, space } from "@/components/ui";
-import type { Locality } from "@/listings";
 import {
   createPersonalPortfolioProperty,
   createPrivateProperty,
@@ -34,7 +33,13 @@ import {
 } from "@/organizations";
 import { SetupProgress } from "@/components/property/SetupSteps";
 import { describePropertySetup, type SetupStep } from "@/propertySetup";
-import { createAddress, searchProviderLocalities } from "@/provider";
+import { createAddress } from "@/provider";
+import {
+  newPlacesSession,
+  placeLabel,
+  suggestPlaces,
+  type PlaceSuggestion,
+} from "@/places";
 import { theme } from "@/theme";
 
 /** The whole journey, before any of it exists. */
@@ -59,8 +64,10 @@ export default function PrivatePropertyScreen() {
   const [propertyType, setPropertyType] = useState("");
   const [propertyTypes, setPropertyTypes] = useState<PropertyTypeOption[]>([]);
   const [localityQuery, setLocalityQuery] = useState("");
-  const [localities, setLocalities] = useState<Locality[]>([]);
-  const [locality, setLocality] = useState<Locality | null>(null);
+  const [placeSuggestions, setPlaceSuggestions] = useState<PlaceSuggestion[]>([]);
+  const [selectedPlace, setSelectedPlace] = useState<PlaceSuggestion | null>(null);
+  const [placeAttribution, setPlaceAttribution] = useState<string | null>(null);
+  const placesSession = useRef<string | null>(null);
   const [digitalAddress, setDigitalAddress] = useState("");
   const [street, setStreet] = useState("");
   const [landmark, setLandmark] = useState("");
@@ -97,20 +104,44 @@ export default function PrivatePropertyScreen() {
   }, [activeContext, organizationId]);
 
   useEffect(() => {
-    if (locality || localityQuery.trim().length < 2) return;
+    const typed = localityQuery.trim();
+    if (selectedPlace || typed.length < 2) {
+      setPlaceSuggestions([]);
+      return;
+    }
+
+    placesSession.current ??= newPlacesSession();
+    let current = true;
     const timer = setTimeout(() => {
-      void searchProviderLocalities(localityQuery.trim()).then(setLocalities).catch(() => setLocalities([]));
+      void suggestPlaces(typed, placesSession.current!, true)
+        .then((response) => {
+          if (!current) return;
+          setPlaceSuggestions(response.suggestions);
+          setPlaceAttribution(response.attribution);
+        })
+        .catch(() => {
+          if (current) setPlaceSuggestions([]);
+        });
     }, 300);
-    return () => clearTimeout(timer);
-  }, [locality, localityQuery]);
+    return () => {
+      current = false;
+      clearTimeout(timer);
+    };
+  }, [localityQuery, selectedPlace]);
 
   async function submit() {
-    if (!locality || (organizations.length > 0 && !selectedOrganizationId)) return;
+    if (!selectedPlace || (organizations.length > 0 && !selectedOrganizationId)) return;
     setBusy(true);
     setError("");
     try {
       const address = await createAddress({
-        locality_id: locality.id,
+        place: {
+          provider: selectedPlace.provider,
+          reference: selectedPlace.reference,
+          session: placesSession.current ?? undefined,
+          name: selectedPlace.name,
+          context: selectedPlace.context,
+        },
         digital_address: digitalAddress || undefined,
         street: street || undefined,
         landmark: landmark || undefined,
@@ -172,12 +203,41 @@ export default function PrivatePropertyScreen() {
           complete vocabulary remains selectable, and creating another valid
           category adds that activity to the Portfolio. */}
       <PropertyTypeChoice types={propertyTypes} value={propertyType} onChange={setPropertyType} />
-      <Field label="Town or neighbourhood" value={localityQuery} onChangeText={(value) => { setLocalityQuery(value); setLocality(null); }} />
-      {localities.map((item) => (
-        <Pressable key={item.id} onPress={() => { setLocality(item); setLocalityQuery(item.name); setLocalities([]); }} style={{ minHeight: theme.targetMin, justifyContent: "center" }}>
-          <Type variant="body">{item.name} · {item.district_name}</Type>
+      <Field
+        label="Town or neighbourhood"
+        hint="Search anywhere in Ghana, then choose a result."
+        value={localityQuery}
+        onChangeText={(value) => {
+          if (selectedPlace) placesSession.current = null;
+          setLocalityQuery(value);
+          setSelectedPlace(null);
+          if (!value.trim()) placesSession.current = null;
+        }}
+      />
+      {placeSuggestions.map((item) => (
+        <Pressable
+          key={item.provider + item.reference}
+          accessibilityRole="button"
+          onPress={() => {
+            setSelectedPlace(item);
+            setLocalityQuery(placeLabel(item));
+            setPlaceSuggestions([]);
+          }}
+          style={{
+            minHeight: theme.targetMin,
+            justifyContent: "center",
+            borderBottomWidth: 1,
+            borderBottomColor: theme.color.field["200"],
+            paddingVertical: space[2],
+          }}
+        >
+          <Type variant="body">{item.name}</Type>
+          {item.context ? <Type variant="caption">{item.context}</Type> : null}
         </Pressable>
       ))}
+      {placeSuggestions.length > 0 && placeAttribution === "google" ? (
+        <Type variant="caption">Google Maps</Type>
+      ) : null}
       <Field label="GhanaPost GPS (where available)" value={digitalAddress} onChangeText={setDigitalAddress} autoCapitalize="characters" />
       <Field label="Street" value={street} onChangeText={setStreet} />
       <Field label="Landmark" value={landmark} onChangeText={setLandmark} />
@@ -189,7 +249,7 @@ export default function PrivatePropertyScreen() {
         label="Save and continue"
         onPress={submit}
         busy={busy}
-        disabled={(organizations.length > 0 && !selectedOrganizationId) || !title.trim() || !propertyType || !locality}
+        disabled={(organizations.length > 0 && !selectedOrganizationId) || !title.trim() || !propertyType || !selectedPlace}
       />
     </ScrollView>
   );

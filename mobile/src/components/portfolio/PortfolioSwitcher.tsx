@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth, type Me } from "@/auth";
 import { Type, space } from "@/components/ui";
 import { pressableFeedback } from "@/platform";
+import { shell } from "@/shell";
 import { theme } from "@/theme";
 
 /**
@@ -67,7 +68,9 @@ export function PortfolioHeaderButton({ compact = false }: { compact?: boolean }
   const current = portfolios.find((row) => row.id === activeContext) ?? portfolios[0];
   if (!current) return null;
 
-  const size = compact ? 38 : 42;
+  // The paper well every header disc shares: 40pt drawn, and the 48pt floor
+  // reached with slop rather than with a heavier circle.
+  const size = 40;
 
   return (
     <>
@@ -76,32 +79,35 @@ export function PortfolioHeaderButton({ compact = false }: { compact?: boolean }
         accessibilityLabel={`Portfolio: ${current.label}. Switch portfolio`}
         accessibilityHint="Opens your Portfolios"
         onPress={() => setOpen(true)}
-        hitSlop={compact ? 4 : 1}
-        {...pressableFeedback(theme.color.field["200"])}
-        style={{
+        hitSlop={4}
+        {...pressableFeedback(shell.chromePressed)}
+        style={({ pressed }) => ({
           width: size,
           height: size,
           marginLeft: compact ? 12 : 16,
           borderRadius: size / 2,
           alignItems: "center",
           justifyContent: "center",
-        }}
+          // A translucent well on the kola chrome, like every other header control.
+          backgroundColor: pressed ? shell.chromePressed : shell.chromeRaised,
+        })}
       >
-        <Ionicons name="albums-outline" size={compact ? 21 : 23} color={theme.color.ink["700"]} />
+        <Ionicons name="albums-outline" size={20} color={shell.onChrome} />
         {/* A mark that there is somewhere else to be — never a count, which
-            would read as unread work and belongs to the bell. */}
+            would read as unread work and belongs to the bell. White, cut out of
+            the green behind it. */}
         {portfolios.length > 1 ? (
           <View
             style={{
               position: "absolute",
-              top: compact ? 6 : 8,
-              right: compact ? 6 : 8,
-              width: 7,
-              height: 7,
+              top: 6,
+              right: 6,
+              width: 8,
+              height: 8,
               borderRadius: 4,
-              backgroundColor: theme.color.kola["600"],
+              backgroundColor: shell.onChrome,
               borderWidth: 1.5,
-              borderColor: theme.color.field["50"],
+              borderColor: shell.chrome,
             }}
           />
         ) : null}

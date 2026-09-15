@@ -13,6 +13,10 @@ ADR 0002 and tests/unit/test_module_boundaries.py.
 
 from __future__ import annotations
 
+import logging
+import uuid
+from dataclasses import asdict
+
 from django.conf import settings
 from django.db.models import Q
 from rest_framework import status
@@ -20,16 +24,25 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import Address, District, Locality, Place, Region
-from .places import search_places
+from apps.core.exceptions import NotFound, ProviderUnavailable
+
+from .models import Address, District, Locality, Region
+from .providers import LocalityProvider, LocationProviderError, location_provider, provider_named
 from .serializers import (
     AddressSerializer,
     CreateAddressSerializer,
     DistrictSerializer,
     LocalitySerializer,
-    PlaceSerializer,
+    PlaceResolveQuerySerializer,
+    PlaceSuggestQuerySerializer,
     RegionSerializer,
+    ResolvedPlaceSerializer,
 )
+from .throttling import PlaceLookupThrottle
+
+logger = logging.getLogger(__name__)
+
+PLACES_UNAVAILABLE = "Place search is not available right now. You can still search by name."
 
 
 class RegionListView(APIView):
@@ -90,8 +103,58 @@ class AddressListCreateView(APIView):
         payload.is_valid(raise_exception=True)
         data = payload.validated_data
 
+        locality_id = data.get("locality_id")
+        place_name = place_context = place_provider = place_reference = ""
+        if place := data.get("place"):
+            provider = provider_named(place["provider"])
+            if provider is None:
+                raise ProviderUnavailable(PLACES_UNAVAILABLE)
+
+            # A Rooomly fallback result already names a controlled Locality and
+            # needs no geometry in order to become an Address.
+            if provider.name == "rooomly":
+                try:
+                    reference_id = uuid.UUID(place["reference"])
+                except ValueError:
+                    raise NotFound("We could not find that town or neighbourhood.") from None
+                locality = Locality.objects.filter(
+                    id=reference_id, is_active=True
+                ).first()
+                if locality is None:
+                    raise NotFound("We could not find that town or neighbourhood.") from None
+                locality_id = locality.id
+            else:
+                try:
+                    resolved = provider.resolve(
+                        place["reference"],
+                        session=str(place["session"]) if place.get("session") else None,
+                        name_hint=place["name"],
+                    )
+                except LocationProviderError as exc:
+                    raise ProviderUnavailable(PLACES_UNAVAILABLE) from exc
+                if resolved is None or resolved.kind != "area":
+                    raise NotFound("Choose a town or neighbourhood from the location results.")
+
+                # A caller cannot smuggle a foreign Place ID past Ghana-only
+                # autocomplete: resolving must still land inside product bounds.
+                west, south, east, north = settings.MAP_BOUNDS
+                if not (
+                    west <= resolved.center.lng <= east
+                    and south <= resolved.center.lat <= north
+                ):
+                    raise NotFound("That location is outside Rooomly's coverage area.")
+
+                place_name = resolved.display_name
+                place_context = place.get("context", "")
+                place_provider = resolved.provider
+                place_reference = resolved.reference
+
         address = Address.objects.create(
-            locality_id=data["locality_id"],
+            locality_id=locality_id,
+            place_name=place_name,
+            place_context=place_context,
+            place_provider=place_provider,
+            place_reference=place_reference,
             digital_address=data.get("digital_address", ""),
             street=data.get("street", ""),
             house_number=data.get("house_number", ""),
@@ -119,69 +182,114 @@ class AddressDetailView(APIView):
         return Response(AddressSerializer(address).data)
 
 
-class PlaceSearchView(APIView):
-    """GET /geo/places/?q=east leg — ranked place suggestions for the location field.
+class PlaceSuggestView(APIView):
+    """GET /geo/places/suggest/?q=east leg&session=<uuid> — suggestions while somebody types.
 
-    Readable signed out, like the rest of the reference data. Cacheable, because
-    the answer changes with an import rather than with the request.
+    Readable signed out, like the rest of the reference data. The API asks the
+    location provider on the client's behalf (ADR 0034): no client carries a
+    Places-enabled key, every client is restricted to Ghana the same way, and one
+    throttle stands between the open internet and the bill. A provider that fails
+    mid-search is replaced by Rooomly's localities for that request, and the
+    response names who answered so the client shows the right attribution.
     """
 
     permission_classes = [AllowAny]
+    throttle_classes = [PlaceLookupThrottle]
 
     def get(self, request):
-        try:
-            limit = int(request.query_params.get("limit") or 8)
-        except ValueError:
-            limit = 8
-        places = search_places(request.query_params.get("q") or "", limit=limit)
-        response = Response(PlaceSerializer(places, many=True).data)
-        response["Cache-Control"] = "public, max-age=300"
+        params = PlaceSuggestQuerySerializer(data=request.query_params)
+        params.is_valid(raise_exception=True)
+        data = params.validated_data
+        text = data.get("q", "")
+        session = str(data["session"]) if data.get("session") else None
+
+        provider = location_provider()
+        suggestions = []
+        # One letter matches half the country and costs the same as a real query.
+        if len(text) >= 2:
+            try:
+                suggestions = provider.suggest(
+                    text,
+                    session=session,
+                    limit=data["limit"],
+                    areas_only=data["scope"] == "areas",
+                )
+            except LocationProviderError:
+                logger.warning("place_suggestions_fell_back", extra={"provider": provider.name})
+                provider = LocalityProvider()
+                suggestions = provider.suggest(
+                    text,
+                    session=None,
+                    limit=data["limit"],
+                    areas_only=data["scope"] == "areas",
+                )
+
+        response = Response(
+            {
+                "provider": provider.name,
+                "attribution": provider.attribution,
+                "suggestions": [asdict(suggestion) for suggestion in suggestions],
+            }
+        )
+        # A provider's content is not ours to cache, and a session's answers are its own.
+        response["Cache-Control"] = "no-store"
         return response
 
 
-class PlaceDetailView(APIView):
-    """GET /geo/places/<slug>/ — one place, to restore a refreshed or shared search."""
+class PlaceResolveView(APIView):
+    """GET /geo/places/resolve/?provider=google&reference=…&session=<uuid>&name=…
+
+    The chosen suggestion, located: a centre, and a box for the map to fit and
+    the search to search. Resolved by the provider that suggested it and with the
+    same session token, which is what closes the provider's billing session.
+    Nothing is stored — the client keeps the result in the address bar.
+    """
 
     permission_classes = [AllowAny]
+    throttle_classes = [PlaceLookupThrottle]
 
-    def get(self, request, slug):
-        place = Place.objects.filter(slug=slug, is_active=True).first()
+    def get(self, request):
+        params = PlaceResolveQuerySerializer(data=request.query_params)
+        params.is_valid(raise_exception=True)
+        data = params.validated_data
+
+        provider = provider_named(data["provider"])
+        if provider is None:
+            raise ProviderUnavailable(PLACES_UNAVAILABLE)
+        try:
+            place = provider.resolve(
+                data["reference"],
+                session=str(data["session"]) if data.get("session") else None,
+                name_hint=data.get("name", ""),
+            )
+        except LocationProviderError as exc:
+            raise ProviderUnavailable(PLACES_UNAVAILABLE) from exc
         if place is None:
-            from apps.core.exceptions import NotFound
+            raise NotFound(
+                "We could not find that place.", details={"reference": data["reference"]}
+            )
 
-            raise NotFound("We could not find that area.", details={"place": slug})
-        return Response(PlaceSerializer(place).data)
+        response = Response(ResolvedPlaceSerializer(place).data)
+        response["Cache-Control"] = "no-store"
+        return response
 
 
 class MapConfigView(APIView):
-    """GET /map/config/ — where the basemap and its label fonts are served from.
+    """GET /map/config/ — what every map shares: where it may go and where it opens.
 
-    Clients never hard-code a tile host, so moving the basemap — to a CDN, a
-    newer extract or another MapLibre-compatible source — is a setting rather
-    than a client release (ADR 0033).
+    Provider-neutral. Which library draws the map, and with which key, is each
+    client's own build configuration (ADR 0034); the part of the world Rooomly
+    covers is decided once, here.
     """
 
     permission_classes = [AllowAny]
 
     def get(self, request):
-        base = settings.MAP_ASSETS_PUBLIC_URL.rstrip("/") or self._storage_base()
         return Response(
             {
-                "tiles_url": f"pmtiles://{base}/tiles/{settings.MAP_TILES_ARCHIVE}",
-                "glyphs_url": f"{base}/fonts/{{fontstack}}/{{range}}.pbf",
-                "attribution": settings.MAP_ATTRIBUTION,
                 "bounds": list(settings.MAP_BOUNDS),
                 "default_view": settings.MAP_DEFAULT_VIEW,
                 "min_zoom": 6,
-                "max_zoom": 18,
+                "max_zoom": 20,
             }
         )
-
-    @staticmethod
-    def _storage_base() -> str:
-        # The object store's public address, following the caller's host the
-        # way photo URLs do, so a phone on the network reaches the same bucket.
-        from apps.files.storage import S3StorageBackend
-
-        endpoint = S3StorageBackend().public_endpoint().rstrip("/")
-        return f"{endpoint}/{settings.MAP_ASSETS_BUCKET}"

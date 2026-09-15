@@ -211,7 +211,7 @@ class PropertyJoinLookupView(APIView):
             {
                 "id": str(prop.id),
                 "title": prop.title,
-                "locality": prop.address.locality.name if prop.address_id else "",
+                "locality": prop.address.locality_label if prop.address_id else "",
                 "unit": {
                     "id": str(unit.id),
                     "label": unit.label or "Unit",

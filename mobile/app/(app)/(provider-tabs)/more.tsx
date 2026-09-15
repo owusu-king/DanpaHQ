@@ -4,7 +4,7 @@ import { ScrollView, View } from "react-native";
 
 import { useAuth } from "@/auth";
 import { Group, QuietLink, Row } from "@/components/account/IndexRows";
-import { Type, space } from "@/components/ui";
+import { space } from "@/components/ui";
 import { resolveEntryRoute } from "@/navigation";
 import { listNotifications } from "@/notifications";
 import { listMyPortfolioInvitations } from "@/organizations";
@@ -18,6 +18,9 @@ import { chooseWorkspace } from "@/workspace";
  * label, the icon and the chevron are the whole design. Boxes came off the
  * groups too: a card around a list of links is structure the list did not ask
  * for.
+ *
+ * Nor does it title itself: the header says "More" under the Portfolio's name,
+ * which this page used to repeat as its own eyebrow and heading.
  *
  * Account destinations are listed here rather than behind a Settings row.
  * Making someone tap More → Settings → Security is one level more than the task
@@ -51,7 +54,6 @@ export default function ProviderMoreScreen() {
   // rather than as a role doing its job.
   const context = me?.contexts.find((row) => row.type === "organization" && row.id === activeContext)
     ?? me?.contexts.find((row) => row.type === "organization");
-  const portfolio = context?.label;
   const can = context?.access?.can;
   const operates = can?.operate_properties ?? true;
   const finances = can?.view_finances ?? true;
@@ -77,11 +79,6 @@ export default function ProviderMoreScreen() {
 
   return (
     <ScrollView contentContainerStyle={{ padding: space[5], paddingBottom: space[12], gap: space[6] }}>
-      <View style={{ gap: space[1] }}>
-        <Type variant="label">{(portfolio ?? "Your Portfolio").toUpperCase()}</Type>
-        <Type variant="display2" accessibilityRole="header">More</Type>
-      </View>
-
       {invitations ? (
         <Group title="Waiting for you">
           <Row

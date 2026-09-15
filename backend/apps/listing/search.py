@@ -10,25 +10,21 @@ Public eligibility is not decided here either: everything starts from
 `read_models.public_listings()`, the one definition of "a tenant may act on
 this".
 
-The geographic part of a search is an *area*: an explicit box the map sent
-("Search this area"), or a place somebody chose. A place's area also includes
-listings *filed* under its Rooomly locality, because filing is authoritative
-and a public point is only an approximation of it.
+The geographic part of a search is an *area*: a box. It is the one "Search this
+area" sent, or the bounds of a place somebody chose, which the client resolved
+through the location provider (ADR 0034). The search never looks a place up
+itself, so a shared link costs no provider call to answer.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from uuid import UUID
 
 from django.conf import settings
 from django.contrib.gis.db.models.aggregates import Extent
 from django.contrib.gis.geos import Polygon
 from django.db import connection
 from django.db.models import Count, Q, QuerySet
-
-from apps.core.exceptions import NotFound
-from apps.geo.models import Place
 
 from . import read_models
 from .models import Listing
@@ -70,13 +66,6 @@ class Bounds:
         }
 
 
-@dataclass(frozen=True)
-class SearchArea:
-    bounds: Bounds
-    locality_id: UUID | None = None
-    place: Place | None = None
-
-
 def _bounds_from(data: dict, prefix: str = "") -> Bounds | None:
     keys = [f"{prefix}{edge}" for edge in ("west", "south", "east", "north")]
     if not all(key in data for key in keys):
@@ -84,29 +73,12 @@ def _bounds_from(data: dict, prefix: str = "") -> Bounds | None:
     return Bounds(*(float(data[key]) for key in keys))
 
 
-def resolve_area(data: dict) -> SearchArea | None:
-    """The geographic constraint of a search: an explicit box, else a place, else none."""
-    bounds = _bounds_from(data)
-    if bounds is not None:
-        return SearchArea(bounds=bounds)
-
-    slug = data.get("place")
-    if not slug:
-        return None
-    place = Place.objects.filter(slug=slug, is_active=True).first()
-    if place is None:
-        # Said plainly and kept distinct from a failed request: the client keeps
-        # every other filter and tells the tenant the area is no longer offered.
-        raise NotFound("We could not find that area.", details={"place": slug})
-    west, south, east, north = place.bounds.extent
-    return SearchArea(
-        bounds=Bounds(west, south, east, north),
-        locality_id=place.locality_id,
-        place=place,
-    )
+def resolve_area(data: dict) -> Bounds | None:
+    """The geographic constraint of a search: the box it names, or none."""
+    return _bounds_from(data)
 
 
-def filtered_listings(data: dict, area: SearchArea | None) -> QuerySet[Listing]:
+def filtered_listings(data: dict, area: Bounds | None) -> QuerySet[Listing]:
     """Public listings matching every filter in `data`, inside `area` when given."""
     qs = read_models.public_listings()
 
@@ -118,6 +90,8 @@ def filtered_listings(data: dict, area: SearchArea | None) -> QuerySet[Listing]:
             | Q(unit__property__address__locality__name__icontains=query)
             | Q(unit__property__address__locality__aliases__icontains=query)
             | Q(unit__property__address__locality__district__name__icontains=query)
+            | Q(unit__property__address__place_name__icontains=query)
+            | Q(unit__property__address__place_context__icontains=query)
         )
     if "locality_id" in data:
         qs = qs.filter(locality_id_cache=data["locality_id"])
@@ -148,15 +122,12 @@ def filtered_listings(data: dict, area: SearchArea | None) -> QuerySet[Listing]:
     if area is not None:
         # `&&` against the point's GiST index. For a point, overlapping the box
         # and lying inside it are the same test.
-        inside = Q(public_point__bboverlaps=area.bounds.polygon())
-        if area.locality_id is not None:
-            inside |= Q(locality_id_cache=area.locality_id)
-        qs = qs.filter(inside)
+        qs = qs.filter(public_point__bboverlaps=area.polygon())
 
     return qs
 
 
-def map_window(data: dict, area: SearchArea | None) -> Bounds | None:
+def map_window(data: dict, area: Bounds | None) -> Bounds | None:
     """The part of the search the markers are drawn for.
 
     The results belong to the area. The markers are fetched for what is on
@@ -166,11 +137,11 @@ def map_window(data: dict, area: SearchArea | None) -> Bounds | None:
     """
     view = _bounds_from(data, prefix="view_")
     if area is not None and view is not None:
-        return area.bounds.intersection(view)
+        return area.intersection(view)
     if view is not None:
         return view
     if area is not None:
-        return area.bounds
+        return area
     west, south, east, north = settings.MAP_BOUNDS
     return Bounds(west, south, east, north)
 

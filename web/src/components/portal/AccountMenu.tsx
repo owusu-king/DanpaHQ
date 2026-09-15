@@ -12,17 +12,23 @@ import { Avatar } from "./icons";
 /**
  * The account control, and the one menu behind it.
  *
- * Deliberately a single component used by both sidebar states. The brief could
- * have been read as "a row when expanded, a button when collapsed", but two
- * components would mean two menus to keep in step, and the collapsed one would
- * be the one that quietly fell behind. The trigger changes shape; everything
- * behind it is the same code.
+ * Deliberately a single component used by both rail and header placements. The
+ * trigger changes shape and the popover changes anchor; everything behind it is
+ * the same code, so account actions cannot drift between workspace modes.
  *
  * It is a popover, not a modal: an account menu is a small aside, and taking
  * the whole screen for it on a desktop portal would be a heavier gesture than
  * the action deserves.
  */
-export function AccountMenu({ me, collapsed }: { me: Me; collapsed: boolean }) {
+export function AccountMenu({
+  me,
+  collapsed,
+  placement = "rail",
+}: {
+  me: Me;
+  collapsed: boolean;
+  placement?: "rail" | "header";
+}) {
   const { activeContext } = useSession();
   const [open, setOpen] = useState(false);
   const [dropDown, setDropDown] = useState(false);
@@ -90,7 +96,7 @@ export function AccountMenu({ me, collapsed }: { me: Me; collapsed: boolean }) {
   }
 
   return (
-    <div className="portal-account" ref={rootRef}>
+    <div className={`portal-account${placement === "header" ? " is-header" : ""}`} ref={rootRef}>
       <button
         type="button"
         ref={triggerRef}
@@ -128,7 +134,7 @@ export function AccountMenu({ me, collapsed }: { me: Me; collapsed: boolean }) {
       {open ? (
         <div
           ref={menuRef}
-          className={`portal-menu${dropDown ? " is-below" : ""}${collapsed ? " is-beside" : ""}`}
+          className={`portal-menu${dropDown ? " is-below" : ""}${collapsed && placement === "rail" ? " is-beside" : ""}${placement === "header" ? " is-header" : ""}`}
           role="menu"
           aria-label="Account"
           onKeyDown={onMenuKeyDown}

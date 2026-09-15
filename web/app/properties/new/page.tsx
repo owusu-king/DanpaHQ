@@ -20,7 +20,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/Button";
 import { Field } from "@/components/Field";
@@ -34,10 +34,14 @@ import {
   createPersonalPortfolioProperty,
   createPrivateProperty,
   listOrganizations,
-  searchLocalities,
-  type Locality,
   type Organization,
 } from "@/lib/console";
+import {
+  newPlacesSession,
+  placeLabel,
+  suggestPlaces,
+  type PlaceSuggestion,
+} from "@/lib/places";
 import { describePropertySetup } from "@/lib/propertySetup";
 import { loadPropertyTypes, type PropertyTypeOption } from "@/lib/propertyTypes";
 import { useSession } from "@/lib/session";
@@ -65,8 +69,10 @@ function NewPropertyContent() {
   const [propertyType, setPropertyType] = useState("");
   const [propertyTypes, setPropertyTypes] = useState<PropertyTypeOption[]>([]);
   const [query, setQuery] = useState("");
-  const [localities, setLocalities] = useState<Locality[]>([]);
-  const [locality, setLocality] = useState<Locality | null>(null);
+  const [placeSuggestions, setPlaceSuggestions] = useState<PlaceSuggestion[]>([]);
+  const [selectedPlace, setSelectedPlace] = useState<PlaceSuggestion | null>(null);
+  const [placeAttribution, setPlaceAttribution] = useState<string | null>(null);
+  const placesSession = useRef<string | null>(null);
   const [digitalAddress, setDigitalAddress] = useState("");
   const [street, setStreet] = useState("");
   const [landmark, setLandmark] = useState("");
@@ -100,21 +106,43 @@ function NewPropertyContent() {
   }, [activeContext]);
 
   useEffect(() => {
-    if (locality || query.trim().length < 2) return;
-    const timer = window.setTimeout(
-      () => void searchLocalities(query.trim()).then(setLocalities),
-      300,
-    );
-    return () => window.clearTimeout(timer);
-  }, [locality, query]);
+    const typed = query.trim();
+    if (selectedPlace || typed.length < 2) {
+      setPlaceSuggestions([]);
+      return;
+    }
+
+    placesSession.current ??= newPlacesSession();
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => {
+      void suggestPlaces(typed, placesSession.current!, controller.signal, true)
+        .then((response) => {
+          setPlaceSuggestions(response.suggestions);
+          setPlaceAttribution(response.attribution);
+        })
+        .catch(() => {
+          if (!controller.signal.aborted) setPlaceSuggestions([]);
+        });
+    }, 300);
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [query, selectedPlace]);
 
   async function saveAndContinue() {
-    if (!locality || (organizations?.length && !organizationId)) return;
+    if (!selectedPlace || (organizations?.length && !organizationId)) return;
     setBusy(true);
     setError("");
     try {
       const address = await createAddress({
-        locality_id: locality.id,
+        place: {
+          provider: selectedPlace.provider,
+          reference: selectedPlace.reference,
+          session: placesSession.current ?? undefined,
+          name: selectedPlace.name,
+          context: selectedPlace.context,
+        },
         digital_address: digitalAddress || undefined,
         street: street || undefined,
         landmark: landmark || undefined,
@@ -147,7 +175,7 @@ function NewPropertyContent() {
     );
   }
 
-  const ready = Boolean(title.trim() && propertyType && locality && (organizationId || organizations.length === 0));
+  const ready = Boolean(title.trim() && propertyType && selectedPlace && (organizationId || organizations.length === 0));
   return (
     <main style={SHELL}>
       <Link href="/properties" className="type-caption" style={LINK}>
@@ -222,34 +250,63 @@ function NewPropertyContent() {
               <div>
                 <Field
                   label="Town or neighbourhood"
+                  hint="Search anywhere in Ghana, then choose a result."
                   value={query}
+                  autoComplete="off"
                   onChange={(event) => {
+                    if (selectedPlace) placesSession.current = null;
                     setQuery(event.target.value);
-                    setLocality(null);
+                    setSelectedPlace(null);
+                    if (!event.target.value.trim()) placesSession.current = null;
                   }}
                 />
-                {localities.length ? (
+                {placeSuggestions.length ? (
                   <div
+                    role="listbox"
+                    aria-label="Town or neighbourhood suggestions"
                     style={{
-                      display: "flex",
-                      flexWrap: "wrap",
-                      gap: "var(--space-2)",
+                      display: "grid",
                       marginTop: "var(--space-2)",
+                      border: "var(--border-hairline) solid var(--color-field-200)",
+                      borderRadius: "var(--radius-md)",
+                      overflow: "hidden",
                     }}
                   >
-                    {localities.map((item) => (
-                      <Button
-                        key={item.id}
-                        variant="secondary"
+                    {placeSuggestions.map((item) => (
+                      <button
+                        key={item.provider + item.reference}
+                        type="button"
+                        role="option"
+                        aria-selected={false}
                         onClick={() => {
-                          setLocality(item);
-                          setQuery(item.name);
-                          setLocalities([]);
+                          setSelectedPlace(item);
+                          setQuery(placeLabel(item));
+                          setPlaceSuggestions([]);
+                        }}
+                        style={{
+                          minHeight: "2.875rem",
+                          padding: "var(--space-2) var(--space-3)",
+                          border: 0,
+                          borderBottom: "var(--border-hairline) solid var(--color-field-100)",
+                          background: "var(--color-field-0)",
+                          color: "var(--color-ink-900)",
+                          textAlign: "left",
+                          cursor: "pointer",
                         }}
                       >
-                        {item.name} · {item.district_name}
-                      </Button>
+                        <span className="type-body" style={{ display: "block" }}>{item.name}</span>
+                        {item.context ? (
+                          <span className="type-caption" style={{ color: "var(--color-ink-500)" }}>
+                            {item.context}
+                          </span>
+                        ) : null}
+                      </button>
                     ))}
+                    {placeAttribution === "google" ? (
+                      <p className="type-caption" style={{ margin: 0, padding: "var(--space-2) var(--space-3)", color: "var(--color-ink-500)" }}>
+                        Google Maps
+                      </p>
+                    ) : null}
                   </div>
                 ) : null}
               </div>

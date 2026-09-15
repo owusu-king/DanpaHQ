@@ -94,7 +94,7 @@ class MyJoinRequestSerializer(serializers.ModelSerializer):
 
     property_title = serializers.CharField(source="property.title", read_only=True)
     locality_name = serializers.CharField(
-        source="property.address.locality.name", read_only=True, default=None
+        source="property.address.locality_label", read_only=True, default=None
     )
     unit_label = serializers.CharField(source="unit.label", read_only=True, default=None)
     bed_label = serializers.CharField(source="bed.label", read_only=True, default=None)

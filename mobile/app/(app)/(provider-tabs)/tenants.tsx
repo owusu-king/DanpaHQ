@@ -87,10 +87,7 @@ export default function ProviderTenantsScreen() {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await load(); setRefreshing(false); }} tintColor={theme.color.kola["600"]} />}
       ListHeaderComponent={
         <View style={{ gap: space[4], marginBottom: space[2] }}>
-          <View style={{ gap: space[2] }}>
-            <Type variant="display2" accessibilityRole="header">Tenants</Type>
-            <Type variant="body">Current rental relationships and private Unit access.</Type>
-          </View>
+          <Type variant="body" style={{ color: theme.color.ink["700"] }}>Current rental relationships and private Unit access.</Type>
           {error ? <Notice tone="error" title={error} /> : null}
           {summary ? (
             <Type variant="caption" accessibilityLabel="Portfolio tenancy summary">

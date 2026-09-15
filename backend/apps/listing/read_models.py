@@ -69,7 +69,8 @@ def related_listings(listing: Listing, *, limit: int = 4) -> QuerySet[Listing]:
     )
 
     locality_id = listing.locality_id_cache
-    district_id = listing.unit.property.address.locality.district_id
+    locality = listing.unit.property.address.locality
+    district_id = locality.district_id if locality else None
     property_type = listing.unit.property.property_type
     space_type = listing.unit.space_type
     bedrooms = listing.unit.bedrooms
@@ -92,12 +93,23 @@ def related_listings(listing: Listing, *, limit: int = 4) -> QuerySet[Listing]:
     near_low, near_high = int(monthly_rent * 0.70), int(monthly_rent * 1.30)
     broad_low, broad_high = int(monthly_rent * 0.50), int(monthly_rent * 1.50)
 
+    location_cases = []
+    location_candidates = Q(pk__in=[])
+    if locality_id:
+        location_cases.append(When(locality_id_cache=locality_id, then=Value(1000)))
+        location_candidates |= Q(locality_id_cache=locality_id)
+    if district_id:
+        location_cases.append(
+            When(
+                unit__property__address__locality__district_id=district_id,
+                then=Value(500),
+            )
+        )
+        location_candidates |= Q(
+            unit__property__address__locality__district_id=district_id
+        )
     location_score = Case(
-        When(locality_id_cache=locality_id, then=Value(1000)),
-        When(
-            unit__property__address__locality__district_id=district_id,
-            then=Value(500),
-        ),
+        *location_cases,
         default=Value(0),
         output_field=IntegerField(),
     )
@@ -141,8 +153,7 @@ def related_listings(listing: Listing, *, limit: int = 4) -> QuerySet[Listing]:
     # Do not manufacture relevance from the whole catalogue. A candidate must
     # share geography or a core physical/affordability trait.
     candidates = candidates.filter(
-        Q(locality_id_cache=locality_id)
-        | Q(unit__property__address__locality__district_id=district_id)
+        location_candidates
         | Q(normalized_rent__range=(broad_low, broad_high))
         | Q(unit__property__property_type=property_type)
         | Q(unit__space_type=space_type)

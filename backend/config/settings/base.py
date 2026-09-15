@@ -136,17 +136,28 @@ DATABASES = {
     }
 }
 # --- Maps (ADR 0033) --------------------------------------------------------
-#: The public-read bucket holding the basemap: vector tiles and label fonts. It
-#: is the one public bucket; see `publish_map_assets` for why it stands apart.
-MAP_ASSETS_BUCKET = env("MAP_ASSETS_BUCKET", "rooomly-map")
-#: That bucket's public base URL — a CDN in production. Empty means the object
-#: store's own public endpoint, which follows the caller's host as photos do.
-MAP_ASSETS_PUBLIC_URL = env("MAP_ASSETS_PUBLIC_URL", "")
-MAP_TILES_ARCHIVE = env("MAP_TILES_ARCHIVE", "ghana.pmtiles")
-MAP_ATTRIBUTION = env("MAP_ATTRIBUTION", "© OpenStreetMap contributors · Protomaps")
-#: West, south, east, north: Ghana with a margin.
+#: West, south, east, north: Ghana with a margin. Where every map may go, and the
+#: window markers are drawn for when a search names no area.
 MAP_BOUNDS = [-3.35, 4.6, 1.3, 11.25]
 MAP_DEFAULT_VIEW = {"lat": 5.6037, "lng": -0.187, "zoom": 11}
+
+# Location provider (ADR 0034). Suggestions and the chosen place's location are
+# looked up by the API on a client's behalf, so no client carries a key that can
+# call Places.
+#: "google" for Places API (New), or "localities" for Rooomly's own neighbourhoods.
+#: "google" without a server key falls back to the localities.
+LOCATION_PROVIDER = env("LOCATION_PROVIDER", "google")
+#: Server-only key for Places API (New). In Google Cloud, restrict it to the API's
+#: egress IP addresses and to the Places API (New); it never reaches a client.
+GOOGLE_MAPS_SERVER_API_KEY = env("GOOGLE_MAPS_SERVER_API_KEY", "")
+#: Countries suggestions may come from. Places API (New) accepts up to fifteen.
+GOOGLE_PLACES_REGION_CODES = [
+    code.strip().lower()
+    for code in env("GOOGLE_PLACES_REGION_CODES", "gh").split(",")
+    if code.strip()
+]
+GOOGLE_PLACES_LANGUAGE = env("GOOGLE_PLACES_LANGUAGE", "en")
+GOOGLE_PLACES_TIMEOUT_SECONDS = float(env("GOOGLE_PLACES_TIMEOUT_SECONDS", "4"))
 #: Public listing points are snapped to a grid this many degrees across — about
 #: 300 m in Ghana — so a published marker cannot be walked back to a door.
 LISTING_PUBLIC_CELL_DEGREES = 0.0027
@@ -344,6 +355,9 @@ REST_FRAMEWORK = {
         "access_code_ip": "30/min",
         "viewing_checkin_user": "12/min",
         "viewing_checkin_ip": "30/min",
+        # Suggestions and resolves together. A cost control: generous, because
+        # a phone network puts many tenants behind one address.
+        "places": "240/min",
     },
     "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"],
 }

@@ -101,8 +101,8 @@ def _tenancy(tenancy) -> dict:
             "title": tenancy.property.title,
             # Locality and district come through the address relation; there are
             # no denormalised name columns on Address.
-            "locality": address.locality.name if address else "",
-            "district": address.locality.district.name if address else "",
+            "locality": address.locality_label if address else "",
+            "district": address.district_label if address else "",
         },
         "space": {
             "unit_id": str(tenancy.unit_id),

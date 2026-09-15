@@ -26,11 +26,11 @@ function read(path) {
   }
 }
 
-/** The kinds listed in WANTS_A_REPLY, in declaration order. */
-function kinds(source) {
-  const start = source.indexOf("const WANTS_A_REPLY");
+/** The kinds listed in one presentation set, in declaration order. */
+function kinds(source, declaration = "WANTS_A_REPLY") {
+  const start = source.indexOf(`const ${declaration}`);
   const end = source.indexOf("]", start);
-  return [...source.slice(start, end).matchAll(/"([a-z_]+\.[a-z_]+)"/g)].map((match) => match[1]);
+  return [...source.slice(start, end).matchAll(/"([a-z_]+(?:\.[a-z_]+)+)"/g)].map((match) => match[1]);
 }
 
 const web = read(resolve(here, "./notificationMeaning.ts"));
@@ -48,6 +48,14 @@ test("both clients agree on which notifications wanted a reply", { skip: !web ||
   );
 });
 
+test("both clients agree on semantic success, warning and critical kinds", { skip: !web || !mobile }, () => {
+  for (const declaration of ["SUCCESS", "WARNING", "CRITICAL"]) {
+    const listed = kinds(web, declaration);
+    assert.ok(listed.length > 0, `no kinds parsed out of ${declaration}`);
+    assert.deepEqual(kinds(mobile, declaration), listed, `${declaration} has drifted between clients`);
+  }
+});
+
 test("every kind that wants a reply is one the backend actually emits", { skip: !web }, () => {
   // The old routing table carried a "listing" branch for an event that is never
   // sent. A classification of kinds nobody emits is a guess wearing a rule's
@@ -60,6 +68,11 @@ test("every kind that wants a reply is one the backend actually emits", { skip: 
   );
   for (const kind of kinds(web)) {
     assert.ok(emitted.has(kind), `${kind} is classified but never emitted`);
+  }
+  for (const declaration of ["SUCCESS", "WARNING", "CRITICAL"]) {
+    for (const kind of kinds(web, declaration)) {
+      assert.ok(emitted.has(kind), `${kind} is classified but never emitted`);
+    }
   }
 });
 

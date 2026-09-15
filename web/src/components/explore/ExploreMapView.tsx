@@ -1,14 +1,14 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
-import { createPortal } from "react-dom";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Icon } from "@/components/portal/icons";
 import { ListingCard } from "@/components/listings/ListingCard";
 import { isAborted } from "@/lib/api";
 import type { Listing } from "@/lib/console";
-import { formatBounds, roundCoordinate, type ExploreQuery } from "@/lib/exploreQuery";
+import { formatBounds, roundCoordinate, type ExploreArea, type ExploreQuery } from "@/lib/exploreQuery";
+import { mapSetupHint, mapsConfigured } from "@/lib/maps";
 import {
   getListingsById,
   searchListingMap,
@@ -16,7 +16,7 @@ import {
   type MapFeature,
   type MapListingFeature,
 } from "@/lib/mapSearch";
-import { getMapConfig, type GeoBounds, type MapConfig, type Place } from "@/lib/places";
+import { getMapConfig, type GeoBounds, type MapConfig } from "@/lib/places";
 
 import type { MapMove, MapSelection } from "./ExploreMap";
 import { MapListingPreview } from "./MapListingPreview";
@@ -26,12 +26,16 @@ import { MapListingPreview } from "./MapListingPreview";
  *
  * It holds nothing that is the search. The area, the filters and the sort come
  * in as `query`; what the map adds is only what a map has — the window on
- * screen, the zoom, the marker somebody tapped. Closing it hands back the same
- * query, so the place and the filters are exactly as they were.
+ * screen, the zoom, the marker somebody tapped. Switching back to the list
+ * hands back the same query, so the place and the filters are exactly as they
+ * were.
  *
- * Wide screens put the results beside the map, so a card and its marker point
- * at each other. Narrow screens give the map the whole screen with one switch
- * to the list, and the preview rises from the bottom where a thumb is.
+ * It takes the list's place inside the page rather than covering the page, so
+ * the site's header, the search and the filters stay where they were. Wide
+ * screens put the results beside a map that stays in view under the header as
+ * they scroll, so a card and its marker point at each other. Narrow screens
+ * give the map the page's width with the list one switch away, and the preview
+ * rises from the bottom where a thumb is.
  */
 
 const ExploreMap = dynamic(() => import("./ExploreMap").then((module) => module.ExploreMap), {
@@ -51,13 +55,6 @@ function useNarrow() {
     return () => media.removeEventListener("change", apply);
   }, []);
   return narrow;
-}
-
-const noSubscription = () => () => undefined;
-
-/** True once in the browser, false while rendering on the server. */
-function useInBrowser() {
-  return useSyncExternalStore(noSubscription, () => true, () => false);
 }
 
 function readVisited(): Set<string> {
@@ -96,8 +93,7 @@ type Summary = { total: number; unmapped: number; extent: GeoBounds | null };
 export function ExploreMapView({
   query,
   search,
-  place,
-  controls,
+  area,
   listings,
   next,
   loadingMore,
@@ -108,15 +104,13 @@ export function ExploreMapView({
   onOpenListing,
   onSearchArea,
   onClearFilters,
-  onClose,
   hasFilters,
 }: {
   query: ExploreQuery;
   /** `listingSearchParams(query)`, as a string: the one question both views ask. */
   search: string;
-  place: Place | null;
-  /** The shared location field and filter rail, placed in the map's top bar. */
-  controls: ReactNode;
+  /** The chosen place, when there is one: its name and its box. */
+  area: ExploreArea | null;
   listings: Listing[] | null;
   next: string | null;
   loadingMore: boolean;
@@ -127,11 +121,9 @@ export function ExploreMapView({
   onOpenListing: (listing: Listing) => void;
   onSearchArea: (bounds: GeoBounds) => void;
   onClearFilters: () => void;
-  onClose: () => void;
   hasFilters: boolean;
 }) {
   const narrow = useNarrow();
-  const inBrowser = useInBrowser();
   const [config, setConfig] = useState<MapConfig | null>(null);
   const [configFailed, setConfigFailed] = useState(false);
   const [mapFailed, setMapFailed] = useState(false);
@@ -154,19 +146,15 @@ export function ExploreMapView({
   const summaryRequest = useRef(0);
   const viewRef = useRef<MapMove | null>(null);
 
+  // A build without a map key has no map to wait for: the list is the search.
+  const mapAvailable = mapsConfigured();
+  const setupHint = mapSetupHint();
+
   useEffect(() => {
     setVisited(readVisited());
+    if (!mapAvailable) return;
     getMapConfig().then(setConfig).catch(() => setConfigFailed(true));
-  }, []);
-
-  // The page behind a full-screen map must not scroll under it. The reserved
-  // scrollbar gutter keeps anything from moving sideways as the lock goes on.
-  useEffect(() => {
-    const root = document.documentElement;
-    const previous = root.style.overflow;
-    root.style.overflow = "hidden";
-    return () => { root.style.overflow = previous; };
-  }, []);
+  }, [mapAvailable]);
 
   // A new search is a new set of rentals: whatever was selected may not be in it.
   useEffect(() => {
@@ -174,13 +162,13 @@ export function ExploreMapView({
     setUserMoved(false);
   }, [search]);
 
-  const searched: GeoBounds | null = query.bbox ?? place?.bounds ?? summary?.extent ?? null;
+  const searched: GeoBounds | null = query.bbox ?? area?.bounds ?? summary?.extent ?? null;
 
   // Recomputed each render and cheap: the map refits only when the key changes.
   const areaTarget = query.bbox
     ? { key: `bbox:${formatBounds(query.bbox)}`, bounds: query.bbox, maxZoom: 17 }
-    : place
-      ? { key: `place:${place.slug}`, bounds: place.bounds, maxZoom: place.kind === "landmark" ? 15 : 14 }
+    : area
+      ? { key: `area:${area.ref || formatBounds(area.bounds)}`, bounds: area.bounds, maxZoom: 16 }
       : summary?.extent
         ? { key: "extent", bounds: summary.extent, maxZoom: 14 }
         : null;
@@ -311,10 +299,7 @@ export function ExploreMapView({
 
   const showSearchArea = Boolean(userMoved && view && searched && outgrewSearch(view.bounds, searched));
   const total = summary?.total ?? null;
-  const areaName = query.bbox ? "in this map area" : place ? `in ${place.name}` : "across Ghana";
-  const resultLabel = total === null
-    ? "Finding rentals…"
-    : `${total.toLocaleString("en-GH")} ${total === 1 ? "rental" : "rentals"} ${areaName}`;
+  const areaName = query.bbox ? "in this map area" : area ? `in ${area.name.split(",")[0]}` : "across Ghana";
   const noneHere = total === 0 && !loading;
   const selectedListing = preview.listings[previewIndex] ?? null;
 
@@ -334,143 +319,125 @@ export function ExploreMapView({
     />
   ) : null;
 
-  // Portalled to the body. Rendered in place, the public page's isolated
-  // wrapper kept this full-screen view beneath the site's sticky header.
-  const content = (
+  return (
     <section className="explore-map-view" aria-label="Rentals on a map">
-      <header className="explore-map-bar">
-        {/* Wide screens only: a phone's way back is the switch at the bottom. */}
-        <button type="button" className="explore-map-close" onClick={onClose}>
-          <Icon name="listings" />
-          <span>List view</span>
-        </button>
-        <div className="explore-map-controls">{controls}</div>
-      </header>
-
-      <div className="explore-map-body">
-        <aside className="explore-map-results" aria-label="Results in this search" aria-busy={querying}>
-          <p className="explore-map-count" aria-live="polite">
-            {loading && total !== null ? <span className="explore-count-spinner" aria-hidden="true" /> : null}
-            {resultLabel}
+      <aside className="explore-map-results" aria-label="Results in this search" aria-busy={querying}>
+        {summary?.unmapped ? (
+          <p className="explore-map-note">
+            {summary.unmapped === 1
+              ? "1 rental here has no map position yet. It is in this list."
+              : `${summary.unmapped} rentals here have no map position yet. They are in this list.`}
           </p>
-          {summary?.unmapped ? (
-            <p className="explore-map-note">
-              {summary.unmapped === 1
-                ? "1 rental here has no map position yet. It is in this list."
-                : `${summary.unmapped} rentals here have no map position yet. They are in this list.`}
-            </p>
-          ) : null}
+        ) : null}
 
-          {listings?.length ? (
-            <ul className="explore-map-list">
-              {listings.map((listing) => (
-                <ListingCard
-                  key={listing.id}
-                  listing={listing}
-                  saved={savedIds.has(listing.id)}
-                  onSave={onSave ? () => onSave(listing) : undefined}
-                  onNavigate={() => openListing(listing)}
-                  highlighted={selection?.ids.includes(listing.id) || hoveredId === listing.id}
-                  onHoverChange={(hovering) => setHoveredId(hovering ? listing.id : null)}
-                />
-              ))}
-            </ul>
-          ) : null}
-          {next ? (
-            <button type="button" className="explore-more" disabled={loadingMore} onClick={onLoadMore}>
-              {loadingMore ? "Loading…" : "Show more rentals"}
+        {listings?.length ? (
+          <ul className="explore-map-list">
+            {listings.map((listing) => (
+              <ListingCard
+                key={listing.id}
+                listing={listing}
+                saved={savedIds.has(listing.id)}
+                onSave={onSave ? () => onSave(listing) : undefined}
+                onNavigate={() => openListing(listing)}
+                highlighted={selection?.ids.includes(listing.id) || hoveredId === listing.id}
+                onHoverChange={(hovering) => setHoveredId(hovering ? listing.id : null)}
+              />
+            ))}
+          </ul>
+        ) : null}
+        {next ? (
+          <button type="button" className="explore-more" disabled={loadingMore} onClick={onLoadMore}>
+            {loadingMore ? "Loading…" : "Show more rentals"}
+          </button>
+        ) : null}
+        {listings?.length === 0 && !querying ? (
+          <div className="explore-map-empty-list">
+            <p className="type-body-strong">No available rentals {areaName}.</p>
+            <p className="type-caption">Zoom out and search this area, clear a filter, or try a nearby place.</p>
+          </div>
+        ) : null}
+      </aside>
+
+      <div className="explore-map-stage">
+        {!mapAvailable ? (
+          <div className="explore-map-frame">
+            <div className="explore-map-failed" role="status">
+              <strong>The map is not available here yet.</strong>
+              <span>Every rental in this search is still in the list.</span>
+              {setupHint ? <span>{setupHint}</span> : null}
+            </div>
+          </div>
+        ) : config ? (
+          <ExploreMap
+            config={config}
+            features={features}
+            fit={fit}
+            padding={narrow ? { top: 64, right: 28, bottom: 96, left: 28 } : { top: 64, right: 64, bottom: 64, left: 64 }}
+            selection={selection}
+            hoveredId={hoveredId}
+            visited={visited}
+            preview={narrow ? null : previewCard}
+            previewAt={!narrow && selection && (selectedListing || preview.loading || preview.failed) ? { lat: selection.lat, lng: selection.lng } : null}
+            onMove={(move) => {
+              viewRef.current = move;
+              setView(move);
+              if (move.byUser) {
+                setUserMoved(true);
+                setZoomTo(null);
+              }
+            }}
+            onSelectListing={selectListing}
+            onSelectCluster={selectCluster}
+            onBackgroundClick={() => setSelection(null)}
+            onFailure={() => setMapFailed(true)}
+          />
+        ) : (
+          <div className="explore-map-frame">
+            {configFailed ? (
+              <div className="explore-map-failed" role="status">
+                <strong>The map could not load right now.</strong>
+                <span>Your search is unchanged, and the rentals are still listed.</span>
+              </div>
+            ) : <div className="explore-map-loading" aria-hidden="true" />}
+          </div>
+        )}
+
+        <div className="explore-map-overlay-top">
+          {loading ? <span className="explore-map-progress" aria-hidden="true" /> : null}
+          {showSearchArea && !mapFailed ? (
+            <button type="button" className="explore-search-area" onClick={searchThisArea}>
+              <Icon name="explore" />
+              <span>Search this area</span>
             </button>
           ) : null}
-          {listings?.length === 0 && !querying ? (
-            <div className="explore-map-empty-list">
-              <p className="type-body-strong">No available rentals {areaName}.</p>
-              <p className="type-caption">Zoom out and search this area, clear a filter, or try a nearby place.</p>
-            </div>
+          {markersFailed ? (
+            <button type="button" className="explore-map-retry" onClick={() => fetchMarkers(viewRef.current, true)}>
+              Markers did not update. Retry
+            </button>
+          ) : truncated ? (
+            <p className="explore-map-hint">Zoom in to see every marker in this area.</p>
           ) : null}
-        </aside>
-
-        <div className="explore-map-stage">
-          {config ? (
-            <ExploreMap
-              config={config}
-              features={features}
-              fit={fit}
-              padding={narrow ? { top: 150, right: 32, bottom: 150, left: 32 } : { top: 72, right: 72, bottom: 72, left: 72 }}
-              selection={selection}
-              hoveredId={hoveredId}
-              visited={visited}
-              preview={narrow ? null : previewCard}
-              previewAt={!narrow && selection && (selectedListing || preview.loading || preview.failed) ? { lat: selection.lat, lng: selection.lng } : null}
-              onMove={(move) => {
-                viewRef.current = move;
-                setView(move);
-                if (move.byUser) {
-                  setUserMoved(true);
-                  setZoomTo(null);
-                }
-              }}
-              onSelectListing={selectListing}
-              onSelectCluster={selectCluster}
-              onBackgroundClick={() => setSelection(null)}
-              onFailure={() => setMapFailed(true)}
-            />
-          ) : (
-            <div className="explore-map-frame">
-              {configFailed ? (
-                <div className="explore-map-failed" role="status">
-                  <strong>The map could not load right now.</strong>
-                  <span>Your search is unchanged, and the rentals are still listed.</span>
-                </div>
-              ) : <div className="explore-map-loading" aria-hidden="true" />}
-            </div>
-          )}
-
-          <div className="explore-map-overlay-top">
-            {loading ? <span className="explore-map-progress" aria-hidden="true" /> : null}
-            {showSearchArea && !mapFailed ? (
-              <button type="button" className="explore-search-area" onClick={searchThisArea}>
-                <Icon name="explore" />
-                <span>Search this area</span>
-              </button>
-            ) : null}
-            {markersFailed ? (
-              <button type="button" className="explore-map-retry" onClick={() => fetchMarkers(viewRef.current, true)}>
-                Markers did not update. Retry
-              </button>
-            ) : truncated ? (
-              <p className="explore-map-hint">Zoom in to see every marker in this area.</p>
-            ) : null}
-          </div>
-
-          {noneHere && !mapFailed ? (
-            <div className="explore-map-empty" role="status">
-              <strong>No available rentals {areaName}.</strong>
-              <span>The map stays here; widen the search to see more.</span>
-              <div>
-                {view ? (
-                  <button
-                    type="button"
-                    className="explore-text-button"
-                    onClick={() => setZoomTo({ key: `out:${Date.now()}`, bounds: grow(view.bounds, 1.2), maxZoom: 13 })}
-                  >Zoom out</button>
-                ) : null}
-                {hasFilters ? <button type="button" className="explore-text-button" onClick={onClearFilters}>Clear filters</button> : null}
-              </div>
-            </div>
-          ) : null}
-
-          {narrow && previewCard ? <div className="explore-map-sheet">{previewCard}</div> : null}
         </div>
 
-        {/* A phone's one way back: the list page itself, whose Map switch
-            returns here. Wide screens keep the results beside the map instead. */}
-        <button type="button" className="explore-view-switch" onClick={onClose}>
-          <Icon name="listings" />
-          <span>{total === null ? "List" : `List · ${total.toLocaleString("en-GH")}`}</span>
-        </button>
+        {noneHere && !mapFailed ? (
+          <div className="explore-map-empty" role="status">
+            <strong>No available rentals {areaName}.</strong>
+            <span>The map stays here; widen the search to see more.</span>
+            <div>
+              {view ? (
+                <button
+                  type="button"
+                  className="explore-text-button"
+                  onClick={() => setZoomTo({ key: `out:${Date.now()}`, bounds: grow(view.bounds, 1.2), maxZoom: 13 })}
+                >Zoom out</button>
+              ) : null}
+              {hasFilters ? <button type="button" className="explore-text-button" onClick={onClearFilters}>Clear filters</button> : null}
+            </div>
+          </div>
+        ) : null}
+
+        {narrow && previewCard ? <div className="explore-map-sheet">{previewCard}</div> : null}
       </div>
     </section>
   );
-
-  return inBrowser ? createPortal(content, document.body) : null;
 }

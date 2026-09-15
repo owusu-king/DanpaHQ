@@ -52,13 +52,9 @@ export default function ArchiveScreen() {
 
   return (
     <ScrollView contentContainerStyle={{ padding: space[5], gap: space[4] }}>
-      <View style={{ gap: space[2] }}>
-        <Type variant="label">ACCOUNT & SETTINGS</Type>
-        <Type variant="display2">Archive</Type>
-        <Type variant="body">
-          Archived inventory keeps its history. Restore is available only when the current lifecycle is valid.
-        </Type>
-      </View>
+      <Type variant="body">
+        Archived inventory keeps its history. Restore is available only when the current lifecycle is valid.
+      </Type>
 
       {message ? <Notice tone="success" title={message} /> : null}
       {error ? <Notice tone="error" title={error} /> : null}

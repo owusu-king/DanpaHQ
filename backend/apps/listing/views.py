@@ -6,7 +6,6 @@ from rest_framework.views import APIView
 from apps.core.exceptions import NotFound
 from apps.core.pagination import StandardCursorPagination
 from apps.files.models import StoredFile
-from apps.geo.serializers import PlaceSerializer
 from apps.identity.permissions import IsPhoneVerified
 from apps.property.models import Amenity, Unit
 
@@ -84,8 +83,6 @@ class ListingMapView(APIView):
         body = {"zoom": data["zoom"], "features": features, "truncated": truncated}
         if data.get("summary") is not False:
             body.update(search.map_summary(qs))
-            if area is not None and area.place is not None:
-                body["place"] = PlaceSerializer(area.place).data
         return Response(body)
 
 

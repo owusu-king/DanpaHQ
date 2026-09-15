@@ -38,14 +38,15 @@ test("provider web exposes Portfolio Team, settings, invitations and assignments
   assert.doesNotMatch(team, /<select/);
 });
 
-test("the Portfolio switcher is one header icon and a quick context", () => {
+test("the Portfolio switcher is the header's navigation context", () => {
   const switcher = code(read("web/src/components/portal/PortfolioMenu.tsx"));
   const shell = code(read("web/src/components/portal/PortalShell.tsx"));
   const css = read("web/src/styles/portal.css");
 
-  // One icon, between Search and Updates, with a mark when there is somewhere
-  // else to be — never a count, which would read as unread work.
-  assert.match(shell, /<PortalSearch[\s\S]*<PortfolioMenu me=\{me\} \/>[\s\S]*portal-header-updates/);
+  // Portfolio context comes before the centred search, with a mark when there
+  // is somewhere else to be — never a count, which would read as unread work.
+  assert.match(shell, /<PortfolioMenu me=\{me\} context \/>[\s\S]*<PortalSearch[\s\S]*portal-header-actions/);
+  assert.match(switcher, /portal-context-copy/);
   assert.match(switcher, /portal-header-dot/);
   assert.match(switcher, /title="Switch portfolio"/);
 
@@ -88,37 +89,24 @@ test("the Portfolio switcher is one header icon and a quick context", () => {
   }
 });
 
-test("Portfolio and Updates are one utility control, not two loose icons", () => {
+test("the provider header is context, centred search, notifications and profile", () => {
   const shell = code(read("web/src/components/portal/PortalShell.tsx"));
   const switcher = code(read("web/src/components/portal/PortfolioMenu.tsx"));
   const icons = read("web/src/components/portal/icons.tsx");
   const css = read("web/src/styles/portal.css");
 
-  // One container, in order, with a hairline between — and each action still
-  // its own button or link.
-  assert.match(
-    shell,
-    /<div className="portal-utility">\s*<PortfolioMenu me=\{me\} \/>\s*<span className="portal-utility-rule" aria-hidden="true" \/>\s*<Link href="\/updates" className="portal-header-updates">/,
-  );
-  // A tenant has no Portfolio, so there is nothing for the hairline to divide.
-  assert.match(css, /\.portal-utility-rule:first-child \{ display: none; \}/);
-
-  // Equal sizing and alignment, and the same hover, press and focus on both.
-  for (const state of ["", ":hover", ":active", ":focus-visible"]) {
-    assert.match(
-      css,
-      new RegExp(`\\.portal-header-icon${state},\\s*\\.portal-header-updates${state}`),
-      `the two utility actions do not share ${state || "their sizing"}`,
-    );
-  }
-
-  // One band down the right of the header — the field and the group are the
-  // same height — and a finger gets more of it than a cursor does.
-  assert.match(css, /\.portal-utility \{[^}]*height: 2\.5rem;/);
-  assert.match(css, /\.portal-search-field \{[^}]*height: 2\.5rem;/);
-  assert.match(css, /@media \(pointer: coarse\)/);
+  assert.match(shell, /className=\{`portal-header\$\{isProviderSpace \? " is-provider" : ""\}`\}/);
+  assert.match(shell, /<div className="portal-header-actions">[\s\S]*portal-header-updates[\s\S]*<AccountMenu me=\{me\} collapsed placement="header" \/>/);
+  assert.match(css, /grid-template-columns: minmax\(11rem, 1fr\) minmax\(18rem, 36rem\) minmax\(11rem, 1fr\)/);
+  assert.match(css, /\.portal-header\.is-provider \.portal-search/);
+  assert.match(css, /\.portal-search-field \{[^}]*height: 2\.75rem;/);
+  assert.match(css, /\.portal-account\.is-header \.portal-account-trigger/);
   // Search is what gives way first when the header runs out of room.
   assert.match(css, /@media \(max-width: 47\.99rem\) \{\s*\.portal-search \{ display: none; \}/);
+
+  // Provider chrome does not repeat the page's heading; the title remains only
+  // for the tenant shell, which has no Portfolio context.
+  assert.match(shell, /isProviderSpace \? <PortfolioMenu[\s\S]*: \(\s*<span className="portal-header-title">/);
 
   // A stack of workspaces, not the building that already means Properties.
   assert.match(switcher, /<Icon name="portfolio" \/>/);
