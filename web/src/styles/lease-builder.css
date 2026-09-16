@@ -19,8 +19,10 @@
 .lease-builder-aside strong { color: var(--color-ink-900); font-size: 1rem; }
 .lease-builder-aside span { padding-top: var(--space-3); border-top: var(--border-hairline) solid var(--color-field-200); font-size: .75rem; }
 .lease-field-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-5); }
-.lease-select { display: grid; gap: var(--space-2); color: var(--color-ink-500); font-size: .8125rem; }
-.lease-select select { min-height: 48px; padding-inline: var(--space-3); color: var(--color-ink-900); background: var(--color-field-0); border: var(--border-hairline) solid var(--color-field-300); border-radius: var(--radius-sm); font: inherit; }
+/* Payment frequency and the five utility parties are the shared listbox now,
+   so the frame, the height and the menu come with the control. The grid cell is
+   what remains this sheet's business. */
+.lease-select { min-width: 0; }
 .lease-step-copy { display: grid; gap: var(--space-4); max-width: 46rem; }
 .lease-step-copy p, .lease-step-copy small { margin: 0; color: var(--color-ink-500); }
 .lease-step-copy dl { display: grid; margin: 0; border-block: var(--border-hairline) solid var(--color-field-200); }

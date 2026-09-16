@@ -3,7 +3,6 @@ import { Asset } from "expo-asset";
 import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
-  Animated,
   Platform,
   Pressable,
   ScrollView,
@@ -13,6 +12,14 @@ import {
   type NativeScrollEvent,
   type NativeSyntheticEvent,
 } from "react-native";
+import Animated, {
+  Extrapolation,
+  interpolate,
+  useAnimatedScrollHandler,
+  useAnimatedStyle,
+  useSharedValue,
+  type SharedValue,
+} from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Type, radius, space } from "@/components/ui";
@@ -94,7 +101,15 @@ export default function WelcomeScreen() {
   const widthRef = useRef(width);
   widthRef.current = width;
   const pager = useRef<ScrollView>(null);
-  const scroll = useRef(new Animated.Value(0)).current;
+  /* The pager's offset, shared with the world behind it.
+     `Animated.event` with `useNativeDriver` already kept this off the JS
+     thread; what changes is that the value is now readable from any worklet,
+     so the parallax and the progress rule interpolate it in the same place
+     rather than each holding their own interpolation of the same number. */
+  const scroll = useSharedValue(0);
+  const onScroll = useAnimatedScrollHandler((event) => {
+    scroll.value = event.contentOffset.x;
+  });
   const [frame, setFrame] = useState<LayoutRectangle | null>(null);
   const reduceMotion = useReduceMotion();
 
@@ -119,7 +134,7 @@ export default function WelcomeScreen() {
       // `contentOffset` positions the native scroll view without necessarily
       // emitting an initial scroll event. Keep every interpolation on that same
       // coordinate before the pager is allowed to appear.
-      scroll.setValue(opening * widthRef.current);
+      scroll.value = opening * widthRef.current;
       setOpensAt(opening);
       // The pager mounts at an offset without scrolling to it, so no momentum
       // event ever fires and the controls would still think this is page one.
@@ -222,9 +237,7 @@ export default function WelcomeScreen() {
         // 16ms: the parallax is driven straight from this value, so a coarser
         // throttle would show as the world stepping rather than moving.
         scrollEventThrottle={16}
-        onScroll={Animated.event([{ nativeEvent: { contentOffset: { x: scroll } } }], {
-          useNativeDriver: true,
-        })}
+        onScroll={onScroll}
         onScrollEndDrag={finishDrag}
         onMomentumScrollEnd={finishMomentum}
         contentOffset={{ x: opensAt * width, y: 0 }}
@@ -280,7 +293,7 @@ function JourneyControls({
   onSkip,
   onNext,
 }: {
-  scroll: Animated.Value;
+  scroll: SharedValue<number>;
   width: number;
   stops: number;
   atEnd: boolean;
@@ -292,30 +305,35 @@ function JourneyControls({
 }) {
   const start = (stops - 2) * width;
   const end = (stops - 1) * width;
-  const journeyOpacity = scroll.interpolate({
-    inputRange: [start, end],
-    outputRange: [1, 0],
-    extrapolate: "clamp",
-  });
-  const choiceOpacity = scroll.interpolate({
-    inputRange: [start, end],
-    outputRange: [0, 1],
-    extrapolate: "clamp",
-  });
-  const journeyShift = reduceMotion
-    ? 0
-    : scroll.interpolate({
-        inputRange: [start, end],
-        outputRange: [0, -4],
-        extrapolate: "clamp",
-      });
-  const choiceShift = reduceMotion
-    ? 0
-    : scroll.interpolate({
-        inputRange: [start, end],
-        outputRange: [4, 0],
-        extrapolate: "clamp",
-      });
+
+  /* Two layers occupying the same 52pt, crossfading as the last scene arrives:
+     the journey's controls leave as the choice arrives. Both are computed in
+     one worklet per layer rather than as four separate interpolations of the
+     same offset.
+
+     `reduceMotion` still gates the four points of travel — it is the shift that
+     is decorative, and the crossfade that carries the meaning, so the opacity
+     is deliberately not gated with it. */
+  const journeyStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(scroll.value, [start, end], [1, 0], Extrapolation.CLAMP),
+    transform: [
+      {
+        translateY: reduceMotion
+          ? 0
+          : interpolate(scroll.value, [start, end], [0, -4], Extrapolation.CLAMP),
+      },
+    ],
+  }));
+  const choiceStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(scroll.value, [start, end], [0, 1], Extrapolation.CLAMP),
+    transform: [
+      {
+        translateY: reduceMotion
+          ? 0
+          : interpolate(scroll.value, [start, end], [4, 0], Extrapolation.CLAMP),
+      },
+    ],
+  }));
   const layer = {
     position: "absolute" as const,
     top: 0,
@@ -336,9 +354,8 @@ function JourneyControls({
             flexDirection: "row",
             alignItems: "center",
             justifyContent: "space-between",
-            opacity: journeyOpacity,
-            transform: [{ translateY: journeyShift }],
           },
+          journeyStyle,
         ]}
       >
         <WelcomeProgress scroll={scroll} width={width} scenes={stops} />
@@ -382,9 +399,8 @@ function JourneyControls({
             alignItems: "center",
             justifyContent: "center",
             gap: space[3],
-            opacity: choiceOpacity,
-            transform: [{ translateY: choiceShift }],
           },
+          choiceStyle,
         ]}
       >
         <Pressable onPress={onSignUp} accessibilityRole="link" hitSlop={12}>

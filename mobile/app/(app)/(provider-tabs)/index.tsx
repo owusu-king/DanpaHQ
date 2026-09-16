@@ -2,6 +2,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useState } from "react";
 import { Image, Pressable, RefreshControl, ScrollView, View } from "react-native";
+import Animated from "react-native-reanimated";
 import Svg, { Circle, Line, Path, Rect } from "react-native-svg";
 
 import { useAuth } from "@/auth";
@@ -9,16 +10,18 @@ import { Button, Notice, Type, space } from "@/components/ui";
 import {
   ph,
   PlinthCard,
+  Pill,
   plinthRow,
   plural,
   primarySurface,
   shortDate,
   surface,
-  Ticks,
+  Wash,
   tile,
   useHomeDensity,
 } from "@/components/home/plinth";
 import { formatMinor } from "@/listings";
+import { arrive, useSkeletonPulse } from "@/motion";
 import { listReceivedApplications } from "@/applications";
 import { listGrantedLeases, type Lease } from "@/leases";
 import { listReceivedViewings, type Viewing } from "@/viewings";
@@ -207,97 +210,114 @@ export default function ProviderHomeScreen() {
       }
     >
       <View style={{ gap: space[1], paddingBottom: density.compact ? space[1] : space[2] }}>
-        <Type variant="label" style={{ fontSize: density.labelSize, lineHeight: 14, color: ph.ink38 }}>
-          {summary?.organization.name.toUpperCase() ?? "YOUR PORTFOLIO"}
-        </Type>
-        <Type variant="display2" accessibilityRole="header" style={{ fontSize: density.headingSize, lineHeight: density.headingLine, color: ph.ink }}>
+        {/* The Portfolio, as a chip. It names the thing every figure below
+            belongs to, so it should read as a label on the screen rather than
+            as a caption that got lost above the greeting. The drafted rule that
+            used to sit under the greeting is gone with the rest of the
+            blueprint language. */}
+        <View style={{ alignSelf: "flex-start", marginBottom: space[2] }}>
+          <Pill label={summary?.organization.name ?? "Your Portfolio"} tone="clear" compact={density.compact} />
+        </View>
+        <Type variant="display2" accessibilityRole="header" style={{ fontSize: density.headingSize, lineHeight: density.headingLine, letterSpacing: -0.8, color: ph.ink }}>
           Good day, {name}
         </Type>
-        <View pointerEvents="none" style={{ flexDirection: "row", alignItems: "center", gap: space[2], marginTop: density.compact ? 2 : space[1] }}>
-          <View style={{ width: density.compact ? 24 : 30, height: 2, backgroundColor: ph.gold }} />
-          <View style={{ flex: 1, height: 1, backgroundColor: ph.line }} />
-        </View>
       </View>
 
       {error ? <Notice tone="error" title={error} /> : null}
 
+      {/* The Portfolio resolves top-down, the way it is read: the highlight and
+          the occupancy figures first, then what needs a decision, then the
+          money, then the diary. `order` is each module's place down the screen,
+          written out rather than counted — see `arrive` in `src/motion.ts`. */}
       {featuredProperty ? (
-        <PortfolioHighlight
-          property={featuredProperty}
-          onPress={() => router.push({ pathname: "/(app)/provider-property", params: { propertyId: featuredProperty.id } })}
-        />
+        <Animated.View entering={arrive(0)}>
+          <PortfolioHighlight
+            property={featuredProperty}
+            onPress={() => router.push({ pathname: "/(app)/provider-property", params: { propertyId: featuredProperty.id } })}
+          />
+        </Animated.View>
       ) : null}
 
-      <PortfolioOverview
-        occupancy={occupancy}
-        occupied={occupied}
-        units={unitCount}
-        available={available}
-        properties={counts?.properties ?? properties.length}
-        tenants={counts?.active_tenants ?? 0}
-        attention={attention.length}
-        onProperties={() => router.push("/(app)/(provider-tabs)/properties" as never)}
-        onUnits={() => router.push("/(app)/units" as never)}
-        onTenants={() => router.push("/(app)/(provider-tabs)/tenants" as never)}
-      />
+      <Animated.View entering={arrive(1)}>
+        <PortfolioOverview
+          occupancy={occupancy}
+          occupied={occupied}
+          units={unitCount}
+          available={available}
+          properties={counts?.properties ?? properties.length}
+          tenants={counts?.active_tenants ?? 0}
+          attention={attention.length}
+          onProperties={() => router.push("/(app)/(provider-tabs)/properties" as never)}
+          onUnits={() => router.push("/(app)/units" as never)}
+          onTenants={() => router.push("/(app)/(provider-tabs)/tenants" as never)}
+        />
+      </Animated.View>
 
-      <AttentionPanel signals={attention} onOpen={(to) => router.push(to as never)} />
+      <Animated.View entering={arrive(2)}>
+        <AttentionPanel signals={attention} onOpen={(to) => router.push(to as never)} />
+      </Animated.View>
 
-      <RentCollection
-        collection={summary?.rent_collection ?? null}
-        onPress={() => router.push("/(app)/(provider-tabs)/payments" as never)}
-      />
+      <Animated.View entering={arrive(3)}>
+        <RentCollection
+          collection={summary?.rent_collection ?? null}
+          onPress={() => router.push("/(app)/(provider-tabs)/payments" as never)}
+        />
+      </Animated.View>
 
-      <PlinthCard
-        title="Upcoming viewings"
-        meta={upcoming.length ? `${upcoming.length} booked` : undefined}
-        action={{ label: "All viewings", onPress: () => router.push("/(app)/provider-viewings" as never) }}
-      >
-        {upcoming.length ? (
-          upcoming.map((row, index) => (
-            <View key={row.id} style={plinthRow(index === 0, density.compact)}>
-              <View style={{ width: density.compact ? 62 : 72 }}>
-                <Type variant="bodyStrong" style={{ fontSize: density.compact ? 12.25 : 13, lineHeight: 17, color: ph.ink }}>
-                  {whenLabel(row.confirmed_starts_at as string, openedAt)}
-                </Type>
-                <Type variant="caption" style={{ fontSize: density.compact ? 10.5 : 11, lineHeight: 15, color: ph.ink38 }}>
-                  {shortDate(row.confirmed_starts_at as string)}
-                </Type>
+      <Animated.View entering={arrive(4)}>
+        <PlinthCard
+          title="Upcoming viewings"
+          meta={upcoming.length ? `${upcoming.length} booked` : undefined}
+          action={{ label: "All viewings", onPress: () => router.push("/(app)/provider-viewings" as never) }}
+        >
+          {upcoming.length ? (
+            upcoming.map((row, index) => (
+              <View key={row.id} style={plinthRow(index === 0, density.compact)}>
+                <View style={{ width: density.compact ? 62 : 72 }}>
+                  <Type variant="bodyStrong" style={{ fontSize: density.compact ? 12.25 : 13, lineHeight: 17, color: ph.ink }}>
+                    {whenLabel(row.confirmed_starts_at as string, openedAt)}
+                  </Type>
+                  <Type variant="caption" style={{ fontSize: density.compact ? 10.5 : 11, lineHeight: 15, color: ph.ink38 }}>
+                    {shortDate(row.confirmed_starts_at as string)}
+                  </Type>
+                </View>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Type variant="bodyStrong" style={{ fontSize: density.compact ? 12.5 : 13.5, lineHeight: 18, color: ph.ink }}>{row.listing_headline}</Type>
+                  <Type variant="caption" style={{ fontSize: density.compact ? 11 : 12, lineHeight: 16, color: ph.ink55 }}>{row.tenant_name}</Type>
+                </View>
               </View>
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <Type variant="bodyStrong" style={{ fontSize: density.compact ? 12.5 : 13.5, lineHeight: 18, color: ph.ink }}>{row.listing_headline}</Type>
-                <Type variant="caption" style={{ fontSize: density.compact ? 11 : 12, lineHeight: 16, color: ph.ink55 }}>{row.tenant_name}</Type>
-              </View>
-            </View>
-          ))
-        ) : (
-          <Type variant="caption" style={{ color: ph.ink38, paddingVertical: space[3] }}>
-            {viewings.length ? `${viewings.length} waiting for times` : "Nothing booked"}
-          </Type>
-        )}
-      </PlinthCard>
+            ))
+          ) : (
+            <Type variant="caption" style={{ color: ph.ink38, paddingVertical: space[3] }}>
+              {viewings.length ? `${viewings.length} waiting for times` : "Nothing booked"}
+            </Type>
+          )}
+        </PlinthCard>
+      </Animated.View>
 
       {activity.length ? (
-        <PlinthCard
-          title="Recent activity"
-          action={{ label: "Updates", onPress: () => router.push("/(app)/notifications" as never) }}
-        >
-          {activity.map((event, index) => (
-            <View key={event.id} style={plinthRow(index === 0, density.compact)}>
-              <View style={tile(event.icon === "wallet-outline", density.compact)}>
-                <Ionicons
-                  name={event.icon}
-                  size={density.compact ? 13.5 : 15}
-                  color={event.icon === "wallet-outline" ? ph.sage : ph.graphite}
-                />
+        <Animated.View entering={arrive(5)}>
+          <PlinthCard
+            title="Recent activity"
+            action={{ label: "Updates", onPress: () => router.push("/(app)/notifications" as never) }}
+          >
+            {activity.map((event, index) => (
+              <View key={event.id} style={plinthRow(index === 0, density.compact)}>
+                <View style={tile(event.icon === "wallet-outline", density.compact)}>
+                  <Ionicons
+                    name={event.icon}
+                    size={density.compact ? 13.5 : 15}
+                    color={event.icon === "wallet-outline" ? ph.brand : ph.graphite}
+                  />
+                </View>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Type variant="bodyStrong" style={{ fontSize: density.compact ? 12.25 : 13, lineHeight: 17, color: ph.ink }}>{event.text}</Type>
+                  <Type variant="caption" style={{ fontSize: density.compact ? 10.5 : 11.5, lineHeight: 15, color: ph.ink38 }}>{shortDate(event.at)}</Type>
+                </View>
               </View>
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <Type variant="bodyStrong" style={{ fontSize: density.compact ? 12.25 : 13, lineHeight: 17, color: ph.ink }}>{event.text}</Type>
-                <Type variant="caption" style={{ fontSize: density.compact ? 10.5 : 11.5, lineHeight: 15, color: ph.ink38 }}>{shortDate(event.at)}</Type>
-              </View>
-            </View>
-          ))}
-        </PlinthCard>
+            ))}
+          </PlinthCard>
+        </Animated.View>
       ) : null}
     </ScrollView>
   );
@@ -351,7 +371,7 @@ function PortfolioHighlight({
           alignItems: "center",
           justifyContent: "center",
           overflow: "hidden",
-          backgroundColor: ph.navy,
+          backgroundColor: ph.ink,
           borderRightWidth: 1,
           borderRightColor: ph.line,
         }}
@@ -370,7 +390,7 @@ function PortfolioHighlight({
 
       <View style={{ flex: 1, minWidth: 0, justifyContent: "center", paddingHorizontal: density.compact ? 11 : 14, paddingVertical: density.compact ? 9 : 11 }}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-          <View style={{ width: 5, height: 5, transform: [{ rotate: "45deg" }], backgroundColor: ph.gold }} />
+          <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: ph.brand }} />
           <Type variant="label" style={{ flex: 1, fontSize: density.compact ? 8.5 : 9.5, lineHeight: 12, letterSpacing: 0.55, color: ph.ink38 }} numberOfLines={1}>
             PORTFOLIO HIGHLIGHT
           </Type>
@@ -386,9 +406,9 @@ function PortfolioHighlight({
 
         <View style={{ flexDirection: "row", alignItems: "center", gap: space[2], marginTop: density.compact ? 6 : 8 }}>
           <View style={{ flex: 1, height: 4, overflow: "hidden", borderRadius: 3, backgroundColor: ph.lineStrong }}>
-            <View style={{ width: `${occupancy}%`, height: "100%", borderRadius: 3, backgroundColor: ph.sage }} />
+            <View style={{ width: `${occupancy}%`, height: "100%", borderRadius: 3, backgroundColor: ph.brand }} />
           </View>
-          <Type variant="caption" style={{ fontSize: density.compact ? 9.5 : 10.5, lineHeight: 13, fontWeight: "600", color: ph.sage }}>
+          <Type variant="caption" style={{ fontSize: density.compact ? 9.5 : 10.5, lineHeight: 13, fontWeight: "600", color: ph.brand }}>
             {occupancy}%
           </Type>
         </View>
@@ -438,15 +458,15 @@ function PortfolioOverview({
   const markAngle = (clamped * 3.6 - 90) * (Math.PI / 180);
 
   return (
-    <View style={[primarySurface, { padding: density.cardPadding, borderRadius: density.compact ? 14 : 16 }]}>
-      <Ticks />
+    <View style={[primarySurface, { padding: density.cardPadding, borderRadius: density.cardRadius }]}>
+      <Wash />
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: space[2], marginBottom: density.compact ? space[3] : space[4] }}>
         <Type variant="bodyStrong" style={{ fontSize: density.compact ? 13 : 14, lineHeight: 19, color: ph.ink }}>Portfolio overview</Type>
-        <View style={{ flexShrink: 1, paddingHorizontal: density.compact ? 7 : 9, paddingVertical: density.compact ? 2 : 3, borderRadius: 20, backgroundColor: attention ? ph.amberSoft : ph.greenSoft }}>
-          <Type variant="caption" numberOfLines={1} style={{ fontSize: density.compact ? 10.25 : 11.5, lineHeight: 15, fontWeight: "500", color: attention ? ph.amber : ph.sage }}>
-            {attention ? `${attention} ${plural(attention, "item needs", "items need")} you` : "All systems normal"}
-          </Type>
-        </View>
+        <Pill
+          tone={attention ? "attention" : "clear"}
+          compact={density.compact}
+          label={attention ? `${attention} ${plural(attention, "item needs", "items need")} you` : "All systems normal"}
+        />
       </View>
 
       {/* Side by side. Stacked, the dial pushed the figures most of a screen
@@ -479,10 +499,10 @@ function PortfolioOverview({
               cy={centre}
               r={radius}
               fill="none"
-              stroke={ph.gold}
+              stroke={ph.brand}
               strokeWidth={1}
               strokeDasharray="1 7.6"
-              opacity={showCount ? 0.9 : 0.45}
+              opacity={showCount ? 0.5 : 0}
             />
             {showCount ? (
               <Line
@@ -490,8 +510,8 @@ function PortfolioOverview({
                 y1={centre + Math.sin(markAngle) * (radius + (density.compact ? 6 : 8))}
                 x2={centre + Math.cos(markAngle) * (radius + (density.compact ? 13 : 17))}
                 y2={centre + Math.sin(markAngle) * (radius + (density.compact ? 13 : 17))}
-                stroke={ph.gold}
-                strokeWidth={2}
+                stroke={ph.brand}
+                strokeWidth={2.5}
                 strokeLinecap="round"
               />
             ) : null}
@@ -584,12 +604,7 @@ function PortfolioLedger({
         </View>
       </Pressable>
 
-      {/* A measured rule rather than another container: gold establishes the
-          register, graphite carries it to the edge. */}
-      <View pointerEvents="none" style={{ flexDirection: "row", alignItems: "center" }}>
-        <View style={{ width: compact ? 18 : 22, height: 1.5, backgroundColor: ph.gold }} />
-        <View style={{ flex: 1, height: 1, backgroundColor: ph.line }} />
-      </View>
+      <View pointerEvents="none" style={{ height: 1, backgroundColor: ph.line }} />
 
       <View style={{ flexDirection: "row", alignItems: "stretch", minHeight: compact ? 29 : 34 }}>
         <LedgerRelation label="Properties" value={properties} onPress={onProperties} compact={compact} />
@@ -606,11 +621,11 @@ function PortfolioLedger({
         style={{ minHeight: compact ? 22 : 25, flexDirection: "row", alignItems: "center", gap: 6, borderTopWidth: 1, borderTopColor: ph.line }}
         {...pressableFeedback(ph.paperDim)}
       >
-        <View style={{ width: 9, height: 9, borderRadius: 5, alignItems: "center", justifyContent: "center", backgroundColor: ph.greenSoft }}>
-          <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: ph.sage }} />
+        <View style={{ width: 9, height: 9, borderRadius: 5, alignItems: "center", justifyContent: "center", backgroundColor: ph.brandSoft }}>
+          <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: ph.brand }} />
         </View>
         <Type variant="caption" style={{ flex: 1, fontSize: compact ? 9.5 : 10.5, lineHeight: 13, color: ph.ink55 }} numberOfLines={1}>
-          <Type variant="caption" style={{ fontSize: compact ? 10.5 : 11.5, lineHeight: 13, fontWeight: "700", color: ph.sage }}>{available}</Type>
+          <Type variant="caption" style={{ fontSize: compact ? 10.5 : 11.5, lineHeight: 13, fontWeight: "700", color: ph.brand }}>{available}</Type>
           {"  "}{available ? "vacant · ready to let" : "vacant · fully occupied"}
         </Type>
       </Pressable>
@@ -679,8 +694,8 @@ function AttentionPanel({ signals, onOpen }: { signals: AttentionSignal[]; onOpe
         ))
       ) : (
         <View style={{ flexDirection: "row", alignItems: "center", gap: density.compact ? space[2] : space[3], paddingVertical: space[2] }}>
-          <View style={{ width: density.compact ? 24 : 26, height: density.compact ? 24 : 26, borderRadius: 13, alignItems: "center", justifyContent: "center", backgroundColor: ph.greenSoft }}>
-            <Ionicons name="checkmark" size={density.compact ? 13 : 14} color={ph.sage} />
+          <View style={{ width: density.compact ? 24 : 26, height: density.compact ? 24 : 26, borderRadius: 13, alignItems: "center", justifyContent: "center", backgroundColor: ph.brandSoft }}>
+            <Ionicons name="checkmark" size={density.compact ? 13 : 14} color={ph.brand} />
           </View>
           <View style={{ flex: 1 }}>
             <Type variant="bodyStrong" style={{ fontSize: density.compact ? 12.25 : 13.2, lineHeight: 17, color: ph.ink }}>Nothing is waiting on you.</Type>
@@ -757,8 +772,8 @@ function RentCollection({
   };
 
   return (
-    <View style={[primarySurface, { padding: density.cardPadding, borderRadius: density.compact ? 14 : 16 }]}>
-      <Ticks />
+    <View style={[primarySurface, { padding: density.cardPadding, borderRadius: density.cardRadius }]}>
+      <Wash />
       <View style={{ flexDirection: density.veryCompact ? "column" : "row", alignItems: "flex-start", justifyContent: "space-between", gap: density.compact ? space[2] : space[3] }}>
         <View style={{ flex: 1, minWidth: 0 }}>
           <Type variant="label" style={{ fontSize: density.compact ? 9.5 : 10.5, lineHeight: 13, color: ph.ink38 }}>RENT COLLECTION</Type>
@@ -779,7 +794,7 @@ function RentCollection({
                   paddingHorizontal: density.compact ? 8 : 11,
                   paddingVertical: density.compact ? 3 : 5,
                   borderRadius: 6,
-                  backgroundColor: period === option ? ph.navy : "transparent",
+                  backgroundColor: period === option ? ph.ink : "transparent",
                 }}
               >
                 <Type variant="caption" style={{ fontSize: density.compact ? 10.5 : 11.5, lineHeight: 15, fontWeight: "500", color: period === option ? "#fff" : ph.ink55 }}>
@@ -794,7 +809,7 @@ function RentCollection({
       <View style={{ flexDirection: "row", gap: density.compact ? space[3] : space[6], marginTop: density.compact ? space[3] : space[4], marginBottom: density.compact ? space[2] : space[3] }}>
         <View style={{ flex: 1, minWidth: 0 }}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-            <View style={{ width: density.compact ? 7 : 8, height: density.compact ? 7 : 8, borderRadius: 2, backgroundColor: ph.navy }} />
+            <View style={{ width: density.compact ? 7 : 8, height: density.compact ? 7 : 8, borderRadius: 2, backgroundColor: ph.ink }} />
             <Type variant="caption" style={{ fontSize: density.compact ? 10.5 : 11.5, lineHeight: 15, color: ph.ink55 }}>Collected</Type>
           </View>
           <Type variant="display2" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82} style={{ fontSize: density.compact ? 17 : 19, lineHeight: density.compact ? 21 : 24, color: ph.ink }}>
@@ -803,7 +818,7 @@ function RentCollection({
         </View>
         <View style={{ flex: 1, minWidth: 0 }}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-            <View style={{ width: density.compact ? 7 : 8, height: density.compact ? 7 : 8, borderRadius: 2, backgroundColor: ph.goldStrong }} />
+            <View style={{ width: density.compact ? 7 : 8, height: density.compact ? 7 : 8, borderRadius: 2, backgroundColor: ph.amberStrong }} />
             <Type variant="caption" style={{ fontSize: density.compact ? 10.5 : 11.5, lineHeight: 15, color: ph.ink55 }}>Outstanding</Type>
           </View>
           <Type variant="display2" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82} style={{ fontSize: density.compact ? 17 : 19, lineHeight: density.compact ? 21 : 24, color: ph.ink }}>
@@ -815,7 +830,7 @@ function RentCollection({
       {points.length ? (
         <>
           <View style={{ minHeight: 18, flexDirection: "row", alignItems: "center", gap: 6, marginBottom: density.compact ? 2 : 4 }}>
-            <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: reading ? ph.gold : ph.lineStrong }} />
+            <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: reading ? ph.brand : ph.lineStrong }} />
             <Type variant="caption" style={{ flex: 1, fontSize: density.compact ? 9.5 : 10.5, lineHeight: 14, color: reading ? ph.ink70 : ph.ink38 }} numberOfLines={1}>
               {reading ? `${periodLabel(reading.period, period)} selected` : "Touch a period to inspect it"}
             </Type>
@@ -833,7 +848,7 @@ function RentCollection({
                   y1={top + plotHeight * ratio}
                   x2={left + plotWidth}
                   y2={top + plotHeight * ratio}
-                  stroke="rgba(24,22,17,0.08)"
+                  stroke={ph.line}
                   strokeWidth={1}
                 />
               ))}
@@ -848,12 +863,12 @@ function RentCollection({
                     width={barWidth}
                     height={barHeight}
                     rx={Math.min(barWidth / 2, barHeight / 2)}
-                    fill={active === index ? "#B5822E" : index === points.length - 1 ? ph.goldStrong : ph.goldSoft}
+                    fill={active === index ? ph.amber : index === points.length - 1 ? ph.amberStrong : ph.amberSoft}
                   />
                 );
               })}
-              {area ? <Path d={area} fill="rgba(27,36,48,0.10)" /> : null}
-              {line ? <Path d={line} fill="none" stroke="#12181F" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" /> : null}
+              {area ? <Path d={area} fill={ph.brandSoft} /> : null}
+              {line ? <Path d={line} fill="none" stroke={ph.brand} strokeWidth={2.8} strokeLinecap="round" strokeLinejoin="round" /> : null}
               {points.map((row, index) =>
                 active === index || index === points.length - 1 ? (
                   <Circle
@@ -861,7 +876,7 @@ function RentCollection({
                     cx={x(index)}
                     cy={y(row.collected_minor)}
                     r={active === index ? 5 : 4}
-                    fill="#0F1620"
+                    fill={ph.brand}
                     stroke={ph.paper}
                     strokeWidth={2}
                   />
@@ -963,23 +978,33 @@ function RentCollection({
   );
 }
 
-/** The shape of the screen, before it arrives. */
+/**
+ * The shape of the screen, before it arrives.
+ *
+ * It used to sit at a flat `opacity: 0.7` while the tenant's identical blocks
+ * pulsed — one Home reading as loading and the other as a rendering fault. The
+ * pulse is the shared one now, so both say "working" at the same rate.
+ */
 function ProviderDashboardSkeleton() {
   const density = useHomeDensity();
+  const pulse = useSkeletonPulse();
   const block = (height: number) => ({
     height,
     borderRadius: density.compact ? 14 : 16,
     backgroundColor: ph.paper,
     borderWidth: 1,
     borderColor: ph.line,
-    opacity: 0.7,
   });
   return (
-    <View accessibilityRole="progressbar" accessibilityLabel="Loading your Portfolio" style={{ gap: density.sectionGap }}>
+    <Animated.View
+      accessibilityRole="progressbar"
+      accessibilityLabel="Loading your Portfolio"
+      style={[{ gap: density.sectionGap }, pulse]}
+    >
       <View style={block(density.compact ? 218 : 260)} />
       <View style={block(density.compact ? 128 : 150)} />
       <View style={block(density.compact ? 192 : 230)} />
-    </View>
+    </Animated.View>
   );
 }
 

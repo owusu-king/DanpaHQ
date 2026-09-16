@@ -1,12 +1,13 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 
+import { AuthLink, AuthShell } from "@/components/auth/AuthShell";
 import { Button } from "@/components/Button";
 import { Field } from "@/components/Field";
 import { Notice } from "@/components/Notice";
+import { useToast } from "@/components/toast/Toaster";
 import { apiFetch, ApiFailure } from "@/lib/api";
 import { setAccessToken } from "@/lib/auth";
 import { isNotAProvider } from "@/lib/formErrors";
@@ -31,6 +32,7 @@ function SignInContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { refresh, signOut } = useSession();
+  const { toast } = useToast();
 
   const requested = searchParams.get("workspace");
   const workspace: Workspace | null =
@@ -48,7 +50,6 @@ function SignInContent() {
   const [phone, setPhone] = useState(searchParams.get("phone") ?? "");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
   // Signed in fine, but this account is not a provider. Not a failure to fix —
   // a fact to state, with somewhere to go.
   const [notAProvider, setNotAProvider] = useState(false);
@@ -56,7 +57,6 @@ function SignInContent() {
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     setBusy(true);
-    setError("");
     try {
       const result = await apiFetch<{
         access_token: string;
@@ -95,9 +95,15 @@ function SignInContent() {
       // would make this an open redirect, and the value comes from the URL.
       router.replace((safeNext ?? resolveWebEntry(me)) as never);
     } catch (cause) {
-      setError(
-        cause instanceof ApiFailure ? cause.error.message : "Could not sign you in.",
-      );
+      // A toast rather than a panel under the fields. The failure here is
+      // almost never about one field — it is "that pair is wrong", "we could
+      // not reach the service", "wait thirty seconds" — and a block appearing
+      // mid-form pushes the button the person is aiming at further down the
+      // screen as they read it.
+      toast({
+        tone: "error",
+        title: cause instanceof ApiFailure ? cause.error.message : "Could not sign you in.",
+      });
     } finally {
       setBusy(false);
     }
@@ -111,14 +117,16 @@ function SignInContent() {
 
   if (notAProvider) {
     return (
-      <main id="main" style={{ maxWidth: "28rem", margin: "0 auto", padding: "var(--space-12) var(--space-5)" }}>
-        <h1 className="type-display-2">You are not a provider</h1>
-        <Notice
-          tone="info"
-          title="This account is registered as a tenant"
-          body="Provider accounts are created at sign-up. You are signed in — your tenant space is ready when you are."
-        />
-        <div style={{ display: "grid", gap: "var(--space-3)", marginTop: "var(--space-6)" }}>
+      <AuthShell
+        title="You are not a provider"
+        footer={<span>Provider accounts are created at sign-up.</span>}
+      >
+        <div className="mt-6 grid gap-4">
+          <Notice
+            tone="info"
+            title="This account is registered as a tenant"
+            body="Provider accounts are created at sign-up. You are signed in — your tenant space is ready when you are."
+          />
           <Button onClick={() => router.replace("/rentals" as never)}>
             Go to your tenant space
           </Button>
@@ -126,26 +134,39 @@ function SignInContent() {
             Sign out
           </Button>
         </div>
-      </main>
+      </AuthShell>
     );
   }
 
   return (
-    <main id="main" style={{ maxWidth: "28rem", margin: "0 auto", padding: "var(--space-12) var(--space-5)" }}>
-      <h1 className="type-display-2">{heading}</h1>
-      <p className="type-body" style={{ color: "var(--color-ink-700)" }}>
-        Use the phone number on your account and your password.
-      </p>
-
+    <AuthShell
+      title={heading}
+      lede="Use the phone number on your account and your password."
+      footer={
+        <>
+          <span>
+            <AuthLink href="/forgot-password">Forgot your password?</AuthLink>
+          </span>
+          <span>
+            No account yet? <AuthLink href={registrationHref}>Create one</AuthLink>
+          </span>
+          <span>
+            <AuthLink href="/rentals">Or keep browsing without an account →</AuthLink>
+          </span>
+        </>
+      }
+    >
       {workspace === "provider" ? (
-        <Notice
-          tone="info"
-          title="Provider access is reviewed"
-          body="Signing in shows you where your provider verification stands. Approval is what opens property tools."
-        />
+        <div className="mt-6">
+          <Notice
+            tone="info"
+            title="Provider access is reviewed"
+            body="Signing in shows you where your provider verification stands. Approval is what opens property tools."
+          />
+        </div>
       ) : null}
 
-      <form onSubmit={submit} style={{ display: "grid", gap: "var(--space-4)", marginTop: "var(--space-6)" }}>
+      <form onSubmit={submit} className="mt-6 grid gap-4">
         <Field
           label="Mobile number"
           value={phone}
@@ -163,25 +184,11 @@ function SignInContent() {
           autoComplete="current-password"
           required
         />
-        {error ? <Notice tone="error" title={error} /> : null}
         <Button type="submit" busy={busy} disabled={!phone.trim() || !password}>
           Sign in
         </Button>
       </form>
-
-      <p className="type-caption" style={{ marginTop: "var(--space-6)" }}>
-        <Link href="/forgot-password">Forgot your password?</Link>
-      </p>
-      <p className="type-caption">
-        No account yet?{" "}
-        <Link href={registrationHref as never}>
-          Create one
-        </Link>
-      </p>
-      <p className="type-caption" style={{ marginTop: "var(--space-6)" }}>
-        <Link href="/rentals">Or keep browsing without an account →</Link>
-      </p>
-    </main>
+    </AuthShell>
   );
 }
 

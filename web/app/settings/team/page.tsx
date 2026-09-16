@@ -147,6 +147,7 @@ export default function TeamPage() {
       <div className="team-workspace">
         <section className="settings-section"><h2>Team</h2></section>
         <Empty
+          icon="users"
           title="A Team needs a Portfolio first"
           body="Your personal Portfolio is created with your first Property. Full business setup is for a company, hostel operation, professional manager, or a Team from the start."
           action={
@@ -171,17 +172,13 @@ export default function TeamPage() {
       {notice ? <Notice tone="success" title={notice} /> : null}
 
       {organizations.length > 1 ? (
-        <label className="team-portfolio-switch">
-          <span className="type-caption">Portfolio</span>
-          <select
-            value={organization?.id ?? ""}
-            onChange={(event) => setActiveContext(`organization:${event.target.value}`)}
-          >
-            {organizations.map((row) => (
-              <option key={row.id} value={row.id}>{row.name}</option>
-            ))}
-          </select>
-        </label>
+        <Select
+          label="Portfolio"
+          value={organization?.id ?? ""}
+          onChange={(next) => setActiveContext(`organization:${next}`)}
+          options={organizations.map((row) => [row.id, row.name] as const)}
+          className="team-portfolio-switch"
+        />
       ) : null}
 
       {organization && !canManageTeam ? (
@@ -223,7 +220,7 @@ export default function TeamPage() {
                 ))}
               </ul>
             ) : (
-              <Empty title="No matching member" body="Try another name or number." />
+              <Empty icon="users" title="No matching member" body="Try another name or number." />
             )}
           </Section>
 

@@ -6,15 +6,6 @@
 
 .agreements { display: grid; gap: var(--space-6); }
 
-.agreement-filter-empty {
-  display: grid;
-  gap: var(--space-1);
-  padding: var(--space-8) 0;
-  border-bottom: var(--border-hairline) solid var(--color-field-200);
-}
-.agreement-filter-empty strong { color: var(--color-ink-900); font-size: .9375rem; }
-.agreement-filter-empty span { color: var(--color-ink-500); font-size: .875rem; }
-
 /* Three counts, a search, then the stages — the shape every other list in
    the product uses. A tenant reading their agreements is doing the same job
    from the other side, and should not have to learn a second way of it. */

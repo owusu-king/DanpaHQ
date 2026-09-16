@@ -101,55 +101,15 @@
 /* A prefix already carries the left padding, so the input only needs the gap. */
 .field-prefix + .field-input { padding-inline-start: var(--space-2); }
 
-/* --- choosing one of a list ------------------------------------------------- */
-
-.select-shell { position: relative; display: grid; min-width: 0; }
-
-/* Two borders on a rotated square. The operating system's own arrow is the
-   single clearest tell that a control was never designed, and it cannot be
-   recoloured to match anything around it. */
-.select-shell::after {
-  content: "";
-  position: absolute;
-  inset-inline-end: var(--space-4);
-  top: 50%;
-  width: 7px;
-  height: 7px;
-  border-right: var(--border-emphasis) solid var(--color-ink-500);
-  border-bottom: var(--border-emphasis) solid var(--color-ink-500);
-  transform: translateY(-70%) rotate(45deg);
-  pointer-events: none;
-}
-.select-shell-disabled::after { border-color: var(--color-ink-300); }
-
-.select-control {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 100%;
-  min-width: 0;
-  min-height: var(--target-min);
-  padding: 0 calc(var(--space-4) * 2 + 7px) 0 var(--space-3);
-  background: var(--color-field-0);
-  border: var(--border-hairline) solid var(--color-field-300);
-  border-radius: var(--radius-md);
-  color: var(--color-ink-900);
-  cursor: pointer;
-  transition:
-    border-color var(--motion-duration-fast) var(--motion-easing-standard),
-    box-shadow var(--motion-duration-fast) var(--motion-easing-standard);
-}
-.select-control:hover { border-color: var(--color-ink-300); }
-.select-control:focus-visible {
-  outline: none;
-  border-color: var(--color-kola-600);
-  box-shadow: 0 0 0 3px var(--color-kola-50);
-}
-.select-control:disabled {
-  background: var(--color-field-100);
-  border-color: var(--color-field-200);
-  color: var(--color-ink-500);
-  cursor: not-allowed;
-}
+/* --- choosing one of a list -------------------------------------------------
+ *
+ * Nothing here any more. `components/Select` was a native `<select>` with the
+ * platform arrow stripped and a chevron drawn back on from two borders on a
+ * rotated square; it is a Radix listbox now, which brings its own trigger and
+ * its own menu, so `.select-shell` and `.select-control` had no elements left
+ * to style. They are removed rather than kept "in case": dead rules are how a
+ * stylesheet grows a second, older idea of what a control looks like.
+ */
 
 /* --- ticking something ------------------------------------------------------ */
 

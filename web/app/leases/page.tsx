@@ -187,6 +187,7 @@ function TenantLeases() {
         <LoadingRows rows={2} />
       ) : leases.length === 0 ? (
         <Empty
+          icon="leases"
           title="No agreement yet"
           body="When a landlord sends you one, it waits here for your decision. Nothing binds you until you accept it."
           action={<Link href="/rentals" className="type-body-strong">Explore rentals →</Link>}
@@ -225,7 +226,7 @@ function TenantLeases() {
               {visible.map((row) => <AgreementRow key={row.lease.id} {...row} />)}
             </ul>
           ) : query ? (
-            <Empty title="No matching agreements" body="Try another home or landlord." />
+            <Empty icon="leases" title="No matching agreements" body="Try another home or landlord." />
           ) : (
             <AgreementFilterEmpty filter={filter} />
           )}
@@ -251,12 +252,7 @@ function AgreementFilterEmpty({ filter }: { filter: AgreementFilter }) {
     active: { title: "No active agreements", body: "Accepted agreements will remain easy to find here." },
     past: { title: "No past agreements", body: "Declined, withdrawn, and ended agreements will appear here." },
   };
-  return (
-    <div className="agreement-filter-empty" role="status">
-      <strong>{copy[filter].title}</strong>
-      <span>{copy[filter].body}</span>
-    </div>
-  );
+  return <Empty variant="inline" title={copy[filter].title} body={copy[filter].body} />;
 }
 
 function AgreementRow({
@@ -414,6 +410,7 @@ function ProviderLeases() {
           {visible.map((lease) => <ProviderLeaseRow key={lease.id} lease={lease} />)}
         </ul>
       ) : <Empty
+        icon="leases"
         title={query ? "No matching agreements" : stage === "send" ? "Nothing to send" : stage === "current" ? "No current agreements" : stage === "history" ? "No agreement history yet" : "No agreements yet"}
         body={query ? "Try a different tenant, Property or Unit." : stage === "send" ? "Prepare agreements from accepted tenancy requests. Saved drafts appear here before they are sent." : stage === "current" ? "Sent, accepted and active agreements appear here." : stage === "history" ? "Declined, withdrawn and ended agreements remain available as records." : "Agreements you prepare from accepted tenancy requests appear here."}
         action={(stage === "send" || stage === "all") && !query ? <Link href="/applications" className="type-body-strong">Open tenancy requests →</Link> : undefined}

@@ -830,3 +830,64 @@ ADR 0032.
   behavior, without a chart dependency.
 - Verified the signed-in live dashboard at wide and tablet widths, including
   scoped search and chart switching, plus focused backend/web contracts.
+
+## 15 September 2026 — The last native selects, and one empty state
+
+- Converted the eleven remaining `<select>` elements a customer could reach onto
+  the shared Radix listbox: the Portfolio pickers on Tenants and Team, which
+  charge a payment settles and how it arrived, an expense's Property and
+  category, a tenant's cancellation reason and post-viewing report, the
+  provider's cancellation reason, and the lease builder's payment frequency and
+  five utility parties. Each had been opening a menu the operating system drew.
+- Two of them were also below the 48px target minimum the rest of the product
+  stands at — the provider's cancellation reason at an inline-styled 44px, and
+  both tenant viewing pickers at 44px in `viewings-tenant.css`.
+- Deleted the four stylesheet rules that had been framing those native controls,
+  including `.rent-portfolio-select`, which had outlived its element.
+- Gave every empty state a mark, and collapsed the filter-empty that Viewings,
+  Agreements and Applications had each written by hand — identically, under
+  three class names in three sheets — onto an `inline` variant of the shared
+  `Empty`. The copy did not move; only the drawing did.
+- Three contract tests now hold the rule product-wide rather than inside the
+  component: no screen hands a `<select>` to the reader, no stylesheet dresses
+  one that is gone, and the empty state exists in exactly two weights. The two
+  deliberate exceptions are named in the test with their reasoning — the
+  Management console, which is its own denser language and wants a listbox at
+  its own density, and the phone's quick-filter pill, which covers a native
+  select on purpose.
+
+## 15 September 2026 — Mobile motion on Reanimated
+
+- Added `react-native-reanimated` 4.1 and `react-native-worklets`, SDK-matched
+  through `expo install`. No babel change: `babel-preset-expo` adds
+  `react-native-worklets/plugin` when the package is present, and adding it by
+  hand would process every worklet twice.
+- `src/motion.ts` is the app's motion language — the `enter`, `exit` and
+  `standard` curves, the four durations, one press spring and two press scales,
+  all built from the same `tokens.json` the web reads. Nothing else states a
+  duration or a curve.
+- Converted every animation in the app off React Native's `Animated`: the tab
+  bar, the header disc, both Home skeletons, the shortcut tiles, the services
+  cards, the checkpoint journey, and the welcome pager's parallax, progress rule
+  and control crossfade. The app had been agreeing with itself by transcription —
+  `speed: 34, bounciness: 2` written out in four files — and now agrees by
+  import.
+- Reduce Motion is answered on the UI thread by `ReduceMotion.System` in every
+  config, rather than by four screens each subscribing to the setting to
+  multiply a duration by zero. `useReduceMotion` survives for the one case a
+  config cannot express: the skeleton pulse, where the right answer is not to
+  start the loop rather than to freeze it at its faintest value.
+- **New motion, not just ported motion.** Both Homes swapped a skeleton for a
+  full dashboard between one frame and the next. The skeleton now leaves on the
+  exit curve, the modules arrive in reading order 45ms apart, and the column
+  animates its own height, so the screen resolves instead of flashing. The
+  provider's skeleton also pulses, which it never did beside a tenant skeleton
+  that always had.
+- `src/motion.contract.test.mjs` holds the rules: one animation system, no
+  literal milliseconds or curves, one spring, Reduce Motion answered everywhere,
+  no shared value written during render, and both Homes arriving the same way.
+  Seven existing contracts that pinned the old `Animated` implementation were
+  rewritten to assert the intent instead.
+- Verified by type-check, lint, 119 mobile contracts, and full iOS and Android
+  bundles through Metro — which is what proves the worklet plugin actually ran;
+  the shipped bundle carries the compiled worklets.

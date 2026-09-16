@@ -1,9 +1,8 @@
-import { useEffect, useRef } from "react";
-import { Animated, View } from "react-native";
+import { View } from "react-native";
+import Animated from "react-native-reanimated";
 
 import { ph, useHomeDensity } from "@/components/home/plinth";
-import { motion } from "@/components/ui";
-import { useReduceMotion } from "@/motion";
+import { useSkeletonPulse } from "@/motion";
 
 /**
  * The shape of the screen, before it arrives.
@@ -13,43 +12,19 @@ import { useReduceMotion } from "@/motion";
  * geometry cost nothing and buy two things: the layout does not jump, and the
  * wait reads as this screen loading rather than as this screen being empty.
  *
- * Paper on stone, in the places the Overview, the attention panel and the homes
- * will occupy. The pulse is the quietest one that still says "working" —
- * opacity between 0.45 and 1, on the shared `base` duration. Reduce Motion
- * holds it still rather than removing it, because the shape is the point and
- * the movement is only the reassurance.
+ * White surfaces on the canvas, in the places the Overview, the attention panel
+ * and the homes will occupy. The pulse is the quietest one that still says
+ * "working", and it is `useSkeletonPulse` rather than a loop written here so
+ * that the provider's Portfolio — which drew the same blocks and forgot to move
+ * them at all — breathes at the same rate.
  */
 export function HomeSkeleton() {
   const density = useHomeDensity();
-  const pulse = useRef(new Animated.Value(0.45)).current;
-  const reduceMotion = useReduceMotion();
-
-  useEffect(() => {
-    if (reduceMotion) {
-      pulse.setValue(0.75);
-      return;
-    }
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulse, {
-          toValue: 1,
-          duration: motion.duration.slow,
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulse, {
-          toValue: 0.45,
-          duration: motion.duration.slow,
-          useNativeDriver: true,
-        }),
-      ]),
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [pulse, reduceMotion]);
+  const pulse = useSkeletonPulse();
 
   const block = (height: number) => ({
     height,
-    borderRadius: density.compact ? 14 : 16,
+    borderRadius: density.cardRadius,
     backgroundColor: ph.paper,
     borderWidth: 1,
     borderColor: ph.line,
@@ -60,7 +35,7 @@ export function HomeSkeleton() {
       accessible
       accessibilityRole="progressbar"
       accessibilityLabel="Loading your homes"
-      style={{ gap: density.sectionGap, opacity: pulse }}
+      style={[{ gap: density.sectionGap }, pulse]}
     >
       <View style={block(density.compact ? 176 : 200)} />
       <View style={block(density.compact ? 116 : 132)} />

@@ -59,7 +59,7 @@ export function RentalActivity({
             <Ionicons
               name={glyph(item.kind)}
               size={density.compact ? 13.5 : 15}
-              color={item.kind.startsWith("payment.") ? ph.sage : ph.graphite}
+              color={item.kind.startsWith("payment.") ? ph.brand : ph.graphite}
             />
           </View>
           <Type variant="bodyStrong" numberOfLines={1} style={{ flex: 1, fontSize: density.compact ? 12.25 : 13, lineHeight: 17, color: ph.ink }}>

@@ -4,10 +4,15 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 
+import { ArrowLeft } from "lucide-react";
+
+import { AuthLink, AuthShell } from "@/components/auth/AuthShell";
 import { Button } from "@/components/Button";
 import { Field } from "@/components/Field";
 import { Notice } from "@/components/Notice";
 import { Select } from "@/components/Select";
+import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
+import { useToast } from "@/components/toast/Toaster";
 import { apiFetch, ApiFailure } from "@/lib/api";
 import { authedFetch, setAccessToken } from "@/lib/auth";
 import {
@@ -42,6 +47,7 @@ function RegisterContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { state, refresh } = useSession();
+  const { toast } = useToast();
   const requested = searchParams.get("workspace");
   const preselected: Workspace | null =
     requested === "tenant" || requested === "provider" ? requested : null;
@@ -71,7 +77,6 @@ function RegisterContent() {
   // Proof the number was confirmed. Spent on the last step, never stored.
   const [ticket, setTicket] = useState("");
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
   const [errors, setErrors] = useState<FieldErrors>({});
   // Not an error: the number is fine, it simply already belongs to someone.
   const [accountExists, setAccountExists] = useState(false);
@@ -88,7 +93,6 @@ function RegisterContent() {
   async function requestCode(event: React.FormEvent) {
     event.preventDefault();
     setBusy(true);
-    setError("");
     try {
       const result = await apiFetch<{ challenge_id: string; phone_display: string }>(
         "/auth/challenge/",
@@ -109,7 +113,7 @@ function RegisterContent() {
         setAccountExists(true);
         return;
       }
-      setError(cause instanceof ApiFailure ? cause.error.message : "Could not send the code.");
+      toast({ tone: "error", title: cause instanceof ApiFailure ? cause.error.message : "Could not send the code." });
     } finally {
       setBusy(false);
     }
@@ -118,7 +122,6 @@ function RegisterContent() {
   async function confirmCode(event: React.FormEvent) {
     event.preventDefault();
     setBusy(true);
-    setError("");
     try {
       const result = await apiFetch<{
         registration_required?: boolean;
@@ -142,7 +145,7 @@ function RegisterContent() {
       }
       setStep("details");
     } catch (cause) {
-      setError(cause instanceof ApiFailure ? cause.error.message : "That code did not work.");
+      toast({ tone: "error", title: cause instanceof ApiFailure ? cause.error.message : "That code did not work." });
     } finally {
       setBusy(false);
     }
@@ -151,7 +154,6 @@ function RegisterContent() {
   async function completeRegistration(event: React.FormEvent) {
     event.preventDefault();
     setBusy(true);
-    setError("");
     setErrors({});
     try {
       const problems: FieldErrors = {};
@@ -202,23 +204,51 @@ function RegisterContent() {
     } catch (cause) {
       const fields = fieldErrorsFrom(cause);
       setErrors(fields);
-      setError(summaryErrorFrom(cause, fields));
+      toast({ tone: "error", title: summaryErrorFrom(cause, fields) });
     } finally {
       setBusy(false);
     }
   }
 
-  return (
-    <main id="main" style={{ maxWidth: "30rem", margin: "0 auto", padding: "var(--space-12) var(--space-5)" }}>
-      <p className="type-label" style={{ color: "var(--color-kola-600)" }}>
-        STEP {step === "phone" ? "1" : step === "code" ? "2" : "3"} OF 3
-      </p>
-      <h1 className="type-display-2">Create your account</h1>
+  const stepIndex = step === "phone" ? 0 : step === "code" ? 1 : 2;
 
+  return (
+    <AuthShell
+      title={
+        step === "phone"
+          ? "Create your account"
+          : step === "code"
+            ? "Confirm your number"
+            : "A few details"
+      }
+      steps={STEPS}
+      stepIndex={stepIndex}
+      footer={
+        <>
+          <span>
+            Already have an account? <AuthLink href={signInHref()}>Sign in</AuthLink>
+          </span>
+          {/* Only from the code step. Going back from the details step would
+              discard a proved number, and from the first there is nowhere to go
+              that the brand link does not already cover. */}
+          {step === "code" ? (
+            <button
+              type="button"
+              onClick={() => { setStep("phone"); setCode(""); }}
+              className="inline-flex items-center gap-1.5 self-start text-sm text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <ArrowLeft className="size-4" />
+              Wrong number? Change it
+            </button>
+          ) : null}
+        </>
+      }
+    >
       {step === "phone" ? (
-        <form onSubmit={requestCode} style={formStyle}>
-          <p className="type-body" style={{ color: "var(--color-ink-700)" }}>
-            We&apos;ll text a six-digit code to confirm the number is yours.
+        <form onSubmit={requestCode} className="mt-6 grid gap-4">
+          <p className="text-[0.9375rem] leading-relaxed text-muted-foreground">
+            We&apos;ll text a six-digit code to confirm the number is yours. Nothing is
+            created until you finish.
           </p>
           <Field
             label="Mobile number"
@@ -226,13 +256,11 @@ function RegisterContent() {
             onChange={(event) => {
               setPhone(event.target.value);
               setAccountExists(false);
-              if (error) setError("");
             }}
             inputMode="tel"
             autoComplete="tel"
             placeholder="024 123 4567"
           />
-          {error ? <Notice tone="error" title={error} /> : null}
           {accountExists ? (
             <>
               <Notice
@@ -242,7 +270,7 @@ function RegisterContent() {
               />
               <Link
                 href={signInHref(phone.trim()) as never}
-                className="type-body-strong"
+                className="text-[0.9375rem] font-semibold text-brand underline-offset-4 hover:underline"
               >
                 Sign in instead →
               </Link>
@@ -256,20 +284,43 @@ function RegisterContent() {
       ) : null}
 
       {step === "code" ? (
-        <form onSubmit={confirmCode} style={formStyle}>
-          <p className="type-body" style={{ color: "var(--color-ink-700)" }}>
-            Enter the code we sent to {phoneDisplay}.
+        <form onSubmit={confirmCode} className="mt-6 grid gap-5">
+          <p className="text-[0.9375rem] leading-relaxed text-muted-foreground">
+            Enter the code we sent to{" "}
+            <strong className="font-semibold text-foreground">{phoneDisplay}</strong>.
           </p>
-          <Field
-            label="Six-digit code"
-            value={code}
-            onChange={(event) => setCode(event.target.value)}
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            maxLength={6}
-            required
-          />
-          {error ? <Notice tone="error" title={error} /> : null}
+
+          {/*
+            Six drawn cells over one real input.
+
+            Six separate inputs break autofill, break paste and fight the
+            backspace key — and this is the screen where sign-ups are lost, so
+            it is the last place to spend somebody's patience. The cells are
+            presentation; `autoComplete="one-time-code"` is what lets the phone
+            offer the code straight from the notification.
+          */}
+          <div className="grid gap-2">
+            <span className="text-sm font-medium text-muted-foreground">Six-digit code</span>
+            <InputOTP
+              maxLength={6}
+              value={code}
+              onChange={setCode}
+              autoFocus
+              autoComplete="one-time-code"
+              containerClassName="justify-start"
+            >
+              <InputOTPGroup className="gap-2">
+                {[0, 1, 2, 3, 4, 5].map((slot) => (
+                  <InputOTPSlot
+                    key={slot}
+                    index={slot}
+                    className="size-13 rounded-[13px] border border-input text-lg font-semibold tabular-nums first:rounded-l-[13px] last:rounded-r-[13px]"
+                  />
+                ))}
+              </InputOTPGroup>
+            </InputOTP>
+          </div>
+
           <Button type="submit" busy={busy} disabled={code.trim().length < 4}>
             Confirm number
           </Button>
@@ -282,7 +333,7 @@ function RegisterContent() {
       ) : null}
 
       {step === "details" ? (
-        <form onSubmit={completeRegistration} style={formStyle}>
+        <form onSubmit={completeRegistration} className="mt-6 grid gap-4">
           <Select
             label="What brings you here?"
             value={accountType}
@@ -299,20 +350,22 @@ function RegisterContent() {
               body="You can set up your account and your buildings straight away. Advertising and collecting rent wait until your provider verification is approved."
             />
           ) : null}
-          <Field
-            label="First name"
-            value={firstName}
-            onChange={(event) => setFirstName(event.target.value)}
-            error={errors.first_name}
-            autoComplete="given-name"
-          />
-          <Field
-            label="Last name"
-            value={lastName}
-            onChange={(event) => setLastName(event.target.value)}
-            error={errors.last_name}
-            autoComplete="family-name"
-          />
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field
+              label="First name"
+              value={firstName}
+              onChange={(event) => setFirstName(event.target.value)}
+              error={errors.first_name}
+              autoComplete="given-name"
+            />
+            <Field
+              label="Last name"
+              value={lastName}
+              onChange={(event) => setLastName(event.target.value)}
+              error={errors.last_name}
+              autoComplete="family-name"
+            />
+          </div>
           <Field
             label="Date of birth"
             type="date"
@@ -337,30 +390,22 @@ function RegisterContent() {
             autoComplete="new-password"
             hint={`At least ${MIN_PASSWORD_LENGTH} characters. Not all digits, and not your own number.`}
           />
-          {error ? <Notice tone="error" title={error} /> : null}
           {/*
             Never disabled for a validation reason. A dead button with nothing
-            explaining it leaves someone who filled the form in correctly with no
-            way to find out what the form disagrees with.
+            explaining it leaves someone who filled the form in correctly with
+            no way to find out what the form disagrees with.
           */}
           <Button type="submit" busy={busy}>
             Create account
           </Button>
         </form>
       ) : null}
-
-      <p className="type-caption" style={{ marginTop: "var(--space-6)" }}>
-        Already have an account? <Link href={signInHref() as never}>Sign in</Link>
-      </p>
-    </main>
+    </AuthShell>
   );
 }
 
-const formStyle: React.CSSProperties = {
-  display: "grid",
-  gap: "var(--space-4)",
-  marginTop: "var(--space-6)",
-};
+const STEPS = ["Your number", "Confirm", "Details"] as const;
+
 
 export default function RegisterPage() {
   return (

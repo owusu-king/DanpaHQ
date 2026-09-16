@@ -171,7 +171,7 @@ function PayoutAccountContent() {
     <PageHeader title="Settlement account" description="Choose where Paystack sends rent after fees." />
     {error ? <Notice tone="error" title={error} /> : null}
     {organizations === null ? <LoadingRows rows={3} /> : null}
-    {organizations?.length === 0 ? <Empty title="Create a Portfolio first" body="A settlement account belongs to a Portfolio, not an individual team member." /> : null}
+    {organizations?.length === 0 ? <Empty icon="properties" title="Create a Portfolio first" body="A settlement account belongs to a Portfolio, not an individual team member." /> : null}
     {organizations && organizations.length > 1 ? <Select label="Portfolio" value={organizationId} onChange={setOrganizationId} options={organizations.map((row) => [row.id, row.name] as const)} /> : null}
     {organization && !mayManage ? <Notice tone="warning" title="Owner or admin access required" body="Only a Portfolio owner or admin can change where rent is settled." /> : null}
     {organizationId && mayManage && state === null && !error ? <LoadingRows rows={3} /> : null}
@@ -186,7 +186,7 @@ function PayoutAccountContent() {
             {profile.status === "verified" && !profile.is_active ? <Button variant="secondary" busy={busy === `activate:${profile.id}`} onClick={() => void selectAccount(profile.id)}>Use this account</Button> : null}
             {removeCandidate === profile.id ? <div className="payout-remove-confirm"><p>Remove from future use?</p><Button variant="secondary" busy={busy === `remove:${profile.id}`} onClick={() => void removeAccount(profile.id)}>Yes, remove</Button><button type="button" onClick={() => setRemoveCandidate("")}>Keep account</button></div> : <button className="payout-remove-link" type="button" onClick={() => setRemoveCandidate(profile.id)}>Remove</button>}
           </div>
-        </article>)}</div> : <Empty title="No receiving account yet" body="Add a bank or Mobile Money account, then verify it with Paystack." />}
+        </article>)}</div> : <Empty icon="payments" title="No receiving account yet" body="Add a bank or Mobile Money account, then verify it with Paystack." />}
       </section>
       {state.profiles.length > 0 && !state.active_profile ? <Notice tone="warning" title="Choose an account for new payments" body="Online rent payments remain unavailable until a verified account is selected." /> : null}
       {statusNote ? <Notice tone="info" title="Settlement account updated" body={statusNote} /> : null}

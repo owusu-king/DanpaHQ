@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/Button";
 import { Notice } from "@/components/Notice";
+import { Select } from "@/components/Select";
 import { Empty, LoadingRows, PageHeader } from "@/components/portal/PageHeader";
 import { ApiFailure } from "@/lib/api";
 import {
@@ -37,6 +38,12 @@ const isPublic = (unit: Unit) =>
  * "where is Room 4", which is the question a provider with multiple
  * Properties actually has.
  */
+const SORTS = [
+  ["property", "Property"],
+  ["label", "Unit name"],
+  ["state", "Needs attention first"],
+] as const;
+
 export default function UnitsPage() {
   const { activeContext } = useSession();
 
@@ -190,6 +197,7 @@ export default function UnitsPage() {
         ) : null}
 
         <Empty
+          icon="units"
           title="No Units yet"
           body="Units are the rentable spaces inside a Property — a room, a flat, a shop."
           action={
@@ -244,42 +252,22 @@ export default function UnitsPage() {
         </label>
 
         {properties.length > 1 ? (
-          <label className="units-select">
-            <span className="sr-only">Property</span>
-
-            <select
-              value={propertyId}
-              onChange={(event) =>
-                setPropertyId(event.target.value)
-              }
-            >
-              <option value="">All Properties</option>
-
-              {properties.map(([id, title]) => (
-                <option key={id} value={id}>
-                  {title}
-                </option>
-              ))}
-            </select>
-          </label>
+          <Select
+            compact
+            label="Property"
+            value={propertyId}
+            onChange={setPropertyId}
+            options={[["", "All Properties"] as const, ...properties]}
+          />
         ) : null}
 
-        <label className="units-select">
-          <span className="type-caption">Sort</span>
-
-          <select
-            value={sort}
-            onChange={(event) =>
-              setSort(event.target.value as Sort)
-            }
-          >
-            <option value="property">Property</option>
-            <option value="label">Unit name</option>
-            <option value="state">
-              Needs attention first
-            </option>
-          </select>
-        </label>
+        <Select
+          compact
+          label="Sort"
+          value={sort}
+          onChange={(value) => setSort(value as Sort)}
+          options={SORTS}
+        />
       </div>
 
       <div
@@ -342,6 +330,7 @@ export default function UnitsPage() {
         </>
       ) : (
         <Empty
+          icon="units"
           title="No matching Unit"
           body="Try another name, Property or filter."
           action={

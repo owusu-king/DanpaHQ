@@ -74,6 +74,7 @@ export default function AddUnitPage() {
 
       {properties && eligible.length === 0 ? (
         <Empty
+          icon="properties"
           title={query ? "No matching Property" : "No Property can take a Unit yet"}
           body={query
             ? "Try another name or area."

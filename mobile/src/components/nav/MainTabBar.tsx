@@ -1,10 +1,17 @@
 import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
-import { useEffect, useRef } from "react";
-import { Animated, Easing, Pressable, StyleSheet, Text, View } from "react-native";
+import { useEffect } from "react";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import Animated, {
+  interpolate,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming,
+} from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { motion, radius, space } from "@/components/ui";
-import { useReduceMotion } from "@/motion";
+import { radius, space } from "@/components/ui";
+import { duration, enter, exit, press, PRESS_SCALE } from "@/motion";
 import { hapticsPolicy, isAndroid, isIOS } from "@/platform";
 import { theme } from "@/theme";
 
@@ -102,9 +109,13 @@ type TabItemProps = {
 };
 
 function TabItem({ route, position, count, focused, options, navigation }: TabItemProps) {
-  const reduceMotion = useReduceMotion();
-  const focusProgress = useRef(new Animated.Value(focused ? 1 : 0)).current;
-  const pressScale = useRef(new Animated.Value(1)).current;
+  /* Two shared values rather than two `Animated.Value`s. The old pair already
+     ran on the native driver, so this is not a frame the bar was dropping; what
+     it buys is one animation API in the app instead of two, and a pill whose
+     width and opacity are computed in the same worklet rather than through an
+     `interpolate` chain that has to be rebuilt on every render. */
+  const focusProgress = useSharedValue(focused ? 1 : 0);
+  const pressScale = useSharedValue(1);
   const label =
     typeof options.tabBarLabel === "string"
       ? options.tabBarLabel
@@ -112,29 +123,36 @@ function TabItem({ route, position, count, focused, options, navigation }: TabIt
         ? options.title
         : route.name;
 
+  /* In an effect, not in the render body. Reanimated is explicit that a shared
+     value must not be written during render — under React 19 the render runs
+     twice in development and the second write would restart the animation from
+     wherever the first had reached.
+
+     Reduce Motion is not checked here: both configs carry `ReduceMotion.System`
+     and the UI thread answers it without asking JavaScript, so the tab bar no
+     longer holds a subscription to an accessibility setting it was only using
+     to zero a duration. */
   useEffect(() => {
-    Animated.timing(focusProgress, {
-      toValue: focused ? 1 : 0,
+    focusProgress.value = withTiming(
+      focused ? 1 : 0,
       // Arriving is worth watching; leaving should get out of the way.
-      duration: reduceMotion ? 0 : focused ? motion.duration.base : motion.duration.fast,
-      easing: Easing.bezier(
-        ...(focused ? motion.easing.enter : motion.easing.exit),
-      ),
-      useNativeDriver: true,
-    }).start();
-  }, [focusProgress, focused, reduceMotion]);
+      focused ? enter(duration.base) : exit(duration.fast),
+    );
+  }, [focusProgress, focused]);
+
+  const pillStyle = useAnimatedStyle(() => ({
+    opacity: focusProgress.value,
+    // The lozenge grows out from under the glyph rather than fading in at full
+    // width, so the focused tab reads as having been chosen.
+    transform: [{ scaleX: interpolate(focusProgress.value, [0, 1], [0.62, 1]) }],
+  }));
+
+  const stageStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: pressScale.value }],
+  }));
 
   const animatePress = (toValue: number) => {
-    if (reduceMotion) {
-      pressScale.setValue(toValue);
-      return;
-    }
-    Animated.spring(pressScale, {
-      toValue,
-      speed: 34,
-      bounciness: 2,
-      useNativeDriver: true,
-    }).start();
+    pressScale.value = withSpring(toValue, press);
   };
 
   const onPress = () => {
@@ -180,7 +198,7 @@ function TabItem({ route, position, count, focused, options, navigation }: TabIt
         }
         onPress={onPress}
         onLongPress={onLongPress}
-        onPressIn={() => animatePress(0.92)}
+        onPressIn={() => animatePress(PRESS_SCALE)}
         onPressOut={() => animatePress(1)}
         style={styles.pressTarget}
       >
@@ -189,24 +207,8 @@ function TabItem({ route, position, count, focused, options, navigation }: TabIt
           label: type that rubber-bands under a thumb reads as a toy. The label
           holds still and only the thing being aimed at responds.
         */}
-        <Animated.View style={[styles.iconStage, { transform: [{ scale: pressScale }] }]}>
-          <Animated.View
-            pointerEvents="none"
-            style={[
-              styles.activePill,
-              {
-                opacity: focusProgress,
-                transform: [
-                  {
-                    scaleX: focusProgress.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [0.62, 1],
-                    }),
-                  },
-                ],
-              },
-            ]}
-          />
+        <Animated.View style={[styles.iconStage, stageStyle]}>
+          <Animated.View pointerEvents="none" style={[styles.activePill, pillStyle]} />
           {options.tabBarIcon?.({ focused, color, size: ICON_SIZE })}
           {badge !== undefined ? (
             <View style={styles.badge}>

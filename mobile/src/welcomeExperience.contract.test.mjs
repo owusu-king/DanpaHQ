@@ -169,11 +169,21 @@ test("the illustrations are assets, not shapes drawn in code", () => {
     assert.doesNotMatch(source, /uri:|https?:\/\//);
   }
 
-  // Every layer is a plain view translating on the native driver. Nothing
-  // animates an SVG property, which in React Native costs a JavaScript round
-  // trip per frame, and nothing animates on the JS thread at all.
+  // Every layer is a plain view translating on the UI thread. Nothing animates
+  // an SVG property, which in React Native costs a JavaScript round trip per
+  // frame, and nothing animates on the JS thread at all.
+  //
+  // This used to assert `useNativeDriver: true` on the pager's `Animated.event`.
+  // The offset is a Reanimated shared value now, written by a scroll handler
+  // that is itself a worklet — there is no driver flag to set because there is
+  // no JS-thread path to opt out of.
   assert.doesNotMatch(body, /createAnimatedComponent/);
-  assert.match(code(welcome()), /useNativeDriver: true/);
+  assert.match(code(welcome()), /useAnimatedScrollHandler\(/);
+  assert.match(code(welcome()), /scroll\.value = event\.contentOffset\.x/);
+  // And the layers read that value directly rather than each rebuilding an
+  // interpolation chain of their own on every render.
+  assert.match(code(body), /useAnimatedStyle\(/);
+  assert.doesNotMatch(code(body), /\.interpolate\(/);
 
   // Depth is the difference between the layers *of one scene*, not a decoration
   // spread across the set: a far layer and a near layer travelling at the same
@@ -210,7 +220,8 @@ test("the illustrations are assets, not shapes drawn in code", () => {
   assert.match(body, /accessibilityRole="progressbar"/);
   // Segments that fill, the same shape property setup uses.
   assert.match(body, /SEGMENT/);
-  assert.match(body, /translateX: scroll\.interpolate/);
+  assert.match(body, /translateX: interpolate\(/);
+  assert.match(body, /Extrapolation\.CLAMP/);
   // Scaling would grow the fill from the centre of each segment.
   assert.doesNotMatch(body, /scaleX/);
 });
@@ -226,15 +237,16 @@ test("the provider-to-choice boundary never changes layout", () => {
   assert.ok((screen.match(/<Animated\.View/g) ?? []).length >= 2);
   assert.doesNotMatch(screen, /\{atEnd \? \(\s*<View/);
 
-  // Native-driver values follow the swipe; React state only changes which
-  // already-mounted layer can receive touches.
-  assert.match(screen, /const journeyOpacity = scroll\.interpolate/);
-  assert.match(screen, /const choiceOpacity = scroll\.interpolate/);
-  assert.match(screen, /transform: \[\{ translateY: journeyShift \}\]/);
-  assert.match(screen, /transform: \[\{ translateY: choiceShift \}\]/);
+  // The swipe drives both layers on the UI thread; React state only changes
+  // which already-mounted layer can receive touches. Each layer is one worklet
+  // computing its own opacity and shift together, rather than four separate
+  // interpolations of the same offset.
+  assert.match(screen, /const journeyStyle = useAnimatedStyle\(/);
+  assert.match(screen, /const choiceStyle = useAnimatedStyle\(/);
+  assert.doesNotMatch(screen, /\.interpolate\(/);
 
   // A returning user cannot render one frame of stop one before stop four.
-  assert.match(screen, /scroll\.setValue\(opening \* widthRef\.current\)/);
+  assert.match(screen, /scroll\.value = opening \* widthRef\.current/);
 
   // Bundled artwork is decoded before the pager mounts.
   assert.match(screen, /Asset\.loadAsync\(WELCOME_ASSET_MODULES\)/);

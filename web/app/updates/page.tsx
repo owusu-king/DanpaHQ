@@ -85,6 +85,7 @@ export default function UpdatesPage() {
 
       {items?.length === 0 ? (
         <Empty
+          icon="updates"
           title="Nothing yet"
           body="When someone asks about one of your places, responds to a request, or a rent record changes, it appears here."
         />
@@ -98,6 +99,7 @@ export default function UpdatesPage() {
         >
           {view === "waiting" && waiting.length === 0 ? (
             <Empty
+              icon="updates"
               title="Nothing is waiting on you"
               body="Updates that asked for a reply appear here until you open them."
             />

@@ -206,7 +206,6 @@ function TenantHome({ me }: { me: Me }) {
           <p>{tenantSummary(needs.length, homes.length, upcoming.length)}</p>
         </div>
         <div className="home-greeting-aside">
-          <DraftedElevation />
           <p className="home-greeting-when">
             <strong>{todayLabel()}</strong>
             Accra, GMT
@@ -294,7 +293,9 @@ function TenantHome({ me }: { me: Me }) {
                   {needs.slice(0, 5).map((item) => (
                     <li key={item.id} data-tone={attentionTone(item)}>
                       <Link href={tenantDestination(item) as never}>
-                        <span className="home-attention-icon" aria-hidden="true" />
+                        <span className="home-attention-icon" aria-hidden="true">
+                          <Icon name={attentionIcon(item)} />
+                        </span>
                         <span className="home-attention-copy">
                           <strong>{item.title}</strong>
                           <small>{item.place}</small>
@@ -355,7 +356,7 @@ function TenantHome({ me }: { me: Me }) {
                 <small>Rent dates and confirmed viewings appear here as they are set.</small>
               </p>
             )}
-            <StreetElevation />
+            <MonthStrip entries={upcoming} />
             </div>
           </section>
 
@@ -651,47 +652,82 @@ function ApplicationGauge({ total, accepted }: { total: number; accepted: number
 }
 
 /**
- * A drafted street elevation, for the space the schedule's rows do not use.
+ * The month the schedule's dates fall in.
  *
- * The alternative was a narrower card, and the schedule wants the full width
- * for its dates. So the empty half gets the one thing this product is actually
- * about, drawn the way the rest of the page is drawn: hairlines, a ground line,
- * a dimension with its ticks, and a single gold accent.
+ * A drafted street elevation used to sit here, filling the half of the card the
+ * rows do not need. It said "buildings" charmingly and said nothing at all
+ * about this tenancy, and an ornament is the first thing that dates a screen.
  *
- * It carries no information, which is why it is `aria-hidden` and why it
- * disappears the moment the column is narrow enough to need the room.
+ * This carries the same entries the list beside it does, in the shape a person
+ * already holds time in — so "the 28th" and "three weeks away" become one
+ * glance rather than two. Nothing in it is clickable and the whole strip is
+ * `aria-hidden`: every date is already stated, in words, in the list it keys.
  */
-function StreetElevation() {
+function MonthStrip({ entries }: { entries: UpcomingEntry[] }) {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  const marked = new Set(entries.map((entry) => dayKey(entry.when)).filter(Boolean));
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  // Monday first. A Sunday-first grid puts the weekend at both ends, and the
+  // week here starts on Monday.
+  const lead = (new Date(year, month, 1).getDay() + 6) % 7;
+  const today = dayKey(now.toISOString());
+
+  const cells: Array<{ key: string; label: string; iso: string | null }> = [];
+  for (let index = 0; index < lead; index += 1) {
+    cells.push({ key: `pad-${index}`, label: "", iso: null });
+  }
+  for (let day = 1; day <= daysInMonth; day += 1) {
+    const iso = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+    cells.push({ key: iso, label: String(day), iso });
+  }
+
+  const markedHere = cells.filter((cell) => cell.iso && marked.has(cell.iso)).length;
+
   return (
-    <svg className="tenant-elevation" viewBox="0 0 300 180" fill="none" aria-hidden="true">
-      {/* ground */}
-      <path d="M0 158h300" stroke="currentColor" strokeWidth="1" />
-      {/* a flat-roofed block */}
-      <path d="M14 158V96h52v62" stroke="currentColor" strokeWidth="0.9" />
-      <path d="M14 96h52" stroke="currentColor" strokeWidth="0.9" />
-      <path d="M26 112h12v12H26zM42 112h12v12H42zM26 132h12v14H26zM42 132h12v14H42z" stroke="currentColor" strokeWidth="0.6" />
-      {/* the pitched one, tallest */}
-      <path d="M76 158V74l30-22 30 22v84" stroke="currentColor" strokeWidth="0.9" />
-      <path d="M76 74h60" stroke="currentColor" strokeWidth="0.9" />
-      <path d="M92 92h12v14H92zM108 92h12v14h-12zM92 116h12v14H92zM108 116h12v14h-12z" stroke="currentColor" strokeWidth="0.6" />
-      <path d="M98 158v-18h16v18" stroke="currentColor" strokeWidth="0.7" />
-      {/* a low wing */}
-      <path d="M146 158v-42h44v42" stroke="currentColor" strokeWidth="0.9" />
-      <path d="M146 116h44" stroke="currentColor" strokeWidth="0.9" />
-      <path d="M158 130h9v10h-9zM173 130h9v10h-9z" stroke="currentColor" strokeWidth="0.6" />
-      {/* the gold one: the home in question */}
-      <path d="M200 158V88l24-16 24 16v70" stroke="#9C7A38" strokeWidth="1" />
-      <path d="M200 88h48" stroke="#9C7A38" strokeWidth="1" />
-      <path d="M212 106h10v12h-10zM226 106h10v12h-10z" stroke="#9C7A38" strokeWidth="0.7" />
-      <path d="M216 158v-16h16v16" stroke="#9C7A38" strokeWidth="0.8" />
-      {/* a dimension, with its ticks */}
-      <path d="M266 52v106" stroke="currentColor" strokeWidth="0.7" />
-      <path d="M262 52h8M262 158h8" stroke="currentColor" strokeWidth="0.7" />
-      <path d="M264 78h4M264 104h4M264 130h4" stroke="currentColor" strokeWidth="0.6" />
-      {/* registration corner */}
-      <path d="M284 44h8M292 44v8" stroke="currentColor" strokeWidth="0.7" />
-    </svg>
+    <div className="tenant-month" aria-hidden="true">
+      <div className="tenant-month-head">
+        <strong>{new Date(year, month, 1).toLocaleDateString("en-GH", { month: "long", year: "numeric" })}</strong>
+        <small>{markedHere ? `${markedHere} marked` : "Nothing dated"}</small>
+      </div>
+      <div className="tenant-month-grid">
+        {WEEKDAYS.map((label, index) => (
+          <span key={`weekday-${index}`} data-weekday="true">{label}</span>
+        ))}
+        {cells.map((cell) => (
+          <span
+            key={cell.key}
+            data-in-month={cell.iso ? "true" : undefined}
+            data-today={cell.iso && cell.iso === today ? "true" : undefined}
+            data-marked={cell.iso && marked.has(cell.iso) ? "true" : undefined}
+          >
+            {cell.label}
+          </span>
+        ))}
+      </div>
+      <p className="tenant-month-key">
+        <i aria-hidden="true" />
+        Rent dates and confirmed viewings
+      </p>
+    </div>
   );
+}
+
+const WEEKDAYS = ["M", "T", "W", "T", "F", "S", "S"] as const;
+
+/**
+ * A local calendar day, as `YYYY-MM-DD`.
+ *
+ * A bare date arrives as `2026-09-28` and a viewing as a UTC instant, and
+ * `new Date("2026-09-28")` is UTC midnight — which is the previous day in any
+ * negative offset. Noon is far enough from either edge that the local day is
+ * the one written down, the same trick `shortDate` already uses.
+ */
+function dayKey(value: string): string {
+  const at = new Date(value.length <= 10 ? `${value}T12:00:00` : value);
+  if (Number.isNaN(at.getTime())) return "";
+  return `${at.getFullYear()}-${String(at.getMonth() + 1).padStart(2, "0")}-${String(at.getDate()).padStart(2, "0")}`;
 }
 
 function Chevron() {
@@ -1023,7 +1059,6 @@ function ProviderHome({ me, activeContext }: { me: Me; activeContext: string | n
           </p>
         </div>
         <div className="home-greeting-aside">
-          <DraftedElevation />
           <p className="home-greeting-when">
             <strong>{todayLabel()}</strong>
             Accra, GMT
@@ -1066,7 +1101,9 @@ function ProviderHome({ me, activeContext }: { me: Me; activeContext: string | n
               {attention.slice(0, 5).map((item) => (
                 <li key={item.href + item.label} data-tone={item.tone}>
                   <Link href={item.href as never}>
-                    <span className="home-attention-icon" aria-hidden="true" />
+                    <span className="home-attention-icon" aria-hidden="true">
+                      <Icon name={item.icon} />
+                    </span>
                     <span className="home-attention-copy"><strong>{item.label}</strong><small>{item.meta}</small></span>
                     <span className="home-attention-value">
                       <strong>{item.value}</strong>
@@ -1214,24 +1251,30 @@ function PulseMetric({ label, value, href }: { label: string; value: number; hre
 }
 
 /**
- * The date, and a drafted elevation.
+ * Today, as the reader's own date rather than the server's.
  *
- * Rendered on the client so it is the reader's own date rather than the
- * server's, and marked `aria-hidden` because it carries no information — it is
- * the one ornamental mark on the page, and it earns its place by saying
- * "buildings" without a stock photograph.
+ * Rendered on the client for that reason, and for that reason alone — there is
+ * no ornament left beside it to justify.
  */
 function todayLabel(): string {
   return new Date().toLocaleDateString("en-GH", { weekday: "long", day: "numeric", month: "long" });
 }
 
-function DraftedElevation() {
-  return (
-    <svg className="home-greeting-mark" viewBox="0 0 150 60" fill="none" aria-hidden="true">
-      <path d="M0 58h150M20 58V22l30-16 30 16v36M35 58V32h30v26" stroke="currentColor" strokeWidth="0.8" opacity="0.7" />
-      <path d="M92 58V38l28-14 28 14v20" stroke="#9C7A38" strokeWidth="0.8" />
-    </svg>
-  );
+/**
+ * Which icon an attention row wears.
+ *
+ * Read from the kind rather than carried on the item: `homeMeaning` is shared
+ * with the mobile client byte for byte, and an icon name is a web detail.
+ */
+function attentionIcon(item: AttentionItem): IconName {
+  const map: Record<AttentionItem["kind"], IconName> = {
+    rent_overdue: "payments",
+    agreement_offered: "leases",
+    viewing: "viewings",
+    application: "applications",
+    join_rejected: "properties",
+  };
+  return map[item.kind];
 }
 
 function RecentActivity({

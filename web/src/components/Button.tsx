@@ -15,8 +15,9 @@ type Size = "sm" | "md" | "lg";
  * rendering of an app rather than one, so the styling now lives in
  * foundation.css where the states can actually exist.
  *
- * `primary` is ink rather than a brand hue. It passes contrast on every surface
- * the product has, and it leaves the gold to mean something where it appears.
+ * `primary` is the brand. It was ink, to leave the old gold accent free to mean
+ * something — but the product has no gold any more, and every other primary
+ * action in it is green, so this one was the only black button on the page.
  */
 export function Button({
   variant = "primary",

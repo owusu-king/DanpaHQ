@@ -21,6 +21,7 @@ import { Button } from "@/components/Button";
 import { Radio } from "@/components/Check";
 import { Field } from "@/components/Field";
 import { Notice } from "@/components/Notice";
+import { Select } from "@/components/Select";
 import { ViewingDirections } from "@/components/viewings/ViewingDirections";
 import { ApiFailure } from "@/lib/api";
 import {
@@ -214,22 +215,30 @@ function ConfirmOfferedSlot({ viewing, busy, onConfirm }: { viewing: Viewing; bu
   );
 }
 
+const CANCELLATION_REASONS = [
+  ["schedule_conflict", "Schedule conflict"],
+  ["emergency", "Emergency"],
+  ["transportation_problem", "Transportation problem"],
+  ["no_longer_interested", "No longer interested"],
+  ["property_unavailable", "Property or unit no longer available"],
+  ["other", "Other"],
+] as const;
+
 function CancelAppointmentForm({ busy, onBack, onCancel }: { busy: boolean; onBack: () => void; onCancel: (input: { reason: ViewingCancellationReason; note?: string }) => Promise<void> }) {
   const [reason, setReason] = useState<ViewingCancellationReason>("schedule_conflict");
   const [note, setNote] = useState("");
   return (
     <section style={{ marginTop: "var(--space-4)", padding: "var(--space-4)", border: "var(--border-hairline) solid var(--color-field-300)", borderRadius: "var(--radius-sm)", display: "grid", gap: "var(--space-3)" }}>
       <Notice tone="info" title="Could a new time work?" body="Rescheduling keeps the appointment active. Cancel only when the viewing should not go ahead." />
-      <label className="type-body-strong">Reason
-        <select value={reason} onChange={(event) => setReason(event.target.value as ViewingCancellationReason)} style={{ display: "block", width: "100%", marginTop: "var(--space-1)", minHeight: 44 }}>
-          <option value="schedule_conflict">Schedule conflict</option>
-          <option value="emergency">Emergency</option>
-          <option value="transportation_problem">Transportation problem</option>
-          <option value="no_longer_interested">No longer interested</option>
-          <option value="property_unavailable">Property or unit no longer available</option>
-          <option value="other">Other</option>
-        </select>
-      </label>
+      {/* Was a native control, inline-styled to 44px — four short of the target
+          minimum every other control in the product stands at, and opening a
+          menu the operating system drew. */}
+      <Select
+        label="Reason"
+        value={reason}
+        onChange={(next) => setReason(next as ViewingCancellationReason)}
+        options={CANCELLATION_REASONS}
+      />
       <Field label="Optional note" value={note} onChange={(event) => setNote(event.target.value)} />
       <div style={{ display: "flex", gap: "var(--space-2)", flexWrap: "wrap" }}>
         <Button variant="destructive" busy={busy} onClick={() => onCancel({ reason, note })}>Cancel appointment</Button>

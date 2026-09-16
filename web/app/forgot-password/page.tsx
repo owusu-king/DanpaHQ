@@ -3,10 +3,14 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { ArrowLeft } from "lucide-react";
 
+import { AuthLink, AuthShell } from "@/components/auth/AuthShell";
 import { Button } from "@/components/Button";
 import { Field } from "@/components/Field";
+import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { Notice } from "@/components/Notice";
+import { useToast } from "@/components/toast/Toaster";
 import { apiFetch, ApiFailure } from "@/lib/api";
 import { setAccessToken } from "@/lib/auth";
 import { fieldErrorsFrom, isNoAccount, summaryErrorFrom } from "@/lib/formErrors";
@@ -29,6 +33,7 @@ type Step = "phone" | "code" | "password";
 export default function ForgotPasswordPage() {
   const router = useRouter();
   const { refresh } = useSession();
+  const { toast } = useToast();
 
   const [step, setStep] = useState<Step>("phone");
   const [phone, setPhone] = useState("");
@@ -38,7 +43,6 @@ export default function ForgotPasswordPage() {
   const [resetToken, setResetToken] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
   const [fieldError, setFieldError] = useState("");
   // Not an error: the number is fine, it simply has no account behind it.
   const [noAccount, setNoAccount] = useState(false);
@@ -46,7 +50,6 @@ export default function ForgotPasswordPage() {
   async function requestCode(event: React.FormEvent) {
     event.preventDefault();
     setBusy(true);
-    setError("");
     try {
       const result = await apiFetch<{ challenge_id: string; phone_display: string }>(
         "/auth/password-reset/",
@@ -65,7 +68,7 @@ export default function ForgotPasswordPage() {
         setNoAccount(true);
         return;
       }
-      setError(cause instanceof ApiFailure ? cause.error.message : "Could not send the code.");
+      toast({ tone: "error", title: cause instanceof ApiFailure ? cause.error.message : "Could not send the code." });
     } finally {
       setBusy(false);
     }
@@ -74,7 +77,6 @@ export default function ForgotPasswordPage() {
   async function confirmCode(event: React.FormEvent) {
     event.preventDefault();
     setBusy(true);
-    setError("");
     try {
       const result = await apiFetch<{ reset_token: string }>(
         "/auth/password-reset/verify/",
@@ -86,7 +88,7 @@ export default function ForgotPasswordPage() {
       setResetToken(result.reset_token);
       setStep("password");
     } catch (cause) {
-      setError(cause instanceof ApiFailure ? cause.error.message : "That code did not work.");
+      toast({ tone: "error", title: cause instanceof ApiFailure ? cause.error.message : "That code did not work." });
     } finally {
       setBusy(false);
     }
@@ -99,7 +101,6 @@ export default function ForgotPasswordPage() {
       return;
     }
     setBusy(true);
-    setError("");
     setFieldError("");
     try {
       const result = await apiFetch<{
@@ -120,19 +121,24 @@ export default function ForgotPasswordPage() {
     } catch (cause) {
       const fields = fieldErrorsFrom(cause);
       setFieldError(fields.new_password ?? fields.password ?? "");
-      setError(summaryErrorFrom(cause, fields));
+      toast({ tone: "error", title: summaryErrorFrom(cause, fields) });
     } finally {
       setBusy(false);
     }
   }
 
-  return (
-    <main id="main" style={{ maxWidth: "28rem", margin: "0 auto", padding: "var(--space-12) var(--space-5)" }}>
-      <h1 className="type-display-2">Reset your password</h1>
+  const stepIndex = step === "phone" ? 0 : step === "code" ? 1 : 2;
 
+  return (
+    <AuthShell
+      title="Reset your password"
+      steps={RESET_STEPS}
+      stepIndex={stepIndex}
+      footer={<span><AuthLink href="/sign-in">Back to sign in</AuthLink></span>}
+    >
       {step === "phone" ? (
-        <form onSubmit={requestCode} style={formStyle}>
-          <p className="type-body" style={{ color: "var(--color-ink-700)" }}>
+        <form onSubmit={requestCode} className="mt-6 grid gap-4">
+          <p className="text-[0.9375rem] leading-relaxed text-muted-foreground">
             Enter the number on your account and we&apos;ll text you a code.
           </p>
           <Field
@@ -141,13 +147,11 @@ export default function ForgotPasswordPage() {
             onChange={(event) => {
               setPhone(event.target.value);
               setNoAccount(false);
-              if (error) setError("");
             }}
             inputMode="tel"
             autoComplete="tel"
             required
           />
-          {error ? <Notice tone="error" title={error} /> : null}
           {noAccount ? (
             <>
               <Notice
@@ -157,7 +161,7 @@ export default function ForgotPasswordPage() {
               />
               <Link
                 href={`/register?phone=${encodeURIComponent(phone.trim())}` as never}
-                className="type-body-strong"
+                className="text-[0.9375rem] font-semibold text-brand underline-offset-4 hover:underline"
               >
                 Create an account →
               </Link>
@@ -171,28 +175,54 @@ export default function ForgotPasswordPage() {
       ) : null}
 
       {step === "code" ? (
-        <form onSubmit={confirmCode} style={formStyle}>
-          <p className="type-body" style={{ color: "var(--color-ink-700)" }}>
-            Enter the code we sent to {phoneDisplay}.
+        <form onSubmit={confirmCode} className="mt-6 grid gap-5">
+          <p className="text-[0.9375rem] leading-relaxed text-muted-foreground">
+            Enter the code we sent to{" "}
+            <strong className="font-semibold text-foreground">{phoneDisplay}</strong>.
           </p>
-          <Field
-            label="Six-digit code"
-            value={code}
-            onChange={(event) => setCode(event.target.value)}
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            maxLength={6}
-            required
-          />
-          {error ? <Notice tone="error" title={error} /> : null}
+
+          {/* Six drawn cells over one real input — the same control the sign-up
+              code screen uses, because it is the same job and a reset is the
+              one somebody is doing while already locked out and impatient. */}
+          <div className="grid gap-2">
+            <span className="text-sm font-medium text-muted-foreground">Six-digit code</span>
+            <InputOTP
+              maxLength={6}
+              value={code}
+              onChange={setCode}
+              autoFocus
+              autoComplete="one-time-code"
+              containerClassName="justify-start"
+            >
+              <InputOTPGroup className="gap-2">
+                {[0, 1, 2, 3, 4, 5].map((slot) => (
+                  <InputOTPSlot
+                    key={slot}
+                    index={slot}
+                    className="size-13 rounded-[13px] border border-input text-lg font-semibold tabular-nums first:rounded-l-[13px] last:rounded-r-[13px]"
+                  />
+                ))}
+              </InputOTPGroup>
+            </InputOTP>
+          </div>
+
           <Button type="submit" busy={busy} disabled={code.trim().length < 4}>
             Confirm code
           </Button>
+
+          <button
+            type="button"
+            onClick={() => { setStep("phone"); setCode(""); }}
+            className="inline-flex items-center gap-1.5 self-start text-sm text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <ArrowLeft className="size-4" />
+            Wrong number? Change it
+          </button>
         </form>
       ) : null}
 
       {step === "password" ? (
-        <form onSubmit={setNewPassword} style={formStyle}>
+        <form onSubmit={setNewPassword} className="mt-6 grid gap-4">
           <Field
             label="New password"
             type="password"
@@ -205,7 +235,6 @@ export default function ForgotPasswordPage() {
             autoComplete="new-password"
             hint={`At least ${MIN_PASSWORD_LENGTH} characters. Not all digits, and not your own number.`}
           />
-          {error ? <Notice tone="error" title={error} /> : null}
           <Button type="submit" busy={busy}>
             Set password and sign in
           </Button>
@@ -216,16 +245,9 @@ export default function ForgotPasswordPage() {
           />
         </form>
       ) : null}
-
-      <p className="type-caption" style={{ marginTop: "var(--space-6)" }}>
-        <Link href="/sign-in">Back to sign in</Link>
-      </p>
-    </main>
+    </AuthShell>
   );
 }
 
-const formStyle: React.CSSProperties = {
-  display: "grid",
-  gap: "var(--space-4)",
-  marginTop: "var(--space-6)",
-};
+const RESET_STEPS = ["Your number", "Confirm", "New password"] as const;
+

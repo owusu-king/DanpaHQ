@@ -5508,15 +5508,23 @@ answers. Anonymous browsing already works signed-out (`(app)/(tabs)` and
 simply not what the introduction is about.
 
 **Drawn, not downloaded.** Every element is `react-native-svg` — a few kilobytes
-of vector in the bundle. Reanimated and Lottie are not dependencies of this app
-and none were added: a first launch on a low-cost Android over a slow connection
-is exactly when a Lottie payload or a set of PNGs would make the product feel
-broken before it had said anything.
+of vector in the bundle. Lottie is still not a dependency and should not become
+one: a first launch on a low-cost Android over a slow connection is exactly when
+a Lottie payload or a set of PNGs would make the product feel broken before it
+had said anything.
 
-**Moved natively.** Nothing animates an SVG property, which in React Native
-means a JavaScript round trip per frame. The layers are ordinary views that
-translate and fade with `useNativeDriver`, driven straight from the pager's
-scroll offset. Five layers at five different rates is the depth. The only thing
+**Reanimated is a dependency now**, which this paragraph used to say it was not.
+The two were bracketed together and should not have been. Lottie's cost is a
+payload the app carries and parses to draw one thing; Reanimated's is native
+code in the binary that every screen uses, and it buys what `Animated` could not
+give the rest of the product — layout and entrance animations, and one animation
+system instead of two. The motion language is `mobile/src/motion.ts`, built from
+the same `tokens.json` the web reads.
+
+**Moved on the UI thread.** Nothing animates an SVG property, which in React
+Native means a JavaScript round trip per frame. The layers are ordinary views
+that translate and fade from the pager's scroll offset, read straight from a
+shared value. Five layers at five different rates is the depth. The only thing
 that moves by itself is a slow pulse on the lit windows — a still scene reads as
 a screenshot, a twitchy one reads as a GIF.
 

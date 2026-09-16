@@ -1,6 +1,12 @@
 .rent-workspace { display: grid; gap: var(--space-6); min-width: 0; }
-.rent-portfolio-select, .rent-field { display: grid; gap: var(--space-2); width: min(100%, 28rem); }
-.rent-portfolio-select select, .rent-field select { width: 100%; min-height: 48px; padding: 0 var(--space-3); color: var(--color-ink-900); background: var(--color-field-0); border: var(--border-hairline) solid var(--color-field-300); border-radius: var(--radius-sm); font: inherit; }
+/* The three pickers in this workspace — which charge a payment settles, how it
+   arrived, and which Property an expense belongs to — are the shared listbox,
+   which brings its own label, frame, height and menu. All that is left for this
+   sheet to say is how wide one may grow on a full-width dialog.
+
+   `.rent-portfolio-select` went with them: it had styled a control that was
+   removed some time ago and had no elements left to match. */
+.rent-field { width: min(100%, 28rem); }
 .rent-attention { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
 .rent-attention button { display: grid; gap: var(--space-1); min-height: 72px; padding: var(--space-4); color: inherit; text-align: left; background: var(--color-field-0); border: var(--border-hairline) solid var(--color-field-200); border-left: 3px solid var(--color-laterite-600); border-radius: var(--radius-sm); cursor: pointer; }
 .rent-attention button span { color: var(--color-kola-600); font-size: .875rem; font-weight: 600; }

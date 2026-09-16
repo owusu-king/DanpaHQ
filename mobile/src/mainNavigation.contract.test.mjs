@@ -68,11 +68,14 @@ test("the bar is built from the shared tokens, not from copies of them", () => {
   // Against the code with its prose stripped: the docstring above names all
   // four tokens, so matching the raw file proves only that the comment exists.
   const source = code(bar);
-  assert.match(source, /motion\.duration\.base/);
-  assert.match(source, /motion\.duration\.fast/);
-  assert.match(source, /motion\.easing\.enter : motion\.easing\.exit/);
+  assert.match(source, /duration\.base/);
+  assert.match(source, /duration\.fast/);
+  // The curve is no longer named at the call site: `enter` and `exit` *are* the
+  // curves, so asking for one is asking for the token behind it.
+  assert.match(source, /enter\(duration\.base\) : exit\(duration\.fast\)/);
   assert.match(source, /borderRadius: radius\.pill/);
   assert.match(source, /from "@\/components\/ui"/);
+  assert.match(source, /from "@\/motion"/);
 
   // No literal milliseconds or curves left behind to drift.
   // The four duration tokens are 80, 140, 220 and 320. None should appear
@@ -86,21 +89,41 @@ test("the bar is built from the shared tokens, not from copies of them", () => {
   assert.match(ui, /ms\(theme\.motion\.duration\.base\)/);
   assert.match(ui, /bezier\(theme\.motion\.easing\.enter\)/);
   assert.match(ui, /export const radius = \{/);
+
+  // And the curves reach Reanimated from that same bridge, built once rather
+  // than recompiled per animation.
+  const motion = read("src/motion.ts");
+  assert.match(motion, /Easing\.bezier\(\.\.\.motion\.easing\.enter\)/);
+  assert.match(motion, /Easing\.bezier\(\.\.\.motion\.easing\.exit\)/);
+  assert.match(motion, /Easing\.bezier\(\.\.\.motion\.easing\.standard\)/);
 });
 
 test("motion is quiet, optional and platform-aware", () => {
   // The question moved to `src/motion.ts` once the home skeleton needed it
   // too; a second copy of an accessibility check is a second place to
   // forget it. The rule is unchanged: the bar must consult it.
-  assert.match(bar, /useReduceMotion\(\)/);
-  assert.match(read("src/motion.ts"), /AccessibilityInfo\.isReduceMotionEnabled/);
-  assert.match(bar, /duration: reduceMotion \? 0/);
-  assert.match(bar, /Animated\.spring/);
+  // The question lives in `src/motion.ts`, and it is now asked in two places
+  // for two different reasons.
+  //
+  // Every timing and spring config there carries `ReduceMotion.System`, which
+  // the UI thread answers without a round trip to JavaScript — so the bar no
+  // longer holds a subscription purely to multiply a duration by zero, and the
+  // rule it must satisfy is that its animations come from those configs.
+  //
+  // The hook is still exported and still reads the system, because one case
+  // cannot be expressed as a config: the skeleton's pulse, where the right
+  // answer is not to start the loop rather than to freeze it at its faintest.
+  const motion = read("src/motion.ts");
+  assert.match(motion, /AccessibilityInfo\.isReduceMotionEnabled/);
+  assert.match(motion, /reduceMotion: ReduceMotion\.System/);
+  assert.match(bar, /withTiming\(/);
+  assert.match(bar, /withSpring\(toValue, press\)/);
   assert.match(bar, /hapticsPolicy\.onSelection/);
 
   // The press moves the glyph, not the label: type that rubber-bands under a
   // thumb reads as a toy.
-  assert.match(bar, /styles\.iconStage, \{ transform: \[\{ scale: pressScale \}\] \}/);
+  assert.match(bar, /styles\.iconStage, stageStyle/);
+  assert.match(bar, /scale: pressScale\.value/);
 
   // Android ripples inside the target rather than flooding the whole shelf.
   assert.match(bar, /android_ripple=\{\s*isAndroid/);

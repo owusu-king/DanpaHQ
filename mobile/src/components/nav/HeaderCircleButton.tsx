@@ -1,8 +1,9 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { useRef } from "react";
-import { Animated, Image, Pressable, StyleSheet, View } from "react-native";
+import { Image, Pressable, StyleSheet, View } from "react-native";
+import Animated, { useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
 
 import { radius, space } from "@/components/ui";
+import { press as pressSpring, PRESS_SCALE } from "@/motion";
 import { isAndroid } from "@/platform";
 import { theme } from "@/theme";
 
@@ -21,6 +22,10 @@ const DISC = 40;
  * The press language is the tab bar's, deliberately: the same spring, the same
  * bounded Android ripple. Two navigation affordances on one screen that respond
  * differently to a thumb feel like two products.
+ *
+ * It used to be the same spring by transcription — `speed: 34, bounciness: 2`
+ * written out here and again in the tab bar. It is now the same spring because
+ * both import it.
  */
 export function HeaderCircleButton({
   icon,
@@ -34,18 +39,20 @@ export function HeaderCircleButton({
   /** Shown instead of the glyph — a real face beats a generic silhouette. */
   imageUri?: string | null;
 }) {
-  const scale = useRef(new Animated.Value(1)).current;
+  const scale = useSharedValue(1);
+  const discStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
 
-  const press = (toValue: number) =>
-    Animated.spring(scale, { toValue, speed: 34, bounciness: 2, useNativeDriver: true }).start();
+  const press = (toValue: number) => {
+    scale.value = withSpring(toValue, pressSpring);
+  };
 
   return (
-    <Animated.View style={{ transform: [{ scale }] }}>
+    <Animated.View style={discStyle}>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={label}
         onPress={onPress}
-        onPressIn={() => press(0.92)}
+        onPressIn={() => press(PRESS_SCALE)}
         onPressOut={() => press(1)}
         // 40pt disc + 4pt each side = the 48pt floor, without a heavier circle.
         hitSlop={space[1]}

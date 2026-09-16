@@ -1,9 +1,10 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { useRef } from "react";
-import { Animated, Pressable, View } from "react-native";
+import { Pressable, View } from "react-native";
+import Animated, { useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
 
-import { ph, Register, useHomeDensity } from "@/components/home/plinth";
+import { ph, useHomeDensity } from "@/components/home/plinth";
 import { Type, space } from "@/components/ui";
+import { press as pressSpring, PRESS_SCALE_TILE } from "@/motion";
 import { isAndroid, pressableFeedback } from "@/platform";
 import { theme } from "@/theme";
 
@@ -48,11 +49,10 @@ export function HomeShortcuts({ shortcuts }: { shortcuts: Shortcut[] }) {
       <Type
         variant="label"
         accessibilityRole="header"
-        style={{ fontSize: density.labelSize, lineHeight: 14, color: ph.ink38 }}
+        style={{ fontSize: density.labelSize, lineHeight: 14, letterSpacing: 0.9, color: ph.graphite }}
       >
         EVERYTHING ELSE
       </Type>
-      <Register width={density.compact ? 18 : 22} />
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: space[2], marginTop: space[1] }}>
         {shortcuts.map((shortcut) => (
           <ShortcutTile key={shortcut.id} shortcut={shortcut} />
@@ -64,24 +64,26 @@ export function HomeShortcuts({ shortcuts }: { shortcuts: Shortcut[] }) {
 
 function ShortcutTile({ shortcut }: { shortcut: Shortcut }) {
   const density = useHomeDensity();
-  const scale = useRef(new Animated.Value(1)).current;
+  const scale = useSharedValue(1);
+  const tileStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
 
-  const press = (toValue: number) =>
-    Animated.spring(scale, { toValue, speed: 34, bounciness: 2, useNativeDriver: true }).start();
+  const press = (toValue: number) => {
+    scale.value = withSpring(toValue, pressSpring);
+  };
 
   const counted = typeof shortcut.count === "number" && shortcut.count > 0;
 
   return (
     // Two per row on any handset, without measuring the screen: each tile takes
     // just under half the width and the gap absorbs the difference.
-    <Animated.View style={{ flexBasis: "48%", flexGrow: 1, transform: [{ scale }] }}>
+    <Animated.View style={[{ flexBasis: "48%", flexGrow: 1 }, tileStyle]}>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={
           counted ? `${shortcut.label}, ${shortcut.count}` : shortcut.label
         }
         onPress={shortcut.onPress}
-        onPressIn={() => press(0.97)}
+        onPressIn={() => press(PRESS_SCALE_TILE)}
         onPressOut={() => press(1)}
         {...pressableFeedback(ph.paperDim)}
         style={({ pressed }) => ({
@@ -103,8 +105,8 @@ function ShortcutTile({ shortcut }: { shortcut: Shortcut }) {
           {shortcut.label}
         </Type>
         {counted ? (
-          <View style={{ minWidth: density.compact ? 18 : 20, paddingHorizontal: 5, paddingVertical: 1, borderRadius: 20, alignItems: "center", backgroundColor: ph.goldSoft }}>
-            <Type variant="caption" style={{ fontSize: density.compact ? 10 : 11, lineHeight: 15, fontWeight: "700", color: ph.ink }}>
+          <View style={{ minWidth: density.compact ? 18 : 20, paddingHorizontal: 5, paddingVertical: 1, borderRadius: 999, alignItems: "center", backgroundColor: ph.brandSoft }}>
+            <Type variant="caption" style={{ fontSize: density.compact ? 10 : 11, lineHeight: 15, fontWeight: "700", color: ph.brand }}>
               {shortcut.count}
             </Type>
           </View>

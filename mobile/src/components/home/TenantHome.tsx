@@ -1,5 +1,6 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Image, Pressable, View } from "react-native";
+import Animated, { LinearTransition } from "react-native-reanimated";
 import Svg, { Line, Path } from "react-native-svg";
 
 import { isLive, standing as applicationStanding } from "@/applicationMeaning";
@@ -12,13 +13,13 @@ import { HomeShortcuts, type Shortcut } from "@/components/home/HomeShortcuts";
 import {
   ph,
   PlinthCard,
+  Pill,
   plinthRow,
   plural,
   primarySurface,
-  Register,
   shortDate,
   surface,
-  Ticks,
+  Wash,
   tile,
   useHomeDensity,
 } from "@/components/home/plinth";
@@ -34,6 +35,7 @@ import {
 } from "@/homeMeaning";
 import type { Lease } from "@/leases";
 import { formatMinor } from "@/listings";
+import { arrive, depart, duration } from "@/motion";
 import { pressableFeedback } from "@/platform";
 import type { MyJoinRequest, Tenancy } from "@/tenancy";
 import { standing as viewingStanding, whenLabel } from "@/viewingMeaning";
@@ -159,7 +161,14 @@ export function TenantHome({
   };
 
   return (
-    <View style={{ gap: density.sectionGap }}>
+    /* The column animates its own height.
+     *
+     * Every branch below changes how tall this screen is — the skeleton
+     * leaving, a home being added, an attention signal clearing. Without a
+     * layout transition each of those is a jump, and on a list whose header
+     * this is, a jump under the thumb mid-scroll. `LinearTransition` is the
+     * plain one on purpose: a spring here would make the whole page wobble. */
+    <Animated.View layout={LinearTransition.duration(duration.base)} style={{ gap: density.sectionGap }}>
       {/* The greeting stands alone. A round "+" floated beside it and could
           have meant add a home, add a payment or add anything else; joining is
           now stated in words, under the homes it would join. It is still
@@ -176,13 +185,14 @@ export function TenantHome({
         >
           {greeting(name)}
         </Type>
-        <Register width={density.compact ? 24 : 30} height={2} gap={density.compact ? 2 : space[1]} />
       </View>
 
       {error ? <Notice tone="error" title={error} /> : null}
 
       {loading && tenancies.length === 0 ? (
-        <HomeSkeleton />
+        <Animated.View exiting={depart()}>
+          <HomeSkeleton />
+        </Animated.View>
       ) : tenancies.length === 0 ? (
         <NoTenancy
           applications={openApplications.length}
@@ -194,38 +204,59 @@ export function TenantHome({
           onViewings={onViewings}
         />
       ) : (
+        /*
+          The four modules arrive in the order they are read, forty-five
+          milliseconds apart. The stagger is what turns "the skeleton vanished
+          and a dashboard appeared" into "this screen resolved": the Overview
+          is already legible while the activity list is still settling, which is
+          also the order somebody actually reads them in.
+
+          `order` is the section's place down the screen and is written out
+          rather than counted, because these are four named modules and not a
+          list — inserting one should be a decision about where it belongs, not
+          an index that silently renumbers everything under it.
+        */
         <>
-          <Overview
-            homes={tenancies.length}
-            owed={owed}
-            activeLeases={activeLeases}
-            applications={applications.length}
-            accepted={acceptedApplications}
-            onApplications={onApplications}
-          />
+          <Animated.View entering={arrive(0)}>
+            <Overview
+              homes={tenancies.length}
+              owed={owed}
+              activeLeases={activeLeases}
+              applications={applications.length}
+              accepted={acceptedApplications}
+              onApplications={onApplications}
+            />
+          </Animated.View>
 
-          <AttentionPanel signals={needs} onOpen={open} />
+          <Animated.View entering={arrive(1)}>
+            <AttentionPanel signals={needs} onOpen={open} />
+          </Animated.View>
 
-          <PlinthCard
-            title={tenancies.length > 1 ? "My homes" : "My home"}
-            meta={`${tenancies.length} ${plural(tenancies.length, "home", "homes")}`}
-          >
-            {ranked.map((tenancy) => (
-              <HomeCard
-                key={tenancy.id}
-                tenancy={tenancy}
-                first={tenancy.id === ranked[0]?.id}
-                onPress={() => onTenancy(tenancy)}
-                onRentAccount={() => onRentAccount(tenancy)}
-              />
-            ))}
-            <JoinAnother onJoin={onJoin} />
-          </PlinthCard>
+          <Animated.View entering={arrive(2)}>
+            <PlinthCard
+              title={tenancies.length > 1 ? "My homes" : "My home"}
+              meta={`${tenancies.length} ${plural(tenancies.length, "home", "homes")}`}
+            >
+              {ranked.map((tenancy) => (
+                <HomeCard
+                  key={tenancy.id}
+                  tenancy={tenancy}
+                  first={tenancy.id === ranked[0]?.id}
+                  onPress={() => onTenancy(tenancy)}
+                  onRentAccount={() => onRentAccount(tenancy)}
+                />
+              ))}
+              <JoinAnother onJoin={onJoin} />
+            </PlinthCard>
+          </Animated.View>
 
-          <ComingUp entries={upcoming} onViewings={onViewings} />
+          <Animated.View entering={arrive(3)}>
+            <ComingUp entries={upcoming} onViewings={onViewings} />
+          </Animated.View>
 
-          <RentalActivity items={recentActivity} onOpenAll={onNotifications} />
-
+          <Animated.View entering={arrive(4)}>
+            <RentalActivity items={recentActivity} onOpenAll={onNotifications} />
+          </Animated.View>
         </>
       )}
 
@@ -255,7 +286,7 @@ export function TenantHome({
           onPress={onSwitchToProvider}
         />
       ) : null}
-    </View>
+    </Animated.View>
   );
 }
 
@@ -339,20 +370,16 @@ function Overview({
   const density = useHomeDensity();
   const badge = owed.minor
     ? owed.overdue
-      ? { text: "Rent overdue", fg: ph.brick, bg: ph.brickSoft }
-      : { text: "Rent scheduled", fg: ph.amber, bg: ph.amberSoft }
-    : { text: "Nothing due", fg: ph.sage, bg: ph.greenSoft };
+      ? { text: "Rent overdue", tone: "late" as const }
+      : { text: "Rent scheduled", tone: "attention" as const }
+    : { text: "Nothing due", tone: "clear" as const };
 
   return (
-    <View style={[primarySurface, { padding: density.cardPadding, borderRadius: density.compact ? 14 : 16 }]}>
-      <Ticks />
+    <View style={[primarySurface, { padding: density.cardPadding, borderRadius: density.cardRadius }]}>
+      <Wash />
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: space[2], marginBottom: density.compact ? space[3] : space[4] }}>
-        <Type variant="bodyStrong" style={{ fontSize: density.compact ? 13 : 14, lineHeight: 19, color: ph.ink }}>Overview</Type>
-        <View style={{ flexShrink: 1, paddingHorizontal: density.compact ? 7 : 9, paddingVertical: density.compact ? 2 : 3, borderRadius: 20, backgroundColor: badge.bg }}>
-          <Type variant="caption" numberOfLines={1} style={{ fontSize: density.compact ? 10.25 : 11.5, lineHeight: 15, fontWeight: "500", color: badge.fg }}>
-            {badge.text}
-          </Type>
-        </View>
+        <Type variant="bodyStrong" style={{ fontSize: density.compact ? 14 : 15, lineHeight: 20, letterSpacing: -0.15, color: ph.ink }}>Overview</Type>
+        <Pill label={badge.text} tone={badge.tone} compact={density.compact} />
       </View>
 
       <View accessible accessibilityLabel={`${owed.formatted} owed in total`}>
@@ -379,7 +406,7 @@ function Overview({
         </Type>
       </View>
 
-      <Register width={density.compact ? 18 : 22} gap={density.compact ? space[3] : space[4]} />
+      <View style={{ height: 1, marginVertical: density.compact ? space[3] : space[4], backgroundColor: ph.line }} />
 
       <View style={{ flexDirection: "row", alignItems: "stretch", minHeight: density.compact ? 34 : 38 }}>
         <OverviewFact label={plural(homes, "Tenancy", "Tenancies")} value={homes} compact={density.compact} />
@@ -490,12 +517,12 @@ function ApplicationGauge({
           <Path
             d="M 16 100 A 84 84 0 0 1 184 100"
             fill="none"
-            stroke={ph.gold}
+            stroke={ph.brand}
             strokeWidth={1}
             strokeDasharray="1 13"
-            opacity={0.55}
+            opacity={0.28}
           />
-          <Line x1={innerX} y1={innerY} x2={outerX} y2={outerY} stroke={ph.gold} strokeWidth={2.4} strokeLinecap="round" />
+          <Line x1={innerX} y1={innerY} x2={outerX} y2={outerY} stroke={ph.brand} strokeWidth={2.4} strokeLinecap="round" />
         </Svg>
         {/* The reading sits inside the arc, on its baseline. */}
         <View pointerEvents="none" style={{ position: "absolute", left: 0, right: 0, top: 0, height: height * 0.862, alignItems: "center", justifyContent: "flex-end" }}>
@@ -590,8 +617,8 @@ function AttentionPanel({
         })
       ) : (
         <View style={{ flexDirection: "row", alignItems: "center", gap: density.compact ? space[2] : space[3], paddingVertical: space[2] }}>
-          <View style={{ width: density.compact ? 24 : 26, height: density.compact ? 24 : 26, borderRadius: 13, alignItems: "center", justifyContent: "center", backgroundColor: ph.greenSoft }}>
-            <Ionicons name="checkmark" size={density.compact ? 13 : 14} color={ph.sage} />
+          <View style={{ width: density.compact ? 24 : 26, height: density.compact ? 24 : 26, borderRadius: 13, alignItems: "center", justifyContent: "center", backgroundColor: ph.brandSoft }}>
+            <Ionicons name="checkmark" size={density.compact ? 13 : 14} color={ph.brand} />
           </View>
           <View style={{ flex: 1 }}>
             <Type variant="bodyStrong" style={{ fontSize: density.compact ? 12.25 : 13.2, lineHeight: 17, color: ph.ink }}>Nothing is waiting on you.</Type>
@@ -749,7 +776,7 @@ function JoinAnother({ onJoin }: { onJoin: () => void }) {
       {...pressableFeedback(ph.paperDim)}
     >
       <View style={tile(false, density.compact)}>
-        <Ionicons name="key-outline" size={density.compact ? 13.5 : 15} color={ph.gold} />
+        <Ionicons name="key-outline" size={density.compact ? 13.5 : 15} color={ph.brand} />
       </View>
       <Type variant="bodyStrong" style={{ flex: 1, fontSize: density.compact ? 12.5 : 13.5, lineHeight: 18, color: ph.ink }}>
         Join another home

@@ -23,7 +23,10 @@
 .settings-link:hover { background: var(--color-field-0); }
 .settings-link[aria-current="page"] { color: var(--color-ink-900); font-weight: 650; background: var(--color-field-50); }
 
-.settings-panel { display: grid; gap: var(--space-7); min-width: 0; max-width: 44rem; }
+/* Same missing step as the tenants tabs: `--space-7` is not on the scale, so
+   this gap resolved to nothing and every settings panel ran its sections
+   together. */
+.settings-panel { display: grid; gap: var(--space-8); min-width: 0; max-width: 44rem; }
 
 .settings-section { display: grid; gap: var(--space-4); padding-top: var(--space-6); border-top: var(--border-hairline) solid var(--color-field-200); }
 .settings-section:first-of-type { padding-top: 0; border-top: 0; }

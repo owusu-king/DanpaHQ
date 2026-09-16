@@ -7,6 +7,7 @@ import { Button } from "@/components/Button";
 import { Check } from "@/components/Check";
 import { Field } from "@/components/Field";
 import { Notice } from "@/components/Notice";
+import { Select } from "@/components/Select";
 import { ApiFailure } from "@/lib/api";
 import {
   draftLease,
@@ -397,6 +398,11 @@ function TermStep({ form, update }: { form: FormState; update: UpdateForm }) {
   );
 }
 
+const RENT_PERIODS = [
+  ["monthly", "Monthly"],
+  ["yearly", "Yearly"],
+] as const;
+
 function PaymentsStep({ form, update }: { form: FormState; update: UpdateForm }) {
   return (
     <div className="lease-field-grid">
@@ -407,16 +413,13 @@ function PaymentsStep({ form, update }: { form: FormState; update: UpdateForm })
         value={form.rent}
         onChange={(e) => update("rent", e.target.value.replace(/[^0-9.]/g, ""))}
       />
-      <label className="lease-select">
-        <span>Payment frequency</span>
-        <select
-          value={form.rentPeriod}
-          onChange={(e) => update("rentPeriod", e.target.value as FormState["rentPeriod"])}
-        >
-          <option value="monthly">Monthly</option>
-          <option value="yearly">Yearly</option>
-        </select>
-      </label>
+      <Select
+        label="Payment frequency"
+        value={form.rentPeriod}
+        onChange={(next) => update("rentPeriod", next as FormState["rentPeriod"])}
+        options={RENT_PERIODS}
+        className="lease-select"
+      />
       <Field
         label="Advance (months)"
         inputMode="numeric"
@@ -597,18 +600,23 @@ function UtilitySelect({
   onChange: (value: UtilityParty) => void;
 }) {
   return (
-    <label className="lease-select">
-      <span>{label}</span>
-      <select value={value} onChange={(e) => onChange(e.target.value as UtilityParty)}>
-        <option value="tenant">Tenant pays</option>
-        <option value="provider">Provider pays</option>
-        <option value="included">Included in rent</option>
-        <option value="shared">Shared</option>
-        <option value="not_applicable">Not applicable</option>
-      </select>
-    </label>
+    <Select
+      label={label}
+      value={value}
+      onChange={(next) => onChange(next as UtilityParty)}
+      options={UTILITY_PARTIES}
+      className="lease-select"
+    />
   );
 }
+
+const UTILITY_PARTIES = [
+  ["tenant", "Tenant pays"],
+  ["provider", "Provider pays"],
+  ["included", "Included in rent"],
+  ["shared", "Shared"],
+  ["not_applicable", "Not applicable"],
+] as const;
 
 function required(search: { get(key: string): string | null }, key: string): string {
   const value = search.get(key);

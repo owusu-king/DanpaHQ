@@ -40,6 +40,7 @@ export default function SavedPage() {
         <LoadingRows rows={2} />
       ) : saved.length === 0 ? (
         <Empty
+          icon="saved"
           title="Nothing saved yet"
           body="Save a place while you are looking and it waits here, so you can compare a shortlist instead of trying to remember."
           action={<Link href="/rentals" className="type-body-strong">Explore rentals →</Link>}

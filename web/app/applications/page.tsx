@@ -171,6 +171,7 @@ function TenantApplications() {
         <LoadingRows rows={3} />
       ) : applications.length === 0 ? (
         <Empty
+          icon="applications"
           title="No applications yet"
           body="Applying puts you in front of the landlord with your checks already attached."
           action={<Link href="/rentals" className="type-body-strong">Explore rentals →</Link>}
@@ -209,7 +210,7 @@ function TenantApplications() {
               {visible.map((row) => <ApplicationRow key={row.application.id} {...row} />)}
             </ul>
           ) : query ? (
-            <Empty title="No matching applications" body="Try another place or neighbourhood." />
+            <Empty icon="applications" title="No matching applications" body="Try another place or neighbourhood." />
           ) : (
             <ApplicationFilterEmpty filter={filter} />
           )}
@@ -236,12 +237,7 @@ function ApplicationFilterEmpty({ filter }: { filter: ApplicationFilter }) {
     approved: { title: "No approvals yet", body: "Approved applications will stay easy to find here." },
     past: { title: "No past applications", body: "Rejected and withdrawn applications will appear here." },
   };
-  return (
-    <div className="application-filter-empty" role="status">
-      <strong>{copy[filter].title}</strong>
-      <span>{copy[filter].body}</span>
-    </div>
-  );
+  return <Empty variant="inline" title={copy[filter].title} body={copy[filter].body} />;
 }
 
 function ApplicationRow({
@@ -381,6 +377,7 @@ function ProviderApplications() {
         </ul>
       ) : (
         <Empty
+          icon="applications"
           title={query ? "No matching requests" : stage === "action" ? "Nothing needs a decision" : stage === "agreement" ? "No agreements to prepare" : stage === "history" ? "No request history yet" : "No tenancy requests yet"}
           body={query ? "Try a different person, Property or Unit." : stage === "action" ? "New public applications and private tenancy requests appear here." : stage === "agreement" ? "Accepted requests move here until their agreement is sent." : stage === "history" ? "Settled requests remain available as a record." : "Applications against your listings and direct requests to join a Unit both arrive here."}
         />

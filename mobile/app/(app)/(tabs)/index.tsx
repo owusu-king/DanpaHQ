@@ -195,10 +195,11 @@ export default function DiscoveryHomeScreen() {
     <FlatList
       data={browsing ? listings.slice(0, 6) : []}
       keyExtractor={(item) => item.id}
-      // The tenant control center is drawn on the warm ground its surfaces sit
-      // against — paper on stone is what separates its regions, so the ground
-      // belongs to the scroller rather than to any one card. Browsing keeps the
-      // ordinary page: a wall of listing cards on stone would be a dashboard.
+      // The tenant control center is drawn on the canvas its surfaces sit
+      // against — white on a faint mint is what separates its regions, so the
+      // ground belongs to the scroller rather than to any one card. Browsing
+      // keeps the ordinary page: a wall of listing cards on the dashboard
+      // canvas would read as a dashboard.
       style={tenantMode ? { backgroundColor: ph.stone } : undefined}
       contentContainerStyle={{
         padding: tenantMode ? density.pagePadding : space[5],

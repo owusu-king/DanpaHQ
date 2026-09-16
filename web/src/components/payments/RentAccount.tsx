@@ -24,6 +24,7 @@ import { useState } from "react";
 import { Button } from "@/components/Button";
 import { Field } from "@/components/Field";
 import { Notice } from "@/components/Notice";
+import { Select } from "@/components/Select";
 import { ApiFailure } from "@/lib/api";
 import { type ProviderTenant, uploadFile } from "@/lib/console";
 import { formatMoney } from "@/lib/money";
@@ -504,23 +505,19 @@ function RecordPaymentForm({
         title="Record money received elsewhere"
         body="This does not collect or transfer money. The tenant must confirm the record before it changes the balance."
       />
-      <label className="rent-field type-caption">
-        Apply to
-        <select
-          value={chargeId}
-          onChange={(event) => {
-            setChargeId(event.target.value);
-            const charge = openCharges.find((row) => row.id === event.target.value);
-            if (charge) setAmount(String(charge.outstanding_minor / 100));
-          }}
-        >
-          {openCharges.map((charge) => (
-            <option key={charge.id} value={charge.id}>
-              {charge.kind_display} · {charge.outstanding_formatted}
-            </option>
-          ))}
-        </select>
-      </label>
+      <Select
+        label="Apply to"
+        value={chargeId}
+        onChange={(next) => {
+          setChargeId(next);
+          const charge = openCharges.find((row) => row.id === next);
+          if (charge) setAmount(String(charge.outstanding_minor / 100));
+        }}
+        options={openCharges.map(
+          (charge) => [charge.id, `${charge.kind_display} · ${charge.outstanding_formatted}`] as const,
+        )}
+        className="rent-field"
+      />
       <div className="rent-form-grid">
         <Field
           label="Amount (GH₵)"
@@ -535,19 +532,13 @@ function RecordPaymentForm({
           type="date"
         />
       </div>
-      <label className="rent-field type-caption">
-        Method
-        <select
-          value={method}
-          onChange={(event) => setMethod(event.target.value as RentPayment["method"])}
-        >
-          {PAYMENT_METHODS.map(([value, label]) => (
-            <option key={value} value={value}>
-              {label}
-            </option>
-          ))}
-        </select>
-      </label>
+      <Select
+        label="Method"
+        value={method}
+        onChange={(next) => setMethod(next as RentPayment["method"])}
+        options={PAYMENT_METHODS}
+        className="rent-field"
+      />
       <Field
         label="Reference (optional)"
         value={reference}

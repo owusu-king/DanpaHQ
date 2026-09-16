@@ -90,6 +90,7 @@ function PropertiesContent() {
       {loading ? <LoadingRows rows={4} /> : null}
       {!loading && properties.length === 0 ? (
         <Empty
+          icon="properties"
           title={organizations.length ? "No Properties yet" : "Add your first Property"}
           body={next.reason}
           action={

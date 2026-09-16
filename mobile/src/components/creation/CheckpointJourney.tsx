@@ -1,9 +1,10 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { useEffect, useRef } from "react";
-import { Animated, View } from "react-native";
+import { useEffect } from "react";
+import { View } from "react-native";
+import Animated, { useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 
 import { Type, space } from "@/components/ui";
-import { useReduceMotion } from "@/motion";
+import { duration, enter } from "@/motion";
 import { theme } from "@/theme";
 
 export type CheckpointState = "completed" | "current" | "upcoming" | "attention";
@@ -48,18 +49,24 @@ export function CheckpointJourney({
   const start = Math.max(0, Math.min(currentIndex - 1, checkpoints.length - 3));
   const nearby = checkpoints.slice(start, Math.min(checkpoints.length, Math.max(3, currentIndex + 2)));
   const complete = checkpoints.filter((checkpoint) => checkpoint.state === "completed").length;
-  const entrance = useRef(new Animated.Value(1)).current;
-  const reduceMotion = useReduceMotion();
+  const entrance = useSharedValue(1);
   const currentKey = checkpoints[currentIndex]?.key;
 
+  /* The step that just became current pushes off from 0.94, so reaching a
+     checkpoint is something you see happen rather than something that has
+     already happened by the time you look.
+
+     The duration was a bare `180` — between `fast` and `base` and belonging to
+     neither. It is `fast` now, which is what an acknowledgement should be, and
+     the curve decelerates so the box settles rather than stopping dead.
+     Reduce Motion is answered inside `enter`, so the step is simply at its
+     full size. */
   useEffect(() => {
-    entrance.setValue(reduceMotion ? 1 : 0.94);
-    Animated.timing(entrance, {
-      toValue: 1,
-      duration: reduceMotion ? 0 : 180,
-      useNativeDriver: true,
-    }).start();
-  }, [currentKey, entrance, reduceMotion]);
+    entrance.value = 0.94;
+    entrance.value = withTiming(1, enter(duration.fast));
+  }, [currentKey, entrance]);
+
+  const currentStyle = useAnimatedStyle(() => ({ transform: [{ scale: entrance.value }] }));
 
   return (
     <View
@@ -104,17 +111,21 @@ export function CheckpointJourney({
               ) : null}
               <View style={{ width: 84, alignItems: "center", gap: space[2] }}>
                 <Animated.View
-                  style={{
-                    width: checkpoint.state === "current" ? 30 : 28,
-                    height: checkpoint.state === "current" ? 30 : 28,
-                    borderRadius: 4,
-                    alignItems: "center",
-                    justifyContent: "center",
-                    backgroundColor: palette.ground,
-                    borderWidth: checkpoint.state === "current" ? 2 : 1,
-                    borderColor: palette.rule,
-                    transform: [{ scale: checkpoint.state === "current" ? entrance : 1 }],
-                  }}
+                  style={[
+                    {
+                      width: checkpoint.state === "current" ? 30 : 28,
+                      height: checkpoint.state === "current" ? 30 : 28,
+                      borderRadius: 4,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      backgroundColor: palette.ground,
+                      borderWidth: checkpoint.state === "current" ? 2 : 1,
+                      borderColor: palette.rule,
+                    },
+                    // Only the step being reached moves. The ones on either
+                    // side of it are context and holding still is their job.
+                    checkpoint.state === "current" ? currentStyle : null,
+                  ]}
                 >
                   <Ionicons
                     name={

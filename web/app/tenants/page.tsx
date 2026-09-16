@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { Field } from "@/components/Field";
 import { Notice } from "@/components/Notice";
+import { Select } from "@/components/Select";
 import { Empty, LoadingRows, PageHeader } from "@/components/portal/PageHeader";
 import { SpaceTenantAccess } from "@/components/property/SpaceTenantAccess";
 import { ApiFailure } from "@/lib/api";
@@ -136,6 +137,7 @@ export default function ProviderTenantsPage() {
 
       {!loadingOrganizations && organizations?.length === 0 ? (
         <Empty
+          icon="properties"
           title="Add a Property first"
           body="Tenant operations begin with a Unit. Rooomly creates your personal Portfolio with the first Property."
           action={<Link href="/properties/new" className="type-body-strong">Add Property →</Link>}
@@ -143,31 +145,36 @@ export default function ProviderTenantsPage() {
       ) : null}
 
       {(organizations?.length ?? 0) > 1 ? (
-        <label className="tenants-filter" style={{ maxWidth: "28rem", marginBottom: "var(--space-5)" }}>
-          <span className="type-caption">Portfolio</span>
-          <select
-            value={organizationId}
-            onChange={(event) => {
-              const next = event.target.value;
-              setOrganizationId(next);
-              setActiveContext(`organization:${next}`);
-            }}
-          >
-            {organizations?.map((organization) => (
-              <option key={organization.id} value={organization.id}>{organization.name}</option>
-            ))}
-          </select>
-        </label>
+        <Select
+          label="Portfolio"
+          value={organizationId}
+          onChange={(next) => {
+            setOrganizationId(next);
+            setActiveContext(`organization:${next}`);
+          }}
+          options={(organizations ?? []).map((organization) => [organization.id, organization.name] as const)}
+          className="tenants-portfolio"
+        />
       ) : null}
 
       {loadingPortfolio ? <LoadingRows rows={5} /> : null}
 
       {portfolio ? (
         <>
-          <p className="tenants-summary type-caption" aria-label="Portfolio tenancy summary">
-            <span>{portfolio.tenants.length} active relationship{portfolio.tenants.length === 1 ? "" : "s"}</span>
-            <span>{formatMoney({ minor: portfolio.money.overdue_minor, currency: "GHS" })} overdue</span>
-          </p>
+          {/* Two readings, tiled. They were a line of grey caption text — the
+              same weight as a form hint — for the two numbers this whole
+              workspace is about. Overdue money is marked the moment there is
+              any, not only once it is large. */}
+          <dl className="tenants-summary" aria-label="Portfolio tenancy summary">
+            <div className="tenants-summary-tile">
+              <dt>{portfolio.tenants.length === 1 ? "Active relationship" : "Active relationships"}</dt>
+              <dd>{portfolio.tenants.length}</dd>
+            </div>
+            <div className="tenants-summary-tile" data-tone={portfolio.money.overdue_minor ? "overdue" : undefined}>
+              <dt>Overdue</dt>
+              <dd>{formatMoney({ minor: portfolio.money.overdue_minor, currency: "GHS" })}</dd>
+            </div>
+          </dl>
 
           <div className="tenants-tabs" role="tablist" aria-label="Tenant work">
             <TenantTab selected={view === "tenants"} controls="tenant-list" onClick={() => chooseView("tenants")}>Tenants</TenantTab>
@@ -178,15 +185,14 @@ export default function ProviderTenantsPage() {
             <section id="tenant-list" role="tabpanel" aria-labelledby="tenant-list-tab">
               <div className="tenants-toolbar">
                 <Field label="Search tenants" type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Name, Property, Unit or bed" />
-                <label className="tenants-filter type-caption">
-                  Show
-                  <select value={filter} onChange={(event) => setFilter(event.target.value as TenantFilter)}>
-                    <option value="all">All current relationships</option>
-                    <option value="attention">Needs attention</option>
-                    <option value="overdue">Rent overdue</option>
-                    <option value="current">Current and paid up</option>
-                  </select>
-                </label>
+                <Select
+                  compact
+                  label="Show"
+                  value={filter}
+                  onChange={(value) => setFilter(value as TenantFilter)}
+                  options={TENANT_FILTERS}
+                  className="tenants-filter"
+                />
               </div>
               <TenantList tenants={visibleTenants} hasAny={portfolio.tenants.length > 0} />
             </section>
@@ -225,9 +231,16 @@ function TenantTab({ selected, controls, onClick, children }: { selected: boolea
   );
 }
 
+const TENANT_FILTERS = [
+  ["all", "All current relationships"],
+  ["attention", "Needs attention"],
+  ["overdue", "Rent overdue"],
+  ["current", "Current and paid up"],
+] as const;
+
 function TenantList({ tenants, hasAny }: { tenants: ProviderTenant[]; hasAny: boolean }) {
-  if (!hasAny) return <Empty title="No active tenancies" body="Approved requests appear here after an agreement is accepted and activated." />;
-  if (!tenants.length) return <Empty title="No matching tenants" body="Change the search or filter to see other relationships." />;
+  if (!hasAny) return <Empty icon="users" title="No active tenancies" body="Approved requests appear here after an agreement is accepted and activated." />;
+  if (!tenants.length) return <Empty icon="users" title="No matching tenants" body="Change the search or filter to see other relationships." />;
   return (
     <>
       <div className="tenant-table-head type-label" aria-hidden="true"><span>Tenant</span><span>Property and Unit</span><span>Rent</span><span /></div>
@@ -279,7 +292,7 @@ function TenantAccessSection({ spaces, onChanged }: { spaces: ProviderTenantAcce
         <h2 className="type-title-2" style={{ margin: 0 }}>Private Unit access</h2>
         <p className="type-caption" style={{ margin: "var(--space-2) 0 0", maxWidth: "62ch" }}>Create a temporary code only when you are ready to share a verified, available Unit privately.</p>
       </header>
-      {!ready.length ? <Empty title="No Units ready to share privately" body="A Unit must be verified and available before it can issue an access code." action={<Link href="/properties" className="type-body-strong">Review Properties →</Link>} /> : (
+      {!ready.length ? <Empty icon="units" title="No Units ready to share privately" body="A Unit must be verified and available before it can issue an access code." action={<Link href="/properties" className="type-body-strong">Review Properties →</Link>} /> : (
         <div className="tenant-access-grid">
           {shown.map((space) => (
             <article key={space.unit_id} className="portal-panel">

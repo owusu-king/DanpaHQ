@@ -6,6 +6,8 @@
  * chosen to open — inside an application the title's job is orientation, and
  * anything larger is taking room from the work.
  */
+
+import { Icon, type IconName } from "./icons";
 export function PageHeader({
   title,
   description,
@@ -53,13 +55,46 @@ export function Empty({
   title,
   body,
   action,
+  icon = "details",
+  variant = "panel",
 }: {
   title: string;
   body?: string;
   action?: React.ReactNode;
+  /** What the list would have held. `details` is the neutral "no records". */
+  icon?: IconName;
+  /**
+   * `panel` is the page's answer when there is nothing at all: a plate, a
+   * heading and an invitation, on its own ground.
+   *
+   * `inline` is the answer to a *filter* — the list exists, this slice of it is
+   * empty — so it stays the weight of a list row and keeps the rule below it,
+   * rather than dropping a panel into the middle of a table. Three workspaces
+   * had written this one by hand, identically, under three class names; the
+   * copy stayed put and only the drawing moved here.
+   */
+  variant?: "panel" | "inline";
 }) {
+  if (variant === "inline") {
+    return (
+      <div className="portal-empty-inline" role="status">
+        <strong>{title}</strong>
+        {body ? <span>{body}</span> : null}
+      </div>
+    );
+  }
+
   return (
     <div className="portal-empty">
+      {/* A mark to look at first.
+       *
+       * These were a heading and a line of grey text centred in a dashed box —
+       * which on a page of real surfaces reads as a hole rather than as an
+       * answer, and gives the eye nothing to land on. The plate is quiet and it
+       * is `aria-hidden`: the heading is still what gets announced. */}
+      <span className="portal-empty-mark" aria-hidden="true">
+        <Icon name={icon} />
+      </span>
       <h3>{title}</h3>
       {body ? <p>{body}</p> : null}
       {action}

@@ -5,18 +5,6 @@
 
 .applications { display: grid; gap: var(--space-6); }
 
-/* One quiet rail, not five badges. History is always one tap away and the
-   underline carries selection without adding another rounded container. */
-
-.application-filter-empty {
-  display: grid;
-  gap: var(--space-1);
-  padding: var(--space-8) 0;
-  border-bottom: var(--border-hairline) solid var(--color-field-200);
-}
-.application-filter-empty strong { color: var(--color-ink-900); font-size: .9375rem; }
-.application-filter-empty span { color: var(--color-ink-500); font-size: .875rem; }
-
 /* Three counts, a search, then the stages — the shape the provider's lists
    use. A tenant reading their own applications is doing the same thing from
    the other side, and should not have to learn a second way of doing it. */

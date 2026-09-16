@@ -311,7 +311,17 @@ test("the two columns are two regions, not one crowded block", () => {
   // work that a hairline and ever more air were doing.
   assert.match(css, /\.home-overview-grid \{[\s\S]{0,160}grid-template-columns: minmax\(0, 1\.15fr\) minmax\(19rem, \.85fr\)/);
   assert.match(css, /\.portal-workspace\.is-dashboard \{\s*background: var\(--ph-stone\)/);
-  assert.match(css, /--ph-paper: #fcfbf7/);
+
+  // Paper and stone must both exist and must differ — that contrast *is* the
+  // separation. This asserted the literal `#fcfbf7`, which broke the moment the
+  // palette was derived from the shared tokens instead of hardcoded, while
+  // saying nothing about the relationship it exists to protect: a paper set
+  // equal to stone would have passed it.
+  const paper = css.match(/--ph-paper:\s*([^;]+);/)?.[1]?.trim();
+  const stone = css.match(/--ph-stone:\s*([^;]+);/)?.[1]?.trim();
+  assert.ok(paper, "the card surface must be defined");
+  assert.ok(stone, "the page ground must be defined");
+  assert.notEqual(paper, stone, "cards must be a different surface from the ground");
 });
 
 test("the page reflows against its column, never against the window", () => {

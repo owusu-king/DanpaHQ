@@ -145,12 +145,17 @@ test("the price and action panel becomes the sticky decision surface", () => {
 });
 
 test("an icon outside the navigation takes the colour of what it labels", () => {
-  // `portal.css` paints every `.portal-icon` ink-500 for the rail. Anywhere
-  // else that is simply wrong: the verified shield rendered grey beside green
-  // text, on both the listing page and the Explore card.
+  // `portal.css` paints every `.portal-icon` the muted grey the rail wants.
+  // Anywhere else that is simply wrong: the verified shield rendered grey
+  // beside green text, on both the listing page and the Explore card.
+  //
+  // The token moved with the rail's repaint — it was `--color-ink-500`, the
+  // warm taupe from the palette the shell used before it went white-and-green.
+  // What this protects is the *default*, not which grey it is: the rail sets
+  // one, and every other surface has to override it rather than inherit it.
   assert.match(
     read("web/src/styles/portal.css"),
-    /\.portal-icon \{[^}]*color: var\(--color-ink-500\)/,
+    /\.portal-icon \{[^}]*color: var\(--muted-foreground\)/,
   );
 
   // Plain string slicing: a regex built by interpolating a selector needs the

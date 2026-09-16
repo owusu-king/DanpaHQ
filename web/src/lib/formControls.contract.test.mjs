@@ -109,12 +109,29 @@ test("a field says when it has focus", () => {
   assert.match(code(mobileUi()), /onBlur\?\.\(event\)/);
 });
 
-test("a select does not wear the operating system's arrow", () => {
-  assert.match(rule(forms(), ".select-control"), /appearance: none/);
-  // Drawn from two borders on a rotated square, in a colour that matches.
-  assert.match(rule(forms(), ".select-shell::after"), /--color-ink-500/);
-  assert.match(code(select()), /select-shell/);
-  assert.match(code(select()), /select-control/);
+test("a select does not wear the operating system's control at all", () => {
+  // This used to assert `appearance: none` on a native `<select>` and a chevron
+  // drawn from two borders on a rotated square. That got the *closed* control to
+  // match the page and could do nothing about the open one — the menu belongs to
+  // the operating system, so its type, radius, row height and selected state
+  // were never ours to choose.
+  //
+  // The shared control is a Radix listbox now, so there is no native element to
+  // strip and no arrow to redraw. What still has to hold is stronger: nothing in
+  // the product hands a `<select>` to the reader.
+  assert.doesNotMatch(code(select()), /<select|<option/);
+  assert.match(code(select()), /SelectTrigger/);
+  assert.match(code(select()), /SelectContent/);
+
+  // Radix reserves "" for "unset", and two call sites offer an option whose
+  // value genuinely is "". Without a sentinel that is a runtime throw, not a
+  // style bug.
+  assert.match(code(select()), /const UNSET =/);
+
+  // The trigger is a button, so a wrapping `<label>` would associate with
+  // nothing and the control would announce only its value.
+  assert.match(code(select()), /aria-labelledby=\{id\}/);
+
   // Explore had written its own by hand and would have drifted the moment the
   // shared one was redrawn.
   assert.doesNotMatch(read("web/src/styles/explore-workspace.css"), /\.explore-drawer select/);
@@ -231,8 +248,13 @@ test("a field is 48px, and clickable to its own edges", () => {
   // A prefix brings its own left padding rather than the shell providing it.
   assert.match(rule(forms(), ".field-prefix"), /padding-inline-start/);
 
-  // Everything a person can reach is the same height.
-  assert.match(rule(forms(), ".select-control"), /min-height: var\(--target-min\)/);
+  // Everything a person can reach is the same height. The select's height moved
+  // out of `forms.css` when it stopped being a native control — it is a Radix
+  // trigger now, sized where it is built. `h-12` is 3rem is the 48px that
+  // `--target-min` names, including for the compact toolbar variant, whose
+  // density comes from padding rather than from a shorter target.
+  assert.match(code(select()), /"h-12 w-full/);
+  assert.doesNotMatch(code(select()), /\bh-(8|9|10|11)\b/);
 
   // The phone had the same dead strip, for the same reason.
   const mobile = code(mobileUi()).replace(/\s+/g, " ");
@@ -268,6 +290,11 @@ test("an input that is drawn as something else does not also draw a focus box", 
     ["forms.css", ".field-input:focus-visible"],
     ["forms.css", ".control-input:focus-visible"],
     ["property-workspace.css", ".type-choice-option input:focus-visible"],
+    // The shadcn primitives all ring themselves and all carry a `data-slot`.
+    // They cannot opt out from their own class list: the rule above is
+    // unlayered and Tailwind's utilities are layered, so unlayered wins however
+    // little it weighs.
+    ["foundation.css", "[data-slot]:focus-visible"],
   ]) {
     assert.match(
       rule(read(`web/src/styles/${sheet}`), selector),
@@ -296,4 +323,91 @@ test("an input that is drawn as something else does not also draw a focus box", 
     }
   }
   assert.deepEqual(hand, [], `hand-hidden inputs, use .sr-only: ${hand.join(", ")}`);
+});
+
+test("no screen in the product hands a native select to the reader", () => {
+  // The rule above holds `components/Select` to a drawn listbox. That is worth
+  // nothing on a screen that never calls it, and eleven of them did not: a
+  // Portfolio picker on Tenants and another on Team, which charge a payment
+  // settles and how it arrived, the Property and category of an expense, why a
+  // tenant is cancelling and what went wrong at a viewing, the same reason list
+  // on the provider's side, and the lease builder's payment frequency and five
+  // utility parties. Each opened a menu the operating system drew, inside a
+  // page where the type, radius and row height had all been chosen.
+  //
+  // Two places are deliberately not that, and are named here rather than left
+  // to look like misses:
+  //
+  //   * `app/management/**` — the staff console is its own denser language,
+  //     built on `--mgmt-*` tokens with 2.65rem controls. Dropping the 48px
+  //     product listbox into it would read as the wrong control, not as a
+  //     correction. It wants a listbox at its own density, which is its own
+  //     piece of work; these are the selects that are left.
+  //   * `MobileSelectFilter` — the phone's quick-filter pill covers a native
+  //     select on purpose, because on a handset the platform's own picker is
+  //     the control a person expects and can reach with a thumb (ADR 0014 is
+  //     the same argument for keeping the platform switch on mobile).
+  const offenders = [];
+  for (const file of [...sources("web/src"), ...sources("web/app")]) {
+    const relative = file.slice(root.length + 1).replace(/\\/g, "/");
+    if (relative.startsWith("web/app/management/")) continue;
+    const body = code(readFileSync(file, "utf8"));
+    if (!/<select[\s>]/.test(body)) continue;
+    if (/function MobileSelectFilter\(/.test(body)) continue;
+    offenders.push(relative);
+  }
+  assert.deepEqual(offenders, [], `still native: ${offenders.join(", ")}`);
+});
+
+test("a stylesheet does not still dress a select that is no longer there", () => {
+  // Each of these sized and framed a native control. Left behind they match
+  // nothing, and the next person to read the sheet has to open the screen to
+  // find out whether the rule is load-bearing.
+  for (const sheet of [
+    "lease-builder.css",
+    "payments-workspace.css",
+    "team-workspace.css",
+    "viewings-tenant.css",
+  ]) {
+    assert.doesNotMatch(
+      read(`web/src/styles/${sheet}`),
+      // The element, not a class that happens to end in the word — the
+      // wrappers are still called `.lease-select` and `.viewing-select`.
+      /(?:^|[\s,>+~])select\s*\{/m,
+      `${sheet} still styles a native select`,
+    );
+  }
+});
+
+test("an empty state is drawn once, in the two weights it has", () => {
+  const pageHeader = code(read("web/src/components/portal/PageHeader.tsx"));
+  const portal = read("web/src/styles/portal.css");
+
+  // The panel carries a mark, so the eye has something to land on where there
+  // is otherwise nothing.
+  assert.match(pageHeader, /portal-empty-mark/);
+  assert.match(pageHeader, /<Icon name=\{icon\}/);
+  // And it stays decoration: the heading is what gets announced.
+  assert.match(pageHeader, /className="portal-empty-mark" aria-hidden="true"/);
+
+  // The answer to a *filter* is a different weight — a list with nothing
+  // currently in it, not a page with nothing on it. Viewings, Agreements and
+  // Applications had each written that by hand, identically, under three class
+  // names in three sheets.
+  assert.match(pageHeader, /variant \?: ?"panel" \| "inline"|variant\?: "panel" \| "inline"/);
+  assert.match(portal, /\.portal-empty-inline \{/);
+  for (const sheet of [
+    "agreements-workspace.css",
+    "applications-workspace.css",
+    "viewings-tenant.css",
+  ]) {
+    assert.doesNotMatch(
+      read(`web/src/styles/${sheet}`),
+      /filter-empty/,
+      `${sheet} still draws its own empty state`,
+    );
+  }
+
+  // It still announces itself when a filter empties the list under the reader.
+  assert.match(pageHeader, /className="portal-empty-inline" role="status"/);
 });

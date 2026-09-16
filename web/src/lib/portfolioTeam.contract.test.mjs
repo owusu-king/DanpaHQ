@@ -31,7 +31,10 @@ test("provider web exposes Portfolio Team, settings, invitations and assignments
   // Switching belongs to the one surface that still knows which Portfolio you
   // are looking at, and only when there is more than one.
   assert.match(team, /organizations\.length > 1/);
-  assert.match(team, /setActiveContext\(`organization:\$\{event\.target\.value\}`\)/);
+  // The picker is the shared listbox now, which hands back the chosen value
+  // rather than a change event — so what is pinned here is that choosing a
+  // Portfolio sets the active context, not which object the callback is given.
+  assert.match(team, /setActiveContext\(`organization:\$\{\w+\}`\)/);
 });
 
 test("an individual web provider creates a first Property without setup detour", () => {

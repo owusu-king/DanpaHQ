@@ -180,20 +180,24 @@ test("colour sorts the list, and is drained rather than swapped when closed", ()
 });
 
 test("it presses like the tab bar, because it sits under it", () => {
-  const spring = (text) => ({
-    speed: Number(/speed:\s*([\d.]+)/.exec(text)?.[1]),
-    bounciness: Number(/bounciness:\s*([\d.]+)/.exec(text)?.[1]),
-  });
-  const here = spring(code(hub()));
-  const bar = spring(code(read("src/components/nav/MainTabBar.tsx")));
-  assert.ok(Number.isFinite(here.speed), "no spring found on the hub");
-  assert.deepEqual(here, bar, "the hub and the tab bar must press alike");
-
-  // And Reduce Motion is answered by keeping the feedback and dropping the
-  // movement, not by dropping both.
   const screen = code(hub());
-  assert.match(screen, /useReduceMotion\(\)/);
-  assert.match(screen, /scale\.setValue\(toValue\)/);
+
+  // Both take the one spring from `src/motion.ts`. This used to parse `speed`
+  // and `bounciness` out of each file and compare them, which was the strongest
+  // check available while the numbers were transcribed and no check at all once
+  // a third screen transcribed them too.
+  assert.match(screen, /from "@\/motion"/);
+  assert.doesNotMatch(screen, /speed:|bounciness:|stiffness:|damping:/);
+  assert.match(screen, /withSpring\(toValue, pressSpring\)/);
+
+  // And Reduce Motion is still answered by keeping the feedback and dropping
+  // the movement, not by dropping both. It is answered on the UI thread now —
+  // `press` carries `ReduceMotion.System`, so the scale still reaches its
+  // pressed value and simply does not travel to get there. The screen no longer
+  // subscribes to the setting itself only to skip to the same end value.
+  const motion = code(read("src/motion.ts"));
+  assert.match(motion, /export const press: WithSpringConfig/);
+  assert.match(motion, /reduceMotion: ReduceMotion\.System/);
 });
 
 test("loading has the shape of what is coming, and failure keeps the page", () => {

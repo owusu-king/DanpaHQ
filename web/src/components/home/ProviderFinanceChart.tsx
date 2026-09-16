@@ -34,6 +34,9 @@ export function ProviderFinanceChart({ collection }: { collection: Collection })
     ),
     [points],
   );
+  /* Nothing collected and nothing owed across the whole window — a real state
+     for a new Portfolio, not a loading one. */
+  const empty = totals.collected === 0 && totals.outstanding === 0;
   const latest = points.at(-1);
   const previous = points.at(-2);
   const outstandingPeriods = points.filter((point) => point.outstanding_minor > 0).length;
@@ -115,6 +118,22 @@ export function ProviderFinanceChart({ collection }: { collection: Collection })
         </div>
       </div>
 
+      {/* A plot of nothing used to be drawn in full — five axis labels all
+          reading GH₵0, a flat line along the floor, an end label pinned to it —
+          with a sentence underneath saying there was nothing to show. The
+          sentence was the honest half. */}
+      {empty ? (
+        <p className="home-chart-empty">
+          <strong>No rent activity in this view yet.</strong>
+          <small>Confirmed payments and open charges appear here as they are recorded.</small>
+        </p>
+      ) : (
+      /* Two elements, not one. Below a certain width the plot keeps its own size
+         and this scrolls to it — six months squeezed into 300px is six
+         unreadable axis labels. The inner element carries the plot's width, so
+         the tooltip's percentage offsets stay pinned to the column they
+         describe rather than to the window onto it. */
+      <div className="home-chart-scroll">
       <div className="home-chart-wrap" onPointerLeave={() => setActiveIndex(null)}>
         <svg
           className="home-chart"
@@ -125,9 +144,13 @@ export function ProviderFinanceChart({ collection }: { collection: Collection })
         >
           <defs>
             <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="var(--ph-navy)" stopOpacity=".32" />
-              <stop offset="55%" stopColor="var(--ph-navy)" stopOpacity=".08" />
-              <stop offset="100%" stopColor="var(--ph-navy)" stopOpacity="0" />
+              {/* The area under the line is the line's own colour fading out,
+                  not a second one. It used to be ink, which put a grey shadow
+                  under a green curve and made the collected series look like
+                  two different quantities stacked. */}
+              <stop offset="0%" stopColor="var(--ph-brand)" stopOpacity=".26" />
+              <stop offset="55%" stopColor="var(--ph-brand)" stopOpacity=".07" />
+              <stop offset="100%" stopColor="var(--ph-brand)" stopOpacity="0" />
             </linearGradient>
           </defs>
 
@@ -268,10 +291,9 @@ export function ProviderFinanceChart({ collection }: { collection: Collection })
           </div>
         ) : null}
 
-        {totals.collected === 0 && totals.outstanding === 0 ? (
-          <p className="home-chart-empty">No rent activity falls inside this view yet.</p>
-        ) : null}
       </div>
+      </div>
+      )}
     </section>
   );
 }

@@ -1,13 +1,14 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useFocusEffect, useRouter } from "expo-router";
-import { useCallback, useRef, useState } from "react";
-import { Animated, Pressable, ScrollView, View } from "react-native";
+import { useCallback, useState } from "react";
+import { Pressable, ScrollView, View } from "react-native";
+import Animated, { useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
 
 import { useAuth } from "@/auth";
 import { AuthPrompt } from "@/components/AuthPrompt";
 import { ServiceGlyph } from "@/components/services/ServiceGlyph";
 import { Notice, Surface, Type, radius, space } from "@/components/ui";
-import { useReduceMotion } from "@/motion";
+import { press as pressSpring, PRESS_SCALE_TILE } from "@/motion";
 import { isAndroid } from "@/platform";
 import {
   detailTitle,
@@ -380,24 +381,23 @@ function PressableScale({
   onPress?: () => void;
   accessibilityLabel: string;
 }) {
-  const reduceMotion = useReduceMotion();
-  const scale = useRef(new Animated.Value(1)).current;
+  const scale = useSharedValue(1);
+  const cardStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
 
+  /* Reduce Motion is answered by the spring's own `ReduceMotion.System`, so this
+     no longer holds a subscription to an accessibility setting purely to skip
+     to the end value itself. */
   const animate = (toValue: number) => {
-    if (reduceMotion) {
-      scale.setValue(toValue);
-      return;
-    }
-    Animated.spring(scale, { toValue, speed: 34, bounciness: 2, useNativeDriver: true }).start();
+    scale.value = withSpring(toValue, pressSpring);
   };
 
   return (
-    <Animated.View style={{ transform: [{ scale }] }}>
+    <Animated.View style={cardStyle}>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={accessibilityLabel}
         onPress={onPress}
-        onPressIn={() => animate(0.98)}
+        onPressIn={() => animate(PRESS_SCALE_TILE)}
         onPressOut={() => animate(1)}
         android_ripple={isAndroid ? { color: theme.color.kola["50"] } : undefined}
         style={({ pressed }) => (pressed && !isAndroid ? { opacity: 0.72 } : null)}

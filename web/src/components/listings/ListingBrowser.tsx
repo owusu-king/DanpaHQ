@@ -20,7 +20,7 @@ import { useSession } from "@/lib/session";
 import { useToast } from "@/components/toast/Toaster";
 import { Check } from "@/components/Check";
 import { Field } from "@/components/Field";
-import { Select } from "@/components/Select";
+import { FilterSelect } from "@/components/listings/FilterSelect";
 
 /**
  * One listing experience, hosted by two chromes.
@@ -271,12 +271,14 @@ export function ListingBrowser() {
         </div>
 
         <div className="explore-bar-actions">
-          <label>
-            <span className="sr-only">Sort</span>
-            <select className="explore-control" value={sort} onChange={(event) => setSort(event.target.value as ListingSort)}>
-              {SORTS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-            </select>
-          </label>
+          <FilterSelect
+            label="Sort"
+            hideLabel
+            value={sort}
+            onChange={(next) => setSort(next as ListingSort)}
+            options={SORTS}
+            className="min-w-[12rem]"
+          />
         </div>
       </div>
 
@@ -363,7 +365,7 @@ export function ListingBrowser() {
         className="explore-drawer"
         aria-label="Rental filters"
       >
-        <Select
+        <FilterSelect
           label="Property type"
           value={propertyType}
           onChange={setPropertyType}
@@ -372,7 +374,7 @@ export function ListingBrowser() {
             ...propertyTypes.map((type) => [type.value, type.label] as const),
           ]}
         />
-        <Select label="Bedrooms" value={bedrooms} onChange={setBedrooms} options={BEDROOMS} />
+        <FilterSelect label="Bedrooms" value={bedrooms} onChange={setBedrooms} options={BEDROOMS} />
         <Field
           label="Maximum rent (GH₵)"
           inputMode="numeric"
@@ -380,7 +382,7 @@ export function ListingBrowser() {
           onChange={(event) => setRentMax(event.target.value.replace(/\D/g, ""))}
           placeholder="3000"
         />
-        <Select label="Advance" value={advanceMax} onChange={setAdvanceMax} options={ADVANCE} />
+        <FilterSelect label="Advance" value={advanceMax} onChange={setAdvanceMax} options={ADVANCE} />
         <Check
           label="Furnished only"
           checked={furnished}

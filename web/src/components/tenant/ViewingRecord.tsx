@@ -7,6 +7,7 @@ import QRCode from "react-qr-code";
 import { Button } from "@/components/Button";
 import { Field } from "@/components/Field";
 import { Notice } from "@/components/Notice";
+import { Select } from "@/components/Select";
 import { ViewingDirections } from "@/components/viewings/ViewingDirections";
 import { ApiFailure } from "@/lib/api";
 import {
@@ -368,6 +369,15 @@ function RespondToAttendance({
   );
 }
 
+/** The report categories the service accepts, in the reporter's own words. */
+const REPORT_CATEGORIES = [
+  ["misleading_listing", "The listing was misleading"],
+  ["wrong_unit_or_property", "It was a different place"],
+  ["host_no_show", "Nobody came"],
+  ["inappropriate_conduct", "Inappropriate conduct"],
+  ["other", "Something else"],
+] as const;
+
 /** After the visit — and only until a choice has been made. */
 function FollowUp({
   viewing,
@@ -394,16 +404,13 @@ function FollowUp({
     return (
       <section className="viewing-action is-primary">
         <h3>What went wrong?</h3>
-        <label className="viewing-select">
-          <span className="type-caption">What happened</span>
-          <select value={category} onChange={(event) => setCategory(event.target.value)}>
-            <option value="misleading_listing">The listing was misleading</option>
-            <option value="wrong_unit_or_property">It was a different place</option>
-            <option value="host_no_show">Nobody came</option>
-            <option value="inappropriate_conduct">Inappropriate conduct</option>
-            <option value="other">Something else</option>
-          </select>
-        </label>
+        <Select
+          label="What happened"
+          value={category}
+          onChange={setCategory}
+          options={REPORT_CATEGORIES}
+          className="viewing-select"
+        />
         <Field label="Tell us what happened" value={details} onChange={(event) => setDetails(event.target.value)} />
         <div className="viewing-exits">
           <Button busy={busy} onClick={() => void choose("report")}>Send report</Button>
@@ -478,6 +485,14 @@ function SuggestTime({
   );
 }
 
+const CANCELLATION_REASONS = [
+  ["schedule_conflict", "Something else came up"],
+  ["emergency", "An emergency"],
+  ["transportation_problem", "I cannot get there"],
+  ["no_longer_interested", "No longer interested"],
+  ["other", "Another reason"],
+] as const;
+
 function CancelAppointment({
   viewing,
   busy,
@@ -498,16 +513,13 @@ function CancelAppointment({
       <p className="type-caption">
         If another time would work, suggest one instead — that keeps the appointment alive.
       </p>
-      <label className="viewing-select">
-        <span className="type-caption">Why</span>
-        <select value={reason} onChange={(event) => setReason(event.target.value)}>
-          <option value="schedule_conflict">Something else came up</option>
-          <option value="emergency">An emergency</option>
-          <option value="transportation_problem">I cannot get there</option>
-          <option value="no_longer_interested">No longer interested</option>
-          <option value="other">Another reason</option>
-        </select>
-      </label>
+      <Select
+        label="Why"
+        value={reason}
+        onChange={setReason}
+        options={CANCELLATION_REASONS}
+        className="viewing-select"
+      />
       <Field label="Anything to add (optional)" value={note} onChange={(event) => setNote(event.target.value)} maxLength={300} />
       <div className="viewing-exits">
         <Button

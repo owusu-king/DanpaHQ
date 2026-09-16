@@ -5,15 +5,6 @@
 
 .viewings { display: grid; gap: var(--space-6); }
 
-.tenant-viewing-filter-empty {
-  display: grid;
-  gap: var(--space-1);
-  padding: var(--space-8) 0;
-  border-bottom: var(--border-hairline) solid var(--color-field-200);
-}
-.tenant-viewing-filter-empty strong { color: var(--color-ink-900); font-size: .9375rem; }
-.tenant-viewing-filter-empty span { color: var(--color-ink-500); font-size: .875rem; }
-
 /* Three counts, a search, then the stages — the shape every other list in
    the product uses. Prefixed, because the provider's viewings sheet already
    owns the unprefixed names and loads before this one. */
@@ -149,8 +140,10 @@
 .viewing-history span { color: var(--color-ink-500); }
 
 .viewing-exits { display: flex; flex-wrap: wrap; gap: var(--space-2); }
-.viewing-select { display: grid; gap: var(--space-1); }
-.viewing-select select { min-height: 44px; padding: 0 var(--space-3); font: inherit; background: var(--color-field-0); border: var(--border-hairline) solid var(--color-field-300); border-radius: var(--radius-md); }
+/* The two pickers a tenant meets after a viewing — why they are cancelling and
+   what went wrong — are the shared listbox, which stands at the 48px target
+   minimum these did not. */
+.viewing-select { min-width: 0; }
 .viewing-when-fields { display: flex; flex-wrap: wrap; gap: var(--space-3); }
 .viewing-when-fields label { display: grid; gap: var(--space-1); }
 .viewing-when-fields input { min-height: 44px; padding: 0 var(--space-3); font: inherit; background: var(--color-field-0); border: var(--border-hairline) solid var(--color-field-300); border-radius: var(--radius-md); }

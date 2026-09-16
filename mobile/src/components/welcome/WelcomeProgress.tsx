@@ -1,4 +1,10 @@
-import { Animated, View } from "react-native";
+import { View } from "react-native";
+import Animated, {
+  Extrapolation,
+  interpolate,
+  useAnimatedStyle,
+  type SharedValue,
+} from "react-native-reanimated";
 
 import { radius } from "@/components/ui";
 import { theme } from "@/theme";
@@ -23,7 +29,7 @@ export function WelcomeProgress({
   width,
   scenes,
 }: {
-  scroll: Animated.Value;
+  scroll: SharedValue<number>;
   width: number;
   scenes: number;
 }) {
@@ -35,40 +41,60 @@ export function WelcomeProgress({
       accessibilityLabel={`Introduction, ${scenes} steps`}
     >
       {Array.from({ length: scenes }, (_, index) => (
-        <View
-          key={index}
-          style={{
-            width: SEGMENT,
-            height: 4,
-            borderRadius: radius.pill,
-            backgroundColor: theme.color.field["200"],
-            overflow: "hidden",
-          }}
-        >
-          <Animated.View
-            style={{
-              height: "100%",
-              borderRadius: radius.pill,
-              backgroundColor: theme.color.kola["600"],
-              width: SEGMENT,
-              // Slid in behind a clip, not scaled: React Native scales from the
-              // centre, so a scaled fill would grow outward from the middle of
-              // the segment instead of filling it from the left. Translating a
-              // full-width bar under `overflow: hidden` gives the right shape
-              // and still runs on the native driver.
-              transform: [
-                {
-                  translateX: scroll.interpolate({
-                    inputRange: [(index - 1) * width, index * width, (index + 1) * width],
-                    outputRange: [-SEGMENT, 0, 0],
-                    extrapolate: "clamp",
-                  }),
-                },
-              ],
-            }}
-          />
-        </View>
+        <Segment key={index} index={index} width={width} scroll={scroll} />
       ))}
+    </View>
+  );
+}
+
+/** One step. A component of its own, because each owns a worklet. */
+function Segment({
+  index,
+  width,
+  scroll,
+}: {
+  index: number;
+  width: number;
+  scroll: SharedValue<number>;
+}) {
+  const fill = useAnimatedStyle(() => ({
+    // Slid in behind a clip, not scaled: React Native scales from the centre, so
+    // a scaled fill would grow outward from the middle of the segment instead of
+    // filling it from the left. Translating a full-width bar under
+    // `overflow: hidden` gives the right shape, on the UI thread either way.
+    transform: [
+      {
+        translateX: interpolate(
+          scroll.value,
+          [(index - 1) * width, index * width, (index + 1) * width],
+          [-SEGMENT, 0, 0],
+          Extrapolation.CLAMP,
+        ),
+      },
+    ],
+  }));
+
+  return (
+    <View
+      style={{
+        width: SEGMENT,
+        height: 4,
+        borderRadius: radius.pill,
+        backgroundColor: theme.color.field["200"],
+        overflow: "hidden",
+      }}
+    >
+      <Animated.View
+        style={[
+          {
+            height: "100%",
+            borderRadius: radius.pill,
+            backgroundColor: theme.color.kola["600"],
+            width: SEGMENT,
+          },
+          fill,
+        ]}
+      />
     </View>
   );
 }

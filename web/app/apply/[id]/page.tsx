@@ -288,7 +288,9 @@ const SHELL: React.CSSProperties = {
 const FORM: React.CSSProperties = {
   display: "grid",
   gap: "var(--space-6)",
-  marginTop: "var(--space-7)",
+  // `--space-7` is not on the scale, which steps 6 to 8, so this margin has
+  // always resolved to nothing.
+  marginTop: "var(--space-8)",
 };
 
 const SECTION: React.CSSProperties = {

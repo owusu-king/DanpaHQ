@@ -64,6 +64,7 @@ export default function ArchivePage() {
       {archive === null ? <LoadingRows rows={4} /> : null}
       {empty ? (
         <Empty
+          icon="properties"
           title="Your archive is empty"
           body="Properties and spaces you archive will remain available here without appearing in the working portfolio."
           action={<Link href="/properties" className="type-body-strong">Back to properties →</Link>}

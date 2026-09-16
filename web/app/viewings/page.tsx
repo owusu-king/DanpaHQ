@@ -164,6 +164,7 @@ function TenantViewings() {
         <LoadingRows rows={2} />
       ) : viewings.length === 0 ? (
         <Empty
+          icon="viewings"
           title="No viewings yet"
           body="Ask to see a place and the landlord offers you times."
           action={<Link href="/rentals" className="type-body-strong">Explore rentals →</Link>}
@@ -202,7 +203,7 @@ function TenantViewings() {
               {visible.map((row) => <ViewingRow key={row.viewing.id} {...row} />)}
             </ul>
           ) : query ? (
-            <Empty title="No matching viewings" body="Try another place or neighbourhood." />
+            <Empty icon="viewings" title="No matching viewings" body="Try another place or neighbourhood." />
           ) : (
             <TenantViewingFilterEmpty filter={filter} />
           )}
@@ -219,12 +220,7 @@ function TenantViewingFilterEmpty({ filter }: { filter: ViewingFilter }) {
     action: { title: "Nothing needs you", body: "You are up to date on every viewing." },
     past: { title: "No past viewings", body: "Completed and cancelled visits will remain available here." },
   };
-  return (
-    <div className="tenant-viewing-filter-empty" role="status">
-      <strong>{copy[filter].title}</strong>
-      <span>{copy[filter].body}</span>
-    </div>
-  );
+  return <Empty variant="inline" title={copy[filter].title} body={copy[filter].body} />;
 }
 
 /** Where, when, and one way in. Nothing else. */
@@ -368,6 +364,7 @@ function ProviderViewings() {
         </ul>
       ) : (
         <Empty
+          icon="viewings"
           title={query ? "No matching viewings" : view === "all" ? "No viewings yet" : viewingEmptyTitle(view)}
           body={query ? "Try another tenant, Property or location." : view === "all" ? "Requests to visit your listings appear here." : viewingEmptyBody(view)}
           action={view === "action" && counts.upcoming ? <button type="button" className="quiet-link" onClick={() => setParams({ show: "upcoming" })}>View upcoming visits →</button> : undefined}

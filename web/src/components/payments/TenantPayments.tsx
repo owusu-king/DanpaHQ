@@ -82,7 +82,7 @@ export function TenantPaymentsWorkspace() {
     <PageHeader title="Payments" description="Rent due, secure payments and the records you keep." />
     {error ? <Notice tone="error" title={error} /> : null}
     {accounts === null ? <LoadingRows rows={5} /> : null}
-    {accounts?.length === 0 && !error ? <Empty title="No rent account yet" body="Your payments will appear here when an agreement creates a rent schedule." /> : null}
+    {accounts?.length === 0 && !error ? <Empty icon="payments" title="No rent account yet" body="Your payments will appear here when an agreement creates a rent schedule." /> : null}
     {accounts?.length ? <>
       {overdue > 0 || inProgress > 0 ? <div className="tenant-payment-attention">
         {overdue > 0 ? <div><span>Needs attention</span><strong>{formatMoney({ minor: overdue, currency: "GHS" })} overdue</strong><small>Open the affected rent item below.</small></div> : null}
@@ -117,7 +117,7 @@ export function TenantPaymentsWorkspace() {
             <div className="tenant-due-amount"><strong>{charge.outstanding_formatted}</strong><span>{intent ? "Confirming payment" : charge.status_display}</span></div>
             <Link className="rent-pay-action" href={action as never}>{intent ? "Check status" : "Pay rent"}</Link>
           </li>;
-        })}</ul> : <Empty title="Nothing due" body="New rent items will appear here with their purpose and due date." />}
+        })}</ul> : <Empty icon="payments" title="Nothing due" body="New rent items will appear here with their purpose and due date." />}
         {dueRows.some((row) => !row.account.ledger.digital_payment.available && !row.intent) ? <p className="type-caption tenant-payment-footnote">Choose Pay rent to review the amount and current payment availability. Rooomly will explain anything this home still needs before checkout can begin.</p> : null}
       </section> : null}
       {view === "history" ? <section id="tenant-payment-history" role="tabpanel" aria-labelledby="tenant-payment-history-tab">
@@ -125,7 +125,7 @@ export function TenantPaymentsWorkspace() {
           <div><strong>{account.tenancy.property.title}</strong><span>{tenancyLabel(account.tenancy)} · {payment.method_display} · {formatDate(payment.paid_on)}</span><small>{payment.source === "EXTERNAL" ? "Paid externally · recorded through Rooomly" : "Processed through Rooomly"}</small></div>
           <div><strong>{payment.amount_formatted}</strong><span>{paymentStatus(payment)}</span></div>
           {receiptId ? <Link href={`/payments/receipts/${receiptId}` as never}>Receipt →</Link> : <Link href={`/payments/${account.tenancy.lease!.id}?mode=tenant` as never}>Details →</Link>}
-        </li>)}</ul> : <Empty title="No completed payment records" body="Processor-confirmed and mutually confirmed payments will remain here." />}
+        </li>)}</ul> : <Empty icon="payments" title="No completed payment records" body="Processor-confirmed and mutually confirmed payments will remain here." />}
         {unsuccessful.length ? <div className="tenant-attempt-history"><h2>Unsuccessful attempts</h2><p className="type-caption">These attempts did not mark rent as paid.</p><ul>{unsuccessful.map((intent) => <li key={intent.id}><span><strong>{intent.property_title}</strong><small>{intent.payment_method.replaceAll("_", " ")} · {formatDate(intent.updated_at)}</small></span><span><strong>{intent.amount_formatted}</strong><small>{intent.status === "failed" ? "Not completed" : intent.status.charAt(0).toUpperCase() + intent.status.slice(1)}</small></span></li>)}</ul></div> : null}
       </section> : null}
     </> : null}

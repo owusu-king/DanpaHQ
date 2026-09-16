@@ -122,6 +122,7 @@ export default function PropertyDetailPage() {
 
         {units.length === 0 ? (
           <Empty
+            icon="units"
             title="No Units yet"
             body="Add the room, apartment, shop or other space a tenant can rent."
           />

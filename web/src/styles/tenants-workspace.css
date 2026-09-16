@@ -1,39 +1,68 @@
+/* The two numbers the workspace exists to report, tiled the way the dashboard
+   tiles a reading. They were one line of caption-grey text, set at the same
+   weight as a form hint. */
 .tenants-summary {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2) var(--space-5);
-  margin: 0 0 var(--space-5);
-  color: var(--color-ink-500);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 14rem));
+  gap: var(--space-3);
+  margin: 0 0 var(--space-6);
 }
+
+.tenants-summary-tile {
+  padding: var(--space-4) var(--space-5);
+  background: var(--card);
+  border: var(--border-hairline) solid var(--border);
+  border-radius: 16px;
+  box-shadow: 0 1px 2px rgb(16 24 20 / 5%);
+}
+.tenants-summary-tile dt { color: var(--muted-foreground); font-size: 0.75rem; font-weight: 500; }
+.tenants-summary-tile dd {
+  margin: var(--space-1) 0 0;
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+/* Money late is the one reading here that carries a colour, and only when
+   there is some — a red nought is alarming about good news. */
+.tenants-summary-tile[data-tone="overdue"] dd { color: var(--destructive); }
 
 .tenants-tabs {
   display: flex;
   gap: var(--space-1);
-  margin-bottom: var(--space-7);
+  /* `--space-7` was written here and is not on the scale, which steps 6 to 8.
+     An invalid value is dropped, so this margin has always been zero and the
+     search label sat against the tabs above it. */
+  margin-bottom: var(--space-8);
   padding: var(--space-1);
   width: fit-content;
   max-width: 100%;
   overflow-x: auto;
-  border: var(--border-hairline) solid var(--color-field-200);
-  border-radius: var(--radius-md);
-  background: var(--color-field-100);
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--muted);
 }
 
 .tenants-tab {
   min-height: var(--target-min);
-  padding: var(--space-2) var(--space-4);
+  padding: var(--space-2) var(--space-5);
   border: 0;
-  border-radius: calc(var(--radius-md) - 2px);
+  border-radius: var(--radius-pill);
   background: transparent;
-  color: var(--color-ink-600);
+  color: var(--muted-foreground);
   white-space: nowrap;
   cursor: pointer;
+  transition: color var(--motion-duration-fast) var(--motion-easing-standard);
 }
 
+/* A white thumb riding the track, as on the dashboard's period switch. The
+   unselected half used to sit on a tinted panel inside a bordered box — two
+   containers for one control. */
 .tenants-tab[aria-selected="true"] {
-  background: var(--color-field-0);
-  color: var(--color-ink-900);
-  box-shadow: var(--shadow-flat);
+  background: var(--background);
+  color: var(--foreground);
+  box-shadow: 0 1px 2px rgb(16 24 20 / 10%), 0 2px 8px -4px rgb(16 24 20 / 16%);
 }
 
 .tenants-toolbar {
@@ -44,20 +73,14 @@
   margin-bottom: var(--space-5);
 }
 
-.tenants-filter {
-  display: grid;
-  gap: var(--space-2);
-  color: var(--color-ink-700);
-}
+/* `Select` draws its own trigger and menu; all this owns is the column it
+   occupies in the toolbar grid. */
+.tenants-filter { min-width: 0; }
 
-.tenants-filter select {
-  min-height: var(--target-min);
-  padding: 0 var(--space-3);
-  border: var(--border-hairline) solid var(--color-field-300);
-  border-radius: var(--radius-md);
-  background: var(--color-field-0);
-  color: var(--color-ink-900);
-}
+/* The Portfolio picker, for the few providers who hold more than one. It is a
+   scope control rather than a filter, so it stands on its own above the work
+   instead of in the toolbar beside the search. */
+.tenants-portfolio { max-width: 28rem; margin-bottom: var(--space-5); }
 
 .tenant-table {
   margin: 0;

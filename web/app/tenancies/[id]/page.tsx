@@ -59,6 +59,7 @@ export default function TenancyPage() {
         <PageHeader title="Your home" />
         {error ? <Notice tone="error" title={error} /> : null}
         <Empty
+          icon="warning"
           title="This tenancy is not one of yours"
           body="It may have ended, or the link may be wrong."
           action={<Link href="/home" className="type-body-strong">Back to your homes →</Link>}
@@ -123,6 +124,7 @@ export default function TenancyPage() {
           </div>
         ) : (
           <Empty
+            icon="leases"
             title="Lease required before activation"
             body="Your provider must send a lease and you must accept it before Rooomly can activate this tenancy."
           />
@@ -162,6 +164,7 @@ export default function TenancyPage() {
           </ul>
         ) : (
           <Empty
+            icon="payments"
             title="Nothing outstanding"
             body="Charges appear here as your landlord raises them."
           />

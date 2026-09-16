@@ -74,18 +74,26 @@ test("the disc is smaller than the target it sits in", () => {
 
 test("it presses like the tab bar, because it sits beside it", () => {
   const source = code(button());
+  const bar = code(read("src/components/nav/MainTabBar.tsx"));
+
   // Two navigation affordances on one screen that answer a thumb differently
   // feel like two products.
-  const spring = (text) => ({
-    speed: Number(/speed:\s*([\d.]+)/.exec(text)?.[1]),
-    bounciness: Number(/bounciness:\s*([\d.]+)/.exec(text)?.[1]),
-  });
-  const here = spring(source);
-  const bar = spring(code(read("src/components/nav/MainTabBar.tsx")));
-  assert.ok(Number.isFinite(here.speed), "no spring found on the header button");
-  assert.deepEqual(here, bar, "the header button and the tab bar must press alike");
+  //
+  // This used to parse `speed` and `bounciness` out of both files and compare
+  // the numbers — which is the strongest check available when a constant is
+  // transcribed, and no check at all once somebody transcribes a third one.
+  // Both now import the same spring from `src/motion.ts`, so the guarantee is
+  // that neither file is in a position to disagree.
+  for (const [name, text] of [["the header button", source], ["the tab bar", bar]]) {
+    assert.match(text, /from "@\/motion"/, `${name} must take its press from the motion module`);
+    assert.doesNotMatch(
+      text,
+      /speed:|bounciness:|stiffness:|damping:/,
+      `${name} must not describe a spring of its own`,
+    );
+  }
 
-  assert.match(source, /Animated\.spring\(scale/);
+  assert.match(source, /withSpring\(toValue, pressSpring\)/);
   assert.match(source, /radius: DISC \/ 2, borderless: true/);
   assert.match(source, /accessibilityRole="button"/);
   assert.match(source, /accessibilityLabel=\{label\}/);

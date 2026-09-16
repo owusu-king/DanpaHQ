@@ -126,7 +126,10 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
     // handing them one without it is what produced the blank screen. The gate
     // says which of the three situations this is and offers the way out of it.
     return (
-      <main id="main" className="portal-main">
+      // `is-gate` centres it. Every other portal page sits against the rail,
+      // so `portal-main` is deliberately not auto-margined — but here there is
+      // no rail, and a card ranged left in a 1440px window looks misplaced.
+      <main id="main" className="portal-main is-gate">
         <PortalGate />
       </main>
     );

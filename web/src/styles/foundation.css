@@ -80,17 +80,27 @@
 .btn:disabled { cursor: not-allowed; opacity: 0.45; }
 .btn[aria-busy="true"] { cursor: wait; }
 
+/* Primary is the brand.
+ *
+ * It was ink, on the reasoning that ink cannot fail contrast anywhere and
+ * "leaves the gold free to mean something when it appears". Both halves have
+ * lapsed: there is no gold in the product any more — that hue now means work
+ * waiting — and the brand green carries white at 6.1:1, so it cannot fail
+ * contrast here either.
+ *
+ * What the old rule actually produced was a split: "Add Unit", "Add property",
+ * "Sign in", the gate's retry and every action on the dashboards are green,
+ * while "Save changes" — this component, on twelve forms — was black. One
+ * product does not get two primary buttons. */
 .btn-primary {
-  background: var(--color-ink-900);
-  border-color: var(--color-ink-900);
-  color: var(--color-field-0);
+  background: var(--brand);
+  border-color: var(--brand);
+  color: var(--brand-foreground);
 }
 
-/* Primary is ink rather than a hue: it cannot fail contrast on any surface the
-   product has, and it leaves the gold free to mean something when it appears. */
 .btn-primary:not(:disabled):hover {
-  background: var(--color-ink-800);
-  border-color: var(--color-ink-800);
+  background: color-mix(in oklab, var(--brand) 88%, black);
+  border-color: color-mix(in oklab, var(--brand) 88%, black);
   box-shadow: var(--shadow-lifted);
 }
 
@@ -121,24 +131,27 @@
 
 /* Gold is the brand moment, and it is deliberately rare. Ink text on gold
    rather than white: white on this gold is 2.4:1 and unreadable in the sun. */
+/* `accent` was the gold button. Gold now means work waiting, and an action is
+   never itself "waiting" — so this is the brand said quietly: a tinted fill for
+   a secondary call to action that should still read as the product's own. */
 .btn-accent {
-  background: var(--color-gold-500);
-  border-color: var(--color-gold-500);
-  color: var(--color-ink-950);
+  background: var(--brand-tint);
+  border-color: transparent;
+  color: var(--brand);
 }
 
 .btn-accent:not(:disabled):hover {
-  background: var(--color-gold-300);
-  border-color: var(--color-gold-300);
+  background: color-mix(in oklab, var(--brand-tint) 70%, var(--brand-glow));
+  border-color: transparent;
   box-shadow: var(--shadow-lifted);
 }
 
-/* Pressed goes darker than rest, not lighter: the accent is the one control
-   that brightens on hover, so it needs somewhere to go on the way down. */
+/* Pressed fills. The rest and hover states are both tints, so the press needs
+   somewhere with real weight to go. */
 .btn-accent:not(:disabled):active {
-  background: var(--color-gold-700);
-  border-color: var(--color-gold-700);
-  color: var(--color-field-0);
+  background: var(--brand);
+  border-color: var(--brand);
+  color: var(--brand-foreground);
   box-shadow: none;
 }
 
@@ -178,6 +191,24 @@
 
 .on-ink :where(a, button, [tabindex]):focus-visible {
   outline-color: var(--color-gold-300);
+}
+
+/* The shadcn primitives draw their own focus state and must not also wear this
+ * one.
+ *
+ * Every one of them carries a `data-slot`, and every one styles focus with a
+ * ring of its own — so the global outline is a second, square, ink-coloured
+ * mark on a control that already answered. It showed up as a hard box around
+ * the highlighted row of an open select menu.
+ *
+ * They cannot suppress it themselves, and this is the part worth remembering:
+ * the rule above is unlayered, Tailwind's utilities live in `@layer utilities`,
+ * and unlayered CSS beats layered CSS whatever the specificity. `outline-hidden`
+ * on the component loses to a `:where()` rule weighing nothing. It takes a rule
+ * here to answer a rule here.
+ */
+[data-slot]:focus-visible {
+  outline: none;
 }
 
 /* --- surfaces ------------------------------------------------------------ */

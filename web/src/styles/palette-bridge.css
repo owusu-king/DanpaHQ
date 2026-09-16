@@ -1,0 +1,92 @@
+/* The old palette, re-pointed at the new one.
+ *
+ * The product used to be warm: taupe ink, a stone-and-parchment field scale, a
+ * gold accent and kola green. Twenty stylesheets and something like eight
+ * hundred declarations are written against those names. The landing page, the
+ * account screens, both dashboards and the shell have since moved to
+ * white-and-green, which left every remaining workspace rendering warm beige
+ * hairlines and parchment placeholders a hairline away from green cards — the
+ * two halves of one product visibly disagreeing about what colour it is.
+ *
+ * Rewriting eight hundred call sites by hand is the version of this change most
+ * likely to introduce a mistake and least likely to be reviewable. The names
+ * are good names — `field` is a surface scale, `ink` is a text scale, `kola` is
+ * the brand — so what changed is the values behind them, in one place, where
+ * the mapping can be read and argued with.
+ *
+ * Loaded after `tokens.css`, which is generated and must not be hand-edited.
+ * That file still holds the warm originals; these are the same custom
+ * properties redefined at the same specificity, so the later block wins. It
+ * also cannot be folded into `packages/design-tokens/tokens.json`, because that
+ * source compiles into `mobile/src/theme.ts` as well and would repaint a
+ * hundred and sixteen React Native screens that have not been designed for it.
+ *
+ * Three tokens here — `ink-400`, `ink-600` and `kola-400` — were never in
+ * tokens.json at all. Eight rules across payments, tenants and the lease
+ * builder referenced them, so those declarations have always been invalid at
+ * computed-value time and silently dropped: a settlement progress label, a
+ * payments tab count and a receipt's confirmation ring have been inheriting
+ * whatever colour was above them. They are defined here rather than left
+ * broken.
+ */
+
+:root {
+  /* --- surfaces -----------------------------------------------------------
+     A five-step scale from white to the strongest hairline. It keeps the same
+     shape it always had; only the hue underneath it moves from warm stone to
+     the faintest green-neutral. */
+  --color-field-0: var(--background);
+  --color-field-50: color-mix(in oklab, var(--muted) 96%, var(--background));
+  --color-field-100: var(--muted);
+  --color-field-200: var(--border);
+  --color-field-300: var(--input);
+
+  /* --- text ---------------------------------------------------------------
+     `ink-500` is the muted body colour and by far the most used of these; it
+     maps exactly onto the shadcn token of the same role. The steps above and
+     below it are mixed from the foreground so the scale stays even. */
+  --color-ink-300: color-mix(in oklab, var(--muted-foreground) 58%, var(--background));
+  --color-ink-400: color-mix(in oklab, var(--muted-foreground) 80%, var(--background));
+  --color-ink-500: var(--muted-foreground);
+  --color-ink-600: color-mix(in oklab, var(--foreground) 72%, var(--background));
+  --color-ink-700: color-mix(in oklab, var(--foreground) 82%, var(--background));
+  --color-ink-800: color-mix(in oklab, var(--foreground) 92%, var(--background));
+  --color-ink-900: var(--foreground);
+  --color-ink-950: color-mix(in oklab, var(--foreground) 92%, black);
+
+  /* --- the brand ----------------------------------------------------------
+     Kola was already a green, which is why so much of the product survived the
+     repaint looking nearly right. It is now *the* green rather than a green. */
+  --color-kola-50: var(--brand-tint);
+  --color-kola-300: color-mix(in oklab, var(--brand) 52%, var(--background));
+  --color-kola-400: color-mix(in oklab, var(--brand) 66%, var(--background));
+  --color-kola-600: var(--brand);
+  --color-kola-800: color-mix(in oklab, var(--brand) 82%, black);
+  --color-kola-900: color-mix(in oklab, var(--brand) 68%, black);
+
+  /* --- gold, and the warning hue -----------------------------------------
+     Gold marked verification and premium; harmattan marked "waiting". Both
+     collapse onto the one amber the dashboards use for work that is pending,
+     because two adjacent yellows on a green product read as a mistake rather
+     than as two meanings. */
+  --color-gold-50: oklch(0.975 0.022 82);
+  --color-gold-100: oklch(0.955 0.040 82);
+  --color-gold-300: oklch(0.84 0.080 78);
+  --color-gold-500: oklch(0.66 0.105 75);
+  --color-gold-600: oklch(0.58 0.115 72);
+  --color-gold-700: oklch(0.50 0.110 70);
+  --color-harmattan-100: oklch(0.955 0.040 82);
+  --color-harmattan-500: oklch(0.72 0.115 78);
+  --color-harmattan-600: oklch(0.55 0.110 72);
+
+  /* --- danger -------------------------------------------------------------
+     Laterite was the product's red and is the one hue that must stay
+     unmistakably itself beside a green brand. */
+  --color-laterite-100: color-mix(in oklab, var(--destructive) 10%, var(--background));
+  --color-laterite-600: var(--destructive);
+
+  /* --- information --------------------------------------------------------
+     Lagoon is deliberately left a blue. Green is the brand and amber is
+     "waiting", so a neutral third hue is the only one left that can mean
+     "here is something worth knowing" without claiming to be either. */
+}
