@@ -1,9 +1,32 @@
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
-import { Pressable, ScrollView, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 
 import { ApiFailure } from "@/api";
-import { Button, Field, Notice, Type, space } from "@/components/ui";
+import { IndexGround } from "@/components/account/IndexRows";
+import { Bone } from "@/components/billing/BillingParts";
+import { Panel, SmallAct } from "@/components/billing/BillingSurfaces";
+import { useHomeDensity } from "@/components/home/plinth";
+import {
+  EDGE,
+  Footnote,
+  GroupLabel,
+  HARMATTAN,
+  INK,
+  KOLA,
+  KOLA_DEEP,
+  LATERITE,
+  MUTED,
+  PRESSED,
+  QuietAction,
+  RULE,
+  RowLine,
+  SearchField,
+  rowStyles,
+  type IconName,
+} from "@/components/portfolio/PortfolioList";
+import { Button, Field, Notice, Type, radius, space } from "@/components/ui";
 import {
   activatePayoutDestination,
   getPayoutDestination,
@@ -16,11 +39,24 @@ import {
   type PayoutDestinationState,
   type PayoutInstitution,
   type PayoutMethod,
+  type PayoutProfile,
 } from "@/organizations";
-import { pressableFeedback } from "@/platform";
+import { isAndroid, pressableFeedback, useSafeBottom } from "@/platform";
+import { alpha } from "@/shell";
 import { theme } from "@/theme";
 
+/**
+ * Where Paystack sends rent after fees.
+ *
+ * Refined on review (2026-09-15): the account in use leads as a card, because that
+ * is the one fact this page exists to state. Every account the Portfolio has saved
+ * follows as one glass list, each row carrying its verification and the one act it
+ * offers; adding another is a panel opened on request rather than a form sitting
+ * under the record. Nothing about provisioning, verification or removal changed.
+ */
 export default function PayoutAccountScreen() {
+  const density = useHomeDensity();
+  const pageBottom = useSafeBottom(space[12]);
   const params = useLocalSearchParams<{ organizationId?: string }>();
   const [organizationId, setOrganizationId] = useState(params.organizationId ?? "");
   const [mayManage, setMayManage] = useState<boolean | null>(null);
@@ -78,6 +114,7 @@ export default function PayoutAccountScreen() {
     return institutions.filter((row) => !needle || row.name.toLocaleLowerCase("en-GH").includes(needle)).slice(0, 30);
   }, [institutionQuery, institutions]);
   const checking = state?.provisioning?.checking === true;
+  const active = state?.active_profile ?? null;
 
   function changeMethod(next: PayoutMethod) {
     setMethod(next); setBankCode(""); setInstitutionQuery(""); setChoosingInstitution(true);
@@ -144,48 +181,515 @@ export default function PayoutAccountScreen() {
     } finally { setBusy(""); }
   }
 
-  return <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: space[5], paddingBottom: space[12], gap: space[5] }}>
-    <View style={{ gap: space[1] }}><Type variant="label">PAYOUT DESTINATION</Type><Type variant="display2" accessibilityRole="header">Settlement account</Type><Type variant="body">Choose where Paystack sends rent after fees.</Type></View>
-    {error ? <Notice tone="error" title={error} /> : null}
-    {mayManage === false && organizationId ? <Notice tone="warning" title="Owner or admin access required" body="Only a Portfolio owner or admin can change where rent is settled." /> : null}
-    {busy === "load" ? <Type variant="caption">Loading settlement details…</Type> : null}
-    {state && mayManage ? <>
-      <View style={{ gap: space[3] }}>
-        <View style={{ gap: space[1] }}><Type variant="label">RECEIVING ACCOUNTS</Type><Type variant="title1" accessibilityRole="header">Where rent can arrive</Type></View>
-        {state.profiles.map((profile) => <View key={profile.id} style={{ gap: space[3], paddingVertical: space[4], borderTopWidth: 1, borderColor: theme.color.field["200"] }}>
-          <View style={{ gap: space[1] }}><View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: space[2] }}><Type variant="bodyStrong">{profile.account_name}</Type>{profile.is_active ? <Type variant="label" style={{ color: theme.color.kola["600"] }}>IN USE</Type> : null}</View><Type variant="body">{profile.institution} · {profile.masked_account}</Type><Type variant="caption">{profile.status_display}{profile.is_active ? " · Used for new rent payments" : ""}</Type></View>
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: space[2] }}>
-            {profile.status === "unverified" ? <Button label="Check verification status" variant="secondary" busy={busy === `refresh:${profile.id}`} onPress={() => void checkVerification(profile.id)} /> : null}
-            {profile.status === "verified" && !profile.is_active ? <Button label="Use this account" variant="secondary" busy={busy === `activate:${profile.id}`} onPress={() => void selectAccount(profile.id)} /> : null}
-            {removeCandidate !== profile.id ? <Pressable accessibilityRole="button" onPress={() => setRemoveCandidate(profile.id)} {...pressableFeedback(theme.color.field["100"])} style={{ minHeight: 48, justifyContent: "center", paddingHorizontal: space[2] }}><Type variant="caption">Remove</Type></Pressable> : null}
-          </View>
-          {removeCandidate === profile.id ? <View style={{ gap: space[2], paddingTop: space[2] }}><Type variant="bodyStrong">Remove from future use?</Type><Type variant="caption">Payments already in progress and historical records will keep this destination.</Type><View style={{ gap: space[2] }}><Button label="Yes, remove account" variant="destructive" busy={busy === `remove:${profile.id}`} onPress={() => void removeAccount(profile.id)} /><Button label="Keep account" variant="quiet" onPress={() => setRemoveCandidate("")} /></View></View> : null}
-        </View>)}
-        {!state.profiles.length ? <Type variant="body">Add a bank or Mobile Money account, then verify it with Paystack.</Type> : null}
-        <Button label={showSetup ? "Close account setup" : "Add receiving account"} variant="secondary" onPress={() => setShowSetup((value) => !value)} />
-      </View>
-      {state.profiles.length > 0 && !state.active_profile ? <Notice tone="warning" title="Choose an account for new payments" body="Online rent payments remain unavailable until a verified account is selected." /> : null}
-      {statusNote ? <Notice tone="info" title="Settlement account updated" body={statusNote} /> : null}
-      {checking ? <Notice tone="info" title="Checking with Paystack" body="The first request may have completed. Rooomly is finding that exact setup before allowing another attempt." /> : <View style={{ gap: space[4], paddingTop: space[2] }}>
-        {(showSetup || state.profiles.length === 0) ? <><View style={{ gap: space[1] }}><Type variant="label">ADD ACCOUNT</Type><Type variant="title1" accessibilityRole="header">Receiving details</Type></View>
-        <View accessibilityRole="tablist" style={{ flexDirection: "row", borderBottomWidth: 1, borderBottomColor: theme.color.field["200"] }}>
-          <MethodTab label="Bank account" selected={method === "bank"} onPress={() => changeMethod("bank")} />
-          <MethodTab label="Mobile Money" selected={method === "mobile_money"} onPress={() => changeMethod("mobile_money")} />
-        </View>
-        {bankCode && !choosingInstitution ? <Pressable accessibilityRole="button" accessibilityLabel={`Change ${method === "bank" ? "bank" : "network"}, currently ${selectedInstitution?.name}`} onPress={() => setChoosingInstitution(true)} {...pressableFeedback(theme.color.field["100"])} style={{ minHeight: 56, flexDirection: "row", alignItems: "center", gap: space[3], borderBottomWidth: 1, borderBottomColor: theme.color.field["200"] }}><View style={{ flex: 1, gap: space[1] }}><Type variant="caption">{method === "bank" ? "Bank" : "Network"}</Type><Type variant="bodyStrong">{selectedInstitution?.name}</Type></View><Type variant="caption" style={{ color: theme.color.kola["600"] }}>Change</Type></Pressable> : <View style={{ gap: space[2] }}>
-          <Field label={method === "bank" ? "Find your bank" : "Find your network"} value={institutionQuery} onChangeText={setInstitutionQuery} placeholder="Search" returnKeyType="search" />
-          <View style={{ borderTopWidth: 1, borderTopColor: theme.color.field["200"] }}>{visibleInstitutions.map((institution) => <Pressable key={institution.code} accessibilityRole="radio" accessibilityState={{ checked: bankCode === institution.code }} onPress={() => { setBankCode(institution.code); setChoosingInstitution(false); setResolved(null); }} {...pressableFeedback(theme.color.field["100"])} style={{ minHeight: 52, justifyContent: "center", borderBottomWidth: 1, borderBottomColor: theme.color.field["200"] }}><Type variant="bodyStrong">{institution.name}</Type></Pressable>)}</View>
-          {!visibleInstitutions.length ? <Type variant="caption">No matching institution.</Type> : null}
-        </View>}
-        {bankCode ? <Field label={method === "bank" ? "Account number" : "Mobile Money number"} value={accountNumber} onChangeText={(value) => { setAccountNumber(value.replace(/\s/g, "")); setResolved(null); }} keyboardType="number-pad" autoComplete="off" textContentType="none" hint="Used only to create the Paystack subaccount. Rooomly does not retain this number." /> : null}
-        {method === "bank" && bankCode && !resolved ? <Button label="Confirm account" variant="secondary" busy={busy === "resolve"} disabled={!accountNumber.trim()} onPress={() => void confirmAccount()} /> : null}
-        {resolved ? <View style={{ flexDirection: "row", gap: space[3], paddingVertical: space[4], borderTopWidth: 1, borderBottomWidth: 1, borderColor: theme.color.kola["300"] }}><Type variant="bodyStrong" style={{ color: theme.color.kola["600"] }}>✓</Type><View style={{ flex: 1, gap: space[1] }}><Type variant="bodyStrong">{resolved.account_name}</Type><Type variant="caption">{selectedInstitution?.name} · {resolved.masked_account}</Type></View></View> : null}
-        {(method === "mobile_money" && bankCode || resolved) ? <View style={{ gap: space[3] }}><Button label="Add receiving account" busy={busy === "save"} disabled={!accountNumber.trim()} onPress={() => void saveAccount()} /><Type variant="caption">Property owners bear Paystack’s transaction fee. Adding or switching an account does not redirect payments already in progress.</Type></View> : null}</> : null}
-      </View>}
-    </> : null}
-  </ScrollView>;
+  return (
+    <IndexGround>
+      <ScrollView
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{ paddingHorizontal: density.pagePadding, paddingTop: density.compact ? space[4] : space[5], paddingBottom: pageBottom, gap: density.sectionGap + space[2] }}
+      >
+        {error ? <Notice tone="error" title={error} /> : null}
+        {mayManage === false && organizationId ? <Notice tone="warning" title="Owner or admin access required" body="Only a Portfolio owner or admin can change where rent is settled." /> : null}
+        {busy === "load" ? <SettlementSkeleton /> : null}
+
+        {state && mayManage ? (
+          <>
+            <InUse profile={active} saved={state.profiles.length} />
+            <Footnote>Paystack sends rent to this account after its fee. Payments already in progress are never redirected.</Footnote>
+
+            {state.profiles.length > 0 && !state.active_profile ? (
+              <Notice tone="warning" title="Choose an account for new payments" body="Online rent payments remain unavailable until a verified account is selected." />
+            ) : null}
+            {statusNote ? <Notice tone="info" title="Settlement account updated" body={statusNote} /> : null}
+
+            <View style={styles.section}>
+              <GroupLabel count={state.profiles.length || undefined}>Receiving accounts</GroupLabel>
+              <Panel>
+                {state.profiles.map((profile, index) => (
+                  <View key={profile.id}>
+                    <AccountRow
+                      profile={profile}
+                      first={index === 0}
+                      busy={busy}
+                      onCheck={() => void checkVerification(profile.id)}
+                      onUse={() => void selectAccount(profile.id)}
+                      onRemove={() => setRemoveCandidate(profile.id)}
+                      removing={removeCandidate === profile.id}
+                    />
+                    {removeCandidate === profile.id ? (
+                      <View style={styles.confirm}>
+                        <Type variant="bodyStrong" style={styles.confirmTitle}>Remove from future use?</Type>
+                        <Type variant="caption" style={rowStyles.rowSub}>
+                          Payments already in progress and historical records will keep this destination.
+                        </Type>
+                        <View style={styles.confirmActions}>
+                          <Button label="Yes, remove account" variant="destructive" busy={busy === `remove:${profile.id}`} onPress={() => void removeAccount(profile.id)} />
+                          <Button label="Keep account" variant="quiet" onPress={() => setRemoveCandidate("")} />
+                        </View>
+                      </View>
+                    ) : null}
+                  </View>
+                ))}
+                {!state.profiles.length ? (
+                  <View style={styles.none}>
+                    <Type variant="caption" style={rowStyles.rowSub}>
+                      Add a bank or Mobile Money account, then verify it with Paystack.
+                    </Type>
+                  </View>
+                ) : null}
+              </Panel>
+              {!showSetup && state.profiles.length ? (
+                <View style={styles.addRow}>
+                  <QuietAction icon="add-circle-outline" label="Add receiving account" onPress={() => setShowSetup(true)} />
+                </View>
+              ) : null}
+            </View>
+
+            {checking ? (
+              <Notice tone="info" title="Checking with Paystack" body="The first request may have completed. Rooomly is finding that exact setup before allowing another attempt." />
+            ) : showSetup || state.profiles.length === 0 ? (
+              <View style={styles.section}>
+                <GroupLabel>Add an account</GroupLabel>
+                <Panel style={styles.setup}>
+                  <View accessibilityRole="radiogroup" accessibilityLabel="How rent arrives" style={styles.methods}>
+                    <MethodChoice label="Bank account" icon="business-outline" selected={method === "bank"} onPress={() => changeMethod("bank")} />
+                    <MethodChoice label="Mobile Money" icon="phone-portrait-outline" selected={method === "mobile_money"} onPress={() => changeMethod("mobile_money")} />
+                  </View>
+
+                  {bankCode && !choosingInstitution ? (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`Change ${method === "bank" ? "bank" : "network"}, currently ${selectedInstitution?.name}`}
+                      onPress={() => setChoosingInstitution(true)}
+                      {...pressableFeedback(PRESSED)}
+                      style={({ pressed }) => [styles.chosen, pressed && !isAndroid ? { opacity: 0.85 } : null]}
+                    >
+                      <View style={[rowStyles.well, styles.chosenWell]}>
+                        <Ionicons name={method === "bank" ? "business-outline" : "phone-portrait-outline"} size={16} color={KOLA} />
+                      </View>
+                      <View style={rowStyles.rowBody}>
+                        <Type variant="caption" style={rowStyles.rowSub}>{method === "bank" ? "Bank" : "Network"}</Type>
+                        <Type variant="bodyStrong" numberOfLines={1} style={rowStyles.rowTitle}>{selectedInstitution?.name}</Type>
+                      </View>
+                      <Type variant="captionStrong" style={styles.change}>Change</Type>
+                    </Pressable>
+                  ) : (
+                    <View style={styles.chooser}>
+                      <SearchField
+                        label={method === "bank" ? "Find your bank" : "Find your network"}
+                        placeholder="Search"
+                        value={institutionQuery}
+                        onChangeText={setInstitutionQuery}
+                      />
+                      <View style={styles.institutions}>
+                        {visibleInstitutions.map((institution, index) => (
+                          <Pressable
+                            key={institution.code}
+                            accessibilityRole="radio"
+                            aria-checked={bankCode === institution.code}
+                            accessibilityLabel={institution.name}
+                            onPress={() => { setBankCode(institution.code); setChoosingInstitution(false); setResolved(null); }}
+                            {...pressableFeedback(PRESSED)}
+                            style={({ pressed }) => [styles.institution, index ? styles.ruled : null, pressed && !isAndroid ? { backgroundColor: PRESSED } : null]}
+                          >
+                            <Type variant="body" numberOfLines={1} style={styles.institutionName}>{institution.name}</Type>
+                            {bankCode === institution.code ? <Ionicons name="checkmark" size={17} color={KOLA} /> : null}
+                          </Pressable>
+                        ))}
+                        {!visibleInstitutions.length ? (
+                          <View style={styles.institution}>
+                            <Type variant="caption" style={rowStyles.rowSub}>No matching institution.</Type>
+                          </View>
+                        ) : null}
+                      </View>
+                    </View>
+                  )}
+
+                  {bankCode ? (
+                    <Field
+                      label={method === "bank" ? "Account number" : "Mobile Money number"}
+                      value={accountNumber}
+                      onChangeText={(value) => { setAccountNumber(value.replace(/\s/g, "")); setResolved(null); }}
+                      keyboardType="number-pad"
+                      autoComplete="off"
+                      textContentType="none"
+                      hint="Used only to create the Paystack subaccount. Rooomly does not retain this number."
+                    />
+                  ) : null}
+
+                  {method === "bank" && bankCode && !resolved ? (
+                    <Button label="Confirm account" variant="secondary" busy={busy === "resolve"} disabled={!accountNumber.trim()} onPress={() => void confirmAccount()} />
+                  ) : null}
+
+                  {resolved ? (
+                    <View style={styles.resolved}>
+                      <View style={[rowStyles.well, styles.resolvedWell]}>
+                        <Ionicons name="checkmark" size={16} color={KOLA} />
+                      </View>
+                      <View style={rowStyles.rowBody}>
+                        <Type variant="bodyStrong" numberOfLines={1} style={rowStyles.rowTitle}>{resolved.account_name}</Type>
+                        <Type variant="caption" numberOfLines={1} style={rowStyles.rowSub}>{selectedInstitution?.name} · {resolved.masked_account}</Type>
+                      </View>
+                    </View>
+                  ) : null}
+
+                  {(method === "mobile_money" && bankCode) || resolved ? (
+                    <View style={styles.save}>
+                      <Button label="Add receiving account" busy={busy === "save"} disabled={!accountNumber.trim()} onPress={() => void saveAccount()} />
+                      <Type variant="caption" style={rowStyles.rowSub}>
+                        Property owners bear Paystack’s transaction fee. Adding or switching an account does not
+                        redirect payments already in progress.
+                      </Type>
+                    </View>
+                  ) : null}
+
+                  {state.profiles.length ? (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Close account setup"
+                      onPress={() => setShowSetup(false)}
+                      hitSlop={space[1]}
+                      style={({ pressed }) => [styles.close, pressed && !isAndroid ? { opacity: 0.8 } : null]}
+                    >
+                      <Type variant="captionStrong" style={styles.closeText}>Close account setup</Type>
+                    </Pressable>
+                  ) : null}
+                </Panel>
+              </View>
+            ) : null}
+          </>
+        ) : null}
+      </ScrollView>
+    </IndexGround>
+  );
 }
 
-function MethodTab({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
-  return <Pressable accessibilityRole="tab" accessibilityState={{ selected }} onPress={onPress} {...pressableFeedback(theme.color.field["100"])} style={{ flex: 1, minHeight: 52, alignItems: "center", justifyContent: "center", borderBottomWidth: 2, borderBottomColor: selected ? theme.color.kola["600"] : "transparent" }}><Type variant="bodyStrong" style={{ color: selected ? theme.color.kola["600"] : theme.color.ink["500"] }}>{label}</Type></Pressable>;
+/** The account rent arrives in, said once and first — or what is missing before one can. */
+function InUse({ profile, saved }: { profile: PayoutProfile | null; saved: number }) {
+  if (!profile) {
+    return (
+      <View style={[styles.hero, styles.heroQuiet]}>
+        <View style={[styles.heroWell, { backgroundColor: theme.color.field["100"] }]}>
+          <Ionicons name="card-outline" size={20} color={MUTED} />
+        </View>
+        <View style={styles.heroText}>
+          <Type variant="bodyStrong" style={styles.heroTitle}>
+            {saved ? "No account chosen yet" : "No receiving account yet"}
+          </Type>
+          <Type variant="caption" style={styles.heroBody}>
+            {saved
+              ? "Choose a verified account below and new rent payments will use it."
+              : "Add a bank or Mobile Money account, then verify it with Paystack."}
+          </Type>
+        </View>
+      </View>
+    );
+  }
+  return (
+    <View accessible accessibilityLabel={`In use: ${profile.account_name}, ${profile.institution}, ${profile.masked_account}, ${profile.status_display}`} style={styles.hero}>
+      <View style={styles.heroHead}>
+        <View style={[styles.heroWell, { backgroundColor: theme.color.kola["50"] }]}>
+          <Ionicons name={profile.method === "bank" ? "business-outline" : "phone-portrait-outline"} size={20} color={KOLA} />
+        </View>
+        <Type variant="label" style={styles.inUse}>IN USE</Type>
+      </View>
+      <Type variant="amountLg" numberOfLines={1} style={styles.heroAccount}>{profile.masked_account}</Type>
+      <Type variant="bodyStrong" numberOfLines={1} style={styles.heroName}>{profile.account_name}</Type>
+      <Type variant="caption" numberOfLines={2} style={styles.heroBody}>{profile.institution} · {profile.status_display}</Type>
+    </View>
+  );
 }
+
+/**
+ * One saved account: what it is and where its verification stands, with the acts
+ * that state allows — check it, use it, or take it out of future use.
+ */
+function AccountRow({
+  profile,
+  first,
+  busy,
+  removing,
+  onCheck,
+  onUse,
+  onRemove,
+}: {
+  profile: PayoutProfile;
+  first: boolean;
+  busy: string;
+  removing: boolean;
+  onCheck: () => void;
+  onUse: () => void;
+  onRemove: () => void;
+}) {
+  const tone = profile.status === "verified" ? KOLA : profile.status === "unverified" ? HARMATTAN : LATERITE;
+  return (
+    <View style={[rowStyles.row, first ? null : styles.ruled]}>
+      <View style={[rowStyles.well, { backgroundColor: alpha(tone, 0.12) }]}>
+        <Ionicons name={profile.method === "bank" ? "business-outline" : "phone-portrait-outline"} size={16} color={tone} />
+      </View>
+      <View style={rowStyles.rowBody}>
+        <RowLine
+          start={<Type variant="bodyStrong" numberOfLines={1} style={rowStyles.rowTitle}>{profile.account_name}</Type>}
+          end={<Type variant="caption" numberOfLines={1} style={[rowStyles.rowStatus, { color: tone }]}>{profile.status_display}</Type>}
+        />
+        <Type variant="caption" numberOfLines={2} style={rowStyles.rowSub}>
+          {profile.institution} · {profile.masked_account}{profile.is_active ? " · Used for new rent payments" : ""}
+        </Type>
+        <View style={styles.acts}>
+          {profile.status === "unverified" ? (
+            <SmallAct label="Check verification status" icon="refresh-outline" busy={busy === `refresh:${profile.id}`} busyLabel="Checking…" onPress={onCheck} />
+          ) : null}
+          {profile.status === "verified" && !profile.is_active ? (
+            <SmallAct label="Use this account" icon="checkmark-circle-outline" busy={busy === `activate:${profile.id}`} busyLabel="Selecting…" onPress={onUse} />
+          ) : null}
+          {!removing ? <SmallAct label="Remove" icon="close-circle-outline" onPress={onRemove} /> : null}
+        </View>
+      </View>
+    </View>
+  );
+}
+
+function MethodChoice({ label, icon, selected, onPress }: { label: string; icon: IconName; selected: boolean; onPress: () => void }) {
+  return (
+    <Pressable
+      accessibilityRole="radio"
+      aria-checked={selected}
+      accessibilityLabel={label}
+      onPress={onPress}
+      {...pressableFeedback(theme.color.kola["50"])}
+      style={({ pressed }) => [styles.method, selected ? styles.methodChosen : null, pressed && !isAndroid ? { opacity: 0.85 } : null]}
+    >
+      <Ionicons name={icon} size={16} color={selected ? KOLA : MUTED} />
+      <Type variant="captionStrong" numberOfLines={1} style={[styles.methodText, selected ? { color: KOLA_DEEP } : null]}>{label}</Type>
+    </Pressable>
+  );
+}
+
+/** Shaped like the card and the first rows, so nothing jumps when they arrive. */
+function SettlementSkeleton() {
+  return (
+    <View accessible accessibilityRole="progressbar" accessibilityLabel="Loading settlement details" style={styles.skeleton}>
+      <View style={[styles.hero, styles.heroQuiet]}>
+        <Bone width={40} height={40} round={14} />
+        <Bone width="58%" height={26} />
+        <Bone width="44%" />
+      </View>
+      <Panel>
+        {[0, 1].map((key) => (
+          <View key={key} style={[styles.skeletonRow, key ? styles.ruled : null]}>
+            <Bone width={32} height={32} round={10} />
+            <View style={rowStyles.rowBody}>
+              <Bone width="52%" height={14} />
+              <Bone width="74%" />
+            </View>
+          </View>
+        ))}
+      </Panel>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  section: {
+    gap: space[2],
+  },
+  ruled: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: RULE,
+  },
+  hero: {
+    gap: space[1],
+    padding: space[4],
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: alpha(KOLA, 0.24),
+    backgroundColor: theme.color.kola["50"],
+  },
+  heroQuiet: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space[3],
+    borderColor: EDGE,
+    backgroundColor: theme.color.field["0"],
+  },
+  heroHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: space[3],
+    marginBottom: space[1],
+  },
+  heroWell: {
+    width: 40,
+    height: 40,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  heroText: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2,
+  },
+  inUse: {
+    color: KOLA_DEEP,
+    letterSpacing: 0.6,
+  },
+  heroAccount: {
+    fontSize: 26,
+    lineHeight: 32,
+    letterSpacing: -0.4,
+    color: INK,
+    fontVariant: ["tabular-nums"],
+  },
+  heroName: {
+    fontSize: 15,
+    lineHeight: 20,
+    color: INK,
+  },
+  heroTitle: {
+    fontSize: 15,
+    lineHeight: 20,
+    color: INK,
+  },
+  heroBody: {
+    fontSize: 12.5,
+    lineHeight: 17,
+    color: MUTED,
+  },
+  acts: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: space[2],
+    marginTop: space[2],
+  },
+  none: {
+    paddingVertical: space[4],
+    paddingHorizontal: 14,
+  },
+  addRow: {
+    paddingHorizontal: space[1],
+  },
+  confirm: {
+    gap: space[2],
+    paddingVertical: space[4],
+    paddingHorizontal: 14,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: RULE,
+    backgroundColor: alpha(LATERITE, 0.05),
+  },
+  confirmTitle: {
+    fontSize: 14.5,
+    lineHeight: 20,
+    color: INK,
+  },
+  confirmActions: {
+    gap: space[2],
+    marginTop: space[1],
+  },
+  setup: {
+    gap: space[4],
+    padding: space[4],
+  },
+  methods: {
+    flexDirection: "row",
+    gap: space[2],
+  },
+  method: {
+    flex: 1,
+    minHeight: 44,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: space[2],
+    paddingHorizontal: space[3],
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: EDGE,
+    backgroundColor: theme.color.field["0"],
+  },
+  methodChosen: {
+    borderColor: alpha(KOLA, 0.4),
+    backgroundColor: theme.color.kola["50"],
+  },
+  methodText: {
+    fontSize: 13.5,
+    lineHeight: 18,
+    color: MUTED,
+  },
+  chooser: {
+    gap: space[2],
+  },
+  institutions: {
+    overflow: "hidden",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: theme.color.field["200"],
+    backgroundColor: theme.color.field["50"],
+  },
+  institution: {
+    minHeight: 50,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space[2],
+    paddingHorizontal: space[4],
+  },
+  institutionName: {
+    flex: 1,
+    minWidth: 0,
+    color: INK,
+  },
+  chosen: {
+    minHeight: 60,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space[3],
+    paddingHorizontal: space[3],
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: EDGE,
+    backgroundColor: theme.color.field["0"],
+  },
+  chosenWell: {
+    backgroundColor: theme.color.kola["50"],
+  },
+  change: {
+    fontSize: 13,
+    lineHeight: 17,
+    color: KOLA_DEEP,
+  },
+  resolved: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space[3],
+    padding: space[3],
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: alpha(KOLA, 0.3),
+    backgroundColor: theme.color.kola["50"],
+  },
+  resolvedWell: {
+    backgroundColor: theme.color.field["0"],
+  },
+  save: {
+    gap: space[2],
+  },
+  close: {
+    minHeight: 40,
+    alignSelf: "center",
+    justifyContent: "center",
+    paddingHorizontal: space[3],
+  },
+  closeText: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: KOLA_DEEP,
+  },
+  skeleton: {
+    gap: space[5],
+  },
+  skeletonRow: {
+    flexDirection: "row",
+    gap: space[3],
+    padding: 14,
+  },
+});

@@ -291,11 +291,9 @@ export function Button({
       onPress={onPress}
       disabled={inactive}
       accessibilityRole={selected === undefined ? "button" : "checkbox"}
-      accessibilityState={{
-        disabled: inactive,
-        busy,
-        ...(selected === undefined ? null : { checked: selected }),
-      }}
+      aria-disabled={inactive}
+      aria-busy={busy}
+      aria-checked={selected}
       accessibilityLabel={busy ? busyLabel : label}
       {...pressableFeedback(palette.fg)}
       style={({ pressed }) => [
@@ -575,9 +573,9 @@ function SelectableChip({
       onPress={onPress}
       disabled={disabled}
       accessibilityRole={role}
-      accessibilityState={
-        role === "radio" ? { selected, disabled } : { checked: selected, disabled }
-      }
+      aria-selected={role === "radio" ? selected : undefined}
+      aria-checked={role === "radio" ? undefined : selected}
+      aria-disabled={disabled}
       accessibilityLabel={label}
       style={({ pressed }) => ({
         minHeight: theme.targetMin,

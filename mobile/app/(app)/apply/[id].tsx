@@ -5,6 +5,7 @@ import { ScrollView, View } from "react-native";
 import { ApiFailure } from "@/api";
 import { submitApplication, type IncomeBand } from "@/applications";
 import { Button, Choice, Field, Notice, Surface, Type, space } from "@/components/ui";
+import { useSafeBottom } from "@/platform";
 import { formatMinor, getListing, type Listing } from "@/listings";
 import { theme } from "@/theme";
 
@@ -18,6 +19,9 @@ import { theme } from "@/theme";
  * about six months is a better prospect than one who disappears at signing.
  */
 export default function ApplyScreen() {
+  // Android draws edge-to-edge: the last row would sit under the
+  // navigation buttons, which then look as though the page showed through.
+  const pageBottom = useSafeBottom(space[8]);
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
 
@@ -107,7 +111,7 @@ export default function ApplyScreen() {
   }
 
   return (
-    <ScrollView contentContainerStyle={{ padding: space[5], gap: space[5] }}>
+    <ScrollView contentContainerStyle={{ padding: space[5], paddingBottom: pageBottom, gap: space[5] }}>
       <View style={{ gap: space[2] }}>
         <Type variant="label">APPLYING FOR</Type>
         <Type variant="title1">{listing.headline}</Type>

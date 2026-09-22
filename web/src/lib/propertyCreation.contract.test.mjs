@@ -69,8 +69,9 @@ test("choosing looks chosen, and moves nothing", () => {
   // pixel when chosen nudges the two beside it.
   assert.match(css, /box-shadow: inset 0 0 0 1px var\(--color-kola-600\)/);
 
-  // Mobile says it three ways, so colour is not carrying it alone.
-  assert.match(mobileChoice(), /accessibilityState=\{\{ selected \}\}/);
+  // Mobile says it three ways, so colour is not carrying it alone. The state
+  // goes out as `aria-selected`, which is the only form react-native-web reads.
+  assert.match(mobileChoice(), /aria-selected=\{selected\}/);
   assert.match(mobileChoice(), /name="checkmark-circle"/);
   assert.match(mobileChoice(), /borderColor: selected \? theme\.color\.kola\["600"\]/);
 });

@@ -11,6 +11,7 @@
  */
 
 import { Platform, StatusBar as NativeStatusBar } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export const isAndroid = Platform.OS === "android";
 export const isIOS = Platform.OS === "ios";
@@ -26,6 +27,22 @@ export const safeHeaderTop = (safeAreaTop: number) =>
   isAndroid
     ? Math.max(safeAreaTop, NativeStatusBar.currentHeight ?? 0)
     : safeAreaTop;
+
+/**
+ * The room a scrolling page keeps under its last row — `safeHeaderTop`'s twin.
+ *
+ * Android draws edge-to-edge, so its navigation buttons sit *over* the bottom of
+ * the page: a list that pads by a fixed amount runs its final row underneath
+ * them, and the buttons read as though the content were showing through. iOS
+ * does the same under the home indicator.
+ *
+ * The inset is added to the page's own breathing room rather than replacing it,
+ * so a device with neither still gets a deliberate-looking gap.
+ */
+export function useSafeBottom(base: number) {
+  const insets = useSafeAreaInsets();
+  return base + insets.bottom;
+}
 
 export const platformName = Platform.select({ android: "android", ios: "ios", default: "web" });
 

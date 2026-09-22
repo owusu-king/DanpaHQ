@@ -13,7 +13,7 @@
    focused or pressed. A rail of quick pills and a row of chips used to repeat
    what the panel holds. */
 .explore-discovery {
-  --explore-bar-height: 52px;
+  --explore-bar-height: 44px;
   position: relative;
   z-index: 4;
   display: grid;
@@ -28,8 +28,113 @@
   transition: box-shadow var(--motion-duration-fast) var(--motion-easing-standard);
 }
 
-/* Scrolled past, the search sticks under the site's header, so the search, the
-   Filters button and the count stay in reach however far down the rentals go.
+/* Portal Explore is one unboxed introduction: concise orientation and the
+   Search / Filters / Map instrument form one surface. On desktop and tablet it
+   settles beneath the global header as a single stable unit; its background
+   appears only while pinned, as a quiet continuation of the page rather than a
+   rounded card. Narrow screens keep it in normal flow to protect the viewport. */
+.explore-portal { row-gap: var(--space-6); }
+.explore-portal-intro {
+  position: relative;
+  z-index: 10;
+  display: grid;
+  min-width: 0;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  background: transparent;
+  isolation: isolate;
+  transition: background-color var(--motion-duration-fast) var(--motion-easing-standard);
+}
+.explore-portal-intro > .portal-page-header {
+  min-width: 0;
+  padding: 0;
+  margin: 0;
+  border: 0;
+}
+.explore-portal-intro > .portal-page-header h1 {
+  font-size: 1.375rem;
+  line-height: 1.15;
+}
+.explore-portal-intro > .portal-page-header p {
+  max-width: none;
+  margin-top: var(--space-1);
+  font-size: .8125rem;
+  overflow: hidden;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.explore-portal-intro > * {
+  position: relative;
+  z-index: 1;
+}
+.explore-portal-intro .explore-discovery {
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+.explore-portal-intro .explore-bar { width: 100%; min-width: 0; }
+.explore-portal > .explore-feedback { margin-top: 0; }
+.explore-portal-intro [class~="explore-advanced"] {
+  top: calc(var(--explore-bar-height) + var(--space-2));
+  right: 0;
+}
+
+@media (min-width: 64rem) {
+  .portal .explore.explore-portal { --explore-bleed: var(--space-8); }
+  .explore-portal-intro {
+    position: sticky;
+    top: var(--explore-stick-top);
+    grid-template-columns: minmax(12rem, 1fr) minmax(26rem, 34rem);
+    align-items: center;
+    column-gap: var(--space-5);
+  }
+  .explore-portal-intro::before,
+  .explore-portal-intro::after {
+    position: absolute;
+    z-index: 0;
+    right: calc(var(--explore-bleed) * -1);
+    left: calc(var(--explore-bleed) * -1);
+    content: "";
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--motion-duration-fast) var(--motion-easing-standard);
+  }
+  .explore-portal-intro::before {
+    top: calc(var(--space-3) * -1);
+    bottom: calc(var(--space-2) * -1);
+    background: color-mix(in oklab, var(--color-field-50) 92%, transparent);
+    backdrop-filter: blur(16px) saturate(1.08);
+  }
+  .explore-portal-intro::after {
+    z-index: 2;
+    bottom: calc(var(--space-2) * -1);
+    height: var(--border-hairline);
+    background: color-mix(in oklab, var(--color-kola-300) 22%, var(--color-field-200));
+  }
+  .explore-portal-intro.is-stuck {
+    background: color-mix(in oklab, var(--color-kola-50) 36%, var(--color-field-0));
+  }
+  .explore-portal-intro.is-stuck::before,
+  .explore-portal-intro.is-stuck::after { opacity: 1; }
+}
+
+@media (min-width: 80rem) {
+  .explore-portal-intro {
+    grid-template-columns: minmax(15rem, 1fr) minmax(31rem, 37rem);
+    column-gap: var(--space-6);
+  }
+}
+
+@media (min-width: 90rem) {
+  .portal .explore.explore-portal { --explore-bleed: var(--space-10); }
+}
+
+/* Public Explore keeps its discovery controls in reach after they pass under
+   the site header. Portal Explore uses its own complete sticky introduction.
+   Active filter feedback remains directly above the listings.
    Stuck, it sits on a band of the page's own ground, running the width of the
    window from the header down to a hairline, so the rentals scroll away beneath
    it instead of showing through the breath above it and around its corners. The
@@ -559,27 +664,9 @@
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2) var(--space-3);
-  padding-top: var(--space-3);
-  border-top: var(--border-hairline) solid var(--color-field-200);
-}
-.explore-count {
-  display: inline-flex;
-  min-height: 32px;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: var(--space-2);
-  margin: 0;
-  color: var(--color-ink-500);
-  font-size: .875rem;
-}
-.explore-count strong { color: var(--color-ink-900); font-weight: 650; font-variant-numeric: tabular-nums; }
-.explore-count-spinner {
-  width: 14px;
-  height: 14px;
-  border: 2px solid var(--color-kola-50);
-  border-top-color: var(--color-kola-600);
-  border-radius: 50%;
-  animation: explore-spin 700ms linear infinite;
+  padding: 0 var(--space-1) var(--space-2);
+  margin-top: calc(var(--space-3) * -1);
+  border-bottom: var(--border-hairline) solid var(--color-field-200);
 }
 .explore-chip {
   display: inline-flex;
@@ -627,10 +714,6 @@
 @keyframes explore-fade-in {
   from { opacity: 0; }
   to { opacity: 1; }
-}
-
-@keyframes explore-spin {
-  to { rotate: 360deg; }
 }
 
 .explore-grid {
@@ -921,7 +1004,6 @@
   .explore-range-input::-webkit-slider-thumb { transition: none; }
   .explore-range-input::-moz-range-thumb { transition: none; }
   .explore-stick::before, .explore-stick::after { transition: none; }
-  .explore-count-spinner { animation: none; border-color: var(--color-kola-600); }
   .listing-save { transition: none; }
   .listing-save:hover, .listing-save:active { scale: 1; }
   .listing-photo-track, .listing-photo-control, .listing-photo-dots button::after { transition: none; }
@@ -941,7 +1023,7 @@
 @media (max-width: 63.999rem) {
   /* Tighter on a phone, where the stuck search shares a short screen. */
   .explore-discovery { --explore-bar-height: 48px; gap: var(--space-2); padding: var(--space-3); }
-  .explore-feedback { padding-top: var(--space-2); }
+  .explore-feedback { padding-bottom: var(--space-2); }
   .explore-filter-scrim {
     position: fixed;
     z-index: 69;

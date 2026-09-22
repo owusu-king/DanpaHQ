@@ -183,7 +183,7 @@ function TabItem({ route, position, count, focused, options, navigation }: TabIt
     <View style={styles.itemCell}>
       <Pressable
         accessibilityRole="tab"
-        accessibilityState={{ selected: focused }}
+        aria-selected={focused}
         accessibilityLabel={options.tabBarAccessibilityLabel ?? `${label}, ${position} of ${count}`}
         testID={options.tabBarButtonTestID}
         hitSlop={space[1]}

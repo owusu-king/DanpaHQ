@@ -5,6 +5,7 @@ import { ScrollView, View } from "react-native";
 import { ApiFailure } from "@/api";
 import { useAuth } from "@/auth";
 import { Button, Notice, Surface, Type, space } from "@/components/ui";
+import { useSafeBottom } from "@/platform";
 import {
   listMyPortfolioInvitations,
   respondToPortfolioInvitation,
@@ -25,6 +26,9 @@ import { chooseWorkspace } from "@/workspace";
  * role reaches, instead of leaving somebody on a list that has gone empty.
  */
 export default function PortfolioInvitationsScreen() {
+  // Android draws edge-to-edge: the last row would sit under the
+  // navigation buttons, which then look as though the page showed through.
+  const pageBottom = useSafeBottom(space[8]);
   const router = useRouter();
   const { refreshMe } = useAuth();
   const [rows, setRows] = useState<PortfolioInvitation[] | null>(null);
@@ -73,7 +77,7 @@ export default function PortfolioInvitationsScreen() {
 
   if (joined) {
     return (
-      <ScrollView contentContainerStyle={{ padding: space[5], gap: space[4] }}>
+      <ScrollView contentContainerStyle={{ padding: space[5], paddingBottom: pageBottom, gap: space[4] }}>
         <View style={{ gap: space[2] }}>
           <Type variant="label">JOINED</Type>
           <Type variant="display2" accessibilityRole="header">You joined {joined.portfolio.name}</Type>

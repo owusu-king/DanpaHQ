@@ -48,7 +48,11 @@ test("mobile accepting an invitation opens the Portfolio it granted", () => {
   // Ownership is not a role a Team screen hands out, and granting access waits
   // on the backend's own answer about the person doing it.
   assert.match(patterns, /GRANTABLE_ROLES = ROLES\.filter\(\(role\) => role\.value !== "owner"\)/);
-  assert.match(team, /options=\{GRANTABLE_ROLES\.map/);
+  // The roster offers a role through the shared control, which is built from
+  // that list — so a screen cannot reach past it to the full set of roles.
+  assert.match(team, /<RoleChoice/);
+  assert.match(patterns, /GRANTABLE_ROLES\.map\(\(role, index\) => \(/);
+  assert.doesNotMatch(team, /GRANTABLE_ROLES/);
   assert.match(team, /access \? access\.can\.manage_team : canManage/);
 });
 
@@ -79,7 +83,7 @@ test("the mobile Portfolio switcher is a header icon and a bottom sheet", () => 
 
   // Name, type and role on every row; a tick on the one you are in.
   assert.match(switcher, /describe\(portfolio\)/);
-  assert.match(switcher, /accessibilityState=\{\{ selected: isCurrent \}\}/);
+  assert.match(switcher, /aria-selected=\{isCurrent\}/);
   assert.match(switcher, /name="checkmark"/);
   assert.match(switcher, /portfolios\.length >= SEARCHABLE_FROM/);
 
@@ -191,11 +195,18 @@ test("mobile Property and Unit screens mirror the operational hierarchy", () => 
 
   assert.match(property, /<PropertyLifecycle[^>]+compact/);
   assert.match(property, /<FlatList/);
-  assert.match(property, /data=\{property && section === "units" \? units : \[\]\}/);
-  assert.match(property, /function PropertyTabs/);
-  assert.match(property, /label="Units"/);
-  assert.match(property, /label="Details"/);
-  assert.match(property, /function PropertyDetails/);
+
+  // A Property *is* its Units, so they are the page. It used to carry a tab bar
+  // of its own — Units and Details — inside a pushed detail screen, which
+  // nothing else in the app does and which hid half the record behind a control
+  // nobody expects to find there. Reference material opens from a row instead.
+  assert.match(property, /data=\{units\}/);
+  assert.doesNotMatch(property, /function PropertyTabs/, "a pushed record must not carry tabs");
+  assert.doesNotMatch(property, /accessibilityRole="tablist"/);
+  assert.match(property, /<BottomSheet/);
+  assert.match(property, /label="Property information"/);
+  assert.match(property, /label="Shared amenities"/);
+  assert.match(property, /label="Buildings and blocks"/);
   assert.match(property, /Edit Property information/);
   assert.doesNotMatch(property, /units\.map/);
   // Was `function UnitRow` here. The row became a shared tile so that a
@@ -204,11 +215,16 @@ test("mobile Property and Unit screens mirror the operational hierarchy", () => 
   // component rather than inline is unchanged.
   assert.match(property, /<UnitTile/);
   assert.doesNotMatch(property, /function Unit(Row|Tile)/);
-  assert.match(property, /Manage tenant access and tenancies/);
+  assert.match(property, /label="Tenant access and tenancies"/);
   assert.doesNotMatch(property, /function SpaceCard/);
-  assert.match(unit, /<EntityHeader/);
-  assert.match(unit, /Manage this Unit/);
-  assert.match(unit, /Verification and publication details/);
+  // The Unit was five stacked disclosures under one heading — a settings page,
+  // not a record. Each is its own piece of work, so each opens on the row that
+  // names it, and the photograph leads because that is how a Unit is known.
+  assert.match(unit, /<GroupLabel>What it is<\/GroupLabel>/);
+  assert.match(unit, /<GroupLabel>Manage this Unit<\/GroupLabel>/);
+  assert.match(unit, /label="Verification and publication"/);
+  assert.match(unit, /style=\{styles\.hero\}/);
+  assert.doesNotMatch(unit, /<Disclosure/, "a record does not stack disclosures");
   // The Unit's own access code is managed on the Unit. It used to be reachable
   // only through the Portfolio's tenant work, which a provider holding a
   // Property directly is not part of.
@@ -342,7 +358,7 @@ test("mobile separates tenancy requests from active tenant relationships", () =>
   assert.doesNotMatch(tenants, /RequestLeaseActions|decidePropertyJoinRequest/);
   assert.match(requests, /summaries[\s\S]*flatMap\(\(summary\) => summary\.tenancy_requests/);
   assert.match(requests, /listReceivedApplications/);
-  assert.match(requests, /label="Action"/);
+  assert.match(requests, /label="Needs action"/);
   assert.match(requests, /label="Agreement"/);
   assert.match(requests, /label="History"/);
   assert.match(requestDetail, /decideApplication/);

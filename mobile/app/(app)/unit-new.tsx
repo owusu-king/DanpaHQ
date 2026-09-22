@@ -1,23 +1,39 @@
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
-import { FlatList, Pressable, View } from "react-native";
-
-import Ionicons from "@expo/vector-icons/Ionicons";
+import { FlatList, StyleSheet, View } from "react-native";
 
 import { ApiFailure } from "@/api";
 import { useAuth } from "@/auth";
-import { Button, Field, Notice, Type, space } from "@/components/ui";
+import { Bone } from "@/components/billing/BillingParts";
+import {
+  Fact,
+  Footnote,
+  GroupLabel,
+  INK,
+  KOLA,
+  LinkRow,
+  RecordPanel,
+} from "@/components/record/RecordSurfaces";
+import { Field, Notice, Type, space } from "@/components/ui";
 import { listOrganizationProperties, listOrganizations, type ManagedProperty } from "@/organizations";
-import { pressableFeedback } from "@/platform";
-import { theme } from "@/theme";
+import { useSafeBottom } from "@/platform";
+
+/** Above this many, finding the right Property is a task of its own. */
+const SEARCHABLE_FROM = 6;
 
 /**
  * The one step a Unit needs before the existing flow can start: which Property.
  *
  * Coming from a Property this screen never appears — the Property is known.
  * Nothing is created here; it chooses, then hands over to `space-new`.
+ *
+ * Refined on review (2026-09-22). It was a display heading over a list of
+ * hairline rows; a choice this short should read as one panel, with each row
+ * saying how full the building already is — which is what decides where the
+ * next Unit goes.
  */
 export default function AddUnitScreen() {
+  const pageBottom = useSafeBottom(space[8]);
   const router = useRouter();
   const { activeContext } = useAuth();
   const [properties, setProperties] = useState<ManagedProperty[] | null>(null);
@@ -55,66 +71,97 @@ export default function AddUnitScreen() {
     <FlatList
       data={eligible}
       keyExtractor={(property) => property.id}
-      contentContainerStyle={{ padding: space[5], paddingBottom: space[12] }}
+      contentContainerStyle={[styles.page, { paddingBottom: pageBottom }]}
+      keyboardShouldPersistTaps="handled"
       ListHeaderComponent={
-        <View style={{ gap: space[3], marginBottom: space[2] }}>
-          <View style={{ gap: space[1] }}>
-            <Type variant="label">ADD UNIT</Type>
-            <Type variant="display2" accessibilityRole="header">Choose a Property</Type>
+        <View style={styles.head}>
+          <View style={styles.title}>
+            <Type variant="label" style={styles.eyebrow}>NEW UNIT</Type>
+            <Type variant="title2" accessibilityRole="header" style={styles.heading}>Which Property?</Type>
           </View>
           {error ? <Notice tone="error" title={error} /> : null}
-          {(properties?.length ?? 0) > 6 ? (
-            <Field label="Search Properties" value={query} onChangeText={setQuery} returnKeyType="search" />
+          {(properties?.length ?? 0) > SEARCHABLE_FROM ? (
+            <Field label="Search" placeholder="Property name" value={query} onChangeText={setQuery} returnKeyType="search" />
           ) : null}
+          {eligible.length ? <GroupLabel>Can take a Unit</GroupLabel> : null}
         </View>
       }
-      renderItem={({ item }) => (
-        <Pressable
-          accessibilityRole="link"
-          accessibilityLabel={`${item.title}. ${item.unit_count} ${item.unit_count === 1 ? "Unit" : "Units"}.`}
-          onPress={() => router.push({ pathname: "/(app)/space-new", params: { propertyId: item.id } } as never)}
-          {...pressableFeedback(theme.color.field["200"])}
-          style={({ pressed }) => ({
-            minHeight: 72,
-            paddingVertical: space[3],
-            borderBottomWidth: 1,
-            borderBottomColor: theme.color.field["200"],
-            flexDirection: "row",
-            alignItems: "center",
-            gap: space[3],
-            opacity: pressed ? 0.82 : 1,
-          })}
-        >
-          <View style={{ flex: 1, minWidth: 0, gap: space[1] }}>
-            <Type variant="bodyStrong">{item.title}</Type>
-            <Type variant="caption">
-              {item.unit_count} {item.unit_count === 1 ? "Unit" : "Units"}
-            </Type>
-          </View>
-          <Ionicons name="chevron-forward" size={18} color={theme.color.ink["300"]} />
-        </Pressable>
+      renderItem={({ item, index }) => (
+        <RecordPanel style={index === 0 ? null : styles.stacked}>
+          <LinkRow
+            first
+            icon="business-outline"
+            tone={item.vacant_unit_count ? "quiet" : "good"}
+            label={item.title}
+            detail={item.unit_count
+              ? `${item.unit_count} ${item.unit_count === 1 ? "Unit" : "Units"} · ${item.occupied_unit_count} let`
+              : "No Units yet"}
+            onPress={() => router.push({ pathname: "/(app)/space-new", params: { propertyId: item.id } } as never)}
+          />
+        </RecordPanel>
       )}
       ListEmptyComponent={
         properties === null && !error ? (
-          <Type variant="caption">Loading…</Type>
+          <View style={{ gap: space[3] }}>
+            <Bone height={64} />
+            <Bone height={64} />
+            <Bone height={64} />
+          </View>
         ) : (
-          <View style={{ paddingVertical: space[8], gap: space[3] }}>
-            <Type variant="bodyStrong">
-              {query ? "No matching Property" : "No Property can take a Unit yet"}
-            </Type>
-            <Type variant="caption">
-              {query
-                ? "Try another name."
-                : "A Property has to be confirmed as yours to let before you can add Units to it."}
-            </Type>
-            <Button
-              label="Open Properties"
-              variant="secondary"
-              onPress={() => router.push("/(app)/(provider-tabs)/properties" as never)}
-            />
+          <View style={{ gap: space[3] }}>
+            <RecordPanel>
+              <Fact
+                wide
+                first
+                label={query ? "No matching Property" : "Nothing can take a Unit yet"}
+                value={query
+                  ? "Try another name."
+                  : "A Property has to be confirmed as yours to let before Units can go inside it."}
+              />
+            </RecordPanel>
+            {query ? null : (
+              <RecordPanel>
+                <LinkRow
+                  first
+                  icon="albums-outline"
+                  tone="action"
+                  label="Open Properties"
+                  detail="Finish a Property's checks first"
+                  onPress={() => router.push("/(app)/(provider-tabs)/properties" as never)}
+                />
+              </RecordPanel>
+            )}
           </View>
         )
+      }
+      ListFooterComponent={
+        eligible.length ? <Footnote>A Unit takes its address and its checks from the Property it sits in.</Footnote> : null
       }
     />
   );
 }
+
+const styles = StyleSheet.create({
+  page: {
+    padding: space[4],
+    gap: space[3],
+  },
+  head: {
+    gap: space[3],
+  },
+  title: {
+    gap: space[1],
+    paddingHorizontal: 2,
+  },
+  eyebrow: {
+    color: KOLA,
+  },
+  heading: {
+    fontSize: 19,
+    lineHeight: 25,
+    color: INK,
+  },
+  stacked: {
+    marginTop: space[2],
+  },
+});

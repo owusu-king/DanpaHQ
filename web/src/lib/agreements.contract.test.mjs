@@ -34,9 +34,11 @@ function at(source, needle, what) {
   return index;
 }
 
+// The phone's provider-side `formatLeaseDate` moved to `providerLeaseMeaning.ts`;
+// its tenant half now ends at the tenant's own date helper.
 const tenantList = () => ({
   web: tenantHalf(webList(), "function TenantLeases()", "/** Provider-side date formatting"),
-  mobile: tenantHalf(mobileList(), "function TenantLeasesScreen()", "function formatLeaseDate"),
+  mobile: tenantHalf(mobileList(), "function TenantLeasesScreen()", "function shortDate("),
 });
 
 test("what an agreement means is decided once, for both clients", () => {
@@ -58,7 +60,10 @@ test("the decision comes after the reading", () => {
     const decisionAt = at(source, decision, "the decision block");
     assert.ok(at(source, "advance_notice") < decisionAt, "the advance notice must precede the decision");
     assert.ok(at(source, "Conditions") < decisionAt, "the conditions must precede the decision");
-    assert.ok(at(source, "to move in") < decisionAt, "the money must precede the decision");
+    const moneyAt = source.includes("Move-in total")
+      ? at(source, "Move-in total")
+      : at(source, "to move in");
+    assert.ok(moneyAt < decisionAt, "the money must precede the decision");
   }
   // And the checkbox no longer points at something further down the page.
   // Comments are stripped: both files quote the old wording to explain why.
@@ -70,18 +75,29 @@ test("the decision comes after the reading", () => {
 
 test("a row offers one action, not the whole agreement", () => {
   for (const source of [tenantList().web, tenantList().mobile]) {
-    // Accepting and declining moved to the review screen entirely.
     assert.doesNotMatch(source, /acceptMyLease|acceptLease\(/);
     assert.doesNotMatch(source, /declineMyLease|declineLease\(/);
-    // But the row still answers which home, with whom, how much, how long.
-    assert.match(source, /homeOf\(terms\)/);
-    assert.match(source, /terms\.landlordName/);
-    assert.match(source, /to move in/);
-    assert.match(source, /months\(terms\.termMonths\)/);
   }
+
+  // Web follows the compact Applications pattern: recognition and standing in
+  // the row, with financial/legal detail reserved for the reading modal.
+  const web = tenantList().web;
+  const webRow = web.slice(web.indexOf("function AgreementRow("));
+  assert.match(webRow, /terms\.propertyTitle/);
+  assert.match(webRow, /terms\.unitLabel/);
+  assert.match(webRow, /agreement-row-standing/);
+  assert.doesNotMatch(webRow, /terms\.landlordName|moveInTotalMinor|termMonths|decline_reason/);
+
+  // Mobile keeps its current dedicated-screen composition in this web-only
+  // redesign.
+  const mobile = tenantList().mobile;
+  assert.match(mobile, /homeOf\(terms\)/);
+  assert.match(mobile, /terms\.landlordName/);
+  assert.match(mobile, /to move in/);
+  assert.match(mobile, /months\(terms\.termMonths\)/);
 });
 
-test("agreement history is filter-driven and visible by default", () => {
+test("agreement history is filter-driven, previewed rather than unfolded", () => {
   // The phone still keeps its filter in state; web moved it to the address so
   // returning from a record lands on the same filter.
   assert.match(tenantList().mobile, /useState<AgreementFilter>\("all"\)/);
@@ -91,7 +107,26 @@ test("agreement history is filter-driven and visible by default", () => {
     assert.doesNotMatch(source, /Past agreements \(/);
   }
   assert.doesNotMatch(tenantList().web, /<details className="agreements-past"/);
-  assert.doesNotMatch(tenantList().mobile, /showPast|accessibilityState=\{\{ expanded:/);
+  // Still not a disclosure on either client: the way to the rest of history is
+  // the filter both readers already have, so there is one way to be in it.
+  assert.doesNotMatch(tenantList().mobile, /showPast|aria-expanded=/);
+
+  // On the phone the whole list stacks its stages, so the closed one gives two
+  // and says how many there are — history grows forever and is the group
+  // nobody opened the page for. Filtering to it shows all of them. Both
+  // readers' screens live in the one file, so this reads all of it.
+  const phone = mobileList();
+  assert.match(phone, /const HISTORY_SHOWN = 2;/);
+  assert.match(phone, /stage === "past" && filter === "all" && group\.length > HISTORY_SHOWN/);
+  assert.match(phone, /stage === "history" && view === "all" && group\.length > HISTORY_SHOWN/);
+  assert.match(phone, /<ViewAll count=\{section\.total\} noun="past agreements" onPress=\{\(\) => setFilter\("past"\)\}/);
+  assert.match(phone, /<ViewAll count=\{section\.total\} noun="in history" onPress=\{\(\) => setView\("history"\)\}/);
+  // The group's count is the whole stage, so the fold never hides the number.
+  assert.match(phone, /<GroupLabel count=\{section\.total\}/);
+  assert.doesNotMatch(phone, /<GroupLabel count=\{section\.data\.length\}/);
+  // And the last row before the fold does not round off, or the panel would
+  // close above the way out of it.
+  assert.match(phone, /last=\{section\.data\.length === section\.total && index === section\.data\.length - 1\}/);
 
   const meaning = read("web/src/lib/agreementMeaning.ts");
   assert.match(meaning, /export type AgreementFilter = "all" \| AgreementStage/);
@@ -138,34 +173,38 @@ test("accepting says what is being accepted", () => {
   }
 });
 
-test("a substantial agreement gets a workspace or a dedicated screen", () => {
-  // Terms, evidence, rent context and irreversible decisions make this a
-  // resumable record, not a quick dialog.
-  for (const source of [webRecord(), webListPage()]) {
-    assert.doesNotMatch(rendered(source), /<main/);
-    assert.doesNotMatch(rendered(source), /<dialog/);
-    assert.doesNotMatch(source, /showModal\(\)/);
-  }
-  // Both halves took the other option in this test's title: a dedicated screen.
-  // A split pane always opened somebody's agreement whether or not it was asked
-  // for, and the terms two parties are bound by had no address.
-  //
-  // The tenant's record still holds everything it held; only its container
-  // changed, and the phone had already given it a screen of its own.
-  assert.match(webRecord(), /className="tenant-agreement-record"/);
-  assert.doesNotMatch(webRecord(), /<aside/);
-  assert.doesNotMatch(webListPage(), /tenant-agreements-split/);
+test("a substantial tenant agreement opens in context and keeps its dedicated address", () => {
+  const record = webRecord();
+  const list = webListPage();
+  const css = read("web/src/styles/agreements-workspace.css");
+
+  // A normal list click keeps comparison context, while the same immutable
+  // record remains addressable for refresh, modified clicks and shared links.
+  assert.match(record, /export function AgreementDetailModal/);
+  assert.match(record, /<dialog/);
+  assert.match(record, /showModal\(\)/);
+  assert.match(list, /<AgreementDetailModal/);
+  assert.match(list, /event\.preventDefault\(\)[\s\S]{0,100}onOpen\(lease\)/);
+  assert.match(list, /href=\{`\/leases\/\$\{lease\.id\}`/);
+  assert.doesNotMatch(list, /tenant-agreements-split/);
+
+  // The shell never scrolls. Header and footer stay put while the agreement
+  // body owns the curved, integrated reading scrollbar.
+  assert.match(css, /\.agreement-modal-surface \{[\s\S]{0,120}overflow: hidden/);
+  assert.match(css, /grid-template-rows: auto minmax\(0, 1fr\) auto/);
+  assert.match(css, /\.agreement-modal \.tenant-agreement-record-body \{[\s\S]{0,220}overflow-y: auto[\s\S]{0,160}scrollbar-gutter: stable/);
+  assert.match(record, /<footer className="tenant-agreement-record-footer">/);
+  assert.match(record, /<Icon name="download" \/>Download/);
+  assert.match(record, /<Icon name="print" \/>Print/);
+  assert.match(record, /data-body-scrolled=\{bodyScrolled \|\| undefined\}/);
+
   const agreementRoute = read("web/app/leases/[leaseId]/page.tsx");
   assert.match(agreementRoute, /<AgreementRecord/);
-  assert.match(webListPage(), /href=\{`\/leases\/\$\{lease\.id\}`/);
-  assert.doesNotMatch(webListPage(), /ProviderLeaseDialog/);
-  assert.doesNotMatch(webListPage(), /provider-leases-split/);
-  assert.match(webListPage(), /href=\{`\/leases\/\$\{lease\.id\}`/);
-  const leaseRoute = read("web/app/leases/[leaseId]/page.tsx");
-  assert.match(leaseRoute, /<LeaseRecord/);
-  assert.doesNotMatch(rendered(leaseRoute), /<dialog/);
-  assert.doesNotMatch(leaseRoute, /showModal\(\)/);
+  assert.match(agreementRoute, /<LeaseRecord/);
+  assert.doesNotMatch(list, /ProviderLeaseDialog/);
+  assert.doesNotMatch(list, /provider-leases-split/);
 
+  // Mobile keeps its comfortable dedicated agreement screen.
   const stack = read("mobile/app/(app)/_layout.tsx");
   const route = stack.match(/<Stack\.Screen\s+name="agreement\/\[id\]"[\s\S]*?\/>/)?.[0];
   assert.ok(route, "the mobile agreement record route is missing");

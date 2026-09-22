@@ -94,11 +94,12 @@ test("one control per width moves between the list and the map, and says where i
   const mapCss = read("web/src/styles/explore-map.css");
   const phone = between(mapCss, "@media (max-width: 63.999rem) {", "\n}");
 
-  // Wide screens: a pill at the end of the results row. Phones: one floating
-  // switch. Both are named for where they go, and the map keeps no way out of
-  // its own.
+  // Wide screens: Map completes the compact Search / Filters toolbar. Phones:
+  // one floating switch. Both are named for where they go, and the map keeps no
+  // way out of its own.
   assert.match(browser, /className="explore-map-toggle"\s+onClick=\{mapView \? showList : showMap\}/);
-  assert.match(between(browser, 'className="explore-feedback"', "\n  const notices"), /className="explore-map-toggle"/);
+  assert.match(between(browser, '<div className="explore-bar">', "{advancedOpen ? ("), /className="explore-map-toggle"/);
+  assert.doesNotMatch(between(browser, 'className="explore-feedback"', "\n  const notices"), /className="explore-map-toggle"/);
   assert.equal(browser.match(/className="explore-view-switch"/g)?.length, 1);
   assert.match(browser, /<button type="button" className="explore-view-switch" onClick=\{mapView \? showList : showMap\}>/);
   // Its own prop, not the preview's `onClose`, which closes a preview.
@@ -239,7 +240,7 @@ test("a card's address opens that rental's location, drawn only as the backend p
   }
 });
 
-test("Google Maps sits behind Rooomly's map interface, configured by the build and failing plainly", () => {
+test("Google stays behind Rooomly's map interface while development has a keyless preview", () => {
   // Only the provider's folder knows Google exists; everything else draws through `@/lib/maps`.
   for (const [path, text] of [...sources("web/src"), ...sources("web/app")]) {
     assert.doesNotMatch(text, /maplibre|pmtiles|protomaps/i, `${path} still mentions the old basemap`);
@@ -255,14 +256,23 @@ test("Google Maps sits behind Rooomly's map interface, configured by the build a
   const config = read("web/src/lib/maps/google/config.ts");
   const loader = read("web/src/lib/maps/google/loader.ts");
   const google = read("web/src/lib/maps/google/map.ts");
+  const facade = read("web/src/lib/maps/index.ts");
+  const preview = read("web/src/lib/maps/preview/map.ts");
   // A browser key and a map ID from the build. Production without a map ID has
   // no map rather than an unstyled one; development borrows Google's demo ID.
   assert.match(config, /process\.env\.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY/);
   assert.match(config, /process\.env\.NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID \|\|\s*\(process\.env\.NODE_ENV === "production" \? "" : "DEMO_MAP_ID"\)/);
   assert.match(google, /mapId: GOOGLE_MAPS_MAP_ID,/);
-  // No key: no request at all, and the page says the map is unavailable.
+  // No key: the Google loader makes no request. In development only, the map
+  // facade selects the keyless preview; production still requires Google.
   assert.match(loader, /if \(!googleMapsConfigured\(\)\) return Promise\.reject\(new MapUnavailable\("not_configured"\)\);/);
   assert.match(loader, /setOptions\(\{ key: GOOGLE_MAPS_KEY, v: "weekly", language: "en", region: "GH" \}\);/);
+  assert.match(facade, /process\.env\.NODE_ENV === "development" && !googleMapsConfigured\(\)/);
+  assert.match(facade, /return googleMapsConfigured\(\) \|\| previewAvailable\(\);/);
+  assert.match(facade, /previewAvailable\(\) \? createPreviewMap\(container, options\) : createGoogleMap\(container, options\)/);
+  assert.match(preview, /https:\/\/tile\.openstreetmap\.org/);
+  assert.match(preview, /OpenStreetMap contributors/);
+  assert.match(preview, /const wanted = new Set<string>\(\);/);
   // A refused key is said in words, not left as a darkened map.
   assert.match(loader, /window\.gm_authFailure = \(\) => \{/);
   assert.match(read("web/src/components/explore/ExploreMap.tsx"), /unsubscribe\.push\(onMapRefused\(fail\)\);/);
@@ -310,7 +320,7 @@ test("markers keep their own styling, and the map stays inside the page", () => 
   assert.match(between(workspaceCss, ".explore-advanced {", "}"), /max-height: min\(46rem, calc\(100dvh - var\(--explore-stick-top\) - var\(--space-4\) - var\(--explore-bar-height\) - var\(--space-2\) - var\(--space-4\)\)\);/);
   assert.match(browser, /explore\.style\.setProperty\("--explore-tray-height", `\$\{Math\.ceil\(stick\.getBoundingClientRect\(\)\.height\)\}px`\)/);
   assert.match(mapCss, /--explore-sticky-top: calc\(var\(--explore-stick-top\) \+ var\(--explore-tray-height, 9\.25rem\) \+ var\(--space-3\)\);/);
-  assert.match(between(mapCss, ".portal .explore {", "}"), /--explore-stick-top: calc\(3\.25rem \+ var\(--space-2\)\);/);
+  assert.match(between(mapCss, ".portal .explore {", "}"), /--explore-stick-top: calc\(4rem \+ var\(--space-3\)\);/);
   const stage = between(mapCss, ".explore-map-stage {", "}");
   assert.match(stage, /position: sticky;/);
   assert.match(stage, /top: var\(--explore-sticky-top\);/);

@@ -72,7 +72,7 @@ test("rent is one range between a minimum and a maximum", () => {
 test("a dropdown opens in place, says what it holds, and closes on a choice", () => {
   const source = fields();
 
-  assert.match(source, /accessibilityState=\{\{ expanded: open \}\}/);
+  assert.match(source, /aria-expanded=\{open\}/);
   assert.match(source, /accessibilityRole="radiogroup"/);
   assert.match(source, /accessibilityRole="radio"/);
   assert.match(source, /name=\{open \? "chevron-up" : "chevron-down"\}/);

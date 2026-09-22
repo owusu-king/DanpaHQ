@@ -245,7 +245,7 @@ export function SelectField<T extends string>({
         accessibilityRole="button"
         accessibilityLabel={`${label}: ${current?.label ?? ""}`}
         accessibilityHint={open ? "Hides the options" : "Shows the options"}
-        accessibilityState={{ expanded: open }}
+        aria-expanded={open}
         onPress={() => {
           animate();
           onToggle();
@@ -277,7 +277,7 @@ export function SelectField<T extends string>({
               <Pressable
                 key={option.value || "any"}
                 accessibilityRole="radio"
-                accessibilityState={{ selected }}
+                aria-selected={selected}
                 accessibilityLabel={option.label}
                 onPress={() => {
                   animate();
@@ -332,7 +332,7 @@ export function SegmentedField<T extends string>({
             <Pressable
               key={option.value || "any"}
               accessibilityRole="radio"
-              accessibilityState={{ selected }}
+              aria-selected={selected}
               accessibilityLabel={`${label}: ${option.label}`}
               hitSlop={SEGMENT_SLOP}
               onPress={() => onChange(option.value)}
@@ -365,7 +365,7 @@ export function ToggleField({
   return (
     <Pressable
       accessibilityRole="switch"
-      accessibilityState={{ checked: value }}
+      aria-checked={value}
       accessibilityLabel={label}
       onPress={() => onChange(!value)}
       style={[styles.row, styles.ruled]}

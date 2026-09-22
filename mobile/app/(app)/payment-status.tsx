@@ -5,6 +5,7 @@ import { ScrollView, View } from "react-native";
 import { ApiFailure } from "@/api";
 import { PaystackCheckoutModal } from "@/components/payments/PaystackCheckoutModal";
 import { Button, Notice, Type, space } from "@/components/ui";
+import { useSafeBottom } from "@/platform";
 import {
   getPaymentIntent,
   refreshPaymentIntent,
@@ -15,6 +16,7 @@ import {
 import { theme } from "@/theme";
 
 export default function PaymentStatusScreen() {
+  const pageBottom = useSafeBottom(space[12]);
   const router = useRouter();
   const params = useLocalSearchParams<{ intentId?: string; openCheckout?: string }>();
   const intentId = params.intentId ?? "";
@@ -72,7 +74,7 @@ export default function PaymentStatusScreen() {
   const pending = intent && ["created", "pending", "processing"].includes(intent.status);
   const unsuccessful = intent && ["failed", "expired"].includes(intent.status);
   return (
-    <ScrollView contentContainerStyle={{ padding: space[5], paddingBottom: space[12], gap: space[5] }}>
+    <ScrollView contentContainerStyle={{ padding: space[5], paddingBottom: pageBottom, gap: space[5] }}>
       <View style={{ gap: space[1] }}>
         <Type variant="label">SECURE PAYMENT</Type>
         <Type variant="display2" accessibilityRole="header">{intent?.status === "succeeded" ? "Payment confirmed" : "Payment status"}</Type>

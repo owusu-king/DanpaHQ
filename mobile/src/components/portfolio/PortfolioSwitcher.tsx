@@ -2,9 +2,10 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
 import { Modal, Pressable, ScrollView, TextInput, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useAuth, type Me } from "@/auth";
+import { ModalSafeArea } from "@/components/sheet/ModalSafeArea";
 import { Type, space } from "@/components/ui";
 import { pressableFeedback } from "@/platform";
 import { shell } from "@/shell";
@@ -120,7 +121,6 @@ export function PortfolioHeaderButton({ compact = false }: { compact?: boolean }
 
 function PortfolioSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const { state, activeContext, setActiveContext } = useAuth();
   const [query, setQuery] = useState("");
   const [error, setError] = useState("");
@@ -159,17 +159,27 @@ function PortfolioSheet({ open, onClose }: { open: boolean; onClose: () => void 
   }
 
   return (
-    <Modal visible={open} transparent animationType="slide" onRequestClose={onClose}>
+    <Modal
+      visible={open}
+      transparent
+      animationType="slide"
+      statusBarTranslucent
+      navigationBarTranslucent
+      onRequestClose={onClose}
+    >
+      {/* Its own window, so the sheet measures its own edges — see `ModalSafeArea`. */}
+      <ModalSafeArea>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="Close"
         onPress={onClose}
         style={{ flex: 1, backgroundColor: "rgba(16,14,10,0.38)" }}
       />
-      <View
+      <SafeAreaView
+        edges={{ bottom: "maximum" }}
         style={{
           paddingTop: space[3],
-          paddingBottom: Math.max(insets.bottom, space[4]),
+          paddingBottom: space[4],
           borderTopLeftRadius: 20,
           borderTopRightRadius: 20,
           backgroundColor: theme.color.field["0"],
@@ -224,7 +234,7 @@ function PortfolioSheet({ open, onClose }: { open: boolean; onClose: () => void 
               <Pressable
                 key={portfolio.id}
                 accessibilityRole="radio"
-                accessibilityState={{ selected: isCurrent }}
+                aria-selected={isCurrent}
                 accessibilityLabel={`${portfolio.label}. ${describe(portfolio)}`}
                 onPress={() => void choose(portfolio.id)}
                 {...pressableFeedback(theme.color.field["100"])}
@@ -298,7 +308,8 @@ function PortfolioSheet({ open, onClose }: { open: boolean; onClose: () => void 
         >
           <SheetAction label="Portfolio settings" icon="settings-outline" onPress={() => leaveFor("/(app)/team")} />
         </View>
-      </View>
+      </SafeAreaView>
+      </ModalSafeArea>
     </Modal>
   );
 }

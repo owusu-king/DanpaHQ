@@ -283,7 +283,7 @@ function AccountTypeCard({
     <Pressable
       onPress={onPress}
       accessibilityRole="radio"
-      accessibilityState={{ selected }}
+      aria-selected={selected}
       {...pressableFeedback(theme.color.kola["50"])}
     >
       <Surface

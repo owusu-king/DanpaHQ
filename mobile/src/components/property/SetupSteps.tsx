@@ -64,7 +64,7 @@ export function SetupSteps({
             onPress={() => onSelect?.(step.key)}
             disabled={!onSelect}
             accessibilityRole="tab"
-            accessibilityState={{ selected: here }}
+            aria-selected={here}
             accessibilityLabel={`${step.title}: ${step.detail ?? step.status}`}
             style={{
               flexDirection: "row",
@@ -156,7 +156,17 @@ const CHECKPOINT_ICONS: Record<string, CreationCheckpoint["icon"]> = {
   review: "review",
 };
 
-export function SetupProgress({ steps, current }: { steps: SetupStep[]; current?: string }) {
+export function SetupProgress({
+  steps,
+  current,
+  onGoTo,
+}: {
+  steps: SetupStep[];
+  current?: string;
+  /** Makes the journey the way back — and, here, the way ahead: property setup
+   *  says its steps can be done in any order, so every one of them is a way in. */
+  onGoTo?: (key: string) => void;
+}) {
   const required = steps.filter((step) => !step.optional && !step.terminal);
   const done = required.filter((step) => step.status === "done").length;
   const complete = required.length > 0 && done === required.length;
@@ -184,6 +194,8 @@ export function SetupProgress({ steps, current }: { steps: SetupStep[]; current?
       accessibilityLabel="Property creation checkpoints"
       valueNow={done}
       valueMax={required.length}
+      onGoTo={onGoTo}
+      skipAhead
     />
   );
 }

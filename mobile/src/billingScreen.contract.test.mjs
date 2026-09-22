@@ -136,7 +136,7 @@ test("restricted resources come back only through the server, where it says ther
   // A restricted property stops offering what the API would refuse, and says why.
   assert.match(
     code(read("mobile/app/(app)/provider-property.tsx")),
-    /const canAddUnit = \(property\?\.capabilities\.private_inventory\?\.allowed \?\? false\) && !restricted;/,
+    /const canAddUnit = \(property\.capabilities\.private_inventory\?\.allowed \?\? false\) && !restricted;/,
   );
   assert.match(code(read("mobile/app/(app)/space.tsx")), /unit\.billing_access && unit\.billing_access\.state !== "full"/);
 });
@@ -190,5 +190,8 @@ test("unlimited capacity is a word, never a large number", () => {
 });
 
 test("nothing on a plan card moves when the billing cycle changes", () => {
-  assert.match(plans(), /<Type variant="caption" numberOfLines=\{1\}>\s*\{priceNote\(plan, interval\) \|\| " "\}/);
+  // The note is rendered whether or not there is one. Conditionally, the panel
+  // is a line shorter on one cycle than the other and every plan below it
+  // jumps as the toggle is pressed.
+  assert.match(plans(), /numberOfLines=\{1\} style=\{styles\.planNote\}>\{note \|\| " "\}/);
 });

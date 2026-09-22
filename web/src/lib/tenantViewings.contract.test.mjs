@@ -1,9 +1,9 @@
 /**
- * A tenant's own viewings, laid out the way every other list is.
+ * A tenant's own viewings as an editorial appointment schedule.
  *
- * The seventh surface and the last of the split views: three counts, a search,
- * the stages as pills, linked rows, and the record at its own address.
- * `/viewings/<viewingId>` branches on session exactly as `/viewings` does.
+ * Property recognition, one lifecycle sentence and one time anchor lead each
+ * compact row. The full record remains available both in context and at its
+ * durable `/viewings/<viewingId>` address.
  *
  * A viewing is the strongest case in the product for the record having an
  * address — it is a workflow that runs across a day, and the tenant half is
@@ -50,6 +50,7 @@ function rule(sheet, selector) {
   return sheet.slice(at, sheet.indexOf("}", at));
 }
 
+
 test("a tenant's viewing opens at its own address", () => {
   assert.ok(existsSync(resolve(root, "web/app/viewings/[viewingId]/page.tsx")));
   assert.match(tenantRoute(), /viewings\?\.find\(\(row\) => row\.id === viewingId\)/);
@@ -74,32 +75,22 @@ test("one address serves both sides, and branches the way the list does", () => 
   assert.match(body, /listMyViewings/);
 });
 
-test("the page is laid out the way every other list is", () => {
+test("the tenant page is a compact schedule with one filter control", () => {
   const body = tenantHalf();
-
-  const order = [
-    "tenant-viewings-overview",
-    "tenant-viewings-search",
-    "tenant-viewings-filters",
-    "tenant-viewings-list",
-  ];
-  let at = -1;
-  for (const className of order) {
-    const found = body.search(new RegExp(`className="${className}"`));
-    assert.notEqual(found, -1, `${className} is not rendered`);
-    assert.ok(found > at, `${className} is out of order`);
-    at = found;
-  }
-
-  assert.match(rule(css(), ".tenant-viewings-overview"), /grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
-  assert.match(rule(css(), ".tenant-viewings-overview dd"), /font-family: var\(--font-display\)/);
-  assert.match(rule(css(), ".tenant-viewings-filters button"), /border-radius: 999px/);
-  assert.match(css(), /\.tenant-viewings-filters button\[aria-pressed="true"\][\s\S]{0,140}--color-kola-50/);
-  assert.match(rule(css(), ".tenant-viewings-search"), /width: min\(100%, 30rem\)/);
-
-  // The stage is a pill, so a heading above each group would name it twice.
-  assert.doesNotMatch(code(list()), /function ViewingGroupSection\(/);
-  assert.doesNotMatch(css(), /\.viewings-group/);
+  assert.doesNotMatch(body, /tenant-viewings-overview/);
+  assert.doesNotMatch(body, /tenant-viewings-filters/);
+  assert.match(body, /className="tenant-viewings-tools"/);
+  assert.match(body, /className={`tenant-viewing-filter-trigger/);
+  assert.match(body, /className="tenant-viewing-filter-panel"/);
+  assert.match(body, /className="tenant-viewings-list"/);
+  assert.match(body, /<ViewingDetailModal/);
+  const sheet = css();
+  const refined = sheet.slice(sheet.indexOf("Viewing composition correction"));
+  assert.match(rule(refined, ".tenant-viewing-row"), /min-height: 4\.5rem/);
+  assert.match(rule(refined, ".tenant-viewing-row"), /grid-template-areas/);
+  assert.match(refined, /Viewing composition correction/);
+  assert.match(rule(css(), ".tenant-viewing-filter-trigger"), /height: 42px/);
+  assert.doesNotMatch(css(), /border-radius: 999px/);
 });
 
 test("this sheet no longer names a class the host's sheet already owns", () => {
@@ -111,14 +102,13 @@ test("this sheet no longer names a class the host's sheet already owns", () => {
   assert.match(read("web/src/styles/viewings-workspace.css"), /\.viewings-list \{/);
 });
 
-test("the counts are narrower than the pills beside them", () => {
+test("the collection stays calm and never opens with more than five rows", () => {
   const body = tenantHalf();
-  assert.match(body, /total: rows\.length/);
-  assert.match(body, /row\.viewing\.status === "confirmed"/);
-  assert.match(body, /row\.viewing\.status === "completed"/);
-  // Not the stage groups, which are what the pills already count.
-  const totals = body.slice(body.indexOf("const totals ="), body.indexOf("const visible ="));
-  assert.doesNotMatch(totals, /state\.group/);
+  assert.match(body, /initialCurrentLimit = Math\.min\(current\.length, history\.length \? 4 : 5\)/);
+  assert.match(body, /Math\.max\(0, 5 - initialCurrentLimit\)/);
+  assert.match(body, /const pageSize = 5/);
+  assert.match(body, /rows\.slice\(0, limit\)/);
+  assert.match(body, /tenantViewingSummary\(counts, rows\.length\)/);
 });
 
 test("a reminder still points straight at one appointment", () => {
@@ -151,7 +141,7 @@ test("what a viewing means is still decided by the mirrored module", () => {
   assert.match(body, /standing\(viewing\)/);
   assert.match(body, /matchesViewingFilter\(row\.state\.group, filter\)/);
   // Soonest first. A schedule ordered by when the request was made is not one.
-  assert.match(body, /bySoonest\(a\.viewing, b\.viewing\)/);
+  assert.match(body, /bySoonest\(left\.viewing, right\.viewing\)/);
   assert.doesNotMatch(code(list()), /^function (standing|whenLabel|bySoonest)\(/m);
 });
 

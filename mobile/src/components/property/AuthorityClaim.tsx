@@ -1,9 +1,11 @@
 import * as ImagePicker from "expo-image-picker";
 import { useEffect, useState } from "react";
-import { View } from "react-native";
+import { StyleSheet, View } from "react-native";
 
 import { ApiFailure } from "@/api";
-import { Button, Choice, Field, Notice, Type, space } from "@/components/ui";
+import { Select } from "@/components/form/Select";
+import { ActionBar, LinkRow, Pill, RecordPanel } from "@/components/record/RecordSurfaces";
+import { Field, Notice, space } from "@/components/ui";
 import { recordPropertyClaim, uploadImage } from "@/provider";
 
 /**
@@ -129,9 +131,10 @@ export function AuthorityClaim({
   }
 
   return (
-    <View style={{ gap: space[3] }}>
-      <Choice
-        label="What is your relationship to this property?"
+    <View style={styles.claim}>
+      <Select
+        label="Your relationship to this property"
+        placeholder="Choose one"
         value={relationship}
         options={RELATIONSHIPS.map((row) => ({ value: row.value, label: row.label }))}
         onChange={(value) => setRelationship(value as Relationship)}
@@ -139,9 +142,10 @@ export function AuthorityClaim({
 
       {actingForAnother ? (
         <>
-          <Field label="The owner's name" value={ownerName} onChangeText={setOwnerName} />
+          <Field label="The owner's name" placeholder="Ama Mensah" value={ownerName} onChangeText={setOwnerName} />
           <Field
             label="The owner's phone number"
+            placeholder="024 123 4567"
             value={ownerPhone}
             onChangeText={setOwnerPhone}
             keyboardType="phone-pad"
@@ -150,26 +154,44 @@ export function AuthorityClaim({
       ) : null}
 
       {relationship === "company_representative" ? (
-        <Field label="Company name" value={companyName} onChangeText={setCompanyName} />
+        <Field label="Company name" placeholder="Adenta Homes Ltd" value={companyName} onChangeText={setCompanyName} />
       ) : null}
 
-      <Type variant="caption">{EVIDENCE_HINT[relationship]}</Type>
-      <Button
-        label={document ? "Document chosen · change it" : "Choose the document"}
-        variant="secondary"
-        onPress={pickDocument}
-      />
+      {/* The document is a thing you attach, so it reads as a row that holds
+          one — with a tick once it does — rather than as a secondary button
+          whose label had to say both what it does and what it has done. */}
+      <RecordPanel>
+        <LinkRow
+          first
+          icon={document ? "checkmark-circle" : "document-attach-outline"}
+          tone={document ? "good" : "action"}
+          label={document ? (document.fileName || "Document attached") : "Attach the document"}
+          detail={document ? "Tap to choose a different one" : EVIDENCE_HINT[relationship]}
+          onPress={pickDocument}
+        />
+      </RecordPanel>
 
       {error ? <Notice tone="error" title={error} /> : null}
 
       {showSubmit ? (
-        <Button
-          label="Save document"
-          busy={busy}
-          disabled={!document}
-          onPress={submit}
-        />
+        <ActionBar>
+          <Pill
+            label="Save document"
+            icon="shield-checkmark-outline"
+            busy={busy}
+            busyLabel="Saving"
+            disabled={!document}
+            grow
+            onPress={submit}
+          />
+        </ActionBar>
       ) : null}
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  claim: {
+    gap: space[3],
+  },
+});

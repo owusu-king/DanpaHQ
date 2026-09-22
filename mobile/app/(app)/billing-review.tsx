@@ -34,6 +34,7 @@ import {
 import { Attention, Bone, ResultMark, StatusBadge } from "@/components/billing/BillingParts";
 import { KeepChooser } from "@/components/billing/KeepChooser";
 import { Button, Notice, Type, radius, space } from "@/components/ui";
+import { useSafeBottom } from "@/platform";
 import { paymentMethodLabel, type DigitalPaymentMethod } from "@/payments";
 import { theme } from "@/theme";
 
@@ -49,6 +50,7 @@ type Loaded = { billing: PortfolioBilling; catalogue: PlanCatalogue; quote: Plan
  * screen by the server, and a downgrade is the server's to apply.
  */
 export default function BillingReviewScreen() {
+  const pageBottom = useSafeBottom(space[12]);
   const router = useRouter();
   const params = useLocalSearchParams<{ organizationId?: string; plan?: string; interval?: string }>();
   const organizationId = params.organizationId ?? "";
@@ -144,7 +146,7 @@ export default function BillingReviewScreen() {
 
   if (done) {
     return (
-      <ScrollView contentContainerStyle={{ padding: space[5], paddingBottom: space[12], gap: space[5] }}>
+      <ScrollView contentContainerStyle={{ padding: space[5], paddingBottom: pageBottom, gap: space[5] }}>
         <View style={{ alignItems: "center", gap: space[3], paddingTop: space[8] }}>
           <ResultMark tone="neutral" icon="checkmark" />
           <Type variant="title1" accessibilityRole="header" style={{ textAlign: "center" }}>
@@ -162,7 +164,7 @@ export default function BillingReviewScreen() {
   const quote = loaded?.quote ?? null;
 
   return (
-    <ScrollView contentContainerStyle={{ padding: space[5], paddingBottom: space[12], gap: space[6] }}>
+    <ScrollView contentContainerStyle={{ padding: space[5], paddingBottom: pageBottom, gap: space[6] }}>
       {!loaded && !loadError ? <ReviewSkeleton /> : null}
       {loadError ? (
         <View style={{ gap: space[3] }}>

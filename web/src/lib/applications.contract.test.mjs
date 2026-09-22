@@ -8,8 +8,8 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const read = (relative) => readFileSync(resolve(root, relative), "utf8");
 
 const web = () => read("web/app/applications/page.tsx");
-// The tenant's record left the split pane for `/applications/<id>`; the page
-// keeps the list. Both are read where they now live.
+// The tenant reads the record in context from the list, while `/applications/<id>` remains
+// the durable deep link. Both presentations reuse the same record component.
 const webRecord = () => read("web/src/components/applications/ApplicationRecord.tsx");
 const webRoute = () => read("web/app/applications/[requestId]/page.tsx");
 /** The tenant half of the page, which also holds the provider's list. */
@@ -52,17 +52,25 @@ test("acceptance is not the end of the story, so the lease is read too", () => {
   for (const source of [web(), list()]) assert.match(source, /listMyLeases/);
 });
 
-test("a row is a photograph, a place and one line", () => {
-  const rows = [body(web(), "ApplicationRow"), body(list(), "Row")];
-  for (const row of rows) {
+test("a row is a photograph, a Property and Unit, and one status line", () => {
+  const webRow = body(web(), "ApplicationRow");
+  const mobileRow = body(list(), "Row");
+
+  for (const row of [webRow, mobileRow]) {
     assert.match(row, /photo_url/);
-    assert.match(row, /placeOf\(application\)/);
-    // The old cards carried a status word *and* a sentence explaining that
-    // status word. One line replaces both.
+    // The old cards carried a status word and a sentence explaining it.
     assert.doesNotMatch(row, /status_display/);
-    // And the claim set is not on the row at all.
+    // The tenant's claim set belongs in the record, not the scan.
     assert.doesNotMatch(row, /guarantor|occupation|income_band/);
   }
+
+  // Web uses the durable names the API already supplies. Mobile keeps its
+  // shared compact place line until that surface is redesigned separately.
+  assert.match(webRow, /application\.property_title/);
+  assert.match(webRow, /application\.unit_label/);
+  assert.match(webRow, /application\.locality_name/);
+  assert.match(mobileRow, /placeOf\(application\)/);
+
   for (const source of [web(), list()]) {
     assert.doesNotMatch(source, /Sent\. Waiting for the landlord to look at it/);
     assert.doesNotMatch(source, /they may still say yes/);
@@ -91,7 +99,7 @@ test("application history is filter-driven and visible by default", () => {
 
   // History is neither a web disclosure nor a mobile expand/collapse button.
   assert.doesNotMatch(webTenant(), /<details className="applications-past"/);
-  assert.doesNotMatch(list(), /showPast|accessibilityState=\{\{ expanded:/);
+  assert.doesNotMatch(list(), /showPast|aria-expanded=/);
 });
 
 test("the claim set is one disclosure behind the record", () => {
@@ -113,31 +121,46 @@ test("withdrawing asks first", () => {
   assert.doesNotMatch(list(), /withdrawApplication/);
 });
 
-test("an application record is a place, not an overlay", () => {
-  // It was a `<dialog showModal()>` on web and a sheet on mobile. An
-  // application is read *against* the other applications somebody has out, and
-  // a modal hid exactly the context that makes it legible — then closed itself
-  // on a stray click part-way through reading.
-  const page = read("web/app/applications/page.tsx");
+test("a tenant record opens in context without surrendering its address", () => {
+  const record = webRecord();
   const css = read("web/src/styles/applications-workspace.css");
 
-  // Both sides are pages now. It was a dialog, then a pane; the pane could not
-  // be linked to either, and the phone had already given this record a screen.
-  assert.doesNotMatch(page, /showModal\(\)/);
-  assert.doesNotMatch(page, /application-dialog/);
-  assert.doesNotMatch(css, /\.application-dialog/);
-  assert.match(webRoute(), /<ApplicationRecord/);
+  // Ordinary clicks stay with the comparison list, while the real href remains
+  // available for copied links, modified clicks and direct navigation.
+  assert.match(webTenant(), /<ApplicationDetailModal/);
+  assert.match(webTenant(), /event\.preventDefault\(\)/);
   assert.match(webTenant(), /href=\{`\/applications\/\$\{application\.id\}`/);
+  assert.match(webRoute(), /<ApplicationRecord/);
 
+  // Native dialog semantics provide focus trapping and scroll locking. Closing
+  // restores the row, and every dismissal path shares the animated close.
+  assert.match(record, /<dialog/);
+  assert.match(record, /showModal\(\)/);
+  assert.match(record, /aria-labelledby="application-modal-title"/);
+  assert.match(record, /onCancel=/);
+  assert.match(record, /opener\?\.focus/);
+  assert.match(css, /\.application-modal::backdrop/);
+  assert.match(css, /\.application-modal\.is-leaving/);
+  assert.match(css, /\.application-modal \{[\s\S]{0,220}width: min\(54rem[\s\S]{0,140}height: var\(--application-modal-height, auto\)[\s\S]{0,100}max-height: min\(38rem/);
+  assert.match(record, /style\.setProperty\("--application-modal-height"[\s\S]{0,140}offsetHeight/);
+  assert.match(css, /\.application-modal-surface \{[\s\S]{0,180}overflow: hidden/);
+  assert.match(css, /\.application-modal \.application-detail-body \{[\s\S]{0,300}overflow-y: auto[\s\S]{0,180}scrollbar-gutter: stable/);
+  assert.match(css, /\.application-modal \.application-detail-body::-webkit-scrollbar-thumb/);
+  assert.match(css, /\.application-modal \.application-detail \{[\s\S]{0,180}grid-template-rows: auto minmax\(0, 1fr\) auto[\s\S]{0,120}height: 100%/);
+  assert.match(css, /\.application-modal \.application-detail-head \{[\s\S]{0,100}position: sticky[\s\S]{0,80}top: 0/);
+  assert.match(record, /data-body-scrolled=\{bodyScrolled \|\| undefined\}/);
+  assert.match(css, /data-body-scrolled="true"[\s\S]{0,180}box-shadow:/);
+  assert.match(css, /\.application-modal \.application-detail-foot \{[\s\S]{0,100}position: relative/);
+  assert.match(record, /application-detail-context-actions[\s\S]{0,420}View listing/);
+  assert.match(css, /@media \(max-width: 42rem\)[\s\S]{0,240}max-height: calc\(100dvh - \.75rem\)/);
+
+  // Mobile keeps its established dedicated screen; this request is web-only.
   const layout = read("mobile/app/(app)/_layout.tsx");
   const line = layout.split(/\r?\n/).find((row) => row.includes('name="application/[id]"'));
   assert.ok(line && !line.includes("presentation"), "mobile opens a screen, not a sheet");
 
-  // Withdrawal keeps its confirmation, which is the one thing here that a
-  // lightweight, focused prompt genuinely suits — and it is inline, so it
-  // cannot bury the record it is about.
-  assert.match(webRecord(), /Withdraw\? This cannot be undone\./);
-  assert.match(webRecord(), /application-confirm/);
+  assert.match(record, /Withdraw\? This cannot be undone\./);
+  assert.match(record, /application-confirm/);
 });
 
 test("the comparison happens in the list, which is why the record can leave it", () => {
@@ -157,11 +180,12 @@ test("the comparison happens in the list, which is why the record can leave it",
   // The rendered line, not the row's aria-label — `${state.line}` in the label
   // contains `{state.line}`, so the bare form matched while the visible line
   // was gone.
-  assert.match(webTenant(), /\n\s+\{state\.line\}\n/);
+  assert.match(webTenant(), /<strong>\{state\.line\}<\/strong>/);
   assert.match(css, /\.application-standing\.is-action/);
 
-  // Nothing is opened for anybody: the pane used to fall back to the first row.
+  // Nothing opens by default: the modal is selected only by an explicit row action.
   assert.doesNotMatch(webTenant(), /const suggested = visibleRows\[0\]/);
+  assert.match(webTenant(), /useState<string \| null>\(null\)/);
   assert.doesNotMatch(webTenant(), /data-open=/);
   assert.doesNotMatch(css, /\.applications-split/);
   assert.doesNotMatch(css, /\.application-detail-back/);
@@ -214,7 +238,7 @@ test("a step is never told apart by colour alone", () => {
   // Web: the mark changes fill, the current one gains an inset ring, and the
   // label changes weight.
   assert.match(css, /\[data-state="current"\] \.application-timeline-mark \{[\s\S]{0,160}box-shadow: inset/);
-  assert.match(css, /\[data-state="current"\] \.application-timeline-text strong \{ font-weight: 700/);
+  assert.match(css, /\[data-state="current"\] \.application-timeline-text strong \{[\s\S]{0,100}font-weight: 7/);
   assert.match(css, /\[data-state="waiting"\] \.application-timeline-text strong \{ color/);
 
   // Mobile: a different glyph per state, and the weight moves too.
@@ -247,34 +271,22 @@ test("the agreement link opens the agreement, not the list of them", () => {
   assert.match(leases, /<Suspense fallback=/);
 });
 
-test("a row fits the column it is in, not the one it was drawn for", () => {
+test("a row responds to its reclaimed content width", () => {
   const css = read("web/src/styles/applications-workspace.css");
 
-  // These rows were built for a full-width list and then put in the 20rem list
-  // column of the list/detail split. 6rem + 13rem + two gaps + padding is 360px
-  // of fixed width in a 320px column: the flexible identity track was crushed
-  // to zero and the title wrapped to five lines. Measured, not guessed.
-  //
-  // So the narrow case is the default and the three-track form is the opt-in,
-  // keyed to the list rather than the window — the same viewport gives this
-  // column two very different widths depending on whether the panel is beside
-  // it.
-  assert.match(css, /\.applications-list \{[\s\S]{0,220}container-type: inline-size/);
-  assert.match(css, /container-name: application-list/);
-  assert.match(css, /\.application-row \{[\s\S]{0,120}grid-template-columns: 4rem minmax\(0, 1fr\)/);
-  assert.match(css, /@container application-list \(min-width: 38rem\)/);
+  // The list responds to the space the global shell gives it, including when
+  // the sidebar collapses. It does not infer that space from viewport width.
+  assert.match(css, /\.applications-list \{[\s\S]{0,500}container: application-list \/ inline-size/);
+  assert.match(css, /\.application-row \{[\s\S]{0,180}grid-template-columns: 4\.25rem minmax\(0, 1fr\) 2rem/);
+  assert.match(css, /@container application-list \(min-width: 44rem\)/);
+  assert.match(css, /@container application-list \(min-width: 68rem\)/);
   assert.match(
     css,
-    /@container application-list[\s\S]{0,200}grid-template-columns: 6rem minmax\(0, 1fr\) minmax\(0, 13rem\)/,
+    /@container application-list \(min-width: 68rem\)[\s\S]{0,300}grid-template-columns: 4\.5rem minmax\(14rem, 1\.15fr\)/,
   );
 
-  // Across the full width the standing is one line with the time at the far
-  // end; stacked it read as three short rows and made every item 200px tall.
-  assert.match(css, /\.application-row \.application-standing \{[\s\S]{0,200}display: flex/);
-  assert.match(css, /\.application-row \.application-standing em \{ margin-left: auto/);
-  // And the stacked form gets its own metrics back, not the strip's.
-  assert.match(css, /@container application-list[\s\S]{0,600}align-items: normal;\s*\n\s*gap: 2px/);
-
-  // A list is scanned; a name that runs to five lines stops being scannable.
-  assert.match(css, /-webkit-line-clamp: 2/);
+  // Property and Unit stay one-line scan anchors; metadata gets its own area
+  // instead of squeezing the identity column.
+  assert.match(css, /\.application-identity strong \{[\s\S]{0,240}text-overflow: ellipsis;[\s\S]{0,80}white-space: nowrap/);
+  assert.match(css, /\.application-row-meta \{[\s\S]{0,120}grid-area: meta/);
 });

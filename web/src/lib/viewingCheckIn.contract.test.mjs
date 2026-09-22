@@ -39,3 +39,15 @@ test("web viewing attendance uses a free QR/code check-in before completion", ()
   }
   assert.match(api, /\/check-in\//);
 });
+test("tenant viewing refreshes while a QR check-in is active", () => {
+  const record = read("web/src/components/tenant/ViewingRecord.tsx");
+
+  // The provider validates the QR in a separate session. While the credential
+  // is live, the tenant record refreshes without requiring a manual reload.
+  assert.match(record, /viewing\.status !== "confirmed" \|\| viewing\.check_in\.state !== "ready"/);
+  assert.match(record, /window\.setInterval\([\s\S]*3_000\)/);
+  assert.match(record, /addEventListener\("focus"/);
+  assert.match(record, /addEventListener\("visibilitychange"/);
+  assert.match(record, /viewing\.status === "checked_in"/);
+  assert.match(record, /You are checked in/);
+});

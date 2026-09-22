@@ -23,20 +23,33 @@
  * the app is backgrounded constantly.
  */
 
-import Ionicons from "@expo/vector-icons/Ionicons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Pressable, ScrollView, View } from "react-native";
+import { ScrollView, StyleSheet, View } from "react-native";
 
 import { ApiFailure } from "@/api";
+import { Bone } from "@/components/billing/BillingParts";
 import { AuthorityClaim } from "@/components/property/AuthorityClaim";
 import { SetupProgress } from "@/components/property/SetupSteps";
 import { PropertySummary } from "@/components/property/PropertySummary";
 import { SpaceAmenities } from "@/components/property/SpaceAmenities";
 import { VerificationPanel } from "@/components/property/VerificationPanel";
-import { Button, Choice, Field, Notice, Surface, Type, radius, space } from "@/components/ui";
-import { isAndroid } from "@/platform";
-import { theme } from "@/theme";
+import {
+  ActionBar,
+  Fact,
+  Footnote,
+  GroupLabel,
+  INK,
+  KOLA,
+  LinkRow,
+  Pill,
+  QuietAct,
+  RecordPanel,
+  StandingLine,
+} from "@/components/record/RecordSurfaces";
+import { Select } from "@/components/form/Select";
+import { Field, Notice, Type, space } from "@/components/ui";
+import { useSafeBottom } from "@/platform";
 import {
   describePropertySetup,
   isSetupComplete,
@@ -58,6 +71,10 @@ const STEP_KEYS = ["basics", "details", "documents", "photos", "amenities", "rev
 type StepKey = (typeof STEP_KEYS)[number];
 
 export default function PropertySetupScreen() {
+  // Android draws edge-to-edge, so the last control sits under the navigation
+  // buttons unless the scroll clears them — and they then look as though the
+  // page were showing through.
+  const pageBottom = useSafeBottom(space[8]);
   const { propertyId, step: requested } = useLocalSearchParams<{
     propertyId: string;
     // Where the property screen sends somebody who pressed a specific
@@ -129,8 +146,8 @@ export default function PropertySetupScreen() {
 
   if (!property || !steps.length) {
     return (
-      <View style={{ padding: space[5] }}>
-        {error ? <Notice tone="error" title={error} /> : <Type variant="caption">Loading…</Type>}
+      <View style={styles.page}>
+        {error ? <Notice tone="error" title={error} /> : <Bone height={22} />}
       </View>
     );
   }
@@ -143,29 +160,27 @@ export default function PropertySetupScreen() {
   );
 
   return (
-    <ScrollView
-      contentContainerStyle={{ padding: space[5], gap: space[5] }}
-      keyboardShouldPersistTaps="handled"
-    >
-      <View style={{ gap: space[2] }}>
-        <Type variant="display2">{property.title || "Untitled property"}</Type>
-        <Type variant="caption">
-          {settled
-            ? "Change what is still yours to change."
-            : readyToFinish
-              ? "Everything needed is here."
-              : "Everything saves as you go. Do them in any order."}
+    <ScrollView contentContainerStyle={[styles.page, { paddingBottom: pageBottom }]} keyboardShouldPersistTaps="handled">
+      <View style={styles.head}>
+        <Type variant="label" style={styles.eyebrow}>
+          {settled ? "PROPERTY" : "PROPERTY SETUP"}
         </Type>
+        <Type variant="title2" accessibilityRole="header" style={styles.title}>
+          {property.title || "Untitled property"}
+        </Type>
+        <StandingLine
+          tone={readyToFinish && !settled ? "good" : "quiet"}
+          line={settled
+            ? "Change what is still yours to change"
+            : readyToFinish
+              ? "Ready to finish"
+              : "Everything saves as you go"}
+        />
       </View>
 
-      {readyToFinish && !settled ? (
-        <Notice
-          tone="success"
-          title="Ready to finish"
-        />
-      ) : null}
-
-      <SetupProgress steps={steps} current={step} />
+      {/* The journey is the way back, and the way ahead: these steps may be
+          done in any order, so every checkpoint but the current one opens. */}
+      <SetupProgress steps={steps} current={step} onGoTo={(key) => setStep(key as StepKey)} />
 
       {error ? <Notice tone="error" title={error} /> : null}
 
@@ -218,16 +233,17 @@ export default function PropertySetupScreen() {
         />
       ) : null}
 
-      <Button
-        label="Save and finish later"
-        variant="quiet"
-        onPress={() =>
-          router.replace({
-            pathname: "/(app)/provider-property",
-            params: { propertyId: property.id },
-          })
-        }
-      />
+      <View style={styles.quiet}>
+        <QuietAct
+          label="Save and finish later"
+          onPress={() =>
+            router.replace({
+              pathname: "/(app)/provider-property",
+              params: { propertyId: property.id },
+            })
+          }
+        />
+      </View>
     </ScrollView>
   );
 }
@@ -254,48 +270,44 @@ function BasicsStep({
   const [error, setError] = useState("");
 
   return (
-    <Surface style={{ gap: space[4] }}>
-      <View style={{ gap: space[1] }}>
-        <Type variant="title2">The property</Type>
-      </View>
-
-      <Field label="Property name" value={title} onChangeText={setTitle} />
-
-      <View style={{ gap: space[1] }}>
-        <Type variant="caption">Kind</Type>
-        <Type variant="body">{property.property_type.replace(/_/g, " ")}</Type>
-      </View>
-
-      <View style={{ gap: space[1] }}>
-        <Type variant="caption">Where it is</Type>
-        <Type variant="body">
-          {property.address.locality_name}, {property.address.district_name}
-        </Type>
-        <Type variant="caption">A property is one address.</Type>
+    <View style={styles.step}>
+      <View style={styles.section}>
+        <GroupLabel>The property</GroupLabel>
+        <Field label="Name" placeholder="Adom Heights" value={title} onChangeText={setTitle} />
+        <RecordPanel>
+          <Fact first label="Kind" value={property.property_type.replace(/_/g, " ")} />
+          <Fact label="Where" value={`${property.address.locality_name}, ${property.address.district_name}`} />
+        </RecordPanel>
+        <Footnote>A property is one address, so this one cannot move.</Footnote>
       </View>
 
       {error ? <Notice tone="error" title={error} /> : null}
 
-      <Button
-        label="Save name"
-        busy={busy}
-        disabled={!title.trim() || title === property.title}
-        onPress={async () => {
-          setBusy(true);
-          setError("");
-          try {
-            await updateProperty(property.id, { title: title.trim() });
-            await onSaved();
-          } catch (cause) {
-            setError(
-              cause instanceof ApiFailure ? cause.error.message : "That did not save.",
-            );
-          } finally {
-            setBusy(false);
-          }
-        }}
-      />
-    </Surface>
+      <ActionBar>
+        <Pill
+          label="Save name"
+          icon="checkmark"
+          busy={busy}
+          busyLabel="Saving"
+          disabled={!title.trim() || title === property.title}
+          grow
+          onPress={async () => {
+            setBusy(true);
+            setError("");
+            try {
+              await updateProperty(property.id, { title: title.trim() });
+              await onSaved();
+            } catch (cause) {
+              setError(
+                cause instanceof ApiFailure ? cause.error.message : "That did not save.",
+              );
+            } finally {
+              setBusy(false);
+            }
+          }}
+        />
+      </ActionBar>
+    </View>
   );
 }
 
@@ -319,50 +331,34 @@ function DetailsStep({
   const missing = water === "unknown" || power === "unknown";
 
   if (!vocabulary) {
-    return (
-      <Surface style={{ gap: space[3] }}>
-        <Type variant="caption">Loading the options…</Type>
-      </Surface>
-    );
+    return <View style={styles.step}><Bone height={20} /><Bone height={44} /><Bone height={44} /></View>;
   }
 
   return (
-    <Surface style={{ gap: space[4] }}>
-      <View style={{ gap: space[1] }}>
-        <Type variant="title2">Property details</Type>
+    <View style={styles.step}>
+      <View style={styles.section}>
+        <GroupLabel>Services</GroupLabel>
+        {/* Three questions of five or six options each. As wrapping chips that
+            was a screenful of loose words with no shape; as fields it reads as
+            a form, and each answer has room for its own name. */}
+        <Select label="Water" value={water} options={vocabulary.water_sources} onChange={setWater} />
+        <Select label="Electricity" value={power} options={vocabulary.power_meter_types} onChange={setPower} />
+        <Select label="Compound" value={compound} options={vocabulary.compound_types} onChange={setCompound} />
       </View>
 
-      <Choice
-        label="What's the water source?"
-        value={water}
-        options={vocabulary.water_sources}
-        onChange={setWater}
-      />
-      <Choice
-        label="How is the electricity metered?"
-        value={power}
-        options={vocabulary.power_meter_types}
-        onChange={setPower}
-      />
-      <Choice
-        label="What kind of compound?"
-        value={compound}
-        options={vocabulary.compound_types}
-        onChange={setCompound}
-      />
-
       {missing ? (
-        <Notice
-          tone="info"
-          title="Left unknown, the photo checklist guesses — and guesses short"
-        />
+        <Footnote>Left unknown, the photo checklist guesses — and guesses short.</Footnote>
       ) : null}
       {error ? <Notice tone="error" title={error} /> : null}
 
-      <Button
+      <ActionBar>
+        <Pill
         label="Save and continue"
+        icon="arrow-forward"
         busy={busy}
+        busyLabel="Saving"
         disabled={missing}
+        grow
         onPress={async () => {
           setBusy(true);
           setError("");
@@ -379,8 +375,9 @@ function DetailsStep({
             setBusy(false);
           }
         }}
-      />
-    </Surface>
+        />
+      </ActionBar>
+    </View>
   );
 }
 
@@ -404,38 +401,37 @@ function DocumentsStep({
   const withTeam = document === "submitted" || document === "under_review";
 
   return (
-    <Surface style={{ gap: space[4] }}>
-      <View style={{ gap: space[1] }}>
-        <Type variant="title2">Documents</Type>
-        <Type variant="caption">What shows this property is yours to let.</Type>
+    <View style={styles.step}>
+      <View style={styles.section}>
+        <GroupLabel>What shows it is yours to let</GroupLabel>
+        {document === "verified" ? (
+          <RecordPanel><Fact first label="Claim" value="Confirmed as yours to let" tone="good" /></RecordPanel>
+        ) : withTeam ? (
+          <RecordPanel><Fact first label="Claim" value="With our team" tone="waiting" /></RecordPanel>
+        ) : recorded ? (
+          <RecordPanel><Fact first label="Claim" value="Saved, not yet seen" tone="quiet" /></RecordPanel>
+        ) : null}
+
+        {document === "verified" || withTeam ? null : (
+          <AuthorityClaim
+            propertyId={property.id}
+            onSubmitted={async () => {
+              await onChanged();
+              onDone();
+            }}
+          />
+        )}
       </View>
 
-      {document === "verified" ? (
-        <Notice tone="success" title="Confirmed as yours to let" />
-      ) : withTeam ? (
-        <Notice
-          tone="info"
-          title="Your claim is with our team"
-        />
-      ) : recorded ? (
-        <Notice
-          tone="success"
-          title="Saved. Nobody has seen it yet."
-        />
+      {/* The claim carries the step's one act — saving the document — so
+          moving on is a quiet word. Two pinned bars in one scroll is two
+          things asking to be pressed. */}
+      {recorded ? (
+        <View style={styles.quiet}>
+          <QuietAct label="Continue" icon="arrow-forward" onPress={onDone} />
+        </View>
       ) : null}
-
-      {document === "verified" || withTeam ? null : (
-        <AuthorityClaim
-          propertyId={property.id}
-          onSubmitted={async () => {
-            await onChanged();
-            onDone();
-          }}
-        />
-      )}
-
-      {recorded ? <Button label="Continue" variant="secondary" onPress={onDone} /> : null}
-    </Surface>
+    </View>
   );
 }
 
@@ -453,28 +449,27 @@ function PhotosStep({
   onDone: () => void;
 }) {
   return (
-    <Surface style={{ gap: space[4] }}>
-      <View style={{ gap: space[1] }}>
-        <Type variant="title2">Photos of the building</Type>
+    <View style={styles.step}>
+      <View style={styles.section}>
+        <GroupLabel>Photos of the building</GroupLabel>
+        {/* `showSubmit={false}`: the send lives at Review, with the document,
+            because somebody standing in front of a building has both in one trip. */}
+        <VerificationPanel
+          subject="property"
+          id={propertyId}
+          title="This property"
+          showSubmit={false}
+          onState={() => void onChanged()}
+        />
+        {progress && progress.required_outstanding > 0 ? (
+          <Footnote>{progress.required_outstanding} still needed before this can be sent.</Footnote>
+        ) : null}
       </View>
 
-      {/* `showSubmit={false}`: the send lives at Review, with the document,
-          because somebody standing in front of a building has both in one trip. */}
-      <VerificationPanel
-        subject="property"
-        id={propertyId}
-        title="This property"
-        showSubmit={false}
-        onState={() => void onChanged()}
-      />
-
-      <Button label="Continue" variant="secondary" onPress={onDone} />
-      {progress && progress.required_outstanding > 0 ? (
-        <Type variant="caption">
-          {progress.required_outstanding} still needed before this can be sent.
-        </Type>
-      ) : null}
-    </Surface>
+      <ActionBar>
+        <Pill label="Continue" icon="arrow-forward" grow onPress={onDone} />
+      </ActionBar>
+    </View>
   );
 }
 
@@ -490,24 +485,21 @@ function AmenitiesStep({
   onDone: () => void;
 }) {
   return (
-    <Surface style={{ gap: space[4] }}>
-      <View style={{ gap: space[1] }}>
-        <Type variant="title2">What the compound has</Type>
-        <Type variant="caption">
-          Shared by everything inside — what one flat has of its own goes on that space.
-        </Type>
+    <View style={styles.step}>
+      <View style={styles.section}>
+        <GroupLabel>What the compound has</GroupLabel>
+        <Footnote>Shared by everything inside. What one flat has of its own goes on that Unit.</Footnote>
+        <SpaceAmenities
+          scope="property"
+          id={propertyId}
+          saveLabel="Confirm and continue"
+          onSaved={async () => {
+            await onChanged();
+            onDone();
+          }}
+        />
       </View>
-
-      <SpaceAmenities
-        scope="property"
-        id={propertyId}
-        saveLabel="Confirm and continue"
-        onSaved={async () => {
-          await onChanged();
-          onDone();
-        }}
-      />
-    </Surface>
+    </View>
   );
 }
 
@@ -540,11 +532,10 @@ function ReviewStep({
   const ready = outstanding.length === 0;
 
   return (
-    <Surface style={{ gap: space[4] }}>
-      <View style={{ gap: space[1] }}>
-        <Type variant="title2">Review</Type>
-        <Type variant="caption">Nothing here has been sent to anybody.</Type>
-      </View>
+    <View style={styles.step}>
+      {/* Said once, here, where the button is: creating a property is not
+          asking anybody to look at it. */}
+      <Footnote>Nothing here has been sent to anybody.</Footnote>
 
       {/* The property, as a property. This listed step names against their
           status — the last thing somebody saw before creating a building they
@@ -554,48 +545,64 @@ function ReviewStep({
       {/* Only what is still owed, and only when something is. Six rows saying
           "Done" is not a review; it is the checklist again. */}
       {settled ? null : outstanding.length ? (
-        <View style={{ gap: space[2] }}>
-          <Type variant="label">STILL TO FINISH</Type>
-          {outstanding.map((row) => (
-            <Pressable
-              key={row.key}
-              accessibilityRole="button"
-              accessibilityLabel={`Finish ${row.title}`}
-              onPress={() => onGoTo(row.key)}
-              android_ripple={isAndroid ? { color: theme.color.kola["50"] } : undefined}
-              style={({ pressed }) => ({
-                flexDirection: "row",
-                alignItems: "center",
-                gap: space[3],
-                minHeight: theme.targetMin,
-                paddingHorizontal: space[3],
-                borderRadius: radius.sm,
-                backgroundColor: theme.color.field["50"],
-                opacity: pressed && !isAndroid ? 0.72 : 1,
-              })}
-            >
-              <Type
-                variant="bodyStrong"
-                style={{ flex: 1, fontSize: 15, color: theme.color.kola["600"] }}
-              >
-                {row.title}
-              </Type>
-              {row.detail ? <Type variant="caption">{row.detail}</Type> : null}
-              <Ionicons name="chevron-forward" size={16} color={theme.color.kola["600"]} />
-            </Pressable>
-          ))}
+        <View style={styles.section}>
+          <GroupLabel>Still to finish</GroupLabel>
+          <RecordPanel>
+            {outstanding.map((row, index) => (
+              <LinkRow
+                key={row.key}
+                first={index === 0}
+                tone="action"
+                icon="ellipse-outline"
+                label={row.title}
+                detail={row.detail || undefined}
+                onPress={() => onGoTo(row.key)}
+              />
+            ))}
+          </RecordPanel>
         </View>
       ) : (
-        <Type variant="caption">
-          It stays private until you send it for verification, from the property itself.
-        </Type>
+        <Footnote>It stays private until you send it for verification, from the property itself.</Footnote>
       )}
 
-      <Button
-        label={settled ? "Done" : "Create property"}
-        disabled={!ready && !settled}
-        onPress={onFinished}
-      />
-    </Surface>
+      <ActionBar>
+        <Pill
+          label={settled ? "Done" : "Create property"}
+          icon={settled ? "checkmark" : "business-outline"}
+          disabled={!ready && !settled}
+          grow
+          onPress={onFinished}
+        />
+      </ActionBar>
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  page: {
+    padding: space[4],
+    gap: space[4],
+  },
+  head: {
+    gap: space[1],
+    paddingHorizontal: 2,
+  },
+  eyebrow: {
+    color: KOLA,
+  },
+  title: {
+    fontSize: 19,
+    lineHeight: 25,
+    color: INK,
+  },
+  step: {
+    gap: space[4],
+  },
+  section: {
+    gap: space[3],
+  },
+  quiet: {
+    alignItems: "flex-start",
+    paddingHorizontal: 2,
+  },
+});

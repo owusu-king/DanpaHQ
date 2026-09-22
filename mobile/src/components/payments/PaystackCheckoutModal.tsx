@@ -11,6 +11,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { WebView, type WebViewNavigation } from "react-native-webview";
 
+import { ModalSafeArea } from "@/components/sheet/ModalSafeArea";
 import { Type, radius, space } from "@/components/ui";
 import { isPaymentReturnUrl, safeCheckoutUrl, type ProviderCheckout } from "@/payments";
 import { pressableFeedback } from "@/platform";
@@ -75,6 +76,8 @@ export function PaystackCheckoutModal({ intent, onClose, onCheckoutReturn, settl
       onRequestClose={requestClose}
       statusBarTranslucent={false}
     >
+      {/* Checkout opens in its own window, which measures its own edges. */}
+      <ModalSafeArea>
       <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
         <View style={styles.header}>
           <View style={styles.securityMark} accessibilityElementsHidden>
@@ -163,6 +166,7 @@ export function PaystackCheckoutModal({ intent, onClose, onCheckoutReturn, settl
           </Type>
         </View>
       </SafeAreaView>
+      </ModalSafeArea>
     </Modal>
   );
 }

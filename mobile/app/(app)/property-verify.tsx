@@ -20,6 +20,7 @@ import { ScrollView, View } from "react-native";
 
 import { ApiFailure } from "@/api";
 import { Button, Notice, Surface, Type, space } from "@/components/ui";
+import { useSafeBottom } from "@/platform";
 import {
   getProperty,
   getPropertyAmenities,
@@ -31,6 +32,9 @@ import { theme } from "@/theme";
 import { getVerification, type VerificationProgress } from "@/verification";
 
 export default function PropertyVerifyScreen() {
+  // Android draws edge-to-edge: the last row would sit under the
+  // navigation buttons, which then look as though the page showed through.
+  const pageBottom = useSafeBottom(space[8]);
   const { propertyId } = useLocalSearchParams<{ propertyId: string }>();
   const router = useRouter();
 
@@ -76,7 +80,7 @@ export default function PropertyVerifyScreen() {
 
   if (sent) {
     return (
-      <ScrollView contentContainerStyle={{ padding: space[5], gap: space[4] }}>
+      <ScrollView contentContainerStyle={{ padding: space[5], paddingBottom: pageBottom, gap: space[4] }}>
         <Notice
           tone="success"
           title="Sent for verification"

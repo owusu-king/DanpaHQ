@@ -28,7 +28,7 @@ test("mobile provider can act on viewing requests and applications", () => {
   const viewing = read("mobile/app/(app)/provider-viewing.tsx");
   assert.match(viewings, /listReceivedViewings/);
   assert.match(viewings, /<FlatList/);
-  assert.match(viewings, /label="Action"/);
+  assert.match(viewings, /label="Needs action"/);
   assert.match(viewings, /label="Upcoming"/);
   assert.match(viewings, /label="History"/);
   assert.match(viewing, /offerViewingSlots/);

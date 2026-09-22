@@ -1,6 +1,7 @@
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { FlatList, Pressable, RefreshControl, ScrollView, View } from "react-native";
+import { Pressable, RefreshControl, SectionList, StyleSheet, View } from "react-native";
 
 import {
   agreedTerms,
@@ -13,13 +14,54 @@ import {
   standing,
   type AgreementFilter,
   type AgreementStage,
+  type AgreementStanding,
 } from "@/agreementMeaning";
 import { ApiFailure } from "@/api";
 import { useAuth } from "@/auth";
-import { Button, Field, Notice, Type, space } from "@/components/ui";
+import { IndexGround } from "@/components/account/IndexRows";
+import { ViewAll } from "@/components/billing/BillingSurfaces";
+import { useHomeDensity } from "@/components/home/plinth";
+import {
+  ChoiceRow,
+  EmptyState,
+  FilterGroup,
+  GroupLabel,
+  HARMATTAN,
+  KOLA,
+  KOLA_DEEP,
+  LATERITE,
+  ListHead,
+  ListRow,
+  MUTED,
+  PRESSED,
+  QuietAction,
+  RowLine,
+  RowSeparator,
+  SearchField,
+  SheetFooter,
+  SummaryPanel,
+  WHITE,
+  initialsOf,
+  rowStyles,
+  type IconName,
+} from "@/components/portfolio/PortfolioList";
+import { BottomSheet } from "@/components/sheet/BottomSheet";
+import { Notice, Type, radius, space } from "@/components/ui";
 import { listGrantedLeases, listMyLeases, type Lease } from "@/leases";
-import { formatMinor } from "@/listings";
-import { pressableFeedback } from "@/platform";
+import { isAndroid, pressableFeedback, useSafeBottom } from "@/platform";
+import {
+  leaseSearchText,
+  providerLeasePeriod,
+  providerLeasePlace,
+  providerLeaseRent,
+  providerLeaseStage,
+  providerLeaseStatus,
+  providerLeaseTenant,
+  providerLeaseTone,
+  providerLeaseWhen,
+  type ProviderLeaseStage,
+  type ProviderLeaseTone,
+} from "@/providerLeaseMeaning";
 import { theme } from "@/theme";
 
 /**
@@ -31,6 +73,11 @@ import { theme } from "@/theme";
  * Act allows. It does not hide the button: two-year advances are the market,
  * and a tenant who decides to take one deserves to do it informed rather than
  * be blocked by us.
+ *
+ * Refined on review (2026-09-15) into the Portfolio lists' shape for both
+ * readers: glass groups instead of rules and tabs, rows that never cut an
+ * amount or a status short, and one green Filter control found at a glance.
+ * The list's heading names what is showing, so the page says little else.
  */
 export default function LeasesScreen() {
   const { state } = useAuth();
@@ -40,18 +87,61 @@ export default function LeasesScreen() {
   return provider ? <ProviderLeasesScreen /> : <TenantLeasesScreen />;
 }
 
-type ProviderLeaseStage = "send" | "current" | "history";
+type ProviderView = "all" | ProviderLeaseStage;
+type ProviderSection = { key: ProviderLeaseStage; title?: string; data: Lease[]; total: number };
 
+/**
+ * How much of a closed stage the whole list shows before it stops.
+ *
+ * History grows forever and is the one group nobody opened the page for, so it
+ * gives two and then says how many there are. Filtering to it shows all of
+ * them — somebody who asks for history has asked for history.
+ */
+const HISTORY_SHOWN = 2;
+
+const STAGES: readonly ProviderLeaseStage[] = ["send", "current", "history"];
+const VIEW_LABEL: Record<ProviderView, string> = {
+  all: "All agreements",
+  send: "To send",
+  current: "Current",
+  history: "History",
+};
+const VIEW_ICON: Record<ProviderView, IconName> = {
+  all: "documents-outline",
+  send: "paper-plane-outline",
+  current: "document-text-outline",
+  history: "archive-outline",
+};
+
+/** Each tone as the agreement screen colours it, with the soft wash its initials sit on. */
+const TONE: Record<ProviderLeaseTone, { text: string; ink: string; wash: string }> = {
+  good: { text: KOLA, ink: KOLA_DEEP, wash: theme.color.kola["50"] },
+  attention: { text: LATERITE, ink: LATERITE, wash: theme.color.laterite["100"] },
+  waiting: { text: HARMATTAN, ink: HARMATTAN, wash: theme.color.harmattan["100"] },
+  muted: { text: MUTED, ink: theme.color.ink["700"], wash: theme.color.field["100"] },
+};
+
+/**
+ * The agreements this Portfolio granted.
+ *
+ * What is running leads, with what waits on the provider under it; then every
+ * agreement, grouped in the order somebody works in — to send, current, history.
+ * One green Filter narrows to a single stage, and search reaches the tenant, the
+ * Property, the Unit and the bed.
+ */
 function ProviderLeasesScreen() {
   const router = useRouter();
+  const density = useHomeDensity();
+  const pageBottom = useSafeBottom(space[12]);
   // An agreement belongs to the Portfolio whose Property granted it.
   const { activeContext } = useAuth();
   const preferred = activeContext?.startsWith("organization:")
     ? activeContext.slice("organization:".length)
     : "";
   const [items, setItems] = useState<Lease[] | null>(null);
-  const [stage, setStage] = useState<ProviderLeaseStage>("send");
+  const [view, setView] = useState<ProviderView>("all");
   const [query, setQuery] = useState("");
+  const [filtering, setFiltering] = useState(false);
   const [error, setError] = useState("");
   const [refreshing, setRefreshing] = useState(false);
   const load = useCallback(async () => {
@@ -60,59 +150,213 @@ function ProviderLeasesScreen() {
     catch (cause) { setItems([]); setError(cause instanceof ApiFailure ? cause.error.message : "We could not load these agreements."); }
   }, [preferred]);
   useEffect(() => { void load(); }, [load]);
-  const counts = useMemo(() => ({
-    send: (items ?? []).filter((item) => providerLeaseStage(item) === "send").length,
-    current: (items ?? []).filter((item) => providerLeaseStage(item) === "current").length,
-    history: (items ?? []).filter((item) => providerLeaseStage(item) === "history").length,
-  }), [items]);
-  const visible = useMemo(() => {
+
+  const all = useMemo(() => items ?? [], [items]);
+  const stageCount = (value: ProviderView) => value === "all" ? all.length : all.filter((lease) => providerLeaseStage(lease) === value).length;
+  const matching = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase("en-GH");
-    return (items ?? []).filter((item) => providerLeaseStage(item) === stage).filter((item) =>
-      !needle || leaseSearchText(item).toLocaleLowerCase("en-GH").includes(needle),
-    ).sort((a, b) => b.created_at.localeCompare(a.created_at));
-  }, [items, query, stage]);
-  return <FlatList
-    data={visible}
-    keyExtractor={(item) => item.id}
-    contentContainerStyle={{ padding: space[5], paddingBottom: space[12] }}
-    refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await load(); setRefreshing(false); }} tintColor={theme.color.kola["600"]} />}
-    ListHeaderComponent={<View style={{ gap: space[4], marginBottom: space[3] }}>
-      <View style={{ gap: space[1] }}><Type variant="label">AGREEMENTS</Type><Type variant="display2" accessibilityRole="header">Leases</Type><Type variant="body">Send prepared agreements, follow acceptance and keep the final record.</Type></View>
-      {error ? <Notice tone="error" title={error} /> : null}
-      <Field label="Search agreements" value={query} onChangeText={setQuery} placeholder="Tenant, Property or Unit" returnKeyType="search" />
-      <View accessibilityRole="tablist" style={{ flexDirection: "row", borderBottomWidth: 1, borderBottomColor: theme.color.field["200"] }}>
-        {(["send", "current", "history"] as const).map((value) => <LeaseTab key={value} label={value === "send" ? "To send" : value === "current" ? "Current" : "History"} count={counts[value]} selected={stage === value} onPress={() => setStage(value)} />)}
-      </View>
-    </View>}
-    ItemSeparatorComponent={() => <View style={{ height: 1, backgroundColor: theme.color.field["200"] }} />}
-    renderItem={({ item }) => <ProviderLeaseRow lease={item} onPress={() => router.push({ pathname: "/(app)/provider-lease", params: { leaseId: item.id } } as never)} />}
-    ListEmptyComponent={items === null ? <Type variant="caption" style={{ paddingVertical: space[4] }}>Loading…</Type> : error ? null : <View style={{ paddingVertical: space[6], gap: space[2] }}><Type variant="bodyStrong">{query ? "No matching agreements" : stage === "send" ? "Nothing to send" : stage === "current" ? "No current agreements" : "No agreement history yet"}</Type><Type variant="caption">{query ? "Try a different tenant, Property or Unit." : stage === "send" ? "Prepare agreements from accepted tenancy requests. Saved drafts appear here before they are sent." : stage === "current" ? "Sent, accepted and active agreements appear here." : "Declined, withdrawn and ended agreements remain available as records."}</Type>{stage === "send" && !query ? <Button label="Open tenancy requests" variant="quiet" onPress={() => router.push("/(app)/provider-applications" as never)} /> : null}</View>}
-  />;
+    return all
+      .filter((lease) => view === "all" || providerLeaseStage(lease) === view)
+      .filter((lease) => !needle || leaseSearchText(lease).toLocaleLowerCase("en-GH").includes(needle))
+      .sort((a, b) => b.created_at.localeCompare(a.created_at));
+  }, [all, query, view]);
+  const sections = useMemo<ProviderSection[]>(
+    () => (view === "all" ? STAGES : [view])
+      .map((stage) => {
+        const group = matching.filter((lease) => providerLeaseStage(lease) === stage);
+        const folded = stage === "history" && view === "all" && group.length > HISTORY_SHOWN;
+        return {
+          key: stage,
+          title: view === "all" ? VIEW_LABEL[stage] : undefined,
+          data: folded ? group.slice(0, HISTORY_SHOWN) : group,
+          total: group.length,
+        };
+      })
+      .filter((section) => section.total > 0),
+    [matching, view],
+  );
+
+  const active = all.filter((lease) => lease.status === "active").length;
+  // Waiting for the tenant means offered, and only offered: by activation they have accepted.
+  const awaiting = all.filter((lease) => lease.status === "offered").length;
+  const toSend = stageCount("send");
+  const toConfirm = all.filter((lease) => lease.status === "tenant_accepted").length;
+  const onYou = [toSend ? `${toSend} to send` : "", toConfirm ? `${toConfirm} to confirm` : ""].filter(Boolean).join(" · ");
+
+  return (
+    <IndexGround>
+      <SectionList<Lease, ProviderSection>
+        sections={sections}
+        keyExtractor={(item) => item.id}
+        stickySectionHeadersEnabled={false}
+        contentContainerStyle={{ paddingHorizontal: density.pagePadding, paddingTop: density.compact ? space[4] : space[5], paddingBottom: pageBottom }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await load(); setRefreshing(false); }} tintColor={KOLA} />}
+        ListHeaderComponent={<View style={{ gap: density.sectionGap + space[2], marginBottom: space[4] }}>
+          {error ? <Notice tone="error" title={error} /> : null}
+          {all.length ? <SummaryPanel
+            label="Active"
+            value={String(active)}
+            note={onYou ? { text: onYou, tone: "alert" } : { text: "Nothing waiting on you", tone: "calm" }}
+            facts={[
+              { label: "Waiting for tenant", value: String(awaiting) },
+              { label: "All agreements", value: String(all.length) },
+            ]}
+          /> : null}
+          {all.length ? <View style={{ gap: space[3] }}>
+            <ListHead title={VIEW_LABEL[view]} count={matching.length} filters={view === "all" ? 0 : 1} filterTone="kola" onFilter={() => setFiltering(true)} />
+            <SearchField label="Search agreements" placeholder="Tenant, Property or Unit" value={query} onChangeText={setQuery} />
+          </View> : null}
+        </View>}
+        renderSectionHeader={({ section }) => section.title ? (
+          <View style={styles.sectionHead}>
+            {/* The count is the whole stage, never what the fold is showing. */}
+            <GroupLabel count={section.total}>{section.title}</GroupLabel>
+          </View>
+        ) : null}
+        renderSectionFooter={({ section }) => (
+          <>
+            {section.data.length < section.total ? (
+              <ListRow first={false} last>
+                <ViewAll count={section.total} noun="in history" onPress={() => setView("history")} />
+              </ListRow>
+            ) : null}
+            <View style={{ height: space[5] }} />
+          </>
+        )}
+        ItemSeparatorComponent={RowSeparator}
+        renderItem={({ item, index, section }) => (
+          <ListRow first={index === 0} last={section.data.length === section.total && index === section.data.length - 1}>
+            <ProviderLeaseRow lease={item} narrow={density.veryCompact} onPress={() => router.push({ pathname: "/(app)/provider-lease", params: { leaseId: item.id } } as never)} />
+          </ListRow>
+        )}
+        ListEmptyComponent={items === null ? <Type variant="caption" style={styles.loading}>Loading…</Type> : error ? null : (
+          <ProviderEmpty
+            view={view}
+            searching={Boolean(query.trim())}
+            hasAny={all.length > 0}
+            onRequests={() => router.push("/(app)/provider-applications" as never)}
+          />
+        )}
+      />
+      <BottomSheet
+        visible={filtering}
+        onClose={() => setFiltering(false)}
+        title="Filter"
+        closeLabel="Close filter"
+        footer={<SheetFooter
+          canReset={view !== "all" || Boolean(query)}
+          onReset={() => { setView("all"); setQuery(""); }}
+          results={matching.length}
+          onShow={() => setFiltering(false)}
+        />}
+      >
+        <FilterGroup title="Show">
+          {(["all", ...STAGES] as const).map((value, index) => (
+            <ChoiceRow
+              key={value}
+              first={index === 0}
+              icon={VIEW_ICON[value]}
+              label={VIEW_LABEL[value]}
+              count={stageCount(value)}
+              selected={view === value}
+              onPress={() => setView(value)}
+            />
+          ))}
+        </FilterGroup>
+      </BottomSheet>
+    </IndexGround>
+  );
 }
 
-function LeaseTab({ label, count, selected, onPress }: { label: string; count: number; selected: boolean; onPress: () => void }) {
-  return <Pressable accessibilityRole="tab" accessibilityState={{ selected }} accessibilityLabel={`${label}, ${count}`} onPress={onPress} {...pressableFeedback(theme.color.field["100"])} style={{ flex: 1, minHeight: 52, alignItems: "center", justifyContent: "center", paddingHorizontal: space[1], borderBottomWidth: 2, borderBottomColor: selected ? theme.color.kola["600"] : "transparent" }}><Type variant="bodyStrong" style={{ color: selected ? theme.color.kola["600"] : theme.color.ink["500"], textAlign: "center" }}>{label} · {count}</Type></Pressable>;
-}
-
-function ProviderLeaseRow({ lease, onPress }: { lease: Lease; onPress: () => void }) {
-  const terms = lease.agreement?.terms;
-  const tenant = terms?.parties.tenant.name ?? lease.tenant_name;
-  const property = terms?.property.title ?? lease.property_title;
-  const unit = terms?.space.unit_label ?? lease.unit_label;
-  const money = terms?.money;
+/**
+ * One agreement: the tenant against the rent, the exact space against where it
+ * stands, then the rent's period and the one date that matters now. The initials
+ * carry the status colour, so what waits on the provider is found before it is read.
+ * On the narrowest phones the space keeps its whole line and the status moves
+ * under it, because a Unit cut to "Fl…" is no longer an exact space.
+ */
+function ProviderLeaseRow({ lease, narrow, onPress }: { lease: Lease; narrow: boolean; onPress: () => void }) {
+  const tenant = providerLeaseTenant(lease);
+  const place = providerLeasePlace(lease);
+  const rent = providerLeaseRent(lease);
+  const period = providerLeasePeriod(lease);
   const status = providerLeaseStatus(lease);
-  return <Pressable accessibilityRole="button" accessibilityLabel={`${tenant}. ${property}${unit ? `, ${unit}` : ""}. ${status}. Open agreement.`} onPress={onPress} {...pressableFeedback(theme.color.field["100"])} style={({ pressed }) => ({ minHeight: 92, paddingVertical: space[4], flexDirection: "row", alignItems: "center", gap: space[3], opacity: pressed ? .8 : 1 })}>
-    <View style={{ flex: 1, gap: space[1] }}><Type variant="bodyStrong">{tenant}</Type><Type variant="caption">{property}{unit ? ` · ${unit}` : ""}</Type><Type variant="caption">{money ? `${formatMinor(money.rent_minor, money.rent_currency)} / ${money.rent_period === "yearly" ? "year" : "month"}` : lease.rent_formatted ? `${lease.rent_formatted} / ${lease.rent_period === "yearly" ? "year" : "month"}` : "Rent not recorded"}</Type></View>
-    <View style={{ alignItems: "flex-end", gap: space[1], maxWidth: "42%" }}><Type variant="bodyStrong" style={{ color: providerLeaseColor(lease), textAlign: "right" }}>{status}</Type><Type variant="caption" style={{ textAlign: "right" }}>{providerLeaseDate(lease)}</Type></View>
-    <Type variant="title2" style={{ color: theme.color.ink["300"] }}>›</Type>
-  </Pressable>;
+  const when = providerLeaseWhen(lease);
+  const tone = TONE[providerLeaseTone(lease)];
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${tenant}. ${place.join(", ")}. ${status}. ${rent ? `${rent} per ${period}` : "Rent not recorded"}. ${when}. Open agreement.`}
+      onPress={onPress}
+      {...pressableFeedback(PRESSED)}
+      style={({ pressed }) => [rowStyles.row, pressed && !isAndroid ? { backgroundColor: PRESSED } : null]}
+    >
+      <View style={[styles.initials, { backgroundColor: tone.wash }]}>
+        <Type variant="captionStrong" style={[styles.initialsText, { color: tone.ink }]}>{initialsOf(tenant)}</Type>
+      </View>
+      <View style={rowStyles.rowBody}>
+        <RowLine
+          start={<Type variant="bodyStrong" numberOfLines={1} style={rowStyles.rowTitle}>{tenant}</Type>}
+          end={rent ? <Type variant="bodyStrong" numberOfLines={1} style={rowStyles.rowAmount}>{rent}</Type> : undefined}
+        />
+        {narrow ? (
+          <>
+            <Type variant="caption" numberOfLines={1} style={rowStyles.rowSub}>{place.join(" · ")}</Type>
+            <Type variant="caption" numberOfLines={2} style={rowStyles.rowMeta}>
+              <Type variant="caption" style={[rowStyles.rowStatus, { color: tone.text }]}>{status}</Type>
+              {` · ${rent ? `Per ${period}` : "Rent not recorded"} · ${when}`}
+            </Type>
+          </>
+        ) : (
+          <>
+            <RowLine
+              start={<Type variant="caption" numberOfLines={1} style={rowStyles.rowSub}>{place.join(" · ")}</Type>}
+              end={<Type variant="caption" numberOfLines={1} style={[rowStyles.rowStatus, { color: tone.text }]}>{status}</Type>}
+            />
+            <Type variant="caption" numberOfLines={1} style={rowStyles.rowMeta}>{rent ? `Per ${period}` : "Rent not recorded"} · {when}</Type>
+          </>
+        )}
+      </View>
+    </Pressable>
+  );
 }
 
-function providerLeaseStage(lease: Lease): ProviderLeaseStage { return lease.status === "draft" ? "send" : ["offered", "awaiting_activation", "active"].includes(lease.status) ? "current" : "history"; }
-function providerLeaseStatus(lease: Lease) { return ({ draft: "Ready to send", offered: "Waiting for tenant", awaiting_activation: "Awaiting activation", active: "Active", declined: "Declined", cancelled: "Withdrawn", ended: "Ended" } as Record<Lease["status"], string>)[lease.status]; }
-function providerLeaseColor(lease: Lease) { return lease.status === "active" ? theme.color.kola["600"] : lease.status === "draft" ? theme.color.laterite["600"] : ["offered", "awaiting_activation"].includes(lease.status) ? theme.color.harmattan["600"] : theme.color.ink["500"]; }
-function leaseSearchText(lease: Lease) { const terms = lease.agreement?.terms; return `${terms?.parties.tenant.name ?? lease.tenant_name} ${terms?.property.title ?? lease.property_title} ${terms?.space.unit_label ?? lease.unit_label} ${terms?.space.bed_label ?? lease.bed_label ?? ""}`; }
-function providerLeaseDate(lease: Lease) { return lease.status === "active" || lease.status === "awaiting_activation" ? `Starts ${formatLeaseDate(lease.agreement?.terms.term.starts_on ?? lease.starts_on)}` : formatLeaseDate(lease.created_at); }
+function ProviderEmpty({ view, searching, hasAny, onRequests }: { view: ProviderView; searching: boolean; hasAny: boolean; onRequests: () => void }) {
+  const requests = <View style={styles.emptyAction}><QuietAction icon="mail-open-outline" label="Open tenancy requests" onPress={onRequests} /></View>;
+  if (searching) return <EmptyState icon="search-outline" title="No matching agreements" hint="Try a different tenant, Property or Unit." />;
+  if (!hasAny) return <EmptyState icon={VIEW_ICON.all} hero title="No agreements yet" hint="Prepare one from an accepted tenancy request." action={requests} />;
+  if (view === "send") return <EmptyState icon={VIEW_ICON.send} title="Nothing to send" hint="Saved drafts wait here until they are sent." action={requests} />;
+  if (view === "current") return <EmptyState icon={VIEW_ICON.current} title="No current agreements" hint="Sent, accepted and active agreements appear here." />;
+  return <EmptyState icon={VIEW_ICON.history} title="No agreement history yet" hint="Declined, withdrawn and ended agreements stay here as records." />;
+}
+
+type AgreementRowData = { lease: Lease; state: AgreementStanding };
+type TenantSection = { key: AgreementStage; title?: string; data: AgreementRowData[]; total: number };
+
+const TENANT_STAGES: readonly AgreementStage[] = ["action", "active", "past"];
+const STAGE_TITLE: Record<AgreementStage, string> = {
+  action: "Needs your decision",
+  active: "Active",
+  past: "Past",
+};
+const FILTER_TITLE: Record<AgreementFilter, string> = {
+  all: "All agreements",
+  action: "Needs you",
+  active: "Active",
+  past: "Past",
+};
+const FILTER_ICON: Record<AgreementFilter, IconName> = {
+  all: "documents-outline",
+  action: "create-outline",
+  active: "home-outline",
+  past: "time-outline",
+};
+/** What needs deciding in kola, a home in place in its deep green, the past quiet. */
+const STAGE_LOOK: Record<AgreementStage, { icon: IconName; ink: string; wash: string; dot: string }> = {
+  action: { icon: "create-outline", ink: KOLA, wash: theme.color.kola["50"], dot: KOLA },
+  active: { icon: "home-outline", ink: KOLA_DEEP, wash: theme.color.kola["50"], dot: theme.color.kola["300"] },
+  past: { icon: "time-outline", ink: theme.color.ink["700"], wash: theme.color.field["100"], dot: theme.color.ink["300"] },
+};
 
 /**
  * The agreements this tenant holds.
@@ -129,10 +373,13 @@ function providerLeaseDate(lease: Lease) { return lease.status === "active" || l
  */
 function TenantLeasesScreen() {
   const router = useRouter();
+  const density = useHomeDensity();
+  const pageBottom = useSafeBottom(space[12]);
   const [items, setItems] = useState<Lease[] | null>(null);
   const [error, setError] = useState("");
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<AgreementFilter>("all");
+  const [filtering, setFiltering] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -150,273 +397,178 @@ function TenantLeasesScreen() {
   // comes back into view.
   useFocusEffect(useCallback(() => { void load(); }, [load]));
 
-  const rows = (items ?? []).map((lease) => ({ lease, state: standing(lease) }));
-  const sections: readonly {
-    id: AgreementStage;
-    label: string;
-    rows: typeof rows;
-  }[] = [
-    { id: "action", label: "Needs your decision", rows: rows.filter((row) => row.state.stage === "action") },
-    { id: "active", label: "Active", rows: rows.filter((row) => row.state.stage === "active") },
-    { id: "past", label: "Past", rows: rows.filter((row) => row.state.stage === "past") },
-  ];
-  const visibleSections = sections
-    .filter((section) => matchesAgreementFilter(section.id, filter))
-    .filter((section) => section.rows.length > 0);
+  const rows = useMemo<AgreementRowData[]>(() => (items ?? []).map((lease) => ({ lease, state: standing(lease) })), [items]);
   const counts: Record<AgreementFilter, number> = {
     all: rows.length,
     action: rows.filter((row) => row.state.stage === "action").length,
     active: rows.filter((row) => row.state.stage === "active").length,
     past: rows.filter((row) => row.state.stage === "past").length,
   };
+  const sections: TenantSection[] = TENANT_STAGES
+    .filter((stage) => matchesAgreementFilter(stage, filter))
+    .map((stage) => {
+      const group = rows.filter((row) => row.state.stage === stage);
+      const folded = stage === "past" && filter === "all" && group.length > HISTORY_SHOWN;
+      return {
+        key: stage,
+        title: filter === "all" ? STAGE_TITLE[stage] : undefined,
+        data: folded ? group.slice(0, HISTORY_SHOWN) : group,
+        total: group.length,
+      };
+    })
+    .filter((section) => section.total > 0);
 
   const open = (lease: Lease) =>
     router.push({ pathname: "/(app)/agreement/[id]", params: { id: lease.id } });
 
   return (
-    <ScrollView
-      contentContainerStyle={{ padding: space[5], gap: space[5], paddingBottom: space[10] }}
-      refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={async () => {
-            setRefreshing(true);
-            await load();
-            setRefreshing(false);
-          }}
-          tintColor={theme.color.kola["600"]}
-        />
-      }
-    >
-      {error ? <Notice tone="error" title={error} /> : null}
-
-      {items === null ? (
-        <Type variant="caption">Loading…</Type>
-      ) : items.length === 0 ? (
-        <View style={{ gap: space[2], paddingTop: space[6] }}>
-          <Type variant="bodyStrong">No agreement yet</Type>
-          <Type variant="caption">
-            When a landlord sends you one it waits here for your decision. Nothing binds you until
-            you accept it.
-          </Type>
-        </View>
-      ) : (
-        <>
-          <TenantAgreementFilters selected={filter} counts={counts} onSelect={setFilter} />
-
-          {visibleSections.length ? (
-            visibleSections.map((section) => (
-              <TenantGroup
-                key={section.id}
-                heading={filter === "all" ? section.label : null}
-                tone={section.id === "action" ? "action" : undefined}
-              >
-                {section.rows.map((row) => (
-                  <TenantAgreementRow key={row.lease.id} {...row} onPress={() => open(row.lease)} />
-                ))}
-              </TenantGroup>
-            ))
-          ) : (
-            <TenantAgreementFilterEmpty filter={filter} />
-          )}
-        </>
-      )}
-    </ScrollView>
-  );
-}
-
-function TenantAgreementFilters({
-  selected,
-  counts,
-  onSelect,
-}: {
-  selected: AgreementFilter;
-  counts: Record<AgreementFilter, number>;
-  onSelect: (filter: AgreementFilter) => void;
-}) {
-  return (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      style={{ marginHorizontal: -space[5] }}
-      contentContainerStyle={{ paddingHorizontal: space[5] }}
-      accessibilityRole="tablist"
-    >
-      <View
-        style={{
-          flexDirection: "row",
-          borderBottomWidth: 1,
-          borderBottomColor: theme.color.field["200"],
-        }}
+    <IndexGround>
+      <SectionList<AgreementRowData, TenantSection>
+        sections={sections}
+        keyExtractor={(item) => item.lease.id}
+        stickySectionHeadersEnabled={false}
+        contentContainerStyle={{ paddingHorizontal: density.pagePadding, paddingTop: density.compact ? space[4] : space[5], paddingBottom: pageBottom }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await load(); setRefreshing(false); }} tintColor={KOLA} />}
+        ListHeaderComponent={<View style={{ gap: space[3], marginBottom: space[4] }}>
+          {error ? <Notice tone="error" title={error} /> : null}
+          {rows.length ? (
+            <ListHead title={FILTER_TITLE[filter]} count={counts[filter]} filters={filter === "all" ? 0 : 1} filterTone="kola" onFilter={() => setFiltering(true)} />
+          ) : null}
+        </View>}
+        renderSectionHeader={({ section }) => section.title ? (
+          <View style={styles.sectionHead}>
+            {/* The count is the whole stage, never what the fold is showing. */}
+            <GroupLabel count={section.total} tone={section.key === "action" ? KOLA_DEEP : undefined}>{section.title}</GroupLabel>
+          </View>
+        ) : null}
+        renderSectionFooter={({ section }) => (
+          <>
+            {section.data.length < section.total ? (
+              <ListRow first={false} last>
+                <ViewAll count={section.total} noun="past agreements" onPress={() => setFilter("past")} />
+              </ListRow>
+            ) : null}
+            <View style={{ height: space[5] }} />
+          </>
+        )}
+        ItemSeparatorComponent={RowSeparator}
+        renderItem={({ item, index, section }) => (
+          <ListRow first={index === 0} last={section.data.length === section.total && index === section.data.length - 1}>
+            <TenantAgreementRow lease={item.lease} state={item.state} onPress={() => open(item.lease)} />
+          </ListRow>
+        )}
+        ListEmptyComponent={items === null ? <Type variant="caption" style={styles.loading}>Loading…</Type> : error ? null : (
+          <TenantEmpty filter={filter} hasAny={rows.length > 0} />
+        )}
+      />
+      <BottomSheet
+        visible={filtering}
+        onClose={() => setFiltering(false)}
+        title="Filter"
+        closeLabel="Close filter"
+        footer={<SheetFooter
+          canReset={filter !== "all"}
+          onReset={() => setFilter("all")}
+          results={counts[filter]}
+          onShow={() => setFiltering(false)}
+        />}
       >
-        {agreementFilters.map((option) => {
-          const active = selected === option.id;
-          return (
-            <Pressable
+        <FilterGroup title="Show">
+          {agreementFilters.map((option, index) => (
+            <ChoiceRow
               key={option.id}
-              accessibilityRole="tab"
-              accessibilityState={{ selected: active }}
-              accessibilityLabel={`${option.label}, ${counts[option.id]} ${counts[option.id] === 1 ? "agreement" : "agreements"}`}
-              onPress={() => onSelect(option.id)}
-              {...pressableFeedback(theme.color.kola["50"])}
-              style={{
-                minHeight: 48,
-                paddingHorizontal: space[3],
-                flexDirection: "row",
-                alignItems: "center",
-                gap: space[2],
-                borderBottomWidth: 2,
-                borderBottomColor: active ? theme.color.kola["600"] : "transparent",
-              }}
-            >
-              <Type
-                variant="caption"
-                style={{
-                  color: active ? theme.color.kola["600"] : theme.color.ink["500"],
-                  fontWeight: active ? "700" : "500",
-                }}
-              >
-                {option.label}
-              </Type>
-              <Type
-                variant="label"
-                style={{ color: active ? theme.color.kola["600"] : theme.color.ink["300"] }}
-              >
-                {counts[option.id]}
-              </Type>
-            </Pressable>
-          );
-        })}
-      </View>
-    </ScrollView>
+              first={index === 0}
+              icon={FILTER_ICON[option.id]}
+              label={option.label}
+              count={counts[option.id]}
+              selected={filter === option.id}
+              onPress={() => setFilter(option.id)}
+            />
+          ))}
+        </FilterGroup>
+      </BottomSheet>
+    </IndexGround>
   );
 }
 
-function TenantAgreementFilterEmpty({ filter }: { filter: AgreementFilter }) {
-  const copy: Record<AgreementFilter, { title: string; body: string }> = {
-    all: { title: "No agreements here", body: "Your agreements will appear here." },
-    action: { title: "Nothing needs your decision", body: "You have reviewed every agreement sent to you." },
-    active: { title: "No active agreements", body: "Accepted agreements will remain easy to find here." },
-    past: { title: "No past agreements", body: "Declined, withdrawn, and ended agreements will appear here." },
-  };
-  return (
-    <View accessibilityRole="summary" style={{ gap: space[1], paddingVertical: space[6] }}>
-      <Type variant="bodyStrong">{copy[filter].title}</Type>
-      <Type variant="caption">{copy[filter].body}</Type>
-    </View>
-  );
-}
-
-function TenantGroup({
-  heading,
-  tone,
-  children,
-}: {
-  heading: string | null;
-  tone?: "action";
-  children: React.ReactNode;
-}) {
-  return (
-    <View style={{ gap: space[3] }}>
-      {heading ? (
-        <Type
-          variant="label"
-          accessibilityRole="header"
-          style={tone === "action" ? { color: theme.color.kola["600"] } : undefined}
-        >
-          {heading.toUpperCase()}
-        </Type>
-      ) : null}
-      {children}
-    </View>
-  );
-}
-
+/**
+ * Read top to bottom, so nothing a tenant needs is cut short beside something
+ * else: which home, with whom, then the rent leading one line of what moving in
+ * costs and for how long; where it stands closes the row, with a Review pill
+ * only while the tenant may still decide.
+ */
 function TenantAgreementRow({
   lease,
   state,
   onPress,
 }: {
   lease: Lease;
-  state: ReturnType<typeof standing>;
+  state: AgreementStanding;
   onPress: () => void;
 }) {
   const terms = agreedTerms(lease);
   const decide = state.decisionOpen;
+  const look = STAGE_LOOK[state.stage];
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={`${homeOf(terms)}. With ${terms.landlordName}. ${money(terms.rentMinor, terms.rentCurrency)} per ${per(terms.rentPeriod)}. ${state.line}.`}
       onPress={onPress}
-      {...pressableFeedback(theme.color.field["200"])}
-      style={{
-        gap: space[3],
-        paddingHorizontal: space[3],
-        paddingVertical: space[4],
-        borderBottomWidth: 1,
-        borderBottomColor: theme.color.field["200"],
-        backgroundColor: decide ? theme.color.kola["50"] : "transparent",
-      }}
+      {...pressableFeedback(PRESSED)}
+      style={({ pressed }) => [rowStyles.row, pressed && !isAndroid ? { backgroundColor: PRESSED } : null]}
     >
-      <View style={{ gap: 2 }}>
-        <Type variant="title2">{homeOf(terms)}</Type>
-        <Type variant="caption">
-          With {terms.landlordName}
-          {lease.locality_name ? ` · ${lease.locality_name}` : ""}
-        </Type>
+      <View style={[rowStyles.well, { backgroundColor: look.wash }]}>
+        <Ionicons name={look.icon} size={16} color={look.ink} />
       </View>
-
-      <View style={{ gap: 2 }}>
-        <Type variant="bodyStrong">
-          {money(terms.rentMinor, terms.rentCurrency)}
-          <Type variant="caption"> / {per(terms.rentPeriod)}</Type>
+      <View style={rowStyles.rowBody}>
+        <Type variant="bodyStrong" numberOfLines={2} style={rowStyles.rowTitle}>{homeOf(terms)}</Type>
+        <Type variant="caption" numberOfLines={1} style={rowStyles.rowSub}>
+          With {terms.landlordName}{lease.locality_name ? ` · ${lease.locality_name}` : ""}
         </Type>
-        <Type variant="caption">
-          {money(terms.moveInTotalMinor, terms.rentCurrency)} to move in
-          {terms.startsOn ? ` · starts ${shortDate(terms.startsOn)}` : ""}
+        <Type variant="caption" numberOfLines={1} style={[rowStyles.rowMeta, styles.rent]}>
+          <Type variant="bodyStrong" style={rowStyles.rowAmount}>{money(terms.rentMinor, terms.rentCurrency)}</Type>
+          {` / ${per(terms.rentPeriod)}`}
           {` · ${months(terms.termMonths)}`}
         </Type>
-      </View>
-
-      <View
-        style={{
-          flexDirection: "row",
-          alignItems: "center",
-          gap: space[2],
-          paddingTop: space[3],
-          borderTopWidth: 1,
-          borderTopColor: theme.color.field["200"],
-        }}
-      >
-        <View
-          style={{
-            width: 8,
-            height: 8,
-            borderRadius: 4,
-            backgroundColor:
-              state.stage === "action"
-                ? theme.color.kola["600"]
-                : state.stage === "active"
-                  ? theme.color.kola["300"]
-                  : theme.color.ink["300"],
-          }}
-        />
-        <Type
-          variant="bodyStrong"
-          style={{
-            flex: 1,
-            fontSize: 14,
-            color: decide ? theme.color.kola["600"] : theme.color.ink["700"],
-          }}
-        >
-          {state.line}
+        <Type variant="caption" numberOfLines={2} style={rowStyles.rowMeta}>
+          {money(terms.moveInTotalMinor, terms.rentCurrency)} to move in
+          {terms.startsOn ? ` · starts ${shortDate(terms.startsOn)}` : ""}
         </Type>
-        <Type variant="bodyStrong" style={{ fontSize: 14, color: theme.color.kola["600"] }}>
-          {decide ? "Review →" : "Open →"}
-        </Type>
+        <View style={styles.standing}>
+          <View style={[styles.dot, { backgroundColor: look.dot }]} />
+          <Type variant="captionStrong" numberOfLines={2} style={[styles.standingText, { color: decide ? KOLA_DEEP : MUTED }]}>
+            {state.line}
+          </Type>
+          {decide ? (
+            <View style={styles.review}>
+              <Type variant="captionStrong" style={styles.reviewText}>Review</Type>
+              <Ionicons name="arrow-forward" size={13} color={WHITE} />
+            </View>
+          ) : null}
+        </View>
       </View>
     </Pressable>
   );
+}
+
+function TenantEmpty({ filter, hasAny }: { filter: AgreementFilter; hasAny: boolean }) {
+  if (!hasAny) {
+    return (
+      <EmptyState
+        icon={FILTER_ICON.all}
+        hero
+        title="No agreements yet"
+        hint="When a landlord sends one, it waits here for you. Nothing binds you until you accept."
+      />
+    );
+  }
+  const copy: Record<AgreementFilter, { title: string; hint?: string }> = {
+    all: { title: "No agreements here" },
+    action: { title: "Nothing needs your decision", hint: "You have reviewed every agreement sent to you." },
+    active: { title: "No active agreements", hint: "Accepted agreements stay easy to find here." },
+    past: { title: "No past agreements", hint: "Declined, withdrawn and ended agreements appear here." },
+  };
+  return <EmptyState icon={FILTER_ICON[filter]} title={copy[filter].title} hint={copy[filter].hint} />;
 }
 
 function shortDate(value: string) {
@@ -426,11 +578,63 @@ function shortDate(value: string) {
   });
 }
 
-function formatLeaseDate(value: string | null | undefined) {
-  if (!value) return "a date to be agreed";
-  return new Date(`${value.slice(0, 10)}T12:00:00`).toLocaleDateString("en-GH", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
-}
+const styles = StyleSheet.create({
+  sectionHead: {
+    paddingBottom: space[2],
+  },
+  initials: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  initialsText: {
+    fontSize: 13,
+    lineHeight: 17,
+    letterSpacing: 0.3,
+  },
+  rent: {
+    marginTop: 2,
+    lineHeight: 22,
+  },
+  standing: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space[2],
+    marginTop: space[2],
+  },
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  standingText: {
+    flex: 1,
+    minWidth: 0,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  review: {
+    minHeight: 28,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: space[3],
+    borderRadius: radius.pill,
+    backgroundColor: KOLA,
+  },
+  reviewText: {
+    fontSize: 13,
+    lineHeight: 17,
+    color: WHITE,
+  },
+  emptyAction: {
+    marginTop: space[2],
+  },
+  loading: {
+    paddingVertical: space[6],
+    textAlign: "center",
+    color: MUTED,
+  },
+});

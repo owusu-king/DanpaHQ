@@ -10,22 +10,25 @@
 import { googleMapsConfigured, googleMapsSetupHint } from "./google/config";
 import { onGoogleMapsRefused } from "./google/loader";
 import { createGoogleMap } from "./google/map";
+import { createPreviewMap } from "./preview/map";
 import type { MapOptions, RooomlyMap } from "./types";
 
 export * from "./types";
 
-/** Whether this build can draw a map at all. Without a key it cannot, and the page says so. */
+const previewAvailable = () => process.env.NODE_ENV === "development" && !googleMapsConfigured();
+
+/** A configured provider, or the explicitly development-only preview, can draw a map. */
 export function mapsConfigured(): boolean {
-  return googleMapsConfigured();
+  return googleMapsConfigured() || previewAvailable();
 }
 
 /** In a development build without a map, the setting that would draw one; otherwise nothing. */
 export function mapSetupHint(): string | null {
-  return googleMapsSetupHint();
+  return previewAvailable() ? null : googleMapsSetupHint();
 }
 
 export function createMap(container: HTMLElement, options: MapOptions): Promise<RooomlyMap> {
-  return createGoogleMap(container, options);
+  return previewAvailable() ? createPreviewMap(container, options) : createGoogleMap(container, options);
 }
 
 /** Called when the provider refuses this site's key after the map has loaded. */

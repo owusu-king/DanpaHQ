@@ -5,6 +5,7 @@ import { Alert, Pressable, ScrollView, View } from "react-native";
 
 import { ServiceGlyph, TONE } from "@/components/services/ServiceGlyph";
 import { Button, Field, Notice, Surface, Type, radius, space } from "@/components/ui";
+import { useSafeBottom } from "@/platform";
 import {
   detailTitle,
   forgetDetail,
@@ -40,6 +41,7 @@ import { theme } from "@/theme";
  * checkout this screen invents.
  */
 export default function ServiceScreen() {
+  const pageBottom = useSafeBottom(space[12]);
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id?: string }>();
   const service = typeof id === "string" ? serviceById(id) : undefined;
@@ -86,7 +88,7 @@ export default function ServiceScreen() {
 
   return (
     <ScrollView
-      contentContainerStyle={{ padding: space[5], paddingBottom: space[12], gap: space[6] }}
+      contentContainerStyle={{ padding: space[5], paddingBottom: pageBottom, gap: space[6] }}
       keyboardShouldPersistTaps="handled"
     >
       <Stack.Screen options={{ title: service.label }} />

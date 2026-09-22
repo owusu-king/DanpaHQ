@@ -21,10 +21,20 @@ test("mobile Units is a real screen, not the web page shrunk", () => {
 
   // What people reach for stays on the screen; the rest goes in a sheet.
   assert.match(screen, /label="Search Units"/);
-  assert.match(screen, /function Chip/);
-  assert.match(screen, /presentationStyle="pageSheet"/);
-  assert.match(screen, /PROPERTY/);
-  assert.match(screen, /SORT/);
+  assert.match(screen, /label="Add Unit"/);
+
+  // One Filter, holding all three questions. It used to be narrowed two ways at
+  // once — a row of chips for availability, and a page sheet for Property and
+  // sort — so neither control could say what was on.
+  assert.doesNotMatch(screen, /function Chip/, "the chip row is a second filter");
+  assert.doesNotMatch(screen, /presentationStyle="pageSheet"/, "the filter is the shared sheet now");
+  assert.equal((screen.match(/<FilterGroup title=/g) ?? []).length, 3, "Show, Property and Order");
+  assert.match(screen, /<FilterGroup title="Show">/);
+  assert.match(screen, /<FilterGroup title="Property">/);
+  assert.match(screen, /<FilterGroup title="Order">/);
+  // And whatever is on is a token under the heading, which clears with a tap.
+  assert.match(screen, /const narrowed = \(view === "all" \? 0 : 1\) \+ \(propertyId \? 1 : 0\) \+ \(sort === "property" \? 0 : 1\);/);
+  assert.match(screen, /<ActiveFilter label=\{VIEW_LABEL\[view\]\}/);
 });
 
 test("a mobile Unit tile recognizes, then opens the canonical Unit", () => {
@@ -34,11 +44,26 @@ test("a mobile Unit tile recognizes, then opens the canonical Unit", () => {
   // What a Unit looks like is decided once, so it reads the same whether it is
   // reached through its Property or through Units.
   assert.match(tile, /primary_photo/);
-  assert.match(tile, /<StatusLine/);
-  assert.match(tile, /accessibilityLabel=\{`\$\{unit\.label \|\| "Unnamed Unit"\}\. \$\{meta\}\. \$\{status\.label\}\.`\}/);
 
-  // Across a Portfolio, the building is what tells two Room 4s apart.
-  assert.match(screen, /meta=\{item\.property_title\}/);
+  // Three facts, not one string. "Verified · Public · Available" was cut after
+  // the first word in half a phone's width, so: whether it is let rides on the
+  // photograph, where it stands in review is the line under the name, and being
+  // on Explore is a mark. All three reach a screen reader through the label.
+  assert.match(tile, /function occupancyOf/);
+  assert.match(tile, /function reviewOf/);
+  assert.doesNotMatch(tile, /<StatusLine/, "the combined status truncates in a tile");
+  assert.match(
+    tile,
+    /accessibilityLabel=\{`\$\{unit\.label \|\| "Unnamed Unit"\}\. \$\{meta\}\. \$\{occupancy\.label\}\. \$\{review\.label\}\.\$\{published \? " On Explore\." : ""\}`\}/,
+  );
+
+  // The same tile on two grounds: paper inside a Property, glass on the green.
+  assert.match(tile, /surface = "paper"/);
+  assert.match(screen, /surface="glass"/);
+
+  // Across a Portfolio the building tells two Room 4s apart — unless the list
+  // is already ordered by name, when the kind of space is the useful fact.
+  assert.match(screen, /meta=\{sort === "label" \? item\.property_title : item\.space_type_label\}/);
   // The same Unit screen a Property opens.
   assert.match(screen, /pathname: "\/\(app\)\/space"/);
 });

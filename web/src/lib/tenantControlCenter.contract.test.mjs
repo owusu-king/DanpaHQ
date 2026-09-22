@@ -65,9 +65,9 @@ test("shortcuts exist where there is no shell, and nowhere else", () => {
   for (const label of ["Agreements", "Applications", "Updates"]) {
     assert.match(code(mobileHome()), new RegExp(`label: "${label}"`));
   }
-  // Payments, Saved and Explore are tabs. A shortcut to a tab is a duplicate.
+  // Payments and Explore are tabs. A shortcut to a tab is a duplicate.
   const tabs = read("mobile/app/(app)/(tabs)/_layout.tsx");
-  for (const tab of ["payments", "saved", "explore"]) {
+  for (const tab of ["payments", "explore"]) {
     assert.match(tabs, new RegExp(`name="${tab}"`), `${tab} should still be a tab`);
     assert.doesNotMatch(
       code(mobileHome()),
@@ -75,6 +75,17 @@ test("shortcuts exist where there is no shell, and nowhere else", () => {
       `${tab} is a tab; Home must not shortcut to it`,
     );
   }
+  // Saved stopped being a tab (2026-09-15): it is a pushed screen beside
+  // Verification and Security, carrying a back arrow and no tab bar. It still
+  // earns no shortcut here — Explore's header bookmark and More -> "Saved
+  // places" already reach it, and a third way in from Home is how one journey
+  // starts behaving three ways.
+  assert.doesNotMatch(tabs, /name="saved"/);
+  assert.match(
+    read("mobile/app/(app)/_layout.tsx"),
+    /name="saved" options=\{\{ title: "Saved places" \}\}/,
+  );
+  assert.doesNotMatch(code(mobileHome()), /id: "saved"/);
 
   // Payments is the multi-home tab, while the focused rent account stays
   // attached to each home card and still rejects an absent lease id.

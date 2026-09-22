@@ -3,6 +3,7 @@ import { getHeaderTitle } from "@react-navigation/elements";
 import { StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { HeaderChromeBackground } from "@/components/nav/HeaderChromeBackground";
 import { space } from "@/components/ui";
 import { safeHeaderTop } from "@/platform";
 import { shell } from "@/shell";
@@ -47,6 +48,7 @@ export function StackHeader({ options, route, back }: NativeStackHeaderProps) {
         backgroundColor: shell.chrome,
       }}
     >
+      <HeaderChromeBackground />
       <View style={[styles.row, narrow ? styles.rowNarrow : null]}>
         {left}
         <View style={[styles.identity, left ? styles.identityAfterControl : null]}>

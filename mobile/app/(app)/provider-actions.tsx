@@ -3,12 +3,16 @@ import { useRouter } from "expo-router";
 import { ScrollView, View } from "react-native";
 
 import { Button, Notice, Surface, Type, space } from "@/components/ui";
+import { useSafeBottom } from "@/platform";
 import { theme } from "@/theme";
 
 export default function ProviderActionsScreen() {
+  // Android draws edge-to-edge: the last row would sit under the
+  // navigation buttons, which then look as though the page showed through.
+  const pageBottom = useSafeBottom(space[8]);
   const router = useRouter();
   return (
-    <ScrollView contentContainerStyle={{ padding: space[5], gap: space[4] }}>
+    <ScrollView contentContainerStyle={{ padding: space[5], paddingBottom: pageBottom, gap: space[4] }}>
       <View style={{ gap: space[2] }}>
         <Type variant="label">QUICK ACTIONS</Type>
         <Type variant="display2">What do you want to do?</Type>

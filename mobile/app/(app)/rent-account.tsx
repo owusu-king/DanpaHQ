@@ -1,21 +1,63 @@
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
-import { Linking, ScrollView, View } from "react-native";
+import { Linking, StyleSheet, ScrollView, View } from "react-native";
 
 import { ApiFailure } from "@/api";
-import { Button, Field, Notice, Surface, Type, space } from "@/components/ui";
+import { Bone } from "@/components/billing/BillingParts";
 import {
+  ActionBar,
+  EDGE,
+  Fact,
+  Footnote,
+  GroupLabel,
+  INK,
+  Lead,
+  LinkRow,
+  MUTED,
+  Pill,
+  Quote,
+  QuietAct,
+  RecordPanel,
+  StandingLine,
+  TONE,
+  type RecordTone,
+} from "@/components/record/RecordSurfaces";
+import { BottomSheet } from "@/components/sheet/BottomSheet";
+import { Field, Notice, Type, space } from "@/components/ui";
+import {
+  adjustRentCharge,
   getLeaseLedger,
   getPaymentEvidenceDownload,
   rentPaymentAction,
-  adjustRentCharge,
   type LeaseLedger,
   type RentCharge,
   type RentPayment,
 } from "@/leases";
 import { formatMinor } from "@/listings";
-import { theme } from "@/theme";
+import { useSafeBottom } from "@/platform";
 
+/** How many payments the page shows before the rest open in the sheet. */
+const HISTORY_SHOWN = 3;
+
+type Sheet =
+  | { kind: "review"; payment: RentPayment }
+  | { kind: "payment"; payment: RentPayment }
+  | { kind: "payments" }
+  | { kind: "adjust"; charge: RentCharge; how: "waive" | "write-off" };
+
+/**
+ * One rent account, read by whichever party opened it.
+ *
+ * The money is the page: what is outstanding, what of it is late, what is
+ * waiting on this reader, and what has already been paid. Everything else —
+ * a receipt, a piece of evidence, the reason something was written off — is
+ * one tap from the row it belongs to.
+ *
+ * Refined on review (2026-09-21) onto the record surfaces. It was a column of
+ * bordered sections in which every charge carried up to four stacked buttons
+ * and every payment two more; the adjustments and the confirm/dispute decision
+ * now open on the row they concern, so the account stays readable as an account.
+ */
 export default function RentAccountScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ leaseId?: string; tenantName?: string; propertyTitle?: string; unitLabel?: string; bedLabel?: string; tenancyId?: string; canRecord?: string; mode?: string }>();
@@ -23,43 +65,672 @@ export default function RentAccountScreen() {
   const tenantMode = params.mode === "tenant";
   const [ledger, setLedger] = useState<LeaseLedger | null>(null);
   const [error, setError] = useState("");
-  const load = useCallback(async () => { if (!leaseId) { setError("This rent account could not be found."); return; } try { setLedger(await getLeaseLedger(leaseId)); setError(""); } catch (cause) { setError(cause instanceof ApiFailure ? cause.error.message : "We could not load this rent account."); } }, [leaseId]);
+  const [sheet, setSheet] = useState<Sheet | null>(null);
+  const pageBottom = useSafeBottom(space[8]);
+
+  const load = useCallback(async () => {
+    if (!leaseId) { setError("This rent account could not be found."); return; }
+    try {
+      setLedger(await getLeaseLedger(leaseId));
+      setError("");
+    } catch (cause) {
+      setError(cause instanceof ApiFailure ? cause.error.message : "We could not load this rent account.");
+    }
+  }, [leaseId]);
+
   useFocusEffect(useCallback(() => { void load(); }, [load]));
-  const outstanding = useMemo(() => ledger ? (ledger.financial_summary.is_post_tenancy ? ledger.financial_summary.outstanding_balance_minor : ledger.charges.reduce((total, charge) => total + charge.outstanding_minor, 0)) : 0, [ledger]);
-  const overdue = useMemo(() => ledger?.charges.filter((charge) => charge.is_overdue).reduce((total, charge) => total + charge.outstanding_minor, 0) ?? 0, [ledger]);
-  const awaiting = ledger?.payments.filter((payment) => payment.awaiting_you) ?? [];
-  return <ScrollView contentContainerStyle={{ padding: space[5], paddingBottom: space[12], gap: space[5] }}>
-    <View style={{ gap: space[1] }}><Type variant="label">RENT ACCOUNT</Type><Type variant="display2" accessibilityRole="header">{params.tenantName || ledger?.context.tenant_name || "Payment record"}</Type><Type variant="body">{params.propertyTitle || ledger?.context.property_title || "Property"}{(params.unitLabel || ledger?.context.unit_label) ? ` · ${params.unitLabel || ledger?.context.unit_label}` : ""}{params.bedLabel ? ` · ${params.bedLabel}` : ""}</Type></View>
-    {error ? <Notice tone="error" title={error} /> : null}
-    {!ledger && !error ? <Type variant="caption">Loading rent account…</Type> : null}
-    {ledger ? <>
-      <Surface style={{ gap: space[3] }}><Fact label="Outstanding" value={formatMinor(outstanding)} /><View style={{ height: 1, backgroundColor: theme.color.field["200"] }} /><Fact label="Overdue" value={formatMinor(overdue)} overdue={overdue > 0} /></Surface>
-      {ledger.financial_summary.is_post_tenancy ? <ClosingSummary summary={ledger.financial_summary} /> : null}
-      {awaiting.length ? <Section title="Needs your review"><Type variant="caption">Confirm only after checking that the money was received. A claim does not change the balance until both parties agree.</Type>{awaiting.map((payment) => <PaymentReview key={payment.id} payment={payment} onChanged={load} />)}</Section> : null}
-      <Section title="What is due"><View style={{ gap: space[1] }}><Type variant="caption">Each amount keeps its purpose and due date.</Type>{ledger.permissions.record_payment ? <Button label="Record external payment" variant="secondary" onPress={() => router.push({ pathname: "/(app)/provider-payment-record", params: { leaseId } } as never)} /> : null}</View>{tenantMode && !ledger.digital_payment.available ? <Notice tone="info" title="Online payment setup is not complete" body={ledger.digital_payment.reason || "Choose Pay rent to review the amount and current availability."} /> : null}{ledger.charges.length ? ledger.charges.map((charge) => <ChargeRow key={charge.id} charge={charge} canWaive={ledger.financial_summary.is_post_tenancy && ledger.permissions.waive} canWriteOff={ledger.financial_summary.is_post_tenancy && ledger.permissions.write_off} showPay={tenantMode} leaseId={leaseId} router={router} onChanged={load} />) : <Type variant="caption">No charges have been scheduled.</Type>}{!tenantMode && !ledger.permissions.record_payment ? <Notice tone="info" title="Receiving actions are locked" body="Current identity and approved Property authority are required before a provider can record external money received. Paystack setup is not required." /> : null}</Section>
-      <Section title="Payment history">{ledger.payments.length ? ledger.payments.map((payment) => <View key={payment.id} style={{ paddingVertical: space[3], borderBottomWidth: 1, borderBottomColor: theme.color.field["200"], gap: space[1] }}><View style={{ flexDirection: "row", gap: space[3] }}><View style={{ flex: 1 }}><Type variant="bodyStrong">{payment.amount_formatted}</Type><Type variant="caption">{payment.method_display} · {formatDate(payment.paid_on)}</Type></View><Type variant="caption" style={{ textAlign: "right", color: payment.awaiting_you ? theme.color.laterite["600"] : theme.color.ink["500"] }}>{paymentStatus(payment)}</Type></View><Type variant="caption">{payment.source === "EXTERNAL" ? "Paid externally · recorded through Rooomly" : "Processed through Rooomly"}{payment.reference ? ` · Reference ${payment.reference}` : ""}</Type>{payment.evidence_file ? <Button label={`View evidence · ${payment.evidence_file.name}`} variant="quiet" onPress={async () => { const download = await getPaymentEvidenceDownload(payment.evidence_file!.id); await Linking.openURL(download.url); }} /> : null}{payment.receipt_id ? <Button label="View receipt" variant="quiet" onPress={() => router.push({ pathname: "/(app)/payment-receipt", params: { receiptId: payment.receipt_id! } } as never)} /> : null}{payment.dispute_reason ? <Type variant="caption">{payment.dispute_reason}</Type> : null}</View>) : <Type variant="caption">No payment records yet.</Type>}</Section>
-    </> : null}
-  </ScrollView>;
+
+  const outstanding = useMemo(
+    () => ledger
+      ? (ledger.financial_summary.is_post_tenancy
+        ? ledger.financial_summary.outstanding_balance_minor
+        : ledger.charges.reduce((total, charge) => total + charge.outstanding_minor, 0))
+      : 0,
+    [ledger],
+  );
+  const overdue = useMemo(
+    () => ledger?.charges.filter((charge) => charge.is_overdue).reduce((total, charge) => total + charge.outstanding_minor, 0) ?? 0,
+    [ledger],
+  );
+
+  /** A sheet row must put the sheet away before anything replaces the page. */
+  const done = useCallback(async () => { setSheet(null); await load(); }, [load]);
+
+  if (!ledger) {
+    return (
+      <View style={styles.page}>
+        {error ? <Notice tone="error" title={error} /> : <LedgerSkeleton />}
+      </View>
+    );
+  }
+
+  const summary = ledger.financial_summary;
+  const currency = summary.currency || "GHS";
+  const awaiting = ledger.payments.filter((payment) => payment.awaiting_you);
+  const canWaive = ledger.financial_summary.is_post_tenancy && ledger.permissions.waive;
+  const canWriteOff = ledger.financial_summary.is_post_tenancy && ledger.permissions.write_off;
+  const canRecord = ledger.permissions.record_payment;
+  const who = tenantMode
+    ? (params.propertyTitle || ledger.context.property_title)
+    : (params.tenantName || ledger.context.tenant_name);
+  const where = [
+    tenantMode ? null : params.propertyTitle || ledger.context.property_title,
+    params.unitLabel || ledger.context.unit_label,
+    params.bedLabel || null,
+  ].filter(Boolean).join(" · ");
+  const tone: RecordTone = overdue > 0 ? "alert" : outstanding > 0 ? "waiting" : "good";
+  const history = ledger.payments;
+  const shown = history.slice(0, HISTORY_SHOWN);
+
+  return (
+    <View style={styles.screen}>
+      <ScrollView contentContainerStyle={[styles.page, { paddingBottom: canRecord ? space[6] : pageBottom }]}>
+        <View style={styles.identity}>
+          <Type variant="title2" accessibilityRole="header" numberOfLines={2} style={styles.who}>{who}</Type>
+          <Type variant="caption" numberOfLines={2} style={styles.where}>{where}</Type>
+          {summary.is_post_tenancy ? (
+            <StandingLine
+              tone="quiet"
+              line={summary.tenancy_ended_on ? `Tenancy ended ${formatDate(summary.tenancy_ended_on)}` : "Tenancy ended"}
+            />
+          ) : null}
+        </View>
+
+        {error ? <Notice tone="error" title={error} /> : null}
+
+        <RecordPanel>
+          <Lead
+            label="Outstanding"
+            value={formatMinor(outstanding, currency)}
+            note={overdue > 0 ? `${formatMinor(overdue, currency)} of it is overdue` : outstanding > 0 ? "Nothing overdue" : "Nothing owed"}
+            tone={tone}
+          />
+          {summary.credit_balance_minor > 0 ? (
+            <>
+              <View style={styles.rule} />
+              <Fact first label="Credit owed to tenant" value={formatMinor(summary.credit_balance_minor, currency)} tone="good" />
+            </>
+          ) : null}
+        </RecordPanel>
+
+        {/* What is waiting on whoever opened this, before anything they merely
+            want to look at. */}
+        {awaiting.length ? (
+          <View style={styles.section}>
+            <GroupLabel>Needs your review</GroupLabel>
+            <RecordPanel>
+              {awaiting.map((payment, index) => (
+                <LinkRow
+                  key={payment.id}
+                  first={index === 0}
+                  icon="help-circle-outline"
+                  tone="alert"
+                  // The amount alone on the strong line: it is what the answer
+                  // turns on, and on a 320pt handset anything joined to it is
+                  // cut off. Who claims it leads the detail, which may wrap.
+                  label={amountOf(payment)}
+                  detail={`${payment.recorded_by_name} · ${payment.obligation_label} · ${payment.method_display} · ${formatDate(payment.paid_on)}`}
+                  onPress={() => setSheet({ kind: "review", payment })}
+                />
+              ))}
+            </RecordPanel>
+            <Footnote>
+              Confirm only after checking that the money arrived. A claim does not change the balance
+              until both sides agree.
+            </Footnote>
+          </View>
+        ) : null}
+
+        {summary.is_post_tenancy ? <ClosingSummary summary={summary} /> : null}
+
+        <View style={styles.section}>
+          <GroupLabel>What is due</GroupLabel>
+          {ledger.charges.length ? (
+            <RecordPanel>
+              {ledger.charges.map((charge, index) => (
+                <ChargeRow
+                  key={charge.id}
+                  charge={charge}
+                  first={index === 0}
+                  currency={currency}
+                  pay={tenantMode && charge.outstanding_minor > 0
+                    ? () => router.push({ pathname: "/(app)/payment-checkout", params: { leaseId, obligationId: charge.id } } as never)
+                    : undefined}
+                  waive={canWaive && charge.outstanding_minor > 0 ? () => setSheet({ kind: "adjust", charge, how: "waive" }) : undefined}
+                  writeOff={canWriteOff && charge.outstanding_minor > 0 ? () => setSheet({ kind: "adjust", charge, how: "write-off" }) : undefined}
+                />
+              ))}
+            </RecordPanel>
+          ) : (
+            <RecordPanel>
+              <Fact wide first label="Nothing scheduled" value="Charges appear here as they are raised against this agreement." />
+            </RecordPanel>
+          )}
+          {tenantMode && !ledger.digital_payment.available ? (
+            <Footnote>
+              {ledger.digital_payment.reason || "Paying in the app is not available on this account yet."}
+            </Footnote>
+          ) : null}
+          {!tenantMode && !ledger.permissions.record_payment ? (
+            <Footnote>
+              Recording money received needs current identity and approved Property authority.
+              Paystack setup is not required.
+            </Footnote>
+          ) : null}
+        </View>
+
+        <View style={styles.section}>
+          <GroupLabel>Payments</GroupLabel>
+          {history.length ? (
+            <RecordPanel>
+              {shown.map((payment, index) => (
+                <PaymentRow
+                  key={payment.id}
+                  payment={payment}
+                  first={index === 0}
+                  onPress={() => setSheet({ kind: "payment", payment })}
+                />
+              ))}
+              {history.length > HISTORY_SHOWN ? (
+                <LinkRow
+                  icon="time-outline"
+                  label={`View all ${history.length} payments`}
+                  onPress={() => setSheet({ kind: "payments" })}
+                />
+              ) : null}
+            </RecordPanel>
+          ) : (
+            <RecordPanel>
+              <Fact wide first label="No payments yet" value="Every payment, however it was made, is recorded here." />
+            </RecordPanel>
+          )}
+        </View>
+      </ScrollView>
+
+      {canRecord ? (
+        <ActionBar>
+          <Pill
+            grow
+            icon="receipt-outline"
+            label="Record a payment"
+            onPress={() => router.push({ pathname: "/(app)/provider-payment-record", params: { leaseId } } as never)}
+          />
+        </ActionBar>
+      ) : null}
+
+      <BottomSheet
+        visible={sheet !== null}
+        onClose={() => setSheet(null)}
+        title={sheetTitle(sheet)}
+        closeLabel="Close"
+      >
+        {sheet?.kind === "review" ? (
+          <ReviewPayment payment={sheet.payment} onDone={done} />
+        ) : sheet?.kind === "adjust" ? (
+          <AdjustCharge charge={sheet.charge} how={sheet.how} currency={currency} onDone={done} />
+        ) : sheet?.kind === "payment" ? (
+          <PaymentDetail payment={sheet.payment} onReceipt={(receiptId) => { setSheet(null); router.push({ pathname: "/(app)/payment-receipt", params: { receiptId } } as never); }} />
+        ) : sheet?.kind === "payments" ? (
+          <View style={styles.sheetBody}>
+            <RecordPanel>
+              {history.map((payment, index) => (
+                <PaymentRow
+                  key={payment.id}
+                  payment={payment}
+                  first={index === 0}
+                  onPress={() => setSheet({ kind: "payment", payment })}
+                />
+              ))}
+            </RecordPanel>
+          </View>
+        ) : null}
+      </BottomSheet>
+    </View>
+  );
 }
 
-function Fact({ label, value, overdue = false }: { label: string; value: string; overdue?: boolean }) { return <View style={{ gap: space[1] }}><Type variant="caption">{label}</Type><Type variant="title1" style={overdue ? { color: theme.color.laterite["600"] } : undefined}>{value}</Type></View>; }
-function Section({ title, children }: { title: string; children: React.ReactNode }) { return <View style={{ gap: space[3], paddingTop: space[4], borderTopWidth: 1, borderTopColor: theme.color.field["200"] }}><Type variant="title2" accessibilityRole="header">{title}</Type>{children}</View>; }
+function sheetTitle(sheet: Sheet | null) {
+  if (sheet?.kind === "review") return "Is this right?";
+  if (sheet?.kind === "adjust") return sheet.how === "waive" ? "Waive this amount?" : "Write this amount off?";
+  if (sheet?.kind === "payments") return "Payments";
+  if (sheet?.kind === "payment") return "Payment";
+  return "";
+}
 
+/** One charge: what it is, when it was due, and what is left on it. */
+function ChargeRow({
+  charge,
+  first,
+  currency,
+  pay,
+  waive,
+  writeOff,
+}: {
+  charge: RentCharge;
+  first: boolean;
+  currency: string;
+  pay?: () => void;
+  waive?: () => void;
+  writeOff?: () => void;
+}) {
+  const tone: RecordTone = charge.is_overdue ? "alert" : charge.outstanding_minor > 0 ? "waiting" : "good";
+  const acts = [pay, waive, writeOff].filter(Boolean).length;
+  return (
+    <View style={[styles.charge, first ? null : styles.ruled]}>
+      <View style={styles.chargeLine}>
+        <View style={styles.chargeBody}>
+          <Type variant="bodyStrong" numberOfLines={1} style={styles.chargeTitle}>{charge.kind_display}</Type>
+          <Type variant="caption" numberOfLines={2} style={[styles.chargeMeta, { color: TONE[tone].ink }]}>
+            {charge.is_overdue ? `${charge.days_overdue} days overdue` : `Due ${formatDate(charge.due_on)}`}
+            {charge.status_display ? ` · ${charge.status_display}` : ""}
+          </Type>
+        </View>
+        <Type variant="bodyStrong" numberOfLines={1} style={styles.chargeAmount}>
+          {charge.outstanding_formatted ?? formatMinor(charge.outstanding_minor, currency)}
+        </Type>
+      </View>
+      {acts ? (
+        <View style={styles.chargeActs}>
+          {pay ? <Pill label="Pay" icon="card-outline" onPress={pay} /> : null}
+          {waive ? <QuietAct label="Waive" onPress={waive} /> : null}
+          {writeOff ? <QuietAct label="Write off" onPress={writeOff} /> : null}
+        </View>
+      ) : null}
+      {charge.adjustments.length ? (
+        <View style={styles.adjustments}>
+          {charge.adjustments.map((adjustment) => (
+            <Type key={adjustment.id} variant="caption" style={styles.adjustment}>
+              {`${adjustment.kind_display} · ${adjustment.amount_formatted} · ${formatDate(adjustment.effective_at)}`}
+            </Type>
+          ))}
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+/** One payment: how much, how, when, and where it stands. */
+function PaymentRow({ payment, first, onPress }: { payment: RentPayment; first: boolean; onPress: () => void }) {
+  const tone: RecordTone = payment.awaiting_you ? "alert" : payment.status === "disputed" ? "alert" : payment.status === "confirmed" ? "good" : "waiting";
+  return (
+    <LinkRow
+      first={first}
+      icon={payment.source === "EXTERNAL" ? "cash-outline" : "card-outline"}
+      tone={tone}
+      // The standing is already in the row's colour and its icon, so it leads
+      // the detail rather than competing with the amount for one narrow line.
+      label={amountOf(payment)}
+      detail={`${paymentStatus(payment)} · ${payment.method_display} · ${formatDate(payment.paid_on)}`}
+      onPress={onPress}
+    />
+  );
+}
+
+/** A payment, opened: what it was against, how it was evidenced, and its receipt. */
+function PaymentDetail({ payment, onReceipt }: { payment: RentPayment; onReceipt: (receiptId: string) => void }) {
+  const [error, setError] = useState("");
+  return (
+    <View style={styles.sheetBody}>
+      <RecordPanel>
+        <Fact first label="Amount" value={amountOf(payment)} />
+        <Fact label="Method" value={payment.method_display} />
+        <Fact label="Paid on" value={formatDate(payment.paid_on)} />
+        <Fact label="Against" value={payment.obligation_label} />
+        <Fact label="Standing" value={paymentStatus(payment)} />
+        {payment.reference ? <Fact label="Reference" value={payment.reference} /> : null}
+      </RecordPanel>
+      <Footnote>
+        {payment.source === "EXTERNAL"
+          ? "Paid externally · recorded through Rooomly"
+          : "Processed through Rooomly"}
+      </Footnote>
+      {payment.dispute_reason ? <Quote>{payment.dispute_reason}</Quote> : null}
+      {error ? <Notice tone="error" title={error} /> : null}
+      <View style={styles.sheetActs}>
+        {payment.evidence_file ? (
+          <QuietAct
+            icon="image-outline"
+            label="View evidence"
+            onPress={async () => {
+              try {
+                const download = await getPaymentEvidenceDownload(payment.evidence_file!.id);
+                await Linking.openURL(download.url);
+              } catch {
+                setError("That evidence could not be opened.");
+              }
+            }}
+          />
+        ) : null}
+        {payment.receipt_id ? (
+          <QuietAct icon="document-outline" label="View receipt" onPress={() => onReceipt(payment.receipt_id!)} />
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
+/**
+ * Confirming or contesting a payment somebody else recorded.
+ *
+ * A claim does not move the balance until both sides agree, so neither answer
+ * is drawn as the expected one.
+ */
+function ReviewPayment({ payment, onDone }: { payment: RentPayment; onDone: () => Promise<void> }) {
+  const [step, setStep] = useState<"choose" | "confirm" | "dispute">("choose");
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  async function act(action: "confirm" | "dispute") {
+    setBusy(true);
+    setError("");
+    try {
+      await rentPaymentAction(payment.id, action, reason.trim());
+      await onDone();
+    } catch (cause) {
+      setError(cause instanceof ApiFailure ? cause.error.message : "That action did not work.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <View style={styles.sheetBody}>
+      <RecordPanel>
+        <Fact first label="Recorded by" value={payment.recorded_by_name} />
+        <Fact label="Amount" value={amountOf(payment)} />
+        <Fact label="Method" value={payment.method_display} />
+        <Fact label="Against" value={payment.obligation_label} />
+        <Fact label="Paid on" value={formatDate(payment.paid_on)} />
+      </RecordPanel>
+
+      {error ? <Notice tone="error" title={error} /> : null}
+
+      {step === "choose" ? (
+        <View style={styles.sheetActs}>
+          <Pill
+            grow
+            tone="quiet"
+            label={payment.recorded_by_tenant ? "Confirm received" : "Confirm payment"}
+            onPress={() => setStep("confirm")}
+          />
+          <Pill
+            grow
+            tone="quiet"
+            label={payment.recorded_by_tenant ? "Dispute" : "I didn’t make this payment"}
+            onPress={() => setStep("dispute")}
+          />
+        </View>
+      ) : step === "confirm" ? (
+        <>
+          <Type variant="caption" style={styles.note}>
+            This applies the payment to {payment.obligation_label}. Rooomly did not process the
+            transfer — it is recording that you agree the money arrived.
+          </Type>
+          <Pill
+            grow
+            label={payment.recorded_by_tenant ? "Yes, confirm received" : "Yes, confirm payment"}
+            busy={busy}
+            busyLabel="Confirming…"
+            onPress={() => void act("confirm")}
+          />
+          <QuietAct label="Go back" disabled={busy} onPress={() => setStep("choose")} />
+        </>
+      ) : (
+        <>
+          <Type variant="caption" style={styles.note}>
+            The record stays in history as disputed, and will not settle the balance. Say what is
+            wrong with it.
+          </Type>
+          <Field label="Reason" value={reason} onChangeText={setReason} maxLength={300} multiline />
+          <Pill
+            grow
+            tone="danger"
+            label="Submit dispute"
+            busy={busy}
+            disabled={!reason.trim()}
+            busyLabel="Sending…"
+            onPress={() => void act("dispute")}
+          />
+          <QuietAct label="Go back" disabled={busy} onPress={() => setStep("choose")} />
+        </>
+      )}
+    </View>
+  );
+}
+
+/** Forgiving a debt, or giving up on collecting it — never the same thing. */
+function AdjustCharge({
+  charge,
+  how,
+  currency,
+  onDone,
+}: {
+  charge: RentCharge;
+  how: "waive" | "write-off";
+  currency: string;
+  onDone: () => Promise<void>;
+}) {
+  const [amount, setAmount] = useState(String(charge.outstanding_minor / 100));
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  return (
+    <View style={styles.sheetBody}>
+      <Type variant="caption" style={styles.note}>
+        {how === "waive"
+          ? "The tenant is released from this amount. It stays recorded as waived, never as paid."
+          : "Collection is no longer expected. The debt stays in history and will never appear as paid."}
+      </Type>
+      <RecordPanel>
+        <Fact first label={charge.kind_display} value={charge.outstanding_formatted ?? formatMinor(charge.outstanding_minor, currency)} />
+      </RecordPanel>
+      <Field label="Amount (GH₵)" value={amount} onChangeText={(value) => setAmount(value.replace(/[^0-9.]/g, ""))} keyboardType="decimal-pad" />
+      <Field label={how === "waive" ? "Reason for waiver" : "Reason for write-off"} value={reason} onChangeText={setReason} maxLength={300} multiline />
+      {error ? <Notice tone="error" title={error} /> : null}
+      <Pill
+        grow
+        tone="danger"
+        label={how === "waive" ? "Confirm waiver" : "Confirm write-off"}
+        busy={busy}
+        disabled={!reason.trim()}
+        busyLabel="Recording…"
+        onPress={async () => {
+          const amountMinor = Math.round(Number(amount) * 100);
+          if (!Number.isFinite(amountMinor) || amountMinor <= 0 || amountMinor > charge.outstanding_minor) {
+            setError("Enter an amount no greater than the outstanding balance.");
+            return;
+          }
+          setBusy(true);
+          setError("");
+          try {
+            await adjustRentCharge(charge.id, how, amountMinor, reason.trim());
+            await onDone();
+          } catch (cause) {
+            setError(cause instanceof ApiFailure ? cause.error.message : "Could not record this adjustment.");
+          } finally {
+            setBusy(false);
+          }
+        }}
+      />
+    </View>
+  );
+}
+
+/** What a closed tenancy still owes, or is still owed. */
 function ClosingSummary({ summary }: { summary: LeaseLedger["financial_summary"] }) {
-  const rows = [["Unpaid rent", summary.unpaid_rent_minor], ["Other valid charges", summary.other_charges_minor], ["Credits", -summary.credits_minor], ["Waived amount", -summary.waived_minor], ["Written off", -summary.written_off_minor]] as const;
-  return <Section title="Closing financial summary"><Type variant="caption">Tenancy ended{summary.tenancy_ended_on ? ` ${formatDate(summary.tenancy_ended_on)}` : ""}. Historical obligations and credits remain open until resolved.</Type><View style={{ gap: space[2] }}>{rows.filter(([, value]) => value !== 0).map(([label, value]) => <View key={label} style={{ flexDirection: "row", justifyContent: "space-between", gap: space[4] }}><Type variant="caption">{label}</Type><Type variant="bodyStrong">{formatMinor(value, summary.currency)}</Type></View>)}<View style={{ height: 1, backgroundColor: theme.color.field["300"], marginVertical: space[1] }} /><View style={{ flexDirection: "row", justifyContent: "space-between", gap: space[4] }}><Type variant="bodyStrong">Outstanding balance</Type><Type variant="title2">{formatMinor(summary.outstanding_balance_minor, summary.currency)}</Type></View>{summary.credit_balance_minor > 0 ? <View style={{ flexDirection: "row", justifyContent: "space-between", gap: space[4] }}><Type variant="bodyStrong">Credit owed to tenant</Type><Type variant="title2">{formatMinor(summary.credit_balance_minor, summary.currency)}</Type></View> : null}</View></Section>;
+  const rows = [
+    ["Unpaid rent", summary.unpaid_rent_minor],
+    ["Other charges", summary.other_charges_minor],
+    ["Credits", -summary.credits_minor],
+    ["Waived", -summary.waived_minor],
+    ["Written off", -summary.written_off_minor],
+  ] as const;
+  const kept = rows.filter(([, value]) => value !== 0);
+  return (
+    <View style={styles.section}>
+      <GroupLabel>Closing financial summary</GroupLabel>
+      <RecordPanel>
+        {kept.map(([label, value], index) => (
+          <Fact key={label} first={index === 0} label={label} value={formatMinor(value, summary.currency)} />
+        ))}
+        <Fact
+          first={kept.length === 0}
+          label="Outstanding balance"
+          value={formatMinor(summary.outstanding_balance_minor, summary.currency)}
+          tone={summary.outstanding_balance_minor > 0 ? "alert" : "good"}
+        />
+      </RecordPanel>
+      <Footnote>
+        Historical obligations and credits stay open until they are resolved, however the tenancy ended.
+      </Footnote>
+    </View>
+  );
 }
 
-function PaymentReview({ payment, onChanged }: { payment: RentPayment; onChanged: () => Promise<void> }) {
-  const [decision, setDecision] = useState<"confirm" | "dispute" | null>(null); const [reason, setReason] = useState(""); const [busy, setBusy] = useState(false); const [error, setError] = useState("");
-  async function act(action: "confirm" | "dispute") { setBusy(true); setError(""); try { await rentPaymentAction(payment.id, action, reason.trim()); setDecision(null); await onChanged(); } catch (cause) { setError(cause instanceof ApiFailure ? cause.error.message : "That action did not work."); } finally { setBusy(false); } }
-  return <Surface style={{ gap: space[3] }}><View><Type variant="bodyStrong">{payment.recorded_by_tenant ? `${payment.recorded_by_name} recorded ${payment.amount_formatted}` : `${payment.recorded_by_name} recorded receiving ${payment.amount_formatted} from you`}</Type><Type variant="caption">{payment.method_display} · {payment.obligation_label} · {formatDate(payment.paid_on)}</Type>{payment.reference ? <Type variant="caption">Reference {payment.reference}</Type> : null}{payment.evidence_file ? <Button label={`View evidence · ${payment.evidence_file.name}`} variant="quiet" onPress={async () => { const download = await getPaymentEvidenceDownload(payment.evidence_file!.id); await Linking.openURL(download.url); }} /> : null}</View>{error ? <Notice tone="error" title={error} /> : null}{decision ? <View style={{ gap: space[2] }}><Notice tone="warning" title={decision === "confirm" ? "Confirm this payment?" : "You did not make this payment?"} body={decision === "confirm" ? "This confirms the external payment and applies it to the linked obligation. Rooomly did not process the transfer." : "The record remains in history as disputed and will not settle your balance."} />{decision === "dispute" ? <Field label="Reason" value={reason} onChangeText={setReason} maxLength={300} multiline /> : null}<Button label={decision === "confirm" ? (payment.recorded_by_tenant ? "Confirm received" : "Confirm payment") : "Submit dispute"} variant={decision === "dispute" ? "destructive" : "primary"} busy={busy} disabled={decision === "dispute" && !reason.trim()} onPress={() => void act(decision)} /><Button label="Go back" variant="quiet" disabled={busy} onPress={() => setDecision(null)} /></View> : <View style={{ gap: space[2] }}><Button label={payment.recorded_by_tenant ? "Confirm received" : "Confirm payment"} onPress={() => setDecision("confirm")} /><Button label={payment.recorded_by_tenant ? "Dispute" : "I didn’t make this payment"} variant="destructive" onPress={() => setDecision("dispute")} /></View>}</Surface>;
+/** Shaped like the account it becomes, so nothing jumps when the ledger arrives. */
+function LedgerSkeleton() {
+  return (
+    <View accessible accessibilityRole="progressbar" accessibilityLabel="Loading this rent account" style={{ gap: space[4] }}>
+      <Bone width="52%" height={20} />
+      <Bone width="38%" />
+      <RecordPanel style={styles.skeletonPanel}>
+        <Bone width="34%" height={12} />
+        <Bone width="56%" height={30} />
+        <Bone width="44%" />
+      </RecordPanel>
+      <RecordPanel style={styles.skeletonPanel}>
+        <Bone width="40%" height={12} />
+        <Bone height={44} />
+      </RecordPanel>
+    </View>
+  );
 }
 
-function ChargeRow({ charge, canWaive, canWriteOff, showPay, leaseId, router, onChanged }: { charge: RentCharge; canWaive: boolean; canWriteOff: boolean; showPay: boolean; leaseId: string; router: ReturnType<typeof useRouter>; onChanged: () => Promise<void> }) {
-  const [adjusting, setAdjusting] = useState<"waive" | "write-off" | null>(null); const [amount, setAmount] = useState(String(charge.outstanding_minor / 100)); const [reason, setReason] = useState(""); const [busy, setBusy] = useState(false); const [error, setError] = useState("");
-  return <View style={{ paddingVertical: space[3], borderBottomWidth: 1, borderBottomColor: theme.color.field["200"], gap: space[2] }}><View style={{ flexDirection: "row", gap: space[3] }}><View style={{ flex: 1 }}><Type variant="bodyStrong">{charge.kind_display}</Type><Type variant="caption">{charge.is_overdue ? `${charge.days_overdue} days overdue` : `Due ${formatDate(charge.due_on)}`}</Type></View><View style={{ alignItems: "flex-end" }}><Type variant="bodyStrong">{charge.outstanding_formatted}</Type><Type variant="caption">{charge.status_display}</Type></View></View>{showPay && charge.outstanding_minor > 0 ? <Button label="Pay rent" onPress={() => router.push({ pathname: "/(app)/payment-checkout", params: { leaseId, obligationId: charge.id } } as never)} /> : null}{!adjusting && charge.outstanding_minor > 0 ? <View style={{ gap: space[1] }}>{canWaive ? <Button label="Waive obligation" variant="quiet" onPress={() => setAdjusting("waive")} /> : null}{canWriteOff ? <Button label="Write off obligation" variant="quiet" onPress={() => setAdjusting("write-off")} /> : null}</View> : null}{adjusting ? <View style={{ gap: space[2] }}><Notice tone="warning" title={adjusting === "waive" ? "Waive this amount?" : "Write off this amount?"} body={adjusting === "waive" ? "The tenant will be released from this amount. It remains recorded as waived, never paid." : "Collection will no longer be expected. The debt remains in history and will never appear as paid."} /><Field label="Amount (GH₵)" value={amount} onChangeText={(value) => setAmount(value.replace(/[^0-9.]/g, ""))} keyboardType="decimal-pad" /><Field label={adjusting === "waive" ? "Reason for waiver" : "Reason for write-off"} value={reason} onChangeText={setReason} maxLength={300} multiline />{error ? <Notice tone="error" title={error} /> : null}<Button label={adjusting === "waive" ? "Confirm waiver" : "Confirm write-off"} variant="destructive" busy={busy} disabled={!reason.trim()} onPress={async () => { const amountMinor = Math.round(Number(amount) * 100); if (!Number.isFinite(amountMinor) || amountMinor <= 0 || amountMinor > charge.outstanding_minor) { setError("Enter an amount no greater than the outstanding balance."); return; } setBusy(true); setError(""); try { await adjustRentCharge(charge.id, adjusting, amountMinor, reason.trim()); setAdjusting(null); await onChanged(); } catch (cause) { setError(cause instanceof ApiFailure ? cause.error.message : "Could not record this adjustment."); } finally { setBusy(false); } }} /><Button label="Go back" variant="quiet" disabled={busy} onPress={() => setAdjusting(null)} /></View> : null}{charge.adjustments.length ? <View style={{ gap: space[2], paddingTop: space[2] }}><Type variant="caption">Adjustment history</Type>{charge.adjustments.map((adjustment) => <View key={adjustment.id} style={{ gap: space[1], paddingLeft: space[3], borderLeftWidth: 2, borderLeftColor: theme.color.field["300"] }}><Type variant="bodyStrong">{adjustment.kind_display} · {adjustment.amount_formatted}</Type><Type variant="caption">{formatDate(adjustment.effective_at)} · {adjustment.actor_name || "Migrated record"}</Type><Type variant="caption">{adjustment.reason}</Type></View>)}</View> : null}</View>;
+/** The amount as the server formatted it, or formatted here when it did not. */
+function amountOf(row: RentPayment) {
+  return row.amount_formatted ?? formatMinor(row.amount_minor, row.amount_currency);
 }
 
-function paymentStatus(payment: RentPayment) { return payment.evidence === "PSP_CONFIRMED" ? "Processor confirmed" : payment.awaiting_you ? "Review needed" : payment.status === "confirmed" ? "Confirmed by both" : payment.status === "disputed" ? "Disputed" : payment.recorded_by_tenant ? "Waiting for provider" : "Waiting for tenant"; }
-function formatDate(value: string) { return new Date(`${value.slice(0, 10)}T12:00:00`).toLocaleDateString("en-GH", { day: "numeric", month: "short", year: "numeric" }); }
+function paymentStatus(payment: RentPayment) {
+  return payment.evidence === "PSP_CONFIRMED"
+    ? "Processor confirmed"
+    : payment.awaiting_you
+      ? "Review needed"
+      : payment.status === "confirmed"
+        ? "Confirmed by both"
+        : payment.status === "disputed"
+          ? "Disputed"
+          : payment.recorded_by_tenant
+            ? "Waiting for provider"
+            : "Waiting for tenant";
+}
+
+function formatDate(value: string) {
+  const date = new Date(`${value.slice(0, 10)}T12:00:00`);
+  return Number.isNaN(date.getTime())
+    ? value
+    : date.toLocaleDateString("en-GH", { day: "numeric", month: "short", year: "numeric" });
+}
+
+const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+  },
+  page: {
+    padding: space[4],
+    gap: space[4],
+  },
+  identity: {
+    gap: space[2],
+    paddingHorizontal: 2,
+  },
+  who: {
+    fontSize: 19,
+    lineHeight: 25,
+  },
+  where: {
+    fontSize: 12.5,
+    lineHeight: 17,
+    color: MUTED,
+  },
+  section: {
+    gap: space[2],
+  },
+  rule: {
+    height: StyleSheet.hairlineWidth,
+    marginHorizontal: space[4],
+    backgroundColor: EDGE,
+  },
+  ruled: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: EDGE,
+  },
+  charge: {
+    gap: space[2],
+    paddingVertical: space[3],
+    paddingHorizontal: 14,
+  },
+  chargeLine: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: space[3],
+  },
+  chargeBody: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2,
+  },
+  chargeTitle: {
+    fontSize: 15,
+    lineHeight: 20,
+    color: INK,
+  },
+  chargeMeta: {
+    fontSize: 12.5,
+    lineHeight: 17,
+  },
+  chargeAmount: {
+    flexShrink: 0,
+    fontSize: 15,
+    lineHeight: 20,
+    color: INK,
+  },
+  chargeActs: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: space[3],
+  },
+  adjustments: {
+    gap: 2,
+    paddingLeft: space[3],
+    borderLeftWidth: 2,
+    borderLeftColor: EDGE,
+  },
+  adjustment: {
+    fontSize: 12,
+    lineHeight: 17,
+    color: MUTED,
+  },
+  sheetBody: {
+    gap: space[3],
+  },
+  sheetActs: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: space[3],
+  },
+  note: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: MUTED,
+  },
+  skeletonPanel: {
+    gap: space[3],
+    padding: space[4],
+  },
+});

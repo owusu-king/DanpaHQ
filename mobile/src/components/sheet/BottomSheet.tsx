@@ -16,8 +16,8 @@ import {
   type LayoutChangeEvent,
   type PanResponderGestureState,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { ModalSafeArea, SafeInsets } from "@/components/sheet/ModalSafeArea";
 import { Type, motion, space } from "@/components/ui";
 import { useReduceMotion } from "@/motion";
 import { isAndroid, pressableFeedback, safeHeaderTop } from "@/platform";
@@ -78,7 +78,6 @@ type BottomSheetProps = {
  * the keyboard pushes the sheet up rather than covering its fields.
  */
 export function BottomSheet({ visible, onClose, title, closeLabel, footer, children }: BottomSheetProps) {
-  const insets = useSafeAreaInsets();
   const { height: windowHeight } = useWindowDimensions();
   const reduceMotion = useReduceMotion();
 
@@ -221,64 +220,78 @@ export function BottomSheet({ visible, onClose, title, closeLabel, footer, child
 
   return (
     <Modal visible transparent animationType="none" statusBarTranslucent navigationBarTranslucent onRequestClose={onClose}>
-      <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-        <Animated.View style={[StyleSheet.absoluteFill, styles.scrim, { opacity: scrim }]}>
-          <Pressable accessibilityRole="button" accessibilityLabel={closeLabel} onPress={onClose} style={styles.fill} />
-        </Animated.View>
-        <View pointerEvents="box-none" style={styles.stage}>
-          <Animated.View
-            accessibilityViewIsModal
-            onAccessibilityEscape={onClose}
-            onLayout={measure}
-            style={[
-              styles.sheet,
-              {
-                maxHeight: windowHeight - safeHeaderTop(insets.top) - space[3],
-                transform: [{ translateY: translate }],
-              },
-            ]}
-          >
-            <View style={styles.clip}>
-              <View collapsable={false} {...grab.panHandlers}>
-                <View style={styles.grabber} />
-                <View style={styles.header}>
-                  <Type variant="title2" accessibilityRole="header">{title}</Type>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={closeLabel}
-                    hitSlop={6}
-                    onPress={onClose}
-                    {...pressableFeedback(theme.color.field["200"])}
-                    style={({ pressed }) => [styles.close, pressed && !isAndroid ? styles.closePressed : null]}
-                  >
-                    <Ionicons name="close" size={20} color={theme.color.ink["700"]} />
-                  </Pressable>
-                </View>
-              </View>
-              <View collapsable={false} style={styles.body} {...pull.panHandlers}>
-                <ScrollView
-                  scrollEnabled={!dragging}
-                  bounces={false}
-                  overScrollMode="never"
-                  scrollEventThrottle={16}
-                  onScroll={(event) => {
-                    scrollTop.current = event.nativeEvent.contentOffset.y;
-                  }}
-                  keyboardShouldPersistTaps="handled"
-                  contentContainerStyle={styles.bodyContent}
+      {/* The sheet opens in its own window, which measures its own edges. */}
+      <ModalSafeArea>
+        <SafeInsets
+          render={(edge) => (
+            <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+              <Animated.View style={[StyleSheet.absoluteFill, styles.scrim, { opacity: scrim }]}>
+                <Pressable accessibilityRole="button" accessibilityLabel={closeLabel} onPress={onClose} style={styles.fill} />
+              </Animated.View>
+              <View pointerEvents="box-none" style={styles.stage}>
+                <Animated.View
+                  accessibilityViewIsModal
+                  onAccessibilityEscape={onClose}
+                  onLayout={measure}
+                  style={[
+                    styles.sheet,
+                    {
+                      maxHeight: windowHeight - safeHeaderTop(edge.top) - space[3],
+                      transform: [{ translateY: translate }],
+                    },
+                  ]}
                 >
-                  {children}
-                </ScrollView>
+                  <View style={styles.clip}>
+                    <View collapsable={false} {...grab.panHandlers}>
+                      <View style={styles.grabber} />
+                      <View style={styles.header}>
+                        <Type variant="title2" accessibilityRole="header">{title}</Type>
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel={closeLabel}
+                          hitSlop={6}
+                          onPress={onClose}
+                          {...pressableFeedback(theme.color.field["200"])}
+                          style={({ pressed }) => [styles.close, pressed && !isAndroid ? styles.closePressed : null]}
+                        >
+                          <Ionicons name="close" size={20} color={theme.color.ink["700"]} />
+                        </Pressable>
+                      </View>
+                    </View>
+                    <View collapsable={false} style={styles.body} {...pull.panHandlers}>
+                      <ScrollView
+                        scrollEnabled={!dragging}
+                        bounces={false}
+                        overScrollMode="never"
+                        scrollEventThrottle={16}
+                        onScroll={(event) => {
+                          scrollTop.current = event.nativeEvent.contentOffset.y;
+                        }}
+                        keyboardShouldPersistTaps="handled"
+                        contentContainerStyle={[
+                          styles.bodyContent,
+                          // A sheet with a footer takes its clearance there. Without
+                          // one, the last row would sit under the home indicator, or
+                          // under Android's navigation buttons — which then look as
+                          // though the sheet were showing through them.
+                          footer ? null : { paddingBottom: Math.max(edge.bottom, space[4]) },
+                        ]}
+                      >
+                        {children}
+                      </ScrollView>
+                    </View>
+                    {footer ? (
+                      <View style={[styles.footer, { paddingBottom: Math.max(edge.bottom, space[4]) }]}>
+                        {footer}
+                      </View>
+                    ) : null}
+                  </View>
+                </Animated.View>
               </View>
-              {footer ? (
-                <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, space[4]) }]}>
-                  {footer}
-                </View>
-              ) : null}
-            </View>
-          </Animated.View>
-        </View>
-      </KeyboardAvoidingView>
+            </KeyboardAvoidingView>
+          )}
+        />
+      </ModalSafeArea>
     </Modal>
   );
 }

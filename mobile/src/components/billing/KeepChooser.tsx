@@ -211,10 +211,7 @@ function KeepRow({
     <Pressable
       accessibilityRole={kind}
       // Checked, for a radio as for a box: it is the state both announce.
-      // `aria-checked` too, because react-native-web maps it and ignores
-      // `accessibilityState.checked`; the native platforms read either.
-      accessibilityState={{ checked, disabled }}
-      aria-checked={checked}
+      aria-checked={checked} aria-disabled={disabled}
       accessibilityLabel={`${label}. ${note}`}
       accessibilityHint={disabled ? "Untick one first to keep this instead" : undefined}
       disabled={disabled}

@@ -141,7 +141,7 @@ export function Disclosure({
     <View style={{ borderTopWidth: 1, borderTopColor: theme.color.field["200"] }}>
       <Pressable
         accessibilityRole="button"
-        accessibilityState={{ expanded: open }}
+        aria-expanded={open}
         onPress={() => setOpen((value) => !value)}
         {...pressableFeedback(theme.color.field["200"])}
         style={{ minHeight: 52, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: space[3] }}

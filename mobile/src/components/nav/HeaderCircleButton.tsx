@@ -4,10 +4,11 @@ import { Animated, Image, Pressable, StyleSheet, View } from "react-native";
 
 import { radius, space } from "@/components/ui";
 import { isAndroid } from "@/platform";
-import { shell } from "@/shell";
+import { alpha, shell } from "@/shell";
 
 /** The visible disc. Smaller than the target it sits in, on purpose. */
 const DISC = 40;
+const COMPACT_DISC = 36;
 
 /**
  * A circular action in a screen header.
@@ -30,12 +31,15 @@ export function HeaderCircleButton({
   label,
   onPress,
   imageUri,
+  compact = false,
 }: {
   icon: keyof typeof Ionicons.glyphMap;
   label: string;
   onPress: () => void;
   /** Shown instead of the glyph — a real face beats a generic silhouette. */
   imageUri?: string | null;
+  /** Quieter paired actions keep the 48pt touch target. */
+  compact?: boolean;
 }) {
   const scale = useRef(new Animated.Value(1)).current;
 
@@ -50,19 +54,19 @@ export function HeaderCircleButton({
         onPress={onPress}
         onPressIn={() => press(0.92)}
         onPressOut={() => press(1)}
-        // 40pt disc + 4pt each side = the 48pt floor, without a heavier circle.
-        hitSlop={space[1]}
+        // Both disc sizes reach the 48pt floor without drawing a heavier circle.
+        hitSlop={compact ? 6 : space[1]}
         android_ripple={
           isAndroid
-            ? { color: shell.chromePressed, radius: DISC / 2, borderless: true }
+            ? { color: shell.chromePressed, radius: (compact ? COMPACT_DISC : DISC) / 2, borderless: true }
             : undefined
         }
-        style={({ pressed }) => [styles.disc, pressed && !isAndroid ? styles.pressed : null]}
+        style={({ pressed }) => [styles.disc, compact ? styles.compactDisc : null, pressed && !isAndroid ? styles.pressed : null]}
       >
         {imageUri ? (
           <Image source={{ uri: imageUri }} accessible={false} style={styles.photo} />
         ) : (
-          <Ionicons name={icon} size={20} color={shell.onChrome} />
+          <Ionicons name={icon} size={compact ? 17 : 20} color={shell.onChrome} />
         )}
       </Pressable>
     </Animated.View>
@@ -89,6 +93,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     overflow: "hidden",
     backgroundColor: shell.chromeRaised,
+  },
+  compactDisc: {
+    width: COMPACT_DISC,
+    height: COMPACT_DISC,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: alpha(shell.onChrome, 0.22),
   },
   pressed: {
     backgroundColor: shell.chromePressed,

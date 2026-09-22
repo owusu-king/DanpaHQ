@@ -38,7 +38,8 @@ test("tenant and provider mobile surfaces preserve schedule and attendance histo
 
 test("provider mobile Viewings separates the scalable queue from one workflow", () => {
   assert.match(provider, /<FlatList/);
-  assert.match(provider, /label="Action"/);
+  // The views are Filter choices now, named as web and the design record name them.
+  assert.match(provider, /label="Needs action"/);
   assert.match(provider, /label="Upcoming"/);
   assert.match(provider, /label="History"/);
   assert.match(provider, /provider-viewing/);

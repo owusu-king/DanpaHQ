@@ -1,17 +1,10 @@
 /**
- * A tenant's own applications, laid out the way the provider's lists are.
- *
- * The fifth surface to take the shape, and the first on the tenant's side:
- * three counts, a search, the stages as pills, linked rows, and the record at
- * its own address.
- *
- * The split it replaced was a considered choice — *"an application record is a
- * thing somebody reads against the other applications they have out"* — and
- * that reading is preserved rather than discarded: the list is where the
- * comparison happens, because every row carries `standing()`, the one line that
- * says where an application stands. The record holds the detail behind one of
- * them. The phone has always given that detail a screen of its own, so this
- * brings web into line rather than away.
+ * The tenant application history is a calm, durable record rather than a
+ * miniature provider queue. Property and unit identity lead each row,
+ * `standing()` supplies the shared human-readable status, current and past
+ * records remain visible, and a single lifecycle control appears only when it
+ * is useful. A row opens the shared record in context while retaining its
+ * durable address for deep links and modified clicks.
  */
 
 import assert from "node:assert/strict";
@@ -47,21 +40,24 @@ function rule(sheet, selector) {
   return sheet.slice(at, sheet.indexOf("}", at));
 }
 
-test("a tenant's application opens at its own address", () => {
+test("a tenant application opens in context and keeps its deep link", () => {
   assert.ok(existsSync(resolve(root, "web/app/applications/[requestId]/page.tsx")));
   assert.match(code(detail()), /applications\?\.find\(\(row\) => row\.id === requestId\)/);
   assert.match(code(detail()), /<ApplicationRecord/);
 
   const body = tenantHalf();
   assert.doesNotMatch(body, /applications-split/);
-  assert.doesNotMatch(body, /ApplicationRecord/);
-  assert.doesNotMatch(body, /openId/);
   assert.doesNotMatch(css(), /\.applications-split/);
   assert.doesNotMatch(css(), /\.applications-column/);
 
+  assert.match(body, /<ApplicationDetailModal/);
+  assert.match(body, /selectedApplicationId/);
+  assert.match(body, /event\.preventDefault\(\)/);
+  assert.match(body, /event\.metaKey \|\| event\.ctrlKey/);
   assert.match(body, /href=\{`\/applications\/\$\{application\.id\}` as never\}/);
   assert.doesNotMatch(body, /<button\s+type="button"\s+className="application-row"/);
   assert.match(rule(css(), ".application-row"), /text-decoration: none/);
+  assert.match(record(), /<dialog/);
 });
 
 test("one address serves both sides, and branches the way the list does", () => {
@@ -77,45 +73,64 @@ test("one address serves both sides, and branches the way the list does", () => 
   assert.match(body, /listMyApplications/);
 });
 
-test("the page is laid out the way the provider's lists are", () => {
+test("the tenant page uses one restrained control and a structured history", () => {
   const body = tenantHalf();
+  const sheet = css();
 
-  const order = [
-    "applications-overview",
-    "applications-search",
-    "applications-filters",
-    "applications-list",
-  ];
-  let at = -1;
-  for (const className of order) {
-    const found = body.search(new RegExp(`className="${className}"`));
-    assert.notEqual(found, -1, `${className} is not rendered`);
-    assert.ok(found > at, `${className} is out of order`);
-    at = found;
-  }
+  // Summary cards and filter pills no longer delay the records.
+  assert.doesNotMatch(body, /applications-overview/);
+  assert.doesNotMatch(body, /applications-filters/);
+  assert.doesNotMatch(sheet, /\.applications-filters/);
 
-  assert.match(rule(css(), ".applications-overview"), /grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
-  assert.match(rule(css(), ".applications-overview dd"), /font-family: var\(--font-display\)/);
-  assert.match(rule(css(), ".applications-filters button"), /border-radius: 999px/);
-  assert.match(css(), /\.applications-filters button\[aria-pressed="true"\][\s\S]{0,140}--color-kola-50/);
-  assert.match(rule(css(), ".applications-search"), /width: min\(100%, 30rem\)/);
+  // Search earns its space only for a longer collection. Lifecycle filtering is
+  // one compact, grouped chooser; the active view and its count stay visible.
+  assert.match(body, /showSearch = \(applications\?\.length \?\? 0\) > 5 \|\| Boolean\(query\)/);
+  assert.doesNotMatch(body, /<select/);
+  assert.match(body, /aria-haspopup="menu"/);
+  assert.match(body, /application-filter-label[\s\S]{0,120}All applications[\s\S]{0,80}selectedLabel/);
+  assert.match(body, /role="menuitemradio"/);
+  assert.match(body, /Active journey/);
+  assert.match(body, /<ApplicationGroup title="Current"/);
+  assert.match(body, /<ApplicationGroup title="History"[\s\S]{0,140}historical/);
 
-  // The stage is chosen by a pill, so a heading above each group would name it
-  // twice — the groups are gone.
-  assert.doesNotMatch(code(list()), /function ApplicationGroup\(/);
-  assert.doesNotMatch(css(), /\.applications-group/);
+  assert.match(rule(sheet, ".applications-list"), /container: application-list \/ inline-size/);
+  assert.match(sheet, /\.application-group\.is-history \.applications-list/);
+  assert.match(sheet, /\.application-row\.is-action::before/);
 });
 
-test("approved and turned down count decisions, not departures", () => {
-  // An application this tenant withdrew was not turned down by anybody, so the
-  // three numbers do not sum to the total — the same rule the provider's side
-  // holds for the very same records.
+test("large histories progressively disclose records instead of rendering all at once", () => {
   const body = tenantHalf();
-  assert.match(body, /row\.application\.status === "accepted"/);
-  assert.match(body, /row\.application\.status === "rejected"/);
-  assert.doesNotMatch(body, /"withdrawn"/);
-  assert.match(body, /total: rows\.length/);
-  assert.match(body, /label="Turned down"/);
+
+  // No lifecycle view renders more than five records initially. In All, the
+  // two visible groups share that allowance so history remains discoverable.
+  assert.match(body, /const initialCurrentLimit = Math\.min\(current\.length, history\.length \? 4 : 5\)/);
+  assert.match(body, /const initialHistoryLimit = Math\.min\(history\.length, Math\.max\(0, 5 - initialCurrentLimit\)\)/);
+  assert.match(body, /title="Current"[\s\S]{0,120}initialLimit=\{initialCurrentLimit\}/);
+  assert.match(body, /title="History"[\s\S]{0,140}initialLimit=\{initialHistoryLimit\}/);
+  assert.match(body, /key=\{`\$\{filter\}:\$\{query\}`\}[\s\S]{0,240}initialLimit=\{5\}/);
+  assert.match(body, /const shown = rows\.slice\(0, limit\)/);
+  assert.match(body, /currentLimit \+ pageSize/);
+  assert.match(body, /const pageSize = 5/);
+});
+
+test("dense rows keep status calm until interaction", () => {
+  const sheet = css();
+  assert.match(sheet, /@container application-list \(min-width: 44rem\)[\s\S]{0,420}min-height: 4\.625rem/);
+  assert.match(sheet, /\.application-status-line i \{[\s\S]{0,300}box-shadow: 0 0 0 0 transparent/);
+  assert.match(sheet, /\.application-row:hover \.application-status-line i/);
+  assert.match(sheet, /\.application-row-action \.portal-icon[\s\S]{0,180}rotate\(-90deg\)/);
+});
+
+test("actionable applications lead without inventing lifecycle meaning", () => {
+  const body = tenantHalf();
+
+  // The existing meaning layer still owns every bucket. The UI only ranks its
+  // output, so an offered agreement leads and history remains last.
+  assert.match(body, /action: 0,\s*open: 1,\s*approved: 2,\s*past: 3/);
+  assert.match(body, /applicationSummary\(counts, rows\.length\)/);
+  assert.match(body, /counts\.action === 1/);
+  assert.match(body, /state\.stage === "action" \? "Review" : "View"/);
+  assert.doesNotMatch(body, /status_display/);
 });
 
 test("leaving an application and coming back lands where you left", () => {

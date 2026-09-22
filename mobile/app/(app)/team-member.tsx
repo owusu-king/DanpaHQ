@@ -1,16 +1,32 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
-import { Alert, ScrollView, View } from "react-native";
+import { ScrollView, StyleSheet, View } from "react-native";
 
 import { ApiFailure } from "@/api";
-import { Button, Choice, Notice, Type, space } from "@/components/ui";
+import { Bone } from "@/components/billing/BillingParts";
 import {
-  GRANTABLE_ROLES,
+  ActionBar,
+  EDGE,
+  Fact,
+  Footnote,
+  GroupLabel,
+  INK,
+  Lead,
+  Pill,
+  QuietAct,
+  RecordPanel,
+  StandingLine,
+  type RecordTone,
+} from "@/components/record/RecordSurfaces";
+import { BottomSheet } from "@/components/sheet/BottomSheet";
+import { Notice, Type, space } from "@/components/ui";
+import {
   PropertyScope,
+  RoleChoice,
   accessLabel,
   accessStateLabel,
   isScoped,
-  roleConsequence,
+  roleLabel,
 } from "@/components/team/TeamPatterns";
 import {
   assignPortfolioProperty,
@@ -24,7 +40,7 @@ import {
   type PortfolioMember,
   type PropertyAssignment,
 } from "@/organizations";
-import { theme } from "@/theme";
+import { useSafeBottom } from "@/platform";
 
 /**
  * One member's access.
@@ -32,8 +48,16 @@ import { theme } from "@/theme";
  * Its own screen rather than controls inside a roster card: changing what
  * somebody may reach is a deliberate act, and the previous card put a role
  * picker, every Property, and an unconfirmed "Remove member" one tap apart.
+ *
+ * Refined on review (2026-09-21) onto the record surfaces. It read as three
+ * ruled sections under a display heading, each role explained in a sentence
+ * below the picker and every Property a full-width button; the roles now carry
+ * their own consequence on their own rows, the Properties are ticked rather
+ * than pressed, and the two acts that change anything — save, or remove — are
+ * the only things that look like acts.
  */
 export default function TeamMemberScreen() {
+  const pageBottom = useSafeBottom(space[8]);
   const router = useRouter();
   const { organizationId, organizationName, membershipId } = useLocalSearchParams<{
     organizationId: string;
@@ -50,6 +74,7 @@ export default function TeamMemberScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [removing, setRemoving] = useState(false);
 
   const load = useCallback(async () => {
     if (!organizationId || !membershipId) return;
@@ -79,9 +104,9 @@ export default function TeamMemberScreen() {
 
   if (!member) {
     return (
-      <ScrollView contentContainerStyle={{ padding: space[5], gap: space[3] }}>
-        {error ? <Notice tone="error" title={error} /> : <Type variant="caption">Loading…</Type>}
-      </ScrollView>
+      <View style={styles.page}>
+        {error ? <Notice tone="error" title={error} /> : <MemberSkeleton />}
+      </View>
     );
   }
 
@@ -89,6 +114,13 @@ export default function TeamMemberScreen() {
   const scopeChanged =
     isScoped(role) && (scope.length !== assigned.length || scope.some((id) => !assigned.includes(id)));
   const dirty = roleChanged || scopeChanged;
+
+  const waiting = accessStateLabel(member);
+  const tone: RecordTone = waiting === "access ended" ? "alert" : waiting ? "waiting" : "good";
+  const owner = member.role === "owner";
+  // The roster says "Property manager · verification needed", where the label
+  // is a clause. Standing on its own it has to be a sentence.
+  const standing = waiting === "limited" ? "Limited access" : `${waiting.charAt(0).toUpperCase()}${waiting.slice(1)}`;
 
   /** Apply the difference, then settle once — not a request per tap. */
   async function save() {
@@ -116,113 +148,205 @@ export default function TeamMemberScreen() {
     }
   }
 
-  function confirmRemoval() {
-    Alert.alert(
-      `Remove ${member!.display_name}?`,
-      "Their access ends immediately and their Property assignments are released. They keep their own Rooomly account, and can be invited again.",
-      [
-        { text: "Go back", style: "cancel" },
-        {
-          text: "Remove",
-          style: "destructive",
-          onPress: async () => {
-            setBusy(true);
-            setError("");
-            try {
-              await removePortfolioMember(organizationId, membershipId);
-              router.back();
-            } catch (cause) {
-              setError(cause instanceof ApiFailure ? cause.error.message : "Could not remove that member.");
-              setBusy(false);
-            }
-          },
-        },
-      ],
-    );
+  /**
+   * Removal is irreversible and is not offered on the page it is decided from.
+   * It opens, names the person and what ends, and is confirmed there.
+   */
+  async function remove() {
+    setBusy(true);
+    setError("");
+    try {
+      await removePortfolioMember(organizationId, membershipId);
+      setRemoving(false);
+      router.back();
+    } catch (cause) {
+      setError(cause instanceof ApiFailure ? cause.error.message : "Could not remove that member.");
+      setBusy(false);
+      setRemoving(false);
+    }
   }
 
   return (
-    <ScrollView contentContainerStyle={{ padding: space[5], paddingBottom: space[12], gap: space[5] }}>
-      <View style={{ gap: space[1] }}>
-        <Type variant="label">TEAM MEMBER</Type>
-        <Type variant="display2" accessibilityRole="header">{member.display_name}</Type>
-        <Type variant="body">{member.phone} · {accessLabel(member)}</Type>
-      </View>
+    <View style={styles.screen}>
+      <ScrollView contentContainerStyle={[styles.page, { paddingBottom: dirty ? space[6] : pageBottom }]}>
+        <View style={styles.identity}>
+          <Type variant="title2" accessibilityRole="header" numberOfLines={2} style={styles.who}>
+            {member.display_name}
+          </Type>
+          {waiting ? <StandingLine tone={tone} line={standing} /> : null}
+        </View>
 
-      {error ? <Notice tone="error" title={error} /> : null}
-      {notice && !dirty ? <Notice tone="success" title={notice} /> : null}
+        {error ? <Notice tone="error" title={error} /> : null}
+        {notice && !dirty ? <Notice tone="success" title={notice} /> : null}
 
-      <Section title="What they may do">
-        {member.role === "owner" ? (
-          <Notice
-            tone="info"
-            title="This is the Portfolio's owner"
-            body="Ownership carries the Portfolio's verification, its plan and its settlement account, so it is transferred deliberately rather than changed from the roster."
-          />
-        ) : (
-          <>
-            <Choice
-              label="Role"
-              value={role}
-              options={GRANTABLE_ROLES.map((row) => ({ ...row }))}
-              onChange={(value) => setRole(value as PortfolioMember["role"])}
-            />
-            <Type variant="caption">{roleConsequence(role)}</Type>
-          </>
-        )}
-        {accessStateLabel(member) ? (
-          <Notice
-            tone="info"
-            title={`Their access is ${accessStateLabel(member)}`}
-            body={member.access.requirements.includes("identity")
-              ? "They have not verified their identity yet, so tenant-facing work and any Portfolio-wide administration wait for it. Their own Verification screen is where that happens."
-              : "This Portfolio's provider verification is not current, so tenant-facing work is paused for everyone in it."}
-          />
+        <RecordPanel>
+          <Lead label="Role" value={roleLabel(member.role)} note={accessLabel(member)} tone={tone} />
+          <View style={styles.rule} />
+          <Fact first label="Phone" value={member.phone} />
+          <Fact label="In the Team since" value={formatDate(member.joined_at)} />
+        </RecordPanel>
+
+        {waiting ? (
+          <Footnote>
+            {member.access.requirements.includes("identity")
+              ? "Tenant-facing work waits on their own identity verification."
+              : "This Portfolio's verification is not current, so tenant-facing work is paused for everyone."}
+          </Footnote>
         ) : null}
-      </Section>
 
-      {isScoped(role) ? (
-        <Section title="Which Properties they may touch">
-          <PropertyScope
-            properties={properties}
-            selected={scope}
-            disabled={busy}
-            onToggle={(id) =>
-              setScope((current) =>
-                current.includes(id) ? current.filter((row) => row !== id) : [...current, id],
-              )
-            }
-          />
-        </Section>
-      ) : null}
+        <View style={styles.section}>
+          <GroupLabel>What they may do</GroupLabel>
+          {owner ? (
+            <>
+              <RecordPanel>
+                <Fact wide first label="Owner" value="Holds this Portfolio, its verification, its plan and the account rent settles into." />
+              </RecordPanel>
+              <Footnote>Ownership is transferred deliberately rather than changed from the roster.</Footnote>
+            </>
+          ) : (
+            <RoleChoice value={role} onChange={(value) => setRole(value as PortfolioMember["role"])} disabled={busy} />
+          )}
+        </View>
+
+        {!owner && isScoped(role) ? (
+          <View style={styles.section}>
+            <GroupLabel>Properties they may touch</GroupLabel>
+            <PropertyScope
+              properties={properties}
+              selected={scope}
+              disabled={busy}
+              onToggle={(id) =>
+                setScope((current) =>
+                  current.includes(id) ? current.filter((row) => row !== id) : [...current, id],
+                )
+              }
+            />
+          </View>
+        ) : null}
+
+        {owner ? null : (
+          <View style={styles.exit}>
+            <QuietAct
+              label="Remove from this Portfolio"
+              icon="person-remove-outline"
+              accessibilityLabel={`Remove ${member.display_name} from this Portfolio`}
+              disabled={busy}
+              onPress={() => setRemoving(true)}
+            />
+          </View>
+        )}
+      </ScrollView>
 
       {dirty ? (
-        <View style={{ gap: space[2] }}>
-          <Button label="Save access" busy={busy} onPress={() => void save()} />
-          <Button
+        <ActionBar note={roleChanged ? `Their role becomes ${roleLabel(role)}.` : undefined}>
+          <Pill label="Save access" busy={busy} busyLabel="Saving" grow onPress={() => void save()} />
+          <QuietAct
             label="Discard changes"
-            variant="quiet"
             disabled={busy}
             onPress={() => { setRole(member.role); setScope(assigned); }}
           />
-        </View>
+        </ActionBar>
       ) : null}
 
-      <Section title="Remove from this Portfolio">
-        <Type variant="caption">
-          Ends their access to {organizationName || "this Portfolio"}. It does not touch their account.
-        </Type>
-        <Button label="Remove member" variant="destructive" disabled={busy} onPress={confirmRemoval} />
-      </Section>
-    </ScrollView>
-  );
-}
-
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <View style={{ gap: space[3], paddingTop: space[4], borderTopWidth: 1, borderTopColor: theme.color.field["200"] }}>
-      <Type variant="title2" accessibilityRole="header">{title}</Type>
-      {children}
+      <BottomSheet
+        visible={removing}
+        onClose={() => !busy && setRemoving(false)}
+        title={`Remove ${member.display_name}?`}
+        closeLabel="Keep their access"
+      >
+        <View style={styles.sheetBody}>
+          <RecordPanel>
+            <Fact first label="Loses" value={accessLabel(member)} tone="alert" />
+            <Fact label="Keeps" value="Their own Rooomly account" />
+          </RecordPanel>
+          <Footnote>
+            Their access to {organizationName || "this Portfolio"} ends immediately and their Property
+            assignments are released. They can be invited again.
+          </Footnote>
+          <View style={styles.sheetActs}>
+            <Pill
+              label="Remove"
+              tone="danger"
+              icon="person-remove-outline"
+              busy={busy}
+              busyLabel="Removing"
+              grow
+              onPress={() => void remove()}
+            />
+            <QuietAct label="Keep their access" disabled={busy} onPress={() => setRemoving(false)} />
+          </View>
+        </View>
+      </BottomSheet>
     </View>
   );
 }
+
+function formatDate(value: string) {
+  const date = new Date(`${value.slice(0, 10)}T12:00:00`);
+  return Number.isNaN(date.getTime())
+    ? value
+    : date.toLocaleDateString("en-GH", { day: "numeric", month: "short", year: "numeric" });
+}
+
+/** Shaped like the member, so nothing jumps when they arrive. */
+function MemberSkeleton() {
+  return (
+    <View accessible accessibilityRole="progressbar" accessibilityLabel="Loading this member" style={{ gap: space[4] }}>
+      <Bone width="58%" height={22} />
+      <RecordPanel style={styles.skeletonPanel}>
+        <Bone width="36%" height={12} />
+        <Bone width="62%" height={26} />
+      </RecordPanel>
+      <Bone width="44%" height={12} />
+      <RecordPanel style={styles.skeletonPanel}>
+        <Bone height={44} />
+        <Bone height={44} />
+      </RecordPanel>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+  },
+  page: {
+    padding: space[4],
+    gap: space[4],
+  },
+  identity: {
+    gap: space[2],
+    paddingHorizontal: 2,
+  },
+  who: {
+    fontSize: 19,
+    lineHeight: 25,
+    color: INK,
+  },
+  rule: {
+    height: StyleSheet.hairlineWidth,
+    marginHorizontal: space[4],
+    backgroundColor: EDGE,
+  },
+  section: {
+    gap: space[2],
+  },
+  exit: {
+    alignItems: "flex-start",
+    paddingHorizontal: 2,
+    paddingTop: space[2],
+  },
+  sheetBody: {
+    gap: space[4],
+  },
+  sheetActs: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: space[4],
+  },
+  skeletonPanel: {
+    gap: space[3],
+    padding: space[4],
+  },
+});

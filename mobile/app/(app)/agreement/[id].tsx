@@ -1,12 +1,28 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
-import { ScrollView, Switch, View } from "react-native";
+import { StyleSheet, ScrollView, Switch, View } from "react-native";
 
 import { agreedTerms, homeOf, money, months, per, standing } from "@/agreementMeaning";
 import { ApiFailure } from "@/api";
-import { Button, Field, Notice, Type, space } from "@/components/ui";
+import { Bone } from "@/components/billing/BillingParts";
+import {
+  EDGE,
+  Fact,
+  Footnote,
+  GroupLabel,
+  INK,
+  Lead,
+  MUTED,
+  Pill,
+  QuietAct,
+  RecordPanel,
+  StandingLine,
+  type RecordTone,
+} from "@/components/record/RecordSurfaces";
+import { Field, Notice, Type, space } from "@/components/ui";
 import { acceptLease, declineLease, leaseAction, listMyLeases, type Lease } from "@/leases";
 import { printLeaseDocument, shareLeaseDocument } from "@/leaseDocuments";
+import { useSafeBottom } from "@/platform";
 import { theme } from "@/theme";
 
 /**
@@ -19,8 +35,13 @@ import { theme } from "@/theme";
  * a rule about *unnecessary* words.
  *
  * The order is the argument. Advance notice, then money, then dates, then
- * conditions, then who is party to it, then the record — and only then the two
- * buttons.
+ * conditions, then who is party to it, then the record — and only then the
+ * decision.
+ *
+ * Refined on review (2026-09-21) onto the record surfaces. The decision stays at
+ * the foot of the reading rather than moving to a bar that follows the page:
+ * every other record here answers "what do I do now", and this one answers
+ * "should I sign this", which is a question you finish reading before you answer.
  *
  * Read from `/me/leases/`, which returns only agreements where this account is
  * the tenant, so this screen can never offer tenant actions on somebody else's.
@@ -31,6 +52,7 @@ export default function AgreementScreen() {
   const [lease, setLease] = useState<Lease | null>(null);
   const [missing, setMissing] = useState(false);
   const [loadError, setLoadError] = useState("");
+  const pageBottom = useSafeBottom(space[8]);
 
   const load = useCallback(async () => {
     try {
@@ -66,59 +88,25 @@ export default function AgreementScreen() {
       </View>
     );
   }
-  if (!lease) {
-    return (
-      <View style={{ padding: space[5] }}>
-        <Type variant="caption">Loading…</Type>
-      </View>
-    );
-  }
+  if (!lease) return <AgreementSkeleton />;
 
   const terms = agreedTerms(lease);
   const state = standing(lease);
+  const tone: RecordTone = state.decisionOpen ? "action" : state.stage === "active" ? "good" : "quiet";
   const rendered = lease.agreement?.rendered_document?.sections?.length
     ? lease.agreement.rendered_document
     : null;
 
   return (
-    <ScrollView
-      contentContainerStyle={{ padding: space[5], gap: space[5], paddingBottom: space[10] }}
-    >
-      <View style={{ gap: space[2] }}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: space[2] }}>
-          <View
-            style={{
-              width: 8,
-              height: 8,
-              borderRadius: 4,
-              backgroundColor:
-                state.stage === "action"
-                  ? theme.color.kola["600"]
-                  : state.stage === "active"
-                    ? theme.color.kola["300"]
-                    : theme.color.ink["300"],
-            }}
-          />
-          <Type
-            variant="bodyStrong"
-            style={{
-              fontSize: 14,
-              color: state.decisionOpen ? theme.color.kola["600"] : theme.color.ink["700"],
-            }}
-          >
-            {state.line}
-          </Type>
-        </View>
-        <Type variant="display2" accessibilityRole="header">
+    <ScrollView contentContainerStyle={[styles.page, { paddingBottom: pageBottom }]}>
+      <View style={styles.identity}>
+        <StandingLine line={state.line} tone={tone} />
+        <Type variant="title2" accessibilityRole="header" numberOfLines={3} style={styles.home}>
           {homeOf(terms)}
         </Type>
-        <Type variant="caption">
+        <Type variant="caption" numberOfLines={2} style={styles.with}>
           With {terms.landlordName}
-          {terms.address
-            ? ` · ${terms.address}`
-            : lease.locality_name
-              ? ` · ${lease.locality_name}`
-              : ""}
+          {terms.address ? ` · ${terms.address}` : lease.locality_name ? ` · ${lease.locality_name}` : ""}
         </Type>
       </View>
 
@@ -139,106 +127,104 @@ export default function AgreementScreen() {
         />
       ) : null}
 
-      <Block title="What it costs">
-        <Type variant="title1">
-          {money(terms.moveInTotalMinor, terms.rentCurrency)}
-          <Type variant="caption"> to move in</Type>
-        </Type>
-        <Fact
-          label="Rent"
-          value={`${money(terms.rentMinor, terms.rentCurrency)} per ${per(terms.rentPeriod)}`}
-        />
-        <Fact label="Advance" value={months(terms.advanceMonths)} />
-        <Fact label="Deposit" value={terms.depositMonths ? months(terms.depositMonths) : "None"} />
-        <Fact
-          label="Agency fee"
-          value={terms.agencyFeeMonths ? months(terms.agencyFeeMonths) : "None"}
-        />
-        <Type variant="caption" style={{ marginTop: space[1] }}>
-          Nothing is paid through Rooomly. This records what was agreed.
-        </Type>
-      </Block>
+      <View style={styles.section}>
+        <GroupLabel>What it costs</GroupLabel>
+        <RecordPanel>
+          <Lead label="Move-in total" value={money(terms.moveInTotalMinor, terms.rentCurrency)} />
+          <View style={styles.rule} />
+          <Fact
+            first
+            label="Rent"
+            value={`${money(terms.rentMinor, terms.rentCurrency)} per ${per(terms.rentPeriod)}`}
+          />
+          <Fact label="Advance" value={months(terms.advanceMonths)} />
+          <Fact label="Deposit" value={terms.depositMonths ? months(terms.depositMonths) : "None"} />
+          <Fact label="Agency fee" value={terms.agencyFeeMonths ? months(terms.agencyFeeMonths) : "None"} />
+        </RecordPanel>
+        <Footnote>Nothing is paid through Rooomly. This records what was agreed.</Footnote>
+      </View>
 
-      <Block title="For how long">
-        <Fact label="Starts" value={terms.startsOn ? longDate(terms.startsOn) : "Not set"} />
-        <Fact label="Term" value={months(terms.termMonths)} />
-        <Fact label="Ends" value={terms.endsOn ? longDate(terms.endsOn) : "Not set"} />
-      </Block>
+      <View style={styles.section}>
+        <GroupLabel>For how long</GroupLabel>
+        <RecordPanel>
+          <Fact first label="Starts" value={terms.startsOn ? longDate(terms.startsOn) : "Not set"} />
+          <Fact label="Term" value={months(terms.termMonths)} />
+          <Fact label="Ends" value={terms.endsOn ? longDate(terms.endsOn) : "Not set"} />
+        </RecordPanel>
+      </View>
 
       {!rendered ? (
-        <Block title="Conditions">
-          <Type variant="body">
-            {terms.conditions || "No additional conditions were recorded."}
-          </Type>
-        </Block>
+        <View style={styles.section}>
+          <GroupLabel>Conditions</GroupLabel>
+          <RecordPanel>
+            <Fact wide first label="Agreed conditions" value={terms.conditions || "No additional conditions were recorded."} />
+          </RecordPanel>
+        </View>
       ) : null}
 
       {!rendered ? (
-        <Block title="Between">
-          <Fact label="Landlord" value={terms.landlordName} />
-          <Fact label="Tenant" value={terms.tenantName} />
-        </Block>
+        <View style={styles.section}>
+          <GroupLabel>Between</GroupLabel>
+          <RecordPanel>
+            <Fact first label="Landlord" value={terms.landlordName} />
+            <Fact label="Tenant" value={terms.tenantName} />
+          </RecordPanel>
+        </View>
       ) : null}
 
       {rendered ? (
-        <Block title="Complete agreement">
-          <View style={{ gap: space[5] }}>
-            <View style={{ gap: space[1], alignItems: "center" }}>
-              <Type variant="label">{rendered.reference_number}</Type>
-              <Type variant="title1" style={{ textAlign: "center" }}>
-                {rendered.title}
-              </Type>
-              <Type variant="caption">Template {rendered.template.version}</Type>
+        <View style={styles.section}>
+          <GroupLabel>Complete agreement</GroupLabel>
+          <RecordPanel style={styles.document}>
+            <View style={styles.documentHead}>
+              <Type variant="label" style={styles.reference}>{rendered.reference_number}</Type>
+              <Type variant="bodyStrong" style={styles.documentTitle}>{rendered.title}</Type>
+              <Type variant="caption" style={styles.template}>Template {rendered.template.version}</Type>
             </View>
             {rendered.production_notice ? (
-              <Notice
-                tone="warning"
-                title="Pre-production legal review"
-                body={rendered.production_notice}
-              />
+              <Notice tone="warning" title="Pre-production legal review" body={rendered.production_notice} />
             ) : null}
             {rendered.sections.map((section) => (
-              <View
-                key={section.id}
-                style={{
-                  gap: space[2],
-                  paddingTop: space[4],
-                  borderTopWidth: 1,
-                  borderTopColor: theme.color.field["200"],
-                }}
-              >
-                <Type variant="bodyStrong">{section.title}</Type>
-                <Type variant="body" selectable style={{ lineHeight: 26 }}>
-                  {section.body}
-                </Type>
+              <View key={section.id} style={styles.clause}>
+                <Type variant="bodyStrong" style={styles.clauseTitle}>{section.title}</Type>
+                <Type variant="body" selectable style={styles.clauseBody}>{section.body}</Type>
               </View>
             ))}
-          </View>
-        </Block>
+          </RecordPanel>
+        </View>
       ) : null}
 
       {/* Who pressed accept and when. The serializer has carried this all along
           and neither client showed it. */}
       {lease.agreement ? (
-        <Block title="The record">
-          {lease.agreement.accepted_by.length ? (
-            lease.agreement.accepted_by.map((acceptance) => (
-              <Type key={`${acceptance.party}-${acceptance.accepted_at}`} variant="body">
-                <Type variant="bodyStrong">{acceptance.name}</Type>
-                {` accepted on ${longDate(acceptance.accepted_at)}`}
-              </Type>
-            ))
-          ) : (
-            <Type variant="caption">Nobody has accepted this yet.</Type>
-          )}
-          <Type variant="mono">{lease.agreement.content_hash.slice(0, 16)}…</Type>
-          <Type variant="caption">
+        <View style={styles.section}>
+          <GroupLabel>The record</GroupLabel>
+          <RecordPanel>
+            {lease.agreement.accepted_by.length ? (
+              lease.agreement.accepted_by.map((acceptance, index) => (
+                <Fact
+                  key={`${acceptance.party}-${acceptance.accepted_at}`}
+                  first={index === 0}
+                  label={acceptance.name}
+                  value={`accepted on ${longDate(acceptance.accepted_at)}`}
+                />
+              ))
+            ) : (
+              <Fact first label="Accepted" value="Nobody yet" />
+            )}
+            <Fact
+              wide
+              label="Content hash"
+              value={lease.agreement.content_hash}
+            />
+          </RecordPanel>
+          <Footnote>
             {lease.agreement.reference_number ? `${lease.agreement.reference_number}. ` : ""}
             Template {lease.agreement.template.version || lease.agreement.schema_version}. This
             identifies the exact terms above. It is not an electronic signature.
-          </Type>
+          </Footnote>
           {lease.agreement.final_pdf_url ? <DocumentActions lease={lease} /> : null}
-        </Block>
+        </View>
       ) : null}
 
       {state.decisionOpen ? (
@@ -270,24 +256,26 @@ function DocumentActions({ lease }: { lease: Lease }) {
     }
   }
   return (
-    <View style={{ gap: space[2], marginTop: space[2] }}>
+    <View style={styles.documentActions}>
       {error ? <Notice tone="error" title={error} /> : null}
-      <Button
-        label="View or save PDF"
-        variant="secondary"
-        busy={busy === "share"}
-        busyLabel="Opening…"
-        disabled={busy !== null}
-        onPress={() => void run("share")}
-      />
-      <Button
-        label="Print"
-        variant="quiet"
-        busy={busy === "print"}
-        busyLabel="Opening printer…"
-        disabled={busy !== null}
-        onPress={() => void run("print")}
-      />
+      <View style={styles.documentRow}>
+        <QuietAct
+          icon="document-outline"
+          label="View or save PDF"
+          busy={busy === "share"}
+          busyLabel="Opening…"
+          disabled={busy !== null}
+          onPress={() => void run("share")}
+        />
+        <QuietAct
+          icon="print-outline"
+          label="Print"
+          busy={busy === "print"}
+          busyLabel="Opening printer…"
+          disabled={busy !== null}
+          onPress={() => void run("print")}
+        />
+      </View>
     </View>
   );
 }
@@ -330,134 +318,102 @@ function Decision({
   }
 
   return (
-    <View
-      style={{
-        gap: space[3],
-        padding: space[4],
-        backgroundColor: theme.color.field["50"],
-        borderWidth: 1,
-        borderColor: theme.color.field["200"],
-        borderRadius: 12,
-      }}
-    >
-      <Type variant="label" accessibilityRole="header">
-        YOUR DECISION
-      </Type>
-      {error ? <Notice tone="error" title={error} /> : null}
+    <View style={styles.section}>
+      <GroupLabel>Your decision</GroupLabel>
+      <RecordPanel style={styles.decision}>
+        {error ? <Notice tone="error" title={error} /> : null}
 
-      {step === "choose" ? (
-        <>
-          <Button label="Accept agreement" onPress={() => setStep("accept")} />
-          <Button label="Decline" variant="quiet" onPress={() => setStep("decline")} />
-        </>
-      ) : step === "accept" ? (
-        <>
-          <Type variant="bodyStrong">
-            You are accepting {money(terms.moveInTotalMinor, terms.rentCurrency)} to move in and{" "}
-            {money(terms.rentMinor, terms.rentCurrency)} per {per(terms.rentPeriod)} for{" "}
-            {months(terms.termMonths)} from{" "}
-            {terms.startsOn ? longDate(terms.startsOn) : "the agreed date"}.
-          </Type>
-          <Type variant="caption">
-            You cannot undo this yourself, and the terms cannot be changed afterwards — a different
-            arrangement means a new agreement.
-          </Type>
-          {mustAcknowledge ? (
-            <View style={{ flexDirection: "row", alignItems: "center", gap: space[3] }}>
-              <Switch
-                value={acknowledged}
-                onValueChange={setAcknowledged}
-                trackColor={{ false: theme.color.field["300"], true: theme.color.kola["300"] }}
-                thumbColor={acknowledged ? theme.color.kola["600"] : theme.color.field["0"]}
-                accessibilityLabel="I have read the advance-rent notice"
-              />
-              <Type variant="body" style={{ flex: 1 }}>
-                I have read the advance-rent notice at the top of this screen.
-              </Type>
-            </View>
-          ) : null}
-          <Button
-            label="Yes, accept it"
-            busy={busy}
-            busyLabel="Accepting…"
-            disabled={mustAcknowledge && !acknowledged}
-            onPress={() => run(() => acceptLease(lease.id, acknowledged))}
-          />
-          <Button
-            label="Go back"
-            variant="quiet"
-            disabled={busy}
-            onPress={() => setStep("choose")}
-          />
-        </>
-      ) : (
-        <>
-          <Type variant="bodyStrong">
-            Declining ends this offer. The landlord would have to send a new one.
-          </Type>
-          <Field
-            label="Reason (optional)"
-            value={reason}
-            onChangeText={setReason}
-            multiline
-            numberOfLines={3}
-            maxLength={300}
-            textAlignVertical="top"
-            placeholder="Tell the landlord what did not work, if you want to."
-            style={{ minHeight: 72 }}
-          />
-          <Button
-            label="Yes, decline it"
-            variant="destructive"
-            busy={busy}
-            busyLabel="Declining…"
-            onPress={() => run(() => declineLease(lease.id, reason.trim()))}
-          />
-          <Button
-            label="Go back"
-            variant="quiet"
-            disabled={busy}
-            onPress={() => setStep("choose")}
-          />
-        </>
-      )}
+        {step === "choose" ? (
+          <>
+            <Pill grow icon="checkmark-outline" label="Accept agreement" onPress={() => setStep("accept")} />
+            <QuietAct label="Decline" onPress={() => setStep("decline")} />
+          </>
+        ) : step === "accept" ? (
+          <>
+            <Type variant="bodyStrong" style={styles.decisionLead}>
+              You are accepting {money(terms.moveInTotalMinor, terms.rentCurrency)} to move in and{" "}
+              {money(terms.rentMinor, terms.rentCurrency)} per {per(terms.rentPeriod)} for{" "}
+              {months(terms.termMonths)} from{" "}
+              {terms.startsOn ? longDate(terms.startsOn) : "the agreed date"}.
+            </Type>
+            <Type variant="caption" style={styles.decisionNote}>
+              You cannot undo this yourself, and the terms cannot be changed afterwards — a different
+              arrangement means a new agreement.
+            </Type>
+            {mustAcknowledge ? (
+              <View style={styles.acknowledge}>
+                <Switch
+                  value={acknowledged}
+                  onValueChange={setAcknowledged}
+                  trackColor={{ false: theme.color.field["300"], true: theme.color.kola["300"] }}
+                  thumbColor={acknowledged ? theme.color.kola["600"] : theme.color.field["0"]}
+                  accessibilityLabel="I have read the advance-rent notice"
+                />
+                <Type variant="body" style={styles.acknowledgeText}>
+                  I have read the advance-rent notice at the top of this screen.
+                </Type>
+              </View>
+            ) : null}
+            <Pill
+              grow
+              label="Yes, accept it"
+              busy={busy}
+              busyLabel="Accepting…"
+              disabled={mustAcknowledge && !acknowledged}
+              onPress={() => run(() => acceptLease(lease.id, acknowledged))}
+            />
+            <QuietAct label="Go back" disabled={busy} onPress={() => setStep("choose")} />
+          </>
+        ) : (
+          <>
+            <Type variant="bodyStrong" style={styles.decisionLead}>
+              Declining ends this offer. The landlord would have to send a new one.
+            </Type>
+            <Field
+              label="Reason (optional)"
+              value={reason}
+              onChangeText={setReason}
+              multiline
+              numberOfLines={3}
+              maxLength={300}
+              textAlignVertical="top"
+              placeholder="Tell the landlord what did not work, if you want to."
+              style={{ minHeight: 72 }}
+            />
+            <Pill
+              grow
+              tone="danger"
+              label="Yes, decline it"
+              busy={busy}
+              busyLabel="Declining…"
+              onPress={() => run(() => declineLease(lease.id, reason.trim()))}
+            />
+            <QuietAct label="Go back" disabled={busy} onPress={() => setStep("choose")} />
+          </>
+        )}
+      </RecordPanel>
     </View>
   );
 }
 
-function Block({ title, children }: { title: string; children: React.ReactNode }) {
+/** Shaped like the terms it becomes, so nothing jumps when the agreement arrives. */
+function AgreementSkeleton() {
   return (
-    <View
-      style={{
-        gap: space[2],
-        paddingTop: space[4],
-        borderTopWidth: 1,
-        borderTopColor: theme.color.field["200"],
-      }}
-    >
-      <Type variant="label" accessibilityRole="header">
-        {title.toUpperCase()}
-      </Type>
-      {children}
-    </View>
-  );
-}
-
-function Fact({ label, value }: { label: string; value: string }) {
-  return (
-    <View
-      style={{
-        minHeight: 36,
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "space-between",
-        gap: space[4],
-      }}
-    >
-      <Type variant="caption">{label}</Type>
-      <Type variant="bodyStrong" style={{ flexShrink: 1, textAlign: "right" }}>
-        {value}
-      </Type>
+    <View accessible accessibilityRole="progressbar" accessibilityLabel="Loading this agreement" style={styles.page}>
+      <View style={styles.identity}>
+        <Bone width="46%" height={13} />
+        <Bone width="82%" height={20} />
+        <Bone width="60%" />
+      </View>
+      <RecordPanel style={styles.skeletonPanel}>
+        <Bone width="34%" height={12} />
+        <Bone width="52%" height={30} />
+        <Bone height={44} />
+      </RecordPanel>
+      <RecordPanel style={styles.skeletonPanel}>
+        <Bone width="40%" height={12} />
+        <Bone height={44} />
+      </RecordPanel>
     </View>
   );
 }
@@ -469,3 +425,107 @@ function longDate(value: string) {
     year: "numeric",
   });
 }
+
+const styles = StyleSheet.create({
+  page: {
+    padding: space[4],
+    gap: space[4],
+  },
+  identity: {
+    gap: space[2],
+    paddingHorizontal: 2,
+  },
+  home: {
+    fontSize: 19,
+    lineHeight: 25,
+  },
+  with: {
+    fontSize: 12.5,
+    lineHeight: 17,
+    color: MUTED,
+  },
+  section: {
+    gap: space[2],
+  },
+  rule: {
+    height: StyleSheet.hairlineWidth,
+    marginHorizontal: space[4],
+    backgroundColor: EDGE,
+  },
+  document: {
+    gap: space[4],
+    padding: space[4],
+  },
+  documentHead: {
+    gap: 2,
+    alignItems: "center",
+  },
+  reference: {
+    color: MUTED,
+  },
+  documentTitle: {
+    fontSize: 16,
+    lineHeight: 22,
+    textAlign: "center",
+    color: INK,
+  },
+  template: {
+    fontSize: 12,
+    lineHeight: 16,
+    color: MUTED,
+  },
+  clause: {
+    gap: space[1],
+    paddingTop: space[3],
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: EDGE,
+  },
+  clauseTitle: {
+    fontSize: 14.5,
+    lineHeight: 20,
+    color: INK,
+  },
+  clauseBody: {
+    fontSize: 14.5,
+    lineHeight: 24,
+    color: theme.color.ink["700"],
+  },
+  documentActions: {
+    gap: space[2],
+  },
+  documentRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: space[4],
+    paddingHorizontal: 2,
+  },
+  decision: {
+    gap: space[3],
+    padding: space[4],
+  },
+  decisionLead: {
+    fontSize: 15,
+    lineHeight: 21,
+    color: INK,
+  },
+  decisionNote: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: MUTED,
+  },
+  acknowledge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space[3],
+  },
+  acknowledgeText: {
+    flex: 1,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  skeletonPanel: {
+    gap: space[3],
+    padding: space[4],
+  },
+});

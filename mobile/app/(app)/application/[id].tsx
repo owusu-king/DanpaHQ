@@ -1,15 +1,29 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
-import { Dimensions, Image, Pressable, ScrollView, View } from "react-native";
+import { Dimensions, Image, Pressable, StyleSheet, ScrollView, View } from "react-native";
 
 import { ApiFailure } from "@/api";
 import { placeOf, standing, timeline } from "@/applicationMeaning";
 import { getApplication, withdrawApplication, type RentalApplication } from "@/applications";
 import { ApplicationTimeline } from "@/components/applications/ApplicationTimeline";
 import { StandingLine } from "@/components/applications/StandingLine";
-import { Button, Notice, Type, space } from "@/components/ui";
+import { Bone } from "@/components/billing/BillingParts";
+import {
+  ActionBar,
+  Fact,
+  GroupLabel,
+  KOLA_DEEP,
+  LinkRow,
+  MUTED,
+  Pill,
+  Quote,
+  QuietAct,
+  RecordPanel,
+} from "@/components/record/RecordSurfaces";
+import { Notice, Type, space } from "@/components/ui";
 import { listMyLeases, type Lease } from "@/leases";
+import { isAndroid, pressableFeedback, useSafeBottom } from "@/platform";
 import { theme } from "@/theme";
 
 /**
@@ -21,6 +35,11 @@ import { theme } from "@/theme";
  * What the tenant wrote about themselves sits behind a disclosure: they know
  * what they said, and it is here to be checked rather than read. Withdrawing
  * asks first — it cannot be undone and it releases the Unit to somebody else.
+ *
+ * Refined on review (2026-09-21) onto the record surfaces. The photograph still
+ * opens it, because recognising the place is the first thing anybody does; the
+ * standing and the journey then sit on paper rather than between two hairlines,
+ * and the two consequential acts keep the bar under the thumb.
  */
 export default function ApplicationRecordScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -33,6 +52,8 @@ export default function ApplicationRecordScreen() {
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
   const width = useRef(Dimensions.get("window").width).current;
+  // Without a bar the page itself must clear Android's navigation buttons.
+  const openBottom = useSafeBottom(space[8]);
 
   useEffect(() => {
     void Promise.all([getApplication(id), listMyLeases().catch(() => [] as Lease[])])
@@ -50,9 +71,7 @@ export default function ApplicationRecordScreen() {
   if (loadError) {
     return <View style={{ padding: space[5] }}><Notice tone="error" title={loadError} /></View>;
   }
-  if (!application) {
-    return <RecordSkeleton />;
-  }
+  if (!application) return <RecordSkeleton />;
 
   const state = standing(application, leases);
   const open = ["submitted", "under_review"].includes(application.status);
@@ -60,109 +79,78 @@ export default function ApplicationRecordScreen() {
   const offered = application.advance_months_offered;
   // Orientation, not exploration: enough photograph to recognize the place
   // without pushing the facts off the screen.
-  const heroHeight = Math.min(Math.round(width * 0.42), 190);
+  const heroHeight = Math.min(Math.round(width * 0.42), 180);
+  const barShown = state.stage === "action" || open;
 
   return (
-    <View style={{ flex: 1 }}>
-      <ScrollView contentContainerStyle={{ paddingBottom: space[8] }}>
-        <View
-          style={{
-            height: heroHeight,
-            alignItems: "center",
-            justifyContent: "center",
-            backgroundColor: theme.color.field["100"],
-          }}
-        >
+    <View style={styles.screen}>
+      <ScrollView contentContainerStyle={[styles.page, { paddingBottom: barShown ? space[6] : openBottom }]}>
+        <View style={[styles.hero, { height: heroHeight }]}>
           {application.photo_url ? (
-            <Image
-              source={{ uri: application.photo_url }}
-              accessible={false}
-              style={{ width: "100%", height: "100%" }}
-              resizeMode="cover"
-            />
+            <Image source={{ uri: application.photo_url }} accessible={false} style={styles.heroImage} resizeMode="cover" />
           ) : (
             <Ionicons name="image-outline" size={28} color={theme.color.ink["300"]} />
           )}
         </View>
 
-        <View style={{ padding: space[5], gap: space[5] }}>
-          <View style={{ gap: space[1] }}>
-            <Type variant="display2" accessibilityRole="header">{application.listing_headline}</Type>
-            <Type variant="caption">{placeOf(application)}</Type>
+        <View style={styles.body}>
+          <View style={styles.identity}>
+            <Type variant="title2" accessibilityRole="header" numberOfLines={2} style={styles.headline}>
+              {application.listing_headline}
+            </Type>
+            <Type variant="caption" numberOfLines={2} style={styles.place}>{placeOf(application)}</Type>
           </View>
 
-          <View
-            style={{
-              gap: space[2],
-              paddingVertical: space[3],
-              borderTopWidth: 1,
-              borderBottomWidth: 1,
-              borderColor: theme.color.field["200"],
-            }}
-          >
+          <RecordPanel style={styles.standingPanel}>
             <StandingLine standing={state} />
-            <Type variant="caption">
+            <Type variant="caption" style={styles.dates}>
               Applied {onDate(application.created_at)}
               {application.decided_at ? ` · answered ${onDate(application.decided_at)}` : ""}
             </Type>
-          </View>
+          </RecordPanel>
 
           {/* Where it stands is one line above. This is how it got there and
               what is still to come — the difference between a status word and
               knowing where you are. */}
-          <View style={{ gap: space[3] }}>
-            <Type variant="label" accessibilityRole="header">PROGRESS</Type>
-            <ApplicationTimeline steps={timeline(application, leases)} />
+          <View style={styles.section}>
+            <GroupLabel>Progress</GroupLabel>
+            <RecordPanel style={styles.timelinePanel}>
+              <ApplicationTimeline steps={timeline(application, leases)} />
+            </RecordPanel>
           </View>
 
           {/* The landlord's own words, when there are any. */}
-          {application.decision_note ? (
-            <View
-              style={{
-                paddingVertical: space[2],
-                paddingLeft: space[4],
-                borderLeftWidth: 3,
-                borderLeftColor: theme.color.field["300"],
-              }}
-            >
-              <Type variant="body">{application.decision_note}</Type>
-            </View>
-          ) : null}
+          {application.decision_note ? <Quote>{application.decision_note}</Quote> : null}
 
-          <View style={{ gap: space[1] }}>
-            <Fact
-              label="Advance offered"
-              value={`${offered} month${offered === 1 ? "" : "s"}${offered === asked ? "" : ` of ${asked}`}`}
-            />
-            <Fact label="Rent" value={application.rent_formatted ?? "—"} />
-            <Fact
-              label="Move in from"
-              value={application.move_in_from ? onDate(application.move_in_from) : "Not stated"}
-            />
-            <Fact
-              label="Household"
-              value={application.household_size ? `${application.household_size} people` : "Not stated"}
-            />
+          <View style={styles.section}>
+            <GroupLabel>What you offered</GroupLabel>
+            <RecordPanel>
+              <Fact
+                first
+                label="Advance offered"
+                tone={offered < asked ? "waiting" : undefined}
+                value={`${offered} month${offered === 1 ? "" : "s"}${offered === asked ? "" : ` of ${asked}`}`}
+              />
+              <Fact label="Rent" value={application.rent_formatted ?? "—"} />
+              <Fact label="Move in from" value={application.move_in_from ? onDate(application.move_in_from) : "Not stated"} />
+              <Fact label="Household" value={application.household_size ? `${application.household_size} people` : "Not stated"} />
+            </RecordPanel>
           </View>
 
-          <View style={{ gap: space[2] }}>
+          <RecordPanel>
             <Pressable
               accessibilityRole="button"
-              accessibilityState={{ expanded: told }}
+              accessibilityLabel="What you told them"
+              aria-expanded={told}
               onPress={() => setTold((value) => !value)}
-              style={{ minHeight: 44, flexDirection: "row", alignItems: "center", gap: space[2] }}
+              {...pressableFeedback(theme.color.field["100"])}
+              style={({ pressed }) => [styles.disclosure, pressed && !isAndroid ? { backgroundColor: theme.color.field["100"] } : null]}
             >
-              <Ionicons
-                name={told ? "chevron-down" : "chevron-forward"}
-                size={16}
-                color={theme.color.kola["600"]}
-              />
-              <Type variant="bodyStrong" style={{ color: theme.color.kola["600"] }}>
-                What you told them
-              </Type>
+              <Type variant="bodyStrong" style={styles.disclosureLabel}>What you told them</Type>
+              <Ionicons name={told ? "chevron-up" : "chevron-down"} size={16} color={KOLA_DEEP} />
             </Pressable>
             {told ? (
-              <View style={{ gap: space[1] }}>
+              <>
                 <Fact label="Occupation" value={application.occupation || "Not stated"} />
                 <Fact label="Employer" value={application.employer || "Not stated"} />
                 <Fact
@@ -173,97 +161,71 @@ export default function ApplicationRecordScreen() {
                       : "None given"
                   }
                 />
-                {application.message ? (
-                  <View
-                    style={{
-                      marginTop: space[2],
-                      paddingLeft: space[4],
-                      borderLeftWidth: 3,
-                      borderLeftColor: theme.color.field["300"],
-                    }}
-                  >
-                    <Type variant="body">{application.message}</Type>
-                  </View>
-                ) : null}
-              </View>
+                {application.message ? <Fact wide label="What you wrote" value={application.message} /> : null}
+              </>
             ) : null}
-          </View>
+          </RecordPanel>
 
-          <Pressable
-            accessibilityRole="link"
-            onPress={() =>
-              router.push({
-                pathname: "/(app)/listing/[id]",
-                params: { id: application.listing_id },
-              })
-            }
-            style={{ minHeight: 44, justifyContent: "center" }}
-          >
-            <Type variant="bodyStrong" style={{ color: theme.color.kola["600"] }}>
-              View the listing →
-            </Type>
-          </Pressable>
+          <RecordPanel>
+            <LinkRow
+              first
+              icon="home-outline"
+              label="View the listing"
+              onPress={() => router.push({ pathname: "/(app)/listing/[id]", params: { id: application.listing_id } })}
+            />
+          </RecordPanel>
 
           {actionError ? <Notice tone="error" title={actionError} /> : null}
         </View>
       </ScrollView>
 
       {/* One place for the consequential things, always reachable. */}
-      {state.stage === "action" || open ? (
-        <View
-          style={{
-            gap: space[2],
-            padding: space[4],
-            borderTopWidth: 1,
-            borderTopColor: theme.color.field["200"],
-            backgroundColor: theme.color.field["0"],
-          }}
-        >
-          {/* The agreement this became, not the list of every agreement. The
-              application already knows which one it is. */}
-          {state.stage === "action" ? (
-            <Button
-              label="Review agreement"
-              onPress={() =>
-                state.leaseId
-                  ? router.push({
-                      pathname: "/(app)/agreement/[id]",
-                      params: { id: state.leaseId },
-                    })
-                  : router.push("/(app)/leases" as never)
-              }
+      {barShown ? (
+        confirming ? (
+          <ActionBar note="Withdrawing cannot be undone, and it releases the Unit to somebody else.">
+            <Pill
+              grow
+              tone="danger"
+              label="Yes, withdraw"
+              busy={busy}
+              busyLabel="Withdrawing…"
+              onPress={async () => {
+                setBusy(true);
+                setActionError("");
+                try {
+                  await withdrawApplication(application.id, "No longer needed");
+                  router.back();
+                } catch (cause) {
+                  setActionError(cause instanceof ApiFailure ? cause.error.message : "That did not work.");
+                  setBusy(false);
+                }
+              }}
             />
-          ) : null}
-
-          {open ? (
-            confirming ? (
-              <View style={{ gap: space[2] }}>
-                <Type variant="caption">Withdraw this application? This cannot be undone.</Type>
-                <Button
-                  label="Yes, withdraw"
-                  variant="destructive"
-                  busy={busy}
-                  onPress={async () => {
-                    setBusy(true);
-                    setActionError("");
-                    try {
-                      await withdrawApplication(application.id, "No longer needed");
-                      router.back();
-                    } catch (cause) {
-                      setActionError(
-                        cause instanceof ApiFailure ? cause.error.message : "That did not work.",
-                      );
-                      setBusy(false);
-                    }
-                  }}
-                />
-                <Button label="Keep it" variant="quiet" onPress={() => setConfirming(false)} />
+            <QuietAct label="Keep it" disabled={busy} onPress={() => setConfirming(false)} />
+          </ActionBar>
+        ) : (
+          <ActionBar>
+            {/* The agreement this became, not the list of every agreement. The
+                application already knows which one it is. */}
+            {state.stage === "action" ? (
+              <Pill
+                grow
+                icon="document-text-outline"
+                label="Review agreement"
+                onPress={() =>
+                  state.leaseId
+                    ? router.push({ pathname: "/(app)/agreement/[id]", params: { id: state.leaseId } })
+                    : router.push("/(app)/leases" as never)
+                }
+              />
+            ) : null}
+            {open ? (
+              <View style={state.stage === "action" ? null : styles.soleAct}>
+                <QuietAct icon="close-outline" label="Withdraw" onPress={() => setConfirming(true)} />
               </View>
-            ) : (
-              <Button label="Withdraw" variant="quiet" onPress={() => setConfirming(true)} />
-            )
-          ) : null}
-        </View>
+            ) : null}
+          </ActionBar>
+        )
       ) : null}
     </View>
   );
@@ -277,49 +239,106 @@ export default function ApplicationRecordScreen() {
  */
 function RecordSkeleton() {
   return (
-    <View
-      accessibilityRole="progressbar"
-      accessibilityLabel="Loading this application"
-      style={{ flex: 1, opacity: 0.75 }}
-    >
-      <View style={{ height: 170, backgroundColor: theme.color.field["100"] }} />
-      <View style={{ padding: space[5], gap: space[4] }}>
-        <View style={{ width: "76%", height: 26, borderRadius: 6, backgroundColor: theme.color.field["200"] }} />
-        <View style={{ width: "52%", height: 12, borderRadius: 4, backgroundColor: theme.color.field["100"] }} />
-        <View style={{ height: 1, backgroundColor: theme.color.field["200"] }} />
-        {[0, 1, 2].map((key) => (
-          <View key={key} style={{ flexDirection: "row", gap: space[3], alignItems: "center" }}>
-            <View style={{ width: 18, height: 18, borderRadius: 9, backgroundColor: theme.color.field["200"] }} />
-            <View style={{ flex: 1, height: 12, borderRadius: 4, backgroundColor: theme.color.field["100"] }} />
-          </View>
-        ))}
+    <View accessibilityRole="progressbar" accessibilityLabel="Loading this application" style={styles.screen}>
+      <View style={[styles.hero, { height: 170 }]} />
+      <View style={[styles.body, styles.skeletonBody]}>
+        <Bone width="76%" height={20} />
+        <Bone width="52%" />
+        <RecordPanel style={styles.standingPanel}>
+          <Bone width="58%" height={14} />
+          <Bone width="40%" />
+        </RecordPanel>
+        <RecordPanel style={styles.timelinePanel}>
+          {[0, 1, 2].map((key) => (
+            <View key={key} style={styles.skeletonStep}>
+              <Bone width={18} height={18} round={9} />
+              <Bone width="62%" />
+            </View>
+          ))}
+        </RecordPanel>
       </View>
-    </View>
-  );
-}
-
-function Fact({ label, value }: { label: string; value: string }) {
-  return (
-    <View
-      style={{
-        minHeight: 36,
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "space-between",
-        gap: space[4],
-      }}
-    >
-      <Type variant="caption">{label}</Type>
-      <Type variant="bodyStrong" style={{ flexShrink: 1, textAlign: "right" }}>{value}</Type>
     </View>
   );
 }
 
 function onDate(value: string): string {
   const iso = value.length === 10 ? `${value}T12:00:00` : value;
-  return new Date(iso).toLocaleDateString("en-GH", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
+  return new Date(iso).toLocaleDateString("en-GH", { day: "numeric", month: "short", year: "numeric" });
 }
+
+const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+  },
+  page: {
+    paddingBottom: space[8],
+  },
+  hero: {
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+    backgroundColor: theme.color.field["100"],
+  },
+  heroImage: {
+    width: "100%",
+    height: "100%",
+  },
+  body: {
+    padding: space[4],
+    gap: space[4],
+  },
+  skeletonBody: {
+    gap: space[3],
+  },
+  identity: {
+    gap: 2,
+    paddingHorizontal: 2,
+  },
+  headline: {
+    fontSize: 19,
+    lineHeight: 25,
+  },
+  place: {
+    fontSize: 12.5,
+    lineHeight: 17,
+    color: MUTED,
+  },
+  standingPanel: {
+    gap: space[2],
+    padding: space[4],
+  },
+  dates: {
+    fontSize: 12.5,
+    lineHeight: 17,
+    color: MUTED,
+  },
+  section: {
+    gap: space[2],
+  },
+  timelinePanel: {
+    padding: space[4],
+  },
+  disclosure: {
+    minHeight: 52,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: space[3],
+    paddingHorizontal: 14,
+  },
+  disclosureLabel: {
+    fontSize: 15,
+    lineHeight: 20,
+    color: KOLA_DEEP,
+  },
+  soleAct: {
+    flex: 1,
+    alignItems: "center",
+  },
+  skeletonStep: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space[3],
+    paddingVertical: space[2],
+  },
+});

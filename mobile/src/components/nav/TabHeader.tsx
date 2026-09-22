@@ -3,6 +3,7 @@ import { getHeaderTitle } from "@react-navigation/elements";
 import { StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { HeaderChromeBackground } from "@/components/nav/HeaderChromeBackground";
 import { space } from "@/components/ui";
 import { safeHeaderTop } from "@/platform";
 import { shell } from "@/shell";
@@ -52,7 +53,11 @@ export function TabHeader({
   if (!customTitle && !title && !left && !right) {
     // A breath under the status bar, so a page that names itself does not start
     // against the clock.
-    return <View style={{ height: topInset + space[2], backgroundColor: shell.chrome }} />;
+    return (
+      <View style={{ height: topInset + space[2], backgroundColor: shell.chrome }}>
+        <HeaderChromeBackground />
+      </View>
+    );
   }
 
   return (
@@ -64,6 +69,7 @@ export function TabHeader({
         backgroundColor: shell.chrome,
       }}
     >
+      <HeaderChromeBackground />
       <View
         style={[
           styles.row,

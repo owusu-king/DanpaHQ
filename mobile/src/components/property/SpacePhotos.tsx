@@ -16,7 +16,8 @@ import { useCallback, useEffect, useState } from "react";
 import { Image, View } from "react-native";
 
 import { ApiFailure } from "@/api";
-import { Button, Notice, Surface, Type, space } from "@/components/ui";
+import { Pill, QuietAct } from "@/components/record/RecordSurfaces";
+import { Notice, Surface, Type, space } from "@/components/ui";
 import {
   attachUnitPhoto,
   listUnitPhotos,
@@ -155,29 +156,39 @@ export function SpacePhotos({
             {slot ? <Type variant="caption">{slot.why}</Type> : null}
           </View>
 
+          {/* A slot's controls belong to the slot, so they are quiet words
+              beside it — an action bar per photograph would be a page of
+              things all asking to be pressed. Adding is the one act, so it
+              keeps a pill; the rest are words. */}
           {!editable ? null : photo ? (
-            <View style={{ gap: space[2] }}>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: space[4] }}>
               {photo.is_primary ? null : (
-                <Button
-                  label="Make it the first image"
-                  variant="secondary"
+                <QuietAct
+                  label="Make it first"
+                  icon="star-outline"
+                  accessibilityLabel="Make it the first image"
                   onPress={() => void act(() => setPrimaryUnitPhoto(unitId, photo.id))}
                 />
               )}
-              <Button
-                label="Remove this photo"
-                variant="quiet"
+              <QuietAct
+                label="Remove"
+                icon="trash-outline"
+                accessibilityLabel="Remove this photo"
                 onPress={() => void act(() => removeUnitPhoto(unitId, photo.id))}
               />
             </View>
           ) : (
-            <Button
-              label={busySlot === slot?.key ? "Adding…" : "Add photo"}
-              variant="secondary"
-              busy={busySlot === slot?.key}
-              disabled={Boolean(busySlot)}
-              onPress={() => void add(slot?.key ?? "")}
-            />
+            <View style={{ flexDirection: "row" }}>
+              <Pill
+                label="Add photo"
+                icon="camera-outline"
+                tone="quiet"
+                busy={busySlot === slot?.key}
+                busyLabel="Adding"
+                disabled={Boolean(busySlot)}
+                onPress={() => void add(slot?.key ?? "")}
+              />
+            </View>
           )}
         </Surface>
       ))}

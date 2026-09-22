@@ -1,19 +1,29 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { FlatList, Pressable, View } from "react-native";
+import { FlatList, StyleSheet, View } from "react-native";
 import { useCallback, useEffect, useState } from "react";
 
 import { ApiFailure } from "@/api";
+import { Bone } from "@/components/billing/BillingParts";
+import {
+  ActionBar,
+  EDGE,
+  Fact,
+  Footnote,
+  GroupLabel,
+  INK,
+  Lead,
+  LinkRow,
+  Pill,
+  RecordPanel,
+  StandingLine,
+  type RecordTone,
+} from "@/components/record/RecordSurfaces";
+import { BottomSheet } from "@/components/sheet/BottomSheet";
 import { Button, Field, Notice, Type, space } from "@/components/ui";
 import { PropertyLifecycle, PropertyMore } from "@/components/property/PropertyLifecycle";
-import {
-  Disclosure,
-  EntityHeader,
-  LoadingRows,
-  StatusLine,
-  propertyStatus,
-} from "@/components/property/WorkspacePatterns";
+import { propertyStatus } from "@/components/property/WorkspacePatterns";
 import { UNIT_COLUMNS, UNIT_TILE_GAP, UnitTile } from "@/components/property/UnitTile";
-import { pressableFeedback } from "@/platform";
+import { useSafeBottom } from "@/platform";
 import { describePropertySetup, toSetupInput } from "@/propertySetup";
 import {
   createBuilding,
@@ -26,10 +36,23 @@ import {
   type SpaceAmenity,
   type Unit,
 } from "@/provider";
-import { theme } from "@/theme";
 import { getVerification, type VerificationProgress } from "@/verification";
 
+type Sheet = "information" | "amenities" | "buildings" | "more";
+
+/**
+ * One Property: what is inside it, and how much of it is let.
+ *
+ * Refined on review (2026-09-22) onto the record surfaces. It carried a tab bar
+ * of its own — Units and Details — inside a pushed detail screen, which nothing
+ * else in the app does and which hid half the record behind a control people
+ * do not expect to find there. The Property *is* its Units, so they are the
+ * page; everything that is reference rather than work — the address and
+ * services, the shared amenities, the blocks, the verification trail — opens
+ * from a row instead of competing with them.
+ */
 export default function ProviderPropertyScreen() {
+  const pageBottom = useSafeBottom(space[8]);
   const { propertyId, created: cameFromCreation } = useLocalSearchParams<{
     propertyId: string;
     created?: string;
@@ -45,7 +68,7 @@ export default function ProviderPropertyScreen() {
   const [amenities, setAmenities] = useState<SpaceAmenity[] | null>(null);
   const [error, setError] = useState("");
   const [addingBuilding, setAddingBuilding] = useState(false);
-  const [section, setSection] = useState<"units" | "details">("units");
+  const [sheet, setSheet] = useState<Sheet | null>(null);
 
   const load = useCallback(async () => {
     if (!propertyId) return;
@@ -71,235 +94,249 @@ export default function ProviderPropertyScreen() {
     }
   }, [propertyId]);
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  useEffect(() => { void load(); }, [load]);
 
-  const steps = property
-    ? describePropertySetup(
-        toSetupInput(
-          property,
-          photos,
-          amenities !== null && property.amenities_confirmed_at ? amenities.length : null,
-        ),
-      )
-    : [];
+  if (!property) {
+    return (
+      <View style={styles.page}>
+        {error ? <Notice tone="error" title={error} body="Return to Properties and try again." /> : <PropertySkeleton />}
+      </View>
+    );
+  }
+
+  const steps = describePropertySetup(
+    toSetupInput(property, photos, amenities !== null && property.amenities_confirmed_at ? amenities.length : null),
+  );
   // A property above its Portfolio's plan allowance takes no new units. The API
   // refuses regardless; this only stops offering what it would refuse.
-  const access = property?.billing_access;
+  const access = property.billing_access;
   const restricted = Boolean(access && access.state !== "full");
-  const canAddUnit = (property?.capabilities.private_inventory?.allowed ?? false) && !restricted;
-  const status = property ? propertyStatus(property.verification) : null;
-  const fullAddress = property
-    ? [
-        property.address.house_number,
-        property.address.street,
-        property.address.locality_name,
-        property.address.district_name,
-      ].filter(Boolean).join(", ")
-    : "";
-
-  return (
-    <FlatList
-      data={property && section === "units" ? units : []}
-      keyExtractor={(unit) => unit.id}
-      numColumns={UNIT_COLUMNS}
-      columnWrapperStyle={{ gap: UNIT_TILE_GAP }}
-      renderItem={({ item }) => (
-        <UnitTile
-          unit={item}
-          // Inside a Property the building is a given — what kind of space it
-          // is and how big is what tells one Unit from the next.
-          meta={`${item.space_type_label} · ${item.bedrooms === 0 ? "Single room" : `${item.bedrooms} bed${item.bedrooms === 1 ? "" : "s"}`}`}
-          onOpen={() => router.push({ pathname: "/(app)/space", params: { unitId: item.id } })}
-        />
-      )}
-      contentContainerStyle={{ padding: space[5], paddingBottom: space[12], gap: UNIT_TILE_GAP }}
-      keyboardShouldPersistTaps="handled"
-      ListHeaderComponent={(
-        <View style={{ gap: space[5] }}>
-          {error ? <Notice tone="error" title={error} body={property ? "Some information may be out of date. Try again." : "Return to Properties and try again."} /> : null}
-          {justCreated ? (
-            <Notice
-              tone="success"
-              title="Property created"
-              body="It is private in your Portfolio. Finish its setup, then submit it for verification when you are ready."
-            />
-          ) : null}
-          {property ? (
-            <EntityHeader
-              eyebrow={propertyTypeLabel(property.property_type)}
-              title={property.title || "Untitled Property"}
-              subtitle={fullAddress || `${property.address.locality_name}, ${property.address.district_name}`}
-              status={status ? <StatusLine label={status.label} tone={status.tone} /> : undefined}
-            />
-          ) : null}
-          {access && restricted ? (
-            <Notice
-              tone={access.state === "wind_down" ? "warning" : "info"}
-              title={access.state === "wind_down" ? "Winding down on your current plan" : "Read-only on your current plan"}
-              body={`${access.message} Manage this in More → Plan & billing.`}
-            />
-          ) : null}
-          {property ? <PropertyLifecycle property={property} steps={steps} onChanged={load} compact /> : null}
-          {property ? <PropertyTabs selected={section} onSelect={setSection} /> : null}
-          {property && section === "units" ? (
-            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: space[3], paddingBottom: space[2], borderBottomWidth: units.length ? 1 : 0, borderBottomColor: theme.color.field["200"] }}>
-              <View style={{ flex: 1, gap: space[1] }}>
-                <Type variant="title2" accessibilityRole="header">Units</Type>
-                <Type variant="caption">{units.length} {units.length === 1 ? "rentable space" : "rentable spaces"}</Type>
-              </View>
-              {canAddUnit ? (
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Add Unit"
-                  onPress={() => router.push({ pathname: "/(app)/space-new", params: { propertyId: property.id } })}
-                  {...pressableFeedback(theme.color.field["200"])}
-                  style={{ minHeight: 48, justifyContent: "center" }}
-                >
-                  <Type variant="bodyStrong" style={{ color: theme.color.kola["600"] }}>Add Unit</Type>
-                </Pressable>
-              ) : null}
-            </View>
-          ) : null}
-        </View>
-      )}
-      ListEmptyComponent={
-        !property ? (
-          error ? null : <LoadingRows rows={5} />
-        ) : section === "units" ? (
-          <View style={{ paddingVertical: space[8], gap: space[2], alignItems: "center" }}>
-            <Type variant="bodyStrong">No Units yet</Type>
-            <Type variant="caption" style={{ textAlign: "center" }}>Add the room, apartment, shop or other space a tenant can rent.</Type>
-          </View>
-        ) : (
-          <PropertyDetails
-            property={property}
-            fullAddress={fullAddress}
-            amenities={amenities}
-            buildings={buildings}
-            addingBuilding={addingBuilding}
-            onAddBuilding={() => setAddingBuilding(true)}
-            onBuildingDone={async () => { setAddingBuilding(false); await load(); }}
-          />
-        )
-      }
-      ListFooterComponent={property && section === "units" && units.length ? (
-        <Pressable
-          accessibilityRole="link"
-          onPress={() => router.push("/(app)/(provider-tabs)/tenants" as never)}
-          {...pressableFeedback(theme.color.field["200"])}
-          style={{ minHeight: 56, justifyContent: "center", marginTop: space[3] }}
-        >
-          <Type variant="bodyStrong" style={{ color: theme.color.kola["600"] }}>Manage tenant access and tenancies →</Type>
-        </Pressable>
-      ) : null}
-    />
-  );
-}
-
-function PropertyTabs({
-  selected,
-  onSelect,
-}: {
-  selected: "units" | "details";
-  onSelect: (section: "units" | "details") => void;
-}) {
-  return (
-    <View accessibilityRole="tablist" style={{ flexDirection: "row", gap: space[2] }}>
-      <PropertyTab label="Units" selected={selected === "units"} onPress={() => onSelect("units")} />
-      <PropertyTab label="Details" selected={selected === "details"} onPress={() => onSelect("details")} />
-    </View>
-  );
-}
-
-function PropertyTab({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
-  return (
-    <Pressable
-      accessibilityRole="tab"
-      accessibilityState={{ selected }}
-      onPress={onPress}
-      {...pressableFeedback(theme.color.field["200"])}
-      style={({ pressed }) => ({
-        minHeight: 48,
-        flex: 1,
-        alignItems: "center",
-        justifyContent: "center",
-        borderRadius: 8,
-        borderWidth: 1,
-        borderColor: selected ? theme.color.kola["600"] : theme.color.field["300"],
-        backgroundColor: selected ? theme.color.kola["50"] : theme.color.field["0"],
-        opacity: pressed ? 0.72 : 1,
-      })}
-    >
-      <Type variant="bodyStrong" style={{ color: selected ? theme.color.kola["600"] : theme.color.ink["700"] }}>{label}</Type>
-    </Pressable>
-  );
-}
-
-function PropertyDetails({
-  property,
-  fullAddress,
-  amenities,
-  buildings,
-  addingBuilding,
-  onAddBuilding,
-  onBuildingDone,
-}: {
-  property: Property;
-  fullAddress: string;
-  amenities: SpaceAmenity[] | null;
-  buildings: Building[];
-  addingBuilding: boolean;
-  onAddBuilding: () => void;
-  onBuildingDone: () => Promise<void>;
-}) {
-  const router = useRouter();
+  const canAddUnit = (property.capabilities.private_inventory?.allowed ?? false) && !restricted;
   const canEdit = property.permitted_actions.edit?.allowed ?? false;
+  const status = propertyStatus(property.verification);
+  const tone: RecordTone = status.tone === "good" ? "good"
+    : status.tone === "attention" ? "alert"
+    : status.tone === "waiting" ? "waiting" : "quiet";
+  const fullAddress = [
+    property.address.house_number,
+    property.address.street,
+    property.address.locality_name,
+    property.address.district_name,
+  ].filter(Boolean).join(", ");
+
+  const occupied = units.filter((unit) => unit.availability.state === "occupied").length;
+  const vacant = units.length - occupied;
+  const addUnit = () => router.push({ pathname: "/(app)/space-new", params: { propertyId: property.id } });
+
   return (
-    <View style={{ paddingTop: space[2] }}>
-      <Type variant="title2" accessibilityRole="header" style={{ marginBottom: space[3] }}>About this Property</Type>
-      <Disclosure title="Property information" initiallyOpen>
-        <Fact label="Type" value={propertyTypeLabel(property.property_type)} />
-        <Fact label="Address" value={fullAddress || `${property.address.locality_name}, ${property.address.district_name}`} />
-        {property.address.digital_address ? <Fact label="Digital address" value={property.address.digital_address} mono /> : null}
-        {property.address.landmark ? <Fact label="Landmark" value={property.address.landmark} /> : null}
-        <Fact label="Water" value={valueLabel(property.water_source)} />
-        <Fact label="Power meter" value={valueLabel(property.power_meter_type)} />
-        <Fact label="Compound" value={valueLabel(property.compound_type)} />
-        <Fact label="Security" value={property.has_security ? "Security recorded" : "Not recorded"} />
-        {canEdit ? <InlineAction label="Edit Property information" onPress={() => router.push({ pathname: "/(app)/property-setup", params: { propertyId: property.id } })} /> : null}
-      </Disclosure>
-      <Disclosure title={`Shared amenities${amenities?.length ? ` (${amenities.length})` : ""}`}>
-        {amenities === null ? <LoadingRows rows={2} /> : amenities.length ? (
-          <Type variant="body">{amenities.map((amenity) => amenity.name).join(" · ")}</Type>
-        ) : <Type variant="caption">No shared amenities recorded.</Type>}
-        {canEdit ? <InlineAction label="Edit shared amenities" onPress={() => router.push({ pathname: "/(app)/property-setup", params: { propertyId: property.id, step: "amenities" } })} /> : null}
-      </Disclosure>
-      <Disclosure title={`Buildings and blocks${buildings.length ? ` (${buildings.length})` : ""}`}>
-        {buildings.length ? buildings.map((building) => <Type key={building.id} variant="bodyStrong">{building.name}{building.code ? ` · ${building.code}` : ""}</Type>) : <Type variant="caption">No separate buildings or blocks.</Type>}
-        {addingBuilding ? <BuildingForm property={property} onDone={onBuildingDone} /> : <Button label="Add building or block" variant="secondary" onPress={onAddBuilding} />}
-      </Disclosure>
-      <PropertyMore property={property} />
+    <View style={styles.screen}>
+      <FlatList
+        data={units}
+        keyExtractor={(unit) => unit.id}
+        numColumns={UNIT_COLUMNS}
+        columnWrapperStyle={{ gap: UNIT_TILE_GAP }}
+        contentContainerStyle={[styles.page, { paddingBottom: canAddUnit ? space[6] : pageBottom }]}
+        keyboardShouldPersistTaps="handled"
+        renderItem={({ item }) => (
+          <UnitTile
+            unit={item}
+            // Inside a Property the building is a given — what kind of space it
+            // is and how big is what tells one Unit from the next.
+            meta={`${item.space_type_label} · ${item.bedrooms === 0 ? "Single room" : `${item.bedrooms} bed${item.bedrooms === 1 ? "" : "s"}`}`}
+            onOpen={() => router.push({ pathname: "/(app)/space", params: { unitId: item.id } })}
+          />
+        )}
+        ListHeaderComponent={
+          <View style={styles.head}>
+            {error ? <Notice tone="error" title={error} body="Some information may be out of date. Try again." /> : null}
+            {justCreated ? (
+              <Notice
+                tone="success"
+                title="Property created"
+                body="It is private in your Portfolio. Finish its setup, then submit it for verification when you are ready."
+              />
+            ) : null}
+
+            <View style={styles.identity}>
+              <Type variant="title2" accessibilityRole="header" numberOfLines={2} style={styles.who}>
+                {property.title || "Untitled Property"}
+              </Type>
+              <Type variant="caption" numberOfLines={2} style={styles.where}>
+                {fullAddress || `${property.address.locality_name}, ${property.address.district_name}`}
+              </Type>
+              <StandingLine tone={tone} line={status.label} />
+            </View>
+
+            <RecordPanel>
+              <Lead
+                label="Let"
+                value={units.length ? `${occupied}/${units.length}` : "No Units yet"}
+                note={units.length
+                  ? (vacant ? `${vacant} still to let` : "Every Unit is let")
+                  : "Add the first space a tenant can rent"}
+                tone={units.length && vacant === 0 ? "good" : units.length ? "waiting" : "quiet"}
+              />
+              <View style={styles.rule} />
+              <Fact first label="Type" value={propertyTypeLabel(property.property_type)} />
+              {buildings.length ? <Fact label="Blocks" value={String(buildings.length)} /> : null}
+            </RecordPanel>
+
+            {access && restricted ? (
+              <Notice
+                tone={access.state === "wind_down" ? "warning" : "info"}
+                title={access.state === "wind_down" ? "Winding down on your current plan" : "Read-only on your current plan"}
+                body={`${access.message} Manage this in More → Plan & billing.`}
+              />
+            ) : null}
+
+            <PropertyLifecycle property={property} steps={steps} onChanged={load} compact />
+
+            <View style={styles.section}>
+              <GroupLabel>About this Property</GroupLabel>
+              <RecordPanel>
+                <LinkRow
+                  first
+                  icon="document-text-outline"
+                  label="Property information"
+                  detail="Address, water, power and security"
+                  onPress={() => setSheet("information")}
+                />
+                <LinkRow
+                  icon="sparkles-outline"
+                  label="Shared amenities"
+                  detail={amenities === null ? "Loading…" : amenities.length ? amenities.map((row) => row.name).join(" · ") : "None recorded"}
+                  onPress={() => setSheet("amenities")}
+                />
+                <LinkRow
+                  icon="layers-outline"
+                  label="Buildings and blocks"
+                  detail={buildings.length ? buildings.map((row) => row.name).join(" · ") : "No separate blocks"}
+                  onPress={() => setSheet("buildings")}
+                />
+                <LinkRow
+                  icon="shield-checkmark-outline"
+                  label="Verification and records"
+                  detail={property.verification.review_state_label}
+                  onPress={() => setSheet("more")}
+                />
+              </RecordPanel>
+            </View>
+
+            <View style={styles.section}>
+              <GroupLabel>{units.length ? `Units · ${units.length}` : "Units"}</GroupLabel>
+            </View>
+          </View>
+        }
+        ListEmptyComponent={
+          <RecordPanel>
+            <Fact
+              wide
+              first
+              label="No Units yet"
+              value="Add the room, apartment, shop or other space a tenant can rent."
+            />
+          </RecordPanel>
+        }
+        ListFooterComponent={
+          <View style={styles.foot}>
+            <RecordPanel>
+              <LinkRow
+                first
+                icon="people-outline"
+                label="Tenant access and tenancies"
+                detail="Requests, agreements and who lives here"
+                onPress={() => router.push("/(app)/(provider-tabs)/tenants" as never)}
+              />
+            </RecordPanel>
+            {canEdit ? null : <Footnote>This Property is read-only for your role.</Footnote>}
+          </View>
+        }
+      />
+
+      {canAddUnit ? (
+        <ActionBar>
+          <Pill label="Add Unit" icon="add" grow onPress={addUnit} />
+        </ActionBar>
+      ) : null}
+
+      <BottomSheet
+        visible={sheet !== null}
+        onClose={() => { setSheet(null); setAddingBuilding(false); }}
+        title={sheetTitle(sheet)}
+        closeLabel="Close"
+      >
+        {sheet === "information" ? (
+          <View style={styles.sheetBody}>
+            <RecordPanel>
+              <Fact first label="Type" value={propertyTypeLabel(property.property_type)} />
+              <Fact wide label="Address" value={fullAddress || `${property.address.locality_name}, ${property.address.district_name}`} />
+              {property.address.digital_address ? <Fact label="Digital address" value={property.address.digital_address} /> : null}
+              {property.address.landmark ? <Fact wide label="Landmark" value={property.address.landmark} /> : null}
+              <Fact label="Water" value={valueLabel(property.water_source)} />
+              <Fact label="Power meter" value={valueLabel(property.power_meter_type)} />
+              <Fact label="Compound" value={valueLabel(property.compound_type)} />
+              <Fact label="Security" value={property.has_security ? "Recorded" : "Not recorded"} />
+            </RecordPanel>
+            {canEdit ? (
+              <Button
+                label="Edit Property information"
+                variant="secondary"
+                onPress={() => { setSheet(null); router.push({ pathname: "/(app)/property-setup", params: { propertyId: property.id } }); }}
+              />
+            ) : null}
+          </View>
+        ) : sheet === "amenities" ? (
+          <View style={styles.sheetBody}>
+            <RecordPanel>
+              {amenities === null ? (
+                <Fact wide first label="Shared amenities" value="Loading…" />
+              ) : amenities.length ? (
+                amenities.map((amenity, index) => (
+                  <Fact key={amenity.id} first={index === 0} wide label={amenity.category || "Amenity"} value={amenity.name} />
+                ))
+              ) : (
+                <Fact wide first label="None recorded" value="Amenities shared across the whole Property are listed here." />
+              )}
+            </RecordPanel>
+            {canEdit ? (
+              <Button
+                label="Edit shared amenities"
+                variant="secondary"
+                onPress={() => { setSheet(null); router.push({ pathname: "/(app)/property-setup", params: { propertyId: property.id, step: "amenities" } }); }}
+              />
+            ) : null}
+          </View>
+        ) : sheet === "buildings" ? (
+          <View style={styles.sheetBody}>
+            <RecordPanel>
+              {buildings.length ? buildings.map((building, index) => (
+                <Fact key={building.id} first={index === 0} label={building.name} value={building.code || "No code"} />
+              )) : (
+                <Fact wide first label="No separate blocks" value="A block is a building within the Property, when it has more than one." />
+              )}
+            </RecordPanel>
+            {addingBuilding ? (
+              <BuildingForm property={property} onDone={async () => { setAddingBuilding(false); await load(); }} />
+            ) : (
+              <Button label="Add building or block" variant="secondary" onPress={() => setAddingBuilding(true)} />
+            )}
+          </View>
+        ) : sheet === "more" ? (
+          <View style={styles.sheetBody}>
+            <PropertyMore property={property} />
+          </View>
+        ) : null}
+      </BottomSheet>
     </View>
   );
 }
 
-function InlineAction({ label, onPress }: { label: string; onPress: () => void }) {
-  return (
-    <Pressable accessibilityRole="link" onPress={onPress} {...pressableFeedback(theme.color.field["200"])} style={{ minHeight: 48, justifyContent: "center" }}>
-      <Type variant="bodyStrong" style={{ color: theme.color.kola["600"] }}>{label} →</Type>
-    </Pressable>
-  );
-}
-
-function Fact({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
-  return (
-    <View style={{ minHeight: 40, flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: space[4] }}>
-      <Type variant="caption">{label}</Type>
-      <Type variant={mono ? "mono" : "bodyStrong"} style={{ flex: 1, textAlign: "right" }}>{value}</Type>
-    </View>
-  );
+function sheetTitle(sheet: Sheet | null) {
+  if (sheet === "information") return "Property information";
+  if (sheet === "amenities") return "Shared amenities";
+  if (sheet === "buildings") return "Buildings and blocks";
+  if (sheet === "more") return "Verification and records";
+  return "";
 }
 
 function valueLabel(value: string): string {
@@ -337,3 +374,67 @@ function BuildingForm({ property, onDone }: { property: Property; onDone: () => 
     </View>
   );
 }
+
+/** Shaped like the Property, so nothing jumps when it arrives. */
+function PropertySkeleton() {
+  return (
+    <View accessible accessibilityRole="progressbar" accessibilityLabel="Loading this Property" style={{ gap: space[4] }}>
+      <Bone width="62%" height={22} />
+      <Bone width="44%" />
+      <RecordPanel style={styles.skeletonPanel}>
+        <Bone width="30%" height={12} />
+        <Bone width="52%" height={26} />
+      </RecordPanel>
+      <Bone width="40%" height={12} />
+      <View style={{ flexDirection: "row", gap: UNIT_TILE_GAP }}>
+        <Bone height={190} />
+        <Bone height={190} />
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+  },
+  page: {
+    padding: space[4],
+    gap: UNIT_TILE_GAP,
+  },
+  head: {
+    gap: space[4],
+    marginBottom: space[1],
+  },
+  identity: {
+    gap: space[2],
+    paddingHorizontal: 2,
+  },
+  who: {
+    fontSize: 19,
+    lineHeight: 25,
+    color: INK,
+  },
+  where: {
+    paddingHorizontal: 1,
+  },
+  rule: {
+    height: StyleSheet.hairlineWidth,
+    marginHorizontal: space[4],
+    backgroundColor: EDGE,
+  },
+  section: {
+    gap: space[2],
+  },
+  foot: {
+    gap: space[3],
+    marginTop: space[4],
+  },
+  sheetBody: {
+    gap: space[4],
+  },
+  skeletonPanel: {
+    gap: space[3],
+    padding: space[4],
+  },
+});

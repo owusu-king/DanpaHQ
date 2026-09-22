@@ -21,6 +21,38 @@ test("dashboard navigation suppresses horizontal scrolling", () => {
   assert.match(managementCss, /\.management-sidebar nav\s*\{[^}]*overflow-x:\s*hidden/s);
 });
 
+test("shared workspaces reclaim desktop width as their sidebars collapse", () => {
+  const portalCss = code(read("web/src/styles/portal.css"));
+  const managementCss = code(read("web/app/globals.css"));
+  const portalMain = portalCss.match(/\.portal-main\s*\{([^}]*)\}/)?.[1] ?? "";
+  const managementMain = managementCss.match(/\.management-main\s*\{([^}]*)\}/)?.[1] ?? "";
+
+  assert.match(portalCss, /\.portal\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\)/s);
+  assert.match(portalCss, /\.portal\s*\{\s*grid-template-columns:\s*auto minmax\(0, 1fr\)/);
+  assert.match(managementCss, /\.management-app\s*\{[^}]*grid-template-columns:\s*auto minmax\(0, 1fr\)/s);
+  for (const main of [portalMain, managementMain]) {
+    assert.match(main, /width:\s*100%/);
+    assert.match(main, /min-width:\s*0/);
+    assert.match(main, /margin(?:-inline)?:\s*(?:0 )?auto/);
+    assert.match(main, /max-width:\s*120rem/);
+  }
+
+  assert.match(portalCss, /padding: var\(--space-8\) clamp\(var\(--space-8\), 4\.5vw, var\(--space-20\)\) var\(--space-16\)/);
+  assert.match(managementMain, /clamp\(1\.5rem, 5vw, 5rem\)/);
+  // The rail, not a page-local width, determines the frame from laptop through
+  // large desktop. The ultra-wide cap is a deliberate readable outer measure.
+  for (const [expanded, collapsed] of [[264, 68], [272, 72]]) {
+    for (const viewport of [1024, 1280, 1440, 1920]) {
+      const width = (rail) => Math.min(viewport - rail, 120 * 16);
+      assert.ok(width(collapsed) > width(expanded), `${viewport}px should gain content width`);
+    }
+  }
+
+  assert.match(read("web/src/styles/home-workspace.css"), /container:\s*provider-home \/ inline-size/);
+  assert.match(read("web/src/styles/units-workspace.css"), /\.units-grid\s*\{[^}]*repeat\(auto-fill/s);
+  assert.match(read("web/src/styles/settings-workspace.css"), /\.settings-panel\s*\{[^}]*max-width:\s*44rem/s);
+});
+
 test("management has a persisted accessible desktop collapse control and icon links", () => {
   const shell = read("web/src/components/management/ManagementShell.tsx");
   const accountMenu = read("web/src/components/management/ManagementAccountMenu.tsx");

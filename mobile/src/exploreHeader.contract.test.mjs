@@ -37,13 +37,13 @@ test("each button opens the tab it names, the way the app already does", () => {
   assert.match(source, /icon="bookmark-outline"[\s\S]{0,80}label="Saved"/);
   assert.match(source, /label="Your profile"/);
 
-  // The same hrefs and the same method Profile -> "Saved places" uses. One
-  // transition should not behave two ways.
-  assert.match(source, /router\.push\("\/\(app\)\/\(tabs\)\/saved" as never\)/);
-  assert.match(source, /router\.push\("\/\(app\)\/\(tabs\)\/profile" as never\)/);
+  // The same hrefs and the same method More -> "Saved places" uses. One
+  // transition should not behave two ways. Saved is a pushed screen now.
+  assert.match(source, /router\.push\("\/\(app\)\/saved" as never\)/);
+  assert.match(source, /router\.push\("\/\(app\)\/profile-edit" as never\)/);
   assert.match(
     read("app/(app)/(tabs)/profile.tsx"),
-    /router\.push\("\/\(app\)\/\(tabs\)\/saved" as never\)/,
+    /router\.push\("\/\(app\)\/saved" as never\)/,
   );
 });
 

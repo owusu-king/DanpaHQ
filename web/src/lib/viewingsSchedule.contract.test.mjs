@@ -91,7 +91,7 @@ test("the machine is not on every row", () => {
     assert.doesNotMatch(body, /viewing\.contact/);
     assert.doesNotMatch(body, /post_viewing\.available/);
     assert.doesNotMatch(body, /can_reschedule|can_cancel|can_withdraw/);
-    assert.doesNotMatch(body, /appointments/);
+    assert.doesNotMatch(body, /viewing\.appointments/);
   }
 });
 
@@ -122,17 +122,16 @@ test("nothing explains how viewings work in general", () => {
   }
 });
 
-test("a substantial viewing record gets a workspace or a dedicated screen", () => {
-  // A viewing can include slot selection, directions, check-in, attendance,
-  // follow-up and lifecycle actions. That is a record, not a quick dialog.
-  for (const source of [webRecord(), webListPage()]) {
-    assert.doesNotMatch(rendered(source), /<main/);
-    assert.doesNotMatch(rendered(source), /<dialog/);
-    assert.doesNotMatch(source, /showModal\(\)/);
-  }
-  // The tenant's record is a page too now, so it is no longer an aside beside
-  // a list. It kept everything it held; only its container changed.
-  assert.match(webRecord(), /className="viewing-record"/);
+test("a substantial tenant viewing has a stable modal and a durable route", () => {
+  // The tenant can inspect the record without losing list context, while the
+  // same full record remains directly addressable for reminders and new tabs.
+  assert.match(webRecord(), /export function ViewingDetailModal/);
+  assert.match(webRecord(), /<dialog/);
+  assert.match(webRecord(), /dialog\.showModal\(\)/);
+  assert.match(webListPage(), /<ViewingDetailModal/);
+  assert.doesNotMatch(rendered(webListPage()), /viewing_directions/);
+
+  assert.match(webRecord(), /className={`viewing-detail/);
   assert.doesNotMatch(webRecord(), /<aside/);
   assert.match(read("web/app/viewings/[viewingId]/page.tsx"), /<ViewingRecord/);
 

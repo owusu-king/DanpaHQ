@@ -1,6 +1,6 @@
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useState } from "react";
-import { RefreshControl, ScrollView, View } from "react-native";
+import { RefreshControl, ScrollView, StyleSheet, View } from "react-native";
 
 import { ApiFailure } from "@/api";
 import {
@@ -13,11 +13,15 @@ import {
   type RestrictedResource,
 } from "@/billing";
 import type { StandingAction } from "@/billingPresentation";
-import { BillingSkeleton } from "@/components/billing/BillingParts";
+import { IndexGround } from "@/components/account/IndexRows";
 import { BillingRecords } from "@/components/billing/BillingRecords";
+import { BillingPageSkeleton } from "@/components/billing/BillingSurfaces";
 import { CurrentPlanCard } from "@/components/billing/CurrentPlanCard";
 import { RestrictedResources } from "@/components/billing/RestrictedResources";
-import { Button, Notice, Type, space } from "@/components/ui";
+import { useHomeDensity } from "@/components/home/plinth";
+import { EmptyState, GroupLabel, InfoNote, KOLA, QuietAction } from "@/components/portfolio/PortfolioList";
+import { Notice, space } from "@/components/ui";
+import { useSafeBottom } from "@/platform";
 import { listOrganizations, type Organization } from "@/organizations";
 
 type Screen =
@@ -32,16 +36,20 @@ type Feedback = { tone: "success" | "error"; title: string; body?: string };
 /**
  * Plan & billing on a phone: one Portfolio's plan, usage and payments to Rooomly.
  *
- * The web page, stacked. The plan and how much of it is in use lead; anything
- * held above the plan's limits comes next, with the way back; how the plan is
- * billed and what has been paid sit quietly under it. Changing plan is its own
- * short journey — choose, review, pay — so the back gesture always means one step.
+ * Refined on review (2026-09-15). The plan leads, in one glass surface with its
+ * usage; anything held above the plan's limits comes next, with the way back; how
+ * the plan is billed and what has been paid follow. Nothing long is laid out at
+ * once — each list shows its latest few and opens the rest in a sheet. Changing
+ * plan is its own short journey — choose, review, pay — so the back gesture
+ * always means one step.
  *
  * Everything shown comes from the server, and is read again whenever this
  * screen comes back into view rather than trusting what a later step sent.
  */
 export default function BillingScreen() {
+  const pageBottom = useSafeBottom(space[12]);
   const router = useRouter();
+  const density = useHomeDensity();
   const [screen, setScreen] = useState<Screen>({ status: "loading" });
   const [refreshing, setRefreshing] = useState(false);
   const [busyAction, setBusyAction] = useState<StandingAction["kind"] | null>(null);
@@ -143,65 +151,85 @@ export default function BillingScreen() {
   const organization = screen.status === "ready" || screen.status === "forbidden" ? screen.organization : null;
 
   return (
-    <ScrollView
-      contentContainerStyle={{ padding: space[5], paddingBottom: space[12], gap: space[6] }}
-      refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={() => {
-            setRefreshing(true);
-            void load();
-          }}
-        />
-      }
-    >
-      {organization ? <Type variant="label">{organization.name.toUpperCase()}</Type> : null}
-      {feedback ? <Notice tone={feedback.tone} title={feedback.title} body={feedback.body} /> : null}
-
-      {screen.status === "loading" ? <BillingSkeleton /> : null}
-
-      {screen.status === "error" ? (
-        <View style={{ gap: space[3] }}>
-          <Notice tone="error" title="Plan & billing didn't load" body={screen.message} />
-          <Button label="Try again" variant="secondary" onPress={() => void load()} />
-        </View>
-      ) : null}
-
-      {screen.status === "forbidden" ? (
-        <Notice
-          tone="info"
-          title="Plan & billing is kept to the Portfolio's owner, administrators and accountants"
-          body="Ask the Portfolio owner if you need to know what this Portfolio is on."
-        />
-      ) : null}
-
-      {screen.status === "empty" ? (
-        <Notice tone="info" title="No Portfolio yet" body="A plan belongs to a Portfolio. Create one and it starts on Free." />
-      ) : null}
-
-      {ready ? (
-        <View style={{ gap: space[8] }}>
-          <CurrentPlanCard
-            billing={ready.billing}
-            catalogue={ready.catalogue}
-            busyAction={busyAction}
-            onChangePlan={() =>
-              router.push({ pathname: "/(app)/billing-plans", params: { organizationId: ready.organization.id } } as never)
-            }
-            onAction={(action) => void act(action)}
+    <IndexGround>
+      <ScrollView
+        contentContainerStyle={{
+          paddingHorizontal: density.pagePadding,
+          paddingTop: density.compact ? space[4] : space[5],
+          paddingBottom: pageBottom,
+          gap: density.sectionGap + space[2],
+        }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            tintColor={KOLA}
+            onRefresh={() => {
+              setRefreshing(true);
+              void load();
+            }}
           />
-          <RestrictedResources
-            billing={ready.billing}
-            busyId={reactivating}
-            onReactivate={(resource) => void reactivate(resource)}
+        }
+      >
+        {organization ? <GroupLabel>{organization.name}</GroupLabel> : null}
+        {feedback ? <Notice tone={feedback.tone} title={feedback.title} body={feedback.body} /> : null}
+
+        {screen.status === "loading" ? <BillingPageSkeleton /> : null}
+
+        {screen.status === "error" ? (
+          <View style={styles.error}>
+            <Notice tone="error" title="Plan & billing didn't load" body={screen.message} />
+            <QuietAction icon="refresh" label="Try again" onPress={() => void load()} />
+          </View>
+        ) : null}
+
+        {screen.status === "forbidden" ? (
+          <InfoNote
+            tone="lagoon"
+            icon="lock-closed-outline"
+            title="Plan & billing is kept to the Portfolio's owner, administrators and accountants"
+            body="Ask the Portfolio owner if you need to know what this Portfolio is on."
           />
-          <BillingRecords
-            billing={ready.billing}
-            catalogue={ready.catalogue}
-            onPayEarly={() => void act({ kind: "renew", label: "" })}
+        ) : null}
+
+        {screen.status === "empty" ? (
+          <EmptyState
+            hero
+            icon="briefcase-outline"
+            title="No Portfolio yet"
+            hint="A plan belongs to a Portfolio. Create one and it starts on Free."
           />
-        </View>
-      ) : null}
-    </ScrollView>
+        ) : null}
+
+        {ready ? (
+          <>
+            <CurrentPlanCard
+              billing={ready.billing}
+              catalogue={ready.catalogue}
+              busyAction={busyAction}
+              onChangePlan={() =>
+                router.push({ pathname: "/(app)/billing-plans", params: { organizationId: ready.organization.id } } as never)
+              }
+              onAction={(action) => void act(action)}
+            />
+            <RestrictedResources
+              billing={ready.billing}
+              busyId={reactivating}
+              onReactivate={(resource) => void reactivate(resource)}
+            />
+            <BillingRecords
+              billing={ready.billing}
+              catalogue={ready.catalogue}
+              onPayEarly={() => void act({ kind: "renew", label: "" })}
+            />
+          </>
+        ) : null}
+      </ScrollView>
+    </IndexGround>
   );
 }
+
+const styles = StyleSheet.create({
+  error: {
+    gap: space[3],
+  },
+});

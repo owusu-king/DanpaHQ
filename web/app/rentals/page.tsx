@@ -3,7 +3,6 @@
 import { Suspense } from "react";
 
 import { ListingBrowser } from "@/components/listings/ListingBrowser";
-import { PageHeader } from "@/components/portal/PageHeader";
 import { Reveal } from "@/components/motion/Reveal";
 import { useSession } from "@/lib/session";
 
@@ -30,10 +29,6 @@ export default function RentalsPage() {
   if (state.status === "signed_in") {
     return (
       <>
-        <PageHeader
-          title="Explore"
-          description="Every active listing comes from an approved property relationship."
-        />
         <Suspense fallback={<ExploreFallback />}>
           <ListingBrowser />
         </Suspense>

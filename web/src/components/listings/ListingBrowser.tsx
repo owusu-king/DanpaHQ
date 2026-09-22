@@ -40,6 +40,7 @@ import { useSession } from "@/lib/session";
 import { useToast } from "@/components/toast/Toaster";
 import { Switch } from "@/components/Check";
 import { Icon } from "@/components/portal/icons";
+import { PageHeader } from "@/components/portal/PageHeader";
 
 /**
  * One listing experience, hosted by two chromes.
@@ -181,9 +182,8 @@ export function ListingBrowser() {
     requestAnimationFrame(() => window.scrollTo({ top: Number(stored), behavior: "auto" }));
   }, [listings]);
 
-  // The search sticks under the header once it is scrolled past, and stuck, it
-  // sits on a band of the page's ground. The line it measures against is where
-  // the search would be if it scrolled away with the page.
+  // Public discovery keeps its controls in reach. In the portal, the complete
+  // introduction is the sticky unit, so its title and controls never separate.
   useEffect(() => {
     const stick = stickRef.current;
     const line = stickLine.current;
@@ -328,9 +328,7 @@ export function ListingBrowser() {
 
   const filterCount = refinementCount(query);
 
-  const resultCount = listings === null ? "" : `${listings.length}${next ? "+" : ""}`;
-  const resultWord = listings?.length === 1 && !next ? "rental" : "rentals";
-  const showLabel = listings === null || querying ? "Updating rentals…" : `Show ${resultCount} ${resultWord}`;
+  const showLabel = listings === null || querying ? "Updating rentals..." : "Show rentals";
 
   function changePropertyType(value: string) {
     const allowed = propertyTypes.find((type) => type.value === value)?.space_types ?? [];
@@ -448,6 +446,10 @@ export function ListingBrowser() {
             <span className="explore-filters-label">Filters</span>
             {filterCount ? <span className="explore-filter-count" aria-hidden="true">{filterCount}</span> : null}
           </button>
+          <button type="button" className="explore-map-toggle" onClick={mapView ? showList : showMap}>
+            <Icon name={mapView ? "listings" : "map"} />
+          <span>{mapView ? "List" : "Map"}</span>
+          </button>
         </div>
 
         {advancedOpen ? (
@@ -546,17 +548,14 @@ export function ListingBrowser() {
           </>
         ) : null}
 
-        <div className="explore-feedback">
-          <p className="explore-count" aria-live="polite">
-            {listings === null || querying ? (
-              <>
-                <span className="explore-count-spinner" aria-hidden="true" />
-                {listings === null ? "Finding rentals…" : "Updating results…"}
-              </>
-            ) : (
-              <span><strong>{resultCount}</strong> {resultWord}</span>
-            )}
-          </p>
+      </div>
+    );
+  }
+
+  function resultsFeedback(): ReactNode {
+    if (!query.bbox && !filterCount) return null;
+    return (
+      <div className="explore-feedback">
           {/* An area drawn on the map narrows the list too, so both views show
               it. It is where, not a filter: Clear all leaves it, and this chip
               is its one way back. */}
@@ -578,16 +577,6 @@ export function ListingBrowser() {
               onClick={() => { clearFilters(); advancedTrigger.current?.focus(); }}
             >Clear all</button>
           ) : null}
-          {/* Named for where it goes. On a phone the floating switch does this. */}
-          <button
-            type="button"
-            className="explore-map-toggle"
-            onClick={mapView ? showList : showMap}
-          >
-            <Icon name={mapView ? "listings" : "map"} />
-            <span>{mapView ? "List" : "Map"}</span>
-          </button>
-        </div>
       </div>
     );
   }
@@ -595,13 +584,24 @@ export function ListingBrowser() {
   const notices = error ? <Notice tone="error" title={error} /> : null;
 
   return (
-    <div className="explore" ref={exploreRef}>
-      {/* Where the search would be if it scrolled away: once this line passes
-          under the header, the search is stuck. */}
+    <div className={`explore${signedIn ? " explore-portal" : ""}`} ref={exploreRef}>
+      {/* Where discovery would be if it scrolled away: once this line passes
+          under the global header, the appropriate discovery surface is stuck. */}
       <div ref={stickLine} className="explore-stick-line" aria-hidden="true" />
-      <div ref={stickRef} className={`explore-stick${stuck ? " is-stuck" : ""}`}>
-        {discovery()}
-      </div>
+      {signedIn ? (
+        <section ref={stickRef} className={`explore-portal-intro${stuck ? " is-stuck" : ""}`}>
+          <PageHeader
+            title="Explore"
+            description="Verified rentals, approved to list."
+          />
+          {discovery()}
+        </section>
+      ) : (
+        <div ref={stickRef} className={`explore-stick${stuck ? " is-stuck" : ""}`}>
+          {discovery()}
+        </div>
+      )}
+      {resultsFeedback()}
       {notices}
 
       {/* The map takes the list's place in the page; it never covers the page. */}
@@ -661,12 +661,12 @@ export function ListingBrowser() {
       )}
 
       {/* A phone's one switch between the two views, floating where a thumb is.
-          Wider screens switch from the end of the results row; CSS shows one or
+          Wider screens switch from the discovery toolbar; CSS shows one or
           the other, and this steps aside for the Filters sheet. */}
       {advancedOpen ? null : (
         <button type="button" className="explore-view-switch" onClick={mapView ? showList : showMap}>
           <Icon name={mapView ? "listings" : "map"} />
-          <span>{mapView ? `List${listings === null ? "" : ` · ${resultCount}`}` : "Map"}</span>
+          <span>{mapView ? "List" : "Map"}</span>
         </button>
       )}
     </div>

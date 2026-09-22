@@ -167,7 +167,7 @@ export default function RoleScreen() {
               key={option.intent}
               onPress={() => setSelected(option.intent)}
               accessibilityRole="radio"
-              accessibilityState={{ selected: active }}
+              aria-selected={active}
               {...pressableFeedback(theme.color.kola["50"])}
               style={{
                 padding: space[4],

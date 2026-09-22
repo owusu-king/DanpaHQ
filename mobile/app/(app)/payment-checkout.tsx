@@ -4,6 +4,7 @@ import { ScrollView, View } from "react-native";
 
 import { ApiFailure } from "@/api";
 import { Button, Notice, Surface, Type, space } from "@/components/ui";
+import { useSafeBottom } from "@/platform";
 import { PaystackCheckoutModal } from "@/components/payments/PaystackCheckoutModal";
 import { getLeaseLedger, type LeaseLedger } from "@/leases";
 import {
@@ -17,6 +18,7 @@ import {
 import { theme } from "@/theme";
 
 export default function PaymentCheckoutScreen() {
+  const pageBottom = useSafeBottom(space[12]);
   const router = useRouter();
   const params = useLocalSearchParams<{ leaseId?: string; obligationId?: string }>();
   const leaseId = params.leaseId ?? "";
@@ -79,7 +81,7 @@ export default function PaymentCheckoutScreen() {
   }
 
   return (
-    <ScrollView contentContainerStyle={{ padding: space[5], paddingBottom: space[12], gap: space[5] }}>
+    <ScrollView contentContainerStyle={{ padding: space[5], paddingBottom: pageBottom, gap: space[5] }}>
       <View style={{ gap: space[1] }}>
         <Type variant="label">SECURE PAYMENT</Type>
         <Type variant="display2" accessibilityRole="header">Review payment</Type>

@@ -5,7 +5,6 @@ import {
   ActivityIndicator,
   Pressable,
   RefreshControl,
-  ScrollView,
   SectionList,
   StyleSheet,
   View,
@@ -13,6 +12,33 @@ import {
 
 import { ApiFailure } from "@/api";
 import { useAuth } from "@/auth";
+import { IndexGround } from "@/components/account/IndexRows";
+import { Bone } from "@/components/billing/BillingParts";
+import { Panel } from "@/components/billing/BillingSurfaces";
+import { useHomeDensity } from "@/components/home/plinth";
+import {
+  CHEVRON,
+  ChoiceRow,
+  EDGE,
+  EmptyState,
+  FilterButton,
+  FilterGroup,
+  GLASS,
+  GroupLabel,
+  INK,
+  KOLA,
+  KOLA_DEEP,
+  LATERITE,
+  ListRow,
+  MUTED,
+  PANEL_RADIUS,
+  PRESSED,
+  RULE,
+  SheetFooter,
+  rowStyles,
+  type IconName,
+} from "@/components/portfolio/PortfolioList";
+import { BottomSheet } from "@/components/sheet/BottomSheet";
 import { Notice, Type, radius, space } from "@/components/ui";
 import {
   destination,
@@ -25,7 +51,8 @@ import {
   type NotificationTone,
 } from "@/notificationMeaning";
 import { listNotifications, markRead, timeAgo, type Notification } from "@/notifications";
-import { pressableFeedback } from "@/platform";
+import { isAndroid, pressableFeedback, useSafeBottom } from "@/platform";
+import { alpha } from "@/shell";
 import { theme } from "@/theme";
 
 type Filter = "all" | "unread" | "action" | NotificationCategory;
@@ -38,16 +65,37 @@ const CATEGORY_LABEL: Record<NotificationCategory, string> = {
   payments: "Payments",
   system: "System",
 };
+const CATEGORY_ICON: Record<NotificationCategory, IconName> = {
+  rental: "home-outline",
+  applications: "document-text-outline",
+  payments: "wallet-outline",
+  system: "business-outline",
+};
+const VIEW_TITLE: Record<"all" | "unread" | "action", string> = {
+  all: "All",
+  unread: "Unread",
+  action: "Action needed",
+};
 
-/** Mobile's communication centre. Home remains the live source of outstanding work. */
+/**
+ * Mobile's communication centre. Home remains the live source of outstanding work.
+ *
+ * Refined on review (2026-09-15): the feed stands on the hub ground as glass, and
+ * the rail of filter chips became one toolbar — what is showing and how many, Read
+ * all, and one green Filter whose sheet holds the same vocabulary with its counts.
+ * Still a log: no summary card above it, and the shell's title is not repeated.
+ */
 export default function NotificationsScreen() {
   const router = useRouter();
+  const density = useHomeDensity();
+  const pageBottom = useSafeBottom(space[12]);
   const listRef = useRef<SectionList<Notification, UpdateSection>>(null);
   const { state } = useAuth();
   const [items, setItems] = useState<Notification[] | null>(null);
   const [unread, setUnread] = useState(0);
   const [view, setView] = useState<Filter>("all");
   const [page, setPage] = useState(1);
+  const [filtering, setFiltering] = useState(false);
   const [error, setError] = useState("");
   const [refreshing, setRefreshing] = useState(false);
   const [markingAll, setMarkingAll] = useState(false);
@@ -81,6 +129,8 @@ export default function NotificationsScreen() {
       system: source.filter((item) => notificationCategory(item.kind) === "system").length,
     };
   }, [items]);
+  // A topic with nothing in it does not take up a line of the sheet.
+  const topics = (Object.keys(CATEGORY_LABEL) as NotificationCategory[]).filter((category) => counts[category] > 0);
 
   const visible = useMemo(() => {
     const source = items ?? [];
@@ -139,112 +189,131 @@ export default function NotificationsScreen() {
   }
 
   return (
-    <SectionList
-      ref={listRef}
-      sections={sections}
-      keyExtractor={(item) => item.id}
-      stickySectionHeadersEnabled={false}
-      contentContainerStyle={styles.content}
-      style={styles.screen}
-      refreshControl={(
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={async () => { setRefreshing(true); await load(); setRefreshing(false); }}
-          tintColor={theme.color.kola["600"]}
-        />
-      )}
-      ListHeaderComponent={(
-        <View style={styles.header}>
-          {error ? <Notice tone="error" title={error} /> : null}
+    <IndexGround>
+      <SectionList
+        ref={listRef}
+        sections={sections}
+        keyExtractor={(item) => item.id}
+        stickySectionHeadersEnabled={false}
+        contentContainerStyle={{ paddingHorizontal: density.pagePadding, paddingTop: density.compact ? space[4] : space[5], paddingBottom: pageBottom }}
+        refreshControl={(
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={async () => { setRefreshing(true); await load(); setRefreshing(false); }}
+            tintColor={KOLA}
+          />
+        )}
+        ListHeaderComponent={(
+          <View style={styles.header}>
+            {error ? <Notice tone="error" title={error} /> : null}
 
-          {items?.length ? (
-            <View style={styles.controls}>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                style={styles.filterScroller}
-                contentContainerStyle={styles.filters}
-                accessibilityRole="toolbar"
-                accessibilityLabel="Filter updates"
-              >
-                <FilterButton label="All" count={items.length} selected={view === "all"} onPress={() => selectView("all")} />
-                <FilterButton label="Unread" count={counts.unread} selected={view === "unread"} onPress={() => selectView("unread")} />
-                <FilterButton label="Action needed" count={counts.action} selected={view === "action"} onPress={() => selectView("action")} />
-                {(Object.keys(CATEGORY_LABEL) as NotificationCategory[]).map((category) => counts[category] > 0 ? (
-                  <FilterButton
-                    key={category}
-                    label={CATEGORY_LABEL[category]}
-                    count={counts[category]}
-                    selected={view === category}
-                    onPress={() => selectView(category)}
-                  />
-                ) : null)}
-              </ScrollView>
-              {unread > 0 ? (
-                <Pressable
-                  onPress={() => void markAllRead()}
-                  disabled={markingAll}
-                  accessibilityRole="button"
-                  accessibilityLabel="Mark all updates as read"
-                  accessibilityState={{ disabled: markingAll, busy: markingAll }}
-                  {...pressableFeedback(theme.color.kola["600"])}
-                  style={({ pressed }) => [styles.markAll, pressed && styles.pressed]}
-                >
-                  {markingAll ? (
-                    <ActivityIndicator size="small" color={theme.color.kola["600"]} />
-                  ) : (
-                    <Ionicons name="checkmark-done" size={16} color={theme.color.kola["600"]} />
-                  )}
-                  <Type variant="captionStrong" style={styles.markAllText}>Read all</Type>
-                </Pressable>
-              ) : null}
-            </View>
-          ) : null}
-        </View>
-      )}
-      renderSectionHeader={({ section }) => (
-        <View style={styles.sectionHeading}>
-          <Type variant="label" style={section.urgent ? styles.urgentHeading : undefined}>{section.title.toUpperCase()}</Type>
-          <Type variant="caption" style={styles.sectionCount}>{section.data.length}</Type>
-        </View>
-      )}
-      renderItem={({ item, index, section }) => (
-        <UpdateRow
-          item={item}
-          first={index === 0}
-          last={index === section.data.length - 1}
-          onPress={() => open(item)}
-        />
-      )}
-      ListFooterComponent={visible.length > PAGE_SIZE ? (
-        <MobilePagination
-          page={currentPage}
-          pages={pageCount}
-          total={visible.length}
-          onPage={changePage}
-        />
-      ) : null}
-      ListEmptyComponent={(
-        items === null ? (
-          <View style={styles.loading} accessibilityLabel="Loading updates">
-            <ActivityIndicator color={theme.color.kola["600"]} />
-            <Type variant="caption">Gathering your updates…</Type>
+            {items?.length ? (
+              <View style={styles.toolbar} accessibilityRole="toolbar" accessibilityLabel="Filter updates">
+                <View style={styles.toolbarTitle}>
+                  <Type variant="title2" accessibilityRole="header" numberOfLines={1} style={styles.toolbarTitleText}>
+                    {view === "all" || view === "unread" || view === "action" ? VIEW_TITLE[view] : CATEGORY_LABEL[view]}
+                  </Type>
+                  <Type variant="caption" style={styles.toolbarCount}>{visible.length}</Type>
+                </View>
+                {unread > 0 ? (
+                  <Pressable
+                    onPress={() => void markAllRead()}
+                    disabled={markingAll}
+                    accessibilityRole="button"
+                    accessibilityLabel="Mark all updates as read"
+                    aria-disabled={markingAll} aria-busy={markingAll}
+                    hitSlop={space[1]}
+                    {...pressableFeedback(theme.color.kola["50"])}
+                    style={({ pressed }) => [styles.readAll, pressed && !isAndroid ? styles.pressed : null]}
+                  >
+                    {markingAll ? (
+                      <ActivityIndicator size="small" color={KOLA} />
+                    ) : (
+                      <Ionicons name="checkmark-done" size={16} color={KOLA} />
+                    )}
+                    {density.veryCompact ? null : <Type variant="captionStrong" style={styles.readAllText}>Read all</Type>}
+                  </Pressable>
+                ) : null}
+                <FilterButton count={view === "all" ? 0 : 1} tone="kola" onPress={() => setFiltering(true)} />
+              </View>
+            ) : null}
           </View>
-        ) : error ? null : items.length === 0 ? (
-          <EmptyState
-            icon="notifications-outline"
-            title="Nothing here yet"
-            body="Rental, application, agreement and payment updates will appear here."
+        )}
+        renderSectionHeader={({ section }) => (
+          <View style={styles.sectionHeading}>
+            <GroupLabel count={section.data.length} tone={section.urgent ? LATERITE : undefined}>{section.title}</GroupLabel>
+          </View>
+        )}
+        renderSectionFooter={() => <View style={styles.sectionFooter} />}
+        renderItem={({ item, index, section }) => (
+          <ListRow first={index === 0} last={index === section.data.length - 1}>
+            <UpdateRow item={item} onPress={() => open(item)} />
+            {/* Drawn over the row rather than between rows, so an unread rule runs unbroken. */}
+            {index === 0 ? null : <View pointerEvents="none" style={styles.rule} />}
+          </ListRow>
+        )}
+        ListFooterComponent={visible.length > PAGE_SIZE ? (
+          <MobilePagination
+            page={currentPage}
+            pages={pageCount}
+            total={visible.length}
+            onPage={changePage}
           />
-        ) : (
-          <EmptyState
-            icon="checkmark-circle-outline"
-            title={view === "action" ? "Nothing needs your attention" : "No updates in this view"}
-            body="Choose another filter to see the rest of your update history."
-          />
-        )
-      )}
-    />
+        ) : null}
+        ListEmptyComponent={(
+          items === null ? (
+            <UpdatesSkeleton />
+          ) : error ? null : items.length === 0 ? (
+            <EmptyState
+              icon="notifications-outline"
+              hero
+              title="Nothing here yet"
+              hint="Rental, application, agreement and payment news will appear here."
+            />
+          ) : (
+            <EmptyState
+              icon="checkmark-circle-outline"
+              title={view === "action" ? "Nothing needs your attention" : "Nothing in this view"}
+              hint="Choose another filter to see the rest of your history."
+            />
+          )
+        )}
+      />
+
+      <BottomSheet
+        visible={filtering}
+        onClose={() => setFiltering(false)}
+        title="Filter"
+        closeLabel="Close filter"
+        footer={<SheetFooter
+          canReset={view !== "all"}
+          onReset={() => selectView("all")}
+          results={visible.length}
+          onShow={() => setFiltering(false)}
+        />}
+      >
+        <FilterGroup title="Show">
+          <ChoiceRow first icon="albums-outline" label="All" count={items?.length ?? 0} selected={view === "all"} onPress={() => selectView("all")} />
+          <ChoiceRow first={false} icon="mail-unread-outline" label="Unread" count={counts.unread} selected={view === "unread"} onPress={() => selectView("unread")} />
+          <ChoiceRow first={false} icon="flash-outline" label="Action needed" count={counts.action} selected={view === "action"} onPress={() => selectView("action")} />
+        </FilterGroup>
+        {topics.length ? (
+          <FilterGroup title="Topic">
+            {topics.map((category, index) => (
+              <ChoiceRow
+                key={category}
+                first={index === 0}
+                icon={CATEGORY_ICON[category]}
+                label={CATEGORY_LABEL[category]}
+                count={counts[category]}
+                selected={view === category}
+                onPress={() => selectView(category)}
+              />
+            ))}
+          </FilterGroup>
+        ) : null}
+      </BottomSheet>
+    </IndexGround>
   );
 }
 
@@ -253,7 +322,7 @@ function MobilePagination({ page, pages, total, onPage }: { page: number; pages:
   const last = Math.min(page * PAGE_SIZE, total);
   return (
     <View style={styles.pagination} accessibilityRole="toolbar" accessibilityLabel="Updates pages">
-      <Type variant="caption"><Type variant="captionStrong">{first}–{last}</Type> of {total}</Type>
+      <Type variant="caption" style={styles.pageRange}><Type variant="captionStrong" style={styles.pageRangeStrong}>{first}–{last}</Type> of {total}</Type>
       <View style={styles.paginationActions}>
         <PageButton icon="chevron-back" label="Previous page" disabled={page === 1} onPress={() => onPage(page - 1)} />
         <Type variant="captionStrong" style={styles.pageNumber}>{page} / {pages}</Type>
@@ -270,38 +339,21 @@ function PageButton({ icon, label, disabled, onPress }: { icon: "chevron-back" |
       disabled={disabled}
       accessibilityRole="button"
       accessibilityLabel={label}
-      accessibilityState={{ disabled }}
-      {...pressableFeedback(theme.color.kola["600"])}
-      style={({ pressed }) => [styles.pageButton, disabled && styles.pageButtonDisabled, pressed && styles.pressed]}
+      aria-disabled={disabled}
+      {...pressableFeedback(alpha(KOLA, 0.14))}
+      style={({ pressed }) => [styles.pageButton, disabled && styles.pageButtonDisabled, pressed && !isAndroid ? styles.pressed : null]}
     >
-      <Ionicons name={icon} size={18} color={theme.color.ink["700"]} />
+      <Ionicons name={icon} size={18} color={KOLA_DEEP} />
     </Pressable>
   );
 }
 
-function FilterButton({ label, count, selected, onPress }: { label: string; count: number; selected: boolean; onPress: () => void }) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityState={{ selected }}
-      accessibilityLabel={`${label}, ${count}`}
-      onPress={onPress}
-      {...pressableFeedback(theme.color.field["200"])}
-      style={({ pressed }) => [
-        styles.filter,
-        selected && styles.filterSelected,
-        pressed && styles.pressed,
-      ]}
-    >
-      <Type variant="captionStrong" style={selected ? styles.filterTextSelected : styles.filterText}>{label}</Type>
-      <View style={[styles.filterCount, selected && styles.filterCountSelected]}>
-        <Type variant="caption" style={selected ? styles.filterTextSelected : styles.filterText}>{count}</Type>
-      </View>
-    </Pressable>
-  );
-}
-
-function UpdateRow({ item, first, last, onPress }: { item: Notification; first: boolean; last: boolean; onPress: () => void }) {
+/**
+ * One update: where it came from and when, what happened, a line of it, and how
+ * it stands in words. Unread keeps its left rule in the update's colour — never a
+ * dot — and a heavier title; what wants a reply says so beside its status.
+ */
+function UpdateRow({ item, onPress }: { item: Notification; onPress: () => void }) {
   const tone = notificationTone(item);
   const palette = tonePalette(tone);
   const actionable = needsYou(item);
@@ -310,47 +362,60 @@ function UpdateRow({ item, first, last, onPress }: { item: Notification; first: 
       onPress={onPress}
       accessibilityRole="link"
       accessibilityLabel={`${notificationSource(item.kind)}. ${item.title}. ${item.body}. ${notificationStatus(item)}. ${timeAgo(item.created_at)}`}
-      {...pressableFeedback(palette.bg)}
+      {...pressableFeedback(PRESSED)}
       style={({ pressed }) => [
         styles.row,
-        first && styles.firstRow,
-        last && styles.lastRow,
         !item.is_read && { borderLeftColor: palette.fg, backgroundColor: palette.wash },
-        pressed && styles.rowPressed,
+        pressed && !isAndroid ? { backgroundColor: PRESSED } : null,
       ]}
     >
       <View style={[styles.rowIcon, { backgroundColor: palette.bg }]}>
-        <Ionicons name={iconFor(item.kind, tone)} size={18} color={palette.fg} />
+        <Ionicons name={iconFor(item.kind, tone)} size={17} color={palette.fg} />
       </View>
-      <View style={styles.rowContent}>
+      <View style={rowStyles.rowBody}>
         <View style={styles.metaRow}>
-          <Type variant="label" style={{ color: palette.fg }}>{notificationSource(item.kind).toUpperCase()}</Type>
-          <Type variant="caption" style={styles.metaDot}>·</Type>
-          <Type variant="caption" style={styles.time}>{timeAgo(item.created_at)}</Type>
+          <Type variant="label" numberOfLines={1} style={[styles.source, { color: palette.fg }]}>{notificationSource(item.kind).toUpperCase()}</Type>
+          <Type variant="caption" numberOfLines={1} style={styles.time}>{`· ${timeAgo(item.created_at)}`}</Type>
         </View>
-        <Type variant={item.is_read ? "body" : "bodyStrong"}>{item.title}</Type>
-        <Type variant="caption" numberOfLines={2}>{item.body}</Type>
+        <Type variant={item.is_read ? "body" : "bodyStrong"} style={styles.title}>{item.title}</Type>
+        <Type variant="caption" numberOfLines={2} style={rowStyles.rowSub}>{item.body}</Type>
         <View style={styles.rowFooter}>
-          <Type variant="captionStrong" style={{ color: palette.fg }}>{notificationStatus(item)}</Type>
-          {actionable ? <Type variant="captionStrong" style={styles.review}>Review now</Type> : null}
+          <Type variant="captionStrong" style={[styles.status, { color: palette.fg }]}>{notificationStatus(item)}</Type>
+          {actionable ? (
+            <View style={styles.review}>
+              <Type variant="captionStrong" style={styles.reviewText}>Review now</Type>
+              <Ionicons name="arrow-forward" size={13} color={KOLA_DEEP} />
+            </View>
+          ) : null}
         </View>
       </View>
-      <Ionicons name="chevron-forward" size={16} color={theme.color.ink["300"]} />
+      <Ionicons name="chevron-forward" size={15} color={CHEVRON} style={styles.chevron} />
     </Pressable>
   );
 }
 
-function EmptyState({ icon, title, body }: { icon: keyof typeof Ionicons.glyphMap; title: string; body: string }) {
+/** Shaped like the toolbar and the first rows, so nothing jumps when they arrive. */
+function UpdatesSkeleton() {
   return (
-    <View style={styles.empty}>
-      <View style={styles.emptyIcon}><Ionicons name={icon} size={22} color={theme.color.kola["600"]} /></View>
-      <Type variant="bodyStrong">{title}</Type>
-      <Type variant="caption" style={styles.emptyBody}>{body}</Type>
+    <View accessible accessibilityRole="progressbar" accessibilityLabel="Loading updates" style={styles.skeleton}>
+      <Bone width="34%" height={20} />
+      <Panel>
+        {[0, 1, 2, 3].map((key) => (
+          <View key={key} style={[styles.skeletonRow, key ? styles.ruled : null]}>
+            <Bone width={36} height={36} round={11} />
+            <View style={styles.skeletonLines}>
+              <Bone width="30%" height={10} />
+              <Bone width="76%" height={14} />
+              <Bone width="92%" />
+            </View>
+          </View>
+        ))}
+      </Panel>
     </View>
   );
 }
 
-function iconFor(kind: string, tone: NotificationTone): keyof typeof Ionicons.glyphMap {
+function iconFor(kind: string, tone: NotificationTone): IconName {
   if (tone === "critical" || tone === "warning" || tone === "action") return "alert-circle-outline";
   if (kind.startsWith("payment.") || kind.startsWith("rent.") || kind.startsWith("billing.")) return "wallet-outline";
   if (kind.startsWith("application.") || kind.startsWith("tenancy_request.")) return "document-text-outline";
@@ -360,14 +425,15 @@ function iconFor(kind: string, tone: NotificationTone): keyof typeof Ionicons.gl
   return "notifications-outline";
 }
 
+/** Each tone's ink, the well its glyph sits in, and the faint wash of an unread row on glass. */
 function tonePalette(tone: NotificationTone) {
   return {
-    success: { fg: theme.color.kola["600"], bg: theme.color.kola["50"], wash: "#F5F9F7" },
-    action: { fg: theme.color.harmattan["600"], bg: theme.color.harmattan["100"], wash: "#FEFAF1" },
-    warning: { fg: theme.color.harmattan["600"], bg: theme.color.harmattan["100"], wash: "#FEFAF1" },
-    critical: { fg: theme.color.laterite["600"], bg: theme.color.laterite["100"], wash: "#FEF5F2" },
-    info: { fg: theme.color.lagoon["600"], bg: theme.color.lagoon["100"], wash: "#F5F8FB" },
-    neutral: { fg: theme.color.ink["500"], bg: theme.color.field["100"], wash: theme.color.field["50"] },
+    success: { fg: theme.color.kola["600"], bg: theme.color.kola["50"], wash: alpha(theme.color.kola["600"], 0.05) },
+    action: { fg: theme.color.harmattan["600"], bg: theme.color.harmattan["100"], wash: alpha(theme.color.harmattan["600"], 0.06) },
+    warning: { fg: theme.color.harmattan["600"], bg: theme.color.harmattan["100"], wash: alpha(theme.color.harmattan["600"], 0.06) },
+    critical: { fg: theme.color.laterite["600"], bg: theme.color.laterite["100"], wash: alpha(theme.color.laterite["600"], 0.05) },
+    info: { fg: theme.color.lagoon["600"], bg: theme.color.lagoon["100"], wash: alpha(theme.color.lagoon["600"], 0.05) },
+    neutral: { fg: theme.color.ink["500"], bg: theme.color.field["100"], wash: alpha(INK, 0.03) },
   }[tone];
 }
 
@@ -397,43 +463,193 @@ function timeBucket(value: string): "today" | "week" | "earlier" {
 }
 
 const styles = StyleSheet.create({
-  // The ivory every pushed page stands on (`src/shell.ts`).
-  screen: { backgroundColor: theme.color.field["50"] },
-  content: { paddingHorizontal: space[5], paddingTop: space[5], paddingBottom: space[12] },
-  header: { gap: space[3], marginBottom: space[2] },
-  controls: { flexDirection: "row", alignItems: "center", gap: space[2], paddingBottom: space[3], borderBottomWidth: 1, borderBottomColor: theme.color.field["200"] },
-  filterScroller: { flex: 1 },
-  markAll: { minHeight: 42, paddingHorizontal: space[2], flexDirection: "row", alignItems: "center", gap: space[1], borderRadius: radius.sm },
-  markAllText: { color: theme.color.kola["600"], fontSize: 12 },
-  filters: { gap: space[2], paddingRight: space[5] },
-  filter: { minHeight: 42, paddingHorizontal: space[3], flexDirection: "row", alignItems: "center", gap: space[2], backgroundColor: theme.color.field["0"], borderWidth: 1, borderColor: theme.color.field["300"], borderRadius: radius.pill },
-  filterSelected: { backgroundColor: theme.color.kola["50"], borderColor: theme.color.kola["600"] },
-  filterText: { color: theme.color.ink["500"] },
-  filterTextSelected: { color: theme.color.kola["800"] },
-  filterCount: { minWidth: 20, height: 20, paddingHorizontal: 5, alignItems: "center", justifyContent: "center", backgroundColor: theme.color.field["100"], borderRadius: radius.pill },
-  filterCountSelected: { backgroundColor: "#D8E9E0" },
-  sectionHeading: { marginTop: space[5], marginBottom: space[2], paddingHorizontal: space[1], flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  urgentHeading: { color: theme.color.laterite["600"] },
-  sectionCount: { color: theme.color.ink["300"] },
-  row: { minHeight: 104, paddingVertical: space[4], paddingLeft: space[3] - 3, paddingRight: space[3], flexDirection: "row", alignItems: "center", gap: space[3], backgroundColor: theme.color.field["0"], borderWidth: 1, borderTopWidth: 0, borderColor: theme.color.field["200"], borderLeftWidth: 3, borderLeftColor: "transparent" },
-  firstRow: { borderTopWidth: 1, borderTopLeftRadius: radius.md, borderTopRightRadius: radius.md },
-  lastRow: { borderBottomLeftRadius: radius.md, borderBottomRightRadius: radius.md },
-  rowPressed: { opacity: 0.78 },
-  rowIcon: { width: 40, height: 40, flexShrink: 0, alignSelf: "flex-start", alignItems: "center", justifyContent: "center", borderRadius: radius.md },
-  rowContent: { flex: 1, minWidth: 0, gap: space[1] },
-  metaRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: space[1] },
-  metaDot: { color: theme.color.ink["300"] },
-  time: { color: theme.color.ink["500"] },
-  rowFooter: { marginTop: 2, flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: space[3] },
-  review: { color: theme.color.ink["900"], textDecorationLine: "underline" },
-  loading: { paddingVertical: space[12], alignItems: "center", gap: space[3] },
-  empty: { paddingVertical: space[10], paddingHorizontal: space[6], alignItems: "center", gap: space[2] },
-  emptyIcon: { width: 44, height: 44, marginBottom: space[1], alignItems: "center", justifyContent: "center", backgroundColor: theme.color.kola["50"], borderRadius: radius.md },
-  emptyBody: { maxWidth: 300, textAlign: "center" },
-  pagination: { marginTop: space[5], flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: space[3] },
-  paginationActions: { flexDirection: "row", alignItems: "center", gap: space[2] },
-  pageButton: { width: 44, height: 44, alignItems: "center", justifyContent: "center", backgroundColor: theme.color.field["0"], borderWidth: 1, borderColor: theme.color.field["300"], borderRadius: radius.sm },
-  pageButtonDisabled: { opacity: 0.4 },
-  pageNumber: { minWidth: 48, textAlign: "center", color: theme.color.kola["800"] },
-  pressed: { opacity: 0.72 },
+  header: {
+    gap: space[3],
+    marginBottom: space[4],
+  },
+  toolbar: {
+    minHeight: 40,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space[2],
+    paddingLeft: space[1],
+  },
+  toolbarTitle: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: "row",
+    alignItems: "baseline",
+    gap: space[2],
+  },
+  toolbarTitleText: {
+    flexShrink: 1,
+    fontSize: 17.5,
+    lineHeight: 23,
+    letterSpacing: -0.2,
+    color: INK,
+  },
+  toolbarCount: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: MUTED,
+  },
+  readAll: {
+    minHeight: 38,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space[1],
+    paddingHorizontal: space[3],
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: EDGE,
+    backgroundColor: GLASS,
+  },
+  readAllText: {
+    fontSize: 13.5,
+    lineHeight: 18,
+    color: KOLA_DEEP,
+  },
+  sectionHeading: {
+    paddingBottom: space[2],
+  },
+  sectionFooter: {
+    height: space[5],
+  },
+  rule: {
+    position: "absolute",
+    top: 0,
+    left: 14,
+    right: 0,
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: RULE,
+  },
+  ruled: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: RULE,
+  },
+  row: {
+    minHeight: 72,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: space[3],
+    paddingVertical: space[3],
+    paddingLeft: 11,
+    paddingRight: 14,
+    borderLeftWidth: 3,
+    borderLeftColor: "transparent",
+  },
+  rowIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 11,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  metaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  source: {
+    flexShrink: 1,
+    letterSpacing: 0.4,
+  },
+  time: {
+    flexShrink: 0,
+    fontSize: 12,
+    lineHeight: 16,
+    color: MUTED,
+  },
+  title: {
+    marginTop: 2,
+    fontSize: 15,
+    lineHeight: 20,
+    color: INK,
+  },
+  rowFooter: {
+    marginTop: space[2],
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    columnGap: space[3],
+    rowGap: space[1],
+  },
+  status: {
+    fontSize: 12.5,
+    lineHeight: 17,
+  },
+  review: {
+    minHeight: 26,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    borderRadius: radius.pill,
+    backgroundColor: theme.color.kola["50"],
+  },
+  reviewText: {
+    fontSize: 12.5,
+    lineHeight: 17,
+    color: KOLA_DEEP,
+  },
+  chevron: {
+    alignSelf: "center",
+  },
+  pagination: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: space[3],
+    paddingVertical: space[2],
+    paddingLeft: 14,
+    paddingRight: space[2],
+    borderRadius: PANEL_RADIUS,
+    borderWidth: 1,
+    borderColor: EDGE,
+    backgroundColor: GLASS,
+  },
+  pageRange: {
+    color: MUTED,
+  },
+  pageRangeStrong: {
+    color: INK,
+  },
+  paginationActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space[2],
+  },
+  pageButton: {
+    width: 40,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 20,
+    backgroundColor: theme.color.kola["50"],
+  },
+  pageButtonDisabled: {
+    opacity: 0.4,
+  },
+  pageNumber: {
+    minWidth: 44,
+    textAlign: "center",
+    color: KOLA_DEEP,
+    fontVariant: ["tabular-nums"],
+  },
+  pressed: {
+    opacity: 0.72,
+  },
+  skeleton: {
+    gap: space[4],
+  },
+  skeletonRow: {
+    flexDirection: "row",
+    gap: space[3],
+    padding: 14,
+  },
+  skeletonLines: {
+    flex: 1,
+    justifyContent: "center",
+    gap: space[2],
+  },
 });

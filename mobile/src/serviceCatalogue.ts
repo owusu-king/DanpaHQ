@@ -28,7 +28,10 @@ type IconName = keyof typeof Ionicons.glyphMap;
  */
 export type ServiceStatus = "available" | "preparing" | "later";
 
-/** The user-facing grouping, in the order the hub renders it. */
+/**
+ * The user-facing grouping, in the order the hub renders it. A category is a
+ * name and nothing more: the tiles under it say the rest.
+ */
 export type ServiceCategory = "utilities" | "entertainment" | "connectivity" | "home";
 
 /**
@@ -37,9 +40,9 @@ export type ServiceCategory = "utilities" | "entertainment" | "connectivity" | "
  * Semantic, not decorative: power is `harmattan` because the palette's amber
  * already means energy and caution across the product, water is `lagoon`
  * because it is the only blue, screens are `laterite`, and the network is
- * `kola` because connectivity is the thing Rooomly itself runs on. `ink` is for
- * services that are labour rather than a utility, and deliberately reads as
- * quieter.
+ * `kola` because connectivity is the thing Rooomly itself runs on — as are
+ * referrals, which grow it. `ink` is for services that are labour rather than a
+ * utility, and deliberately reads as quieter.
  */
 export type ServiceTone = "harmattan" | "lagoon" | "laterite" | "kola" | "ink";
 
@@ -84,11 +87,11 @@ export type Service = {
   route?: string;
 };
 
-export const CATEGORIES: { id: ServiceCategory; label: string; blurb: string }[] = [
-  { id: "utilities", label: "Utilities", blurb: "Power and water for your home" },
-  { id: "entertainment", label: "Entertainment", blurb: "Keep your subscription running" },
-  { id: "connectivity", label: "Connectivity", blurb: "Airtime and data, any network" },
-  { id: "home", label: "Home", blurb: "People who come to the property" },
+export const CATEGORIES: { id: ServiceCategory; label: string }[] = [
+  { id: "utilities", label: "Utilities" },
+  { id: "entertainment", label: "Entertainment" },
+  { id: "connectivity", label: "Connectivity" },
+  { id: "home", label: "Home" },
 ];
 
 const PHONE: IdentifierSpec = {
@@ -216,6 +219,16 @@ export const SERVICES: Service[] = [
     status: "later",
     tone: "ink",
     promise: "Arrange a van and hands for a move-in or move-out day.",
+  },
+  {
+    id: "referrals",
+    label: "Referrals",
+    summary: "Invite a tenant or landlord",
+    icon: "person-add-outline",
+    category: "home",
+    status: "later",
+    tone: "kola",
+    promise: "Invite a tenant or landlord you know to Rooomly, and see where each invitation stands.",
   },
 ];
 

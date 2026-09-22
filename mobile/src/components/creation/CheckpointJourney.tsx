@@ -1,9 +1,10 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useEffect, useRef } from "react";
-import { Animated, View } from "react-native";
+import { Animated, Pressable, View } from "react-native";
 
 import { Type, space } from "@/components/ui";
 import { useReduceMotion } from "@/motion";
+import { isAndroid } from "@/platform";
 import { theme } from "@/theme";
 
 export type CheckpointState = "completed" | "current" | "upcoming" | "attention";
@@ -33,6 +34,8 @@ export function CheckpointJourney({
   accessibilityLabel,
   valueNow,
   valueMax,
+  onGoTo,
+  skipAhead = false,
 }: {
   checkpoints: CreationCheckpoint[];
   label: string;
@@ -40,6 +43,18 @@ export function CheckpointJourney({
   /** Optional domain-specific completion value (for example required setup work). */
   valueNow?: number;
   valueMax?: number;
+  /**
+   * Makes the journey the way back.
+   *
+   * Without it the strip is a picture of where you are, and the only way to a
+   * step already done was to finish the flow and re-enter it. With it each
+   * checkpoint but the current one is a button.
+   */
+  onGoTo?: (key: string) => void;
+  /** Whether a step not yet reached may be jumped to. Property setup says the
+   *  steps can be done in any order; Unit creation cannot, because each step
+   *  writes to a record the one before it created. */
+  skipAhead?: boolean;
 }) {
   const currentIndex = Math.max(
     0,
@@ -61,9 +76,16 @@ export function CheckpointJourney({
     }).start();
   }, [currentKey, entrance, reduceMotion]);
 
+  // A progressbar that collapses its children is right until the children are
+  // the way back. Interactive, the role and the value stay for the reader that
+  // wants them, but each checkpoint is reachable on its own.
+  const interactive = Boolean(onGoTo);
+  const reachable = (checkpoint: CreationCheckpoint) =>
+    interactive && checkpoint.state !== "current" && (skipAhead || checkpoint.state !== "upcoming");
+
   return (
     <View
-      accessible
+      accessible={!interactive}
       accessibilityRole="progressbar"
       accessibilityValue={{
         min: 0,
@@ -81,8 +103,8 @@ export function CheckpointJourney({
       </View>
 
       <View
-        accessibilityElementsHidden
-        importantForAccessibility="no-hide-descendants"
+        accessibilityElementsHidden={!interactive}
+        importantForAccessibility={interactive ? "auto" : "no-hide-descendants"}
         style={{ flexDirection: "row", alignItems: "flex-start" }}
       >
         {nearby.map((checkpoint, index) => {
@@ -102,7 +124,20 @@ export function CheckpointJourney({
                   }}
                 />
               ) : null}
-              <View style={{ width: 84, alignItems: "center", gap: space[2] }}>
+              <Pressable
+                accessibilityRole={reachable(checkpoint) ? "button" : undefined}
+                accessibilityLabel={reachable(checkpoint) ? `Go to ${checkpoint.label}` : undefined}
+                aria-selected={checkpoint.state === "current" ? true : undefined}
+                disabled={!reachable(checkpoint)}
+                onPress={() => onGoTo?.(checkpoint.key)}
+                hitSlop={space[1]}
+                style={({ pressed }) => ({
+                  width: 84,
+                  alignItems: "center",
+                  gap: space[2],
+                  opacity: pressed && !isAndroid ? 0.7 : 1,
+                })}
+              >
                 <Animated.View
                   style={{
                     width: checkpoint.state === "current" ? 30 : 28,
@@ -133,7 +168,7 @@ export function CheckpointJourney({
                   numberOfLines={2}
                   style={{
                     textAlign: "center",
-                    color: checkpoint.state === "current" ? theme.color.ink["900"] : palette.ink,
+                    color: palette.label,
                     fontWeight: checkpoint.state === "current" ? "700" : "600",
                     letterSpacing: 0,
                     textTransform: "none",
@@ -141,7 +176,7 @@ export function CheckpointJourney({
                 >
                   {checkpoint.label}
                 </Type>
-              </View>
+              </Pressable>
             </View>
           );
         })}
@@ -150,15 +185,44 @@ export function CheckpointJourney({
   );
 }
 
+/**
+ * `ink` is the glyph *inside* the disc; `label` is the word under it.
+ *
+ * They are not the same colour and were being used as if they were. A
+ * completed checkpoint fills its disc with kola and draws a white tick on it —
+ * white being right on the disc and invisible on the ivory page below. The
+ * label read as a blank space, which mattered little while the strip was a
+ * picture and matters a great deal now that each one is a button.
+ */
 function checkpointPalette(state: CheckpointState) {
   if (state === "completed") {
-    return { ink: theme.color.field["0"], ground: theme.color.kola["600"], rule: theme.color.kola["600"] };
+    return {
+      ink: theme.color.field["0"],
+      label: theme.color.kola["800"],
+      ground: theme.color.kola["600"],
+      rule: theme.color.kola["600"],
+    };
   }
   if (state === "current") {
-    return { ink: theme.color.kola["600"], ground: theme.color.field["0"], rule: theme.color.kola["600"] };
+    return {
+      ink: theme.color.kola["600"],
+      label: theme.color.ink["900"],
+      ground: theme.color.field["0"],
+      rule: theme.color.kola["600"],
+    };
   }
   if (state === "attention") {
-    return { ink: theme.color.harmattan["600"], ground: theme.color.harmattan["100"], rule: theme.color.harmattan["500"] };
+    return {
+      ink: theme.color.harmattan["600"],
+      label: theme.color.harmattan["600"],
+      ground: theme.color.harmattan["100"],
+      rule: theme.color.harmattan["500"],
+    };
   }
-  return { ink: theme.color.ink["300"], ground: theme.color.field["0"], rule: theme.color.field["300"] };
+  return {
+    ink: theme.color.ink["300"],
+    label: theme.color.ink["500"],
+    ground: theme.color.field["0"],
+    rule: theme.color.field["300"],
+  };
 }

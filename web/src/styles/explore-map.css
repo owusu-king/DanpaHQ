@@ -11,15 +11,14 @@
 
 .explore-discovery-pending { min-height: 8.75rem; }
 
-/* At the end of the results row, named for where it goes, in kola's deepest
-   shade: moving to the map is the one step the row offers. */
+/* Map belongs beside Search and Filters on wider web screens. The floating
+   switch remains the one-handed view control on narrow screens. */
 .explore-map-toggle {
   display: inline-flex;
-  height: 36px;
+  height: var(--explore-bar-height);
   flex: 0 0 auto;
   align-items: center;
   gap: var(--space-2);
-  margin-left: auto;
   padding: 0 var(--space-4) 0 var(--space-3);
   color: var(--color-field-0);
   font: 650 .875rem/1 var(--font-body);
@@ -34,7 +33,7 @@
 .explore-map-toggle:hover { background: var(--color-kola-900); border-color: var(--color-kola-900); }
 .explore-map-toggle:active { background: var(--color-kola-900); }
 @media (pointer: coarse) {
-  .explore-map-toggle { height: 44px; }
+  .explore-map-toggle { min-height: 44px; }
 }
 
 /* An area drawn on the map is where, not a filter, so it takes lagoon — as the
@@ -108,7 +107,7 @@
 /* The map takes the list's place inside the page instead of covering it: the
    site header, the search and the filters stay where they were. The search
    sticks a breath under the site's header — the public site's 5rem, the
-   portal's 3.25rem — on the page's own ground; the map sticks beneath the
+   portal's 4rem — on the page's own ground; the map sticks beneath the
    search, whose height the page measures, and stays in view as the results
    scroll. The portal's band stops at its column, clear of the navigation rail. */
 .explore {
@@ -118,7 +117,7 @@
   --explore-sticky-top: calc(var(--explore-stick-top) + var(--explore-tray-height, 9.25rem) + var(--space-3));
 }
 .portal .explore {
-  --explore-stick-top: calc(3.25rem + var(--space-2));
+  --explore-stick-top: calc(4rem + var(--space-3));
   --explore-ground: var(--color-field-50);
   --explore-bleed: var(--space-4);
 }

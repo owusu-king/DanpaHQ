@@ -4,6 +4,7 @@ import { Pressable, ScrollView, View } from "react-native";
 
 import { apiFetch, ApiFailure, idempotentMutation } from "@/api";
 import { Button, Field, Notice, Surface, Type, space } from "@/components/ui";
+import { useSafeBottom } from "@/platform";
 import { theme } from "@/theme";
 
 type LookupUnit = {
@@ -20,6 +21,9 @@ type Lookup = {
 };
 
 export default function TenantSetupScreen() {
+  // Android draws edge-to-edge: the last row would sit under the
+  // navigation buttons, which then look as though the page showed through.
+  const pageBottom = useSafeBottom(space[8]);
   const router = useRouter();
   const [accessCode, setAccessCode] = useState("");
   const [lookup, setLookup] = useState<Lookup | null>(null);
@@ -73,7 +77,7 @@ export default function TenantSetupScreen() {
   }
 
   return (
-    <ScrollView contentContainerStyle={{ padding: space[5], gap: space[5] }} keyboardShouldPersistTaps="handled">
+    <ScrollView contentContainerStyle={{ padding: space[5], paddingBottom: pageBottom, gap: space[5] }} keyboardShouldPersistTaps="handled">
       <View style={{ gap: space[2] }}>
         <Type variant="label">YOUR HOMES</Type>
         <Type variant="display2">Add a home</Type>
@@ -105,7 +109,7 @@ export default function TenantSetupScreen() {
                 key={unit.id}
                 onPress={() => { setUnitId(unit.id); setBedId(""); }}
                 accessibilityRole="radio"
-                accessibilityState={{ selected: unitId === unit.id }}
+                aria-selected={unitId === unit.id}
                 style={{ padding: space[3], borderWidth: unitId === unit.id ? 2 : 1, borderColor: unitId === unit.id ? theme.color.kola["600"] : theme.color.field["300"], borderRadius: 8 }}
               >
                 <Type variant="bodyStrong">{unit.label}</Type>

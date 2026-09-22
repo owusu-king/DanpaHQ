@@ -1,16 +1,38 @@
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useState } from "react";
-import { Pressable, ScrollView, View } from "react-native";
+import { StyleSheet, ScrollView, View } from "react-native";
 
 import { ApiFailure } from "@/api";
+import { Bone } from "@/components/billing/BillingParts";
+import { EntityHeader, StatusLine, type StatusTone } from "@/components/property/WorkspacePatterns";
+import {
+  EDGE,
+  Fact,
+  GroupLabel,
+  Lead,
+  LinkRow,
+  RecordPanel,
+  type RecordTone,
+} from "@/components/record/RecordSurfaces";
 import { TenantLeaseActions } from "@/components/tenant/LeaseActions";
-import { Button, Notice, Surface, Type, space } from "@/components/ui";
+import { Notice, space } from "@/components/ui";
 import { formatMinor } from "@/listings";
 import { getPortfolioSummary, listOrganizationProperties, type ManagedProperty, type PortfolioSummary } from "@/organizations";
-import { theme } from "@/theme";
+import { useSafeBottom } from "@/platform";
 
 type Tenant = PortfolioSummary["tenants"][number];
 
+/**
+ * One tenancy, from the provider's side.
+ *
+ * The tenant's own record asks "what does my home cost me"; this asks "where
+ * does this arrangement stand, and what does it need from me". So the rent
+ * position leads, the agreement carries the one act its status allows, and the
+ * Property, the Unit and the money each keep a row out to their own record.
+ *
+ * Refined on review (2026-09-21) onto the record surfaces, replacing a column
+ * of bare label/value rows and a "Related records" card of text chevrons.
+ */
 export default function ProviderTenancyScreen() {
   const router = useRouter();
   const { tenancyId, organizationId } = useLocalSearchParams<{ tenancyId: string; organizationId: string }>();
@@ -18,6 +40,7 @@ export default function ProviderTenancyScreen() {
   const [property, setProperty] = useState<ManagedProperty | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const pageBottom = useSafeBottom(space[8]);
 
   const load = useCallback(async () => {
     if (!organizationId || !tenancyId) return;
@@ -40,90 +63,111 @@ export default function ProviderTenancyScreen() {
 
   useFocusEffect(useCallback(() => { void load(); }, [load]));
 
-  if (loading) return <View style={{ padding: space[5] }}><Type variant="caption">Loading tenancy…</Type></View>;
-  if (error) return <View style={{ padding: space[5] }}><Notice tone="error" title={error} /></View>;
-  if (!tenant) return <View style={{ padding: space[5], gap: space[3] }}><Notice tone="info" title="Tenancy not found" /><Button label="Back to Tenants" variant="secondary" onPress={() => router.back()} /></View>;
+  if (loading && !tenant) return <TenancySkeleton />;
+  if (error && !tenant) return <View style={{ padding: space[5] }}><Notice tone="error" title={error} /></View>;
+  if (!tenant) return <View style={{ padding: space[5] }}><Notice tone="info" title="Tenancy not found" body="It may have ended, or the link may be wrong." /></View>;
 
   const status = tenancyLabel(tenant);
   const currency = tenant.lease_rent_currency ?? "GHS";
+  const overdue = tenant.rent.overdue_minor > 0;
+  const outstanding = tenant.rent.outstanding_minor;
+  const tone: RecordTone = overdue ? "alert" : outstanding > 0 ? "waiting" : "good";
+  const home = `${tenant.unit_label}${tenant.bed_label ? ` · ${tenant.bed_label}` : ""}`;
 
   return (
-    <ScrollView contentContainerStyle={{ padding: space[5], paddingBottom: space[12], gap: space[6] }}>
-      <View style={{ gap: space[2] }}>
-        <Type variant="display2" accessibilityRole="header">{tenant.name}</Type>
-        <Type variant="body">{status} · {tenant.property_title}</Type>
+    <ScrollView contentContainerStyle={[styles.page, { paddingBottom: pageBottom }]}>
+      <EntityHeader
+        eyebrow="Tenancy"
+        title={tenant.name}
+        subtitle={`${tenant.property_title} · ${home}`}
+        status={<StatusLine label={status} tone={statusTone(tenant)} />}
+      />
+
+      {error ? <Notice tone="error" title={error} /> : null}
+
+      <RecordPanel>
+        <Lead
+          label="Outstanding"
+          value={formatMinor(outstanding, currency)}
+          note={
+            overdue
+              ? `${formatMinor(tenant.rent.overdue_minor, currency)} of it is overdue`
+              : outstanding > 0
+                ? tenant.rent.next_due_on ? `Next due ${formatDate(tenant.rent.next_due_on)}` : "Nothing overdue"
+                : "Paid up"
+          }
+          tone={tone}
+        />
+        <View style={styles.rule} />
+        <Fact first label="Rent" value={tenant.lease_rent_minor === null ? "Not recorded" : `${formatMinor(tenant.lease_rent_minor, currency)} per ${tenant.lease_rent_period === "yearly" ? "year" : "month"}`} />
+        <Fact label="Starts" value={tenant.lease_starts_on ? formatDate(tenant.lease_starts_on) : "Not recorded"} />
+        <Fact label="Ends" value={tenant.lease_ends_on ? formatDate(tenant.lease_ends_on) : "Open-ended"} />
+      </RecordPanel>
+
+      <View style={styles.section}>
+        <GroupLabel>Agreement and rent</GroupLabel>
+        <RecordPanel style={styles.actionPanel}>
+          <Fact
+            first
+            label="Agreement"
+            value={tenant.lease_status ? humanize(tenant.lease_status) : "Not prepared"}
+            tone={tenant.lease_status === "active" ? "good" : tenant.lease_status ? "waiting" : "alert"}
+          />
+          <View style={styles.actions}>
+            <TenantLeaseActions
+              unitId={tenant.unit_id}
+              bedId={tenant.bed_id}
+              tenantId={tenant.user_id}
+              tenantName={tenant.name}
+              leaseId={tenant.lease_id}
+              leaseStatus={tenant.lease_status as Parameters<typeof TenantLeaseActions>[0]["leaseStatus"]}
+              allowed={property?.capabilities?.leases?.allowed ?? false}
+              onChanged={load}
+            />
+          </View>
+        </RecordPanel>
       </View>
 
-      {status === "Agreement needed" ? <Notice tone="warning" title="This occupancy needs a Rooomly agreement" body="Prepare the agreement before treating this as an active platform tenancy." /> : null}
-      {tenant.rent.status === "overdue" ? <Notice tone="warning" title={`${formatMinor(tenant.rent.overdue_minor, currency)} is overdue`} body={tenant.rent.next_due_on ? `Next due date recorded: ${formatDate(tenant.rent.next_due_on)}.` : "Open Payments to review the rent record."} /> : null}
-
-      <Section title="Tenancy">
-        <Fact label="Status" value={status} />
-        <Fact label="Home" value={`${tenant.unit_label}${tenant.bed_label ? ` · ${tenant.bed_label}` : ""}`} />
-        <Fact label="Starts" value={tenant.lease_starts_on ? formatDate(tenant.lease_starts_on) : "Not recorded"} />
-        <Fact label="Ends" value={tenant.lease_ends_on ? formatDate(tenant.lease_ends_on) : "Open-ended / not recorded"} />
-      </Section>
-
-      <Section title="Agreement and rent">
-        <Fact label="Agreement" value={tenant.lease_status ? humanize(tenant.lease_status) : "Not prepared"} />
-        <Fact label="Rent" value={tenant.lease_rent_minor === null ? "Not recorded" : `${formatMinor(tenant.lease_rent_minor, currency)} per ${tenant.lease_rent_period === "yearly" ? "year" : "month"}`} />
-        <Fact label="Rent position" value={tenant.rent.status === "current" ? "Paid up" : humanize(tenant.rent.status)} />
-        <Fact label="Outstanding" value={formatMinor(tenant.rent.outstanding_minor, currency)} />
-        <View style={{ marginTop: space[3] }}>
-          <TenantLeaseActions
-            unitId={tenant.unit_id}
-            bedId={tenant.bed_id}
-            tenantId={tenant.user_id}
-            tenantName={tenant.name}
-            leaseId={tenant.lease_id}
-            leaseStatus={tenant.lease_status as Parameters<typeof TenantLeaseActions>[0]["leaseStatus"]}
-            allowed={property?.capabilities.leases.allowed ?? false}
-            onChanged={load}
+      <View style={styles.section}>
+        <GroupLabel>Related records</GroupLabel>
+        <RecordPanel>
+          <LinkRow
+            first
+            icon="business-outline"
+            label={tenant.property_title}
+            detail="The Property this home belongs to"
+            onPress={() => router.push({ pathname: "/(app)/provider-property", params: { propertyId: tenant.property_id } } as never)}
           />
-        </View>
-      </Section>
-
-      <Surface style={{ gap: space[2] }}>
-        <Type variant="title2" accessibilityRole="header">Related records</Type>
-        <RelatedAction label={tenant.property_title} detail="Property" onPress={() => router.push({ pathname: "/(app)/provider-property", params: { propertyId: tenant.property_id } } as never)} />
-        <RelatedAction label={`${tenant.unit_label}${tenant.bed_label ? ` · ${tenant.bed_label}` : ""}`} detail="Unit" onPress={() => router.push({ pathname: "/(app)/space", params: { unitId: tenant.unit_id } } as never)} />
-        <RelatedAction label="Payments" detail="Rent and payment records" onPress={() => router.push("/(app)/(provider-tabs)/payments" as never)} />
-      </Surface>
+          <LinkRow
+            icon="cube-outline"
+            label={home}
+            detail="The Unit itself"
+            onPress={() => router.push({ pathname: "/(app)/space", params: { unitId: tenant.unit_id } } as never)}
+          />
+          <LinkRow
+            icon="cash-outline"
+            label="Payments"
+            detail="Rent and payment records across the Portfolio"
+            onPress={() => router.push("/(app)/(provider-tabs)/payments" as never)}
+          />
+        </RecordPanel>
+      </View>
     </ScrollView>
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return <View style={{ gap: space[1] }}><Type variant="title2" accessibilityRole="header" style={{ marginBottom: space[2] }}>{title}</Type>{children}</View>;
-}
-
-function Fact({ label, value }: { label: string; value: string }) {
-  return <View style={{ paddingVertical: space[3], borderBottomWidth: 1, borderBottomColor: theme.color.field["200"], gap: space[1] }}><Type variant="caption">{label}</Type><Type variant="bodyStrong">{value}</Type></View>;
-}
-
-function RelatedAction({ label, detail, onPress }: { label: string; detail: string; onPress: () => void }) {
+/** Shaped like the record it becomes, so nothing jumps when the tenancy arrives. */
+function TenancySkeleton() {
   return (
-    <Pressable
-      accessibilityRole="link"
-      accessibilityLabel={`${label}, ${detail}`}
-      onPress={onPress}
-      style={({ pressed }) => ({
-        minHeight: 56,
-        flexDirection: "row",
-        alignItems: "center",
-        gap: space[3],
-        paddingVertical: space[2],
-        borderBottomWidth: 1,
-        borderBottomColor: theme.color.field["200"],
-        opacity: pressed ? 0.72 : 1,
-      })}
-    >
-      <View style={{ flex: 1 }}>
-        <Type variant="bodyStrong">{label}</Type>
-        <Type variant="caption">{detail}</Type>
-      </View>
-      <Type variant="title2" style={{ color: theme.color.kola["600"] }}>›</Type>
-    </Pressable>
+    <View accessible accessibilityRole="progressbar" accessibilityLabel="Loading this tenancy" style={styles.page}>
+      <Bone width="38%" height={13} />
+      <Bone width="64%" height={22} />
+      <RecordPanel style={styles.skeletonPanel}>
+        <Bone width="34%" height={12} />
+        <Bone width="50%" height={30} />
+        <Bone height={44} />
+      </RecordPanel>
+    </View>
   );
 }
 
@@ -131,6 +175,12 @@ function tenancyLabel(tenant: Tenant) {
   if (tenant.tenancy_status === "pending_lease" || !tenant.lease_id) return "Agreement needed";
   if (tenant.tenancy_status === "upcoming") return "Upcoming tenancy";
   return tenant.tenancy_status === "active" ? "Active tenancy" : "Tenancy";
+}
+
+function statusTone(tenant: Tenant): StatusTone {
+  if (tenant.tenancy_status === "pending_lease" || !tenant.lease_id) return "attention";
+  if (tenant.tenancy_status === "upcoming") return "waiting";
+  return tenant.tenancy_status === "active" ? "good" : "neutral";
 }
 
 function humanize(value: string) {
@@ -141,3 +191,29 @@ function formatDate(value: string) {
   const date = new Date(`${value.slice(0, 10)}T12:00:00`);
   return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString("en-GH", { day: "numeric", month: "short", year: "numeric" });
 }
+
+const styles = StyleSheet.create({
+  page: {
+    padding: space[4],
+    gap: space[4],
+  },
+  section: {
+    gap: space[2],
+  },
+  rule: {
+    height: StyleSheet.hairlineWidth,
+    marginHorizontal: space[4],
+    backgroundColor: EDGE,
+  },
+  actionPanel: {
+    paddingBottom: space[4],
+  },
+  actions: {
+    paddingHorizontal: 14,
+    paddingTop: space[3],
+  },
+  skeletonPanel: {
+    gap: space[3],
+    padding: space[4],
+  },
+});

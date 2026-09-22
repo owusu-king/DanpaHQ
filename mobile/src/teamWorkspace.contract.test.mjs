@@ -29,10 +29,22 @@ test("removing a member cannot happen on one stray tap", () => {
 
   // The old card carried an unconfirmed destructive button per member.
   assert.doesNotMatch(team, /removePortfolioMember/);
-  assert.match(member, /Alert\.alert\(/);
-  assert.match(member, /style: "destructive"/);
   assert.match(member, /removePortfolioMember/);
   assert.match(team, /Revoke this invitation\?/);
+
+  // The confirmation was an OS alert and is now a sheet, so that it can name
+  // the person, what they lose and what they keep in the product's own voice.
+  // What is pinned is the step, not the widget: the act is never reachable
+  // without a second, deliberate one.
+  assert.match(member, /onPress=\{\(\) => setRemoving\(true\)\}/, "the page's word must only open the sheet");
+  assert.match(member, /title=\{`Remove \$\{member\.display_name\}\?`\}/);
+  assert.match(member, /tone="danger"/);
+  assert.match(member, /closeLabel="Keep their access"/);
+  // And the act itself lives inside that sheet, never on the page behind it.
+  assert.ok(
+    member.indexOf("<BottomSheet") < member.indexOf("void remove()"),
+    "removing runs from the page rather than from the confirmation",
+  );
 });
 
 test("access changes are staged, then settled once", () => {
@@ -55,7 +67,9 @@ test("both Team screens describe a role the same way", () => {
   assert.match(team, /from "@\/components\/team\/TeamPatterns"/);
   assert.match(member, /from "@\/components\/team\/TeamPatterns"/);
 
-  // A tick in a label is invisible to a screen reader, so a toggle says so.
+  // A tick in a label is invisible to a screen reader, so a toggle says so —
+  // and says it where both renderers listen. See `ariaState.contract.test.mjs`.
   assert.match(ui, /accessibilityRole=\{selected === undefined \? "button" : "checkbox"\}/);
+  assert.match(ui, /aria-checked=\{selected\}/);
   assert.match(patterns, /selected=\{selected\.includes\(property\.id\)\}/);
 });

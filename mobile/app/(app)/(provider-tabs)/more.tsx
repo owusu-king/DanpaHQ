@@ -1,10 +1,15 @@
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useState } from "react";
-import { ScrollView, View } from "react-native";
 
 import { useAuth } from "@/auth";
-import { Group, QuietLink, Row } from "@/components/account/IndexRows";
-import { space } from "@/components/ui";
+import {
+  Group,
+  IndexActions,
+  IndexPage,
+  Row,
+  SignOutButton,
+  SwitchExperienceButton,
+} from "@/components/account/IndexRows";
 import { resolveEntryRoute } from "@/navigation";
 import { listNotifications } from "@/notifications";
 import { listMyPortfolioInvitations } from "@/organizations";
@@ -15,16 +20,15 @@ import { chooseWorkspace } from "@/workspace";
  *
  * A navigation surface, not an information page. A row that says Leases and
  * leads to Leases needs no sentence under it, so none of them has one — the
- * label, the icon and the chevron are the whole design. Boxes came off the
- * groups too: a card around a list of links is structure the list did not ask
- * for.
+ * label, the glyph and the chevron are the whole design. Each group is one glass
+ * panel rather than a card per row; `IndexRows` says why it looks the way it does.
  *
- * Nor does it title itself: the header says "More" under the Portfolio's name,
- * which this page used to repeat as its own eyebrow and heading.
+ * Nor does it title itself: the header says "More", which this page used to
+ * repeat as its own eyebrow and heading.
  *
  * Account destinations are listed here rather than behind a Settings row.
  * Making someone tap More → Settings → Security is one level more than the task
- * deserves. The tenant's equivalent is their profile tab; the two list different
+ * deserves. The tenant's equivalent is their own More; the two list different
  * things and are built from the same rows.
  */
 export default function ProviderMoreScreen() {
@@ -78,9 +82,9 @@ export default function ProviderMoreScreen() {
   }
 
   return (
-    <ScrollView contentContainerStyle={{ padding: space[5], paddingBottom: space[12], gap: space[6] }}>
+    <IndexPage>
       {invitations ? (
-        <Group title="Waiting for you">
+        <Group title="Waiting for you" tone="harmattan">
           <Row
             icon="people-circle-outline"
             label="Portfolio invitations"
@@ -90,7 +94,7 @@ export default function ProviderMoreScreen() {
         </Group>
       ) : null}
 
-      <Group title="Management">
+      <Group title="Management" tone="lagoon">
         {operates ? <Row icon="grid-outline" label="Units" onPress={() => router.push("/(app)/units" as never)} /> : null}
         {operates ? <Row icon="calendar-outline" label="Viewings" onPress={() => router.push("/(app)/provider-viewings" as never)} /> : null}
         {operates ? <Row icon="document-text-outline" label="Tenancy requests" onPress={() => router.push("/(app)/provider-applications" as never)} /> : null}
@@ -98,12 +102,14 @@ export default function ProviderMoreScreen() {
         <Row icon="notifications-outline" label="Updates" count={unread} onPress={() => router.push("/(app)/notifications" as never)} />
       </Group>
 
-      <Group title="Growth and trust">
+      {/* Harmattan, not laterite: a shield in laterite beside "Verification"
+          reads as a check that failed. */}
+      <Group title="Growth and trust" tone="harmattan">
         {operates ? <Row icon="megaphone-outline" label="Listings" onPress={() => router.push("/(app)/(provider-tabs)/properties" as never)} /> : null}
         <Row icon="shield-checkmark-outline" label="Verification" onPress={() => router.push("/(app)/trust" as never)} />
       </Group>
 
-      <Group title="Account and settings">
+      <Group title="Account and settings" tone="kola">
         <Row icon="person-outline" label="Profile" onPress={() => router.push("/(app)/profile-edit" as never)} />
         {billing ? <Row icon="card-outline" label="Settlement account" onPress={() => router.push("/(app)/payout-account" as never)} /> : null}
         <Row icon="lock-closed-outline" label="Security" onPress={() => router.push("/(app)/security" as never)} />
@@ -113,20 +119,19 @@ export default function ProviderMoreScreen() {
         {operates ? <Row icon="archive-outline" label="Archive" onPress={() => router.push("/(app)/archive" as never)} /> : null}
       </Group>
 
-      <View style={{ gap: space[1] }}>
-        {/* A change of view, not of account — so it is a link, not a section.
-            Switching back is one tap from the tenant profile. */}
-        <QuietLink
-          label="Switch to renting →"
+      <IndexActions>
+        {/* A change of view, not of account. Switching back is one tap from
+            the tenant's More. */}
+        <SwitchExperienceButton
+          label="Switch to renting"
           busyLabel="Switching…"
           busy={switching}
           onPress={() => void switchToTenant()}
         />
-        <QuietLink
+        <SignOutButton
           label="Sign out"
           busyLabel="Signing out…"
           busy={leaving}
-          tone="quiet"
           onPress={async () => {
             setLeaving(true);
             try {
@@ -137,7 +142,7 @@ export default function ProviderMoreScreen() {
             }
           }}
         />
-      </View>
-    </ScrollView>
+      </IndexActions>
+    </IndexPage>
   );
 }

@@ -5,6 +5,7 @@ import { ActivityIndicator, ScrollView, View } from "react-native";
 import { apiFetch, ApiFailure } from "@/api";
 import { useAuth } from "@/auth";
 import { Button, Field, Notice, Type, space } from "@/components/ui";
+import { useSafeBottom } from "@/platform";
 import { uploadImage } from "@/provider";
 import { theme } from "@/theme";
 
@@ -17,6 +18,7 @@ type Verification = {
 };
 
 export default function IdentityVerificationScreen() {
+  const pageBottom = useSafeBottom(space[12]);
   const { refreshMe } = useAuth();
   const [identity, setIdentity] = useState<Verification | null | undefined>();
   const [nationalId, setNationalId] = useState("");
@@ -77,7 +79,7 @@ export default function IdentityVerificationScreen() {
   }
 
   return (
-    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: space[5], paddingBottom: space[12], gap: space[6] }}>
+    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: space[5], paddingBottom: pageBottom, gap: space[6] }}>
       <View style={{ gap: space[2] }}>
         <Type variant="label">IDENTITY</Type>
         <Type variant="display2" accessibilityRole="header">Identity verification</Type>

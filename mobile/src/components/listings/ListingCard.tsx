@@ -143,7 +143,7 @@ export function ListingCard({
         {onSave ? (
           <Pressable
             accessibilityRole="button"
-            accessibilityState={{ selected: saved }}
+            aria-selected={saved}
             accessibilityLabel={saved ? `Remove ${listing.headline} from saved` : `Save ${listing.headline}`}
             onPress={onSave}
             hitSlop={6}

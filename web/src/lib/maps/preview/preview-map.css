@@ -1,0 +1,77 @@
+.rooomly-preview-map {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: #e8eee9;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.rooomly-preview-map:active { cursor: grabbing; }
+.rooomly-preview-map.is-cooperative { touch-action: pan-y; }
+.rooomly-preview-tiles,
+.rooomly-preview-shapes,
+.rooomly-preview-markers { position: absolute; inset: 0; pointer-events: none; }
+.rooomly-preview-tile {
+  position: absolute;
+  width: 256px;
+  height: 256px;
+  object-fit: cover;
+  pointer-events: none;
+  user-select: none;
+}
+.rooomly-preview-marker {
+  position: absolute;
+  width: max-content;
+  pointer-events: auto;
+  cursor: pointer;
+}
+.rooomly-preview-marker:focus-visible {
+  outline: 2px solid #1b6b4f;
+  outline-offset: 4px;
+}
+.rooomly-preview-area {
+  position: absolute;
+  border-width: 2px;
+  border-radius: 50%;
+  translate: -50% -50%;
+  pointer-events: none;
+}
+.rooomly-preview-controls {
+  position: absolute;
+  z-index: 5;
+  right: 14px;
+  bottom: 48px;
+  display: grid;
+  overflow: hidden;
+  border: 1px solid #d2c9bc;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 3px 12px rgb(33 26 21 / 12%);
+}
+.rooomly-preview-controls button {
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  color: #12503b;
+  background: #fff;
+  font: 600 22px/1 sans-serif;
+  cursor: pointer;
+}
+.rooomly-preview-controls button + button { border-top: 1px solid #e6e0d7; }
+.rooomly-preview-controls button:hover { background: #e8f1ec; }
+.rooomly-preview-controls button:focus-visible { outline: 2px solid #1b6b4f; outline-offset: -3px; }
+.rooomly-preview-attribution {
+  position: absolute;
+  z-index: 5;
+  right: 8px;
+  bottom: 8px;
+  padding: 4px 7px;
+  color: #211a15;
+  background: rgb(255 255 255 / 92%);
+  border-radius: 4px;
+  font: 500 11px/1.3 sans-serif;
+  text-decoration: none;
+}
+.rooomly-preview-attribution:hover { text-decoration: underline; }

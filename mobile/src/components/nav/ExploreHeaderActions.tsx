@@ -14,10 +14,9 @@ import { resolvePhotoUrl } from "@/photo";
  * both, giving the pushed route a second way to reach tabs it has no tab bar
  * for.
  *
- * Both destinations are sibling tabs and both are already reached this way from
- * elsewhere — Profile → "Saved places" and Services → Profile both `push` these
- * exact hrefs. Matching them keeps one transition behaving one way; a third
- * method for the same journey is how a product starts feeling assembled.
+ * Saved is a pushed screen of its own (2026-09-15) rather than a hidden tab, so
+ * it carries a back arrow and no tab bar, beside Verification and Security. More
+ * → "Saved places" pushes this exact href too: one transition, one behaviour.
  */
 export function ExploreHeaderActions() {
   const router = useRouter();
@@ -47,7 +46,7 @@ export function ExploreHeaderActions() {
       <HeaderCircleButton
         icon="bookmark-outline"
         label="Saved"
-        onPress={() => router.push("/(app)/(tabs)/saved" as never)}
+        onPress={() => router.push("/(app)/saved" as never)}
       />
       <HeaderCircleButton
         icon="person-outline"

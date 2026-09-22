@@ -15,10 +15,24 @@
 
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
-import { ScrollView, View } from "react-native";
+import { ScrollView, StyleSheet, View } from "react-native";
 
 import { ApiFailure } from "@/api";
-import { Button, Choice, Field, Notice, Surface, Type, space } from "@/components/ui";
+import { Bone } from "@/components/billing/BillingParts";
+import {
+  ActionBar,
+  Fact,
+  Footnote,
+  GroupLabel,
+  INK,
+  KOLA,
+  Pill,
+  QuietAct,
+  RecordPanel,
+} from "@/components/record/RecordSurfaces";
+import { Select } from "@/components/form/Select";
+import { Field, Notice, Type, space } from "@/components/ui";
+import { useSafeBottom } from "@/platform";
 import {
   CheckpointJourney,
   type CreationCheckpoint,
@@ -41,6 +55,10 @@ const STEPS = ["Details", "Amenities", "Photos", "Review"] as const;
 type Step = (typeof STEPS)[number];
 
 export default function NewSpaceScreen() {
+  // Android draws edge-to-edge, so the last control sits under the navigation
+  // buttons unless the scroll clears them — and they then look as though the
+  // page were showing through.
+  const pageBottom = useSafeBottom(space[8]);
   const { propertyId, unitId: resumeUnitId, step: requestedStep } = useLocalSearchParams<{
     propertyId: string;
     unitId?: string;
@@ -89,29 +107,31 @@ export default function NewSpaceScreen() {
 
   if (!property) {
     return (
-      <View style={{ padding: space[5] }}>
-        {error ? <Notice tone="error" title={error} /> : <Type variant="caption">Loading…</Type>}
+      <View style={styles.page}>
+        {error ? <Notice tone="error" title={error} /> : <Bone height={22} />}
       </View>
     );
   }
 
+  const keep = () => router.replace({ pathname: "/(app)/space", params: { unitId: unit!.id } });
+
   return (
-    <ScrollView
-      contentContainerStyle={{ padding: space[5], gap: space[5] }}
-      keyboardShouldPersistTaps="handled"
-    >
-      <View style={{ gap: space[2] }}>
-        <Type variant="display2">Add Unit</Type>
-        <Type variant="caption">
-          A Unit is the space a tenant actually rents — {property.property_type === "hostel"
-            ? "one hostel room or one bed space"
-            : "one flat, room, shop or other rentable space"}.
-          It sits inside {property.title} and takes its address, its area and its
-          checks from it.
-        </Type>
+    <ScrollView contentContainerStyle={[styles.page, { paddingBottom: pageBottom }]} keyboardShouldPersistTaps="handled">
+      <View style={styles.head}>
+        <Type variant="label" style={styles.eyebrow}>{property.title.toUpperCase()}</Type>
+        <Type variant="title2" accessibilityRole="header" style={styles.title}>Add a Unit</Type>
       </View>
 
-      <Progress current={step} reached={unit ? STEPS.indexOf(step) : 0} />
+      {/* Steps already reached are the way back. Ahead is not offered: each
+          step writes to the record the one before it created. */}
+      <Progress
+        current={step}
+        reached={unit ? STEPS.indexOf(step) : 0}
+        onGoTo={(key) => {
+          const next = STEPS.find((name) => name.toLowerCase() === key);
+          if (next && (next === "Details" || unit)) setStep(next);
+        }}
+      />
 
       {step === "Details" ? (
         <DetailsStep
@@ -127,42 +147,36 @@ export default function NewSpaceScreen() {
       ) : null}
 
       {step === "Amenities" && unit ? (
-        <Surface style={{ gap: space[4] }}>
-          <StepHeading
-            title="What does this Unit have?"
-            body="Only what belongs to this Unit. Anything the whole compound shares — a borehole, a guard, parking — is recorded once on the Property."
-          />
+        <View style={styles.step}>
+          <GroupLabel>What this Unit has</GroupLabel>
+          <Footnote>Anything the whole compound shares is recorded once on the Property.</Footnote>
           <SpaceAmenities
             scope="unit"
             id={unit.id}
             saveLabel="Save and continue"
             onSaved={() => setStep("Photos")}
             saveForLaterLabel="Save for later"
-            onSavedForLater={() =>
-              router.replace({ pathname: "/(app)/space", params: { unitId: unit.id } })
-            }
+            onSavedForLater={keep}
           />
-          <Button label="Skip for now" variant="quiet" onPress={() => setStep("Photos")} />
-        </Surface>
+          <View style={styles.quiet}>
+            <QuietAct label="Skip for now" onPress={() => setStep("Photos")} />
+          </View>
+        </View>
       ) : null}
 
       {step === "Photos" && unit ? (
-        <Surface style={{ gap: space[4] }}>
-          <StepHeading
-            title="Show the Unit"
-            body="Add the main view, then one clear photo of every amenity you selected. Two further context views are optional. These are also the photos a tenant sees."
-          />
+        <View style={styles.step}>
+          <GroupLabel>Show the Unit</GroupLabel>
+          <Footnote>The main view, then one clear photo of each amenity. These are what a tenant sees.</Footnote>
           <SpacePhotos unitId={unit.id} editable onChanged={reload} />
-          <Button label="Continue" onPress={() => setStep("Review")} />
-          <Button
-            label="Save for later"
-            variant="secondary"
-            onPress={() =>
-              router.replace({ pathname: "/(app)/space", params: { unitId: unit.id } })
-            }
-          />
-          <Button label="Back" variant="quiet" onPress={() => setStep("Amenities")} />
-        </Surface>
+          <ActionBar>
+            <Pill label="Continue" icon="arrow-forward" grow onPress={() => setStep("Review")} />
+            <QuietAct label="Save for later" onPress={keep} />
+          </ActionBar>
+          <View style={styles.quiet}>
+            <QuietAct label="Back" icon="chevron-back" onPress={() => setStep("Amenities")} />
+          </View>
+        </View>
       ) : null}
 
       {step === "Review" && unit ? (
@@ -170,9 +184,7 @@ export default function NewSpaceScreen() {
           unit={unit}
           onBack={() => setStep("Photos")}
           onReload={reload}
-          onDone={() =>
-            router.replace({ pathname: "/(app)/space", params: { unitId: unit.id } })
-          }
+          onDone={keep}
         />
       ) : null}
     </ScrollView>
@@ -246,112 +258,91 @@ function DetailsStep({
   }
 
   return (
-    <Surface style={{ gap: space[4] }}>
-      <StepHeading
-        title="What is being let here?"
-        body="Only what is true of this Unit. The address, the area and who holds the Property come from the Property itself."
-      />
-
-      <Choice
-        label="What is let here?"
-        hint={
-          options.length
-            ? "Only what this kind of property can contain is offered."
-            : "Loading the options…"
-        }
-        value={spaceType}
-        options={options.map((option) => ({ value: option.value, label: option.label }))}
-        onChange={setSpaceType}
-      />
-
-      <Field
-        label="What do you call it?"
-        hint="Flat A, Room 3, Ground floor shop."
-        value={label}
-        onChangeText={setLabel}
-      />
-
-      <Field
-        label="Describe it"
-        hint="Stays with the space. A tenant using private access never sees a public listing, and this is what they read."
-        value={description}
-        onChangeText={setDescription}
-        multiline
-      />
-
-      {countsApply ? (
-        <>
-          <Field
-            label="Bedrooms"
-            hint="0 for a single room."
-            value={bedrooms}
-            onChangeText={setBedrooms}
-            keyboardType="number-pad"
-          />
-          <Field
-            label="Bathrooms"
-            value={bathrooms}
-            onChangeText={setBathrooms}
-            keyboardType="number-pad"
-          />
-        </>
-      ) : null}
-
-      <View style={{ gap: space[2] }}>
-        <Type variant="label">WHERE INSIDE THE PROPERTY</Type>
-        <Type variant="caption">
-          Only what differs between two spaces at this address. All optional.
-        </Type>
+    <View style={styles.step}>
+      <View style={styles.section}>
+        <GroupLabel>What is let here</GroupLabel>
+        <Select
+          label="Kind of space"
+          placeholder="Choose what is let"
+          value={spaceType}
+          options={options.map((option) => ({
+            value: option.value,
+            label: option.label,
+            detail: option.accepts_bed_spaces ? "Beds can be let separately" : undefined,
+          }))}
+          onChange={setSpaceType}
+        />
+        <Field label="Name" placeholder="Flat A, Room 3, Ground floor shop" value={label} onChangeText={setLabel} />
+        {countsApply ? (
+          <View style={styles.pair}>
+            <View style={styles.half}>
+              <Field label="Bedrooms" placeholder="0 for a single room" value={bedrooms} onChangeText={setBedrooms} keyboardType="number-pad" />
+            </View>
+            <View style={styles.half}>
+              <Field label="Bathrooms" placeholder="1" value={bathrooms} onChangeText={setBathrooms} keyboardType="number-pad" />
+            </View>
+          </View>
+        ) : null}
+        <Field
+          label="Describe it"
+          placeholder="What a tenant should know before they see it"
+          value={description}
+          onChangeText={setDescription}
+          multiline
+        />
       </View>
 
-      {buildings.length ? (
-        <Choice
-          label="Building or block"
-          value={buildingId}
-          options={buildings.map((row) => ({ value: row.id, label: row.name }))}
-          onChange={setBuildingId}
+      <View style={styles.section}>
+        <GroupLabel>Where inside the Property</GroupLabel>
+        {buildings.length ? (
+          <Select
+            label="Block"
+            placeholder="Anywhere in the Property"
+            value={buildingId}
+            options={buildings.map((row) => ({ value: row.id, label: row.name, detail: row.code || undefined }))}
+            onChange={setBuildingId}
+          />
+        ) : null}
+        <View style={styles.pair}>
+          <View style={styles.half}>
+            <Field label="Floor" placeholder="0 for ground" value={floor} onChangeText={setFloor} keyboardType="numbers-and-punctuation" />
+          </View>
+          <View style={styles.half}>
+            <Field label="Wing" placeholder="East" value={wing} onChangeText={setWing} />
+          </View>
+        </View>
+        <Field
+          label="How to find the door"
+          placeholder="Second door past the stairwell"
+          value={entrance}
+          onChangeText={setEntrance}
         />
-      ) : null}
-
-      <Field
-        label="Floor"
-        hint="0 for ground."
-        value={floor}
-        onChangeText={setFloor}
-        keyboardType="numbers-and-punctuation"
-      />
-      <Field label="Wing" value={wing} onChangeText={setWing} />
-      <Field
-        label="How to find the door"
-        hint="Shared only after a viewing is confirmed, never on a public page."
-        value={entrance}
-        onChangeText={setEntrance}
-      />
+        <Footnote>Directions are shared only after a viewing is confirmed, never publicly.</Footnote>
+      </View>
 
       {chosen?.accepts_bed_spaces ? (
         <Notice
           tone="info"
-          title="You can add bed spaces to this room"
-          body="Save the room first, then add each bed. A bed can be let on its own, or you can let the whole room."
+          title="Beds can be let separately"
+          body="Save the room first, then add each bed."
         />
       ) : null}
 
       {error ? <Notice tone="error" title={error} /> : null}
 
-      <Button
-        label="Save and continue"
-        busy={busy}
-        disabled={!spaceType}
-        onPress={() => void submit(false)}
-      />
-      <Button
-        label="Save for later"
-        variant="quiet"
-        busy={busy}
-        disabled={!spaceType}
-        onPress={() => void submit(true)}
-      />
-    </Surface>
+      <ActionBar>
+        <Pill
+          label="Save and continue"
+          icon="arrow-forward"
+          busy={busy}
+          busyLabel="Saving"
+          disabled={!spaceType}
+          grow
+          onPress={() => void submit(false)}
+        />
+        <QuietAct label="Save for later" disabled={busy || !spaceType} onPress={() => void submit(true)} />
+      </ActionBar>
+    </View>
   );
 }
 
@@ -383,84 +374,88 @@ function ReviewStep({
   const ready = unit.verification.can_submit && permitted?.allowed !== false;
 
   return (
-    <Surface style={{ gap: space[4] }}>
-      <StepHeading
-        title="Send it for checking"
-        body="Our team looks at the photo against what you have said the space is. Until that passes, private access and advertising stay unavailable."
-      />
-
-      <View style={{ gap: space[2] }}>
-        <Row term="What is let" value={unit.space_type_label} />
-        <Row term="Called" value={unit.label || "Not named"} />
-        <Row
-          term="Amenities"
-          value={
-            unit.amenities.length
-              ? unit.amenities.map((row) => row.name).join(", ")
-              : "None recorded"
-          }
-        />
-        <Row
-          term="Photos"
-          value={`${unit.photo_count} of ${unit.verification.required_total + 2}`}
-        />
+    <View style={styles.step}>
+      <View style={styles.section}>
+        <GroupLabel>Send it for checking</GroupLabel>
+        <RecordPanel>
+          <Fact first label="Kind" value={unit.space_type_label} />
+          <Fact label="Called" value={unit.label || "Not named"} />
+          <Fact
+            wide
+            label="Amenities"
+            value={unit.amenities.length ? unit.amenities.map((row) => row.name).join(" · ") : "None recorded"}
+          />
+          <Fact
+            label="Photos"
+            value={`${unit.photo_count} of ${unit.verification.required_total + 2}`}
+            tone={ready ? "good" : "waiting"}
+          />
+        </RecordPanel>
       </View>
 
       {ready ? (
-        <Notice
-          tone="info"
-          title="What sending this does"
-          body="It goes to our team with the photos attached. You can keep working on the rest of the property meanwhile — nothing else waits on this."
-        />
+        <Footnote>It goes to our team with the photos attached. Nothing else waits on this.</Footnote>
       ) : waitingOnProperty ? (
         <Notice
           tone="info"
-          title="The entire property has to be verified first"
-          body={
-            permitted?.message ??
-            "This Unit can be sent once the Property's documents and photographs are approved together."
-          }
+          title="The Property is checked first"
+          body={permitted?.message ?? "This Unit can be sent once the Property's documents and photographs are approved."}
         />
       ) : (
         <Notice
           tone="warning"
           title={`${unit.verification.required_outstanding} photo still needed`}
-          body="Go back a step and add the main interior view. It is the one thing photographs of the building cannot show."
+          body="Go back and add the main interior view."
         />
       )}
 
       {error ? <Notice tone="error" title={error} /> : null}
 
-      <Button
-        label="Send for checking"
-        busy={busy}
-        disabled={!ready}
-        onPress={async () => {
-          setBusy(true);
-          setError("");
-          try {
-            await submitForReview("unit", unit.id);
-            await onReload();
-            onDone();
-          } catch (cause) {
-            // The refusal names what is outstanding, so it is shown as-is.
-            setError(
-              cause instanceof ApiFailure ? cause.error.message : "Could not send this yet.",
-            );
-          } finally {
-            setBusy(false);
-          }
-        }}
-      />
-      <Button label="Save for later" variant="secondary" onPress={onDone} />
-      <Button label="Back" variant="quiet" onPress={onBack} />
-    </Surface>
+      <ActionBar>
+        <Pill
+          label="Send for checking"
+          icon="shield-checkmark-outline"
+          busy={busy}
+          busyLabel="Sending"
+          disabled={!ready}
+          grow
+          onPress={async () => {
+            setBusy(true);
+            setError("");
+            try {
+              await submitForReview("unit", unit.id);
+              await onReload();
+              onDone();
+            } catch (cause) {
+              // The refusal names what is outstanding, so it is shown as-is.
+              setError(
+                cause instanceof ApiFailure ? cause.error.message : "Could not send this yet.",
+              );
+            } finally {
+              setBusy(false);
+            }
+          }}
+        />
+        <QuietAct label="Save for later" disabled={busy} onPress={onDone} />
+      </ActionBar>
+      <View style={styles.quiet}>
+        <QuietAct label="Back" icon="chevron-back" disabled={busy} onPress={onBack} />
+      </View>
+    </View>
   );
 }
 
 // --- small pieces -------------------------------------------------------------
 
-function Progress({ current, reached }: { current: Step; reached: number }) {
+function Progress({
+  current,
+  reached,
+  onGoTo,
+}: {
+  current: Step;
+  reached: number;
+  onGoTo: (key: string) => void;
+}) {
   const checkpoints: CreationCheckpoint[] = STEPS.map((step, index) => ({
     key: step.toLowerCase(),
     label: step,
@@ -477,24 +472,45 @@ function Progress({ current, reached }: { current: Step; reached: number }) {
       checkpoints={checkpoints}
       label="BUILDING UNIT"
       accessibilityLabel="Unit creation checkpoints"
+      onGoTo={onGoTo}
     />
   );
 }
 
-function StepHeading({ title, body }: { title: string; body: string }) {
-  return (
-    <View style={{ gap: space[1] }}>
-      <Type variant="title2">{title}</Type>
-      <Type variant="caption">{body}</Type>
-    </View>
-  );
-}
-
-function Row({ term, value }: { term: string; value: string }) {
-  return (
-    <View style={{ gap: 2 }}>
-      <Type variant="label">{term.toUpperCase()}</Type>
-      <Type variant="body">{value}</Type>
-    </View>
-  );
-}
+const styles = StyleSheet.create({
+  page: {
+    padding: space[4],
+    gap: space[4],
+  },
+  head: {
+    gap: space[1],
+    paddingHorizontal: 2,
+  },
+  eyebrow: {
+    color: KOLA,
+  },
+  title: {
+    fontSize: 19,
+    lineHeight: 25,
+    color: INK,
+  },
+  step: {
+    gap: space[4],
+  },
+  section: {
+    gap: space[3],
+  },
+  /** Two short answers side by side rather than two full-width boxes. */
+  pair: {
+    flexDirection: "row",
+    gap: space[3],
+  },
+  half: {
+    flex: 1,
+    minWidth: 0,
+  },
+  quiet: {
+    alignItems: "flex-start",
+    paddingHorizontal: 2,
+  },
+});

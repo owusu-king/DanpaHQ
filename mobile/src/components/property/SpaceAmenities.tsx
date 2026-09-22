@@ -14,7 +14,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { View } from "react-native";
 
 import { ApiFailure } from "@/api";
-import { Button, Chip, Notice, Type, space } from "@/components/ui";
+import { ActionBar, Pill, QuietAct } from "@/components/record/RecordSurfaces";
+import { Chip, Notice, Type, space } from "@/components/ui";
 import {
   getPropertyAmenities,
   getUnitAmenities,
@@ -140,10 +141,12 @@ export function SpaceAmenities({
       ) : null}
       {saved ? <Type variant="caption" style={{ color: theme.color.kola["600"] }}>Saved</Type> : null}
 
-      <Button label={saveLabel} variant="secondary" busy={busy} onPress={() => void save(onSaved)} />
-      {saveForLaterLabel && onSavedForLater ? (
-        <Button label={saveForLaterLabel} variant="quiet" busy={busy} onPress={() => void save(onSavedForLater)} />
-      ) : null}
+      <ActionBar>
+        <Pill label={saveLabel} icon="checkmark" busy={busy} busyLabel="Saving" grow onPress={() => void save(onSaved)} />
+        {saveForLaterLabel && onSavedForLater ? (
+          <QuietAct label={saveForLaterLabel} disabled={busy} onPress={() => void save(onSavedForLater)} />
+        ) : null}
+      </ActionBar>
     </View>
   );
 }

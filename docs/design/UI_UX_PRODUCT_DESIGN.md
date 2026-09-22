@@ -913,6 +913,52 @@ because the first billing question is always "why can't this customer add a
 property". Changing a plan there requires a reason and is recorded against the
 staff member who did it — an administrative grant, never a sale.
 
+**Refinement — 2026-09-15, product owner review (mobile).** The brief: a premium
+Plan & billing page with the same functionality and less text, and no billing
+history, payments or other long list laid out at once — the latest few first,
+*View all* for the rest, and complete histories in a scrolling sheet.
+
+- **The plan leads, in one glass surface.** Its rung as a glyph (from the ladder,
+  never a plan code), its name, the standing badge, the price and one line of
+  when. Anything that needs a person — renewal due, past due, a payment pending,
+  a change about to happen, restrictions — is a tinted strip straight under that
+  line with its one action, and *Change plan* is a kola pill that steps down to
+  a quiet one when the strip's action leads. Usage is the same surface's quieter
+  second zone: each limit's count, a thin bar only where there is a limit, and its
+  note. The plan's description, the shouted CURRENT PLAN label and the full-width
+  buttons are gone.
+- **Latest first, the rest one tap away.** Payments show the three most recent,
+  newest first whatever order they arrive in; plan history its two latest events;
+  *Above your plan's limits* its first three places. Each panel ends in *View all
+  7 payments*, *View all 8 events* or *View all 5 restricted*, which opens every
+  one in the shared bottom sheet — it scrolls, swipes away and returns to the same
+  place on the page. The payments sheet leads with a count and what was paid
+  (*7 payments · GH₵534.00 paid*) when every payment is in one currency.
+- **Each row stays whole and short.** A payment is three lines: what it paid for
+  against the amount; when and what it covered against its status as a word; and
+  the invoice number beside its receipt. A failed payment still says why. A
+  restricted place keeps its state as a word, its one-line consequence, and
+  *Reactivate* only where the server reports room — in the sheet as on the page.
+- **Billing terms are a few facts.** Cycle, next payment (with *Pay early* where
+  it is allowed), last paid with and billing email, each a named line in one
+  panel, for a paid subscription only.
+- **Parts.** The page's glass pieces live in `BillingSurfaces.tsx`; the plans,
+  review and payment screens keep `BillingParts`, so this refinement moves
+  nothing on them.
+- **Unchanged:** the server read on every return to the page, the kept screen on
+  a failed refresh, the keep-plan and reactivate feedback, the forbidden and
+  no-Portfolio states, and every rule about who may change the plan, what is
+  restricted and what a payment means.
+
+**Verified:** mobile typecheck and lint are clean. 203 of 205 mobile contract
+tests pass; the two failures are the Explore header button's, from header work in
+progress. The fifteen existing billing tests pass unchanged; six new tests hold
+the progressive disclosure, and a mirror caught 34 of 34 mutations. Checked in
+headless Chrome on Expo web with a mocked Portfolio at 390×844 — paid (every
+receipt, both sheets), renewal due, restricted above Free's limits (Reactivate
+only on the units with room) and Free — and at 320×640 with no truncated text.
+No native device was used.
+
 ## 15. Entity/Page Hierarchy
 
 ### Provider Property management
@@ -1515,6 +1561,62 @@ types, lint and contracts are verified.
 resumed the refinement program. Provider Viewings was completed next and is
 recorded below.
 
+**Refinement — 2026-09-15, product owner review (provider mobile).** The brief:
+reorganize Tenants into a calm, premium page with the same functionality and
+data — a compact hierarchy, clean grouping, rows that scan, clear rent and lease
+context, purposeful actions, and one Filter control instead of separate filters.
+
+- **One reading order, shared with Payments.** One glass panel leads with how
+  many tenancies need attention, with overdue money under it in laterite and
+  Tenancies and Paid up beside each other. A waiting tenancy request is one row
+  that opens the requests inbox; requests are still decided only there. The
+  introduction sentence and the relationships caption are gone.
+- **One Filter control.** The Tenants and Private access tabs and the row of Show
+  choices became one Filter pill beside the list's name and count. The shared
+  sheet groups Show (Tenancies, Private access) and, for tenancies only, Status
+  (All, Needs attention, Overdue, Paid up); every answer is a radio with its
+  count, and the sheet closes on "Show N results" beside Reset. An active status
+  appears as the pill's badge and one removable token. Search stays, over name,
+  Property, Unit and bed.
+- **Grouped tenancies, one exact tenancy per row.** The list is grouped into
+  Needs attention and On track, each one glass panel under its name and size. A
+  row reads the name against what is owed (or Paid up); the Property, Unit and bed
+  against how the rent stands (Overdue, Due date, Next date); then the term:
+  Agreement needed, Starts date or Ends date. Initials take the rent's colour.
+  Amounts and statuses never give way: on phones narrower than 350pt a paid-up
+  row's next date gives way instead, and term dates drop the day. A screen reader
+  hears the whole tenancy, term included, and rows still open the tenancy screen.
+- **Private access, lighter.** Still a secondary view of at most three verified,
+  available Units. What a code lets someone do is said once above the cards, in
+  `privateAccess`'s own words. Each card names the Unit with View Unit, then the
+  code's state in one line (its full explanation still spoken) and the same acts
+  as small pills: Create or New code, Revoke, and Share code with the one-time
+  value in a selectable well. This is a `layout="card"` of the shared
+  `UnitAccessCodeManagement`; the Unit screen keeps its section. A failed refresh
+  now keeps the Portfolio on screen, so a code that was just issued is not
+  unmounted with its card.
+- **One kit.** The figures panel, decision rows, notes, list heading, Filter pill,
+  token, search, row frame and lines, empty state and filter-sheet parts moved
+  from Payments into `components/portfolio/PortfolioList.tsx`, and both pages are
+  built from it.
+- **Unchanged:** pull to refresh, `?view=access`, the `?view=requests` redirect to
+  the inbox, attention-first ordering and what each filter means, the tenancy,
+  View Unit, See all Units and Review Properties routes, and the empty and
+  loading wording.
+
+**Verified:** mobile typecheck and lint are clean. 188 of 190 mobile contract
+tests pass; the two failures are the Explore header button's, from header work in
+progress. Nine new Tenants tests were added and a mirror caught 55 of 55
+mutations; the Payments tests were re-pointed at the kit and a mirror caught 35
+of 35. Payments' five headless captures after the move are byte-identical to the
+ones before it. Tenants was checked in headless Chrome on Expo web with a mocked
+Portfolio at 390×844, 360×780 and 320×640: the summary and waiting request, the
+grouped list, the sheet with a status chosen, the filtered state and its token,
+Reset, Private access with active, new and expired codes, a code issued (rotate,
+refetch, and the card and its code kept), the capped footer, a search with no
+match, the empty Portfolio, and no truncated text at 360 or 320. No native device
+was used.
+
 ### Journey: Provider Viewings
 
 **Status:** COMPLETE — 2026-08-24; awaiting user testing.
@@ -1582,6 +1684,40 @@ verified; the user should test the Android queue and detail interaction.
 
 **Journey handoff:** The user approved moving on from Viewings. Provider Tenancy
 Requests was completed next and is recorded below.
+
+**Refinement — 2026-09-15, product owner review (mobile).** The brief: a layout
+made for this page's purpose, the most important thing first, one Filter, few
+words, and polish on small phones.
+
+- **Today leads.** One glass panel: the visits in hand today, with what needs the
+  host under it in laterite, and beside each other the next visit's time and how
+  many viewings wait on a tenant. The next visit reads as a time today and a
+  weekday otherwise, so the figure is never cut short.
+- **One queue, in the order it is worked.** Needs action, then Upcoming grouped by
+  day — Today, Tomorrow, the date, and last the times a tenant has still to pick —
+  then the latest three of History with "View all" turning the Filter to it. It
+  stays a `FlatList`: groups, days and rows are its items, so a long history still
+  virtualises.
+- **One green Filter and a search** in place of the three tabs: All viewings,
+  Needs action, Upcoming and History, each a radio with its count, closing on
+  "Show N results" beside a Reset that clears the search too.
+- **A row answers the host's question.** A tile carries the time of a visit in
+  hand or the date of one that is done, in the state's colour; then who it is with,
+  how it stands, where, and the one detail that state needs — the first offered
+  time, or how long a request has waited. On phones under 350pt the name keeps its
+  whole line and the status moves under it.
+- **Unchanged:** the Portfolio scope and its blanking, which visit belongs in which
+  view, the sorting, the record route, pull to refresh, the error notice and every
+  empty state's words. Added: a skeleton, and a way to Properties when there is
+  nothing yet.
+
+**Verified:** mobile typecheck and lint are clean; 234 of 236 contract tests pass,
+the two failures being the Explore header button's, from header work in progress.
+Four new tests in `providerViewingQueue.contract.test.mjs`, and a mirror caught 72
+of 72 mutations across this page, Tenancy requests and Updates. Checked in headless
+Chrome on Expo web with a mocked Portfolio at 390×844 and 320×640: the queue and
+its day groups, the sheet, each view, History reached through "View all", nothing
+yet, and no cut text at 320. No native device was used.
 
 ### Journey: Provider Tenancy Requests
 
@@ -1658,6 +1794,35 @@ user testing. Expo web still has the existing SecureStore runtime limitation.
 **Journey handoff:** The user approved moving on from Tenancy Requests. Provider
 Leases was completed next and is recorded below.
 
+**Refinement — 2026-09-15, product owner review (mobile).** The same brief as
+provider Viewings.
+
+- **What waits on the provider leads:** how many need a decision, how long the
+  oldest has waited (laterite from three days), and beside them how many need an
+  agreement and how many requests there are in all. The page title, its sentence
+  and the three tabs are gone — the stack header already names the page.
+- **One list grouped by what each request needs** — Needs your decision, Agreement
+  to prepare, and History showing its latest three with "View all" — from both
+  sources, still read as one inbox.
+- **One green Filter holds the stage and the source together:** All requests,
+  Needs action, Agreement and History; then Everywhere, Public listing and Direct
+  request. Each count is what that choice would show beside the other choice
+  already made, and the pill's badge counts both.
+- **A row** reads the person against how long ago it arrived, the place they asked
+  about, then where it stands in its colour beside where it came from. Initials
+  carry that colour, so what waits on the provider is found before it is read.
+- **Unchanged:** the one-Portfolio read and its blanking, both stage vocabularies,
+  newest first, the search, the record route with its kind and Portfolio, pull to
+  refresh and the error notice. Added: a skeleton, and a way to Tenants when there
+  is nothing yet.
+
+**Verified:** five new tests in `tenancyRequestInbox.contract.test.mjs`, and the
+mirror above. Checked at 390×844 and 320×640 with mocked applications and direct
+requests in every stage, including the source filter and nothing yet. The
+`label="Action"` pins in `viewingAttendance`, `portfolioTeam` and web's
+`discoveryPhase` now read `label="Needs action"` — the words web and this record
+already use for that view.
+
 ### Journey: Provider Leases
 
 **Status:** COMPLETE — 2026-08-24; awaiting user testing.
@@ -1718,6 +1883,63 @@ remain for user testing.
 
 **Next recommended work:** Provider Rent was completed next and is recorded
 below.
+
+**Refinement — 2026-09-15, product owner review (mobile, provider and tenant).**
+The brief: a premium, compact Leases page for both readers with the same
+functionality and data, far less text, one Filter control with a green
+background, lease facts that scan at a glance, and animated Icons8 empty states.
+
+- **One reading order per reader, from the Portfolio kit.** The provider opens on
+  one glass panel: Active leads, with what waits on the provider under it in
+  laterite ("2 to send · 1 to confirm"), and Waiting for tenant and All
+  agreements beside each other. Waiting for tenant still counts `offered` only.
+  Every agreement follows, grouped To send, Current and History. The tenant opens
+  straight on their agreements, grouped Needs your decision, Active and Past. The
+  AGREEMENTS label, the "Leases" display heading and the introduction sentence are
+  gone; the stack header already names the page.
+- **One green Filter.** The provider's tabs and the tenant's tab strip became one
+  Filter pill with a kola background and white words, beside the list's name and
+  count, with a white badge when a filter is on. It opens the shared sheet — All
+  agreements, To send, Current and History for the provider; the shared agreement
+  filters (All, Needs you, Active, Past) for the tenant — each a radio with its
+  count, closing on "Show N results" beside Reset. The list's heading names what
+  is showing. The green is a kit option (`filterTone="kola"`); Payments and
+  Tenants keep the glass pill until asked. The provider's search stays, over
+  tenant, Property, Unit and bed.
+- **Rows that scan.** A provider row reads the tenant against the rent, the
+  Property, Unit and bed against the status in its colour, then the rent's period
+  and the one date that matters now: Starts, Ends or Prepared. Initials carry the
+  status colour. On phones narrower than 350pt the space keeps its whole line and
+  the status moves under it. A tenant row reads top to bottom — which home, with
+  whom, the rent and term, then the move-in total and start — and closes on where
+  it stands, with a green Review pill only while the decision is open.
+- **The statuses, in one place.** `providerLeaseMeaning.ts` now holds the
+  provider's stages, labels and tones for the list and the agreement screen. The
+  list had fallen behind the canonical workflow: `ready` and `tenant_accepted`
+  dropped into History with no label. They now sit in To send and Current as
+  Ready to send and Confirmation needed, as web's `leaseMeaning` and the agreement
+  screen already said.
+- **Empty states.** Where the whole list is empty, the glyph sits large in a white
+  disc, with the provider's one next step (Open tenancy requests); filter and
+  search empties stay small. Icons8 animation was reviewed and deferred by the
+  product owner: the free animated GIFs are served at 48×48 px, and the free
+  licence requires an icons8.com link in the app plus store credits, which is not
+  yet decided. `EmptyState` accepts an optional animation for the disc and shows
+  the still glyph to anybody who has asked for reduced motion.
+- **Unchanged:** one route for both readers, the Portfolio scope and its blanking
+  on a switch, pull to refresh, newest first, the agreement routes, the tenant's
+  refresh on return from deciding, the loading and error states, and every
+  lifecycle rule.
+
+**Verified:** mobile typecheck and lint are clean. 197 of 199 mobile contract
+tests pass; the two failures are the Explore header button's, from header work in
+progress. Nine new Leases tests were added and a mirror caught 41 of 41
+mutations; the Payments and Tenants mirrors still catch 35 of 35 and 55 of 55
+after the kit's Filter and empty-state options. Checked in headless Chrome on Expo
+web with mocked agreements in every status at 390×844 and 320×640: the provider
+summary, grouped list, sheet with a stage chosen, filtered state, a search with no
+match and the empty Portfolio; the tenant's grouped list, sheet, filtered state
+and empty state; and no truncated text at 320. No native device was used.
 
 ### Journey: Provider Rent
 
@@ -2223,6 +2445,30 @@ never refined. Three failures, all of them ones §5 and §8 name:
   items.
 
 **Next:** Stop for user testing. Then the tenant-facing areas.
+
+**Refinement — 2026-09-15, product owner review (mobile).** The same brief as the
+provider lists, held against this journey's own rule: Updates is a log, so no
+summary card was added and the shell's title is still not repeated.
+
+- **The rail of filter chips became one toolbar:** what is showing and how many,
+  Read all while anything is unread (its glyph alone on the narrowest phones), and
+  one green Filter. The sheet carries the same vocabulary with its counts — All,
+  Unread, Action needed, then only the topics that have records.
+- **The feed stands on the hub ground as glass.** A row keeps its glyph in the
+  tone's well, the source and the age, the title heavier while unread, two lines of
+  the body, and the status in words with Review now where something wants a reply.
+  Unread is still a left rule and never a dot — now drawn over the separator, so it
+  runs unbroken down a group.
+- **Ten to a page still**, with the range and the page controls in one glass bar.
+- **Unchanged:** `notificationMeaning` and every classification, the sections and
+  their order, opening before the read acknowledgement settles, pull to refresh and
+  the error notice. Added: a skeleton shaped like the rows, and a large glyph when
+  there is nothing yet.
+
+**Verified:** five new tests in `updatesFeed.contract.test.mjs` beside
+`updatesWorkspace`'s, and the mirror above. Checked at 390×844 and 320×640 with
+fourteen mocked updates: the toolbar, the sheet and its topics, Action needed, Read
+all clearing it, both pages, and nothing yet.
 
 ### Fix: photographs that never loaded
 
@@ -3885,6 +4131,45 @@ horizontal strip's overscroll are reasoned from the tokens, not seen. The
 obligation type and a `route`, flip one catalogue entry to `available`, and
 change nothing else on this screen.
 
+**Redesign — 2026-09-15, product owner review.** The brief: tiles rather than
+rows, professionally grouped, glassy and soft, with a premium consumer feel;
+Referrals added to Home; and, mid-review, "too much text on the page — let
+visuals speak for themselves". Functionality is unchanged. This supersedes "Not a
+grid of tiles" above.
+
+- **Tiles, two to a row.** Each category is its name over a grid of frosted glass
+  tiles: white at 62%, a 1px `kola-900` edge at 8%, and a 0.05 shadow everywhere
+  but Android. A tile is 48.5% wide, so the space between two is whatever is left
+  over, and every row stands equally tall. The page stands on More's hub ground
+  (`IndexPage`), so the two hub tabs read as one product.
+- **Colour sorts, words don't.** A service that opens has its tone's wash in the
+  top corner of its glass, gone before the far corner. A `later` service is
+  thinner glass (40%) with a drained glyph and a clock. A saved count is a check
+  and a number in the tone's ink on its wash. Nothing is printed that the glyph,
+  colour or name already says, so the introduction, the line under each category
+  (`blurb`, now removed from the catalogue), each service's summary and "Coming
+  later" are gone from the page. A screen reader still hears the summary and
+  "Coming later", and the service's own screen says what it will do. The footer is
+  one line: MORE SERVICES, and Coming soon.
+- **The hub fits in a little over one screen** at 390×844 (821pt of content in a
+  717pt view), which is shorter than the ruled rows' screen and a half. That
+  answers the objection that tiles cost scrolling.
+- **Referrals joins Home as `later`.** Nothing in `backend/apps` refers anybody
+  yet (Rewards & Referrals is a roadmap phase), so it is named and is not a
+  control: no route and nothing to save. Its tone is `kola`, the network Rooomly
+  runs on.
+- The saved-numbers strip keeps each nickname, the one word that says which meter
+  it is, and runs edge to edge.
+
+**Verified:** mobile typecheck and lint are clean. 164 of 166 mobile contract
+tests pass; the two failures are the Explore header button's, from header work in
+progress alongside this change. Four new hub tests cover the tile grid and the
+words it no longer prints, Referrals, open and drained glass, and contrast
+computed from the tokens, and a mirror caught 26 of 26 mutations. Checked in
+headless Chrome on Expo web, with the API answered in-page, at 390×844, 360×780
+and 320×640, with and without saved numbers. Tapping Electricity still opens
+`/service?id=electricity`, and Water and Referrals are not controls.
+
 ---
 
 *Superseded — 2026-08-25 design, kept for the reasoning that still holds:*
@@ -4290,6 +4575,34 @@ chosen, so no visit controls remain on it.
 **Next:** Stop for user testing. This completes Applications → Agreements →
 Viewings.
 
+**Refinement — 2026-09-15, product owner review (mobile).** The same brief as
+tenant Payments: a layout for this page's purpose, the most important thing
+first, one Filter, few words, and polish on small phones.
+
+- **The next visit is a card.** The soonest confirmed visit leads Upcoming with its
+  photograph, a calendar tile for its day, the time in large type, the place, and
+  how it stands beside its one action ("Open check-in"). A request still waiting
+  for a time never leads, and the card is not repeated in the list below it.
+- **The rest is a schedule.** One glass list per group, still Upcoming, Needs you,
+  Past — the brief's order. A row keeps its photograph, the time as its largest
+  words, the headline over up to two lines, the place, and where it stands, with a
+  solid kola pill when something waits on the tenant and a soft one otherwise.
+- **One green Filter** replaces the tab strip: the shared sheet, with the mirrored
+  filters and their counts.
+- **The past shows its latest three.** "View all" turns the Filter to Past, so
+  history stays filter-driven and visible rather than collapsed.
+- **Small phones:** the pill drops under the line rather than cutting it.
+- **Nothing yet, loading, failure:** a large glyph with Explore homes; a skeleton
+  shaped like the card and rows; and no empty claim after a load failure.
+- **Unchanged:** the mirrored meaning, soonest first, refresh on return, pull to
+  refresh, the record route, and the accessible name that carries the call to
+  action.
+
+**Verified:** five new tests in `viewingSchedule.contract.test.mjs`, alongside the
+web contracts that read this screen; checked at 390×844 and 320×640 with a mocked
+schedule in every group: the card, the grouped list, the sheet, Needs you, the Past
+filter reached through "View all", nothing yet, and no cut text at 320.
+
 ### Journey: Agreements — the tenant's side
 
 **Status:** COMPLETE — 2026-08-25; awaiting user testing. Second of three tenant
@@ -4537,6 +4850,32 @@ withdrawal. Four of the six have photographs, so the placeholder is exercised
 too.
 
 **Next:** Stop for user testing, then Agreements.
+
+**Refinement — 2026-09-15, product owner review (mobile).** The same brief as
+tenant Payments and Viewings.
+
+- **One green Filter** replaces the tab strip, over glass groups Needs you, In
+  progress, Approved and Past. The past shows its latest three, and "View all"
+  turns the Filter to Past.
+- **A row draws how far it has come.** Under the photograph, headline, exact place
+  and rent (only when there is one — no lone "/ month"), a short bar with one
+  segment per step of `timeline()`: kola where it happened, harmattan while it
+  waits on the landlord (kola when it waits on the tenant), laterite where it
+  stopped. The shared standing line says the same in words, so the bar is hidden
+  from screen readers. The shortfall stays while it still predicts.
+- **An agreement waiting is one tap away.** "Review the agreement" sits under the
+  row as its own button and opens the agreement; the row still opens the
+  application. Two buttons side by side, never one inside the other.
+- **Nothing yet, loading, failure:** a large glyph with Explore homes, a skeleton
+  shaped like the rows, and no empty claim after a load failure.
+- **Unchanged:** `standing()`, `applicationBucket()` and the mirrored filters, the
+  leases join (and its tolerance of a lease failure), refresh on return, pull to
+  refresh, and the record route.
+
+**Verified:** five new tests in `applicationList.contract.test.mjs`, alongside the
+web contracts that read this screen; checked at 390×844 and 320×640 with mocked
+applications in every group, joined to agreements: the grouped list, the agreement
+action, the sheet, In progress, nothing yet, and no cut text at 320.
 
 ### Journey: Listing detail
 
@@ -5677,7 +6016,98 @@ A contract test asserts More declares no `detail=` and no `<Surface`.
 **Responsive/mobile:** 56px rows, icons at 22px in ink rather than accent so the
 labels lead, and the chevron is the only affordance repeated.
 
+**Refinement — 2026-09-14, product owner review.** The brief: More is a hub of
+sections, not a profile page; soft, glassy, compact and premium, without flat
+white lists, a card per row or heavy shadows; and the two acts at the foot
+redesigned. Organization and functionality are unchanged. At the product
+owner's request this surface departs from the general rule against glass and
+icon boxes, and supersedes the no-cards and ink-icon patterns above.
+
+- **The tenant's More opened as a profile.** An 88pt initials disc, a
+  display-size name and the phone number stood above the groups, under a header
+  that said "Profile" over a tab called More. The identity block is gone — who
+  you are is behind the Profile row — the header says More, and the signed-out
+  prompt says "Your account".
+- **Each group is one frosted panel**, never a card per row: white at 72% with a
+  1px `kola-900` edge at 8%, and a 0.05 `kola-900` shadow everywhere but Android,
+  where elevation smudges through a translucent fill. Rows are 50–52pt with
+  hairlines inset past the glyph. Group names are small caps in `kola-900` at 76%,
+  the tab bar's muted green, and are headers to a screen reader.
+- **Glyphs sit in wells tinted by group**, in the families Services already sorts
+  by (`ServiceGlyph`'s `TONE`): harmattan for Waiting for you and for Growth and
+  trust, laterite for Your shortlist, lagoon for Your history and Management, kola
+  for Account and settings. Neighbouring groups never share a colour, and
+  Verification is never laterite — a shield in that colour read as a failed
+  check. Counts are a kola pill.
+- **The page stands on ivory the chrome's green reaches into:** `kola-600` at 10%
+  under the header fading over 420pt, a 2.5% floor, a white sheen across the top
+  corner and a faint pool low on the far side, painted once behind the scroller.
+  At its deepest that is 12.5% against the Homes' 14%, so the Homes remain the
+  only green pages.
+- **Switch experience and Sign out are buttons, not links.** On review
+  (2026-09-15) they became two quiet glass tiles side by side, in Home's
+  "Everything else" language: frosted glass with a `kola-900` edge, the switch's
+  glyph and a small "Switch to" eyebrow in kola over its destination, and Sign out
+  in laterite. Both show a spinner and their busy label while working, press with
+  the tab bar's spring and honour Reduce Motion. A refused switch is said beside
+  the switch rather than at the top of the page.
+- **Provider More uses the same page, groups and acts**, because both indexes are
+  built from one set of rows. Its groups and rows are unchanged.
+
+**Verified:** mobile typecheck and lint are clean, and 162 mobile contract tests
+pass. The index suite now asserts the hub, the glass panels, contrast computed
+from the tokens and the two acts, and a mirror caught 37 of 37 mutations once the
+acts' tests followed the foot's revision. In
+headless Chrome on Expo web, with the API answered in-page, at 390×844, 360×780
+and 320×640: an invitation waiting, an account without provider capability, the
+busy switch, a refused switch, and provider More with an unread count.
+
+**Known limitations:** not yet seen on an iOS or Android device, so the iOS
+shadow, Android ripple and hairline, native font weights and VoiceOver/TalkBack
+remain user-test items.
+
 **Next:** Stop for user testing. Then Properties.
+
+### Journey: Mobile profile editor
+
+**Status:** REFINED — 2026-09-15, product owner review; awaiting user testing.
+
+The brief: premium, simple, as little copy as possible, with every capability
+and all data kept.
+
+- **Every block was labelled and explained.** YOUR PHOTO, YOUR NUMBER, "Optional.
+  Tap to add it", a sentence on how signing in works and a paragraph on
+  completeness are gone. A camera badge on the photo says it can be changed, and
+  a lock beside the number says it is how you sign in. Completeness is a thin
+  kola ring round the photo and "80% complete" beside the number. It is never a
+  tick, a shield or a stamp, because a complete profile is not a verified one.
+  One sentence stays: "Landlords and agents see your preferred name."
+- **The photo** sits in a white rim inside the ring, or initials on a kola
+  gradient stand in when there is none. Without a photo the camera opens the
+  library. With one, the platform's sheet offers a new photo or removal; this
+  replaces the Remove photo button that sat under it.
+- **The names are one glass panel of inline rows**, each label beside its input
+  and a breath of kola behind the row being typed in. The panel stands on the hub
+  ground More and Services use (`IndexGround`, now exported for pages that need
+  their own scroller), and the scroller keeps taps while the keyboard is open.
+- **Save is the page's one action**, in solid kola. It shows a spinner and
+  "Saving…" while it works and "Saved" with a check once the save lands, then
+  returns to "Save changes" on the next edit.
+- **Fixed while there:** the screen can mount behind the launch curtain before
+  the session is read, after a refresh or a link straight here. The fields opened
+  empty, and saving from there would have sent empty names and switched the data
+  saver off. The fields are now filled once, when the account arrives, and never
+  over typing.
+
+**Verified:** mobile typecheck and lint are clean. 171 of 173 mobile contract
+tests pass; the two failures are the Explore header button's, from header work in
+progress. Seven new editor tests were added, and a mirror caught 33 of 33
+mutations. Checked in headless Chrome on Expo web, with the API answered in-page,
+at 390×844, 360×780 and 320×640: filled fields on a cold load, focus, saving,
+saved, a refused save, and a profile with a photo.
+
+**Known limitations:** the photo sheet is the platform's `Alert`, which the web
+preview does not draw, so replacing and removing a photo remain device checks.
 
 ### Provider Home — signal inventory (2026-08-24)
 
@@ -7033,6 +7463,306 @@ can pretend to collect money.
 **Tests:** focused contracts pass 19/19 on web and 5/5 on mobile. Both clients
 pass TypeScript and lint; the web production build includes the role-aware
 Payments route. No payment API or lifecycle semantics changed in this UI slice.
+
+**Refinement — 2026-09-15, product owner review (provider mobile).** The brief:
+a calm, premium financial page with the same functionality, a clearer hierarchy,
+and one Filter control in place of filter chips scattered across the page.
+
+- **One reading order.** The figures come first, in one glass panel. Outstanding
+  leads, with overdue under it in laterite, and Rent recorded and Settled to you
+  sit apart as the separate facts they are. Anything that needs a decision follows
+  in one "Needs attention" panel, whose rows each go straight to the right list:
+  activate online payments, overdue, records to review, awaiting payout, and a
+  payout that needs attention. The introduction sentence and the records caption
+  are gone.
+- **One Filter control.** The four view tabs and the row of status chips became a
+  single Filter pill beside the list's name and count. It opens the shared
+  `BottomSheet`, grouped into Show (Rent due, Records, Payouts, Expenses) and,
+  for rent only, Rent status. Every answer is a radio with its count, and the
+  sheet closes on "Show N results", beside a Reset. On the page, the list's
+  heading says which view is on, and a status filter appears as the pill's badge
+  and one removable token. Search stays for every list that can be searched.
+- **Rows never cut a figure short.** Each row is built from full-width lines, the
+  name against the amount and the place against the status. The amount and status
+  never give way; the words on the left take what width is left. The list reads
+  as one glass panel with no repeated chevrons. On phones narrower than 350pt a
+  due date and a payout fee give way, and a screen reader still hears both.
+  Payout rows keep both checkpoints, Paid and Settled.
+- **Notes are glass**, with their colour in the glyph: a payout in progress, a
+  payout under review, and online collection not yet ready. The load error keeps
+  the app-wide notice.
+- **Unchanged:** pull to refresh, the rent-account route, the payout-account
+  route for owners and admins, recording expenses (with "add" opening that form),
+  lease-less tenants not opening, and late rent sorting first.
+
+**Verified:** mobile typecheck and lint are clean. 179 of 181 mobile contract
+tests pass; the two failures are the Explore header button's, from header work in
+progress. Eight new Payments tests were added, and a mirror caught 34 of 34
+mutations. Checked in headless Chrome on Expo web with a mocked Portfolio at
+390×844 and 320×640: the summary and attention panels; the sheet opened, with a
+status chosen and with Reset; each view reached through it; the filtered state; a
+verified account with a payout needing review; and no truncated amount or status
+at 320.
+
+**Refinement — 2026-09-15, product owner review (tenant mobile).** The brief: each
+page designed for its own purpose rather than one layout for all, the most
+important thing first, long histories one tap away, one control for filtering,
+few words, and polish on small phones.
+
+- **One reading order instead of two tabs.** Due now and History became one page
+  read top to bottom. Outstanding leads in a glass panel, with overdue under it in
+  laterite (or how many payments are confirming, or "All paid up"), and Next due
+  and Last paid beside each other. Last paid counts only a payment that counts —
+  confirmed by both or by the processor, never a claim still waiting. The
+  introduction sentence and the attention strips are gone.
+- **What waits on the tenant comes next.** A payment the landlord recorded sits in
+  one "Confirm an external payment" panel; each row opens the rent account.
+- **Every due item keeps its one action.** A row reads what it is against how
+  much, which home, then how it stands beside a pill: Pay rent (Pay deposit, and so
+  on) in kola, or Check status in soft kola while a payment is under way, so nobody
+  pays the same item twice. Late is laterite with its days, and part-paid is said.
+  The panel shows three; "View all" opens every due item in the shared sheet, and a
+  row there closes the sheet before leaving, because the sheet is a modal.
+- **Payments, not a history dump.** The latest three, each with how it stands
+  beside its Receipt (or Details), then date, method and home on a line that wraps
+  rather than cutting a date. "View all" opens the rest, newest first. Unsuccessful
+  attempts sit behind their own link and sheet, and are not a way in.
+- **Small phones.** Where a status and its pill do not fit side by side, the pill
+  drops under the line rather than squeezing it, and a short label stays with its
+  word ("Bed A").
+- **Unchanged:** the sign-in prompt, ended rent accounts, open-payment matching,
+  late-first sorting, the checkout, status, receipt and rent-account routes, the
+  availability explanation, and the error notice. Added: pull to refresh, a
+  skeleton shaped like the page, and an empty state that leads to the agreements.
+
+**Verified:** typecheck and lint are clean; 220 of 222 mobile contract tests pass,
+the two failures being the header button's, from header work in progress. Seven new
+tests in `tenantPaymentsPage.contract.test.mjs`; a mirror caught every mutation
+across this page, tenant Viewings and Applications (74 of 74). The external-payment
+pin in `rentWorkspace.contract.test.mjs` now ignores case, because the group label
+is written in sentence case and drawn in capitals. Checked in headless Chrome on
+Expo web with mocked tenancies, ledgers and payment attempts at 390×844 and
+320×640: the full page, all three sheets, paid up, no rent account, and no cut
+text at 320. No native device was used.
+
+**Refinement — 2026-09-15, product owner review (the account pages).** The same
+brief, applied to the four pages nobody visits often and everybody needs when
+they do: Verification, Settlement account, Security and Notification settings.
+Each was a stack of labelled rows; none of them said, at a glance, how things
+stood.
+
+- **Verification became progress, not a checklist.** How far the checks have got
+  leads as a ring — kola only when every one is done, harmattan while any is
+  outstanding — and the ring names the one check somebody can actually act on,
+  never one that is merely waiting on Rooomly. The checks then read as two
+  groups, the person's own and the Portfolio's, and a verified row carries a tick
+  rather than its original glyph. The settlement account is read as a check in
+  every state it can be in, including the one where somebody else owns it.
+- **Settlement account: the account rent arrives in leads.** One card states the
+  account in use, and says which of "no account chosen yet" and "no receiving
+  account yet" is true, because a Portfolio with saved-but-unchosen accounts is
+  not a Portfolio with none. Every saved account follows as one glass list, each
+  row carrying its verification and only the act that state allows. Adding one is
+  a panel opened on request, and the account number is never retained.
+- **Security: how the account stands leads, in its own colour.** A paused payout
+  is laterite and says how many hours it lasts; a noted account is harmattan;
+  otherwise kola. The two device actions are kept apart, neither takes a second
+  press while one is in flight, and reporting a handset lost is drawn as the
+  irreversible thing it is. What to watch for is a note, not a page of prose.
+- **Notification settings: one panel, and one rule about narrowing.** Each switch
+  saves on its own and a refusal puts it back. A setting that only makes sense
+  under another sits under it on a rail, and goes inert when its parent is off.
+- **Unchanged:** every route, the identity-verification journey, the Paystack
+  resolve/activate/refresh calls, the owner-and-admin gate on settlement, the
+  provisioning check that must not be re-run, and the copy that says decisions
+  always arrive in Updates whatever else is switched off.
+
+**Verified:** typecheck and lint are clean; 249 of 251 mobile contract tests pass,
+the two failures being the Explore header button's, from header work in progress.
+Fifteen new tests across `verificationChecks.contract.test.mjs`,
+`settlementAccount.contract.test.mjs` and `accountSafety.contract.test.mjs`; a
+mirror caught 53 of 53 mutations. Checked in headless Chrome on Expo web with a
+mocked account at 390×844 and 320×640: verification part-done, fully verified and
+as a tenant; security at rest and with payouts paused; settlement in each of its
+states; preferences with texts switched off; and no truncated text at 320. No
+native device was used.
+
+**Refinement — 2026-09-21, product owner review (Team, Archive and the shortlist).**
+The last three pages of the same brief, plus one navigation decision: Saved is no
+longer a first-class destination, so it should not carry the main navigation.
+
+- **Saved left the tab bar.** The wrapper in `(tabs)` is deleted and its
+  `Tabs.Screen` with it, so the renter's bar is five tabs rather than six-with-one-
+  hidden. A hidden tab still rendered inside the tab navigator: it kept the bar and
+  offered no way back. It is now a pushed screen beside Verification and Security,
+  titled "Saved places", carrying a back arrow and no bar. Explore's header
+  bookmark and More → "Saved places" both push `/(app)/saved`, and the signed-out
+  prompt moved onto the screen itself, returning to that same route. It earns no
+  Home shortcut: two entrances are enough, and a third is how one journey starts
+  behaving three ways.
+- **A note belongs to the card it was written against.** The shortlist keeps the
+  shared recognition card; a note is drawn as that card's foot — pulled up beneath
+  it with its top edge removed — rather than as a second card floating under it.
+- **Team leads with how many people hold access.** Then the Portfolio's own
+  identity as facts, with the single control that renames the business. Then the
+  roster: members and the people invited to become members in one list, because an
+  invitation is a person who is nearly here, named as two groups only when both
+  exist. Initials carry the colour of that person's reach — kola for
+  Portfolio-wide, harmattan for something unfinished, laterite for an ended one —
+  and the role sits on the right, where an eye runs down a roster looking for it.
+  An invitation opens rather than carrying controls in the list, and revoking is
+  confirmed inside it. The search appears only from seven people.
+- **Anything with a keyboard opens as its own page sheet.** Naming the Portfolio
+  and inviting somebody are both forms; unfolded in the middle of a roster they
+  move the list somebody was reading.
+- **Archive answers the one question it exists for.** How much is archived leads,
+  with how much of it can come back right now — "2 of 3 can be restored now", or an
+  alert when none can. Each kind is grouped, and a row says only what it is, when
+  it went, and "Can restore" or "Held" in its own colour. The reason, the blockers
+  behind a refusal and the restore itself open on the row, so a rarely-visited
+  recovery list stays a list rather than a stack of paragraphs. Restore is offered
+  only where the server allows it, and closes the sheet it empties.
+- **Unchanged:** every route and endpoint, the Team member screen and its staged
+  access changes, the roles a Team may grant (never Owner), the invitation form and
+  its seven-day expiry, the revoke wording, and both restore endpoints.
+
+**Verified:** typecheck and lint are clean. Sixteen new tests across
+`savedShortlist.contract.test.mjs`, `teamRoster.contract.test.mjs` and
+`archiveRecovery.contract.test.mjs`; a mirror caught 57 of 57 mutations. 264 of 267
+mobile contract tests pass: two are the Explore header button's, from header work in
+progress, and the third is in-flight work on that header's Profile button — the test
+now expects `/(app)/profile-edit` while the component still pushes the profile tab.
+354 of 356 web tests pass, the two being the known PortalShell header and Updates
+PageHeader failures. `tenantControlCenter.contract.test.mjs` no longer claims Saved
+is a tab; it now pins the pushed route and that Home still does not shortcut to it.
+Checked in headless Chrome on Expo web at 390×844 and 320×640: the shortlist with a
+note and empty; Team with a full roster, operating alone, and with access withheld;
+the invitation and both page sheets; the archive with a restorable and a held
+record, the held one showing its blockers and offering no Restore; and the archive
+empty. Two things worth knowing for the next capture: `stripOverlays()` deletes
+react-native-web's `Modal` portal hosts, so an always-mounted sheet silently fails to
+open unless the step skips stripping; and the only text clipped at 320 is the card
+price, which relies on `adjustsFontSizeToFit` — implemented on the phone, absent on
+web. No native device was used.
+
+---
+
+### Journey: The record pages
+
+**Status:** IMPLEMENTED — 2026-09-21. Thirteen detail pages, tenant and
+provider, redesigned onto one warm record language. Device review on a Samsung
+handset still wanted for the edge-to-edge fix below.
+
+**Why this journey exists:** The index pages had been recomposed onto Rooomly's
+green with frosted glass, and tapping a row still opened the old screen: a
+display heading, a column of bordered sections, and every act the page could
+perform stacked as a full-width button at the bottom. A list that reads as one
+product opening onto pages that read as another is worse than neither, because
+the seam is exactly where somebody is deciding something.
+
+**Decisions made:**
+
+- **A record stands on warm paper, not on the dashboard's glass.** The index
+  pages' 72%-white glass over `field-50` lifts by about one percent — it is
+  invisible on ivory. So a record gets the same vocabulary in a warm dialect:
+  `field-0` panels, `field-200` hairlines, and the house elevation rule (a very
+  subtle shadow on iOS, hairlines on Android, because soft shadows smear on
+  low-cost LCDs). The kit is `RecordSurfaces.tsx`: `RecordPanel`, `GroupLabel`,
+  `Lead`, `StandingLine`, `Fact`, `LinkRow`, `Pill`, `QuietAct`, `ActionBar`,
+  `Quote`, `Footnote`.
+- **Every record leads with the one thing it is about.** `Lead` renders it
+  once — what is outstanding, when the viewing is, which role this person
+  holds — and the rest of the page is facts underneath it. A record that leads
+  with a heading and a breadcrumb is a record nobody has read.
+- **One act, not a collection of buttons.** The decision the record is waiting
+  on goes in `ActionBar`, pinned under the thumb and outside the reading order.
+  Everything quieter is a `QuietAct`: kola words, no furniture. Irreversible
+  acts wait behind one quiet way in and are confirmed in a sheet that names
+  what ends and what does not.
+- **The agreement is the exception that proves it.** Every other record answers
+  "what do I do now" and keeps its act under the thumb. An agreement answers
+  "should I sign this", which is a question you finish reading before you
+  answer, so its decision sits at the foot. The provider's copy of the same
+  record *is* a queue item, so it keeps a bar.
+- **A record may propose the several times the backend accepts.** `offer_slots`
+  takes one to five; both clients had always sent exactly one, which made the
+  other side's "Pick a time" a list of one. `TimeOffer` proposes up to five,
+  refuses a duplicate, advances the date on its own, and — because re-offering
+  deliberately replaces what was proposed before — names each time it will
+  replace rather than counting them. The landlord's own offered times are now
+  shown on their record while it waits; they had been invisible.
+- **Access is chosen on the row that says what it costs somebody.** A role's
+  consequence used to sit in a caption under the picker, which is after the
+  choice rather than in it. `RoleChoice` puts it on each option. Properties are
+  ticked rather than pressed. The member screen and the invitation sheet share
+  both controls, because granting access and changing it are the same decision
+  met twice.
+- **A plan is a panel you can compare.** Change plan was four pricing cards,
+  each a screen and a half tall — the one shape in which plans cannot be
+  compared. A plan is now name, price, what it raises, and at most three things
+  it adds; the panel itself is the choice, so there is no button inside it to
+  miss and none beside three others to weigh. The plan in force says so in its
+  badge and is not pressable. The feature matrix, behind its disclosure, wraps
+  its three answers instead of holding three fixed columns, which on a 320pt
+  handset left ninety points a column and cut every value that was a word.
+- **Prose does not right-align.** `Fact` puts a date or an amount on the right,
+  where an eye runs down a column of them, and takes `wide` for a sentence,
+  which sits under its label and takes the width.
+- **Colour, then words.** A payment row leads with its amount alone; the
+  standing is carried by the row's tone and icon and leads the detail line.
+  Joined to the amount on one line it was cut on every 320pt handset.
+
+**Android edge-to-edge (2026-09-21):** A React Native `Modal` is a separate
+native window. The app had one `SafeAreaProvider`, and `BottomSheet` read
+`useSafeAreaInsets()` in the page's tree before rendering a `Modal` — so one
+provider was describing two windows, and whichever reported last won. On a
+Samsung handset the filter sheet's footer sat under the navigation buttons
+while the page behind it was correctly inset, and a re-render swapped the two
+over. `ModalSafeArea` gives every `Modal` its own provider, seeded with
+`initialWindowMetrics` so nothing renders a frame at zero inset, and
+`SafeBottom` / `SafeInsets` read the numbers inside that window. Applied to
+every `Modal` in the app; the `BottomSheet` change alone covers filter sheets on
+eighteen screens. A contract test scans `app/` and `src/` and fails on any
+`<Modal` without the wrapper, because web reports zero insets on every window
+and the capture harness is therefore blind to this.
+
+**Unchanged:** every route and endpoint; the meaning modules mirrored with the
+web (`viewingMeaning`, `applicationMeaning`, `agreementMeaning`,
+`billingPresentation`, `notificationMeaning`, `providerLeaseMeaning`); the roles
+a Team may grant (never Owner); the staged-then-settled-once shape of a member's
+access change; the seven-day invitation expiry; and that choosing a plan only
+opens its review, where the server prices it.
+
+**Verified:** typecheck and lint clean. 286 mobile contract tests, 283 passing;
+the three failures are in `exploreHeader.contract.test.mjs` and belong to header
+work in progress. New pins in `recordPages.contract.test.mjs` and
+`safeEdges.contract.test.mjs`; every one mutation-checked against a scratchpad
+mirror. Checked in headless Chrome on Expo web at 390×844 and 320×640: both
+viewing records including a multi-slot offer; both applications; both agreements;
+both tenancies; the rent account as tenant, as provider and after a tenancy ends;
+the record-payment form; the member screen with its role change, its Properties
+and its removal sheet; the invitation; and Change plan on both cycles with the
+comparison open. Zero clipped text at 320 on every page checked.
+
+**How a control says what state it is in (2026-09-21):** React Native accepts
+`accessibilityState={{ checked }}` and `aria-checked`, and the two are not
+equivalent. Native honours both — `Pressable`, `View` and `Text` each fold
+`aria-*` back into `accessibilityState`, with `aria-*` winning. But
+`react-native-web` 0.21 honours *only* `aria-*`: `createDOMProps` reads
+`aria-checked` and the deprecated flat `accessibilityChecked`, and never looks
+at `accessibilityState`. Every radio and checkbox in the app had been written
+the `accessibilityState` way, so the role reached the DOM and the state did
+not — on the web build a screen reader could not tell which role was selected
+or which Properties were ticked. It also made the capture harness lie, because
+the harness drives the web build and was reading an attribute that was never
+going to be there. All 48 sites now use the `aria-*` form, which is correct on
+both renderers, and `ariaState.contract.test.mjs` scans `app/` and `src/` so
+the other form cannot come back. Where a control switches between radio and
+checkbox it sends only the attribute its own role reads, since `aria-selected`
+on a checkbox and `aria-checked` on a radio are both ignored.
+
+**Remaining:** `TimeOffer` and `lease-builder` still take a date and a time as
+text fields (`YYYY-MM-DD`, 24-hour) rather than offering a picker.
 
 ---
 

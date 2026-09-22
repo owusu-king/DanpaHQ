@@ -30,7 +30,7 @@ test("web encourages rescheduling and exposes counterparty attendance response",
   // Cancelling points at rescheduling first, on both sides.
   assert.match(providerRecord, /Could a new time work\?/);
   assert.match(record, /suggest one instead/);
-  assert.match(record, /Withdraw the request/);
+  assert.match(record, /Withdraw this request/);
   assert.match(record, /Appointment history/);
   // The tenant can accept the report or contest it; both are recorded.
   assert.match(record, /Yes, I could not attend/);

@@ -25,8 +25,9 @@ export default function AppLayout() {
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="(provider-tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="search" options={{ title: "Find a place" }} />
-      <Stack.Screen name="saved" options={{ title: "Your shortlist" }} />
+      <Stack.Screen name="saved" options={{ title: "Saved places" }} />
       <Stack.Screen name="notifications" options={{ title: "Updates" }} />
+      <Stack.Screen name="help" options={{ title: "Help" }} />
       <Stack.Screen name="viewings" options={{ title: "Your viewings" }} />
       <Stack.Screen name="viewing/[id]" options={{ title: "Viewing" }} />
       <Stack.Screen name="viewing-check-in" options={{ title: "Viewing check-in" }} />

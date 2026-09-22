@@ -53,6 +53,8 @@ export type IconName =
   | "chevron-down"
   | "close"
   | "check"
+  | "download"
+  | "print"
   | "filters"
   | "map"
   | "city"
@@ -272,6 +274,19 @@ const PATHS: Record<IconName, React.ReactNode> = {
   "chevron-down": <path d="m5.75 8 4.25 4.25L14.25 8" />,
   close: <path d="m5.75 5.75 8.5 8.5M14.25 5.75l-8.5 8.5" />,
   check: <path d="m4.75 10.25 3.5 3.5 7-7.5" />,
+  download: (
+    <>
+      <path d="M10 3.25v9.25M6.5 9.25 10 12.75l3.5-3.5" />
+      <path d="M4 14.25v2.5h12v-2.5" />
+    </>
+  ),
+  print: (
+    <>
+      <path d="M6 7V3.5h8V7M6 13.5v3h8v-3" />
+      <path d="M5 14H3.5V8.5h13V14H15" />
+      <path d="M6 11.5h8" />
+    </>
+  ),
   // Two sliders with open knobs: the line breaks around each knob instead of a
   // filled circle, so it reads correctly on a tinted pill as well as on white.
   filters: (

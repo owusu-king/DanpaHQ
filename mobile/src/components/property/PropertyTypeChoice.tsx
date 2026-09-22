@@ -39,18 +39,19 @@ export function PropertyTypeChoice({
   onChange: (next: string) => void;
 }) {
   return (
-    <View accessibilityRole="radiogroup" style={{ gap: space[2] }}>
-      <Type variant="label">WHAT KIND OF PROPERTY IS THIS?</Type>
-      <Type variant="caption">It decides what you can let inside it.</Type>
+    <View accessibilityRole="radiogroup" accessibilityLabel="Kind of property" style={{ gap: space[2] }}>
+      {/* No heading of its own: it stands under the group that names it, and a
+          second label there was the same question asked twice. */}
+      <Type variant="caption" style={{ color: theme.color.ink["700"] }}>Kind of property</Type>
 
-      <View style={{ gap: space[2], marginTop: space[1] }}>
+      <View style={{ gap: space[2] }}>
         {types.map((type) => {
           const selected = type.value === value;
           return (
             <Pressable
               key={type.value}
               accessibilityRole="radio"
-              accessibilityState={{ selected }}
+              aria-selected={selected}
               accessibilityLabel={`${type.label}. ${type.space_types.map((s) => s.label).join(", ")}.`}
               onPress={() => onChange(type.value)}
               android_ripple={isAndroid ? { color: theme.color.kola["50"] } : undefined}
@@ -58,32 +59,46 @@ export function PropertyTypeChoice({
                 flexDirection: "row",
                 alignItems: "center",
                 gap: space[3],
-                minHeight: 64,
-                paddingVertical: space[3],
-                paddingHorizontal: space[4],
+                minHeight: 60,
+                paddingVertical: space[3] - 2,
+                paddingHorizontal: space[3],
                 borderRadius: radius.lg,
                 // The ring is a second inset border rather than a thicker one,
                 // so choosing does not move the row it is inside.
-                borderWidth: 1,
+                borderWidth: selected ? 2 : 1,
                 borderColor: selected ? theme.color.kola["600"] : theme.color.field["200"],
                 backgroundColor: selected ? theme.color.kola["50"] : theme.color.field["0"],
                 opacity: pressed && !isAndroid ? 0.82 : 1,
               })}
             >
-              <Ionicons
-                name={GLYPH[type.value] ?? "business-outline"}
-                size={22}
-                color={selected ? theme.color.kola["600"] : theme.color.ink["500"]}
-              />
-              <View style={{ flex: 1, gap: 2 }}>
+              {/* A washed disc rather than a bare glyph: the row carries some
+                  colour before it is chosen, not only after. */}
+              <View
+                style={{
+                  width: 34,
+                  height: 34,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  borderRadius: 11,
+                  backgroundColor: selected ? theme.color.kola["600"] : theme.color.kola["50"],
+                }}
+              >
+                <Ionicons
+                  name={GLYPH[type.value] ?? "business-outline"}
+                  size={18}
+                  color={selected ? theme.color.field["0"] : theme.color.kola["600"]}
+                />
+              </View>
+              <View style={{ flex: 1, minWidth: 0, gap: 1 }}>
                 <Type
                   variant="bodyStrong"
-                  style={{ fontSize: 15, color: selected ? theme.color.kola["600"] : theme.color.ink["900"] }}
+                  numberOfLines={1}
+                  style={{ fontSize: 15, lineHeight: 20, color: selected ? theme.color.kola["800"] : theme.color.ink["900"] }}
                 >
                   {type.label}
                 </Type>
                 {type.space_types.length ? (
-                  <Type variant="caption" numberOfLines={2} style={{ fontSize: 13 }}>
+                  <Type variant="caption" numberOfLines={1} style={{ fontSize: 13, lineHeight: 17 }}>
                     {type.space_types.map((space_) => space_.label).join(" · ")}
                   </Type>
                 ) : null}

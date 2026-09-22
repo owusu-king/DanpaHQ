@@ -12,12 +12,13 @@ test("both mobile worlds use one first-class navigation surface", () => {
   for (const layout of [renter, provider]) {
     assert.match(layout, /tabBar=\{\(props\) => <MainTabBar \{\.\.\.props\} \/>\}/);
   }
-  assert.equal((renter.match(/<Tabs\.Screen/g) ?? []).length, 6);
+  assert.equal((renter.match(/<Tabs\.Screen/g) ?? []).length, 5);
   assert.equal((provider.match(/<Tabs\.Screen/g) ?? []).length, 6);
-  // Saved is the renter's hidden-but-registered route now that Services took
-  // its place in the bar. It keeps working because Explore's header and More
-  // both push this exact href — a tab was never the only way to reach it.
-  assert.match(renter, /name="saved" options=\{\{ href: null \}\}/);
+  // Saved left the tab group entirely (2026-09-15). It is a pushed screen beside
+  // Verification and Security, so it carries a back arrow and no tab bar, and
+  // Explore's header and More both push that href.
+  assert.doesNotMatch(renter, /name="saved"/);
+  assert.match(read("app/(app)/_layout.tsx"), /name="saved" options=\{\{ title: "Saved places" \}\}/);
   assert.match(provider, /name="add" options=\{\{ href: null \}\}/);
 });
 
@@ -72,7 +73,7 @@ test("every tab is a safe, accessible target", () => {
 
   assert.match(bar, /accessibilityRole="tablist"/);
   assert.match(bar, /accessibilityRole="tab"/);
-  assert.match(bar, /accessibilityState=\{\{ selected: focused \}\}/);
+  assert.match(bar, /aria-selected=\{focused\}/);
   assert.match(bar, /hitSlop=\{space\[1\]\}/);
   assert.match(bar, /useSafeAreaInsets/);
   assert.match(bar, /maxWidth: BAR_MAX_WIDTH/);

@@ -3,7 +3,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Image, Pressable, View } from "react-native";
 
 import { ApiFailure } from "@/api";
-import { Button, Notice, Type, radius, space } from "@/components/ui";
+import { ActionBar, Pill } from "@/components/record/RecordSurfaces";
+import { Notice, Type, radius, space } from "@/components/ui";
 import { uploadImage } from "@/provider";
 import { theme } from "@/theme";
 import {
@@ -231,12 +232,17 @@ export function VerificationPanel({
       </View>
 
       {state.submitted || !showSubmit ? null : (
-        <Button
-          label="Send for review"
-          busy={submitting}
-          disabled={!state.can_submit}
-          onPress={submit}
-        />
+        <ActionBar>
+          <Pill
+            label="Send for review"
+            icon="shield-checkmark-outline"
+            busy={submitting}
+            busyLabel="Sending"
+            disabled={!state.can_submit}
+            grow
+            onPress={submit}
+          />
+        </ActionBar>
       )}
     </View>
   );

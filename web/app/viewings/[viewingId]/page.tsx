@@ -31,7 +31,6 @@ import { listHostViewings, type Viewing } from "@/lib/console";
 import { providerViewingSummary } from "@/lib/providerViewings";
 import { useSession } from "@/lib/session";
 import { listMyViewings, type MyViewing } from "@/lib/tenant";
-import { placeOf, standing } from "@/lib/viewingMeaning";
 
 export default function ViewingRecordPage() {
   const { state } = useSession();
@@ -153,13 +152,7 @@ function TenantViewing() {
       ) : error ? (
         <Notice tone="error" title={error} />
       ) : viewing ? (
-        <>
-          <PageHeader
-            title={viewing.listing_headline}
-            description={`${standing(viewing).line} · ${placeOf(viewing)}`}
-          />
-          <ViewingRecord key={viewing.id} viewing={viewing} onChanged={load} />
-        </>
+        <ViewingRecord key={viewing.id} viewing={viewing} onChanged={load} />
       ) : (
         <>
           <PageHeader

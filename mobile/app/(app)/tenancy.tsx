@@ -1,24 +1,38 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useState } from "react";
-import { ScrollView, View } from "react-native";
+import { Image, StyleSheet, ScrollView, View } from "react-native";
 
 import { ApiFailure } from "@/api";
-import { Button, Notice, Surface, Type, space } from "@/components/ui";
+import { Bone } from "@/components/billing/BillingParts";
+import {
+  EDGE,
+  Fact,
+  Footnote,
+  GroupLabel,
+  Lead,
+  LinkRow,
+  MUTED,
+  RecordPanel,
+  type RecordTone,
+} from "@/components/record/RecordSurfaces";
+import { Notice, Type, space } from "@/components/ui";
+import { useSafeBottom } from "@/platform";
 import { theme } from "@/theme";
 import { listMyTenancies, tenancyLabel, type Tenancy } from "@/tenancy";
 
 /**
- * One tenancy.
+ * One tenancy — the tenant's own home.
  *
  * Identified by the route parameter, which is the point: a tenant may hold
  * several, and which one they are looking at has to be something they chose
  * rather than something the previous screen left in shared state. That
  * inheritance is how a second home became invisible.
  *
- * Rent history, maintenance, notices and documents attach here as their phases
- * land. Explore, saved places, applications and the account stay outside every
- * tenancy — they belong to the person, not to a home.
+ * Refined on review (2026-09-21): the home is recognised by its photograph, and
+ * the money leads — what is due, or that nothing is. The agreement and the rent
+ * account are rows out to their own records rather than two cards restating
+ * what those records already say.
  */
 export default function TenancyScreen() {
   const router = useRouter();
@@ -26,6 +40,7 @@ export default function TenancyScreen() {
   const [tenancy, setTenancy] = useState<Tenancy | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const pageBottom = useSafeBottom(space[8]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -34,9 +49,7 @@ export default function TenancyScreen() {
       setTenancy(rows.find((row) => row.id === tenancyId) ?? null);
       setError("");
     } catch (cause) {
-      setError(
-        cause instanceof ApiFailure ? cause.error.message : "Could not load this home.",
-      );
+      setError(cause instanceof ApiFailure ? cause.error.message : "Could not load this home.");
     } finally {
       setLoading(false);
     }
@@ -44,100 +57,82 @@ export default function TenancyScreen() {
 
   useFocusEffect(useCallback(() => { void load(); }, [load]));
 
-  const due = tenancy?.rent?.next_due ?? null;
+  if (loading && !tenancy) return <TenancySkeleton />;
+
+  if (!tenancy) {
+    return (
+      <View style={{ padding: space[5], gap: space[3] }}>
+        <Notice
+          tone={error ? "error" : "info"}
+          title={error || "This tenancy is not one of yours"}
+          body={error ? undefined : "It may have ended, or the link may be wrong."}
+        />
+      </View>
+    );
+  }
+
+  const due = tenancy.rent?.next_due ?? null;
+  const outstanding = tenancy.rent?.outstanding_count ?? 0;
+  const tone: RecordTone = due?.is_overdue ? "alert" : outstanding > 0 ? "waiting" : "good";
+  const place = [tenancy.property.locality, tenancy.property.district].filter(Boolean).join(", ");
 
   return (
-    <ScrollView contentContainerStyle={{ padding: space[5], gap: space[4] }}>
-      {error ? <Notice tone="error" title={error} /> : null}
-
-      {loading && !tenancy ? (
-        <Notice tone="info" title="Loading" body="Fetching this tenancy…" />
-      ) : !tenancy ? (
-        <>
-          <Notice
-            tone="info"
-            title="This tenancy is not one of yours"
-            body="It may have ended, or the link may be wrong."
-          />
-          <Button label="Back to your homes" onPress={() => router.replace("/(app)/(tabs)" as never)} />
-        </>
-      ) : (
-        <>
-          <View style={{ gap: space[2] }}>
-            <Type variant="label">YOUR HOME</Type>
-            <Type variant="display2">{tenancy.property.title}</Type>
-            <Type variant="body">
-              {[tenancyLabel(tenancy), tenancy.property.locality, tenancy.property.district]
-                .filter(Boolean)
-                .join(" · ")}
+    <ScrollView contentContainerStyle={[styles.page, { paddingBottom: pageBottom }]}>
+      <RecordPanel>
+        <View style={styles.identity}>
+          <Shot uri={tenancy.photo_url} />
+          <View style={styles.identityBody}>
+            <Type variant="bodyStrong" numberOfLines={2} style={styles.title}>{tenancy.property.title}</Type>
+            <Type variant="caption" numberOfLines={2} style={styles.place}>
+              {[tenancyLabel(tenancy), place].filter(Boolean).join(" · ")}
             </Type>
           </View>
+        </View>
+        <View style={styles.rule} />
+        {due && outstanding > 0 ? (
+          <Lead
+            label={due.is_overdue ? "Overdue" : "Due next"}
+            value={due.amount_formatted ?? "Amount unavailable"}
+            note={`${due.kind_display} · ${due.is_overdue ? "was due" : "due"} ${shortDate(due.due_on)}${outstanding > 1 ? ` · ${outstanding} items outstanding` : ""}`}
+            tone={tone}
+          />
+        ) : (
+          <Lead
+            label="Rent"
+            value={tenancy.lease?.rent_formatted ?? "Not set"}
+            note={tenancy.lease ? `per ${tenancy.lease.rent_period === "yearly" ? "year" : "month"} · nothing outstanding` : "Waiting for an agreement"}
+            tone={tenancy.lease ? "good" : "waiting"}
+          />
+        )}
+      </RecordPanel>
 
-          {due?.is_overdue ? (
-            <Notice
-              tone="warning"
-              title={`${due.kind_display} overdue`}
-              body={`${due.amount_formatted ?? "An amount"} was due ${new Date(due.due_on).toLocaleDateString("en-GH")}.`}
+      {tenancy.lease ? (
+        <View style={styles.section}>
+          <GroupLabel>Your agreement</GroupLabel>
+          <RecordPanel>
+            <Fact first label="Standing" value={tenancy.lease.status_display} />
+            {tenancy.lease.starts_on ? (
+              <Fact
+                label={tenancy.status === "upcoming" ? "Starts" : "Started"}
+                value={shortDate(tenancy.lease.starts_on)}
+              />
+            ) : null}
+            <LinkRow
+              icon="document-text-outline"
+              tone="action"
+              label="Read the agreement"
+              detail="The terms both sides accepted."
+              onPress={() => router.push({ pathname: "/(app)/agreement/[id]", params: { id: tenancy.lease!.id } })}
             />
-          ) : null}
-
-          <Surface style={{ gap: space[3] }}>
-            <View style={{ flexDirection: "row", gap: space[3], alignItems: "center" }}>
-              <Ionicons name="document-text" size={24} color={theme.color.kola["600"]} />
-              <Type variant="title2">Agreement</Type>
-            </View>
-            {tenancy.lease ? (
-              <View style={{ gap: space[1] }}>
-                <Type variant="bodyStrong">
-                  {tenancy.lease.rent_formatted ?? "Rent not set"} per{" "}
-                  {tenancy.lease.rent_period === "yearly" ? "year" : "month"}
-                </Type>
-                <Type variant="caption">Status: {tenancy.lease.status_display}</Type>
-                {tenancy.lease.starts_on ? (
-                  <Type variant="caption">
-                    {tenancy.status === "upcoming" ? "Starts" : "Started"}{" "}
-                    {new Date(tenancy.lease.starts_on).toLocaleDateString("en-GH")}
-                  </Type>
-                ) : null}
-              </View>
-            ) : (
-              <Type variant="caption">
-                Your provider must send a lease and you must accept it before Rooomly
-                can activate this tenancy.
-              </Type>
-            )}
-          </Surface>
-
-          <Surface style={{ gap: space[3] }}>
-            <View style={{ flexDirection: "row", gap: space[3], alignItems: "center" }}>
-              <Ionicons name="cash" size={24} color={theme.color.kola["600"]} />
-              <Type variant="title2">Rent</Type>
-            </View>
-            {tenancy.rent && tenancy.rent.outstanding_count > 0 && due ? (
-              <View style={{ gap: space[1] }}>
-                <Type variant="bodyStrong">
-                  {due.amount_formatted ?? "Amount unavailable"}
-                </Type>
-                <Type variant="caption">
-                  {due.kind_display} · due {new Date(due.due_on).toLocaleDateString("en-GH")}
-                  {tenancy.rent.outstanding_count > 1
-                    ? ` · ${tenancy.rent.outstanding_count} items outstanding`
-                    : ""}
-                </Type>
-              </View>
-            ) : (
-              <Type variant="caption">
-                Nothing outstanding. Charges appear here as your landlord raises them.
-              </Type>
-            )}
-            <Button
-              label="Open rent account"
-              variant="secondary"
-              disabled={!tenancy.lease}
-              onPress={() => tenancy.lease && router.push({
+            <LinkRow
+              icon="cash-outline"
+              tone="action"
+              label="Rent account"
+              detail="What is due, what is paid, and every receipt."
+              onPress={() => router.push({
                 pathname: "/(app)/rent-account",
                 params: {
-                  leaseId: tenancy.lease.id,
+                  leaseId: tenancy.lease!.id,
                   propertyTitle: tenancy.property.title,
                   unitLabel: tenancy.space.unit_label,
                   bedLabel: tenancy.space.bed_label ?? "",
@@ -146,9 +141,122 @@ export default function TenancyScreen() {
                 },
               } as never)}
             />
-          </Surface>
-        </>
+          </RecordPanel>
+        </View>
+      ) : (
+        <View style={styles.section}>
+          <GroupLabel>Your agreement</GroupLabel>
+          <RecordPanel>
+            <Fact
+              wide
+              first
+              label="Not sent yet"
+              value="Your provider must send an agreement and you must accept it before Rooomly can activate this tenancy."
+            />
+          </RecordPanel>
+        </View>
       )}
+
+      <Footnote>Rooomly records what was agreed and what has been paid. Rent is never collected here.</Footnote>
     </ScrollView>
   );
 }
+
+/** The home, at the size a thumb recognises rather than explores. */
+function Shot({ uri }: { uri: string | null }) {
+  return (
+    <View style={styles.shot}>
+      {uri ? (
+        <Image source={{ uri }} accessible={false} resizeMode="cover" style={styles.shotImage} />
+      ) : (
+        <Ionicons name="home-outline" size={20} color={theme.color.ink["300"]} />
+      )}
+    </View>
+  );
+}
+
+/** Shaped like the card it becomes, so nothing jumps when the tenancy arrives. */
+function TenancySkeleton() {
+  return (
+    <View accessible accessibilityRole="progressbar" accessibilityLabel="Loading this home" style={styles.page}>
+      <RecordPanel style={styles.skeletonPanel}>
+        <View style={styles.identity}>
+          <Bone width={64} height={64} round={12} />
+          <View style={styles.skeletonLines}>
+            <Bone width="72%" height={15} />
+            <Bone width="50%" />
+          </View>
+        </View>
+        <Bone width="46%" height={28} />
+        <Bone width="62%" />
+      </RecordPanel>
+      <RecordPanel style={styles.skeletonPanel}>
+        <Bone width="38%" height={12} />
+        <Bone height={44} />
+      </RecordPanel>
+    </View>
+  );
+}
+
+function shortDate(value: string) {
+  const date = new Date(`${value.slice(0, 10)}T12:00:00`);
+  return Number.isNaN(date.getTime())
+    ? value
+    : date.toLocaleDateString("en-GH", { day: "numeric", month: "short", year: "numeric" });
+}
+
+const styles = StyleSheet.create({
+  page: {
+    padding: space[4],
+    gap: space[4],
+  },
+  identity: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space[3],
+    padding: space[4],
+  },
+  identityBody: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2,
+  },
+  title: {
+    fontSize: 15,
+    lineHeight: 20,
+  },
+  place: {
+    fontSize: 12.5,
+    lineHeight: 17,
+    color: MUTED,
+  },
+  rule: {
+    height: StyleSheet.hairlineWidth,
+    marginHorizontal: space[4],
+    backgroundColor: EDGE,
+  },
+  section: {
+    gap: space[2],
+  },
+  shot: {
+    width: 64,
+    height: 64,
+    borderRadius: 12,
+    overflow: "hidden",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: theme.color.field["100"],
+  },
+  shotImage: {
+    width: "100%",
+    height: "100%",
+  },
+  skeletonPanel: {
+    gap: space[3],
+    padding: space[4],
+  },
+  skeletonLines: {
+    flex: 1,
+    gap: space[2],
+  },
+});

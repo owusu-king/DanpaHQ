@@ -1,10 +1,12 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { Tabs } from "expo-router";
 
 import { useAuth } from "@/auth";
 import { ExploreHeaderActions } from "@/components/nav/ExploreHeaderActions";
 import { MainTabBar } from "@/components/nav/MainTabBar";
 import { TabHeader } from "@/components/nav/TabHeader";
+import { UtilityHeaderActions } from "@/components/nav/UtilityHeaderActions";
 import { Wordmark } from "@/components/shell/Wordmark";
 import { shell } from "@/shell";
 
@@ -29,11 +31,10 @@ export default function RenterTabsLayout() {
       {/* The header actions live here rather than in the screen: `explore` is a
           re-export of `search`, which is also a pushed route of its own, and a
           header wired inside the component would follow it there. */}
-      <Tabs.Screen name="explore" options={{ title: "Explore", tabBarLabel: "Explore", headerRight: () => <ExploreHeaderActions />, tabBarIcon: ({ color, size, focused }) => <Ionicons name={focused ? "compass" : "compass-outline"} color={color} size={size} /> }} />
-      <Tabs.Screen name="services" options={{ title: "Services", tabBarLabel: "Services", tabBarIcon: ({ color, size, focused }) => <Ionicons name={focused ? "grid" : "grid-outline"} color={color} size={size} /> }} />
-      <Tabs.Screen name="payments" options={{ title: "Payments", tabBarLabel: "Payments", tabBarIcon: ({ color, size, focused }) => <Ionicons name={focused ? "wallet" : "wallet-outline"} color={color} size={size} /> }} />
-      <Tabs.Screen name="profile" options={{ title: "Profile", tabBarLabel: "More", tabBarIcon: ({ color, size, focused }) => <Ionicons name={focused ? "ellipsis-horizontal-circle" : "ellipsis-horizontal-circle-outline"} color={color} size={size} /> }} />
-      <Tabs.Screen name="saved" options={{ href: null }} />
+      <Tabs.Screen name="explore" options={{ title: "Explore", tabBarLabel: "Explore", headerRight: () => <ExploreHeaderActions />, tabBarIcon: ({ color, size }) => <MaterialCommunityIcons name="globe-model" color={color} size={size} /> }} />
+      <Tabs.Screen name="services" options={{ title: "Services", tabBarLabel: "Services", headerRight: () => <UtilityHeaderActions topic="services" />, tabBarIcon: ({ color, size, focused }) => <Ionicons name={focused ? "grid" : "grid-outline"} color={color} size={size} /> }} />
+      <Tabs.Screen name="payments" options={{ title: "Payments", tabBarLabel: "Payments", headerRight: () => <UtilityHeaderActions topic="payments" />, tabBarIcon: ({ color, size, focused }) => <Ionicons name={focused ? "wallet" : "wallet-outline"} color={color} size={size} /> }} />
+      <Tabs.Screen name="profile" options={{ title: "More", tabBarLabel: "More", tabBarIcon: ({ color, size, focused }) => <Ionicons name={focused ? "list" : "list-outline"} color={color} size={size} /> }} />
     </Tabs>
   );
 }

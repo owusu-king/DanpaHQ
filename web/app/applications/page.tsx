@@ -2,16 +2,17 @@
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { ApplicationDetailModal } from "@/components/applications/ApplicationRecord";
 import { Notice } from "@/components/Notice";
 import { Empty, LoadingRows, PageHeader } from "@/components/portal/PageHeader";
+import { Icon } from "@/components/portal/icons";
 import { ApiFailure } from "@/lib/api";
 import {
   applicationBucket,
   applicationFilters,
   matchesApplicationFilter,
-  placeOf,
   shortfallNote,
   standing,
   type ApplicationFilter,
@@ -36,7 +37,7 @@ import {
 } from "@/lib/tenancyRequests";
 import { useProviderRequests } from "@/lib/useProviderRequests";
 import { listMyApplications, listMyLeases, type MyApplication } from "@/lib/tenant";
-import { timeAgo } from "@/lib/time";
+import { onDate } from "@/lib/time";
 
 /**
  * Applications received, for a landlord or agent.
@@ -88,6 +89,10 @@ function TenantApplications() {
   const [applications, setApplications] = useState<MyApplication[] | null>(null);
   const [leases, setLeases] = useState<Lease[]>([]);
   const [error, setError] = useState("");
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [selectedApplicationId, setSelectedApplicationId] = useState<string | null>(null);
+  const filterRoot = useRef<HTMLDivElement>(null);
+  const filterButton = useRef<HTMLButtonElement>(null);
 
   const router = useRouter();
   const pathname = usePathname();
@@ -97,6 +102,8 @@ function TenantApplications() {
   const query = search.get("q") ?? "";
 
   const load = useCallback(async () => {
+    setApplications(null);
+    setError("");
     try {
       // Acceptance is not the end of the story, and the story lives in the
       // lease. Read-only join: what the tenant may already see at /leases.
@@ -106,7 +113,6 @@ function TenantApplications() {
       ]);
       setApplications(nextApplications);
       setLeases(nextLeases);
-      setError("");
     } catch (cause) {
       setApplications([]);
       setError(cause instanceof ApiFailure ? cause.error.message : "Could not load your applications.");
@@ -114,6 +120,24 @@ function TenantApplications() {
   }, []);
 
   useEffect(() => { void load(); }, [load]);
+
+  useEffect(() => {
+    if (!filterOpen) return;
+    const closeFromOutside = (event: PointerEvent) => {
+      if (!filterRoot.current?.contains(event.target as Node)) setFilterOpen(false);
+    };
+    const closeFromKeyboard = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setFilterOpen(false);
+      filterButton.current?.focus();
+    };
+    document.addEventListener("pointerdown", closeFromOutside);
+    document.addEventListener("keydown", closeFromKeyboard);
+    return () => {
+      document.removeEventListener("pointerdown", closeFromOutside);
+      document.removeEventListener("keydown", closeFromKeyboard);
+    };
+  }, [filterOpen]);
 
   // `replace`, so filtering does not build a history trail somebody has to walk
   // back through to leave the page.
@@ -127,7 +151,13 @@ function TenantApplications() {
     router.replace((queryString ? `${pathname}?${queryString}` : pathname) as never, { scroll: false });
   }, [pathname, router, search]);
 
-  const rows = useMemo(
+  const chooseFilter = useCallback((nextFilter: ApplicationFilter) => {
+    setParams({ show: nextFilter === "all" ? "" : nextFilter });
+    setFilterOpen(false);
+    filterButton.current?.focus();
+  }, [setParams]);
+
+  const rows = useMemo<TenantApplicationRow[]>(
     () => (applications ?? []).map((application) => ({
       application,
       standing: standing(application, leases),
@@ -144,87 +174,254 @@ function TenantApplications() {
     past: rows.filter((row) => row.bucket === "past").length,
   }), [rows]);
 
-  // Only what the server recorded. An application the tenant withdrew was not
-  // turned down by anybody, so the three do not sum to the total.
-  const totals = useMemo(() => ({
-    total: rows.length,
-    approved: rows.filter((row) => row.application.status === "accepted").length,
-    declined: rows.filter((row) => row.application.status === "rejected").length,
-  }), [rows]);
-
   const visible = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase("en-GH");
+    const priority: Record<TenantApplicationRow["bucket"], number> = {
+      action: 0,
+      open: 1,
+      approved: 2,
+      past: 3,
+    };
     return rows
       .filter((row) => matchesApplicationFilter(row.bucket, filter))
-      .filter((row) => !needle || `${row.application.listing_headline} ${placeOf(row.application)}`.toLocaleLowerCase("en-GH").includes(needle));
+      .filter((row) => {
+        if (!needle) return true;
+        const application = row.application;
+        return [
+          application.property_title,
+          application.unit_label,
+          application.space_type_label,
+          application.locality_name,
+          application.listing_headline,
+        ].filter(Boolean).join(" ").toLocaleLowerCase("en-GH").includes(needle);
+      })
+      .sort((left, right) => priority[left.bucket] - priority[right.bucket]);
   }, [filter, query, rows]);
 
+  const current = visible.filter((row) => row.bucket !== "past");
+  const history = visible.filter((row) => row.bucket === "past");
+  const showSearch = (applications?.length ?? 0) > 5 || Boolean(query);
+  const showFilter = new Set(rows.map((row) => row.bucket)).size > 1 || filter !== "all";
+  const selectedLabel = applicationFilters.find((option) => option.id === filter)?.label ?? "Applications";
+  const unfilteredView = filter === "all" && !query.trim();
+  const initialCurrentLimit = Math.min(current.length, history.length ? 4 : 5);
+  const initialHistoryLimit = Math.min(history.length, Math.max(0, 5 - initialCurrentLimit));
+  const selectedApplication = applications?.find((application) => application.id === selectedApplicationId) ?? null;
+
   return (
-    <div className="applications">
+    <div className="applications tenant-applications">
       <PageHeader
         title="Applications"
-        description="Follow every rental journey from application to agreement."
+        description={applications === null || error ? undefined : applicationSummary(counts, rows.length)}
       />
-      {error ? <Notice tone="error" title={error} /> : null}
 
       {applications === null ? (
-        <LoadingRows rows={3} />
+        <ApplicationLoading />
+      ) : error ? (
+        <div className="applications-error">
+          <Notice tone="error" title={error} body="Check your connection and try again." />
+          <button type="button" onClick={() => void load()}>Try again</button>
+        </div>
       ) : applications.length === 0 ? (
-        <Empty
-          title="No applications yet"
-          body="Applying puts you in front of the landlord with your checks already attached."
-          action={<Link href="/rentals" className="type-body-strong">Explore rentals →</Link>}
-        />
+        <div className="applications-empty">
+          <Empty
+            title="Your rental journey starts here"
+            body="When you apply for a rental, its progress will appear here."
+            action={<Link href="/rentals" className="type-body-strong">Explore rentals &rarr;</Link>}
+          />
+        </div>
       ) : (
         <>
-          <dl className="applications-overview">
-            <ApplicationCount label="Applications sent" value={totals.total} />
-            <ApplicationCount label="Approved" value={totals.approved} tone="approved" />
-            <ApplicationCount label="Turned down" value={totals.declined} tone="declined" />
-          </dl>
+          {showSearch || showFilter ? (
+            <div className="applications-tools">
+              {showSearch ? (
+                <label className="applications-search">
+                  <span className="sr-only">Search your applications</span>
+                  <Icon name="explore" />
+                  <input
+                    type="search"
+                    value={query}
+                    onChange={(event) => setParams({ q: event.target.value })}
+                    placeholder="Search Property, Unit or place"
+                  />
+                </label>
+              ) : <span />}
+              {showFilter ? (
+                <div className="applications-filter" ref={filterRoot}>
+                  <button
+                    ref={filterButton}
+                    type="button"
+                    className={`application-filter-trigger${filter !== "all" ? " is-active" : ""}`}
+                    aria-expanded={filterOpen}
+                    aria-haspopup="menu"
+                    aria-controls="application-filter-menu"
+                    onClick={() => setFilterOpen((open) => !open)}
+                  >
+                    <Icon name="filters" />
+                    <span className="application-filter-label">
+                      {filter === "all" ? "All applications" : selectedLabel}
+                    </span>
+                    <Icon name="chevron-down" />
+                  </button>
 
-          <label className="applications-search">
-            <span className="sr-only">Search your applications</span>
-            <input type="search" value={query} onChange={(event) => setParams({ q: event.target.value })} placeholder="Search a place or a neighbourhood" />
-          </label>
-
-          <div className="applications-filters" aria-label="Application stage">
-            {applicationFilters.map((option) => (
-              <button
-                key={option.id}
-                type="button"
-                aria-pressed={filter === option.id}
-                onClick={() => setParams({ show: option.id === "all" ? "" : option.id })}
-              >
-                {option.label}{" "}
-                <span aria-label={`${counts[option.id]} ${counts[option.id] === 1 ? "application" : "applications"}`}>
-                  {counts[option.id]}
-                </span>
-              </button>
-            ))}
-          </div>
+                  {filterOpen ? (
+                    <div id="application-filter-menu" className="application-filter-panel" role="menu" aria-label="Application view">
+                      <ApplicationFilterOption id="all" current={filter} count={counts.all} onSelect={chooseFilter} />
+                      <div className="application-filter-group" role="group" aria-label="Active journey">
+                        <span className="application-filter-group-label">Active journey</span>
+                        {(["action", "open", "approved"] as const).map((id) => (
+                          <ApplicationFilterOption key={id} id={id} current={filter} count={counts[id]} onSelect={chooseFilter} />
+                        ))}
+                      </div>
+                      <div className="application-filter-group" role="group" aria-label="History">
+                        <span className="application-filter-group-label">History</span>
+                        <ApplicationFilterOption id="past" current={filter} count={counts.past} onSelect={chooseFilter} />
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
 
           {visible.length ? (
-            <ul className="applications-list">
-              {visible.map((row) => <ApplicationRow key={row.application.id} {...row} />)}
-            </ul>
+            <div className="applications-results">
+              {unfilteredView ? (
+                <>
+                  {current.length ? <ApplicationGroup title="Current" rows={current} initialLimit={initialCurrentLimit} onOpen={setSelectedApplicationId} /> : null}
+                  {history.length ? <ApplicationGroup title="History" rows={history} initialLimit={initialHistoryLimit} historical onOpen={setSelectedApplicationId} /> : null}
+                </>
+              ) : (
+                <ApplicationGroup
+                  key={`${filter}:${query}`}
+                  title={query ? "Matches" : selectedLabel}
+                  rows={visible}
+                  initialLimit={5}
+                  historical={visible.every((row) => row.bucket === "past")}
+                  onOpen={setSelectedApplicationId}
+                />
+              )}
+            </div>
           ) : query ? (
-            <Empty title="No matching applications" body="Try another place or neighbourhood." />
+            <Empty title="No matching applications" body="Try another Property, Unit or place." />
           ) : (
             <ApplicationFilterEmpty filter={filter} />
           )}
+
+          {selectedApplication ? (
+            <ApplicationDetailModal
+              key={selectedApplication.id}
+              application={selectedApplication}
+              leases={leases}
+              onChanged={load}
+              onClose={() => setSelectedApplicationId(null)}
+            />
+          ) : null}
         </>
       )}
     </div>
   );
 }
 
-function ApplicationCount({ label, value, tone }: { label: string; value: number; tone?: "approved" | "declined" }) {
+type TenantApplicationRow = {
+  application: MyApplication;
+  standing: ReturnType<typeof standing>;
+  bucket: ReturnType<typeof applicationBucket>;
+};
+
+function applicationSummary(counts: Record<ApplicationFilter, number>, total: number): string {
+  if (counts.action === 1) return `An agreement is ready for you \u00B7 ${total} application${total === 1 ? "" : "s"}`;
+  if (counts.action > 1) return `${counts.action} agreements are ready for you \u00B7 ${total} applications`;
+  if (counts.open > 0) return `${counts.open} in progress \u00B7 ${total} application${total === 1 ? "" : "s"}`;
+  return `${total} application record${total === 1 ? "" : "s"}`;
+}
+
+function ApplicationLoading() {
   return (
-    <div>
-      <dt className="type-caption">{label}</dt>
-      <dd data-tone={value > 0 ? tone : undefined}>{value}</dd>
+    <div className="applications-loading" role="status" aria-label="Loading applications">
+      {Array.from({ length: 3 }).map((_, index) => (
+        <div className="application-loading-row" key={index} aria-hidden="true">
+          <span className="skeleton application-loading-photo" />
+          <span className="application-loading-copy">
+            <i className="skeleton" />
+            <i className="skeleton" />
+          </span>
+          <span className="skeleton application-loading-status" />
+        </div>
+      ))}
     </div>
+  );
+}
+
+function ApplicationFilterOption({
+  id,
+  current,
+  count,
+  onSelect,
+}: {
+  id: ApplicationFilter;
+  current: ApplicationFilter;
+  count: number;
+  onSelect: (filter: ApplicationFilter) => void;
+}) {
+  const label = applicationFilters.find((option) => option.id === id)?.label ?? id;
+  const active = current === id;
+  return (
+    <button
+      type="button"
+      role="menuitemradio"
+      aria-checked={active}
+      className={`application-filter-option${active ? " is-selected" : ""}`}
+      onClick={() => onSelect(id)}
+    >
+      <span>{label}</span>
+      <small>{count}</small>
+      <span className="application-filter-mark" aria-hidden="true">
+        {active ? <Icon name="check" /> : null}
+      </span>
+    </button>
+  );
+}
+
+function ApplicationGroup({
+  title,
+  rows,
+  initialLimit,
+  historical = false,
+  onOpen,
+}: {
+  title: string;
+  rows: TenantApplicationRow[];
+  initialLimit: number;
+  historical?: boolean;
+  onOpen: (applicationId: string) => void;
+}) {
+  const pageSize = 5;
+  const [limit, setLimit] = useState(initialLimit);
+  const shown = rows.slice(0, limit);
+  const remaining = rows.length - shown.length;
+
+  return (
+    <section className={`application-group${historical ? " is-history" : ""}`}>
+      <header className="application-group-head">
+        <h2>{title}</h2>
+        <span aria-label={`${rows.length} ${rows.length === 1 ? "application" : "applications"}`}>{rows.length}</span>
+      </header>
+      <ul className="applications-list">
+        {shown.map((row) => <ApplicationRow key={row.application.id} {...row} onOpen={onOpen} />)}
+      </ul>
+      {remaining > 0 ? (
+        <button
+          type="button"
+          className="application-load-more"
+          aria-label={`Show ${Math.min(pageSize, remaining)} more ${title.toLocaleLowerCase("en-GH")} applications`}
+          onClick={() => setLimit((currentLimit) => Math.min(currentLimit + pageSize, rows.length))}
+        >
+          <span>Show {Math.min(pageSize, remaining)} more</span>
+          <Icon name="chevron-down" />
+        </button>
+      ) : null}
+    </section>
   );
 }
 
@@ -234,7 +431,7 @@ function ApplicationFilterEmpty({ filter }: { filter: ApplicationFilter }) {
     action: { title: "Nothing needs you", body: "You are up to date on every application." },
     open: { title: "Nothing in progress", body: "No application is waiting for a decision." },
     approved: { title: "No approvals yet", body: "Approved applications will stay easy to find here." },
-    past: { title: "No past applications", body: "Rejected and withdrawn applications will appear here." },
+    past: { title: "No application history", body: "Closed applications will remain available here." },
   };
   return (
     <div className="application-filter-empty" role="status">
@@ -247,39 +444,57 @@ function ApplicationFilterEmpty({ filter }: { filter: ApplicationFilter }) {
 function ApplicationRow({
   application,
   standing: state,
-}: {
-  application: MyApplication;
-  standing: ReturnType<typeof standing>;
-}) {
+  bucket,
+  onOpen,
+}: TenantApplicationRow & { onOpen: (applicationId: string) => void }) {
   const short = shortfallNote(application);
+  const property = application.property_title || application.listing_headline;
+  const unit = [application.unit_label, application.space_type_label].filter(Boolean).join(" \u00B7 ");
+
   return (
     <li>
       <Link
         href={`/applications/${application.id}` as never}
-        className="application-row"
-        aria-label={`Open the application for ${application.listing_headline}. ${state.line}.`}
+        className={`application-row is-${bucket}`}
+        aria-label={`Open the application for ${property}, ${application.unit_label}. ${state.line}.`}
+        onClick={(event) => {
+          if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+          event.preventDefault();
+          onOpen(application.id);
+        }}
       >
         <span className="application-photo">
           {application.photo_url ? (
             /* Short-lived signed URLs from the files service. */
             /* eslint-disable-next-line @next/next/no-img-element */
             <img src={application.photo_url} alt="" />
-          ) : null}
+          ) : (
+            <span className="application-photo-fallback" aria-hidden="true"><Icon name="properties" /></span>
+          )}
         </span>
+
         <span className="application-identity">
-          <strong>{application.listing_headline}</strong>
-          <span className="application-place">{placeOf(application)}</span>
-          <span className="application-rent">
-            {application.rent_formatted ?? ""}<i> / month</i>
-          </span>
-          {short ? <span className="application-short">{short}</span> : null}
+          <strong>{property}</strong>
+          {unit ? <span className="application-unit">{unit}</span> : null}
+          {application.locality_name ? <span className="application-place">{application.locality_name}</span> : null}
         </span>
+
         <span className={`application-standing is-${state.stage}`}>
-          <i aria-hidden="true" />
-          {state.line}
-          <em>{timeAgo(application.created_at)}</em>
+          <span className="application-status-line"><i aria-hidden="true" /><strong>{state.line}</strong></span>
+          {short ? <small>{short}</small> : null}
         </span>
-        <span className="application-row-arrow" aria-hidden="true">›</span>
+
+        <span className="application-row-meta">
+          {application.rent_formatted ? (
+            <span>{application.rent_formatted}<small> / month</small></span>
+          ) : null}
+          <time dateTime={application.created_at}>Submitted {onDate(application.created_at)}</time>
+        </span>
+
+        <span className="application-row-action">
+          <span className="application-row-action-label">{state.stage === "action" ? "Review" : "View"}</span>
+          <Icon name="chevron-down" />
+        </span>
       </Link>
     </li>
   );

@@ -1,291 +1,994 @@
-/* Applications, from the applicant's side.
-   A photograph, the place, and one line that is both the status and what
-   happens next. Everything a tenant already knows they wrote is behind the row,
-   not on it. */
+/* Tenant Applications.
+   A compact application ledger: identity first, one lifecycle meaning, and
+   controls that appear only when the collection earns them. */
 
 .applications { display: grid; gap: var(--space-6); }
 
-/* One quiet rail, not five badges. History is always one tap away and the
-   underline carries selection without adding another rounded container. */
+.tenant-applications {
+  --application-surface: color-mix(in srgb, var(--color-field-0) 92%, var(--color-kola-50));
+  gap: 0;
+  min-width: 0;
+}
+
+.tenant-applications .portal-page-header {
+  margin-bottom: clamp(var(--space-5), 2.5vw, var(--space-8));
+}
+
+.tenant-applications .portal-page-header p {
+  color: var(--color-ink-700);
+  font-size: .8125rem;
+}
+
+.applications-tools {
+  position: relative;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  min-height: 42px;
+  margin: 0 0 var(--space-5);
+}
+
+.applications-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: min(100%, 23rem);
+  color: var(--color-ink-500);
+}
+
+.applications-search .portal-icon {
+  position: absolute;
+  left: var(--space-3);
+  z-index: 1;
+  width: 17px;
+  height: 17px;
+  pointer-events: none;
+}
+
+.applications-search input {
+  width: 100%;
+  height: 42px;
+  padding: 0 var(--space-4) 0 2.5rem;
+  color: var(--color-ink-900);
+  background: rgb(255 255 255 / 72%);
+  border: var(--border-hairline) solid var(--color-field-300);
+  border-radius: var(--radius-md);
+  font: inherit;
+  font-size: .8125rem;
+  outline: none;
+  backdrop-filter: blur(10px);
+  transition: border-color var(--motion-duration-fast) var(--motion-easing-standard),
+    box-shadow var(--motion-duration-fast) var(--motion-easing-standard),
+    background-color var(--motion-duration-fast) var(--motion-easing-standard);
+}
+
+.applications-search input:focus {
+  background: var(--color-field-0);
+  border-color: var(--color-kola-300);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-kola-300) 18%, transparent);
+}
+
+.applications-filter { position: relative; flex: none; }
+
+.application-filter-trigger {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 9.5rem;
+  height: 42px;
+  padding: 0 var(--space-3);
+  color: var(--color-ink-700);
+  background: color-mix(in srgb, var(--color-field-0) 88%, var(--color-kola-50));
+  border: var(--border-hairline) solid var(--color-field-300);
+  border-radius: var(--radius-md);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  box-shadow: 0 1px 0 rgb(33 26 21 / 3%);
+  transition: border-color var(--motion-duration-fast) var(--motion-easing-standard),
+    background-color var(--motion-duration-fast) var(--motion-easing-standard),
+    box-shadow var(--motion-duration-fast) var(--motion-easing-standard);
+}
+
+.application-filter-trigger:hover,
+.application-filter-trigger[aria-expanded="true"] {
+  background: var(--color-field-0);
+  border-color: color-mix(in srgb, var(--color-kola-600) 34%, var(--color-field-300));
+  box-shadow: 0 4px 16px rgb(33 26 21 / 7%);
+}
+
+.application-filter-trigger.is-active {
+  color: var(--color-kola-800);
+  background: color-mix(in srgb, var(--color-kola-50) 76%, var(--color-field-0));
+  border-color: color-mix(in srgb, var(--color-kola-600) 28%, var(--color-field-300));
+}
+
+.application-filter-trigger > .portal-icon:first-child { width: 17px; height: 17px; }
+.application-filter-trigger > .portal-icon:last-child {
+  width: 14px;
+  height: 14px;
+  transition: transform var(--motion-duration-fast) var(--motion-easing-standard);
+}
+.application-filter-trigger[aria-expanded="true"] > .portal-icon:last-child { transform: rotate(180deg); }
+
+.application-filter-label {
+  overflow: hidden;
+  color: currentColor;
+  font-size: .8125rem;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.application-filter-panel {
+  position: absolute;
+  top: calc(100% + var(--space-2));
+  right: 0;
+  z-index: 20;
+  display: grid;
+  width: min(17.5rem, calc(100vw - var(--space-8)));
+  padding: var(--space-2);
+  overflow: hidden;
+  color: var(--color-ink-900);
+  background:
+    linear-gradient(145deg, rgb(255 255 255 / 82%), rgb(255 255 255 / 96%)),
+    var(--color-kola-50);
+  border: var(--border-hairline) solid color-mix(in srgb, var(--color-kola-600) 18%, var(--color-field-200));
+  border-radius: var(--radius-lg);
+  box-shadow: 0 18px 42px rgb(33 26 21 / 14%), 0 2px 8px rgb(33 26 21 / 6%);
+  backdrop-filter: blur(18px);
+  transform-origin: top right;
+  animation: application-filter-enter 140ms var(--motion-easing-standard) both;
+}
+
+@keyframes application-filter-enter {
+  from { opacity: 0; transform: translateY(-4px) scale(.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.application-filter-group {
+  display: grid;
+  margin-top: var(--space-1);
+  padding-top: var(--space-2);
+  border-top: var(--border-hairline) solid color-mix(in srgb, var(--color-field-200) 78%, transparent);
+}
+
+.application-filter-group-label {
+  padding: var(--space-1) var(--space-3) var(--space-2);
+  color: var(--color-ink-500);
+  font-size: .625rem;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.application-filter-option {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto 20px;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 38px;
+  padding: 0 var(--space-3);
+  color: var(--color-ink-700);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-sm);
+  font: inherit;
+  font-size: .8125rem;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  transition: color var(--motion-duration-fast) var(--motion-easing-standard),
+    background-color var(--motion-duration-fast) var(--motion-easing-standard);
+}
+
+.application-filter-option:hover,
+.application-filter-option:focus-visible {
+  color: var(--color-ink-900);
+  background: color-mix(in srgb, var(--color-kola-50) 72%, transparent);
+  outline: none;
+}
+.application-filter-option:focus-visible {
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--color-lagoon-600) 28%, transparent);
+}
+
+.application-filter-option.is-selected {
+  color: var(--color-kola-800);
+  background: color-mix(in srgb, var(--color-kola-50) 44%, transparent);
+}
+
+.application-filter-option small {
+  color: var(--color-ink-500);
+  font-family: var(--font-mono);
+  font-size: .625rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.application-filter-mark { display: grid; width: 20px; height: 20px; place-items: center; }
+.application-filter-mark .portal-icon { width: 15px; height: 15px; }
+
+.application-filter-trigger:focus-visible,
+.applications-error button:focus-visible,
+.application-load-more:focus-visible,
+.application-row:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--color-lagoon-600) 30%, transparent);
+  outline-offset: 2px;
+}
+
+.applications-results {
+  display: grid;
+  gap: clamp(var(--space-8), 3vw, var(--space-10));
+  min-width: 0;
+}
+
+.application-group { display: grid; gap: var(--space-3); min-width: 0; }
+
+.application-group-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding-inline: var(--space-1);
+}
+
+.application-group-head h2 {
+  margin: 0;
+  color: var(--color-ink-900);
+  font-family: var(--font-display);
+  font-size: .9375rem;
+  font-weight: 650;
+  letter-spacing: -.01em;
+}
+
+.application-group-head > span {
+  color: var(--color-ink-500);
+  font-family: var(--font-mono);
+  font-size: .625rem;
+}
+
+.application-group.is-history .application-group-head h2 {
+  color: var(--color-ink-700);
+  font-family: var(--font-body);
+  font-size: .8125rem;
+}
+
+.applications-list {
+  display: grid;
+  padding: 0;
+  margin: 0;
+  overflow: hidden;
+  list-style: none;
+  background: var(--application-surface);
+  border: var(--border-hairline) solid var(--color-field-200);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 1px 0 rgb(33 26 21 / 3%);
+  container: application-list / inline-size;
+}
+
+.applications-list > li + li { border-top: var(--border-hairline) solid var(--color-field-200); }
+.application-group.is-history .applications-list {
+  background: color-mix(in srgb, var(--color-field-50) 88%, var(--color-field-100));
+  box-shadow: none;
+}
+
+.application-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 4.25rem minmax(0, 1fr) 2rem;
+  grid-template-areas:
+    "photo identity action"
+    "photo standing action"
+    "photo meta action";
+  align-items: center;
+  gap: 2px var(--space-3);
+  min-width: 0;
+  min-height: 4.5rem;
+  padding: .625rem var(--space-4);
+  color: inherit;
+  text-decoration: none;
+  background: transparent;
+  isolation: isolate;
+  transition: background-color var(--motion-duration-fast) var(--motion-easing-standard);
+}
+
+.application-row::before {
+  content: "";
+  position: absolute;
+  inset: .625rem auto .625rem 0;
+  z-index: -1;
+  width: 3px;
+  border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
+  background: transparent;
+}
+
+.application-row.is-action {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--color-harmattan-100) 48%, transparent), transparent 38%);
+}
+.application-row.is-action::before { background: var(--color-harmattan-500); }
+.application-row.is-approved::before { background: var(--color-kola-300); }
+.application-row:hover { background-color: color-mix(in srgb, var(--color-kola-50) 48%, var(--color-field-0)); }
+
+.application-photo {
+  grid-area: photo;
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  background: var(--color-field-100);
+  border: var(--border-hairline) solid rgb(33 26 21 / 6%);
+  border-radius: var(--radius-sm);
+}
+.application-photo img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.application-photo-fallback {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  color: var(--color-kola-600);
+  background: linear-gradient(145deg, rgb(255 255 255 / 55%), transparent), var(--color-kola-50);
+}
+.application-photo-fallback .portal-icon { width: 18px; height: 18px; }
+
+.application-identity {
+  grid-area: identity;
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+.application-identity strong {
+  overflow: hidden;
+  color: var(--color-ink-900);
+  font-family: var(--font-display);
+  font-size: .9375rem;
+  font-weight: 650;
+  letter-spacing: -.01em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.application-unit,
+.application-place {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.application-unit { color: var(--color-ink-700); font-size: .75rem; font-weight: 600; }
+.application-place { color: var(--color-ink-500); font-size: .6875rem; }
+
+.application-standing {
+  grid-area: standing;
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.application-status-line {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  color: var(--color-lagoon-600);
+}
+.application-status-line i {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  background: currentColor;
+  border-radius: 50%;
+  box-shadow: 0 0 0 0 transparent;
+  transition: box-shadow var(--motion-duration-fast) var(--motion-easing-standard),
+    transform var(--motion-duration-fast) var(--motion-easing-standard);
+}
+.application-row:hover .application-status-line i,
+.application-row:focus-visible .application-status-line i {
+  box-shadow: 0 0 0 4px color-mix(in srgb, currentColor 11%, transparent);
+  transform: scale(1.08);
+}
+.application-status-line strong {
+  overflow: hidden;
+  font-size: .75rem;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.application-standing.is-action .application-status-line { color: var(--color-harmattan-600); }
+.application-row.is-approved .application-status-line { color: var(--color-kola-600); }
+.application-row.is-history .application-status-line { color: var(--color-ink-500); }
+.application-standing small {
+  overflow: hidden;
+  padding-left: calc(6px + var(--space-2));
+  color: var(--color-harmattan-600);
+  font-size: .625rem;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.application-row-meta {
+  grid-area: meta;
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  min-width: 0;
+  color: var(--color-ink-500);
+  font-size: .625rem;
+}
+.application-row-meta > span {
+  color: var(--color-ink-900);
+  font-family: var(--font-mono);
+  font-size: .6875rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.application-row-meta small { color: var(--color-ink-500); font-family: var(--font-body); font-size: .625rem; font-weight: 400; }
+.application-row-meta time { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.application-row-action {
+  grid-area: action;
+  display: inline-flex;
+  align-items: center;
+  justify-self: end;
+  gap: var(--space-2);
+  color: var(--color-ink-500);
+  font-size: .75rem;
+  font-weight: 650;
+  white-space: nowrap;
+}
+.application-row.is-action .application-row-action { color: var(--color-harmattan-600); }
+.application-row-action-label { display: none; }
+.application-row-action .portal-icon {
+  width: 16px;
+  height: 16px;
+  transform: rotate(-90deg);
+  transition: transform var(--motion-duration-fast) var(--motion-easing-standard);
+}
+.application-row:hover .application-row-action .portal-icon { transform: translateX(2px) rotate(-90deg); }
+.application-group.is-history .application-photo { opacity: .78; }
+.application-group.is-history .application-identity strong { color: var(--color-ink-700); }
+
+.application-load-more {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 36px;
+  padding: 0 var(--space-1);
+  color: var(--color-kola-800);
+  background: transparent;
+  border: 0;
+  font: inherit;
+  font-size: .75rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.application-load-more .portal-icon { width: 14px; height: 14px; transition: transform var(--motion-duration-fast) var(--motion-easing-standard); }
+.application-load-more:hover .portal-icon { transform: translateY(2px); }
 
 .application-filter-empty {
   display: grid;
   gap: var(--space-1);
-  padding: var(--space-8) 0;
-  border-bottom: var(--border-hairline) solid var(--color-field-200);
-}
-.application-filter-empty strong { color: var(--color-ink-900); font-size: .9375rem; }
-.application-filter-empty span { color: var(--color-ink-500); font-size: .875rem; }
-
-/* Three counts, a search, then the stages — the shape the provider's lists
-   use. A tenant reading their own applications is doing the same thing from
-   the other side, and should not have to learn a second way of doing it. */
-.applications-overview {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  margin: 0 0 var(--space-8);
+  padding: var(--space-10) var(--space-1);
   border-block: var(--border-hairline) solid var(--color-field-200);
 }
-.applications-overview > div { display: grid; gap: var(--space-1); padding: var(--space-5) 0; }
-.applications-overview > div + div { padding-left: var(--space-5); border-left: var(--border-hairline) solid var(--color-field-200); }
-.applications-overview dt { color: var(--color-ink-500); }
-.applications-overview dd { margin: 0; font-family: var(--font-display); font-size: 1.5rem; line-height: 2rem; font-weight: 600; }
-.applications-overview [data-tone="approved"] { color: var(--color-kola-600); }
-.applications-overview [data-tone="declined"] { color: var(--color-laterite-600); }
+.application-filter-empty strong { color: var(--color-ink-900); font-size: .9375rem; }
+.application-filter-empty span { color: var(--color-ink-500); font-size: .8125rem; }
 
-.applications-search { display: block; width: min(100%, 30rem); margin-bottom: var(--space-4); }
-.applications-search input { width: 100%; min-height: 48px; padding: 0 var(--space-4); color: var(--color-ink-900); background: var(--color-field-0); border: var(--border-hairline) solid var(--color-field-300); border-radius: var(--radius-sm); font: inherit; }
-
-.applications-filters { display: flex; max-width: 100%; gap: var(--space-2); margin-bottom: var(--space-3); overflow-x: auto; scrollbar-width: none; }
-.applications-filters::-webkit-scrollbar { display: none; }
-.applications-filters button { min-height: 44px; padding: 0 var(--space-3); color: var(--color-ink-500); background: transparent; border: var(--border-hairline) solid var(--color-field-200); border-radius: 999px; font: inherit; font-size: .875rem; font-weight: 600; white-space: nowrap; cursor: pointer; }
-.applications-filters button[aria-pressed="true"] { color: var(--color-kola-600); background: var(--color-kola-50); border-color: var(--color-kola-300); }
-.applications-filters span { color: inherit; opacity: .75; }
-.applications-search input:focus-visible, .applications-filters button:focus-visible { outline: 3px solid var(--color-lagoon-600); outline-offset: 2px; }
-
-.applications-list {
-  display: grid;
-  gap: var(--space-2);
-  padding: 0;
-  margin: 0;
-  list-style: none;
-  container-type: inline-size;
-  container-name: application-list;
+.applications-empty .portal-empty {
+  padding-block: clamp(var(--space-12), 8vw, var(--space-24));
+  background: linear-gradient(145deg, color-mix(in srgb, var(--color-kola-50) 58%, var(--color-field-0)), var(--color-field-0));
+  border-style: solid;
 }
 
-/* One row, three columns: what it looks like, what it is, where it stands. */
-/* --- a row that fits the column it is in ---------------------------------
-   These rows were built for a full-width list and then put in the 20rem list
-   column of the list/detail split. Three tracks needing 6rem + 13rem + two gaps
-   + padding is 360px of fixed width in a 320px column: the flexible identity
-   track was crushed to **zero**, and the title and the place each wrapped to
-   five lines. Measured, not guessed.
-
-   So the row is laid out for the narrow case first and opens up when the
-   column can carry it — keyed to the list, not the window, because the same
-   viewport gives this column two very different widths depending on whether
-   the detail panel is beside it. */
-.application-row {
-  text-decoration: none;
-  display: grid;
-  grid-template-columns: 4rem minmax(0, 1fr) 1.5rem;
-  gap: var(--space-3);
-  width: 100%;
-  padding: var(--space-3);
-  text-align: left;
-  background: transparent;
+.applications-error { display: grid; justify-items: start; gap: var(--space-3); }
+.applications-error > div { width: 100%; margin-top: 0 !important; }
+.applications-error button {
+  min-height: 40px;
+  padding: 0 var(--space-4);
+  color: var(--color-field-0);
+  background: var(--color-ink-900);
   border: 0;
-  border-bottom: var(--border-hairline) solid var(--color-field-200);
-  border-radius: 0;
-  cursor: pointer;
-  transition: background var(--motion-duration-fast) var(--motion-easing-standard), box-shadow var(--motion-duration-fast) var(--motion-easing-standard);
-}
-
-/* Under both, on its own line. Stacked — dot, line, time — it is right in a
-   13rem side column and wrong as a full-width strip, where it read as three
-   short rows and made every list item 200px tall. Across the strip it is one
-   line, with the time pushed to the far end. */
-.application-row .application-standing {
-  /* Photo and identity, not the chevron column beside them. */
-  grid-column: 1 / 3;
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding-top: var(--space-2);
-  border-top: var(--border-hairline) solid var(--color-field-200);
-}
-.application-row .application-standing em { margin-left: auto; }
-
-/* Two lines of title, then an ellipsis. A list is scanned, and a name that
-   runs to five lines stops being scannable. */
-.application-identity strong {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  overflow: hidden;
-}
-
-@container application-list (min-width: 38rem) {
-  .application-row {
-    grid-template-columns: 6rem minmax(0, 1fr) minmax(0, 13rem) 1.5rem;
-    gap: var(--space-4);
-  }
-  /* Back to the stacked form, and back to its own metrics: the strip above
-     sets a flex gap and centring that a three-row stack must not inherit. */
-  .application-row .application-standing {
-    grid-column: 3;
-    grid-row: 1;
-    display: grid;
-    align-items: normal;
-    gap: 2px;
-    padding-top: 0;
-    border-top: 0;
-  }
-  .application-row .application-standing em { margin-left: 0; }
-}
-
-.application-row:hover { background: var(--color-field-0); }
-
-.application-photo {
-  display: block;
-  aspect-ratio: 4 / 3;
-  background: var(--color-field-100);
   border-radius: var(--radius-md);
-  overflow: hidden;
-}
-
-.application-photo img { display: block; width: 100%; height: 100%; object-fit: cover; }
-
-.application-identity { display: grid; align-content: center; gap: 2px; min-width: 0; }
-.application-identity strong { color: var(--color-ink-900); font-size: .9375rem; font-weight: 650; }
-.application-place { color: var(--color-ink-500); font-size: .8125rem; }
-.application-rent { color: var(--color-ink-900); font-size: .875rem; font-weight: 650; }
-.application-rent i { color: var(--color-ink-500); font-size: .8125rem; font-style: normal; font-weight: 400; }
-
-/* Said once, and only while it still predicts the answer. */
-.application-short { margin-top: 2px; color: var(--color-harmattan-600); font-size: .8125rem; }
-
-/* The whole status treatment: a dot, a line, a time. No pill, no badge. */
-.application-standing {
-  display: grid;
-  align-content: center;
-  justify-items: start;
-  gap: 2px;
-  color: var(--color-ink-700);
-  font-size: .875rem;
+  font: inherit;
+  font-size: .8125rem;
   font-weight: 650;
+  cursor: pointer;
 }
 
-.application-standing i { display: block; width: 8px; height: 8px; background: var(--color-ink-300); border-radius: 50%; }
-.application-standing.is-action { color: var(--color-kola-600); }
-.application-standing.is-action i { background: var(--color-kola-600); }
-.application-standing.is-open i { background: var(--color-harmattan-600); }
-.application-standing em { color: var(--color-ink-500); font-size: .75rem; font-style: normal; font-weight: 400; }
+.applications-loading {
+  display: grid;
+  overflow: hidden;
+  border: var(--border-hairline) solid var(--color-field-200);
+  border-radius: var(--radius-lg);
+}
+.application-loading-row {
+  display: grid;
+  grid-template-columns: 4.25rem minmax(0, 1fr) minmax(7rem, 18%);
+  align-items: center;
+  gap: var(--space-4);
+  min-height: 4.5rem;
+  padding: .625rem var(--space-4);
+}
+.application-loading-row + .application-loading-row { border-top: var(--border-hairline) solid var(--color-field-200); }
+.application-loading-photo { width: 100%; aspect-ratio: 4 / 3; height: auto; }
+.application-loading-copy { display: grid; gap: var(--space-2); }
+.application-loading-copy i { display: block; width: min(18rem, 70%); height: 10px; }
+.application-loading-copy i + i { width: min(12rem, 48%); height: 8px; }
+.application-loading-status { justify-self: end; width: min(8rem, 100%); height: 10px; }
 
-/* The record behind a row. */
-/* --- list beside detail, not detail over list -----------------------------
-   The record was a modal dialog. An application is read *against* the other
-   applications somebody has out — a dialog hid exactly the context that makes
-   it legible, and closed itself on a stray click mid-read. */
+@container application-list (min-width: 44rem) {
+  .application-row {
+    grid-template-columns: 4.25rem minmax(11rem, 1fr) minmax(10rem, .82fr) minmax(8rem, auto) 2rem;
+    grid-template-areas: "photo identity standing meta action";
+    gap: clamp(var(--space-3), 1.5vw, var(--space-6));
+    min-height: 4.625rem;
+    padding-block: .625rem;
+  }
+  .application-standing { align-self: center; }
+  .application-row-meta { display: grid; gap: 2px; }
+}
+
+@container application-list (min-width: 68rem) {
+  .application-row {
+    grid-template-columns: 4.5rem minmax(14rem, 1.15fr) minmax(12rem, .8fr) minmax(9rem, auto) auto;
+    min-height: 4.875rem;
+  }
+  .application-row-meta {
+    padding-left: clamp(var(--space-3), 1.5vw, var(--space-6));
+    border-left: var(--border-hairline) solid var(--color-field-200);
+  }
+  .application-row-action-label { display: inline; }
+}
+
+@media (max-width: 42rem) {
+  .applications-tools { align-items: stretch; }
+  .applications-search { flex: 1; width: auto; }
+  .application-filter-trigger { min-width: 9rem; }
+}
+
+@media (max-width: 30rem) {
+  .applications-tools { display: grid; grid-template-columns: minmax(0, 1fr); }
+  .applications-tools > span:empty { display: none; }
+  .applications-filter, .application-filter-trigger { width: 100%; }
+  .application-filter-panel { right: auto; left: 0; width: 100%; }
+  .application-row { grid-template-columns: 3.75rem minmax(0, 1fr) 1.75rem; padding: .5rem var(--space-3); }
+  .application-place { display: none; }
+  .application-row-meta { flex-wrap: wrap; gap: var(--space-2); }
+  .application-loading-row { grid-template-columns: 3.75rem minmax(0, 1fr); padding: .5rem var(--space-3); }
+  .application-loading-status { display: none; }
+}
+/* Application Detail: one authoritative record, presented either at its deep
+   link or in the tenant's focus-managed in-context modal. */
+.application-modal {
+  width: min(54rem, calc(100vw - 2rem));
+  max-width: none;
+  height: var(--application-modal-height, auto);
+  max-height: min(38rem, calc(100dvh - 3rem));
+  padding: 0;
+  margin: auto;
+  overflow: hidden;
+  color: var(--color-ink-900);
+  background: color-mix(in srgb, var(--color-field-0) 90%, transparent);
+  border: var(--border-hairline) solid rgb(255 255 255 / 74%);
+  border-radius: clamp(var(--radius-lg), 2vw, var(--radius-xl));
+  box-shadow: 0 32px 80px rgb(22 31 27 / 25%), 0 6px 24px rgb(22 31 27 / 12%), inset 0 1px 0 rgb(255 255 255 / 84%);
+  backdrop-filter: blur(22px) saturate(112%);
+}
+.application-modal[open] { animation: application-modal-enter 190ms var(--motion-easing-standard) both; }
+.application-modal::backdrop {
+  background: color-mix(in srgb, var(--color-ink-900) 44%, transparent);
+  backdrop-filter: blur(5px);
+  animation: application-backdrop-enter 190ms ease-out both;
+}
+.application-modal.is-leaving { animation: application-modal-exit 160ms ease-in both; }
+.application-modal.is-leaving::backdrop { animation: application-backdrop-exit 160ms ease-in both; }
+
+@keyframes application-modal-enter {
+  from { opacity: 0; transform: translateY(12px) scale(.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes application-modal-exit {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to { opacity: 0; transform: translateY(7px) scale(.99); }
+}
+@keyframes application-backdrop-enter { from { opacity: 0; } to { opacity: 1; } }
+@keyframes application-backdrop-exit { from { opacity: 1; } to { opacity: 0; } }
+
+.application-modal-surface {
+  position: relative;
+  height: 100%;
+  max-height: min(38rem, calc(100dvh - 3rem));
+  overflow: hidden;
+  border-radius: inherit;
+}
+.application-modal .application-detail-body::-webkit-scrollbar { width: 10px; }
+.application-modal .application-detail-body::-webkit-scrollbar-track {
+  margin-block: var(--space-3);
+  background: color-mix(in srgb, var(--color-field-200) 42%, transparent);
+  border-radius: var(--radius-pill);
+}
+.application-modal .application-detail-body::-webkit-scrollbar-thumb {
+  min-height: 42px;
+  background: color-mix(in srgb, var(--color-kola-600) 48%, transparent);
+  background-clip: padding-box;
+  border: 3px solid transparent;
+  border-radius: var(--radius-pill);
+}
+.application-modal .application-detail-body::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--color-kola-600) 68%, transparent);
+  background-clip: padding-box;
+}
+
+.application-modal-close {
+  position: absolute;
+  top: var(--space-4);
+  right: var(--space-4);
+  z-index: 8;
+  display: grid;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  place-items: center;
+  color: var(--color-ink-700);
+  background: rgb(255 255 255 / 68%);
+  border: var(--border-hairline) solid rgb(33 26 21 / 10%);
+  border-radius: 50%;
+  box-shadow: 0 4px 14px rgb(33 26 21 / 8%), inset 0 1px 0 rgb(255 255 255 / 80%);
+  backdrop-filter: blur(12px);
+  cursor: pointer;
+  transition: color var(--motion-duration-fast) var(--motion-easing-standard),
+    background-color var(--motion-duration-fast) var(--motion-easing-standard),
+    transform var(--motion-duration-fast) var(--motion-easing-standard);
+}
+.application-modal-close:hover { color: var(--color-ink-900); background: rgb(255 255 255 / 92%); transform: translateY(-1px); }
+.application-modal-close:disabled { opacity: .5; cursor: wait; transform: none; }
+.application-modal-close .portal-icon { width: 17px; height: 17px; }
+.application-modal-close:focus-visible { outline: 3px solid color-mix(in srgb, var(--color-lagoon-600) 32%, transparent); outline-offset: 2px; }
 
 .application-detail {
   display: grid;
   align-content: start;
   min-width: 0;
   overflow: hidden;
+  color: var(--color-ink-900);
   background: var(--color-field-0);
   border: var(--border-hairline) solid var(--color-field-200);
   border-radius: var(--radius-lg);
 }
-.application-detail.is-empty { padding: var(--space-6); }
+.application-modal .application-detail {
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  align-content: stretch;
+  height: 100%;
+  min-height: 0;
+  background: linear-gradient(145deg, rgb(255 255 255 / 76%), rgb(250 249 245 / 90%));
+  border: 0;
+  border-radius: 0;
+}
 
 .application-detail-head {
   display: grid;
-  gap: var(--space-1);
-  padding: var(--space-5);
-  border-bottom: var(--border-hairline) solid var(--color-field-200);
+  gap: clamp(var(--space-5), 3vw, var(--space-8));
+  padding: clamp(var(--space-5), 3vw, var(--space-8));
+  background:
+    radial-gradient(circle at 88% 8%, color-mix(in srgb, var(--color-kola-50) 65%, transparent), transparent 34%),
+    linear-gradient(150deg, color-mix(in srgb, var(--color-field-0) 84%, transparent), color-mix(in srgb, var(--color-kola-50) 58%, var(--color-field-0)));
+  border-bottom: var(--border-hairline) solid color-mix(in srgb, var(--color-field-200) 78%, transparent);
 }
-.application-detail-head h2 { margin: 0; font-size: 1.125rem; }
-.application-detail-head p { margin: 0; }
 
-/* Only meaningful when the panel has taken the screen, which is a width
-   question — so the control appears and disappears with the layout. */
+.application-detail-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-5);
+  min-width: 0;
+}
+.application-modal .application-detail-head {
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  backdrop-filter: blur(18px) saturate(110%);
+  transition: border-color var(--motion-duration-fast) var(--motion-easing-standard),
+    box-shadow var(--motion-duration-fast) var(--motion-easing-standard);
+}
+.application-modal .application-detail[data-body-scrolled="true"] .application-detail-head {
+  border-bottom-color: color-mix(in srgb, var(--color-kola-600) 20%, var(--color-field-200));
+  box-shadow: 0 14px 28px -24px rgb(33 26 21 / 58%);
+}
+.application-modal .application-detail-status { padding-right: 3.5rem; }
+.application-detail-state {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  color: var(--color-lagoon-600);
+}
+.application-detail-state > i {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  background: currentColor;
+  border-radius: 50%;
+  box-shadow: 0 0 0 5px color-mix(in srgb, currentColor 10%, transparent);
+}
+.application-detail-state > span { display: grid; gap: 2px; min-width: 0; }
+.application-detail-state small,
+.application-detail-property-copy > small {
+  color: var(--color-ink-500);
+  font-size: .625rem;
+  font-weight: 700;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+}
+.application-detail-state strong { font-size: .9375rem; font-weight: 720; letter-spacing: -.01em; }
+.application-detail-state.is-action { color: var(--color-harmattan-600); }
+.application-detail-state.is-past { color: var(--color-ink-500); }
+.application-detail-dates {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  color: var(--color-ink-500);
+}
+.application-detail-dates > .portal-icon { flex: none; width: 16px; height: 16px; margin-top: 2px; }
+.application-detail-dates > span { display: grid; gap: 2px; font-size: .6875rem; text-align: right; }
 
-.application-detail-body { display: grid; gap: var(--space-4); padding: var(--space-5); }
-
-/* The photograph in the record head. Somebody arriving from a list of four
-   needs to know which of the four this is before they read a word. */
+.application-detail-property {
+  display: grid;
+  grid-template-columns: minmax(8rem, 10.5rem) minmax(0, 1fr);
+  align-items: center;
+  gap: clamp(var(--space-4), 3vw, var(--space-8));
+  min-width: 0;
+}
 .application-detail-photo {
   display: block;
-  aspect-ratio: 16 / 7;
+  width: 100%;
+  aspect-ratio: 4 / 3;
   overflow: hidden;
   background: var(--color-field-100);
+  border: var(--border-hairline) solid rgb(33 26 21 / 7%);
   border-radius: var(--radius-md);
+  box-shadow: 0 8px 24px rgb(33 26 21 / 8%);
 }
-.application-detail-photo img { width: 100%; height: 100%; object-fit: cover; }
+.application-detail-photo img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.application-detail-photo-fallback { display: grid; width: 100%; height: 100%; place-items: center; color: var(--color-kola-600); background: var(--color-kola-50); }
+.application-detail-photo-fallback .portal-icon { width: 30px; height: 30px; }
+.application-detail-property-copy { display: grid; gap: var(--space-2); min-width: 0; }
+.application-detail-property-copy h2 {
+  margin: 0;
+  color: var(--color-ink-900);
+  font-family: var(--font-display);
+  font-size: clamp(1.4rem, 3vw, 2rem);
+  font-weight: 650;
+  letter-spacing: -.035em;
+  line-height: 1.08;
+}
+.application-detail-property-copy h2:focus { outline: none; }
+.application-detail-property-copy p {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--color-ink-500);
+  font-size: .8125rem;
+}
+.application-detail-property-copy p .portal-icon { flex: none; width: 16px; height: 16px; color: var(--color-kola-600); }
 
-/* The journey. Three signals per step and never colour alone: the mark
-   changes shape, the label changes weight, and the rail stops at a step that
-   ended things — nothing follows a withdrawal or a refusal. */
+.application-detail-body {
+  display: grid;
+  grid-template-columns: minmax(15rem, .7fr) minmax(22rem, 1.3fr);
+  align-items: start;
+  gap: clamp(var(--space-5), 3vw, var(--space-8));
+  padding: clamp(var(--space-5), 3vw, var(--space-8));
+}
+.application-modal .application-detail-body {
+  min-height: 0;
+  padding-bottom: var(--space-5);
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--color-kola-600) 44%, transparent) transparent;
+}
+.application-detail-section { min-width: 0; }
+.application-detail-section.is-progress { grid-column: 1; }
+.application-detail-main {
+  display: grid;
+  min-width: 0;
+  align-content: start;
+  gap: clamp(var(--space-5), 3vw, var(--space-8));
+}
+
+.application-detail-section-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 28px;
+  margin-bottom: var(--space-4);
+}
+.application-detail-section-head .portal-icon { width: 17px; height: 17px; color: var(--color-kola-600); }
+.application-detail-section-head h3 { margin: 0; color: var(--color-ink-900); font-size: .875rem; font-weight: 720; letter-spacing: -.01em; }
+.application-detail-section-head > span { margin-left: auto; color: var(--color-ink-500); font-family: var(--font-mono); font-size: .625rem; }
+
 .application-timeline { display: grid; padding: 0; margin: 0; list-style: none; }
 .application-timeline li {
   display: grid;
   grid-template-columns: 16px minmax(0, 1fr);
   gap: var(--space-3);
-  padding-bottom: var(--space-4);
+  padding-bottom: var(--space-5);
 }
 .application-timeline li:last-child { padding-bottom: 0; }
-
 .application-timeline-mark {
   position: relative;
-  width: 14px;
-  height: 14px;
-  margin-top: .25rem;
-  border-radius: var(--radius-pill);
+  width: 13px;
+  height: 13px;
+  margin-top: .2rem;
+  background: var(--color-field-0);
   border: 2px solid var(--color-field-300);
+  border-radius: 50%;
 }
 .application-timeline li:not(:last-child) .application-timeline-mark::after {
   content: "";
   position: absolute;
   top: 100%;
   left: 50%;
-  width: 2px;
-  height: calc(100% + var(--space-4));
+  width: 1px;
+  height: calc(100% + var(--space-5));
   background: var(--color-field-200);
   transform: translateX(-50%);
 }
-.application-timeline [data-state="done"] .application-timeline-mark {
-  background: var(--color-kola-600);
-  border-color: var(--color-kola-600);
-}
+.application-timeline [data-state="done"] .application-timeline-mark { background: var(--color-kola-600); border-color: var(--color-kola-600); }
 .application-timeline [data-state="done"] .application-timeline-mark::after { background: var(--color-kola-300); }
 .application-timeline [data-state="current"] .application-timeline-mark {
   border-color: var(--color-kola-600);
-  box-shadow: inset 0 0 0 2px var(--color-field-0), inset 0 0 0 6px var(--color-kola-600);
+  box-shadow: inset 0 0 0 2px var(--color-field-0), inset 0 0 0 6px var(--color-kola-600), 0 0 0 4px color-mix(in srgb, var(--color-kola-600) 10%, transparent);
 }
-.application-timeline [data-state="stopped"] .application-timeline-mark {
-  background: var(--color-laterite-600);
-  border-color: var(--color-laterite-600);
-}
-
+.application-timeline [data-state="stopped"] .application-timeline-mark { background: var(--color-laterite-600); border-color: var(--color-laterite-600); }
 .application-timeline-text { display: grid; gap: 2px; min-width: 0; }
-.application-timeline-text strong { font-size: .9375rem; font-weight: 500; }
-.application-timeline [data-state="current"] .application-timeline-text strong { font-weight: 700; }
+.application-timeline-text strong { color: var(--color-ink-700); font-size: .8125rem; font-weight: 550; }
+.application-timeline [data-state="current"] .application-timeline-text strong { color: var(--color-ink-900); font-weight: 720; }
 .application-timeline [data-state="waiting"] .application-timeline-text strong { color: var(--color-ink-500); }
-.application-timeline-text small { color: var(--color-ink-500); font-size: .8125rem; }
+.application-timeline-text small { color: var(--color-ink-500); font-size: .6875rem; }
+
+.application-note {
+  margin: 0;
+  padding: var(--space-4) var(--space-5);
+  color: var(--color-ink-700);
+  background: color-mix(in srgb, var(--color-harmattan-100) 42%, transparent);
+  border-left: 3px solid var(--color-harmattan-500);
+}
+.application-note small { color: var(--color-harmattan-600); font-size: .625rem; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
+.application-note p { margin: var(--space-2) 0 0; font-family: var(--font-display); font-size: .9375rem; line-height: 1.55; }
+
+.application-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding: 0;
+  margin: 0;
+  border-block: var(--border-hairline) solid var(--color-field-200);
+}
+.application-facts > div { display: grid; gap: var(--space-1); min-width: 0; padding: var(--space-3) 0; }
+.application-facts > div:nth-child(even) { padding-left: var(--space-5); border-left: var(--border-hairline) solid var(--color-field-200); }
+.application-facts > div:nth-child(n + 3) { border-top: var(--border-hairline) solid var(--color-field-200); }
+.application-facts dt { color: var(--color-ink-500); font-size: .6875rem; }
+.application-facts dd { overflow-wrap: anywhere; margin: 0; color: var(--color-ink-900); font-size: .8125rem; font-weight: 650; }
+
+.application-told { border-bottom: var(--border-hairline) solid var(--color-field-200); }
+.application-told summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 44px;
+  color: var(--color-ink-700);
+  font-size: .8125rem;
+  font-weight: 650;
+  cursor: pointer;
+  list-style: none;
+}
+.application-told summary::-webkit-details-marker { display: none; }
+.application-told summary > span { display: inline-flex; align-items: center; gap: var(--space-2); }
+.application-told summary .portal-icon { width: 16px; height: 16px; color: var(--color-kola-600); }
+.application-told summary > .portal-icon { color: var(--color-ink-500); transition: transform var(--motion-duration-fast) var(--motion-easing-standard); }
+.application-told[open] summary > .portal-icon { transform: rotate(180deg); }
+.application-told-body { display: grid; gap: var(--space-4); padding: var(--space-2) 0 var(--space-5); }
+.application-told-body blockquote { margin: 0; padding: var(--space-3) var(--space-4); color: var(--color-ink-500); background: var(--color-field-50); border-left: 2px solid var(--color-field-300); font-size: .8125rem; line-height: 1.55; }
 
 .application-detail-foot {
+  position: relative;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
-  padding: var(--space-4) var(--space-5);
-  background: var(--color-field-50);
+  padding: var(--space-4) clamp(var(--space-5), 3vw, var(--space-8));
+  background: color-mix(in srgb, var(--color-field-0) 90%, var(--color-kola-50));
   border-top: var(--border-hairline) solid var(--color-field-200);
 }
+.application-modal .application-detail-foot {
+  position: relative;
+  z-index: 5;
+  background: rgb(252 251 247 / 88%);
+  backdrop-filter: blur(16px) saturate(110%);
+}
+.application-detail-context-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+.application-primary,
+.application-secondary {
+  display: inline-flex;
+  min-height: 42px;
+  padding: 0 var(--space-5);
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+  font-size: .8125rem;
+  font-weight: 720;
+  text-decoration: none;
+  transition: background-color var(--motion-duration-fast) var(--motion-easing-standard),
+    border-color var(--motion-duration-fast) var(--motion-easing-standard),
+    transform var(--motion-duration-fast) var(--motion-easing-standard);
+}
+.application-primary { color: var(--color-field-0); background: var(--color-kola-800); border: var(--border-hairline) solid var(--color-kola-800); }
+.application-primary:hover { background: var(--color-kola-800); transform: translateY(-1px); }
+.application-secondary { color: var(--color-kola-800); background: transparent; border: var(--border-hairline) solid color-mix(in srgb, var(--color-kola-600) 32%, var(--color-field-300)); }
+.application-secondary:hover { background: var(--color-kola-50); border-color: var(--color-kola-300); transform: translateY(-1px); }
+.application-primary:focus-visible,
+.application-secondary:focus-visible,
+.application-told summary:focus-visible { outline: 3px solid color-mix(in srgb, var(--color-lagoon-600) 30%, transparent); outline-offset: 2px; }
+.application-confirm { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: var(--space-2); }
+.application-confirm > span:first-child { width: 100%; text-align: right; }
 
-@media (max-width: 720px) {
-  /* The status stops being a column and becomes the last line of the row —
-     three columns at 360px would be three unreadable ones. */
-  .application-row { grid-template-columns: 4.5rem minmax(0, 1fr); gap: var(--space-3); }
-  .application-standing { grid-column: 1 / -1; grid-auto-flow: column; grid-template-columns: auto auto 1fr; align-items: center; gap: var(--space-2); padding-top: var(--space-2); border-top: var(--border-hairline) solid var(--color-field-200); }
-  .application-standing em { justify-self: end; }
+@media (max-width: 52rem) {
+  .application-detail-body { grid-template-columns: minmax(0, 1fr); }
+  .application-detail-section.is-progress { grid-column: 1; }
 }
 
-/* The chevron the other four lists have had all along. A row that goes
-   somewhere should look like it goes somewhere, standing still. */
-.application-row-arrow {
-  grid-column: 3;
-  grid-row: 1 / span 2;
-  align-self: center;
-  color: var(--color-ink-300);
-  font-size: 1.5rem;
-  transition: transform var(--motion-duration-fast) var(--motion-easing-standard),
-    color var(--motion-duration-fast) var(--motion-easing-standard);
-}
-@container application-list (min-width: 38rem) {
-  .application-row-arrow { grid-column: 4; grid-row: 1; }
+@media (max-width: 42rem) {
+  .application-modal {
+    width: calc(100vw - .75rem);
+    max-height: calc(100dvh - .75rem);
+    border-radius: var(--radius-lg);
+  }
+  .application-modal-surface { height: 100%; max-height: calc(100dvh - .75rem); }
+  .application-detail-status { align-items: flex-start; }
+  .application-detail-property { grid-template-columns: 5.5rem minmax(0, 1fr); }
+  .application-detail-property-copy h2 { font-size: clamp(1.2rem, 7vw, 1.55rem); }
+  .application-detail-dates > span { text-align: left; }
 }
 
-.application-row:hover .application-row-arrow { transform: translateX(2px); color: var(--color-ink-500); }
+@media (max-width: 30rem) {
+  .application-detail-head,
+  .application-detail-body { padding: var(--space-4); }
+  .application-detail-head { gap: var(--space-5); }
+  .application-detail-status { display: grid; gap: var(--space-3); }
+  .application-modal .application-detail-status { padding-right: 2.75rem; }
+  .application-detail-property { grid-template-columns: 4.75rem minmax(0, 1fr); gap: var(--space-3); }
+  .application-facts { grid-template-columns: minmax(0, 1fr); }
+  .application-facts > div:nth-child(even) { padding-left: 0; border-left: 0; }
+  .application-facts > div + div { border-top: var(--border-hairline) solid var(--color-field-200); }
+  .application-detail-foot { align-items: stretch; padding: var(--space-3) var(--space-4) max(var(--space-3), env(safe-area-inset-bottom)); }
+  .application-detail-context-actions { width: 100%; }
+  .application-primary, .application-secondary { width: 100%; }
+  .application-confirm { width: 100%; justify-content: stretch; }
+  .application-confirm > span:first-child { text-align: left; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .application-row,
+  .application-row-action .portal-icon,
+  .application-status-line i,
+  .application-load-more .portal-icon,
+  .application-filter-trigger > .portal-icon:last-child,
+  .application-filter-option,
+  .application-modal-close,
+  .application-primary,
+  .application-secondary,
+  .application-told summary > .portal-icon { transition: none; }
+  .application-filter-panel,
+  .application-modal[open],
+  .application-modal::backdrop,
+  .application-modal.is-leaving,
+  .application-modal.is-leaving::backdrop { animation: none; }
+}

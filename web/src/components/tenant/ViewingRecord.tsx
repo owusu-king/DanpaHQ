@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import QRCode from "react-qr-code";
 
 import { Button } from "@/components/Button";
 import { Field } from "@/components/Field";
 import { Notice } from "@/components/Notice";
+import { Icon } from "@/components/portal/icons";
 import { ViewingDirections } from "@/components/viewings/ViewingDirections";
 import { ApiFailure } from "@/lib/api";
 import {
@@ -26,10 +27,10 @@ import { placeOf, standing, whenLabel } from "@/lib/viewingMeaning";
 /**
  * One viewing, and only what the lifecycle makes relevant right now.
  *
- * A full workspace record beside the schedule on wide screens and one pane on
- * narrow screens. This is not a modal: the lifecycle can ask for several
- * decisions, forms and pieces of released context, which makes it resumable
- * work rather than a quick interruption.
+ * The same record powers a focused in-context modal and a durable deep link.
+ * The lifecycle can ask for several decisions, forms and pieces of released
+ * context, so the body scrolls independently while its context and actions
+ * remain anchored.
  *
  * The rule this holds: a control appears when it can be used and disappears
  * when it cannot. The check-in QR is not here the day before; the exact
@@ -39,19 +40,149 @@ import { placeOf, standing, whenLabel } from "@/lib/viewingMeaning";
  * `viewing_directions` are all computed per-reader on the server — this
  * re-derives none of it.
  */
-export function ViewingRecord({
+type ViewingRecordProps = {
+  viewing: MyViewing;
+  onChanged: () => Promise<void>;
+  modal?: boolean;
+  titleId?: string;
+  headingRef?: React.RefObject<HTMLHeadingElement | null>;
+  onBusyChange?: (busy: boolean) => void;
+};
+
+export function ViewingDetailModal({
   viewing,
   onChanged,
+  onClose,
 }: {
   viewing: MyViewing;
   onChanged: () => Promise<void>;
+  onClose: () => void;
 }) {
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const closeTimer = useRef<number | null>(null);
+  const closing = useRef(false);
+  const [leaving, setLeaving] = useState(false);
+  const [recordBusy, setRecordBusy] = useState(false);
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    if (dialog && !dialog.open) dialog.showModal();
+    const focusFrame = window.requestAnimationFrame(() => {
+      if (!dialog) return;
+      // Hold the opening proportions steady. Disclosures add scrollable body
+      // content without resizing or re-centring the glass surface.
+      dialog.style.setProperty("--viewing-modal-height", `${Math.ceil(dialog.offsetHeight)}px`);
+      headingRef.current?.focus({ preventScroll: true });
+    });
+    return () => {
+      window.cancelAnimationFrame(focusFrame);
+      if (closeTimer.current !== null) window.clearTimeout(closeTimer.current);
+      if (dialog?.open) dialog.close();
+      opener?.focus({ preventScroll: true });
+    };
+  }, []);
+
+  const requestClose = useCallback(() => {
+    const dialog = dialogRef.current;
+    if (!dialog || closing.current || recordBusy) return;
+    closing.current = true;
+    setLeaving(true);
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      dialog.close();
+      return;
+    }
+    closeTimer.current = window.setTimeout(() => dialog.close(), 160);
+  }, [recordBusy]);
+
+  return (
+    <dialog
+      ref={dialogRef}
+      className={`viewing-modal${leaving ? " is-leaving" : ""}`}
+      aria-labelledby="viewing-modal-title"
+      aria-busy={recordBusy}
+      onCancel={(event) => {
+        event.preventDefault();
+        requestClose();
+      }}
+      onClose={() => {
+        if (!dialogRef.current?.open) onClose();
+      }}
+      onClick={(event) => {
+        if (event.target === dialogRef.current) requestClose();
+      }}
+    >
+      <div className="viewing-modal-surface">
+        <button
+          type="button"
+          className="viewing-modal-close"
+          aria-label="Close viewing details"
+          disabled={recordBusy}
+          onClick={requestClose}
+        >
+          <Icon name="close" />
+        </button>
+        <ViewingRecord
+          viewing={viewing}
+          onChanged={onChanged}
+          modal
+          titleId="viewing-modal-title"
+          headingRef={headingRef}
+          onBusyChange={setRecordBusy}
+        />
+      </div>
+    </dialog>
+  );
+}
+
+export function ViewingRecord({
+  viewing,
+  onChanged,
+  modal = false,
+  titleId,
+  headingRef,
+  onBusyChange,
+}: ViewingRecordProps) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [mode, setMode] = useState<"none" | "reschedule" | "cancel" | "withdraw">("none");
+  const [bodyScrolled, setBodyScrolled] = useState(false);
 
-  // A pane had to reset itself when a different viewing arrived in it. A page
-  // is mounted fresh for the one it is about.
+  useEffect(() => {
+    setError("");
+    setMode("none");
+    setBodyScrolled(false);
+  }, [viewing.id]);
+
+  useEffect(() => {
+    onBusyChange?.(busy);
+  }, [busy, onBusyChange]);
+
+  // A provider validates the tenant's temporary QR on another device. While the
+  // check-in window is live, reread the server record so this surface moves from
+  // "ready" to the authoritative `checked_in` state without a manual refresh.
+  useEffect(() => {
+    if (viewing.status !== "confirmed" || viewing.check_in.state !== "ready") return;
+    let refreshing = false;
+    const refresh = async () => {
+      if (refreshing || document.visibilityState === "hidden") return;
+      refreshing = true;
+      try { await onChanged(); } finally { refreshing = false; }
+    };
+    const interval = window.setInterval(() => { void refresh(); }, 3_000);
+    const onFocus = () => { void refresh(); };
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") void refresh();
+    };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [onChanged, viewing.check_in.state, viewing.status]);
 
   async function run(work: () => Promise<unknown>) {
     setBusy(true);
@@ -73,136 +204,181 @@ export function ViewingRecord({
   const hasExits = Boolean(
     viewing.actions.can_reschedule || viewing.actions.can_cancel || viewing.actions.can_withdraw,
   );
+  const context = [viewing.unit_label, placeOf(viewing)].filter(Boolean).join(" · ");
+  const statusTone = viewing.status === "checked_in" || viewing.status === "completed"
+    ? "positive"
+    : state.group === "action"
+      ? "action"
+      : state.group === "past"
+        ? "past"
+        : "upcoming";
 
   return (
-    <div className="viewing-record">
-          <header className="viewing-record-head">
-            <span className="viewing-record-photo">
-              {viewing.photo_url ? (
-                /* Short-lived signed URLs from the files service. */
-                /* eslint-disable-next-line @next/next/no-img-element */
-                <img src={viewing.photo_url} alt="" />
-              ) : null}
-            </span>
+    <article className={`viewing-detail${modal ? " is-modal" : ""}`} data-body-scrolled={bodyScrolled || undefined}>
+      <header className="viewing-detail-head">
+        <div className="viewing-detail-status">
+          <span className={`viewing-detail-state is-${statusTone}`}>
+            <i aria-hidden="true" />
+            <span><small>Viewing status</small><strong>{state.line}</strong></span>
+          </span>
+          <span className="viewing-detail-time">
+            <Icon name="clock" />
+            <span><small>Appointment</small><strong>{when ?? "Time not set"}</strong></span>
+          </span>
+        </div>
+
+        <div className="viewing-detail-property">
+          <span className="viewing-detail-photo">
+            {viewing.photo_url ? (
+              /* Short-lived signed URLs from the files service. */
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img src={viewing.photo_url} alt="" />
+            ) : (
+              <span aria-hidden="true"><Icon name="properties" /></span>
+            )}
+          </span>
+          <span className="viewing-detail-property-copy">
+            <small>Property &amp; Unit</small>
+            <h2 id={titleId} ref={headingRef} tabIndex={headingRef ? -1 : undefined}>
+              {viewing.property_title || viewing.listing_headline}
+            </h2>
+            {context ? <p><Icon name="landmark" />{context}</p> : null}
+          </span>
+        </div>
+      </header>
+
+      <div
+        className="viewing-detail-body"
+        onScroll={(event) => setBodyScrolled(event.currentTarget.scrollTop > 2)}
+      >
+        {error ? <Notice tone="error" title={error} /> : null}
+
+
+        {viewing.status === "checked_in" ? (
+          <section className="viewing-live-state is-active" aria-live="polite">
+            <span><Icon name="check" /></span>
+            <div><small>Viewing opened</small><h3>You are checked in</h3><p>Your attendance was verified by the property representative.</p></div>
+          </section>
+        ) : viewing.status === "confirmed" && viewing.check_in.state === "upcoming" ? (
+          <section className="viewing-live-state">
+            <span><Icon name="clock" /></span>
             <div>
-              <h2>{viewing.listing_headline}</h2>
-              <p className="type-caption">{placeOf(viewing) || "Ghana"}</p>
-              {when ? <p className="viewing-when-big">{when}</p> : null}
-              <p className={`viewing-standing is-${state.group}`}>
-                <i aria-hidden="true" />{state.line}
-              </p>
+              <small>Check-in</small>
+              <h3>Opens near your appointment</h3>
+              <p>{viewing.check_in.opens_at ? `Available from ${formatViewingMoment(viewing.check_in.opens_at)}.` : "Your secure check-in will appear here when it is ready."}</p>
             </div>
-          </header>
+          </section>
+        ) : null}
 
-          <div className="viewing-record-body">
-            {error ? <Notice tone="error" title={error} /> : null}
+        {viewing.status === "offered" && viewing.actions.can_confirm_slot ? (
+          <ChooseTime viewing={viewing} busy={busy} run={run} />
+        ) : null}
 
-            {/* Exactly one of these, whichever the lifecycle points at. */}
-            {viewing.status === "offered" && viewing.actions.can_confirm_slot ? (
-              <ChooseTime viewing={viewing} busy={busy} run={run} />
-            ) : null}
+        {viewing.check_in.can_issue ? <CheckIn viewing={viewing} /> : null}
 
-            {viewing.check_in.can_issue ? <CheckIn viewing={viewing} /> : null}
+        {viewing.attendance.can_report ? (
+          <ReportAttendance viewing={viewing} busy={busy} run={run} />
+        ) : null}
 
-            {viewing.attendance.can_report ? (
-              <ReportAttendance viewing={viewing} busy={busy} run={run} />
-            ) : null}
+        {viewing.attendance.can_respond ? (
+          <RespondToAttendance viewing={viewing} busy={busy} run={run} />
+        ) : null}
 
-            {viewing.attendance.can_respond ? (
-              <RespondToAttendance viewing={viewing} busy={busy} run={run} />
-            ) : null}
+        {viewing.attendance.state === "disputed" ? (
+          <Notice
+            tone="info"
+            title="Attendance is disputed"
+            body="Neither of you is recorded as a verified no-show. The history stays available if support needs it."
+          />
+        ) : null}
 
-            {viewing.attendance.state === "disputed" ? (
-              <Notice
-                tone="info"
-                title="Attendance is disputed"
-                body="Neither of you is recorded as a verified no-show. The history stays available if support needs it."
-              />
-            ) : null}
+        {viewing.post_viewing.available ? (
+          <FollowUp viewing={viewing} busy={busy} run={run} />
+        ) : null}
 
-            {viewing.post_viewing.available ? (
-              <FollowUp viewing={viewing} busy={busy} run={run} />
-            ) : null}
-
-            {viewing.viewing_directions ? (
-              <ViewingDirections directions={viewing.viewing_directions} />
-            ) : null}
-
+        {viewing.viewing_directions || viewing.contact ? (
+          <div className="viewing-arrival-grid">
+            {viewing.viewing_directions ? <ViewingDirections directions={viewing.viewing_directions} /> : null}
             {viewing.contact ? (
               <section className="viewing-contact">
-                <h3>{viewing.contact.role}</h3>
-                <p>
-                  {viewing.contact.name} ·{" "}
+                <span className="viewing-contact-icon"><Icon name="info" /></span>
+                <div>
+                  <small>{viewing.contact.role}</small>
+                  <h3>{viewing.contact.name}</h3>
                   <a href={`tel:${viewing.contact.phone}`}>{viewing.contact.phone}</a>
-                </p>
-              </section>
-            ) : null}
-
-            {note ? <p className="viewing-note">{note}</p> : null}
-
-            {viewing.appointments.length > 1 ? (
-              <details className="viewing-history">
-                <summary>Appointment history ({viewing.appointments.length})</summary>
-                <ul>
-                  {viewing.appointments.map((appointment) => (
-                    <li key={appointment.id}>
-                      <strong>{whenLabel(appointment.scheduled_at)}</strong>
-                      <span> · {appointmentOutcome(appointment)}</span>
-                    </li>
-                  ))}
-                </ul>
-              </details>
-            ) : null}
-
-            {mode === "reschedule" ? (
-              <SuggestTime viewing={viewing} busy={busy} onBack={() => setMode("none")} run={run} />
-            ) : mode === "cancel" ? (
-              <CancelAppointment viewing={viewing} busy={busy} onBack={() => setMode("none")} run={run} />
-            ) : mode === "withdraw" ? (
-              <section className="viewing-action">
-                <h3>Withdraw this request?</h3>
-                <p className="type-caption">The landlord will be told you no longer want to arrange this viewing.</p>
-                <div className="viewing-exits">
-                  <Button
-                    variant="destructive"
-                    busy={busy}
-                    onClick={() => void run(() => withdrawMyViewing(viewing.id, "No longer interested"))}
-                  >Yes, withdraw it</Button>
-                  <Button variant="quiet" disabled={busy} onClick={() => setMode("none")}>Keep the request</Button>
                 </div>
               </section>
-            ) : hasExits ? (
-              <div className="viewing-exits">
-                {viewing.actions.can_reschedule ? (
-                  <Button variant="quiet" disabled={busy} onClick={() => setMode("reschedule")}>
-                    Suggest another time
-                  </Button>
-                ) : null}
-                {viewing.actions.can_cancel ? (
-                  <Button variant="quiet" disabled={busy} onClick={() => setMode("cancel")}>
-                    Cancel this viewing
-                  </Button>
-                ) : null}
-                {viewing.actions.can_withdraw ? (
-                  <Button
-                    variant="quiet"
-                    disabled={busy}
-                    onClick={() => setMode("withdraw")}
-                  >
-                    Withdraw the request
-                  </Button>
-                ) : null}
-              </div>
             ) : null}
-
-            <p className="viewing-listing-link">
-              <Link href={`/listings/${viewing.listing_id}`}>See the listing again →</Link>
-            </p>
           </div>
-    </div>
+        ) : null}
+
+        {note ? <blockquote className="viewing-note"><small>Appointment note</small><p>{note}</p></blockquote> : null}
+
+        {viewing.appointments.length > 1 ? (
+          <details className="viewing-history">
+            <summary><span><Icon name="clock" />Appointment history ({viewing.appointments.length})</span><Icon name="chevron-down" /></summary>
+            <ul>
+              {viewing.appointments.map((appointment) => (
+                <li key={appointment.id}>
+                  <strong>{whenLabel(appointment.scheduled_at)}</strong>
+                  <span>{appointmentOutcome(appointment)}</span>
+                </li>
+              ))}
+            </ul>
+          </details>
+        ) : null}
+
+        {mode === "reschedule" ? (
+          <SuggestTime viewing={viewing} busy={busy} onBack={() => setMode("none")} run={run} />
+        ) : mode === "cancel" ? (
+          <CancelAppointment viewing={viewing} busy={busy} onBack={() => setMode("none")} run={run} />
+        ) : mode === "withdraw" ? (
+          <section className="viewing-action is-destructive">
+            <h3>Withdraw this request?</h3>
+            <p className="type-caption">The landlord will be told you no longer want to arrange this viewing.</p>
+            <div className="viewing-exits">
+              <Button
+                variant="destructive"
+                busy={busy}
+                onClick={() => void run(() => withdrawMyViewing(viewing.id, "No longer interested"))}
+              >Yes, withdraw it</Button>
+              <Button variant="quiet" disabled={busy} onClick={() => setMode("none")}>Keep the request</Button>
+            </div>
+          </section>
+        ) : null}
+      </div>
+
+      <footer className="viewing-detail-foot">
+        <Link href={`/listings/${viewing.listing_id}`} className="viewing-listing-action">
+          <Icon name="explore" />View listing
+        </Link>
+        {mode === "none" && hasExits ? (
+          <div className="viewing-context-actions">
+            {viewing.actions.can_reschedule ? (
+              <Button variant="secondary" disabled={busy} onClick={() => setMode("reschedule")}>Suggest another time</Button>
+            ) : null}
+            {viewing.actions.can_cancel ? (
+              <Button variant="quiet" disabled={busy} onClick={() => setMode("cancel")}>Cancel viewing</Button>
+            ) : null}
+            {viewing.actions.can_withdraw ? (
+              <Button variant="quiet" disabled={busy} onClick={() => setMode("withdraw")}>Withdraw</Button>
+            ) : null}
+          </div>
+        ) : null}
+      </footer>
+    </article>
   );
 }
 
+function formatViewingMoment(iso: string): string {
+  return new Date(iso).toLocaleString("en-GH", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
 function ChooseTime({
   viewing,
   busy,

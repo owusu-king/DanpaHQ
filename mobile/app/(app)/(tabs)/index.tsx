@@ -53,13 +53,6 @@ function DiscoveryHome() {
 
   const me = state.status === "signed_in" ? state.me : null;
   const displayName = me?.preferred_name || me?.first_name || "";
-  // Only an account that actually holds provider capability, and only while it
-  // is on the tenant side. A tenant-only account has nowhere to switch to.
-  const canSwitchToProvider = Boolean(
-    me
-    && me.capabilities.active_workspace === "tenant"
-    && me.capabilities.available_workspaces.includes("provider"),
-  );
   /**
    * Anyone signed in gets the tenant control center on this tab.
    *
@@ -139,23 +132,6 @@ function DiscoveryHome() {
   }, [tenantMode]);
 
   useFocusEffect(useCallback(() => { void loadTenantHome(); }, [loadTenantHome]));
-
-  /** Back to the provider workspace, decided by the backend as always. */
-  const switchToProvider = useCallback(async () => {
-    setWorkspaceBusy(true);
-    setWorkspaceError("");
-    try {
-      const next = await chooseWorkspace("provider");
-      await refreshMe();
-      router.replace(resolveEntryRoute(next) as never);
-    } catch (cause) {
-      setWorkspaceError(
-        cause instanceof ApiFailure ? cause.error.message : "Could not switch.",
-      );
-    } finally {
-      setWorkspaceBusy(false);
-    }
-  }, [refreshMe, router]);
 
   const openListingWorkspace = useCallback(async () => {
     if (state.status === "loading") {
@@ -250,8 +226,6 @@ function DiscoveryHome() {
                   },
                 } as never)
               }
-              canSwitchToProvider={canSwitchToProvider}
-              switching={workspaceBusy}
               onJoin={() => router.push("/(app)/tenant-setup" as never)}
               onExplore={() => router.push("/(app)/(tabs)/explore" as never)}
               onTenancy={(tenancy) =>
@@ -263,7 +237,6 @@ function DiscoveryHome() {
               onAgreements={() => router.push("/(app)/leases" as never)}
               onViewings={() => router.push("/(app)/viewings" as never)}
               onApplications={() => router.push("/(app)/applications" as never)}
-              onSwitchToProvider={() => void switchToProvider()}
             />
           ) : (
             <>

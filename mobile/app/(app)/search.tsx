@@ -1207,7 +1207,7 @@ function MapPreview({
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Previous rental here"
-            accessibilityState={{ disabled: index === 0 }}
+            aria-disabled={index === 0}
             disabled={index === 0}
             hitSlop={6}
             onPress={() => onStep(index - 1)}
@@ -1219,7 +1219,7 @@ function MapPreview({
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Next rental here"
-            accessibilityState={{ disabled: index >= listings.length - 1 }}
+            aria-disabled={index >= listings.length - 1}
             disabled={index >= listings.length - 1}
             hitSlop={6}
             onPress={() => onStep(index + 1)}
@@ -1479,7 +1479,7 @@ function FilterSheet({
         <>
           <Pressable
             accessibilityRole="button"
-            accessibilityState={{ disabled: !canClear }}
+            aria-disabled={!canClear}
             disabled={!canClear}
             onPress={onClear}
             {...pressableFeedback(theme.color.kola["50"])}

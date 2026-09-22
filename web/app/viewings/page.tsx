@@ -2,10 +2,12 @@
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Notice } from "@/components/Notice";
 import { Empty, LoadingRows, PageHeader } from "@/components/portal/PageHeader";
+import { Icon } from "@/components/portal/icons";
+import { ViewingDetailModal } from "@/components/tenant/ViewingRecord";
 import { ApiFailure } from "@/lib/api";
 import {
   bySoonest,
@@ -82,6 +84,10 @@ export default function ViewingsPage() {
 function TenantViewings() {
   const [viewings, setViewings] = useState<MyViewing[] | null>(null);
   const [error, setError] = useState("");
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [selectedViewingId, setSelectedViewingId] = useState<string | null>(null);
+  const filterRoot = useRef<HTMLDivElement>(null);
+  const filterButton = useRef<HTMLButtonElement>(null);
 
   const router = useRouter();
   const pathname = usePathname();
@@ -102,15 +108,29 @@ function TenantViewings() {
 
   useEffect(() => { void load(); }, [load]);
 
-  // A reminder can point straight at one appointment. It named a row in a pane
-  // before; it names a page now.
+  useEffect(() => {
+    if (!filterOpen) return;
+    const closeFromOutside = (event: PointerEvent) => {
+      if (!filterRoot.current?.contains(event.target as Node)) setFilterOpen(false);
+    };
+    const closeFromKeyboard = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setFilterOpen(false);
+      filterButton.current?.focus();
+    };
+    document.addEventListener("pointerdown", closeFromOutside);
+    document.addEventListener("keydown", closeFromKeyboard);
+    return () => {
+      document.removeEventListener("pointerdown", closeFromOutside);
+      document.removeEventListener("keydown", closeFromKeyboard);
+    };
+  }, [filterOpen]);
+
   useEffect(() => {
     if (!window.location.hash.startsWith("#viewing-")) return;
     router.replace(`/viewings/${window.location.hash.slice("#viewing-".length)}` as never);
   }, [router]);
 
-  // `replace`, so filtering does not build a history trail somebody has to walk
-  // back through to leave the page.
   const setParams = useCallback((changes: Record<string, string>) => {
     const next = new URLSearchParams(search.toString());
     for (const [key, value] of Object.entries(changes)) {
@@ -121,7 +141,13 @@ function TenantViewings() {
     router.replace((queryString ? `${pathname}?${queryString}` : pathname) as never, { scroll: false });
   }, [pathname, router, search]);
 
-  const rows = useMemo(
+  const chooseFilter = useCallback((nextFilter: ViewingFilter) => {
+    setParams({ show: nextFilter === "all" ? "" : nextFilter });
+    setFilterOpen(false);
+    filterButton.current?.focus();
+  }, [setParams]);
+
+  const rows = useMemo<TenantViewingRow[]>(
     () => (viewings ?? []).map((viewing) => ({ viewing, state: standing(viewing) })),
     [viewings],
   );
@@ -133,82 +159,233 @@ function TenantViewings() {
     past: rows.filter((row) => row.state.group === "past").length,
   }), [rows]);
 
-  // Narrower than the pills beside them, on purpose. "Upcoming" as a group also
-  // holds a request nobody has answered yet; "Past" holds a visit that was
-  // cancelled and one nobody attended. These two count what actually happened.
-  const totals = useMemo(() => ({
-    total: rows.length,
-    confirmed: rows.filter((row) => row.viewing.status === "confirmed").length,
-    completed: rows.filter((row) => row.viewing.status === "completed").length,
-  }), [rows]);
-
   const visible = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase("en-GH");
+    const priority: Record<ReturnType<typeof standing>["group"], number> = { action: 0, upcoming: 1, past: 2 };
     return rows
       .filter((row) => matchesViewingFilter(row.state.group, filter))
-      .filter((row) => !needle || `${row.viewing.listing_headline} ${placeOf(row.viewing)}`.toLocaleLowerCase("en-GH").includes(needle))
-      // Soonest first. A schedule ordered by when the request was made is not a
-      // schedule.
-      .sort((a, b) => bySoonest(a.viewing, b.viewing));
+      .filter((row) => !needle || [
+        row.viewing.property_title,
+        row.viewing.listing_headline,
+        row.viewing.unit_label,
+        placeOf(row.viewing),
+      ].filter(Boolean).join(" ").toLocaleLowerCase("en-GH").includes(needle))
+      .sort((left, right) => priority[left.state.group] - priority[right.state.group] || bySoonest(left.viewing, right.viewing));
   }, [filter, query, rows]);
 
+  const current = visible.filter((row) => row.state.group !== "past");
+  const history = visible.filter((row) => row.state.group === "past");
+  const unfilteredView = filter === "all" && !query.trim();
+  const initialCurrentLimit = Math.min(current.length, history.length ? 4 : 5);
+  const initialHistoryLimit = Math.min(history.length, Math.max(0, 5 - initialCurrentLimit));
+  const showSearch = (viewings?.length ?? 0) > 5 || Boolean(query);
+  const showFilter = new Set(rows.map((row) => row.state.group)).size > 1 || filter !== "all";
+  const selectedLabel = viewingFilters.find((option) => option.id === filter)?.label ?? "Viewings";
+  const selectedViewing = viewings?.find((viewing) => viewing.id === selectedViewingId) ?? null;
+
   return (
-    <div className="viewings">
+    <div className="viewings tenant-viewings">
       <PageHeader
         title="Viewings"
-        description="Plan each visit, find the place, and decide what happens next."
+        description={viewings === null || error ? undefined : tenantViewingSummary(counts, rows.length)}
       />
-      {error ? <Notice tone="error" title={error} /> : null}
 
       {viewings === null ? (
-        <LoadingRows rows={2} />
+        <TenantViewingsLoading />
+      ) : error ? (
+        <div className="tenant-viewings-error">
+          <Notice tone="error" title={error} body="Check your connection and try again." />
+          <button type="button" onClick={() => void load()}>Try again</button>
+        </div>
       ) : viewings.length === 0 ? (
-        <Empty
-          title="No viewings yet"
-          body="Ask to see a place and the landlord offers you times."
-          action={<Link href="/rentals" className="type-body-strong">Explore rentals →</Link>}
-        />
+        <div className="tenant-viewings-empty">
+          <Empty
+            title="No viewings yet"
+            body="When you ask to see a rental, the appointment will appear here."
+            action={<Link href="/rentals" className="type-body-strong">Explore rentals &rarr;</Link>}
+          />
+        </div>
       ) : (
         <>
-          <dl className="tenant-viewings-overview">
-            <ViewingCount label="Viewings" value={totals.total} />
-            <ViewingCount label="Confirmed" value={totals.confirmed} tone="confirmed" />
-            <ViewingCount label="Completed" value={totals.completed} />
-          </dl>
-
-          <label className="tenant-viewings-search">
-            <span className="sr-only">Search your viewings</span>
-            <input type="search" value={query} onChange={(event) => setParams({ q: event.target.value })} placeholder="Search a place or a neighbourhood" />
-          </label>
-
-          <div className="tenant-viewings-filters" aria-label="Viewing stage">
-            {viewingFilters.map((option) => (
-              <button
-                key={option.id}
-                type="button"
-                aria-pressed={filter === option.id}
-                onClick={() => setParams({ show: option.id === "all" ? "" : option.id })}
-              >
-                {option.label}{" "}
-                <span aria-label={`${counts[option.id]} ${counts[option.id] === 1 ? "viewing" : "viewings"}`}>
-                  {counts[option.id]}
-                </span>
-              </button>
-            ))}
-          </div>
+          {showSearch || showFilter ? (
+            <div className="tenant-viewings-tools">
+              {showSearch ? (
+                <label className="tenant-viewings-search">
+                  <span className="sr-only">Search your viewings</span>
+                  <Icon name="explore" />
+                  <input
+                    type="search"
+                    value={query}
+                    onChange={(event) => setParams({ q: event.target.value })}
+                    placeholder="Search Property, Unit or place"
+                  />
+                </label>
+              ) : <span />}
+              {showFilter ? (
+                <div className="tenant-viewings-filter" ref={filterRoot}>
+                  <button
+                    ref={filterButton}
+                    type="button"
+                    className={`tenant-viewing-filter-trigger${filter !== "all" ? " is-active" : ""}`}
+                    aria-expanded={filterOpen}
+                    aria-haspopup="menu"
+                    aria-controls="tenant-viewing-filter-menu"
+                    onClick={() => setFilterOpen((open) => !open)}
+                  >
+                    <Icon name="filters" />
+                    <span>{filter === "all" ? "All viewings" : selectedLabel}</span>
+                    <Icon name="chevron-down" />
+                  </button>
+                  {filterOpen ? (
+                    <div id="tenant-viewing-filter-menu" className="tenant-viewing-filter-panel" role="menu" aria-label="Viewing stage">
+                      <ViewingFilterOption id="all" current={filter} count={counts.all} onSelect={chooseFilter} />
+                      <div className="tenant-viewing-filter-group" role="group" aria-label="Current appointments">
+                        <span>Current appointments</span>
+                        <ViewingFilterOption id="action" current={filter} count={counts.action} onSelect={chooseFilter} />
+                        <ViewingFilterOption id="upcoming" current={filter} count={counts.upcoming} onSelect={chooseFilter} />
+                      </div>
+                      <div className="tenant-viewing-filter-group" role="group" aria-label="Viewing history">
+                        <span>History</span>
+                        <ViewingFilterOption id="past" current={filter} count={counts.past} onSelect={chooseFilter} />
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
 
           {visible.length ? (
-            <ul className="tenant-viewings-list">
-              {visible.map((row) => <ViewingRow key={row.viewing.id} {...row} />)}
-            </ul>
+            <div className="tenant-viewings-results">
+              {unfilteredView ? (
+                <>
+                  {current.length ? <ViewingGroup title="Current" rows={current} initialLimit={initialCurrentLimit} onOpen={setSelectedViewingId} /> : null}
+                  {history.length ? <ViewingGroup title="History" rows={history} initialLimit={initialHistoryLimit} historical onOpen={setSelectedViewingId} /> : null}
+                </>
+              ) : (
+                <ViewingGroup
+                  key={`${filter}:${query}`}
+                  title={query ? "Matches" : selectedLabel}
+                  rows={visible}
+                  initialLimit={5}
+                  historical={visible.every((row) => row.state.group === "past")}
+                  onOpen={setSelectedViewingId}
+                />
+              )}
+            </div>
           ) : query ? (
-            <Empty title="No matching viewings" body="Try another place or neighbourhood." />
+            <Empty title="No matching viewings" body="Try another Property, Unit or place." />
           ) : (
             <TenantViewingFilterEmpty filter={filter} />
           )}
+
+          {selectedViewing ? (
+            <ViewingDetailModal
+              key={selectedViewing.id}
+              viewing={selectedViewing}
+              onChanged={load}
+              onClose={() => setSelectedViewingId(null)}
+            />
+          ) : null}
         </>
       )}
     </div>
+  );
+}
+
+type TenantViewingRow = {
+  viewing: MyViewing;
+  state: ReturnType<typeof standing>;
+};
+
+function tenantViewingSummary(counts: Record<ViewingFilter, number>, total: number): string {
+  if (counts.action === 1) return `One viewing needs you · ${total} viewing${total === 1 ? "" : "s"}`;
+  if (counts.action > 1) return `${counts.action} viewings need you · ${total} total`;
+  if (counts.upcoming > 0) return `${counts.upcoming} upcoming · ${total} viewing${total === 1 ? "" : "s"}`;
+  return `${total} viewing record${total === 1 ? "" : "s"}`;
+}
+
+function TenantViewingsLoading() {
+  return (
+    <div className="tenant-viewings-loading" role="status" aria-label="Loading viewings">
+      {Array.from({ length: 3 }).map((_, index) => (
+        <div className="tenant-viewing-loading-row" key={index} aria-hidden="true">
+          <span className="skeleton tenant-viewing-loading-photo" />
+          <span className="tenant-viewing-loading-copy"><i className="skeleton" /><i className="skeleton" /></span>
+          <span className="skeleton tenant-viewing-loading-status" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ViewingFilterOption({
+  id,
+  current,
+  count,
+  onSelect,
+}: {
+  id: ViewingFilter;
+  current: ViewingFilter;
+  count: number;
+  onSelect: (filter: ViewingFilter) => void;
+}) {
+  const label = viewingFilters.find((option) => option.id === id)?.label ?? id;
+  const active = current === id;
+  return (
+    <button
+      type="button"
+      role="menuitemradio"
+      aria-checked={active}
+      className={`tenant-viewing-filter-option${active ? " is-selected" : ""}`}
+      onClick={() => onSelect(id)}
+    >
+      <span>{label}</span>
+      <small>{count}</small>
+      <span className="tenant-viewing-filter-mark" aria-hidden="true">{active ? <Icon name="check" /> : null}</span>
+    </button>
+  );
+}
+
+function ViewingGroup({
+  title,
+  rows,
+  initialLimit,
+  historical = false,
+  onOpen,
+}: {
+  title: string;
+  rows: TenantViewingRow[];
+  initialLimit: number;
+  historical?: boolean;
+  onOpen: (viewingId: string) => void;
+}) {
+  const pageSize = 5;
+  const [limit, setLimit] = useState(initialLimit);
+  const shown = rows.slice(0, limit);
+  const remaining = rows.length - shown.length;
+
+  return (
+    <section className={`tenant-viewing-group${historical ? " is-history" : ""}`}>
+      <header className="tenant-viewing-group-head">
+        <h2>{title}</h2>
+        <span aria-label={`${rows.length} ${rows.length === 1 ? "viewing" : "viewings"}`}>{rows.length}</span>
+      </header>
+      <ul className="tenant-viewings-list">
+        {shown.map((row) => <ViewingRow key={row.viewing.id} {...row} onOpen={onOpen} />)}
+      </ul>
+      {remaining > 0 ? (
+        <button
+          type="button"
+          className="tenant-viewing-load-more"
+          aria-label={`Show ${Math.min(pageSize, remaining)} more ${title.toLocaleLowerCase("en-GH")} viewings`}
+          onClick={() => setLimit((currentLimit) => Math.min(currentLimit + pageSize, rows.length))}
+        >
+          <span>Show {Math.min(pageSize, remaining)} more</span>
+          <Icon name="chevron-down" />
+        </button>
+      ) : null}
+    </section>
   );
 }
 
@@ -217,7 +394,7 @@ function TenantViewingFilterEmpty({ filter }: { filter: ViewingFilter }) {
     all: { title: "No viewings here", body: "Your viewing requests will appear here." },
     upcoming: { title: "No upcoming visits", body: "Confirmed visits and requests waiting for a time will appear here." },
     action: { title: "Nothing needs you", body: "You are up to date on every viewing." },
-    past: { title: "No past viewings", body: "Completed and cancelled visits will remain available here." },
+    past: { title: "No viewing history", body: "Completed and cancelled visits will remain available here." },
   };
   return (
     <div className="tenant-viewing-filter-empty" role="status">
@@ -227,43 +404,62 @@ function TenantViewingFilterEmpty({ filter }: { filter: ViewingFilter }) {
   );
 }
 
-/** Where, when, and one way in. Nothing else. */
 function ViewingRow({
   viewing,
   state,
-}: {
-  viewing: MyViewing;
-  state: ReturnType<typeof standing>;
-}) {
+  onOpen,
+}: TenantViewingRow & { onOpen: (viewingId: string) => void }) {
   const when = whenLabel(viewing.confirmed_starts_at);
+  const property = viewing.property_title || viewing.listing_headline;
+  const context = [viewing.unit_label, placeOf(viewing)].filter(Boolean).join(" · ");
+  const tone = viewing.status === "checked_in" || viewing.status === "completed"
+    ? "positive"
+    : state.group === "action"
+      ? "action"
+      : state.group === "past"
+        ? "past"
+        : "upcoming";
+
   return (
     <li>
       <Link
         href={`/viewings/${viewing.id}` as never}
-        className={`tenant-viewing-row${state.group === "action" ? " is-action" : ""}`}
-        // `callToAction` is the mirrored module's, and the phone already reads it
-        // this way. It was drawn here as a button inside the row's own link,
-        // which looked like a separate control and did what the row does.
-        aria-label={`${viewing.listing_headline}. ${placeOf(viewing)}. ${when ?? state.line}. ${state.callToAction ?? "View details"}.`}
+        className={`tenant-viewing-row is-${tone}`}
+        aria-label={`${property}. ${context}. ${when ?? state.line}. ${state.callToAction ?? "View details"}.`}
+        onClick={(event) => {
+          if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+          event.preventDefault();
+          onOpen(viewing.id);
+        }}
       >
         <span className="viewing-photo">
-        {viewing.photo_url ? (
-          /* Short-lived signed URLs from the files service. */
-          /* eslint-disable-next-line @next/next/no-img-element */
-          <img src={viewing.photo_url} alt="" />
-        ) : null}
+          {viewing.photo_url ? (
+            /* Short-lived signed URLs from the files service. */
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img src={viewing.photo_url} alt="" />
+          ) : (
+            <span className="viewing-photo-fallback" aria-hidden="true"><Icon name="properties" /></span>
+          )}
         </span>
 
         <span className="viewing-identity">
-        <strong>{viewing.listing_headline}</strong>
-        <span className="viewing-place">{placeOf(viewing) || "Ghana"}</span>
-        {when ? <span className="viewing-when">{when}</span> : null}
-        <span className={`viewing-standing is-${state.group}`}>
-          <i aria-hidden="true" />{state.line}
-        </span>
+          <strong>{property}</strong>
+          {context ? <span className="viewing-context">{context}</span> : null}
         </span>
 
-        <span className="tenant-viewing-row-arrow" aria-hidden="true">›</span>
+        <span className="viewing-schedule">
+          <small>{viewing.confirmed_starts_at ? "Appointment" : "Scheduling"}</small>
+          <strong>{when ?? "Time to be arranged"}</strong>
+        </span>
+
+        <span className={`viewing-standing is-${tone}`}>
+          <i aria-hidden="true" />
+          <strong>{state.line}</strong>
+        </span>
+
+        <span className="tenant-viewing-row-action" aria-hidden="true">
+          <Icon name="chevron-down" />
+        </span>
       </Link>
     </li>
   );

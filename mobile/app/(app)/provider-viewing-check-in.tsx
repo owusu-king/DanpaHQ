@@ -5,11 +5,15 @@ import { ScrollView, View } from "react-native";
 
 import { ApiFailure } from "@/api";
 import { Button, Field, Notice, Surface, Type, space } from "@/components/ui";
+import { useSafeBottom } from "@/platform";
 import { theme } from "@/theme";
 import { validateViewingCheckIn } from "@/viewings";
 
 /** Provider scanner and manual fallback both terminate at the same backend validator. */
 export default function ProviderViewingCheckInScreen() {
+  // Android draws edge-to-edge: the last row would sit under the
+  // navigation buttons, which then look as though the page showed through.
+  const pageBottom = useSafeBottom(space[8]);
   const { viewingId } = useLocalSearchParams<{ viewingId: string }>();
   const router = useRouter();
   const [permission, requestPermission] = useCameraPermissions();
@@ -35,7 +39,7 @@ export default function ProviderViewingCheckInScreen() {
   }
 
   return (
-    <ScrollView contentContainerStyle={{ padding: space[5], gap: space[4] }}>
+    <ScrollView contentContainerStyle={{ padding: space[5], paddingBottom: pageBottom, gap: space[4] }}>
       <View style={{ gap: space[1] }}>
         <Type variant="display2">Check in tenant</Type>
         <Type variant="body">Scan the temporary QR shown on the tenant&apos;s Rooomly screen.</Type>

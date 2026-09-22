@@ -87,9 +87,11 @@ test("the sheet rises and falls itself, over a scrim that follows it", () => {
 test("it is safe at every edge and closable every way", () => {
   const source = sheet();
 
-  // Never under the status bar, and its actions clear of the home indicator.
-  assert.match(source, /maxHeight: windowHeight - safeHeaderTop\(insets\.top\) - space\[3\],/);
-  assert.match(source, /paddingBottom: Math\.max\(insets\.bottom, space\[4\]\)/);
+  // Never under the status bar, and its actions clear of the home indicator —
+  // both measured in the sheet's own window, which is not the page's. See
+  // `safeEdges.contract.test.mjs` for why that distinction is the whole fix.
+  assert.match(source, /maxHeight: windowHeight - safeHeaderTop\(edge\.top\) - space\[3\],/);
+  assert.match(source, /paddingBottom: Math\.max\(edge\.bottom, space\[4\]\)/);
   assert.match(source, /behavior=\{Platform\.OS === "ios" \? "padding" : undefined\}/);
 
   // The back button, the scrim, the close button and VoiceOver's escape all close it.

@@ -805,7 +805,7 @@ function RentCollection({
                 onPress={() => { setPeriod(option); setActive(null); }}
                 hitSlop={density.compact ? 7 : 6}
                 accessibilityRole="button"
-                accessibilityState={{ selected: period === option }}
+                aria-selected={period === option}
                 style={{
                   minHeight: density.compact ? 30 : 32,
                   justifyContent: "center",
@@ -916,7 +916,7 @@ function RentCollection({
                   key={`chart-touch-${row.period}`}
                   onPress={() => selectPoint(index)}
                   accessibilityRole="button"
-                  accessibilityState={{ selected: active === index }}
+                  aria-selected={active === index}
                   accessibilityLabel={`${periodLabel(row.period, period)}: ${formatMinor(row.collected_minor)} collected, ${formatMinor(row.outstanding_minor)} outstanding`}
                   style={({ pressed }) => ({
                     position: "absolute",
@@ -945,7 +945,7 @@ function RentCollection({
                 onPress={() => selectPoint(index)}
                 hitSlop={density.compact ? 6 : 4}
                 accessibilityRole="button"
-                accessibilityState={{ selected: active === index }}
+                aria-selected={active === index}
                 accessibilityLabel={`${periodLabel(row.period, period)}: ${formatMinor(row.collected_minor)} collected, ${formatMinor(row.outstanding_minor)} outstanding`}
                 style={{ flex: 1, minHeight: density.compact ? 32 : 36, alignItems: "center", justifyContent: "center", paddingVertical: space[1] }}
               >

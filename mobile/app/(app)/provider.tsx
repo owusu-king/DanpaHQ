@@ -7,7 +7,7 @@ import { Pressable, ScrollView, View } from "react-native";
 import { apiFetch, ApiFailure } from "@/api";
 import { useAuth, type ProviderReadiness, type ProviderVerificationStatus } from "@/auth";
 import { Button, Notice, Surface, Type, space } from "@/components/ui";
-import { pressableFeedback } from "@/platform";
+import { pressableFeedback, useSafeBottom } from "@/platform";
 import { getProviderReadiness, uploadImage } from "@/provider";
 import { theme } from "@/theme";
 
@@ -39,6 +39,9 @@ const DOCUMENT_TYPES = [
 ] as const;
 
 export default function ProviderStandingScreen() {
+  // Android draws edge-to-edge: the last row would sit under the
+  // navigation buttons, which then look as though the page showed through.
+  const pageBottom = useSafeBottom(space[8]);
   const router = useRouter();
   const { refreshMe } = useAuth();
 
@@ -127,7 +130,7 @@ async function submitDocument() {
   const status = standing?.verification_status ?? "not_started";
 
   return (
-    <ScrollView contentContainerStyle={{ padding: space[5], gap: space[5] }}>
+    <ScrollView contentContainerStyle={{ padding: space[5], paddingBottom: pageBottom, gap: space[5] }}>
       <View style={{ gap: space[2] }}>
         <Type variant="label">PROVIDER VERIFICATION</Type>
         <Type variant="display2">Approval to operate</Type>
@@ -214,7 +217,7 @@ async function submitDocument() {
               key={value}
               onPress={() => setDocumentType(value)}
               accessibilityRole="radio"
-              accessibilityState={{ selected: documentType === value }}
+              aria-selected={documentType === value}
               {...pressableFeedback(theme.color.kola["50"])}
             >
               <Type variant={documentType === value ? "bodyStrong" : "body"}>

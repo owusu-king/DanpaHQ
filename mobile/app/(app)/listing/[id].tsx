@@ -14,13 +14,14 @@ import {
   type NativeScrollEvent,
   type NativeSyntheticEvent,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ApiFailure } from "@/api";
 import { isLive } from "@/applicationMeaning";
 import { useAuth } from "@/auth";
 import { Button, Notice, Stamp, Type, space } from "@/components/ui";
 import { ListingCard } from "@/components/listings/ListingCard";
+import { ModalSafeArea } from "@/components/sheet/ModalSafeArea";
 import {
   getListingDetail,
   getRelatedListings,
@@ -32,7 +33,7 @@ import {
 import { rememberOnboardingIntent } from "@/onboardingIntent";
 import { listMyApplications } from "@/applications";
 import { listMyViewings, requestViewing } from "@/viewings";
-import { pressableFeedback } from "@/platform";
+import { pressableFeedback, useSafeBottom } from "@/platform";
 import { theme } from "@/theme";
 
 /**
@@ -47,6 +48,7 @@ import { theme } from "@/theme";
  * rather than explains.
  */
 export default function ListingDetailScreen() {
+  const pageBottom = useSafeBottom(space[12]);
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { state } = useAuth();
@@ -64,7 +66,6 @@ export default function ListingDetailScreen() {
   const [browsingPhotos, setBrowsingPhotos] = useState(false);
   const [expandedTrust, setExpandedTrust] = useState(false);
   const width = useRef(Dimensions.get("window").width).current;
-  const insets = useSafeAreaInsets();
   const heroScroll = useRef<ScrollView>(null);
   const viewerScroll = useRef<ScrollView>(null);
 
@@ -225,7 +226,7 @@ export default function ListingDetailScreen() {
 
   return (
     <View style={{ flex: 1 }}>
-      <ScrollView contentContainerStyle={{ paddingBottom: space[12] }}>
+      <ScrollView contentContainerStyle={{ paddingBottom: pageBottom }}>
         {photos.length ? (
           <View>
             <ScrollView
@@ -477,7 +478,9 @@ export default function ListingDetailScreen() {
           at once. Eight photographs should never mean eight swipes to reach
           the last one. */}
       <Modal visible={zoomed} animationType="fade" onRequestClose={closePhotos}>
-        <View style={{ flex: 1, paddingTop: insets.top, paddingBottom: insets.bottom, backgroundColor: "#0b110e" }}>
+        {/* Its own window, so it measures its own edges rather than the page's. */}
+        <ModalSafeArea>
+        <SafeAreaView edges={["top", "bottom"]} style={{ flex: 1, backgroundColor: "#0b110e" }}>
           <View style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: space[2] }}>
             <Pressable
               accessibilityRole="button"
@@ -564,7 +567,8 @@ export default function ListingDetailScreen() {
               </Type>
             </>
           )}
-        </View>
+        </SafeAreaView>
+        </ModalSafeArea>
       </Modal>
     </View>
   );

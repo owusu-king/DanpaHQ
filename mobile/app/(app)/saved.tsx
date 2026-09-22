@@ -1,12 +1,27 @@
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
-import { FlatList, RefreshControl, View } from "react-native";
+import { FlatList, RefreshControl, StyleSheet, View } from "react-native";
 
 import { ApiFailure } from "@/api";
-import { Notice, Surface, Type, space } from "@/components/ui";
-import { listSaved, type SavedListing, unsaveListing } from "@/listings";
-import { theme } from "@/theme";
+import { useAuth } from "@/auth";
+import { AuthPrompt } from "@/components/AuthPrompt";
+import { IndexGround } from "@/components/account/IndexRows";
+import { Bone } from "@/components/billing/BillingParts";
+import { useHomeDensity } from "@/components/home/plinth";
 import { ListingCard } from "@/components/listings/ListingCard";
+import {
+  EDGE,
+  EmptyState,
+  Footnote,
+  GLASS,
+  INK,
+  KOLA,
+  MUTED,
+  QuietAction,
+} from "@/components/portfolio/PortfolioList";
+import { Notice, Type, space } from "@/components/ui";
+import { useSafeBottom } from "@/platform";
+import { listSaved, type SavedListing, unsaveListing } from "@/listings";
 
 /**
  * The shortlist.
@@ -14,14 +29,25 @@ import { ListingCard } from "@/components/listings/ListingCard";
  * Kept server-side against the account rather than on the handset, because
  * losing a phone is common and re-finding six rooms you had narrowed down to is
  * miserable. It follows the number, like everything else here.
+ *
+ * Refined on review (2026-09-15): a pushed screen of its own rather than a hidden
+ * tab, so it carries a back arrow and no tab bar — the shortlist is somewhere you
+ * go from Explore or More, not a place the product parks you. The cards are the
+ * shared recognition card; a note somebody wrote sits under its own card as a
+ * quiet strip, and the stack header names the page, so nothing repeats it.
  */
 export default function SavedScreen() {
   const router = useRouter();
+  const density = useHomeDensity();
+  const pageBottom = useSafeBottom(space[12]);
+  const { state } = useAuth();
+  const signedIn = state.status === "signed_in";
   const [items, setItems] = useState<SavedListing[] | null>(null);
   const [error, setError] = useState("");
   const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
+    if (!signedIn) return;
     try {
       setItems(await listSaved());
       setError("");
@@ -31,7 +57,7 @@ export default function SavedScreen() {
       );
       setItems([]);
     }
-  }, []);
+  }, [signedIn]);
 
   useEffect(() => {
     void load();
@@ -52,56 +78,125 @@ export default function SavedScreen() {
     }
   }, [items]);
 
+  if (!signedIn) {
+    return <AuthPrompt title="Save your shortlist" body="Verify your phone once and your saved properties will follow you across devices." next="/(app)/saved" />;
+  }
+
   return (
-    <FlatList
-      data={items ?? []}
-      keyExtractor={(item) => item.id}
-      contentContainerStyle={{ padding: space[5], gap: space[4] }}
-      refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={async () => {
-            setRefreshing(true);
-            await load();
-            setRefreshing(false);
-          }}
-          tintColor={theme.color.kola["600"]}
-        />
-      }
-      ListHeaderComponent={
-        <View style={{ marginBottom: space[2], gap: space[2] }}>
-          <Type variant="display2">Your shortlist</Type>
-          {error ? <Notice tone="error" title={error} /> : null}
-        </View>
-      }
-      renderItem={({ item }) => (
-        <View style={{ gap: space[2] }}>
-          <ListingCard
-            listing={item.listing}
-            saved
-            onSave={() => void removeSaved(item.listing.id)}
-            onPress={() => router.push({ pathname: "/(app)/listing/[id]", params: { id: item.listing.id } })}
+    <IndexGround>
+      <FlatList
+        data={items ?? []}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={{ paddingHorizontal: density.pagePadding, paddingTop: density.compact ? space[4] : space[5], paddingBottom: pageBottom, gap: density.sectionGap + space[2] }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={async () => {
+              setRefreshing(true);
+              await load();
+              setRefreshing(false);
+            }}
+            tintColor={KOLA}
           />
-          {item.note ? (
-            <Type variant="caption" style={{ paddingHorizontal: space[2] }}>
-              Your note: {item.note}
-            </Type>
-          ) : null}
-        </View>
-      )}
-      ListEmptyComponent={
-        items === null ? (
-          <Type variant="caption">Loading…</Type>
-        ) : error ? null : (
-          <Surface style={{ gap: space[2] }}>
-            <Type variant="bodyStrong">Nothing saved yet</Type>
-            <Type variant="caption">
-              Tap “Save this place” on anything you are considering. Keeping three or four here
-              makes them easy to compare before you spend a day travelling to viewings.
-            </Type>
-          </Surface>
-        )
-      }
-    />
+        }
+        ListHeaderComponent={error ? <View style={styles.head}><Notice tone="error" title={error} /></View> : null}
+        renderItem={({ item }) => (
+          <View>
+            <ListingCard
+              listing={item.listing}
+              saved
+              onSave={() => void removeSaved(item.listing.id)}
+              onPress={() => router.push({ pathname: "/(app)/listing/[id]", params: { id: item.listing.id } })}
+            />
+            {item.note ? (
+              <View style={styles.note}>
+                <Type variant="caption" numberOfLines={3} style={styles.noteText}>
+                  <Type variant="captionStrong" style={styles.noteLabel}>Your note · </Type>
+                  {item.note}
+                </Type>
+              </View>
+            ) : null}
+          </View>
+        )}
+        ListFooterComponent={items?.length ? (
+          <Footnote>The heart on a card takes it off this list. Three or four kept here are easy to compare.</Footnote>
+        ) : null}
+        ListEmptyComponent={
+          items === null ? (
+            <ShortlistSkeleton />
+          ) : error ? null : (
+            <EmptyState
+              icon="bookmark-outline"
+              hero
+              title="Nothing saved yet"
+              hint="Save anything you are considering, and compare them here before you spend a day travelling to viewings."
+              action={<View style={styles.emptyAction}><QuietAction icon="compass-outline" label="Explore homes" onPress={() => router.push("/(app)/(tabs)/explore" as never)} /></View>}
+            />
+          )
+        }
+      />
+    </IndexGround>
   );
 }
+
+/** Shaped like the cards it becomes, so nothing jumps when the shortlist arrives. */
+function ShortlistSkeleton() {
+  return (
+    <View accessible accessibilityRole="progressbar" accessibilityLabel="Loading your shortlist" style={styles.skeleton}>
+      {[0, 1].map((key) => (
+        <View key={key} style={styles.skeletonCard}>
+          <Bone height={180} round={0} />
+          <View style={styles.skeletonBody}>
+            <Bone width="46%" height={20} />
+            <Bone width="78%" />
+            <Bone width="52%" />
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  head: {
+    marginBottom: space[2],
+  },
+  // A note belongs to the card above it, so it is drawn as that card's foot.
+  note: {
+    marginTop: -space[2],
+    paddingTop: space[3] + space[1],
+    paddingBottom: space[3],
+    paddingHorizontal: 14,
+    borderBottomLeftRadius: 16,
+    borderBottomRightRadius: 16,
+    borderWidth: 1,
+    borderTopWidth: 0,
+    borderColor: EDGE,
+    backgroundColor: GLASS,
+  },
+  noteText: {
+    fontSize: 12.5,
+    lineHeight: 17,
+    color: MUTED,
+  },
+  noteLabel: {
+    color: INK,
+  },
+  emptyAction: {
+    marginTop: space[2],
+  },
+  skeleton: {
+    gap: space[5],
+  },
+  skeletonCard: {
+    overflow: "hidden",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: EDGE,
+    backgroundColor: GLASS,
+  },
+  skeletonBody: {
+    gap: space[2],
+    padding: space[4],
+  },
+});

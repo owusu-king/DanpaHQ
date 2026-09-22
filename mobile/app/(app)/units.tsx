@@ -1,18 +1,70 @@
-import Ionicons from "@expo/vector-icons/Ionicons";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
-import { FlatList, Modal, Pressable, RefreshControl, ScrollView, View } from "react-native";
+import { FlatList, RefreshControl, StyleSheet, View } from "react-native";
 
 import { ApiFailure } from "@/api";
 import { useAuth } from "@/auth";
-import { Button, Field, Notice, Type, space } from "@/components/ui";
+import { IndexGround } from "@/components/account/IndexRows";
+import { Bone } from "@/components/billing/BillingParts";
+import { useHomeDensity } from "@/components/home/plinth";
+import {
+  ActiveFilter,
+  ChoiceRow,
+  EmptyState,
+  FilterGroup,
+  KOLA,
+  KOLA_DEEP,
+  LATERITE,
+  ListHead,
+  MUTED,
+  PrimaryAction,
+  QuietAction,
+  SearchField,
+  SheetFooter,
+  SummaryPanel,
+  type IconName,
+  type SummaryNote,
+} from "@/components/portfolio/PortfolioList";
 import { UNIT_COLUMNS, UNIT_TILE_GAP, UnitTile } from "@/components/property/UnitTile";
+import { BottomSheet } from "@/components/sheet/BottomSheet";
+import { Notice, space } from "@/components/ui";
 import { listOrganizations } from "@/organizations";
 import { listPortfolioUnits, type Unit } from "@/provider";
-import { pressableFeedback } from "@/platform";
-import { theme } from "@/theme";
+import { useSafeBottom } from "@/platform";
 
-type Filter = "all" | "available" | "public" | "occupied" | "attention";
+type UnitView = "all" | "available" | "public" | "occupied" | "attention";
+type Sort = "property" | "label";
+
+const VIEWS: readonly UnitView[] = ["all", "available", "public", "occupied", "attention"];
+
+const VIEW_LABEL: Record<UnitView, string> = {
+  all: "All Units",
+  available: "Available",
+  public: "On Explore",
+  occupied: "Occupied",
+  attention: "Needs attention",
+};
+
+const VIEW_ICON: Record<UnitView, IconName> = {
+  all: "grid-outline",
+  available: "checkmark-circle-outline",
+  public: "earth-outline",
+  occupied: "person-outline",
+  attention: "alert-circle-outline",
+};
+
+/** Each view in the colour the product already gives that state. */
+const VIEW_TONE: Record<Exclude<UnitView, "all">, string> = {
+  available: KOLA,
+  public: KOLA_DEEP,
+  occupied: MUTED,
+  attention: LATERITE,
+};
+
+const SORT_LABEL: Record<Sort, string> = {
+  property: "By Property",
+  label: "By Unit name",
+};
 
 /**
  * On Explore right now — not merely offered to it.
@@ -25,7 +77,10 @@ type Filter = "all" | "available" | "public" | "occupied" | "attention";
  */
 const isPublic = (unit: Unit) =>
   unit.publication.state === "published" && unit.publication.listing_status === "active";
-type Sort = "property" | "label";
+
+/** Anything a provider has to go and do something about. */
+const needsAttention = (unit: Unit) =>
+  ["changes_requested", "rejected", "suspended", "expired", "draft"].includes(unit.verification.state);
 
 /**
  * Every Unit in the Portfolio.
@@ -34,15 +89,22 @@ type Sort = "property" | "label";
  * is Room 4", which is the question a provider with eleven Properties has. Both
  * open the same Unit.
  *
- * Search and availability stay on the screen because they are what people reach
- * for; Property and sort go in a sheet, because they are not.
+ * Refined on review (2026-09-21). It stays a grid — Units are told apart by
+ * sight before they are told apart by name — standing now on the green its
+ * sibling tabs stand on, over figures that say what the Portfolio holds. It had
+ * been filtered two ways at once: a row of chips for availability and a
+ * separate sheet for Property and sort, so neither control could say what was
+ * on. There is one Filter now, it holds all three questions, and whatever is on
+ * is a token under the heading that clears with a tap.
  */
 export default function UnitsScreen() {
   const router = useRouter();
+  const density = useHomeDensity();
+  const pageBottom = useSafeBottom(space[12]);
   const { activeContext } = useAuth();
   const [units, setUnits] = useState<Unit[] | null>(null);
   const [query, setQuery] = useState("");
-  const [view, setView] = useState<Filter>("all");
+  const [view, setView] = useState<UnitView>("all");
   const [propertyId, setPropertyId] = useState("");
   const [sort, setSort] = useState<Sort>("property");
   const [filtering, setFiltering] = useState(false);
@@ -66,23 +128,25 @@ export default function UnitsScreen() {
 
   useFocusEffect(useCallback(() => { void load(); }, [load]));
 
+  const all = useMemo(() => units ?? [], [units]);
+
   const properties = useMemo(() => {
     const seen = new Map<string, string>();
-    for (const unit of units ?? []) seen.set(unit.property_id, unit.property_title);
+    for (const unit of all) seen.set(unit.property_id, unit.property_title);
     return [...seen].sort((a, b) => a[1].localeCompare(b[1], "en-GH"));
-  }, [units]);
+  }, [all]);
 
   const counts = useMemo(() => ({
-    all: units?.length ?? 0,
-    available: (units ?? []).filter((unit) => unit.availability.state === "available").length,
-    public: (units ?? []).filter(isPublic).length,
-    occupied: (units ?? []).filter((unit) => unit.availability.state === "occupied").length,
-    attention: (units ?? []).filter(needsAttention).length,
-  }), [units]);
+    all: all.length,
+    available: all.filter((unit) => unit.availability.state === "available").length,
+    public: all.filter(isPublic).length,
+    occupied: all.filter((unit) => unit.availability.state === "occupied").length,
+    attention: all.filter(needsAttention).length,
+  }), [all]);
 
   const visible = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase("en-GH");
-    return (units ?? [])
+    return all
       .filter((unit) => !propertyId || unit.property_id === propertyId)
       .filter((unit) => view === "all"
         || (view === "attention" ? needsAttention(unit)
@@ -93,176 +157,213 @@ export default function UnitsScreen() {
       .sort((a, b) => sort === "label"
         ? a.label.localeCompare(b.label, "en-GH")
         : a.property_title.localeCompare(b.property_title, "en-GH") || a.label.localeCompare(b.label, "en-GH"));
-  }, [units, propertyId, view, query, sort]);
+  }, [all, propertyId, view, query, sort]);
 
-  const narrowed = Boolean(propertyId) || sort !== "property";
+  const propertyName = properties.find(([id]) => id === propertyId)?.[1] ?? "";
+  const narrowed = (view === "all" ? 0 : 1) + (propertyId ? 1 : 0) + (sort === "property" ? 0 : 1);
+
+  // The figure's line says the one thing outstanding, or that nothing is.
+  const note: SummaryNote = counts.attention
+    ? { text: `${counts.attention} needs attention`, tone: "alert" }
+    : counts.available
+      ? { text: `${counts.available} ready to let`, tone: "calm" }
+      : { text: "All let", tone: "calm" };
+
+  const clearAll = () => { setView("all"); setPropertyId(""); setSort("property"); setQuery(""); };
+  const addUnit = () => router.push("/(app)/unit-new" as never);
 
   return (
-    <>
+    <IndexGround>
       <FlatList
-        data={visible}
+        data={units === null ? [] : visible}
         keyExtractor={(unit) => unit.id}
         numColumns={UNIT_COLUMNS}
         columnWrapperStyle={{ gap: UNIT_TILE_GAP }}
-        contentContainerStyle={{ padding: space[5], paddingBottom: space[12], gap: UNIT_TILE_GAP }}
+        contentContainerStyle={{
+          paddingHorizontal: density.pagePadding,
+          paddingTop: density.compact ? space[4] : space[5],
+          paddingBottom: pageBottom,
+          gap: UNIT_TILE_GAP,
+        }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
             onRefresh={async () => { setRefreshing(true); await load(); setRefreshing(false); }}
-            tintColor={theme.color.kola["600"]}
+            tintColor={KOLA}
           />
         }
         ListHeaderComponent={
-          <View style={{ gap: space[3], marginBottom: space[2] }}>
-            <View style={{ gap: space[1] }}>
-              <Type variant="label">RENTABLE SPACES</Type>
-              <Type variant="display2" accessibilityRole="header">Units</Type>
-            </View>
-
+          <View style={{ gap: density.sectionGap + space[2], marginBottom: space[2] }}>
             {error ? <Notice tone="error" title={error} /> : null}
 
             {counts.all ? (
-              <>
-                <Field
+              <SummaryPanel
+                label="Units"
+                value={String(counts.all)}
+                note={note}
+                // Two, because the panel lays its facts out at 45% each in a
+                // row that does not wrap — a third is cut off the right edge.
+                // These two are the split that sums to the figure above them.
+                facts={[
+                  { label: "Occupied", value: String(counts.occupied) },
+                  { label: "Available", value: String(counts.available) },
+                ]}
+              />
+            ) : null}
+
+            {counts.all ? (
+              <View style={{ gap: space[3] }}>
+                <ListHead
+                  title={VIEW_LABEL[view]}
+                  count={visible.length}
+                  filters={narrowed}
+                  filterTone="kola"
+                  onFilter={() => setFiltering(true)}
+                />
+                {narrowed ? (
+                  <View style={styles.tokens}>
+                    {view === "all" ? null : (
+                      <ActiveFilter label={VIEW_LABEL[view]} tone={VIEW_TONE[view]} onClear={() => setView("all")} />
+                    )}
+                    {propertyId ? (
+                      <ActiveFilter label={propertyName} tone={KOLA_DEEP} onClear={() => setPropertyId("")} />
+                    ) : null}
+                    {sort === "property" ? null : (
+                      <ActiveFilter label={SORT_LABEL[sort]} tone={MUTED} onClear={() => setSort("property")} />
+                    )}
+                  </View>
+                ) : null}
+                <SearchField
                   label="Search Units"
+                  placeholder="Unit, Property or type"
                   value={query}
                   onChangeText={setQuery}
-                  placeholder="Unit or Property"
-                  returnKeyType="search"
                 />
-                <View style={{ flexDirection: "row", alignItems: "center", gap: space[2] }}>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: space[2] }}>
-                    <Chip label="All" count={counts.all} selected={view === "all"} onPress={() => setView("all")} />
-                    <Chip label="Available" count={counts.available} selected={view === "available"} onPress={() => setView("available")} />
-                    <Chip label="Public" count={counts.public} selected={view === "public"} onPress={() => setView("public")} />
-                    <Chip label="Occupied" count={counts.occupied} selected={view === "occupied"} onPress={() => setView("occupied")} />
-                    {counts.attention ? (
-                      <Chip label="Attention" count={counts.attention} selected={view === "attention"} onPress={() => setView("attention")} />
-                    ) : null}
-                  </ScrollView>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={narrowed ? "Filters, active" : "Filters"}
-                    onPress={() => setFiltering(true)}
-                    {...pressableFeedback(theme.color.field["200"])}
-                    style={{ minHeight: 44, minWidth: 44, alignItems: "center", justifyContent: "center" }}
-                  >
-                    <Ionicons
-                      name={narrowed ? "options" : "options-outline"}
-                      size={22}
-                      color={narrowed ? theme.color.kola["600"] : theme.color.ink["500"]}
-                    />
-                  </Pressable>
+                <View style={styles.add}>
+                  <PrimaryAction icon="add" label="Add Unit" onPress={addUnit} />
                 </View>
-                <Button label="Add Unit" onPress={() => router.push("/(app)/unit-new" as never)} />
-              </>
+              </View>
             ) : null}
           </View>
         }
         renderItem={({ item }) => (
           <UnitTile
             unit={item}
-            // Across a Portfolio, which building it is in is what tells two
-            // Room 4s apart.
-            meta={item.property_title}
+            surface="glass"
+            meta={sort === "label" ? item.property_title : item.space_type_label}
             onOpen={() => router.push({ pathname: "/(app)/space", params: { unitId: item.id } } as never)}
           />
         )}
         ListEmptyComponent={
-          units === null && !error ? (
-            <Type variant="caption">Loading…</Type>
-          ) : counts.all === 0 ? (
-            <View style={{ paddingVertical: space[8], gap: space[3] }}>
-              <Type variant="bodyStrong">No Units yet</Type>
-              <Type variant="caption">
-                Units are the rentable spaces inside a Property — a room, a flat, a shop.
-              </Type>
-              <Button
-                label="Open Properties"
-                variant="secondary"
-                onPress={() => router.push("/(app)/(provider-tabs)/properties" as never)}
-              />
-            </View>
+          units === null ? <UnitsSkeleton /> : error ? null : counts.all ? (
+            <EmptyState
+              icon={VIEW_ICON[view]}
+              title={query.trim() ? "Nothing matches that" : `No Unit is ${VIEW_LABEL[view].toLocaleLowerCase("en-GH")}`}
+              hint="Clear what is on to see the rest."
+              action={<View style={styles.add}><QuietAction icon="close-circle-outline" label="Clear filters" onPress={clearAll} /></View>}
+            />
           ) : (
-            <View style={{ paddingVertical: space[6], gap: space[2] }}>
-              <Type variant="bodyStrong">No matching Unit</Type>
-              <Button
-                label="Clear filters"
-                variant="secondary"
-                onPress={() => { setQuery(""); setView("all"); setPropertyId(""); setSort("property"); }}
-              />
-            </View>
+            <EmptyState
+              icon="grid-outline"
+              hero
+              title="No Units yet"
+              hint="A Unit is the space you let: a flat, a room, a shop."
+              action={<View style={styles.add}><PrimaryAction icon="add" label="Add Unit" onPress={addUnit} /></View>}
+            />
           )
         }
       />
 
-      <Modal visible={filtering} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setFiltering(false)}>
-        <ScrollView contentContainerStyle={{ padding: space[5], paddingBottom: space[10], gap: space[4] }}>
-          <Type variant="title1" accessibilityRole="header">Filters</Type>
-
-          <Type variant="label">PROPERTY</Type>
-          <Button label="All Properties" variant="secondary" selected={!propertyId} onPress={() => setPropertyId("")} />
-          {properties.map(([id, title]) => (
-            <Button
-              key={id}
-              label={title}
-              variant="secondary"
-              selected={propertyId === id}
-              onPress={() => setPropertyId(id)}
+      <BottomSheet
+        visible={filtering}
+        onClose={() => setFiltering(false)}
+        title="Filter"
+        closeLabel="Close filter"
+        footer={<SheetFooter
+          canReset={narrowed > 0 || Boolean(query)}
+          onReset={clearAll}
+          results={visible.length}
+          onShow={() => setFiltering(false)}
+        />}
+      >
+        <FilterGroup title="Show">
+          {VIEWS.map((value, index) => (
+            <ChoiceRow
+              key={value}
+              first={index === 0}
+              icon={VIEW_ICON[value]}
+              label={VIEW_LABEL[value]}
+              count={counts[value]}
+              selected={view === value}
+              onPress={() => setView(value)}
             />
           ))}
+        </FilterGroup>
 
-          <Type variant="label">SORT</Type>
-          <Button label="By Property" variant="secondary" selected={sort === "property"} onPress={() => setSort("property")} />
-          <Button label="By Unit name" variant="secondary" selected={sort === "label"} onPress={() => setSort("label")} />
+        {properties.length > 1 ? (
+          <FilterGroup title="Property">
+            <ChoiceRow
+              first
+              icon="business-outline"
+              label="Every Property"
+              count={counts.all}
+              selected={!propertyId}
+              onPress={() => setPropertyId("")}
+            />
+            {properties.map(([id, title]) => (
+              <ChoiceRow
+                key={id}
+                first={false}
+                icon="business-outline"
+                label={title}
+                count={all.filter((unit) => unit.property_id === id).length}
+                selected={propertyId === id}
+                onPress={() => setPropertyId(id)}
+              />
+            ))}
+          </FilterGroup>
+        ) : null}
 
-          <Button label="Show results" onPress={() => setFiltering(false)} />
-        </ScrollView>
-      </Modal>
-    </>
+        <FilterGroup title="Order">
+          {(["property", "label"] as const).map((value, index) => (
+            <ChoiceRow
+              key={value}
+              first={index === 0}
+              icon={value === "property" ? "business-outline" : "text-outline"}
+              label={SORT_LABEL[value]}
+              count={counts.all}
+              selected={sort === value}
+              onPress={() => setSort(value)}
+            />
+          ))}
+        </FilterGroup>
+      </BottomSheet>
+    </IndexGround>
   );
 }
 
-function Chip({
-  label,
-  count,
-  selected,
-  onPress,
-}: {
-  label: string;
-  count: number;
-  selected: boolean;
-  onPress: () => void;
-}) {
+/** Shaped like the figures and the first row of tiles, so nothing jumps. */
+function UnitsSkeleton() {
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityState={{ selected }}
-      accessibilityLabel={`${label}, ${count}`}
-      onPress={onPress}
-      {...pressableFeedback(theme.color.kola["50"])}
-      style={{
-        minHeight: 44,
-        justifyContent: "center",
-        paddingHorizontal: space[3],
-        borderWidth: 1,
-        borderColor: selected ? theme.color.kola["300"] : theme.color.field["200"],
-        borderRadius: 22,
-        backgroundColor: selected ? theme.color.kola["50"] : "transparent",
-      }}
-    >
-      <Type variant="bodyStrong" style={{ color: selected ? theme.color.kola["600"] : theme.color.ink["500"] }}>
-        {label} · {count}
-      </Type>
-    </Pressable>
+    <View accessible accessibilityRole="progressbar" accessibilityLabel="Loading your Units" style={{ gap: space[4] }}>
+      <Bone width="38%" height={12} />
+      <Bone height={92} />
+      <Bone width="30%" height={12} />
+      <View style={{ flexDirection: "row", gap: UNIT_TILE_GAP }}>
+        <Bone height={190} />
+        <Bone height={190} />
+      </View>
+    </View>
   );
 }
 
-/**
- * Something is wrong or waiting. Not "this is private" — a private Unit is a
- * normal, deliberate state, and flagging it would make the filter meaningless.
- */
-function needsAttention(unit: Unit) {
-  return ["changes_requested", "rejected", "suspended", "expired"].includes(unit.verification.state)
-    || unit.availability.state === "expired";
-}
+const styles = StyleSheet.create({
+  tokens: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: space[2],
+  },
+  add: {
+    flexDirection: "row",
+  },
+});

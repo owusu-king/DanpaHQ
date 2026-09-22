@@ -14,6 +14,7 @@ import { formatAmount, formatDate, type Tone } from "@/billingPresentation";
 import { ResultMark } from "@/components/billing/BillingParts";
 import { PaystackCheckoutModal } from "@/components/payments/PaystackCheckoutModal";
 import { Button, Notice, Type, space } from "@/components/ui";
+import { useSafeBottom } from "@/platform";
 import { safeCheckoutUrl } from "@/payments";
 import { theme } from "@/theme";
 
@@ -28,6 +29,7 @@ const PENDING: SubscriptionCheckout["status"][] = ["created", "pending", "proces
  * provider itself less often, and the plan changes when the server says so.
  */
 export default function BillingPaymentScreen() {
+  const pageBottom = useSafeBottom(space[12]);
   const router = useRouter();
   const params = useLocalSearchParams<{ organizationId?: string; checkoutId?: string; open?: string }>();
   const organizationId = params.organizationId ?? "";
@@ -159,7 +161,7 @@ export default function BillingPaymentScreen() {
   const planName = checkout?.invoice.plan.name ?? "";
 
   return (
-    <ScrollView contentContainerStyle={{ padding: space[5], paddingBottom: space[12], gap: space[5] }}>
+    <ScrollView contentContainerStyle={{ padding: space[5], paddingBottom: pageBottom, gap: space[5] }}>
       {!checkout ? (
         error ? (
           <View style={{ gap: space[3] }}>

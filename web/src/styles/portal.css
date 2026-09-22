@@ -970,7 +970,11 @@
 .portal-main {
   flex: 1;
   width: 100%;
-  max-width: 78rem;
+  /* Operational grids and lists inherit the rail's reclaimed width. Page-local
+     reading and form caps retain their intentional measure. */
+  max-width: 120rem;
+  min-width: 0;
+  margin-inline: auto;
   padding: var(--space-6) var(--space-4) var(--space-16);
 }
 
@@ -1193,6 +1197,7 @@
     display: flex;
     position: sticky;
     top: 0;
+    z-index: 30;
     width: 16.5rem;
     height: 100vh;
     height: 100dvh;
@@ -1210,15 +1215,7 @@
   /* The menu button belongs to the drawer, which does not exist at this width. */
   .portal-menu-button { display: none; }
 
-  .portal-main { padding: var(--space-8) var(--space-6) var(--space-16); }
-}
-
-@media (min-width: 64rem) {
-  .portal-main { padding-inline: var(--space-8); }
-}
-
-@media (min-width: 90rem) {
-  .portal-main { padding-inline: var(--space-10); }
+  .portal-main { padding: var(--space-8) clamp(var(--space-8), 4.5vw, var(--space-20)) var(--space-16); }
 }
 
 @media (prefers-reduced-motion: reduce) {

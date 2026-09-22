@@ -74,7 +74,8 @@ test("external payments are explicit, evidenced and tenant-confirmed on mobile",
   assert.match(record, /uploadImage\(evidence, "payment_evidence"\)/);
   assert.match(detail, /I didn’t make this payment/);
   assert.match(detail, /Paid externally · recorded through Rooomly/);
-  assert.match(tenant, /CONFIRM AN EXTERNAL PAYMENT/);
+  // A group label, written in sentence case and drawn in capitals.
+  assert.match(tenant, /CONFIRM AN EXTERNAL PAYMENT/i);
   assert.match(tenant, /receiptId: payment\.receipt_id/);
   assert.match(receipt, /snapshot\.payment\.source === "PLATFORM_PSP"/);
   assert.match(api, /evidence_file_id\?: string \| null/);

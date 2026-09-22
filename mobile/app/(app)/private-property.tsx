@@ -7,40 +7,53 @@
  * something to attach to — an implementation detail the provider should never
  * feel.
  *
- * On mobile the compact checkpoint journey is enough context. The full numbered
- * checklist remains a web pattern; stacking it above the form consumed the
- * small screen before the provider could reach the work.
+ * Refined on review (2026-09-22). It was a flat stack of six fields, each with
+ * a sentence of hint under it, under a display heading and a paragraph — more
+ * words than inputs. The work is now two groups, *what it is* and *where it
+ * is*; an example belongs in the box as a placeholder rather than in a line
+ * beneath it; and the one act is pinned where a thumb is instead of sitting at
+ * the end of a scroll.
  */
 
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-
-import {
-  loadPropertyTypes,
-  type PropertyTypeOption,
-} from "@/propertyTypes";
-import { PropertyTypeChoice } from "@/components/property/PropertyTypeChoice";
 import { useEffect, useRef, useState } from "react";
-import { Pressable, ScrollView, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 
 import { ApiFailure } from "@/api";
 import { useAuth } from "@/auth";
-import { Button, Choice, Field, Notice, Type, space } from "@/components/ui";
+import {
+  ActionBar,
+  EDGE,
+  Footnote,
+  GroupLabel,
+  INK,
+  KOLA,
+  MUTED,
+  PRESSED,
+  Pill,
+  RecordPanel,
+} from "@/components/record/RecordSurfaces";
+import { PropertyTypeChoice } from "@/components/property/PropertyTypeChoice";
+import { SetupProgress } from "@/components/property/SetupSteps";
+import { Select } from "@/components/form/Select";
+import { Field, Notice, Type, space } from "@/components/ui";
 import {
   createPersonalPortfolioProperty,
   createPrivateProperty,
   listOrganizations,
   type Organization,
 } from "@/organizations";
-import { SetupProgress } from "@/components/property/SetupSteps";
-import { describePropertySetup, type SetupStep } from "@/propertySetup";
-import { createAddress } from "@/provider";
 import {
   newPlacesSession,
   placeLabel,
   suggestPlaces,
   type PlaceSuggestion,
 } from "@/places";
-import { theme } from "@/theme";
+import { isAndroid, pressableFeedback, useSafeBottom } from "@/platform";
+import { describePropertySetup, type SetupStep } from "@/propertySetup";
+import { loadPropertyTypes, type PropertyTypeOption } from "@/propertyTypes";
+import { createAddress } from "@/provider";
 
 /** The whole journey, before any of it exists. */
 const OUTLINE: SetupStep[] = describePropertySetup({
@@ -54,6 +67,7 @@ const OUTLINE: SetupStep[] = describePropertySetup({
 
 export default function PrivatePropertyScreen() {
   const router = useRouter();
+  const pageBottom = useSafeBottom(space[6]);
   const { organizationId } = useLocalSearchParams<{ organizationId: string }>();
   const { activeContext } = useAuth();
   const [selectedOrganizationId, setSelectedOrganizationId] = useState(organizationId ?? "");
@@ -169,88 +183,170 @@ export default function PrivatePropertyScreen() {
     }
   }
 
+  const ready = Boolean(selectedPlace) && Boolean(title.trim()) && Boolean(propertyType)
+    && (organizations.length === 0 || Boolean(selectedOrganizationId));
+
   return (
-    <ScrollView contentContainerStyle={{ padding: space[5], gap: space[4] }} keyboardShouldPersistTaps="handled">
-      <View style={{ gap: space[2] }}>
-        <Type variant="label">PRIVATE BY DEFAULT</Type>
-        <Type variant="display2">Create a property</Type>
-        <Type variant="body">
-          Everything saves as you go. Do them in any order.</Type>
-      </View>
+    <View style={styles.screen}>
+      <ScrollView contentContainerStyle={[styles.page, { paddingBottom: pageBottom }]} keyboardShouldPersistTaps="handled">
+        <View style={styles.head}>
+          <Type variant="label" style={styles.eyebrow}>PRIVATE BY DEFAULT</Type>
+          <Type variant="title2" accessibilityRole="header" style={styles.title}>Create a property</Type>
+        </View>
 
-      <SetupProgress steps={OUTLINE} current="basics" />
-      {organizations.length > 1 ? (
-        <Choice
-          label="Which Portfolio?"
-          hint="The property is filed under this one."
-          value={selectedOrganizationId}
-          options={organizations.map((row) => ({ value: row.id, label: row.name }))}
-          onChange={setSelectedOrganizationId}
-        />
-      ) : null}
-      {organizations.length === 0 ? (
-        <Notice
-          tone="info"
-          title="This goes into your Rooomly Portfolio"
+        <SetupProgress steps={OUTLINE} current="basics" />
+
+        <View style={styles.section}>
+          <GroupLabel>What it is</GroupLabel>
+          {organizations.length > 1 ? (
+            <Select
+              label="Portfolio"
+              placeholder="Which one files it"
+              value={selectedOrganizationId}
+              options={organizations.map((row) => ({ value: row.id, label: row.name }))}
+              onChange={setSelectedOrganizationId}
+            />
+          ) : null}
+          {organizations.length === 0 ? (
+            <Notice tone="info" title="This goes into your Rooomly Portfolio" />
+          ) : null}
+          <Field label="Name" placeholder="Adom Heights" value={title} onChangeText={setTitle} />
+          {/* Three categories, and the choice decides what may be let inside.
+              `Choice` is a wrapping row of labels — right for a water source, and
+              unable to say what choosing Hostel actually gets you. */}
+          <PropertyTypeChoice types={propertyTypes} value={propertyType} onChange={setPropertyType} />
+        </View>
+
+        <View style={styles.section}>
+          <GroupLabel>Where it is</GroupLabel>
+          <Field
+            label="Town or neighbourhood"
+            placeholder="Search anywhere in Ghana"
+            value={localityQuery}
+            onChangeText={(value) => {
+              if (selectedPlace) placesSession.current = null;
+              setLocalityQuery(value);
+              setSelectedPlace(null);
+              if (!value.trim()) placesSession.current = null;
+            }}
+            suffix={selectedPlace ? <Ionicons name="checkmark-circle" size={18} color={KOLA} /> : undefined}
           />
-      ) : null}
-      <Field label="Property name" hint="An internal name, such as Adom Heights" value={title} onChangeText={setTitle} />
-      {/* Three categories, and the choice decides what may be let inside.
-          `Choice` is a wrapping row of labels — right for a water source, and
-          unable to say what choosing Hostel actually gets you.
 
-          Activities describe a Portfolio's current focus. The backend's
-          complete vocabulary remains selectable, and creating another valid
-          category adds that activity to the Portfolio. */}
-      <PropertyTypeChoice types={propertyTypes} value={propertyType} onChange={setPropertyType} />
-      <Field
-        label="Town or neighbourhood"
-        hint="Search anywhere in Ghana, then choose a result."
-        value={localityQuery}
-        onChangeText={(value) => {
-          if (selectedPlace) placesSession.current = null;
-          setLocalityQuery(value);
-          setSelectedPlace(null);
-          if (!value.trim()) placesSession.current = null;
-        }}
-      />
-      {placeSuggestions.map((item) => (
-        <Pressable
-          key={item.provider + item.reference}
-          accessibilityRole="button"
-          onPress={() => {
-            setSelectedPlace(item);
-            setLocalityQuery(placeLabel(item));
-            setPlaceSuggestions([]);
-          }}
-          style={{
-            minHeight: theme.targetMin,
-            justifyContent: "center",
-            borderBottomWidth: 1,
-            borderBottomColor: theme.color.field["200"],
-            paddingVertical: space[2],
-          }}
-        >
-          <Type variant="body">{item.name}</Type>
-          {item.context ? <Type variant="caption">{item.context}</Type> : null}
-        </Pressable>
-      ))}
-      {placeSuggestions.length > 0 && placeAttribution === "google" ? (
-        <Type variant="caption">Google Maps</Type>
-      ) : null}
-      <Field label="GhanaPost GPS (where available)" value={digitalAddress} onChangeText={setDigitalAddress} autoCapitalize="characters" />
-      <Field label="Street" value={street} onChangeText={setStreet} />
-      <Field label="Landmark" value={landmark} onChangeText={setLandmark} />
-      {error ? <Notice tone="error" title={error} /> : null}
+          {placeSuggestions.length ? (
+            <RecordPanel>
+              {placeSuggestions.map((item, index) => (
+                <Pressable
+                  key={item.provider + item.reference}
+                  accessibilityRole="button"
+                  accessibilityLabel={item.context ? `${item.name}. ${item.context}` : item.name}
+                  onPress={() => {
+                    setSelectedPlace(item);
+                    setLocalityQuery(placeLabel(item));
+                    setPlaceSuggestions([]);
+                  }}
+                  {...pressableFeedback(PRESSED)}
+                  style={({ pressed }) => [
+                    styles.place,
+                    index === 0 ? null : styles.ruled,
+                    pressed && !isAndroid ? { backgroundColor: PRESSED } : null,
+                  ]}
+                >
+                  <Ionicons name="location-outline" size={16} color={KOLA} />
+                  <View style={styles.placeBody}>
+                    <Type variant="bodyStrong" numberOfLines={1} style={styles.placeName}>{item.name}</Type>
+                    {item.context ? (
+                      <Type variant="caption" numberOfLines={1} style={styles.placeWhere}>{item.context}</Type>
+                    ) : null}
+                  </View>
+                </Pressable>
+              ))}
+            </RecordPanel>
+          ) : null}
+          {placeSuggestions.length > 0 && placeAttribution === "google" ? (
+            <Footnote>Google Maps</Footnote>
+          ) : null}
+
+          <Field
+            label="GhanaPost GPS"
+            placeholder="GA-492-1234"
+            value={digitalAddress}
+            onChangeText={setDigitalAddress}
+            autoCapitalize="characters"
+          />
+          <Field label="Street" placeholder="Nii Tetteh Street" value={street} onChangeText={setStreet} />
+          <Field label="Landmark" placeholder="Opposite the Baptist church" value={landmark} onChangeText={setLandmark} />
+        </View>
+
+        {error ? <Notice tone="error" title={error} /> : null}
+        <Footnote>Everything saves as you go, and the steps can be done in any order.</Footnote>
+      </ScrollView>
+
       {/* `propertyType` is in the condition because the backend requires it and
           there is no default — submitting without it produced a refusal the
           form could have prevented. */}
-      <Button
-        label="Save and continue"
-        onPress={submit}
-        busy={busy}
-        disabled={(organizations.length > 0 && !selectedOrganizationId) || !title.trim() || !propertyType || !selectedPlace}
-      />
-    </ScrollView>
+      <ActionBar>
+        <Pill
+          label="Save and continue"
+          icon="arrow-forward"
+          busy={busy}
+          busyLabel="Saving"
+          disabled={!ready}
+          grow
+          onPress={() => void submit()}
+        />
+      </ActionBar>
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+  },
+  page: {
+    padding: space[4],
+    gap: space[4],
+  },
+  head: {
+    gap: space[1],
+    paddingHorizontal: 2,
+  },
+  eyebrow: {
+    color: KOLA,
+  },
+  title: {
+    fontSize: 19,
+    lineHeight: 25,
+    color: INK,
+  },
+  section: {
+    gap: space[3],
+  },
+  ruled: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: EDGE,
+  },
+  place: {
+    minHeight: 56,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space[3],
+    paddingVertical: space[3],
+    paddingHorizontal: 14,
+  },
+  placeBody: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2,
+  },
+  placeName: {
+    fontSize: 15,
+    lineHeight: 20,
+    color: INK,
+  },
+  placeWhere: {
+    fontSize: 13,
+    lineHeight: 17,
+    color: MUTED,
+  },
+});

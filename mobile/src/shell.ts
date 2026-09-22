@@ -24,7 +24,7 @@ import { ph } from "@/components/home/plinth";
 import { theme } from "@/theme";
 
 /** A token at an opacity, so a tint stays the token it came from. */
-const alpha = (hex: string, opacity: number) => {
+export const alpha = (hex: string, opacity: number) => {
   const value = Number.parseInt(hex.slice(1), 16);
   return `rgba(${(value >> 16) & 255}, ${(value >> 8) & 255}, ${value & 255}, ${opacity})`;
 };

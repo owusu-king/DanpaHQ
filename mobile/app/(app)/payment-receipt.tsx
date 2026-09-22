@@ -4,6 +4,7 @@ import { ScrollView, View } from "react-native";
 
 import { ApiFailure } from "@/api";
 import { Button, Notice, Surface, Type, radius, space } from "@/components/ui";
+import { useSafeBottom } from "@/platform";
 import { printPaymentReceipt, sharePaymentReceipt } from "@/paymentDocuments";
 import { getPaymentReceipt, paymentMethodLabel, type PaymentReceipt } from "@/payments";
 import { theme } from "@/theme";
@@ -11,6 +12,7 @@ import { theme } from "@/theme";
 type DocumentAction = "share" | "print";
 
 export default function PaymentReceiptScreen() {
+  const pageBottom = useSafeBottom(space[12]);
   const { receiptId = "" } = useLocalSearchParams<{ receiptId?: string }>();
   const [receipt, setReceipt] = useState<PaymentReceipt | null>(null);
   const [error, setError] = useState("");
@@ -66,7 +68,7 @@ export default function PaymentReceiptScreen() {
   return (
     <ScrollView
       contentInsetAdjustmentBehavior="automatic"
-      contentContainerStyle={{ padding: space[5], paddingBottom: space[12], gap: space[5] }}
+      contentContainerStyle={{ padding: space[5], paddingBottom: pageBottom, gap: space[5] }}
     >
       <View style={{ gap: space[1] }}>
         <Type variant="label">PAYMENT RECORD</Type>

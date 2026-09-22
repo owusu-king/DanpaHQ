@@ -5,6 +5,7 @@ import QRCode from "react-native-qrcode-svg";
 
 import { ApiFailure } from "@/api";
 import { Button, Notice, Surface, Type, space } from "@/components/ui";
+import { useSafeBottom } from "@/platform";
 import { theme } from "@/theme";
 import {
   issueViewingCheckInCredential,
@@ -15,6 +16,9 @@ import {
 
 /** A short-lived attendance credential. Its opaque QR and fallback code rotate together. */
 export default function ViewingCheckInScreen() {
+  // Android draws edge-to-edge: the last row would sit under the
+  // navigation buttons, which then look as though the page showed through.
+  const pageBottom = useSafeBottom(space[8]);
   const { viewingId } = useLocalSearchParams<{ viewingId: string }>();
   const [viewing, setViewing] = useState<Viewing | null>(null);
   const [credential, setCredential] = useState<ViewingCheckInCredential | null>(null);
@@ -52,7 +56,7 @@ export default function ViewingCheckInScreen() {
   }
 
   return (
-    <ScrollView contentContainerStyle={{ padding: space[5], gap: space[4] }}>
+    <ScrollView contentContainerStyle={{ padding: space[5], paddingBottom: pageBottom, gap: space[4] }}>
       <View style={{ gap: space[1] }}>
         <Type variant="display2">Viewing check-in</Type>
         <Type variant="caption">{viewing.listing_headline}</Type>

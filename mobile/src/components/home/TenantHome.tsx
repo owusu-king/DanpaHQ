@@ -78,15 +78,12 @@ export function TenantHome({
   joinRequests,
   loading,
   error,
-  canSwitchToProvider,
-  switching,
   onJoin,
   onExplore,
   onTenancy,
   onAgreements,
   onViewings,
   onApplications,
-  onSwitchToProvider,
   unreadNotifications,
   recentActivity,
   onNotifications,
@@ -100,15 +97,12 @@ export function TenantHome({
   joinRequests: MyJoinRequest[];
   loading: boolean;
   error: string;
-  canSwitchToProvider: boolean;
-  switching: boolean;
   onJoin: () => void;
   onExplore: () => void;
   onTenancy: (tenancy: Tenancy) => void;
   onAgreements: () => void;
   onViewings: () => void;
   onApplications: () => void;
-  onSwitchToProvider: () => void;
   unreadNotifications: number;
   recentActivity: Notification[];
   onNotifications: () => void;
@@ -246,15 +240,6 @@ export function TenantHome({
         ] satisfies Shortcut[]}
       />
 
-      {canSwitchToProvider ? (
-        <Button
-          label="Switch to provider experience"
-          variant="quiet"
-          busy={switching}
-          busyLabel="Switching…"
-          onPress={onSwitchToProvider}
-        />
-      ) : null}
     </View>
   );
 }

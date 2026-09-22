@@ -4,6 +4,7 @@ import { Pressable, ScrollView, View } from "react-native";
 
 import { ApiFailure } from "@/api";
 import { Button, Chip, Choice, Field, Notice, Surface, Type, space } from "@/components/ui";
+import { useSafeBottom } from "@/platform";
 import {
   draftLease,
   leaseAction,
@@ -87,6 +88,7 @@ type FormState = {
 };
 
 export default function LeaseBuilderScreen() {
+  const pageBottom = useSafeBottom(space[12]);
   const router = useRouter();
   const params = useLocalSearchParams<Record<string, string | string[]>>();
   const [step, setStep] = useState(0);
@@ -237,7 +239,7 @@ export default function LeaseBuilderScreen() {
   return (
     <ScrollView
       keyboardShouldPersistTaps="handled"
-      contentContainerStyle={{ padding: space[5], paddingBottom: space[12], gap: space[5] }}
+      contentContainerStyle={{ padding: space[5], paddingBottom: pageBottom, gap: space[5] }}
     >
       <View style={{ gap: space[2] }}>
         <Type variant="label">AGREEMENT BUILDER</Type>
