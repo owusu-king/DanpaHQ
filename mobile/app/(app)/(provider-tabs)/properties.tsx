@@ -271,6 +271,7 @@ export default function ProviderPropertiesScreen() {
         visible={filtering}
         onClose={() => setFiltering(false)}
         title="Filter"
+        hideTitle
         closeLabel="Close filter"
         footer={<SheetFooter
           canReset={filter !== "all" || Boolean(query)}

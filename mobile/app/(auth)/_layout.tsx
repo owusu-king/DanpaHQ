@@ -17,12 +17,14 @@ export default function AuthLayout() {
         gestureEnabled: gestureBackEnabled,
       }}
     >
-      <Stack.Screen name="welcome" options={{ headerShown: false }} />
+      <Stack.Screen name="start" options={{ headerShown: false }} />
       <Stack.Screen name="sign-in" options={{ headerShown: false }} />
       <Stack.Screen name="phone" options={{ headerShown: false }} />
       <Stack.Screen name="register" options={{ headerShown: false, gestureEnabled: false }} />
       <Stack.Screen name="forgot-password" options={{ headerShown: false }} />
-      <Stack.Screen name="code" />
+      {/* The code screen carries its own way back and its own step marks, and a
+          navigator header over the dawn would be a second, flatter one. */}
+      <Stack.Screen name="code" options={{ headerShown: false }} />
       <Stack.Screen name="role" options={{ headerShown: false, gestureEnabled: false }} />
       <Stack.Screen name="onboarding" options={{ headerShown: false, gestureEnabled: false }} />
     </Stack>

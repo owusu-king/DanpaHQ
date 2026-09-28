@@ -1,5 +1,4 @@
-import { ThemeProvider } from "@react-navigation/native";
-import { Stack, useRouter, useSegments } from "expo-router";
+import { Stack, ThemeProvider, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
 import { View } from "react-native";
@@ -15,10 +14,10 @@ import { navigationTheme, shell } from "@/shell";
 /**
  * Screens a signed-out person is allowed to be on.
  *
- * Anything not listed here is bounced to welcome, which is correct for the app
- * shell and catastrophic if the list falls behind the routes: a missing entry
- * does not fail loudly, it silently throws the person back to welcome the
- * instant they tap through. That is exactly what happened when sign-in,
+ * Anything not listed here is bounced to the question, which is correct for the
+ * app shell and catastrophic if the list falls behind the routes: a missing
+ * entry does not fail loudly, it silently throws the person back to the start
+ * the instant they tap through. That is exactly what happened when sign-in,
  * register and forgot-password were added without touching this line.
  *
  * `register` is here because a person mid-registration is signed in only in the
@@ -26,7 +25,7 @@ import { navigationTheme, shell } from "@/shell";
  * lost they must still be able to reach the screen again.
  */
 const SIGNED_OUT_SCREENS = [
-  "welcome",
+  "start",
   "sign-in",
   "phone",
   "code",
@@ -76,10 +75,10 @@ function entryRedirect(
 
   if (session.status === "signed_out") {
     if (inPublicDiscovery || (inAuthFlow && signedOutScreen)) return null;
-    // Always the journey. Where it *opens* is the journey's own decision:
-    // a first launch starts at the beginning, and anybody who has seen it
-    // lands on the last page, which is the choice.
-    return renterTwin ?? "/(auth)/welcome";
+    // Always the question. There is no longer a story in front of it to skip,
+    // and so no flag deciding whether this person has earned the right to skip
+    // it: opening the app signed out means being asked how you will use it.
+    return renterTwin ?? "/(auth)/start";
   }
 
   const destination = resolveEntryRoute(session.me, activeContext);
@@ -128,10 +127,11 @@ function Shell() {
     if (redirect) router.replace(redirect as never);
   }, [redirect, router, segments]);
 
-  // Edge to edge, the chrome paints the strip behind the status bar: the launch
-  // curtain, and every header in the app. Only the sign-in journey stands on
-  // ivory, so only there do the status bar's glyphs turn dark.
-  const statusBar = !settled || segments[0] !== "(auth)" ? "light" : "dark";
+  // Edge to edge, whatever is behind the status bar decides the glyphs. Every
+  // header in the app is the green chrome, so those are white; the sign-in
+  // journey stands on ivory, and so now does the launch curtain — three dots on
+  // the page's own ground, not a green field — so both of those turn dark.
+  const statusBar = settled && segments[0] !== "(auth)" ? "light" : "dark";
 
   return (
     <View style={{ flex: 1, backgroundColor: shell.canvas }}>

@@ -55,9 +55,16 @@ export default function ProfileTab() {
   if (state.status !== "signed_in") {
     return (
       <AuthPrompt
-        title="Your account"
-        body="Continue with phone to manage your identity, notifications and account security."
+        icon="list"
+        tone="lagoon"
+        title="Everything else"
+        body="Your shortlist, your applications and viewings, and the account behind them."
         next="/(app)/(tabs)/profile"
+        points={[
+          { icon: "bookmark-outline", label: "Saved places, on every device" },
+          { icon: "calendar-outline", label: "Applications, viewings and agreements" },
+          { icon: "lock-closed-outline", label: "Security and what we may send you" },
+        ]}
       />
     );
   }
@@ -135,7 +142,7 @@ export default function ProfileTab() {
             setLeaving(true);
             try {
               await signOut();
-              router.replace("/(auth)/welcome");
+              router.replace("/(auth)/start");
             } finally {
               setLeaving(false);
             }

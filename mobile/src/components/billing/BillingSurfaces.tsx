@@ -17,6 +17,7 @@ import {
   WHITE,
   type IconName,
 } from "@/components/portfolio/PortfolioList";
+import { sheetCardStyle } from "@/components/sheet/SheetParts";
 import { Type, radius, space } from "@/components/ui";
 import { isAndroid, pressableFeedback } from "@/platform";
 import { alpha } from "@/shell";
@@ -319,13 +320,8 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     color: MUTED,
   },
-  sheetList: {
-    overflow: "hidden",
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: theme.color.field["200"],
-    backgroundColor: theme.color.field["50"],
-  },
+  // A list in a sheet is the sheet's white card, borderless on the grey.
+  sheetList: sheetCardStyle,
   skeleton: {
     gap: space[5],
   },

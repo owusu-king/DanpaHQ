@@ -1,14 +1,20 @@
-import Ionicons from "@expo/vector-icons/Ionicons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
-import { Pressable, ScrollView, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { View } from "react-native";
 
 import { apiFetch, ApiFailure } from "@/api";
 import { useAuth, type Me } from "@/auth";
-import { Button, Notice, Type, space } from "@/components/ui";
-import { pressableFeedback } from "@/platform";
-import { theme } from "@/theme";
+import { TextLink } from "@/components/auth/AuthFields";
+import {
+  AuthAction,
+  AuthFoot,
+  AuthHeading,
+  AuthScene,
+  PickCard,
+  type AuthTone,
+} from "@/components/auth/AuthScene";
+import { Notice, space } from "@/components/ui";
+import type Ionicons from "@expo/vector-icons/Ionicons";
 import {
   clearPendingOnboardingIntent,
   pendingOnboardingIntent,
@@ -22,20 +28,36 @@ import {
  * because people do not think of themselves as a role. It is also reversible and
  * additive: someone who rents a room and lets another can hold both, and the
  * copy says so rather than making the choice feel permanent.
+ *
+ * It asks the same question the app opens on, so it is drawn with the same
+ * cards — one hue each, a tick rather than a heavier border, and no literal
+ * tick character glued to the title.
  */
-const OPTIONS = [
+const OPTIONS: {
+  intent: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  tone: AuthTone;
+  title: string;
+  body: string;
+}[] = [
   {
     intent: "find_property",
+    icon: "search",
+    tone: "gold",
     title: "Find a property",
     body: "Browse freely and sign in only when you save, view or apply.",
   },
   {
     intent: "current_tenant",
+    icon: "home",
+    tone: "kola",
     title: "I'm a tenant",
     body: "Use a verified Unit access code to request the home where you live.",
   },
   {
     intent: "manage_property",
+    icon: "business",
+    tone: "lagoon",
     title: "I own/manage property",
     body: "Manage residential, commercial or hostel property.",
   },
@@ -45,7 +67,6 @@ export default function RoleScreen() {
   const router = useRouter();
   const { next } = useLocalSearchParams<{ next?: string }>();
   const { refreshMe, signOut } = useAuth();
-  const insets = useSafeAreaInsets();
   const [selected, setSelected] = useState(
     next === "/(app)/private-property"
       ? "manage_property"
@@ -118,82 +139,50 @@ export default function RoleScreen() {
 
   if (checkingPending) {
     return (
-      <ScrollView
-        contentContainerStyle={{
-          flexGrow: 1,
-          justifyContent: "center",
-          padding: space[5],
-          paddingTop: insets.top + space[10],
-          paddingBottom: insets.bottom + space[6],
-          gap: space[4],
-        }}
-      >
-        <Type variant="display2">Finishing your setup…</Type>
-        <Type variant="body">We are opening the experience you selected on the welcome screen.</Type>
-        {error ? <Notice tone="error" title={error} /> : null}
-        {error ? <Button label="Try again" onPress={() => void retryAutomaticIntent()} busy={busy} /> : null}
-        <Button
-          label="Sign out and return"
-          variant="quiet"
-          onPress={() => void signOut()}
-          disabled={busy}
+      <AuthScene>
+        <AuthHeading
+          title="Finishing your setup…"
+          line="We are opening the experience you chose when you opened Rooomly."
         />
-      </ScrollView>
+        {error ? <Notice tone="error" title={error} /> : null}
+        {error ? (
+          <AuthAction label="Try again" onPress={() => void retryAutomaticIntent()} busy={busy} />
+        ) : null}
+        <AuthFoot>
+          <TextLink label="Sign out and return" muted onPress={() => void signOut()} />
+        </AuthFoot>
+      </AuthScene>
     );
   }
 
   return (
-    <ScrollView
-      contentContainerStyle={{
-        padding: space[5],
-        paddingTop: insets.top + space[10],
-        paddingBottom: insets.bottom + space[6],
-        gap: space[5],
-      }}
-    >
-      <View style={{ gap: space[3] }}>
-        <Type variant="label">STEP 2 OF 2</Type>
-        <Type variant="display2">What are you here to do?</Type>
-        <Type variant="body" style={{ color: theme.color.ink["700"] }}>
-          This opens the experience you need now. It does not permanently define your account.
-        </Type>
-      </View>
+    <AuthScene progress={{ step: 2, of: 2 }}>
+      <AuthHeading
+        title="What are you here to do?"
+        line="This opens the experience you need now. It does not permanently define your account."
+      />
 
       <View style={{ gap: space[3] }} accessibilityRole="radiogroup">
-        {OPTIONS.map((option) => {
-          const active = selected === option.intent;
-          return (
-            <Pressable
-              key={option.intent}
-              onPress={() => setSelected(option.intent)}
-              accessibilityRole="radio"
-              aria-selected={active}
-              {...pressableFeedback(theme.color.kola["50"])}
-              style={{
-                padding: space[4],
-                borderRadius: 8,
-                borderWidth: active ? 2 : 1,
-                borderColor: active ? theme.color.kola["600"] : theme.color.field["200"],
-                backgroundColor: active ? theme.color.kola["50"] : theme.color.field["0"],
-                gap: space[2],
-              }}
-            >
-              <Type variant="bodyStrong">{option.title}</Type>
-              <Type variant="caption">{option.body}</Type>
-            </Pressable>
-          );
-        })}
+        {OPTIONS.map((option) => (
+          <PickCard
+            key={option.intent}
+            icon={option.icon}
+            tone={option.tone}
+            selected={selected === option.intent}
+            title={option.title}
+            body={option.body}
+            onPress={() => setSelected(option.intent)}
+          />
+        ))}
       </View>
 
       {error ? <Notice tone="error" title={error} /> : null}
-      <Button label="Continue" onPress={confirm} busy={busy} />
-      <Button
-        label="Sign out and return"
-        variant="quiet"
-        icon={<Ionicons name="log-out-outline" size={20} color={theme.color.kola["600"]} />}
-        onPress={() => void signOut()}
-        disabled={busy}
-      />
-    </ScrollView>
+
+      <AuthAction label="Continue" busyLabel="Opening…" onPress={confirm} busy={busy} />
+
+      <AuthFoot>
+        <TextLink label="Sign out and return" muted onPress={() => void signOut()} />
+      </AuthFoot>
+    </AuthScene>
   );
 }

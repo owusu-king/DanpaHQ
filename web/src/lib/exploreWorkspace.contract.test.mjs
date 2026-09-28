@@ -44,14 +44,15 @@ test("a listing card compares on price and recognizes on the photograph", () => 
   }
 });
 
-test("desktop Explore gives each rental one of three generous columns", () => {
+test("desktop Explore shows four rentals to a row", () => {
   const css = read("web/src/styles/explore-workspace.css");
 
-  // At the 78rem content maximum, 22rem cards fit three across but never four.
-  // Auto-fill preserves the existing natural two- and one-column collapse.
+  // Inside the 78rem shell (less its padding, 72–78rem) 16rem cards fit four
+  // across and never five, which would need 85rem. Auto-fill keeps the natural
+  // three-, two- and one-column collapse on narrower screens.
   assert.match(
     css,
-    /\.explore-grid[\s\S]{0,160}repeat\(auto-fill, minmax\(min\(100%, 22rem\), 1fr\)\)/,
+    /\.explore-grid[\s\S]{0,160}repeat\(auto-fill, minmax\(min\(100%, 16rem\), 1fr\)\)/,
   );
 });
 

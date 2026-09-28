@@ -1,32 +1,35 @@
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
-import { FlatList, View } from "react-native";
+import { ScrollView, View } from "react-native";
 
 import { ApiFailure } from "@/api";
 import { listMyApplications, type RentalApplication } from "@/applications";
 import { useAuth } from "@/auth";
 import { listNotifications, type Notification } from "@/notifications";
 import { HomeGround } from "@/components/home/HomeGround";
+import { PublicHome } from "@/components/home/PublicHome";
 import { TenantHome } from "@/components/home/TenantHome";
 import { useHomeDensity } from "@/components/home/plinth";
-import { ListingCard } from "@/components/listings/ListingCard";
-import { Button, Notice, Type, space } from "@/components/ui";
+import { Notice, space } from "@/components/ui";
 import { listMyLeases, type Lease } from "@/leases";
-import { type Listing, searchListings } from "@/listings";
 import { resolveEntryRoute } from "@/navigation";
 import { listMyJoinRequests, listMyTenancies, type MyJoinRequest, type Tenancy } from "@/tenancy";
 import { listMyViewings, type Viewing } from "@/viewings";
 import { chooseWorkspace } from "@/workspace";
 
 /**
- * Signed in, Home is the tenant's dashboard and stands on the soft green
- * ground; signed out it is the public browsing page on the ordinary ivory. The
- * ground only stops painting, so signing in never remounts the screen under it.
+ * Home: the tenant's dashboard signed in, and what Rooomly is signed out.
+ *
+ * Both stand on the soft green ground now. It used to stop painting for the
+ * signed-out screen, on the reasoning that a wall of listing cards on the
+ * ground would read as a dashboard — true, but the listings are gone, and what
+ * was left was the one screen in the product that stood on bare ivory while
+ * every tab around it carried the green. Painting always is also one less thing
+ * that changes at the moment somebody signs in.
  */
 export default function DiscoveryHomeScreen() {
-  const { state } = useAuth();
   return (
-    <HomeGround active={state.status === "signed_in"}>
+    <HomeGround>
       <DiscoveryHome />
     </HomeGround>
   );
@@ -37,7 +40,6 @@ function DiscoveryHome() {
   const density = useHomeDensity();
   const { providerError } = useLocalSearchParams<{ providerError?: string }>();
   const { state, refreshMe } = useAuth();
-  const [listings, setListings] = useState<Listing[]>([]);
   const [workspaceBusy, setWorkspaceBusy] = useState(false);
   const [workspaceError, setWorkspaceError] = useState(providerError ?? "");
   const [providerRequested, setProviderRequested] = useState(false);
@@ -63,30 +65,6 @@ function DiscoveryHome() {
    * active; the tab itself is the tenant side.
    */
   const tenantMode = Boolean(me);
-
-  /**
-   * Whether this screen is the public browsing home.
-   *
-   * Signed out only. Gating on `tenantMode` was too narrow: a provider looking
-   * at the tenant side has `active_workspace === "provider"`, so they fell
-   * through to the browsing home and got the wall of listings this was meant to
-   * remove — as did anybody signed in without a tenancy yet.
-   *
-   * Once somebody is signed in, this screen is theirs: the places they live in,
-   * or the way to find and join one. Listings live in Explore, which is a tab.
-   */
-  const browsing = state.status === "signed_out";
-
-  useEffect(() => {
-    // Only for the browsing experience. A tenant's home is about the places
-    // they already live in, so the request is not made rather than made and
-    // discarded — it is their data.
-    if (!browsing) {
-      setListings([]);
-      return;
-    }
-    void searchListings().then((page) => setListings(page.results)).catch(() => setListings([]));
-  }, [browsing]);
 
   const loadTenantHome = useCallback(async () => {
     if (!tenantMode) {
@@ -185,21 +163,20 @@ function DiscoveryHome() {
   }, [openListingWorkspace, providerRequested, state.status]);
 
   return (
-    <FlatList
-      data={browsing ? listings.slice(0, 6) : []}
-      keyExtractor={(item) => item.id}
-      // Signed in, the soft green ground behind this list (`HomeGround`) is what
-      // sets the dashboard's white cards apart, so the list paints nothing of its
-      // own. Browsing keeps the ordinary ivory page: a wall of listing cards on
-      // the ground would read as a dashboard.
+    <ScrollView
+      // The soft green ground behind this (`HomeGround`) is what sets the white
+      // cards apart, so the scroller paints nothing of its own. It was a
+      // `FlatList` while Home showed listings; with those gone there is no list
+      // left to virtualise, and a list that can never have a row is machinery
+      // pretending to be a feature.
       contentContainerStyle={{
         padding: tenantMode ? density.pagePadding : space[5],
-        paddingBottom: tenantMode ? space[12] : space[5],
+        paddingBottom: space[12],
         gap: space[4],
       }}
-      ListHeaderComponent={
-        <View style={{ gap: space[4], marginBottom: tenantMode ? 0 : space[3] }}>
-          {tenantMode ? (
+    >
+      <View style={{ gap: space[4] }}>
+        {tenantMode ? (
             <TenantHome
               name={displayName}
               tenancies={tenancies}
@@ -238,56 +215,26 @@ function DiscoveryHome() {
               onViewings={() => router.push("/(app)/viewings" as never)}
               onApplications={() => router.push("/(app)/applications" as never)}
             />
-          ) : (
-            <>
-              <View style={{ gap: space[2] }}>
-                <Type variant="label">VERIFIED RENTALS IN GHANA</Type>
-                <Type variant="display2">Find a place you can trust.</Type>
-                {/* The signed-out line is about giving a phone number, which is
-                    already answered for anybody signed in. */}
-                <Type variant="body">
-                  {browsing
-                    ? "Browse first. Continue with phone only when you save, contact or apply."
-                    : "Search in Explore, or use a verified Unit access code from your provider."}
-                </Type>
-              </View>
-              <Button label="Search rentals" onPress={() => router.push("/(app)/(tabs)/explore")} />
-              {!me || me.capabilities.available_workspaces.includes("provider") ? (
-                <Button
-                  label={me?.capabilities.provider.workspace_access ? "Open property tools" : "I own/manage property"}
-                  variant="secondary"
-                  onPress={() => void openListingWorkspace()}
-                  busy={workspaceBusy || providerRequested}
-                  busyLabel={state.status === "loading" ? "Checking your session…" : "Opening…"}
-                />
-              ) : null}
-              {workspaceError ? <Notice tone="error" title={workspaceError} /> : null}
-              {state.status === "signed_out" ? (
-                <Notice tone="info" title="No account needed to browse" body="Your phone becomes useful when you want us to remember or send something." />
-              ) : null}
-            </>
-          )}
-          {browsing ? <Type variant="title2">New verified listings</Type> : null}
-        </View>
-      }
-      renderItem={({ item }) => (
-        <ListingCard
-          listing={item}
-          onPress={() => router.push({ pathname: "/(app)/listing/[id]", params: { id: item.id } })}
-        />
-      )}
-      ListEmptyComponent={
-        // A tenant with no listings shown is not an empty search result, and
-        // telling them "no active rentals yet" on their own home would be
-        // answering a question they did not ask. Explore is the tab for that.
-        browsing ? (
-          <Notice
-            tone="info"
-            title="No active rentals yet"
-            body="Approved listings will appear here as soon as providers publish them."
-          />
-        ) : null
-      }
-    />
+        ) : (
+          <>
+            <PublicHome
+              onExplore={() => router.push("/(app)/(tabs)/explore")}
+              onProvider={() => void openListingWorkspace()}
+              providerLabel={
+                me?.capabilities.provider.workspace_access
+                  ? "Open property tools"
+                  : "I own or manage property"
+              }
+              providerBusy={workspaceBusy || providerRequested}
+              providerBusyLabel={
+                state.status === "loading" ? "Checking your session…" : "Opening…"
+              }
+              showProvider={!me || me.capabilities.available_workspaces.includes("provider")}
+            />
+            {workspaceError ? <Notice tone="error" title={workspaceError} /> : null}
+          </>
+        )}
+      </View>
+    </ScrollView>
   );
 }

@@ -79,7 +79,19 @@ export default function SavedScreen() {
   }, [items]);
 
   if (!signedIn) {
-    return <AuthPrompt title="Save your shortlist" body="Verify your phone once and your saved properties will follow you across devices." next="/(app)/saved" />;
+    return (
+      <AuthPrompt
+        icon="bookmark"
+        tone="laterite"
+        title="Save your shortlist"
+        body="The places you are weighing up, kept together and on every device."
+        next="/(app)/saved"
+        points={[
+          { icon: "phone-portrait-outline", label: "Your shortlist follows your account" },
+          { icon: "eye-outline", label: "Ask to view without retyping anything" },
+        ]}
+      />
+    );
   }
 
   return (

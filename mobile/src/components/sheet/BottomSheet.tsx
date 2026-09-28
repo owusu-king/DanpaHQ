@@ -18,10 +18,10 @@ import {
 } from "react-native";
 
 import { ModalSafeArea, SafeInsets } from "@/components/sheet/ModalSafeArea";
+import { SHEET_GROUND, SheetScope } from "@/components/sheet/SheetParts";
 import { Type, motion, space } from "@/components/ui";
 import { useReduceMotion } from "@/motion";
 import { isAndroid, pressableFeedback, safeHeaderTop } from "@/platform";
-import { shell } from "@/shell";
 import { theme } from "@/theme";
 
 /** Past this share of its own height, a drag lets the sheet go… */
@@ -37,12 +37,23 @@ const OVERPULL = 24;
  * so the sheet claims the gesture before a scroll view inside it can start one.
  */
 const DRAG_SLOP = 4;
+/** The sheet's rounder top. */
+const SHEET_RADIUS = 32;
+/** How far the footer's pills stand above the home indicator or navigation bar. */
+const FOOTER_LIFT = space[3];
+/** The handle's touch strip: the whole width, and a thumb's height. */
+const HANDLE_HEIGHT = 28;
 
 type BottomSheetProps = {
   visible: boolean;
   onClose: () => void;
   /** Said once, at the top, beside the close button. */
   title: string;
+  /**
+   * Keep the title for screen readers but draw none: a sheet whose contents say
+   * what it is — Filters — opens straight onto them, under its handle and close.
+   */
+  hideTitle?: boolean;
   /** What closing does — "Close filters" — for the close button and the scrim. */
   closeLabel: string;
   /** Actions pinned under the scrolling body, above the home indicator. */
@@ -62,11 +73,10 @@ type BottomSheetProps = {
  * It has two resting places — open at the height its content needs, capped below
  * the status bar, and gone — and it follows the finger between them:
  *
- * - **The handle and title row drag it** in either direction, even when the drag
- *   starts on the close button. Upwards it gives a little and holds.
- * - **The body drags it down only from the top of its scroll.** Anywhere else a
- *   drag scrolls, as it should. The sheet claims its gesture below the
- *   platforms' touch slop, and while it moves the scroll view stands still.
+ * - **Only the handle drags it** (owner, 2026-09-28, as WhatsApp does), in either
+ *   direction; upwards it gives a little and holds. The body never does: a drag
+ *   there scrolls or works the control under the finger, and never has to guess
+ *   which the person meant. The close button closes it with a tap.
  * - **Letting go past a quarter of its height, past 160pt, or on a downward
  *   flick closes it**, falling from wherever the finger left it at least as fast
  *   as the finger was going. Anything less springs home without overshooting.
@@ -77,7 +87,7 @@ type BottomSheetProps = {
  * escape all close it; the footer stays clear of the home indicator, and on iOS
  * the keyboard pushes the sheet up rather than covering its fields.
  */
-export function BottomSheet({ visible, onClose, title, closeLabel, footer, children }: BottomSheetProps) {
+export function BottomSheet({ visible, onClose, title, hideTitle = false, closeLabel, footer, children }: BottomSheetProps) {
   const { height: windowHeight } = useWindowDimensions();
   const reduceMotion = useReduceMotion();
 
@@ -86,7 +96,6 @@ export function BottomSheet({ visible, onClose, title, closeLabel, footer, child
   const [dragging, setDragging] = useState(false);
 
   const translate = useRef(new Animated.Value(windowHeight)).current;
-  const scrollTop = useRef(0);
   const dragBase = useRef(0);
   const releaseSpeed = useRef(0);
   const opening = useRef(false);
@@ -159,7 +168,7 @@ export function BottomSheet({ visible, onClose, title, closeLabel, footer, child
     }).start();
   };
 
-  const [grab, pull] = useMemo(() => {
+  const grab = useMemo(() => {
     const settle = (gesture: PanResponderGestureState) => {
       setDragging(false);
       const position = dragBase.current + gesture.dy;
@@ -179,9 +188,14 @@ export function BottomSheet({ visible, onClose, title, closeLabel, footer, child
     };
     const vertical = (gesture: PanResponderGestureState) =>
       Math.abs(gesture.dy) > DRAG_SLOP && Math.abs(gesture.dy) > Math.abs(gesture.dx);
-    const responder = (claims: (gesture: PanResponderGestureState) => boolean) =>
-      PanResponder.create({
-        onMoveShouldSetPanResponderCapture: (_, gesture) => claims(gesture),
+    return PanResponder.create({
+        // The handle owns a touch from the moment it lands, as Explore's grabber
+        // does. Waiting to take it on the first move left a touch with no owner
+        // to take it from, and inside the sheet's modal on a phone the drag then
+        // never began. The close button, deeper in the same row, still claims
+        // its own tap first; a drag that starts on it is taken on the move.
+        onStartShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponderCapture: (_, gesture) => vertical(gesture),
         onPanResponderGrant: () => {
           Keyboard.dismiss();
           setDragging(true);
@@ -199,12 +213,6 @@ export function BottomSheet({ visible, onClose, title, closeLabel, footer, child
         onPanResponderRelease: (_, gesture) => settle(gesture),
         onPanResponderTerminate: (_, gesture) => settle(gesture),
       });
-    return [
-      // The handle and title row, in either direction, over any control in them.
-      responder(vertical),
-      // The body, downwards from the top of its scroll; any other drag scrolls.
-      responder((gesture) => scrollTop.current <= 0 && gesture.dy > 0 && vertical(gesture)),
-    ] as const;
   }, [translate]);
 
   const scrim = useMemo(
@@ -231,6 +239,7 @@ export function BottomSheet({ visible, onClose, title, closeLabel, footer, child
               <View pointerEvents="box-none" style={styles.stage}>
                 <Animated.View
                   accessibilityViewIsModal
+                  accessibilityLabel={hideTitle ? title : undefined}
                   onAccessibilityEscape={onClose}
                   onLayout={measure}
                   style={[
@@ -242,8 +251,23 @@ export function BottomSheet({ visible, onClose, title, closeLabel, footer, child
                   ]}
                 >
                   <View style={styles.clip}>
-                    <View collapsable={false} {...grab.panHandlers}>
+                    {/* The handle: the whole width of the sheet's top, and the one
+                        place a drag moves it. Without a title, the close button
+                        shares its row. */}
+                    <View collapsable={false} style={[styles.handle, hideTitle ? styles.handleWithClose : null]} {...grab.panHandlers}>
                       <View style={styles.grabber} />
+                      {hideTitle ? <View style={styles.handleClose}><Pressable
+                            accessibilityRole="button"
+                            accessibilityLabel={closeLabel}
+                            hitSlop={6}
+                            onPress={onClose}
+                            {...pressableFeedback(theme.color.field["200"])}
+                            style={({ pressed }) => [styles.close, pressed && !isAndroid ? styles.closePressed : null]}
+                          >
+                            <Ionicons name="close" size={20} color={theme.color.ink["700"]} />
+                          </Pressable></View> : null}
+                    </View>
+                    {hideTitle ? null : (
                       <View style={styles.header}>
                         <Type variant="title2" accessibilityRole="header">{title}</Type>
                         <Pressable
@@ -257,16 +281,12 @@ export function BottomSheet({ visible, onClose, title, closeLabel, footer, child
                           <Ionicons name="close" size={20} color={theme.color.ink["700"]} />
                         </Pressable>
                       </View>
-                    </View>
-                    <View collapsable={false} style={styles.body} {...pull.panHandlers}>
+                    )}
+                    <View style={styles.body}>
                       <ScrollView
                         scrollEnabled={!dragging}
                         bounces={false}
                         overScrollMode="never"
-                        scrollEventThrottle={16}
-                        onScroll={(event) => {
-                          scrollTop.current = event.nativeEvent.contentOffset.y;
-                        }}
                         keyboardShouldPersistTaps="handled"
                         contentContainerStyle={[
                           styles.bodyContent,
@@ -277,12 +297,12 @@ export function BottomSheet({ visible, onClose, title, closeLabel, footer, child
                           footer ? null : { paddingBottom: Math.max(edge.bottom, space[4]) },
                         ]}
                       >
-                        {children}
+                        <SheetScope>{children}</SheetScope>
                       </ScrollView>
                     </View>
                     {footer ? (
-                      <View style={[styles.footer, { paddingBottom: Math.max(edge.bottom, space[4]) }]}>
-                        {footer}
+                      <View style={[styles.footer, { paddingBottom: Math.max(edge.bottom, space[4]) + FOOTER_LIFT }]}>
+                        <SheetScope>{footer}</SheetScope>
                       </View>
                     ) : null}
                   </View>
@@ -308,11 +328,13 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "flex-end",
   },
-  // The tokens' sheet: paper, the generous radius, a soft shadow thrown upwards.
+  // One warm grey from handle to footer, a round top and a soft shadow thrown
+  // upwards. Nothing inside is ruled off: the white cards on it are what separate
+  // one thing from another (owner, 2026-09-27, after WhatsApp's call sheet).
   sheet: {
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    backgroundColor: shell.paper,
+    borderTopLeftRadius: SHEET_RADIUS,
+    borderTopRightRadius: SHEET_RADIUS,
+    backgroundColor: SHEET_GROUND,
     shadowColor: theme.color.ink["900"],
     shadowOpacity: 0.22,
     shadowRadius: 16,
@@ -323,15 +345,27 @@ const styles = StyleSheet.create({
   clip: {
     flexShrink: 1,
     overflow: "hidden",
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    borderTopLeftRadius: SHEET_RADIUS,
+    borderTopRightRadius: SHEET_RADIUS,
+  },
+  handle: {
+    height: HANDLE_HEIGHT,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  // Without a title the handle's row is tall enough for the close button too.
+  handleWithClose: {
+    height: 56,
+  },
+  handleClose: {
+    position: "absolute",
+    top: space[2] + 2,
+    right: space[4],
   },
   grabber: {
-    alignSelf: "center",
-    width: 36,
-    height: 4,
-    marginTop: space[2],
-    borderRadius: 2,
+    width: 40,
+    height: 5,
+    borderRadius: 3,
     backgroundColor: theme.color.field["300"],
   },
   header: {
@@ -340,17 +374,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingLeft: space[5],
-    paddingRight: space[3],
-    borderBottomWidth: 1,
-    borderBottomColor: shell.rule,
+    paddingRight: space[4],
   },
   close: {
-    width: 40,
-    height: 40,
+    width: 36,
+    height: 36,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 20,
-    backgroundColor: theme.color.field["100"],
+    borderRadius: 18,
+    backgroundColor: theme.color.field["0"],
   },
   closePressed: {
     opacity: 0.72,
@@ -359,18 +391,17 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
   bodyContent: {
-    paddingHorizontal: space[5],
-    paddingVertical: space[1],
+    gap: space[3],
+    paddingHorizontal: space[4],
+    paddingTop: space[1],
+    paddingBottom: space[2],
   },
   footer: {
     flexDirection: "row",
     alignItems: "center",
     gap: space[3],
     paddingTop: space[3],
-    paddingLeft: space[2],
-    paddingRight: space[5],
-    borderTopWidth: 1,
-    borderTopColor: shell.rule,
-    backgroundColor: shell.canvas,
+    paddingHorizontal: space[4],
+    backgroundColor: SHEET_GROUND,
   },
 });

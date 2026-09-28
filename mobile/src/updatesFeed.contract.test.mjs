@@ -41,7 +41,7 @@ test("one toolbar says what is showing, marks everything read and opens the one 
 
 test("the sheet holds the same vocabulary, and a topic with nothing in it takes no line", () => {
   const source = screen();
-  assert.match(source, /<BottomSheet\s+visible=\{filtering\}\s+onClose=\{\(\) => setFiltering\(false\)\}\s+title="Filter"\s+closeLabel="Close filter"/);
+  assert.match(source, /<BottomSheet\s+visible=\{filtering\}\s+onClose=\{\(\) => setFiltering\(false\)\}\s+title="Filter"\s+hideTitle\s+closeLabel="Close filter"/);
   assert.match(source, /label="All" count=\{items\?\.length \?\? 0\} selected=\{view === "all"\} onPress=\{\(\) => selectView\("all"\)\}/);
   assert.match(source, /label="Unread" count=\{counts\.unread\} selected=\{view === "unread"\} onPress=\{\(\) => selectView\("unread"\)\}/);
   assert.match(source, /label="Action needed" count=\{counts\.action\} selected=\{view === "action"\} onPress=\{\(\) => selectView\("action"\)\}/);

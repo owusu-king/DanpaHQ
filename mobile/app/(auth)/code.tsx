@@ -1,11 +1,19 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, TextInput, View } from "react-native";
+import { Platform, StyleSheet, TextInput, View } from "react-native";
 
 import { apiFetch, ApiFailure } from "@/api";
 import { useAuth, type Me } from "@/auth";
-import { Button, Notice, Type, space } from "@/components/ui";
-import { hapticsPolicy, isIOS, otpInputProps } from "@/platform";
+import { TextLink } from "@/components/auth/AuthFields";
+import {
+  AuthBack,
+  AuthFoot,
+  AuthHeading,
+  AuthScene,
+  CodeCells,
+} from "@/components/auth/AuthScene";
+import { Notice, Type, space } from "@/components/ui";
+import { hapticsPolicy } from "@/platform";
 import { theme } from "@/theme";
 import { resolveEntryRoute } from "@/navigation";
 import {
@@ -13,6 +21,48 @@ import {
   pendingOnboardingIntent,
   rememberOnboardingIntent,
 } from "@/onboardingIntent";
+
+/**
+ * A buzz, which must never decide whether a sign-up completes.
+ *
+ * This screen used to reach for haptics inline:
+ *
+ * ```
+ * const Haptics = await import("expo-haptics").catch(() => null);
+ * await Haptics?.notificationAsync(Haptics.NotificationFeedbackType.Success);
+ * ```
+ *
+ * The `catch` covers the *import* and nothing after it. On a handset where the
+ * module resolves but `NotificationFeedbackType` does not — a build without the
+ * native module linked — that second line throws
+ * `Cannot read property 'Success' of undefined`, and the two places it is
+ * called are the worst two places in the flow for a throw:
+ *
+ * - On success it is inside the `try`, so a correct six-digit code was verified,
+ *   the account was proved, and then the screen reported "That did not work"
+ *   and stayed put. The session was never established, so somebody mid-sign-up
+ *   was dropped back to the start as though they had been signed out.
+ * - In the `catch` it is inside nothing at all, so it escaped `submit` as an
+ *   unhandled rejection.
+ *
+ * So it is fire-and-forget, with one `catch` around the whole chain — the shape
+ * `MainTabBar`, `FilterFields` and the provider dashboard already use — and the
+ * enum is read inside the `then`, where a failure is caught rather than thrown.
+ * Nothing is awaited: a garnish must not sit between a proved number and the
+ * next screen.
+ */
+function buzz(kind: "success" | "error") {
+  if (!(kind === "success" ? hapticsPolicy.onSuccess : hapticsPolicy.onError)) return;
+  void import("expo-haptics")
+    .then((haptics) =>
+      haptics.notificationAsync(
+        kind === "success"
+          ? haptics.NotificationFeedbackType.Success
+          : haptics.NotificationFeedbackType.Error,
+      ),
+    )
+    .catch(() => null);
+}
 
 /**
  * The code screen. This is where sign-ups are won or lost.
@@ -30,6 +80,13 @@ import {
  *   server actually enforces, so the button never lies about being available.
  * - **The number is shown with a way back.** Mistyping the number is the
  *   commonest reason a code never arrives, and the fix must be one tap away.
+ *
+ * The six cells stand on the page. They were briefly framed inside a frosted
+ * panel, together with the clock and the resend, on the reasoning that they are
+ * one thing — but a white box on a white surface has no edges, so what it
+ * actually produced was six faint outlines where there should be six obvious
+ * places to put a digit. The clock and the resend still sit under them as one
+ * line, which is the part of that idea worth keeping.
  */
 export default function CodeScreen() {
   const router = useRouter();
@@ -89,10 +146,7 @@ export default function CodeScreen() {
           },
         });
 
-        if (hapticsPolicy.onSuccess) {
-          const Haptics = await import("expo-haptics").catch(() => null);
-          await Haptics?.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        }
+        buzz("success");
 
         const requestedIntent = asOnboardingIntent(params.intent)
           ?? await pendingOnboardingIntent();
@@ -137,10 +191,7 @@ export default function CodeScreen() {
         router.replace(resolveEntryRoute(account, context) as never);
       } catch (cause) {
         setCode("");
-        if (hapticsPolicy.onError) {
-          const Haptics = await import("expo-haptics").catch(() => null);
-          await Haptics?.notificationAsync(Haptics.NotificationFeedbackType.Error);
-        }
+        buzz("error");
         setError(
           cause instanceof ApiFailure ? cause.error.message : "That did not work. Try again.",
         );
@@ -187,106 +238,116 @@ export default function CodeScreen() {
   }
 
   const expired = expiresIn <= 0;
+  const clock = `${Math.floor(expiresIn / 60)}:${String(expiresIn % 60).padStart(2, "0")}`;
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1 }}
-      behavior={isIOS ? "padding" : undefined}
+    <AuthScene
+      progress={{ step: 2, of: 3 }}
+      header={<AuthBack label="Back to your number" onPress={() => router.back()} />}
     >
-      <ScrollView
-        contentContainerStyle={{ padding: space[5], gap: space[6] }}
-        keyboardShouldPersistTaps="handled"
-      >
-        <View style={{ gap: space[3] }}>
-          <Type variant="display2">Enter the code</Type>
-          <Type variant="body" style={{ color: theme.color.ink["700"] }}>
-            We sent six digits to {params.phoneDisplay}.
-          </Type>
-          <Pressable onPress={() => router.back()} accessibilityRole="link">
-            <Type variant="caption" style={{ color: theme.color.kola["600"] }}>
-              Wrong number? Change it
+      <AuthHeading
+        title="Enter the code"
+        line={`We sent six digits to ${params.phoneDisplay}.`}
+      />
+
+      {/* The six cells stand on the page, not inside a panel. Framed by one,
+          they were white boxes on a white surface and their edges disappeared —
+          six faint outlines where there should be six places to put a digit.
+          On the ground they lift the way they always did. */}
+      <View style={styles.codeBlock}>
+        <CodeCells
+          value={code}
+          onChangeText={onChange}
+          error={Boolean(error)}
+          autoFocus
+          inputRef={inputRef}
+        />
+
+        {/* How long this code lives, and how to get another — on one line,
+            because they are the same question asked twice. */}
+        <View style={styles.clockRow}>
+          {expired ? (
+            <Type variant="caption" style={styles.expired}>
+              This code has expired
             </Type>
-          </Pressable>
+          ) : (
+            <Type variant="caption">Expires in {clock}</Type>
+          )}
+          {resendIn > 0 ? (
+            <Type variant="caption" style={styles.waiting}>
+              New code in {resendIn}s
+            </Type>
+          ) : (
+            <TextLink label="Send a new code" strong onPress={resend} />
+          )}
         </View>
+      </View>
 
-        <Pressable
-          onPress={() => inputRef.current?.focus()}
-          accessibilityRole="none"
-          accessible={false}
-        >
-          <View style={{ flexDirection: "row", gap: space[2], justifyContent: "space-between" }}>
-            {Array.from({ length: 6 }).map((_, index) => {
-              const filled = index < code.length;
-              const active = index === code.length;
-              return (
-                <View
-                  key={index}
-                  style={{
-                    flex: 1,
-                    height: 56,
-                    borderRadius: 8,
-                    borderWidth: active ? 2 : 1,
-                    borderColor: error
-                      ? theme.color.laterite["600"]
-                      : active
-                        ? theme.color.kola["600"]
-                        : theme.color.field["300"],
-                    backgroundColor: theme.color.field["0"],
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  <Type variant="title1" style={{ fontFamily: "monospace" }}>
-                    {filled ? code[index] : ""}
-                  </Type>
-                </View>
-              );
-            })}
-          </View>
+      {error ? <Notice tone="error" title={error} /> : null}
 
-          {/* One real input behind the cells: keeps autofill, paste and
-              backspace working the way the platform expects. */}
-          <TextInput
-            ref={inputRef}
-            value={code}
-            onChangeText={onChange}
-            autoFocus
-            maxLength={6}
-            accessibilityLabel="Six digit code"
-            accessibilityHint="Enter the code we sent by text message"
-            style={{ position: "absolute", opacity: 0, height: 56, width: "100%" }}
-            {...otpInputProps}
-          />
-        </Pressable>
-
-        {error ? <Notice tone="error" title={error} /> : null}
-
-        {expired ? (
-          <Notice
-            tone="warning"
-            title="That code has expired"
-            body="Ask for a new one to carry on."
-          />
-        ) : (
-          <Type variant="caption">
-            The code expires in {Math.floor(expiresIn / 60)}:
-            {String(expiresIn % 60).padStart(2, "0")}.
-          </Type>
-        )}
-
-        <Button
-          label={resendIn > 0 ? `Send a new code in ${resendIn}s` : "Send a new code"}
-          variant="secondary"
-          onPress={resend}
-          disabled={resendIn > 0 || busy}
-        />
-
-        <Notice
-          tone="info"
-          title="Not arrived?"
-          body="Delivery can take a minute on a busy network. Check you have signal, and that the number above is right."
-        />
-      </ScrollView>
-    </KeyboardAvoidingView>
+      <AuthFoot>
+        <TextLink label="Wrong number? Change it" onPress={() => router.back()} />
+        <Type variant="caption" style={styles.footnote}>
+          Delivery can take a minute. We will never ask you for this code.
+        </Type>
+      </AuthFoot>
+    </AuthScene>
   );
 }
+
+const styles = StyleSheet.create({
+  codeBlock: {
+    gap: space[3],
+  },
+  cells: {
+    flexDirection: "row",
+    gap: space[2],
+    justifyContent: "space-between",
+  },
+  // Six white boxes, as they were: one grey hairline each, the one you are
+  // filling in taking a second point of kola, and the whole row turning
+  // laterite when a code is refused. A pale kola fill for landed digits was
+  // tried and is gone — it made three of the six look like a different control.
+  cell: {
+    flex: 1,
+    height: 56,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: theme.color.field["300"],
+    backgroundColor: theme.color.field["0"],
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  cellActive: {
+    borderWidth: 2,
+    borderColor: theme.color.kola["600"],
+  },
+  cellWrong: {
+    borderColor: theme.color.laterite["600"],
+  },
+  digit: {
+    fontFamily: "monospace",
+  },
+  hiddenInput: {
+    position: "absolute",
+    opacity: 0,
+    height: 56,
+    width: "100%",
+  },
+  clockRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: space[3],
+  },
+  expired: {
+    color: theme.color.laterite["600"],
+  },
+  waiting: {
+    color: theme.color.ink["300"],
+  },
+  footnote: {
+    textAlign: "center",
+    color: theme.color.ink["500"],
+  },
+});

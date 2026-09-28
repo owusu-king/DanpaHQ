@@ -44,7 +44,7 @@ test("one Filter control replaces the tabs and the chips", () => {
 
   // The sheet is the shared one a thumb can put away, not a modal of its own.
   assert.match(source, /import \{ BottomSheet \} from "@\/components\/sheet\/BottomSheet";/);
-  assert.match(source, /<BottomSheet\s+visible=\{visible\}\s+onClose=\{onClose\}\s+title="Filter"\s+closeLabel="Close filter"/);
+  assert.match(source, /<BottomSheet\s+visible=\{visible\}\s+onClose=\{onClose\}\s+title="Filter"\s+hideTitle\s+closeLabel="Close filter"/);
   assert.doesNotMatch(between(source, "function FilterSheet(", "function ExpenseModal("), /<Modal/);
 });
 
@@ -67,7 +67,10 @@ test("the sheet groups what to show and which balances, with counts, and closes 
 
   // It closes on what it will show, and Reset returns to where the page opens.
   assert.match(sheet, /footer=\{<SheetFooter canReset=\{changed\} onReset=\{onReset\} results=\{results\} onShow=\{onClose\} \/>\}/);
-  assert.match(parts, /Show \{results\} \{results === 1 \? "result" : "results"\}/);
+  assert.match(parts, /const shown = `Show \$\{results\} \$\{results === 1 \? "result" : "results"\}`;/);
+  // Reset as glass and the results as the sheet's deep kola pill.
+  assert.match(parts, /<SheetGlassButton label="Reset" icon="refresh" accessibilityLabel="Reset filter" disabled=\{!canReset\} onPress=\{onReset\} \/>/);
+  assert.match(parts, /<SheetPrimaryButton label=\{shown\} onPress=\{onShow\} \/>/);
   assert.match(source, /results=\{rows\.length\}/);
   assert.match(source, /onReset=\{\(\) => \{ setView\("balances"\); setFilter\("all"\); setQuery\(""\); \}\}/);
 

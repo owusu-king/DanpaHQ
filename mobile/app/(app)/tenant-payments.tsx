@@ -159,7 +159,20 @@ export default function TenantPaymentsScreen() {
   };
 
   if (!signedIn) {
-    return <AuthPrompt title="Your payments" body="Sign in to see rent due, payment activity and receipts for every home." next="/(app)/(tabs)/payments" />;
+    return (
+      <AuthPrompt
+        icon="wallet"
+        tone="kola"
+        title="Your payments"
+        body="Rent due, what you have paid, and a receipt for each — for every home you rent."
+        next="/(app)/(tabs)/payments"
+        points={[
+          { icon: "calendar-outline", label: "See what is due before it is late" },
+          { icon: "card-outline", label: "Pay rent from the app" },
+          { icon: "document-text-outline", label: "Keep a receipt for every payment" },
+        ]}
+      />
+    );
   }
 
   return (

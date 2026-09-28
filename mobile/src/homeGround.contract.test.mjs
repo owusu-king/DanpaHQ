@@ -111,9 +111,12 @@ test("the ground is tonal and faintly glassy, and never takes a touch", () => {
   assert.match(ground, /pointerEvents="none"\s+accessibilityElementsHidden\s+importantForAccessibility="no-hide-descendants"/);
   // One gradient id per mount, so two grounds in one web document never collide.
   assert.match(ground, /const id = `ground\$\{useId\(\)\.replace\(\/\[\^a-zA-Z0-9\]\/g, ""\)\}`;/);
-  // Painting is a prop, so a screen that becomes a dashboard keeps its tree.
-  assert.match(ground, /style=\{\[styles\.fill, active \? styles\.painted : null\]\}/);
-  assert.match(ground, /\{active \? \(/);
+  // It paints, full stop. `active` existed so the tenant's signed-out Home
+  // could hold the same tree unpainted while it was a wall of listing cards;
+  // those moved to Explore, both Homes paint in every state, and nothing passed
+  // the prop any more.
+  assert.match(ground, /style=\{\[styles\.fill, styles\.painted\]\}/);
+  assert.doesNotMatch(ground, /active/);
 });
 
 test("both Homes stand on it in every state, and every other tab keeps the ivory", () => {
@@ -122,8 +125,11 @@ test("both Homes stand on it in every state, and every other tab keeps the ivory
 
   // The provider's first Property, skeleton and Portfolio are all inside one ground.
   assert.match(provider, /export default function ProviderHomeScreen\(\) \{\s*return \(\s*<HomeGround>\s*<ProviderHome \/>\s*<\/HomeGround>/);
-  // The tenant's Home is a dashboard only when signed in, without a remount.
-  assert.match(tenant, /<HomeGround active=\{state\.status === "signed_in"\}>\s*<DiscoveryHome \/>\s*<\/HomeGround>/);
+  // The tenant's Home stands on it in both states, exactly like the provider's.
+  assert.match(tenant, /<HomeGround>\s*<DiscoveryHome \/>\s*<\/HomeGround>/);
+  // And it lists nothing: Explore is the tab with the catalogue, the search
+  // field, the filters and the map. Home showing the first six was a worse copy.
+  assert.doesNotMatch(tenant, /ListingCard|searchListings|FlatList/);
   // No scroller paints over the ground, and the stone is gone.
   for (const source of [provider, tenant]) {
     assert.doesNotMatch(source, /ph\.stone|backgroundColor: ph\.ground/);
@@ -133,8 +139,9 @@ test("both Homes stand on it in every state, and every other tab keeps the ivory
   assert.match(code(read("src/shell.ts")), /dashboard: ph\.ground,/);
   const providerTabs = code(read("app/(app)/(provider-tabs)/_layout.tsx"));
   const renterTabs = code(read("app/(app)/(tabs)/_layout.tsx"));
-  assert.match(providerTabs, /name="index" options=\{\{[^\n]*sceneStyle: \{ backgroundColor: shell\.dashboard \}/);
-  assert.match(renterTabs, /const home = state\.status === "signed_in" \? shell\.dashboard : shell\.canvas;/);
+  for (const layout of [providerTabs, renterTabs]) {
+    assert.match(layout, /name="index" options=\{\{[^\n]*sceneStyle: \{ backgroundColor: shell\.dashboard \}/);
+  }
   for (const layout of [providerTabs, renterTabs]) {
     assert.match(layout, /sceneStyle: \{ backgroundColor: shell\.canvas \}/);
   }

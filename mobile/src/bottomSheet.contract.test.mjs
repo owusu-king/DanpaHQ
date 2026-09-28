@@ -19,27 +19,34 @@ const search = () => code(read("app/(app)/search.tsx"));
 test("Explore's filters open in the one sheet a thumb can put away", () => {
   const screen = search();
   assert.match(screen, /import \{ BottomSheet \} from "@\/components\/sheet\/BottomSheet";/);
-  assert.match(screen, /<BottomSheet\s+visible=\{visible\}\s+onClose=\{onClose\}\s+title="Filters"\s+closeLabel="Close filters"/);
+  assert.match(screen, /<BottomSheet\s+visible=\{visible\}\s+onClose=\{onClose\}\s+title="Filters"\s+hideTitle\s+closeLabel="Close filters"/);
   // The screen no longer builds a modal of its own.
   assert.doesNotMatch(screen, /<Modal/);
 });
 
-test("a downward drag always has somewhere to go", () => {
+test("only the handle drags it, as WhatsApp's sheets do", () => {
   const source = sheet();
 
-  // The handle and title row claim any vertical drag, even one that starts on
-  // the close button.
-  assert.match(source, /responder\(vertical\)/);
-  // The body claims only a downward drag from the top of its scroll; any other
-  // drag scrolls, as it should.
-  assert.match(source, /responder\(\(gesture\) => scrollTop\.current <= 0 && gesture\.dy > 0 && vertical\(gesture\)\)/);
-  assert.match(source, /onMoveShouldSetPanResponderCapture: \(_, gesture\) => claims\(gesture\)/);
-  assert.match(source, /scrollTop\.current = event\.nativeEvent\.contentOffset\.y;/);
-  // Claimed below the platforms' touch slop, so the native scroll view inside
-  // never starts a scroll of its own first.
+  // One responder, on the handle: the full width of the sheet's top, a thumb's
+  // height, and — when there is no title — the close button's row too (owner,
+  // 2026-09-28). It claims any vertical drag that starts there.
+  assert.match(source, /const grab = useMemo\(\(\) => \{/);
+  assert.match(source, /onMoveShouldSetPanResponderCapture: \(_, gesture\) => vertical\(gesture\)/);
+  // It owns the touch from the moment it lands, as Explore's grabber does. Taken
+  // only on the first move, a handle with nothing under the finger to take it
+  // from never began a drag inside the sheet's modal on a phone (owner,
+  // 2026-09-28: "all the other filters don't allow handle swipe down").
+  assert.match(source, /onStartShouldSetPanResponder: \(\) => true,/);
+  assert.equal((source.match(/\{\.\.\.grab\.panHandlers\}/g) ?? []).length, 1);
+  assert.match(source, /<View collapsable=\{false\} style=\{\[styles\.handle, hideTitle \? styles\.handleWithClose : null\]\} \{\.\.\.grab\.panHandlers\}>/);
+  assert.match(source, /const HANDLE_HEIGHT = 28;/);
+
+  // The body never drags the sheet: a drag there scrolls or works the control
+  // under the finger, and nothing has to guess which was meant.
+  assert.doesNotMatch(source, /pull\.panHandlers|scrollTop|overflows/);
+  assert.match(source, /<View style=\{styles\.body\}>/);
   assert.match(source, /const DRAG_SLOP = 4;/);
-  // Views that exist natively, so they can take the gesture from their children.
-  assert.equal((source.match(/collapsable=\{false\}/g) ?? []).length, 2);
+  assert.equal((source.match(/collapsable=\{false\}/g) ?? []).length, 1);
 
   // Once the sheet is moving, nothing inside it can take the drag away, and a
   // cancelled drag still settles somewhere.
@@ -98,7 +105,18 @@ test("it is safe at every edge and closable every way", () => {
   assert.match(source, /onRequestClose=\{onClose\}/);
   assert.match(source, /onAccessibilityEscape=\{onClose\}/);
   assert.match(source, /accessibilityViewIsModal/);
-  assert.equal((source.match(/accessibilityLabel=\{closeLabel\}/g) ?? []).length, 2);
+  // The scrim, and the close button in whichever row it sits: beside the title,
+  // or on the handle's row when the title is not drawn.
+  assert.equal((source.match(/accessibilityLabel=\{closeLabel\}/g) ?? []).length, 3);
+
+  // The footer's pills stand a little above the home indicator or navigation
+  // bar rather than on it (owner, 2026-09-28).
+  assert.match(source, /const FOOTER_LIFT = space\[3\];/);
+  assert.match(source, /paddingBottom: Math\.max\(edge\.bottom, space\[4\]\) \+ FOOTER_LIFT/);
+
+  // A sheet can draw no title and still be named to a screen reader.
+  assert.match(source, /accessibilityLabel=\{hideTitle \? title : undefined\}/);
+  assert.match(source, /\{hideTitle \? null : \(\s*<View style=\{styles\.header\}>/);
 
   // Grabbing it puts the keyboard away rather than dragging a field with it.
   assert.match(source, /Keyboard\.dismiss\(\);/);

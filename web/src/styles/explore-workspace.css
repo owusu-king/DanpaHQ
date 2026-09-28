@@ -718,7 +718,7 @@
 
 .explore-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 22rem), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 16rem), 1fr));
   gap: var(--space-5);
   padding: 0;
   margin: 0;
@@ -867,11 +867,14 @@
 .listing-card-body a { color: inherit; text-decoration: none; }
 .listing-card-body a:hover { color: var(--brand); }
 
+/* Four to a row, a card can be too narrow for the rent and the advance side by
+   side. The advance then wraps under the rent rather than printing over it. */
 .listing-card-price-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
   justify-content: space-between;
-  gap: var(--space-3);
+  gap: .2rem var(--space-3);
   min-width: 0;
 }
 

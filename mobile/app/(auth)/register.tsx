@@ -1,15 +1,23 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Platform, StyleSheet, View } from "react-native";
 
 import { apiFetch } from "@/api";
 import { useAuth, type Me } from "@/auth";
-import { Button, Field, Notice, Surface, Type, space } from "@/components/ui";
+import {
+  AuthAction,
+  AuthField,
+  AuthFields,
+  AuthFoot,
+  AuthHeading,
+  AuthScene,
+  PickCard,
+  RevealToggle,
+} from "@/components/auth/AuthScene";
+import { Notice, Type, space } from "@/components/ui";
 import { fieldErrorsFrom, summaryErrorFrom, type FieldErrors } from "@/formErrors";
 import { resolveEntryRoute } from "@/navigation";
 import { clearPendingOnboardingIntent, pendingOnboardingIntent } from "@/onboardingIntent";
-import { pressableFeedback } from "@/platform";
 import { theme } from "@/theme";
 import { describeDevice } from "@/device";
 import { chooseWorkspace } from "@/workspace";
@@ -28,12 +36,15 @@ import { chooseWorkspace } from "@/workspace";
  * password, so someone who had filled every box in could be left holding a dead
  * button with nothing on screen explaining why. Pressing now always does
  * something: it submits, or it says which field to fix.
+ *
+ * **A name is one line, not two.** First and last sat as two full-width fields
+ * one above the other, which on a 640-point screen pushed the password below
+ * the fold on a form that is already the longest in the flow.
  */
 const MIN_PASSWORD_LENGTH = 8;
 
 export default function RegisterScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const { refreshMe, signIn, deviceFingerprint } = useAuth();
   const params = useLocalSearchParams<{ workspace?: string; ticket?: string }>();
   //: Proof that the number was confirmed, cut by /auth/verify minutes ago. Empty
@@ -50,11 +61,12 @@ export default function RegisterScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
+  const [reveal, setReveal] = useState(false);
   const [errors, setErrors] = useState<FieldErrors>({});
   const [summary, setSummary] = useState("");
 
   // The route gate can send someone here on its own, without our parameters, so
-  // the journey they chose on the welcome screen is read back from storage as
+  // the answer they gave on the opening question is read back from storage as
   // well. Whichever arrives, the person can still change it below.
   useEffect(() => {
     if (params.workspace) return;
@@ -158,105 +170,136 @@ export default function RegisterScreen() {
   }
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1 }}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-    >
-      <ScrollView
-        contentContainerStyle={{
-          flexGrow: 1,
-          padding: space[5],
-          paddingTop: insets.top + space[10],
-          paddingBottom: insets.bottom + space[6],
-          gap: space[5],
-        }}
-        keyboardShouldPersistTaps="handled"
-      >
-        <View style={{ gap: space[2] }}>
-          <Type variant="label">STEP 3 OF 3</Type>
-          <Type variant="display2">Set up your account</Type>
-        </View>
+    <AuthScene progress={{ step: 3, of: 3 }}>
+      <AuthHeading title="Set up your account" line="The last step. Nothing exists until you finish it." />
 
-        <View style={{ gap: space[3] }}>
-          <Type variant="title2">What brings you here?</Type>
-          <AccountTypeCard
+      <View style={{ gap: space[3] }}>
+        <Type variant="label" style={styles.group}>
+          WHAT BRINGS YOU HERE
+        </Type>
+        <View accessibilityRole="radiogroup" style={{ gap: space[3] }}>
+          <PickCard
+            icon="home"
+            tone="kola"
             selected={accountType === "tenant"}
             title="I'm looking for a place"
             body="Save listings, ask to view, and apply."
             onPress={() => setAccountType("tenant")}
           />
-          <AccountTypeCard
+          <PickCard
+            icon="business"
+            tone="lagoon"
             selected={accountType === "provider"}
             title="I own or manage property"
-            body="Set up buildings and units privately. Advertising needs verification."
+            body="Set up buildings and Units privately. Advertising needs verification."
             onPress={() => setAccountType("provider")}
           />
         </View>
+      </View>
 
-        {accountType === "provider" ? (
-          <Notice
-            tone="info"
-            title="Provider access is reviewed separately"
-            body="You can add your buildings and units straight away. Advertising and collecting rent wait until your provider verification is approved."
+      {accountType === "provider" ? (
+        <Notice
+          tone="info"
+          title="Advertising and rent wait for verification"
+          body="Your buildings and Units can go in straight away."
+        />
+      ) : null}
+
+      {/* Two groups, not eight boxes: who you are, and how you get back in.
+          Five separately-framed fields stacked down the page was the single
+          biggest reason this form read as an endurance test. */}
+      <View style={{ gap: space[3] }}>
+        <Type variant="label" style={styles.group}>
+          WHO YOU ARE
+        </Type>
+        <AuthFields>
+          <AuthField
+            label="First name"
+            icon="person-outline"
+            placeholder="Ama"
+            value={firstName}
+            onChangeText={edit("first_name", setFirstName)}
+            error={errors.first_name}
+            autoComplete="given-name"
           />
-        ) : null}
+          <AuthField
+            label="Last name"
+            icon="person-outline"
+            placeholder="Mensah"
+            value={lastName}
+            onChangeText={edit("last_name", setLastName)}
+            error={errors.last_name}
+            autoComplete="family-name"
+          />
+          <AuthField
+            label="Date of birth"
+            icon="calendar-outline"
+            // A worked example, not a format string. "YYYY-MM-DD" tells people
+            // to type dashes the formatter is going to insert for them anyway.
+            placeholder="1994-03-02"
+            value={dateOfBirth}
+            // "19940302" becomes "1994-03-02". Expecting people to type the
+            // dashes was the commonest way to fill this in correctly and still
+            // be refused.
+            onChangeText={edit("date_of_birth", (value) => setDateOfBirth(formatDate(value)))}
+            error={errors.date_of_birth}
+            keyboardType="number-pad"
+            maxLength={10}
+          />
+        </AuthFields>
+      </View>
 
-        <Field
-          label="First name"
-          value={firstName}
-          onChangeText={edit("first_name", setFirstName)}
-          error={errors.first_name}
-          autoComplete="given-name"
-        />
-        <Field
-          label="Last name"
-          value={lastName}
-          onChangeText={edit("last_name", setLastName)}
-          error={errors.last_name}
-          autoComplete="family-name"
-        />
-        <Field
-          label="Date of birth"
-          placeholder="YYYY-MM-DD"
-          hint="Type the digits — the dashes are added for you."
-          value={dateOfBirth}
-          // "19940302" becomes "1994-03-02". Expecting people to type the dashes
-          // was the commonest way to fill this in correctly and still be refused.
-          onChangeText={edit("date_of_birth", (value) => setDateOfBirth(formatDate(value)))}
-          error={errors.date_of_birth}
-          keyboardType="number-pad"
-          maxLength={10}
-        />
-        <Field
-          label="Email (optional)"
-          value={email}
-          onChangeText={edit("email", setEmail)}
-          error={errors.email}
-          keyboardType="email-address"
-          autoCapitalize="none"
-          autoComplete="email"
-        />
-        <Field
-          label="Password"
-          value={password}
-          onChangeText={edit("password", setPassword)}
-          error={errors.password}
-          hint={`At least ${MIN_PASSWORD_LENGTH} characters. Not all digits, and not your own number.`}
-          secureTextEntry
-          autoComplete="new-password"
-          textContentType="newPassword"
-        />
+      <View style={{ gap: space[3] }}>
+        <Type variant="label" style={styles.group}>
+          GETTING BACK IN
+        </Type>
+        {/* The password stands on its own surface. It is the one field here
+            that is a secret rather than a fact, and joining it to an optional
+            email made the two look equally required. */}
+        <AuthFields>
+          <AuthField
+            label="Password"
+            icon="lock-closed-outline"
+            placeholder={`At least ${MIN_PASSWORD_LENGTH} characters`}
+            value={password}
+            onChangeText={edit("password", setPassword)}
+            error={errors.password}
+            secureTextEntry={!reveal}
+            autoComplete="new-password"
+            textContentType="newPassword"
+            action={<RevealToggle shown={reveal} onPress={() => setReveal((shown) => !shown)} />}
+          />
+        </AuthFields>
+        <AuthFields>
+          <AuthField
+            label="Email (optional)"
+            icon="mail-outline"
+            placeholder="you@example.com"
+            value={email}
+            onChangeText={edit("email", setEmail)}
+            error={errors.email}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            autoComplete="email"
+          />
+        </AuthFields>
+      </View>
 
-        {summary ? <Notice tone="error" title={summary} /> : null}
+      {summary ? <Notice tone="error" title={summary} /> : null}
 
-        <Button
-          label="Create account"
-          busyLabel="Setting up…"
-          onPress={submit}
-          busy={busy}
-        />
-      </ScrollView>
-    </KeyboardAvoidingView>
+      <AuthAction
+        label="Create account"
+        busyLabel="Setting up…"
+        onPress={submit}
+        busy={busy}
+      />
+
+      <AuthFoot>
+        <Type variant="caption" style={{ textAlign: "center" }}>
+          Your number is already confirmed. Nothing here is shown publicly.
+        </Type>
+      </AuthFoot>
+    </AuthScene>
   );
 }
 
@@ -268,34 +311,9 @@ function formatDate(value: string): string {
     .join("-");
 }
 
-function AccountTypeCard({
-  selected,
-  title,
-  body,
-  onPress,
-}: {
-  selected: boolean;
-  title: string;
-  body: string;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="radio"
-      aria-selected={selected}
-      {...pressableFeedback(theme.color.kola["50"])}
-    >
-      <Surface
-        style={{
-          gap: space[1],
-          borderWidth: selected ? 2 : 1,
-          borderColor: selected ? theme.color.kola["600"] : theme.color.field["300"],
-        }}
-      >
-        <Type variant="bodyStrong">{selected ? "✓ " : ""}{title}</Type>
-        <Type variant="caption">{body}</Type>
-      </Surface>
-    </Pressable>
-  );
-}
+const styles = StyleSheet.create({
+  group: {
+    color: theme.color.kola["800"],
+    marginLeft: space[1],
+  },
+});

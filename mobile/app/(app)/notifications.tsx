@@ -284,6 +284,7 @@ export default function NotificationsScreen() {
         visible={filtering}
         onClose={() => setFiltering(false)}
         title="Filter"
+        hideTitle
         closeLabel="Close filter"
         footer={<SheetFooter
           canReset={view !== "all"}

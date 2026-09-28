@@ -1,6 +1,6 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { BottomTabBarHeightContext } from "@react-navigation/bottom-tabs";
 import { useRouter } from "expo-router";
+import { BottomTabBarHeightContext } from "expo-router/tabs";
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -27,7 +27,8 @@ import { useAuth } from "@/auth";
 import { PriceRange, SegmentedField, SelectField, ToggleField } from "@/components/filters/FilterFields";
 import { ListingCard, advanceTerm, rentPeriod } from "@/components/listings/ListingCard";
 import { BottomSheet } from "@/components/sheet/BottomSheet";
-import { Button, Notice, Type, radius, space } from "@/components/ui";
+import { SheetCard, SheetGlassButton, SheetPrimaryButton } from "@/components/sheet/SheetParts";
+import { Notice, Type, radius, space } from "@/components/ui";
 import {
   formatMinor,
   listSaved,
@@ -661,7 +662,7 @@ export default function SearchScreen() {
   }
 
   async function toggleSave(listing: Listing) {
-    if (!signedIn) { router.push("/(auth)/welcome" as never); return; }
+    if (!signedIn) { router.push("/(auth)/start" as never); return; }
     const has = saved.has(listing.id);
     // Optimistic: shortlisting is private and reversible, so a wrong guess costs
     // nothing and waiting costs the feel of the whole screen.
@@ -1465,101 +1466,96 @@ function FilterSheet({
   }, [visible]);
   const toggle = (field: FilterMenu) => setOpen((current) => (current === field ? null : field));
 
-  // The sheet itself — its drag, its way back, its safe edges — is the shared
-  // `BottomSheet`. This says only what Explore's filters are, in as few rows as
-  // they fit: a rent range, dropdowns for the longer lists, a segmented choice
-  // for bedrooms and a switch.
+  // The sheet itself — its drag, its way back, its safe edges, its grey and its
+  // two pill actions — is the shared `BottomSheet` and its parts. This says only
+  // what Explore's filters are, on four white cards: what it costs, what it is,
+  // what it asks up front, and the order.
   return (
     <BottomSheet
       visible={visible}
       onClose={onClose}
       title="Filters"
+      hideTitle
       closeLabel="Close filters"
       footer={(
         <>
-          <Pressable
-            accessibilityRole="button"
-            aria-disabled={!canClear}
-            disabled={!canClear}
-            onPress={onClear}
-            {...pressableFeedback(theme.color.kola["50"])}
-            style={({ pressed }) => ({
-              minHeight: 48,
-              justifyContent: "center",
-              paddingHorizontal: space[3],
-              borderRadius: radius.md,
-              opacity: pressed && Platform.OS !== "android" ? 0.72 : 1,
-            })}
-          >
-            <Type variant="bodyStrong" style={{ color: canClear ? theme.color.kola["800"] : theme.color.ink["300"] }}>Clear all</Type>
-          </Pressable>
-          <View style={{ flex: 1 }}><Button label={resultLabel} onPress={onClose} /></View>
+          <SheetGlassButton label="Clear all" icon="refresh" disabled={!canClear} onPress={onClear} />
+          <SheetPrimaryButton label={resultLabel} onPress={onClose} />
         </>
       )}
     >
-      <PriceRange
-        minimum={rentMin}
-        maximum={rentMax}
-        onChange={(minimum, maximum) => {
-          onRentMinChange(minimum);
-          onRentMaxChange(maximum);
-        }}
-      />
-      <SelectField
-        label="Property type"
-        value={propertyType}
-        options={[ANY, ...propertyTypes]}
-        open={open === "property"}
-        onToggle={() => toggle("property")}
-        onChange={(value) => {
-          onPropertyTypeChange(value);
-          setOpen(null);
-        }}
-      />
-      <SelectField
-        label="Unit type"
-        value={spaceType}
-        options={[ANY, ...spaceTypes]}
-        open={open === "unit"}
-        onToggle={() => toggle("unit")}
-        onChange={(value) => {
-          onSpaceTypeChange(value);
-          setOpen(null);
-        }}
-      />
-      <SegmentedField
-        label="Bedrooms"
-        value={bedrooms}
-        options={BEDROOM_OPTIONS}
-        onChange={onBedroomsChange}
-      />
-      <SelectField
-        label="Maximum advance"
-        value={advanceMax}
-        options={ADVANCE_OPTIONS}
-        open={open === "advance"}
-        onToggle={() => toggle("advance")}
-        onChange={(value) => {
-          onAdvanceMaxChange(value);
-          setOpen(null);
-        }}
-      />
-      <ToggleField
-        label="Furnished only"
-        value={furnished}
-        onChange={onFurnishedChange}
-      />
-      <SelectField
-        label="Sort by"
-        value={sort}
-        options={SORT_OPTIONS}
-        open={open === "sort"}
-        onToggle={() => toggle("sort")}
-        onChange={(value) => {
-          onSortChange(value);
-          setOpen(null);
-        }}
-      />
+      <SheetCard>
+        <PriceRange
+          minimum={rentMin}
+          maximum={rentMax}
+          onChange={(minimum, maximum) => {
+            onRentMinChange(minimum);
+            onRentMaxChange(maximum);
+          }}
+        />
+      </SheetCard>
+      <SheetCard>
+        <SelectField
+          label="Property type"
+          value={propertyType}
+          options={[ANY, ...propertyTypes]}
+          open={open === "property"}
+          onToggle={() => toggle("property")}
+          onChange={(value) => {
+            onPropertyTypeChange(value);
+            setOpen(null);
+          }}
+        />
+        <SelectField
+          label="Unit type"
+          value={spaceType}
+          options={[ANY, ...spaceTypes]}
+          open={open === "unit"}
+          onToggle={() => toggle("unit")}
+          onChange={(value) => {
+            onSpaceTypeChange(value);
+            setOpen(null);
+          }}
+        />
+        <SegmentedField
+          label="Bedrooms"
+          value={bedrooms}
+          options={BEDROOM_OPTIONS}
+          onChange={onBedroomsChange}
+        />
+      </SheetCard>
+      <SheetCard>
+        <SelectField
+          label="Maximum advance"
+          value={advanceMax}
+          options={ADVANCE_OPTIONS}
+          open={open === "advance"}
+          onToggle={() => toggle("advance")}
+          onChange={(value) => {
+            onAdvanceMaxChange(value);
+            setOpen(null);
+          }}
+        />
+        <ToggleField
+          label="Furnished only"
+          value={furnished}
+          onChange={onFurnishedChange}
+        />
+      </SheetCard>
+      <SheetCard>
+        <SelectField
+          label="Sort by"
+          value={sort}
+          options={SORT_OPTIONS}
+          open={open === "sort"}
+          onToggle={() => toggle("sort")}
+          onChange={(value) => {
+            onSortChange(value);
+            setOpen(null);
+          }}
+        />
+      </SheetCard>
     </BottomSheet>
   );
 }
+

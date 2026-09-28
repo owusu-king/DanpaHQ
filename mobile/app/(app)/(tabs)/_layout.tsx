@@ -2,7 +2,6 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { Tabs } from "expo-router";
 
-import { useAuth } from "@/auth";
 import { ExploreHeaderActions } from "@/components/nav/ExploreHeaderActions";
 import { MainTabBar } from "@/components/nav/MainTabBar";
 import { TabHeader } from "@/components/nav/TabHeader";
@@ -11,11 +10,6 @@ import { Wordmark } from "@/components/shell/Wordmark";
 import { shell } from "@/shell";
 
 export default function RenterTabsLayout() {
-  const { state } = useAuth();
-  // Signed in, Home is the tenant's dashboard, on the soft green ground. Signed
-  // out it is the public browsing page, which stands on ivory like every other tab.
-  const home = state.status === "signed_in" ? shell.dashboard : shell.canvas;
-
   return (
     <Tabs
       tabBar={(props) => <MainTabBar {...props} />}
@@ -26,8 +20,11 @@ export default function RenterTabsLayout() {
       }}
     >
       {/* Home names itself with its greeting, so its header carries Rooomly's
-          mark instead of a second title. */}
-      <Tabs.Screen name="index" options={{ title: "Home", headerTitle: () => <Wordmark />, sceneStyle: { backgroundColor: home }, tabBarLabel: "Home", tabBarIcon: ({ color, size, focused }) => <Ionicons name={focused ? "home" : "home-outline"} color={color} size={size} /> }} />
+          mark instead of a second title. It stands on the dashboard ground
+          whether or not anybody is signed in — the signed-out page stopped
+          being a wall of listings, so there is nothing left that the ground
+          would have made read as a dashboard. */}
+      <Tabs.Screen name="index" options={{ title: "Home", headerTitle: () => <Wordmark />, sceneStyle: { backgroundColor: shell.dashboard }, tabBarLabel: "Home", tabBarIcon: ({ color, size, focused }) => <Ionicons name={focused ? "home" : "home-outline"} color={color} size={size} /> }} />
       {/* The header actions live here rather than in the screen: `explore` is a
           re-export of `search`, which is also a pushed route of its own, and a
           header wired inside the component would follow it there. */}

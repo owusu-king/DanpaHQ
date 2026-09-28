@@ -148,7 +148,8 @@ test("nothing is cut short on a small phone", () => {
 
 test("everything the page could do is still there", () => {
   const source = screen();
-  assert.match(source, /<AuthPrompt title="Your payments" body="Sign in to see rent due, payment activity and receipts for every home\." next="\/\(app\)\/\(tabs\)\/payments" \/>/);
+  assert.match(source, /<AuthPrompt\s+icon="wallet"/);
+  assert.match(source, /next="\/\(app\)\/\(tabs\)\/payments"/);
   assert.match(source, /listMyTenancies\(true\),\s*listPaymentIntents\(\),/);
   assert.match(source, /ledger: await getLeaseLedger\(tenancy\.lease!\.id\),/);
   assert.match(source, /useFocusEffect\(useCallback\(\(\) => \{ void load\(\); \}, \[load\]\)\);/);

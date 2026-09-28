@@ -6,12 +6,7 @@
     "orientation": "portrait",
     "scheme": "grp",
     "userInterfaceStyle": "light",
-    "newArchEnabled": true,
     "backgroundColor": "#FAF8F5",
-    "splash": {
-      "resizeMode": "contain",
-      "backgroundColor": "#1B6B4F"
-    },
     "android": {
       "package": "com.rentalplatform.app",
       "versionCode": 1,
@@ -44,6 +39,15 @@
       "expo-localization",
       "expo-asset",
       "expo-font",
+      [
+        "expo-splash-screen",
+        {
+          "resizeMode": "contain",
+          "backgroundColor": "#FAF8F5"
+        }
+      ],
+      "expo-sharing",
+      "expo-status-bar",
       [
         "expo-camera",
         {

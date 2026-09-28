@@ -72,7 +72,7 @@ test("the categories are the ones a household thinks in, in order", () => {
   // The hub renders from the declaration rather than listing services itself,
   // so next quarter's service is one entry there and no change here.
   const screen = code(hub());
-  assert.match(screen, /CATEGORIES\.map/);
+  assert.match(screen, /CATEGORIES\.flatMap/);
   assert.match(screen, /servicesIn\(category\.id\)/);
   for (const label of ["Electricity", "DStv", "GOtv", "Airtime", "Mobile data", "Cleaning"]) {
     assert.doesNotMatch(screen, new RegExp(`"${label}"`));
@@ -207,10 +207,10 @@ test("loading has the shape of what is coming, and failure keeps the page", () =
 });
 
 /*
- * The tile hub (product owner review, 2026-09-15): ruled rows read as a settings
- * list and the sentences around them repeated what the glyphs already said. The
- * catalogue is glass tiles, two to a row, and the page carries as few words as it
- * can while a screen reader still hears everything.
+ * The offers page (product owner, 2026-09-27, after a banking app's loans tab):
+ * one question and one way in at the top, a row to the rent, then every service
+ * as a compact white card two to a row under a single heading — no group names,
+ * because the colours already sort the range.
  */
 
 const between = (source, start, end) => {
@@ -221,10 +221,10 @@ const between = (source, start, end) => {
   return source.slice(at, stop);
 };
 
-test("the catalogue is tiles, two to a row, under nothing but a category's name", () => {
+test("the range is one grid of cards, two to a row, under one heading and no group names", () => {
   const screen = code(hub());
 
-  // The hub ground More stands on, and tiles rather than ruled rows in surfaces.
+  // The hub ground More stands on, and cards rather than ruled rows in surfaces.
   assert.match(screen, /import \{ IndexPage \} from "@\/components\/account\/IndexRows";/);
   assert.match(screen, /return \(\s*<IndexPage>/);
   assert.doesNotMatch(screen, /<Surface|function ServiceRow|borderTopColor: theme\.color\.field\["200"\]/);
@@ -232,20 +232,64 @@ test("the catalogue is tiles, two to a row, under nothing but a category's name"
   assert.match(screen, /const TILE_WIDTH = "48\.5%";/);
   assert.match(screen, /grid: \{\s*flexDirection: "row",\s*flexWrap: "wrap",\s*justifyContent: "space-between",\s*\}/);
 
-  // Tiles in one row stand equally tall because only the pressable fills its
+  // Still in the order a household thinks in, and still from the declaration —
+  // but flattened into one grid, with no category's name printed over it.
+  assert.match(screen, /services=\{CATEGORIES\.flatMap\(\(category\) => servicesIn\(category\.id\)\)\}/);
+  assert.match(screen, /<SectionTitle>Explore our range of offers<\/SectionTitle>/);
+  assert.doesNotMatch(screen, /\{category\.label\}|title=\{category\.label\}|function CategoryBlock/);
+  assert.doesNotMatch(screen, /paid for in one place/);
+  assert.doesNotMatch(code(catalogue()), /blurb/);
+
+  // Cards in one row stand equally tall because only the pressable fills its
   // frame; a grid item that grew would eat the gap between the two.
-  assert.match(screen, /style=\{\[styles\.tile, styles\.glass, styles\.fill, shape\]\}/);
+  assert.match(screen, /style=\{\[styles\.tile, styles\.card, styles\.fill, shape\]\}/);
   assert.doesNotMatch(between(screen, "  tile: {", "  fill: {"), /flexGrow/);
 
-  // As few words as the page can manage: no introduction, a category is its
-  // name, and a tile is its glyph and its name. The summary and "Coming later"
-  // are read to a screen reader rather than printed.
-  assert.doesNotMatch(screen, /paid for in one place/);
-  assert.match(screen, /<SectionTitle>\{title\}<\/SectionTitle>/);
-  assert.doesNotMatch(code(catalogue()), /blurb/);
-  assert.doesNotMatch(screen, />\s*\{service\.summary\}\s*</);
+  // A rounded square, never wider than it is tall, with no height of its own
+  // to grow past that.
+  const tile = between(screen, "function ServiceTile(", "function MoreServices(");
+  const shape = between(tile, "const shape = {", "};");
+  assert.match(shape, /aspectRatio: 1,/);
+  assert.doesNotMatch(shape, /minHeight/);
+
+  // Art and badge along the top, name and one short line at the foot, and the
+  // space between them is the card's own. "Coming later" is read, not printed.
+  assert.match(tile, /<View style=\{styles\.tileTop\}>\s*<ServiceArt/);
+  assert.match(between(screen, "  tile: {", "  fill: {"), /justifyContent: "space-between",/);
+  assert.match(tile, /numberOfLines=\{2\}[\s\S]*?>\s*\{service\.summary\}\s*</);
   assert.doesNotMatch(screen, />\s*Coming later\s*</);
   assert.match(screen, /accessibilityLabel=\{`\$\{service\.label\}\. \$\{service\.summary\}\. Coming later\.`\}/);
+});
+
+test("the page opens on one question and one way in, and neither takes money", () => {
+  const screen = code(hub());
+  const panel = between(screen, "function StartPanel(", "function ServicePicker(");
+  const picker = between(screen, "function ServicePicker(", "function RentRow(");
+
+  // The picker only ever holds a service that opens; `later` is not a choice.
+  assert.match(screen, /const openable = openableServices\(\);/);
+  assert.match(screen, /services=\{openable\}/);
+  assert.match(screen, /openable\.find\(\(service\) => service\.id === saved\[0\]\?\.serviceId\)/);
+  assert.match(picker, /<BottomSheet visible=\{visible\}/);
+  assert.match(picker, /accessibilityRole="radio"/);
+
+  // The button goes to the chosen service's own screen and is named for that,
+  // not for a purchase. The line under it says nothing is charged.
+  assert.match(screen, /onContinue=\{\(\) => openService\(chosen\)\}/);
+  assert.match(panel, />Continue<\/Type>/);
+  assert.match(panel, /accessibilityLabel=\{`Continue to \$\{service\.label\}`\}/);
+  assert.match(panel, /Nothing<\/Type> is charged/);
+  assert.doesNotMatch(panel, /\b(Pay|Buy|Top up|Recharge|Renew)\b/);
+
+  // It leads without weighing the page down: a kola tint with deep kola words,
+  // not a solid slab with a glow under it.
+  assert.match(screen, /const ACTION_WASH = theme\.color\.kola\["50"\];/);
+  assert.match(screen, /const ACTION_INK = theme\.color\.kola\["800"\];/);
+  assert.match(between(screen, "  action: {", "  actionText: {"), /backgroundColor: ACTION_WASH,/);
+  assert.doesNotMatch(screen, /actionLift|backgroundColor: ACTION,/);
+
+  // And the rent is pointed to, not repeated.
+  assert.match(screen, /<RentRow onPress=\{\(\) => router\.push\("\/\(app\)\/\(tabs\)\/payments" as never\)\} \/>/);
 });
 
 test("Referrals joins Home, and says honestly that it is not open", () => {
@@ -268,48 +312,48 @@ test("Referrals joins Home, and says honestly that it is not open", () => {
   assert.doesNotMatch(code(hub()), /"Referrals"/);
 });
 
-test("a tile is glass in its service's colour when it opens, and drained when it does not", () => {
+test("a card is in its service's colour when it opens, and drained when it does not", () => {
   const screen = code(hub());
-  const tile = between(screen, "function ServiceTile(", "function Tint(");
+  const tile = between(screen, "function ServiceTile(", "function MoreServices(");
+  const art = code(read("src/components/services/ServiceArt.tsx"));
 
-  // A service that opens: its colour washed into a corner of the glass, and a
-  // check with a count when numbers are saved for it.
+  // A service that opens: its illustration in its colours, and a check with a
+  // count when numbers are saved for it.
   assert.match(tile, /const tone = TONE\[service\.tone\];/);
-  assert.match(tile, /\{later \? null : <Tint colour=\{tone\.wash\} \/>\}/);
-  assert.match(tile, /<ServiceGlyph service=\{service\} size=\{[^}]+\} muted=\{later\} \/>/);
+  assert.match(tile, /<ServiceArt\s+service=\{service\}\s+index=\{SERVICES\.indexOf\(service\)\}\s+width=\{[^}]+\}\s+muted=\{later\}\s+\/>/);
   assert.match(
     tile,
     /<View style=\{\[styles\.saved, \{ backgroundColor: tone\.wash \}\]\}>\s*<Ionicons name="checkmark-circle" size=\{12\} color=\{tone\.ink\} \/>/,
   );
   assert.match(tile, /\$\{savedCount\} saved\./);
 
-  // One that does not: thinner glass, a drained glyph and a clock.
-  assert.match(tile, /later \? \(\s*<Ionicons name="time-outline"/);
-  assert.match(screen, /tileLater: \{\s*backgroundColor: GLASS_LATER,\s*borderColor: EDGE_LATER,/);
-  assert.match(screen, /style=\{\[styles\.tile, styles\.tileLater, shape, \{ width: TILE_WIDTH \}\]\}/);
-  const glass = Number(/const GLASS = alpha\(WHITE, ([\d.]+)\);/.exec(screen)?.[1]);
-  const thinner = Number(/const GLASS_LATER = alpha\(WHITE, ([\d.]+)\);/.exec(screen)?.[1]);
-  assert.ok(thinner < glass, `a closed service's glass is thinner than an open one's: ${thinner} vs ${glass}`);
+  // One that does not: the same card, drained art, a quieter name and a clock.
+  assert.match(tile, /later \? \(\s*<View style=\{styles\.clock\}>\s*<Ionicons name="time-outline"/);
+  assert.match(tile, /color: later \? CLOSED : INK,/);
+  assert.match(screen, /style=\{\[styles\.tile, styles\.card, shape, \{ width: TILE_WIDTH \}\]\}/);
 
-  // The wash is gone before the far corner, takes no touches, and is silent.
-  const tint = between(screen, "function Tint(", "function MoreServices(");
-  assert.match(tint, /<Stop offset="0" stopColor=\{colour\} stopOpacity=\{TINT_OPACITY\} \/>\s*<Stop offset="0\.62" stopColor=\{colour\} stopOpacity=\{0\} \/>/);
-  assert.match(tint, /pointerEvents="none"\s+accessibilityElementsHidden\s+importantForAccessibility="no-hide-descendants"/);
-  assert.match(tint, /const id = `tint\$\{useId\(\)\.replace\(\/\[\^a-zA-Z0-9\]\/g, ""\)\}`;/);
+  // The art is every tone's palette, drained to the neutrals when closed, and
+  // silent to a screen reader because the card's label already says it all.
+  for (const tone of ["harmattan", "lagoon", "laterite", "kola", "ink"]) {
+    assert.match(art, new RegExp(`${tone}: \\{\\s*main: theme\\.color\\.`), `${tone} has no art colours`);
+  }
+  assert.match(art, /const colours = muted \? DRAINED : ART\[service\.tone\];/);
+  assert.match(art, /main: theme\.color\.field\["300"\],/);
+  assert.match(art, /pointerEvents="none"\s+accessibilityElementsHidden\s+importantForAccessibility="no-hide-descendants"/);
 
-  // A whisper of shadow, and none on Android, where elevation smudges through glass.
-  assert.match(screen, /lift: isAndroid\s*\? \{\}\s*: \{[^}]*shadowOpacity: 0\.05,/);
+  // A soft shadow on a frame that takes the card's corners, and none on
+  // Android, where elevation under a rounded card draws a hard ring.
+  assert.match(screen, /lift: isAndroid\s*\? \{\}\s*: \{[^}]*shadowOpacity: 0\.06,/);
+  assert.match(screen, /frame=\{\[styles\.lift, \{ width: TILE_WIDTH, borderRadius: shape\.borderRadius \}\]\}/);
 });
 
-test("the words left on the page read on the glass they stand on", () => {
+test("the words on the page read on the paper they stand on", () => {
   const tokens = JSON.parse(read("../packages/design-tokens/tokens.json"));
   const screen = code(hub());
-  const rows = code(read("src/components/account/IndexRows.tsx"));
   const glyph = code(read("src/components/services/ServiceGlyph.tsx"));
 
   const channels = (hex) => [1, 3, 5].map((at) => Number.parseInt(hex.slice(at, at + 2), 16));
   const token = (family, step) => channels(tokens.color[family][step].value);
-  const mix = (base, over, amount) => base.map((value, index) => value + (over[index] - value) * amount);
   const luminance = (rgb) => {
     const [r, g, b] = rgb.map((value) => {
       const unit = value / 255;
@@ -321,27 +365,22 @@ test("the words left on the page read on the glass they stand on", () => {
     const [light, dark] = [luminance(a), luminance(b)].sort((x, y) => y - x);
     return (light + 0.05) / (dark + 0.05);
   };
-  const number = (source, pattern) => Number(pattern.exec(source)?.[1]);
+  const tokenOf = (name) => {
+    const match = new RegExp(`const ${name} = theme\\.color\\.(\\w+)\\["(\\d+)"\\];`).exec(screen);
+    assert.ok(match, `${name} is not a palette token`);
+    return token(match[1], match[2]);
+  };
 
-  // The deepest the hub ground gets, just under the header.
-  const kola = token("kola", "600");
-  const white = token("field", "0");
-  const ink = token("ink", "900");
-  const ground = mix(
-    mix(token("field", "50"), kola, number(rows, /const FLOOR_OPACITY = ([\d.]+);/)),
-    kola,
-    number(rows, /const AURA_OPACITY = ([\d.]+);/),
-  );
-  const glass = mix(ground, white, number(screen, /const GLASS = alpha\(WHITE, ([\d.]+)\);/));
-  const thinner = mix(ground, white, number(screen, /const GLASS_LATER = alpha\(WHITE, ([\d.]+)\);/));
-  const summary = number(screen, /const SUMMARY = alpha\(INK, ([\d.]+)\);/);
-  const faint = number(screen, /const FAINT = alpha\(INK, ([\d.]+)\);/);
+  // Cards, the picker and the row are paper.
+  assert.match(screen, /const CARD = WHITE;/);
+  const paper = token("field", "0");
+  assert.ok(contrast(tokenOf("INK"), paper) >= 12, "a service's name on a card");
+  assert.ok(contrast(tokenOf("CLOSED"), paper) >= 7, "a closed service's name");
+  assert.ok(contrast(tokenOf("SUMMARY"), paper) >= 4.5, "the line under a name");
+  assert.ok(contrast(tokenOf("FAINT"), token("field", "100")) >= 3, "the clock on its well");
 
-  assert.ok(contrast(ink, ground) >= 12, "a section's name on the ground");
-  assert.ok(contrast(ink, glass) >= 12, "a service's name on glass");
-  assert.ok(contrast(mix(glass, ink, summary), glass) >= 4.5, "a saved number's nickname on glass");
-  assert.ok(contrast(mix(thinner, ink, summary), thinner) >= 4.5, "a closed service's name on thinner glass");
-  assert.ok(contrast(mix(thinner, ink, faint), thinner) >= 3, "the clock on a closed service");
+  // The button's words on its tint.
+  assert.ok(contrast(tokenOf("ACTION_INK"), tokenOf("ACTION_WASH")) >= 4.5, "Continue on its tint");
 
   // A saved count is its colour's ink on its colour's wash, and every colour a
   // service can take keeps that at 4.5:1.

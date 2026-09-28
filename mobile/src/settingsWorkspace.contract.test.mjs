@@ -84,7 +84,8 @@ test("More is a hub of sections, not a profile page", () => {
     [...tab.matchAll(/<Group title="([^"]+)"/g)].map((match) => match[1]),
     ["Waiting for you", "Your shortlist", "Your history", "Account and settings"],
   );
-  assert.match(tab, /<AuthPrompt\s+title="Your account"/);
+  assert.match(tab, /<AuthPrompt\s+icon="list"/);
+  assert.match(tab, /next="\/\(app\)\/\(tabs\)\/profile"/);
 
   // Both indexes stand on the same page, and the provider's keeps its order.
   assert.match(more, /return \(\s*<IndexPage>\s*\{invitations \? \(\s*<Group title="Waiting for you"/);
@@ -92,6 +93,45 @@ test("More is a hub of sections, not a profile page", () => {
     [...more.matchAll(/<Group title="([^"]+)"/g)].map((match) => match[1]),
     ["Waiting for you", "Management", "Growth and trust", "Account and settings"],
   );
+});
+
+test("a signed-out tab gives a reason and both ways in", () => {
+  // The prompt was a display heading, an info `Notice` carrying the body copy,
+  // and a button saying "Sign In" — on bare ivory, while the signed-in version
+  // of the same tab stood on the hub's ground behind frosted glass. So the tab
+  // changed character on sign-in, a warning shape was doing the work of a
+  // paragraph, and the one control assumed an account the reader may not have.
+  const prompt = code(read("mobile/src/components/AuthPrompt.tsx"));
+
+  // The same ground as the tab it stands in.
+  assert.match(prompt, /<IndexGround>/);
+  assert.doesNotMatch(prompt, /<Notice/);
+
+  // A reason before the ask, in this tab's own colour and glyph.
+  assert.match(prompt, /points\?: PromptPoint\[\];/);
+  assert.match(prompt, /const hue = TONE\[tone\];/);
+
+  // Both ways in. Sign-in is the act; making an account is beside it, not
+  // behind it.
+  assert.match(prompt, /<PromptAct label="Sign in" onPress=\{\(\) => go\("\/\(auth\)\/sign-in"\)\} \/>/);
+  assert.match(prompt, /go\("\/\(auth\)\/phone"\)/);
+  // The workspace intent is still written down, and the tab still comes back.
+  assert.match(prompt, /rememberOnboardingIntent\("find_property"\)\.then/);
+  assert.match(prompt, /params: \{ next, intent: "find_property" \}/);
+
+  // Every screen that shows it gives it a glyph, a colour and its promises, so
+  // no tab falls back to a generic wall.
+  for (const path of [
+    "mobile/app/(app)/(tabs)/profile.tsx",
+    "mobile/app/(app)/(tabs)/services.tsx",
+    "mobile/app/(app)/tenant-payments.tsx",
+    "mobile/app/(app)/saved.tsx",
+  ]) {
+    const screen = code(read(path));
+    assert.match(screen, /<AuthPrompt\s+icon="/, `${path}: the prompt has no glyph`);
+    assert.match(screen, /\n\s+tone="/, `${path}: the prompt has no colour`);
+    assert.match(screen, /points=\{\[/, `${path}: the prompt gives no reason`);
+  }
 });
 
 test("each group is one glass panel, and its rows share one colour", () => {
@@ -223,7 +263,7 @@ test("changing experience and signing out are designed acts that still say what 
   );
   for (const screen of [tab, more]) {
     assert.match(screen, /<IndexActions>[\s\S]*<SwitchExperienceButton[\s\S]*<SignOutButton\s+label="Sign out"\s+busyLabel="Signing out…"\s+busy=\{leaving\}/);
-    assert.match(screen, /await signOut\(\);\s*router\.replace\("\/\(auth\)\/welcome"\);/);
+    assert.match(screen, /await signOut\(\);\s*router\.replace\("\/\(auth\)\/start"\);/);
     assert.doesNotMatch(screen, /<QuietLink/);
   }
 

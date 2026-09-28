@@ -1,6 +1,6 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useRouter } from "expo-router";
-import { Pressable, View } from "react-native";
+import { type ColorValue, Pressable, View } from "react-native";
 
 import { useAuth } from "@/auth";
 import { resolveEntryRoute } from "@/navigation";
@@ -40,7 +40,7 @@ export function BackControl({
   /** A modal is dismissed rather than returned from, so it reads as a close. */
   mode?: "back" | "close";
   /** The header's tint, passed through `headerLeft`. */
-  tintColor?: string;
+  tintColor?: ColorValue;
 }) {
   const router = useRouter();
   const { state, activeContext } = useAuth();
@@ -92,11 +92,11 @@ export function BackControl({
 }
 
 /** `headerLeft` for an ordinary pushed screen. */
-export const backHeaderLeft = (props: { canGoBack?: boolean; tintColor?: string }) => (
+export const backHeaderLeft = (props: { canGoBack?: boolean; tintColor?: ColorValue }) => (
   <BackControl canGoBack={props.canGoBack} tintColor={props.tintColor} />
 );
 
 /** `headerLeft` for a modal, which is dismissed rather than returned from. */
-export const closeHeaderLeft = (props: { canGoBack?: boolean; tintColor?: string }) => (
+export const closeHeaderLeft = (props: { canGoBack?: boolean; tintColor?: ColorValue }) => (
   <BackControl canGoBack={props.canGoBack} tintColor={props.tintColor} mode="close" />
 );

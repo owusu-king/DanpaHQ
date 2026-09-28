@@ -18,7 +18,7 @@
  *   into the ivory, so their white cards lift by tone alone (`HomeGround`).
  */
 
-import { DefaultTheme, type Theme } from "@react-navigation/native";
+import { DefaultTheme, type Theme } from "expo-router";
 
 import { ph } from "@/components/home/plinth";
 import { theme } from "@/theme";

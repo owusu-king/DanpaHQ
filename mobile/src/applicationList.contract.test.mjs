@@ -40,7 +40,7 @@ test("one green Filter over Needs you, In progress, Approved and Past", () => {
   assert.match(source, /\{filter === "all" \? \(\s*<GroupLabel count=\{section\.rows\.length\} tone=\{section\.id === "action" \? KOLA_DEEP : undefined\}>\{section\.label\}<\/GroupLabel>/);
 
   assert.equal((source.match(/<BottomSheet/g) ?? []).length, 1, "the Filter is the page's one sheet");
-  assert.match(source, /<BottomSheet\s+visible=\{filtering\}\s+onClose=\{\(\) => setFiltering\(false\)\}\s+title="Filter"\s+closeLabel="Close filter"/);
+  assert.match(source, /<BottomSheet\s+visible=\{filtering\}\s+onClose=\{\(\) => setFiltering\(false\)\}\s+title="Filter"\s+hideTitle\s+closeLabel="Close filter"/);
   assert.match(source, /\{applicationFilters\.map\(\(option, index\) => \(/);
   assert.match(source, /count=\{counts\[option\.id\]\}/);
   assert.match(source, /onPress=\{\(\) => choose\(option\.id\)\}/);

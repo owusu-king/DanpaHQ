@@ -213,7 +213,7 @@ export function RooomlyMap({
         rotateEnabled={false}
         pitchEnabled={false}
         showsBuildings={false}
-        showsPointsOfInterest={false}
+        showsPointsOfInterests={false}
         showsIndoors={false}
       >
         {markers.map((marker) => {

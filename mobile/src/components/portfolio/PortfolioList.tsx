@@ -3,6 +3,7 @@ import { Fragment, type ReactNode } from "react";
 import { Image, Pressable, StyleSheet, TextInput, View, type ImageSourcePropType } from "react-native";
 
 import { useHomeDensity } from "@/components/home/plinth";
+import { SheetGlassButton, SheetPrimaryButton, sheetCardStyle } from "@/components/sheet/SheetParts";
 import { Type, radius, space } from "@/components/ui";
 import { useReduceMotion } from "@/motion";
 import { isAndroid, maxFontSizeMultiplier, pressableFeedback } from "@/platform";
@@ -491,30 +492,16 @@ export function ChoiceRow({
   );
 }
 
-/** The sheet's foot: Reset when there is something to reset, and what it will show. */
+/**
+ * The sheet's foot: Reset as glass, quiet until there is something to reset, and
+ * what it will show in deep kola — the same two pills every sheet ends with.
+ */
 export function SheetFooter({ canReset, onReset, results, onShow }: { canReset: boolean; onReset: () => void; results: number; onShow: () => void }) {
+  const shown = `Show ${results} ${results === 1 ? "result" : "results"}`;
   return (
     <>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Reset filter"
-        aria-disabled={!canReset}
-        disabled={!canReset}
-        onPress={onReset}
-        hitSlop={space[1]}
-        style={({ pressed }) => [styles.reset, pressed && !isAndroid ? { opacity: 0.72 } : null]}
-      >
-        <Type variant="bodyStrong" style={{ color: canReset ? KOLA_DEEP : theme.color.ink["300"] }}>Reset</Type>
-      </Pressable>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`Show ${results} ${results === 1 ? "result" : "results"}`}
-        onPress={onShow}
-        android_ripple={isAndroid ? { color: alpha(WHITE, 0.2) } : undefined}
-        style={({ pressed }) => [styles.show, pressed && !isAndroid ? { opacity: 0.9 } : null]}
-      >
-        <Type variant="bodyStrong" style={{ color: WHITE }}>Show {results} {results === 1 ? "result" : "results"}</Type>
-      </Pressable>
+      <SheetGlassButton label="Reset" icon="refresh" accessibilityLabel="Reset filter" disabled={!canReset} onPress={onReset} />
+      <SheetPrimaryButton label={shown} onPress={onShow} />
     </>
   );
 }
@@ -870,13 +857,8 @@ const styles = StyleSheet.create({
     paddingTop: space[4],
     paddingBottom: space[1],
   },
-  choices: {
-    overflow: "hidden",
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: theme.color.field["200"],
-    backgroundColor: theme.color.field["50"],
-  },
+  // The choices are the sheet's white card, borderless on the grey.
+  choices: sheetCardStyle,
   choice: {
     minHeight: 50,
     flexDirection: "row",
@@ -901,19 +883,6 @@ const styles = StyleSheet.create({
   choiceCheck: {
     width: 18,
     alignItems: "center",
-  },
-  reset: {
-    minHeight: 48,
-    justifyContent: "center",
-    paddingHorizontal: space[3],
-  },
-  show: {
-    flex: 1,
-    minHeight: 50,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 14,
-    backgroundColor: KOLA,
   },
   primaryAction: {
     minHeight: 48,

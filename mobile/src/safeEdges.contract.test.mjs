@@ -108,19 +108,46 @@ test("a pushed screen that scrolls accounts for the bottom inset at all", () => 
   // So this asks the blunter question instead: does the file mention the
   // inset anywhere? A screen that scrolls and never names it cannot be
   // clearing the navigation buttons by anything but luck.
-  const root = new URL("../app/(app)/", import.meta.url);
+  // `(auth)` is here too. It used to be left out, on the reasoning that it is a
+  // short flow of focused screens — and `onboarding` promptly shipped with the
+  // top inset and no bottom one.
   const offenders = [];
-  for (const entry of readdirSync(root, { recursive: true, withFileTypes: true })) {
-    if (!entry.isFile() || !entry.name.endsWith(".tsx")) continue;
-    const where = `${entry.parentPath ?? entry.path}`.replaceAll("\\", "/");
-    // Tab screens are exempt: `MainTabBar` sits below them and takes the inset.
-    if (where.includes("(tabs)") || where.includes("(provider-tabs)")) continue;
-    const source = readFileSync(new URL(entry.name, `file://${where}/`), "utf8");
-    if (!/<(ScrollView|FlatList|SectionList)/.test(source)) continue;
-    if (/useSafeBottom|insets\.bottom/.test(source)) continue;
-    offenders.push(`${where.split("(app)/").pop()}/${entry.name}`.replace(/^\/+/, ""));
+  for (const group of ["(app)", "(auth)"]) {
+    const root = new URL(`../app/${group}/`, import.meta.url);
+    for (const entry of readdirSync(root, { recursive: true, withFileTypes: true })) {
+      if (!entry.isFile() || !entry.name.endsWith(".tsx")) continue;
+      const where = `${entry.parentPath ?? entry.path}`.replaceAll("\\", "/");
+      // Tab screens are exempt: `MainTabBar` sits below them and takes the inset.
+      if (where.includes("(tabs)") || where.includes("(provider-tabs)")) continue;
+      const source = readFileSync(new URL(entry.name, `file://${where}/`), "utf8");
+      if (!/<(ScrollView|FlatList|SectionList)/.test(source)) continue;
+      if (/useSafeBottom|insets\.bottom/.test(source)) continue;
+      offenders.push(`${where.split(`${group}/`).pop()}/${entry.name}`.replace(/^\/+/, ""));
+    }
   }
   assert.deepEqual(offenders, [], `these scroll under the navigation buttons: ${offenders.join(", ")}`);
+});
+
+test("the auth flow answers the inset once, in the frame all of it stands on", () => {
+  // The screens that moved onto `AuthScene` have no ScrollView of their own for
+  // the rule above to find, so this is the half of the promise that rule cannot
+  // see: the frame takes both insets, and every screen in the flow uses it.
+  const root = new URL("../app/(auth)/", import.meta.url);
+  const scene = readFileSync(new URL("../src/components/auth/AuthScene.tsx", import.meta.url), "utf8");
+  // `lift` is the optical-centre bias, which only ever adds; the inset itself
+  // is what has to be in there.
+  assert.match(scene, /const bottom = insets\.bottom \+ space\[6\] \+ lift;/);
+  assert.match(scene, /paddingBottom: bottom\b/);
+
+  const loose = [];
+  for (const entry of readdirSync(root, { withFileTypes: true })) {
+    if (!entry.isFile() || !entry.name.endsWith(".tsx") || entry.name === "_layout.tsx") continue;
+    const source = readFileSync(new URL(entry.name, root), "utf8");
+    const framed = /<AuthScene/.test(source);
+    const ownInset = /insets\.bottom/.test(source);
+    if (!framed && !ownInset) loose.push(entry.name);
+  }
+  assert.deepEqual(loose, [], `these take neither the frame nor the inset: ${loose.join(", ")}`);
 });
 
 test("a sheet without a footer insets its own body", () => {
@@ -128,7 +155,8 @@ test("a sheet without a footer insets its own body", () => {
   // The footer branch always had this; a footerless sheet — which is most of
   // them — ended flush against the edge.
   assert.match(sheet, /footer \? null : \{ paddingBottom: Math\.max\(edge\.bottom, space\[4\]\) \}/);
-  assert.match(sheet, /styles\.footer, \{ paddingBottom: Math\.max\(edge\.bottom, space\[4\]\) \}/);
+  // The footer measures the same edge, and stands its pills a little above it.
+  assert.match(sheet, /styles\.footer, \{ paddingBottom: Math\.max\(edge\.bottom, space\[4\]\) \+ FOOTER_LIFT \}/);
   // Both numbers, and the height cap, come from the sheet's own window.
   assert.match(sheet, /<SafeInsets/);
   assert.match(sheet, /safeHeaderTop\(edge\.top\)/);

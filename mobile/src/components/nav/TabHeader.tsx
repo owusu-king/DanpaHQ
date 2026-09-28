@@ -1,5 +1,5 @@
-import type { BottomTabHeaderProps } from "@react-navigation/bottom-tabs";
-import { getHeaderTitle } from "@react-navigation/elements";
+import type { BottomTabHeaderProps } from "expo-router/tabs";
+import { getHeaderTitle } from "expo-router/react-navigation";
 import { StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 

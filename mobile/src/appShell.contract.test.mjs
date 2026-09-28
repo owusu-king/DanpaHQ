@@ -64,10 +64,10 @@ test("a path both tab groups answer lands in the one this person may use", () =>
   assert.match(decide, /if \(atRoot\) return destination;/);
 
   // Signed out, the renter's tab at that address is public; the provider's never is.
-  assert.match(decide, /return renterTwin \?\? "\/\(auth\)\/welcome";/);
+  assert.match(decide, /return renterTwin \?\? "\/\(auth\)\/start";/);
 });
 
-test("the launch is Rooomly's name, not a spinner, and it lets go gently", () => {
+test("the launch is three dots on the page's own ivory, and it lets go gently", () => {
   const launch = code(read("src/components/shell/LaunchScreen.tsx"));
 
   assert.doesNotMatch(launch, /ActivityIndicator/);
@@ -84,14 +84,24 @@ test("the launch is Rooomly's name, not a spinner, and it lets go gently", () =>
   // A slow network is said, not left looking like a hang.
   assert.match(launch, /setTimeout\(\(\) => setSlow\(true\), PATIENCE_MS\)/);
 
-  // It is the green chrome with the mark in white and pale kola, and a build's
-  // splash is the same green, so a launch goes from splash to curtain to header
-  // without changing colour.
-  assert.match(launch, /<Wordmark size=\{44\} beats=\{beats\} \/>/);
-  assert.match(launch, /backgroundColor: shell\.chrome,/);
-  assert.match(launch, /backgroundColor: shell\.markOnChrome,/);
+  // Waiting looks like waiting: three dots, and no brand moment in the one place
+  // nobody wants one. Not the wordmark, and not the green — the curtain stands on
+  // the same ivory as the page behind it, and a build's splash is that ivory too,
+  // so a launch goes from splash to curtain to first screen without a colour jump.
+  assert.doesNotMatch(launch, /Wordmark/);
+  assert.doesNotMatch(launch, /shell\.chrome/);
+  assert.match(launch, /backgroundColor: shell\.canvas,/);
+  assert.match(launch, /<View style=\{styles\.dots\}>/);
+  assert.match(launch, /beats\.map\(\(beat, index\) => \(\s*<Animated\.View/);
+  assert.match(launch, /styles\.dot,/);
+  // Since SDK 55 the splash is configured on the `expo-splash-screen` plugin; the
+  // root `splash` key it replaced is gone.
+  assert.match(read("app.json"), /\[\s*"expo-splash-screen",\s*\{\s*"resizeMode": "contain",\s*"backgroundColor": "#FAF8F5"/);
+  assert.match(read("app.json"), /"backgroundColor": "#FAF8F5",/);
+  assert.doesNotMatch(read("app.json"), /"splash":/);
+
+  // The wordmark itself stays — it is still both Homes' header title.
   assert.match(code(read("src/components/shell/Wordmark.tsx")), /o: \{\s*color: shell\.markOnChrome,/);
-  assert.match(read("app.json"), /"splash": \{\s*"resizeMode": "contain",\s*"backgroundColor": "#1B6B4F"/);
 });
 
 test("green frames the page: kola above, ivory beneath, paper under the thumb", () => {
@@ -118,7 +128,9 @@ test("green frames the page: kola above, ivory beneath, paper under the thumb", 
 
   // Edge to edge, the chrome paints the strip behind the status bar, whose
   // glyphs turn dark only on the ivory sign-in journey.
-  assert.match(body, /const statusBar = !settled \|\| segments\[0\] !== "\(auth\)" \? "light" : "dark";/);
+  // The curtain is ivory now, so the glyphs over it are dark like the auth
+  // flow's — white ones would be invisible for the whole of a slow launch.
+  assert.match(body, /const statusBar = settled && segments\[0\] !== "\(auth\)" \? "light" : "dark";/);
   assert.match(body, /<StatusBar style=\{statusBar\} \/>/);
   assert.match(body, /<SafeAreaProvider initialMetrics=\{initialWindowMetrics\}>/);
   assert.match(body, /<TypographyScaleProvider>[\s\S]*<AuthProvider>/);
@@ -169,8 +181,9 @@ test("green frames the page: kola above, ivory beneath, paper under the thumb", 
 
   // The two Homes stand on the soft green ground; see homeGround.contract.test.mjs.
   assert.match(providerTabs(), /name="index" options=\{\{[^\n]*sceneStyle: \{ backgroundColor: shell\.dashboard \}/);
-  assert.match(renterTabs(), /const home = state\.status === "signed_in" \? shell\.dashboard : shell\.canvas;/);
-  assert.match(renterTabs(), /name="index" options=\{\{[^\n]*sceneStyle: \{ backgroundColor: home \}/);
+  // Home is the dashboard ground in both states; every other tab is ivory.
+  assert.match(renterTabs(), /name="index" options=\{\{[^\n]*sceneStyle: \{ backgroundColor: shell\.dashboard \}/);
+  assert.match(renterTabs(), /sceneStyle: \{ backgroundColor: shell\.canvas \}/);
 });
 
 test("small phones receive one bounded typography scale", () => {

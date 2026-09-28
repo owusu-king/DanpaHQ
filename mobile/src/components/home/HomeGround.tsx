@@ -23,10 +23,15 @@ const DEPTH_OPACITY = 0.05;
  *
  * It is painted once, behind the scroller, and does not scroll: the content
  * moves over a still ground. It takes no touches and says nothing to a screen
- * reader. `active={false}` keeps the same tree without painting, so a screen
- * that is sometimes a dashboard does not remount when it becomes one.
+ * reader.
+ *
+ * It used to take `active`, so the tenant's Home could hold the same tree
+ * without painting while signed out — back when that screen was a wall of
+ * listing cards, which on the ground would have read as a dashboard. The
+ * listings moved to Explore where they belong, both Homes now paint in every
+ * state, and a prop nothing passes is machinery pretending to be an option.
  */
-export function HomeGround({ active = true, children }: { active?: boolean; children: ReactNode }) {
+export function HomeGround({ children }: { children: ReactNode }) {
   const window = useWindowDimensions();
   const [size, setSize] = useState<{ width: number; height: number } | null>(null);
   // One per mount, and safe inside `url(#…)`: two grounds in one web document
@@ -37,13 +42,12 @@ export function HomeGround({ active = true, children }: { active?: boolean; chil
 
   return (
     <View
-      style={[styles.fill, active ? styles.painted : null]}
+      style={[styles.fill, styles.painted]}
       onLayout={(event) => {
         const { width: nextWidth, height: nextHeight } = event.nativeEvent.layout;
         if (nextWidth !== size?.width || nextHeight !== size?.height) setSize({ width: nextWidth, height: nextHeight });
       }}
     >
-      {active ? (
         <View
           pointerEvents="none"
           accessibilityElementsHidden
@@ -83,7 +87,6 @@ export function HomeGround({ active = true, children }: { active?: boolean; chil
             <Rect x="0" y="0" width="100%" height="100%" fill={`url(#${id}sheen)`} />
           </Svg>
         </View>
-      ) : null}
       {children}
     </View>
   );

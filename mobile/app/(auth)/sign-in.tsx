@@ -1,14 +1,23 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useRef } from "react";
-import { KeyboardAvoidingView, Platform, ScrollView, TextInput, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useRef, useState } from "react";
+import { TextInput, View } from "react-native";
 
 import { useAuth, type Workspace } from "@/auth";
-import { PasswordField, PhoneField, TextLink } from "@/components/auth/AuthFields";
-import { Button, Notice, Type, space } from "@/components/ui";
-import { AuthCrest } from "@/components/welcome/AuthCrest";
+import { DIAL_CODE, TextLink } from "@/components/auth/AuthFields";
+import {
+  AuthAction,
+  AuthAside,
+  AuthField,
+  AuthFields,
+  AuthFoot,
+  AuthHeading,
+  AuthMark,
+  AuthScene,
+  RevealToggle,
+} from "@/components/auth/AuthScene";
+import { Notice, Type, space } from "@/components/ui";
+import { phoneInputProps } from "@/platform";
 import { signInHeading, useSignInFlow } from "@/signInFlow";
-import { theme } from "@/theme";
 
 /**
  * Sign in: a phone number and a password.
@@ -17,30 +26,28 @@ import { theme } from "@/theme";
  * were the same thing while sign-in was an SMS code, which made whoever held
  * the SIM the owner of the account.
  *
- * The `workspace` param carries a choice through — from the welcome screen's
- * cards, or from a sign-up that turned out to already have an account. Telling
- * the backend which experience was asked for, before reading the entry route,
- * is what stops an existing tenant who tapped "I manage property" being dropped
- * straight back into tenant space.
+ * The `workspace` param carries a choice through — from the question the app
+ * opens on, or from a sign-up that turned out to already have an account.
+ * Telling the backend which experience was asked for, before reading the entry
+ * route, is what stops an existing tenant who tapped "I manage property" being
+ * dropped straight back into tenant space.
  *
- * **This is the front door.** The welcome journey hands its final choice here,
- * as do sign-out and every screen that needs a session. It carries the product's
- * face rather than opening on a bare form.
+ * **This is the front door**, so it is the screen the whole flow's composition
+ * was designed around: mark, heading, one line, the credential as a single
+ * surface, the one act, then the ways on. The two fields are one card because
+ * they are one credential — a number and a password for it — and separating
+ * them into two bordered boxes made the page read as a form to be filled in
+ * rather than as a door to be opened.
  *
  * Everything that decides who is signed in and where they land is in
- * `useSignInFlow`; the fields, down to the `+233`, are in `AuthFields`. This file
- * owns the focused screen layout and nothing else.
- *
- * The two things people actually come here needing — a forgotten password and a
- * new account — are one line each, not two more full-width buttons under the
- * one button that matters.
+ * `useSignInFlow`. This file owns the screen and nothing else.
  */
 export default function SignInScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const { signOut } = useAuth();
   const params = useLocalSearchParams<{ workspace?: string; phone?: string }>();
   const passwordRef = useRef<TextInput>(null);
+  const [reveal, setReveal] = useState(false);
 
   const workspace: Workspace | null =
     params.workspace === "tenant" || params.workspace === "provider"
@@ -57,120 +64,115 @@ export default function SignInScreen() {
 
   if (flow.notAProvider) {
     return (
-      <ScrollView
-        contentContainerStyle={{
-          flexGrow: 1,
-          padding: space[5],
-          paddingTop: insets.top + space[10],
-          paddingBottom: insets.bottom + space[6],
-          gap: space[5],
-        }}
-      >
-        <View style={{ gap: space[3] }}>
-          <Type variant="display2">This account rents,{"\n"}it does not let.</Type>
-          <Type variant="body" style={{ color: theme.color.ink["700"] }}>
-            You are signed in. Provider accounts are created at sign-up, so your home is
-            what is waiting.
-          </Type>
-        </View>
-        <Button
+      <AuthScene>
+        <AuthMark />
+        <AuthHeading
+          title={`This account rents,\nit does not let.`}
+          line="You are signed in. Provider accounts are created at sign-up, so your home is what is waiting."
+        />
+        <AuthAction
           label="Go to your home"
           onPress={() => router.replace("/(app)/(tabs)" as never)}
         />
-        <TextLink
-          label="Sign out"
-          onPress={async () => {
-            await signOut();
-            // Sign-in, not the introduction: signing out does not un-introduce
-            // somebody, and replaying it here would be a punishment for leaving.
-            router.replace("/(auth)/sign-in");
-          }}
-        />
-      </ScrollView>
+        <AuthFoot>
+          <TextLink
+            label="Sign out"
+            muted
+            onPress={async () => {
+              await signOut();
+              // Sign-in, not the opening question: signing out does not undo
+              // knowing what somebody came here for.
+              router.replace("/(auth)/sign-in");
+            }}
+          />
+        </AuthFoot>
+      </AuthScene>
     );
   }
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: theme.color.field["50"] }}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-    >
-      <ScrollView
-        contentContainerStyle={{ flexGrow: 1, paddingBottom: insets.bottom + space[6] }}
-        keyboardShouldPersistTaps="handled"
-      >
-        <AuthCrest />
+    <AuthScene>
+      <AuthMark />
 
-        <View style={{ padding: space[5], gap: space[5], flexGrow: 1 }}>
-          <View style={{ gap: space[2] }}>
-            <Type variant="display2" style={{ lineHeight: 38 }}>
-              {signInHeading(workspace)}
-            </Type>
-            {workspace === "provider" ? (
-              <Type variant="caption">
-                Where your verification stands is the first thing you will see.
-              </Type>
-            ) : null}
-          </View>
+      <AuthHeading
+        title={signInHeading(workspace)}
+        line={
+          workspace === "provider"
+            ? "Your verification status comes first."
+            : "Your number and your password."
+        }
+      />
 
-          <View style={{ gap: space[4] }}>
-            <PhoneField
-              value={flow.phone}
-              onChangeText={flow.setPhone}
-              onSubmitEditing={() => passwordRef.current?.focus()}
-            />
-
-            <View style={{ gap: space[2] }}>
-              <PasswordField
-                ref={passwordRef}
-                value={flow.password}
-                onChangeText={flow.setPassword}
-                onSubmitEditing={() => flow.ready && void flow.submit()}
-              />
-              {/* Beside the thing it is about, not stacked with the actions. */}
-              <View style={{ alignItems: "flex-end" }}>
-                <TextLink
-                  label="Forgot your password?"
-                  onPress={() => router.push("/(auth)/forgot-password")}
-                />
-              </View>
-            </View>
-          </View>
-
-          {flow.error ? <Notice tone="error" title={flow.error} /> : null}
-
-          <Button
-            label="Sign in"
-            busyLabel="Signing in…"
-            onPress={() => void flow.submit()}
-            busy={flow.busy}
-            disabled={!flow.ready}
+      {/* Two surfaces, not one with a hairline through it. They are a pair, but
+          they are answered at different moments — the number is recalled, the
+          password is recited — and joining them made the screen read as a
+          single block of typing rather than as two things to do. */}
+      <View style={{ gap: space[3] }}>
+        <AuthFields>
+          <AuthField
+            label="Mobile number"
+            icon="call-outline"
+            prefix={DIAL_CODE}
+            placeholder="24 123 4567"
+            value={flow.phone}
+            onChangeText={flow.setPhone}
+            maxLength={15}
+            returnKeyType="next"
+            onSubmitEditing={() => passwordRef.current?.focus()}
+            {...phoneInputProps}
           />
+        </AuthFields>
+        <AuthFields>
+          <AuthField
+            ref={passwordRef}
+            label="Password"
+            icon="lock-closed-outline"
+            value={flow.password}
+            onChangeText={flow.setPassword}
+            secureTextEntry={!reveal}
+            autoComplete="current-password"
+            textContentType="password"
+            returnKeyType="go"
+            onSubmitEditing={() => flow.ready && void flow.submit()}
+            action={<RevealToggle shown={reveal} onPress={() => setReveal((shown) => !shown)} />}
+          />
+        </AuthFields>
+      </View>
 
-          <View style={{ flex: 1 }} />
+      {flow.error ? <Notice tone="error" title={flow.error} /> : null}
 
-          <View style={{ gap: space[4], alignItems: "center" }}>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: space[2] }}>
-              <Type variant="caption">New to Rooomly?</Type>
-              <TextLink
-                label="Create an account"
-                strong
-                onPress={() =>
-                  router.push({
-                    pathname: "/(auth)/phone",
-                    params: { workspace: workspace ?? undefined },
-                  })
-                }
-              />
-            </View>
-            <TextLink
-              label="Browse homes without an account"
-              muted
-              onPress={() => router.replace("/(app)/(tabs)/explore")}
-            />
-          </View>
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      <AuthAction
+        label="Sign in"
+        busyLabel="Signing in…"
+        onPress={() => void flow.submit()}
+        busy={flow.busy}
+        disabled={!flow.ready}
+      />
+
+      <AuthFoot>
+        <TextLink
+          label="Forgot your password?"
+          onPress={() => router.push("/(auth)/forgot-password")}
+        />
+        <AuthAside>
+          <Type variant="caption">New to Rooomly?</Type>
+          <TextLink
+            label="Create an account"
+            strong
+            onPress={() =>
+              router.push({
+                pathname: "/(auth)/phone",
+                params: { workspace: workspace ?? undefined },
+              })
+            }
+          />
+        </AuthAside>
+        <TextLink
+          label="Browse homes without an account"
+          muted
+          onPress={() => router.replace("/(app)/(tabs)/explore")}
+        />
+      </AuthFoot>
+    </AuthScene>
   );
 }

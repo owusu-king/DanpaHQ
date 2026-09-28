@@ -222,9 +222,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (refreshInFlight.current) return refreshInFlight.current;
 
     refreshInFlight.current = (async () => {
-      const refreshToken = await secure.get(REFRESH_KEY);
-      if (!refreshToken) return null;
       try {
+        // Inside the try, so the `finally` below releases the latch however
+        // this ends. Read outside it, the two ways out that skip the try — no
+        // stored token, and a keychain that refuses to be read — left
+        // `refreshInFlight` holding a settled promise for the rest of the
+        // process. Every later call then returned that same dead promise, so
+        // `getToken()` answered `null` forever, every protected request went
+        // out with no Authorization header, and the API answered each one with
+        // "Sign in to continue." while the app still held the session in memory
+        // and went on showing the profile.
+        //
+        // The common way in is an ordinary launch: opening the app signed out
+        // takes the `!refreshToken` path, which wedged the latch before anybody
+        // had signed in. Signing in then works for as long as the access token
+        // is fresh, because `signIn` sets it directly — and breaks the first
+        // time it needs renewing, which is why it looked sporadic.
+        const refreshToken = await secure.get(REFRESH_KEY);
+        if (!refreshToken) return null;
+
         const result = await apiFetch<{
           access_token: string;
           refresh_token: string;
@@ -248,8 +264,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return result.access_token;
       } catch (cause) {
         // A refused refresh means the session is genuinely over - revoked,
-        // expired, or reuse-detected. Anything else (offline) leaves the stored
-        // token alone so the app recovers when the connection comes back.
+        // expired, or reuse-detected. Anything else (offline, or a keychain
+        // that would not answer) leaves the stored token alone so the app
+        // recovers when the connection or the device does.
         if (isRefreshRefusal(cause)) {
           await clearLocal();
         }

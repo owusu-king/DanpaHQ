@@ -224,6 +224,7 @@ export default function ApplicationsScreen() {
         visible={filtering}
         onClose={() => setFiltering(false)}
         title="Filter"
+        hideTitle
         closeLabel="Close filter"
         footer={<SheetFooter
           canReset={filter !== "all"}

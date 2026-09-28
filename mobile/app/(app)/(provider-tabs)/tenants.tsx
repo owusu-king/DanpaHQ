@@ -264,6 +264,7 @@ export default function ProviderTenantsScreen() {
         visible={filtering}
         onClose={() => setFiltering(false)}
         title="Filter"
+        hideTitle
         closeLabel="Close filter"
         footer={<SheetFooter
           canReset={view !== "tenants" || filter !== "all"}

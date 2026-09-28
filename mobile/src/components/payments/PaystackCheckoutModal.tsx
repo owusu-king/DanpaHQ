@@ -224,7 +224,7 @@ const styles = StyleSheet.create({
     backgroundColor: theme.color.field["0"],
   },
   loading: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: "center",
     justifyContent: "center",
     gap: space[3],

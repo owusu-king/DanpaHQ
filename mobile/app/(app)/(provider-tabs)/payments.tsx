@@ -447,6 +447,7 @@ function FilterSheet({
       visible={visible}
       onClose={onClose}
       title="Filter"
+      hideTitle
       closeLabel="Close filter"
       footer={<SheetFooter canReset={changed} onReset={onReset} results={results} onShow={onClose} />}
     >

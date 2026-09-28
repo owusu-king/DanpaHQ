@@ -13,6 +13,7 @@ import {
   MUTED,
   type IconName,
 } from "@/components/portfolio/PortfolioList";
+import { sheetCardStyle, useInSheet } from "@/components/sheet/SheetParts";
 import { Type, space } from "@/components/ui";
 import { isAndroid, pressableFeedback, surfaceElevation } from "@/platform";
 import { theme } from "@/theme";
@@ -52,9 +53,13 @@ export const TONE: Record<RecordTone, { ink: string; wash: string }> = {
   alert: { ink: LATERITE, wash: theme.color.laterite["100"] },
 };
 
-/** A record's one kind of surface: paper, held by a hairline. */
+/**
+ * A record's one kind of surface: paper, held by a hairline. In a sheet it is the
+ * sheet's white card instead, borderless on the grey.
+ */
 export function RecordPanel({ children, style }: { children: ReactNode; style?: StyleProp<ViewStyle> }) {
-  return <View style={[styles.panel, style]}>{children}</View>;
+  const inSheet = useInSheet();
+  return <View style={[styles.panel, inSheet ? sheetCardStyle : null, style]}>{children}</View>;
 }
 
 /** A section's name, standing on the ground rather than inside a panel. */

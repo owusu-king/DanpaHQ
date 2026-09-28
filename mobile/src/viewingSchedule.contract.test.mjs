@@ -57,7 +57,7 @@ test("the schedule is grouped Upcoming, Needs you, Past, under one green Filter"
 
   // The sheet: every filter with its count, closing on what it will show.
   assert.equal((source.match(/<BottomSheet/g) ?? []).length, 1, "the Filter is the page's one sheet");
-  assert.match(source, /<BottomSheet\s+visible=\{filtering\}\s+onClose=\{\(\) => setFiltering\(false\)\}\s+title="Filter"\s+closeLabel="Close filter"/);
+  assert.match(source, /<BottomSheet\s+visible=\{filtering\}\s+onClose=\{\(\) => setFiltering\(false\)\}\s+title="Filter"\s+hideTitle\s+closeLabel="Close filter"/);
   assert.match(source, /\{viewingFilters\.map\(\(option, index\) => \(/);
   assert.match(source, /count=\{counts\[option\.id\]\}/);
   assert.match(source, /onPress=\{\(\) => choose\(option\.id\)\}/);

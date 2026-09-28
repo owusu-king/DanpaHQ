@@ -1,24 +1,36 @@
-import Ionicons from "@expo/vector-icons/Ionicons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState } from "react";
-import { KeyboardAvoidingView, Platform, ScrollView, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { apiFetch, ApiFailure } from "@/api";
 import { useAuth, type Me } from "@/auth";
-import { Button, Field, Notice, Type, space } from "@/components/ui";
+import { TextLink } from "@/components/auth/AuthFields";
+import {
+  AuthAction,
+  AuthField,
+  AuthFields,
+  AuthFoot,
+  AuthHeading,
+  AuthScene,
+} from "@/components/auth/AuthScene";
+import { Notice } from "@/components/ui";
 import { resolveEntryRoute } from "@/navigation";
 import {
   asOnboardingIntent,
   clearPendingOnboardingIntent,
   pendingOnboardingIntent,
 } from "@/onboardingIntent";
-import { theme } from "@/theme";
 
+/**
+ * Finishing a profile that exists but has no name on it.
+ *
+ * Reached by an account the backend says is not done yet — a registration
+ * interrupted, or one made before the current flow. It is part of the same
+ * journey as sign-up and now looks like it: the same ground, the same grouped
+ * fields, the same step marks, the same one act.
+ */
 export default function OnboardingScreen() {
   const router = useRouter();
   const { next, intent } = useLocalSearchParams<{ next?: string; intent?: string }>();
-  const insets = useSafeAreaInsets();
   const { state, refreshMe, signOut } = useAuth();
   const me = state.status === "signed_in" ? state.me : null;
   const [preferredName, setPreferredName] = useState(me?.preferred_name ?? "");
@@ -61,41 +73,56 @@ export default function OnboardingScreen() {
   }
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-      <ScrollView
-        contentContainerStyle={{
-          flexGrow: 1,
-          padding: space[5],
-          paddingTop: insets.top + space[10],
-          gap: space[5],
-        }}
-        keyboardShouldPersistTaps="handled"
-      >
-        <View style={{ gap: space[2] }}>
-          <Type variant="label">STEP 1 OF 2</Type>
-          <Type variant="display2">What&apos;s your name?</Type>
-          <Type variant="body" style={{ color: theme.color.ink["700"] }}>
-            This creates your basic profile. We will not ask for identity documents here.
-          </Type>
-        </View>
-        <Field label="First name" value={firstName} onChangeText={setFirstName} autoFocus />
-        <Field label="Last name" value={lastName} onChangeText={setLastName} />
-        <Field label="Preferred name (optional)" value={preferredName} onChangeText={setPreferredName} />
-        {error ? <Notice tone="error" title={error} /> : null}
-        <Button
-          label="Continue"
-          busy={busy}
-          onPress={finish}
-          disabled={!firstName.trim() || !lastName.trim()}
+    <AuthScene progress={{ step: 1, of: 2 }}>
+      <AuthHeading
+        title="What's your name?"
+        line="Your basic profile. We will not ask for identity documents here."
+      />
+
+      <AuthFields>
+        <AuthField
+          label="First name"
+          icon="person-outline"
+          placeholder="Ama"
+          value={firstName}
+          onChangeText={setFirstName}
+          autoComplete="given-name"
+          autoFocus
         />
-        <Button
+        <AuthField
+          label="Last name"
+          icon="person-outline"
+          placeholder="Mensah"
+          value={lastName}
+          onChangeText={setLastName}
+          autoComplete="family-name"
+        />
+        <AuthField
+          label="Preferred name (optional)"
+          icon="happy-outline"
+          placeholder="What we should call you"
+          value={preferredName}
+          onChangeText={setPreferredName}
+        />
+      </AuthFields>
+
+      {error ? <Notice tone="error" title={error} /> : null}
+
+      <AuthAction
+        label="Continue"
+        busyLabel="Saving…"
+        busy={busy}
+        onPress={finish}
+        disabled={!firstName.trim() || !lastName.trim()}
+      />
+
+      <AuthFoot>
+        <TextLink
           label="Sign out and return"
-          variant="quiet"
-          icon={<Ionicons name="log-out-outline" size={20} color={theme.color.kola["600"]} />}
-          onPress={() => void signOut().then(() => router.replace("/(auth)/welcome"))}
-          disabled={busy}
+          muted
+          onPress={() => void signOut().then(() => router.replace("/(auth)/start"))}
         />
-      </ScrollView>
-    </KeyboardAvoidingView>
+      </AuthFoot>
+    </AuthScene>
   );
 }

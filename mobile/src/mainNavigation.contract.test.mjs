@@ -29,7 +29,7 @@ test("the tab you are on grows a pale kola indicator, fills in deep kola and tur
   // active glyph. A release took it away for a bare coloured glyph, and the bar
   // read as poorer for it — the indicator is the bar's quality, not its clutter.
   assert.match(source, /style=\{\[styles\.indicator, \{ opacity: focusProgress, transform: \[\{ scaleX: widen \}\] \}\]\}/);
-  assert.match(source, /indicator: \{\s*\.\.\.StyleSheet\.absoluteFillObject,\s*borderRadius: radius\.pill,\s*backgroundColor: shell\.activeGround,/);
+  assert.match(source, /indicator: \{\s*\.\.\.StyleSheet\.absoluteFill,\s*borderRadius: radius\.pill,\s*backgroundColor: shell\.activeGround,/);
   // And only the one: no rule across the cell as well.
   assert.doesNotMatch(source, /activeRule/);
 

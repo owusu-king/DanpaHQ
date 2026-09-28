@@ -2,10 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import { Animated, Easing, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { Wordmark } from "@/components/shell/Wordmark";
 import { motion, space } from "@/components/ui";
 import { useReduceMotion } from "@/motion";
 import { shell } from "@/shell";
+import { theme } from "@/theme";
 
 /** How long a launch may take before it says why it is taking so long. */
 const PATIENCE_MS = 8000;
@@ -13,18 +13,15 @@ const PATIENCE_MS = 8000;
 /**
  * What stands in front of Rooomly while it works out who is looking.
  *
- * Before it knows the account, the role and the route, a launch has one honest
- * thing to show: the product's name. Anything more specific is a guess, and the
- * guesses were the problem — a refresh drew whichever screen the address named
- * before there was a session, which for a tenant's Home was the signed-out
- * browsing page, and only then swapped the dashboard in.
+ * Three dots on the ground the app itself opens onto, and nothing else.
  *
- * It is the chrome — Rooomly's green, with the mark in white — so a launch goes
- * from the splash to this to the first header without changing colour. The o's
- * take turns rising, and that is the whole of the motion. It says "working" in
- * Rooomly's own letters rather than in a platform spinner, and it holds still for
- * anybody who has asked the system to reduce motion — the name is the point; the
- * movement is only reassurance.
+ * It used to be the full chrome — a green field with the wordmark in white —
+ * which is a brand moment in the one place nobody wants one: the delay before
+ * their own screen. It also meant a launch changed colour twice, green to
+ * ivory, on the way to a page that is ivory. Waiting should look like waiting.
+ *
+ * The dots take turns, and that is the whole of the motion. They hold still for
+ * anybody who has asked the system to reduce motion.
  */
 export function LaunchScreen() {
   const insets = useSafeAreaInsets();
@@ -74,9 +71,22 @@ export function LaunchScreen() {
       accessibilityLabel={slow ? "Opening Rooomly. Still connecting." : "Opening Rooomly"}
       style={styles.ground}
     >
-      <Wordmark size={44} beats={beats} />
-      {/* A short rule under the name: the register the rest of the app draws. */}
-      <View style={styles.register} />
+      <View style={styles.dots}>
+        {beats.map((beat, index) => (
+          <Animated.View
+            key={index}
+            style={[
+              styles.dot,
+              {
+                // A dot lifts and brightens together, so the beat reads on a
+                // screen too dim to show a four-point rise on its own.
+                opacity: beat.interpolate({ inputRange: [0, 1], outputRange: [0.32, 1] }),
+                transform: [{ translateY: beat.interpolate({ inputRange: [0, 1], outputRange: [0, -6] }) }],
+              },
+            ]}
+          />
+        ))}
+      </View>
       {slow ? (
         <Text style={[styles.slow, { bottom: insets.bottom + space[10] }]}>
           Still connecting. This can take a moment on a slow network.
@@ -135,18 +145,24 @@ export function LaunchCurtain({ settled }: { settled: boolean }) {
 }
 
 const styles = StyleSheet.create({
+  // The ivory the app itself opens onto, and which `app.json` gives the native
+  // splash, so a launch never changes colour on its way to the first screen.
   ground: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: shell.chrome,
+    backgroundColor: shell.canvas,
   },
-  register: {
-    width: space[8],
-    height: 2,
-    marginTop: space[3],
-    borderRadius: 1,
-    backgroundColor: shell.markOnChrome,
+  dots: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space[2],
+  },
+  dot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: theme.color.kola["600"],
   },
   slow: {
     position: "absolute",
@@ -155,6 +171,6 @@ const styles = StyleSheet.create({
     textAlign: "center",
     fontSize: 14,
     lineHeight: 21,
-    color: shell.onChromeMuted,
+    color: theme.color.ink["500"],
   },
 });

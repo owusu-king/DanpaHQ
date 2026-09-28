@@ -34,7 +34,7 @@ test("one Filter control holds both views and every status", () => {
 
   assert.match(source, /<ListHead title=\{VIEW_LABEL\[view\]\} count=\{view === "access" \? readyCount : tenants\.length\} filters=\{activeFilters\} onFilter=\{\(\) => setFiltering\(true\)\} \/>/);
   assert.match(source, /const activeFilters = view === "tenants" && filter !== "all" \? 1 : 0;/);
-  assert.match(source, /<BottomSheet\s+visible=\{filtering\}\s+onClose=\{\(\) => setFiltering\(false\)\}\s+title="Filter"\s+closeLabel="Close filter"/);
+  assert.match(source, /<BottomSheet\s+visible=\{filtering\}\s+onClose=\{\(\) => setFiltering\(false\)\}\s+title="Filter"\s+hideTitle\s+closeLabel="Close filter"/);
 
   const sheet = between(source, "<BottomSheet", "</BottomSheet>");
   assert.match(sheet, /<FilterGroup title="Show">\s*\{VIEWS\.map\(/);

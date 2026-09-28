@@ -37,7 +37,7 @@ test("both readers get one green Filter instead of tabs", () => {
   assert.match(provider(), /<ListHead title=\{VIEW_LABEL\[view\]\} count=\{matching\.length\} filters=\{view === "all" \? 0 : 1\} filterTone="kola" onFilter=\{\(\) => setFiltering\(true\)\} \/>/);
   assert.match(tenant(), /<ListHead title=\{FILTER_TITLE\[filter\]\} count=\{counts\[filter\]\} filters=\{filter === "all" \? 0 : 1\} filterTone="kola" onFilter=\{\(\) => setFiltering\(true\)\} \/>/);
   assert.equal(
-    (source.match(/<BottomSheet\s+visible=\{filtering\}\s+onClose=\{\(\) => setFiltering\(false\)\}\s+title="Filter"\s+closeLabel="Close filter"/g) ?? []).length,
+    (source.match(/<BottomSheet\s+visible=\{filtering\}\s+onClose=\{\(\) => setFiltering\(false\)\}\s+title="Filter"\s+hideTitle\s+closeLabel="Close filter"/g) ?? []).length,
     2,
     "each reader has the one shared sheet",
   );

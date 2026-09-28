@@ -33,6 +33,17 @@ test("the sheet asks in seven compact rows: a range, dropdowns, a segmented choi
   // No rows of chips, no stacked rent inputs, no section headings.
   assert.doesNotMatch(body, /<FilterChip|<ChoiceSet|<ChoiceRow|<SheetGroup|<Field\b/);
 
+  // The sheet design (owner, 2026-09-27, after WhatsApp's): the rows stand on
+  // four white cards — cost, what it is, what it asks up front, order — with no
+  // heading over any of them and no title over the sheet, and it ends with the
+  // two pills every sheet shares.
+  assert.match(body, /title="Filters"\s+hideTitle\s+closeLabel="Close filters"/);
+  assert.equal((body.match(/<SheetCard>/g) ?? []).length, 4);
+  assert.match(body, /<SheetCard>\s*<PriceRange/);
+  assert.match(body, /<SheetCard>\s*<SelectField\s+label="Sort by"/);
+  assert.match(body, /<SheetGlassButton label="Clear all" icon="refresh" disabled=\{!canClear\} onPress=\{onClear\} \/>/);
+  assert.match(body, /<SheetPrimaryButton label=\{resultLabel\} onPress=\{onClose\} \/>/);
+
   // One dropdown open at a time, and none left open when the sheet comes back.
   assert.match(body, /const toggle = \(field: FilterMenu\) => setOpen\(\(current\) => \(current === field \? null : field\)\);/);
   assert.match(body, /if \(!visible\) setOpen\(null\);/);

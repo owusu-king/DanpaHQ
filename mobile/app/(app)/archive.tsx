@@ -6,7 +6,8 @@ import { FlatList, Pressable, RefreshControl, StyleSheet, View } from "react-nat
 import { ApiFailure } from "@/api";
 import { IndexGround } from "@/components/account/IndexRows";
 import { Bone } from "@/components/billing/BillingParts";
-import { Fact, Panel, Pill } from "@/components/billing/BillingSurfaces";
+import { Fact, Panel } from "@/components/billing/BillingSurfaces";
+import { SheetPrimaryButton } from "@/components/sheet/SheetParts";
 import { useHomeDensity } from "@/components/home/plinth";
 import {
   EmptyState,
@@ -179,7 +180,7 @@ export default function ArchiveScreen() {
         title={selected?.label ?? "Archived"}
         closeLabel="Close details"
         footer={selected?.restore.allowed ? (
-          <Pill
+          <SheetPrimaryButton
             label="Restore"
             icon="arrow-undo-outline"
             busy={busy === selected.id}
