@@ -83,8 +83,11 @@ test("search and filters form one responsive discovery system", () => {
   assert.match(browser, /Clear all/);
   // Native keeps one search bar and one Filters button over its map, with the
   // complete set in a true sheet.
-  assert.match(mobile, /function SearchBox/);
-  assert.match(mobile, /function FiltersButton/);
+  // Both live in the green Explore hero now, shared by Rent and Buy
+  // (owner, 2026-09-29).
+  const hero = read("mobile/src/components/explore/ExploreHero.tsx");
+  assert.match(mobile, /<HeroSearch\b/);
+  assert.match(hero, /function FiltersButton/);
   assert.match(mobile, /function FilterSheet/);
   // The complete set sits in the shared sheet a thumb can swipe away.
   assert.match(mobile, /<BottomSheet\s+visible=\{visible\}\s+onClose=\{onClose\}\s+title="Filters"/);
@@ -261,7 +264,8 @@ test("every Explore choice is shown once and removed one way", () => {
   }
   assert.match(browser, /\{filterCount \? <span className="explore-filter-count" aria-hidden="true">\{filterCount\}<\/span> : null\}/);
   assert.match(browser, /aria-label=\{filterCount \? `Filters, \$\{filterCount\} active` : "Filters"\}/);
-  assert.match(mobile, /<FiltersButton\s+count=\{refinementCount\}/);
+  // The phone counts the side it is on: Rent's refinements, or Buy's; All has none.
+  assert.match(mobile, /filterCount=\{mode === "all" \? undefined : filterCountForSide\}/);
 
   // `bedrooms_min=0` is `>= 0` to the backend: a studio choice that was Any.
   for (const source of [browser, mobile]) {

@@ -41,6 +41,8 @@ export type FeatureOption = { value: string; label: string };
  */
 export type PropertyVocabulary = {
   property_types: PropertyTypeOption[];
+  /** What a property *for sale* may be: a house, land, or a commercial property. */
+  sale_types: FeatureOption[];
   water_sources: FeatureOption[];
   power_meter_types: FeatureOption[];
   compound_types: FeatureOption[];

@@ -66,7 +66,13 @@ test("the search lives in the address bar, and the list and the map ask it the s
   assert.doesNotMatch(view, /useState[^;\n]*\bquery\./);
   // useSearchParams in a statically rendered page needs a Suspense boundary.
   const page = read("web/app/rentals/page.tsx");
-  assert.equal(page.match(/<Suspense fallback=\{<ExploreFallback \/>\}>\s*<ListingBrowser \/>/g)?.length, 2);
+  // Both chromes host `Explore`, which reads `mode` and hands Rent to the
+  // listing browser and Buy to the sale browser — inside that same boundary.
+  assert.equal(page.match(/<Suspense fallback=\{<ExploreFallback \/>\}>\s*<Explore \/>/g)?.length, 2);
+  // Explore opens on All; Rent and Buy are chosen (owner, 2026-09-29).
+  assert.match(page, /const mode = asked === "buy" \? "buy" : asked === "rent" \? "rent" : "all";/);
+  assert.match(page, /if \(mode === "all"\) return <AllBrowser modeSwitch=\{modeSwitch\} \/>;/);
+  assert.match(page, /<SaleBrowser modeSwitch=\{modeSwitch\} \/> : <ListingBrowser modeSwitch=\{modeSwitch\} \/>/);
 });
 
 test("the map is a view of the search: opening, closing and failing never clear it", () => {
@@ -321,6 +327,11 @@ test("markers keep their own styling, and the map stays inside the page", () => 
   assert.match(browser, /explore\.style\.setProperty\("--explore-tray-height", `\$\{Math\.ceil\(stick\.getBoundingClientRect\(\)\.height\)\}px`\)/);
   assert.match(mapCss, /--explore-sticky-top: calc\(var\(--explore-stick-top\) \+ var\(--explore-tray-height, 9\.25rem\) \+ var\(--space-3\)\);/);
   assert.match(between(mapCss, ".portal .explore {", "}"), /--explore-stick-top: calc\(4rem \+ var\(--space-3\)\);/);
+  // On Explore itself the page headers scroll away and the console pins at the
+  // very top, overriding that offset (owner, 2026-09-29).
+  const hero = read("web/src/styles/explore-hero.css");
+  assert.match(hero, /\.portal:has\(\.explore-portal-masthead\) \.portal-header \{ position: relative; \}/);
+  assert.match(hero, /\.portal \.explore \{ --explore-stick-top: 0px; \}/);
   const stage = between(mapCss, ".explore-map-stage {", "}");
   assert.match(stage, /position: sticky;/);
   assert.match(stage, /top: var\(--explore-sticky-top\);/);

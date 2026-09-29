@@ -245,7 +245,7 @@ function NextVisit({ viewing, state, onPress }: { viewing: Viewing; state: Viewi
       accessibilityLabel={`${viewing.listing_headline}. ${placeOf(viewing)}. ${when ?? state.line}. ${state.callToAction ?? "View details"}.`}
       onPress={onPress}
       {...pressableFeedback(PRESSED)}
-      style={({ pressed }) => [styles.card, isAndroid ? null : styles.lift, pressed && !isAndroid ? { opacity: 0.94 } : null]}
+      style={({ pressed }) => [styles.card, isAndroid ? null : styles.lift, pressed ? { opacity: 0.94 } : null]}
     >
       <View style={[styles.cover, { height: density.compact ? 132 : 150 }]}>
         {viewing.photo_url ? (
@@ -284,7 +284,7 @@ function ScheduleRow({ viewing, state, first, onPress }: { viewing: Viewing; sta
       accessibilityLabel={`${viewing.listing_headline}. ${placeOf(viewing)}. ${when ?? state.line}. ${state.callToAction ?? "View details"}.`}
       onPress={onPress}
       {...pressableFeedback(PRESSED)}
-      style={({ pressed }) => [rowStyles.row, first ? null : styles.ruled, pressed && !isAndroid ? { backgroundColor: PRESSED } : null]}
+      style={({ pressed }) => [rowStyles.row, first ? null : styles.ruled, pressed ? { backgroundColor: PRESSED } : null]}
     >
       <Thumb uri={viewing.photo_url} />
       <View style={rowStyles.rowBody}>

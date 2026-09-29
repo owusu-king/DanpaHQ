@@ -295,6 +295,19 @@ class EvidenceType(models.TextChoices):
     POWER_METER_VIEW = "power_meter_view", "Electricity meter"
     LOCATION_CONTEXT = "location_context", "Where it sits — street or landmark"
 
+    # --- the title to a property for sale ------------------------------------
+    #
+    # A sale transfers the property itself, so its authority review reads the
+    # title rather than only the seller's relationship to it (owner, 2026-09-28:
+    # stricter verification for sales). Named separately from
+    # `OWNERSHIP_DOCUMENT` because a reviewer checking a title reads each of
+    # these for different things.
+    LAND_TITLE_CERTIFICATE = "land_title_certificate", "Land Title Certificate"
+    INDENTURE = "indenture", "Indenture"
+    #: The surveyed plan of the plot, signed by a licensed surveyor. What land
+    #: disputes here turn on, so land for sale is never verified without it.
+    SITE_PLAN = "site_plan", "Site plan"
+
 
 class VerificationEvidence(BaseModel):
     """One artefact supporting one verification.

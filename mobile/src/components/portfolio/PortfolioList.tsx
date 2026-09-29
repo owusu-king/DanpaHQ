@@ -158,7 +158,7 @@ export function SignalPanel({ title, signals }: { title?: string; signals: Signa
             accessibilityHint={signal.hint}
             onPress={signal.onPress}
             {...pressableFeedback(PRESSED)}
-            style={({ pressed }) => [styles.signal, index ? styles.ruled : null, pressed && !isAndroid ? { backgroundColor: PRESSED } : null]}
+            style={({ pressed }) => [styles.signal, index ? styles.ruled : null, pressed ? { backgroundColor: PRESSED } : null]}
           >
             <View style={[rowStyles.well, { backgroundColor: signal.wash }]}>
               <Ionicons name={signal.icon} size={16} color={signal.tone} />
@@ -236,7 +236,7 @@ export function FilterButton({ count, tone = "glass", onPress }: { count: number
       style={({ pressed }) => [
         styles.filterButton,
         kola ? styles.filterButtonKola : active ? styles.filterButtonActive : null,
-        pressed && !isAndroid ? { opacity: 0.8 } : null,
+        pressed ? { opacity: 0.8 } : null,
       ]}
     >
       <Ionicons name="options-outline" size={16} color={kola ? WHITE : active ? KOLA_DEEP : MUTED} />
@@ -264,8 +264,7 @@ export function PrimaryAction({ icon, label, onPress }: { icon: IconName; label:
       accessibilityRole="button"
       accessibilityLabel={label}
       onPress={onPress}
-      android_ripple={isAndroid ? { color: alpha(WHITE, 0.24) } : undefined}
-      style={({ pressed }) => [styles.primaryAction, pressed && !isAndroid ? { opacity: 0.9 } : null]}
+      style={({ pressed }) => [styles.primaryAction, pressed ? { opacity: 0.9 } : null]}
     >
       <Ionicons name={icon} size={17} color={WHITE} />
       <Type variant="bodyStrong" numberOfLines={1} style={styles.primaryActionText}>{label}</Type>
@@ -283,7 +282,7 @@ export function ActiveFilter({ label, tone, onClear }: { label: string; tone: st
         hitSlop={space[2]}
         onPress={onClear}
         {...pressableFeedback(theme.color.kola["50"])}
-        style={({ pressed }) => [styles.token, pressed && !isAndroid ? { opacity: 0.8 } : null]}
+        style={({ pressed }) => [styles.token, pressed ? { opacity: 0.8 } : null]}
       >
         <View style={[styles.dot, { backgroundColor: tone }]} />
         <Type variant="captionStrong" style={{ fontSize: 13, lineHeight: 18, color: KOLA_DEEP }}>{label}</Type>
@@ -327,7 +326,7 @@ export function QuietAction({ icon, label, onPress }: { icon: IconName; label: s
       accessibilityLabel={label}
       onPress={onPress}
       {...pressableFeedback(theme.color.kola["50"])}
-      style={({ pressed }) => [styles.quietAction, pressed && !isAndroid ? { opacity: 0.8 } : null]}
+      style={({ pressed }) => [styles.quietAction, pressed ? { opacity: 0.8 } : null]}
     >
       <Ionicons name={icon} size={16} color={KOLA} />
       <Type variant="captionStrong" style={{ fontSize: 13.5, lineHeight: 18, color: KOLA_DEEP }}>{label}</Type>
@@ -476,7 +475,7 @@ export function ChoiceRow({
       accessibilityLabel={`${label}, ${count}`}
       onPress={onPress}
       {...pressableFeedback(theme.color.kola["50"])}
-      style={({ pressed }) => [styles.choice, first ? null : styles.ruled, selected ? styles.choiceChosen : null, pressed && !isAndroid ? { opacity: 0.8 } : null]}
+      style={({ pressed }) => [styles.choice, first ? null : styles.ruled, selected ? styles.choiceChosen : null, pressed ? { opacity: 0.8 } : null]}
     >
       {icon ? (
         <Ionicons name={icon} size={17} color={selected ? KOLA : FAINT} />

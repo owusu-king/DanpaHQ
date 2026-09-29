@@ -13,6 +13,10 @@ export type ManagedProperty = {
   id: string;
   title: string;
   property_type: string;
+  /** `sale` for a property sold whole — no Units (owner, 2026-09-28). */
+  purpose: "letting" | "sale";
+  /** A sale's headline facts, for a row; null when letting. */
+  sale: import("@/provider").PropertySaleSummary | null;
   /** Where the property stands, as one answer over both of its reviews.
    *
    *  This list served `authority_state` and `condition_state` side by side and
@@ -445,6 +449,8 @@ export function createPrivateProperty(organizationId: string, input: {
   title: string;
   property_type: string;
   address_id: string;
+  /** `sale` for a property sold whole. Omitted means letting. */
+  purpose?: "letting" | "sale";
 }) {
   return apiFetch<ManagedProperty>(`/organizations/${organizationId}/properties/`, {
     method: "POST",
@@ -456,6 +462,7 @@ export function createPersonalPortfolioProperty(input: {
   title: string;
   property_type: string;
   address_id: string;
+  purpose?: "letting" | "sale";
 }) {
   return apiFetch<ManagedProperty>("/portfolio/properties/", { method: "POST", body: input });
 }

@@ -106,17 +106,40 @@ def resolve_property_type(data: dict) -> str:
     residential property with extra rooms, and guessing wrong changes what the
     provider is allowed to add.
     """
-    from .models import PropertyType
+    from .models import LETTING_TYPES, SALE_TYPES, PropertyPurpose, PropertyType
+
+    purpose = resolve_purpose(data)
+    allowed = SALE_TYPES if purpose == PropertyPurpose.SALE else LETTING_TYPES
+    readable = ", ".join(label.lower() for value, label in PropertyType.choices if value in allowed)
 
     value = (data.get("property_type") or "").strip()
     if not value:
+        if purpose == PropertyPurpose.SALE:
+            raise ValidationFailed("Choose whether this is a house, land or a commercial property.")
         raise ValidationFailed(
             "Choose whether this is a residential, commercial or hostel property."
         )
-    if value not in PropertyType.values:
-        readable = ", ".join(label.lower() for _, label in PropertyType.choices)
+    if value not in allowed:
         raise ValidationFailed(f"Choose one of: {readable}.")
     return value
+
+
+def resolve_purpose(data: dict) -> str:
+    """Letting unless the caller says sale. Every client that predates sales lets."""
+    from .models import PropertyPurpose
+
+    value = (data.get("purpose") or PropertyPurpose.LETTING).strip()
+    if value not in PropertyPurpose.values:
+        raise ValidationFailed("Choose whether this property is to let or for sale.")
+    return value
+
+
+def assert_is_for_letting(prop: Property) -> None:
+    """A property for sale is sold whole: it has no Units, buildings or beds."""
+    if prop.is_for_sale:
+        raise ValidationFailed(
+            "This property is for sale, and is sold whole. It does not take Units."
+        )
 
 
 def _assert_may_ask_for_review(user) -> None:
@@ -128,6 +151,24 @@ def _assert_may_ask_for_review(user) -> None:
         raise PermissionDenied("Verify your identity before submitting a property for review.")
     if trust_services.current_for(SubjectType.USER, user.id, VerificationKind.PHONE) is None:
         raise PermissionDenied("Confirm your account phone number before submitting a property.")
+
+
+def authority_evidence_type(*, file, declared: dict, relationship_type: str, prop) -> str:
+    """Which kind of document one uploaded file is, checked against what is asked.
+
+    A property for sale asks for more than one document — the relationship, the
+    title and, for land, the site plan — so each file says which it is, keyed by
+    its id. A file that says nothing is the relationship's document, which is
+    what every client that predates sales sends. A declared type the review does
+    not ask for is refused rather than filed where nobody will look for it.
+    """
+    from apps.trust.evidence_policy import authority_evidence_types, authority_requirements
+
+    default = authority_requirements(relationship_type, prop)[0].evidence_type
+    chosen = (declared or {}).get(str(file.id)) or default
+    if chosen not in authority_evidence_types(relationship_type, prop):
+        raise ValidationFailed("That document is not one this property's review asks for.")
+    return chosen
 
 
 @transaction.atomic
@@ -192,6 +233,7 @@ def submit_provider_application(
             **data,
             "title": existing_property.title,
             "property_type": existing_property.property_type,
+            "purpose": existing_property.purpose,
             "address_id": existing_property.address_id,
         }
     else:
@@ -321,11 +363,16 @@ def submit_provider_application(
     # The policy decides what this relationship has to show, rather than a
     # literal map that could not vary by anything and had no way to express an
     # acceptable alternative. See `trust.evidence_policy`.
-    from apps.trust.evidence_policy import POLICY_VERSION, authority_requirements
+    from apps.trust.evidence_policy import POLICY_VERSION
 
-    slot = authority_requirements(relationship_type)[0]
-    evidence_type = slot.evidence_type
+    declared = data.get("evidence_types") or {}
     for file in files:
+        evidence_type = authority_evidence_type(
+            file=file,
+            declared=declared,
+            relationship_type=relationship_type,
+            prop=existing_property,
+        )
         trust_services.attach_evidence(
             verification,
             evidence_type=evidence_type,
@@ -333,7 +380,7 @@ def submit_provider_application(
             collected_by=user,
             notes=(
                 "Submitted with property provider application. "
-                f"Evidence policy {POLICY_VERSION}, slot {slot.key}."
+                f"Evidence policy {POLICY_VERSION}, filed as {evidence_type}."
             ),
         )
     application.authority_verification_id = verification.id
@@ -342,10 +389,11 @@ def submit_provider_application(
 
 
 @transaction.atomic
-def submit_provider_application_more_info(*, application, user, files: list):
+def submit_provider_application_more_info(
+    *, application, user, files: list, evidence_types: dict | None = None
+):
     from apps.trust import services as trust_services
     from apps.trust.models import (
-        EvidenceType,
         ReviewQueueEntry,
         Verification,
         VerificationStatus,
@@ -367,16 +415,15 @@ def submit_provider_application_more_info(*, application, user, files: list):
     )
     if verification is None:
         raise Conflict("The linked review is not waiting for more information.")
-    evidence_type = {
-        PropertyRelationshipType.OWNER: EvidenceType.OWNERSHIP_DOCUMENT,
-        PropertyRelationshipType.AGENT: EvidenceType.AUTHORIZATION_LETTER,
-        PropertyRelationshipType.MANAGER: EvidenceType.MANAGEMENT_AGREEMENT,
-        PropertyRelationshipType.COMPANY_REPRESENTATIVE: EvidenceType.BUSINESS_CERTIFICATE,
-    }[application.relationship_type]
     for file in files:
         trust_services.attach_evidence(
             verification,
-            evidence_type=evidence_type,
+            evidence_type=authority_evidence_type(
+                file=file,
+                declared=evidence_types or {},
+                relationship_type=application.relationship_type,
+                prop=application.property,
+            ),
             file=file,
             collected_by=user,
             notes="Additional information requested by the reviewer.",
@@ -963,6 +1010,7 @@ def create_private_property(*, user, organization, data: dict) -> Property:
     if not title:
         raise ValidationFailed("Give the property an internal name.")
 
+    purpose = resolve_purpose(data)
     property_type = resolve_property_type(data)
     prop = Property.objects.create(
         # The creator is a claimant. Ownership remains empty until a reviewed
@@ -972,6 +1020,7 @@ def create_private_property(*, user, organization, data: dict) -> Property:
         created_by=user,
         title=title,
         property_type=property_type,
+        purpose=purpose,
         address_id=address_id,
         water_source=data.get("water_source", "unknown"),
         power_meter_type=data.get("power_meter_type", "unknown"),
@@ -999,8 +1048,15 @@ def create_private_property(*, user, organization, data: dict) -> Property:
     # clients to hide a category the domain accepts.
     OrganizationActivity.objects.get_or_create(
         organization=organization,
-        activity=property_type,
+        activity=_activity_for(prop),
     )
+    if prop.is_for_sale:
+        # Its sale record is part of the property from the start, so the setup
+        # checklist can say what is missing from it. Nothing is public yet —
+        # that waits for verification (see `apps.sale.read_models`).
+        from apps.sale import services as sale_services
+
+        sale_services.start_sale(prop=prop, user=user, data=data.get("sale") or {})
     record(
         action=AuditAction.CREATE,
         aggregate_type="property",
@@ -1008,6 +1064,7 @@ def create_private_property(*, user, organization, data: dict) -> Property:
         actor=user,
         metadata={
             "type": prop.property_type,
+            "purpose": prop.purpose,
             "organization_id": str(organization.id),
             "visibility": "private",
         },
@@ -1020,6 +1077,7 @@ def create_private_property(*, user, organization, data: dict) -> Property:
             {
                 "organization_id": str(organization.id),
                 "type": prop.property_type,
+                "purpose": prop.purpose,
                 "visibility": "private",
             },
         )
@@ -1027,22 +1085,35 @@ def create_private_property(*, user, organization, data: dict) -> Property:
     return prop
 
 
+def _activity_for(prop: Property) -> str:
+    """What this property says the Portfolio does: its category, or selling."""
+    from apps.organization.models import OrganizationActivityType
+
+    return OrganizationActivityType.SALES if prop.is_for_sale else prop.property_type
+
+
 @transaction.atomic
 def create_personal_property(*, user, data: dict) -> Property:
     """Create a first Property without making an individual build a workspace first."""
 
+    from apps.organization.models import OrganizationActivityType
     from apps.organization.services import ensure_personal_organization
 
+    from .models import PropertyPurpose
+
     property_type = resolve_property_type(data)
+    purpose = resolve_purpose(data)
     organization = ensure_personal_organization(
         owner=user,
         actor=user,
-        activity=property_type,
+        activity=OrganizationActivityType.SALES
+        if purpose == PropertyPurpose.SALE
+        else property_type,
     )
     return create_private_property(
         user=user,
         organization=organization,
-        data={**data, "property_type": property_type},
+        data={**data, "property_type": property_type, "purpose": purpose},
     )
 
 
@@ -1089,7 +1160,9 @@ def update_property(*, prop: Property, user, data: dict) -> Property:
         from .models import PropertyType
         from .space_rules import assert_space_type_allowed
 
-        next_property_type = resolve_property_type({"property_type": data.get("property_type")})
+        next_property_type = resolve_property_type(
+            {"property_type": data.get("property_type"), "purpose": prop.purpose}
+        )
         if next_property_type != prop.property_type:
             units = list(Unit.objects.select_for_update().filter(property=prop).order_by("id"))
             if (
@@ -1131,6 +1204,7 @@ def add_unit(*, prop: Property, user, data: dict) -> Unit:
     from .space_rules import assert_interior_is_coherent, assert_space_type_allowed
 
     assert_can_manage(prop, user)
+    assert_is_for_letting(prop)
     # An unattached property has no Portfolio and therefore no plan to enforce;
     # `portfolio_for_property` returns None and billing declines to be the thing
     # that makes a pre-billing property unusable.
@@ -1194,6 +1268,7 @@ def add_building(*, prop: Property, user, data: dict) -> Building:
     from apps.billing import enforcement as billing
 
     assert_can_manage(prop, user)
+    assert_is_for_letting(prop)
     billing.assert_open_for_new_activity(prop=prop, action="add_building")
     name = str(data.get("name", "")).strip()
     if not name:
@@ -1321,7 +1396,12 @@ def record_property_claim(*, user, prop: Property, data: dict, files: list):
         .first()
     )
     if answering is not None:
-        return submit_provider_application_more_info(application=answering, user=user, files=files)
+        return submit_provider_application_more_info(
+            application=answering,
+            user=user,
+            files=files,
+            evidence_types=data.get("evidence_types") or {},
+        )
 
     return submit_provider_application(
         user=user,

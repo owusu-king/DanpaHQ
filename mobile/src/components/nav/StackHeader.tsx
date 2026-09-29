@@ -99,3 +99,14 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
 });
+
+/**
+ * How tall this header draws, for a screen that has to clear it — a
+ * `KeyboardAvoidingView` on iOS measures from the window, not from under the
+ * header, so a composer at the foot of a chat would stop short by this much.
+ */
+export function useStackHeaderHeight(): number {
+  const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  return safeHeaderTop(insets.top) + (width <= NARROW_WIDTH ? NARROW_ROW_HEIGHT : ROW_HEIGHT);
+}

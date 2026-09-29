@@ -27,6 +27,7 @@ import { Field } from "@/components/Field";
 import { Notice } from "@/components/Notice";
 import { Select } from "@/components/Select";
 import { PropertyTypeChoice } from "@/components/property/PropertyTypeChoice";
+import { PurposeChoice, SaleTypeChoice } from "@/components/property/PurposeChoice";
 import { SetupProgress, SetupSteps, StepPanel } from "@/components/property/SetupSteps";
 import { ApiFailure } from "@/lib/api";
 import {
@@ -43,7 +44,11 @@ import {
   type PlaceSuggestion,
 } from "@/lib/places";
 import { describePropertySetup } from "@/lib/propertySetup";
-import { loadPropertyTypes, type PropertyTypeOption } from "@/lib/propertyTypes";
+import {
+  loadPropertyVocabulary,
+  type FeatureOption,
+  type PropertyTypeOption,
+} from "@/lib/propertyTypes";
 import { useSession } from "@/lib/session";
 
 /** The whole journey, as it stands before anything exists. */
@@ -68,6 +73,12 @@ function NewPropertyContent() {
   // rooms, and guessing changes what may be added to it later.
   const [propertyType, setPropertyType] = useState("");
   const [propertyTypes, setPropertyTypes] = useState<PropertyTypeOption[]>([]);
+  // To let or for sale. Letting unless asked otherwise — `?purpose=sale` comes
+  // from "Sell a property" — and fixed once the record exists.
+  const [purpose, setPurpose] = useState<"letting" | "sale">(
+    searchParams.get("purpose") === "sale" ? "sale" : "letting",
+  );
+  const [saleTypes, setSaleTypes] = useState<FeatureOption[]>([]);
   const [query, setQuery] = useState("");
   const [placeSuggestions, setPlaceSuggestions] = useState<PlaceSuggestion[]>([]);
   const [selectedPlace, setSelectedPlace] = useState<PlaceSuggestion | null>(null);
@@ -82,8 +93,11 @@ function NewPropertyContent() {
   useEffect(() => {
     // Fetched, not hardcoded: the same rules that validate the request describe
     // the form, so this cannot offer a category the backend does not have.
-    void loadPropertyTypes()
-      .then(setPropertyTypes)
+    void loadPropertyVocabulary()
+      .then((vocabulary) => {
+        setPropertyTypes(vocabulary.property_types);
+        setSaleTypes(vocabulary.sale_types ?? []);
+      })
       .catch(() => setPropertyTypes([]));
   }, []);
 
@@ -151,6 +165,7 @@ function NewPropertyContent() {
         title: title.trim(),
         property_type: propertyType,
         address_id: address.id,
+        purpose,
       };
       const property = organizationId
         ? await createPrivateProperty(organizationId, input)
@@ -231,7 +246,11 @@ function NewPropertyContent() {
 
               <Field
                 label="Property name"
-                hint="Your own label — tenants see the listing headline, not this."
+                hint={
+                  purpose === "sale"
+                    ? "Your own label — buyers see the sale headline, not this."
+                    : "Your own label — tenants see the listing headline, not this."
+                }
                 value={title}
                 onChange={(event) => setTitle(event.target.value)}
               />
@@ -241,11 +260,25 @@ function NewPropertyContent() {
                   page the least visible one. Portfolio activities describe the
                   current focus; they do not remove valid categories from the
                   backend vocabulary. */}
-              <PropertyTypeChoice
-                types={propertyTypes}
-                value={propertyType}
-                onChange={setPropertyType}
+              <PurposeChoice
+                value={purpose}
+                onChange={(next) => {
+                  setPurpose(next);
+                  // The two purposes choose from different categories — a hostel
+                  // is never sold, land is never let — so the choice resets.
+                  setPropertyType("");
+                }}
               />
+
+              {purpose === "sale" ? (
+                <SaleTypeChoice types={saleTypes} value={propertyType} onChange={setPropertyType} />
+              ) : (
+                <PropertyTypeChoice
+                  types={propertyTypes}
+                  value={propertyType}
+                  onChange={setPropertyType}
+                />
+              )}
 
               <div>
                 <Field

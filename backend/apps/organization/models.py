@@ -34,6 +34,9 @@ class OrganizationActivityType(models.TextChoices):
     RESIDENTIAL = "residential", "Residential property"
     COMMERCIAL = "commercial", "Commercial property"
     HOSTEL = "hostel", "Student hostel"
+    #: Selling property rather than letting it. Recorded whatever kind of property
+    #: is being sold, because the business is the selling (owner, 2026-09-28).
+    SALES = "sales", "Property sales"
 
 
 class MembershipRole(models.TextChoices):

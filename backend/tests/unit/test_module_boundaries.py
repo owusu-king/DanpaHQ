@@ -17,8 +17,9 @@ APPS = BACKEND / "apps"
 
 PLATFORM = {"core", "audit", "outbox", "idempotency", "files", "geo", "notifications"}
 # Property, listing, organization authority and occupancy share the same
-# property-access boundary and may import within that bounded context.
-PROPERTY_ACCESS = frozenset({"property", "listing", "organization", "occupancy"})
+# property-access boundary and may import within that bounded context. A sale is
+# a property advertised whole, bound to it as a listing is to its Unit.
+PROPERTY_ACCESS = frozenset({"property", "listing", "organization", "occupancy", "sale"})
 DOMAIN = {
     "identity",
     "trust",

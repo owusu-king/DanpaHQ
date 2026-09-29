@@ -56,7 +56,7 @@ import {
   type PortfolioInvitation,
   type PortfolioMember,
 } from "@/organizations";
-import { isAndroid, pressableFeedback, useSafeBottom } from "@/platform";
+import { pressableFeedback, useSafeBottom } from "@/platform";
 import { theme } from "@/theme";
 
 type Row =
@@ -454,7 +454,7 @@ function MemberRow({ member, onPress }: { member: PortfolioMember; onPress: () =
       accessibilityLabel={`${member.display_name}. ${roleLabel(member.role)}. ${waiting ? `${reach}, ${waiting}` : reach}.`}
       onPress={onPress}
       {...pressableFeedback(PRESSED)}
-      style={({ pressed }) => [rowStyles.row, pressed && !isAndroid ? { backgroundColor: PRESSED } : null]}
+      style={({ pressed }) => [rowStyles.row, pressed ? { backgroundColor: PRESSED } : null]}
     >
       <View style={[styles.initials, { backgroundColor: tone.wash }]}>
         <Type variant="captionStrong" style={[styles.initialsText, { color: tone.ink }]}>{initialsOf(member.display_name)}</Type>
@@ -489,7 +489,7 @@ function InvitationRow({ invitation, onPress }: { invitation: PortfolioInvitatio
       accessibilityHint="Opens this invitation"
       onPress={onPress}
       {...pressableFeedback(PRESSED)}
-      style={({ pressed }) => [rowStyles.row, pressed && !isAndroid ? { backgroundColor: PRESSED } : null]}
+      style={({ pressed }) => [rowStyles.row, pressed ? { backgroundColor: PRESSED } : null]}
     >
       <View style={[styles.initials, styles.invited]}>
         <Type variant="captionStrong" style={[styles.initialsText, { color: HARMATTAN }]}>···</Type>

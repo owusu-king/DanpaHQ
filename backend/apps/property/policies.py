@@ -518,6 +518,28 @@ def can_edit_property(*, actor, target, elevated: bool = False) -> Decision:
     return allow(message="You can change this property while it is with you.")
 
 
+def _sale_title_blockers(target, application) -> list[Blocker]:
+    """The title — and for land the site plan — a sale's review reads.
+
+    Stricter than letting on purpose (owner, 2026-09-28): the claim carries the
+    seller's relationship, and a sale adds the document showing what is being
+    sold. Named, because "a document is missing" does not say which of three.
+    """
+    from apps.trust.evidence_policy import missing_required, sale_title_slots
+    from apps.trust.models import VerificationEvidence
+
+    collected = list(
+        VerificationEvidence.objects.filter(
+            verification_id=application.authority_verification_id
+        ).values_list("evidence_type", flat=True)
+    )
+    outstanding = missing_required(collected, sale_title_slots(target))
+    return [
+        Blocker(kind="title_missing", count=1, message=f"{slot.label} is still needed.")
+        for slot in outstanding
+    ]
+
+
 def can_submit_property(*, actor, target, elevated: bool = False) -> Decision:
     """Send the property to our team.
 
@@ -564,9 +586,31 @@ def can_submit_property(*, actor, target, elevated: bool = False) -> Decision:
             Blocker(
                 kind="document_missing",
                 count=1,
-                message="The document showing this property is yours to let is missing.",
+                message=(
+                    "The document showing this property is yours to sell is missing."
+                    if target.is_for_sale
+                    else "The document showing this property is yours to let is missing."
+                ),
             )
         )
+    elif target.is_for_sale:
+        blockers.extend(_sale_title_blockers(target, application))
+
+    if target.is_for_sale:
+        from apps.sale.services import sale_blockers
+
+        missing = sale_blockers(target)
+        if missing:
+            first = missing[0]["message"]
+            blockers.append(
+                Blocker(
+                    kind="sale_details_missing",
+                    count=len(missing),
+                    message=first
+                    if len(missing) == 1
+                    else f"{len(missing)} sale details still needed — {first.lower()}",
+                )
+            )
 
     snapshot = condition.snapshot(target)
     outstanding = snapshot["required_outstanding"]

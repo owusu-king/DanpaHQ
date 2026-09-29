@@ -42,6 +42,8 @@ export type PropertyVocabulary = {
   water_sources: FeatureOption[];
   power_meter_types: FeatureOption[];
   compound_types: FeatureOption[];
+  /** What can be sold whole: a house, a commercial building, land. */
+  sale_types: FeatureOption[];
 };
 
 /**

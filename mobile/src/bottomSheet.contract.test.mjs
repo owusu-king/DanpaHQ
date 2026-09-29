@@ -121,3 +121,18 @@ test("it is safe at every edge and closable every way", () => {
   // Grabbing it puts the keyboard away rather than dragging a field with it.
   assert.match(source, /Keyboard\.dismiss\(\);/);
 });
+
+test("a stray tap on the scrim never throws away what was being typed", () => {
+  // Archiving a property asks for a reason. With the keyboard up, a thumb on the
+  // dimmed page closed the sheet and the reason with it (owner, 2026-09-29).
+  const source = sheet();
+  const press = source.slice(source.indexOf("const pressScrim = () => {"), source.indexOf("const measure ="));
+  // The keyboard goes first; a sheet that has had the keyboard then stays.
+  assert.match(press, /if \(keyboardUp\) \{\s*Keyboard\.dismiss\(\);\s*return;\s*\}/);
+  assert.match(press, /if \(typing\) return;\s*onClose\(\);/);
+  assert.match(source, /onPress=\{pressScrim\}/);
+  // A fresh opening starts un-typed, and the deliberate ways out still close it.
+  assert.match(source, /if \(!visible\) \{\s*setTyping\(false\);/);
+  assert.match(source, /onRequestClose=\{onClose\}/);
+  assert.match(source, /onAccessibilityEscape=\{onClose\}/);
+});

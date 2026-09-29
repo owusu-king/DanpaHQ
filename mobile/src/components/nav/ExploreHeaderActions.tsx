@@ -46,12 +46,14 @@ export function ExploreHeaderActions() {
       <HeaderCircleButton
         icon="bookmark-outline"
         label="Saved"
+        compact
         onPress={() => router.push("/(app)/saved" as never)}
       />
       <HeaderCircleButton
         icon="person-outline"
         label="Your profile"
         imageUri={photoUri}
+        compact
         onPress={() => router.push("/(app)/(tabs)/profile" as never)}
       />
     </HeaderActions>

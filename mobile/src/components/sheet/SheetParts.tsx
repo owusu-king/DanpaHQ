@@ -1,8 +1,8 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { createContext, useContext, useId, type ReactNode } from "react";
+import { createContext, useContext, type ReactNode } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, View } from "react-native";
-import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
 
+import { Sheen } from "@/components/Sheen";
 import { Type, radius, space } from "@/components/ui";
 import { isAndroid } from "@/platform";
 import { alpha } from "@/shell";
@@ -89,8 +89,7 @@ export function SheetGlassButton({
         aria-disabled={disabled}
         disabled={disabled}
         onPress={onPress}
-        android_ripple={isAndroid ? { color: alpha(theme.color.ink["900"], 0.08) } : undefined}
-        style={({ pressed }) => [styles.pill, styles.glass, pressed && !isAndroid ? styles.pressed : null]}
+        style={({ pressed }) => [styles.pill, styles.glass, pressed ? styles.pressed : null]}
       >
         <Sheen from={0.95} to={0.35} />
         {icon ? <Ionicons name={icon} size={18} color={ink} /> : null}
@@ -132,13 +131,12 @@ export function SheetPrimaryButton({
         aria-busy={busy}
         disabled={inactive}
         onPress={onPress}
-        android_ripple={isAndroid ? { color: alpha(theme.color.field["0"], 0.18) } : undefined}
         style={({ pressed }) => [
           styles.pill,
           styles.primaryRim,
           { backgroundColor: fill },
           inactive ? styles.inactive : null,
-          pressed && !isAndroid ? styles.pressed : null,
+          pressed ? styles.pressed : null,
         ]}
       >
         <Sheen from={0.22} to={0} />
@@ -151,29 +149,6 @@ export function SheetPrimaryButton({
           {busy ? busyLabel ?? label : label}
         </Type>
       </Pressable>
-    </View>
-  );
-}
-
-/** White light across a pill, strongest at its top edge. Silent and untouchable. */
-function Sheen({ from, to }: { from: number; to: number }) {
-  const id = `sheen${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
-  return (
-    <View
-      pointerEvents="none"
-      accessibilityElementsHidden
-      importantForAccessibility="no-hide-descendants"
-      style={StyleSheet.absoluteFill}
-    >
-      <Svg width="100%" height="100%">
-        <Defs>
-          <LinearGradient id={id} x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0" stopColor={theme.color.field["0"]} stopOpacity={from} />
-            <Stop offset="1" stopColor={theme.color.field["0"]} stopOpacity={to} />
-          </LinearGradient>
-        </Defs>
-        <Rect x="0" y="0" width="100%" height="100%" fill={`url(#${id})`} />
-      </Svg>
     </View>
   );
 }

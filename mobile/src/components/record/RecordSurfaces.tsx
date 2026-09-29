@@ -15,7 +15,7 @@ import {
 } from "@/components/portfolio/PortfolioList";
 import { sheetCardStyle, useInSheet } from "@/components/sheet/SheetParts";
 import { Type, space } from "@/components/ui";
-import { isAndroid, pressableFeedback, surfaceElevation } from "@/platform";
+import { pressableFeedback, surfaceElevation } from "@/platform";
 import { theme } from "@/theme";
 
 /**
@@ -199,7 +199,7 @@ export function LinkRow({
       style={({ pressed }) => [
         styles.linkRow,
         first ? null : styles.ruled,
-        pressed && !isAndroid ? { backgroundColor: PRESSED } : null,
+        pressed ? { backgroundColor: PRESSED } : null,
       ]}
     >
       <View style={[styles.well, { backgroundColor: TONE[tone].wash }]}>
@@ -258,7 +258,7 @@ export function Pill({
         grow ? styles.pillGrow : null,
         tone === "primary" ? styles.pillPrimary : tone === "danger" ? styles.pillDanger : styles.pillQuiet,
         inert ? styles.dim : null,
-        pressed && !isAndroid ? { opacity: 0.85 } : null,
+        pressed ? { opacity: 0.85 } : null,
       ]}
     >
       {busy ? (
@@ -302,7 +302,7 @@ export function QuietAct({
       hitSlop={space[2]}
       onPress={onPress}
       {...pressableFeedback(PRESSED)}
-      style={({ pressed }) => [styles.quietAct, inert ? styles.dim : null, pressed && !isAndroid ? { opacity: 0.72 } : null]}
+      style={({ pressed }) => [styles.quietAct, inert ? styles.dim : null, pressed ? { opacity: 0.72 } : null]}
     >
       {busy ? (
         <ActivityIndicator size="small" color={KOLA_DEEP} />

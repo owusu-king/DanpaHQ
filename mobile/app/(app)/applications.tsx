@@ -46,7 +46,7 @@ import { BottomSheet } from "@/components/sheet/BottomSheet";
 import { Notice, Type, space } from "@/components/ui";
 import { listMyLeases, type Lease } from "@/leases";
 import { timeAgo } from "@/notifications";
-import { isAndroid, pressableFeedback, useSafeBottom } from "@/platform";
+import { pressableFeedback, useSafeBottom } from "@/platform";
 import { alpha } from "@/shell";
 import { theme } from "@/theme";
 
@@ -310,7 +310,7 @@ function Row({
         accessibilityLabel={`${application.listing_headline}. ${placeOf(application)}. ${state.line}. Applied ${timeAgo(application.created_at)}.`}
         onPress={onPress}
         {...pressableFeedback(PRESSED)}
-        style={({ pressed }) => [rowStyles.row, pressed && !isAndroid ? { backgroundColor: PRESSED } : null]}
+        style={({ pressed }) => [rowStyles.row, pressed ? { backgroundColor: PRESSED } : null]}
       >
         <Thumb uri={application.photo_url} size={64} />
         <View style={rowStyles.rowBody}>
@@ -333,7 +333,7 @@ function Row({
           accessibilityLabel={`Review the agreement for ${application.listing_headline}`}
           onPress={() => onAgreement(agreement)}
           {...pressableFeedback(alpha(KOLA, 0.14))}
-          style={({ pressed }) => [styles.agreement, pressed && !isAndroid ? { opacity: 0.85 } : null]}
+          style={({ pressed }) => [styles.agreement, pressed ? { opacity: 0.85 } : null]}
         >
           <Ionicons name="document-text-outline" size={16} color={KOLA_DEEP} />
           <Type variant="captionStrong" style={styles.agreementText}>Review the agreement</Type>

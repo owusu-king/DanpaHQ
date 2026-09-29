@@ -648,6 +648,77 @@ def on_lease_ended(event) -> None:
         )
 
 
+# --- properties for sale -----------------------------------------------------
+
+
+def _enquiry(payload_id):
+    from apps.sale.models import SaleEnquiry
+
+    return (
+        SaleEnquiry.objects.filter(id=payload_id).select_related("sale__property", "buyer").first()
+    )
+
+
+def _sellers(prop) -> list:
+    """Everyone who may answer for this property: its Portfolio's managers."""
+    from apps.organization.models import MembershipRole, OrganizationMembership
+
+    organization_ids = prop.organization_relationships.filter(ended_at__isnull=True).values(
+        "organization_id"
+    )
+    memberships = OrganizationMembership.objects.filter(
+        organization_id__in=organization_ids,
+        ended_at__isnull=True,
+        role__in=[MembershipRole.OWNER, MembershipRole.ADMIN],
+    ).select_related("user")
+    people = {membership.user.id: membership.user for membership in memberships}
+    if prop.created_by_id and prop.created_by_id not in people:
+        people[prop.created_by_id] = prop.created_by
+    return list(people.values())
+
+
+@subscribe("sale.enquiry_received.v1")
+def on_sale_enquiry_received(event) -> None:
+    enquiry = _enquiry(event.aggregate_id)
+    if enquiry is None:
+        return
+    headline = enquiry.sale.headline or "your property"
+    for seller in _sellers(enquiry.sale.property):
+        notify(
+            user=seller,
+            kind="sale.enquiry_received",
+            title="A buyer is asking about your property",
+            body=f"{enquiry.buyer.display_name} sent a question about {headline}.",
+            dedupe_key=_key(event, seller.id),
+            target_type="sale_enquiry",
+            target_id=enquiry.id,
+        )
+
+
+@subscribe("sale.enquiry_replied.v1")
+def on_sale_enquiry_replied(event) -> None:
+    enquiry = _enquiry(event.aggregate_id)
+    if enquiry is None:
+        return
+    headline = enquiry.sale.headline or "the property"
+    if event.payload.get("from_buyer"):
+        recipients = _sellers(enquiry.sale.property)
+        body = f"{enquiry.buyer.display_name} replied about {headline}."
+    else:
+        recipients = [enquiry.buyer]
+        body = f"The seller replied about {headline}."
+    for person in recipients:
+        notify(
+            user=person,
+            kind="sale.enquiry_replied",
+            title="New message about a property for sale",
+            body=body,
+            dedupe_key=_key(event, person.id),
+            target_type="sale_enquiry",
+            target_id=enquiry.id,
+        )
+
+
 # --- scheduled rent obligations ---------------------------------------------
 
 

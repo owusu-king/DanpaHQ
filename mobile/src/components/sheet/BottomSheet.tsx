@@ -21,7 +21,7 @@ import { ModalSafeArea, SafeInsets } from "@/components/sheet/ModalSafeArea";
 import { SHEET_GROUND, SheetScope } from "@/components/sheet/SheetParts";
 import { Type, motion, space } from "@/components/ui";
 import { useReduceMotion } from "@/motion";
-import { isAndroid, pressableFeedback, safeHeaderTop } from "@/platform";
+import { pressableFeedback, safeHeaderTop } from "@/platform";
 import { theme } from "@/theme";
 
 /** Past this share of its own height, a drag lets the sheet go… */
@@ -86,6 +86,13 @@ type BottomSheetProps = {
  * scrim. The Android back button, the scrim, the close button and VoiceOver's
  * escape all close it; the footer stays clear of the home indicator, and on iOS
  * the keyboard pushes the sheet up rather than covering its fields.
+ *
+ * **A sheet being typed into is not closed by a stray tap** (owner, 2026-09-29).
+ * Archiving a property asks for a reason; with the keyboard up, a thumb resting
+ * on the dimmed page above closed the sheet and threw the reason away. So once
+ * a field in the sheet has had the keyboard, a tap on the scrim only puts the
+ * keyboard down, and after that does nothing: the close button, the handle, the
+ * back button and VoiceOver's escape still close it, deliberately.
  */
 export function BottomSheet({ visible, onClose, title, hideTitle = false, closeLabel, footer, children }: BottomSheetProps) {
   const { height: windowHeight } = useWindowDimensions();
@@ -94,6 +101,9 @@ export function BottomSheet({ visible, onClose, title, hideTitle = false, closeL
   const [mounted, setMounted] = useState(false);
   const [height, setHeight] = useState(0);
   const [dragging, setDragging] = useState(false);
+  const [keyboardUp, setKeyboardUp] = useState(false);
+  /** A field in this sheet has had the keyboard since it opened. */
+  const [typing, setTyping] = useState(false);
 
   const translate = useRef(new Animated.Value(windowHeight)).current;
   const dragBase = useRef(0);
@@ -152,6 +162,36 @@ export function BottomSheet({ visible, onClose, title, hideTitle = false, closeL
       fall?.stop();
     };
   }, [translate, visible]);
+
+  // Watched only while the sheet is up; a fresh opening starts un-typed.
+  useEffect(() => {
+    if (!visible) {
+      setTyping(false);
+      setKeyboardUp(false);
+      return;
+    }
+    const shown = Keyboard.addListener(Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow", () => {
+      setKeyboardUp(true);
+      setTyping(true);
+    });
+    const hidden = Keyboard.addListener(Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide", () => {
+      setKeyboardUp(false);
+    });
+    return () => {
+      shown.remove();
+      hidden.remove();
+    };
+  }, [visible]);
+
+  /** The scrim: the keyboard goes first, and a sheet being typed into stays. */
+  const pressScrim = () => {
+    if (keyboardUp) {
+      Keyboard.dismiss();
+      return;
+    }
+    if (typing) return;
+    onClose();
+  };
 
   const measure = (event: LayoutChangeEvent) => {
     const next = Math.round(event.nativeEvent.layout.height);
@@ -234,7 +274,15 @@ export function BottomSheet({ visible, onClose, title, hideTitle = false, closeL
           render={(edge) => (
             <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === "ios" ? "padding" : undefined}>
               <Animated.View style={[StyleSheet.absoluteFill, styles.scrim, { opacity: scrim }]}>
-                <Pressable accessibilityRole="button" accessibilityLabel={closeLabel} onPress={onClose} style={styles.fill} />
+                {/* Held open, it stops offering itself to a screen reader as a way
+                    out; the close button is the way then. */}
+                <Pressable
+                  accessible={!typing}
+                  accessibilityRole="button"
+                  accessibilityLabel={closeLabel}
+                  onPress={pressScrim}
+                  style={styles.fill}
+                />
               </Animated.View>
               <View pointerEvents="box-none" style={styles.stage}>
                 <Animated.View
@@ -262,7 +310,7 @@ export function BottomSheet({ visible, onClose, title, hideTitle = false, closeL
                             hitSlop={6}
                             onPress={onClose}
                             {...pressableFeedback(theme.color.field["200"])}
-                            style={({ pressed }) => [styles.close, pressed && !isAndroid ? styles.closePressed : null]}
+                            style={({ pressed }) => [styles.close, pressed ? styles.closePressed : null]}
                           >
                             <Ionicons name="close" size={20} color={theme.color.ink["700"]} />
                           </Pressable></View> : null}
@@ -276,7 +324,7 @@ export function BottomSheet({ visible, onClose, title, hideTitle = false, closeL
                           hitSlop={6}
                           onPress={onClose}
                           {...pressableFeedback(theme.color.field["200"])}
-                          style={({ pressed }) => [styles.close, pressed && !isAndroid ? styles.closePressed : null]}
+                          style={({ pressed }) => [styles.close, pressed ? styles.closePressed : null]}
                         >
                           <Ionicons name="close" size={20} color={theme.color.ink["700"]} />
                         </Pressable>

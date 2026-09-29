@@ -51,7 +51,7 @@ import {
   type NotificationTone,
 } from "@/notificationMeaning";
 import { listNotifications, markRead, timeAgo, type Notification } from "@/notifications";
-import { isAndroid, pressableFeedback, useSafeBottom } from "@/platform";
+import { pressableFeedback, useSafeBottom } from "@/platform";
 import { alpha } from "@/shell";
 import { theme } from "@/theme";
 
@@ -224,7 +224,7 @@ export default function NotificationsScreen() {
                     aria-disabled={markingAll} aria-busy={markingAll}
                     hitSlop={space[1]}
                     {...pressableFeedback(theme.color.kola["50"])}
-                    style={({ pressed }) => [styles.readAll, pressed && !isAndroid ? styles.pressed : null]}
+                    style={({ pressed }) => [styles.readAll, pressed ? styles.pressed : null]}
                   >
                     {markingAll ? (
                       <ActivityIndicator size="small" color={KOLA} />
@@ -342,7 +342,7 @@ function PageButton({ icon, label, disabled, onPress }: { icon: "chevron-back" |
       accessibilityLabel={label}
       aria-disabled={disabled}
       {...pressableFeedback(alpha(KOLA, 0.14))}
-      style={({ pressed }) => [styles.pageButton, disabled && styles.pageButtonDisabled, pressed && !isAndroid ? styles.pressed : null]}
+      style={({ pressed }) => [styles.pageButton, disabled && styles.pageButtonDisabled, pressed ? styles.pressed : null]}
     >
       <Ionicons name={icon} size={18} color={KOLA_DEEP} />
     </Pressable>
@@ -367,7 +367,7 @@ function UpdateRow({ item, onPress }: { item: Notification; onPress: () => void 
       style={({ pressed }) => [
         styles.row,
         !item.is_read && { borderLeftColor: palette.fg, backgroundColor: palette.wash },
-        pressed && !isAndroid ? { backgroundColor: PRESSED } : null,
+        pressed ? { backgroundColor: PRESSED } : null,
       ]}
     >
       <View style={[styles.rowIcon, { backgroundColor: palette.bg }]}>

@@ -41,7 +41,7 @@ import {
   StandingLine,
 } from "@/components/record/RecordSurfaces";
 import { Button, Notice, Type, space } from "@/components/ui";
-import { isAndroid, pressableFeedback, useSafeBottom } from "@/platform";
+import { pressableFeedback, useSafeBottom } from "@/platform";
 import { theme } from "@/theme";
 
 /** Beyond this, a plan's list stops being scannable and starts being a brochure. */
@@ -180,7 +180,7 @@ function Cycle({ label, note, selected, onPress }: { label: string; note?: strin
       style={({ pressed }) => [
         styles.cycle,
         selected ? styles.cycleOn : null,
-        pressed && !isAndroid ? { opacity: 0.85 } : null,
+        pressed ? { opacity: 0.85 } : null,
       ]}
     >
       <Type variant="bodyStrong" numberOfLines={1} style={[styles.cycleLabel, selected ? { color: KOLA_DEEP } : null]}>
@@ -283,7 +283,7 @@ function PlanPanel({ option, interval, onChoose }: { option: PlanOption; interva
       accessibilityLabel={`${option.action?.label}. ${amount ?? "Not offered"}${amount && !free ? ` per ${periodWord(interval)}` : ""}. ${limits}`}
       onPress={onChoose}
       {...pressableFeedback(PRESSED)}
-      style={({ pressed }) => [styles.planPressable, pressed && !isAndroid ? { backgroundColor: PRESSED } : null]}
+      style={({ pressed }) => [styles.planPressable, pressed ? { backgroundColor: PRESSED } : null]}
     >
       {body}
     </Pressable>

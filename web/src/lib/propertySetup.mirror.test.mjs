@@ -80,9 +80,12 @@ test("both files still declare the same steps", { skip: !mobile || !web }, () =>
   const keys = (source) => [...source.matchAll(/key: "([a-z_]+)"/g)].map((m) => m[1]);
 
   assert.deepEqual(keys(mobile), keys(web));
+  // `sale` is declared for properties sold whole (owner, 2026-09-28); letting
+  // never reaches it, and land skips `details` and `amenities`.
   assert.deepEqual(keys(web), [
     "basics",
     "details",
+    "sale",
     "documents",
     "photos",
     "amenities",

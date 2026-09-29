@@ -73,6 +73,7 @@ LOCAL_APPS = [
     "apps.tenancy",
     "apps.occupancy",
     "apps.listing",
+    "apps.sale",
     "apps.viewing",
     "apps.application",
     "apps.lease",

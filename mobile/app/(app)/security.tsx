@@ -23,7 +23,7 @@ import {
   type IconName,
 } from "@/components/portfolio/PortfolioList";
 import { Notice, Type, radius, space } from "@/components/ui";
-import { destructiveConfirmStyle, isAndroid, pressableFeedback, useSafeBottom } from "@/platform";
+import { destructiveConfirmStyle, pressableFeedback, useSafeBottom } from "@/platform";
 import { theme } from "@/theme";
 
 type Device = {
@@ -323,7 +323,7 @@ function DeviceAction({
       style={({ pressed }) => [
         styles.action,
         danger ? styles.actionDanger : null,
-        pressed && !isAndroid ? { opacity: 0.8 } : null,
+        pressed ? { opacity: 0.8 } : null,
       ]}
     >
       <Type variant="captionStrong" style={[styles.actionText, danger ? { color: LATERITE } : null]}>{label}</Type>

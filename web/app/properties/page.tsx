@@ -150,10 +150,21 @@ function PropertyRow({ property }: { property: Property }) {
   const location = property.address
     ? `${property.address.locality_name}, ${property.address.district_name}`
     : "Address unavailable";
-  const units = `${property.unit_count} ${property.unit_count === 1 ? "Unit" : "Units"}`;
-  const occupancy = property.unit_count
-    ? `${property.occupied_unit_count} occupied · ${property.vacant_unit_count} available`
-    : "No Units added";
+  // A property for sale has no Units to count; its price and whether buyers
+  // can see it are what its seller scans the list for.
+  const sale = property.purpose === "sale" ? property.sale : null;
+  const units = sale
+    ? (sale.price_formatted ?? "For sale")
+    : `${property.unit_count} ${property.unit_count === 1 ? "Unit" : "Units"}`;
+  const occupancy = sale
+    ? sale.status === "active"
+      ? sale.is_public
+        ? "For sale · public"
+        : "For sale · not public yet"
+      : sale.status_label
+    : property.unit_count
+      ? `${property.occupied_unit_count} occupied · ${property.vacant_unit_count} available`
+      : "No Units added";
 
   return (
     <li className="inventory-row">

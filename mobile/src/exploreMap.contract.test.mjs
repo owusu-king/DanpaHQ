@@ -160,12 +160,13 @@ test("a marker previews its rental while the list waits in a sheet that reaches 
   assert.match(preview, /const advance = advanceTerm\(listing\.advance_label\);/);
   assert.match(preview, /\{advance\}<\/Type>/);
 
-  // Full is the whole content area below the controls, which then sit on the
-  // page; collapsed is exactly the sheet's measured header.
+  // Full is the whole content area below the hero; collapsed is exactly the
+  // sheet's measured header.
   assert.match(search, /const sheetHeight = Math\.max\(0, screenHeight - controlsHeight\);/);
+  // List view keeps the same header as map view: no fold, no one-row form.
+  assert.doesNotMatch(search, /oneRow|collapsed=/);
   assert.match(search, /const peek = sheetHeaderHeight > 0 \? Math\.ceil\(sheetHeaderHeight\) : FALLBACK_PEEK;/);
   assert.match(search, /return \{ full: 0, half: Math\.min\(Math\.round\(sheetHeight \* 0\.45\), collapsed\), peek: collapsed \};/);
-  assert.match(search, /opacity: showMap \? controlsGround : 1,/);
   // It snaps to where the release is heading, and a deliberate flick always
   // moves at least one stop, without bouncing past it.
   assert.match(search, /PanResponder\.create\(\{/);
@@ -184,7 +185,8 @@ test("a marker previews its rental while the list waits in a sheet that reaches 
   assert.match(search, /paddingBottom: space\[8\] \+ \(inTabs \? 0 : insets\.bottom\),/);
   // Without a map the screen is the whole list, and says why.
   assert.match(search, /const showMap = mapAvailable\(\);/);
-  assert.match(search, /The map is not available in this build\. Every rental is in the list\./);
+  // Said once, quietly, under the count rather than as a sentence of its own.
+  assert.match(search, /map not in this build/);
 });
 
 test("a price marker is its own face, drawn the same on every density", () => {

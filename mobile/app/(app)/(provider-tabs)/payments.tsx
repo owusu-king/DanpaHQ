@@ -52,7 +52,7 @@ import {
   type PortfolioSummary,
   type PropertyExpense,
 } from "@/organizations";
-import { isAndroid, pressableFeedback } from "@/platform";
+import { pressableFeedback } from "@/platform";
 import { alpha } from "@/shell";
 import { theme } from "@/theme";
 
@@ -303,7 +303,7 @@ function TenantRow({ tenant, narrow, onPress }: { tenant: Tenant; narrow: boolea
       disabled={!tenant.lease_id}
       onPress={onPress}
       {...pressableFeedback(PRESSED)}
-      style={({ pressed }) => [rowStyles.row, tenant.lease_id ? null : { opacity: 0.55 }, pressed && !isAndroid ? { backgroundColor: PRESSED } : null]}
+      style={({ pressed }) => [rowStyles.row, tenant.lease_id ? null : { opacity: 0.55 }, pressed ? { backgroundColor: PRESSED } : null]}
     >
       <View style={[styles.statusDot, { backgroundColor: tone, borderColor: alpha(tone, 0.18) }]} />
       <View style={rowStyles.rowBody}>
@@ -333,7 +333,7 @@ function PaymentRow({ payment, onPress }: { payment: Payment; onPress: () => voi
       accessibilityLabel={`${payment.tenant_name}. ${amount}. ${paymentStatus(payment)}. ${payment.method_display}, ${shortDate(payment.paid_on)}. ${external ? "External, recorded through Rooomly" : "Processed through Rooomly"}. Open rent account.`}
       onPress={onPress}
       {...pressableFeedback(PRESSED)}
-      style={({ pressed }) => [rowStyles.row, pressed && !isAndroid ? { backgroundColor: PRESSED } : null]}
+      style={({ pressed }) => [rowStyles.row, pressed ? { backgroundColor: PRESSED } : null]}
     >
       <View style={[rowStyles.well, { backgroundColor: external ? theme.color.field["100"] : theme.color.kola["50"] }]}>
         <Ionicons name={external ? "create-outline" : "flash-outline"} size={15} color={external ? theme.color.ink["700"] : KOLA} />

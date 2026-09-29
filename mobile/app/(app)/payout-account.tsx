@@ -41,7 +41,7 @@ import {
   type PayoutMethod,
   type PayoutProfile,
 } from "@/organizations";
-import { isAndroid, pressableFeedback, useSafeBottom } from "@/platform";
+import { pressableFeedback, useSafeBottom } from "@/platform";
 import { alpha } from "@/shell";
 import { theme } from "@/theme";
 
@@ -261,7 +261,7 @@ export default function PayoutAccountScreen() {
                       accessibilityLabel={`Change ${method === "bank" ? "bank" : "network"}, currently ${selectedInstitution?.name}`}
                       onPress={() => setChoosingInstitution(true)}
                       {...pressableFeedback(PRESSED)}
-                      style={({ pressed }) => [styles.chosen, pressed && !isAndroid ? { opacity: 0.85 } : null]}
+                      style={({ pressed }) => [styles.chosen, pressed ? { opacity: 0.85 } : null]}
                     >
                       <View style={[rowStyles.well, styles.chosenWell]}>
                         <Ionicons name={method === "bank" ? "business-outline" : "phone-portrait-outline"} size={16} color={KOLA} />
@@ -289,7 +289,7 @@ export default function PayoutAccountScreen() {
                             accessibilityLabel={institution.name}
                             onPress={() => { setBankCode(institution.code); setChoosingInstitution(false); setResolved(null); }}
                             {...pressableFeedback(PRESSED)}
-                            style={({ pressed }) => [styles.institution, index ? styles.ruled : null, pressed && !isAndroid ? { backgroundColor: PRESSED } : null]}
+                            style={({ pressed }) => [styles.institution, index ? styles.ruled : null, pressed ? { backgroundColor: PRESSED } : null]}
                           >
                             <Type variant="body" numberOfLines={1} style={styles.institutionName}>{institution.name}</Type>
                             {bankCode === institution.code ? <Ionicons name="checkmark" size={17} color={KOLA} /> : null}
@@ -348,7 +348,7 @@ export default function PayoutAccountScreen() {
                       accessibilityLabel="Close account setup"
                       onPress={() => setShowSetup(false)}
                       hitSlop={space[1]}
-                      style={({ pressed }) => [styles.close, pressed && !isAndroid ? { opacity: 0.8 } : null]}
+                      style={({ pressed }) => [styles.close, pressed ? { opacity: 0.8 } : null]}
                     >
                       <Type variant="captionStrong" style={styles.closeText}>Close account setup</Type>
                     </Pressable>
@@ -456,7 +456,7 @@ function MethodChoice({ label, icon, selected, onPress }: { label: string; icon:
       accessibilityLabel={label}
       onPress={onPress}
       {...pressableFeedback(theme.color.kola["50"])}
-      style={({ pressed }) => [styles.method, selected ? styles.methodChosen : null, pressed && !isAndroid ? { opacity: 0.85 } : null]}
+      style={({ pressed }) => [styles.method, selected ? styles.methodChosen : null, pressed ? { opacity: 0.85 } : null]}
     >
       <Ionicons name={icon} size={16} color={selected ? KOLA : MUTED} />
       <Type variant="captionStrong" numberOfLines={1} style={[styles.methodText, selected ? { color: KOLA_DEEP } : null]}>{label}</Type>

@@ -23,7 +23,7 @@ import {
 } from "@/components/record/RecordSurfaces";
 import { Field, Notice, Type, space } from "@/components/ui";
 import { getLeaseLedger, recordRentPayment, type LeaseLedger, type RentPayment } from "@/leases";
-import { isAndroid, pressableFeedback, useSafeBottom } from "@/platform";
+import { pressableFeedback, useSafeBottom } from "@/platform";
 import { uploadImage } from "@/provider";
 import { theme } from "@/theme";
 
@@ -215,7 +215,7 @@ export default function ProviderPaymentRecordScreen() {
             aria-expanded={extras}
             onPress={() => setExtras((value) => !value)}
             {...pressableFeedback(theme.color.field["100"])}
-            style={({ pressed }) => [styles.disclosure, pressed && !isAndroid ? { backgroundColor: theme.color.field["100"] } : null]}
+            style={({ pressed }) => [styles.disclosure, pressed ? { backgroundColor: theme.color.field["100"] } : null]}
           >
             <Type variant="bodyStrong" style={styles.disclosureLabel}>Add a reference or note</Type>
             <Ionicons name={extras ? "chevron-up" : "chevron-down"} size={16} color={KOLA_DEEP} />
@@ -272,7 +272,7 @@ function PickRow({
         styles.pick,
         first ? null : styles.ruled,
         selected ? styles.pickOn : null,
-        pressed && !isAndroid ? { backgroundColor: theme.color.field["100"] } : null,
+        pressed ? { backgroundColor: theme.color.field["100"] } : null,
       ]}
     >
       <Ionicons
@@ -298,7 +298,7 @@ function Chip({ label, selected, onPress }: { label: string; selected: boolean; 
       accessibilityLabel={label}
       onPress={onPress}
       {...pressableFeedback(theme.color.kola["50"])}
-      style={({ pressed }) => [styles.chip, selected ? styles.chipOn : null, pressed && !isAndroid ? { opacity: 0.85 } : null]}
+      style={({ pressed }) => [styles.chip, selected ? styles.chipOn : null, pressed ? { opacity: 0.85 } : null]}
     >
       <Type variant="captionStrong" style={[styles.chipText, selected ? { color: KOLA_DEEP } : null]}>{label}</Type>
     </Pressable>

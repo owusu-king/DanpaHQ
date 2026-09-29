@@ -575,18 +575,33 @@ def _public_photo_url(file) -> str | None:
 
 
 def _verified_property_photo_items(listing) -> list[dict]:
-    """Photographs that support the Property's current successful review.
+    """Photographs that support the Property's current successful review."""
+    return verified_property_photos(listing.unit.property, public=listing.is_live)
+
+
+def verified_property_photos(
+    prop,
+    *,
+    public: bool,
+    allowed: set | None = None,
+    priority: dict | None = None,
+    source_label: str = "The wider property",
+) -> list[dict]:
+    """Photographs that support a Property's current successful review.
 
     `PropertyMedia` is editable presentation data and is therefore not proof
     that a reviewer saw a file. The immutable evidence rows are the authority
     for that claim. Only visual evidence on the current approved condition
     review can cross this public boundary.
+
+    A listing shows the building around a Unit; a property for sale is the
+    thing being bought, so `apps.sale` passes its own wider `allowed` set —
+    the interior, the kitchen, the plot boundary — and its own label.
     """
     from apps.property.verification import PropertyReviewState, lifecycle
     from apps.trust.condition import settled_review
     from apps.trust.models import EvidenceType, VerificationKind, VerificationStatus
 
-    prop = listing.unit.property
     if lifecycle(prop)["review_state"] != PropertyReviewState.VERIFIED:
         return []
 
@@ -599,24 +614,26 @@ def _verified_property_photo_items(listing) -> list[dict]:
     ):
         return []
 
-    allowed = {
-        EvidenceType.PROPERTY_FRONT,
-        EvidenceType.PROPERTY_SIDE,
-        EvidenceType.PROPERTY_SURROUNDINGS,
-        EvidenceType.EXTERIOR,
-        EvidenceType.COMPOUND,
-        EvidenceType.INTERIOR_OVERVIEW,
-        EvidenceType.WATER_SOURCE_VIEW,
-    }
-    priority = {
-        EvidenceType.PROPERTY_FRONT: 0,
-        EvidenceType.EXTERIOR: 0,
-        EvidenceType.PROPERTY_SIDE: 1,
-        EvidenceType.COMPOUND: 2,
-        EvidenceType.PROPERTY_SURROUNDINGS: 3,
-        EvidenceType.INTERIOR_OVERVIEW: 4,
-        EvidenceType.WATER_SOURCE_VIEW: 5,
-    }
+    if allowed is None:
+        allowed = {
+            EvidenceType.PROPERTY_FRONT,
+            EvidenceType.PROPERTY_SIDE,
+            EvidenceType.PROPERTY_SURROUNDINGS,
+            EvidenceType.EXTERIOR,
+            EvidenceType.COMPOUND,
+            EvidenceType.INTERIOR_OVERVIEW,
+            EvidenceType.WATER_SOURCE_VIEW,
+        }
+    if priority is None:
+        priority = {
+            EvidenceType.PROPERTY_FRONT: 0,
+            EvidenceType.EXTERIOR: 0,
+            EvidenceType.PROPERTY_SIDE: 1,
+            EvidenceType.COMPOUND: 2,
+            EvidenceType.PROPERTY_SURROUNDINGS: 3,
+            EvidenceType.INTERIOR_OVERVIEW: 4,
+            EvidenceType.WATER_SOURCE_VIEW: 5,
+        }
     evidence = list(
         review.evidence.select_related("file")
         .filter(file__isnull=False, evidence_type__in=allowed)
@@ -634,7 +651,7 @@ def _verified_property_photo_items(listing) -> list[dict]:
     seen: set[str] = set()
     for row in evidence:
         file_id = str(row.file_id)
-        url = _listing_photo_url(row.file, public=listing.is_live)
+        url = _listing_photo_url(row.file, public=public)
         if file_id in seen or url is None:
             continue
         seen.add(file_id)
@@ -643,7 +660,7 @@ def _verified_property_photo_items(listing) -> list[dict]:
                 "id": str(row.id),
                 "file_id": file_id,
                 "source": "property",
-                "source_label": "The wider property",
+                "source_label": source_label,
                 "kind": row.evidence_type,
                 "caption": row.get_evidence_type_display(),
                 "is_primary": False,

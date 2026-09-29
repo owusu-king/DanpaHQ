@@ -32,6 +32,7 @@ import { Bone } from "@/components/billing/BillingParts";
 import { AuthorityClaim } from "@/components/property/AuthorityClaim";
 import { SetupProgress } from "@/components/property/SetupSteps";
 import { PropertySummary } from "@/components/property/PropertySummary";
+import { SaleDetailsForm } from "@/components/property/SaleDetailsForm";
 import { SpaceAmenities } from "@/components/property/SpaceAmenities";
 import { VerificationPanel } from "@/components/property/VerificationPanel";
 import {
@@ -65,9 +66,13 @@ import {
   type Property,
   type SpaceAmenity,
 } from "@/provider";
+import { getSellerSale, type SellerSale } from "@/sales";
 import { getVerification, type VerificationProgress } from "@/verification";
 
-const STEP_KEYS = ["basics", "details", "documents", "photos", "amenities", "review"] as const;
+// Every step a property can have. Which of them this one has is
+// `describePropertySetup`'s answer — a sale adds `sale`, and land drops
+// `details` and `amenities` — so moving on reads `steps`, never this.
+const STEP_KEYS = ["basics", "details", "sale", "documents", "photos", "amenities", "review"] as const;
 type StepKey = (typeof STEP_KEYS)[number];
 
 export default function PropertySetupScreen() {
@@ -88,6 +93,7 @@ export default function PropertySetupScreen() {
   const [photos, setPhotos] = useState<VerificationProgress | null>(null);
   const [amenities, setAmenities] = useState<SpaceAmenity[] | null>(null);
   const [vocabulary, setVocabulary] = useState<PropertyVocabulary | null>(null);
+  const [sale, setSale] = useState<SellerSale | null>(null);
   const [step, setStep] = useState<StepKey>("details");
   const [error, setError] = useState("");
 
@@ -99,6 +105,8 @@ export default function PropertySetupScreen() {
         getVerification("property", propertyId),
         getPropertyAmenities(propertyId),
       ]);
+      // A property for sale carries its price and terms on a record of its own.
+      setSale(prop.purpose === "sale" ? await getSellerSale(propertyId) : null);
       setProperty(prop);
       setPhotos(progress);
       setAmenities(amenityState.chosen);
@@ -128,10 +136,11 @@ export default function PropertySetupScreen() {
               amenities !== null && property.amenities_confirmed_at
                 ? amenities.length
                 : null,
+              sale ? sale.missing.length : null,
             ),
           )
         : [],
-    [property, photos, amenities],
+    [property, photos, amenities, sale],
   );
 
   // Open on the first thing outstanding. Somebody returning to a half-finished
@@ -153,6 +162,10 @@ export default function PropertySetupScreen() {
   }
 
   const readyToFinish = isSetupComplete(steps);
+  const keys = steps.map((row) => row.key);
+  // The step after this one, among the ones this property has.
+  const after = (key: StepKey) => (keys[keys.indexOf(key) + 1] ?? "review") as StepKey;
+  const saleKind = property.purpose === "sale" ? (sale?.kind ?? null) : null;
   // Past creation: the property has been decided on, so this screen is an edit
   // rather than a wizard, and it says so.
   const settled = ["changes_requested", "rejected", "expired"].includes(
@@ -192,13 +205,31 @@ export default function PropertySetupScreen() {
           vocabulary={vocabulary}
           onSaved={async () => {
             await load();
-            setStep("documents");
+            setStep(after("details"));
+          }}
+        />
+      ) : null}
+
+      {step === "sale" && sale ? (
+        <SaleDetailsForm
+          propertyId={property.id}
+          sale={sale}
+          saveLabel="Save and continue"
+          onSaved={async (next) => {
+            setSale(next);
+            await load();
+            if (!next.missing.length) setStep(after("sale"));
           }}
         />
       ) : null}
 
       {step === "documents" ? (
-        <DocumentsStep property={property} onChanged={load} onDone={() => setStep("photos")} />
+        <DocumentsStep
+          property={property}
+          saleKind={saleKind}
+          onChanged={load}
+          onDone={() => setStep(after("documents"))}
+        />
       ) : null}
 
       {step === "photos" ? (
@@ -206,7 +237,7 @@ export default function PropertySetupScreen() {
           propertyId={property.id}
           progress={photos}
           onChanged={load}
-          onDone={() => setStep("amenities")}
+          onDone={() => setStep(after("photos"))}
         />
       ) : null}
 
@@ -214,7 +245,7 @@ export default function PropertySetupScreen() {
         <AmenitiesStep
           propertyId={property.id}
           onChanged={load}
-          onDone={() => setStep("review")}
+          onDone={() => setStep(after("amenities"))}
         />
       ) : null}
 
@@ -223,6 +254,7 @@ export default function PropertySetupScreen() {
           property={property}
           steps={steps}
           settled={settled}
+          selling={property.purpose === "sale"}
           onGoTo={(key) => setStep(key as StepKey)}
           onFinished={() =>
             router.replace({
@@ -385,10 +417,12 @@ function DetailsStep({
 
 function DocumentsStep({
   property,
+  saleKind,
   onChanged,
   onDone,
 }: {
   property: Property;
+  saleKind: "residential" | "commercial" | "land" | null;
   onChanged: () => Promise<void>;
   onDone: () => void;
 }) {
@@ -399,13 +433,14 @@ function DocumentsStep({
   const document = property.verification.authority.state;
   const recorded = document !== "draft";
   const withTeam = document === "submitted" || document === "under_review";
+  const verb = saleKind ? "sell" : "let";
 
   return (
     <View style={styles.step}>
       <View style={styles.section}>
-        <GroupLabel>What shows it is yours to let</GroupLabel>
+        <GroupLabel>{saleKind ? "Proof it is yours to sell, and its title" : "What shows it is yours to let"}</GroupLabel>
         {document === "verified" ? (
-          <RecordPanel><Fact first label="Claim" value="Confirmed as yours to let" tone="good" /></RecordPanel>
+          <RecordPanel><Fact first label="Claim" value={`Confirmed as yours to ${verb}`} tone="good" /></RecordPanel>
         ) : withTeam ? (
           <RecordPanel><Fact first label="Claim" value="With our team" tone="waiting" /></RecordPanel>
         ) : recorded ? (
@@ -415,6 +450,7 @@ function DocumentsStep({
         {document === "verified" || withTeam ? null : (
           <AuthorityClaim
             propertyId={property.id}
+            saleKind={saleKind}
             onSubmitted={async () => {
               await onChanged();
               onDone();
@@ -517,12 +553,15 @@ function ReviewStep({
   property,
   steps,
   settled,
+  selling,
   onGoTo,
   onFinished,
 }: {
   property: Property;
   steps: SetupStep[];
   settled: boolean;
+  /** For sale: it goes public by itself the moment it is verified. */
+  selling: boolean;
   onGoTo: (key: string) => void;
   onFinished: () => void;
 }) {
@@ -562,7 +601,11 @@ function ReviewStep({
           </RecordPanel>
         </View>
       ) : (
-        <Footnote>It stays private until you send it for verification, from the property itself.</Footnote>
+        <Footnote>
+          {selling
+            ? "Private until verified. Once verified, buyers find it on Explore straight away."
+            : "It stays private until you send it for verification, from the property itself."}
+        </Footnote>
       )}
 
       <ActionBar>

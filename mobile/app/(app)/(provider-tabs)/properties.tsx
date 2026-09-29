@@ -39,7 +39,7 @@ import {
   type ManagedProperty,
   type Organization,
 } from "@/organizations";
-import { isAndroid, pressableFeedback, useSafeBottom } from "@/platform";
+import { pressableFeedback, useSafeBottom } from "@/platform";
 import { useBlankOnPortfolioSwitch } from "@/portfolioScope";
 import { theme } from "@/theme";
 
@@ -308,9 +308,13 @@ function PropertyRow({ property, onOpen }: { property: ManagedProperty; onOpen: 
   const status = propertyStatus(property.verification);
   const where = [property.address.locality_name, property.address.district_name].filter(Boolean).join(", ");
   const tone = FILTER_TONE[stageOf(property)];
-  const let_ = property.unit_count
-    ? `${property.occupied_unit_count}/${property.unit_count} let`
-    : "No Units yet";
+  // A property for sale has no Units to count; its price is what a seller scans for.
+  const sale = property.purpose === "sale" ? property.sale : null;
+  const let_ = sale
+    ? (sale.price_formatted ?? "For sale")
+    : property.unit_count
+      ? `${property.occupied_unit_count}/${property.unit_count} let`
+      : "No Units yet";
   // A column of "6/8 let" is worth scanning down, but at 320 it leaves the
   // body about ninety points, which cut the Property's own name. On the
   // narrowest handsets the occupancy joins the line below instead.
@@ -321,7 +325,7 @@ function PropertyRow({ property, onOpen }: { property: ManagedProperty; onOpen: 
       accessibilityLabel={`${property.title || "Untitled Property"}. ${where}. ${status.label}. ${let_}.`}
       onPress={onOpen}
       {...pressableFeedback(PRESSED)}
-      style={({ pressed }) => [rowStyles.row, pressed && !isAndroid ? { backgroundColor: PRESSED } : null]}
+      style={({ pressed }) => [rowStyles.row, pressed ? { backgroundColor: PRESSED } : null]}
     >
       <Thumb uri={property.cover_url} size={56} />
       <View style={rowStyles.rowBody}>
@@ -339,7 +343,9 @@ function PropertyRow({ property, onOpen }: { property: ManagedProperty; onOpen: 
       {narrow ? null : (
         <View style={styles.occupancy}>
           <Type variant="bodyStrong" numberOfLines={1} style={rowStyles.rowAmount}>{let_}</Type>
-          {property.vacant_unit_count ? (
+          {sale ? (
+            <Type variant="caption" numberOfLines={1} style={rowStyles.rowMeta}>{sale.status === "active" ? (sale.is_public ? "Public" : "Not public yet") : sale.status_label}</Type>
+          ) : property.vacant_unit_count ? (
             <Type variant="caption" numberOfLines={1} style={rowStyles.rowMeta}>{property.vacant_unit_count} vacant</Type>
           ) : null}
         </View>

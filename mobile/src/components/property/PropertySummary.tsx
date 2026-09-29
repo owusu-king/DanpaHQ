@@ -2,7 +2,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { Image, Pressable, View } from "react-native";
 
 import { Type, radius, space } from "@/components/ui";
-import { isAndroid } from "@/platform";
+
 import type { Property } from "@/provider";
 import { theme } from "@/theme";
 
@@ -10,6 +10,7 @@ const TYPE_LABEL: Record<string, string> = {
   residential: "Residential",
   commercial: "Commercial",
   hostel: "Hostel",
+  land: "Land",
 };
 
 function value(raw: string): string | null {
@@ -48,6 +49,10 @@ export function PropertySummary({
     ["Power", value(property.power_meter_type)],
     ["Compound", value(property.compound_type)],
   ].filter((row): row is [string, string] => Boolean(row[1]));
+  // A sale shows its price and headline; land has no water, power, compound or
+  // shared amenities to show, so those groups are not drawn for it.
+  const selling = property.purpose === "sale";
+  const land = selling && property.property_type === "land";
 
   return (
     <View
@@ -90,6 +95,7 @@ export function PropertySummary({
           </Type>
           <Type variant="label">
             {(TYPE_LABEL[property.property_type] ?? value(property.property_type) ?? "Property").toUpperCase()}
+            {selling ? " · FOR SALE" : ""}
           </Type>
           {where ? (
             <View style={{ flexDirection: "row", alignItems: "center", gap: space[1] }}>
@@ -110,6 +116,20 @@ export function PropertySummary({
           borderTopColor: theme.color.field["200"],
         }}
       >
+        {selling ? (
+          <Group label="Sale" onEdit={() => onEdit("sale")}>
+            {property.sale?.price_formatted ? (
+              <Type variant="body" style={{ fontSize: 14 }}>
+                <Type variant="bodyStrong" style={{ fontSize: 14 }}>{property.sale.price_formatted}</Type>
+                {property.sale.headline ? ` · ${property.sale.headline}` : ""}
+              </Type>
+            ) : (
+              <Type variant="caption">No price yet</Type>
+            )}
+          </Group>
+        ) : null}
+
+        {land ? null : (
         <Group label="Details" onEdit={() => onEdit("details")}>
           {characteristics.length ? (
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: space[2] }}>
@@ -135,7 +155,9 @@ export function PropertySummary({
             <Type variant="caption">Not recorded yet</Type>
           )}
         </Group>
+        )}
 
+        {land ? null : (
         <Group label="Shared amenities" onEdit={() => onEdit("amenities")}>
           {property.amenities.length ? (
             <Type variant="body" style={{ fontSize: 14 }}>
@@ -145,6 +167,7 @@ export function PropertySummary({
             <Type variant="caption">Nothing shared</Type>
           )}
         </Group>
+        )}
       </View>
     </View>
   );
@@ -169,11 +192,10 @@ function Group({
           accessibilityLabel={`Edit ${label}`}
           onPress={onEdit}
           hitSlop={space[2]}
-          android_ripple={isAndroid ? { color: theme.color.kola["50"] } : undefined}
           style={({ pressed }) => ({
             minHeight: 32,
             justifyContent: "center",
-            opacity: pressed && !isAndroid ? 0.72 : 1,
+            opacity: pressed ? 0.72 : 1,
           })}
         >
           <Type variant="caption" style={{ color: theme.color.kola["600"], fontWeight: "700" }}>

@@ -1,8 +1,11 @@
 "use client";
 
+import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 
 import { ListingBrowser } from "@/components/listings/ListingBrowser";
+import { AllBrowser } from "@/components/explore/AllBrowser";
+import { ExploreModeSwitch, SaleBrowser } from "@/components/sales/SaleBrowser";
 import { Reveal } from "@/components/motion/Reveal";
 import { useSession } from "@/lib/session";
 
@@ -30,7 +33,7 @@ export default function RentalsPage() {
     return (
       <>
         <Suspense fallback={<ExploreFallback />}>
-          <ListingBrowser />
+          <Explore />
         </Suspense>
       </>
     );
@@ -43,39 +46,53 @@ export default function RentalsPage() {
        does it — the header is sticky and sits before <main> in flow, so without
        this there is a bare strip above the title. */
     <div className="lp-light -mt-20 bg-background pt-20 text-foreground">
-      <div className="relative px-5 pt-10 pb-8 sm:px-8 lg:px-12 lg:pt-14">
+      <div className="relative mx-auto w-full max-w-[76rem] px-5 pt-8 pb-24 sm:px-8 lg:px-12 lg:pt-10">
         <span aria-hidden="true" className="lp-wash top-0 h-[26rem]" />
 
-        <div className="relative mx-auto w-full max-w-[76rem]">
+        {/* The page's own header and the search it introduces are one green
+            piece (owner, 2026-09-29): this is its top, and the search tray
+            below continues it without a seam — see `explore-hero.css`. */}
+        <header className="explore-public-head">
           <Reveal y={12}>
-            <span className="inline-flex items-center gap-2 rounded-full border border-border bg-background/70 px-3.5 py-1.5 text-xs font-medium text-muted-foreground backdrop-blur-sm">
-              <span aria-hidden="true" className="size-1.5 rounded-full bg-brand" />
+            <span className="explore-public-chip">
+              <span aria-hidden="true" />
               No account needed to look
             </span>
           </Reveal>
 
           <Reveal delay={0.06}>
-            <h1 className="mt-6 max-w-[18ch] font-display text-[clamp(2.25rem,4.6vw,3.5rem)] leading-[1.04] font-extrabold tracking-[-0.035em] text-balance">
-              Find your next place
-            </h1>
+            <h1>Find your next place</h1>
           </Reveal>
 
           <Reveal delay={0.12}>
-            <p className="mt-4 max-w-[54ch] text-lg leading-relaxed text-muted-foreground">
-              Browse without an account. Every active listing comes from an approved
-              property relationship, and every mark says what was checked.
+            <p>
+              Every active listing comes from an approved property relationship,
+              and every mark says what was checked.
             </p>
           </Reveal>
-        </div>
-      </div>
+        </header>
 
-      <div className="mx-auto w-full max-w-[76rem] px-5 pb-24 sm:px-8 lg:px-12">
         <Suspense fallback={<ExploreFallback />}>
-          <ListingBrowser />
+          <Explore />
         </Suspense>
       </div>
     </div>
   );
+}
+
+/**
+ * All, Rent or Buy. Explore opens on everything — rentals and properties for
+ * sale together — and the switch narrows it to one side (owner, 2026-09-29).
+ * Properties for sale are their own search — sold whole, priced in the hundreds
+ * of thousands, filtered by tenure — so Buy swaps the browser rather than
+ * adding filters to Rent's (owner, 2026-09-28).
+ */
+function Explore() {
+  const asked = useSearchParams().get("mode");
+  const mode = asked === "buy" ? "buy" : asked === "rent" ? "rent" : "all";
+  const modeSwitch = <ExploreModeSwitch mode={mode} />;
+  if (mode === "all") return <AllBrowser modeSwitch={modeSwitch} />;
+  return mode === "buy" ? <SaleBrowser modeSwitch={modeSwitch} /> : <ListingBrowser modeSwitch={modeSwitch} />;
 }
 
 /** The tray's footprint while the search is read, so nothing jumps when it arrives. */

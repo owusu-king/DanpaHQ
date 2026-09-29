@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { AuthModal } from "@/components/auth/AuthModal";
 import { Button } from "@/components/Button";
 import { Field } from "@/components/Field";
 import { Notice } from "@/components/Notice";
@@ -126,15 +127,23 @@ export default function ForgotPasswordPage() {
     }
   }
 
-  return (
-    <main id="main" style={{ maxWidth: "28rem", margin: "0 auto", padding: "var(--space-12) var(--space-5)" }}>
-      <h1 className="type-display-2">Reset your password</h1>
+  const stepNumber = step === "phone" ? 1 : step === "code" ? 2 : 3;
 
+  // A dialog over the front door, one step at a time (owner, 2026-09-29).
+  return (
+    <AuthModal
+      eyebrow={`Step ${stepNumber} of 3`}
+      progress={stepNumber / 3}
+      title={step === "password" ? "Choose a new password" : "Reset your password"}
+      description={step === "phone"
+        ? "Enter the number on your account and we'll text you a code."
+        : step === "code"
+          ? <>Enter the code we sent to {phoneDisplay}.</>
+          : "Setting it signs you in here, and out everywhere else."}
+      footer={<Link href="/sign-in">Back to sign in</Link>}
+    >
       {step === "phone" ? (
-        <form onSubmit={requestCode} style={formStyle}>
-          <p className="type-body" style={{ color: "var(--color-ink-700)" }}>
-            Enter the number on your account and we&apos;ll text you a code.
-          </p>
+        <form onSubmit={requestCode} className="auth-form">
           <Field
             label="Mobile number"
             value={phone}
@@ -145,25 +154,24 @@ export default function ForgotPasswordPage() {
             }}
             inputMode="tel"
             autoComplete="tel"
+            placeholder="024 123 4567"
             required
           />
           {error ? <Notice tone="error" title={error} /> : null}
           {noAccount ? (
             <>
-              <Notice
-                tone="info"
-                title="No account for that number"
-                body="Nothing to reset here yet. Create an account to get started, or check the number above."
-              />
+              <p className="auth-note">
+                <strong>No account for that number.</strong> Check the number above, or create an account to get started.
+              </p>
               <Link
                 href={`/register?phone=${encodeURIComponent(phone.trim())}` as never}
-                className="type-body-strong"
+                className="btn btn-primary auth-submit"
               >
-                Create an account →
+                Create an account
               </Link>
             </>
           ) : (
-            <Button type="submit" busy={busy} disabled={!phone.trim()}>
+            <Button type="submit" className="auth-submit" busy={busy} busyLabel="Sending…" disabled={!phone.trim()}>
               Send code
             </Button>
           )}
@@ -171,10 +179,7 @@ export default function ForgotPasswordPage() {
       ) : null}
 
       {step === "code" ? (
-        <form onSubmit={confirmCode} style={formStyle}>
-          <p className="type-body" style={{ color: "var(--color-ink-700)" }}>
-            Enter the code we sent to {phoneDisplay}.
-          </p>
+        <form onSubmit={confirmCode} className="auth-form">
           <Field
             label="Six-digit code"
             value={code}
@@ -185,14 +190,14 @@ export default function ForgotPasswordPage() {
             required
           />
           {error ? <Notice tone="error" title={error} /> : null}
-          <Button type="submit" busy={busy} disabled={code.trim().length < 4}>
+          <Button type="submit" className="auth-submit" busy={busy} busyLabel="Checking…" disabled={code.trim().length < 4}>
             Confirm code
           </Button>
         </form>
       ) : null}
 
       {step === "password" ? (
-        <form onSubmit={setNewPassword} style={formStyle}>
+        <form onSubmit={setNewPassword} className="auth-form">
           <Field
             label="New password"
             type="password"
@@ -206,26 +211,15 @@ export default function ForgotPasswordPage() {
             hint={`At least ${MIN_PASSWORD_LENGTH} characters. Not all digits, and not your own number.`}
           />
           {error ? <Notice tone="error" title={error} /> : null}
-          <Button type="submit" busy={busy}>
+          <Button type="submit" className="auth-submit" busy={busy} busyLabel="Saving…">
             Set password and sign in
           </Button>
-          <Notice
-            tone="info"
-            title="Your other devices will be signed out"
-            body="Setting a new password ends every other session, so anyone who had access loses it."
-          />
+          <p className="auth-note">
+            <strong>Your other devices will be signed out.</strong> Anyone who had access loses it.
+          </p>
         </form>
       ) : null}
-
-      <p className="type-caption" style={{ marginTop: "var(--space-6)" }}>
-        <Link href="/sign-in">Back to sign in</Link>
-      </p>
-    </main>
+    </AuthModal>
   );
 }
 
-const formStyle: React.CSSProperties = {
-  display: "grid",
-  gap: "var(--space-4)",
-  marginTop: "var(--space-6)",
-};

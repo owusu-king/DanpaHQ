@@ -19,7 +19,7 @@ import {
 } from "@/components/portfolio/PortfolioList";
 import { sheetCardStyle } from "@/components/sheet/SheetParts";
 import { Type, radius, space } from "@/components/ui";
-import { isAndroid, pressableFeedback } from "@/platform";
+import { pressableFeedback } from "@/platform";
 import { alpha } from "@/shell";
 import { theme } from "@/theme";
 
@@ -49,7 +49,7 @@ export function ViewAll({ count, noun, onPress }: { count: number; noun: string;
       accessibilityLabel={`View all ${count} ${noun}`}
       onPress={onPress}
       {...pressableFeedback(PRESSED)}
-      style={({ pressed }) => [styles.viewAll, pressed && !isAndroid ? { backgroundColor: PRESSED } : null]}
+      style={({ pressed }) => [styles.viewAll, pressed ? { backgroundColor: PRESSED } : null]}
     >
       <Type variant="captionStrong" style={styles.viewAllText}>{`View all ${count} ${noun}`}</Type>
       <Ionicons name="chevron-forward" size={16} color={KOLA} />
@@ -112,7 +112,7 @@ export function Pill({
       style={({ pressed }) => [
         styles.pill,
         primary ? styles.pillPrimary : styles.pillQuiet,
-        pressed && !isAndroid ? { opacity: 0.85 } : null,
+        pressed ? { opacity: 0.85 } : null,
       ]}
     >
       {busy ? <ActivityIndicator size="small" color={ink} /> : icon ? <Ionicons name={icon} size={17} color={ink} /> : null}
@@ -148,7 +148,7 @@ export function SmallAct({
       hitSlop={6}
       onPress={onPress}
       {...pressableFeedback(alpha(KOLA, 0.14))}
-      style={({ pressed }) => [styles.smallAct, disabled && !busy ? styles.dim : null, pressed && !isAndroid ? { opacity: 0.8 } : null]}
+      style={({ pressed }) => [styles.smallAct, disabled && !busy ? styles.dim : null, pressed ? { opacity: 0.8 } : null]}
     >
       {busy ? <ActivityIndicator size="small" color={KOLA} /> : icon ? <Ionicons name={icon} size={14} color={KOLA} /> : null}
       <Type variant="captionStrong" style={styles.smallActText}>{busy && busyLabel ? busyLabel : label}</Type>

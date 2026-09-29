@@ -49,7 +49,11 @@ from .models import EvidenceType
 #: bathroom, or vice versa.
 #: A verification submitted under an earlier version recorded that version
 #: and is still judged against what it was actually asked for.
-POLICY_VERSION = "2026.08.4"
+#: `2026.09.1` adds properties for sale: the title (and for land the site plan)
+#: joins the authority review, and each kind of sale property is photographed
+#: for what a buyer is buying — see `sale_title_slots` and
+#: `sale_property_requirements`. Letting is unchanged.
+POLICY_VERSION = "2026.09.1"
 
 
 @dataclass(frozen=True)
@@ -118,16 +122,73 @@ _AUTHORITY: dict[str, EvidenceSlot] = {
 _AUTHORITY["listing_manager"] = _AUTHORITY["agent"]
 
 
-def authority_requirements(relationship_type: str) -> list[EvidenceSlot]:
-    """What proves this person may let this property.
+def authority_requirements(relationship_type: str, prop=None) -> list[EvidenceSlot]:
+    """What proves this person may let — or sell — this property.
 
     An unknown relationship falls back to the owner's document rather than
     returning nothing: asking for something reviewable is safer than letting a
     claim through unevidenced because a new relationship type was added and
     this table was not updated.
+
+    The relationship's own document always comes first, so a caller reading the
+    first slot still gets the one that proves the relationship. A property for
+    sale then adds its title, and land its site plan — see `sale_title_slots`.
     """
-    slot = _AUTHORITY.get(relationship_type)
-    return [slot] if slot else [_AUTHORITY["owner"]]
+    slot = _AUTHORITY.get(relationship_type) or _AUTHORITY["owner"]
+    return [slot, *sale_title_slots(prop)]
+
+
+def _is_sale(prop) -> bool:
+    return getattr(prop, "purpose", "") == "sale"
+
+
+def sale_title_slots(prop) -> list[EvidenceSlot]:
+    """The title to a property for sale. Stricter than letting, on purpose.
+
+    Letting asks whether this person may let the place. Selling transfers the
+    place itself, so the reviewer reads the title as well as the relationship:
+    a Land Title Certificate or, where the land is not yet registered, the
+    indenture. Land adds its surveyed site plan, because where a plot starts and
+    stops is what land disputes here turn on (owner, 2026-09-28).
+    """
+    if not _is_sale(prop):
+        return []
+    slots = [
+        EvidenceSlot(
+            key="title.document",
+            evidence_type=EvidenceType.LAND_TITLE_CERTIFICATE,
+            label="The property's title",
+            why=(
+                "A Land Title Certificate, or the indenture where the land is not "
+                "registered yet. A buyer is buying this, not only a key."
+            ),
+            group="authority",
+            accepts=(EvidenceType.LAND_TITLE_CERTIFICATE, EvidenceType.INDENTURE),
+        )
+    ]
+    if getattr(prop, "property_type", "") == "land":
+        slots.append(
+            EvidenceSlot(
+                key="title.site_plan",
+                evidence_type=EvidenceType.SITE_PLAN,
+                label="The site plan",
+                why=(
+                    "The surveyed plan of the plot, signed by a licensed surveyor. "
+                    "Where a plot starts and stops is what land disputes turn on."
+                ),
+                group="authority",
+            )
+        )
+    return slots
+
+
+#: Every document type the authority review of a sale may carry, for checking an
+#: upload's declared type before it is filed.
+def authority_evidence_types(relationship_type: str, prop=None) -> set[str]:
+    types: set[str] = set()
+    for slot in authority_requirements(relationship_type, prop):
+        types.update(slot.accepts or (slot.evidence_type,))
+    return types
 
 
 # --- the property itself ------------------------------------------------------
@@ -143,7 +204,12 @@ def property_requirements(prop) -> list[EvidenceSlot]:
     whether the three files are three sides or the same wall three times, and
     the provider cannot tell what is still outstanding. Named slots make both
     answerable.
+
+    A property for sale is shown for what a buyer is buying — see
+    `sale_property_requirements`.
     """
+    if _is_sale(prop):
+        return sale_property_requirements(prop)
     slots = [
         EvidenceSlot(
             key="property.front",
@@ -218,6 +284,102 @@ def property_requirements(prop) -> list[EvidenceSlot]:
             )
         )
 
+    return slots
+
+
+def sale_property_requirements(prop) -> list[EvidenceSlot]:
+    """What shows a property for sale: the thing being bought, from each side.
+
+    Asked once, and more than letting asks, because nothing below it is reviewed
+    again — a property for sale has no Units whose own review adds what the
+    building's could not show. So the interior is here, where letting leaves it
+    to the space.
+    """
+    if getattr(prop, "property_type", "") == "land":
+        return [
+            EvidenceSlot(
+                key="sale.plot",
+                evidence_type=EvidenceType.PROPERTY_SURROUNDINGS,
+                label="The plot itself",
+                why="What is being bought. A plot has no front door, so this is its face.",
+                accepts=(EvidenceType.PROPERTY_SURROUNDINGS, EvidenceType.LOCATION_CONTEXT),
+            ),
+            EvidenceSlot(
+                key="sale.boundary",
+                evidence_type=EvidenceType.PLOT_BOUNDARY,
+                label="The boundary or corner pillars",
+                why="Where the plot starts and stops, as it stands on the ground.",
+            ),
+            EvidenceSlot(
+                key="sale.access",
+                evidence_type=EvidenceType.SPACE_ENTRANCE,
+                label="The access road",
+                why="A plot that cannot be reached is worth a great deal less than one that can.",
+            ),
+        ]
+
+    commercial = getattr(prop, "property_type", "") == "commercial"
+    slots = [
+        EvidenceSlot(
+            key="sale.front",
+            evidence_type=EvidenceType.PROPERTY_FRONT,
+            label="The front of the property",
+            why="So a buyer recognises the place when they arrive at it.",
+            accepts=(EvidenceType.PROPERTY_FRONT, EvidenceType.EXTERIOR),
+        ),
+        EvidenceSlot(
+            key="sale.side",
+            evidence_type=EvidenceType.PROPERTY_SIDE,
+            label="The property from the side",
+            why="A second angle shows the building as it stands, not as one photograph framed it.",
+        ),
+        EvidenceSlot(
+            key="sale.surroundings",
+            evidence_type=EvidenceType.PROPERTY_SURROUNDINGS,
+            label="The wider area around it",
+            why="What is next door, and how the street looks.",
+            accepts=(EvidenceType.PROPERTY_SURROUNDINGS, EvidenceType.LOCATION_CONTEXT),
+        ),
+        EvidenceSlot(
+            key="sale.interior",
+            evidence_type=EvidenceType.INTERIOR_OVERVIEW,
+            label="Inside the building" if commercial else "Inside the house",
+            why=(
+                "The usable space, and its condition."
+                if commercial
+                else "The main living space. A buyer is paying for the inside too."
+            ),
+        ),
+    ]
+    if commercial:
+        slots.append(
+            EvidenceSlot(
+                key="sale.storefront",
+                evidence_type=EvidenceType.STOREFRONT,
+                label="The frontage",
+                why="Frontage is much of what a commercial buyer is paying for.",
+                required=False,
+            )
+        )
+    else:
+        slots.extend(
+            [
+                EvidenceSlot(
+                    key="sale.kitchen",
+                    evidence_type=EvidenceType.KITCHEN,
+                    label="The kitchen",
+                    why="Whether cooking happens inside or outside changes what a house is worth.",
+                    required=False,
+                ),
+                EvidenceSlot(
+                    key="sale.bathroom",
+                    evidence_type=EvidenceType.BATHROOM,
+                    label="A bathroom",
+                    why="The fittings are part of what is being sold.",
+                    required=False,
+                ),
+            ]
+        )
     return slots
 
 
@@ -501,7 +663,7 @@ def requirements(*, relationship_type: str = "", prop=None, unit=None) -> dict:
     groups: dict[str, list[EvidenceSlot]] = {}
 
     if relationship_type:
-        groups.setdefault("authority", []).extend(authority_requirements(relationship_type))
+        groups.setdefault("authority", []).extend(authority_requirements(relationship_type, prop))
     if prop is not None:
         groups.setdefault("property", []).extend(property_requirements(prop))
     if unit is not None:

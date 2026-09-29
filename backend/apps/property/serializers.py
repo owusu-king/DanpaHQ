@@ -549,6 +549,8 @@ class PropertySerializer(serializers.ModelSerializer):
     #: What the compound has, as distinct from what any one space inside it has.
     amenities = serializers.SerializerMethodField()
     cover_url = serializers.SerializerMethodField()
+    #: For a property for sale, where its sale stands; `None` for letting.
+    sale = serializers.SerializerMethodField()
 
     class Meta:
         model = Property
@@ -557,6 +559,8 @@ class PropertySerializer(serializers.ModelSerializer):
             "id",
             "title",
             "property_type",
+            "purpose",
+            "sale",
             "owner_display",
             "managed_by",
             "created_by",
@@ -585,6 +589,7 @@ class PropertySerializer(serializers.ModelSerializer):
         ]
         read_only_fields = [
             "id",
+            "purpose",
             "owner_display",
             "created_by",
             "address",
@@ -592,6 +597,28 @@ class PropertySerializer(serializers.ModelSerializer):
             "unit_count",
             "created_at",
         ]
+
+    def get_sale(self, obj) -> dict | None:
+        """A summary a property row can show; the whole record is `/properties/<id>/sale/`."""
+        if not obj.is_for_sale:
+            return None
+        from apps.core.money import Money
+        from apps.sale.models import SaleListing
+        from apps.sale.read_models import is_public
+
+        sale = SaleListing.objects.filter(property=obj).first()
+        if sale is None:
+            return None
+        return {
+            "id": str(sale.id),
+            "status": sale.status,
+            "status_label": sale.get_status_display(),
+            "headline": sale.headline,
+            "price_formatted": str(Money(sale.price_minor, sale.currency))
+            if sale.price_minor
+            else None,
+            "is_public": is_public(sale),
+        }
 
     def get_condition_state(self, obj) -> str:
         from apps.trust.condition import state_of
@@ -849,10 +876,19 @@ class SubmitProviderApplicationSerializer(serializers.Serializer):
     owner_phone = serializers.CharField(max_length=20, required=False, allow_blank=True)
     company_name = serializers.CharField(max_length=180, required=False, allow_blank=True)
     file_ids = serializers.ListField(child=serializers.UUIDField(), min_length=1, max_length=10)
+    #: Which document each file is, keyed by file id — a property for sale sends
+    #: its title and site plan beside the relationship document. Optional: a
+    #: file with no entry is the relationship's document.
+    evidence_types = serializers.DictField(
+        child=serializers.CharField(max_length=40), required=False, default=dict
+    )
 
 
 class ProviderEvidenceSerializer(serializers.Serializer):
     file_ids = serializers.ListField(child=serializers.UUIDField(), min_length=1, max_length=10)
+    evidence_types = serializers.DictField(
+        child=serializers.CharField(max_length=40), required=False, default=dict
+    )
 
 
 class BuildingSerializer(serializers.ModelSerializer):

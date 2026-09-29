@@ -113,6 +113,16 @@ export default function ProviderTenancyScreen() {
             value={tenant.lease_status ? humanize(tenant.lease_status) : "Not prepared"}
             tone={tenant.lease_status === "active" ? "good" : tenant.lease_status ? "waiting" : "alert"}
           />
+          {/* The agreement itself, from the section that talks about it — its
+              terms, rent schedule and signatures live on its own record. */}
+          {tenant.lease_id ? (
+            <LinkRow
+              icon="document-text-outline"
+              label="Open agreement"
+              detail="Terms, rent schedule and signatures"
+              onPress={() => router.push({ pathname: "/(app)/provider-lease", params: { leaseId: tenant.lease_id } } as never)}
+            />
+          ) : null}
           <View style={styles.actions}>
             <TenantLeaseActions
               unitId={tenant.unit_id}

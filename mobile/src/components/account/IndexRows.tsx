@@ -256,7 +256,7 @@ export function Row({
         minHeight: geometry.minHeight,
         paddingVertical: space[2],
         paddingHorizontal: geometry.inset,
-        backgroundColor: pressed && !isAndroid ? PRESSED : "transparent",
+        backgroundColor: pressed ? PRESSED : "transparent",
       })}
     >
       <View
@@ -354,7 +354,7 @@ function ActionTile({
           borderWidth: 1,
           borderColor: GLASS_EDGE,
           backgroundColor: ph.glass,
-          opacity: pressed && !isAndroid ? 0.72 : 1,
+          opacity: pressed ? 0.72 : 1,
         })}
       >
         {busy ? (

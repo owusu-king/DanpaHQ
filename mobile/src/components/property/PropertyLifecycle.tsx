@@ -14,12 +14,12 @@
  */
 
 import { useRouter } from "expo-router";
-import { useState } from "react";
-import { View } from "react-native";
+import { useState, type ReactNode } from "react";
+import { StyleSheet, View } from "react-native";
 
 import { ApiFailure } from "@/api";
 import { Button, Field, Notice, Surface, Type, space } from "@/components/ui";
-import { Disclosure } from "@/components/property/WorkspacePatterns";
+import { Fact, Pill, QuietAct, RecordPanel, StandingLine, type RecordTone } from "@/components/record/RecordSurfaces";
 import type { SetupStep } from "@/propertySetup";
 import {
   archiveProperty,
@@ -81,6 +81,13 @@ export function PropertyLifecycle({
   );
 }
 
+/**
+ * Where verification stands, as one card on the property page (owner,
+ * 2026-09-28: bring these buttons up to date). A status line in the state's
+ * colour, one sentence, and pill actions — the act that moves the property on in
+ * kola, anything beside it as a quiet pill — instead of stacked full-width
+ * buttons hung off a coloured rule.
+ */
 function CompactLifecycle({ property, steps, onChanged }: { property: Property; steps: SetupStep[]; onChanged: () => Promise<void> }) {
   const router = useRouter();
   const [confirming, setConfirming] = useState(false);
@@ -90,39 +97,50 @@ function CompactLifecycle({ property, steps, onChanged }: { property: Property; 
   const edit = property.permitted_actions.edit;
   const submit = property.permitted_actions.submit_for_verification;
   const withdraw = property.permitted_actions.withdraw_submission;
+  const openSetup = () => router.push({ pathname: "/(app)/property-setup", params: { propertyId: property.id } });
+  const openVerify = () => router.push({ pathname: "/(app)/property-verify", params: { propertyId: property.id } });
 
   if (reviewState === "verified") return null;
 
   if (reviewState === "pending_verification") {
     return (
-      <View style={{ gap: space[3], paddingLeft: space[4], borderLeftWidth: 3, borderLeftColor: theme.color.harmattan["500"] }}>
-        <Type variant="bodyStrong">With our review team</Type>
-        <Type variant="caption">
-          {confirming
-            ? "This returns the submission to you. The Property stays saved and private, and you can submit it again later."
-            : "You can continue adding Units while the review is underway."}
-        </Type>
+      <LifecycleCard
+        tone="waiting"
+        status="With our review team"
+        body={confirming
+          ? "This returns the submission to you. The Property stays saved and private, and you can submit it again later."
+          : "You can continue adding Units while the review is underway."}
+      >
         {error ? <Notice tone="error" title={error} /> : null}
-        {withdraw?.allowed && !confirming ? <Button label="Withdraw…" variant="quiet" onPress={() => setConfirming(true)} /> : null}
         {confirming ? (
-          <View style={{ gap: space[2] }}>
-            <Button label="Confirm withdrawal" variant="destructive" busy={busy} onPress={async () => {
-              setBusy(true);
-              setError("");
-              try {
-                await withdrawPropertySubmission(property.id, "Withdrawn by the provider.");
-                setConfirming(false);
-                await onChanged();
-              } catch (cause) {
-                setError(cause instanceof ApiFailure ? cause.error.message : "Could not withdraw this submission.");
-              } finally {
-                setBusy(false);
-              }
-            }} />
-            <Button label="Keep submitted" variant="quiet" disabled={busy} onPress={() => setConfirming(false)} />
+          <View style={styles.acts}>
+            <Pill
+              label="Withdraw submission"
+              icon="arrow-undo-outline"
+              tone="danger"
+              busy={busy}
+              busyLabel="Withdrawing…"
+              grow
+              onPress={async () => {
+                setBusy(true);
+                setError("");
+                try {
+                  await withdrawPropertySubmission(property.id, "Withdrawn by the provider.");
+                  setConfirming(false);
+                  await onChanged();
+                } catch (cause) {
+                  setError(cause instanceof ApiFailure ? cause.error.message : "Could not withdraw this submission.");
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            />
+            <QuietAct label="Keep it submitted" disabled={busy} onPress={() => setConfirming(false)} />
           </View>
+        ) : withdraw?.allowed ? (
+          <QuietAct label="Withdraw submission…" icon="arrow-undo-outline" onPress={() => setConfirming(true)} />
         ) : null}
-      </View>
+      </LifecycleCard>
     );
   }
 
@@ -138,48 +156,146 @@ function CompactLifecycle({ property, steps, onChanged }: { property: Property; 
           ? "Before trying again"
           : "Verification needs renewing";
     return (
-      <View style={{ gap: space[3], paddingLeft: space[4], borderLeftWidth: 3, borderLeftColor: theme.color.laterite["600"] }}>
-        <Type variant="bodyStrong">{attentionTitle}</Type>
-        <Type variant="caption">{property.verification.decision_note || "Update the requested information before sending this Property again."}</Type>
-        {edit?.allowed ? <Button label="Update Property" onPress={() => router.push({ pathname: "/(app)/property-setup", params: { propertyId: property.id } })} /> : null}
-        {submit?.allowed ? <Button label="Resubmit" variant="secondary" onPress={() => router.push({ pathname: "/(app)/property-verify", params: { propertyId: property.id } })} /> : null}
-      </View>
+      <LifecycleCard
+        tone="alert"
+        status={attentionTitle}
+        body={property.verification.decision_note || "Update the requested information before sending this Property again."}
+      >
+        {edit?.allowed || submit?.allowed ? (
+          <View style={styles.acts}>
+            {edit?.allowed ? <Pill label="Update Property" icon="create-outline" grow onPress={openSetup} /> : null}
+            {submit?.allowed ? <Pill label="Resubmit" icon="paper-plane-outline" tone={edit?.allowed ? "quiet" : "primary"} grow onPress={openVerify} /> : null}
+          </View>
+        ) : null}
+      </LifecycleCard>
     );
   }
 
   if (state === "ready_for_submission" || reviewState === "withdrawn") {
     return (
-      <View style={{ gap: space[3], paddingLeft: space[4], borderLeftWidth: 3, borderLeftColor: theme.color.harmattan["500"] }}>
-        <Type variant="bodyStrong">{reviewState === "withdrawn" ? "Submission returned to you" : "Ready for verification"}</Type>
-        <Type variant="caption">Verify the Property before its Units can be advertised or shared with prospective tenants.</Type>
-        {submit?.allowed ? <Button label="Submit for verification" onPress={() => router.push({ pathname: "/(app)/property-verify", params: { propertyId: property.id } })} /> : null}
-      </View>
+      <LifecycleCard
+        tone="action"
+        status={reviewState === "withdrawn" ? "Submission returned to you" : "Ready for verification"}
+        body="Verify the Property before its Units can be advertised or shared with prospective tenants."
+      >
+        {submit?.allowed ? (
+          <View style={styles.acts}>
+            <Pill label="Submit for verification" icon="shield-checkmark-outline" grow onPress={openVerify} />
+          </View>
+        ) : null}
+      </LifecycleCard>
     );
   }
 
   const required = steps.filter((step) => !step.optional);
   const complete = required.filter((step) => step.status === "done").length;
   return (
-    <View style={{ gap: space[3], paddingLeft: space[4], borderLeftWidth: 3, borderLeftColor: theme.color.field["300"] }}>
-      <Type variant="bodyStrong">Finish setting up this Property</Type>
-      <Type variant="caption">{complete} of {required.length} required steps complete. Everything is saved as you go.</Type>
-      {edit?.allowed ? <Button label="Continue setup" onPress={() => router.push({ pathname: "/(app)/property-setup", params: { propertyId: property.id } })} /> : null}
+    <LifecycleCard
+      tone="quiet"
+      status="Finish setting up this Property"
+      body={`${complete} of ${required.length} required steps complete. Everything is saved as you go.`}
+    >
+      <View
+        accessible
+        accessibilityRole="progressbar"
+        accessibilityLabel={`${complete} of ${required.length} required steps complete`}
+        style={styles.track}
+      >
+        <View style={[styles.progress, { width: `${required.length ? Math.round((complete / required.length) * 100) : 0}%` }]} />
+      </View>
+      {edit?.allowed ? (
+        <View style={styles.acts}>
+          <Pill label="Continue setup" icon="arrow-forward" grow onPress={openSetup} />
+        </View>
+      ) : null}
+    </LifecycleCard>
+  );
+}
+
+/** The card every verification state is drawn in: its status, one sentence, and its acts. */
+function LifecycleCard({ tone, status, body, children }: { tone: RecordTone; status: string; body: string; children?: ReactNode }) {
+  return (
+    <RecordPanel style={styles.card}>
+      <StandingLine tone={tone} line={status} />
+      <Type variant="caption" style={styles.body}>{body}</Type>
+      {children}
+    </RecordPanel>
+  );
+}
+
+/**
+ * The verification trail. Archiving and deleting are no longer tucked in here:
+ * they have their own row on the property page (owner, 2026-09-28).
+ */
+export function PropertyMore({ property }: { property: Property }) {
+  const { verification } = property;
+  // The row that opens this is already called "Verification details", so the
+  // details are simply here — no second control to open them (owner, 2026-09-28).
+  return (
+    <View style={styles.removal}>
+      <RecordPanel>
+        <Fact first label="Status" value={verification.review_state_label} />
+        {verification.submitted_at ? <Fact label="Submitted" value={on(verification.submitted_at)} /> : null}
+        {verification.decided_at ? <Fact label="Decided" value={on(verification.decided_at)} /> : null}
+        <Fact wide label="Package" value="Property details, authority document, photographs and amenities" />
+      </RecordPanel>
+      {verification.decision_note ? <Notice tone="info" title="Review note" body={verification.decision_note} /> : null}
     </View>
   );
 }
 
-export function PropertyMore({ property }: { property: Property }) {
-  const hasDanger = Boolean(property.permitted_actions.delete?.allowed || property.permitted_actions.archive?.allowed);
+/** Which removal the backend allows for this property, if either — delete wins. */
+export function propertyRemoval(property: Property): "delete" | "archive" | null {
+  if (property.permitted_actions.delete?.allowed) return "delete";
+  if (property.permitted_actions.archive?.allowed) return "archive";
+  return null;
+}
+
+/**
+ * Archiving or deleting, in the sheet the property page's own row opens. The
+ * row was the first step, so the sheet is the confirmation: what happens, why
+ * (recorded, per ADR 0021), and one laterite pill that does it.
+ */
+export function PropertyRemoval({ property }: { property: Property }) {
+  const router = useRouter();
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const act = propertyRemoval(property);
+  if (!act) return null;
+  const decision = act === "delete" ? property.permitted_actions.delete! : property.permitted_actions.archive!;
+
   return (
-    <View>
-      <Disclosure title="Verification details">
-        <Row term="Status" value={property.verification.review_state_label} />
-        {property.verification.submitted_at ? <Row term="Submitted" value={on(property.verification.submitted_at)} /> : null}
-        {property.verification.decided_at ? <Row term="Decided" value={on(property.verification.decided_at)} /> : null}
-        <Row term="Package" value="Property details, authority document, photographs and amenities" />
-        {property.verification.decision_note ? <Notice tone="info" title="Review note" body={property.verification.decision_note} /> : null}
-      </Disclosure>
-      {hasDanger ? <Disclosure title="Archive or delete"><DangerZone property={property} /></Disclosure> : null}
+    <View style={styles.removal}>
+      <RecordPanel style={styles.card}>
+        <StandingLine tone="alert" line={act === "delete" ? "Deleting cannot be undone" : "Archived, it leaves your Portfolio"} />
+        <Type variant="caption" style={styles.body}>{decision.message}</Type>
+        <Field label="Why? This is recorded." value={reason} onChangeText={setReason} maxLength={400} />
+      </RecordPanel>
+      {error ? <Notice tone="error" title={error} /> : null}
+      <View style={styles.acts}>
+        <Pill
+          label={act === "delete" ? "Delete permanently" : "Archive property"}
+          icon={act === "delete" ? "trash-outline" : "archive-outline"}
+          tone="danger"
+          busy={busy}
+          busyLabel={act === "delete" ? "Deleting…" : "Archiving…"}
+          disabled={!reason.trim()}
+          grow
+          onPress={async () => {
+            setBusy(true);
+            setError("");
+            try {
+              if (act === "delete") await deleteProperty(property.id, reason.trim());
+              else await archiveProperty(property.id, reason.trim());
+              router.replace("/(app)/(provider-tabs)/properties");
+            } catch (cause) {
+              setError(cause instanceof ApiFailure ? cause.error.message : `Could not ${act} this property.`);
+              setBusy(false);
+            }
+          }}
+        />
+      </View>
     </View>
   );
 }
@@ -653,3 +769,34 @@ function Row({ term, value }: { term: string; value: string }) {
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  card: {
+    gap: space[3],
+    padding: space[4],
+  },
+  body: {
+    color: theme.color.ink["700"],
+  },
+  acts: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: space[2],
+  },
+  // Setup's progress: a kola bar filling a pale track, read aloud as a count.
+  track: {
+    height: 6,
+    overflow: "hidden",
+    borderRadius: 3,
+    backgroundColor: theme.color.field["100"],
+  },
+  progress: {
+    height: "100%",
+    borderRadius: 3,
+    backgroundColor: theme.color.kola["600"],
+  },
+  removal: {
+    gap: space[3],
+  },
+});

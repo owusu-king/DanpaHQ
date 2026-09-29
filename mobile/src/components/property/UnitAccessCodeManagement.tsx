@@ -6,7 +6,7 @@ import { issuedNotice, privateAccess, type AccessCodeLike } from "@/accessCodeMe
 import { ApiFailure } from "@/api";
 import { Fact, Footnote, GroupLabel, Pill, QuietAct, RecordPanel } from "@/components/record/RecordSurfaces";
 import { Notice, Type, radius, space } from "@/components/ui";
-import { isAndroid, pressableFeedback } from "@/platform";
+import { pressableFeedback } from "@/platform";
 import { revokeUnitAccessCode, rotateUnitAccessCode } from "@/provider";
 import { alpha } from "@/shell";
 import { theme } from "@/theme";
@@ -228,7 +228,7 @@ function CardAct({
       style={({ pressed }) => [
         styles.act,
         tone === "strong" ? styles.actStrong : tone === "soft" ? styles.actSoft : styles.actQuiet,
-        pressed && !isAndroid ? { opacity: 0.8 } : null,
+        pressed ? { opacity: 0.8 } : null,
       ]}
     >
       {busy ? <ActivityIndicator size="small" color={ink} /> : icon ? <Ionicons name={icon} size={15} color={ink} /> : null}

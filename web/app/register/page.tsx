@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 
+import { AuthModal } from "@/components/auth/AuthModal";
 import { Button } from "@/components/Button";
 import { Field } from "@/components/Field";
 import { Notice } from "@/components/Notice";
@@ -208,18 +209,28 @@ function RegisterContent() {
     }
   }
 
-  return (
-    <main id="main" style={{ maxWidth: "30rem", margin: "0 auto", padding: "var(--space-12) var(--space-5)" }}>
-      <p className="type-label" style={{ color: "var(--color-kola-600)" }}>
-        STEP {step === "phone" ? "1" : step === "code" ? "2" : "3"} OF 3
-      </p>
-      <h1 className="type-display-2">Create your account</h1>
+  const stepNumber = step === "phone" ? 1 : step === "code" ? 2 : 3;
 
+  // A dialog over the front door, one step at a time (owner, 2026-09-29).
+  return (
+    <AuthModal
+      eyebrow={`Step ${stepNumber} of 3`}
+      progress={stepNumber / 3}
+      title={step === "details" ? "About you" : "Create your account"}
+      description={step === "phone"
+        ? "We'll text a six-digit code to confirm the number is yours."
+        : step === "code"
+          ? <>Enter the code we sent to {phoneDisplay}.</>
+          : "A few details, and a password to sign in with."}
+      footer={(
+        <>
+          Already have an account?
+          <Link href={signInHref() as never}>Sign in</Link>
+        </>
+      )}
+    >
       {step === "phone" ? (
-        <form onSubmit={requestCode} style={formStyle}>
-          <p className="type-body" style={{ color: "var(--color-ink-700)" }}>
-            We&apos;ll text a six-digit code to confirm the number is yours.
-          </p>
+        <form onSubmit={requestCode} className="auth-form">
           <Field
             label="Mobile number"
             value={phone}
@@ -235,20 +246,15 @@ function RegisterContent() {
           {error ? <Notice tone="error" title={error} /> : null}
           {accountExists ? (
             <>
-              <Notice
-                tone="info"
-                title="You already have an account"
-                body="This mobile number is already registered. Sign in instead to continue."
-              />
-              <Link
-                href={signInHref(phone.trim()) as never}
-                className="type-body-strong"
-              >
-                Sign in instead →
+              <p className="auth-note">
+                <strong>This number already has an account.</strong> Sign in instead to continue.
+              </p>
+              <Link href={signInHref(phone.trim()) as never} className="btn btn-primary auth-submit">
+                Sign in instead
               </Link>
             </>
           ) : (
-            <Button type="submit" busy={busy} disabled={!phone.trim()}>
+            <Button type="submit" className="auth-submit" busy={busy} busyLabel="Sending…" disabled={!phone.trim()}>
               Send code
             </Button>
           )}
@@ -256,10 +262,7 @@ function RegisterContent() {
       ) : null}
 
       {step === "code" ? (
-        <form onSubmit={confirmCode} style={formStyle}>
-          <p className="type-body" style={{ color: "var(--color-ink-700)" }}>
-            Enter the code we sent to {phoneDisplay}.
-          </p>
+        <form onSubmit={confirmCode} className="auth-form">
           <Field
             label="Six-digit code"
             value={code}
@@ -270,49 +273,47 @@ function RegisterContent() {
             required
           />
           {error ? <Notice tone="error" title={error} /> : null}
-          <Button type="submit" busy={busy} disabled={code.trim().length < 4}>
+          <Button type="submit" className="auth-submit" busy={busy} busyLabel="Checking…" disabled={code.trim().length < 4}>
             Confirm number
           </Button>
-          <Notice
-            tone="info"
-            title="We will never ask you for this code"
-            body="Not by call, not by message. Anyone who does is trying to take your account."
-          />
+          <p className="auth-note">
+            <strong>We will never ask you for this code</strong> — not by call, not by message. Anyone who does is trying to take your account.
+          </p>
         </form>
       ) : null}
 
       {step === "details" ? (
-        <form onSubmit={completeRegistration} style={formStyle}>
+        <form onSubmit={completeRegistration} className="auth-form">
           <Select
             label="What brings you here?"
             value={accountType}
             onChange={(value) => setAccountType(value as "tenant" | "provider")}
             options={[
-              ["tenant", "I'm looking for a place to rent"],
+              ["tenant", "I'm looking for a place"],
               ["provider", "I own or manage property"],
             ]}
           />
           {accountType === "provider" ? (
-            <Notice
-              tone="info"
-              title="Provider access is reviewed separately"
-              body="You can set up your account and your buildings straight away. Advertising and collecting rent wait until your provider verification is approved."
-            />
+            <p className="auth-note">
+              Set up your account and buildings straight away. Advertising and collecting rent open once your provider verification is approved.
+            </p>
           ) : null}
-          <Field
-            label="First name"
-            value={firstName}
-            onChange={(event) => setFirstName(event.target.value)}
-            error={errors.first_name}
-            autoComplete="given-name"
-          />
-          <Field
-            label="Last name"
-            value={lastName}
-            onChange={(event) => setLastName(event.target.value)}
-            error={errors.last_name}
-            autoComplete="family-name"
-          />
+          <div className="auth-row">
+            <Field
+              label="First name"
+              value={firstName}
+              onChange={(event) => setFirstName(event.target.value)}
+              error={errors.first_name}
+              autoComplete="given-name"
+            />
+            <Field
+              label="Last name"
+              value={lastName}
+              onChange={(event) => setLastName(event.target.value)}
+              error={errors.last_name}
+              autoComplete="family-name"
+            />
+          </div>
           <Field
             label="Date of birth"
             type="date"
@@ -343,24 +344,15 @@ function RegisterContent() {
             explaining it leaves someone who filled the form in correctly with no
             way to find out what the form disagrees with.
           */}
-          <Button type="submit" busy={busy}>
+          <Button type="submit" className="auth-submit" busy={busy} busyLabel="Creating…">
             Create account
           </Button>
         </form>
       ) : null}
-
-      <p className="type-caption" style={{ marginTop: "var(--space-6)" }}>
-        Already have an account? <Link href={signInHref() as never}>Sign in</Link>
-      </p>
-    </main>
+    </AuthModal>
   );
 }
 
-const formStyle: React.CSSProperties = {
-  display: "grid",
-  gap: "var(--space-4)",
-  marginTop: "var(--space-6)",
-};
 
 export default function RegisterPage() {
   return (

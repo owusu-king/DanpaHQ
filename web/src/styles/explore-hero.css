@@ -1,0 +1,363 @@
+/* Explore's masthead (owner, 2026-09-29).
+
+   The header is not a card set on the page: it is the shell's own header,
+   continued. In the portal it runs edge to edge under the top bar in the top
+   bar's own tint, with no line between them, and sticks there as one top. On
+   the public site it stands on the same green-washed ground as the floating
+   site header, in the same white-pill language.
+
+   Inside it, everything that decides what is shown sits in one white console:
+   Rent or Buy, where, the filters and the map — one row where there is room,
+   the switch above the search where there is not.
+
+   Loaded after the workspace sheets on purpose: it re-skins the surfaces they
+   lay out without touching their sticking or the panels they open. */
+
+.explore { --console-radius: 18px; --console-inner-radius: 12px; }
+
+/* The portal page's own padding, so the masthead can meet the top bar and run
+   to both edges of the page column. Mirrors `.portal-main` in portal.css. */
+.portal { --main-top: var(--space-6); --main-x: var(--space-4); }
+@media (min-width: 48rem) {
+  .portal { --main-top: var(--space-8); --main-x: clamp(var(--space-8), 4.5vw, var(--space-20)); }
+}
+
+/* --- scrolling: the headers go, the console stays (owner, 2026-09-29) ------------
+
+   On Explore the page's own headers scroll away — the site's floating header,
+   the portal's top bar, the page title — and only the console pins, at the very
+   top, so the listings get the height. Both page headers are sticky everywhere
+   else; this page opts them out. */
+
+:root:has(.explore-public-head) .site-header { position: relative; }
+.portal:has(.explore-portal-masthead) .portal-header { position: relative; }
+.explore-public-head + .explore { --explore-stick-top: 0px; }
+.portal .explore { --explore-stick-top: 0px; }
+
+/* --- the portal masthead: the top bar, continued ------------------------------ */
+
+.portal:has(.explore-portal-intro) .portal-header { border-bottom-color: transparent; }
+
+/* The title: the top of the band, scrolling with the page. */
+.explore-portal-masthead {
+  margin: calc(var(--main-top) * -1) calc(var(--main-x) * -1) 0;
+  padding: var(--space-5) var(--main-x) var(--space-4);
+  background:
+    radial-gradient(42rem 14rem at 88% -10%, color-mix(in oklab, var(--color-kola-50) 95%, transparent), transparent 72%),
+    color-mix(in srgb, var(--color-field-0) 94%, var(--color-kola-50));
+}
+.explore-portal-masthead > .portal-page-header { max-width: none; margin: 0; padding: 0; border: 0; }
+
+/* The console: the foot of the same band, and the only part that sticks. */
+.explore-portal-intro {
+  position: sticky;
+  top: var(--explore-stick-top);
+  margin: 0 calc(var(--main-x) * -1);
+  padding: var(--space-2) var(--main-x) var(--space-5);
+  color: inherit;
+  background:
+    radial-gradient(30rem 12rem at 6% 120%, color-mix(in oklab, var(--color-gold-50) 80%, transparent), transparent 70%),
+    color-mix(in srgb, var(--color-field-0) 94%, var(--color-kola-50));
+  border-bottom: var(--border-hairline) solid color-mix(in oklab, var(--color-kola-300) 20%, var(--color-field-200));
+  border-radius: 0;
+  box-shadow: none;
+}
+.explore-portal-intro::before,
+.explore-portal-intro::after { display: none; }
+.explore-portal-intro.is-stuck {
+  background:
+    radial-gradient(42rem 14rem at 88% -10%, color-mix(in oklab, var(--color-kola-50) 95%, transparent), transparent 72%),
+    color-mix(in srgb, var(--color-field-0) 94%, var(--color-kola-50));
+  box-shadow: 0 14px 28px -24px rgb(12 58 42 / 45%);
+}
+
+.explore-portal-masthead > .portal-page-header h1 {
+  color: var(--color-ink-900);
+  font-size: 1.5rem;
+  letter-spacing: -.02em;
+}
+.explore-portal-masthead > .portal-page-header p {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-ink-500);
+}
+/* A gold seal before the promise: what is here was checked. */
+.explore-portal-masthead > .portal-page-header p::before {
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  content: "";
+  background: var(--color-gold-500);
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px rgb(192 138 46 / 18%);
+}
+
+/* Only the console lives in the sticky part now, at every width. */
+@media (min-width: 64rem) {
+  .explore-portal-intro { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* --- the public masthead: on the site header's own ground -------------------- */
+
+.explore-public-head {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4) 0 var(--space-6);
+}
+.explore-public-head h1 {
+  max-width: 18ch;
+  margin: 0;
+  color: var(--color-ink-900);
+  font: 800 clamp(2rem, 4.2vw, 3.25rem)/1.04 var(--font-display);
+  letter-spacing: -.035em;
+  text-wrap: balance;
+}
+.explore-public-head p {
+  max-width: 56ch;
+  margin: 0;
+  color: var(--color-ink-700);
+  font-size: 1.0625rem;
+  line-height: 1.55;
+}
+.explore-public-chip {
+  display: inline-flex;
+  justify-self: start;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 5px 12px;
+  color: var(--color-ink-700);
+  font-size: .75rem;
+  font-weight: 600;
+  background: rgb(255 255 255 / 72%);
+  border: var(--border-hairline) solid var(--color-field-200);
+  border-radius: var(--radius-pill);
+  backdrop-filter: blur(8px);
+}
+.explore-public-chip > span {
+  width: 7px;
+  height: 7px;
+  background: var(--color-gold-500);
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px rgb(192 138 46 / 18%);
+}
+
+/* --- the console: one white instrument ----------------------------------------- */
+
+.explore-stick > .explore-discovery,
+.explore-portal-intro .explore-discovery {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 6px;
+  color: inherit;
+  background: var(--color-field-0);
+  border: var(--border-hairline) solid color-mix(in oklab, var(--color-kola-300) 26%, var(--color-field-200));
+  border-radius: var(--console-radius);
+  box-shadow: 0 1px 2px rgb(22 17 14 / 5%), 0 18px 36px -22px rgb(12 58 42 / 32%);
+}
+.explore-stick.is-stuck > .explore-discovery { box-shadow: 0 1px 2px rgb(22 17 14 / 6%), 0 14px 30px -16px rgb(12 58 42 / 36%); }
+
+/* Rent or Buy: a quiet well at the console's start, the chosen side in kola. */
+.explore-discovery .explore-mode {
+  flex: 0 0 auto;
+  gap: 2px;
+  padding: 3px;
+  background: var(--color-field-100);
+  border: 0;
+  border-radius: var(--console-inner-radius);
+  box-shadow: none;
+}
+.explore-discovery .explore-mode-option {
+  min-width: 76px;
+  min-height: 38px;
+  padding: 0 var(--space-4);
+  color: var(--color-ink-700);
+  font-size: .9rem;
+  border-radius: 9px;
+}
+.explore-discovery .explore-mode-option:hover { color: var(--color-kola-800); background: rgb(255 255 255 / 70%); }
+.explore-discovery .explore-mode-option[aria-selected="true"] {
+  color: var(--color-field-0);
+  background: var(--color-kola-600);
+  box-shadow: 0 4px 10px -4px rgb(27 107 79 / 60%);
+}
+
+/* Where: borderless inside the console, a hairline apart from the switch. */
+.explore-discovery > .explore-bar {
+  flex: 1 1 22rem;
+  min-width: 0;
+  gap: 6px;
+}
+.explore-discovery > .explore-mode + .explore-bar {
+  padding-left: 8px;
+  border-left: var(--border-hairline) solid var(--color-field-200);
+}
+.explore-discovery .explore-search input {
+  height: 44px;
+  background: transparent;
+  border-color: transparent;
+  border-radius: var(--console-inner-radius);
+  box-shadow: none;
+}
+.explore-discovery .explore-search input:hover { background: var(--color-field-50); border-color: transparent; }
+.explore-discovery .explore-search input:focus-visible {
+  background: var(--color-field-50);
+  border-color: color-mix(in oklab, var(--color-kola-600) 45%, transparent);
+  box-shadow: 0 0 0 3px var(--color-kola-50);
+}
+
+/* Filters: a soft key; Map: the console's one solid act. */
+.explore-discovery .explore-filters-button {
+  height: 44px;
+  background: var(--color-field-50);
+  border-color: transparent;
+  border-radius: var(--console-inner-radius);
+  box-shadow: none;
+}
+.explore-discovery .explore-filters-button:hover { background: var(--color-kola-50); border-color: transparent; }
+.explore-discovery .explore-filters-button.is-active {
+  background: var(--color-kola-50);
+  box-shadow: inset 0 0 0 1.5px var(--color-kola-600);
+}
+.explore-discovery .explore-map-toggle {
+  height: 44px;
+  border-radius: var(--console-inner-radius);
+}
+.explore-discovery .explore-map-toggle > .portal-icon { color: var(--color-gold-300); }
+
+
+/* --- narrow screens: the switch above the search, both full width -------------- */
+
+@media (max-width: 47.99rem) {
+  .explore-discovery .explore-mode { flex: 1 0 100%; }
+  .explore-discovery .explore-mode-option { flex: 1 1 0; }
+  .explore-discovery > .explore-mode + .explore-bar { padding-left: 0; border-left: 0; }
+  .explore-portal-masthead { padding-block: var(--space-4) var(--space-3); }
+  .explore-portal-intro { padding-block: var(--space-2) var(--space-4); }
+}
+
+/* --- the public masthead, as one surface (owner, 2026-09-29) ------------------------
+
+   The page's heading and its search console were two things on the wash. They
+   are one frosted panel now, in the floating site header's own material — the
+   heading its top, the console set into its foot — so the site header, the
+   page's name and the search read as one top. The panel's lower part is the
+   sticky tray itself: once it pins under the site header it closes into a
+   frosted bar of its own, and nothing changes size. */
+
+.explore-public-head {
+  --masthead-glass: rgb(255 255 255 / 66%);
+  --masthead-edge: color-mix(in oklab, var(--color-kola-300) 22%, var(--color-field-200));
+  padding: var(--space-8) var(--space-8) var(--space-5);
+  background: var(--masthead-glass);
+  border: var(--border-hairline) solid var(--masthead-edge);
+  border-bottom: 0;
+  border-radius: calc(var(--radius-xl) + 6px) calc(var(--radius-xl) + 6px) 0 0;
+  backdrop-filter: blur(18px) saturate(1.1);
+}
+.explore-public-head + .explore { row-gap: var(--space-6); }
+.explore-public-head + .explore > .explore-stick {
+  padding: 0 var(--space-8) var(--space-8);
+  background: rgb(255 255 255 / 66%);
+  border: var(--border-hairline) solid color-mix(in oklab, var(--color-kola-300) 22%, var(--color-field-200));
+  border-top: 0;
+  border-radius: 0 0 calc(var(--radius-xl) + 6px) calc(var(--radius-xl) + 6px);
+  box-shadow: 0 30px 60px -44px rgb(12 58 42 / 40%);
+  backdrop-filter: blur(18px) saturate(1.1);
+  transition: border-radius var(--motion-duration-fast) var(--motion-easing-standard), padding var(--motion-duration-fast) var(--motion-easing-standard);
+}
+.explore-public-head + .explore > .explore-stick::after { display: none; }
+.explore-public-head + .explore > .explore-stick:not(.is-stuck)::before { display: none; }
+.explore-public-head + .explore > .explore-stick:not(.is-stuck) { padding-top: 0; }
+
+/* Pinned: a frosted band the full width of the window, the page's name at its
+   start and the whole console beside it — Rent or Buy, where, the filters and
+   the map. The band is drawn behind the tray, so the tray itself keeps the
+   column's width and nothing else on the page moves. */
+.explore-public-head + .explore > .explore-stick.is-stuck {
+  padding: var(--space-3) 0;
+  background: transparent;
+  border-color: transparent;
+  border-radius: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+.explore-public-head + .explore > .explore-stick.is-stuck::before {
+  position: absolute;
+  z-index: -1;
+  top: 0;
+  bottom: 0;
+  left: calc(50% - 50vw);
+  right: calc(50% - 50vw);
+  display: block;
+  content: "";
+  opacity: 1;
+  background: rgb(255 255 255 / 86%);
+  border-bottom: var(--border-hairline) solid color-mix(in oklab, var(--color-kola-300) 22%, var(--color-field-200));
+  box-shadow: 0 14px 30px -22px rgb(12 58 42 / 40%);
+  backdrop-filter: blur(18px) saturate(1.1);
+  clip-path: none;
+}
+
+@media (max-width: 47.99rem) {
+  .explore-public-head { padding: var(--space-6) var(--space-4) var(--space-4); }
+  .explore-public-head + .explore > .explore-stick { padding: 0 var(--space-3) var(--space-4); }
+  .explore-public-head + .explore > .explore-stick.is-stuck { padding: var(--space-2) 0; }
+}
+
+/* --- the page's name in a pinned band ------------------------------------------ */
+
+.explore-stick-title { display: none; }
+.explore-stick.is-stuck,
+.explore-portal-intro.is-stuck {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+}
+.explore-stick.is-stuck > .explore-discovery,
+.explore-portal-intro.is-stuck > .explore-discovery { flex: 1 1 auto; min-width: 0; }
+.explore-stick.is-stuck > .explore-stick-title,
+.explore-portal-intro.is-stuck > .explore-stick-title {
+  order: -1;
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--color-ink-900);
+  font: 800 1.125rem/1.1 var(--font-display);
+  letter-spacing: -.02em;
+  white-space: nowrap;
+}
+/* The same gold seal the masthead's promise carries. */
+.explore-stick.is-stuck > .explore-stick-title::before,
+.explore-portal-intro.is-stuck > .explore-stick-title::before {
+  width: 8px;
+  height: 8px;
+  content: "";
+  background: var(--color-gold-500);
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px rgb(192 138 46 / 18%);
+}
+/* A phone has no room for both: the band is the controls alone. */
+@media (max-width: 63.999rem) {
+  .explore-stick.is-stuck > .explore-stick-title,
+  .explore-portal-intro.is-stuck > .explore-stick-title { display: none; }
+}
+
+/* --- All: what is showing, and how to go further ------------------------------ */
+
+.explore-all-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-4);
+}
+.explore-all-summary p { margin: 0; color: var(--color-ink-700); }
+.explore-all-summary strong { color: var(--color-ink-900); font-weight: 700; }
+.explore-all-summary .type-caption { color: var(--color-ink-500); }
+/* The search fills the console when there are no filters or map beside it. */
+.all-discovery > .explore-bar { flex: 1 1 18rem; }

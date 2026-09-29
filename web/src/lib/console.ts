@@ -64,6 +64,10 @@ export type Property = {
   id: string;
   title: string;
   property_type: string;
+  /** Letting, space by space, or sold whole. Fixed when the property is created. */
+  purpose: "letting" | "sale";
+  /** For a property for sale, where its sale stands; null for letting. */
+  sale: PropertySaleSummary | null;
   owner_display: string;
   address: Address | null;
   water_source: string;
@@ -101,6 +105,17 @@ export type Property = {
    *  `read_only` take no new rental activity; the API refuses it regardless. */
   billing_access?: BillingAccessState;
   created_at: string;
+};
+
+/** What a property row shows about its sale; the whole record is `getSale` in `sales.ts`. */
+export type PropertySaleSummary = {
+  id: string;
+  status: "active" | "withdrawn" | "sold";
+  status_label: string;
+  headline: string;
+  price_formatted: string | null;
+  /** On the market *and* verified — the only time the public can see it. */
+  is_public: boolean;
 };
 
 /** A property's or unit's access against its Portfolio's plan, in the server's words. */
@@ -165,6 +180,9 @@ export function recordPropertyClaim(
     owner_phone?: string;
     company_name?: string;
     file_ids: string[];
+    /** Which document each file is, by file id — a sale's title and site plan
+     *  beside the relationship document. A file with no entry is the latter. */
+    evidence_types?: Record<string, string>;
   },
 ) {
   return authedFetch<ProviderApplication>(`/properties/${propertyId}/claim/`, {
@@ -1345,6 +1363,8 @@ export function createPrivateProperty(organizationId: string, input: {
   title: string;
   property_type: string;
   address_id: string;
+  /** Omitted means letting, as every property before sales was. */
+  purpose?: "letting" | "sale";
 }) {
   return authedFetch<Property>(`/organizations/${organizationId}/properties/`, {
     method: "POST",
@@ -1356,6 +1376,8 @@ export function createPersonalPortfolioProperty(input: {
   title: string;
   property_type: string;
   address_id: string;
+  /** Omitted means letting, as every property before sales was. */
+  purpose?: "letting" | "sale";
 }) {
   return authedFetch<Property>("/portfolio/properties/", {
     method: "POST",

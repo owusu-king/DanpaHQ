@@ -35,6 +35,7 @@ import {
   RecordPanel,
 } from "@/components/record/RecordSurfaces";
 import { PropertyTypeChoice } from "@/components/property/PropertyTypeChoice";
+import { PurposeChoice, SaleTypeChoice } from "@/components/property/PurposeChoice";
 import { SetupProgress } from "@/components/property/SetupSteps";
 import { Select } from "@/components/form/Select";
 import { Field, Notice, Type, space } from "@/components/ui";
@@ -50,25 +51,29 @@ import {
   suggestPlaces,
   type PlaceSuggestion,
 } from "@/places";
-import { isAndroid, pressableFeedback, useSafeBottom } from "@/platform";
+import { pressableFeedback, useSafeBottom } from "@/platform";
 import { describePropertySetup, type SetupStep } from "@/propertySetup";
-import { loadPropertyTypes, type PropertyTypeOption } from "@/propertyTypes";
+import { loadPropertyVocabulary, type FeatureOption, type PropertyTypeOption } from "@/propertyTypes";
 import { createAddress } from "@/provider";
 
-/** The whole journey, before any of it exists. */
-const OUTLINE: SetupStep[] = describePropertySetup({
-  name: "",
-  waterSource: "unknown",
-  powerMeterType: "unknown",
-  documentState: "draft",
-  photos: null,
-  amenityCount: null,
-}).map((step) => (step.key === "basics" ? { ...step, status: "todo" as const } : step));
+/** The whole journey, before any of it exists — a sale's has a sale step, and land's is shorter. */
+function outline(purpose: "letting" | "sale", propertyType: string): SetupStep[] {
+  return describePropertySetup({
+    name: "",
+    waterSource: "unknown",
+    powerMeterType: "unknown",
+    documentState: "draft",
+    photos: null,
+    amenityCount: null,
+    purpose,
+    propertyType,
+  }).map((step) => (step.key === "basics" ? { ...step, status: "todo" as const } : step));
+}
 
 export default function PrivatePropertyScreen() {
   const router = useRouter();
   const pageBottom = useSafeBottom(space[6]);
-  const { organizationId } = useLocalSearchParams<{ organizationId: string }>();
+  const { organizationId, purpose: askedPurpose } = useLocalSearchParams<{ organizationId: string; purpose?: string }>();
   const { activeContext } = useAuth();
   const [selectedOrganizationId, setSelectedOrganizationId] = useState(organizationId ?? "");
   const [organizations, setOrganizations] = useState<Organization[]>([]);
@@ -77,6 +82,9 @@ export default function PrivatePropertyScreen() {
   // property with extra rooms — and this decides what may be let inside.
   const [propertyType, setPropertyType] = useState("");
   const [propertyTypes, setPropertyTypes] = useState<PropertyTypeOption[]>([]);
+  const [saleTypes, setSaleTypes] = useState<FeatureOption[]>([]);
+  // Asked first: it decides which categories exist and every step after this one.
+  const [purpose, setPurpose] = useState<"letting" | "sale">(askedPurpose === "sale" ? "sale" : "letting");
   const [localityQuery, setLocalityQuery] = useState("");
   const [placeSuggestions, setPlaceSuggestions] = useState<PlaceSuggestion[]>([]);
   const [selectedPlace, setSelectedPlace] = useState<PlaceSuggestion | null>(null);
@@ -90,7 +98,12 @@ export default function PrivatePropertyScreen() {
 
   useEffect(() => {
     // Fetched, so the form cannot offer a category the backend does not have.
-    void loadPropertyTypes().then(setPropertyTypes).catch(() => setPropertyTypes([]));
+    void loadPropertyVocabulary()
+      .then((vocabulary) => {
+        setPropertyTypes(vocabulary.property_types);
+        setSaleTypes(vocabulary.sale_types ?? []);
+      })
+      .catch(() => setPropertyTypes([]));
   }, []);
 
   useEffect(() => {
@@ -164,6 +177,7 @@ export default function PrivatePropertyScreen() {
         title: title.trim(),
         property_type: propertyType,
         address_id: address.id,
+        purpose,
       };
       const property = selectedOrganizationId
         ? await createPrivateProperty(selectedOrganizationId, input)
@@ -174,7 +188,8 @@ export default function PrivatePropertyScreen() {
       // second button also called Create property.
       router.replace({
         pathname: "/(app)/property-setup",
-        params: { propertyId: property.id, step: "details" },
+        // A sale starts on its price and terms; land has no details step at all.
+        params: { propertyId: property.id, step: purpose === "sale" ? "sale" : "details" },
       });
     } catch (cause) {
       setError(cause instanceof ApiFailure ? cause.error.message : "Could not start this property.");
@@ -194,7 +209,7 @@ export default function PrivatePropertyScreen() {
           <Type variant="title2" accessibilityRole="header" style={styles.title}>Create a property</Type>
         </View>
 
-        <SetupProgress steps={OUTLINE} current="basics" />
+        <SetupProgress steps={outline(purpose, propertyType)} current="basics" />
 
         <View style={styles.section}>
           <GroupLabel>What it is</GroupLabel>
@@ -210,11 +225,28 @@ export default function PrivatePropertyScreen() {
           {organizations.length === 0 ? (
             <Notice tone="info" title="This goes into your Rooomly Portfolio" />
           ) : null}
-          <Field label="Name" placeholder="Adom Heights" value={title} onChangeText={setTitle} />
+          <PurposeChoice
+            value={purpose}
+            onChange={(next) => {
+              // The two sides have different categories, so a choice made on
+              // one never carries over to the other.
+              if (next !== purpose) setPropertyType("");
+              setPurpose(next);
+            }}
+          />
+          {purpose === "sale" ? (
+            <Field label="Name" placeholder="3-bedroom house, East Legon" value={title} onChangeText={setTitle} />
+          ) : (
+            <Field label="Name" placeholder="Adom Heights" value={title} onChangeText={setTitle} />
+          )}
           {/* Three categories, and the choice decides what may be let inside.
               `Choice` is a wrapping row of labels — right for a water source, and
               unable to say what choosing Hostel actually gets you. */}
-          <PropertyTypeChoice types={propertyTypes} value={propertyType} onChange={setPropertyType} />
+          {purpose === "sale" ? (
+            <SaleTypeChoice types={saleTypes} value={propertyType} onChange={setPropertyType} />
+          ) : (
+            <PropertyTypeChoice types={propertyTypes} value={propertyType} onChange={setPropertyType} />
+          )}
         </View>
 
         <View style={styles.section}>
@@ -248,7 +280,7 @@ export default function PrivatePropertyScreen() {
                   style={({ pressed }) => [
                     styles.place,
                     index === 0 ? null : styles.ruled,
-                    pressed && !isAndroid ? { backgroundColor: PRESSED } : null,
+                    pressed ? { backgroundColor: PRESSED } : null,
                   ]}
                 >
                   <Ionicons name="location-outline" size={16} color={KOLA} />

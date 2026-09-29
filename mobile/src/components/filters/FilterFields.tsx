@@ -12,7 +12,7 @@ import {
 
 import { Type, motion, radius, space } from "@/components/ui";
 import { useReduceMotion } from "@/motion";
-import { hapticsPolicy, isAndroid, pressableFeedback } from "@/platform";
+import { hapticsPolicy, pressableFeedback } from "@/platform";
 import { theme } from "@/theme";
 
 /**
@@ -251,7 +251,7 @@ export function SelectField<T extends string>({
           onToggle();
         }}
         {...pressableFeedback(theme.color.field["100"])}
-        style={({ pressed }) => [styles.row, pressed && !isAndroid ? styles.pressed : null]}
+        style={({ pressed }) => [styles.row, pressed ? styles.pressed : null]}
       >
         <Type variant="body" style={styles.label}>{label}</Type>
         <View style={[styles.select, chosen ? styles.selectChosen : null, open ? styles.selectOpen : null]}>
@@ -288,7 +288,7 @@ export function SelectField<T extends string>({
                   styles.option,
                   index === 0 ? null : styles.optionRuled,
                   selected ? styles.optionChosen : null,
-                  pressed && !isAndroid ? styles.pressed : null,
+                  pressed ? styles.pressed : null,
                 ]}
               >
                 <Type variant={selected ? "bodyStrong" : "body"} style={[styles.optionText, selected ? styles.chosenText : null]}>

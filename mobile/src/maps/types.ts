@@ -18,8 +18,9 @@ export type MapInsets = { top: number; right: number; bottom: number; left: numb
 export type MapMarker = {
   key: string;
   position: LatLng;
-  /** A price pill, a cluster disc, or a stack of rentals on one point. */
-  kind: "price" | "cluster" | "stack";
+  /** A price pill, a cluster disc, a stack of rentals on one point, or a
+   *  property for sale — a gold pill, so it never reads as a month's rent. */
+  kind: "price" | "cluster" | "stack" | "sale";
   /** "₵850", "12", "from ₵900". */
   label: string;
   count?: number;

@@ -4,7 +4,7 @@ import { type ColorValue, Pressable, View } from "react-native";
 
 import { useAuth } from "@/auth";
 import { resolveEntryRoute } from "@/navigation";
-import { isAndroid, pressableFeedback } from "@/platform";
+import { pressableFeedback } from "@/platform";
 import { shell } from "@/shell";
 
 /**
@@ -74,7 +74,7 @@ export function BackControl({
         alignItems: "center",
         justifyContent: "center",
         overflow: "hidden",
-        opacity: pressed && !isAndroid ? 0.55 : 1,
+        opacity: pressed ? 0.55 : 1,
       })}
     >
       <View

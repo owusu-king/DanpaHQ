@@ -58,6 +58,12 @@ const faceImages = new Map<string, string>();
 const IDLE = { fill: theme.color.field["0"], edge: "rgba(33,26,21,0.22)", text: theme.color.ink["900"] };
 const VISITED = { fill: theme.color.field["100"], edge: "rgba(33,26,21,0.16)", text: theme.color.ink["500"] };
 const SELECTED = { fill: theme.color.kola["800"], edge: theme.color.kola["800"], text: theme.color.field["0"] };
+/** A property for sale: gold, so a price in the hundreds of thousands is never read as rent. */
+const SALE_IDLE = { fill: theme.color.gold["100"], edge: theme.color.gold["500"], text: theme.color.ink["900"] };
+const SALE_VISITED = { fill: theme.color.gold["50"], edge: theme.color.gold["300"], text: theme.color.ink["500"] };
+const SALE_SELECTED = { fill: theme.color.gold["600"], edge: theme.color.gold["600"], text: theme.color.field["0"] };
+/** Pills with a tail point at their place from below; discs sit on it. */
+const tailed = (kind: MapMarker["kind"]) => kind === "price" || kind === "sale";
 
 type Face = { key: string; marker: MapMarker };
 
@@ -235,7 +241,7 @@ export function RooomlyMap({
             <Marker
               key={marker.key}
               coordinate={{ latitude: marker.position.lat, longitude: marker.position.lng }}
-              anchor={marker.kind === "price" ? PRICE_ANCHOR : CENTER_ANCHOR}
+              anchor={tailed(marker.kind) ? PRICE_ANCHOR : CENTER_ANCHOR}
               image={{ uri: image }}
               tracksViewChanges={false}
               zIndex={marker.selected ? 3 : 1}
@@ -268,7 +274,7 @@ function RentalMarker({ marker, onPress }: { marker: MapMarker; onPress: () => v
   return (
     <Marker
       coordinate={{ latitude: marker.position.lat, longitude: marker.position.lng }}
-      anchor={marker.kind === "price" ? PRICE_ANCHOR : CENTER_ANCHOR}
+      anchor={tailed(marker.kind) ? PRICE_ANCHOR : CENTER_ANCHOR}
       tracksViewChanges={tracking}
       zIndex={marker.selected ? 3 : 1}
       onPress={onPress}
@@ -307,7 +313,9 @@ function MarkerFace({ marker }: { marker: MapMarker }) {
     );
   }
 
-  const palette = selected ? SELECTED : visited ? VISITED : IDLE;
+  const palette = marker.kind === "sale"
+    ? selected ? SALE_SELECTED : visited ? SALE_VISITED : SALE_IDLE
+    : selected ? SELECTED : visited ? VISITED : IDLE;
   return (
     <View style={styles.frame} {...described}>
       <View style={[styles.pill, marker.kind === "stack" && styles.stackPill, { backgroundColor: palette.fill, borderColor: palette.edge }]}>
@@ -326,7 +334,7 @@ function MarkerFace({ marker }: { marker: MapMarker }) {
           {marker.label}
         </Text>
       </View>
-      {marker.kind === "price" ? (
+      {tailed(marker.kind) ? (
         // The tail points at the place: an outline, then the fill a pixel inside it.
         <View style={styles.tail}>
           <View style={[styles.tailEdge, { borderTopColor: palette.edge }]} />

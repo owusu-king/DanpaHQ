@@ -26,6 +26,7 @@ import {
   pressableFeedback,
   surfaceElevation,
 } from "@/platform";
+import { Sheen } from "@/components/Sheen";
 import { theme } from "@/theme";
 
 const px = (value: string) => Number(value.replace("px", ""));
@@ -244,6 +245,12 @@ export function Surface({ style, ...props }: ViewProps) {
   return <View {...props} style={[styles.surface, surfaceElevation, style]} />;
 }
 
+/**
+ * White at an opacity. Local rather than `alpha` from `@/shell`, which imports
+ * the home plinth, which imports this file: a cycle that would load half-made.
+ */
+const white = (opacity: number) => `rgba(255, 255, 255, ${opacity})`;
+
 export function Button({
   label,
   onPress,
@@ -277,14 +284,23 @@ export function Button({
     // unpicked one and nothing about tapping it looked like a choice.
     ? { bg: theme.color.kola["50"], fg: theme.color.kola["600"], border: theme.color.kola["600"] }
     : {
-      // Ink, not the brand hue: it passes contrast on every surface the app has
-      // and leaves the gold free to mean something where it does appear.
-      primary: { bg: theme.color.ink["900"], fg: theme.color.field["0"], border: theme.color.ink["900"] },
-      secondary: { bg: theme.color.field["0"], fg: theme.color.ink["900"], border: theme.color.field["300"] },
-      quiet: { bg: "transparent", fg: theme.color.ink["700"], border: "transparent" },
-      accent: { bg: theme.color.gold["500"], fg: theme.color.ink["950"], border: theme.color.gold["500"] },
-      destructive: { bg: theme.color.field["0"], fg: theme.color.laterite["600"], border: theme.color.laterite["600"] },
+      // The app's one button language (owner, 2026-09-28), shared with the
+      // sheets and the tab bar: deep kola glass for the act that moves things
+      // on — white reads at 9:1 on it — frosted white glass for the one beside
+      // it, kola words alone for a quiet act, and a laterite wash for one that
+      // removes. Each pill catches light along its top and has a thin rim.
+      primary: { bg: theme.color.kola["800"], fg: theme.color.field["0"], border: white(0.34) },
+      secondary: { bg: white(0.82), fg: theme.color.kola["800"], border: theme.color.field["200"] },
+      quiet: { bg: "transparent", fg: theme.color.kola["800"], border: "transparent" },
+      accent: { bg: theme.color.gold["500"], fg: theme.color.ink["950"], border: white(0.34) },
+      destructive: { bg: theme.color.laterite["100"], fg: theme.color.laterite["600"], border: theme.color.laterite["100"] },
     }[variant];
+  // Glass has light in it; a quiet act and a warning do not.
+  const sheen = !selected && (variant === "primary" || variant === "accent")
+    ? { from: 0.22, to: 0 }
+    : !selected && variant === "secondary"
+      ? { from: 0.9, to: 0.2 }
+      : null;
 
   return (
     <Pressable
@@ -300,11 +316,12 @@ export function Button({
         styles.button,
         { backgroundColor: palette.bg, borderColor: palette.border },
         selected ? { borderWidth: 2 } : null,
-        // iOS gets the opacity press state it expects; Android has the ripple.
+        // One press state on both platforms: Android's ripple ignored the pill's corners.
         pressed && !inactive ? { opacity: 0.85 } : null,
         inactive ? { opacity: 0.5 } : null,
       ]}
     >
+      {sheen ? <Sheen from={sheen.from} to={sheen.to} /> : null}
       {busy ? (
         <View style={styles.busyRow}>
           <ActivityIndicator size="small" color={palette.fg} />
@@ -633,7 +650,7 @@ const styles = StyleSheet.create({
   },
   button: {
     minHeight: theme.targetMin,
-    borderRadius: 8,
+    borderRadius: 999,
     borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",

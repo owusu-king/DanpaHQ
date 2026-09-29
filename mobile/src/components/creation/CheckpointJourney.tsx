@@ -4,7 +4,7 @@ import { Animated, Pressable, View } from "react-native";
 
 import { Type, space } from "@/components/ui";
 import { useReduceMotion } from "@/motion";
-import { isAndroid } from "@/platform";
+
 import { theme } from "@/theme";
 
 export type CheckpointState = "completed" | "current" | "upcoming" | "attention";
@@ -135,7 +135,7 @@ export function CheckpointJourney({
                   width: 84,
                   alignItems: "center",
                   gap: space[2],
-                  opacity: pressed && !isAndroid ? 0.7 : 1,
+                  opacity: pressed ? 0.7 : 1,
                 })}
               >
                 <Animated.View

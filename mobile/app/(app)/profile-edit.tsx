@@ -340,7 +340,7 @@ function Identity({
           height: ring,
           alignItems: "center",
           justifyContent: "center",
-          opacity: pressed && !isAndroid ? 0.85 : 1,
+          opacity: pressed ? 0.85 : 1,
         })}
       >
         <CompletenessRing size={ring} value={completeness} />
@@ -545,8 +545,7 @@ function SaveButton({
         onPress={onPress}
         onPressIn={() => animate(0.98)}
         onPressOut={() => animate(1)}
-        android_ripple={isAndroid ? { color: alpha(WHITE, 0.2) } : undefined}
-        style={({ pressed }) => [styles.save, pressed && !isAndroid ? { opacity: 0.9 } : null]}
+        style={({ pressed }) => [styles.save, pressed ? { opacity: 0.9 } : null]}
       >
         {busy ? (
           <ActivityIndicator size="small" color={WHITE} />

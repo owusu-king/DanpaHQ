@@ -4,7 +4,7 @@ import { Animated, Pressable, View } from "react-native";
 
 import { ph, Register, useHomeDensity } from "@/components/home/plinth";
 import { Type, space } from "@/components/ui";
-import { isAndroid, pressableFeedback } from "@/platform";
+import { pressableFeedback } from "@/platform";
 import { theme } from "@/theme";
 
 export type Shortcut = {
@@ -98,7 +98,7 @@ function ShortcutTile({ shortcut }: { shortcut: Shortcut }) {
           borderWidth: 1,
           borderColor: ph.glassEdge,
           backgroundColor: ph.glass,
-          opacity: pressed && !isAndroid ? 0.72 : 1,
+          opacity: pressed ? 0.72 : 1,
         })}
       >
         <Ionicons name={shortcut.icon} size={density.compact ? 16 : 18} color={ph.graphite} />

@@ -126,6 +126,8 @@ export function destination(
   switch (item.target_type) {
     case "viewing":
       return { pathname: isProvider ? "/(app)/provider-viewings" : "/(app)/viewings" };
+    case "sale_enquiry":
+      return { pathname: "/(app)/enquiry/[id]", params: { id: item.target_id } };
     case "application":
     case "property_join_request":
       return { pathname: isProvider ? "/(app)/provider-applications" : "/(app)/applications" };

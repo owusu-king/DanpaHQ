@@ -7,6 +7,7 @@ const TYPE_LABEL: Record<string, string> = {
   residential: "Residential",
   commercial: "Commercial",
   hostel: "Hostel",
+  land: "Land",
 };
 
 function value(raw: string): string | null {
@@ -49,6 +50,10 @@ export function PropertySummary({
     ["Power", value(property.power_meter_type)],
     ["Compound", value(property.compound_type)],
   ].filter((row): row is [string, string] => Boolean(row[1]));
+  // A sale shows its price and headline; land has no water, power, compound or
+  // shared amenities to show, so those groups are not drawn for it.
+  const selling = property.purpose === "sale";
+  const land = selling && property.property_type === "land";
 
   return (
     <div className="property-summary">
@@ -66,6 +71,7 @@ export function PropertySummary({
           <strong>{property.title || "Untitled property"}</strong>
           <span className="property-summary-kind">
             {TYPE_LABEL[property.property_type] ?? value(property.property_type) ?? "Property"}
+            {selling ? " · For sale" : ""}
           </span>
           {where ? (
             <span className="property-summary-where">
@@ -77,30 +83,47 @@ export function PropertySummary({
       </div>
 
       <dl className="property-summary-facts">
-        <Group label="Details" onEdit={() => onEdit("details")}>
-          {characteristics.length ? (
-            <ul className="property-summary-chips">
-              {characteristics.map(([label, text]) => (
-                <li key={label}>
-                  <span>{label}</span>
-                  {text}
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <span className="property-summary-missing">Not recorded yet</span>
-          )}
-        </Group>
+        {selling ? (
+          <Group label="Sale" onEdit={() => onEdit("sale")}>
+            {property.sale?.price_formatted ? (
+              <p className="property-summary-list">
+                <strong>{property.sale.price_formatted}</strong>
+                {property.sale.headline ? ` · ${property.sale.headline}` : ""}
+              </p>
+            ) : (
+              <span className="property-summary-missing">No price yet</span>
+            )}
+          </Group>
+        ) : null}
 
-        <Group label="Shared amenities" onEdit={() => onEdit("amenities")}>
-          {property.amenities.length ? (
-            <p className="property-summary-list">
-              {property.amenities.map((amenity) => amenity.name).join(" · ")}
-            </p>
-          ) : (
-            <span className="property-summary-missing">Nothing shared</span>
-          )}
-        </Group>
+        {land ? null : (
+          <Group label="Details" onEdit={() => onEdit("details")}>
+            {characteristics.length ? (
+              <ul className="property-summary-chips">
+                {characteristics.map(([label, text]) => (
+                  <li key={label}>
+                    <span>{label}</span>
+                    {text}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <span className="property-summary-missing">Not recorded yet</span>
+            )}
+          </Group>
+        )}
+
+        {land ? null : (
+          <Group label="Shared amenities" onEdit={() => onEdit("amenities")}>
+            {property.amenities.length ? (
+              <p className="property-summary-list">
+                {property.amenities.map((amenity) => amenity.name).join(" · ")}
+              </p>
+            ) : (
+              <span className="property-summary-missing">Nothing shared</span>
+            )}
+          </Group>
+        )}
       </dl>
     </div>
   );

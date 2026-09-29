@@ -313,11 +313,10 @@ function ServicePicker({
               aria-checked={selected}
               accessibilityLabel={`${service.label}. ${service.summary}.`}
               onPress={() => onChoose(service)}
-              android_ripple={isAndroid ? { color: alpha(ACTION, 0.12) } : undefined}
               style={({ pressed }) => [
                 styles.option,
                 selected ? styles.optionSelected : null,
-                pressed && !isAndroid ? { opacity: 0.8 } : null,
+                pressed ? { opacity: 0.8 } : null,
               ]}
             >
               <ServiceGlyph service={service} size={40} />
@@ -664,8 +663,7 @@ function PressableScale({
         onPress={onPress}
         onPressIn={() => animate(0.97)}
         onPressOut={() => animate(1)}
-        android_ripple={isAndroid ? { color: alpha(theme.color.kola["600"], 0.12) } : undefined}
-        style={({ pressed }) => [style, pressed && !isAndroid ? { opacity: 0.85 } : null]}
+        style={({ pressed }) => [style, pressed ? { opacity: 0.85 } : null]}
       >
         {children}
       </Pressable>

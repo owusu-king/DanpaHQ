@@ -5,6 +5,7 @@ import Svg, { Line, Path } from "react-native-svg";
 import { isLive, standing as applicationStanding } from "@/applicationMeaning";
 import type { RentalApplication } from "@/applications";
 import { Button, Notice, Type, space } from "@/components/ui";
+import { theme } from "@/theme";
 import { ComingUp } from "@/components/home/ComingUp";
 import { HomeSkeleton } from "@/components/home/HomeSkeleton";
 import { RentalActivity } from "@/components/home/RentalActivity";
@@ -564,12 +565,30 @@ function AttentionPanel({
                   {item.place}
                 </Type>
               </View>
-              {density.veryCompact ? null : (
-                <Type variant="caption" style={{ fontSize: density.compact ? 10.25 : 11, lineHeight: 15, color: ph.ink38 }}>
-                  {item.action}
-                </Type>
-              )}
-              <Ionicons name="chevron-forward" size={density.compact ? 12 : 14} color={ph.ink38} />
+              {/* The act, as a chip that reads as something to tap: kola, or
+                  laterite when ignoring it costs money or an agreement. */}
+              <View
+                style={{
+                  minHeight: density.compact ? 24 : 26,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 2,
+                  paddingLeft: density.veryCompact ? space[1] + 2 : space[2] + 2,
+                  paddingRight: space[1] + 2,
+                  borderRadius: 13,
+                  backgroundColor: danger ? theme.color.laterite["100"] : theme.color.kola["50"],
+                }}
+              >
+                {density.veryCompact ? null : (
+                  <Type
+                    variant="captionStrong"
+                    style={{ fontSize: density.compact ? 10.5 : 11.5, lineHeight: 15, color: danger ? theme.color.laterite["600"] : theme.color.kola["800"] }}
+                  >
+                    {item.action}
+                  </Type>
+                )}
+                <Ionicons name="chevron-forward" size={density.compact ? 11 : 12} color={danger ? theme.color.laterite["600"] : theme.color.kola["800"]} />
+              </View>
             </Pressable>
           );
         })

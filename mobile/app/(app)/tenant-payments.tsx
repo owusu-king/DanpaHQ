@@ -36,7 +36,7 @@ import { Notice, Type, radius, space } from "@/components/ui";
 import { getLeaseLedger, type LeaseLedger, type RentCharge, type RentPayment } from "@/leases";
 import { formatMinor } from "@/listings";
 import { listPaymentIntents, paymentMethodLabel, type PaymentIntent } from "@/payments";
-import { isAndroid, pressableFeedback, useSafeBottom } from "@/platform";
+import { pressableFeedback, useSafeBottom } from "@/platform";
 import { listMyTenancies, tenancyLabel, type Tenancy } from "@/tenancy";
 import { theme } from "@/theme";
 
@@ -272,7 +272,7 @@ function DueItem({ row, first, onPress }: { row: DueRow; first: boolean; onPress
       accessibilityLabel={`${charge.kind_display}. ${amount}. ${place}. ${look.status}. ${action}.`}
       onPress={onPress}
       {...pressableFeedback(PRESSED)}
-      style={({ pressed }) => [rowStyles.row, first ? null : styles.ruled, pressed && !isAndroid ? { backgroundColor: PRESSED } : null]}
+      style={({ pressed }) => [rowStyles.row, first ? null : styles.ruled, pressed ? { backgroundColor: PRESSED } : null]}
     >
       <View style={[rowStyles.well, { backgroundColor: look.wash }]}>
         <Ionicons name={look.icon} size={16} color={look.ink} />
@@ -329,7 +329,7 @@ function PaymentItem({ row, first, onPress }: { row: HistoryRow; first: boolean;
       accessibilityLabel={`${title}. ${amount}. ${look.status}. ${place}. ${action}.`}
       onPress={onPress}
       {...pressableFeedback(PRESSED)}
-      style={({ pressed }) => [rowStyles.row, first ? null : styles.ruled, pressed && !isAndroid ? { backgroundColor: PRESSED } : null]}
+      style={({ pressed }) => [rowStyles.row, first ? null : styles.ruled, pressed ? { backgroundColor: PRESSED } : null]}
     >
       <View style={[styles.mark, { backgroundColor: look.wash }]}>
         <Ionicons name={look.icon} size={15} color={look.ink} />
@@ -412,7 +412,7 @@ function PanelLink({ label, count, onPress }: { label: string; count: number; on
       accessibilityLabel={`${label}, ${count}`}
       onPress={onPress}
       {...pressableFeedback(PRESSED)}
-      style={({ pressed }) => [styles.link, pressed && !isAndroid ? { backgroundColor: PRESSED } : null]}
+      style={({ pressed }) => [styles.link, pressed ? { backgroundColor: PRESSED } : null]}
     >
       <Type variant="captionStrong" style={styles.linkText}>{label}</Type>
       <Type variant="caption" style={styles.linkCount}>{count}</Type>

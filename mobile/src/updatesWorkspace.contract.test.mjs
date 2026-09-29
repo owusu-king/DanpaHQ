@@ -68,12 +68,17 @@ test("mobile Updates presents ten records per page", () => {
 test("Explore keeps one search bar and one Filters button over the map, and every filter in a bottom sheet", () => {
   const search = read("mobile/app/(app)/search.tsx");
 
-  // Two floating controls, not a rail: pills and chips crowded a phone's map,
-  // and every one of them is in the sheet already.
-  assert.match(search, /function SearchBox/);
-  assert.match(search, /function FiltersButton/);
+  const hero = read("mobile/src/components/explore/ExploreHero.tsx");
+  // Two controls, not a rail: pills and chips crowded a phone's map, and every
+  // one of them is in the sheet already. They live in the Explore hero now,
+  // shared by Rent and Buy (owner, 2026-09-29).
+  assert.match(search, /<ExploreHero\b/);
+  assert.match(search, /<HeroSearch\b/);
+  assert.match(hero, /function FiltersButton/);
+  assert.match(hero, /export function HeroSearch/);
   assert.doesNotMatch(search, /accessibilityRole="toolbar"|function CompactFilter|function ActiveFilter/);
-  assert.match(search, /onPress=\{\(\) => \{ Keyboard\.dismiss\(\); setFiltersOpen\(true\); \}\}/);
+  // All has no filters of its own; Rent and Buy each open theirs (owner, 2026-09-29).
+  assert.match(search, /onFilters=\{mode === "all" \? undefined : \(\) => \{ Keyboard\.dismiss\(\); setFiltersOpen\(true\); \}\}/);
   // Each question is one row — a rent range, dropdowns, a segmented choice and a
   // switch; see filterFields.contract.test.mjs.
   assert.match(search, /<PriceRange\n/);
@@ -91,14 +96,20 @@ test("Explore on the phone shows each choice once, and turning one on moves noth
   const search = read("mobile/app/(app)/search.tsx");
   const fields = read("mobile/src/components/filters/FilterFields.tsx");
 
+  const hero = read("mobile/src/components/explore/ExploreHero.tsx");
   // The button counts the refinements, and names the count for a screen reader.
-  const button = search.slice(search.indexOf("function FiltersButton("), search.indexOf("function FilterSheet("));
-  assert.match(button, /accessibilityLabel=\{active \? `Filters, \$\{count\} active` : "Filters"\}/);
-  assert.match(search, /<FiltersButton\s+count=\{refinementCount\}/);
+  const button = hero.slice(hero.indexOf("function FiltersButton("), hero.indexOf("export function HeroSearch("));
+  assert.match(button, /accessibilityLabel=\{count \? `Filters, \$\{count\} active` : "Filters"\}/);
+  assert.match(search, /filterCount=\{mode === "all" \? undefined : filterCountForSide\}/);
+  assert.match(search, /const filterCountForSide = mode === "buy" \? saleRefinements\(saleChoices\) : refinementCount;/);
 
   // The one Clear all sits beside the count it changes.
-  const status = search.slice(search.indexOf('accessibilityLiveRegion="polite"'), search.indexOf("renderItem="));
-  assert.match(status, /onPress=\{clearFilters\}/);
+  const results = hero.slice(hero.indexOf("export function ExploreResults("));
+  assert.match(results, /accessibilityLiveRegion="polite"/);
+  assert.match(results, /accessibilityLabel="Clear all filters"/);
+  // Each side clears its own filters; All has none to clear.
+  assert.match(search, /: mode === "rent" && refinementCount \? clearFilters : undefined\}/);
+  assert.match(search, /saleRefinements\(saleChoices\) \? \(\) => setSaleChoices\(NO_SALE_CHOICES\) : undefined/);
 
   // Furnished is the platform switch, and the row owns the touch.
   assert.match(fields, /<View pointerEvents="none"[^>]*>\s*<Switch\s+value=\{value\}/);
@@ -108,7 +119,8 @@ test("Explore on the phone shows each choice once, and turning one on moves noth
   assert.doesNotMatch(fields, /(segmentChosen|selectChosen|selectOpen): \{[^}]*borderWidth/);
 
   // The search bar's ring is drawn behind it; its border never thickens.
-  const box = search.slice(search.indexOf("function SearchBox("), search.indexOf("function FiltersButton("));
+  const box = hero.slice(hero.indexOf("export function HeroSearch("), hero.indexOf("export function ExploreResults("));
+  assert.match(box, /style=\{styles\.ring\}/);
   assert.doesNotMatch(box, /borderWidth: focused/);
   assert.match(box, /clearButtonMode="never"/);
 

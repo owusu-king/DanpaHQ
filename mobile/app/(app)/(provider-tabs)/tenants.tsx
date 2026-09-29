@@ -44,7 +44,7 @@ import { BottomSheet } from "@/components/sheet/BottomSheet";
 import { Notice, Type, space } from "@/components/ui";
 import { formatMinor } from "@/listings";
 import { getPortfolioSummary, listOrganizations, type PortfolioSummary } from "@/organizations";
-import { isAndroid, pressableFeedback } from "@/platform";
+import { pressableFeedback } from "@/platform";
 import { theme } from "@/theme";
 
 /**
@@ -324,7 +324,7 @@ function TenantRow({ tenant, narrow, onPress }: { tenant: Tenant; narrow: boolea
       accessibilityLabel={`${tenant.name}, ${tenancyLabel(tenant)}, ${[tenant.property_title, tenant.unit_label, tenant.bed_label].filter(Boolean).join(", ")}, ${rentLabel(tenant)}${term ? `, ${term}` : ""}`}
       onPress={onPress}
       {...pressableFeedback(PRESSED)}
-      style={({ pressed }) => [rowStyles.row, pressed && !isAndroid ? { backgroundColor: PRESSED } : null]}
+      style={({ pressed }) => [rowStyles.row, pressed ? { backgroundColor: PRESSED } : null]}
     >
       <View style={[styles.initials, { backgroundColor: standing.wash }]}>
         <Type variant="captionStrong" style={[styles.initialsText, { color: standing.ink }]}>{initialsOf(tenant.name)}</Type>
@@ -355,7 +355,7 @@ function AccessCard({ access, onChanged, onView }: { access: Access; onChanged: 
         accessibilityLabel={`View Unit ${access.unit_label}, ${access.property_title}`}
         onPress={onView}
         {...pressableFeedback(PRESSED)}
-        style={({ pressed }) => [styles.accessHead, pressed && !isAndroid ? { backgroundColor: PRESSED } : null]}
+        style={({ pressed }) => [styles.accessHead, pressed ? { backgroundColor: PRESSED } : null]}
       >
         <View style={[rowStyles.well, { backgroundColor: theme.color.kola["50"] }]}>
           <Ionicons name="key-outline" size={15} color={KOLA} />

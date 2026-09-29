@@ -48,7 +48,7 @@ import {
 import { BottomSheet } from "@/components/sheet/BottomSheet";
 import { Notice, Type, radius, space } from "@/components/ui";
 import { listGrantedLeases, listMyLeases, type Lease } from "@/leases";
-import { isAndroid, pressableFeedback, useSafeBottom } from "@/platform";
+import { pressableFeedback, useSafeBottom } from "@/platform";
 import {
   leaseSearchText,
   providerLeasePeriod,
@@ -290,7 +290,7 @@ function ProviderLeaseRow({ lease, narrow, onPress }: { lease: Lease; narrow: bo
       accessibilityLabel={`${tenant}. ${place.join(", ")}. ${status}. ${rent ? `${rent} per ${period}` : "Rent not recorded"}. ${when}. Open agreement.`}
       onPress={onPress}
       {...pressableFeedback(PRESSED)}
-      style={({ pressed }) => [rowStyles.row, pressed && !isAndroid ? { backgroundColor: PRESSED } : null]}
+      style={({ pressed }) => [rowStyles.row, pressed ? { backgroundColor: PRESSED } : null]}
     >
       <View style={[styles.initials, { backgroundColor: tone.wash }]}>
         <Type variant="captionStrong" style={[styles.initialsText, { color: tone.ink }]}>{initialsOf(tenant)}</Type>
@@ -517,7 +517,7 @@ function TenantAgreementRow({
       accessibilityLabel={`${homeOf(terms)}. With ${terms.landlordName}. ${money(terms.rentMinor, terms.rentCurrency)} per ${per(terms.rentPeriod)}. ${state.line}.`}
       onPress={onPress}
       {...pressableFeedback(PRESSED)}
-      style={({ pressed }) => [rowStyles.row, pressed && !isAndroid ? { backgroundColor: PRESSED } : null]}
+      style={({ pressed }) => [rowStyles.row, pressed ? { backgroundColor: PRESSED } : null]}
     >
       <View style={[rowStyles.well, { backgroundColor: look.wash }]}>
         <Ionicons name={look.icon} size={16} color={look.ink} />

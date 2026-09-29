@@ -59,6 +59,8 @@ const MUTED = theme.color.ink["500"];
 const ALERT = theme.color.laterite["600"];
 
 const GLASS = alpha(WHITE, 0.9);
+/** How strong a press ripple is: a wash of the card's colour, never the colour itself. */
+const RIPPLE = 0.12;
 const EDGE = alpha(DEEP, 0.1);
 const JOIN = alpha(DEEP, 0.07);
 const CHEVRON = alpha(DEEP, 0.3);
@@ -567,11 +569,15 @@ export function ChoiceCard({
   const hue = TONE[tone];
 
   return (
+    // Android draws a press ripple as a plain rectangle whatever the corners, and
+    // it was drawn in the card's full ink: a tap flashed a dark box over the card.
+    // The ripple is now a faint wash of that colour, clipped to the card's shape.
+    <View style={styles.cardClip}>
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={`${title}. ${body}.`}
-      {...pressableFeedback(hue.ink)}
+      {...pressableFeedback(alpha(hue.ink, RIPPLE))}
       style={({ pressed }) => [styles.card, quiet ? styles.cardQuiet : null, pressed ? styles.cardPressed : null]}
     >
       <View style={[styles.tile, quiet ? styles.tileQuiet : null, { backgroundColor: hue.wash }]}>
@@ -587,6 +593,7 @@ export function ChoiceCard({
       </View>
       <Ionicons name="chevron-forward" size={18} color={CHEVRON} />
     </Pressable>
+    </View>
   );
 }
 
@@ -616,12 +623,13 @@ export function PickCard({
   const hue = TONE[tone];
 
   return (
+    <View style={styles.cardClip}>
     <Pressable
       onPress={onPress}
       accessibilityRole="radio"
       aria-checked={selected}
       accessibilityLabel={`${title}. ${body}.`}
-      {...pressableFeedback(hue.ink)}
+      {...pressableFeedback(alpha(hue.ink, RIPPLE))}
       style={({ pressed }) => [
         styles.card,
         styles.pick,
@@ -646,6 +654,7 @@ export function PickCard({
         color={selected ? hue.ink : CHEVRON}
       />
     </Pressable>
+    </View>
   );
 }
 
@@ -657,7 +666,7 @@ export function AuthBack({ label, onPress }: { label: string; onPress: () => voi
       accessibilityRole="button"
       accessibilityLabel={label}
       hitSlop={10}
-      {...pressableFeedback(KOLA)}
+      {...pressableFeedback(alpha(KOLA, RIPPLE))}
       style={({ pressed }) => [styles.back, pressed ? { opacity: 0.85 } : null]}
     >
       <Ionicons name="arrow-back" size={19} color={theme.color.kola["800"]} />
@@ -948,6 +957,12 @@ const styles = StyleSheet.create({
   },
   pick: {
     minHeight: 68,
+  },
+  // The card's own corners, around its Pressable: Android's ripple ignores the
+  // Pressable's radius, so the clip has to come from a parent.
+  cardClip: {
+    overflow: "hidden",
+    borderRadius: PANEL_RADIUS,
   },
   cardQuiet: {
     minHeight: 62,

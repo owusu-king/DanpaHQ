@@ -32,7 +32,7 @@ import {
   type Organization,
   type PayoutDestinationState,
 } from "@/organizations";
-import { isAndroid, pressableFeedback, useSafeBottom } from "@/platform";
+import { pressableFeedback, useSafeBottom } from "@/platform";
 import { alpha } from "@/shell";
 import { theme } from "@/theme";
 
@@ -301,7 +301,7 @@ function CheckRow({ check, first }: { check: Check; first: boolean }) {
       accessibilityLabel={`${check.title}, ${status}, ${check.actionLabel ?? "View"}`}
       onPress={check.onPress}
       {...pressableFeedback(PRESSED)}
-      style={({ pressed }) => [rowStyles.row, first ? null : styles.ruled, pressed && !isAndroid ? { backgroundColor: PRESSED } : null]}
+      style={({ pressed }) => [rowStyles.row, first ? null : styles.ruled, pressed ? { backgroundColor: PRESSED } : null]}
     >
       {body}
     </Pressable>

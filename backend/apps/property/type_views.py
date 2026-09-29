@@ -22,8 +22,22 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import CompoundType, PowerMeterType, PropertyType, WaterSource
+from .models import (
+    LETTING_TYPES,
+    SALE_TYPES,
+    CompoundType,
+    PowerMeterType,
+    PropertyType,
+    WaterSource,
+)
 from .space_rules import space_type_options
+
+#: How each sale category reads to a seller choosing it.
+SALE_LABELS = {
+    PropertyType.RESIDENTIAL: "House or apartment",
+    PropertyType.COMMERCIAL: "Commercial property",
+    PropertyType.LAND: "Land",
+}
 
 
 def _options(choices) -> list[dict]:
@@ -58,6 +72,16 @@ class PropertyTypeOptionsView(APIView):
                         "space_types": space_type_options(value),
                     }
                     for value, label in PropertyType.choices
+                    # The letting categories only: land is sold, never let as a
+                    # Property, and a letting form offering it would create a
+                    # property no Unit could go into.
+                    if value in LETTING_TYPES
+                ],
+                #: What a property *for sale* may be, named for a buyer.
+                "sale_types": [
+                    {"value": value, "label": SALE_LABELS[value]}
+                    for value, _ in PropertyType.choices
+                    if value in SALE_TYPES
                 ],
                 "water_sources": _options(WaterSource.choices),
                 "power_meter_types": _options(PowerMeterType.choices),

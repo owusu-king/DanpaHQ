@@ -108,10 +108,23 @@ export function searchProviderLocalities(query: string) {
   });
 }
 
+export type PropertySaleSummary = {
+  id: string;
+  status: "active" | "withdrawn" | "sold";
+  status_label: string;
+  headline: string;
+  price_formatted: string | null;
+  is_public: boolean;
+};
+
 export type Property = {
   id: string;
   title: string;
   property_type: string;
+  /** `sale` for a property sold whole — no Units (owner, 2026-09-28). */
+  purpose: "letting" | "sale";
+  /** A sale's headline facts, for a row; null when letting. */
+  sale: PropertySaleSummary | null;
   authority_state: string;
   capabilities: import("@/organizations").ManagedProperty["capabilities"];
   condition_state: ConditionState;
@@ -360,6 +373,9 @@ export function recordPropertyClaim(
     owner_phone?: string;
     company_name?: string;
     file_ids: string[];
+    /** Which document each file is, by file id — a sale's title and site plan
+     *  beside the relationship document. A file with no entry is the latter. */
+    evidence_types?: Record<string, string>;
   },
 ) {
   return apiFetch<ProviderApplication>(`/properties/${propertyId}/claim/`, {

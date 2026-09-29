@@ -15,7 +15,7 @@ import {
   PANEL_RADIUS,
 } from "@/components/portfolio/PortfolioList";
 import { Type, space } from "@/components/ui";
-import { isAndroid, pressableFeedback } from "@/platform";
+import { pressableFeedback } from "@/platform";
 import { theme } from "@/theme";
 import type { Unit } from "@/provider";
 
@@ -101,7 +101,7 @@ export function UnitTile({
       style={({ pressed }) => [
         styles.tile,
         glass ? styles.glass : styles.paper,
-        pressed && !isAndroid ? { opacity: 0.82 } : null,
+        pressed ? { opacity: 0.82 } : null,
       ]}
     >
       <View style={styles.frame}>

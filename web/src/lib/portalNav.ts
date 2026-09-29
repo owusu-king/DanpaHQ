@@ -101,6 +101,7 @@ export function portalSections(
           items: [
             { href: "/applications", label: "Tenancy requests", icon: "applications", hint: "Review people asking to rent" },
             { href: "/viewings", label: "Viewings", icon: "viewings", hint: "Requests to see a place" },
+            { href: "/enquiries", label: "Buyer enquiries", icon: "chat", hint: "Questions about properties you are selling" },
           ] as PortalItem[],
         }]
         : []),
@@ -121,6 +122,7 @@ export function portalSections(
         { href: "/leases", label: "Agreements", icon: "leases", hint: "Offers waiting for your decision" },
         { href: "/payments", label: "Payments", icon: "payments", hint: "Rent due, payment activity and receipts" },
         { href: "/viewings", label: "Viewings", icon: "viewings", hint: "Times you arranged to visit" },
+        { href: "/enquiries", label: "Enquiries", icon: "chat", hint: "Properties you asked to buy" },
       ],
     },
     ACCOUNT_SECTION,
@@ -186,6 +188,7 @@ const PORTAL_PREFIXES = [
   "/portfolio-invitations",
   "/updates",
   "/viewings",
+  "/enquiries",
   "/organization",
   "/tenant",
   "/review",
@@ -205,5 +208,6 @@ export function isSharedListingRoute(pathname: string): boolean {
     pathname === "/rentals"
     || pathname.startsWith("/rentals/")
     || pathname.startsWith("/listings/")
+    || pathname.startsWith("/sales/")
   );
 }

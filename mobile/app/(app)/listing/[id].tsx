@@ -10,17 +10,19 @@ import {
   Pressable,
   Share,
   ScrollView,
+  StyleSheet,
   View,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ApiFailure } from "@/api";
 import { isLive } from "@/applicationMeaning";
 import { useAuth } from "@/auth";
 import { Button, Notice, Stamp, Type, space } from "@/components/ui";
 import { ListingCard } from "@/components/listings/ListingCard";
+import { Fact, GroupLabel, RecordPanel } from "@/components/record/RecordSurfaces";
 import { ModalSafeArea } from "@/components/sheet/ModalSafeArea";
 import {
   getListingDetail,
@@ -35,6 +37,8 @@ import { listMyApplications } from "@/applications";
 import { listMyViewings, requestViewing } from "@/viewings";
 import { pressableFeedback, useSafeBottom } from "@/platform";
 import { theme } from "@/theme";
+
+type IconName = keyof typeof Ionicons.glyphMap;
 
 /**
  * The screen a tenant decides on.
@@ -66,6 +70,9 @@ export default function ListingDetailScreen() {
   const [browsingPhotos, setBrowsingPhotos] = useState(false);
   const [expandedTrust, setExpandedTrust] = useState(false);
   const width = useRef(Dimensions.get("window").width).current;
+  // Under 380pt the two acts stack rather than squeezing their labels onto two lines.
+  const narrow = width < 380;
+  const insets = useSafeAreaInsets();
   const heroScroll = useRef<ScrollView>(null);
   const viewerScroll = useRef<ScrollView>(null);
 
@@ -145,14 +152,21 @@ export default function ListingDetailScreen() {
   const longDescription = rentable.description.length > 260;
   const verified = rentable.verification.checked && place.authority.state === "verified";
 
-  const facts = [
-    rentable.space_type_label,
-    rentable.bedrooms === 0 ? "Single room" : `${rentable.bedrooms} bedroom${rentable.bedrooms === 1 ? "" : "s"}`,
-    rentable.bathrooms ? `${rentable.bathrooms} bath` : null,
-    rentable.is_furnished ? "Furnished" : null,
-    rentable.has_private_bathroom ? "Private bath" : null,
-    rentable.has_private_kitchen ? "Private kitchen" : null,
-  ].filter(Boolean) as string[];
+  const facts = ([
+    [rentable.space_type_label, "home-outline"],
+    [rentable.bedrooms === 0 ? "Single room" : `${rentable.bedrooms} bedroom${rentable.bedrooms === 1 ? "" : "s"}`, "bed-outline"],
+    rentable.bathrooms ? [`${rentable.bathrooms} bath`, "water-outline"] : null,
+    rentable.is_furnished ? ["Furnished", "cube-outline"] : null,
+    rentable.has_private_bathroom ? ["Private bath", "lock-closed-outline"] : null,
+    rentable.has_private_kitchen ? ["Private kitchen", "restaurant-outline"] : null,
+  ].filter(Boolean) as [string, IconName][]);
+  const moveIn = `GH₵${(listing.total_move_in_minor / 100).toLocaleString("en-GH")}`;
+
+  async function apply() {
+    if (applied) { router.push("/(app)/applications" as never); return; }
+    if (!signedIn) { await continueWithPhone(`/(app)/apply/${id}`); return; }
+    router.push({ pathname: "/(app)/apply/[id]", params: { id } } as never);
+  }
 
   function openPhotos(index: number, asGrid = false) {
     setPhotoIndex(index);
@@ -225,7 +239,7 @@ export default function ListingDetailScreen() {
   }
 
   return (
-    <View style={{ flex: 1 }}>
+    <View style={{ flex: 1, backgroundColor: theme.color.field["50"] }}>
       <ScrollView contentContainerStyle={{ paddingBottom: pageBottom }}>
         {photos.length ? (
           <View>
@@ -280,54 +294,94 @@ export default function ListingDetailScreen() {
           </View>
         )}
 
-        <View style={{ padding: space[5], gap: space[5] }}>
-          <View style={{ gap: space[1] }}>
+        {/*
+          Organised the way a tenant decides (owner, 2026-09-28): what it is and
+          where, what it costs to move in, whether it is real, what it has, the
+          landlord's own words, then the building around it. Each is one white
+          card on the ivory page, so the eye can find a section by its shape.
+        */}
+        <View style={styles.page}>
+          <View style={styles.identity}>
             <Type variant="display2" accessibilityRole="header">{listing.headline}</Type>
-            <Type variant="caption">
-              {where || "Ghana"}{place.landmark ? ` · near ${place.landmark}` : ""}
-            </Type>
-            <Type variant="title1" style={{ marginTop: space[2] }}>
-              {listing.rent_formatted}
-              <Type variant="caption"> / month</Type>
-            </Type>
-            <Type variant="caption" style={{ color: taken ? theme.color.ink["500"] : theme.color.kola["600"], fontWeight: "600" }}>
-              {taken ? "No longer available" : "Available now"}
-            </Type>
+            <View style={styles.where}>
+              <Ionicons name="location-outline" size={15} color={theme.color.ink["500"]} />
+              <Type variant="caption" style={styles.whereText}>
+                {where || "Ghana"}{place.landmark ? ` · near ${place.landmark}` : ""}
+              </Type>
+            </View>
+            <View style={[styles.status, taken ? styles.statusTaken : null]}>
+              <View style={[styles.statusDot, taken ? styles.statusDotTaken : null]} />
+              <Type variant="captionStrong" style={{ color: taken ? theme.color.ink["500"] : theme.color.kola["800"] }}>
+                {taken ? "No longer available" : "Available now"}
+              </Type>
+            </View>
           </View>
 
-          <View
-            style={{
-              flexDirection: "row", flexWrap: "wrap", gap: space[2],
-              paddingVertical: space[3],
-              borderTopWidth: 1, borderBottomWidth: 1, borderColor: theme.color.field["200"],
-            }}
-          >
-            {facts.map((fact) => <Type key={fact} variant="caption">{fact}</Type>)}
+          <View style={styles.facts}>
+            {facts.map(([fact, icon]) => (
+              <View key={fact} style={styles.fact}>
+                <Ionicons name={icon} size={15} color={theme.color.kola["800"]} />
+                <Type variant="captionStrong" style={styles.factText}>{fact}</Type>
+              </View>
+            ))}
           </View>
 
-          <Section title="Rental terms">
-            <Fact label="Advance" value={listing.advance_label} />
-            {listing.caution_months ? <Fact label="Deposit" value={`${listing.caution_months} months`} /> : null}
-            {listing.agency_fee_months ? <Fact label="Agency fee" value={`${listing.agency_fee_months} months`} /> : null}
-            <Fact label="To move in" value={`GH₵${(listing.total_move_in_minor / 100).toLocaleString("en-GH")}`} />
-            {/* Applying is about the terms, so it sits with them. The sticky bar
-                keeps the viewing request; two primaries would be neither. */}
-            {!taken ? (
-              <Button
-                label={applied ? "Application sent — open it" : "Apply to rent"}
-                variant="secondary"
-                onPress={async () => {
-                  if (applied) { router.push("/(app)/applications" as never); return; }
-                  if (!signedIn) { await continueWithPhone(`/(app)/apply/${id}`); return; }
-                  router.push({ pathname: "/(app)/apply/[id]", params: { id } } as never);
-                }}
-              />
-            ) : null}
+          <Section title="Rent and move-in">
+            <RecordPanel>
+              <View style={styles.rentLead}>
+                <Type variant="caption" style={styles.muted}>Rent</Type>
+                <Type variant="title1" style={styles.rent}>
+                  {listing.rent_formatted}
+                  <Type variant="caption" style={styles.muted}> / month</Type>
+                </Type>
+              </View>
+              <Fact label="Advance" value={listing.advance_label} />
+              {listing.caution_months ? <Fact label="Deposit" value={months(listing.caution_months)} /> : null}
+              {listing.agency_fee_months ? <Fact label="Agency fee" value={months(listing.agency_fee_months)} /> : null}
+              <Fact label="To move in" value={moveIn} tone="action" />
+            </RecordPanel>
           </Section>
+
+          {/* One row, with the stamps behind it. */}
+          <RecordPanel>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={verified ? "Verified rental. Open verification details." : "Open verification details"}
+              aria-expanded={expandedTrust}
+              onPress={() => setExpandedTrust((value) => !value)}
+              {...pressableFeedback(theme.color.field["100"])}
+              style={styles.trustRow}
+            >
+              <View style={[styles.trustMark, verified ? null : styles.trustMarkQuiet]}>
+                <Ionicons name={verified ? "shield-checkmark" : "shield-outline"} size={17} color={verified ? theme.color.kola["800"] : theme.color.ink["500"]} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Type variant="bodyStrong" style={{ color: verified ? theme.color.kola["800"] : theme.color.ink["900"] }}>
+                  {verified ? "Verified rental" : "Verification details"}
+                </Type>
+                <Type variant="caption" style={styles.muted}>
+                  {listing.trust_stamps.relationship === "owner" ? "Listed by the owner" : "Listed by an authorized representative"}
+                </Type>
+              </View>
+              <Ionicons name={expandedTrust ? "chevron-up" : "chevron-down"} size={18} color={theme.color.ink["500"]} />
+            </Pressable>
+            {expandedTrust ? (
+              <View style={styles.stamps}>
+                <Stamp state={listing.trust_stamps.identity.state} what="Identity" />
+                <Stamp state={place.authority.state} what={listing.provider_label} />
+                <Stamp state={rentable.verification.checked ? "verified" : "unverified"} what="This space" />
+                <Type variant="caption" style={styles.muted}>
+                  {listing.trust_stamps.relationship === "owner"
+                    ? "Checked as this property's owner."
+                    : "Checked as an authorized representative."}
+                </Type>
+              </View>
+            ) : null}
+          </RecordPanel>
 
           {rentable.amenities.length ? (
             <Section title="What this space has">
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: space[2] }}>
+              <View style={styles.tags}>
                 {rentable.amenities.map((row) => <Tag key={row.id} label={row.name} />)}
               </View>
             </Section>
@@ -335,69 +389,52 @@ export default function ListingDetailScreen() {
 
           {rentable.description ? (
             <Section title="About this place">
-              <Type variant="body">
-                {longDescription && !expanded ? `${rentable.description.slice(0, 260).trimEnd()}…` : rentable.description}
-              </Type>
-              {longDescription ? (
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={() => setExpanded((value) => !value)}
-                  style={{ minHeight: 44, justifyContent: "center" }}
-                >
-                  <Type variant="bodyStrong" style={{ color: theme.color.kola["600"] }}>
-                    {expanded ? "Show less" : "Read more"}
-                  </Type>
-                </Pressable>
-              ) : null}
+              <RecordPanel style={styles.prose}>
+                <Type variant="body">
+                  {longDescription && !expanded ? `${rentable.description.slice(0, 260).trimEnd()}…` : rentable.description}
+                </Type>
+                {longDescription ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => setExpanded((value) => !value)}
+                    style={{ minHeight: 44, justifyContent: "center", alignSelf: "flex-start" }}
+                  >
+                    <Type variant="bodyStrong" style={{ color: theme.color.kola["800"] }}>
+                      {expanded ? "Show less" : "Read more"}
+                    </Type>
+                  </Pressable>
+                ) : null}
+              </RecordPanel>
             </Section>
           ) : null}
 
           <Section title="The property">
-            <Type variant="caption">
-              {place.title} · {place.property_type_label}
-              {place.region_name ? ` · ${place.region_name}` : ""}
-            </Type>
-            <Fact label="Water" value={place.features.water_source_label} />
-            <Fact label="Power" value={place.features.power_meter_label} />
-            <Fact label="Compound" value={place.features.compound_label} />
-            <Fact
-              label="Security"
-              value={place.features.has_security ? "On site" : place.features.is_gated ? "Gated" : "None stated"}
-            />
-            {place.amenities.length ? (
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: space[2], marginTop: space[2] }}>
-                {place.amenities.map((row) => <Tag key={row.id} label={row.name} />)}
+            <RecordPanel>
+              <View style={styles.propertyHead}>
+                <Type variant="bodyStrong">{place.title}</Type>
+                <Type variant="caption" style={styles.muted}>
+                  {place.property_type_label}{place.region_name ? ` · ${place.region_name}` : ""}
+                </Type>
               </View>
-            ) : null}
+              <Feature icon="water-outline" label="Water" value={place.features.water_source_label} />
+              <Feature icon="flash-outline" label="Power" value={place.features.power_meter_label} />
+              <Feature icon="business-outline" label="Compound" value={place.features.compound_label} />
+              <Feature
+                icon="shield-outline"
+                label="Security"
+                value={place.features.has_security ? "On site" : place.features.is_gated ? "Gated" : "None stated"}
+              />
+              {place.amenities.length ? (
+                <View style={[styles.tags, styles.propertyTags]}>
+                  {place.amenities.map((row) => <Tag key={row.id} label={row.name} />)}
+                </View>
+              ) : null}
+            </RecordPanel>
           </Section>
-
-          {/* One line, with the stamps behind it. */}
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={verified ? "Verified rental. Open verification details." : "Open verification details"}
-            onPress={() => setExpandedTrust((value) => !value)}
-            style={{ minHeight: 44, justifyContent: "center", paddingTop: space[3], borderTopWidth: 1, borderTopColor: theme.color.field["200"] }}
-          >
-            <Type variant="bodyStrong" style={{ color: theme.color.kola["600"] }}>
-              {verified ? "✓ Verified rental" : "Verification details"}
-            </Type>
-          </Pressable>
-          {expandedTrust ? (
-            <View style={{ gap: space[2] }}>
-              <Stamp state={listing.trust_stamps.identity.state} what="Identity" />
-              <Stamp state={place.authority.state} what={listing.provider_label} />
-              <Stamp state={rentable.verification.checked ? "verified" : "unverified"} what="This space" />
-              <Type variant="caption">
-                {listing.trust_stamps.relationship === "owner"
-                  ? "Checked as this property's owner."
-                  : "Checked as an authorized representative."}
-              </Type>
-            </View>
-          ) : null}
 
           {related?.length ? (
             <Section title="Related rentals">
-              <Type variant="caption">Nearby options at a similar rent.</Type>
+              <Type variant="caption" style={styles.muted}>Nearby options at a similar rent.</Type>
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
@@ -425,31 +462,28 @@ export default function ListingDetailScreen() {
         </View>
       </ScrollView>
 
-      {/* The decision bar stays reachable without covering the listing. */}
+      {/* The decision bar stays reachable without covering the listing.
+          Applying is what this page exists to produce, so it leads in kola; a
+          viewing is the step beside it, as glass (owner, 2026-09-28). */}
       {!taken ? (
-        <View
-          style={{
-            gap: space[3], padding: space[4],
-            borderTopWidth: 1, borderTopColor: theme.color.field["200"],
-            backgroundColor: theme.color.field["0"],
-          }}
-        >
-          <View style={{ flexDirection: "row", alignItems: "center", gap: space[2] }}>
+        <View style={[styles.bar, { paddingBottom: Math.max(insets.bottom, space[3]) }]}>
+          <View style={styles.barHead}>
             <View style={{ flex: 1 }}>
               <Type variant="title2">{listing.rent_formatted}</Type>
-              <Type variant="caption">per month</Type>
+              <Type variant="caption" style={styles.muted}>per month · {moveIn} to move in</Type>
             </View>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={saved ? "Remove from saved" : "Save this place"}
+              aria-pressed={saved}
               onPress={() => void toggleSave()}
               {...pressableFeedback(theme.color.field["200"])}
-              style={{ width: 48, height: 48, alignItems: "center", justifyContent: "center" }}
+              style={styles.iconButton}
             >
               <Ionicons
-                name={saved ? "heart" : "heart-outline"}
-                size={24}
-                color={saved ? theme.color.laterite["600"] : theme.color.ink["700"]}
+                name={saved ? "bookmark" : "bookmark-outline"}
+                size={21}
+                color={saved ? theme.color.kola["800"] : theme.color.ink["700"]}
               />
             </Pressable>
             <Pressable
@@ -457,20 +491,32 @@ export default function ListingDetailScreen() {
               accessibilityLabel="Share this rental"
               onPress={() => void shareListing()}
               {...pressableFeedback(theme.color.field["200"])}
-              style={{ width: 48, height: 48, alignItems: "center", justifyContent: "center" }}
+              style={styles.iconButton}
             >
-              <Ionicons name="share-outline" size={24} color={theme.color.ink["700"]} />
+              <Ionicons name="share-outline" size={21} color={theme.color.ink["700"]} />
             </Pressable>
           </View>
-          <Button
-            label={
-              viewingState === "confirmed" ? "Viewing confirmed"
-                : viewingState ? "Viewing requested"
-                : "Request a viewing"
-            }
-            busy={asking}
-            onPress={() => void askToView()}
-          />
+          <View style={[styles.acts, narrow ? styles.actsStacked : null]}>
+            <View style={narrow ? null : styles.actPrimary}>
+              <Button
+                label={applied ? "Application sent — open it" : "Apply to rent"}
+                icon={<Ionicons name={applied ? "document-text-outline" : "create-outline"} size={18} color={theme.color.field["0"]} />}
+                onPress={() => void apply()}
+              />
+            </View>
+            <View style={narrow ? null : styles.actSecondary}>
+              <Button
+                label={
+                  viewingState === "confirmed" ? "Viewing confirmed"
+                    : viewingState ? "Viewing requested"
+                    : "Request viewing"
+                }
+                variant="secondary"
+                busy={asking}
+                onPress={() => void askToView()}
+              />
+            </View>
+          </View>
         </View>
       ) : null}
 
@@ -574,28 +620,237 @@ export default function ListingDetailScreen() {
   );
 }
 
+/** A count of months, said as a person would: "1 month", "2 months". */
+function months(count: number) {
+  return `${count} month${count === 1 ? "" : "s"}`;
+}
+
+/** A section: its name standing on the ground, and its card or content under it. */
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <View style={{ gap: space[2] }}>
-      <Type variant="title2" accessibilityRole="header">{title}</Type>
+    <View style={styles.section}>
+      <GroupLabel>{title}</GroupLabel>
       {children}
     </View>
   );
 }
 
-function Fact({ label, value }: { label: string; value: string }) {
+/** One feature of the building: its glyph, its name, and what it is. */
+function Feature({ icon, label, value }: { icon: IconName; label: string; value: string }) {
   return (
-    <View style={{ minHeight: 36, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: space[4] }}>
-      <Type variant="caption">{label}</Type>
-      <Type variant="bodyStrong" style={{ flexShrink: 1, textAlign: "right" }}>{value}</Type>
+    <View accessible accessibilityLabel={`${label}, ${value}`} style={styles.feature}>
+      <View style={styles.featureMark}>
+        <Ionicons name={icon} size={15} color={theme.color.kola["800"]} />
+      </View>
+      <Type variant="caption" style={[styles.muted, { flex: 1 }]}>{label}</Type>
+      <Type variant="bodyStrong" style={styles.featureValue}>{value}</Type>
     </View>
   );
 }
 
 function Tag({ label }: { label: string }) {
   return (
-    <View style={{ paddingHorizontal: space[3], paddingVertical: space[2], borderRadius: 4, backgroundColor: theme.color.field["50"] }}>
-      <Type variant="caption">{label}</Type>
+    <View style={styles.tag}>
+      <Ionicons name="checkmark" size={13} color={theme.color.kola["800"]} />
+      <Type variant="caption" style={styles.tagText}>{label}</Type>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  page: {
+    gap: space[5],
+    paddingHorizontal: space[4],
+    paddingTop: space[5],
+  },
+  identity: {
+    gap: space[2],
+  },
+  where: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space[1],
+  },
+  whereText: {
+    flexShrink: 1,
+    color: theme.color.ink["700"],
+  },
+  status: {
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space[2],
+    minHeight: 28,
+    paddingHorizontal: space[3],
+    borderRadius: 999,
+    backgroundColor: theme.color.kola["50"],
+  },
+  statusTaken: {
+    backgroundColor: theme.color.field["100"],
+  },
+  statusDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: theme.color.kola["600"],
+  },
+  statusDotTaken: {
+    backgroundColor: theme.color.ink["300"],
+  },
+  facts: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: space[2],
+  },
+  fact: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space[1] + 2,
+    minHeight: 34,
+    paddingHorizontal: space[3],
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: theme.color.field["200"],
+    backgroundColor: theme.color.field["0"],
+  },
+  factText: {
+    color: theme.color.ink["900"],
+  },
+  section: {
+    gap: space[2],
+  },
+  rentLead: {
+    gap: 2,
+    paddingHorizontal: space[4],
+    paddingTop: space[4],
+    paddingBottom: space[3],
+  },
+  rent: {
+    color: theme.color.ink["900"],
+  },
+  muted: {
+    color: theme.color.ink["500"],
+  },
+  trustRow: {
+    minHeight: 60,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space[3],
+    paddingHorizontal: space[4],
+    paddingVertical: space[3],
+  },
+  trustMark: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: theme.color.kola["50"],
+  },
+  trustMarkQuiet: {
+    backgroundColor: theme.color.field["100"],
+  },
+  stamps: {
+    gap: space[2],
+    paddingHorizontal: space[4],
+    paddingBottom: space[4],
+  },
+  prose: {
+    gap: space[1],
+    paddingHorizontal: space[4],
+    paddingTop: space[4],
+    paddingBottom: space[2],
+  },
+  propertyHead: {
+    gap: 2,
+    paddingHorizontal: space[4],
+    paddingTop: space[4],
+    paddingBottom: space[2],
+  },
+  feature: {
+    minHeight: 48,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space[3],
+    paddingHorizontal: space[4],
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: theme.color.field["200"],
+  },
+  featureMark: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: theme.color.kola["50"],
+  },
+  featureValue: {
+    flexShrink: 1,
+    textAlign: "right",
+  },
+  tags: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: space[2],
+  },
+  propertyTags: {
+    paddingHorizontal: space[4],
+    paddingTop: space[3],
+    paddingBottom: space[4],
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: theme.color.field["200"],
+  },
+  tag: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space[1],
+    minHeight: 32,
+    paddingHorizontal: space[3],
+    borderRadius: 999,
+    backgroundColor: theme.color.kola["50"],
+  },
+  tagText: {
+    color: theme.color.kola["800"],
+  },
+  // The decision bar: paper, lifted off the page, with the rent over its acts.
+  bar: {
+    gap: space[3],
+    paddingHorizontal: space[4],
+    paddingTop: space[3],
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: theme.color.field["200"],
+    backgroundColor: theme.color.field["0"],
+    shadowColor: theme.color.kola["900"],
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: -6 },
+    elevation: 12,
+  },
+  barHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space[1],
+  },
+  iconButton: {
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 22,
+    backgroundColor: theme.color.field["100"],
+  },
+  acts: {
+    flexDirection: "row",
+    gap: space[2],
+  },
+  // Too narrow for both side by side: Apply stays first, the viewing under it.
+  actsStacked: {
+    flexDirection: "column",
+  },
+  actPrimary: {
+    flex: 1,
+  },
+  actSecondary: {
+    flex: 1,
+  },
+});

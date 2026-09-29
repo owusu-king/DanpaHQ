@@ -43,7 +43,16 @@ def snap_to_cell(latitude: float, longitude: float) -> tuple[float, float]:
 
 def public_location_for(unit) -> tuple[Point | None, str]:
     """The public point for a unit's listing, and how precise that point is."""
-    address = unit.property.address
+    return public_location_for_property(unit.property)
+
+
+def public_location_for_property(prop) -> tuple[Point | None, str]:
+    """The public point for anything advertised at this property's address.
+
+    A property for sale is advertised whole, so it takes the same snapped point a
+    listing inside it would — one rule for how coarse a public marker is.
+    """
+    address = prop.address
     if address.latitude is not None and address.longitude is not None:
         latitude, longitude = snap_to_cell(float(address.latitude), float(address.longitude))
         return Point(longitude, latitude, srid=4326), LocationPrecision.AREA

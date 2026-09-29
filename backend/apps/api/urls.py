@@ -25,6 +25,7 @@ from apps.property import lifecycle_views
 from apps.property import type_views as property_type_views
 from apps.property import views as property_views
 from apps.rent import views as rent_views
+from apps.sale import views as sale_views
 from apps.trust import condition_views as trust_condition_views
 from apps.trust import evidence_views
 from apps.trust import views as trust_views
@@ -538,6 +539,44 @@ occupancy_patterns = [
     ),
 ]
 
+# Properties for sale: public discovery, the seller's controls and enquiries.
+sale_patterns = [
+    path("sales/", sale_views.SaleSearchView.as_view(), name="sales"),
+    path("sales/<uuid:pk>/", sale_views.SaleDetailView.as_view(), name="sale-detail"),
+    path(
+        "sales/<uuid:pk>/enquiries/",
+        sale_views.SaleEnquiryStartView.as_view(),
+        name="sale-enquiry-start",
+    ),
+    path("properties/<uuid:pk>/sale/", sale_views.PropertySaleView.as_view(), name="property-sale"),
+    path(
+        "properties/<uuid:pk>/sale/withdraw/",
+        sale_views.PropertySaleStatusView.as_view(action="withdraw"),
+        name="property-sale-withdraw",
+    ),
+    path(
+        "properties/<uuid:pk>/sale/relist/",
+        sale_views.PropertySaleStatusView.as_view(action="relist"),
+        name="property-sale-relist",
+    ),
+    path(
+        "properties/<uuid:pk>/sale/sold/",
+        sale_views.PropertySaleStatusView.as_view(action="sold"),
+        name="property-sale-sold",
+    ),
+    path("me/sale-enquiries/", sale_views.MyEnquiriesView.as_view(), name="my-sale-enquiries"),
+    path(
+        "sale-enquiries/<uuid:pk>/",
+        sale_views.EnquiryDetailView.as_view(),
+        name="sale-enquiry-detail",
+    ),
+    path(
+        "sale-enquiries/<uuid:pk>/messages/",
+        sale_views.EnquiryReplyView.as_view(),
+        name="sale-enquiry-reply",
+    ),
+]
+
 listing_patterns = [
     path("listings/", listing_views.ListingSearchView.as_view(), name="listings"),
     path("listings/map/", listing_views.ListingMapView.as_view(), name="listings-map"),
@@ -714,6 +753,7 @@ urlpatterns = [
     *organization_patterns,
     *occupancy_patterns,
     *listing_patterns,
+    *sale_patterns,
     *viewing_patterns,
     *application_patterns,
     *rent_patterns,

@@ -14,7 +14,10 @@ const WHITE = theme.color.field["0"];
  * catch, and one translucent architectural plane. The result reads as glass
  * without blur, visual noise, or compromised title contrast.
  */
-export function HeaderChromeBackground() {
+export function HeaderChromeBackground({ edge = true }: {
+  /** False where the green continues past the bottom — Explore's flared corners. */
+  edge?: boolean;
+} = {}) {
   const id = `header${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
 
   return (
@@ -56,7 +59,7 @@ export function HeaderChromeBackground() {
       <View style={styles.glassPlane}>
         <View style={styles.planeHighlight} />
       </View>
-      <View style={styles.edge} />
+      {edge ? <View style={styles.edge} /> : null}
     </View>
   );
 }

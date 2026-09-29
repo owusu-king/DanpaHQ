@@ -20,6 +20,7 @@ import { resolvePhotoUrl } from "@/lib/photo";
 export type IconName =
   | "home"
   | "explore"
+  | "chat"
   | "saved"
   | "applications"
   | "viewings"
@@ -202,6 +203,13 @@ const PATHS: Record<IconName, React.ReactNode> = {
   reports: (
     <>
       <path d="M4 17V9.75h3V17M8.5 17V5.5h3V17M13 17V2.75h3V17M2.75 17.25h14.5" />
+    </>
+  ),
+  // A conversation: a bubble with lines of text. Enquiries use it.
+  chat: (
+    <>
+      <path d="M4.25 12.5A6.5 6.5 0 1 1 7.5 16l-4 1 1-4Z" />
+      <path d="M7.25 8.75h5.5M7.25 11.25h3.5" />
     </>
   ),
   support: (

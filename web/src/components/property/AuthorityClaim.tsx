@@ -57,14 +57,25 @@ const EVIDENCE_HINT: Record<string, string> = {
   company_representative: "The certificate showing the company is registered.",
 };
 
+/** A property for sale is sold on its title, so the review reads the title too.
+ *  Unregistered land has an indenture instead of a certificate. */
+const TITLE_TYPES = [
+  ["land_title_certificate", "Land Title Certificate"],
+  ["indenture", "Indenture (land not yet registered)"],
+] as const;
+
 export function AuthorityClaim({
   propertyId,
   onSubmitted,
   showSubmit = true,
   onReady,
   submitRef,
+  saleKind = null,
 }: {
   propertyId: string;
+  /** Set for a property for sale: its title is asked for beside the
+   *  relationship document, and land adds its surveyed site plan. */
+  saleKind?: "residential" | "commercial" | "land" | null;
   onSubmitted: () => Promise<void>;
   /** False when the setup flow's review step owns the one button that sends
    *  the whole property — the document and the photographs together. */
@@ -79,6 +90,9 @@ export function AuthorityClaim({
   const [ownerPhone, setOwnerPhone] = useState("");
   const [companyName, setCompanyName] = useState("");
   const [file, setFile] = useState<File | null>(null);
+  const [titleType, setTitleType] = useState<string>(TITLE_TYPES[0][0]);
+  const [titleFile, setTitleFile] = useState<File | null>(null);
+  const [sitePlan, setSitePlan] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [sent, setSent] = useState(false);
@@ -86,19 +100,46 @@ export function AuthorityClaim({
   // Acting for somebody else means naming them: a reviewer has to be able to
   // check the claim with the person it is made about.
   const actingForAnother = relationship !== "owner";
+  const selling = saleKind !== null;
+  const land = saleKind === "land";
+  const ready = Boolean(file) && (!selling || Boolean(titleFile)) && (!land || Boolean(sitePlan));
 
   async function submit() {
     if (!file) {
       setError("Add the document that supports your claim.");
       return;
     }
+    if (selling && !titleFile) {
+      setError("Add the property's title — its Land Title Certificate or indenture.");
+      return;
+    }
+    if (land && !sitePlan) {
+      setError("Add the surveyed site plan of the plot.");
+      return;
+    }
     setBusy(true);
     setError("");
     try {
-      const stored = await uploadFile(file, "property_document");
-      if (!stored.is_usable) {
-        setError(stored.rejection_reason || "That document could not be accepted.");
-        return;
+      // The relationship document carries no declared type; the backend files
+      // it as the one the relationship asks for. The title and the site plan say
+      // which they are, so the reviewer finds each where it belongs.
+      const uploads: { file: File; type: string | null }[] = [
+        { file, type: null },
+        ...(selling && titleFile ? [{ file: titleFile, type: titleType }] : []),
+        ...(land && sitePlan ? [{ file: sitePlan, type: "site_plan" }] : []),
+      ];
+      const fileIds: string[] = [];
+      const evidenceTypes: Record<string, string> = {};
+      for (const upload of uploads) {
+        const stored = await uploadFile(upload.file, "property_document");
+        if (!stored.is_usable) {
+          setError(
+            stored.rejection_reason || `${upload.file.name} could not be accepted.`,
+          );
+          return;
+        }
+        fileIds.push(stored.id);
+        if (upload.type) evidenceTypes[stored.id] = upload.type;
       }
       await recordPropertyClaim(propertyId, {
         relationship_type: relationship,
@@ -106,7 +147,8 @@ export function AuthorityClaim({
         owner_phone: actingForAnother ? ownerPhone.trim() : undefined,
         company_name:
           relationship === "company_representative" ? companyName.trim() : undefined,
-        file_ids: [stored.id],
+        file_ids: fileIds,
+        ...(selling ? { evidence_types: evidenceTypes } : {}),
       });
       setSent(true);
       await onSubmitted();
@@ -127,8 +169,8 @@ export function AuthorityClaim({
   });
 
   useEffect(() => {
-    onReady?.(Boolean(file));
-  }, [file, onReady]);
+    onReady?.(ready);
+  }, [ready, onReady]);
 
   if (sent) {
     return (
@@ -173,42 +215,95 @@ export function AuthorityClaim({
         />
       ) : null}
 
-      <div>
-        <p className="type-caption" style={{ margin: "0 0 var(--space-2)" }}>
-          {EVIDENCE_HINT[relationship]}
-        </p>
-        <label
-          className="type-caption"
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            minHeight: 48,
-            padding: "0 var(--space-4)",
-            border: "var(--border-hairline) solid var(--color-field-300)",
-            borderRadius: "var(--radius-sm)",
-            cursor: "pointer",
-            fontWeight: 600,
-          }}
-        >
-          {file ? file.name : "Choose the document"}
-          <input
-            type="file"
-            accept="image/jpeg,image/png,application/pdf"
-            onChange={(event) => setFile(event.target.files?.[0] ?? null)}
-            className="sr-only"
+      <FilePick
+        hint={EVIDENCE_HINT[relationship]!}
+        file={file}
+        onChange={setFile}
+        empty="Choose the document"
+      />
+
+      {selling ? (
+        <>
+          <Select
+            label="The property's title"
+            hint="Selling transfers the property itself, so our team reads its title too."
+            value={titleType}
+            onChange={setTitleType}
+            options={TITLE_TYPES}
           />
-        </label>
-      </div>
+          <FilePick
+            hint={
+              titleType === "indenture"
+                ? "The indenture, with every page and the stamp duty receipt if you have it."
+                : "The certificate issued by the Lands Commission."
+            }
+            file={titleFile}
+            onChange={setTitleFile}
+            empty="Choose the title document"
+          />
+        </>
+      ) : null}
+
+      {land ? (
+        <FilePick
+          hint="The surveyed site plan of the plot, signed by a licensed surveyor."
+          file={sitePlan}
+          onChange={setSitePlan}
+          empty="Choose the site plan"
+        />
+      ) : null}
 
       {error ? <Notice tone="error" title={error} /> : null}
 
       {showSubmit ? (
         <div>
-          <Button onClick={submit} busy={busy} busyLabel="Saving…" disabled={!file}>
-            Save document
+          <Button onClick={submit} busy={busy} busyLabel="Saving…" disabled={!ready}>
+            {selling ? "Save documents" : "Save document"}
           </Button>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+/** One document to choose, with what it should be said above it. */
+function FilePick({
+  hint,
+  file,
+  onChange,
+  empty,
+}: {
+  hint: string;
+  file: File | null;
+  onChange: (file: File | null) => void;
+  empty: string;
+}) {
+  return (
+    <div>
+      <p className="type-caption" style={{ margin: "0 0 var(--space-2)" }}>
+        {hint}
+      </p>
+      <label
+        className="type-caption"
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          minHeight: 48,
+          padding: "0 var(--space-4)",
+          border: "var(--border-hairline) solid var(--color-field-300)",
+          borderRadius: "var(--radius-sm)",
+          cursor: "pointer",
+          fontWeight: 600,
+        }}
+      >
+        {file ? file.name : empty}
+        <input
+          type="file"
+          accept="image/jpeg,image/png,application/pdf"
+          onChange={(event) => onChange(event.target.files?.[0] ?? null)}
+          className="sr-only"
+        />
+      </label>
     </div>
   );
 }

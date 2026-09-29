@@ -13,18 +13,26 @@ import {
 
 import { Type, radius, space } from "@/components/ui";
 import { formatMinor, type Listing } from "@/listings";
-import { pressableFeedback, surfaceElevation } from "@/platform";
+import { isAndroid, pressableFeedback } from "@/platform";
 import { theme } from "@/theme";
+
+type IconName = keyof typeof Ionicons.glyphMap;
 
 /**
  * The shared recognition card for Explore, Saved and tenant recommendations.
  *
- * Image → rent/advance → identity → place → essentials → trust. Photos page by
- * swiping, and the dots say where you are: on a phone the swipe is the control,
- * and arrows drawn over a small photograph only got in the thumb's way. The
- * swipe is off wherever another gesture owns the same direction — inside a
- * horizontal related-rentals rail, and in Explore's results sheet until it
- * fills the screen.
+ * Image → rent and advance → name → place → essentials → trust (owner,
+ * 2026-09-28: reorganised for a premium read). The photograph is taller and
+ * carries only the save mark and where you are in its photos; below it the rent
+ * leads in large type, with the advance as a chip beside it because in Ghana the
+ * advance often decides whether a place is possible at all. The name and place
+ * follow, then the essentials as glyphs rather than a dotted run of words, and
+ * trust closes the card rather than competing with the photograph.
+ *
+ * Photos page by swiping, and the dots say where you are: on a phone the swipe
+ * is the control. The swipe is off wherever another gesture owns the same
+ * direction — inside a horizontal related-rentals rail, and in Explore's results
+ * sheet until it fills the screen.
  */
 export function ListingCard({
   listing,
@@ -32,13 +40,16 @@ export function ListingCard({
   saved = false,
   onSave,
   photoSwipe = true,
+  compact = false,
 }: {
   listing: Listing;
   onPress: () => void;
   saved?: boolean;
-  /** The heart appears only where saving is offered. */
+  /** The save mark appears only where saving is offered. */
   onSave?: () => void;
   photoSwipe?: boolean;
+  /** Explore's list: a shorter photograph, so more of the list is in view. */
+  compact?: boolean;
 }) {
   const { width: viewportWidth } = useWindowDimensions();
   const photos = cardPhotos(listing);
@@ -56,7 +67,7 @@ export function ListingCard({
     `${rent} per ${period}`,
     advance,
     where || "Ghana",
-    facts.join(", "),
+    facts.map(([fact]) => fact).join(", "),
     verified ? "Verified rental" : "",
   ].filter(Boolean).join(". ");
 
@@ -72,134 +83,149 @@ export function ListingCard({
   }
 
   return (
-    <View style={[styles.card, surfaceElevation]}>
-      <View
-        style={styles.media}
-        onLayout={(event) => {
-          const nextWidth = Math.round(event.nativeEvent.layout.width);
-          if (nextWidth > 0 && nextWidth !== mediaWidth) setMediaWidth(nextWidth);
-        }}
-      >
-        {photos.length ? (
-          photoSwipe && photos.length > 1 ? (
-            <ScrollView
-              horizontal
-              pagingEnabled
-              snapToInterval={mediaWidth}
-              disableIntervalMomentum
-              nestedScrollEnabled
-              directionalLockEnabled
-              decelerationRate="fast"
-              showsHorizontalScrollIndicator={false}
-              onScroll={updatePhoto}
-              onMomentumScrollEnd={updatePhoto}
-              scrollEventThrottle={16}
-              style={styles.image}
-            >
-              {photos.map((photo) => (
-                <Pressable
-                  key={photo.file_id}
-                  accessible={false}
-                  onPress={onPress}
-                  {...pressableFeedback("rgba(255,255,255,0.18)")}
-                  style={{ width: mediaWidth, height: "100%" }}
-                >
-                  <Image source={{ uri: photo.download_url }} accessible={false} style={styles.image} resizeMode="cover" />
-                </Pressable>
-              ))}
-            </ScrollView>
+    <View style={styles.lift}>
+      <View style={styles.card}>
+        <View
+          style={[styles.media, compact ? styles.mediaCompact : null]}
+          onLayout={(event) => {
+            const nextWidth = Math.round(event.nativeEvent.layout.width);
+            if (nextWidth > 0 && nextWidth !== mediaWidth) setMediaWidth(nextWidth);
+          }}
+        >
+          {photos.length ? (
+            photoSwipe && photos.length > 1 ? (
+              <ScrollView
+                horizontal
+                pagingEnabled
+                snapToInterval={mediaWidth}
+                disableIntervalMomentum
+                nestedScrollEnabled
+                directionalLockEnabled
+                decelerationRate="fast"
+                showsHorizontalScrollIndicator={false}
+                onScroll={updatePhoto}
+                onMomentumScrollEnd={updatePhoto}
+                scrollEventThrottle={16}
+                style={styles.image}
+              >
+                {photos.map((photo) => (
+                  <Pressable
+                    key={photo.file_id}
+                    accessible={false}
+                    onPress={onPress}
+                    {...pressableFeedback("rgba(255,255,255,0.18)")}
+                    style={{ width: mediaWidth, height: "100%" }}
+                  >
+                    <Image source={{ uri: photo.download_url }} accessible={false} style={styles.image} resizeMode="cover" />
+                  </Pressable>
+                ))}
+              </ScrollView>
+            ) : (
+              <Pressable
+                accessible={false}
+                onPress={onPress}
+                {...pressableFeedback("rgba(255,255,255,0.18)")}
+                style={styles.image}
+              >
+                <Image source={{ uri: photos[0]!.download_url }} accessible={false} style={styles.image} resizeMode="cover" />
+              </Pressable>
+            )
           ) : (
             <Pressable
               accessible={false}
               onPress={onPress}
-              {...pressableFeedback("rgba(255,255,255,0.18)")}
-              style={styles.image}
+              {...pressableFeedback(theme.color.field["200"])}
+              style={styles.photoPending}
             >
-              <Image source={{ uri: photos[0]!.download_url }} accessible={false} style={styles.image} resizeMode="cover" />
+              <Ionicons name="image-outline" size={24} color={theme.color.ink["300"]} />
+              <Type variant="caption">Photo pending</Type>
             </Pressable>
-          )
-        ) : (
-          <Pressable
-            accessible={false}
-            onPress={onPress}
-            {...pressableFeedback(theme.color.field["200"])}
-            style={styles.photoPending}
-          >
-            <Ionicons name="image-outline" size={24} color={theme.color.ink["300"]} />
-            <Type variant="caption">Photo pending</Type>
-          </Pressable>
-        )}
+          )}
 
-        {photoSwipe && photos.length > 1 ? (
-          <View style={styles.photoDotsPosition} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-            <View style={styles.photoDots}>
-              {photos.map((photo, index) => (
-                <View key={photo.file_id} style={[styles.photoDot, index === activePhoto && styles.photoDotActive]} />
+          {photoSwipe && photos.length > 1 ? (
+            <View style={styles.photoDotsPosition} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+              <View style={styles.photoDots}>
+                {photos.map((photo, index) => (
+                  <View key={photo.file_id} style={[styles.photoDot, index === activePhoto && styles.photoDotActive]} />
+                ))}
+              </View>
+            </View>
+          ) : null}
+
+          {onSave ? (
+            <Pressable
+              accessibilityRole="button"
+              aria-selected={saved}
+              accessibilityLabel={saved ? `Remove ${listing.headline} from saved` : `Save ${listing.headline}`}
+              onPress={onSave}
+              hitSlop={6}
+              {...pressableFeedback(theme.color.field["200"])}
+              style={({ pressed }) => [styles.save, pressed && styles.savePressed]}
+            >
+              <Ionicons
+                name={saved ? "bookmark" : "bookmark-outline"}
+                size={19}
+                color={saved ? theme.color.kola["800"] : theme.color.ink["900"]}
+              />
+            </Pressable>
+          ) : null}
+        </View>
+
+        <Pressable
+          accessibilityRole="link"
+          accessibilityLabel={accessibleSummary}
+          onPress={onPress}
+          {...pressableFeedback(theme.color.field["100"])}
+          style={({ pressed }) => [styles.body, pressed && styles.bodyPressed]}
+        >
+          <View style={styles.priceRow}>
+            <Type
+              variant="title2"
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.84}
+              style={styles.price}
+            >
+              {rent}<Type variant="caption" style={styles.period}> / {period}</Type>
+            </Type>
+            <View style={styles.advance}>
+              <Type variant="captionStrong" numberOfLines={1} style={styles.advanceText}>{advance}</Type>
+            </View>
+          </View>
+
+          <Type variant="bodyStrong" numberOfLines={2} style={styles.headline}>{listing.headline}</Type>
+
+          <View style={styles.location}>
+            <Ionicons name="location-outline" size={14} color={theme.color.ink["500"]} />
+            <Type variant="caption" numberOfLines={1} style={styles.locationText}>{where || "Ghana"}</Type>
+          </View>
+
+          {facts.length ? (
+            <View style={styles.facts}>
+              {facts.map(([fact, icon]) => (
+                <View key={fact} style={styles.fact}>
+                  <Ionicons name={icon} size={14} color={theme.color.kola["800"]} />
+                  <Type variant="captionStrong" numberOfLines={1} style={styles.factText}>{fact}</Type>
+                </View>
               ))}
             </View>
-          </View>
-        ) : null}
+          ) : null}
 
-        {onSave ? (
-          <Pressable
-            accessibilityRole="button"
-            aria-selected={saved}
-            accessibilityLabel={saved ? `Remove ${listing.headline} from saved` : `Save ${listing.headline}`}
-            onPress={onSave}
-            hitSlop={6}
-            {...pressableFeedback(theme.color.field["200"])}
-            style={({ pressed }) => [styles.save, pressed && styles.savePressed]}
-          >
-            <Ionicons
-              name={saved ? "heart" : "heart-outline"}
-              size={20}
-              color={saved ? theme.color.laterite["600"] : theme.color.ink["900"]}
-            />
-          </Pressable>
-        ) : null}
-      </View>
-
-      <Pressable
-        accessibilityRole="link"
-        accessibilityLabel={accessibleSummary}
-        onPress={onPress}
-        {...pressableFeedback(theme.color.field["100"])}
-        style={({ pressed }) => [styles.body, pressed && styles.bodyPressed]}
-      >
-        <View style={styles.priceRow}>
-          <Type
-            variant="title2"
-            numberOfLines={1}
-            adjustsFontSizeToFit
-            minimumFontScale={0.84}
-            style={styles.price}
-          >
-            {rent}<Type variant="caption" style={styles.period}> / {period}</Type>
-          </Type>
-          <Type variant="captionStrong" numberOfLines={1} style={styles.advance}>{advance}</Type>
-        </View>
-
-        <Type variant="bodyStrong" numberOfLines={2} style={styles.headline}>{listing.headline}</Type>
-
-        <View style={styles.locationRow}>
-          <Ionicons name="location-outline" size={14} color={theme.color.ink["300"]} />
-          <Type variant="caption" numberOfLines={1} style={styles.location}>{where || "Ghana"}</Type>
-        </View>
-
-        {facts.length ? <Type variant="caption" style={styles.facts}>{facts.join("  ·  ")}</Type> : null}
-
-        {verified ? (
-          <View style={styles.trustRow}>
-            <View style={styles.verifiedRow}>
-              <Ionicons name="shield-checkmark" size={15} color={theme.color.kola["600"]} />
-              <Type variant="captionStrong" style={styles.verified}>Verified rental</Type>
+          {verified ? (
+            <View style={styles.trust}>
+              <View style={styles.verifiedRow}>
+                <View style={styles.shield}>
+                  <Ionicons name="shield-checkmark" size={13} color={theme.color.kola["800"]} />
+                </View>
+                <Type variant="captionStrong" style={styles.verified}>Verified rental</Type>
+              </View>
+              {listing.provider_label ? (
+                <Type variant="caption" numberOfLines={1} style={styles.provider}>{listing.provider_label}</Type>
+              ) : null}
             </View>
-            {listing.provider_label ? (
-              <Type variant="caption" numberOfLines={1} style={styles.provider}>{listing.provider_label}</Type>
-            ) : null}
-          </View>
-        ) : null}
-      </Pressable>
+          ) : null}
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -210,20 +236,21 @@ function cardPhotos(listing: Listing) {
   return [{ file_id: `cover-${listing.id}`, caption: "", download_url: listing.cover_url }];
 }
 
-function essentialFacts(listing: Listing): string[] {
-  return [
+/** The essentials a tenant compares on, each with the glyph that says it at a glance. */
+function essentialFacts(listing: Listing): [string, IconName][] {
+  return ([
     listing.bedrooms === 0
-      ? "Single room"
+      ? ["Single room", "bed-outline"]
       : typeof listing.bedrooms === "number"
-        ? `${listing.bedrooms} bedroom${listing.bedrooms === 1 ? "" : "s"}`
+        ? [`${listing.bedrooms} bed${listing.bedrooms === 1 ? "" : "s"}`, "bed-outline"]
         : null,
     typeof listing.bathrooms === "number" && listing.bathrooms > 0
-      ? `${listing.bathrooms} bath${listing.bathrooms === 1 ? "" : "s"}`
+      ? [`${listing.bathrooms} bath${listing.bathrooms === 1 ? "" : "s"}`, "water-outline"]
       : null,
     typeof listing.is_furnished === "boolean"
-      ? listing.is_furnished ? "Furnished" : "Unfurnished"
+      ? [listing.is_furnished ? "Furnished" : "Unfurnished", "cube-outline"]
       : null,
-  ].filter((fact): fact is string => Boolean(fact));
+  ] as ([string, IconName] | null)[]).filter((fact): fact is [string, IconName] => Boolean(fact));
 }
 
 /** The lump sum on day one, named beside the rent wherever a rental is summarised. */
@@ -237,35 +264,52 @@ export function rentPeriod(period: string): string {
     ?? period.replaceAll("_", " ");
 }
 
+const CARD_RADIUS = 20;
+
 const styles = StyleSheet.create({
+  // The shadow lives outside the card's clip, soft and in kola rather than grey.
+  lift: isAndroid
+    ? { borderRadius: CARD_RADIUS, elevation: 3, backgroundColor: theme.color.field["0"] }
+    : {
+      borderRadius: CARD_RADIUS,
+      shadowColor: theme.color.kola["900"],
+      shadowOpacity: 0.08,
+      shadowRadius: 18,
+      shadowOffset: { width: 0, height: 8 },
+    },
   card: {
     overflow: "hidden",
     backgroundColor: theme.color.field["0"],
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: theme.color.field["200"],
-    borderRadius: radius.lg,
+    borderRadius: CARD_RADIUS,
   },
   media: {
     position: "relative",
     width: "100%",
-    aspectRatio: 16 / 10,
+    aspectRatio: 4 / 3,
+  },
+  // Explore's cards (owner, 2026-09-29): a wider, shorter frame.
+  mediaCompact: {
+    aspectRatio: 16 / 9,
     overflow: "hidden",
     backgroundColor: theme.color.field["100"],
   },
   image: { width: "100%", height: "100%" },
   photoPending: { flex: 1, alignItems: "center", justifyContent: "center", gap: space[2] },
+  // Frosted white over the photograph, with a thin white rim.
   save: {
     position: "absolute",
     top: space[3],
     right: space[3],
-    width: 42,
-    height: 42,
+    width: 40,
+    height: 40,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(255,255,255,0.92)",
+    backgroundColor: "rgba(255,255,255,0.86)",
     borderWidth: 1,
-    borderColor: "rgba(230,224,215,0.82)",
-    borderRadius: 21,
+    borderColor: "rgba(255,255,255,0.95)",
+    borderRadius: 20,
   },
   savePressed: { opacity: 0.78, transform: [{ scale: 0.94 }] },
   photoDotsPosition: {
@@ -281,33 +325,63 @@ const styles = StyleSheet.create({
     gap: 4,
     paddingHorizontal: 7,
     paddingVertical: 5,
-    backgroundColor: "rgba(22,17,14,0.48)",
+    backgroundColor: "rgba(22,17,14,0.42)",
     borderRadius: radius.pill,
   },
-  photoDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.58)" },
-  photoDotActive: { width: 11, borderRadius: radius.pill, backgroundColor: theme.color.field["0"] },
-  body: { gap: space[2], padding: space[4] },
-  bodyPressed: { opacity: 0.88, transform: [{ scale: 0.997 }] },
-  priceRow: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", gap: space[3] },
-  price: { flex: 1, color: theme.color.ink["950"], fontVariant: ["tabular-nums"] },
-  period: { color: theme.color.ink["500"], fontWeight: "400" },
-  advance: { flexShrink: 0, color: theme.color.ink["700"], fontSize: 12 },
-  headline: { color: theme.color.ink["900"], lineHeight: 22, marginTop: 2 },
-  locationRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: -2 },
-  location: { flex: 1 },
-  facts: { color: theme.color.ink["700"], fontSize: 13, marginTop: 2 },
-  trustRow: {
+  photoDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: "rgba(255,255,255,0.6)" },
+  photoDotActive: { width: 14, borderRadius: radius.pill, backgroundColor: theme.color.field["0"] },
+  body: { gap: space[2], paddingHorizontal: space[4], paddingTop: space[4], paddingBottom: space[4] },
+  bodyPressed: { opacity: 0.9 },
+  priceRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: space[3] },
+  price: { flex: 1, fontSize: 22, lineHeight: 28, letterSpacing: -0.4, color: theme.color.ink["950"], fontVariant: ["tabular-nums"] },
+  period: { color: theme.color.ink["500"], fontWeight: "400", letterSpacing: 0 },
+  // The advance, as a chip: its own shape beside the rent, not a footnote to it.
+  advance: {
+    flexShrink: 0,
+    maxWidth: "46%",
+    minHeight: 26,
+    justifyContent: "center",
+    paddingHorizontal: space[2] + 2,
+    borderRadius: radius.pill,
+    backgroundColor: theme.color.kola["50"],
+  },
+  advanceText: { color: theme.color.kola["800"], fontSize: 12, lineHeight: 16 },
+  headline: { fontSize: 16, color: theme.color.ink["900"], lineHeight: 22 },
+  location: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: -4 },
+  locationText: { flex: 1, color: theme.color.ink["700"] },
+  facts: { flexDirection: "row", flexWrap: "wrap", gap: space[2], marginTop: 2 },
+  fact: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    minHeight: 28,
+    paddingHorizontal: space[2] + 2,
+    borderRadius: radius.pill,
+    backgroundColor: theme.color.field["50"],
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: theme.color.field["200"],
+  },
+  factText: { color: theme.color.ink["900"], fontSize: 12.5, lineHeight: 16 },
+  trust: {
     minWidth: 0,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     gap: space[3],
-    marginTop: 2,
+    marginTop: space[1],
     paddingTop: space[3],
-    borderTopWidth: 1,
+    borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: theme.color.field["200"],
   },
-  verifiedRow: { flexShrink: 0, flexDirection: "row", alignItems: "center", gap: 4 },
-  verified: { color: theme.color.kola["600"], fontSize: 12 },
-  provider: { flex: 1, textAlign: "right", fontSize: 12 },
+  verifiedRow: { flexShrink: 0, flexDirection: "row", alignItems: "center", gap: 6 },
+  shield: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: theme.color.kola["50"],
+  },
+  verified: { color: theme.color.kola["800"], fontSize: 12.5 },
+  provider: { flex: 1, textAlign: "right", fontSize: 12, color: theme.color.ink["500"] },
 });

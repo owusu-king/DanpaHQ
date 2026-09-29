@@ -232,13 +232,21 @@ test("actions have a hierarchy and follow what already happened", () => {
 test("mobile keeps the decision reachable without covering the page", () => {
   const source = mobile();
 
-  // A bar, not a panel: one save control and the viewing request, pinned
-  // outside the ScrollView so it never covers the page.
+  // A bar, not a panel, pinned outside the ScrollView so it never covers the
+  // page.
   assert.match(source, /<\/ScrollView>[\s\S]{0,60}The decision bar stays reachable/);
-  assert.match(source, /Request a viewing/);
-  // Applying sits with the terms it is about, so there are never two primaries.
-  assert.match(source, /Apply to rent/);
-  assert.match(source, /variant="secondary"/);
+
+  // As on the web, applying leads and the viewing request is the step beside it
+  // (owner, 2026-09-28). Apply is the bar's primary; the request is secondary;
+  // and there is one Apply on the page, not a second one up in the terms.
+  const code = source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*/g, "");
+  const bar = code.slice(code.indexOf("styles.barHead"));
+  const applyAt = bar.indexOf("Apply to rent");
+  const viewingAt = bar.indexOf("Request viewing");
+  assert.ok(applyAt > 0 && applyAt < viewingAt, "Apply to rent must lead the decision bar");
+  assert.doesNotMatch(bar.slice(0, viewingAt), /variant="secondary"/, "Apply to rent must not be the secondary");
+  assert.match(bar.slice(applyAt, viewingAt + 200), /variant="secondary"/, "the viewing request is the secondary");
+  assert.equal((code.match(/"Apply to rent"/g) ?? []).length, 1);
 });
 
 test("the exact address never reaches this page", () => {

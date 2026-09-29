@@ -34,7 +34,7 @@ import {
 import { BottomSheet } from "@/components/sheet/BottomSheet";
 import { Notice, Type, space } from "@/components/ui";
 import { timeAgo } from "@/notifications";
-import { isAndroid, pressableFeedback, useSafeBottom } from "@/platform";
+import { pressableFeedback, useSafeBottom } from "@/platform";
 import { theme } from "@/theme";
 import { placeOf, whenLabel } from "@/viewingMeaning";
 import { formatSlot, listReceivedViewings, type Viewing } from "@/viewings";
@@ -283,7 +283,7 @@ function ViewingRow({ viewing, narrow, onPress }: { viewing: Viewing; narrow: bo
       accessibilityLabel={`${viewing.tenant_name}. ${viewing.listing_headline}. ${summary.label}. ${viewingMoment(viewing)}. Open viewing.`}
       onPress={onPress}
       {...pressableFeedback(PRESSED)}
-      style={({ pressed }) => [rowStyles.row, pressed && !isAndroid ? { backgroundColor: PRESSED } : null]}
+      style={({ pressed }) => [rowStyles.row, pressed ? { backgroundColor: PRESSED } : null]}
     >
       <View style={[styles.tile, { backgroundColor: tone.wash }]}>
         {tile ? (

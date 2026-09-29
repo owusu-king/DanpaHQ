@@ -20,8 +20,10 @@ import {
 } from "@/components/record/RecordSurfaces";
 import { BottomSheet } from "@/components/sheet/BottomSheet";
 import { Button, Field, Notice, Type, space } from "@/components/ui";
-import { PropertyLifecycle, PropertyMore } from "@/components/property/PropertyLifecycle";
+import { PropertyLifecycle, PropertyMore, PropertyRemoval, propertyRemoval } from "@/components/property/PropertyLifecycle";
 import { propertyStatus } from "@/components/property/WorkspacePatterns";
+import { SaleDetailsForm } from "@/components/property/SaleDetailsForm";
+import { SalePanel, saleVisibility } from "@/components/property/SalePanel";
 import { UNIT_COLUMNS, UNIT_TILE_GAP, UnitTile } from "@/components/property/UnitTile";
 import { useSafeBottom } from "@/platform";
 import { describePropertySetup, toSetupInput } from "@/propertySetup";
@@ -36,9 +38,10 @@ import {
   type SpaceAmenity,
   type Unit,
 } from "@/provider";
+import { getSellerSale, type SellerSale } from "@/sales";
 import { getVerification, type VerificationProgress } from "@/verification";
 
-type Sheet = "information" | "amenities" | "buildings" | "more";
+type Sheet = "information" | "amenities" | "buildings" | "more" | "danger" | "sale";
 
 /**
  * One Property: what is inside it, and how much of it is let.
@@ -66,6 +69,7 @@ export default function ProviderPropertyScreen() {
   const [buildings, setBuildings] = useState<Building[]>([]);
   const [photos, setPhotos] = useState<VerificationProgress | null>(null);
   const [amenities, setAmenities] = useState<SpaceAmenity[] | null>(null);
+  const [sale, setSale] = useState<SellerSale | null>(null);
   const [error, setError] = useState("");
   const [addingBuilding, setAddingBuilding] = useState(false);
   const [sheet, setSheet] = useState<Sheet | null>(null);
@@ -83,8 +87,10 @@ export default function ProviderPropertyScreen() {
         getVerification("property", propertyId),
         getPropertyAmenities(propertyId),
       ]);
+      // Sold whole, a sale has no Units; its price and terms are its own record.
+      setSale(prop.purpose === "sale" ? await getSellerSale(propertyId) : null);
       setProperty(prop);
-      setUnits(unitRows);
+      setUnits(prop.purpose === "sale" ? [] : unitRows);
       setBuildings(buildingRows);
       setPhotos(progress);
       setAmenities(amenityState.chosen);
@@ -105,14 +111,26 @@ export default function ProviderPropertyScreen() {
   }
 
   const steps = describePropertySetup(
-    toSetupInput(property, photos, amenities !== null && property.amenities_confirmed_at ? amenities.length : null),
+    toSetupInput(
+      property,
+      photos,
+      amenities !== null && property.amenities_confirmed_at ? amenities.length : null,
+      sale ? sale.missing.length : null,
+    ),
   );
+  const selling = property.purpose === "sale";
+  const land = selling && property.property_type === "land";
+  const verified = property.verification.review_state === "verified";
+  const shown = sale ? saleVisibility(sale, verified) : null;
   // A property above its Portfolio's plan allowance takes no new units. The API
   // refuses regardless; this only stops offering what it would refuse.
   const access = property.billing_access;
   const restricted = Boolean(access && access.state !== "full");
   const canAddUnit = (property.capabilities.private_inventory?.allowed ?? false) && !restricted;
+  // A sale is sold whole, so it is never offered a Unit.
+  const offerUnit = canAddUnit && !selling;
   const canEdit = property.permitted_actions.edit?.allowed ?? false;
+  const removal = propertyRemoval(property);
   const status = propertyStatus(property.verification);
   const tone: RecordTone = status.tone === "good" ? "good"
     : status.tone === "attention" ? "alert"
@@ -135,7 +153,7 @@ export default function ProviderPropertyScreen() {
         keyExtractor={(unit) => unit.id}
         numColumns={UNIT_COLUMNS}
         columnWrapperStyle={{ gap: UNIT_TILE_GAP }}
-        contentContainerStyle={[styles.page, { paddingBottom: canAddUnit ? space[6] : pageBottom }]}
+        contentContainerStyle={[styles.page, { paddingBottom: offerUnit ? space[6] : pageBottom }]}
         keyboardShouldPersistTaps="handled"
         renderItem={({ item }) => (
           <UnitTile
@@ -167,6 +185,18 @@ export default function ProviderPropertyScreen() {
               <StandingLine tone={tone} line={status.label} />
             </View>
 
+            {selling ? (
+              <RecordPanel>
+                <Lead
+                  label="Asking price"
+                  value={sale?.price_formatted ?? "No price yet"}
+                  note={shown ? `${shown.label} · ${shown.note}` : "Loading…"}
+                  tone={shown?.tone ?? "quiet"}
+                />
+                <View style={styles.rule} />
+                <Fact first label="Type" value={propertyTypeLabel(property.property_type)} />
+              </RecordPanel>
+            ) : (
             <RecordPanel>
               <Lead
                 label="Let"
@@ -180,6 +210,7 @@ export default function ProviderPropertyScreen() {
               <Fact first label="Type" value={propertyTypeLabel(property.property_type)} />
               {buildings.length ? <Fact label="Blocks" value={String(buildings.length)} /> : null}
             </RecordPanel>
+            )}
 
             {access && restricted ? (
               <Notice
@@ -191,6 +222,16 @@ export default function ProviderPropertyScreen() {
 
             <PropertyLifecycle property={property} steps={steps} onChanged={load} compact />
 
+            {selling && sale ? (
+              <SalePanel
+                propertyId={property.id}
+                sale={sale}
+                verified={verified}
+                onChanged={load}
+                onEdit={() => setSheet("sale")}
+              />
+            ) : null}
+
             <View style={styles.section}>
               <GroupLabel>About this Property</GroupLabel>
               <RecordPanel>
@@ -198,36 +239,50 @@ export default function ProviderPropertyScreen() {
                   first
                   icon="document-text-outline"
                   label="Property information"
-                  detail="Address, water, power and security"
+                  detail={land ? "Address and landmark" : "Address, water, power and security"}
                   onPress={() => setSheet("information")}
                 />
-                <LinkRow
+                {land ? null : <LinkRow
                   icon="sparkles-outline"
                   label="Shared amenities"
                   detail={amenities === null ? "Loading…" : amenities.length ? amenities.map((row) => row.name).join(" · ") : "None recorded"}
                   onPress={() => setSheet("amenities")}
-                />
-                <LinkRow
+                />}
+                {selling ? null : <LinkRow
                   icon="layers-outline"
                   label="Buildings and blocks"
                   detail={buildings.length ? buildings.map((row) => row.name).join(" · ") : "No separate blocks"}
                   onPress={() => setSheet("buildings")}
-                />
+                />}
                 <LinkRow
                   icon="shield-checkmark-outline"
-                  label="Verification and records"
+                  label="Verification details"
                   detail={property.verification.review_state_label}
                   onPress={() => setSheet("more")}
                 />
+                {/* In the open, where the Property is described, rather than
+                    tucked inside its verification trail (owner, 2026-09-28).
+                    Which of the two is offered is the backend's answer. */}
+                {removal ? (
+                  <LinkRow
+                    icon={removal === "delete" ? "trash-outline" : "archive-outline"}
+                    tone="alert"
+                    label={removal === "delete" ? "Delete property" : "Archive property"}
+                    detail={removal === "delete" ? "Removes it for good" : "Takes it out of your Portfolio"}
+                    onPress={() => setSheet("danger")}
+                  />
+                ) : null}
               </RecordPanel>
             </View>
 
-            <View style={styles.section}>
-              <GroupLabel>{units.length ? `Units · ${units.length}` : "Units"}</GroupLabel>
-            </View>
+            {selling ? null : (
+              <View style={styles.section}>
+                <GroupLabel>{units.length ? `Units · ${units.length}` : "Units"}</GroupLabel>
+              </View>
+            )}
           </View>
         }
-        ListEmptyComponent={
+        ListEmptyComponent={selling ? null : (
           <RecordPanel>
             <Fact
               wide
@@ -236,10 +291,10 @@ export default function ProviderPropertyScreen() {
               value="Add the room, apartment, shop or other space a tenant can rent."
             />
           </RecordPanel>
-        }
+        )}
         ListFooterComponent={
           <View style={styles.foot}>
-            <RecordPanel>
+            {selling ? null : <RecordPanel>
               <LinkRow
                 first
                 icon="people-outline"
@@ -247,13 +302,13 @@ export default function ProviderPropertyScreen() {
                 detail="Requests, agreements and who lives here"
                 onPress={() => router.push("/(app)/(provider-tabs)/tenants" as never)}
               />
-            </RecordPanel>
+            </RecordPanel>}
             {canEdit ? null : <Footnote>This Property is read-only for your role.</Footnote>}
           </View>
         }
       />
 
-      {canAddUnit ? (
+      {offerUnit ? (
         <ActionBar>
           <Pill label="Add Unit" icon="add" grow onPress={addUnit} />
         </ActionBar>
@@ -272,10 +327,14 @@ export default function ProviderPropertyScreen() {
               <Fact wide label="Address" value={fullAddress || `${property.address.locality_name}, ${property.address.district_name}`} />
               {property.address.digital_address ? <Fact label="Digital address" value={property.address.digital_address} /> : null}
               {property.address.landmark ? <Fact wide label="Landmark" value={property.address.landmark} /> : null}
-              <Fact label="Water" value={valueLabel(property.water_source)} />
-              <Fact label="Power meter" value={valueLabel(property.power_meter_type)} />
-              <Fact label="Compound" value={valueLabel(property.compound_type)} />
-              <Fact label="Security" value={property.has_security ? "Recorded" : "Not recorded"} />
+              {land ? null : (
+                <>
+                  <Fact label="Water" value={valueLabel(property.water_source)} />
+                  <Fact label="Power meter" value={valueLabel(property.power_meter_type)} />
+                  <Fact label="Compound" value={valueLabel(property.compound_type)} />
+                  <Fact label="Security" value={property.has_security ? "Recorded" : "Not recorded"} />
+                </>
+              )}
             </RecordPanel>
             {canEdit ? (
               <Button
@@ -325,6 +384,19 @@ export default function ProviderPropertyScreen() {
           <View style={styles.sheetBody}>
             <PropertyMore property={property} />
           </View>
+        ) : sheet === "sale" && sale ? (
+          <View style={styles.sheetBody}>
+            <SaleDetailsForm
+              propertyId={property.id}
+              sale={sale}
+              saveLabel="Save changes"
+              onSaved={async () => { setSheet(null); await load(); }}
+            />
+          </View>
+        ) : sheet === "danger" ? (
+          <View style={styles.sheetBody}>
+            <PropertyRemoval property={property} />
+          </View>
         ) : null}
       </BottomSheet>
     </View>
@@ -335,7 +407,9 @@ function sheetTitle(sheet: Sheet | null) {
   if (sheet === "information") return "Property information";
   if (sheet === "amenities") return "Shared amenities";
   if (sheet === "buildings") return "Buildings and blocks";
-  if (sheet === "more") return "Verification and records";
+  if (sheet === "more") return "Verification details";
+  if (sheet === "danger") return "Archive or delete";
+  if (sheet === "sale") return "Price and description";
   return "";
 }
 

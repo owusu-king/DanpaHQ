@@ -2,7 +2,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { Pressable, View } from "react-native";
 
 import { Type, radius, space } from "@/components/ui";
-import { isAndroid } from "@/platform";
+
 import type { PropertyTypeOption } from "@/propertyTypes";
 import { theme } from "@/theme";
 
@@ -54,7 +54,6 @@ export function PropertyTypeChoice({
               aria-selected={selected}
               accessibilityLabel={`${type.label}. ${type.space_types.map((s) => s.label).join(", ")}.`}
               onPress={() => onChange(type.value)}
-              android_ripple={isAndroid ? { color: theme.color.kola["50"] } : undefined}
               style={({ pressed }) => ({
                 flexDirection: "row",
                 alignItems: "center",
@@ -68,7 +67,7 @@ export function PropertyTypeChoice({
                 borderWidth: selected ? 2 : 1,
                 borderColor: selected ? theme.color.kola["600"] : theme.color.field["200"],
                 backgroundColor: selected ? theme.color.kola["50"] : theme.color.field["0"],
-                opacity: pressed && !isAndroid ? 0.82 : 1,
+                opacity: pressed ? 0.82 : 1,
               })}
             >
               {/* A washed disc rather than a bare glyph: the row carries some

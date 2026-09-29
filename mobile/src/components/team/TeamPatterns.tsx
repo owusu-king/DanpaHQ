@@ -4,7 +4,7 @@ import { Pressable, StyleSheet, View } from "react-native";
 import { EDGE, INK, KOLA, MUTED, RecordPanel } from "@/components/record/RecordSurfaces";
 import { Type, space } from "@/components/ui";
 import type { ManagedProperty, PortfolioMember } from "@/organizations";
-import { isAndroid, pressableFeedback } from "@/platform";
+import { pressableFeedback } from "@/platform";
 import { theme } from "@/theme";
 
 /**
@@ -137,7 +137,7 @@ function PickRow({
         first ? null : styles.ruled,
         selected ? styles.pickOn : null,
         disabled ? styles.dim : null,
-        pressed && !isAndroid ? { backgroundColor: theme.color.field["100"] } : null,
+        pressed ? { backgroundColor: theme.color.field["100"] } : null,
       ]}
     >
       <Ionicons

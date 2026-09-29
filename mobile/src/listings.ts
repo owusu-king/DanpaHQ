@@ -66,6 +66,8 @@ export type Listing = {
   };
   review_note: string;
   reviewed_at: string | null;
+  /** When it was listed; Explore's All view orders rentals and sales by it. */
+  created_at: string;
 };
 
 export type SavedListing = {

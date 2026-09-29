@@ -205,3 +205,17 @@ test("nothing is lost between visits, because nothing is held here", () => {
   assert.deepEqual(describePropertySetup(halfway), describePropertySetup(halfway));
   assert.equal(resumeAt(describePropertySetup(halfway)), "photos");
 });
+
+test("a property for sale adds its sale details and land skips what it does not have", () => {
+  const house = describePropertySetup({ ...fresh, purpose: "sale", propertyType: "residential", saleMissing: 3 });
+  assert.deepEqual(
+    house.map((step) => step.key),
+    ["basics", "details", "sale", "documents", "photos", "amenities", "review"],
+  );
+  assert.equal(byKey(house).sale.status, "todo");
+  assert.equal(byKey(house).sale.detail, "3 still needed");
+
+  const land = describePropertySetup({ ...fresh, purpose: "sale", propertyType: "land", saleMissing: 0 });
+  assert.deepEqual(land.map((step) => step.key), ["basics", "sale", "documents", "photos", "review"]);
+  assert.equal(byKey(land).sale.status, "done");
+});

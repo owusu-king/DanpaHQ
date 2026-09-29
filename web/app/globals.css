@@ -26,6 +26,9 @@
 @import "../src/styles/lease-builder.css";
 @import "../src/styles/viewings-tenant.css";
 @import "../src/styles/landing.css";
+@import "../src/styles/sales.css";
+@import "../src/styles/explore-hero.css";
+@import "../src/styles/auth.css";
 
 /* Type is loaded in app/layout.tsx through next/font, which self-hosts both
    families from the build output and exposes them as --font-display-face and

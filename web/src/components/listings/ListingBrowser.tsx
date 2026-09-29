@@ -94,7 +94,10 @@ const SORTS: ReadonlyArray<readonly [ListingSort, string]> = [
 /** Place is not a filter: clearing filters keeps it, and choosing one clears the others' area. */
 const NO_LOCATION: Partial<ExploreQuery> = { area: null, q: "", bbox: null, localityId: "", localityName: "" };
 
-export function ListingBrowser() {
+export function ListingBrowser({ modeSwitch = null }: {
+  /** Explore's Rent/Buy choice, drawn above the search it switches. */
+  modeSwitch?: ReactNode;
+} = {}) {
   const { state } = useSession();
   const { toast } = useToast();
   const signedIn = state.status === "signed_in";
@@ -136,6 +139,7 @@ export function ListingBrowser() {
   const update = useCallback((patch: Partial<ExploreQuery>, mode: "push" | "replace" = "replace") => {
     const current = parseExploreQuery(new URLSearchParams(window.location.search));
     const nextParams = serializeExploreQuery({ ...current, ...patch });
+    if (new URLSearchParams(window.location.search).get("mode") === "rent") nextParams.set("mode", "rent");
     const url = `${window.location.pathname}${nextParams.size ? `?${nextParams.toString()}` : ""}`;
     // No state, and never a copy of this entry's: Next marks its own entries
     // with `__NA` and lets any write carrying the mark through unsynced, so the
@@ -421,6 +425,7 @@ export function ListingBrowser() {
   function discovery(): ReactNode {
     return (
       <div className="explore-discovery">
+        {modeSwitch}
         {/* One search bar and one Filters button, the pair the phone floats over
             its map. Every other choice is in the panel the button opens. */}
         <div className="explore-bar">
@@ -584,21 +589,33 @@ export function ListingBrowser() {
   const notices = error ? <Notice tone="error" title={error} /> : null;
 
   return (
+    <>
+    {/* The title scrolls away with the page's header; only the console below it
+        sticks (owner, 2026-09-29). It sits outside `.explore` so the line that
+        tells the console it is pinned starts where the console does. */}
+    {signedIn ? (
+      <header className="explore-portal-masthead">
+        <PageHeader
+          // The top bar already names the page; the masthead says what it is for.
+          title="Find your next place"
+          description="Verified rentals, approved to list."
+        />
+      </header>
+    ) : null}
     <div className={`explore${signedIn ? " explore-portal" : ""}`} ref={exploreRef}>
       {/* Where discovery would be if it scrolled away: once this line passes
           under the global header, the appropriate discovery surface is stuck. */}
       <div ref={stickLine} className="explore-stick-line" aria-hidden="true" />
       {signedIn ? (
         <section ref={stickRef} className={`explore-portal-intro${stuck ? " is-stuck" : ""}`}>
-          <PageHeader
-            title="Explore"
-            description="Verified rentals, approved to list."
-          />
           {discovery()}
+          {/* Pinned, the band keeps the page's name beside its controls. */}
+          <p className="explore-stick-title" aria-hidden="true">Find your next place</p>
         </section>
       ) : (
         <div ref={stickRef} className={`explore-stick${stuck ? " is-stuck" : ""}`}>
           {discovery()}
+          <p className="explore-stick-title" aria-hidden="true">Find your next place</p>
         </div>
       )}
       {resultsFeedback()}
@@ -670,5 +687,6 @@ export function ListingBrowser() {
         </button>
       )}
     </div>
+    </>
   );
 }

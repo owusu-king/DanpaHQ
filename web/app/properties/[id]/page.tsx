@@ -7,6 +7,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Notice } from "@/components/Notice";
 import { Empty, LoadingRows } from "@/components/portal/PageHeader";
 import { PropertyLifecycle, PropertyMore } from "@/components/property/PropertyLifecycle";
+import { SalePanel } from "@/components/property/SalePanel";
 import {
   DetailDisclosure,
   EntityHeader,
@@ -25,6 +26,7 @@ import {
   type Unit,
 } from "@/lib/console";
 import { describePropertySetup, toSetupInput } from "@/lib/propertySetup";
+import { getSellerSale, type SellerSale } from "@/lib/sales";
 import { getVerification, type VerificationProgress } from "@/lib/verification";
 
 export default function PropertyDetailPage() {
@@ -35,6 +37,7 @@ export default function PropertyDetailPage() {
   const [units, setUnits] = useState<Unit[]>([]);
   const [photos, setPhotos] = useState<VerificationProgress | null>(null);
   const [amenities, setAmenities] = useState<SpaceAmenity[] | null>(null);
+  const [sale, setSale] = useState<SellerSale | null>(null);
   const [error, setError] = useState("");
 
   const load = useCallback(async () => {
@@ -45,6 +48,8 @@ export default function PropertyDetailPage() {
         getVerification("property", id),
         getPropertyAmenities(id),
       ]);
+      // Sold whole, a sale has no Units; its price and terms are its own record.
+      setSale(prop.purpose === "sale" ? await getSellerSale(id) : null);
       setProperty(prop);
       setUnits(unitList);
       setPhotos(progress);
@@ -83,8 +88,11 @@ export default function PropertyDetailPage() {
       property,
       photos,
       amenities !== null && property.amenities_confirmed_at ? amenities.length : null,
+      sale ? sale.missing.length : null,
     ),
   );
+  const selling = property.purpose === "sale";
+  const land = selling && property.property_type === "land";
   const status = propertyStatus(property);
   // A property above its Portfolio's plan allowance takes no new units. The API
   // refuses regardless; this only stops offering what it would refuse.
@@ -98,7 +106,8 @@ export default function PropertyDetailPage() {
   const lifecycleOwnsPrimary = !["verified", "pending_verification"].includes(
     property.verification.review_state,
   );
-  const primary = !lifecycleOwnsPrimary && canAddUnit
+  // A sale is sold whole, so it is never offered a Unit.
+  const primary = !selling && !lifecycleOwnsPrimary && canAddUnit
     ? { href: `/properties/${property.id}/spaces/new`, label: "Add Unit" }
     : null;
 
@@ -106,7 +115,7 @@ export default function PropertyDetailPage() {
     <div>
       <EntityPath items={[{ label: "Properties", href: "/properties" }, { label: property.title || "Property" }]} />
       <EntityHeader
-        eyebrow={propertyTypeLabel(property.property_type)}
+        eyebrow={selling ? `${propertyTypeLabel(property.property_type)} · For sale` : propertyTypeLabel(property.property_type)}
         title={property.title || "Untitled property"}
         subtitle={fullAddress}
         status={<StatusLine label={status.label} tone={status.tone} />}
@@ -123,6 +132,16 @@ export default function PropertyDetailPage() {
       ) : null}
       <PropertyLifecycle property={property} steps={steps} onChanged={load} compact />
 
+      {selling ? (
+        sale ? (
+          <SalePanel
+            propertyId={property.id}
+            sale={sale}
+            verified={property.verification.review_state === "verified"}
+            onChanged={load}
+          />
+        ) : null
+      ) : (
       <section className="workspace-section" aria-labelledby="units-heading">
         <div className="workspace-section-head">
           <h2 id="units-heading">Units <span style={{ color: "var(--color-ink-500)", fontWeight: 400 }}>({units.length})</span></h2>
@@ -149,6 +168,7 @@ export default function PropertyDetailPage() {
           </p>
         ) : null}
       </section>
+      )}
 
       <section className="workspace-section" aria-labelledby="about-property-heading">
         <div className="workspace-section-head"><h2 id="about-property-heading">About this Property</h2></div>
@@ -158,19 +178,23 @@ export default function PropertyDetailPage() {
             <div><dt>Address</dt><dd>{fullAddress}</dd></div>
             {address?.digital_address ? <div><dt>Digital address</dt><dd style={{ fontFamily: "var(--font-mono)" }}>{address.digital_address}</dd></div> : null}
             {address?.landmark ? <div><dt>Landmark</dt><dd>{address.landmark}</dd></div> : null}
-            <div><dt>Water</dt><dd>{valueLabel(property.water_source)}</dd></div>
-            <div><dt>Power meter</dt><dd>{valueLabel(property.power_meter_type)}</dd></div>
-            <div><dt>Compound</dt><dd>{valueLabel(property.compound_type)}</dd></div>
-            <div><dt>Security</dt><dd>{property.has_security ? "Security recorded" : "Not recorded"}</dd></div>
+            {land ? null : (
+              <>
+                <div><dt>Water</dt><dd>{valueLabel(property.water_source)}</dd></div>
+                <div><dt>Power meter</dt><dd>{valueLabel(property.power_meter_type)}</dd></div>
+                <div><dt>Compound</dt><dd>{valueLabel(property.compound_type)}</dd></div>
+                <div><dt>Security</dt><dd>{property.has_security ? "Security recorded" : "Not recorded"}</dd></div>
+              </>
+            )}
           </dl>
           {edit?.allowed ? <p style={{ margin: "var(--space-5) 0 0" }}><Link href={`/properties/${property.id}/setup` as never} className="quiet-link">Edit Property information →</Link></p> : null}
         </DetailDisclosure>
-        <DetailDisclosure title={`Shared amenities${amenities?.length ? ` (${amenities.length})` : ""}`}>
+        {land ? null : <DetailDisclosure title={`Shared amenities${amenities?.length ? ` (${amenities.length})` : ""}`}>
           {amenities === null ? <LoadingRows rows={2} /> : amenities.length ? (
             <p className="type-body" style={{ margin: 0 }}>{amenities.map((amenity) => amenity.name).join(" · ")}</p>
           ) : <p className="type-caption" style={{ margin: 0 }}>No shared amenities recorded.</p>}
           {edit?.allowed ? <p style={{ margin: "var(--space-4) 0 0" }}><Link href={`/properties/${property.id}/setup?step=amenities` as never} className="quiet-link">Edit shared amenities →</Link></p> : null}
-        </DetailDisclosure>
+        </DetailDisclosure>}
       </section>
 
       <PropertyMore property={property} />

@@ -2,7 +2,6 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { Tabs } from "expo-router";
 
-import { ExploreHeaderActions } from "@/components/nav/ExploreHeaderActions";
 import { MainTabBar } from "@/components/nav/MainTabBar";
 import { TabHeader } from "@/components/nav/TabHeader";
 import { UtilityHeaderActions } from "@/components/nav/UtilityHeaderActions";
@@ -25,10 +24,11 @@ export default function RenterTabsLayout() {
           being a wall of listings, so there is nothing left that the ground
           would have made read as a dashboard. */}
       <Tabs.Screen name="index" options={{ title: "Home", headerTitle: () => <Wordmark />, sceneStyle: { backgroundColor: shell.dashboard }, tabBarLabel: "Home", tabBarIcon: ({ color, size, focused }) => <Ionicons name={focused ? "home" : "home-outline"} color={color} size={size} /> }} />
-      {/* The header actions live here rather than in the screen: `explore` is a
-          re-export of `search`, which is also a pushed route of its own, and a
-          header wired inside the component would follow it there. */}
-      <Tabs.Screen name="explore" options={{ title: "Explore", tabBarLabel: "Explore", headerRight: () => <ExploreHeaderActions />, tabBarIcon: ({ color, size }) => <MaterialCommunityIcons name="globe-model" color={color} size={size} /> }} />
+      {/* Explore draws its own top: the hero carries the title, Saved and
+          profile, Rent or Buy, the search and the filters as one green piece
+          (owner, 2026-09-29). It adds the actions only inside the tabs, so the
+          pushed `/search` route, which shares the component, does not grow them. */}
+      <Tabs.Screen name="explore" options={{ title: "Explore", tabBarLabel: "Explore", headerShown: false, tabBarIcon: ({ color, size }) => <MaterialCommunityIcons name="globe-model" color={color} size={size} /> }} />
       <Tabs.Screen name="services" options={{ title: "Services", tabBarLabel: "Services", headerRight: () => <UtilityHeaderActions topic="services" />, tabBarIcon: ({ color, size, focused }) => <Ionicons name={focused ? "grid" : "grid-outline"} color={color} size={size} /> }} />
       <Tabs.Screen name="payments" options={{ title: "Payments", tabBarLabel: "Payments", headerRight: () => <UtilityHeaderActions topic="payments" />, tabBarIcon: ({ color, size, focused }) => <Ionicons name={focused ? "wallet" : "wallet-outline"} color={color} size={size} /> }} />
       <Tabs.Screen name="profile" options={{ title: "More", tabBarLabel: "More", tabBarIcon: ({ color, size, focused }) => <Ionicons name={focused ? "list" : "list-outline"} color={color} size={size} /> }} />

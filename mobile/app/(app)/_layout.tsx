@@ -65,6 +65,12 @@ export default function AppLayout() {
       <Stack.Screen name="identity-verification" options={{ title: "Identity verification" }} />
       <Stack.Screen name="provider" options={{ title: "Provider verification" }} />
       <Stack.Screen name="provider-property" options={{ title: "Property" }} />
+      {/* Properties for sale (owner, 2026-09-28): the public page a buyer
+          decides on, and the conversations it starts. The thread names the
+          person once it loads. */}
+      <Stack.Screen name="sale/[id]" options={{ title: "For sale" }} />
+      <Stack.Screen name="enquiries" options={{ title: "Enquiries" }} />
+      <Stack.Screen name="enquiry/[id]" options={{ title: "Enquiry" }} />
       {/* Creating a property is its own journey, not a panel on the workspace —
           the same split the space flow already makes. `private-property` is its
           first step and this is steps two to six, so they share a title: from

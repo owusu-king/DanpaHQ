@@ -40,10 +40,21 @@ export type PropertySetupInput = {
   photos: { requiredTotal: number; requiredOutstanding: number; submitted: boolean; status: string } | null;
   /** Null while unread; an empty array means read and genuinely none. */
   amenityCount: number | null;
+  /** `sale` for a property sold whole. Absent means letting. */
+  purpose?: string;
+  /** The category — `land` is described differently from a building. */
+  propertyType?: string;
+  /** How many sale details are still needed; null while unread. Sale only. */
+  saleMissing?: number | null;
 };
 
 export function describePropertySetup(input: PropertySetupInput): SetupStep[] {
-  const details = input.waterSource !== "unknown" && input.powerMeterType !== "unknown";
+  // A property for sale is sold whole, and land has no water supply, meter or
+  // compound to describe and nothing inside it to share, so those two steps are
+  // not asked of it. Every other property is described exactly as before.
+  const selling = input.purpose === "sale";
+  const land = selling && input.propertyType === "land";
+  const details = land || (input.waterSource !== "unknown" && input.powerMeterType !== "unknown");
   const documented = Boolean(input.documentState) && input.documentState !== "draft";
   const sentAlready =
     input.documentState === "submitted" || input.documentState === "under_review";
@@ -53,21 +64,19 @@ export function describePropertySetup(input: PropertySetupInput): SetupStep[] {
     ? input.photos.requiredTotal - input.photos.requiredOutstanding
     : 0;
   const photographed = outstanding === 0;
+  const saleMissing = input.saleMissing ?? null;
 
-  return [
+  const steps: SetupStep[] = [
     {
       key: "basics",
       title: "The property",
       summary: "What to call it, what kind it is, and where.",
-      // Always done by the time this is asked: the record cannot exist without
-      // them. It is listed anyway because it *is* a step of creating a
-      // property, and leaving it out is what let the first screen drift into a
-      // separate "create" action with its own button, before a flow that ended
-      // in a second one.
       status: "done",
       detail: input.name || undefined,
     },
-    {
+  ];
+  if (!land) {
+    steps.push({
       key: "details",
       title: "Property details",
       summary: "Water, power and the kind of compound.",
@@ -77,11 +86,24 @@ export function describePropertySetup(input: PropertySetupInput): SetupStep[] {
             .map((value) => value.replace(/_/g, " "))
             .join(" · ")
         : undefined,
-    },
+    });
+  }
+  if (selling) {
+    steps.push({
+      key: "sale",
+      title: "Sale details",
+      summary: "The price, the tenure, and what a buyer is buying.",
+      status: saleMissing === 0 ? "done" : "todo",
+      detail: saleMissing ? `${saleMissing} still needed` : undefined,
+    });
+  }
+  steps.push(
     {
       key: "documents",
       title: "Documents",
-      summary: "What shows this property is yours to let.",
+      summary: selling
+        ? "What shows this property is yours to sell, and its title."
+        : "What shows this property is yours to let.",
       status: documented ? "done" : "todo",
       detail: documented
         ? sentAlready
@@ -94,9 +116,11 @@ export function describePropertySetup(input: PropertySetupInput): SetupStep[] {
     {
       key: "photos",
       title: "Photos",
-      summary: "Views of the building and what is around it.",
-      // `started` is its own state: some photographs added is not the same as
-      // none, and a provider who added two of five should see that they began.
+      summary: land
+        ? "The plot, its boundary and the road to it."
+        : selling
+          ? "The building, inside and out."
+          : "Views of the building and what is around it.",
       status:
         outstanding === null
           ? "todo"
@@ -110,12 +134,12 @@ export function describePropertySetup(input: PropertySetupInput): SetupStep[] {
           ? `${provided} of ${input.photos.requiredTotal} added`
           : undefined,
     },
-    {
+  );
+  if (!land) {
+    steps.push({
       key: "amenities",
       title: "What the compound has",
       summary: "Shared by everything inside — a borehole, a guard, parking.",
-      // Null means the checklist has not been confirmed. Zero is a deliberate
-      // and valid answer, persisted by the property amenity endpoint.
       status: input.amenityCount === null ? "todo" : "done",
       detail:
         input.amenityCount === null
@@ -123,15 +147,18 @@ export function describePropertySetup(input: PropertySetupInput): SetupStep[] {
           : input.amenityCount
             ? `${input.amenityCount} recorded`
             : "None selected",
-    },
-    {
-      key: "review",
-      title: "Review",
-      summary: "Check it over, then finish creating it.",
-      status: "todo",
-      terminal: true,
-    },
-  ];
+    });
+  }
+  steps.push({
+    key: "review",
+    title: "Review",
+    summary: selling
+      ? "Check it over, then finish creating it. It is public only once verified."
+      : "Check it over, then finish creating it.",
+    status: "todo",
+    terminal: true,
+  });
+  return steps;
 }
 
 /** The property is ready for the explicit final creation action when every
@@ -156,6 +183,8 @@ export function toSetupInput(
     water_source: string;
     power_meter_type: string;
     verification?: { authority?: { state?: string } };
+    purpose?: string;
+    property_type?: string;
   },
   photos: {
     required_total: number;
@@ -164,6 +193,8 @@ export function toSetupInput(
     status: string;
   } | null,
   amenityCount: number | null,
+  /** A sale's outstanding details, from `/properties/<id>/sale/`; null while unread. */
+  saleMissing: number | null = null,
 ): PropertySetupInput {
   return {
     name: property.title,
@@ -179,5 +210,8 @@ export function toSetupInput(
         }
       : null,
     amenityCount,
+    purpose: property.purpose,
+    propertyType: property.property_type,
+    saleMissing,
   };
 }

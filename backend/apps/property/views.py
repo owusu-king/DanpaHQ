@@ -148,7 +148,10 @@ class ProviderApplicationEvidenceView(APIView):
             )
         )
         application = services.submit_provider_application_more_info(
-            application=application, user=request.user, files=files
+            application=application,
+            user=request.user,
+            files=files,
+            evidence_types=payload.validated_data.get("evidence_types") or {},
         )
         return Response(ProviderApplicationSerializer(application).data)
 

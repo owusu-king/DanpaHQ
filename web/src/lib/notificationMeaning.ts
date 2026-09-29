@@ -136,6 +136,8 @@ export function destination(item: { target_type: string; target_id: string }): s
   switch (item.target_type) {
     case "viewing":
       return "/viewings";
+    case "sale_enquiry":
+      return `/enquiries/${item.target_id}`;
     case "application":
     case "property_join_request":
       return "/applications";

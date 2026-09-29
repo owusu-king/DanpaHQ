@@ -29,7 +29,7 @@ import {
 } from "@/components/portfolio/PortfolioList";
 import { BottomSheet } from "@/components/sheet/BottomSheet";
 import { Notice, Type, space } from "@/components/ui";
-import { isAndroid, pressableFeedback, useSafeBottom } from "@/platform";
+import { pressableFeedback, useSafeBottom } from "@/platform";
 import {
   listMyArchive,
   restoreProperty,
@@ -226,7 +226,7 @@ function ArchiveRow({ item, onPress }: { item: Item; onPress: () => void }) {
       accessibilityHint="Opens this archived record"
       onPress={onPress}
       {...pressableFeedback(PRESSED)}
-      style={({ pressed }) => [rowStyles.row, pressed && !isAndroid ? { backgroundColor: PRESSED } : null]}
+      style={({ pressed }) => [rowStyles.row, pressed ? { backgroundColor: PRESSED } : null]}
     >
       <View style={[rowStyles.well, { backgroundColor: restorable ? theme.color.kola["50"] : theme.color.field["100"] }]}>
         <Ionicons name={iconOf(item)} size={16} color={restorable ? KOLA_DEEP : MUTED} />

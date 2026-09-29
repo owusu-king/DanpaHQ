@@ -23,13 +23,23 @@ test("the actions belong to the Explore tab, not to the screen behind it", () =>
   assert.match(read("app/(app)/(tabs)/explore.tsx"), /export \{ default \} from "\.\.\/search"/);
   assert.match(read("app/(app)/_layout.tsx"), /name="search"/);
 
-  // So the header is declared on the tab, and nowhere in the shared screen.
+  // Explore draws its own top now — one green hero holding the title, these
+  // actions, Rent or Buy, the search and the filters (owner, 2026-09-29) — so
+  // the tab hides the shared header rather than decorating it.
   const explore = /<Tabs\.Screen name="explore"[^\n]*/.exec(code(layout()))?.[0] ?? "";
-  assert.match(explore, /headerRight: \(\) => <ExploreHeaderActions \/>/);
-  assert.doesNotMatch(code(read("app/(app)/search.tsx")), /headerRight|ExploreHeaderActions/);
+  assert.match(explore, /headerShown: false/);
+  assert.doesNotMatch(code(layout()), /ExploreHeaderActions/);
 
-  // And on that tab only: no other tab grows the same pair by accident.
-  assert.equal((code(layout()).match(/<ExploreHeaderActions/g) ?? []).length, 1);
+  // The shared screen adds the actions only inside the tabs, so the pushed
+  // `/search` route still grows no tab shortcuts.
+  const search = code(read("app/(app)/search.tsx"));
+  assert.match(search, /const actions = inTabs \? <ExploreHeaderActions \/> : undefined;/);
+  assert.equal((search.match(/<ExploreHeaderActions/g) ?? []).length, 1);
+  // And the hero drops its title row off the tabs, under that route's own header.
+  // The title and the full-width Rent/Buy switch stay in every view.
+  const hero = code(read("src/components/explore/ExploreHero.tsx"));
+  assert.match(hero, /\{inTabs \? \(\s*<View style=\{styles\.titleRow\}>/);
+  assert.match(hero, /<View style=\{styles\.controls\}>\s*<ModeSwitch mode=\{mode\} onChange=\{onModeChange\} \/>/);
 });
 
 test("each button opens the tab it names, the way the app already does", () => {

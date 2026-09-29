@@ -80,6 +80,12 @@ export default function ProviderTenancyPage() {
                 <Fact label="Rent position" value={rentStatus} />
                 <Fact label="Outstanding" value={formatMoney({ minor: tenant.rent.outstanding_minor, currency })} />
               </dl>
+              {/* The agreement itself, from the section that talks about it. */}
+              {tenant.lease_id ? (
+                <ul className="tenancy-quick-links">
+                  <li><Link href={`/leases/${tenant.lease_id}` as never}><span>Open agreement</span><span aria-hidden="true">›</span></Link></li>
+                </ul>
+              ) : null}
             </Section>
           </div>
         </div>
@@ -89,7 +95,6 @@ export default function ProviderTenancyPage() {
             <ul className="tenancy-quick-links">
               <li><Link href={`/properties/${tenant.property_id}` as never}><span>{tenant.property_title}</span><span aria-hidden="true">›</span></Link></li>
               <li><Link href={`/properties/${tenant.property_id}/spaces/${tenant.unit_id}` as never}><span>{tenant.unit_label}{tenant.bed_label ? ` · ${tenant.bed_label}` : ""}</span><span aria-hidden="true">›</span></Link></li>
-              {tenant.lease_id ? <li><Link href={`/leases/${tenant.lease_id}` as never}><span>Agreement and rent</span><span aria-hidden="true">›</span></Link></li> : null}
             </ul>
           </Section>
         </aside>

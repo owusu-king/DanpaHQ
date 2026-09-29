@@ -5,7 +5,7 @@ import { Pressable, StyleSheet, View } from "react-native";
 import { EDGE, INK, KOLA, KOLA_DEEP, MUTED, PRESSED, RecordPanel } from "@/components/record/RecordSurfaces";
 import { BottomSheet } from "@/components/sheet/BottomSheet";
 import { Type, radius, space } from "@/components/ui";
-import { isAndroid, pressableFeedback } from "@/platform";
+import { pressableFeedback } from "@/platform";
 import { theme } from "@/theme";
 
 export type SelectOption<T extends string> = {
@@ -69,7 +69,7 @@ export function Select<T extends string>({
           styles.trigger,
           open ? styles.triggerOpen : null,
           disabled ? styles.dim : null,
-          pressed && !isAndroid ? { backgroundColor: PRESSED } : null,
+          pressed ? { backgroundColor: PRESSED } : null,
         ]}
       >
         <Type
@@ -133,7 +133,7 @@ function Option<T extends string>({
         styles.option,
         first ? null : styles.ruled,
         selected ? styles.optionOn : null,
-        pressed && !isAndroid ? { backgroundColor: theme.color.field["100"] } : null,
+        pressed ? { backgroundColor: theme.color.field["100"] } : null,
       ]}
     >
       <Ionicons

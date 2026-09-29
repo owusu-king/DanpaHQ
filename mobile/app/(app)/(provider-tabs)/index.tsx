@@ -32,6 +32,7 @@ import {
 } from "@/organizations";
 import { hapticsPolicy, pressableFeedback } from "@/platform";
 import { useBlankOnPortfolioSwitch } from "@/portfolioScope";
+import { listEnquiries } from "@/sales";
 import { theme } from "@/theme";
 
 type AttentionSignal = {
@@ -77,6 +78,7 @@ function ProviderHome() {
   const [viewings, setViewings] = useState<Viewing[]>([]);
   const [applications, setApplications] = useState(0);
   const [leases, setLeases] = useState<Lease[]>([]);
+  const [unreadEnquiries, setUnreadEnquiries] = useState(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
@@ -108,6 +110,7 @@ function ProviderHome() {
         setViewings([]);
         setApplications(0);
         setLeases([]);
+        setUnreadEnquiries(0);
         setError("");
         return;
       }
@@ -121,6 +124,8 @@ function ProviderHome() {
           listReceivedViewings(true, scope),
           listReceivedApplications(true, scope),
           listGrantedLeases(scope),
+          // Buyers asking about what this account is selling (owner, 2026-09-29).
+          listEnquiries("seller"),
         ]),
         getPortfolioSummary(organization.id),
         listOrganizationProperties(organization.id),
@@ -128,6 +133,7 @@ function ProviderHome() {
       setViewings(enquiries[0].status === "fulfilled" ? enquiries[0].value : []);
       setApplications(enquiries[1].status === "fulfilled" ? enquiries[1].value.length : 0);
       setLeases(enquiries[2].status === "fulfilled" ? enquiries[2].value : []);
+      setUnreadEnquiries(enquiries[3].status === "fulfilled" ? enquiries[3].value.filter((row) => row.unread).length : 0);
       setSummary(next);
       setProperties(propertyRows);
       setError("");
@@ -160,6 +166,7 @@ function ProviderHome() {
   const attention = [
     requests ? { label: `${requests} tenancy ${plural(requests, "request", "requests")}`, to: "/(app)/provider-applications", icon: "document-text-outline", tone: "warning" } : null,
     viewings.length ? { label: `${viewings.length} viewing ${plural(viewings.length, "request", "requests")}`, to: "/(app)/provider-viewings", icon: "calendar-outline", tone: "warning" } : null,
+    unreadEnquiries ? { label: `${unreadEnquiries} unread buyer ${plural(unreadEnquiries, "enquiry", "enquiries")}`, to: "/(app)/enquiries", icon: "chatbubbles-outline", tone: "warning" } : null,
     drafts ? { label: `${drafts} ${plural(drafts, "agreement", "agreements")} to send`, to: "/(app)/leases", icon: "create-outline", tone: "warning" } : null,
     awaitingYou ? { label: `${awaitingYou} payment ${plural(awaitingYou, "record", "records")} to confirm`, to: "/(app)/(provider-tabs)/payments", icon: "wallet-outline", tone: "warning" } : null,
     money?.overdue_minor ? { label: `${formatMinor(money.overdue_minor)} overdue`, to: "/(app)/(provider-tabs)/payments", icon: "alert-circle-outline", tone: "danger" } : null,

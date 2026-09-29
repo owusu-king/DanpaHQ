@@ -89,7 +89,7 @@ test("a Property is its Units, with reference material one tap away", () => {
   // them rather than unfolding in the middle of the Units.
   assert.match(source, /<Lead\s+label="Let"/);
   assert.match(source, /<GroupLabel>About this Property<\/GroupLabel>/);
-  for (const row of ["Property information", "Shared amenities", "Buildings and blocks", "Verification and records"]) {
+  for (const row of ["Property information", "Shared amenities", "Buildings and blocks", "Verification details"]) {
     assert.match(source, new RegExp(`label="${row}"`), `${row} is not a row`);
   }
   // The one creative act is pinned where a thumb is, not inline in the header.

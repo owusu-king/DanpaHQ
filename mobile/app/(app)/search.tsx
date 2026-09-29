@@ -1,7 +1,7 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { BottomTabBarHeightContext } from "expo-router/tabs";
-import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   ActivityIndicator,
   Animated,
@@ -9,14 +9,11 @@ import {
   Image,
   Keyboard,
   PanResponder,
-  Platform,
   Pressable,
   RefreshControl,
-  StyleSheet,
-  TextInput,
   View,
-  useWindowDimensions,
   type PanResponderGestureState,
+
   type StyleProp,
   type ViewStyle,
 } from "react-native";
@@ -26,6 +23,18 @@ import { ApiFailure } from "@/api";
 import { useAuth } from "@/auth";
 import { PriceRange, SegmentedField, SelectField, ToggleField } from "@/components/filters/FilterFields";
 import { ListingCard, advanceTerm, rentPeriod } from "@/components/listings/ListingCard";
+import { ExploreHero, ExploreResults, HERO_FLARE, HeroSearch, type ExploreMode } from "@/components/explore/ExploreHero";
+import { ExploreHeaderActions } from "@/components/nav/ExploreHeaderActions";
+import { AllExplore } from "@/components/explore/AllExplore";
+import { SaleCard } from "@/components/sales/SaleCard";
+import { SaleExplore } from "@/components/sales/SaleExplore";
+import {
+  NO_SALE_CHOICES,
+  SaleFilterSheet,
+  saleFiltersFrom,
+  saleRefinements,
+  type SaleChoices,
+} from "@/components/sales/SaleFilterSheet";
 import { BottomSheet } from "@/components/sheet/BottomSheet";
 import { SheetCard, SheetGlassButton, SheetPrimaryButton } from "@/components/sheet/SheetParts";
 import { Notice, Type, radius, space } from "@/components/ui";
@@ -55,6 +64,7 @@ import {
 } from "@/places";
 import { pressableFeedback } from "@/platform";
 import { loadPropertyTypes, type PropertyTypeOption } from "@/propertyTypes";
+import { searchSales, searchSalesPage, type SaleCard as Sale } from "@/sales";
 import { theme } from "@/theme";
 
 /**
@@ -163,13 +173,67 @@ function movedMeaningfully(view: MapMove, anchor: MapMove): boolean {
   return across > 0.25 || along > 0.25 || Math.abs(view.zoom - anchor.zoom) >= 0.8;
 }
 
+/**
+ * Rent or Buy — the first choice on Explore (owner, 2026-09-28).
+ *
+ * Properties for sale are their own search: sold whole, priced in the hundreds
+ * of thousands, filtered by tenure. So Buy swaps the screen under the switch
+ * rather than adding filters to Rent's, and switching starts the other side's
+ * search fresh — a rent range means nothing to a sale.
+ */
 export default function SearchScreen() {
+  const { mode } = useLocalSearchParams<{ mode?: string }>();
+  // Explore opens on everything; Rent and Buy are chosen (owner, 2026-09-29).
+  const [side, setSide] = useState<ExploreMode>(mode === "buy" ? "buy" : mode === "rent" ? "rent" : "all");
+  const insets = useSafeAreaInsets();
+  const inTabs = useContext(BottomTabBarHeightContext) !== undefined;
+  // Inside the tabs the hero is the header, and carries Saved and profile.
+  const actions = inTabs ? <ExploreHeaderActions /> : undefined;
+  const bottomPadding = space[8] + (inTabs ? 0 : insets.bottom);
+  // With a map every side is the map screen, and sales stand on it beside the
+  // rentals (owner, 2026-09-29). A build without one lists each side instead.
+  if (mapAvailable()) {
+    return <MapExplore inTabs={inTabs} actions={actions} mode={side} onModeChange={setSide} />;
+  }
+  if (side === "all") return <AllExplore inTabs={inTabs} actions={actions} onModeChange={setSide} bottomPadding={bottomPadding} />;
+  return side === "buy"
+    ? <SaleExplore inTabs={inTabs} actions={actions} onModeChange={setSide} bottomPadding={bottomPadding} />
+    : <MapExplore inTabs={inTabs} actions={actions} mode="rent" onModeChange={setSide} />;
+}
+
+/** One row of the list: a rental or a property for sale. */
+type Item =
+  | { side: "rent"; at: string; listing: Listing }
+  | { side: "sale"; at: string; sale: Sale };
+
+/** "₵850k", "₵1.2m": a sale's price, short enough for a marker. */
+function compactSalePrice(minor: number | null): string {
+  if (minor === null) return "For sale";
+  const cedis = minor / 100;
+  if (cedis >= 1_000_000) return `₵${Number((cedis / 1_000_000).toFixed(1))}m`;
+  if (cedis >= 1_000) return `₵${Math.round(cedis / 1_000)}k`;
+  return `₵${Math.round(cedis)}`;
+}
+
+function MapExplore({
+  inTabs: heroInTabs,
+  actions,
+  mode,
+  onModeChange,
+}: {
+  inTabs: boolean;
+  actions?: ReactNode;
+  mode: ExploreMode;
+  onModeChange: (mode: ExploreMode) => void;
+}) {
   const router = useRouter();
+  // Which sides this view shows. All shows both; each side shows itself.
+  const showRent = mode !== "buy";
+  const showSale = mode !== "rent";
   const insets = useSafeAreaInsets();
   // Inside the tabs the tab bar already keeps clear of the home indicator; a
   // pushed search has no bar, so its list keeps clear itself.
   const inTabs = useContext(BottomTabBarHeightContext) !== undefined;
-  const { width: screenWidth } = useWindowDimensions();
   const reduceMotion = useReduceMotion();
   const { state } = useAuth();
   const signedIn = state.status === "signed_in";
@@ -236,7 +300,13 @@ export default function SearchScreen() {
   const offset = useRef(new Animated.Value(showMap ? 2000 : 0)).current;
   const resting = useRef(showMap ? 2000 : 0);
   const dragStart = useRef(0);
-  const list = useRef<FlatList<Listing>>(null);
+  const list = useRef<FlatList<Item>>(null);
+
+  // Properties for sale: their own search, over the same place and area.
+  const [sales, setSales] = useState<Sale[] | null>(null);
+  const [nextSales, setNextSales] = useState<string | null>(null);
+  const [saleChoices, setSaleChoices] = useState<SaleChoices>(NO_SALE_CHOICES);
+  const saleRequest = useRef(0);
 
   const spaceTypes = useMemo(() => {
     const source = propertyType
@@ -292,6 +362,35 @@ export default function SearchScreen() {
     const timer = setTimeout(() => { void load(); }, 250);
     return () => clearTimeout(timer);
   }, [load]);
+
+  // Sales over the same place and area as the rentals. Buy adds its own filters;
+  // All shows every sale there, since its filters belong to one side each.
+  const saleFilters = useMemo(() => ({
+    q: filters.q,
+    west: filters.west,
+    south: filters.south,
+    east: filters.east,
+    north: filters.north,
+    ...(mode === "buy" ? saleFiltersFrom(saleChoices) : {}),
+  }), [filters.q, filters.west, filters.south, filters.east, filters.north, mode, saleChoices]);
+
+  const loadSales = useCallback(async () => {
+    const id = ++saleRequest.current;
+    try {
+      const page = await searchSales(saleFilters);
+      if (id !== saleRequest.current) return;
+      setSales(page.results);
+      setNextSales(page.next);
+    } catch {
+      if (id === saleRequest.current) setSales((current) => current ?? []);
+    }
+  }, [saleFilters]);
+
+  useEffect(() => {
+    if (!showSale) return;
+    const timer = setTimeout(() => { void loadSales(); }, 250);
+    return () => clearTimeout(timer);
+  }, [loadSales, showSale]);
 
   useEffect(() => {
     if (!signedIn) return;
@@ -479,11 +578,6 @@ export default function SearchScreen() {
     return [drag(() => true), drag(() => stopRef.current !== "full")] as const;
   }, [offset, stops, moveSheet]);
 
-  // Over the map the controls float; as the sheet reaches them they sit on the page.
-  const controlsGround = useMemo(
-    () => offset.interpolate({ inputRange: [0, space[8]], outputRange: [1, 0], extrapolate: "clamp" }),
-    [offset],
-  );
   // "Search this area" rides a step above the sheet, and fades before the sheet
   // can crowd it against the controls — it never sits over the rentals.
   const areaPillOpacity = useMemo(
@@ -509,12 +603,28 @@ export default function SearchScreen() {
 
   const resultCount = listings === null ? "" : `${listings.length}${next ? "+" : ""}`;
   const resultWord = listings?.length === 1 && !next ? "rental" : "rentals";
+  const saleCount = sales === null ? "" : `${sales.length}${nextSales ? "+" : ""}`;
+
+  // What the list holds on this side: rentals, sales, or both newest first.
+  const items = useMemo<Item[] | null>(() => {
+    const rent = (listings ?? []).map((listing): Item => ({ side: "rent", at: listing.created_at, listing }));
+    const sale = (sales ?? []).map((row): Item => ({ side: "sale", at: row.listed_at, sale: row }));
+    if (mode === "rent") return listings === null ? null : rent;
+    if (mode === "buy") return sales === null ? null : sale;
+    return listings === null || sales === null ? null : [...rent, ...sale].sort((a, b) => b.at.localeCompare(a.at));
+  }, [listings, sales, mode]);
+  const resultLine = items === null
+    ? "Finding places…"
+    : mode === "rent"
+      ? querying ? "Updating rentals…" : `${resultCount} ${resultWord}`
+      : mode === "buy"
+        ? `${saleCount} for sale`
+        : `${resultCount} to rent · ${saleCount} for sale`;
+  const filterCountForSide = mode === "buy" ? saleRefinements(saleChoices) : refinementCount;
   const areaName = bbox ? " in this map area" : area ? ` in ${area.name.split(",")[0]}` : "";
   const sheetOpen = stop !== "peek";
   // The rentals scroll once the sheet is full; below that, dragging them moves the sheet.
   const listScrolls = !showMap || stop === "full";
-  // A narrow phone keeps the search bar wide: the Filters button drops its word.
-  const compactControls = screenWidth < 340;
 
   // What the screen covers of the map. Full keeps half's: the map is out of sight then.
   const mapInsets = useMemo(() => ({
@@ -524,7 +634,7 @@ export default function SearchScreen() {
     left: 0,
   }), [controlsHeight, stop, peek, sheetHeight, stops.half]);
 
-  const markers = useMemo(() => features.map((feature): MapMarker => {
+  const rentMarkers = useMemo(() => features.map((feature): MapMarker => {
     const key = markerKey(feature);
     const ids = feature.type === "listing" ? [feature.id] : feature.ids ?? [];
     const selected = selection !== null
@@ -553,12 +663,42 @@ export default function SearchScreen() {
       };
   }), [features, selection, visited]);
 
+  // Each sale with a place is a gold pill on the map (owner, 2026-09-29).
+  const saleMarkers = useMemo(() => (sales ?? []).flatMap((sale): MapMarker[] => {
+    if (!sale.location) return [];
+    const key = `sale:${sale.id}`;
+    return [{
+      key,
+      kind: "sale",
+      position: { lat: sale.location.latitude, lng: sale.location.longitude },
+      label: compactSalePrice(sale.price_minor),
+      selected: selection?.key === key,
+      visited: visited.has(sale.id),
+      accessibilityLabel: `${sale.kind_label} for sale, ${sale.price_formatted ?? "price on request"}. Approximate location. Open it.`,
+    }];
+  }), [sales, selection, visited]);
+
+  const markers = useMemo(
+    () => [...(showRent ? rentMarkers : []), ...(showSale ? saleMarkers : [])],
+    [rentMarkers, saleMarkers, showRent, showSale],
+  );
+
   const showSearchArea = Boolean(showMap && userMoved && view && anchor && movedMeaningfully(view, anchor));
   const previewListing = preview[Math.min(previewIndex, Math.max(preview.length - 1, 0))];
   const previewing = Boolean(showMap && selection && previewListing && stop === "peek");
 
+  function openSaleMarker(id: string) {
+    setVisited((current) => new Set(current).add(id));
+    router.push({ pathname: "/(app)/sale/[id]", params: { id } });
+  }
+
   function pressMarker(key: string) {
     Keyboard.dismiss();
+    // A sale opens its own page: its preview is the page.
+    if (key.startsWith("sale:")) {
+      openSaleMarker(key.slice("sale:".length));
+      return;
+    }
     const feature = features.find((row) => markerKey(row) === key);
     if (!feature) return;
     if (feature.type === "listing") {
@@ -697,7 +837,7 @@ export default function SearchScreen() {
 
   return (
     <View
-      style={{ flex: 1, overflow: "hidden", backgroundColor: theme.color.field["100"] }}
+      style={{ flex: 1, overflow: "hidden", backgroundColor: showMap ? theme.color.field["100"] : theme.color.field["50"] }}
       onLayout={(event) => setScreenHeight(event.nativeEvent.layout.height)}
     >
       {showMap && config ? (
@@ -712,37 +852,33 @@ export default function SearchScreen() {
         />
       ) : null}
 
-      {/* One search bar and one Filters button: over the map while it shows,
-          on the page once the rentals cover it. */}
+      {/* The hero: the page's name, Rent or Buy, where, and the filters, as
+          one green piece over the map or the page — see `ExploreHero`. */}
       <View
         pointerEvents="box-none"
         onLayout={(event) => setControlsHeight(event.nativeEvent.layout.height)}
         style={{ position: "absolute", top: 0, left: 0, right: 0, zIndex: 4 }}
       >
-        <Animated.View
-          pointerEvents="none"
-          style={[
-            StyleSheet.absoluteFill,
-            {
-              borderBottomWidth: 1,
-              borderBottomColor: theme.color.field["200"],
-              backgroundColor: theme.color.field["50"],
-              opacity: showMap ? controlsGround : 1,
-            },
-          ]}
+        <ExploreHero
+          inTabs={heroInTabs}
+          actions={actions}
+          mode={mode}
+          onModeChange={onModeChange}
+          // All has no filters of its own: they belong to one side each.
+          filterCount={mode === "all" ? undefined : filterCountForSide}
+          onFilters={mode === "all" ? undefined : () => { Keyboard.dismiss(); setFiltersOpen(true); }}
+          search={(
+            <HeroSearch
+              label="Search area"
+              placeholder="Search area"
+              // A pin once a real place is chosen, a magnifier while it is free text.
+              icon={area ? "location" : "search"}
+              value={place}
+              onChangeText={editPlace}
+              onClear={clearPlace}
+            />
+          )}
         />
-        <View
-          pointerEvents="box-none"
-          style={{ flexDirection: "row", alignItems: "center", gap: space[2], paddingHorizontal: space[3], paddingVertical: 10 }}
-        >
-          <SearchBox
-            value={place}
-            placeChosen={Boolean(area)}
-            onChangeText={editPlace}
-            onClear={clearPlace}
-          />
-          <FiltersButton count={refinementCount} compact={compactControls} onPress={() => { Keyboard.dismiss(); setFiltersOpen(true); }} />
-        </View>
       </View>
 
       {/* Beside the controls rather than inside them: Android delivers no touch
@@ -787,7 +923,7 @@ export default function SearchScreen() {
               borderWidth: 1,
               borderColor: theme.color.kola["300"],
               borderRadius: radius.pill,
-              backgroundColor: pressed && Platform.OS !== "android" ? theme.color.kola["50"] : theme.color.field["0"],
+              backgroundColor: pressed ? theme.color.kola["50"] : theme.color.field["0"],
               ...FLOATING,
             })}
           >
@@ -830,7 +966,7 @@ export default function SearchScreen() {
         <View
           {...(showMap ? handleDrag.panHandlers : {})}
           onLayout={(event) => setSheetHeaderHeight(event.nativeEvent.layout.height)}
-          style={{ paddingHorizontal: space[4], paddingBottom: space[2] }}
+          style={{ paddingHorizontal: space[4], paddingTop: showMap ? 0 : HERO_FLARE - space[1], paddingBottom: space[1] }}
         >
           {showMap ? (
             <Pressable
@@ -845,43 +981,25 @@ export default function SearchScreen() {
             >
               <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: theme.color.field["300"] }} />
             </Pressable>
-          ) : (
-            <Type variant="caption" style={{ paddingTop: space[2], paddingBottom: space[1] }}>
-              The map is not available in this build. Every rental is in the list.
-            </Type>
-          )}
+          ) : null}
 
-          {/* The count and the one Clear all share a line: what the filters
-              produce, beside the way to undo them. */}
-          <View style={{ minHeight: 40, flexDirection: "row", alignItems: "center", gap: space[2] }}>
-            {listings === null || querying ? <ActivityIndicator size="small" color={theme.color.kola["600"]} /> : null}
-            <Type
-              variant="bodyStrong"
-              accessibilityLiveRegion="polite"
-              numberOfLines={1}
-              style={{ flex: 1, color: theme.color.ink["900"] }}
-            >
-              {listings === null ? "Finding rentals…" : querying ? "Updating rentals…" : `${resultCount} ${resultWord}${areaName}`}
-            </Type>
-            {refinementCount ? (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Clear all filters"
-                hitSlop={6}
-                onPress={clearFilters}
-                {...pressableFeedback(theme.color.kola["50"])}
-                style={({ pressed }) => ({
-                  minHeight: 36,
-                  justifyContent: "center",
-                  paddingHorizontal: space[2],
-                  borderRadius: radius.md,
-                  backgroundColor: pressed && Platform.OS !== "android" ? theme.color.kola["50"] : "transparent",
-                })}
-              >
-                <Type variant="captionStrong" style={{ color: theme.color.kola["800"] }}>Clear all</Type>
-              </Pressable>
-            ) : null}
-            {showMap && stop === "full" ? (
+          {/* What the search produced: the count and where, beside the one way
+              to undo the filters and, over a full list, the way back to the map. */}
+          <ExploreResults
+            mode={mode}
+            busy={items === null || querying}
+            line={resultLine}
+            detail={areaName
+              ? areaName.trim().replace(/^in /, "In ")
+              : mode === "all"
+                ? "Choose Rent or Buy for filters"
+                : mode === "buy"
+                  ? "Title checked by our team"
+                  : showMap ? "Verified and ready to let" : "Verified and ready to let · map not in this build"}
+            onClear={mode === "buy"
+              ? saleRefinements(saleChoices) ? () => setSaleChoices(NO_SALE_CHOICES) : undefined
+              : mode === "rent" && refinementCount ? clearFilters : undefined}
+            trailing={showMap && stop === "full" ? (
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Show the map"
@@ -895,14 +1013,14 @@ export default function SearchScreen() {
                   gap: 6,
                   paddingHorizontal: space[3],
                   borderRadius: radius.pill,
-                  backgroundColor: pressed && Platform.OS !== "android" ? theme.color.kola["800"] : theme.color.kola["600"],
+                  backgroundColor: pressed ? theme.color.kola["800"] : theme.color.kola["600"],
                 })}
               >
                 <Ionicons name="map" size={15} color={theme.color.field["0"]} />
                 <Type variant="captionStrong" style={{ color: theme.color.field["0"] }}>Map</Type>
               </Pressable>
-            ) : null}
-          </View>
+            ) : undefined}
+          />
 
           {bbox ? (
             <View style={{ flexDirection: "row", paddingBottom: space[1] }}>
@@ -916,11 +1034,12 @@ export default function SearchScreen() {
         <View style={{ flex: 1 }} {...(showMap ? listDrag.panHandlers : {})}>
           <FlatList
             ref={list}
-            data={listings ?? []}
-            keyExtractor={(item) => item.id}
+            data={items ?? []}
+            keyExtractor={(item) => (item.side === "rent" ? `rent-${item.listing.id}` : `sale-${item.sale.id}`)}
             scrollEnabled={listScrolls}
             contentContainerStyle={{
-              paddingHorizontal: space[4],
+              // A little narrower than the screen (owner, 2026-09-29).
+              paddingHorizontal: space[5] + 2,
               paddingTop: space[1],
               paddingBottom: space[8] + (inTabs ? 0 : insets.bottom),
               gap: space[4],
@@ -930,34 +1049,42 @@ export default function SearchScreen() {
                 // Android's pull-to-refresh would otherwise take the drag that moves the sheet.
                 enabled={listScrolls}
                 refreshing={refreshing}
-                onRefresh={async () => { setRefreshing(true); await load(); setRefreshing(false); }}
+                onRefresh={async () => { setRefreshing(true); await Promise.all([load(), showSale ? loadSales() : null]); setRefreshing(false); }}
                 tintColor={theme.color.kola["600"]}
               />
             }
             // Discovery keeps going rather than stopping at the first twenty.
             onEndReachedThreshold={0.6}
             onEndReached={async () => {
-              if (!next || loadingMore) return;
+              const moreRent = showRent ? next : null;
+              const moreSale = showSale ? nextSales : null;
+              if ((!moreRent && !moreSale) || loadingMore) return;
               setLoadingMore(true);
               try {
-                const page = await searchListingsPage(next);
-                setListings((current) => [...(current ?? []), ...page.results]);
-                setNext(page.next);
+                const [page, salePage] = await Promise.all([
+                  moreRent ? searchListingsPage(moreRent) : Promise.resolve(null),
+                  moreSale ? searchSalesPage(moreSale) : Promise.resolve(null),
+                ]);
+                if (page) { setListings((current) => [...(current ?? []), ...page.results]); setNext(page.next); }
+                if (salePage) { setSales((current) => [...(current ?? []), ...salePage.results]); setNextSales(salePage.next); }
               } catch {
                 // A failed page must never empty the ones already scrolled past.
               } finally {
                 setLoadingMore(false);
               }
             }}
-            renderItem={({ item }) => (
+            renderItem={({ item }) => item.side === "rent" ? (
               <ListingCard
-                listing={item}
-                saved={saved.has(item.id)}
-                onSave={() => void toggleSave(item)}
-                onPress={() => openListing(item)}
+                listing={item.listing}
+                saved={saved.has(item.listing.id)}
+                onSave={() => void toggleSave(item.listing)}
+                onPress={() => openListing(item.listing)}
                 // Photos swipe once the list is the screen; below that a swipe moves the sheet.
                 photoSwipe={listScrolls}
+                compact
               />
+            ) : (
+              <SaleCard compact sale={item.sale} onPress={() => router.push({ pathname: "/(app)/sale/[id]", params: { id: item.sale.id } })} />
             )}
             ListFooterComponent={
               loadingMore ? (
@@ -967,11 +1094,17 @@ export default function SearchScreen() {
               ) : null
             }
             ListEmptyComponent={
-              listings === null && !error ? null : (
+              items === null && !error ? null : (
                 // Guidance only: the one Clear all sits just above, beside the count.
                 <View style={{ paddingVertical: space[8], gap: space[2] }}>
                   <Type variant="bodyStrong">Nothing matches yet</Type>
-                  <Type variant="caption">Try a wider rent, a longer advance, or a nearby area.</Type>
+                  <Type variant="caption">
+                    {mode === "buy"
+                      ? "Try a higher budget, another kind of property, or a wider area."
+                      : mode === "all"
+                        ? "Try a nearby area, or a shorter search."
+                        : "Try a wider rent, a longer advance, or a nearby area."}
+                  </Type>
                 </View>
               )
             }
@@ -979,8 +1112,16 @@ export default function SearchScreen() {
         </View>
       </Animated.View>
 
+      <SaleFilterSheet
+        visible={filtersOpen && mode === "buy"}
+        onClose={() => setFiltersOpen(false)}
+        choices={saleChoices}
+        onChange={(patch) => setSaleChoices((current) => ({ ...current, ...patch }))}
+        resultLabel={sales === null ? "Updating…" : `Show ${saleCount}`}
+      />
+
       <FilterSheet
-        visible={filtersOpen}
+        visible={filtersOpen && mode === "rent"}
         onClose={() => setFiltersOpen(false)}
         propertyTypes={propertyTypes}
         propertyType={propertyType}
@@ -1066,7 +1207,7 @@ function PlaceSuggestions({
             paddingHorizontal: space[3],
             borderTopWidth: index || resolving ? 1 : 0,
             borderTopColor: theme.color.field["100"],
-            backgroundColor: pressed && Platform.OS !== "android" ? theme.color.kola["50"] : "transparent",
+            backgroundColor: pressed ? theme.color.kola["50"] : "transparent",
           })}
         >
           <View
@@ -1148,7 +1289,7 @@ function MapPreview({
           flexDirection: "row",
           overflow: "hidden",
           borderRadius: radius.lg,
-          opacity: pressed && Platform.OS !== "android" ? 0.86 : 1,
+          opacity: pressed ? 0.86 : 1,
         })}
       >
         {photo ? (
@@ -1252,152 +1393,12 @@ function AreaChip({ onPress }: { onPress: () => void }) {
         paddingRight: 10,
         borderRadius: radius.pill,
         backgroundColor: theme.color.lagoon["100"],
-        opacity: pressed && Platform.OS !== "android" ? 0.72 : 1,
+        opacity: pressed ? 0.72 : 1,
       })}
     >
       <Ionicons name="scan-outline" size={14} color={theme.color.lagoon["600"]} />
       <Type variant="captionStrong" style={{ color: theme.color.lagoon["600"] }}>Map area</Type>
       <Ionicons name="close" size={14} color={theme.color.lagoon["600"]} />
-    </Pressable>
-  );
-}
-
-/**
- * The search bar: the "Search this area" pill grown into a field, so the two
- * controls floating over the map read as one family.
- */
-function SearchBox({
-  value,
-  placeChosen,
-  onChangeText,
-  onClear,
-}: {
-  value: string;
-  placeChosen: boolean;
-  onChangeText: (value: string) => void;
-  onClear: () => void;
-}) {
-  const [focused, setFocused] = useState(false);
-  return (
-    <View style={{ flex: 1, minWidth: 0 }}>
-      {/* The ring is drawn behind the bar, the construction `Field` uses: the
-          border never thickens, so focusing moves nothing. */}
-      {focused ? (
-        <View
-          pointerEvents="none"
-          style={{ position: "absolute", top: -3, right: -3, bottom: -3, left: -3, borderRadius: radius.pill, backgroundColor: theme.color.kola["50"] }}
-        />
-      ) : null}
-      <View
-        style={{
-          minHeight: 46,
-          flexDirection: "row",
-          alignItems: "center",
-          gap: space[2],
-          paddingLeft: space[3] + 2,
-          paddingRight: value ? space[1] : space[4],
-          borderWidth: 1,
-          borderColor: focused ? theme.color.kola["600"] : theme.color.kola["300"],
-          borderRadius: radius.pill,
-          backgroundColor: theme.color.field["0"],
-          ...FLOATING,
-        }}
-      >
-        {/* A pin once a real place is chosen, a magnifier while it is free text. */}
-        <Ionicons name={placeChosen ? "location" : "search"} size={18} color={theme.color.kola["600"]} />
-        <TextInput
-          accessibilityLabel="Search area"
-          value={value}
-          onChangeText={onChangeText}
-          onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
-          placeholder="Search area"
-          placeholderTextColor={theme.color.ink["500"]}
-          returnKeyType="search"
-          // Place names are not dictionary words; autocorrect only mangles them.
-          autoCorrect={false}
-          // One clear: iOS can draw its own, which would sit beside this one.
-          clearButtonMode="never"
-          maxFontSizeMultiplier={1.3}
-          style={{
-            flex: 1,
-            minWidth: 0,
-            minHeight: 44,
-            paddingVertical: 0,
-            color: theme.color.ink["900"],
-            fontSize: 15,
-            fontWeight: "600",
-            includeFontPadding: false,
-          }}
-        />
-        {value ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Clear search"
-            hitSlop={4}
-            onPress={onClear}
-            {...pressableFeedback(theme.color.field["200"])}
-            style={({ pressed }) => ({
-              width: 38,
-              height: 38,
-              alignItems: "center",
-              justifyContent: "center",
-              borderRadius: 19,
-              backgroundColor: pressed && Platform.OS !== "android" ? theme.color.field["100"] : "transparent",
-            })}
-          >
-            <Ionicons name="close" size={16} color={theme.color.ink["500"]} />
-          </Pressable>
-        ) : null}
-      </View>
-    </View>
-  );
-}
-
-/** The one way into every filter, carrying the count of what is on. */
-function FiltersButton({ count, compact, onPress }: { count: number; compact: boolean; onPress: () => void }) {
-  const active = count > 0;
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={active ? `Filters, ${count} active` : "Filters"}
-      onPress={onPress}
-      {...pressableFeedback(theme.color.kola["50"])}
-      style={({ pressed }) => ({
-        minWidth: 46,
-        minHeight: 46,
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: 6,
-        paddingHorizontal: compact ? space[3] : space[4],
-        borderWidth: 1,
-        borderColor: active ? theme.color.kola["600"] : theme.color.kola["300"],
-        borderRadius: radius.pill,
-        backgroundColor: pressed && Platform.OS !== "android" ? theme.color.kola["50"] : theme.color.field["0"],
-        ...FLOATING,
-      })}
-    >
-      <Ionicons name="options-outline" size={18} color={theme.color.kola["600"]} />
-      {compact ? null : (
-        <Type variant="captionStrong" numberOfLines={1} style={{ color: theme.color.kola["800"] }}>Filters</Type>
-      )}
-      {active ? (
-        <View
-          style={{
-            minWidth: 20,
-            minHeight: 20,
-            alignItems: "center",
-            justifyContent: "center",
-            paddingHorizontal: 5,
-            paddingVertical: 2,
-            borderRadius: radius.pill,
-            backgroundColor: theme.color.kola["600"],
-          }}
-        >
-          <Type variant="label" style={{ color: theme.color.field["0"], fontSize: 11, lineHeight: 13, letterSpacing: 0 }}>{count}</Type>
-        </View>
-      ) : null}
     </Pressable>
   );
 }

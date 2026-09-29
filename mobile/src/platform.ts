@@ -147,6 +147,14 @@ export const hapticsPolicy = {
  */
 export const maxFontSizeMultiplier = isIOS ? 2.0 : 1.6;
 
-/** Android needs explicit ripple config; iOS uses opacity on press. */
-export const pressableFeedback = (color: string) =>
-  isAndroid ? { android_ripple: { color, borderless: false } } : {};
+/**
+ * How a control answers a press: the same on both platforms (owner,
+ * 2026-09-28). This used to give Android an `android_ripple`, often in the
+ * control's full ink, and Android draws that ripple across the view's
+ * rectangle whatever its corners and whatever it clips — so a tap on a rounded
+ * button flashed a dark box over it ("Join a home", the start screen's cards).
+ * Every control already carries its own pressed style, which is now applied on
+ * Android too. The colour is kept in the signature so the call sites still say
+ * which tint the control belongs to.
+ */
+export const pressableFeedback = (_color: string) => ({});

@@ -127,6 +127,11 @@ test("a tenancy names the two records it is made of", () => {
 
   const provider = read("app/(app)/provider-tenancy.tsx");
   assert.match(provider, /<GroupLabel>Agreement and rent<\/GroupLabel>/);
+  // The section that talks about the agreement opens it (owner, 2026-09-28),
+  // whenever the tenancy has one.
+  const section = provider.slice(provider.indexOf("<GroupLabel>Agreement and rent</GroupLabel>"), provider.indexOf("<GroupLabel>Related records</GroupLabel>"));
+  assert.match(section, /\{tenant\.lease_id \? \(\s*<LinkRow[\s\S]*?label="Open agreement"/);
+  assert.match(section, /pathname: "\/\(app\)\/provider-lease", params: \{ leaseId: tenant\.lease_id \}/);
   assert.match(provider, /provider-property/);
   assert.match(provider, /provider-tabs\)\/payments/);
 });

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 
+import { AuthModal, AuthSide } from "@/components/auth/AuthModal";
 import { Button } from "@/components/Button";
 import { Field } from "@/components/Field";
 import { Notice } from "@/components/Notice";
@@ -26,6 +27,11 @@ import { getWebDeviceContext } from "@/lib/device";
  * Someone who arrived by tapping "I own or manage property" is asking for the
  * provider journey, and telling the backend that *before* reading the entry
  * route is what stops an existing tenant being dropped back into tenant space.
+ *
+ * It opens as a dialog over the front door (owner, 2026-09-29), and the side
+ * can be changed in it: a quiet Tenant / Property manager switch, unset when
+ * the visitor arrived without choosing, so an account that says nothing keeps
+ * the side it already has.
  */
 function SignInContent() {
   const router = useRouter();
@@ -33,8 +39,9 @@ function SignInContent() {
   const { refresh, signOut } = useSession();
 
   const requested = searchParams.get("workspace");
-  const workspace: Workspace | null =
-    requested === "tenant" || requested === "provider" ? requested : null;
+  const [workspace, setWorkspace] = useState<Extract<Workspace, "tenant" | "provider"> | null>(
+    requested === "tenant" || requested === "provider" ? requested : null,
+  );
   const safeNext = safeInternalPath(searchParams.get("next"));
   const registrationQuery = new URLSearchParams();
   if (workspace) registrationQuery.set("workspace", workspace);
@@ -103,49 +110,36 @@ function SignInContent() {
     }
   }
 
-  const heading = workspace === "provider"
-    ? "Sign in to manage property"
-    : workspace === "tenant"
-      ? "Sign in to your tenant space"
-      : "Sign in";
-
   if (notAProvider) {
     return (
-      <main id="main" style={{ maxWidth: "28rem", margin: "0 auto", padding: "var(--space-12) var(--space-5)" }}>
-        <h1 className="type-display-2">You are not a provider</h1>
-        <Notice
-          tone="info"
-          title="This account is registered as a tenant"
-          body="Provider accounts are created at sign-up. You are signed in — your tenant space is ready when you are."
-        />
-        <div style={{ display: "grid", gap: "var(--space-3)", marginTop: "var(--space-6)" }}>
-          <Button onClick={() => router.replace("/rentals" as never)}>
-            Go to your tenant space
-          </Button>
-          <Button variant="secondary" onClick={signOut}>
-            Sign out
-          </Button>
-        </div>
-      </main>
+      <AuthModal
+        title="This account is a tenant account"
+        description="Provider accounts are created at sign-up. You are signed in, and your tenant space is ready."
+      >
+        <Button className="auth-submit" onClick={() => router.replace("/rentals" as never)}>
+          Go to your tenant space
+        </Button>
+        <Button variant="secondary" className="auth-submit" onClick={signOut}>
+          Sign out
+        </Button>
+      </AuthModal>
     );
   }
 
   return (
-    <main id="main" style={{ maxWidth: "28rem", margin: "0 auto", padding: "var(--space-12) var(--space-5)" }}>
-      <h1 className="type-display-2">{heading}</h1>
-      <p className="type-body" style={{ color: "var(--color-ink-700)" }}>
-        Use the phone number on your account and your password.
-      </p>
+    <AuthModal
+      title="Sign in"
+      description="Use the mobile number on your account and your password."
+      footer={(
+        <>
+          New to Ghana Rental?
+          <Link href={registrationHref as never}>Create an account</Link>
+        </>
+      )}
+    >
+      <AuthSide value={workspace} onChange={setWorkspace} />
 
-      {workspace === "provider" ? (
-        <Notice
-          tone="info"
-          title="Provider access is reviewed"
-          body="Signing in shows you where your provider verification stands. Approval is what opens property tools."
-        />
-      ) : null}
-
-      <form onSubmit={submit} style={{ display: "grid", gap: "var(--space-4)", marginTop: "var(--space-6)" }}>
+      <form onSubmit={submit} className="auth-form">
         <Field
           label="Mobile number"
           value={phone}
@@ -155,33 +149,28 @@ function SignInContent() {
           placeholder="024 123 4567"
           required
         />
-        <Field
-          label="Password"
-          type="password"
-          value={password}
-          onChange={(event) => setPassword(event.target.value)}
-          autoComplete="current-password"
-          required
-        />
+        <div className="auth-field-with-link">
+          <Field
+            label="Password"
+            type="password"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            autoComplete="current-password"
+            required
+          />
+          <Link href="/forgot-password" className="auth-field-link">Forgot password?</Link>
+        </div>
+        {workspace === "provider" ? (
+          <p className="auth-note">
+            Property tools open once your provider verification is approved. Signing in shows where it stands.
+          </p>
+        ) : null}
         {error ? <Notice tone="error" title={error} /> : null}
-        <Button type="submit" busy={busy} disabled={!phone.trim() || !password}>
+        <Button type="submit" className="auth-submit" busy={busy} busyLabel="Signing in…" disabled={!phone.trim() || !password}>
           Sign in
         </Button>
       </form>
-
-      <p className="type-caption" style={{ marginTop: "var(--space-6)" }}>
-        <Link href="/forgot-password">Forgot your password?</Link>
-      </p>
-      <p className="type-caption">
-        No account yet?{" "}
-        <Link href={registrationHref as never}>
-          Create one
-        </Link>
-      </p>
-      <p className="type-caption" style={{ marginTop: "var(--space-6)" }}>
-        <Link href="/rentals">Or keep browsing without an account →</Link>
-      </p>
-    </main>
+    </AuthModal>
   );
 }
 

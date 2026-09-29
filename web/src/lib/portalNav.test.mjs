@@ -37,7 +37,8 @@ test("a tenant is offered their rental journey, and no provider operations", () 
   const links = hrefs(account());
 
   assert.deepEqual(links, [
-    "/home", "/rentals", "/saved", "/applications", "/leases", "/payments", "/viewings", "/updates",
+    "/home", "/rentals", "/saved", "/applications", "/leases", "/payments", "/viewings", "/enquiries",
+    "/updates",
   ]);
   assert.ok(!links.includes("/properties"));
   assert.ok(!links.includes("/provider"));
@@ -50,7 +51,7 @@ test("an approved provider is offered the portfolio, and no tenant shortlist", (
 
   assert.deepEqual(links, [
     "/home", "/properties", "/units", "/tenants", "/leases", "/payments",
-    "/applications", "/viewings", "/updates",
+    "/applications", "/viewings", "/enquiries", "/updates",
   ]);
   assert.ok(!links.includes("/saved"));
 });

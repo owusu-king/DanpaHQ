@@ -57,6 +57,7 @@ import { Field } from "@/components/Field";
 import { Notice } from "@/components/Notice";
 import { Select } from "@/components/Select";
 import { AuthorityClaim } from "@/components/property/AuthorityClaim";
+import { SaleDetailsForm } from "@/components/property/SaleDetailsForm";
 import { SpaceAmenities } from "@/components/property/SpaceAmenities";
 import { PropertySummary } from "@/components/property/PropertySummary";
 import {
@@ -81,9 +82,13 @@ import {
   type SetupStep,
 } from "@/lib/propertySetup";
 import { loadPropertyVocabulary, type PropertyVocabulary } from "@/lib/propertyTypes";
+import { getSellerSale, type SellerSale } from "@/lib/sales";
 import { getVerification, type VerificationProgress } from "@/lib/verification";
 
-const STEP_KEYS = ["basics", "details", "documents", "photos", "amenities", "review"] as const;
+// Every step a property can have. Which of them this one has is
+// `describePropertySetup`'s answer — a sale adds `sale`, and land drops
+// `details` and `amenities` — so walking the journey reads `steps`, never this.
+const STEP_KEYS = ["basics", "details", "sale", "documents", "photos", "amenities", "review"] as const;
 type StepKey = (typeof STEP_KEYS)[number];
 
 export default function PropertySetupPage() {
@@ -100,6 +105,7 @@ export default function PropertySetupPage() {
   const [photos, setPhotos] = useState<VerificationProgress | null>(null);
   const [amenities, setAmenities] = useState<SpaceAmenity[] | null>(null);
   const [vocabulary, setVocabulary] = useState<PropertyVocabulary | null>(null);
+  const [sale, setSale] = useState<SellerSale | null>(null);
   const [step, setStep] = useState<StepKey>("details");
   const [error, setError] = useState("");
 
@@ -110,6 +116,8 @@ export default function PropertySetupPage() {
         getVerification("property", propertyId),
         getPropertyAmenities(propertyId),
       ]);
+      // A property for sale carries its price and terms on a record of its own.
+      setSale(prop.purpose === "sale" ? await getSellerSale(propertyId) : null);
       setProperty(prop);
       setPhotos(progress);
       setAmenities(amenityState.chosen);
@@ -143,10 +151,11 @@ export default function PropertySetupPage() {
               amenities !== null && property.amenities_confirmed_at
                 ? amenities.length
                 : null,
+              sale ? sale.missing.length : null,
             ),
           )
         : [],
-    [property, photos, amenities],
+    [property, photos, amenities, sale],
   );
 
   // This page exists to change a property, so whether it may be opened is the
@@ -192,6 +201,10 @@ export default function PropertySetupPage() {
   }
 
   const active = steps.find((row) => row.key === step) ?? steps[0]!;
+  const keys = steps.map((row) => row.key);
+  // The step after this one, among the ones this property has.
+  const after = (key: StepKey) => (keys[keys.indexOf(key) + 1] ?? "review") as StepKey;
+  const saleKind = property.purpose === "sale" ? (sale?.kind ?? null) : null;
   const readyToFinish = isSetupComplete(steps);
   // Been to our team and come back: this is a correction, not a first pass, so
   // the copy stops talking about creating and the review step stops insisting
@@ -255,16 +268,35 @@ export default function PropertySetupPage() {
               vocabulary={vocabulary}
               onSaved={async () => {
                 await load();
-                setStep("documents");
+                setStep(after("details"));
               }}
             />
+          ) : null}
+
+          {step === "sale" && sale ? (
+            <StepPanel
+              title="Sale details"
+              summary="What a buyer reads first: the price, the tenure, and what they are buying."
+            >
+              <SaleDetailsForm
+                propertyId={propertyId}
+                sale={sale}
+                saveLabel="Save and continue"
+                onSaved={async (next) => {
+                  setSale(next);
+                  await load();
+                  if (!next.missing.length) setStep(after("sale"));
+                }}
+              />
+            </StepPanel>
           ) : null}
 
           {step === "documents" ? (
             <DocumentsStep
               property={property}
+              saleKind={saleKind}
               onChanged={load}
-              onDone={() => setStep("photos")}
+              onDone={() => setStep(after("documents"))}
             />
           ) : null}
 
@@ -273,7 +305,7 @@ export default function PropertySetupPage() {
               propertyId={propertyId}
               progress={photos}
               onChanged={load}
-              onDone={() => setStep("amenities")}
+              onDone={() => setStep(after("photos"))}
             />
           ) : null}
 
@@ -281,13 +313,13 @@ export default function PropertySetupPage() {
             <AmenitiesStep
               propertyId={propertyId}
               onChanged={load}
-              onDone={() => setStep("review")}
+              onDone={() => setStep(after("amenities"))}
             />
           ) : null}
 
           {step !== "review" ? (
             <StepFooter
-              steps={STEP_KEYS}
+              steps={keys}
               current={step}
               onGo={(key) => setStep(key as StepKey)}
             />
@@ -298,6 +330,7 @@ export default function PropertySetupPage() {
               property={property}
               steps={steps}
               settled={settled}
+              selling={property.purpose === "sale"}
               onGoTo={(key) => setStep(key as StepKey)}
               onFinished={() =>
                 router.push("/properties?created=" + encodeURIComponent(propertyId) as never)
@@ -349,7 +382,7 @@ function StepFooter({
       )}
       {next ? (
         <Button variant="quiet" onClick={() => onGo(next)}>
-          Skip to {next === "review" ? "review" : next} →
+          Skip to {next === "sale" ? "sale details" : next} →
         </Button>
       ) : null}
     </div>
@@ -580,10 +613,12 @@ function Toggle({
 
 function DocumentsStep({
   property,
+  saleKind,
   onChanged,
   onDone,
 }: {
   property: Property;
+  saleKind: "residential" | "commercial" | "land" | null;
   onChanged: () => Promise<void>;
   onDone: () => void;
 }) {
@@ -592,14 +627,19 @@ function DocumentsStep({
   // during creation from one that was never added.
   const document = property.verification.authority.state;
   const recorded = document !== "draft";
+  const verb = saleKind ? "sell" : "let";
 
   return (
     <StepPanel
       title="Documents"
-      summary="What shows this property is yours to let."
+      summary={
+        saleKind
+          ? "Proof it is yours to sell, and its title."
+          : "What shows this property is yours to let."
+      }
     >
       {document === "verified" ? (
-        <Notice tone="success" title="Confirmed as yours to let" />
+        <Notice tone="success" title={`Confirmed as yours to ${verb}`} />
       ) : document === "submitted" || document === "under_review" ? (
         <Notice tone="info" title="Your claim is with our team" />
       ) : recorded ? (
@@ -609,6 +649,7 @@ function DocumentsStep({
       {document === "verified" || document === "submitted" || document === "under_review" ? null : (
         <AuthorityClaim
           propertyId={property.id}
+          saleKind={saleKind}
           onSubmitted={async () => {
             await onChanged();
             onDone();
@@ -710,6 +751,7 @@ function ReviewStep({
   property,
   steps,
   settled,
+  selling,
   onGoTo,
   onFinished,
 }: {
@@ -717,6 +759,8 @@ function ReviewStep({
   steps: SetupStep[];
   /** Already decided on by our team — this is an edit, not a creation. */
   settled: boolean;
+  /** For sale: it goes public by itself the moment it is verified. */
+  selling: boolean;
   onGoTo: (key: string) => void;
   onFinished: () => void;
 }) {
@@ -753,7 +797,9 @@ function ReviewStep({
         </div>
       ) : (
         <p className="type-caption">
-          It stays private until you send it for verification, from the property itself.
+          {selling
+            ? "Private until verified. Once verified, buyers find it on Explore straight away."
+            : "It stays private until you send it for verification, from the property itself."}
         </p>
       )}
 

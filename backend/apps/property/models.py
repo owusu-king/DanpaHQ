@@ -59,6 +59,29 @@ class PropertyType(models.TextChoices):
     RESIDENTIAL = "residential", "Residential"
     COMMERCIAL = "commercial", "Commercial"
     HOSTEL = "hostel", "Hostel"
+    #: Only a property *for sale* may be land. A plot that is let is a Unit of
+    #: space type `land` inside a commercial property — see `space_rules` — so
+    #: this category never reaches the letting flow; `LETTING_TYPES` and
+    #: `SALE_TYPES` below say which categories each purpose may choose.
+    LAND = "land", "Land"
+
+
+class PropertyPurpose(models.TextChoices):
+    """Why the property is on the platform: to be let space by space, or sold whole.
+
+    Fixed when the property is created. The two are different products that share
+    a building and its verification, not two states of one property: a property
+    for sale has no Units, no tenancies and no rent, and is advertised as itself
+    the moment its verification passes (owner, 2026-09-28).
+    """
+
+    LETTING = "letting", "To let"
+    SALE = "sale", "For sale"
+
+
+#: What each purpose may be. Hostels are a letting business; land is only sold.
+LETTING_TYPES = frozenset({PropertyType.RESIDENTIAL, PropertyType.COMMERCIAL, PropertyType.HOSTEL})
+SALE_TYPES = frozenset({PropertyType.RESIDENTIAL, PropertyType.COMMERCIAL, PropertyType.LAND})
 
 
 class WaterSource(models.TextChoices):
@@ -160,6 +183,13 @@ class Property(SoftDeleteModel):
         help_text="Internal label. Not what tenants see — the listing has its own headline.",
     )
     property_type = models.CharField(max_length=20, choices=PropertyType.choices)
+    #: Letting or sale, fixed at creation. See `PropertyPurpose`.
+    purpose = models.CharField(
+        max_length=10,
+        choices=PropertyPurpose.choices,
+        default=PropertyPurpose.LETTING,
+        db_index=True,
+    )
 
     address = models.ForeignKey("geo.Address", on_delete=models.PROTECT, related_name="properties")
 
@@ -193,6 +223,10 @@ class Property(SoftDeleteModel):
 
     def __str__(self) -> str:
         return self.title or f"Property {self.id}"
+
+    @property
+    def is_for_sale(self) -> bool:
+        return self.purpose == PropertyPurpose.SALE
 
     def is_managed_by(self, user) -> bool:
         legacy_access = (

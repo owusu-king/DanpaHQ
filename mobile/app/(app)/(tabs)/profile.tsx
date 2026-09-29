@@ -110,6 +110,8 @@ export default function ProfileTab() {
       <Group title="Your history" tone="lagoon">
         <Row icon="document-text-outline" label="Applications" onPress={() => router.push("/(app)/applications" as never)} />
         <Row icon="calendar-outline" label="Viewings" onPress={() => router.push("/(app)/viewings" as never)} />
+        {/* Properties you asked to buy: the conversations a sale starts. */}
+        <Row icon="chatbubbles-outline" label="Enquiries" onPress={() => router.push("/(app)/enquiries" as never)} />
         <Row icon="document-outline" label="Agreements" onPress={() => router.push("/(app)/leases" as never)} />
       </Group>
 

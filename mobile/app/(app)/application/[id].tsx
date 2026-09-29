@@ -23,7 +23,7 @@ import {
 } from "@/components/record/RecordSurfaces";
 import { Notice, Type, space } from "@/components/ui";
 import { listMyLeases, type Lease } from "@/leases";
-import { isAndroid, pressableFeedback, useSafeBottom } from "@/platform";
+import { pressableFeedback, useSafeBottom } from "@/platform";
 import { theme } from "@/theme";
 
 /**
@@ -144,7 +144,7 @@ export default function ApplicationRecordScreen() {
               aria-expanded={told}
               onPress={() => setTold((value) => !value)}
               {...pressableFeedback(theme.color.field["100"])}
-              style={({ pressed }) => [styles.disclosure, pressed && !isAndroid ? { backgroundColor: theme.color.field["100"] } : null]}
+              style={({ pressed }) => [styles.disclosure, pressed ? { backgroundColor: theme.color.field["100"] } : null]}
             >
               <Type variant="bodyStrong" style={styles.disclosureLabel}>What you told them</Type>
               <Ionicons name={told ? "chevron-up" : "chevron-down"} size={16} color={KOLA_DEEP} />

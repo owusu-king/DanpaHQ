@@ -38,7 +38,7 @@ import { Notice, Type, space } from "@/components/ui";
 import { type Lease, listGrantedLeases } from "@/leases";
 import { timeAgo } from "@/notifications";
 import { getPortfolioSummary, listOrganizations, type PortfolioSummary } from "@/organizations";
-import { isAndroid, pressableFeedback, useSafeBottom } from "@/platform";
+import { pressableFeedback, useSafeBottom } from "@/platform";
 import { useBlankOnPortfolioSwitch } from "@/portfolioScope";
 import { theme } from "@/theme";
 
@@ -317,7 +317,7 @@ function RequestRow({ item, onPress }: { item: RequestItem; onPress: () => void 
       accessibilityLabel={`${who}, ${status}, ${where}. ${SOURCE_LABEL[item.kind]}, received ${received}.`}
       onPress={onPress}
       {...pressableFeedback(PRESSED)}
-      style={({ pressed }) => [rowStyles.row, pressed && !isAndroid ? { backgroundColor: PRESSED } : null]}
+      style={({ pressed }) => [rowStyles.row, pressed ? { backgroundColor: PRESSED } : null]}
     >
       <View style={[styles.initials, { backgroundColor: tone.wash }]}>
         <Type variant="captionStrong" style={[styles.initialsText, { color: tone.ink }]}>{initialsOf(who)}</Type>
