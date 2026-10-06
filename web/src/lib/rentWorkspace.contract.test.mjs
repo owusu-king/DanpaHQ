@@ -48,10 +48,12 @@ test("provider can review claims and record auditable adjustments through the au
   assert.match(api, /\/rent\/charges\/\$\{id\}\/\$\{kind\}\//);
   assert.match(api, /amount_minor: amountMinor, reason, confirmed: true/);
 
-  // The rent account's own dialog is gone. The expense form is still one —
-  // it is a single short form — and still rises as a sheet on a phone.
+  // The rent account's own dialog is gone. Recording a payment or an expense
+  // is the shared sheet (full screen on a phone, per doc-modal.css), so the
+  // page no longer draws a dialog of its own.
   assert.doesNotMatch(css, /\.rent-dialog/);
-  assert.match(css, /@media \(max-width: 600px\)[\s\S]*\.payment-dialog[\s\S]*margin: auto 0 0/);
+  assert.doesNotMatch(css, /\.payment-dialog/);
+  assert.match(css, /\.payment-sheet \.rent-actions \{[^}]*position: sticky/);
 });
 
 test("payment attention counts only the claims the provider still owes an answer to", () => {
@@ -83,7 +85,7 @@ test("tenant Payments keeps ended rent accounts reachable", () => {
 test("external payments are explicit, evidenced and tenant-confirmed on web", () => {
   const account = read("web/src/components/payments/RentAccount.tsx");
   const tenant = read("web/src/components/payments/TenantPayments.tsx");
-  const receipt = read("web/app/payments/receipts/[receiptId]/page.tsx");
+  const receipt = read("web/src/components/payments/ReceiptModal.tsx");
   const api = read("web/src/lib/tenant.ts");
 
   assert.match(account, /Record external payment/);
@@ -92,9 +94,9 @@ test("external payments are explicit, evidenced and tenant-confirmed on web", ()
   assert.match(account, /uploadFile\(evidenceFile, "payment_evidence"\)/);
   assert.match(account, /I didn’t make this payment/);
   assert.match(account, /Paid externally · recorded through Rooomly/);
-  assert.match(tenant, /CONFIRM AN EXTERNAL PAYMENT/);
+  assert.match(tenant, /Confirm an external payment/);
   assert.match(tenant, /receiptId: payment\.receipt_id/);
-  assert.match(receipt, /snapshot\.payment\.source === "PLATFORM_PSP"/);
+  assert.match(receipt, /const external = receipt\.source === "EXTERNAL"/);
   assert.match(api, /evidence_file_id\?: string \| null/);
   assert.match(api, /rent_payment_review/);
 });

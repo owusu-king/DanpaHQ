@@ -27,6 +27,8 @@ DOMAIN = {
     "application",
     "lease",
     "rent",
+    # Repairs hang off the tenancy; the property side is reached through it.
+    "maintenance",
     # Billing decides what a Portfolio may do; it must not reach into
     # another domain's models to find out, and no domain may import its
     # models to check a plan. `billing.enforcement` is the whole seam.

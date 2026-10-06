@@ -58,10 +58,12 @@ test("a buyer reaches a seller by enquiry, and never by phone", () => {
 
 test("Explore offers Rent and Buy, and Buy keeps its search in the address bar", () => {
   const page = code(read("web/app/rentals/page.tsx"));
-  assert.match(page, /mode === "buy" \? <SaleBrowser modeSwitch=\{modeSwitch\} \/> : <ListingBrowser modeSwitch=\{modeSwitch\} \/>/);
-  // All is the default, and shows both sides at once.
+  assert.match(page, /if \(asked === "buy"\) return <SaleBrowser \/>;/);
+  // All is the default, and shows both sides at once — with the filters both
+  // answer and a map holding both (owner, 2026-10-05).
   const all = code(read("web/src/components/explore/AllBrowser.tsx"));
-  assert.match(all, /Promise\.allSettled\(\[searchPublicListings\(filters\), searchSales\(filters\)\]\)/);
+  assert.match(all, /Promise\.allSettled\(\[\s*searchListingsFor\(new URLSearchParams\(search\), controller\.signal\),\s*searchSales\(/);
+  assert.match(all, /<ExploreMapView[\s\S]{0,900}sales=\{sales\}/);
   assert.match(all, /\.sort\(\(a, b\) => b\.at\.localeCompare\(a\.at\)\)/);
   // Rent keeps its side through every filter change.
   assert.match(code(read("web/src/components/listings/ListingBrowser.tsx")), /get\("mode"\) === "rent"\) nextParams\.set\("mode", "rent"\)/);
@@ -72,9 +74,39 @@ test("Explore offers Rent and Buy, and Buy keeps its search in the address bar",
   assert.match(browser, /const page = await searchSales\(filters\);/);
 });
 
-test("enquiries are in the navigation on both sides", () => {
+test("enquiries are reached on both sides, from the top bar's Enquiries", () => {
+  // Conversations, not a place to work through: they left the rail for the
+  // header, and both sides reach them there.
   const nav = read("web/src/lib/portalNav.ts");
-  assert.match(nav, /href: "\/enquiries", label: "Buyer enquiries"/);
-  assert.match(nav, /href: "\/enquiries", label: "Enquiries"/);
+  const shell = read("web/src/components/portal/PortalShell.tsx");
+  assert.doesNotMatch(nav, /label: "Buyer enquiries"/);
+  assert.match(nav, /return operates \? \{ href: "\/enquiries", as: "seller" \} : null;/);
+  assert.match(nav, /return \{ href: "\/enquiries", as: "buyer" \};/);
+  assert.match(shell, /className="portal-header-support"/);
+  assert.match(shell, /<Icon name="headset" \/>/);
+  assert.match(shell, />Enquiries<\/span>/);
   assert.match(read("web/src/lib/notificationMeaning.ts"), /case "sale_enquiry":\s*return `\/enquiries\/\$\{item\.target_id\}`;/);
+});
+
+test("enquiries are an inbox over the page, with the conversation's rules intact", () => {
+  const inbox = code(read("web/src/components/enquiries/EnquiriesInbox.tsx"));
+  const shell = code(read("web/src/components/portal/PortalShell.tsx"));
+
+  // Enquiries opens it over whatever page is showing; the shell hosts it.
+  assert.match(shell, /<EnquiriesInbox/);
+  assert.match(shell, /onClick=\{\(\) => openEnquiries\(/);
+  // The old addresses still work: arriving at one opens the inbox and steps back.
+  assert.match(shell, /setInbox\(\{ open: true, request: \{ id, side \} \}\);/);
+  assert.equal(code(read("web/app/enquiries/[id]/page.tsx")).includes("return null"), true);
+
+  // List and conversation, through the same three calls the pages used.
+  assert.match(inbox, /await listEnquiries\(effectiveSide\)/);
+  assert.match(inbox, /await getEnquiry\(selectedId\)/);
+  assert.match(inbox, /await replyToEnquiry\(selectedId, body\)/);
+  // Reading marks it read on the server, and the list says so at once.
+  assert.match(inbox, /row\.id === detail\.id \? \{ \.\.\.row, unread: false \}/);
+  // A sold property or closed enquiry stays readable and takes no replies.
+  assert.match(inbox, /const closed = thread \? thread\.status === "closed" \|\| thread\.sale\.status === "sold" : false;/);
+  // Only an account that can sell is offered the selling side.
+  assert.match(inbox, /const effectiveSide: EnquirySide = canSell \? side : "buyer";/);
 });

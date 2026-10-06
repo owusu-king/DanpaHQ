@@ -106,15 +106,25 @@ test("finding a Unit scales past a handful", () => {
 
   assert.match(page, /Search Unit or Property/);
   assert.match(page, /All Properties/);
-  assert.match(page, /role="tablist"/);
+  // The stages are the shared segmented control (a real tablist, in Workspace.tsx).
+  assert.match(page, /<SegmentedControl/);
+  assert.match(read("web/src/components/workspace/Workspace.tsx"), /role="tablist"/);
   assert.match(page, /Needs attention first/);
   // A filter nobody can act on is noise: Attention appears only when it exists.
   assert.match(page, /counts\.attention \?/);
 });
 
 test("global creation chooses a Property, then reuses the flow that exists", () => {
-  const create = read("web/app/units/new/page.tsx");
+  // The choice lives in one component: a modal from the Units page (owner,
+  // 2026-10-05), and the same list on /units/new for a direct link.
+  const create = read("web/src/components/property/AddUnitChooser.tsx");
+  const page = read("web/app/units/new/page.tsx");
+  const units = read("web/app/units/page.tsx");
   const property = read("web/app/properties/[id]/page.tsx");
+  assert.match(create, /<ModalSheet/);
+  assert.match(units, /<AddUnitButton/);
+  assert.doesNotMatch(units, /href=\{"\/units\/new"/);
+  assert.match(page, /<PropertyChoices/);
 
   // No second creation workflow — this hands over to the same route Property →
   // Add Unit uses, which is why that path skips this screen entirely.
@@ -195,7 +205,8 @@ test("a Property is recognized by its picture, and its Units are browsed five ac
   assert.match(serializer, /def get_cover_url/);
   assert.match(serializer, /_cover_files\(\)/);
   assert.match(list, /property\.cover_url/);
-  assert.match(list, /inventory-thumb/);
+  // The photograph sits in the card's corner.
+  assert.match(list, /className="property-card-photo"/);
 
   // A Unit's photograph is never the building's face: a room is not the block
   // containing it, and a property of twelve flats would wear whichever flat was

@@ -1,10 +1,221 @@
-/* Units across the whole Portfolio: find, recognize, open.
-   Cards here carry a photograph, which is the fastest way a person recognizes a
-   room they have stood in. Everything else on the card is one line. */
+/* Units across the whole Portfolio: find, recognize, open. The frame — head,
+   stages, panel, search and menus, the washed canvas — is the shared workspace
+   (`workspace.css`). A card leads with its photograph, which is the fastest way
+   a person recognizes a room they have stood in; the availability sits on the
+   photo, and everything else is a line. The same card draws the Unit tiles on a
+   Property, so it reads well with a simpler body too. */
 
-.units-workspace { display: grid; gap: var(--space-5); min-width: 0; }
+/* `/units/new` keeps its own simple column; the list uses the shared page. */
+.units-workspace:not(.ws-page) { display: grid; gap: var(--space-5); min-width: 0; }
+.units-panel-head .ws-panel-tools { flex: 1 1 auto; flex-wrap: wrap; }
+.units-empty-actions { display: inline-flex; flex-wrap: wrap; justify-content: center; gap: var(--space-2); }
 
-.units-controls { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
+.units-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 14.5rem), 1fr));
+  gap: var(--space-4);
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.unit-card-item {
+  min-width: 0;
+  animation: ws-rise var(--motion-duration-slow) var(--ws-enter) both;
+  animation-delay: calc(var(--unit-order, 0) * 24ms);
+}
+
+/* --- a card ------------------------------------------------------------------ */
+
+.unit-card {
+  --unit-ring: rgba(33, 26, 21, .07);
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: 0;
+  height: 100%;
+  padding: 6px;
+  overflow: hidden;
+  color: inherit;
+  text-decoration: none;
+  background: linear-gradient(170deg, rgba(255, 255, 255, .9), rgba(255, 255, 255, .7));
+  border: 1px solid rgba(255, 255, 255, .9);
+  border-radius: var(--radius-lg);
+  box-shadow:
+    0 0 0 1px var(--unit-ring),
+    0 1px 2px rgba(33, 26, 21, .04),
+    inset 0 1px 0 rgba(255, 255, 255, .95);
+  backdrop-filter: blur(12px) saturate(140%);
+  -webkit-backdrop-filter: blur(12px) saturate(140%);
+  transition:
+    transform var(--motion-duration-base) var(--ws-ease),
+    box-shadow var(--motion-duration-base) var(--ws-ease);
+}
+
+.unit-card[data-flagged] { --unit-ring: color-mix(in srgb, var(--color-harmattan-500) 30%, transparent); }
+
+/* The photograph, inset within the glass rather than bled to its edge. */
+.unit-card-photo {
+  position: relative;
+  aspect-ratio: 16 / 11;
+  overflow: hidden;
+  background: linear-gradient(150deg, var(--color-field-100), color-mix(in srgb, var(--color-kola-50) 70%, var(--color-field-100)));
+  border-radius: calc(var(--radius-lg) - 5px);
+}
+
+.unit-card-photo img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform var(--motion-duration-slow) var(--ws-ease);
+}
+
+/* An empty frame says so quietly; initials would be meaningless for a room.
+   The Property page's tiles still render a bare span here. */
+.unit-card-photo > span:not(.unit-card-state) {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: var(--space-1);
+  color: var(--color-ink-300);
+  font-size: .75rem;
+}
+
+.unit-card-nophoto { padding-top: 1.75rem; }
+.unit-card-nophoto .portal-icon { width: 22px; height: 22px; }
+
+/* Availability sits on the photo as a small glass chip. */
+.unit-card-state {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 9px 4px 8px;
+  color: var(--color-ink-700);
+  font-size: .75rem;
+  font-weight: 650;
+  background: rgba(255, 255, 255, .82);
+  border-radius: var(--radius-pill);
+  box-shadow: 0 1px 2px rgba(33, 26, 21, .08), inset 0 0 0 1px rgba(255, 255, 255, .6);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.unit-card-state i { width: 6px; height: 6px; flex: 0 0 auto; background: currentColor; border-radius: 50%; }
+.unit-card-state.is-available { color: var(--color-kola-600); }
+.unit-card-state.is-occupied { color: var(--color-ink-500); }
+.unit-card-state.is-expired { color: var(--color-harmattan-600); }
+
+.unit-card-body {
+  position: relative;
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  min-width: 0;
+  padding: var(--space-3) var(--space-3) var(--space-2);
+}
+
+.unit-card-title { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-2); min-width: 0; }
+
+.unit-card-title strong,
+.unit-card-body > strong {
+  overflow: hidden;
+  color: var(--color-ink-900);
+  font-size: 1rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.unit-card-title small { flex: 0 0 auto; color: var(--color-ink-500); font-size: .75rem; font-weight: 500; }
+
+.unit-card-where {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-ink-500);
+  font-size: .8125rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.unit-card-where .portal-icon { flex: 0 0 auto; width: 14px; height: 14px; }
+.unit-card-where span { overflow: hidden; text-overflow: ellipsis; }
+
+/* Shown only when something is actually wrong or waiting. */
+.unit-card-flag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  margin-top: 2px;
+  padding: 3px 8px 3px 6px;
+  color: var(--color-harmattan-600);
+  font-size: .75rem;
+  font-weight: 650;
+  background: var(--color-harmattan-100);
+  border-radius: var(--radius-xs);
+}
+
+.unit-card-flag .portal-icon { width: 13px; height: 13px; }
+
+/* "Open" wakes on intent, bottom right, so a resting grid stays quiet. */
+.unit-card-open {
+  position: absolute;
+  right: var(--space-3);
+  bottom: var(--space-2);
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  color: var(--color-kola-600);
+  font-size: .75rem;
+  font-weight: 650;
+  opacity: 0;
+  transform: translateX(-4px);
+  transition: opacity var(--motion-duration-base) var(--ws-ease), transform var(--motion-duration-base) var(--ws-ease);
+}
+
+/* Pointing at a card lifts it, draws the photo in a touch, and offers the way in. */
+.unit-card:hover {
+  --unit-ring: color-mix(in srgb, var(--color-kola-600) 24%, transparent);
+  transform: translateY(-3px);
+  box-shadow:
+    0 0 0 1px var(--unit-ring),
+    0 18px 36px -20px rgba(12, 58, 42, .3),
+    inset 0 1px 0 rgba(255, 255, 255, .95);
+}
+
+.unit-card:hover .unit-card-photo img { transform: scale(1.035); }
+.unit-card:hover .unit-card-open { opacity: 1; transform: none; }
+.unit-card:active { transform: translateY(-1px) scale(.995); transition-duration: var(--motion-duration-instant); }
+
+.unit-card:focus-visible {
+  outline: var(--border-emphasis) solid var(--color-kola-600);
+  outline-offset: 3px;
+  border-radius: var(--radius-lg);
+}
+
+.unit-card:focus-visible .unit-card-open { opacity: 1; transform: none; }
+
+.unit-card-item.is-returned .unit-card { animation: unit-found 1.8s var(--ws-ease); }
+
+@keyframes unit-found {
+  0%, 35% { box-shadow: 0 0 0 2px var(--color-kola-300), 0 18px 36px -20px rgba(12, 58, 42, .3); }
+}
+
+.unit-card.is-skeleton { pointer-events: none; }
+.unit-card.is-skeleton .unit-card-body { gap: var(--space-2); }
+.unit-skeleton-photo { position: absolute; inset: 0; height: auto; border-radius: 0; }
+
+/* --- choosing a Property for a new Unit -------------------------------------- */
+
 .units-search { flex: 1 1 20rem; min-width: 0; }
 .units-search input {
   width: 100%;
@@ -17,78 +228,12 @@
   border-radius: var(--radius-md);
 }
 
-.units-select { display: flex; align-items: center; gap: var(--space-2); }
-.units-select select {
-  min-height: 48px;
-  max-width: 16rem;
-  padding: 0 var(--space-3);
-  color: inherit;
-  font: inherit;
-  background: var(--color-field-0);
-  border: var(--border-hairline) solid var(--color-field-300);
-  border-radius: var(--radius-md);
-}
-
-.units-tabs { display: flex; gap: var(--space-5); border-bottom: var(--border-hairline) solid var(--color-field-200); }
-.units-tab {
-  min-height: 48px;
-  padding: 0 0 var(--space-2);
-  color: var(--color-ink-500);
-  background: none;
-  border: 0;
-  border-bottom: 3px solid transparent;
-  cursor: pointer;
-}
-.units-tab[aria-selected="true"] { color: var(--color-ink-900); border-bottom-color: var(--color-kola-600); }
-.units-tab span { margin-left: var(--space-2); font-weight: 400; }
-
-.units-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: var(--space-4); padding: 0; margin: 0; list-style: none; }
-
-.unit-card {
-  display: grid;
-  align-content: start;
-  height: 100%;
-  color: inherit;
-  text-decoration: none;
-  background: var(--color-field-0);
-  border: var(--border-hairline) solid var(--color-field-200);
-  border-radius: var(--radius-md);
-  overflow: hidden;
-  transition: border-color 120ms ease;
-}
-
-.unit-card:hover { border-color: var(--color-kola-600); }
-
-.unit-card-photo { position: relative; aspect-ratio: 4 / 3; background: var(--color-field-100); }
-.unit-card-photo img { display: block; width: 100%; height: 100%; object-fit: cover; }
-/* Initials would be meaningless for a room, so an empty frame says so quietly. */
-.unit-card-photo span { position: absolute; inset: 0; display: grid; place-items: center; color: var(--color-ink-300); font-size: .8125rem; }
-
-.unit-card-body { display: grid; gap: var(--space-1); padding: var(--space-4); }
-.unit-card-body strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.unit-card-where { overflow: hidden; color: var(--color-ink-500); font-size: .875rem; text-overflow: ellipsis; white-space: nowrap; }
-
-.unit-card-state { display: inline-flex; align-items: center; gap: var(--space-2); font-size: .875rem; font-weight: 600; }
-.unit-card-state i { width: 8px; height: 8px; flex: 0 0 auto; background: currentColor; border-radius: 50%; }
-.unit-card-state.is-available { color: var(--color-kola-600); }
-.unit-card-state.is-occupied { color: var(--color-ink-500); }
-.unit-card-state.is-expired { color: var(--color-harmattan-600); }
-
-/* Shown only when something is actually wrong or waiting. */
-.unit-card-flag { color: var(--color-laterite-600); font-size: .8125rem; font-weight: 650; }
-
-.units-count { color: var(--color-ink-500); font-size: .875rem; }
-
-.units-search input:focus-visible,
-.units-select select:focus-visible,
-.units-tab:focus-visible,
-.unit-card:focus-visible {
+.units-search input:focus-visible {
   outline: 3px solid var(--color-lagoon-600);
   outline-offset: 2px;
 }
 
-/* Choosing which Property a new Unit belongs to. A list, because a provider
-   recognizes a Property by name and there may be many. */
+/* A list, because a provider recognizes a Property by name and there may be many. */
 .unit-property-list { display: grid; gap: 0; padding: 0; margin: 0; list-style: none; border-top: var(--border-hairline) solid var(--color-field-200); }
 .unit-property-row {
   display: flex;
@@ -110,14 +255,41 @@
 .unit-property-row:hover { background: var(--color-field-0); }
 .unit-property-row span { color: var(--color-ink-500); font-size: .875rem; }
 
+/* --- narrow ------------------------------------------------------------------ */
+
+@media (max-width: 760px) {
+  /* Search takes its own line; the two menus and the count share the next. */
+  .units-panel-head { flex-wrap: wrap; row-gap: var(--space-2); }
+  .units-panel-head .ws-panel-tools { display: contents; }
+  .units-panel-head .ws-search { flex: 1 1 100%; width: 100%; }
+  .units-panel-head .ws-range { margin-left: auto; }
+}
+
 @media (max-width: 600px) {
-  .units-controls { align-items: stretch; flex-direction: column; }
-  .units-select select { max-width: none; }
-  .units-tabs { gap: var(--space-4); overflow-x: auto; scrollbar-width: none; }
-  .units-tab { min-width: max-content; }
-  .units-grid { grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr)); gap: var(--space-3); }
+  .units-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
+  .unit-card-title { display: grid; gap: 0; }
+  .unit-card-flag { max-width: 100%; overflow: hidden; font-size: .6875rem; text-overflow: ellipsis; white-space: nowrap; }
+  .unit-card-open { display: none; }
+}
+
+@media (max-width: 360px) {
+  .units-grid { grid-template-columns: 1fr; }
+}
+
+/* Touch has no hover: nothing lifts, and the card itself is the way in. */
+@media (hover: none) {
+  .unit-card:hover { transform: none; }
+  .unit-card:hover .unit-card-photo img { transform: none; }
+  .unit-card-open { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .unit-card { transition: none; }
+  .unit-card-item,
+  .unit-card-item.is-returned .unit-card { animation: none; }
+  .unit-card,
+  .unit-card-photo img,
+  .unit-card-open { transition: none; }
+  .unit-card:hover,
+  .unit-card:active,
+  .unit-card:hover .unit-card-photo img { transform: none; }
 }

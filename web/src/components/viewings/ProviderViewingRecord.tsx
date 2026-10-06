@@ -15,12 +15,13 @@
  * `attendance` and `post_viewing` — all computed per-reader on the server.
  */
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/Button";
 import { Radio } from "@/components/Check";
 import { Field } from "@/components/Field";
 import { Notice } from "@/components/Notice";
+import { Icon } from "@/components/portal/icons";
 import { ViewingDirections } from "@/components/viewings/ViewingDirections";
 import { ApiFailure } from "@/lib/api";
 import {
@@ -61,28 +62,70 @@ export function ProviderViewingRecord({ viewing, onChanged }: { viewing: Viewing
     }
   }
 
+  const summary = providerViewingSummary(viewing);
+  const when = viewing.confirmed_starts_at ? new Date(viewing.confirmed_starts_at) : null;
+  const place = [viewing.property_title, viewing.unit_label].filter(Boolean).join(" · ");
+
   return (
-    <div className="viewing-detail">
-      <div className="viewing-detail-identity">
-        <p className="type-body-strong">{viewing.listing_headline}</p>
-        <p className="type-caption">{[viewing.locality_name, viewing.rent_formatted ? `${viewing.rent_formatted} per month` : null].filter(Boolean).join(" · ")}</p>
-        <span className={`viewing-row-state is-${providerViewingSummary(viewing).tone}`}><i aria-hidden="true" />{providerViewingSummary(viewing).label}</span>
+    <div className="vr">
+      {/* When it is, where it stands and where it is: one card, read at a glance. */}
+      <section className="vr-hero" data-tone={summary.tone} aria-label="Viewing">
+      <div className="vr-when">
+        <span className="vr-date" aria-hidden="true">
+          {when ? (
+            <>
+              <strong>{when.toLocaleDateString("en-GH", { day: "numeric" })}</strong>
+              <small>{when.toLocaleDateString("en-GH", { month: "short" })}</small>
+            </>
+          ) : <Icon name="viewings" />}
+        </span>
+        <span className="vr-when-copy">
+          <strong>
+            {when
+              ? `${when.toLocaleDateString("en-GH", { weekday: "long" })} · ${when.toLocaleTimeString("en-GH", { hour: "numeric", minute: "2-digit" })}`
+              : viewing.status === "offered" ? "Tenant is picking a time" : "No time yet"}
+          </strong>
+          <span className={`viewing-row-state is-${summary.tone}`}><i aria-hidden="true" />{summary.label}</span>
+        </span>
       </div>
 
-      {viewing.message ? (
-        <blockquote>“{viewing.message}”</blockquote>
-      ) : null}
+      <div className="vr-place">
+        <span className="vr-photo" aria-hidden="true">
+          {viewing.photo_url ? (
+            /* Short-lived signed URLs from the files service. */
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img src={viewing.photo_url} alt="" />
+          ) : <Icon name="properties" />}
+        </span>
+        <span className="vr-place-copy">
+          <strong>{viewing.listing_headline}</strong>
+          <small>{[place || null, viewing.locality_name, viewing.rent_formatted ? `${viewing.rent_formatted}/mo` : null].filter(Boolean).join(" · ")}</small>
+        </span>
+      </div>
+      </section>
 
-      {viewing.availability_note ? (
-        <p className="type-caption">Tenant availability: {viewing.availability_note}</p>
-      ) : null}
-
-      {viewing.confirmed_starts_at ? (
-        <div className="viewing-schedule"><span>Scheduled</span><strong>{formatViewingTime(viewing.confirmed_starts_at)}</strong></div>
+      {viewing.message || viewing.availability_note ? (
+        <section className="vr-note" aria-label={`From ${viewing.tenant_name}`}>
+          <span className="vr-avatar" aria-hidden="true">{initialsOf(viewing.tenant_name)}</span>
+          <div>
+            <p className="vr-note-who">{viewing.tenant_name}</p>
+            {viewing.message ? <blockquote>“{viewing.message}”</blockquote> : null}
+            {viewing.availability_note ? <p className="vr-note-small"><Icon name="clock" />{viewing.availability_note}</p> : null}
+          </div>
+        </section>
       ) : null}
 
       {viewing.contact ? (
-        <section className="viewing-detail-section"><h3>Contact</h3><p>{viewing.contact.name} · <a href={`tel:${viewing.contact.phone}`}>{viewing.contact.phone}</a></p></section>
+        <section className="vr-contact" aria-label="Contact">
+          <span className="vr-avatar is-contact" aria-hidden="true">{initialsOf(viewing.contact.name)}</span>
+          <span className="vr-contact-copy">
+            <strong>{viewing.contact.name}</strong>
+            <small>{viewing.contact.phone}</small>
+          </span>
+          <a className="vr-icon-button" href={`tel:${viewing.contact.phone}`} aria-label={`Call ${viewing.contact.name}`} title="Call">
+            <Icon name="handset" />
+          </a>
+        </section>
       ) : null}
 
       {viewing.viewing_directions ? <ViewingDirections directions={viewing.viewing_directions} /> : null}
@@ -97,9 +140,10 @@ export function ProviderViewingRecord({ viewing, onChanged }: { viewing: Viewing
       <AttendanceResolutionPanel viewing={viewing} busy={busy} run={run} />
 
       {declining ? (
-        <section className="viewing-inline-confirm">
-          <Notice tone="warning" title="Decline this request?" body="The tenant will be told that this viewing will not go ahead." />
-          <div className="viewing-actions"><Button variant="destructive" busy={busy} onClick={() => run(() => viewingAction(viewing.id, "decline", "Not available").then((result) => { setDeclining(false); return result; }))}>Decline request</Button><Button variant="quiet" disabled={busy} onClick={() => setDeclining(false)}>Keep request</Button></div>
+        <section className="viewing-inline-confirm vr-confirm is-danger">
+          <p className="vr-panel-title">Decline this request?</p>
+          <p className="vr-panel-body">The tenant will be told.</p>
+          <div className="vr-row"><Button variant="destructive" busy={busy} onClick={() => run(() => viewingAction(viewing.id, "decline", "Not available").then((result) => { setDeclining(false); return result; }))}>Decline</Button><Button variant="quiet" disabled={busy} onClick={() => setDeclining(false)}>Keep</Button></div>
         </section>
       ) : null}
 
@@ -116,7 +160,9 @@ export function ProviderViewingRecord({ viewing, onChanged }: { viewing: Viewing
 
       {offering ? (
         <OfferTimes
-          onCancel={() => setOffering(false)}
+          purpose={rescheduling ? "reschedule" : "offer"}
+          busy={busy}
+          onCancel={() => { setOffering(false); setRescheduling(false); }}
           onOffer={async (input) => {
             await run(() => rescheduling
               ? rescheduleViewing(viewing.id, input.slots)
@@ -126,11 +172,11 @@ export function ProviderViewingRecord({ viewing, onChanged }: { viewing: Viewing
           }}
         />
       ) : (
-        <div style={{ marginTop: "var(--space-4)", display: "flex", gap: "var(--space-3)", flexWrap: "wrap" }}>
+        <div className="vr-actions">
           {viewing.actions.can_decline ? (
             <>
               <Button onClick={() => setOffering(true)}>
-                {viewing.status === "offered" ? "Offer different times" : "Offer times"}
+                <Icon name="clock" />{viewing.status === "offered" ? "New times" : "Offer times"}
               </Button>
               {viewing.actions.can_decline ? <Button
                 variant="destructive"
@@ -147,11 +193,12 @@ export function ProviderViewingRecord({ viewing, onChanged }: { viewing: Viewing
               {viewing.check_in.can_validate ? (
                 <ProviderManualCheckIn viewing={viewing} onChanged={onChanged} />
               ) : (
-                <Notice
-                  tone="info"
-                  title={viewing.check_in.state === "upcoming" ? "Check-in opens near the viewing time" : "Waiting for verified check-in"}
-                  body={viewing.check_in.opens_at && viewing.check_in.state === "upcoming" ? `Available after ${formatViewingTime(viewing.check_in.opens_at)}.` : "Ask the tenant to show their temporary QR or six-digit code when they arrive."}
-                />
+                <p className="vr-hint">
+                  <Icon name="clock" />
+                  {viewing.check_in.opens_at && viewing.check_in.state === "upcoming"
+                    ? `Check-in opens ${formatViewingTime(viewing.check_in.opens_at)}`
+                    : "Ask for the tenant’s check-in code on arrival"}
+                </p>
               )}
               <Button
                 variant="secondary"
@@ -161,14 +208,14 @@ export function ProviderViewingRecord({ viewing, onChanged }: { viewing: Viewing
                   setOffering(true);
                 }}
               >
-                Offer different times
+                Reschedule
               </Button>
               {!cancelling ? <Button
                 variant="quiet"
                 busy={busy}
                 onClick={() => setCancelling(true)}
               >
-                Cancel appointment
+                Cancel viewing
               </Button> : null}
             </>
           ) : null}
@@ -184,7 +231,7 @@ export function ProviderViewingRecord({ viewing, onChanged }: { viewing: Viewing
           ) : null}
           {viewing.actions.can_cancel && viewing.status !== "confirmed" && !cancelling ? (
             <Button variant="quiet" disabled={busy} onClick={() => setCancelling(true)}>
-              Cancel appointment
+              Cancel viewing
             </Button>
           ) : null}
         </div>
@@ -197,9 +244,8 @@ function ConfirmOfferedSlot({ viewing, busy, onConfirm }: { viewing: Viewing; bu
   const [selected, setSelected] = useState("");
   const available = viewing.slots.filter((slot) => !slot.is_past);
   return (
-    <section style={{ marginTop: "var(--space-4)", display: "grid", gap: "var(--space-2)" }}>
-      <p className="type-body-strong" style={{ margin: 0 }}>Choose the replacement time</p>
-      <p className="type-caption" style={{ margin: 0 }}>The other party suggested these times. Confirming one creates the next appointment in the history.</p>
+    <section className="vr-panel">
+      <p className="vr-panel-title">Pick the new time</p>
       {available.map((slot) => (
         <Radio
           key={slot.id}
@@ -209,7 +255,7 @@ function ConfirmOfferedSlot({ viewing, busy, onConfirm }: { viewing: Viewing; bu
           onChange={() => setSelected(slot.id)}
         />
       ))}
-      <div><Button busy={busy} disabled={!selected} onClick={() => onConfirm(selected)}>Confirm replacement time</Button></div>
+      <div><Button busy={busy} disabled={!selected} onClick={() => onConfirm(selected)}>Confirm time</Button></div>
     </section>
   );
 }
@@ -218,10 +264,10 @@ function CancelAppointmentForm({ busy, onBack, onCancel }: { busy: boolean; onBa
   const [reason, setReason] = useState<ViewingCancellationReason>("schedule_conflict");
   const [note, setNote] = useState("");
   return (
-    <section style={{ marginTop: "var(--space-4)", padding: "var(--space-4)", border: "var(--border-hairline) solid var(--color-field-300)", borderRadius: "var(--radius-sm)", display: "grid", gap: "var(--space-3)" }}>
-      <Notice tone="info" title="Could a new time work?" body="Rescheduling keeps the appointment active. Cancel only when the viewing should not go ahead." />
-      <label className="type-body-strong">Reason
-        <select value={reason} onChange={(event) => setReason(event.target.value as ViewingCancellationReason)} style={{ display: "block", width: "100%", marginTop: "var(--space-1)", minHeight: 44 }}>
+    <section className="vr-panel is-danger">
+      <Notice tone="info" title="Could a new time work?" body="Rescheduling keeps it active." />
+      <label className="vr-select">Reason
+        <select value={reason} onChange={(event) => setReason(event.target.value as ViewingCancellationReason)}>
           <option value="schedule_conflict">Schedule conflict</option>
           <option value="emergency">Emergency</option>
           <option value="transportation_problem">Transportation problem</option>
@@ -230,10 +276,10 @@ function CancelAppointmentForm({ busy, onBack, onCancel }: { busy: boolean; onBa
           <option value="other">Other</option>
         </select>
       </label>
-      <Field label="Optional note" value={note} onChange={(event) => setNote(event.target.value)} />
-      <div style={{ display: "flex", gap: "var(--space-2)", flexWrap: "wrap" }}>
-        <Button variant="destructive" busy={busy} onClick={() => onCancel({ reason, note })}>Cancel appointment</Button>
-        <Button variant="quiet" disabled={busy} onClick={onBack}>Keep appointment</Button>
+      <Field label="Note (optional)" value={note} onChange={(event) => setNote(event.target.value)} />
+      <div className="vr-row">
+        <Button variant="destructive" busy={busy} onClick={() => onCancel({ reason, note })}>Cancel viewing</Button>
+        <Button variant="quiet" disabled={busy} onClick={onBack}>Keep</Button>
       </div>
     </section>
   );
@@ -247,11 +293,11 @@ function AttendanceResolutionPanel({ viewing, busy, run }: { viewing: Viewing; b
   if (viewing.attendance.state === "pending") {
     const alleged = viewing.attendance.alleged_absent_party === "tenant" ? "tenant" : "host";
     return (
-      <section style={{ marginTop: "var(--space-4)", display: "grid", gap: "var(--space-2)" }}>
+      <section className="vr-panel">
         <Notice tone="info" title="Attendance report awaiting a response" body={`The other party reported the ${alleged} absent. This is an allegation, not a verified outcome.`} />
         {viewing.attendance.can_respond ? <>
           <Field label="Optional response note" value={note} onChange={(event) => setNote(event.target.value)} />
-          <div style={{ display: "flex", gap: "var(--space-2)", flexWrap: "wrap" }}>
+          <div className="vr-row">
             <Button busy={busy} onClick={() => run(() => respondViewingAttendance(viewing.id, "confirm", note))}>Confirm I could not attend</Button>
             <Button variant="secondary" busy={busy} onClick={() => run(() => respondViewingAttendance(viewing.id, "dispute", note))}>Dispute report</Button>
           </div>
@@ -261,7 +307,7 @@ function AttendanceResolutionPanel({ viewing, busy, run }: { viewing: Viewing; b
   }
   if (!viewing.attendance.can_report) return null;
   return (
-    <section style={{ marginTop: "var(--space-4)", display: "grid", gap: "var(--space-2)" }}>
+    <section className="vr-panel">
       <Notice tone="info" title="No verified check-in" body="A missing check-in does not prove who was absent. You may report that the other party did not attend; they will be asked to confirm or dispute it." />
       <Field label="Optional factual note" value={note} onChange={(event) => setNote(event.target.value)} />
       <div><Button variant="secondary" busy={busy} onClick={() => run(() => reportViewingNoShow(viewing.id, note))}>Report other party absent</Button></div>
@@ -272,9 +318,9 @@ function AttendanceResolutionPanel({ viewing, busy, run }: { viewing: Viewing; b
 function AppointmentHistory({ viewing }: { viewing: Viewing }) {
   if (viewing.appointments.length < 2 && !viewing.appointments.some((item) => item.status === "rescheduled")) return null;
   return (
-    <details style={{ marginTop: "var(--space-3)" }}>
-      <summary className="type-body-strong">Appointment history</summary>
-      <ol className="type-caption" style={{ marginBottom: 0 }}>
+    <details className="vr-history">
+      <summary>Appointment history</summary>
+      <ol>
         {viewing.appointments.map((appointment) => (
           <li key={appointment.id}>{formatViewingTime(appointment.scheduled_at)} — {appointment.status.replaceAll("_", " ")}{appointment.rescheduled_by ? ` by ${appointment.rescheduled_by}` : ""}</li>
         ))}
@@ -302,18 +348,21 @@ function ProviderManualCheckIn({ viewing, onChanged }: { viewing: Viewing; onCha
   }
 
   return (
-    <section style={{ flexBasis: "100%", padding: "var(--space-4)", background: "var(--color-kola-50)", borderRadius: "var(--radius-sm)" }}>
-      <h3 className="type-body-strong" style={{ margin: 0 }}>Ready for check-in</h3>
-      <p className="type-caption" style={{ margin: "var(--space-1) 0 var(--space-3)" }}>Enter the temporary code shown on the tenant&apos;s screen.</p>
-      <div style={{ display: "flex", gap: "var(--space-2)", alignItems: "end", flexWrap: "wrap" }}>
+    <section className="vr-checkin">
+      <span className="vr-checkin-mark" aria-hidden="true"><Icon name="check" /></span>
+      <div>
+        <h3>Check in</h3>
+        <p>Enter the code on the tenant&apos;s screen.</p>
+      </div>
+      <div className="vr-checkin-form">
         <Field
-          label="6-digit check-in code"
+          label="6-digit code"
           inputMode="numeric"
           autoComplete="one-time-code"
           value={code}
           onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
         />
-        <Button busy={busy} busyLabel="Checking…" disabled={code.length !== 6} onClick={submit}>Check in tenant</Button>
+        <Button busy={busy} busyLabel="Checking…" disabled={code.length !== 6} onClick={submit}>Check in</Button>
       </div>
       {error ? <Notice tone="error" title={error} /> : null}
     </section>
@@ -324,53 +373,86 @@ function OfferTimes({
   onCancel,
   onOffer,
   purpose = "offer",
+  busy: parentBusy = false,
 }: {
   onCancel: () => void;
   onOffer: (input: {
     slots: { starts_at: string }[];
   }) => Promise<void>;
   purpose?: "offer" | "reschedule";
+  busy?: boolean;
 }) {
   const [times, setTimes] = useState<string[]>([""]);
   const [busy, setBusy] = useState(false);
+  const panel = useRef<HTMLElement>(null);
 
   const filled = times.filter((value) => value);
 
+  // Opened from the action bar at the foot, so bring the new panel into view —
+  // once a sheet around it has finished growing, or the scroll would be
+  // measured against a height that is still changing.
+  useEffect(() => {
+    const node = panel.current;
+    if (!node) return;
+    node.querySelector<HTMLInputElement>("input")?.focus({ preventScroll: true });
+    let live = true;
+    const sheet = node.closest("dialog");
+    const growing = sheet ? sheet.getAnimations().filter((animation) => animation.playState === "running") : [];
+    void Promise.allSettled(growing.map((animation) => animation.finished)).then(() => {
+      if (live) node.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    });
+    return () => { live = false; };
+  }, []);
+
   return (
-    <div style={{ marginTop: "var(--space-4)", display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
-      <p className="type-caption" style={{ margin: 0, color: "var(--color-ink-700)" }}>
-        {purpose === "reschedule"
-          ? "Suggest up to five replacement times. The other party confirms one; the original appointment remains in the history."
-          : "Offer up to five times. The tenant picks one, and only then do you exchange numbers."}
-      </p>
+    <>
+      <section ref={panel} className="vr-offer" aria-label={purpose === "reschedule" ? "New times" : "Offer times"}>
+        <header className="vr-offer-head">
+          <strong>{purpose === "reschedule" ? "New times" : "Offer times"}</strong>
+          <span className="vr-offer-count" aria-label={`${filled.length} of 5 times`}>{filled.length}/5</span>
+        </header>
 
-      {times.map((value, index) => (
-        <Field
-          key={index}
-          label={index === 0 ? "A time that works" : "Another time"}
-          type="datetime-local"
-          value={value}
-          onChange={(event) => {
-            const next = [...times];
-            next[index] = event.target.value;
-            setTimes(next);
-          }}
-        />
-      ))}
+        <ol className="vr-slots">
+          {times.map((value, index) => (
+            <li key={index} className="vr-slot" data-filled={value ? "" : undefined}>
+              <span className="vr-slot-mark" aria-hidden="true">{index + 1}</span>
+              <input
+                className="vr-slot-input"
+                type="datetime-local"
+                aria-label={`Time ${index + 1}`}
+                value={value}
+                onChange={(event) => {
+                  const next = [...times];
+                  next[index] = event.target.value;
+                  setTimes(next);
+                }}
+              />
+              {times.length > 1 ? (
+                <button
+                  type="button"
+                  className="vr-slot-remove"
+                  aria-label={`Remove time ${index + 1}`}
+                  onClick={() => setTimes(times.filter((_, at) => at !== index))}
+                >
+                  <Icon name="close" />
+                </button>
+              ) : null}
+            </li>
+          ))}
+        </ol>
 
-      {times.length < 5 ? (
-        <div>
-          <Button variant="quiet" onClick={() => setTimes([...times, ""])}>
-            Add another time
-          </Button>
-        </div>
-      ) : null}
+        {times.length < 5 ? (
+          <button type="button" className="vr-slot-add" onClick={() => setTimes([...times, ""])}>
+            <Icon name="plus" />Add time
+          </button>
+        ) : null}
 
-      <Notice tone="info" title="Rooomly viewings are free" body="Tenants should never be charged simply to attend a viewing." />
+        <p className="vr-hint is-quiet"><Icon name="shield" />Viewings are always free for tenants</p>
+      </section>
 
-      <div style={{ display: "flex", gap: "var(--space-3)" }}>
+      <div className="vr-actions is-offer">
         <Button
-          busy={busy}
+          busy={busy || parentBusy}
           busyLabel="Sending…"
           disabled={filled.length === 0}
           onClick={async () => {
@@ -386,12 +468,16 @@ function OfferTimes({
             }
           }}
         >
-          {purpose === "reschedule" ? "Suggest" : "Offer"} {filled.length ? `${filled.length} time${filled.length === 1 ? "" : "s"}` : "times"}
+          Send {filled.length ? `${filled.length} time${filled.length === 1 ? "" : "s"}` : "times"}
         </Button>
         <Button variant="quiet" onClick={onCancel}>
           Cancel
         </Button>
       </div>
-    </div>
+    </>
   );
+}
+
+function initialsOf(name: string) {
+  return name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase() ?? "").join("") || "?";
 }

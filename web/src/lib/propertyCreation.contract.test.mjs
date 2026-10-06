@@ -26,54 +26,47 @@ const mobileStep = () => read("mobile/app/(app)/private-property.tsx");
 const webChoice = () => read("web/src/components/property/PropertyTypeChoice.tsx");
 const mobileChoice = () => read("mobile/src/components/property/PropertyTypeChoice.tsx");
 
-test("the kind of property is chosen, not picked from a list", () => {
-  // Three categories, and the choice decides what may be let inside — the
-  // backend enforces it through `space_rules`. A dropdown made the most
-  // consequential field on the page the least visible one.
-  assert.doesNotMatch(code(webStep()), /label="What kind of property is this\?"[\s\S]{0,200}options=/);
+test("the kind of property is one compact choice on each platform", () => {
+  // A dropdown on both (owner, 2026-10-05 — "it needs to be a dropdown for
+  // selection"); the tiles were rows of cards for a three-way choice. On a
+  // phone it is the bottom-sheet Select every other question uses.
   assert.match(code(webStep()), /<PropertyTypeChoice/);
+  assert.match(webChoice(), /<Select/);
+  assert.doesNotMatch(webChoice(), /type-choice-grid/);
   assert.match(code(mobileStep()), /<PropertyTypeChoice/);
-  assert.doesNotMatch(code(mobileStep()), /<Choice[\s\S]{0,120}kind of property/);
+  assert.match(mobileChoice(), /<Select\s+label="Property type"/);
+  assert.match(read("mobile/src/components/property/PurposeChoice.tsx"), /<Select\s+label="Purpose"/);
 
-  // Still three, and still the backend's three.
+  // Still the backend's three, and both clients' options are the API's own
+  // list rather than a copy of it.
   const model = read("backend/apps/property/models.py");
   for (const value of ["residential", "commercial", "hostel"]) {
     assert.match(model, new RegExp(`"${value}"`));
-    assert.match(webChoice(), new RegExp(`${value}:`));
-    assert.match(mobileChoice(), new RegExp(`${value}:`));
   }
+  assert.match(webChoice(), /types\.map\(\(type\) => \[type\.value, type\.label\]/);
+  assert.match(mobileChoice(), /types\.map\(\(type\) => \(\{/);
 });
 
 test("each choice says what it buys, from the API rather than from copy", () => {
   // "Apartment · House · Studio · Room" is `space_rules` talking. Written out
   // by hand it would drift the first time the vocabulary changed, and could
   // describe a combination the backend would refuse.
+  // Mobile under each answer in the sheet; web in one line under the dropdown.
+  assert.match(mobileChoice(), /type\.space_types/);
+  assert.match(webChoice(), /chosen\?\.space_types/);
   for (const source of [webChoice(), mobileChoice()]) {
-    assert.match(source, /type\.space_types/);
     assert.match(source, /\.join\(" · "\)/);
   }
   assert.match(read("backend/apps/property/space_rules.py"), /residential/);
 });
 
 test("choosing looks chosen, and moves nothing", () => {
-  const css = read("web/src/styles/property-workspace.css");
+  // Web is a native select now, so the browser carries state and keys. Purpose
+  // is one too: two cards for a two-way choice were "unnecessary".
+  assert.match(read("web/src/components/property/PurposeChoice.tsx"), /<Select\s+label="Purpose"/);
 
-  // Real radios: arrow keys, announced state, and a native signal to style on.
-  assert.match(webChoice(), /<input\s*\n?\s*type="radio"/);
-  assert.match(css, /\.type-choice-option input:checked \+ \.type-choice-face/);
-  assert.match(css, /\.type-choice-option input:focus-visible \+ \.type-choice-face/);
-  // The whole tile is the target.
-  assert.match(css, /\.type-choice-option input \{[\s\S]{0,140}inset: 0/);
-
-  // Selection is an inset ring, not a thicker border: a tile that grows by a
-  // pixel when chosen nudges the two beside it.
-  assert.match(css, /box-shadow: inset 0 0 0 1px var\(--color-kola-600\)/);
-
-  // Mobile says it three ways, so colour is not carrying it alone. The state
-  // goes out as `aria-selected`, which is the only form react-native-web reads.
-  assert.match(mobileChoice(), /aria-selected=\{selected\}/);
-  assert.match(mobileChoice(), /name="checkmark-circle"/);
-  assert.match(mobileChoice(), /borderColor: selected \? theme\.color\.kola\["600"\]/);
+  // Mobile's Select sheet marks the chosen answer itself, as a radio group.
+  assert.match(read("mobile/src/components/form/Select.tsx"), /accessibilityRole="radio"/);
 });
 
 test("creating a property is not submitting it for verification", () => {
@@ -99,7 +92,16 @@ test("mobile creation keeps the compact journey without the desktop step block",
     assert.match(source, /<SetupProgress/);
     assert.doesNotMatch(source, /<SetupSteps/);
   }
-  assert.match(webSetup, /<SetupSteps/);
+  // Web too, now: the tracker's icons move between sections (owner, 2026-10-05:
+  // "omit the little side nav and allow jumping … via the tracking icons").
+  assert.doesNotMatch(webSetup, /<SetupSteps/);
+  assert.doesNotMatch(code(webStep()), /<SetupSteps/);
+  assert.match(webSetup, /<SetupProgress steps=\{steps\} current=\{active\.key\} onSelect=\{\(key\) => setStep\(key as StepKey\)\} \/>/);
+  const journey = read("web/src/components/creation/CheckpointJourney.tsx");
+  assert.match(journey, /onSelect && \(canSelect \? canSelect\(checkpoint\) : true\) \? \(\s*<button/);
+  assert.match(journey, /aria-current=\{checkpoint\.state === "current" \? "step" : undefined\}/);
+  // Unit creation jumps too, once the Unit exists to hold the later steps.
+  assert.match(read("web/app/properties/[id]/spaces/new/page.tsx"), /canSelect=\{\(checkpoint\) => canJump \|\| checkpoint\.key === "details"\}/);
 });
 
 test("the review shows the property, not a progress table", () => {

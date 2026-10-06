@@ -56,7 +56,7 @@ test("the section appears only when it is worth showing", () => {
   // section already says what is missing.
   assert.match(rule, /if \(!context\.verified\) return hidden;/);
   // But a verified Unit that is blocked says which one thing blocks it.
-  assert.match(rule, /End the tenancy before sharing this space again/);
+  assert.match(rule, /End the tenancy to share it again/);
 });
 
 test("the readable code is never reconstructed or stored", () => {
@@ -104,9 +104,12 @@ test("the tab is somewhere to create a code, not an inventory", () => {
   // Units carries this same section on every Unit, so it is a complete answer.
   const page = read("web/app/tenants/page.tsx");
 
-  assert.match(page, /const ACCESS_PREVIEW = 3;/);
+  // Web shows two rows of three small cards (owner, 2026-10-05: full-width
+  // rows replaced the "simple cards"); still a preview, not the inventory.
+  assert.match(page, /const ACCESS_PREVIEW = 6;/);
   assert.match(page, /ready\.slice\(0, ACCESS_PREVIEW\)/);
-  assert.match(page, /\{shown\.map\(\(space\) => \(/);
+  assert.match(page, /\{shown\.map\(\(space, index\) => \(/);
+  assert.match(page, /className="tenants-access-grid"/);
 
   // What is off screen is said, and there is one link to all of it.
   assert.match(page, /Showing \$\{shown\.length\} of \$\{ready\.length\}/);

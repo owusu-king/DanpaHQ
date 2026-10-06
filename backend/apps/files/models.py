@@ -29,6 +29,7 @@ class FilePurpose(models.TextChoices):
     LEASE_DOCUMENT = "lease_document", "Lease document"
     PAYMENT_EVIDENCE = "payment_evidence", "Payment evidence"
     MAINTENANCE_PHOTO = "maintenance_photo", "Maintenance photo"
+    MAINTENANCE_VIDEO = "maintenance_video", "Maintenance video"
     AVATAR = "avatar", "Profile photo"
     OTHER = "other", "Other"
 

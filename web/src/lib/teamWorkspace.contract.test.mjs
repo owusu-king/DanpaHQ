@@ -68,7 +68,10 @@ test("the Team dialogs match the record pattern the other areas set", () => {
   // name the wrong one.
   assert.match(team, /id="team-invite-dialog"/);
   assert.match(team, /id="team-member-dialog"/);
-  assert.match(team, /aria-labelledby=\{`\$\{id\}-title`\}/);
+  assert.match(team, /titleId=\{`\$\{id\}-title`\}/);
+  // They are the workspace's sheet, so they open, sit and close like every
+  // other modal here.
+  assert.match(team, /<ModalSheet/);
 
   // Unsaved changes keep their controls in one place rather than appearing
   // between sections and scrolling out of reach.
@@ -82,7 +85,7 @@ test("the Team dialogs match the record pattern the other areas set", () => {
   // Every other workspace states its focus ring; the UA default vanishes here.
   assert.match(css, /focus-visible[\s\S]*outline: 3px solid var\(--color-lagoon-600\)/);
 
-  // Phone width turns the dialog into a bottom sheet.
-  assert.match(css, /@media \(max-width: 600px\)[\s\S]*margin: auto 0 0/);
+  // Phone width turns the sheet into the whole screen.
+  assert.match(read("web/src/styles/doc-modal.css"), /@media \(max-width: 47\.99rem\)[\s\S]*\.doc-modal\.is-sm \{ inset: 0; width: 100vw; height: 100dvh/);
 });
 

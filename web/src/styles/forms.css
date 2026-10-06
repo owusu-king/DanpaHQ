@@ -121,6 +121,7 @@
   pointer-events: none;
 }
 .select-shell-disabled::after { border-color: var(--color-ink-300); }
+.select-control[aria-invalid="true"] { border-color: var(--color-laterite-600); }
 
 .select-control {
   -webkit-appearance: none;

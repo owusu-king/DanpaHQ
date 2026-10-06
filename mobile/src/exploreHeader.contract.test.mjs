@@ -36,10 +36,12 @@ test("the actions belong to the Explore tab, not to the screen behind it", () =>
   assert.match(search, /const actions = inTabs \? <ExploreHeaderActions \/> : undefined;/);
   assert.equal((search.match(/<ExploreHeaderActions/g) ?? []).length, 1);
   // And the hero drops its title row off the tabs, under that route's own header.
-  // The title and the full-width Rent/Buy switch stay in every view.
+  // The title stays in every view; the All / Rent / Buy bar above the search is
+  // gone — Show is the first row of the Filters sheet (owner, 2026-10-05).
   const hero = code(read("src/components/explore/ExploreHero.tsx"));
   assert.match(hero, /\{inTabs \? \(\s*<View style=\{styles\.titleRow\}>/);
-  assert.match(hero, /<View style=\{styles\.controls\}>\s*<ModeSwitch mode=\{mode\} onChange=\{onModeChange\} \/>/);
+  assert.doesNotMatch(hero, /ModeSwitch/);
+  assert.match(hero, /<View style=\{styles\.controls\}>[\s\S]{0,40}<View style=\{styles\.searchRow\}>/);
 });
 
 test("each button opens the tab it names, the way the app already does", () => {
@@ -99,4 +101,17 @@ test("it presses like the tab bar, because it sits beside it", () => {
   assert.match(source, /radius: DISC \/ 2, borderless: true/);
   assert.match(source, /accessibilityRole="button"/);
   assert.match(source, /accessibilityLabel=\{label\}/);
+});
+
+test("Explore's Filters is one sheet, and Show is a draft its button applies", () => {
+  // Three sheets swapped one native Modal for another and froze iOS; closing
+  // first "just applied" and was not smooth (owner, 2026-10-05). Now one sheet:
+  // Show picks a draft, the cards below follow it, and the button applies it.
+  const search = code(read("app/(app)/search.tsx"));
+  assert.equal((search.match(/<BottomSheet\b/g) ?? []).length, 1);
+  assert.match(search, /<FilterSheet\s+visible=\{filtersOpen\}\s+mode=\{mode\}\s+onApplySide=\{onModeChange\}/);
+  assert.match(search, /<ShowField mode=\{draft\} onChange=\{setDraft\} \/>/);
+  assert.match(search, /\{draft === "buy" \? saleCards : draft === "all" \? allCards : \(/);
+  assert.match(search, /function apply\(\) \{\s*if \(draft !== mode\) onApplySide\(draft\);\s*onClose\(\);/);
+  assert.doesNotMatch(search, /<SaleFilterSheet|<AllFilterSheet|switchSide/);
 });

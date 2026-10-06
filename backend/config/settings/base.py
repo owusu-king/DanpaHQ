@@ -78,6 +78,7 @@ LOCAL_APPS = [
     "apps.application",
     "apps.lease",
     "apps.rent",
+    "apps.maintenance",
     "apps.payments",
     "apps.billing",
     "apps.operations",
@@ -277,6 +278,11 @@ CELERY_BEAT_SCHEDULE = {
         "task": "payments.expire_intents",
         "schedule": timedelta(minutes=5),
     },
+    # Unread notifications weeks old are history: marked read, then pruned.
+    "notifications-age-out": {
+        "task": "notifications.age_out_stale",
+        "schedule": timedelta(days=1),
+    },
     # Separate from the sweep so alerting survives the sweep failing, and more
     # frequent than it so a breach is noticed within the half hour rather than
     # on the next hourly pass.
@@ -304,6 +310,12 @@ CELERY_BEAT_SCHEDULE = {
         # Ghana has no daylight-saving shift. Hourly keeps the task tolerant of
         # worker downtime without sending the same checkpoint twice.
         "schedule": timedelta(hours=1),
+    },
+    "lease-expiry-alerts": {
+        "task": "lease.emit_expiry_alerts",
+        # Each checkpoint is deduplicated per person, so running often only
+        # makes a missed run cheap to recover from.
+        "schedule": timedelta(hours=6),
     },
     "viewing-due-notifications": {
         "task": "viewing.emit_due_notifications",

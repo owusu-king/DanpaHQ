@@ -194,9 +194,12 @@ const CHECKPOINT_ICONS: Record<string, CreationCheckpoint["icon"]> = {
 export function SetupProgress({
   steps,
   current,
+  onSelect,
 }: {
   steps: SetupStep[];
   current?: string;
+  /** Every section of a property that exists is reachable from its icon. */
+  onSelect?: (key: string) => void;
 }) {
   const required = steps.filter((step) => !step.optional && !step.terminal);
   const done = required.filter((step) => step.status === "done").length;
@@ -225,6 +228,7 @@ export function SetupProgress({
       ariaLabel="Property creation checkpoints"
       valueNow={done}
       valueMax={required.length}
+      onSelect={onSelect}
     />
   );
 }

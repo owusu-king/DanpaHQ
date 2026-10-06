@@ -400,6 +400,21 @@ class TestOrganizationAuthorization:
             str(first_lease.tenancy_id),
             str(second_lease.tenancy_id),
         }
+        assert response.data["past_tenants"] == []
+
+        # Ending a tenancy moves the person to the Archive (owner, 2026-10-05):
+        # out of `tenants`, into `past_tenants`, with the day they left.
+        from apps.lease.services import end_lease
+
+        second_lease.refresh_from_db()
+        end_lease(lease=second_lease, user=owner, reason="Moved out", confirmed=True)
+        response = owner_api.get(f"/api/v1/organizations/{organization.id}/portfolio/")
+        assert {row["tenancy_id"] for row in response.data["tenants"]} == {
+            str(first_lease.tenancy_id)
+        }
+        past = response.data["past_tenants"]
+        assert [row["tenancy_id"] for row in past] == [str(second_lease.tenancy_id)]
+        assert past[0]["ended_at"]
 
         outsider_api = APIClient()
         sign_in_as(outsider_api, user=stranger)

@@ -1,0 +1,531 @@
+/* The enquiries inbox: a compact glass modal over whatever page is showing.
+   Conversations on the left on a warm side panel, the chosen one on the right,
+   the reply field at its foot. Yours are kola bubbles, theirs paper. Opening,
+   closing, switching conversation and a message arriving all move a little and
+   quickly; nothing slides across the screen. */
+
+.inbox {
+  --inbox-ease: var(--motion-easing-standard);
+  --inbox-enter: var(--motion-easing-enter);
+  /* Centred in the content area, clear of the rail and top bar
+     (--modal-area-* come from lib/modalOrigin). */
+  inset: var(--modal-area-top, 0px) 0 0 var(--modal-area-left, 0px);
+  width: min(46rem, calc(100vw - var(--modal-area-left, 0px) - 2rem));
+  height: min(35rem, calc(100vh - var(--modal-area-top, 0px) - 2.5rem));
+  max-width: none;
+  max-height: none;
+  padding: 0;
+  margin: auto;
+  overflow: hidden;
+  color: var(--color-ink-900);
+  background: linear-gradient(170deg, rgba(255, 255, 255, .94), rgba(255, 255, 255, .86));
+  border: 1px solid rgba(255, 255, 255, .9);
+  border-radius: 1.25rem;
+  box-shadow:
+    0 0 0 1px rgba(33, 26, 21, .08),
+    0 30px 70px -24px rgba(22, 17, 14, .45),
+    inset 0 1px 0 rgba(255, 255, 255, .95);
+  backdrop-filter: blur(22px) saturate(160%);
+  -webkit-backdrop-filter: blur(22px) saturate(160%);
+}
+
+.inbox[open] { animation: modal-spring 460ms var(--modal-spring) both, modal-focus 220ms var(--motion-easing-enter) both; }
+.inbox.is-closing { animation: modal-out 180ms var(--motion-easing-exit) forwards; }
+
+/* Only the content area dims, and nothing blurs: the rail and top bar stay
+   as they are, so the modal reads as part of this page rather than a takeover. */
+.inbox::backdrop {
+  inset: var(--modal-area-top, 0px) 0 0 var(--modal-area-left, 0px);
+  background: rgba(33, 29, 24, .3);
+  animation: modal-backdrop-in 260ms var(--inbox-ease) both;
+}
+
+.inbox.is-closing::backdrop { animation: modal-backdrop-out 180ms var(--inbox-ease) forwards; }
+
+/* The two panes arrive just behind the glass, list first, so the modal
+   settles rather than appearing all at once. */
+/* The list and thread arrive with the sheet, not behind it (see doc-modal.css). */
+
+.inbox-frame {
+  display: grid;
+  grid-template-columns: 16.5rem minmax(0, 1fr);
+  height: 100%;
+  min-height: 0;
+}
+
+/* --- the list ----------------------------------------------------------------- */
+
+.inbox-list {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: color-mix(in srgb, var(--color-field-50) 78%, transparent);
+  border-right: var(--border-hairline) solid rgba(33, 26, 21, .08);
+}
+
+.inbox-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-4) var(--space-3);
+}
+
+.inbox-title { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
+
+.inbox-title-mark {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  color: var(--color-kola-600);
+  background: var(--color-kola-50);
+  border-radius: var(--radius-sm);
+}
+
+.inbox-title-mark .portal-icon { width: 17px; height: 17px; }
+.inbox-title h2 { margin: 0; font-family: var(--font-display); font-size: 1.0625rem; font-weight: 650; letter-spacing: -0.01em; }
+
+.inbox-unread-count {
+  min-width: 1.25rem;
+  padding: 1px 7px;
+  color: var(--color-field-0);
+  font-size: .6875rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  background: var(--color-kola-600);
+  border-radius: var(--radius-pill);
+}
+
+.inbox-sides {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px;
+  margin: 0 var(--space-4) var(--space-2);
+  padding: 3px;
+  background: var(--color-field-100);
+  border-radius: calc(var(--radius-sm) + 4px);
+  box-shadow: inset 0 1px 2px rgba(33, 26, 21, .07), inset 0 0 0 1px rgba(33, 26, 21, .04);
+}
+
+.inbox-side {
+  min-height: 1.875rem;
+  color: var(--color-ink-500);
+  font: inherit;
+  font-size: .75rem;
+  font-weight: 650;
+  background: transparent;
+  border: 0;
+  border-radius: calc(var(--radius-sm) + 1px);
+  cursor: pointer;
+  transition: color var(--motion-duration-base) var(--inbox-ease), background-color var(--motion-duration-base) var(--inbox-ease), box-shadow var(--motion-duration-base) var(--inbox-ease);
+}
+
+.inbox-side:hover:not([aria-selected="true"]) { color: var(--color-ink-900); }
+.inbox-side[aria-selected="true"] { color: var(--color-kola-800); background: var(--color-field-0); box-shadow: 0 0 0 .5px rgba(33, 26, 21, .08), 0 1px 2px rgba(33, 26, 21, .08); }
+
+.inbox-rows-wrap { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: var(--space-1) var(--space-2) var(--space-3); scrollbar-width: thin; }
+.inbox-rows { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.inbox-rows > li { animation: ws-rise var(--motion-duration-base) var(--inbox-enter) both; animation-delay: calc(var(--inbox-order, 0) * 22ms); }
+
+.inbox-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 2.25rem minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-3);
+  width: 100%;
+  padding: 10px var(--space-3);
+  color: inherit;
+  font: inherit;
+  line-height: 1.3;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: background-color var(--motion-duration-fast) var(--inbox-ease), box-shadow var(--motion-duration-fast) var(--inbox-ease), transform var(--motion-duration-instant) var(--inbox-ease);
+}
+
+.inbox-row:hover { background: rgba(255, 255, 255, .7); }
+.inbox-row:active { transform: scale(.99); }
+
+.inbox-row[aria-selected="true"] {
+  background: var(--color-field-0);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-kola-600) 22%, transparent), 0 6px 16px -12px rgba(12, 58, 42, .4);
+}
+
+.inbox-row[aria-selected="true"]::before {
+  content: "";
+  position: absolute;
+  top: 14px;
+  bottom: 14px;
+  left: 0;
+  width: 3px;
+  background: var(--color-kola-600);
+  border-radius: 0 3px 3px 0;
+}
+
+.inbox-row:focus-visible { outline: var(--border-emphasis) solid var(--color-kola-600); outline-offset: -2px; }
+
+.inbox-avatar {
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  color: var(--color-ink-700);
+  font-size: .6875rem;
+  font-weight: 700;
+  background: var(--color-field-100);
+  border-radius: 50%;
+}
+
+.inbox-row.is-unread .inbox-avatar,
+.inbox-row[aria-selected="true"] .inbox-avatar { color: var(--color-kola-800); background: var(--color-kola-50); }
+.inbox-avatar.is-large { flex: 0 0 auto; width: 2.5rem; height: 2.5rem; font-size: .75rem; color: var(--color-kola-800); background: var(--color-kola-50); }
+
+.inbox-row-main { display: grid; gap: 2px; min-width: 0; }
+.inbox-row-top { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-2); min-width: 0; }
+.inbox-row-top strong { overflow: hidden; color: var(--color-ink-800); font-size: .8125rem; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.inbox-row-top time { flex: 0 0 auto; color: var(--color-ink-300); font-size: .6875rem; font-variant-numeric: tabular-nums; }
+.inbox-row-property,
+.inbox-row-preview { overflow: hidden; color: var(--color-ink-500); font-size: .75rem; text-overflow: ellipsis; white-space: nowrap; }
+.inbox-row-property { color: var(--color-ink-700); }
+.inbox-row-preview { display: flex; align-items: center; gap: 6px; }
+.inbox-row-preview em { flex: 0 0 auto; margin-left: auto; padding: 0 6px; color: var(--color-ink-500); font-size: .625rem; font-style: normal; font-weight: 650; background: var(--color-field-100); border-radius: var(--radius-xs); }
+
+.inbox-row.is-unread .inbox-row-top strong { color: var(--color-ink-900); font-weight: 700; }
+.inbox-row.is-unread .inbox-row-top time { color: var(--color-kola-600); font-weight: 650; }
+.inbox-row.is-unread .inbox-row-preview { color: var(--color-ink-800); }
+.inbox-row-dot { flex: 0 0 auto; width: 7px; height: 7px; margin-left: auto; background: var(--color-kola-600); border-radius: 50%; box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-kola-600) 16%, transparent); }
+
+.inbox-row.is-skeleton { pointer-events: none; }
+.inbox-row.is-skeleton .inbox-row-main { gap: var(--space-2); padding-top: 4px; }
+
+/* --- the conversation ---------------------------------------------------------- */
+
+.inbox-thread { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+
+.inbox-thread-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 4rem;
+  padding: var(--space-3) var(--space-3) var(--space-3) var(--space-5);
+  border-bottom: var(--border-hairline) solid rgba(33, 26, 21, .08);
+}
+
+.inbox-thread-who { display: grid; flex: 1; gap: 1px; min-width: 0; line-height: 1.3; }
+.inbox-thread-who strong { overflow: hidden; font-size: .9375rem; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.inbox-thread-who span { overflow: hidden; color: var(--color-ink-500); font-size: .75rem; text-overflow: ellipsis; white-space: nowrap; }
+
+.inbox-property-link {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+  min-height: 2.125rem;
+  padding: 0 var(--space-3);
+  color: var(--color-kola-800);
+  font-size: .75rem;
+  font-weight: 650;
+  text-decoration: none;
+  border-radius: var(--radius-sm);
+  box-shadow: inset 0 0 0 1px var(--color-field-200);
+  transition: background-color var(--motion-duration-fast) var(--inbox-ease), box-shadow var(--motion-duration-fast) var(--inbox-ease);
+}
+
+.inbox-property-link .portal-icon { width: 14px; height: 14px; }
+.inbox-property-link:hover { background: var(--color-kola-50); box-shadow: inset 0 0 0 1px var(--color-kola-300); }
+
+.inbox-icon-button {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  color: var(--color-ink-500);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background-color var(--motion-duration-fast) var(--inbox-ease), color var(--motion-duration-fast) var(--inbox-ease);
+}
+
+.inbox-icon-button .portal-icon { width: 17px; height: 17px; }
+.inbox-icon-button:hover { color: var(--color-ink-900); background: var(--color-field-100); }
+.inbox-icon-button:focus-visible,
+.inbox-side:focus-visible,
+.inbox-property-link:focus-visible,
+.inbox-send:focus-visible { outline: var(--border-emphasis) solid var(--color-kola-600); outline-offset: 2px; }
+
+/* On a wide screen the list's own close button gives way to the thread's. */
+.inbox-close-list,
+.inbox-back { display: none; }
+
+.inbox-messages {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--space-4) var(--space-5) var(--space-2);
+  background:
+    radial-gradient(28rem 16rem at 100% 0%, color-mix(in srgb, var(--color-kola-50) 60%, transparent), transparent 70%),
+    linear-gradient(180deg, transparent, color-mix(in srgb, var(--color-field-50) 70%, transparent));
+  scrollbar-width: thin;
+}
+
+.inbox-messages-inner { display: grid; gap: var(--space-3); animation: inbox-thread-in var(--motion-duration-base) var(--inbox-enter) both; }
+
+.inbox-day { display: grid; gap: var(--space-2); }
+.inbox-day-label { display: flex; align-items: center; gap: var(--space-3); margin: var(--space-1) 0; color: var(--color-ink-300); font-size: .625rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.inbox-day-label::before,
+.inbox-day-label::after { content: ""; flex: 1; height: 1px; background: rgba(33, 26, 21, .07); }
+
+.inbox-bubbles { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.inbox-bubbles > li { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; }
+.inbox-bubbles > li.is-mine { align-items: flex-end; }
+.inbox-bubbles > li:last-child { animation: inbox-bubble-in var(--motion-duration-base) var(--inbox-enter) both; }
+
+.inbox-bubble {
+  max-width: min(72%, 30rem);
+  padding: 9px 13px;
+  color: var(--color-ink-900);
+  font-size: .875rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background: var(--color-field-0);
+  border-radius: 16px 16px 16px 6px;
+  box-shadow: 0 0 0 1px rgba(33, 26, 21, .07), 0 1px 2px rgba(33, 26, 21, .04);
+}
+
+.inbox-bubbles > li.is-mine .inbox-bubble {
+  color: var(--color-field-0);
+  background: var(--color-kola-600);
+  border-radius: 16px 16px 6px 16px;
+  box-shadow: 0 6px 16px -10px rgba(12, 58, 42, .6);
+}
+
+.inbox-bubble-meta { margin: 3px 6px 0; color: var(--color-ink-300); font-size: .6875rem; }
+.inbox-bubbles > li.is-pending .inbox-bubble { opacity: .72; }
+.inbox-bubbles > li.is-failed .inbox-bubble { color: var(--color-laterite-600); background: var(--color-laterite-100); box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-laterite-600) 30%, transparent); }
+.inbox-bubbles > li.is-failed .inbox-bubble-meta { color: var(--color-laterite-600); }
+.inbox-bubbles.is-skeleton .inbox-bubble { display: block; height: 2.375rem; background-color: var(--color-field-100); box-shadow: none; }
+
+/* --- replying ------------------------------------------------------------------ */
+
+.inbox-composer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 6px var(--space-2);
+  padding: var(--space-3) var(--space-4) var(--space-3);
+  border-top: var(--border-hairline) solid rgba(33, 26, 21, .08);
+  background: rgba(255, 255, 255, .7);
+}
+
+.inbox-composer textarea {
+  width: 100%;
+  min-height: 2.75rem;
+  max-height: 8.25rem;
+  padding: 11px 14px;
+  color: var(--color-ink-900);
+  font: inherit;
+  font-size: .875rem;
+  line-height: 1.45;
+  background: var(--color-field-0);
+  border: 0;
+  border-radius: 14px;
+  box-shadow: inset 0 0 0 1px var(--color-field-200);
+  outline: none;
+  resize: none;
+  transition: box-shadow var(--motion-duration-fast) var(--inbox-ease);
+}
+
+.inbox-composer textarea::placeholder { color: var(--color-ink-300); }
+.inbox-composer textarea:focus-visible { box-shadow: inset 0 0 0 1px var(--color-kola-600), 0 0 0 4px color-mix(in srgb, var(--color-kola-600) 14%, transparent); }
+
+.inbox-send {
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  color: var(--color-field-0);
+  background: var(--color-kola-600);
+  border: 0;
+  border-radius: 14px;
+  cursor: pointer;
+  transition: background-color var(--motion-duration-fast) var(--inbox-ease), transform var(--motion-duration-instant) var(--inbox-ease), color var(--motion-duration-fast) var(--inbox-ease);
+}
+
+.inbox-send:hover:not(:disabled) { background: var(--color-kola-800); }
+.inbox-send:active:not(:disabled) { transform: scale(.94); }
+.inbox-send:disabled { color: var(--color-ink-300); background: var(--color-field-100); cursor: default; }
+
+.inbox-composer-hint { grid-column: 1 / -1; padding-left: 4px; color: var(--color-ink-300); font-size: .6875rem; }
+.inbox-composer-error { grid-column: 1 / -1; margin: 0; color: var(--color-laterite-600); font-size: .75rem; font-weight: 600; }
+
+.inbox-closed {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: var(--space-3) var(--space-4) var(--space-4);
+  padding: var(--space-3);
+  color: var(--color-ink-700);
+  font-size: .8125rem;
+  line-height: 1.45;
+  background: var(--color-field-100);
+  border-radius: var(--radius-md);
+}
+
+.inbox-closed .portal-icon { flex: 0 0 auto; width: 16px; height: 16px; margin-top: 1px; color: var(--color-ink-500); }
+
+/* --- quiet states ---------------------------------------------------------------- */
+
+.inbox-empty,
+.inbox-placeholder {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: var(--space-1);
+  min-height: 100%;
+  padding: var(--space-8) var(--space-5);
+  text-align: center;
+  animation: ws-rise var(--motion-duration-slow) var(--inbox-enter) both;
+}
+
+.inbox-placeholder { position: relative; height: 100%; }
+.inbox-placeholder .inbox-close-thread { position: absolute; top: var(--space-3); right: var(--space-3); }
+.inbox-empty strong,
+.inbox-placeholder strong { color: var(--color-ink-900); font-size: .9375rem; font-weight: 650; }
+.inbox-empty span,
+.inbox-placeholder > span:not(.inbox-empty-mark) { max-width: 30ch; color: var(--color-ink-500); font-size: .8125rem; line-height: 1.45; }
+
+.inbox-empty-mark {
+  display: grid;
+  place-items: center;
+  width: 3rem;
+  height: 3rem;
+  margin-bottom: var(--space-2);
+  color: var(--color-kola-600);
+  background: var(--color-kola-50);
+  border-radius: 50%;
+}
+
+.inbox-empty-mark .portal-icon { width: 20px; height: 20px; }
+
+.inbox-text-button {
+  margin-top: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  color: var(--color-kola-800);
+  font: inherit;
+  font-size: .8125rem;
+  font-weight: 650;
+  text-decoration: none;
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+}
+
+.inbox-text-button:hover { background: color-mix(in srgb, var(--color-kola-600) 10%, transparent); }
+.inbox-bubble-meta .inbox-text-button { margin: 0; padding: 0 2px; font-size: .6875rem; color: inherit; text-decoration: underline; }
+
+/* --- motion ------------------------------------------------------------------------ */
+
+/* Shared by every modal (the inbox, the document sheet). A modal grows out of
+   whatever opened it: the script sets --modal-from-x/y to a fraction of the
+   distance back to the invoking control, so the glass travels a little way
+   from the button and settles on a soft spring, sharpening out of a blur as
+   it comes. Closing is quicker and falls back toward the same place. */
+:root {
+  /* A settled spring: it arrives with the faintest give (1.2%) rather than a
+     bounce, which read as playful beside the glass. */
+  --modal-spring: linear(0, 0.086 3.5%, 0.3 8%, 0.56 13.5%, 0.78 19.5%, 0.915 25.5%, 0.985 32%, 1.01 39%, 1.012 46%, 1.005 56%, 1);
+}
+
+@keyframes modal-spring {
+  from { transform: translate(var(--modal-from-x, 0px), var(--modal-from-y, 10px)) scale(.965); }
+  to { transform: none; }
+}
+
+@keyframes modal-focus {
+  from { opacity: 0; filter: blur(6px); }
+  to { opacity: 1; filter: none; }
+}
+
+@keyframes modal-out {
+  to { opacity: 0; filter: blur(3px); transform: translate(calc(var(--modal-from-x, 0px) * .35), calc(var(--modal-from-y, 8px) * .35)) scale(.975); }
+}
+
+@keyframes modal-content-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes modal-backdrop-in { from { opacity: 0; } }
+@keyframes modal-backdrop-out { to { opacity: 0; } }
+
+/* A phone's full-screen modal rises as a sheet instead. */
+@keyframes modal-sheet-in {
+  from { transform: translateY(100%); }
+  to { transform: none; }
+}
+
+@keyframes modal-sheet-out { to { transform: translateY(100%); } }
+
+@keyframes inbox-thread-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes inbox-bubble-in {
+  from { opacity: 0; transform: translateY(6px) scale(.98); }
+  to { opacity: 1; transform: none; }
+}
+
+/* --- a phone: one pane at a time, the whole screen --------------------------------- */
+
+@media (max-width: 47.99rem) {
+  .inbox { inset: 0; width: 100vw; height: 100dvh; margin: 0; border-radius: 0; border: 0; }
+  .inbox::backdrop { inset: 0; }
+  .inbox[open] { animation: modal-sheet-in 440ms var(--modal-spring) both; }
+  .inbox.is-closing { animation: modal-sheet-out 240ms var(--motion-easing-exit) forwards; }
+  .inbox-frame { grid-template-columns: minmax(0, 1fr); }
+  .inbox-frame[data-pane="list"] .inbox-thread,
+  .inbox-frame[data-pane="thread"] .inbox-list { display: none; }
+  .inbox-list { border-right: 0; }
+  .inbox-close-list,
+  .inbox-back { display: grid; }
+  .inbox-thread-head { padding-left: var(--space-2); }
+  .inbox-property-link span { display: none; }
+  .inbox-property-link { width: 2.25rem; padding: 0; justify-content: center; }
+  .inbox-bubble { max-width: 84%; }
+  .inbox-messages { padding-inline: var(--space-3); }
+  .inbox-composer-hint { display: none; }
+  .inbox-frame[data-pane="thread"] .inbox-thread { animation: inbox-thread-in var(--motion-duration-base) var(--inbox-enter) both; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .inbox[open],
+  .inbox.is-closing,
+  .inbox::backdrop,
+  .inbox-rows > li,
+  .inbox-messages-inner,
+  .inbox-bubbles > li:last-child,
+  .inbox-empty,
+  .inbox-placeholder,
+  .inbox-frame[data-pane="thread"] .inbox-thread { animation: none; }
+  .inbox-row,
+  .inbox-side,
+  .inbox-send,
+  .inbox-icon-button,
+  .inbox-property-link,
+  .inbox-composer textarea { transition: none; }
+  .inbox-row:active,
+  .inbox-send:active:not(:disabled) { transform: none; }
+}

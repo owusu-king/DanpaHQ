@@ -21,6 +21,8 @@ class NotificationListView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        # Weeks-old unread records are history; they leave the list and the badge.
+        services.age_out(user=request.user)
         queryset = Notification.objects.filter(user=request.user)
         if request.query_params.get("unread") == "true":
             queryset = queryset.filter(read_at__isnull=True)

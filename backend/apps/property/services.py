@@ -1201,7 +1201,11 @@ def add_unit(*, prop: Property, user, data: dict) -> Unit:
     """Add a rentable space, of a kind this property may actually contain."""
     from apps.billing import enforcement as billing
 
-    from .space_rules import assert_interior_is_coherent, assert_space_type_allowed
+    from .space_rules import (
+        assert_interior_is_coherent,
+        assert_space_type_allowed,
+        normalise_interior,
+    )
 
     assert_can_manage(prop, user)
     assert_is_for_letting(prop)
@@ -1229,6 +1233,8 @@ def add_unit(*, prop: Property, user, data: dict) -> Unit:
     # script, a future endpoint — can reach `Unit.objects.create` without it. A
     # rule that only exists in a form is a rule the API does not have.
     assert_space_type_allowed(property_type=prop.property_type, space_type=space_type)
+    # A shop sent with a form's "1 bedroom" default stores none.
+    data = normalise_interior(space_type=space_type, data=data)
 
     bedrooms = data.get("bedrooms", 0)
     bathrooms = data.get("bathrooms", 1)

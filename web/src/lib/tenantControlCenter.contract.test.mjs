@@ -356,7 +356,8 @@ test("a tenant with homes goes straight from the tenancy cards to joining anothe
   // Joining is the page's one contextual action, on the Overview card. The
   // page-level bar it used to sit in is gone: a whole sticky row for one button
   // was chrome, and the card is where the account-level facts already are.
-  assert.match(web, /href="\/tenant\/setup" className="home-primary-action[^"]*"/);
+  // It opens a small modal there rather than leaving the page (owner, 2026-10-05).
+  assert.match(web, /<JoinHomeButton className="home-primary-action[^"]*"/);
   assert.doesNotMatch(web, /className="home-topbar"/);
 
   const mobile = code(mobileHome());

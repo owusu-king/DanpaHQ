@@ -157,6 +157,29 @@ export default function TenancyScreen() {
         </View>
       )}
 
+      {/* Repairs are about *this* home, so reporting starts here already on it. */}
+      {tenancy.status === "active" ? (
+        <View style={styles.section}>
+          <GroupLabel>Maintenance</GroupLabel>
+          <RecordPanel>
+            <LinkRow
+              first
+              icon="construct-outline"
+              tone="action"
+              label="Report a problem"
+              detail="A photo and a few words; your landlord is told at once."
+              onPress={() => router.push({ pathname: "/(app)/maintenance-report", params: { tenancy: tenancy.id } } as never)}
+            />
+            <LinkRow
+              icon="list-outline"
+              label="Your requests"
+              detail="Where each repair stands."
+              onPress={() => router.push("/(app)/maintenance" as never)}
+            />
+          </RecordPanel>
+        </View>
+      ) : null}
+
       <Footnote>Rooomly records what was agreed and what has been paid. Rent is never collected here.</Footnote>
     </ScrollView>
   );

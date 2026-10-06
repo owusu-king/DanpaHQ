@@ -18,11 +18,12 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
-import { AgreementRecord } from "@/components/tenant/AgreementRecord";
+import { AgreementRecord, agreementTone } from "@/components/tenant/AgreementRecord";
 import { LeaseRecord } from "@/components/leases/LeaseRecord";
 import { Notice } from "@/components/Notice";
 import { LoadingRows, PageHeader } from "@/components/portal/PageHeader";
 import { EntityPath } from "@/components/property/WorkspacePatterns";
+import { PanelSkeleton, PanelState, WorkspaceHead } from "@/components/workspace/Workspace";
 import { agreedTerms, homeOf, standing } from "@/lib/agreementMeaning";
 import { ApiFailure } from "@/lib/api";
 import { listGrantedLeases, type Lease } from "@/lib/console";
@@ -144,39 +145,51 @@ function TenantAgreement() {
   }, [load]);
 
   const lease = leases?.find((row) => row.id === leaseId) ?? null;
+  const missing = leases !== null && !error && !lease;
 
+  // The sheet the list opens, laid on the page: the same header words, the
+  // same record, one level deeper in the same workspace.
   return (
-    <div className="agreements">
-      <EntityPath
-        items={[
-          { label: "Agreements", href: "/leases", mobileLabel: "Back to Agreements" },
-          { label: lease ? homeOf(agreedTerms(lease)) : "Agreement" },
-        ]}
+    <div className="ws-page agreements-workspace agreement-record-page">
+      <WorkspaceHead
+        icon="leases"
+        title={missing ? "Agreement" : "Tenancy agreement"}
+        summary={lease ? (
+          <><span className={`ag-head-status is-${agreementTone(lease)}`}><i aria-hidden="true" />{standing(lease).line}</span>
+            {lease.agreement?.reference_number ? <><span className="ws-summary-sep" aria-hidden="true">·</span>{lease.agreement.reference_number}</> : null}</>
+        ) : null}
+        path={
+          <EntityPath
+            items={[
+              { label: "Agreements", href: "/leases", mobileLabel: "Back to Agreements" },
+              { label: lease ? homeOf(agreedTerms(lease)) : "Agreement" },
+            ]}
+          />
+        }
       />
 
-      {leases === null ? (
-        <>
-          <PageHeader title="Agreement" />
-          <LoadingRows rows={4} />
-        </>
-      ) : error ? (
-        <Notice tone="error" title={error} />
-      ) : lease ? (
-        <>
-          <PageHeader title={homeOf(agreedTerms(lease))} description={standing(lease).line} />
-          <AgreementRecord key={lease.id} lease={lease} charges={charges} onChanged={load} />
-        </>
-      ) : (
-        <>
-          <PageHeader
-            title="Agreement not found"
-            description="It may have been withdrawn, or it was never sent to you."
+      <section className="ws-panel request-record-panel" aria-busy={leases === null || undefined}>
+        {leases === null ? (
+          <PanelSkeleton rows={3} />
+        ) : error ? (
+          <PanelState
+            tone="error"
+            icon="warning"
+            title="Your agreement didn’t load"
+            body={error}
+            action={<button type="button" className="ws-action" onClick={() => void load()}>Try again</button>}
           />
-          <p className="type-caption">
-            <Link href="/leases">Back to Agreements</Link>
-          </p>
-        </>
-      )}
+        ) : lease ? (
+          <AgreementRecord key={lease.id} lease={lease} charges={charges} onChanged={load} />
+        ) : (
+          <PanelState
+            icon="leases"
+            title="Agreement not found"
+            body="It may have been withdrawn, or it was never sent to you. Your other agreements are still on the list."
+            action={<Link href="/leases" className="ws-action is-primary">Back to Agreements</Link>}
+          />
+        )}
+      </section>
     </div>
   );
 }

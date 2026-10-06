@@ -97,10 +97,10 @@ def avatar_url(profile) -> str | None:
 
     ### Who can see it
 
-    `files.can_read` grants the owner, staff, and reviewers of an attached
-    verification. There is no public branch, by design. So this shows a person
-    their *own* photo; making avatars visible to a counterparty is a change to
-    the file access model and belongs in its own decision, not here.
+    `files.can_read` grants the owner and staff, and — the decision taken on
+    2026-10-05 — whoever manages a property the person actively lives in, so a
+    provider's tenant cards show the tenant. There is no public branch, by
+    design.
     """
     if not profile.avatar_id:
         return None

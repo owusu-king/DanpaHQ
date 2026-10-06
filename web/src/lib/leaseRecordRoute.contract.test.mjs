@@ -9,6 +9,11 @@
  * list always opened into the pane beside it. Better than a modal and still
  * wrong: arriving at Leases meant looking at somebody's agreement chosen by
  * sort order, and the terms two parties are bound by had no address.
+ *
+ * Since then the list itself moved: a lease is a document, so the provider's
+ * Leases became the Leases view of Documents (`/documents?view=leases`), and a
+ * row opens the agreement over that page. The record kept its own address —
+ * the row is still a link to it — so everything below about the record holds.
  */
 
 import assert from "node:assert/strict";
@@ -22,17 +27,17 @@ const read = (relative) => readFileSync(resolve(root, relative), "utf8");
 const code = (source) => source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*/g, "");
 
 const list = () => read("web/app/leases/page.tsx");
+const view = () => read("web/src/components/documents/LeasesView.tsx");
+const page = () => read("web/app/documents/page.tsx");
 
 /**
- * The provider half only.
- *
- * The tenant half of this route has a split view of its own and keeps it — a
- * tenant reading their own agreements is a different job, and it was not part
- * of this change. Asserting against the whole file caught the tenant's
- * `explicit ?? suggested` and, worse, would have let the provider half lose
- * `useSearchParams` while the tenant's use of it kept the test green.
+ * The provider's list, which is now the Leases view of Documents. The tenant
+ * half of `/leases` keeps its own list and is not part of this.
  */
-const providerHalf = () => {
+const providerHalf = () => code(view());
+
+/** What is left of the provider half of `/leases`: a redirect into Documents. */
+const redirect = () => {
   const source = code(list());
   const at = source.indexOf("function ProviderLeases()");
   assert.notEqual(at, -1, "ProviderLeases is gone");
@@ -41,7 +46,7 @@ const providerHalf = () => {
 const detail = () => read("web/app/leases/[leaseId]/page.tsx");
 const record = () => read("web/src/components/leases/LeaseRecord.tsx");
 const meaning = () => read("web/src/lib/leaseMeaning.ts");
-const css = () => read("web/src/styles/leases-workspace.css");
+const css = () => read("web/src/styles/documents-workspace.css");
 
 function rule(sheet, selector) {
   const at = sheet.indexOf(selector + " {");
@@ -59,13 +64,13 @@ test("an agreement opens at its own address", () => {
   assert.doesNotMatch(body, /provider-leases-split/);
   assert.doesNotMatch(body, /ProviderLeaseRecord/);
   assert.doesNotMatch(body, /selectedId/);
-  assert.doesNotMatch(css(), /\.provider-leases-split/);
-  assert.doesNotMatch(css(), /\.provider-lease-record/);
 
-  // Rows are links.
+  // Rows are links to the record. A plain press opens it over the page; a new
+  // tab or a copied address still reaches the record page.
   assert.match(body, /href=\{`\/leases\/\$\{lease\.id\}` as never\}/);
-  assert.doesNotMatch(body, /<button type="button" className="lease-row"/);
-  assert.match(rule(css(), ".lease-row"), /text-decoration: none/);
+  assert.match(body, /event\.metaKey \|\| event\.ctrlKey \|\| event\.shiftKey/);
+  assert.match(body, /<LeaseModal/);
+  assert.match(rule(css(), ".docs-lease-row"), /text-decoration: none/);
 });
 
 test("nobody's agreement is opened for them", () => {
@@ -77,17 +82,19 @@ test("nobody's agreement is opened for them", () => {
 });
 
 test("an old #lease- link still reaches the agreement", () => {
-  // Those links used to open the pane. They name a page now, so they are sent
-  // there rather than landing on a list that quietly ignored them.
-  const body = providerHalf();
+  // Those links used to open the pane. `/leases` now hands a provider to
+  // Documents, and the hash becomes the lease that opens there.
+  const body = redirect();
   assert.match(body, /window\.location\.hash\.startsWith\("#lease-"\)/);
-  assert.match(body, /router\.replace\(`\/leases\/\$\{window\.location\.hash\.slice\("#lease-"\.length\)\}`/);
+  assert.match(body, /next\.set\("lease", window\.location\.hash\.slice\("#lease-"\.length\)\)/);
+  assert.match(body, /router\.replace\(`\/documents\?\$\{next\.toString\(\)\}`/);
 });
 
-test("the page is laid out the way Payments is", () => {
+test("the list is laid out the way the other workspaces are", () => {
+  // Counts in the head's summary, then one panel: search and the stages in its
+  // toolbar, the rows beneath. The same shape as Units, Tenants and Payments.
   const body = providerHalf();
-
-  const order = ["leases-overview", "leases-search", "leases-filters", "leases-list"];
+  const order = ["ws-panel docs-leases", "ws-panel-head docs-leases-head", "docs-lease-rows"];
   let at = -1;
   for (const className of order) {
     const found = body.search(new RegExp(`className="${className}"`));
@@ -95,16 +102,9 @@ test("the page is laid out the way Payments is", () => {
     assert.ok(found > at, `${className} is out of order`);
     at = found;
   }
-
-  assert.match(rule(css(), ".leases-overview"), /grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
-  assert.match(rule(css(), ".leases-overview dd"), /font-family: var\(--font-display\)/);
-  assert.match(rule(css(), ".leases-filters button"), /border-radius: 999px/);
-  assert.match(css(), /\.leases-filters button\[aria-pressed="true"\][\s\S]{0,140}--color-kola-50/);
-  assert.match(rule(css(), ".leases-search"), /width: min\(100%, 30rem\)/);
-
-  // The tabs that shared a row with the search are gone.
-  assert.doesNotMatch(css(), /\.leases-tab\b/);
-  assert.doesNotMatch(css(), /\.leases-controls/);
+  assert.match(body, /<PanelSearch label="Search leases" placeholder="Search tenant, Property or Unit"/);
+  assert.match(body, /<SegmentedControl\s+inline\s+label="Agreement stage"/);
+  assert.match(code(page()), /<SegmentedControl\s+label="Documents"/);
 });
 
 test("the three counts say only what a status proves", () => {
@@ -120,19 +120,22 @@ test("the three counts say only what a status proves", () => {
   const awaiting = body.slice(body.indexOf("awaiting:"), body.indexOf("};", body.indexOf("awaiting:")));
   assert.doesNotMatch(awaiting, /awaiting_activation/);
 
-  assert.match(providerHalf(), /leaseTotals\(leases \?\? \[\]\)/);
-  assert.match(providerHalf(), /label="Awaiting tenant"/);
+  assert.match(providerHalf(), /leaseTotals\(leases\)/);
+  assert.match(code(page()), /\{totals\.awaiting\} awaiting tenant/);
 });
 
 test("leaving an agreement and coming back lands where you left", () => {
-  const body = providerHalf();
+  // The view, stage, search and open lease are all in the address.
+  const body = code(page());
   assert.match(body, /useSearchParams\(\)/);
   assert.match(body, /search\.get\("show"\)/);
   assert.match(body, /search\.get\("q"\)/);
+  assert.match(body, /search\.get\("lease"\)/);
   assert.match(body, /LEASE_FILTERS\.find\(/);
-  // The boundary search params need already wrapped this route before the
-  // change — it sits above both halves, not inside the provider one.
-  assert.match(code(list()), /<Suspense/);
+  assert.match(body, /<Suspense/);
+  // An old /leases address keeps its stage and search on the way across.
+  assert.match(redirect(), /search\.get\("show"\)/);
+  assert.match(redirect(), /search\.get\("q"\)/);
 });
 
 test("moving the record did not move the authority", () => {
@@ -161,8 +164,8 @@ test("the words an agreement is described in are written once", () => {
   for (const name of ["providerLeaseStage", "providerLeaseStatus", "providerLeaseTone", "formatLeaseDate"]) {
     assert.match(body, new RegExp(`export function ${name}\\(`));
   }
-  assert.doesNotMatch(code(list()), /^function (providerLeaseStage|providerLeaseStatus|formatLeaseDate)\(/m);
+  assert.doesNotMatch(providerHalf(), /^function (providerLeaseStage|providerLeaseStatus|formatLeaseDate)\(/m);
   assert.doesNotMatch(code(record()), /^function (providerLeaseStatus|formatLeaseDate)\(/m);
-  assert.match(code(list()), /from "@\/lib\/leaseMeaning"/);
+  assert.match(providerHalf(), /from "@\/lib\/leaseMeaning"/);
   assert.match(code(record()), /from "@\/lib\/leaseMeaning"/);
 });

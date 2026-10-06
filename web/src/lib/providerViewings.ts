@@ -49,7 +49,8 @@ export function providerViewingFilterLabel(filter: ProviderViewingFilter) {
 export function viewingTotals(viewings: Viewing[]) {
   return {
     total: viewings.length,
-    confirmed: viewings.filter((viewing) => viewing.status === "confirmed").length,
+    // Still ahead: a confirmed viewing whose day has gone is not "confirmed" to anyone reading this.
+    confirmed: viewings.filter((viewing) => viewing.status === "confirmed" && !viewingLapsed(viewing)).length,
     completed: viewings.filter((viewing) => viewing.status === "completed").length,
   };
 }
@@ -70,20 +71,52 @@ export function formatViewingTime(value: string) {
   });
 }
 
-export function providerViewingView(viewing: Viewing): ProviderViewingView {
+/**
+ * Which list a viewing belongs in.
+ *
+ * Status alone is not enough: a confirmed viewing nobody checked in to keeps
+ * the status `confirmed` after its day has gone, and read by status it sat
+ * under Upcoming with a date in the past. "Upcoming" means the time is still
+ * ahead (today counts), so time decides between it and the rest.
+ */
+export function providerViewingView(viewing: Viewing, now: Date = new Date()): ProviderViewingView {
+  const lapsed = viewingLapsed(viewing, now);
+  const noTimeLeft = offeredTimesGone(viewing);
+
   if (
     viewing.status === "requested" ||
     viewing.status === "checked_in" ||
     (viewing.status === "attendance_pending" && viewing.attendance.can_respond) ||
-    (viewing.status === "confirmed" && viewing.check_in.can_validate)
+    (viewing.status === "confirmed" && viewing.check_in.can_validate) ||
+    // Passed without a check-in: the host can say what happened.
+    (viewing.status === "confirmed" && lapsed && viewing.attendance.can_report) ||
+    // Every offered time has gone by: it needs new times or a decline.
+    (noTimeLeft && viewing.actions.can_decline)
   ) return "action";
-  if (["offered", "confirmed", "attendance_pending"].includes(viewing.status)) return "upcoming";
+  if (viewing.status === "attendance_pending") return "history";
+  if ((viewing.status === "offered" && !noTimeLeft) || (viewing.status === "confirmed" && !lapsed)) return "upcoming";
   return "history";
+}
+
+/** A confirmed time before today: the day went by without a check-in. */
+export function viewingLapsed(viewing: Viewing, now: Date = new Date()) {
+  if (!viewing.confirmed_starts_at) return false;
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  return new Date(viewing.confirmed_starts_at).getTime() < today;
+}
+
+/** Offered, and every time offered has already gone by. */
+export function offeredTimesGone(viewing: Viewing) {
+  return viewing.status === "offered" && !viewing.slots.some((slot) => !slot.is_past);
 }
 
 export function providerViewingSummary(viewing: Viewing): { label: string; tone: "neutral" | "good" | "waiting" | "attention" } {
   if (viewing.status === "requested") return { label: "Needs a reply", tone: "attention" };
+  if (offeredTimesGone(viewing)) return { label: "Times passed", tone: viewing.actions.can_decline ? "attention" : "neutral" };
   if (viewing.status === "offered") return { label: "Waiting for tenant", tone: "waiting" };
+  if (viewing.status === "confirmed" && !viewing.check_in.can_validate && viewingLapsed(viewing)) {
+    return viewing.attendance.can_report ? { label: "No check-in", tone: "attention" } : { label: "Passed", tone: "neutral" };
+  }
   if (viewing.status === "confirmed" && viewing.check_in.can_validate) return { label: "Ready for check-in", tone: "attention" };
   if (viewing.status === "confirmed") return { label: "Confirmed", tone: "good" };
   if (viewing.status === "checked_in") return { label: "Checked in", tone: "attention" };

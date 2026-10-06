@@ -7,11 +7,14 @@ import { fileURLToPath } from "node:url";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const read = (relative) => readFileSync(resolve(root, relative), "utf8");
 
-test("web payout setup is a dedicated, permission-aware journey", () => {
+test("web payout setup is a permission-aware Portfolio setting", () => {
   const workspace = read("web/app/payments/page.tsx");
-  const page = read("web/app/payments/payout-account/page.tsx");
+  const page = read("web/app/settings/settlement/page.tsx");
 
-  assert.match(workspace, /payments\/payout-account\?organization=/);
+  // Settings › Settlement account; the old Payments address redirects there.
+  assert.match(workspace, /settings\/settlement\?organization=/);
+  assert.match(read("web/app/settings/layout.tsx"), /href="\/settings\/settlement"/);
+  assert.match(read("web/app/payments/payout-account/page.tsx"), /redirect\(/);
   assert.match(page, /current_user_role === "owner"/);
   assert.match(page, /current_user_role === "admin"/);
   assert.match(page, /state\?\.provisioning\?\.checking/);
@@ -24,7 +27,7 @@ test("web payout setup is a dedicated, permission-aware journey", () => {
 
 test("web payout API keeps provisioning idempotent and account numbers transient", () => {
   const api = read("web/src/lib/console.ts");
-  const page = read("web/app/payments/payout-account/page.tsx");
+  const page = read("web/app/settings/settlement/page.tsx");
 
   assert.match(api, /payout-destination\/`/);
   assert.match(api, /idempotentMutation\(\)/);

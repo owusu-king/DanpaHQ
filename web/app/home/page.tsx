@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import { Notice } from "@/components/Notice";
+import { JoinHomeButton } from "@/components/tenant/JoinHome";
+import { openEnquiries } from "@/components/enquiries/EnquiriesInbox";
 import { ProviderFinanceChart } from "@/components/home/ProviderFinanceChart";
 import { LoadingRows, PageHeader } from "@/components/portal/PageHeader";
 import { Icon, type IconName } from "@/components/portal/icons";
@@ -19,11 +21,13 @@ import {
   type Organization,
   type OrganizationPortfolio,
   type Property,
+  type ProviderTenant,
   type RentalApplication,
   type Viewing,
 } from "@/lib/console";
 import { propertyNextStep } from "@/lib/providerSetup";
 import { formatMoney } from "@/lib/money";
+import { listEnquiries, type Enquiry } from "@/lib/sales";
 import { useSession, type Me } from "@/lib/session";
 import {
   listMyApplications,
@@ -276,12 +280,13 @@ function TenantHome({ me }: { me: Me }) {
                   <strong>Have an access code?</strong>
                   <small>Your landlord can give you one for a place you already live in.</small>
                 </span>
-                <Link href="/tenant/setup" className="home-primary-action is-compact">
+                {/* A small modal, not a page (owner, 2026-10-05). */}
+                <JoinHomeButton className="home-primary-action is-compact">
                   <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
                     <path d="M10 4.5v11M4.5 10h11" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
                   </svg>
                   Join a home
-                </Link>
+                </JoinHomeButton>
               </div>
             </section>
 
@@ -758,10 +763,10 @@ function NoTenancy({
           </div>
           <div className="tenant-start-body">
             <p>Your landlord can give you one for the place you already live in. It links this account to that home.</p>
-            <Link href="/tenant/setup" className="home-widget-link">
+            <JoinHomeButton className="home-widget-link">
               Join a home
               <Chevron />
-            </Link>
+            </JoinHomeButton>
           </div>
         </section>
       </div>
@@ -830,11 +835,38 @@ type ProviderAttention = {
   /** The countable part, shown in its own right-hand column so the column
    *  scans as a column. A money amount where there is one, a count otherwise. */
   value: string;
+  /** What pressing the row does, shown when the row is approached. */
+  action: string;
   href: string;
   icon: IconName;
   tone: "warning" | "danger";
 };
 
+/** Something dated ahead: a confirmed viewing, a rent due date, a lease ending. */
+type AgendaItem = {
+  id: string;
+  at: Date;
+  kind: "viewing" | "rent" | "lease";
+  title: string;
+  where: string;
+  detail: string;
+  href: string;
+};
+
+/**
+ * Provider Home: the Portfolio at a glance, and the way into everything in it.
+ *
+ * One composed workspace rather than a grid of equal cards. The hero *is* the
+ * overview — the occupancy instrument, the four counts that describe the
+ * Portfolio and what is still owed on it. Below it the page divides by kind of
+ * attention: the wide column is for reading (how rent is being collected, what
+ * is coming up, what just happened), the narrow column is for acting (what
+ * needs a decision, the conversations waiting, the Properties themselves).
+ *
+ * Everything shown is something the backend owns and dated; nothing here is a
+ * projection. Maintenance is absent because Rooomly has no maintenance domain
+ * yet, and a panel reading "No open issue" would be a promise.
+ */
 function ProviderHome({ me, activeContext }: { me: Me; activeContext: string | null }) {
   const provider = me.capabilities.provider;
   // The Portfolio being operated and what this person's role reaches in it. A
@@ -850,8 +882,11 @@ function ProviderHome({ me, activeContext }: { me: Me; activeContext: string | n
   const [viewings, setViewings] = useState<Viewing[]>([]);
   const [grantedLeases, setGrantedLeases] = useState<Lease[]>([]);
   const [portfolio, setPortfolio] = useState<OrganizationPortfolio | null>(null);
+  const [enquiries, setEnquiries] = useState<Enquiry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  // Enquiries belong to whoever operates the Properties that are for sale.
+  const readsEnquiries = access ? access.can.operate_properties : true;
 
   useEffect(() => {
     // Nothing operational exists before approval, and every one of these calls
@@ -869,25 +904,26 @@ function ProviderHome({ me, activeContext }: { me: Me; activeContext: string | n
           ? activeContext.slice("organization:".length)
           : "";
         const organization = orgs.find((row) => row.id === preferredId) ?? orgs[0];
-        if (!organization) return { orgs, props: [], apps: [], views: [], leases: [], summary: null };
+        if (!organization) return { orgs, props: [], apps: [], views: [], leases: [], summary: null, talks: [] };
         // Each list is asked for this Portfolio, so nothing is sifted here.
         // Home used to fetch every Unit purely to filter three account-wide
         // lists by hand — and viewings by *Property title*, which two
         // Properties can share, so a viewing could be dropped, or kept against
         // the wrong building entirely.
         const scope = { organization: organization.id };
-        const [props, apps, views, leases, summary] = await Promise.all([
+        const [props, apps, views, leases, summary, talks] = await Promise.all([
           listOrganizationProperties(organization.id).catch(() => [] as Property[]),
           listReceivedApplications(true, scope).catch(() => [] as RentalApplication[]),
           listHostViewings(true, scope).catch(() => [] as Viewing[]),
           listGrantedLeases(scope).catch(() => [] as Lease[]),
           getOrganizationPortfolio(organization.id).catch(() => null),
+          readsEnquiries ? listEnquiries("seller").catch(() => [] as Enquiry[]) : Promise.resolve([] as Enquiry[]),
         ]);
-        return { orgs, props, apps, views, leases, summary };
+        return { orgs, props, apps, views, leases, summary, talks };
       })
       .then((result) => {
         if (!result || cancelled) return;
-        const { orgs, props, apps, views, leases, summary } = result;
+        const { orgs, props, apps, views, leases, summary, talks } = result;
         if (cancelled) return;
         setProperties(props);
         setOrganizations(orgs);
@@ -895,6 +931,7 @@ function ProviderHome({ me, activeContext }: { me: Me; activeContext: string | n
         setViewings(views);
         setGrantedLeases(leases);
         setPortfolio(summary);
+        setEnquiries(talks);
         setError("");
       })
       .catch((cause) => {
@@ -908,7 +945,7 @@ function ProviderHome({ me, activeContext }: { me: Me; activeContext: string | n
       })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [activeContext, provider.workspace_access]);
+  }, [activeContext, provider.workspace_access, readsEnquiries]);
 
   if (!provider.workspace_access) {
     // A status this build does not recognise still gets a screen that says
@@ -959,32 +996,34 @@ function ProviderHome({ me, activeContext }: { me: Me; activeContext: string | n
   const paymentsAwaitingYou = money?.payment_records_awaiting_you ?? 0;
   const tenancyRequestCount = applications.length + (counts?.pending_join_requests ?? 0);
   const drafts = grantedLeases.filter((lease) => lease.status === "draft");
+  const unreadEnquiries = enquiries.filter((row) => row.unread).length;
 
   // Name the problem on the left, quantify it on the right. The count used to
   // be welded into the label ("3 tenancy requests"), which reads fine in a
   // sentence and badly in a list — the eye cannot run down a column of numbers
   // that each start at a different place.
   const attention = [
-    money?.overdue_minor ? { label: "Rent overdue", meta: "Past its due date", value: formatMoney({ minor: money.overdue_minor, currency: "GHS" }), href: "/payments", icon: "payments", tone: "danger" } : null,
-    money?.settlement_attention_minor ? { label: "Payout needs review", meta: "A settlement failed or reversed", value: formatMoney({ minor: money.settlement_attention_minor, currency: "GHS" }), href: "/payments", icon: "payments", tone: "danger" } : null,
-    propertiesNeedingAction.length ? { label: "Property needs an update", meta: "Read the note, then resubmit", value: String(propertiesNeedingAction.length), href: "/properties", icon: "verification", tone: "danger" } : null,
-    paymentsAwaitingYou ? { label: "Payments to confirm", meta: "Confirm or dispute what was recorded", value: String(paymentsAwaitingYou), href: "/payments", icon: "payments", tone: "warning" } : null,
-    tenancyRequestCount ? { label: "Tenancy requests", meta: "Decide who rents", value: String(tenancyRequestCount), href: "/applications", icon: "applications", tone: "warning" } : null,
-    viewings.length ? { label: "Viewing requests", meta: "Offer times or reply", value: String(viewings.length), href: "/viewings", icon: "viewings", tone: "warning" } : null,
-    drafts.length ? { label: "Agreements to send", meta: "Saved but not yet offered", value: String(drafts.length), href: "/leases", icon: "leases", tone: "warning" } : null,
+    money?.overdue_minor ? { label: "Rent overdue", meta: "Past its due date", value: formatMoney({ minor: money.overdue_minor, currency: "GHS" }), action: "Follow up", href: "/payments", icon: "payments", tone: "danger" } : null,
+    money?.settlement_attention_minor ? { label: "Payout needs review", meta: "A settlement failed or reversed", value: formatMoney({ minor: money.settlement_attention_minor, currency: "GHS" }), action: "Review", href: "/payments", icon: "payments", tone: "danger" } : null,
+    propertiesNeedingAction.length ? { label: "Property needs an update", meta: "Read the note, then resubmit", value: String(propertiesNeedingAction.length), action: "Resubmit", href: "/properties", icon: "verification", tone: "danger" } : null,
+    paymentsAwaitingYou ? { label: "Payments to confirm", meta: "Confirm or dispute what was recorded", value: String(paymentsAwaitingYou), action: "Confirm", href: "/payments", icon: "payments", tone: "warning" } : null,
+    tenancyRequestCount ? { label: "Tenancy requests", meta: "Decide who rents", value: String(tenancyRequestCount), action: "Decide", href: "/applications", icon: "applications", tone: "warning" } : null,
+    viewings.length ? { label: "Viewing requests", meta: "Offer times or reply", value: String(viewings.length), action: "Reply", href: "/viewings", icon: "viewings", tone: "warning" } : null,
+    drafts.length ? { label: "Agreements to send", meta: "Saved but not yet offered", value: String(drafts.length), action: "Send", href: "/documents?view=leases&show=send", icon: "leases", tone: "warning" } : null,
   ].filter((item): item is ProviderAttention => item !== null);
 
-  const featuredProperty = [...properties].sort((left, right) =>
+  const ranked = [...properties].sort((left, right) =>
     right.unit_count - left.unit_count
     || right.occupied_unit_count - left.occupied_unit_count
     || left.title.localeCompare(right.title),
-  )[0] ?? null;
+  );
+  const featuredProperty = ranked[0] ?? null;
+  const agenda = agendaOf(viewings, portfolio?.tenants ?? []);
 
   if (loading) {
     return (
-      <div className="home-workspace">
-          <div className="home-greeting"><p className="home-eyebrow">Portfolio</p><h1>{greetPerson(me.preferred_name || me.first_name || "")}</h1></div>
-        <ProviderDashboardSkeleton />
+      <div className="home-workspace home-provider">
+        <ProviderDashboardSkeleton name={greetPerson(me.preferred_name || me.first_name || "")} />
       </div>
     );
   }
@@ -992,14 +1031,17 @@ function ProviderHome({ me, activeContext }: { me: Me; activeContext: string | n
   // A Portfolio with nothing in it gets a beginning, not a wall of zeroes.
   if (properties.length === 0) {
     return (
-      <div className="home-workspace">
-          <div className="home-greeting">
-          <p className="home-eyebrow">{organizations[0]?.name ?? "Your Portfolio"}</p>
-          <h1>{greetPerson(me.preferred_name || me.first_name || "")}</h1>
-          <p>Add the first place you manage to begin.</p>
-        </div>
+      <div className="home-workspace home-provider">
+        <section className="home-hero is-empty">
+          <div className="home-hero-head">
+            <p className="home-eyebrow">{organizations[0]?.name ?? "Your Portfolio"}</p>
+            <h1>{greetPerson(me.preferred_name || me.first_name || "")}</h1>
+            <p className="home-hero-line">Add the first place you manage to begin.</p>
+          </div>
+        </section>
         {error ? <Notice tone="error" title={error} /> : null}
         <div className="home-start">
+          <span className="home-start-mark" aria-hidden="true"><Icon name="properties" /></span>
           {access && access.scope !== "portfolio_wide" ? (
             // A member with nothing assigned is not an empty Portfolio, and
             // telling them to add their first Property would be advice they
@@ -1019,7 +1061,7 @@ function ProviderHome({ me, activeContext }: { me: Me; activeContext: string | n
                 agreements and rent.
               </p>
               {canAddProperty ? (
-                <p><Link href={next.href as never} className="button-link">{next.label}</Link></p>
+                <p><Link href={next.href as never} className="home-start-action">{next.label}<span aria-hidden="true">→</span></Link></p>
               ) : (
                 <p className="type-caption">{next.reason}</p>
               )}
@@ -1031,108 +1073,288 @@ function ProviderHome({ me, activeContext }: { me: Me; activeContext: string | n
   }
 
   return (
-    <div className="home-workspace">
-
-      <div className="home-greeting">
-        <div className="home-greeting-copy">
-          <p className="home-eyebrow">{portfolio?.organization.name ?? "Your Portfolio"}</p>
-          <h1>{greetPerson(me.preferred_name || me.first_name || "")}</h1>
-          <p>
+    <div className="home-workspace home-provider">
+      {/* The hero is the overview: who, when, the state of things, and the
+          Portfolio's own shape — occupancy and the counts that describe it. */}
+      <section className="home-hero" aria-labelledby="home-hero-title">
+        <div className="home-hero-head">
+          <p className="home-eyebrow">
+            {portfolio?.organization.name ?? "Your Portfolio"}
+            <span aria-hidden="true"> · </span>
+            {todayLabel()}
+          </p>
+          <h1 id="home-hero-title">{greetPerson(me.preferred_name || me.first_name || "")}</h1>
+          <p className="home-hero-line" data-tone={attention.length ? "attention" : "clear"}>
+            <i aria-hidden="true" />
             {attention.length
               ? `${attention.length} ${plural(attention.length, "item needs", "items need")} your attention across ${properties.length} ${plural(properties.length, "Property", "Properties")}.`
               : `Your ${properties.length} ${plural(properties.length, "Property is", "Properties are")} operating normally.`}
           </p>
         </div>
-        <div className="home-greeting-aside">
-          <DraftedElevation />
-          <p className="home-greeting-when">
-            <strong>{todayLabel()}</strong>
-            Accra, GMT
-          </p>
+
+        <div className="home-pulse" aria-label="Portfolio overview">
+          <OccupancyRing value={occupancy} occupied={occupied} total={unitCount} />
+          <div className="home-pulse-metrics">
+            <PulseMetric label="Properties" value={properties.length} href="/properties" icon="properties" />
+            <PulseMetric label="Rentable Units" value={unitCount} href="/units" icon="units" />
+            <PulseMetric label="Active tenancies" value={counts?.active_tenants ?? 0} href="/tenants" icon="users" />
+            <PulseMetric label="Vacant Units" value={available} href="/units" icon="units" tone={available ? "vacant" : undefined} />
+          </div>
+          {money ? (
+            <Link href="/payments" className="home-owed" data-tone={money.overdue_minor ? "danger" : money.outstanding_minor ? "warning" : "clear"}>
+              <span className="home-owed-label">Still owed on the Portfolio</span>
+              <strong><CountUp value={money.outstanding_minor} format={(minor) => formatMoney({ minor, currency: "GHS" })} /></strong>
+              <small>
+                {money.overdue_minor
+                  ? <>{formatMoney({ minor: money.overdue_minor, currency: "GHS" })} of it overdue</>
+                  : money.outstanding_minor ? "None of it overdue" : "Every tenancy is paid up"}
+              </small>
+              <span className="home-owed-go" aria-hidden="true">Open Payments →</span>
+            </Link>
+          ) : null}
         </div>
-      </div>
+      </section>
 
       {error ? <Notice tone="error" title={error} /> : null}
 
-      <div className="home-overview-grid">
-        <section className="home-pulse" aria-labelledby="home-pulse-title">
-          <div className="home-pulse-copy">
-            <h2 id="home-pulse-title">Portfolio overview</h2>
-            <span className="home-pulse-badge" data-tone={attention.length ? "attention" : "clear"}>
-              {attention.length
-                ? `${attention.length} ${plural(attention.length, "item needs", "items need")} you`
-                : "All systems normal"}
-            </span>
-          </div>
-          <div className="home-pulse-body">
-            <OccupancyRing value={occupancy} occupied={occupied} total={unitCount} />
-            <div className="home-pulse-metrics">
-              <PulseMetric label="Properties" value={properties.length} href="/properties" />
-              <PulseMetric label="Rentable Units" value={unitCount} href="/units" />
-              <PulseMetric label="Active tenancies" value={counts?.active_tenants ?? 0} href="/tenants" />
-              <PulseMetric label="Vacant Units" value={available} href="/units" />
+      <div className="home-stage">
+        <div className="home-main">
+          {portfolio?.rent_collection ? (
+            <ProviderFinanceChart collection={portfolio.rent_collection} />
+          ) : null}
+
+          <section className="home-panel home-agenda" aria-labelledby="home-agenda-title">
+            <div className="home-widget-head">
+              <div>
+                <h2 id="home-agenda-title">Coming up</h2>
+                <p>Confirmed viewings, rent due and leases ending in the next 30 days.</p>
+              </div>
+              <Link href="/viewings" className="home-widget-link">
+                Viewings
+                <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                  <path d="M7 4l6 6-6 6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </Link>
             </div>
-          </div>
-        </section>
+            <Agenda items={agenda} />
+          </section>
 
-        <section className="home-attention-panel" data-clear={attention.length === 0} aria-labelledby="provider-attention-title">
-          <div className="home-widget-head">
-            <h2 id="provider-attention-title">Needs attention</h2>
-            <span className="home-widget-count">
-              {attention.length ? `${attention.length} ${plural(attention.length, "item", "items")}` : "All clear"}
-            </span>
-          </div>
-          {attention.length ? (
-            <ul className="home-attention-list">
-              {attention.slice(0, 5).map((item) => (
-                <li key={item.href + item.label} data-tone={item.tone}>
-                  <Link href={item.href as never}>
-                    <span className="home-attention-icon" aria-hidden="true" />
-                    <span className="home-attention-copy"><strong>{item.label}</strong><small>{item.meta}</small></span>
-                    <span className="home-attention-value">
-                      <strong>{item.value}</strong>
-                      <small>{item.tone === "danger" ? "Act now" : "Soon"}</small>
-                    </span>
-                    <span className="home-row-arrow" aria-hidden="true">›</span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <div className="home-all-clear">
-              <span aria-hidden="true">✓</span>
-              <p><strong>Nothing is waiting on you.</strong><small>Applications, rent, agreements and Property checks are up to date.</small></p>
+          <section className="home-panel home-activity-panel" aria-labelledby="home-activity-title">
+            <div className="home-widget-head">
+              <h2 id="home-activity-title">Recent activity</h2>
+              <Link href="/updates" className="home-widget-link">
+                View all
+                <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                  <path d="M7 4l6 6-6 6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </Link>
             </div>
-          )}
-          {attention.length > 5 ? <p className="home-more">{attention.length - 5} more in their workspaces</p> : null}
-        </section>
-      </div>
+            <RecentActivity portfolio={portfolio} leases={grantedLeases} />
+          </section>
+        </div>
 
-      {portfolio?.rent_collection ? (
-        <ProviderFinanceChart collection={portfolio.rent_collection} />
-      ) : null}
+        <aside className="home-side" aria-label="Needs you">
+          <section className="home-attention-panel" data-clear={attention.length === 0} aria-labelledby="provider-attention-title">
+            <div className="home-widget-head">
+              <h2 id="provider-attention-title">Needs attention</h2>
+              <span className="home-widget-count">
+                {attention.length ? <CountUp value={attention.length} /> : "All clear"}
+              </span>
+            </div>
+            {attention.length ? (
+              <ul className="home-attention-list">
+                {attention.slice(0, 6).map((item, index) => (
+                  <li key={item.href + item.label} data-tone={item.tone} style={{ "--row": index } as React.CSSProperties}>
+                    <Link href={item.href as never}>
+                      <span className="home-attention-icon" aria-hidden="true"><Icon name={item.icon} /></span>
+                      <span className="home-attention-copy"><strong>{item.label}</strong><small>{item.meta}</small></span>
+                      <span className="home-attention-value">
+                        <strong>{item.value}</strong>
+                        <small className="home-attention-action">{item.action}<span aria-hidden="true"> →</span></small>
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div className="home-all-clear">
+                <span aria-hidden="true"><Icon name="check" /></span>
+                <p><strong>Nothing is waiting on you.</strong><small>Applications, rent, agreements and Property checks are up to date.</small></p>
+              </div>
+            )}
+            {attention.length > 6 ? <p className="home-more">{attention.length - 6} more in their workspaces</p> : null}
+          </section>
 
-      <div className="home-lower-grid">
-        <section className="home-panel home-activity-panel">
-          <div className="home-widget-head">
-            <h2>Recent activity</h2>
-            <Link href="/updates" className="home-widget-link">
-              View all
-              <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
-                <path d="M7 4l6 6-6 6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </Link>
-          </div>
-          <RecentActivity portfolio={portfolio} leases={grantedLeases} />
-        </section>
+          {enquiries.length ? (
+            <EnquiriesGlance enquiries={enquiries} unread={unreadEnquiries} />
+          ) : null}
 
-        {featuredProperty ? <PropertyHighlight property={featuredProperty} /> : null}
+          {featuredProperty ? <PropertyHighlight property={featuredProperty} others={ranked.slice(1, 4)} /> : null}
+        </aside>
       </div>
     </div>
   );
 }
 
-function PropertyHighlight({ property }: { property: Property }) {
+/** The next 30 days, from what the backend has dated. */
+function agendaOf(viewings: Viewing[], tenants: ProviderTenant[]): AgendaItem[] {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const horizon = new Date(start.getTime() + 31 * 86_400_000);
+  const day = (value: string) => new Date(`${value.slice(0, 10)}T12:00:00`);
+  const inWindow = (at: Date) => at >= start && at < horizon;
+  const items: AgendaItem[] = [];
+
+  for (const viewing of viewings) {
+    if (viewing.status !== "confirmed" || !viewing.confirmed_starts_at) continue;
+    const at = new Date(viewing.confirmed_starts_at);
+    if (at < now || !inWindow(at)) continue;
+    items.push({
+      id: `viewing-${viewing.id}`,
+      at,
+      kind: "viewing",
+      title: `Viewing with ${viewing.tenant_name}`,
+      where: [viewing.property_title, viewing.unit_label].filter(Boolean).join(" · ") || viewing.listing_headline,
+      detail: at.toLocaleTimeString("en-GH", { hour: "numeric", minute: "2-digit" }),
+      href: `/viewings/${viewing.id}`,
+    });
+  }
+  for (const tenant of tenants) {
+    const place = `${tenant.property_title} · ${tenant.unit_label}`;
+    // The tenancy opens in its sheet on Tenants.
+    const href = `/tenants?tenant=${tenant.tenancy_id ?? tenant.occupancy_id}`;
+    if (tenant.rent.next_due_on) {
+      const at = day(tenant.rent.next_due_on);
+      if (inWindow(at)) {
+        items.push({
+          id: `rent-${tenant.occupancy_id}`,
+          at,
+          kind: "rent",
+          title: `Rent due · ${tenant.name}`,
+          where: place,
+          detail: tenant.lease_rent_minor
+            ? formatMoney({ minor: tenant.lease_rent_minor, currency: tenant.lease_rent_currency ?? "GHS" })
+            : "Due",
+          href,
+        });
+      }
+    }
+    if (tenant.lease_ends_on) {
+      const at = day(tenant.lease_ends_on);
+      if (inWindow(at)) {
+        items.push({
+          id: `lease-${tenant.occupancy_id}`,
+          at,
+          kind: "lease",
+          title: `Lease ends · ${tenant.name}`,
+          where: place,
+          detail: "Plan a renewal",
+          href,
+        });
+      }
+    }
+  }
+  return items.sort((left, right) => left.at.getTime() - right.at.getTime()).slice(0, 7);
+}
+
+function Agenda({ items }: { items: AgendaItem[] }) {
+  if (!items.length) {
+    return (
+      <div className="home-agenda-empty">
+        <span aria-hidden="true"><Icon name="viewings" /></span>
+        <p><strong>A clear month ahead.</strong><small>No confirmed viewings, rent dates or lease ends in the next 30 days.</small></p>
+      </div>
+    );
+  }
+  // Grouped by day, so a date is read once and the things on it beneath it.
+  const groups: Array<{ key: string; at: Date; items: AgendaItem[] }> = [];
+  for (const item of items) {
+    const key = item.at.toDateString();
+    const group = groups.find((row) => row.key === key);
+    if (group) group.items.push(item);
+    else groups.push({ key, at: item.at, items: [item] });
+  }
+  return (
+    <ol className="home-agenda-days">
+      {groups.map((group, groupIndex) => (
+        <li key={group.key} className="home-agenda-day" style={{ "--row": groupIndex } as React.CSSProperties}>
+          <span className="home-agenda-date" data-today={isToday(group.at) || undefined}>
+            <strong>{group.at.getDate()}</strong>
+            <small>{dayWord(group.at)}</small>
+          </span>
+          <ul>
+            {group.items.map((item) => (
+              <li key={item.id}>
+                <Link href={item.href as never} className="home-agenda-item" data-kind={item.kind}>
+                  <i aria-hidden="true" />
+                  <span className="home-agenda-copy">
+                    <strong>{item.title}</strong>
+                    <small>{item.where}</small>
+                  </span>
+                  <span className="home-agenda-detail">{item.detail}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+function isToday(at: Date) {
+  return at.toDateString() === new Date().toDateString();
+}
+
+function dayWord(at: Date) {
+  const today = new Date();
+  const tomorrow = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
+  if (isToday(at)) return "Today";
+  if (at.toDateString() === tomorrow.toDateString()) return "Tomorrow";
+  return at.toLocaleDateString("en-GH", { weekday: "short", month: "short" });
+}
+
+/** The conversations waiting in the inbox, opened over the page. */
+function EnquiriesGlance({ enquiries, unread }: { enquiries: Enquiry[]; unread: number }) {
+  const latest = [...enquiries]
+    .sort((left, right) => (right.last_message_at ?? right.created_at).localeCompare(left.last_message_at ?? left.created_at))
+    .slice(0, 3);
+  return (
+    <section className="home-panel home-enquiries" aria-labelledby="home-enquiries-title">
+      <div className="home-widget-head">
+        <h2 id="home-enquiries-title">Enquiries</h2>
+        <button type="button" className="home-widget-link" aria-haspopup="dialog" onClick={() => openEnquiries({ side: "seller" })}>
+          {unread ? `${unread} unread` : "Open inbox"}
+          <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <path d="M7 4l6 6-6 6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+      </div>
+      <ul className="home-enquiry-list">
+        {latest.map((row) => (
+          <li key={row.id}>
+            <button
+              type="button"
+              className="home-enquiry"
+              data-unread={row.unread || undefined}
+              aria-haspopup="dialog"
+              onClick={() => openEnquiries({ id: row.id, side: "seller" })}
+            >
+              <span className="home-enquiry-avatar" aria-hidden="true">{initialsOf(row.buyer_name)}</span>
+              <span className="home-enquiry-copy">
+                <strong>{row.buyer_name}</strong>
+                <small>{row.last_message || row.sale.headline}</small>
+              </span>
+              <span className="home-enquiry-when">{row.last_message_at ? shortDate(row.last_message_at) : ""}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function PropertyHighlight({ property, others }: { property: Property; others: Property[] }) {
   const occupied = property.occupied_unit_count;
   const total = property.unit_count;
   const occupancy = total ? Math.round((occupied / total) * 100) : 0;
@@ -1141,7 +1363,7 @@ function PropertyHighlight({ property }: { property: Property }) {
     .join(", ");
 
   return (
-    <article className="home-property-card">
+    <section className="home-property-card" aria-labelledby="home-property-title">
       <Link href={`/properties/${property.id}` as never} className="home-property-media" aria-label={`Open ${property.title}`}>
         {property.cover_url ? (
           // The Property serializer returns a ready-to-display signed photo URL.
@@ -1150,22 +1372,45 @@ function PropertyHighlight({ property }: { property: Property }) {
         ) : (
           <span className="home-property-drawing" aria-hidden="true"><i /><i /><i /></span>
         )}
-        <span>Portfolio highlight</span>
+        <span className="home-property-tag">Largest Property</span>
+        <span className="home-property-over">
+          <strong id="home-property-title">{property.title}</strong>
+          <small>{location || "Location not added"} · {total} {plural(total, "Unit", "Units")}</small>
+        </span>
       </Link>
       <div className="home-property-body">
-        <p className="home-eyebrow">Largest Property</p>
-        <h2>{property.title}</h2>
-        <p>{location || "Location not added"} · {total} {plural(total, "Unit", "Units")}</p>
         <div className="home-property-occupancy">
-          <span><i style={{ width: `${occupancy}%` }} /></span>
-          <strong>{occupancy}% occupied</strong>
+          <span><i style={{ "--fill": `${occupancy}%` } as React.CSSProperties} /></span>
+          <strong>{occupancy}%</strong>
         </div>
+        <p>{occupied} occupied · {property.vacant_unit_count} vacant</p>
       </div>
-      <Link href={`/properties/${property.id}` as never} className="home-property-foot">
-        <span>{occupied} occupied · {property.vacant_unit_count} vacant</span>
-        <strong>Open Property <span aria-hidden="true">→</span></strong>
+      {others.length ? (
+        <ul className="home-property-others">
+          {others.map((row) => {
+            const share = row.unit_count ? Math.round((row.occupied_unit_count / row.unit_count) * 100) : 0;
+            return (
+              <li key={row.id}>
+                <Link href={`/properties/${row.id}` as never}>
+                  <span className="home-property-mini" aria-hidden="true">{initialsOf(row.title)}</span>
+                  <span className="home-property-mini-copy">
+                    <strong>{row.title}</strong>
+                    <small>{row.unit_count} {plural(row.unit_count, "Unit", "Units")}</small>
+                  </span>
+                  <span className="home-property-mini-meter" aria-label={`${share}% occupied`}>
+                    <i style={{ "--fill": `${share}%` } as React.CSSProperties} />
+                  </span>
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      ) : null}
+      <Link href="/properties" className="home-property-foot">
+        <span>All Properties</span>
+        <span aria-hidden="true">→</span>
       </Link>
-    </article>
+    </section>
   );
 }
 
@@ -1176,6 +1421,12 @@ function OccupancyRing({ value, occupied, total }: { value: number; occupied: nu
   return (
     <div className="home-ring" role="img" aria-label={`${clamped}% occupancy, ${occupied} of ${total} Units occupied`}>
       <svg viewBox="0 0 172 172" aria-hidden="true">
+        <defs>
+          <linearGradient id="home-ring-stroke" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor="var(--color-kola-600)" />
+            <stop offset="100%" stopColor="color-mix(in srgb, var(--color-kola-600) 55%, var(--color-gold-500))" />
+          </linearGradient>
+        </defs>
         <circle className="home-ring-track" cx="86" cy="86" r="72" />
         <circle
           className="home-ring-progress"
@@ -1202,7 +1453,7 @@ function OccupancyRing({ value, occupied, total }: { value: number; occupied: nu
         />
       </svg>
       <span className="home-ring-figure">
-        <strong>{clamped}%</strong>
+        <strong><CountUp value={clamped} />%</strong>
         <small>occupied</small>
       </span>
       {/* The count the percentage stands in for, added beneath rather than
@@ -1215,37 +1466,74 @@ function OccupancyRing({ value, occupied, total }: { value: number; occupied: nu
   );
 }
 
-function ProviderDashboardSkeleton() {
+function ProviderDashboardSkeleton({ name }: { name: string }) {
   return (
     <div className="home-dashboard-skeleton" aria-busy="true" aria-label="Loading your Portfolio">
-      <div className="home-skeleton-pulse" />
-      <div className="home-skeleton-grid"><div /><div /></div>
-      <div className="home-skeleton-grid"><div /><div /></div>
+      <div className="home-hero is-loading">
+        <div className="home-hero-head">
+          <p className="home-eyebrow">Portfolio</p>
+          <h1>{name}</h1>
+          <span className="home-skeleton-line" />
+        </div>
+        <div className="home-pulse">
+          <span className="home-skeleton-ring" />
+          <div className="home-skeleton-metrics">{[0, 1, 2, 3].map((index) => <span key={index} />)}</div>
+        </div>
+      </div>
+      <div className="home-stage">
+        <div className="home-main"><div className="home-skeleton-block is-tall" /><div className="home-skeleton-block" /></div>
+        <div className="home-side"><div className="home-skeleton-block" /><div className="home-skeleton-block" /></div>
+      </div>
     </div>
   );
 }
 
-function PulseMetric({ label, value, href }: { label: string; value: number; href: string }) {
+function PulseMetric({ label, value, href, icon, tone }: { label: string; value: number; href: string; icon: IconName; tone?: "vacant" }) {
   return (
-    <Link href={href as never} className="home-pulse-metric">
-      <strong>{value}</strong>
+    <Link href={href as never} className="home-pulse-metric" data-tone={tone}>
+      <span className="home-pulse-icon" aria-hidden="true"><Icon name={icon} /></span>
+      <strong><CountUp value={value} /></strong>
       <small>{label}</small>
+      <span className="home-pulse-go" aria-hidden="true">→</span>
     </Link>
   );
 }
 
 /**
- * The date, and a drafted elevation.
- *
- * Rendered on the client so it is the reader's own date rather than the
- * server's, and marked `aria-hidden` because it carries no information — it is
- * the one ornamental mark on the page, and it earns its place by saying
- * "buildings" without a stock photograph.
+ * A number that arrives rather than appears: counted up once, quickly, from
+ * zero to the server's value, and eased to any later value. The final value
+ * is what assistive technology reads, and reduced motion shows it at once.
  */
-function todayLabel(): string {
-  return new Date().toLocaleDateString("en-GH", { weekday: "long", day: "numeric", month: "long" });
+function CountUp({ value, format = (count: number) => count.toLocaleString("en-GH") }: { value: number; format?: (count: number) => string }) {
+  const [shown, setShown] = useState(0);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) { setShown(value); return; }
+    let frame = 0;
+    const from = 0;
+    const started = performance.now();
+    const duration = 900;
+    const tick = (now: number) => {
+      const progress = Math.min(1, (now - started) / duration);
+      const eased = 1 - (1 - progress) ** 3;
+      setShown(from + (value - from) * eased);
+      if (progress < 1) frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [value]);
+  return (
+    <>
+      <span aria-hidden="true">{format(Math.round(shown))}</span>
+      <span className="sr-only">{format(value)}</span>
+    </>
+  );
 }
 
+/**
+ * A drafted elevation: the one ornamental mark on the tenant's greeting,
+ * saying "buildings" without a stock photograph.
+ */
 function DraftedElevation() {
   return (
     <svg className="home-greeting-mark" viewBox="0 0 150 60" fill="none" aria-hidden="true">
@@ -1253,6 +1541,11 @@ function DraftedElevation() {
       <path d="M92 58V38l28-14 28 14v20" stroke="#9C7A38" strokeWidth="0.8" />
     </svg>
   );
+}
+
+/** The reader's own date rather than the server's. */
+function todayLabel(): string {
+  return new Date().toLocaleDateString("en-GH", { weekday: "long", day: "numeric", month: "long" });
 }
 
 function RecentActivity({
@@ -1283,7 +1576,8 @@ function RecentActivity({
       amount: formatMoney({ minor: row.amount_minor, currency: row.currency }),
       icon: "payments" as const,
       kind: "payment" as const,
-      href: `/payments/${row.lease_id}`,
+      // The record opens in its sheet on Payments.
+      href: `/payments?view=records&record=${row.id}`,
     })),
     ...leases
       .filter((lease) => lease.tenant_accepted_at)
@@ -1309,16 +1603,16 @@ function RecentActivity({
     })),
   ]
     .sort((a, b) => b.at.localeCompare(a.at))
-    .slice(0, 3);
+    .slice(0, 5);
 
   if (events.length === 0) {
     return <p className="home-quiet">Nothing has happened in this Portfolio yet.</p>;
   }
 
   return (
-    <ul className="home-rows">
-      {events.map((event) => (
-        <li key={event.id}>
+    <ol className="home-rows home-timeline">
+      {events.map((event, index) => (
+        <li key={event.id} style={{ "--row": index } as React.CSSProperties}>
           <Link href={event.href as never} className="home-row">
             <span className="home-activity-icon" data-kind={event.kind}><Icon name={event.icon} /></span>
             <span className="home-row-label">
@@ -1332,12 +1626,16 @@ function RecentActivity({
           </Link>
         </li>
       ))}
-    </ul>
+    </ol>
   );
 }
 
 function plural(count: number, one: string, many: string) {
   return count === 1 ? one : many;
+}
+
+function initialsOf(name: string) {
+  return name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase() ?? "").join("") || "?";
 }
 
 function shortDate(value: string) {
@@ -1346,7 +1644,6 @@ function shortDate(value: string) {
     ? value
     : at.toLocaleDateString("en-GH", { day: "numeric", month: "short" });
 }
-
 
 const REVIEW_COPY: Record<string, { title: string; body: string }> = {
   not_started: {

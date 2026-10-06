@@ -80,6 +80,14 @@ LIMITS: dict[str, PurposeLimits] = {
         content_types=frozenset({"image/jpeg", "image/png", "image/webp", "image/heic"}),
         human="a photo up to 12MB",
     ),
+    # A clip of at most five seconds (apps.maintenance). Clients cut it on the
+    # device, so a real clip is a few MB; the cap leaves room for a phone that
+    # records at a high bitrate, and is what stops a full-length video landing.
+    "maintenance_video": PurposeLimits(
+        max_bytes=30 * MB,
+        content_types=frozenset({"video/mp4", "video/quicktime", "video/webm"}),
+        human="a video clip up to 30MB",
+    ),
     "avatar": PurposeLimits(
         max_bytes=5 * MB,
         content_types=frozenset({"image/jpeg", "image/png", "image/webp"}),
@@ -109,7 +117,23 @@ _FTYP_BRANDS = {
     b"hevc": "image/heic",
     b"mif1": "image/heic",
     b"heim": "image/heic",
+    # ISO base media video. Phones write `mp42`/`isom`; iPhones write `qt  `.
+    b"isom": "video/mp4",
+    b"iso2": "video/mp4",
+    b"iso4": "video/mp4",
+    b"iso5": "video/mp4",
+    b"iso6": "video/mp4",
+    b"mp41": "video/mp4",
+    b"mp42": "video/mp4",
+    b"avc1": "video/mp4",
+    b"M4V ": "video/mp4",
+    b"dash": "video/mp4",
+    b"qt  ": "video/quicktime",
 }
+
+#: WebM (and Matroska) open with the EBML magic; it is what a browser's
+#: MediaRecorder writes in Chrome and Firefox.
+_EBML = b"\x1a\x45\xdf\xa3"
 
 #: Signatures that must never appear, whatever the extension says. Executables
 #: and archives are how a file-sharing feature becomes a malware channel.
@@ -143,9 +167,12 @@ def sniff_content_type(header: bytes) -> str | None:
         if brand:
             return brand
 
-    # ....ftypXXXX  (HEIC and friends)
+    # ....ftypXXXX  (HEIC and friends, MP4 and QuickTime video)
     if len(header) >= 12 and header[4:8] == b"ftyp":
         return _FTYP_BRANDS.get(header[8:12])
+
+    if header[:4] == _EBML:
+        return "video/webm"
 
     return None
 
@@ -209,7 +236,7 @@ def validate_uploaded_bytes(
 
     detected = sniff_content_type(header)
     if detected is None:
-        raise FileValidationError("We could not recognise that file. Send a JPEG, PNG or PDF.")
+        raise FileValidationError(f"We could not recognise that file. Send {limits.human}.")
 
     if detected not in limits.content_types:
         raise FileValidationError(

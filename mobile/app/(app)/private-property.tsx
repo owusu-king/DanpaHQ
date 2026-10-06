@@ -200,13 +200,21 @@ export default function PrivatePropertyScreen() {
 
   const ready = Boolean(selectedPlace) && Boolean(title.trim()) && Boolean(propertyType)
     && (organizations.length === 0 || Boolean(selectedOrganizationId));
+  // Said outright rather than left to a greyed-out button (owner, 2026-10-05:
+  // "be explicit about the issue, don't leave the user wondering").
+  const stillNeeded = [
+    organizations.length > 1 && !selectedOrganizationId ? "a Portfolio" : "",
+    title.trim() ? "" : "a name",
+    propertyType ? "" : "a type",
+    selectedPlace ? "" : localityQuery.trim() ? "a town picked from the list" : "a town",
+  ].filter(Boolean);
 
   return (
     <View style={styles.screen}>
       <ScrollView contentContainerStyle={[styles.page, { paddingBottom: pageBottom }]} keyboardShouldPersistTaps="handled">
         <View style={styles.head}>
-          <Type variant="label" style={styles.eyebrow}>PRIVATE BY DEFAULT</Type>
           <Type variant="title2" accessibilityRole="header" style={styles.title}>Create a property</Type>
+          <Footnote>Private until you choose otherwise.</Footnote>
         </View>
 
         <SetupProgress steps={outline(purpose, propertyType)} current="basics" />
@@ -239,9 +247,7 @@ export default function PrivatePropertyScreen() {
           ) : (
             <Field label="Name" placeholder="Adom Heights" value={title} onChangeText={setTitle} />
           )}
-          {/* Three categories, and the choice decides what may be let inside.
-              `Choice` is a wrapping row of labels — right for a water source, and
-              unable to say what choosing Hostel actually gets you. */}
+          {/* One compact field; each answer says what it holds inside its sheet. */}
           {purpose === "sale" ? (
             <SaleTypeChoice types={saleTypes} value={propertyType} onChange={setPropertyType} />
           ) : (
@@ -299,18 +305,22 @@ export default function PrivatePropertyScreen() {
           ) : null}
 
           <Field
-            label="GhanaPost GPS"
+            label="GhanaPost GPS (optional)"
             placeholder="GA-492-1234"
             value={digitalAddress}
             onChangeText={setDigitalAddress}
             autoCapitalize="characters"
           />
-          <Field label="Street" placeholder="Nii Tetteh Street" value={street} onChangeText={setStreet} />
-          <Field label="Landmark" placeholder="Opposite the Baptist church" value={landmark} onChangeText={setLandmark} />
+          <Field label="Street (optional)" placeholder="Nii Tetteh Street" value={street} onChangeText={setStreet} />
+          <Field label="Landmark (optional)" placeholder="Opposite the Baptist church" value={landmark} onChangeText={setLandmark} />
         </View>
 
         {error ? <Notice tone="error" title={error} /> : null}
-        <Footnote>Everything saves as you go, and the steps can be done in any order.</Footnote>
+        {stillNeeded.length ? (
+          <Footnote>{`Still needed: ${stillNeeded.join(", ")}.`}</Footnote>
+        ) : (
+          <Footnote>Saves as you go.</Footnote>
+        )}
       </ScrollView>
 
       {/* `propertyType` is in the condition because the backend requires it and

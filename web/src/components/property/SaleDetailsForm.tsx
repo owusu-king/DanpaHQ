@@ -102,7 +102,11 @@ export function SaleDetailsForm({
       const next = await updateSale(propertyId, input);
       await onSaved(next);
     } catch (cause) {
-      setError(cause instanceof ApiFailure ? cause.error.message : "That did not save.");
+      setError(
+        cause instanceof ApiFailure
+          ? cause.error.message
+          : "Could not save: check your connection and try again.",
+      );
     } finally {
       setBusy(false);
     }
@@ -146,7 +150,7 @@ export function SaleDetailsForm({
       <section className="sale-form-group" aria-label="What buyers read">
         <Field
           label="Headline"
-          hint="The first line a buyer reads — what it is and where."
+          hint="What it is and where."
           maxLength={160}
           value={headline}
           disabled={locked("headline")}
@@ -162,7 +166,14 @@ export function SaleDetailsForm({
             disabled={locked("description")}
             onChange={(event) => setDescription(event.target.value)}
           />
-          <span className="type-caption">At least 40 characters. {description.trim().length} so far.</span>
+          {/* Says exactly how far off it is, rather than refusing on save. */}
+          {description.trim().length < 40 ? (
+            <span className="type-caption field-error">
+              {40 - description.trim().length} more character{40 - description.trim().length === 1 ? "" : "s"} needed (40 minimum).
+            </span>
+          ) : (
+            <span className="type-caption field-hint">{description.trim().length} characters.</span>
+          )}
         </label>
       </section>
 
@@ -205,7 +216,7 @@ export function SaleDetailsForm({
               onChange={(event) => setBathrooms(event.target.value.replace(/\D/g, ""))}
             />
             <Field
-              label="Floor area (m²), if known"
+              label="Floor area m² (optional)"
               inputMode="decimal"
               value={floorArea}
               disabled={locked("floor_area_sqm")}
@@ -245,21 +256,23 @@ export function SaleDetailsForm({
               onChange={setLandUnit}
               options={LAND_UNITS}
             />
-            <div className="sale-form-check">
-              <CheckChip
-                label="Water and power reach the plot"
-                checked={serviced}
-                disabled={locked("is_serviced")}
-                onChange={setServiced}
-              />
-            </div>
           </div>
         )}
+        {sale.kind === "land" ? (
+          <div className="sale-form-check">
+            <CheckChip
+              label="Water and power reach the plot"
+              checked={serviced}
+              disabled={locked("is_serviced")}
+              onChange={setServiced}
+            />
+          </div>
+        ) : null}
       </section>
 
       {sale.missing.length ? (
         <div className="sale-form-missing">
-          <p className="type-caption">Still needed before it can be sent</p>
+          <p className="type-caption">Still needed</p>
           <ul>
             {sale.missing.map((gap) => (
               <li key={gap.field} className="type-caption">{gap.message}</li>

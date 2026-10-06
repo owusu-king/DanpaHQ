@@ -20,13 +20,25 @@
 
 /* --- the rail ------------------------------------------------------------ */
 
+/* A shade darker than the page, warm at the top and settling toward the foot,
+   so the rail reads as the surface the glass tiles sit on. */
+:root {
+  --rail-ease: cubic-bezier(.22, 1, .36, 1);
+  --rail-spring: linear(0, 0.063 3.3%, 0.232 7.4%, 0.477 12.4%, 0.72 18%, 0.887 23.7%, 0.98 29.6%, 1.022 35.6%, 1.031 41.5%, 1.022 49%, 1.007 59%, 0.999 71%, 1);
+  --rail-ground:
+    radial-gradient(120% 40% at 0% 0%, color-mix(in srgb, var(--color-kola-50) 70%, transparent), transparent 70%),
+    radial-gradient(100% 30% at 100% 100%, color-mix(in srgb, var(--color-gold-50) 60%, transparent), transparent 70%),
+    linear-gradient(180deg, color-mix(in srgb, var(--color-field-100) 70%, var(--color-field-50)), var(--color-field-100));
+}
+
 .portal-rail {
   display: none;
   flex-direction: column;
   gap: var(--space-6);
   padding: var(--space-5) var(--space-4);
-  background: var(--color-field-0);
-  border-right: var(--border-hairline) solid var(--color-field-200);
+  background: var(--rail-ground);
+  border-right: var(--border-hairline) solid color-mix(in srgb, var(--color-field-300) 70%, transparent);
+  box-shadow: inset -1px 0 0 rgba(255, 255, 255, .7);
 }
 
 .portal-rail-head {
@@ -66,7 +78,7 @@
               background-color var(--motion-duration-instant) var(--motion-easing-standard);
 }
 
-.portal-collapse:hover { background: var(--color-field-50); color: var(--color-ink-700); }
+.portal-collapse:hover { background: rgba(255, 255, 255, .7); color: var(--color-ink-700); box-shadow: 0 0 0 1px rgba(33, 26, 21, .06); }
 
 /* Same glyph, reversed: pointing out of the rail means "expand". */
 .portal.is-collapsed .portal-collapse .portal-icon { rotate: 180deg; }
@@ -106,11 +118,80 @@
 }
 
 .portal-nav {
+  position: relative;
+  isolation: isolate;
   min-width: 0;
   display: grid;
   gap: var(--space-5);
   overflow-x: hidden;
   overflow-y: auto;
+}
+
+/* The two glass tiles (see PortalNav): one under the current page, one that
+   follows the pointer. Placed by custom properties, moved on a soft spring. */
+.portal-nav-tile {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: -1;
+  width: var(--tile-w, 0);
+  height: var(--tile-h, 0);
+  border-radius: var(--radius-md);
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(var(--tile-x, 0), var(--tile-y, 0));
+}
+
+.portal-nav-tile.is-current {
+  --tile-x: var(--current-x);
+  --tile-y: var(--current-y);
+  --tile-w: var(--current-w);
+  --tile-h: var(--current-h);
+  background: linear-gradient(160deg, rgba(255, 255, 255, .96), rgba(255, 255, 255, .78));
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--color-kola-600) 16%, transparent),
+    0 8px 18px -12px rgba(12, 58, 42, .45),
+    0 1px 2px rgba(33, 26, 21, .06),
+    inset 0 1px 0 rgba(255, 255, 255, 1);
+}
+
+.portal-nav-tile.is-hover {
+  --tile-x: var(--hover-x);
+  --tile-y: var(--hover-y);
+  --tile-w: var(--hover-w);
+  --tile-h: var(--hover-h);
+  background: rgba(255, 255, 255, .55);
+  box-shadow: 0 0 0 1px rgba(33, 26, 21, .05), inset 0 1px 0 rgba(255, 255, 255, .9);
+  backdrop-filter: blur(8px) saturate(140%);
+  -webkit-backdrop-filter: blur(8px) saturate(140%);
+}
+
+.portal-nav[data-current] .portal-nav-tile.is-current { opacity: 1; }
+.portal-nav[data-hover] .portal-nav-tile.is-hover { opacity: 1; }
+
+.portal-nav[data-glide] .portal-nav-tile.is-current {
+  transition:
+    transform 520ms var(--rail-spring),
+    width 520ms var(--rail-spring),
+    height 520ms var(--rail-spring),
+    opacity 200ms var(--rail-ease);
+}
+
+.portal-nav[data-glide][data-hover] .portal-nav-tile.is-hover {
+  transition:
+    transform 340ms var(--rail-ease),
+    width 340ms var(--rail-ease),
+    height 340ms var(--rail-ease),
+    opacity 180ms var(--rail-ease);
+}
+
+/* Arriving on the rail, the hover tile appears where the pointer is rather
+   than travelling from wherever it last rested. */
+.portal-nav:not([data-hover]) .portal-nav-tile.is-hover { transition: opacity 180ms var(--rail-ease); }
+
+@media (prefers-reduced-motion: reduce) {
+  .portal-nav[data-glide] .portal-nav-tile.is-current,
+  .portal-nav[data-glide][data-hover] .portal-nav-tile.is-hover { transition: opacity 120ms linear; }
 }
 .portal-nav-section { display: grid; gap: var(--space-1); }
 
@@ -137,21 +218,28 @@
   font-size: 0.875rem;
   font-weight: 500;
   text-decoration: none;
-  transition: background-color var(--motion-duration-instant) var(--motion-easing-standard);
+  transition:
+    color 200ms var(--rail-ease),
+    transform 160ms var(--rail-ease);
 }
+
+.portal-nav-link:active { transform: scale(.98); }
 
 .portal-nav-label { flex: 1; min-width: 0; }
 
 /* 20px in a 20px box, never scaled up when the labels go. An oversized glyph
    is the commonest way a collapsed rail starts looking like a toolbar. */
 .portal-icon { flex: none; width: 20px; height: 20px; color: var(--color-ink-500); }
-.portal-nav-link:hover .portal-icon { color: var(--color-ink-700); }
+.portal-nav-link .portal-icon { transition: color 200ms var(--rail-ease), transform 320ms var(--rail-spring); }
+.portal-nav-link:hover { color: var(--color-ink-900); }
+.portal-nav-link:hover .portal-icon { color: var(--color-ink-800); transform: translateX(1px) scale(1.06); }
 .portal-nav-link[aria-current="page"] .portal-icon { color: var(--color-kola-600); }
 
-.portal-nav-link:hover { background: var(--color-field-50); }
+/* The current page's tile is drawn by .portal-nav-tile.is-current; until the
+   script has placed it, the link keeps a quiet tint of its own. */
+.portal-nav:not([data-current]) .portal-nav-link[aria-current="page"] { background: rgba(255, 255, 255, .8); }
 
 .portal-nav-link[aria-current="page"] {
-  background: var(--color-kola-50);
   color: var(--color-kola-800);
   font-weight: 600;
 }
@@ -167,6 +255,19 @@
   translate: 0 -50%;
   border-radius: var(--radius-stamp);
   background: var(--color-kola-600);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--color-kola-600) 45%, transparent);
+  animation: portal-rule-in 420ms var(--rail-spring) both;
+}
+
+@keyframes portal-rule-in {
+  from { opacity: 0; transform: scaleY(.3); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .portal-nav-link[aria-current="page"]::before { animation: none; }
+  .portal-nav-link .portal-icon { transition: none; }
+  .portal-nav-link:hover .portal-icon { transform: none; }
 }
 
 .portal-nav-hint {
@@ -270,7 +371,7 @@
 .portal-rail-foot {
   margin-top: auto;
   padding-top: var(--space-4);
-  border-top: var(--border-hairline) solid var(--color-field-200);
+  border-top: var(--border-hairline) solid color-mix(in srgb, var(--color-field-300) 60%, transparent);
 }
 
 .portal-account { position: relative; }
@@ -292,7 +393,7 @@
   transition: background-color var(--motion-duration-instant) var(--motion-easing-standard);
 }
 
-.portal-account-trigger:hover { background: var(--color-field-50); }
+.portal-account-trigger:hover { background: rgba(255, 255, 255, .6); box-shadow: 0 0 0 1px rgba(33, 26, 21, .05), inset 0 1px 0 rgba(255, 255, 255, .9); }
 
 /* Collapsed it is the avatar and nothing else, centred in the rail and still
    anchored at the bottom — the same control, drawn smaller. */
@@ -424,26 +525,24 @@
 
 .portal-workspace { min-width: 0; display: flex; flex-direction: column; }
 
-/* The Provider header is a three-zone instrument: workspace context, a truly
-   centred search, then personal utilities. Equal outer tracks keep the search
-   geometrically centred instead of merely placed after whatever came first. */
+/* Two zones on a quiet glass bar: where you are on the left (the Portfolio for
+   a provider, the page for a tenant), and what comes to you on the right —
+   conversations behind Support, and Updates. No global search; each workspace
+   searches its own records where they are listed. */
 .portal-header {
   position: sticky;
   top: 0;
   z-index: 20;
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: var(--space-3);
   min-height: 4rem;
-  padding: 0 var(--space-5);
-  border-bottom: var(--border-hairline) solid var(--color-field-200);
-  background: color-mix(in srgb, var(--color-field-0) 94%, var(--color-kola-50));
-}
-
-.portal-header.is-provider {
-  display: grid;
-  grid-template-columns: minmax(11rem, 1fr) minmax(18rem, 36rem) minmax(11rem, 1fr);
-  gap: var(--space-5);
+  padding: 0 var(--space-6);
+  border-bottom: var(--border-hairline) solid color-mix(in srgb, var(--color-field-200) 80%, transparent);
+  background: color-mix(in srgb, var(--color-field-0) 84%, transparent);
+  backdrop-filter: blur(14px) saturate(150%);
+  -webkit-backdrop-filter: blur(14px) saturate(150%);
 }
 
 .portal-header-context,
@@ -455,104 +554,8 @@
 
 .portal-header-context { justify-content: flex-start; }
 .portal-header-actions { justify-content: flex-end; gap: var(--space-2); }
-.portal-header:not(.is-provider) .portal-header-context { flex: 1; }
-
-.portal-header.is-provider .portal-search {
-  width: 100%;
-  max-width: 36rem;
-  justify-self: center;
-}
-
-/* --- Portfolio search ------------------------------------------------------
- *
- * A field that stays one size. Growing on focus was the previous behaviour and
- * it made the header jump under the cursor at the exact moment somebody was
- * aiming at it; the affordance now comes from the border and a ring, which cost
- * no layout.
- */
-
-.portal-search { position: relative; flex: 0 1 22rem; min-width: 0; }
-
-.portal-search-field {
-  display: grid;
-  grid-template-columns: 16px minmax(0, 1fr);
-  align-items: center;
-  gap: var(--space-2);
-  height: 2.75rem;
-  padding: 0 var(--space-4);
-  color: var(--color-ink-500);
-  background: var(--color-field-50);
-  border: var(--border-hairline) solid var(--color-field-300);
-  border-radius: var(--radius-pill);
-  transition: border-color var(--motion-duration-fast) var(--motion-easing-standard),
-    box-shadow var(--motion-duration-fast) var(--motion-easing-standard);
-}
-.portal-search-field:focus-within {
-  border-color: var(--color-kola-600);
-  background: var(--color-field-0);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-kola-600) 13%, transparent), var(--shadow-raised);
-}
-.portal-search-field svg { width: 16px; height: 16px; }
-.portal-search-field input {
-  width: 100%;
-  min-width: 0;
-  height: 100%;
-  padding: 0;
-  color: var(--color-ink-900);
-  font: 400 0.875rem/1 var(--font-body);
-  background: none;
-  border: 0;
-  outline: 0;
-  appearance: none;
-}
-.portal-search-field input::placeholder { color: var(--color-ink-300); }
-.portal-search-field input::-webkit-search-cancel-button { appearance: none; }
-
-.portal-search-results {
-  position: absolute;
-  top: calc(100% + var(--space-2));
-  right: 0;
-  left: 0;
-  z-index: 40;
-  padding: var(--space-2);
-  background: var(--color-field-0);
-  border: var(--border-hairline) solid var(--color-field-200);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-modal);
-}
-.portal-search-results ul { display: grid; padding: 0; margin: 0; list-style: none; }
-.portal-search-results li + li { border-top: var(--border-hairline) solid var(--color-field-100); }
-.portal-search-results a {
-  display: grid;
-  grid-template-columns: 2rem minmax(0, 1fr) auto;
-  align-items: center;
-  gap: var(--space-3);
-  min-height: 3rem;
-  padding: var(--space-2);
-  color: inherit;
-  text-decoration: none;
-  border-radius: var(--radius-md);
-  transition: background-color var(--motion-duration-fast) var(--motion-easing-standard);
-}
-.portal-search-results a:hover { background: var(--color-field-50); }
-.portal-search-results a > span:first-child {
-  display: grid;
-  width: 2rem;
-  height: 2rem;
-  place-items: center;
-  color: var(--color-kola-600);
-  background: var(--color-kola-50);
-  border-radius: var(--radius-md);
-}
-.portal-search-results a > span:nth-child(2) { display: grid; min-width: 0; }
-.portal-search-results strong { overflow: hidden; font-size: 0.875rem; text-overflow: ellipsis; white-space: nowrap; }
-.portal-search-results small { color: var(--color-ink-500); font-size: 0.75rem; }
-.portal-search-results b { color: var(--color-ink-300); }
-.portal-search-results p { margin: 0; padding: var(--space-4); color: var(--color-ink-500); font-size: 0.8125rem; text-align: center; }
-
-@media (prefers-reduced-motion: reduce) {
-  .portal-search-field, .portal-search-results a { transition: none; }
-}
+.portal-header-context { flex: 1 1 auto; }
+.portal-header-actions { flex: 0 0 auto; }
 
 /* Header actions retain shared primitives even though Provider context and
    account identity now receive their own visual weights. */
@@ -709,13 +712,9 @@
   left: auto;
 }
 
-/* A phone gets navigation and utilities; full Portfolio search stays one tap
-   away in the content experiences rather than becoming a 120px token field. */
+/* A phone keeps the Portfolio as an icon, and Support keeps its word. */
 @media (max-width: 47.99rem) {
-  .portal-search { display: none; }
-  .portal-header { min-height: 3.75rem; padding-inline: var(--space-3); }
-  .portal-header.is-provider { display: flex; gap: var(--space-2); }
-  .portal-header.is-provider .portal-header-context { flex: 1; }
+  .portal-header { min-height: 3.75rem; padding-inline: var(--space-3); gap: var(--space-2); }
   .portal-header.is-provider .portal-context-switcher {
     grid-template-columns: 2rem;
     width: 2.75rem;
@@ -726,28 +725,65 @@
 }
 
 @media (min-width: 48rem) and (max-width: 74.99rem) {
-  .portal-header.is-provider {
-    grid-template-columns: minmax(6.5rem, 1fr) minmax(16rem, 30rem) minmax(6.5rem, 1fr);
-    gap: var(--space-3);
-    padding-inline: var(--space-4);
-  }
-  .portal-header.is-provider .portal-context-switcher {
-    grid-template-columns: 2rem;
-    width: 2.75rem;
-    padding: 3px;
-  }
-  .portal-header.is-provider .portal-context-copy,
-  .portal-header.is-provider .portal-context-switcher > .portal-icon { display: none; }
+  .portal-header { padding-inline: var(--space-4); }
 }
 
 /* Coarse pointers retain a full 44px target even outside Provider mode. */
 @media (pointer: coarse) {
   .portal-header-icon, .portal-header-updates { width: 2.75rem; }
-  .portal-search-field { height: 2.75rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .portal-header-icon, .portal-header-updates, .portal-context-switcher { transition: none; }
+}
+
+/* Support: the way into conversations about properties bought and sold. A
+   headset and its word on a quiet paper chip, kola when reached for or open. */
+.portal-header-support {
+  --utility-surface: var(--color-field-0);
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 2.75rem;
+  padding: 0 var(--space-4) 0 var(--space-3);
+  color: var(--color-ink-800);
+  font-size: .8125rem;
+  font-weight: 650;
+  text-decoration: none;
+  background: var(--color-field-0);
+  border: var(--border-hairline) solid var(--color-field-200);
+  border-radius: var(--radius-md);
+  box-shadow: 0 1px 2px rgba(33, 26, 21, .04);
+  transition:
+    color var(--motion-duration-fast) var(--motion-easing-standard),
+    background-color var(--motion-duration-fast) var(--motion-easing-standard),
+    border-color var(--motion-duration-fast) var(--motion-easing-standard);
+}
+
+.portal-header-support .portal-icon { width: 18px; height: 18px; color: var(--color-kola-600); }
+
+.portal-header-support:hover,
+.portal-header-support[aria-expanded="true"] {
+  --utility-surface: var(--color-kola-50);
+  color: var(--color-kola-800);
+  background: var(--color-kola-50);
+  border-color: var(--color-kola-300);
+}
+
+.portal-header-support:active { translate: 0 1px; }
+.portal-header-support:focus-visible { outline: 3px solid var(--color-lagoon-600); outline-offset: 2px; }
+.portal-header-support .portal-header-dot { top: 8px; right: auto; left: 26px; }
+
+.portal-header-updates[aria-current="page"] {
+  --utility-surface: var(--color-kola-50);
+  color: var(--color-kola-800);
+  background: var(--color-kola-50);
+  border-color: var(--color-kola-300);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .portal-header-support { transition: none; }
 }
 
 /* Only a mark that there is somewhere else to be. A count would invite reading
@@ -1163,8 +1199,8 @@
   gap: var(--space-6);
   padding: var(--space-5) var(--space-4);
   overflow-y: auto;
-  background: var(--color-field-0);
-  border-right: var(--border-hairline) solid var(--color-field-200);
+  background: var(--rail-ground), var(--color-field-100);
+  border-right: var(--border-hairline) solid color-mix(in srgb, var(--color-field-300) 70%, transparent);
   animation: portal-slide var(--motion-duration-base) var(--motion-easing-enter);
 }
 

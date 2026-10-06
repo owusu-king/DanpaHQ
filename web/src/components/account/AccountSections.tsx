@@ -172,40 +172,32 @@ export function PhotoSection({
 
   return (
     <section style={sectionStyle}>
-      <p className="type-caption" style={{ margin: 0 }}>JPEG, PNG or WebP, up to 5MB.</p>
-
       {error ? <Notice tone="warning" title="That did not work" body={error} /> : null}
 
-      <div style={{ display: "flex", alignItems: "center", gap: "var(--space-4)" }}>
-        <Avatar name={name} size={72} photoUrl={photoUrl} />
-        <div style={{ display: "flex", gap: "var(--space-2)", flexWrap: "wrap" }}>
-          <label
-            className="type-body"
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              minHeight: 48,
-              padding: "0 var(--space-4)",
-              border: "var(--border-hairline) solid var(--color-field-300)",
-              borderRadius: "var(--radius-sm)",
-              cursor: busy ? "progress" : "pointer",
-              fontWeight: 600,
-            }}
-          >
-            {busy ? "Working…" : photoUrl ? "Change photo" : "Add a photo"}
-            <input
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              onChange={choose}
-              disabled={busy}
-              className="sr-only"
-            />
-          </label>
-          {photoUrl ? (
-            <Button variant="quiet" type="button" onClick={remove} disabled={busy}>
-              Remove
-            </Button>
-          ) : null}
+      <div className="settings-photo">
+        <span className="settings-photo-frame">
+          <Avatar name={name} size={72} photoUrl={photoUrl} />
+        </span>
+        <div className="settings-photo-copy">
+          <strong>{photoUrl ? "Current photo" : "No photo yet"}</strong>
+          <small>JPEG, PNG or WebP, up to 5MB.</small>
+          <div className="settings-photo-actions">
+            <label className={`settings-upload${busy ? " is-busy" : ""}`}>
+              {busy ? "Working…" : photoUrl ? "Change photo" : "Upload a photo"}
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                onChange={choose}
+                disabled={busy}
+                className="sr-only"
+              />
+            </label>
+            {photoUrl ? (
+              <Button variant="quiet" size="sm" type="button" onClick={remove} disabled={busy}>
+                Remove
+              </Button>
+            ) : null}
+          </div>
         </div>
       </div>
     </section>
@@ -262,20 +254,22 @@ export function ProfileSection({
         error={errors.preferred_name}
         autoComplete="nickname"
       />
-      <Field
-        label="First name"
-        value={firstName}
-        onChange={(event) => setFirstName(event.target.value)}
-        error={errors.first_name}
-        autoComplete="given-name"
-      />
-      <Field
-        label="Surname"
-        value={lastName}
-        onChange={(event) => setLastName(event.target.value)}
-        error={errors.last_name}
-        autoComplete="family-name"
-      />
+      <div className="settings-fields-2">
+        <Field
+          label="First name"
+          value={firstName}
+          onChange={(event) => setFirstName(event.target.value)}
+          error={errors.first_name}
+          autoComplete="given-name"
+        />
+        <Field
+          label="Surname"
+          value={lastName}
+          onChange={(event) => setLastName(event.target.value)}
+          error={errors.last_name}
+          autoComplete="family-name"
+        />
+      </div>
       <Field
         label="Email (optional)"
         type="email"
@@ -326,26 +320,27 @@ export function PasswordSection() {
 
   return (
     <form onSubmit={submit} style={sectionStyle}>
-      <Field
-        label="Current password"
-        type="password"
-        value={current}
-        onChange={(event) => setCurrent(event.target.value)}
-        error={errors.current_password}
-        autoComplete="current-password"
-      />
-      <Field
-        label="New password"
-        type="password"
-        value={next}
-        onChange={(event) => {
-          setNext(event.target.value);
-          if (errors.new_password) setErrors({});
-        }}
-        error={errors.new_password}
-        hint={`At least ${MIN_PASSWORD_LENGTH} characters. Not all digits, and not your own number.`}
-        autoComplete="new-password"
-      />
+      <div className="settings-fields-2">
+        <Field
+          label="Current password"
+          type="password"
+          value={current}
+          onChange={(event) => setCurrent(event.target.value)}
+          error={errors.current_password}
+          autoComplete="current-password"
+        />
+        <Field
+          label="New password"
+          type="password"
+          value={next}
+          onChange={(event) => {
+            setNext(event.target.value);
+            if (errors.new_password) setErrors({});
+          }}
+          error={errors.new_password}
+          autoComplete="new-password"
+        />
+      </div>
       {summary ? <Notice tone="error" title={summary} /> : null}
       {done ? (
         <Notice

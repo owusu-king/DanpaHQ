@@ -7,19 +7,22 @@ import { fileURLToPath } from "node:url";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const read = (relative) => readFileSync(resolve(root, relative), "utf8");
 
-test("Updates presents action, unread and domain filters as one communication system", () => {
+test("Updates is what is new and what happened recently, never a log", () => {
   const page = read("web/app/updates/page.tsx");
 
-  assert.match(page, /Action needed/);
-  assert.match(page, /notificationCategory/);
+  // New first — what needs an answer, then the rest unread — then recent activity.
+  assert.match(page, /title: "Needs your attention"/);
+  assert.match(page, /title: "New"/);
+  assert.match(page, /title: "Recent activity"/);
   assert.match(page, /notificationSource/);
   assert.match(page, /notificationStatus/);
   assert.match(page, /notificationTone/);
   assert.match(page, /needsYou/);
-  assert.match(page, /Needs your attention/);
-  assert.match(page, /Today/);
-  assert.match(page, /This week/);
-  assert.match(page, /Earlier/);
+
+  // No history to page through, no filters over it.
+  assert.doesNotMatch(page, /Pagination|aria-label="Updates pages"|PAGE_SIZE/);
+  assert.doesNotMatch(page, /DropdownMenu|SegmentedControl/);
+  assert.doesNotMatch(page, /"This week"|"Earlier"/);
 });
 
 test("Updates stays a log without repeating the shell title or adding a dashboard summary", () => {
@@ -51,13 +54,38 @@ test("every notification lands somewhere real", () => {
 
 test("rows are rows, not cards, and unread does not depend on colour", () => {
   const css = read("web/src/styles/updates-workspace.css");
+  const page = read("web/app/updates/page.tsx");
 
   assert.match(css, /\.update-row\b/);
-  assert.match(css, /border-left: var\(--border-stamp\) solid transparent/);
+  // A group is not a boxed, shadowed card inside the panel.
+  assert.doesNotMatch(read("web/src/styles/workspace.css"), /\.ws-rows \{[^}]*box-shadow/);
   assert.match(css, /\.update-row\[data-tone="critical"\]/);
-  assert.match(css, /\.update-row\.is-unread/);
+  // Unread is a shape and a weight as well as a colour.
+  assert.match(css, /\.update-row\.is-unread \.update-row-dot \{ opacity: 1/);
+  assert.match(css, /\.update-row\.is-unread \.update-row-title \{[^}]*font-weight: 650/);
+  assert.match(page, /\$\{item\.is_read \? "" : "Unread\. "\}/);
   assert.match(css, /\.update-row:focus-visible/);
   assert.match(css, /@media \(prefers-reduced-motion: reduce\)/);
+});
+
+test("secondary actions are disclosed, not stacked on every row", () => {
+  const page = read("web/app/updates/page.tsx");
+  const css = read("web/src/styles/updates-workspace.css");
+
+  // Mark-as-read is a sibling of the row button (never nested in it) and shows on intent.
+  assert.match(page, /className="update-row-mark"/);
+  assert.match(css, /\.update-item:hover \.update-row-mark/);
+  assert.match(css, /@media \(hover: none\)/);
+});
+
+test("the shell badge follows the page, and Back returns to the same place", () => {
+  const page = read("web/app/updates/page.tsx");
+  const shell = read("web/src/components/portal/PortalShell.tsx");
+
+  assert.match(page, /new CustomEvent\("rooomly:unread"/);
+  assert.match(shell, /addEventListener\("rooomly:unread"/);
+  assert.match(page, /sessionStorage\.setItem\(RETURN_KEY/);
+  assert.match(page, /Try again/);
 });
 
 test("a row navigates immediately while its read acknowledgement settles", () => {
@@ -67,13 +95,22 @@ test("a row navigates immediately while its read acknowledgement settles", () =>
   assert.match(page, /router\.push\(destination\(item\)/);
 });
 
-test("Updates presents at most ten records at once", () => {
+test("a reminder leaves once read; only the ten most recent activities stay", () => {
   const page = read("web/app/updates/page.tsx");
+  const types = read("web/src/lib/console.ts");
 
-  assert.match(page, /const PAGE_SIZE = 10/);
-  assert.match(page, /orderedVisible\.slice\(\(currentPage - 1\) \* PAGE_SIZE, currentPage \* PAGE_SIZE\)/);
-  assert.match(page, /\.\.\.visible\.filter\(needsYou\)/);
-  assert.match(page, /aria-label="Updates pages"/);
-  assert.match(page, />Previous</);
-  assert.match(page, />Next</);
+  // The server says which a record is; the client never guesses from the kind.
+  assert.match(types, /record: "informational" \| "activity"/);
+  assert.match(page, /const RECENT_KEPT = 10/);
+  assert.match(page, /item\.record === "activity" && \(item\.is_read \|\| stale\(item\)\)\)\s*\.slice\(0, RECENT_KEPT\)/);
+  // Unread activity weeks old is past, not new, and New is capped too — a
+  // tenant had 72 unread rows under New (owner, 2026-10-05: "listing too many").
+  assert.match(page, /const STALE_DAYS = 14;/);
+  assert.match(page, /const stale = \(item: Notification\) => new Date\(item\.created_at\)\.getTime\(\) < staleBefore;/);
+  // Repeats about the same thing keep only the newest.
+  assert.match(page, /const key = `\$\{item\.kind\}:\$\{item\.target_type\}:\$\{item\.target_id\}`;/);
+  assert.match(page, /const other = fresh\.filter\(\(item\) => !needsYou\(item\)\)\.slice\(0, RECENT_KEPT\);/);
+  // Reading a reminder removes it here as the server deletes it.
+  assert.match(page, /filter\(\(row\) => !\(row\.id === item\.id && row\.record === "informational"\)\)/);
+  assert.match(page, /filter\(\(item\) => item\.record !== "informational"\)/);
 });

@@ -1295,3 +1295,74 @@ def _headline_limits() -> list[str]:
     from apps.billing import catalogue
 
     return list(catalogue.HEADLINE_LIMITS)
+
+
+class MyAccountDeletionView(APIView):
+    """GET/POST/DELETE /me/account-deletion/ - ask for deletion, see it, withdraw it."""
+
+    permission_classes: ClassVar = [IsAuthenticated]
+
+    def get(self, request):
+        from . import deletion
+
+        latest = deletion.latest_for(request.user)
+        return Response(
+            {
+                "request": deletion.row(latest) if latest else None,
+                "blockers": deletion.blockers_for(request.user),
+                "confirmation": deletion.CONFIRMATION,
+            }
+        )
+
+    def post(self, request):
+        from . import deletion
+
+        item = deletion.request_deletion(
+            user=request.user,
+            reason=str(request.data.get("reason", "")),
+            confirmation=str(request.data.get("confirmation", "")),
+        )
+        return Response({"request": deletion.row(item)}, status=status.HTTP_201_CREATED)
+
+    def delete(self, request):
+        from . import deletion
+
+        item = deletion.cancel_deletion(user=request.user)
+        return Response({"request": deletion.row(item)})
+
+
+class AccountDeletionsView(ManagementAPIView):
+    required_capability = Capability.VIEW_USERS
+
+    def get(self, request):
+        from . import deletion
+        from .models import AccountDeletionRequest
+
+        rows = AccountDeletionRequest.objects.select_related("user", "decided_by")
+        state = request.query_params.get("status", "").strip()
+        if state:
+            rows = rows.filter(status=state)
+        return Response(
+            {
+                "results": [
+                    deletion.row(item, for_management=True)
+                    for item in rows[: _bounded_limit(request)]
+                ]
+            }
+        )
+
+
+class AccountDeletionDecisionView(ManagementAPIView):
+    required_capability = Capability.MANAGE_USERS
+
+    def post(self, request, pk, action):
+        from . import deletion
+
+        note = str(request.data.get("note", ""))
+        if action == "approve":
+            item = deletion.approve(item_id=pk, actor=request.user, note=note)
+        elif action == "decline":
+            item = deletion.decline(item_id=pk, actor=request.user, note=note)
+        else:
+            raise NotFound("Unknown decision.")
+        return Response(deletion.row(item, for_management=True))

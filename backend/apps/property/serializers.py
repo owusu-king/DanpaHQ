@@ -231,6 +231,8 @@ class UnitSerializer(serializers.ModelSerializer):
     publication = serializers.SerializerMethodField()
     availability = serializers.SerializerMethodField()
     space_type_label = serializers.CharField(source="get_space_type_display", read_only=True)
+    #: Which details make sense for this kind of space — see `space_rules.questions_for`.
+    asks = serializers.SerializerMethodField()
     #: Needed when a Unit is read outside its Property — the portfolio-wide list
     #: has no other way to say where it is.
     property_title = serializers.CharField(source="property.title", read_only=True)
@@ -256,6 +258,7 @@ class UnitSerializer(serializers.ModelSerializer):
             "label",
             "space_type",
             "space_type_label",
+            "asks",
             "description",
             "bedrooms",
             "bathrooms",
@@ -297,6 +300,11 @@ class UnitSerializer(serializers.ModelSerializer):
 
     def get_condition_state(self, obj) -> str:
         return self._snapshot(obj)["condition_state"]
+
+    def get_asks(self, obj) -> dict:
+        from .space_rules import questions_for
+
+        return questions_for(obj.space_type)
 
     def get_verification(self, obj) -> dict:
         snap = dict(self._snapshot(obj))

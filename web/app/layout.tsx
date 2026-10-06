@@ -63,6 +63,19 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           This runs only when scripting is off, so it costs nothing and cannot
           fight the animation when it is on.
         */}
+        {/*
+          Explore and the listing pages serve both a stranger (public layout)
+          and a signed-in tenant (the app). The session is only known once
+          /me/ answers, so a refresh used to paint the public page first and
+          swap. The browser remembers it was signed in (`SESSION_HINT_KEY` in
+          lib/session); this marks the document before first paint, and
+          `.shared-pending` stays hidden until the session settles.
+        */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: "try{if(localStorage.getItem('session.hint'))document.documentElement.setAttribute('data-session-hint','')}catch(e){}",
+          }}
+        />
         <noscript>
           <style
             dangerouslySetInnerHTML={{

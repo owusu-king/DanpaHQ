@@ -52,6 +52,7 @@ export type IconName =
   | "heart"
   | "heart-filled"
   | "chevron-down"
+  | "headset"
   | "close"
   | "check"
   | "download"
@@ -59,7 +60,26 @@ export type IconName =
   | "filters"
   | "map"
   | "city"
-  | "landmark";
+  | "landmark"
+  | "plus"
+  | "pencil"
+  | "trash"
+  | "upload"
+  | "star"
+  | "lock"
+  | "archive"
+  | "device"
+  | "desktop"
+  | "handset"
+  | "shield"
+  | "eye"
+  | "bed"
+  | "bath"
+  | "sofa"
+  | "water"
+  | "power"
+  | "wrench"
+  | "video";
 
 const PATHS: Record<IconName, React.ReactNode> = {
   home: <path d="M3.5 8.5 10 3l6.5 5.5V16a1 1 0 0 1-1 1h-3v-5h-5v5h-3a1 1 0 0 1-1-1Z" />,
@@ -212,6 +232,13 @@ const PATHS: Record<IconName, React.ReactNode> = {
       <path d="M7.25 8.75h5.5M7.25 11.25h3.5" />
     </>
   ),
+  headset: (
+    <>
+      <path d="M4 12.25V10a6 6 0 0 1 12 0v2.25" />
+      <path d="M4 11.75h1.5a1 1 0 0 1 1 1v2.5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-3.5ZM16 11.75h-1.5a1 1 0 0 0-1 1v2.5a1 1 0 0 0 1 1h.5a1 1 0 0 0 1-1v-3.5Z" />
+      <path d="M16 15.5c0 1.4-1.5 2.25-4 2.25" />
+    </>
+  ),
   support: (
     <>
       <path d="M4.25 12.5A6.5 6.5 0 1 1 7.5 16l-4 1 1-4Z" />
@@ -324,6 +351,96 @@ const PATHS: Record<IconName, React.ReactNode> = {
     <>
       <path d="M5.25 17.25V3.25" />
       <path d="M5.25 4h9.5l-1.9 3.25 1.9 3.25h-9.5" />
+    </>
+  ),
+  plus: <path d="M10 4.25v11.5M4.25 10h11.5" />,
+  pencil: (
+    <>
+      <path d="M13.2 3.9a1.6 1.6 0 0 1 2.3 0l.6.6a1.6 1.6 0 0 1 0 2.3L7.4 15.5l-3.4.9.9-3.4Z" />
+      <path d="m11.9 5.2 2.9 2.9" />
+    </>
+  ),
+  trash: (
+    <>
+      <path d="M3.75 5.75h12.5" />
+      <path d="M8 5.75V4.1a.85.85 0 0 1 .85-.85h2.3a.85.85 0 0 1 .85.85v1.65" />
+      <path d="M5.25 5.75 6 16a1.1 1.1 0 0 0 1.1 1h5.8A1.1 1.1 0 0 0 14 16l.75-10.25" />
+    </>
+  ),
+  upload: (
+    <>
+      <path d="M10 12.75V3.5" />
+      <path d="m6.5 6.75 3.5-3.5 3.5 3.5" />
+      <path d="M3.75 12.5v2.75a1 1 0 0 0 1 1h10.5a1 1 0 0 0 1-1V12.5" />
+    </>
+  ),
+  star: <path d="m10 3 2.1 4.3 4.7.7-3.4 3.3.8 4.7L10 13.8 5.8 16l.8-4.7L3.2 8l4.7-.7Z" />,
+  lock: (
+    <>
+      <rect x="4.25" y="8.75" width="11.5" height="8" rx="1.75" />
+      <path d="M6.75 8.75V6.5a3.25 3.25 0 0 1 6.5 0v2.25M10 12v1.75" />
+    </>
+  ),
+  device: (
+    <>
+      <rect x="5.75" y="2.75" width="8.5" height="14.5" rx="1.75" />
+      <path d="M9 14.75h2" />
+    </>
+  ),
+  desktop: (
+    <>
+      <rect x="2.75" y="3.75" width="14.5" height="10" rx="1.5" />
+      <path d="M7.5 17h5M10 13.75V17" />
+    </>
+  ),
+  handset: <path d="M6.2 3.25 4.4 4.1a1.6 1.6 0 0 0-.8 1.9c1.5 4.6 5.2 8.3 9.8 9.8a1.6 1.6 0 0 0 1.9-.8l.85-1.8-3.1-1.9-1.4 1.2a8.6 8.6 0 0 1-3.8-3.8l1.2-1.4Z" />,
+  // The facts a tenant compares a rental on, drawn in the same line weight.
+  bed: (
+    <>
+      <path d="M2.75 15.75V5.25M2.75 12.5h14.5M17.25 15.75V10.5a2 2 0 0 0-2-2H8.75v4" />
+      <circle cx="5.75" cy="9.75" r="1.5" />
+    </>
+  ),
+  bath: (
+    <>
+      <path d="M3 10.25h14V12a3.75 3.75 0 0 1-3.75 3.75h-6.5A3.75 3.75 0 0 1 3 12Z" />
+      <path d="M5.25 10.25V5a1.75 1.75 0 0 1 3.35-.7M6.5 15.75 5.75 17.25M13.5 15.75l.75 1.5" />
+    </>
+  ),
+  sofa: (
+    <>
+      <path d="M4.75 9V6.75a1.75 1.75 0 0 1 1.75-1.75h7a1.75 1.75 0 0 1 1.75 1.75V9" />
+      <path d="M3.5 9A1.5 1.5 0 0 1 5 10.5v1.25h10V10.5A1.5 1.5 0 1 1 18 10.5V15H2v-4.5A1.5 1.5 0 0 1 3.5 9ZM4.25 15v1.75M15.75 15v1.75" />
+    </>
+  ),
+  water: <path d="M10 2.75S5 8.35 5 12a5 5 0 0 0 10 0c0-3.65-5-9.25-5-9.25Z" />,
+  power: <path d="M11 2.75 4.75 11.25H10l-1 6 6.25-8.5H10Z" />,
+  // Maintenance: a spanner, drawn in the same weight as the rest of the rail.
+  wrench: (
+    <path d="M12.6 3.2a4 4 0 0 0-4.9 5.2L3.4 12.7a1.6 1.6 0 0 0 0 2.3l1.6 1.6a1.6 1.6 0 0 0 2.3 0l4.3-4.3a4 4 0 0 0 5.2-4.9l-2.3 2.3-2.2-.5-.5-2.2Z" />
+  ),
+  video: (
+    <>
+      <rect x="2.75" y="5.25" width="10.5" height="9.5" rx="1.75" />
+      <path d="m13.25 8.75 4-2.25v7l-4-2.25" />
+    </>
+  ),
+  eye: (
+    <>
+      <path d="M2.25 10S5 4.75 10 4.75 17.75 10 17.75 10 15 15.25 10 15.25 2.25 10 2.25 10Z" />
+      <circle cx="10" cy="10" r="2.5" />
+    </>
+  ),
+  shield: (
+    <>
+      <path d="M10 2.75 4.5 5v5c0 3.4 2.3 6.2 5.5 7.25 3.2-1.05 5.5-3.85 5.5-7.25V5Z" />
+      <path d="M10 7v3.5M10 13h.01" />
+    </>
+  ),
+  archive: (
+    <>
+      <rect x="3.25" y="3.75" width="13.5" height="3.5" rx="1" />
+      <path d="M4.5 7.25v8a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-8M8.25 10.5h3.5" />
     </>
   ),
 };

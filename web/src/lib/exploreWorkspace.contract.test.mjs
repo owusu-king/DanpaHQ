@@ -66,14 +66,18 @@ test("search and filters form one responsive discovery system", () => {
   assert.doesNotMatch(browser, /type="submit"/);
   // A callback named onSubmitText is not a form submit; a form or its handler would be.
   assert.doesNotMatch(browser, /<form\b|onSubmit=\{/);
-  assert.match(browser, /className="explore-discovery"/);
+  assert.match(browser, /<ExploreConsole/);
   assert.match(browser, /Search by location or property/);
-  // One search bar and one Filters button, as on the phone: no rail of quick
-  // pills, and no chips repeating what the panel holds.
-  const bar = browser.slice(browser.indexOf('<div className="explore-bar">'), browser.indexOf("{advancedOpen ? ("));
-  assert.match(bar, /<PlaceSearch\s/);
-  assert.match(bar, /className=\{`explore-filters-button\$\{filterCount \? " is-active" : ""\}\$\{advancedOpen \? " is-open" : ""\}`\}/);
-  assert.doesNotMatch(browser, /QuickSelectFilter|explore-quick|explore-filter-pill|DropdownMenu/);
+  // The search pill, then a few chips — Show, Bedrooms, Rent — and More
+  // filters for the rest (owner, 2026-10-05: "show few filters and let the user
+  // view more filters"). This replaces "one bar and one Filters button".
+  const console_ = read("web/src/components/explore/ExploreConsole.tsx");
+  assert.match(console_, /<div className="ec-console">/);
+  assert.match(browser, /className="explore-discovery"/);
+  assert.match(browser, /<ShowChip side="rent" \/>/);
+  assert.match(browser, /<QuickChip\s+label="Bedrooms"/);
+  assert.match(browser, /<MoreFiltersButton/);
+  assert.doesNotMatch(browser, /QuickSelectFilter|explore-filter-pill|DropdownMenu/);
   assert.match(browser, /className="explore-advanced"/);
   assert.match(browser, /className="explore-filter-scrim"/);
   // One anchored desktop panel becomes a bottom sheet on narrow web layouts.
@@ -262,10 +266,13 @@ test("every Explore choice is shown once and removed one way", () => {
   for (const source of [browser, mobile]) {
     assert.doesNotMatch(source, /const unshown = \[|function CompactFilter|function ActiveFilter|QuickSelectFilter/);
   }
-  assert.match(browser, /\{filterCount \? <span className="explore-filter-count" aria-hidden="true">\{filterCount\}<\/span> : null\}/);
-  assert.match(browser, /aria-label=\{filterCount \? `Filters, \$\{filterCount\} active` : "Filters"\}/);
-  // The phone counts the side it is on: Rent's refinements, or Buy's; All has none.
-  assert.match(mobile, /filterCount=\{mode === "all" \? undefined : filterCountForSide\}/);
+  // More filters counts what is on, and says so to a screen reader.
+  const consoleSource = read("web/src/components/explore/ExploreConsole.tsx");
+  assert.match(consoleSource, /\{count \? <span className="ec-count" aria-hidden="true">\{count\}<\/span> : null\}/);
+  assert.match(consoleSource, /aria-label=\{count \? `More filters, \$\{count\} active` : "More filters"\}/);
+  assert.match(browser, /count=\{filterCount\}/);
+  // The phone counts the side it is on: Rent's refinements, Buy's, or All's two.
+  assert.match(mobile, /filterCount=\{filterCountForSide\}/);
 
   // `bedrooms_min=0` is `>= 0` to the backend: a studio choice that was Any.
   for (const source of [browser, mobile]) {
@@ -350,10 +357,10 @@ test("the Filters panel behaves as the dialog it announces", () => {
   assert.match(places, /role="listbox"/);
   assert.match(places, /event\.key === "Escape"\) \{\s*if \(listOpen\) \{[\s\S]{0,160}setOpen\(false\);/);
 
-  // The button sits beside the search bar, and says what it opens and whether it is open.
-  const bar = browser.slice(browser.indexOf('<div className="explore-bar">'), browser.indexOf("{advancedOpen ? ("));
-  assert.ok(bar.indexOf("<PlaceSearch") < bar.indexOf("explore-filters-button"));
-  assert.match(bar, /aria-haspopup="dialog"\s+aria-expanded=\{advancedOpen\}\s+aria-controls="explore-advanced-filters"/);
+  // More filters sits in the chip row under the search, and says what it opens and whether it is open.
+  assert.ok(browser.indexOf("<PlaceSearch") < browser.indexOf("<MoreFiltersButton"));
+  assert.match(browser, /<MoreFiltersButton[\s\S]{0,200}open=\{advancedOpen\}\s+controls="explore-advanced-filters"/);
+  assert.match(read("web/src/components/explore/ExploreConsole.tsx"), /aria-haspopup="dialog"\s+aria-expanded=\{open\}\s+aria-controls=\{controls\}/);
   // The sheet rises out of the tray's stacking context, above the portal's sticky header.
   assert.match(css, /@media \(max-width: 63\.999rem\)[\s\S]*\.explore-discovery:has\(> \.explore-advanced\) \{ z-index: 80; \}/);
   // A 15px field makes iOS zoom the page on focus.

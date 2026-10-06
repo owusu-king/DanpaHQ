@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Icon } from "@/components/portal/icons";
 import { ListingCard } from "@/components/listings/ListingCard";
@@ -18,7 +18,10 @@ import {
 } from "@/lib/mapSearch";
 import { getMapConfig, type GeoBounds, type MapConfig } from "@/lib/places";
 
-import type { MapMove, MapSelection } from "./ExploreMap";
+import type { SaleCard as Sale } from "@/lib/sales";
+import { compactSalePrice } from "@/lib/mapSearch";
+
+import type { MapMove, MapSelection, SalePin } from "./ExploreMap";
 import { MapListingPreview } from "./MapListingPreview";
 
 /**
@@ -105,6 +108,8 @@ export function ExploreMapView({
   onSearchArea,
   onClearFilters,
   hasFilters,
+  sales = null,
+  onOpenSale,
 }: {
   query: ExploreQuery;
   /** `listingSearchParams(query)`, as a string: the one question both views ask. */
@@ -122,7 +127,20 @@ export function ExploreMapView({
   onSearchArea: (bounds: GeoBounds) => void;
   onClearFilters: () => void;
   hasFilters: boolean;
+  /** Explore's All view: properties for sale over the same search, as their own pins. */
+  sales?: Sale[] | null;
+  /** The map never leaves by itself: what a sale pin opens is the page's call. */
+  onOpenSale?: (id: string) => void;
 }) {
+  const salePins = useMemo<SalePin[]>(() => (sales ?? [])
+    .filter((sale) => sale.location)
+    .map((sale) => ({
+      id: sale.id,
+      lat: sale.location!.latitude,
+      lng: sale.location!.longitude,
+      label: compactSalePrice(sale.price_minor),
+      title: `For sale: ${sale.headline || sale.kind_label}. Approximate location. Show it.`,
+    })), [sales]);
   const narrow = useNarrow();
   const [config, setConfig] = useState<MapConfig | null>(null);
   const [configFailed, setConfigFailed] = useState(false);
@@ -390,6 +408,8 @@ export function ExploreMapView({
             onSelectCluster={selectCluster}
             onBackgroundClick={() => setSelection(null)}
             onFailure={() => setMapFailed(true)}
+            salePins={salePins}
+            onOpenSale={onOpenSale}
           />
         ) : (
           <div className="explore-map-frame">

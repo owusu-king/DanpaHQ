@@ -1,40 +1,8 @@
 .rent-workspace { display: grid; gap: var(--space-6); min-width: 0; }
 .rent-portfolio-select, .rent-field { display: grid; gap: var(--space-2); width: min(100%, 28rem); }
 .rent-portfolio-select select, .rent-field select { width: 100%; min-height: 48px; padding: 0 var(--space-3); color: var(--color-ink-900); background: var(--color-field-0); border: var(--border-hairline) solid var(--color-field-300); border-radius: var(--radius-sm); font: inherit; }
-.rent-attention { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
-.rent-attention button { display: grid; gap: var(--space-1); min-height: 72px; padding: var(--space-4); color: inherit; text-align: left; background: var(--color-field-0); border: var(--border-hairline) solid var(--color-field-200); border-left: 3px solid var(--color-laterite-600); border-radius: var(--radius-sm); cursor: pointer; }
-.rent-attention button span { color: var(--color-kola-600); font-size: .875rem; font-weight: 600; }
-.rent-search { display: block; width: min(100%, 30rem); }
-.rent-search input { width: 100%; min-height: 48px; padding: 0 var(--space-4); color: var(--color-ink-900); background: var(--color-field-0); border: var(--border-hairline) solid var(--color-field-300); border-radius: var(--radius-sm); font: inherit; }
-.rent-filters { display: flex; max-width: 100%; gap: var(--space-2); margin-bottom: var(--space-3); overflow-x: auto; scrollbar-width: none; }
-.rent-filters::-webkit-scrollbar { display: none; }
-.rent-filters button { min-height: 44px; padding: 0 var(--space-3); color: var(--color-ink-500); background: transparent; border: var(--border-hairline) solid var(--color-field-200); border-radius: 999px; font: inherit; font-size: .875rem; font-weight: 600; white-space: nowrap; cursor: pointer; }
-.rent-filters button[aria-pressed="true"] { color: var(--color-kola-600); background: var(--color-kola-50); border-color: var(--color-kola-300); }
-.rent-filters span { color: inherit; opacity: .75; }
-.rent-list { width: 100%; min-width: 0; padding: 0; margin: 0; list-style: none; border-top: var(--border-hairline) solid var(--color-field-200); }
-.rent-row { display: grid; grid-template-columns: minmax(13rem, 1.25fr) minmax(8rem, auto) minmax(8rem, auto) minmax(9rem, auto) 1.5rem; width: 100%; min-height: 76px; align-items: center; gap: var(--space-4); padding: var(--space-3) var(--space-2); color: inherit; text-align: left; text-decoration: none; background: transparent; border: 0; border-bottom: var(--border-hairline) solid var(--color-field-200); cursor: pointer; transition: background-color 120ms ease; }
-.rent-row:hover { background: var(--color-field-0); }
 /* An occupancy with no lease has no rent account to open, so the row stays a
    row and stops behaving like a link. */
-.rent-row.is-inert { cursor: default; opacity: .65; }
-.rent-row.is-inert:hover { background: transparent; }
-.rent-row-person, .rent-row-person strong, .rent-row-person span { display: block; min-width: 0; }
-.rent-row-person strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.rent-row-person span, .rent-row-due, .rent-row-amount small { color: var(--color-ink-500); font-size: .875rem; line-height: 1.35; }
-.rent-row-state { display: inline-flex; align-items: center; gap: var(--space-2); min-width: 0; color: var(--color-ink-500); font-size: .875rem; font-weight: 600; }
-.rent-row-state i { width: 8px; height: 8px; flex: 0 0 auto; background: currentColor; border-radius: 50%; }
-.rent-row-state.is-current { color: var(--color-kola-600); }
-.rent-row-state.is-outstanding { color: var(--color-harmattan-600); }
-.rent-row-state.is-overdue { color: var(--color-laterite-600); }
-.rent-row-amount { display: grid; gap: var(--space-1); text-align: right; }
-.rent-row-arrow {
-  color: var(--color-ink-300);
-  font-size: 1.5rem;
-  transition: transform var(--motion-duration-fast) var(--motion-easing-standard),
-    color var(--motion-duration-fast) var(--motion-easing-standard);
-}
-.rent-section-intro, .rent-readiness-note { max-width: 68ch; margin: 0 0 var(--space-3); }
-.rent-readiness-note { margin-top: var(--space-6); }
 .rent-detail { display: grid; gap: var(--space-5); }
 .rent-detail-place { display: grid; gap: var(--space-2); }
 .rent-detail-place p { margin: 0; }
@@ -64,68 +32,15 @@
 .rent-evidence-link { width: fit-content; min-height: var(--target-min); padding: 0; color: var(--color-kola-600); background: transparent; border: 0; font: inherit; font-size: .8125rem; font-weight: 650; text-align: left; cursor: pointer; }
 .rent-evidence-link:hover { text-decoration: underline; }
 .rent-evidence-link:disabled { opacity: .6; cursor: progress; }
-.external-payment-requests { display: grid; gap: var(--space-3); margin-bottom: var(--space-5); }
-.external-payment-requests article { display: grid; gap: var(--space-2); padding: var(--space-4); background: var(--color-harmattan-100); border-left: 3px solid var(--color-harmattan-500); border-radius: var(--radius-sm); }
-.external-payment-requests small { color: var(--color-ink-500); }
-.external-payment-requests a { width: fit-content; min-height: var(--target-min); display: inline-flex; align-items: center; color: var(--color-kola-600); font-weight: 650; }
 .rent-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
 .rent-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .rent-payment-list li { display: grid; grid-template-columns: minmax(0, 1fr) minmax(10rem, auto); gap: var(--space-3); padding: var(--space-3) 0; border-bottom: var(--border-hairline) solid var(--color-field-200); }
 .rent-payment-list li > div:nth-child(2) { text-align: right; }
 .rent-payment-list li > small { grid-column: 1 / -1; }
-.expense-row { display: grid; grid-template-columns: minmax(12rem, 1fr) minmax(12rem, 1fr) auto; gap: var(--space-4); align-items: center; min-height: 72px; padding: var(--space-3) var(--space-2); border-bottom: var(--border-hairline) solid var(--color-field-200); }
-.expense-row > div { display: grid; gap: var(--space-1); }
-.expense-row span { color: var(--color-ink-500); font-size: .875rem; }
-.payment-dialog h2, .payment-dialog > p { margin: 0; }
-.payment-dialog > p { margin-top: var(--space-2); }
-.rent-search input:focus-visible, .rent-filters button:focus-visible, .rent-row:focus-visible, .rent-attention button:focus-visible { outline: 3px solid var(--color-lagoon-600); outline-offset: 2px; }
 
-.payments-overview {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  margin: 0 0 var(--space-8);
-  border-block: var(--border-hairline) solid var(--color-field-200);
-}
 
-.settlement-history { display: grid; gap: var(--space-4); }
-.settlement-overview { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); padding: var(--space-4) 0; margin: 0; border-block: var(--border-hairline) solid var(--color-field-200); }
-.settlement-overview > div { display: grid; gap: var(--space-1); }
-.settlement-overview > div + div { padding-left: var(--space-5); border-left: var(--border-hairline) solid var(--color-field-200); }
-.settlement-overview dt { color: var(--color-ink-500); }
-.settlement-overview dd { margin: 0; font: 600 1.25rem/1.75rem var(--font-display); }
-.settlement-progress { display: flex; align-items: center; gap: var(--space-2); color: var(--color-ink-400); font-size: .8125rem; font-weight: 600; }
-.settlement-progress i { width: 2rem; height: 1px; background: var(--color-field-300); }
-.settlement-progress .is-complete { color: var(--color-kola-600); }
-.settlement-progress .is-complete + i { background: var(--color-kola-400); }
 
-.tenant-payments-workspace { max-width: 70rem; }
-.tenant-payment-attention { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
-.tenant-payment-attention > div { display: grid; gap: var(--space-1); padding: var(--space-4); border-left: 3px solid var(--color-laterite-600); background: var(--color-field-0); }
-.tenant-payment-attention > div:last-child { border-left-color: var(--color-harmattan-500); }
-.tenant-payment-attention span, .tenant-payment-attention small { color: var(--color-ink-500); font-size: .8125rem; }
-.tenant-payment-overview { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 0; border-block: var(--border-hairline) solid var(--color-field-200); }
-.tenant-payment-overview > div { display: grid; gap: var(--space-1); padding: var(--space-5) 0; }
-.tenant-payment-overview > div + div { padding-left: var(--space-5); border-left: var(--border-hairline) solid var(--color-field-200); }
-.tenant-payment-overview dd { margin: 0; font: 600 1.5rem/2rem var(--font-display); }
-.tenant-payment-overview [data-tone="overdue"] { color: var(--color-laterite-600); }
-.payments-tab span { margin-left: var(--space-1); color: var(--color-ink-400); font-size: .75rem; }
-.tenant-due-list, .tenant-history-list, .tenant-attempt-history ul { padding: 0; margin: 0; list-style: none; border-top: var(--border-hairline) solid var(--color-field-200); }
-.tenant-due-list > li { display: grid; grid-template-columns: minmax(12rem, 1.2fr) minmax(10rem, 1fr) minmax(8rem, auto) auto; align-items: center; gap: var(--space-4); min-height: 86px; padding: var(--space-3) 0; border-bottom: var(--border-hairline) solid var(--color-field-200); }
-.tenant-due-home, .tenant-due-purpose, .tenant-due-amount, .tenant-history-list li > div, .tenant-attempt-history li > span { display: grid; gap: var(--space-1); min-width: 0; }
-.tenant-due-list span, .tenant-history-list span, .tenant-attempt-history small { color: var(--color-ink-500); font-size: .8125rem; }
-.tenant-due-amount { text-align: right; }
-.tenant-record-link { min-height: var(--target-min); display: inline-flex; align-items: center; color: var(--color-kola-600); font-weight: 600; text-decoration: none; }
-.tenant-payment-footnote { max-width: 68ch; margin: var(--space-4) 0 0; }
-.tenant-history-list > li { display: grid; grid-template-columns: minmax(14rem, 1fr) minmax(9rem, auto) auto; align-items: center; gap: var(--space-4); min-height: 78px; padding: var(--space-3) 0; border-bottom: var(--border-hairline) solid var(--color-field-200); }
-.tenant-history-list > li > div:nth-child(2) { text-align: right; }
-.tenant-history-list a { color: var(--color-kola-600); font-size: .875rem; font-weight: 600; text-decoration: none; }
-.tenant-attempt-history { display: grid; gap: var(--space-2); margin-top: var(--space-8); }
-.tenant-attempt-history h2, .tenant-attempt-history p { margin: 0; }
-.tenant-attempt-history h2 { font-size: 1rem; }
-.tenant-attempt-history li { display: flex; justify-content: space-between; gap: var(--space-4); padding: var(--space-3) 0; border-bottom: var(--border-hairline) solid var(--color-field-200); }
-.tenant-attempt-history li > span:last-child { text-align: right; }
 
-.payout-manage { display: flex; justify-content: flex-start; }
 .payout-account-page { display: grid; gap: var(--space-6); width: min(100%, 54rem); padding-bottom: var(--space-10); }
 .payout-back { width: fit-content; color: var(--color-ink-500); text-decoration: none; }
 .payout-back:hover { color: var(--color-kola-600); }
@@ -198,54 +113,13 @@
 .payment-receipt-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); padding-top: var(--space-6); }
 .payment-receipt footer { margin-top: var(--space-8); padding-top: var(--space-4); border-top: var(--border-hairline) solid var(--color-field-200); color: var(--color-ink-500); font-size: .875rem; }
 
-.payments-overview > div {
-  display: grid;
-  gap: var(--space-1);
-  padding: var(--space-5) 0;
-}
 
-.payments-overview > div + div {
-  padding-left: var(--space-5);
-  border-left: var(--border-hairline) solid var(--color-field-200);
-}
 
-.payments-overview dt {
-  color: var(--color-ink-500);
-}
 
-.payments-overview dd {
-  margin: 0;
-  font-family: var(--font-display);
-  font-size: 1.5rem;
-  line-height: 2rem;
-  font-weight: 600;
-}
 
-.payments-overview [data-tone="overdue"] {
-  color: var(--color-laterite-600);
-}
 
-.payments-tabs {
-  display: flex;
-  gap: var(--space-5);
-  margin-bottom: var(--space-6);
-  border-bottom: var(--border-hairline) solid var(--color-field-200);
-}
 
-.payments-tab {
-  min-height: var(--target-min);
-  padding: var(--space-2) 0;
-  border: 0;
-  border-bottom: 2px solid transparent;
-  background: transparent;
-  color: var(--color-ink-500);
-  cursor: pointer;
-}
 
-.payments-tab[aria-selected="true"] {
-  border-bottom-color: var(--color-kola-600);
-  color: var(--color-ink-900);
-}
 
 .payment-row {
   display: grid;
@@ -267,48 +141,9 @@
   text-align: right;
 }
 
-.payment-dialog {
-  width: min(34rem, calc(100vw - 2rem));
-  max-height: calc(100vh - 2rem);
-  padding: var(--space-6);
-  margin: auto;
-  overflow: auto;
-  border: var(--border-hairline) solid var(--color-field-200);
-  border-radius: var(--radius-lg);
-  background: var(--color-field-0);
-  color: var(--color-ink-900);
-  box-shadow: var(--shadow-modal);
-}
-
-.payment-dialog::backdrop {
-  background: rgb(26 31 29 / 52%);
-}
-
-.payment-dialog-fields {
-  display: grid;
-  gap: var(--space-4);
-  margin-top: var(--space-5);
-}
-
 @media (max-width: 760px) {
-  .rent-attention { grid-template-columns: 1fr; }
-  .rent-row { grid-template-columns: minmax(0, 1fr) minmax(8rem, auto) 1.5rem; }
-  .rent-row-state { grid-column: 2; grid-row: 1 / span 2; }
-  .rent-row-due { grid-column: 1; }
-  .rent-row-amount { grid-column: 1; text-align: left; }
-  .rent-row-arrow { grid-column: 3; grid-row: 1 / span 3; }
   .rent-section-head { align-items: flex-start; flex-direction: column; }
-  .expense-row { grid-template-columns: minmax(0, 1fr) auto; }
-  .expense-row > span { grid-column: 1; }
-  .expense-row > strong { grid-column: 2; grid-row: 1 / span 2; }
-  .payments-overview {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
 
-  .payments-overview > div { padding-inline: var(--space-3); }
-  .payments-overview > div + div { padding-left: var(--space-3); }
-  .payments-overview > div:nth-child(odd) { padding-left: 0; border-left: 0; }
-  .payments-overview > div:nth-child(n+3) { border-top: var(--border-hairline) solid var(--color-field-200); }
 
   .payment-row {
     grid-template-columns: 1fr auto;
@@ -322,19 +157,9 @@
     grid-column: 2;
     grid-row: 1 / span 2;
   }
-  .tenant-due-list > li { grid-template-columns: minmax(0, 1fr) auto; }
-  .tenant-due-purpose { grid-column: 1; }
-  .tenant-due-amount { grid-column: 2; grid-row: 1 / span 2; }
-  .tenant-due-list .rent-pay-action, .tenant-record-link { grid-column: 1 / -1; justify-self: start; }
 }
 
 @media (max-width: 600px) {
-  .payments-tabs { max-width: 100%; gap: var(--space-4); overflow-x: auto; scrollbar-width: none; }
-  .payments-tab { flex: 0 0 auto; }
-  .rent-row { grid-template-columns: minmax(0, 1fr) 1.5rem; gap: var(--space-2); min-height: 104px; padding-inline: 0; }
-  .rent-row-person strong { white-space: normal; }
-  .rent-row-state, .rent-row-due, .rent-row-amount { grid-column: 1; grid-row: auto; }
-  .rent-row-arrow { grid-column: 2; grid-row: 1 / span 4; }
   .rent-detail-summary { grid-template-columns: 1fr; gap: var(--space-3); }
   .rent-detail-summary > div + div { padding: var(--space-3) 0 0; border-left: 0; border-top: var(--border-hairline) solid var(--color-field-200); }
   .rent-form-grid, .rent-payment-list li { grid-template-columns: 1fr; }
@@ -342,16 +167,6 @@
   .rent-payment-list li > small { grid-column: 1; }
   .rent-charge-list > li { grid-template-columns: minmax(0, 1fr) auto; }
   .rent-quiet-action { grid-column: 1 / -1; justify-self: start; }
-  .payment-dialog {
-    width: 100%;
-    max-width: none;
-    max-height: calc(100vh - var(--space-6));
-    margin: auto 0 0;
-    padding: var(--space-5);
-    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-  }
-  .settlement-overview { grid-template-columns: 1fr; }
-  .settlement-overview > div + div { padding: var(--space-3) 0 0; margin-top: var(--space-3); border-left: 0; border-top: var(--border-hairline) solid var(--color-field-200); }
   .payout-current { align-items: flex-start; flex-direction: column; }
   .payout-accounts-heading { align-items: flex-start; flex-direction: column; }
   .payout-account-row { grid-template-columns: 1fr; }
@@ -365,13 +180,6 @@
   .payment-receipt-facts { grid-template-columns: 1fr; }
   .payment-receipt-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .payment-receipt-actions > :last-child { grid-column: 1 / -1; }
-  .tenant-payment-attention, .tenant-payment-overview { grid-template-columns: 1fr; }
-  .tenant-payment-overview > div + div { padding: var(--space-3) 0 0; border-left: 0; border-top: var(--border-hairline) solid var(--color-field-200); }
-  .tenant-payment-overview > div { padding-block: var(--space-3); }
-  .tenant-history-list > li { grid-template-columns: minmax(0, 1fr) auto; }
-  .tenant-history-list > li > div:nth-child(2) { text-align: right; }
-  .tenant-history-list a { grid-column: 1 / -1; min-height: var(--target-min); display: inline-flex; align-items: center; }
-  .settlement-progress { grid-column: 1; }
 }
 
 @media print {
@@ -420,6 +228,1181 @@
 .rent-adjustment-history li { display: grid; gap: var(--space-1); padding-left: var(--space-3); border-left: 2px solid var(--color-field-300); }
 .rent-adjustment-history small { color: var(--color-ink-500); }
 
-@media (prefers-reduced-motion: reduce) { .rent-row { transition: none; } }
+/* ==========================================================================
+   The provider's finance workspace
+   --------------------------------------------------------------------------
+   Read the way money is read: four figures on a quiet glass strip (the
+   strongest type on the page), then what is waiting on the provider as small
+   action tiles, then a view rail and one panel per ledger. Inside a ledger the
+   amount is the loudest thing in a row, the status is a word with the icon that
+   means it, and everything else is quiet. The frame is the shared workspace
+   (`workspace.css`); the tenant's view, the rent account, checkout, receipts
+   and payout setup keep their own rules above.
+   ========================================================================== */
 
-.rent-row:hover .rent-row-arrow { transform: translateX(2px); color: var(--color-ink-500); }
+.payments-page { gap: var(--space-5); }
+.payments-inline-error { margin: 0; }
+
+/* --- the four figures ------------------------------------------------------- */
+
+/* Four independent cards with room around them: a quiet uppercase label and
+   the direction it moves in, a strong amount in the colour of what it means, a
+   hairline for the share it is of its whole, and one line saying so. */
+.payments-overview {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-4);
+  margin: 0;
+}
+
+.payments-figure {
+  --figure: var(--color-ink-700);
+  --figure-wash: var(--color-field-100);
+  position: relative;
+  display: grid;
+  align-content: start;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-5) var(--space-6) var(--space-5);
+  overflow: hidden;
+  isolation: isolate;
+  background: linear-gradient(170deg, rgba(255, 255, 255, .95), rgba(255, 255, 255, .78));
+  border: 1px solid rgba(255, 255, 255, .9);
+  border-radius: var(--radius-lg);
+  box-shadow:
+    0 0 0 1px rgba(33, 26, 21, .06),
+    0 1px 2px rgba(33, 26, 21, .03),
+    inset 0 1px 0 rgba(255, 255, 255, .95);
+  transition: transform var(--motion-duration-base) var(--ws-ease), box-shadow var(--motion-duration-base) var(--ws-ease);
+}
+
+.payments-figure[data-tone="received"] { --figure: var(--color-kola-600); --figure-wash: var(--color-kola-50); }
+.payments-figure[data-tone="settled"] { --figure: var(--color-kola-800); --figure-wash: color-mix(in srgb, var(--color-gold-100) 70%, var(--color-kola-50)); }
+.payments-figure[data-tone="outstanding"] { --figure: var(--color-harmattan-600); --figure-wash: var(--color-harmattan-100); }
+.payments-figure[data-tone="overdue"] { --figure: var(--color-laterite-600); --figure-wash: var(--color-laterite-100); }
+
+/* A soft shape in the corner, in the card's own tint. */
+.payments-figure::after {
+  content: "";
+  position: absolute;
+  right: -1.75rem;
+  bottom: -2.25rem;
+  z-index: -1;
+  width: 5.5rem;
+  height: 5.5rem;
+  background: var(--figure-wash);
+  border-radius: 1.25rem;
+  opacity: .7;
+  transform: rotate(38deg);
+  transition: transform var(--motion-duration-slow) var(--ws-ease);
+}
+
+.payments-figure:hover { transform: translateY(-2px); box-shadow: 0 0 0 1px color-mix(in srgb, var(--figure) 18%, transparent), 0 14px 30px -20px rgba(33, 26, 21, .28), inset 0 1px 0 rgba(255, 255, 255, .95); }
+.payments-figure:hover::after { transform: rotate(38deg) translate(-4px, -4px); }
+
+.payments-figure dt {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  color: var(--color-ink-500);
+  font-size: .6875rem;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.payments-figure-trend { flex: 0 0 auto; color: var(--figure); opacity: .85; }
+
+.payments-figure dd { margin: 0; min-width: 0; }
+
+.payments-figure-amount {
+  overflow: hidden;
+  color: var(--figure);
+  font-family: var(--font-display);
+  font-size: 1.75rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.payments-figure-meter {
+  position: relative;
+  width: 72%;
+  height: 5px;
+  overflow: hidden;
+  background: var(--figure-wash);
+  border-radius: 3px;
+}
+
+.payments-figure-meter span {
+  position: absolute;
+  inset: 0;
+  background: var(--figure);
+  border-radius: inherit;
+  transform-origin: left center;
+  transition: transform var(--motion-duration-slow) var(--ws-enter);
+}
+
+.payments-figure-note { color: var(--color-ink-500); font-size: .75rem; line-height: 1.4; }
+
+/* --- what is waiting on the provider ---------------------------------------- */
+
+.rent-attention {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.rent-attention-tile {
+  --tile: var(--color-laterite-600);
+  --tile-wash: var(--color-laterite-100);
+  display: inline-flex;
+  flex: 1 1 15rem;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 3.5rem;
+  padding: var(--space-2) var(--space-3) var(--space-2) var(--space-2);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  background: rgba(255, 255, 255, .75);
+  border: 0;
+  border-radius: var(--radius-md);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--tile) 22%, transparent), 0 1px 2px rgba(33, 26, 21, .04);
+  cursor: pointer;
+  transition: transform var(--motion-duration-base) var(--ws-ease), box-shadow var(--motion-duration-base) var(--ws-ease), background-color var(--motion-duration-base) var(--ws-ease);
+}
+
+.rent-attention-tile[data-tone="review"] { --tile: var(--color-harmattan-600); --tile-wash: var(--color-harmattan-100); }
+
+.rent-attention-mark {
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  flex: 0 0 auto;
+  color: var(--tile);
+  background: var(--tile-wash);
+  border-radius: var(--radius-sm);
+}
+
+.rent-attention-mark .portal-icon { width: 17px; height: 17px; }
+.rent-attention-copy { display: grid; flex: 1; gap: 1px; min-width: 0; }
+.rent-attention-copy strong { color: var(--color-ink-900); font-size: .875rem; font-weight: 650; font-variant-numeric: tabular-nums; }
+.rent-attention-copy span { color: var(--tile); font-size: .75rem; font-weight: 600; }
+.rent-attention-go { flex: 0 0 auto; color: var(--color-ink-300); transition: transform var(--motion-duration-base) var(--ws-ease), color var(--motion-duration-base) var(--ws-ease); }
+
+.rent-attention-tile:hover { background: var(--color-field-0); transform: translateY(-1px); box-shadow: 0 0 0 1px color-mix(in srgb, var(--tile) 40%, transparent), 0 10px 22px -16px rgba(33, 26, 21, .3); }
+.rent-attention-tile:hover .rent-attention-go { color: var(--tile); transform: translateX(2px); }
+.rent-attention-tile:active { transform: scale(.99); }
+.rent-attention-tile:focus-visible { outline: var(--border-emphasis) solid var(--color-kola-600); outline-offset: 2px; }
+
+/* --- the view rail ------------------------------------------------------------ */
+
+.payments-tabs {
+  position: relative;
+  display: flex;
+  gap: 2px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 3px;
+  overflow-x: auto;
+  background: var(--color-field-100);
+  border-radius: calc(var(--radius-sm) + 4px);
+  box-shadow: inset 0 1px 2px rgba(33, 26, 21, .07), inset 0 0 0 1px rgba(33, 26, 21, .04);
+  scrollbar-width: none;
+}
+
+.payments-tabs::-webkit-scrollbar { display: none; }
+
+.payments-tab {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 2.25rem;
+  padding: 0 var(--space-4);
+  color: var(--color-ink-500);
+  font: inherit;
+  font-size: .8125rem;
+  font-weight: 600;
+  white-space: nowrap;
+  background: transparent;
+  border: 0;
+  border-radius: calc(var(--radius-sm) + 1px);
+  cursor: pointer;
+  transition: color var(--motion-duration-base) var(--ws-ease), background-color var(--motion-duration-base) var(--ws-ease), box-shadow var(--motion-duration-base) var(--ws-ease);
+}
+
+.payments-tab .portal-icon { width: 15px; height: 15px; }
+.payments-tab:hover:not([aria-selected="true"]) { color: var(--color-ink-900); }
+.payments-tab:active { transform: scale(.98); }
+
+.payments-tab[aria-selected="true"] {
+  color: var(--color-kola-800);
+  background: var(--color-field-0);
+  box-shadow: 0 0 0 .5px rgba(33, 26, 21, .08), 0 1px 2px rgba(33, 26, 21, .08), 0 2px 6px -2px rgba(33, 26, 21, .1);
+}
+
+.payments-tab[aria-selected="true"] .portal-icon { color: var(--color-kola-600); }
+.payments-tab:focus-visible { outline-offset: 2px; }
+
+.payments-tab-count {
+  min-width: 1.25rem;
+  padding: 1px 6px;
+  color: var(--color-ink-500);
+  font-size: .6875rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  background: rgba(255, 255, 255, .7);
+  border-radius: var(--radius-pill);
+}
+
+.payments-tab-count[data-alert] { color: var(--color-field-0); background: var(--color-laterite-600); }
+
+/* The tenant's view uses the same rail with plain labels; its counts are spans. */
+.payments-tab > span:not([class]) { margin-left: 2px; color: var(--color-ink-300); font-size: .75rem; }
+
+/* --- a ledger panel --------------------------------------------------------------- */
+
+.payments-panel { overflow: hidden; }
+.payments-panel-head .ws-panel-tools { flex: 1 1 auto; flex-wrap: wrap; }
+.payments-panel-head.is-inline { background: transparent; border-radius: 0; border-top: var(--border-hairline) solid var(--color-field-200); }
+
+/* Balance filters as a compact chip set inside the panel head. */
+.rent-filters { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+
+.rent-filters button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 2rem;
+  padding: 0 var(--space-3);
+  color: var(--color-ink-700);
+  font: inherit;
+  font-size: .8125rem;
+  font-weight: 600;
+  background: var(--color-field-0);
+  border: 0;
+  border-radius: var(--radius-sm);
+  box-shadow: 0 0 0 1px var(--color-field-200);
+  cursor: pointer;
+  transition: color var(--motion-duration-fast) var(--ws-ease), background-color var(--motion-duration-fast) var(--ws-ease), box-shadow var(--motion-duration-fast) var(--ws-ease);
+}
+
+.rent-filters button span { color: var(--color-ink-300); font-size: .75rem; font-variant-numeric: tabular-nums; }
+.rent-filters button:hover { color: var(--color-ink-900); box-shadow: 0 0 0 1px var(--color-field-300); }
+.rent-filters button[aria-pressed="true"] { color: var(--color-kola-800); background: var(--color-kola-50); box-shadow: 0 0 0 1px var(--color-kola-300); }
+.rent-filters button[aria-pressed="true"] span { color: var(--color-kola-600); }
+.rent-filters button[data-tone="overdue"]:not([aria-pressed="true"]) span { color: var(--color-laterite-600); }
+.rent-filters button:focus-visible { outline: var(--border-emphasis) solid var(--color-kola-600); outline-offset: 2px; }
+
+.payments-ledger { padding: var(--space-2) var(--space-3) var(--space-3); }
+
+.rent-ledger-head,
+.rent-row {
+  display: grid;
+  grid-template-columns: minmax(14rem, 1.6fr) minmax(9rem, .8fr) minmax(8rem, .75fr) minmax(8rem, .8fr) 1rem;
+  gap: var(--space-4);
+  align-items: center;
+}
+
+.rent-ledger-head {
+  padding: var(--space-2) var(--space-3) var(--space-1);
+  color: var(--color-ink-300);
+  font-size: .6875rem;
+  font-weight: 650;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.rent-ledger-head span:nth-child(4) { text-align: right; }
+
+.rent-list { display: grid; gap: 1px; width: 100%; min-width: 0; padding: 0; margin: 0; list-style: none; }
+
+.rent-list > li { min-width: 0; animation: ws-rise var(--motion-duration-base) var(--ws-enter) both; }
+
+.rent-row {
+  width: 100%;
+  min-height: 3.25rem;
+  padding: 6px var(--space-3);
+  color: inherit;
+  line-height: 1.3;
+  text-align: left;
+  text-decoration: none;
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition:
+    background-color var(--motion-duration-fast) var(--ws-ease),
+    box-shadow var(--motion-duration-fast) var(--ws-ease),
+    transform var(--motion-duration-instant) var(--ws-ease);
+}
+
+.rent-row:hover { background: color-mix(in srgb, var(--color-kola-50) 45%, var(--color-field-0)); box-shadow: 0 0 0 1px var(--color-field-200); }
+.rent-row:active { transform: scale(.997); background: var(--color-field-100); box-shadow: none; }
+.rent-row:focus-visible { outline: var(--border-emphasis) solid var(--color-kola-600); outline-offset: -2px; border-radius: var(--radius-md); }
+
+/* An occupancy with no lease has no rent account to open, so the row stays a
+   row and stops behaving like a link. */
+.rent-row.is-inert { cursor: default; }
+.rent-row.is-inert:hover { background: transparent; box-shadow: none; }
+.rent-row.is-inert:active { transform: none; }
+li:not([data-tone="waiting"]):not([data-tone="confirmed"]):not([data-tone="disputed"]) > .rent-row.is-inert { opacity: .6; }
+
+/* A record waiting on the provider carries a quiet warm wash, not a banner. */
+li[data-tone="review"] > .rent-row { background: color-mix(in srgb, var(--color-harmattan-100) 40%, transparent); }
+li[data-tone="review"] > .rent-row:hover { background: color-mix(in srgb, var(--color-harmattan-100) 65%, var(--color-field-0)); }
+
+.rent-row-person { display: flex; align-items: center; gap: var(--space-3); min-width: 0; }
+.rent-row-person > span:last-child { display: grid; gap: 1px; min-width: 0; }
+.rent-row-person strong { overflow: hidden; color: var(--color-ink-900); font-size: .8125rem; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.rent-row-person > span:last-child > span { overflow: hidden; color: var(--color-ink-500); font-size: .75rem; text-overflow: ellipsis; white-space: nowrap; }
+
+.rent-row-avatar {
+  display: grid;
+  place-items: center;
+  width: 1.875rem;
+  height: 1.875rem;
+  flex: 0 0 auto;
+  color: var(--color-kola-800);
+  font-size: .625rem;
+  font-weight: 700;
+  background: var(--color-kola-50);
+  border-radius: 50%;
+}
+
+li[data-tone="overdue"] .rent-row-avatar { color: var(--color-laterite-600); background: var(--color-laterite-100); }
+li[data-tone="outstanding"] .rent-row-avatar { color: var(--color-harmattan-600); background: var(--color-harmattan-100); }
+.rent-row-avatar[data-kind] { color: var(--color-ink-500); background: var(--color-field-100); border-radius: var(--radius-sm); }
+li[data-tone="review"] .rent-row-avatar[data-kind] { color: var(--color-harmattan-600); background: var(--color-harmattan-100); }
+.rent-row-avatar .portal-icon { width: 14px; height: 14px; }
+
+/* Status: a word with the icon that means it, on its own soft tint. */
+.rent-row-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 2px 8px 2px 6px;
+  color: var(--color-ink-500);
+  font-size: .6875rem;
+  font-weight: 650;
+  white-space: nowrap;
+  background: var(--color-field-100);
+  border-radius: var(--radius-pill);
+}
+
+.rent-row-state .portal-icon { width: 12px; height: 12px; flex: 0 0 auto; }
+.rent-row-state i { width: 7px; height: 7px; flex: 0 0 auto; background: currentColor; border-radius: 50%; }
+.rent-row-state.is-current,
+.rent-row-state.is-confirmed { color: var(--color-kola-600); background: var(--color-kola-50); }
+.rent-row-state.is-outstanding,
+.rent-row-state.is-review { color: var(--color-harmattan-600); background: var(--color-harmattan-100); }
+.rent-row-state.is-overdue,
+.rent-row-state.is-disputed { color: var(--color-laterite-600); background: var(--color-laterite-100); }
+.rent-row-state.is-waiting { color: var(--color-lagoon-600); background: var(--color-lagoon-100); }
+
+.rent-row-due { display: grid; gap: 0; min-width: 0; color: var(--color-ink-500); font-size: .75rem; }
+.rent-row-due strong { color: var(--color-ink-800); font-weight: 600; }
+.rent-row-due small { color: var(--color-ink-500); font-size: .6875rem; }
+/* Method and date on one line, so a record row stays one short line tall. */
+.rent-row-due.is-inline { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 6px; color: var(--color-ink-800); font-weight: 500; }
+.rent-row-due.is-inline small::before { content: "·"; margin-right: 6px; color: var(--color-ink-300); }
+
+/* The amount is the loudest thing in a row. */
+.rent-row-amount {
+  display: grid;
+  gap: 2px;
+  justify-items: end;
+  min-width: 0;
+  color: var(--color-ink-900);
+  font-family: var(--font-display);
+  font-size: .9375rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+  text-align: right;
+}
+
+.rent-row-amount small { color: var(--color-ink-500); font-family: var(--font-body); font-size: .625rem; font-weight: 500; letter-spacing: 0; }
+li[data-tone="overdue"] .rent-row-amount { color: var(--color-laterite-600); }
+.rent-row-amount[data-zero] { color: var(--color-ink-300); }
+
+.rent-row-arrow {
+  display: grid;
+  place-items: center;
+  color: var(--color-ink-300);
+  transition: transform var(--motion-duration-fast) var(--motion-easing-standard),
+    color var(--motion-duration-fast) var(--motion-easing-standard);
+}
+
+.rent-row:hover .rent-row-arrow { transform: translateX(2px); color: var(--color-kola-600); }
+
+.rent-section-intro { max-width: 72ch; margin: 0; padding: var(--space-3) var(--space-5) 0; color: var(--color-ink-500); font-size: .8125rem; line-height: 1.5; }
+
+.rent-readiness-note {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: 0 var(--space-4) var(--space-4);
+  padding: var(--space-3);
+  color: var(--color-ink-700);
+  font-size: .8125rem;
+  line-height: 1.5;
+  background: color-mix(in srgb, var(--color-lagoon-100) 60%, transparent);
+  border-radius: var(--radius-sm);
+}
+
+.rent-readiness-note .portal-icon { flex: 0 0 auto; width: 16px; height: 16px; margin-top: 2px; color: var(--color-lagoon-600); }
+
+/* --- payouts ------------------------------------------------------------------ */
+
+.settlement-history { display: grid; }
+
+.settlement-overview {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 0;
+  background: var(--color-field-50);
+  border-bottom: var(--border-hairline) solid var(--color-field-200);
+}
+
+.settlement-overview > div { display: grid; gap: 4px; min-width: 0; padding: var(--space-4) var(--space-5); }
+.settlement-overview > div + div { border-left: var(--border-hairline) solid var(--color-field-200); }
+.settlement-overview dt { color: var(--color-ink-500); font-size: .75rem; font-weight: 600; }
+.settlement-overview dd { margin: 0; color: var(--color-ink-900); font: 650 1.1875rem/1.4 var(--font-display); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+.settlement-overview [data-tone="settled"] dd { color: var(--color-kola-800); }
+.settlement-overview [data-tone="waiting"] dd { color: var(--color-lagoon-600); }
+
+.settlement-notices { display: grid; gap: var(--space-2); padding: var(--space-4) var(--space-4) 0; }
+.payout-manage { display: flex; flex: 0 0 auto; }
+
+/* Paid, then settled: two steps, drawn as a tiny track. */
+.settlement-progress { display: inline-flex; align-items: center; gap: 6px; color: var(--color-ink-300); font-size: .75rem; font-weight: 650; }
+.settlement-progress > span { display: inline-flex; align-items: center; gap: 5px; }
+.settlement-progress > span i { width: 8px; height: 8px; border: 1.5px solid currentColor; border-radius: 50%; }
+.settlement-progress > span.is-complete { color: var(--color-kola-600); }
+.settlement-progress > span.is-complete i { background: currentColor; }
+.settlement-progress b { width: 1.25rem; height: 1.5px; background: var(--color-field-300); border-radius: 1px; }
+.settlement-progress > span.is-complete + b { background: var(--color-kola-300); }
+
+/* --- expenses -------------------------------------------------------------------- */
+
+.expense-total { display: grid; gap: 1px; margin: 0; }
+.expense-total span { color: var(--color-ink-500); font-size: .75rem; font-weight: 600; }
+.expense-total strong { color: var(--color-ink-900); font: 650 1.25rem/1.3 var(--font-display); font-variant-numeric: tabular-nums; }
+
+.expense-list { padding: var(--space-2) var(--space-3) var(--space-3); }
+
+.expense-row {
+  display: grid;
+  grid-template-columns: 1.875rem minmax(12rem, 1fr) minmax(12rem, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3) var(--space-4);
+  min-height: 3.25rem;
+  padding: 7px var(--space-3);
+  border-radius: var(--radius-sm);
+  transition: background-color var(--motion-duration-fast) var(--ws-ease);
+}
+
+.expense-row:hover { background: var(--color-field-50); }
+.expense-row > div { display: grid; gap: 2px; min-width: 0; }
+.expense-row > div strong { color: var(--color-ink-900); font-size: .8125rem; font-weight: 650; }
+.expense-row span { color: var(--color-ink-500); font-size: .75rem; }
+.expense-row .rent-row-avatar span { color: inherit; }
+.expense-amount { color: var(--color-ink-900); font: 650 .9375rem/1.3 var(--font-display); font-variant-numeric: tabular-nums; text-align: right; }
+
+/* --- narrow ------------------------------------------------------------------------ */
+
+@media (max-width: 980px) {
+  .rent-ledger-head { display: none; }
+  .rent-row {
+    grid-template-columns: minmax(0, 1fr) auto 1rem;
+    grid-template-areas:
+      "person amount arrow"
+      "state  due    arrow";
+    gap: var(--space-2) var(--space-3);
+  }
+  .rent-row-person { grid-area: person; }
+  .rent-row-amount { grid-area: amount; }
+  .rent-row-state { grid-area: state; margin-left: calc(1.875rem + var(--space-3)); }
+  .rent-row-due,
+  .settlement-progress { grid-area: due; justify-self: end; text-align: right; }
+  .rent-row-arrow { grid-area: arrow; }
+  .settlement-row > span:last-child { display: none; }
+}
+
+@media (max-width: 760px) {
+  .payments-overview { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
+  .payments-figure { gap: var(--space-2); padding: var(--space-4); }
+  .payments-figure-amount { font-size: 1.25rem; }
+  .payments-figure-meter { width: 100%; }
+  .payments-tabs { width: 100%; }
+  .payments-panel-head { flex-wrap: wrap; row-gap: var(--space-2); }
+  .payments-panel-head .ws-panel-tools { display: contents; }
+  .payments-panel-head .ws-search { flex: 1 1 100%; width: 100%; }
+  .payments-panel-head .ws-range { margin-left: auto; }
+  .settlement-overview { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .settlement-overview > div:nth-child(3) { border-left: 0; }
+  .settlement-overview > div:nth-child(n + 3) { border-top: var(--border-hairline) solid var(--color-field-200); }
+  .expense-row { grid-template-columns: 1.875rem minmax(0, 1fr) auto; }
+  .expense-row > span:not(.rent-row-avatar) { grid-column: 2; }
+  .expense-amount { grid-column: 3; grid-row: 1 / span 2; }
+  .expense-row .rent-row-avatar { grid-row: 1 / span 2; }
+}
+
+@media (max-width: 480px) {
+  .payments-tab { padding: 0 var(--space-3); }
+  .payments-tab .portal-icon { display: none; }
+  .rent-row-state { margin-left: 0; }
+  .rent-row-person .rent-row-avatar { display: none; }
+  .payments-figure-note { font-size: .6875rem; }
+  .payments-ledger, .expense-list { padding-inline: var(--space-1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rent-list > li { animation: none; }
+  .rent-row,
+  .rent-row-arrow,
+  .rent-attention-tile,
+  .rent-attention-go,
+  .payments-tab,
+  .rent-filters button,
+  .expense-row { transition: none; }
+  .rent-row:active,
+  .rent-attention-tile:hover,
+  .rent-attention-tile:active,
+  .payments-tab:active { transform: none; }
+}
+
+/* --- recording a payment ------------------------------------------------------ */
+
+.record-payment-pick,
+.record-payment-step { display: grid; gap: var(--space-3); }
+.record-payment-pick .ws-search { width: 100%; }
+
+.record-payment-tenants {
+  display: grid;
+  gap: 1px;
+  max-height: min(24rem, 55vh);
+  margin: 0;
+  padding: var(--space-1);
+  overflow-y: auto;
+  list-style: none;
+  background: var(--color-field-50);
+  border-radius: var(--radius-md);
+  box-shadow: inset 0 0 0 1px var(--color-field-200);
+}
+
+.record-payment-tenant {
+  display: grid;
+  grid-template-columns: 1.875rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: 3.25rem;
+  padding: 6px var(--space-3);
+  color: inherit;
+  font: inherit;
+  line-height: 1.3;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background-color var(--motion-duration-fast) var(--ws-ease), box-shadow var(--motion-duration-fast) var(--ws-ease);
+}
+
+.record-payment-tenant:hover:not(:disabled) { background: var(--color-field-0); box-shadow: 0 0 0 1px var(--color-kola-300); }
+.record-payment-tenant:active:not(:disabled) { transform: scale(.995); }
+.record-payment-tenant:disabled { cursor: default; opacity: .55; }
+.record-payment-tenant:focus-visible { outline: var(--border-emphasis) solid var(--color-kola-600); outline-offset: -2px; }
+
+.record-payment-who { display: grid; gap: 1px; min-width: 0; }
+.record-payment-who strong { overflow: hidden; color: var(--color-ink-900); font-size: .8125rem; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.record-payment-who span { overflow: hidden; color: var(--color-ink-500); font-size: .75rem; text-overflow: ellipsis; white-space: nowrap; }
+
+.record-payment-balance { display: grid; justify-items: end; color: var(--color-ink-900); font: 650 .875rem/1.25 var(--font-display); font-variant-numeric: tabular-nums; }
+.record-payment-balance small { color: var(--color-ink-500); font-family: var(--font-body); font-size: .6875rem; font-weight: 500; }
+li[data-tone="overdue"] .record-payment-balance { color: var(--color-laterite-600); }
+.record-payment-empty { margin: 0; padding: var(--space-5); color: var(--color-ink-500); font-size: .8125rem; text-align: center; }
+
+.record-payment-chosen {
+  display: grid;
+  grid-template-columns: 1.875rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-kola-50);
+  border-radius: var(--radius-md);
+}
+
+.record-payment-chosen[data-tone="overdue"] .rent-row-avatar { color: var(--color-laterite-600); background: var(--color-laterite-100); }
+
+.record-payment-change {
+  padding: var(--space-1) var(--space-2);
+  color: var(--color-kola-800);
+  font: inherit;
+  font-size: .8125rem;
+  font-weight: 650;
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+}
+
+.record-payment-change:hover { background: color-mix(in srgb, var(--color-kola-600) 10%, transparent); }
+.record-payment-error { display: grid; justify-items: start; gap: var(--space-2); }
+.record-payment-step .rent-record-form { padding: 0; background: transparent; }
+
+/* --- the two recording sheets ---------------------------------------------------
+   Record payment and Record expense are the shared `ModalSheet` (doc-modal.css),
+   so they sit in the content area, grow from the button that opened them and
+   leave the way every other sheet does. What is theirs is the form: a calm
+   stack of fields, choices drawn as chips rather than a select, the amount led
+   by its currency, and the actions pinned to the foot of the sheet. */
+
+.payment-sheet .doc-modal-body { --sheet-x: var(--space-6); padding-bottom: 0; }
+@media (max-width: 47.99rem) { .payment-sheet .doc-modal-body { --sheet-x: var(--space-4); } }
+.payment-sheet-form,
+.payment-sheet .rent-record-form { display: grid; gap: var(--space-4); padding: 0; background: none; }
+.payment-sheet .rent-field { width: 100%; }
+.payment-sheet .rent-field select { min-height: 44px; border-radius: var(--radius-md); }
+.payment-sheet .rent-form-grid { gap: var(--space-3); }
+.payment-sheet .rent-evidence-upload { max-width: none; }
+.payment-sheet .rent-evidence-upload input { border-style: dashed; border-radius: var(--radius-md); background: color-mix(in srgb, var(--color-field-50) 70%, #fff); }
+.payment-sheet .field-prefix { color: var(--color-ink-500); font-weight: 650; }
+.rent-evidence-upload input { color: var(--color-ink-500); font: inherit; font-size: .8125rem; cursor: pointer; }
+.rent-evidence-upload input::file-selector-button {
+  margin-right: var(--space-3);
+  padding: 6px var(--space-3);
+  color: var(--color-kola-800);
+  font: inherit;
+  font-weight: 650;
+  background: var(--color-kola-50);
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background-color var(--motion-duration-fast) var(--ws-ease);
+}
+.rent-evidence-upload input:hover::file-selector-button { background: color-mix(in srgb, var(--color-kola-600) 16%, var(--color-kola-50)); }
+
+.payment-sheet .rent-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  flex-direction: row-reverse;
+  justify-content: flex-start;
+  margin: 0 calc(var(--sheet-x) * -1);
+  padding: var(--space-3) var(--sheet-x) var(--space-4);
+  background: linear-gradient(to bottom, rgba(255, 255, 255, .7), rgba(255, 255, 255, .97) 35%);
+  border-top: 1px solid rgba(33, 26, 21, .07);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.record-payment-sheet .record-payment-pick { padding-bottom: var(--space-5); }
+/* Without a form there is no action bar to close the sheet, so the step keeps its own foot. */
+.record-payment-sheet .record-payment-step:not(:has(.rent-actions)) { padding-bottom: var(--space-6); }
+.record-payment-sheet .record-payment-tenants { max-height: min(22rem, 50vh); }
+
+/* Choices as chips: every option in view, one press to pick. */
+.payment-chips { display: flex; flex-wrap: wrap; gap: var(--space-2); min-width: 0; margin: 0; padding: 0; border: 0; }
+.payment-chips legend { width: 100%; margin-bottom: var(--space-2); padding: 0; }
+
+.payment-chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 2.25rem;
+  padding: 0 var(--space-3);
+  color: var(--color-ink-700);
+  font-size: .8125rem;
+  font-weight: 600;
+  background: rgba(255, 255, 255, .75);
+  border-radius: 999px;
+  box-shadow: 0 0 0 1px rgba(33, 26, 21, .1);
+  cursor: pointer;
+  transition:
+    color var(--motion-duration-fast) var(--ws-ease),
+    background-color var(--motion-duration-fast) var(--ws-ease),
+    box-shadow var(--motion-duration-fast) var(--ws-ease),
+    transform var(--motion-duration-fast) var(--ws-ease);
+}
+.payment-chip input { position: absolute; inset: 0; margin: 0; opacity: 0; cursor: pointer; }
+.payment-chip .portal-icon { width: 15px; height: 15px; color: var(--color-ink-500); transition: color var(--motion-duration-fast) var(--ws-ease); }
+.payment-chip:hover { background: #fff; box-shadow: 0 0 0 1px rgba(33, 26, 21, .18); }
+.payment-chip:active { transform: scale(.97); }
+.payment-chip:has(input:checked) {
+  color: var(--color-kola-800);
+  background: color-mix(in srgb, var(--color-kola-50) 85%, #fff);
+  box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--color-kola-600) 55%, transparent), 0 4px 10px -6px var(--color-kola-600);
+}
+.payment-chip:has(input:checked) .portal-icon { color: var(--color-kola-600); }
+.payment-chip:has(input:focus-visible) { outline: 2px solid var(--color-kola-600); outline-offset: 2px; }
+
+
+@media (prefers-reduced-motion: reduce) {
+  .payments-figure,
+  .payments-figure::after,
+  .payments-figure-meter span,
+  .record-payment-tenant,
+  .payment-chip { transition: none; }
+  .payments-figure:hover,
+  .payments-figure:hover::after { transform: none; }
+}
+
+/* --- one payment record, in a sheet (PaymentRecordModal) ------------------------
+   The amount leads, in the colour of where the record stands. Then who paid and
+   for what, the record's path (recorded, confirmed, applied), the facts, what
+   the payer said and showed, and the decision owed, pinned to the foot. */
+
+@media (min-width: 48rem) {
+  .doc-modal.is-sm.record-sheet {
+    width: min(30rem, calc(100vw - var(--modal-area-left, 0px) - 2rem));
+    max-height: min(40rem, calc(100vh - var(--modal-area-top, 0px) - 3rem));
+  }
+}
+.doc-modal.record-sheet {
+  background:
+    radial-gradient(110% 55% at 0% 0%, color-mix(in srgb, var(--color-kola-50) 70%, transparent), transparent 60%),
+    radial-gradient(80% 50% at 100% 100%, color-mix(in srgb, var(--color-gold-50) 65%, transparent), transparent 60%),
+    linear-gradient(170deg, rgba(255, 255, 255, .97), rgba(252, 250, 246, .94));
+}
+.record-sheet .doc-modal-body { --sheet-x: var(--space-5); padding: var(--space-4) var(--sheet-x) 0; }
+@media (max-width: 47.99rem) { .record-sheet .doc-modal-body { --sheet-x: var(--space-4); } }
+
+.pr { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-3); padding-bottom: var(--space-5); }
+.pr > * { min-width: 0; margin: 0; }
+
+.pr-hero {
+  --pr-tone: var(--color-lagoon-600);
+  --pr-wash: var(--color-lagoon-100);
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: var(--space-2);
+  padding: var(--space-5) var(--space-4) var(--space-4);
+  overflow: hidden;
+  text-align: center;
+  background:
+    radial-gradient(80% 110% at 50% 0%, color-mix(in srgb, var(--pr-wash) 95%, transparent), transparent 70%),
+    linear-gradient(170deg, rgba(255, 255, 255, .95), rgba(255, 255, 255, .72));
+  border: 1px solid rgba(255, 255, 255, .95);
+  border-radius: var(--radius-lg);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--pr-tone) 14%, rgba(33, 26, 21, .05)),
+    0 12px 30px -20px color-mix(in srgb, var(--pr-tone) 60%, transparent),
+    inset 0 1px 0 #fff;
+}
+.pr-hero[data-tone="confirmed"] { --pr-tone: var(--color-kola-600); --pr-wash: var(--color-kola-50); }
+.pr-hero[data-tone="review"] { --pr-tone: var(--color-harmattan-600); --pr-wash: var(--color-harmattan-100); }
+.pr-hero[data-tone="disputed"] { --pr-tone: var(--color-laterite-600); --pr-wash: var(--color-laterite-100); }
+.pr-hero-mark {
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  color: #fff;
+  background: linear-gradient(155deg, color-mix(in srgb, var(--pr-tone) 75%, #fff), var(--pr-tone));
+  border-radius: 999px;
+  box-shadow: 0 8px 18px -10px var(--pr-tone), inset 0 1px 0 rgba(255, 255, 255, .35);
+}
+.pr-hero-mark .portal-icon { width: 18px; height: 18px; color: inherit; }
+.pr-amount { color: var(--color-ink-900); font-family: var(--font-display); font-size: 2.125rem; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -.03em; line-height: 1.05; }
+.pr-state { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; font-size: .75rem; font-weight: 700; border-radius: 999px; }
+.pr-state .portal-icon { width: 13px; height: 13px; color: inherit; }
+.pr-state.is-confirmed { color: var(--color-kola-600); background: var(--color-kola-50); }
+.pr-state.is-review { color: var(--color-harmattan-600); background: var(--color-harmattan-100); }
+.pr-state.is-disputed { color: var(--color-laterite-600); background: var(--color-laterite-100); }
+.pr-state.is-waiting { color: var(--color-lagoon-600); background: var(--color-lagoon-100); }
+.pr-hero-note { color: var(--color-ink-500); font-size: .75rem; }
+
+.pr-who {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: rgba(255, 255, 255, .75);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 0 0 1px rgba(33, 26, 21, .07);
+}
+.pr-avatar { display: grid; flex: none; place-items: center; width: 2.5rem; height: 2.5rem; color: var(--color-lagoon-600); font-size: .8125rem; font-weight: 700; background: var(--color-lagoon-100); border-radius: 999px; box-shadow: 0 0 0 2px #fff, 0 0 0 3px rgba(33, 26, 21, .06); }
+.pr-who-copy { display: grid; flex: 1; gap: 1px; min-width: 0; }
+.pr-who-copy strong { overflow: hidden; color: var(--color-ink-900); font-size: .9375rem; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.pr-who-copy small { overflow: hidden; color: var(--color-ink-500); font-size: .75rem; text-overflow: ellipsis; white-space: nowrap; }
+.pr-for { display: grid; flex: none; justify-items: end; gap: 1px; padding-left: var(--space-3); border-left: 1px solid rgba(33, 26, 21, .08); }
+.pr-for small { color: var(--color-ink-500); font-size: .6875rem; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; }
+.pr-for strong { color: var(--color-ink-900); font-size: .8125rem; font-weight: 650; white-space: nowrap; }
+
+/* The record's path: three stops joined by a line. */
+.pr-track { position: relative; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-2); margin: 0; padding: var(--space-3) var(--space-2) 0; list-style: none; }
+.pr-track::before { content: ""; position: absolute; top: calc(var(--space-3) + .75rem - 1px); right: 16.66%; left: 16.66%; height: 2px; background: var(--color-field-200); border-radius: 2px; }
+.pr-track li { position: relative; display: grid; align-content: start; justify-items: center; gap: 6px; text-align: center; }
+.pr-track-mark { display: grid; place-items: center; width: 1.5rem; height: 1.5rem; background: #fff; border-radius: 999px; box-shadow: 0 0 0 1.5px var(--color-field-300); }
+.pr-track-mark .portal-icon { width: 12px; height: 12px; color: inherit; }
+.pr-track li[data-state="done"] .pr-track-mark { color: #fff; background: var(--color-kola-600); box-shadow: 0 4px 10px -6px var(--color-kola-600); }
+.pr-track li[data-state="now"] .pr-track-mark { background: var(--color-harmattan-100); box-shadow: 0 0 0 1.5px var(--color-harmattan-600), 0 0 0 5px color-mix(in srgb, var(--color-harmattan-600) 14%, transparent); animation: pr-pulse 1.8s ease-in-out infinite; }
+.pr-track li[data-state="bad"] .pr-track-mark { color: #fff; background: var(--color-laterite-600); }
+@keyframes pr-pulse { 50% { box-shadow: 0 0 0 1.5px var(--color-harmattan-600), 0 0 0 8px color-mix(in srgb, var(--color-harmattan-600) 6%, transparent); } }
+.pr-track-copy { display: grid; gap: 1px; }
+.pr-track-copy strong { color: var(--color-ink-900); font-size: .75rem; font-weight: 650; }
+.pr-track-copy small { color: var(--color-ink-500); font-size: .6875rem; }
+.pr-track li[data-state="todo"] .pr-track-copy { opacity: .6; }
+
+.pr-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); margin: var(--space-1) 0 0; animation: ws-rise var(--motion-duration-base) var(--ws-enter) both; }
+.pr-fact { display: grid; gap: 3px; min-width: 0; padding: var(--space-2) var(--space-3); background: rgba(255, 255, 255, .75); border-radius: var(--radius-md); box-shadow: 0 0 0 1px rgba(33, 26, 21, .06); }
+.pr-fact dt { display: flex; align-items: center; gap: 5px; color: var(--color-ink-500); font-size: .6875rem; font-weight: 650; letter-spacing: .04em; text-transform: uppercase; }
+.pr-fact dt .portal-icon { width: 12px; height: 12px; color: var(--color-kola-600); }
+.pr-fact dd { overflow: hidden; margin: 0; color: var(--color-ink-900); font-size: .875rem; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.pr-fact dd[data-mono] { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .8125rem; letter-spacing: .02em; }
+
+.pr-loading { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); }
+.pr-loading span { height: 3.5rem; background: linear-gradient(90deg, var(--color-field-100), rgba(255, 255, 255, .9), var(--color-field-100)) 0 0 / 200% 100%; border-radius: var(--radius-md); animation: pr-shimmer 1.2s linear infinite; }
+.pr-loading span:last-child { grid-column: 1 / -1; height: 2.5rem; }
+@keyframes pr-shimmer { to { background-position: -200% 0; } }
+.pr-load-error { display: grid; justify-items: start; gap: var(--space-2); }
+
+.pr-note { display: grid; gap: 4px; margin: 0; padding: var(--space-3) var(--space-4); color: var(--color-ink-800); font-size: .875rem; line-height: 1.5; background: linear-gradient(160deg, #fff, color-mix(in srgb, var(--color-field-100) 60%, #fff)); border-radius: 4px 1rem 1rem 1rem; box-shadow: 0 0 0 1px rgba(33, 26, 21, .06), 0 4px 12px -10px rgba(33, 26, 21, .4); }
+.pr-note small { color: var(--color-ink-500); font-size: .6875rem; font-weight: 650; letter-spacing: .04em; text-transform: uppercase; }
+
+.pr-evidence {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-2) var(--space-3) var(--space-2) var(--space-2);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  background: rgba(255, 255, 255, .8);
+  border: 0;
+  border-radius: var(--radius-lg);
+  box-shadow: 0 0 0 1px rgba(33, 26, 21, .08);
+  cursor: pointer;
+  transition: box-shadow var(--motion-duration-fast) var(--ws-ease), transform var(--motion-duration-fast) var(--ws-ease);
+}
+.pr-evidence:hover:not(:disabled) { box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-kola-600) 40%, transparent), 0 8px 18px -14px rgba(33, 26, 21, .5); transform: translateY(-1px); }
+.pr-evidence:focus-visible { outline: 2px solid var(--color-kola-600); outline-offset: 2px; }
+.pr-evidence-mark { display: grid; flex: none; place-items: center; width: 2.75rem; height: 2.75rem; color: var(--color-lagoon-600); font-size: .6875rem; font-weight: 800; letter-spacing: .04em; background: var(--color-lagoon-100); border-radius: .75rem; }
+.pr-evidence-mark[data-kind="pdf"] { color: var(--color-laterite-600); background: var(--color-laterite-100); }
+.pr-evidence-mark .portal-icon { width: 18px; height: 18px; color: inherit; }
+.pr-evidence-copy { display: grid; flex: 1; gap: 1px; min-width: 0; }
+.pr-evidence-copy small { color: var(--color-ink-500); font-size: .6875rem; font-weight: 650; letter-spacing: .04em; text-transform: uppercase; }
+.pr-evidence-copy strong { overflow: hidden; color: var(--color-ink-900); font-size: .875rem; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.pr-evidence-open { display: inline-flex; align-items: center; gap: 4px; color: var(--color-kola-700, var(--color-kola-600)); font-size: .8125rem; font-weight: 650; }
+.pr-evidence-open .portal-icon { width: 13px; height: 13px; color: inherit; }
+
+.pr-dispute { display: flex; gap: var(--space-2); padding: var(--space-3); color: var(--color-laterite-600); font-size: .8125rem; background: color-mix(in srgb, var(--color-laterite-100) 60%, #fff); border-radius: var(--radius-md); }
+.pr-dispute .portal-icon { flex: none; width: 15px; height: 15px; color: inherit; }
+.pr-dispute span { display: grid; gap: 2px; color: var(--color-ink-800); }
+.pr-dispute small { color: var(--color-laterite-600); font-size: .6875rem; font-weight: 650; letter-spacing: .04em; text-transform: uppercase; }
+
+.pr-decide { display: grid; gap: var(--space-2); padding: var(--space-4); background: color-mix(in srgb, var(--color-kola-50) 55%, rgba(255, 255, 255, .85)); border-radius: var(--radius-lg); box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-kola-600) 14%, transparent); animation: ws-rise var(--motion-duration-base) var(--ws-enter) both; scroll-margin-bottom: 5rem; }
+.pr-decide.is-danger { background: color-mix(in srgb, var(--color-laterite-100) 55%, rgba(255, 255, 255, .85)); box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-laterite-600) 18%, transparent); }
+.pr-decide-title { margin: 0; color: var(--color-ink-900); font-size: .9375rem; font-weight: 650; }
+.pr-decide-body { margin: 0; color: var(--color-ink-500); font-size: .8125rem; }
+
+.pr-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: var(--space-1) calc(var(--sheet-x, var(--space-5)) * -1) calc(var(--space-5) * -1);
+  padding: var(--space-3) var(--sheet-x, var(--space-5));
+  background: rgba(255, 255, 255, .82);
+  border-top: 1px solid rgba(33, 26, 21, .07);
+  box-shadow: 0 -12px 24px -20px rgba(33, 26, 21, .35);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+}
+.pr-actions > * { animation: pr-bar-in 320ms var(--ws-enter, ease-out) both; }
+@keyframes pr-bar-in { from { opacity: 0; transform: translateY(4px); } }
+.pr-actions .btn .portal-icon { width: 16px; height: 16px; margin-right: 6px; color: inherit; }
+.pr-actions-spacer { flex: 1; }
+.pr-account-link { display: inline-flex; align-items: center; gap: 5px; min-height: 2.5rem; padding: 0 var(--space-3); color: var(--color-ink-700); font-size: .8125rem; font-weight: 650; text-decoration: none; border-radius: 999px; transition: color var(--motion-duration-fast) var(--ws-ease), background-color var(--motion-duration-fast) var(--ws-ease); }
+.pr-account-link .portal-icon { width: 13px; height: 13px; color: inherit; }
+.pr-account-link:hover { color: var(--color-kola-700, var(--color-kola-600)); background: var(--color-kola-50); }
+
+@media (prefers-reduced-motion: reduce) {
+  .pr-track li[data-state="now"] .pr-track-mark,
+  .pr-loading span,
+  .pr-facts,
+  .pr-decide,
+  .pr-actions > * { animation: none; }
+  .pr-evidence { transition: none; }
+}
+
+/* --- a tenant's balance, in a sheet (RentDueModal) ------------------------------
+   Quiet like the tenancy sheet: who, then the balance in the colour of where it
+   stands, then each open charge on a hairline row, the last payment, and the
+   actions at the foot. */
+
+@media (min-width: 48rem) {
+  .doc-modal.is-sm.due-sheet,
+  .doc-modal.is-sm.receipt-sheet {
+    width: min(30rem, calc(100vw - var(--modal-area-left, 0px) - 2rem));
+    max-height: min(40rem, calc(100vh - var(--modal-area-top, 0px) - 3rem));
+  }
+}
+.due-sheet .doc-modal-body,
+.receipt-sheet .doc-modal-body { --sheet-x: var(--space-5); padding: var(--space-4) var(--sheet-x) 0; }
+@media (max-width: 47.99rem) {
+  .due-sheet .doc-modal-body,
+  .receipt-sheet .doc-modal-body { --sheet-x: var(--space-4); }
+}
+
+.dm { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4); padding-bottom: var(--space-5); }
+.dm > * { min-width: 0; margin: 0; }
+
+.dm-who { display: flex; align-items: center; gap: var(--space-3); }
+.dm-avatar { display: grid; flex: none; place-items: center; width: 2.5rem; height: 2.5rem; color: var(--color-ink-700); font-size: .8125rem; font-weight: 700; background: var(--color-field-100); border-radius: 999px; box-shadow: 0 0 0 1px rgba(33, 26, 21, .06); }
+.dm-who-copy { display: grid; flex: 1; gap: 1px; min-width: 0; }
+.dm-who-copy strong { overflow: hidden; color: var(--color-ink-900); font-size: .9375rem; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.dm-who-copy small { overflow: hidden; color: var(--color-ink-500); font-size: .75rem; text-overflow: ellipsis; white-space: nowrap; }
+
+.dm-balance { display: grid; gap: 2px; padding: var(--space-3) 0; border-block: 1px solid rgba(33, 26, 21, .08); }
+.dm-balance small { color: var(--color-ink-500); font-size: .6875rem; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; }
+.dm-balance strong { color: var(--color-ink-900); font-family: var(--font-display); font-size: 1.875rem; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -.02em; line-height: 1.15; }
+.dm-balance[data-tone="outstanding"] strong { color: var(--color-harmattan-600); }
+.dm-balance[data-tone="overdue"] strong { color: var(--color-laterite-600); }
+.dm-balance > span { display: flex; flex-wrap: wrap; gap: 6px; color: var(--color-ink-500); font-size: .8125rem; }
+.dm-balance em { color: var(--color-laterite-600); font-style: normal; font-weight: 650; }
+.dm-balance i { font-style: normal; color: var(--color-ink-300); }
+
+.dm-charges { display: grid; gap: var(--space-2); }
+.dm-charges header { display: flex; align-items: baseline; justify-content: space-between; }
+.dm-charges header strong { color: var(--color-ink-900); font-size: .8125rem; font-weight: 650; }
+.dm-charges header span { color: var(--color-ink-500); font-size: .75rem; font-weight: 600; }
+.dm-charges ul { display: grid; margin: 0; padding: 0; list-style: none; }
+.dm-charge {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px var(--space-3);
+  align-items: center;
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid rgba(33, 26, 21, .06);
+  animation: ws-rise var(--motion-duration-base) var(--ws-enter) both;
+}
+.dm-charge:first-child { border-top: 1px solid rgba(33, 26, 21, .06); }
+.dm-charge-copy { display: grid; gap: 2px; min-width: 0; }
+.dm-charge-copy strong { color: var(--color-ink-900); font-size: .875rem; font-weight: 600; }
+.dm-charge-copy small { display: flex; flex-wrap: wrap; gap: 6px; color: var(--color-ink-500); font-size: .75rem; }
+.dm-charge-copy em { padding: 0 6px; color: var(--color-laterite-600); font-size: .6875rem; font-style: normal; font-weight: 650; background: color-mix(in srgb, var(--color-laterite-100) 70%, transparent); border-radius: 999px; }
+.dm-charge-amount { display: grid; justify-items: end; gap: 2px; }
+.dm-charge-amount strong { color: var(--color-ink-900); font-size: .9375rem; font-weight: 650; font-variant-numeric: tabular-nums; }
+.dm-charge[data-tone="overdue"] .dm-charge-amount strong { color: var(--color-laterite-600); }
+.dm-charge-amount small { color: var(--color-ink-500); font-size: .6875rem; font-variant-numeric: tabular-nums; }
+.dm-charge-bar { grid-column: 1 / -1; height: 3px; overflow: hidden; background: var(--color-field-200); border-radius: 999px; }
+.dm-charge-bar i { display: block; height: 100%; background: var(--color-ink-700); border-radius: 999px; }
+
+.dm-history { display: grid; gap: var(--space-2); }
+.dm-history header { display: flex; align-items: baseline; justify-content: space-between; }
+.dm-history header strong { color: var(--color-ink-900); font-size: .8125rem; font-weight: 650; }
+.dm-history header span { color: var(--color-ink-500); font-size: .75rem; font-weight: 600; }
+.dm-history ul { display: grid; margin: 0; padding: 0; list-style: none; }
+.dm-pay { display: grid; grid-template-columns: 2rem minmax(0, 1fr) auto; align-items: center; gap: var(--space-3); padding: 10px 0; border-bottom: 1px solid rgba(33, 26, 21, .06); }
+.dm-pay:first-child { border-top: 1px solid rgba(33, 26, 21, .06); }
+.dm-pay-mark { display: grid; place-items: center; width: 2rem; height: 2rem; color: var(--color-ink-500); background: var(--color-field-100); border-radius: .625rem; }
+.dm-pay-mark .portal-icon { width: 14px; height: 14px; color: inherit; }
+.dm-pay-copy { display: grid; gap: 1px; min-width: 0; }
+.dm-pay-copy strong { color: var(--color-ink-900); font-size: .875rem; font-weight: 650; font-variant-numeric: tabular-nums; }
+.dm-pay-copy small { overflow: hidden; color: var(--color-ink-500); font-size: .75rem; text-overflow: ellipsis; white-space: nowrap; }
+.dm-pay-side { display: grid; justify-items: end; gap: 4px; }
+.dm-pay-state { color: var(--color-ink-500); font-size: .6875rem; font-weight: 650; white-space: nowrap; }
+.dm-pay[data-tone="confirmed"] .dm-pay-state { color: var(--color-kola-600); }
+.dm-pay[data-tone="review"] .dm-pay-state { color: var(--color-harmattan-600); }
+.dm-pay[data-tone="disputed"] .dm-pay-state { color: var(--color-laterite-600); }
+.dm-pay[data-tone="waiting"] .dm-pay-state { color: var(--color-lagoon-600); }
+.dm-pay .dm-receipt { min-height: 1.625rem; font-size: .6875rem; }
+.dm-receipt { min-height: 2rem; padding: 0 var(--space-3); color: var(--color-ink-700); font: inherit; font-size: .75rem; font-weight: 650; background: #fff; border: 0; border-radius: 999px; box-shadow: 0 0 0 1px rgba(33, 26, 21, .1); cursor: pointer; }
+.dm-receipt:hover { color: var(--color-ink-900); box-shadow: 0 0 0 1px rgba(33, 26, 21, .2); }
+.dm-receipt:focus-visible { outline: 2px solid var(--color-kola-600); outline-offset: 2px; }
+
+.dm-loading { display: grid; gap: var(--space-2); }
+.dm-loading span { height: 3rem; background: linear-gradient(90deg, var(--color-field-100), rgba(255, 255, 255, .9), var(--color-field-100)) 0 0 / 200% 100%; border-radius: var(--radius-md); animation: pr-shimmer 1.2s linear infinite; }
+.dm-error { display: grid; justify-items: start; gap: var(--space-2); }
+.dm-quiet { margin: 0; color: var(--color-ink-500); font-size: .8125rem; }
+
+.dm-actions,
+.rc-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 calc(var(--sheet-x, var(--space-5)) * -1) calc(var(--space-5) * -1);
+  padding: var(--space-3) var(--sheet-x, var(--space-5));
+  background: rgba(255, 255, 255, .8);
+  border-top: 1px solid rgba(33, 26, 21, .07);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+}
+.dm-actions .btn .portal-icon,
+.rc-actions .btn .portal-icon { width: 16px; height: 16px; margin-right: 6px; color: inherit; }
+.dm-actions-spacer,
+.rc-actions-spacer { flex: 1; }
+.dm-account-link { display: inline-flex; align-items: center; gap: 5px; min-height: 2.5rem; padding: 0 var(--space-3); color: var(--color-ink-700); font-size: .8125rem; font-weight: 650; text-decoration: none; border-radius: 999px; transition: color var(--motion-duration-fast) var(--ws-ease), background-color var(--motion-duration-fast) var(--ws-ease); }
+.dm-account-link .portal-icon { width: 13px; height: 13px; color: inherit; }
+.dm-account-link:hover { color: var(--color-ink-900); background: var(--color-field-100); }
+
+/* --- a receipt, in a sheet (ReceiptModal) -----------------------------------------
+   A white page on the glass: the issuer and number, the amount, who paid whom,
+   one line item with its period, the payment facts, and the notice. */
+
+.rc-wrap { display: grid; gap: var(--space-4); padding-bottom: var(--space-5); }
+.rc {
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  color: var(--color-ink-900);
+  background: #fff;
+  border-radius: .75rem;
+  box-shadow: 0 0 0 1px rgba(33, 26, 21, .07), 0 16px 32px -26px rgba(33, 26, 21, .45);
+  animation: ws-rise var(--motion-duration-base) var(--ws-enter) both;
+}
+.rc-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-3); padding-bottom: var(--space-3); border-bottom: 1px solid rgba(33, 26, 21, .08); }
+.rc-brand { display: grid; gap: 1px; }
+.rc-brand strong { font-family: var(--font-display); font-size: 1.125rem; font-weight: 600; letter-spacing: -.01em; }
+.rc-brand small,
+.rc-number small { color: var(--color-ink-500); font-size: .6875rem; }
+.rc-number { display: grid; justify-items: end; gap: 1px; text-align: right; }
+.rc-number strong { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .8125rem; letter-spacing: .02em; }
+
+.rc-amount { display: grid; justify-items: center; gap: 4px; padding: var(--space-2) 0; text-align: center; }
+.rc-amount small { color: var(--color-ink-500); font-size: .6875rem; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; }
+.rc-amount strong { font-family: var(--font-display); font-size: 2rem; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -.02em; line-height: 1.1; }
+.rc-paid { display: inline-flex; align-items: center; gap: 5px; color: var(--color-kola-600); font-size: .75rem; font-weight: 650; }
+.rc-paid .portal-icon { width: 13px; height: 13px; color: inherit; }
+
+.rc-parties { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
+.rc-parties div { display: grid; gap: 2px; min-width: 0; }
+.rc-parties small,
+.rc-meta dt { color: var(--color-ink-500); font-size: .6875rem; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; }
+.rc-parties strong { font-size: .875rem; font-weight: 650; }
+.rc-parties span { color: var(--color-ink-500); font-size: .75rem; line-height: 1.4; }
+
+.rc-lines { width: 100%; border-collapse: collapse; font-size: .8125rem; }
+.rc-lines th { color: var(--color-ink-500); font-size: .6875rem; font-weight: 600; letter-spacing: .05em; text-align: left; text-transform: uppercase; }
+.rc-lines th:last-child,
+.rc-lines td:last-child { text-align: right; white-space: nowrap; }
+.rc-lines thead th { padding-bottom: 6px; border-bottom: 1px solid rgba(33, 26, 21, .12); }
+.rc-lines td { padding: var(--space-2) 0; vertical-align: top; border-bottom: 1px solid rgba(33, 26, 21, .06); font-variant-numeric: tabular-nums; }
+.rc-lines td strong { display: block; font-weight: 600; }
+.rc-lines td small { color: var(--color-ink-500); font-size: .75rem; }
+.rc-lines tfoot th,
+.rc-lines tfoot td { padding-top: var(--space-2); color: var(--color-ink-900); font-size: .875rem; font-weight: 700; letter-spacing: 0; text-transform: none; }
+
+.rc-meta { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2) var(--space-3); margin: 0; }
+.rc-meta div { display: grid; gap: 2px; min-width: 0; }
+.rc-meta dd { margin: 0; font-size: .8125rem; font-weight: 600; overflow-wrap: anywhere; }
+.rc-meta dd[data-mono] { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .75rem; }
+
+.rc-foot { padding-top: var(--space-3); color: var(--color-ink-500); font-size: .6875rem; line-height: 1.5; text-align: center; border-top: 1px solid rgba(33, 26, 21, .08); }
+
+.rc-loading { display: grid; gap: var(--space-2); }
+.rc-loading span { height: 2.75rem; background: linear-gradient(90deg, var(--color-field-100), rgba(255, 255, 255, .9), var(--color-field-100)) 0 0 / 200% 100%; border-radius: var(--radius-md); animation: pr-shimmer 1.2s linear infinite; }
+.rc-loading span:first-child { height: 5rem; }
+
+@media (prefers-reduced-motion: reduce) {
+  .dm-charge,
+  .dm-loading span,
+  .rc,
+  .rc-loading span { animation: none; }
+}
+
+/* The tenant's history and the rent account open a receipt in its sheet. */
+
+/* --- the tenant's side ----------------------------------------------------------- */
+
+/* The landlord's parts (PaymentsParts), read from the other end: three figures
+   instead of four, rows that go to checkout, and a closed attempt kept quiet. */
+
+.payments-overview.is-tenant { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+.tenant-payments-workspace .rent-list > li { animation-delay: calc(var(--rent-order, 0) * 24ms); }
+.tenant-payments-workspace button.rent-row { font: inherit; }
+
+/* A due row ends in what it does, not a bare chevron: paying is the action. */
+.rent-row.is-payable { grid-template-columns: minmax(14rem, 1.6fr) minmax(9rem, .8fr) minmax(8rem, .75fr) minmax(8rem, .8fr) auto; }
+
+.rent-row-pay {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  justify-self: end;
+  min-height: 2rem;
+  padding: 0 var(--space-2) 0 var(--space-3);
+  color: var(--color-kola-800);
+  font-size: .75rem;
+  font-weight: 650;
+  white-space: nowrap;
+  background: var(--color-kola-50);
+  border-radius: var(--radius-sm);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-kola-600) 18%, transparent);
+  transition: background-color var(--motion-duration-fast) var(--ws-ease), color var(--motion-duration-fast) var(--ws-ease);
+}
+
+.rent-row-pay svg { transition: transform var(--motion-duration-base) var(--ws-ease); }
+.rent-row:hover .rent-row-pay { color: #fff; background: var(--color-kola-600); box-shadow: none; }
+.rent-row:hover .rent-row-pay svg { transform: translateX(2px); }
+li[data-tone="overdue"] .rent-row-pay { color: var(--color-laterite-600); background: var(--color-laterite-100); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-laterite-600) 20%, transparent); }
+li[data-tone="overdue"] .rent-row:hover .rent-row-pay { color: #fff; background: var(--color-laterite-600); }
+li[data-tone="waiting"] .rent-row-pay { color: var(--color-lagoon-600); background: var(--color-lagoon-100); box-shadow: none; }
+li[data-tone="waiting"] .rent-row:hover .rent-row-pay { color: #fff; background: var(--color-lagoon-600); }
+
+/* Late items carry a faint laterite wash, the way records to review carry a warm one. */
+.tenant-payments-workspace li[data-tone="overdue"] > .rent-row { background: color-mix(in srgb, var(--color-laterite-100) 35%, transparent); }
+.tenant-payments-workspace li[data-tone="overdue"] > .rent-row:hover { background: color-mix(in srgb, var(--color-laterite-100) 60%, var(--color-field-0)); }
+
+.rent-row-avatar[data-kind="charge"] { color: var(--color-harmattan-600); background: var(--color-harmattan-100); }
+li[data-tone="overdue"] .rent-row-avatar[data-kind="charge"] { color: var(--color-laterite-600); background: var(--color-laterite-100); }
+li[data-tone="waiting"] .rent-row-avatar[data-kind="charge"] { color: var(--color-lagoon-600); background: var(--color-lagoon-100); }
+li[data-tone="confirmed"] .rent-row-avatar[data-kind="record"] { color: var(--color-kola-600); background: var(--color-kola-50); }
+.rent-row-avatar[data-kind="home"] { color: var(--color-kola-600); background: var(--color-kola-50); }
+li[data-tone="ended"] .rent-row-avatar[data-kind="home"] { color: var(--color-ink-500); background: var(--color-field-100); }
+
+.rent-row-state.is-failed,
+.rent-row-state.is-ended { color: var(--color-ink-500); background: var(--color-field-100); }
+
+/* Attempts that charged nothing: present, so nobody wonders, but quiet. */
+.tenant-attempts { padding: var(--space-2) var(--space-3) var(--space-3); border-top: var(--border-hairline) solid var(--color-field-200); }
+.tenant-attempts .ws-group-heading { margin-top: var(--space-3); }
+.tenant-attempts-note { margin: 0 0 var(--space-2); padding: 0 var(--space-3); color: var(--color-ink-500); font-size: .75rem; }
+.tenant-attempts .rent-row { opacity: .75; }
+
+@media (max-width: 980px) {
+  .rent-row.is-payable {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "person amount"
+      "state  pay";
+  }
+  .rent-row.is-payable .rent-row-due { display: none; }
+  .rent-row-pay { grid-area: pay; }
+}
+
+@media (max-width: 760px) {
+  .payments-overview.is-tenant { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .payments-overview.is-tenant > :first-child { grid-column: 1 / -1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rent-row-pay,
+  .rent-row-pay svg { transition: none; }
+}

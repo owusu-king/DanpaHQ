@@ -26,6 +26,7 @@ import {
   type SummaryNote,
 } from "@/components/portfolio/PortfolioList";
 import { UNIT_COLUMNS, UNIT_TILE_GAP, UnitTile } from "@/components/property/UnitTile";
+import { useAddUnit } from "@/components/property/AddUnitSheet";
 import { BottomSheet } from "@/components/sheet/BottomSheet";
 import { Notice, space } from "@/components/ui";
 import { listOrganizations } from "@/organizations";
@@ -170,7 +171,9 @@ export default function UnitsScreen() {
       : { text: "All let", tone: "calm" };
 
   const clearAll = () => { setView("all"); setPropertyId(""); setSort("property"); setQuery(""); };
-  const addUnit = () => router.push("/(app)/unit-new" as never);
+  // A sheet to choose the Property, not a screen (owner, 2026-10-05).
+  const { start: startAddUnit, sheet: addUnitSheet } = useAddUnit();
+  const addUnit = () => void startAddUnit();
 
   return (
     <IndexGround>
@@ -339,6 +342,7 @@ export default function UnitsScreen() {
           ))}
         </FilterGroup>
       </BottomSheet>
+      {addUnitSheet}
     </IndexGround>
   );
 }

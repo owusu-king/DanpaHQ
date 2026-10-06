@@ -51,10 +51,10 @@ const RELATIONSHIPS = [
  *  enforces would be better; this is the label only, and the server still
  *  decides whether what arrives is enough. */
 const EVIDENCE_HINT: Record<string, string> = {
-  owner: "An indenture, title, or a land or assembly document naming you.",
-  agent: "A letter from the owner naming you and this property.",
-  manager: "The agreement appointing you to manage it.",
-  company_representative: "The certificate showing the company is registered.",
+  owner: "Title, indenture or land document naming you.",
+  agent: "The owner's letter naming you.",
+  manager: "The agreement appointing you.",
+  company_representative: "The company's registration certificate.",
 };
 
 /** A property for sale is sold on its title, so the review reads the title too.
@@ -177,7 +177,7 @@ export function AuthorityClaim({
       <Notice
         tone="success"
         title="Document saved with this property"
-        body="Nobody is looking at it yet. It goes to our team when you submit the property for verification, which you do once it is finished."
+        body="It goes to our team when you send the property for checking."
       />
     );
   }
@@ -226,7 +226,7 @@ export function AuthorityClaim({
         <>
           <Select
             label="The property's title"
-            hint="Selling transfers the property itself, so our team reads its title too."
+            hint="Needed for a sale."
             value={titleType}
             onChange={setTitleType}
             options={TITLE_TYPES}
@@ -234,8 +234,8 @@ export function AuthorityClaim({
           <FilePick
             hint={
               titleType === "indenture"
-                ? "The indenture, with every page and the stamp duty receipt if you have it."
-                : "The certificate issued by the Lands Commission."
+                ? "Every page, plus stamp duty receipt."
+                : "From the Lands Commission."
             }
             file={titleFile}
             onChange={setTitleFile}
@@ -246,7 +246,7 @@ export function AuthorityClaim({
 
       {land ? (
         <FilePick
-          hint="The surveyed site plan of the plot, signed by a licensed surveyor."
+          hint="Signed by a licensed surveyor."
           file={sitePlan}
           onChange={setSitePlan}
           empty="Choose the site plan"

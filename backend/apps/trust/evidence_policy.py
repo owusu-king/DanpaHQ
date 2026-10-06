@@ -89,7 +89,7 @@ _AUTHORITY: dict[str, EvidenceSlot] = {
         key="authority.ownership",
         evidence_type=EvidenceType.OWNERSHIP_DOCUMENT,
         label="Proof you own this property",
-        why="An indenture, title, or a land or assembly document naming you.",
+        why="Title, indenture or land document naming you.",
         group="authority",
         accepts=(EvidenceType.OWNERSHIP_DOCUMENT, EvidenceType.UTILITY_BILL),
     ),
@@ -97,7 +97,7 @@ _AUTHORITY: dict[str, EvidenceSlot] = {
         key="authority.authorization",
         evidence_type=EvidenceType.AUTHORIZATION_LETTER,
         label="The owner's authorisation",
-        why="A letter from the owner naming you and this property.",
+        why="The owner's letter naming you.",
         group="authority",
         accepts=(EvidenceType.AUTHORIZATION_LETTER, EvidenceType.AGENCY_LICENCE),
     ),
@@ -105,7 +105,7 @@ _AUTHORITY: dict[str, EvidenceSlot] = {
         key="authority.management",
         evidence_type=EvidenceType.MANAGEMENT_AGREEMENT,
         label="Your management agreement",
-        why="The agreement appointing you to manage this property.",
+        why="The agreement appointing you.",
         group="authority",
         accepts=(EvidenceType.MANAGEMENT_AGREEMENT, EvidenceType.AUTHORIZATION_LETTER),
     ),
@@ -113,7 +113,7 @@ _AUTHORITY: dict[str, EvidenceSlot] = {
         key="authority.company",
         evidence_type=EvidenceType.BUSINESS_CERTIFICATE,
         label="Your company's registration",
-        why="The certificate showing the company you act for is registered.",
+        why="Your company's registration certificate.",
         group="authority",
         accepts=(EvidenceType.BUSINESS_CERTIFICATE, EvidenceType.AUTHORIZATION_LETTER),
     ),
@@ -158,10 +158,7 @@ def sale_title_slots(prop) -> list[EvidenceSlot]:
             key="title.document",
             evidence_type=EvidenceType.LAND_TITLE_CERTIFICATE,
             label="The property's title",
-            why=(
-                "A Land Title Certificate, or the indenture where the land is not "
-                "registered yet. A buyer is buying this, not only a key."
-            ),
+            why="Land Title Certificate or indenture.",
             group="authority",
             accepts=(EvidenceType.LAND_TITLE_CERTIFICATE, EvidenceType.INDENTURE),
         )
@@ -172,10 +169,7 @@ def sale_title_slots(prop) -> list[EvidenceSlot]:
                 key="title.site_plan",
                 evidence_type=EvidenceType.SITE_PLAN,
                 label="The site plan",
-                why=(
-                    "The surveyed plan of the plot, signed by a licensed surveyor. "
-                    "Where a plot starts and stops is what land disputes turn on."
-                ),
+                why="Surveyed plan, signed by a surveyor.",
                 group="authority",
             )
         )
@@ -215,7 +209,7 @@ def property_requirements(prop) -> list[EvidenceSlot]:
             key="property.front",
             evidence_type=EvidenceType.PROPERTY_FRONT,
             label="The front of the property",
-            why="So a tenant recognises the place when they arrive at it.",
+            why="How it looks from the street.",
             # Evidence gathered before these slots were named is still good
             # evidence. Accepted in place of the front view, never asked for.
             accepts=(EvidenceType.PROPERTY_FRONT, EvidenceType.EXTERIOR),
@@ -224,16 +218,13 @@ def property_requirements(prop) -> list[EvidenceSlot]:
             key="property.side",
             evidence_type=EvidenceType.PROPERTY_SIDE,
             label="The property from the side",
-            why="A second angle shows the building as it stands, not as one photograph framed it.",
+            why="A second angle of the building.",
         ),
         EvidenceSlot(
             key="property.surroundings",
             evidence_type=EvidenceType.PROPERTY_SURROUNDINGS,
             label="The wider area around it",
-            why=(
-                "What is next door, and how the street looks. Addresses here are "
-                "descriptive, and this is how people actually judge a location."
-            ),
+            why="The street and what is next door.",
             accepts=(
                 EvidenceType.PROPERTY_SURROUNDINGS,
                 EvidenceType.LOCATION_CONTEXT,
@@ -247,7 +238,7 @@ def property_requirements(prop) -> list[EvidenceSlot]:
                 key="property.compound",
                 evidence_type=EvidenceType.COMPOUND,
                 label="The compound",
-                why="Shared grounds are part of what a tenant is agreeing to.",
+                why="The shared grounds.",
             )
         )
 
@@ -259,11 +250,7 @@ def property_requirements(prop) -> list[EvidenceSlot]:
                 key="property.water",
                 evidence_type=EvidenceType.WATER_SOURCE_VIEW,
                 label="The water source",
-                why=(
-                    "Where water comes from is a daily fact of living here, not a "
-                    "detail. It is asked for only when the arrangement is one a "
-                    "tenant would want to see before agreeing to it."
-                ),
+                why="Where the water comes from.",
                 # Required, not optional. These three values are the arrangements
                 # where water is a real question — a borehole, sachet delivery, or
                 # none at all — and a tenant who discovers which one it is after
@@ -279,7 +266,7 @@ def property_requirements(prop) -> list[EvidenceSlot]:
                 key="property.power",
                 evidence_type=EvidenceType.POWER_METER_VIEW,
                 label="The electricity meter",
-                why="A shared or prepaid meter decides who pays for what.",
+                why="Shows who pays for power.",
                 required=False,
             )
         )
@@ -301,20 +288,20 @@ def sale_property_requirements(prop) -> list[EvidenceSlot]:
                 key="sale.plot",
                 evidence_type=EvidenceType.PROPERTY_SURROUNDINGS,
                 label="The plot itself",
-                why="What is being bought. A plot has no front door, so this is its face.",
+                why="The plot as it stands.",
                 accepts=(EvidenceType.PROPERTY_SURROUNDINGS, EvidenceType.LOCATION_CONTEXT),
             ),
             EvidenceSlot(
                 key="sale.boundary",
                 evidence_type=EvidenceType.PLOT_BOUNDARY,
                 label="The boundary or corner pillars",
-                why="Where the plot starts and stops, as it stands on the ground.",
+                why="Where the plot starts and stops.",
             ),
             EvidenceSlot(
                 key="sale.access",
                 evidence_type=EvidenceType.SPACE_ENTRANCE,
                 label="The access road",
-                why="A plot that cannot be reached is worth a great deal less than one that can.",
+                why="How you reach the plot.",
             ),
         ]
 
@@ -324,31 +311,27 @@ def sale_property_requirements(prop) -> list[EvidenceSlot]:
             key="sale.front",
             evidence_type=EvidenceType.PROPERTY_FRONT,
             label="The front of the property",
-            why="So a buyer recognises the place when they arrive at it.",
+            why="How it looks from the street.",
             accepts=(EvidenceType.PROPERTY_FRONT, EvidenceType.EXTERIOR),
         ),
         EvidenceSlot(
             key="sale.side",
             evidence_type=EvidenceType.PROPERTY_SIDE,
             label="The property from the side",
-            why="A second angle shows the building as it stands, not as one photograph framed it.",
+            why="A second angle of the building.",
         ),
         EvidenceSlot(
             key="sale.surroundings",
             evidence_type=EvidenceType.PROPERTY_SURROUNDINGS,
             label="The wider area around it",
-            why="What is next door, and how the street looks.",
+            why="The street and what is next door.",
             accepts=(EvidenceType.PROPERTY_SURROUNDINGS, EvidenceType.LOCATION_CONTEXT),
         ),
         EvidenceSlot(
             key="sale.interior",
             evidence_type=EvidenceType.INTERIOR_OVERVIEW,
             label="Inside the building" if commercial else "Inside the house",
-            why=(
-                "The usable space, and its condition."
-                if commercial
-                else "The main living space. A buyer is paying for the inside too."
-            ),
+            why="The usable space inside." if commercial else "The main living space.",
         ),
     ]
     if commercial:
@@ -357,7 +340,7 @@ def sale_property_requirements(prop) -> list[EvidenceSlot]:
                 key="sale.storefront",
                 evidence_type=EvidenceType.STOREFRONT,
                 label="The frontage",
-                why="Frontage is much of what a commercial buyer is paying for.",
+                why="The frontage, from the street.",
                 required=False,
             )
         )
@@ -368,14 +351,14 @@ def sale_property_requirements(prop) -> list[EvidenceSlot]:
                     key="sale.kitchen",
                     evidence_type=EvidenceType.KITCHEN,
                     label="The kitchen",
-                    why="Whether cooking happens inside or outside changes what a house is worth.",
+                    why="Where cooking happens.",
                     required=False,
                 ),
                 EvidenceSlot(
                     key="sale.bathroom",
                     evidence_type=EvidenceType.BATHROOM,
                     label="A bathroom",
-                    why="The fittings are part of what is being sold.",
+                    why="The fittings, as they are.",
                     required=False,
                 ),
             ]
@@ -413,10 +396,7 @@ def _residential_primary() -> EvidenceSlot:
         key="space.overview",
         evidence_type=EvidenceType.INTERIOR_OVERVIEW,
         label="The main room, inside",
-        why=(
-            "The one thing photographs of the building cannot show. It is also "
-            "the picture a tenant sees first."
-        ),
+        why="The first photo tenants see.",
     )
 
 
@@ -425,7 +405,7 @@ def _bed_space_primary() -> EvidenceSlot:
         key="space.bed",
         evidence_type=EvidenceType.BED_SPACE_VIEW,
         label="The bed space itself",
-        why="This is what is being rented — not the room around it.",
+        why="The bed being rented.",
         accepts=(EvidenceType.BED_SPACE_VIEW, EvidenceType.INTERIOR_OVERVIEW),
     )
 
@@ -435,7 +415,7 @@ def _commercial_primary() -> EvidenceSlot:
         key="space.interior",
         evidence_type=EvidenceType.INTERIOR_OVERVIEW,
         label="Inside the space",
-        why="The usable space, and its condition.",
+        why="The usable space inside.",
         accepts=(EvidenceType.INTERIOR_OVERVIEW, EvidenceType.STOREFRONT),
     )
 
@@ -445,7 +425,7 @@ def _land_primary() -> EvidenceSlot:
         key="space.plot",
         evidence_type=EvidenceType.PROPERTY_SURROUNDINGS,
         label="The plot itself",
-        why="What is actually being let. A plot has no interior to show.",
+        why="The plot being let.",
     )
 
 
@@ -494,15 +474,13 @@ _ADDITIONAL_LABELS: dict[str, tuple[tuple[str, str, str], ...]] = {
 }
 
 _ADDITIONAL_WHY = {
-    "space.entrance": "Which door is theirs, which matters most in a shared compound.",
-    "space.additional": "One angle flatters. A second shows the room as it is.",
-    "space.plot_boundary": "Where the plot starts and stops is the commonest land dispute here.",
-    "space.plot_access": (
-        "A plot that cannot be reached is worth a great deal less than one that can."
-    ),
-    "space.sleeping_arrangement": "How many share the room, and how the beds sit in it.",
-    "space.bathroom.shared": "Shared washrooms are the thing students ask about first.",
-    "space.storefront": "Frontage is most of what a commercial tenant is paying for.",
+    "space.entrance": "Which door is theirs.",
+    "space.additional": "Another angle of the room.",
+    "space.plot_boundary": "Where the plot starts and stops.",
+    "space.plot_access": "How you reach the plot.",
+    "space.sleeping_arrangement": "How the beds are arranged.",
+    "space.bathroom.shared": "The shared washroom.",
+    "space.storefront": "The shopfront, from the street.",
 }
 
 
@@ -514,7 +492,7 @@ def _additional_slots(space_type: str) -> list[EvidenceSlot]:
             key=key,
             evidence_type=evidence_type,
             label=label,
-            why=_ADDITIONAL_WHY.get(key, "A further view of the space."),
+            why=_ADDITIONAL_WHY.get(key, "Another view of the space."),
             required=False,
         )
         for key, label, evidence_type in rows[:ADDITIONAL_SPACE_PHOTOS]
@@ -575,10 +553,7 @@ def amenity_slots(unit) -> list[EvidenceSlot]:
                 row.amenity.category, EvidenceType.SPACE_ADDITIONAL
             ),
             label=f"Photo of {row.amenity.name.lower()}",
-            why=(
-                f"{row.amenity.name} is part of what this Unit promises. "
-                "Show the actual feature a tenant will receive."
-            ),
+            why=f"Show the actual {row.amenity.name.lower()}.",
             required=True,
         )
         for row in rows
@@ -618,24 +593,21 @@ FEATURE_EVIDENCE: tuple[FeatureEvidence, ...] = (
         evidence_type=EvidenceType.KITCHEN,
         key="space.kitchen",
         label="The kitchen",
-        why="Whether cooking happens inside or outside changes what a place is worth.",
+        why="Where cooking happens.",
     ),
     FeatureEvidence(
         field="has_private_toilet",
         evidence_type=EvidenceType.BATHROOM,
         key="space.toilet.private",
         label="The private toilet",
-        why=(
-            "Separate from the washroom in many Ghanaian houses, and claimed "
-            "as private more often than it is."
-        ),
+        why="The private toilet itself.",
     ),
     FeatureEvidence(
         field="has_air_conditioning",
         evidence_type=EvidenceType.INTERIOR_OVERVIEW,
         key="space.air_conditioning",
         label="The air conditioning unit",
-        why="An installed unit is worth showing; a claimed one is worth checking.",
+        why="The installed unit.",
     ),
 )
 

@@ -19,6 +19,8 @@ export type SpaceTypeOption = {
   accepts_bed_spaces: boolean;
   /** False for land: no rooms to count, no interior to photograph. */
   has_interior: boolean;
+  /** Which details fit this kind of space. Served by the backend's `space_rules`. */
+  asks: { bedrooms: boolean; bathrooms: "count" | "yes_no" | "none"; floor: boolean };
 };
 
 export type PropertyTypeOption = {

@@ -18,6 +18,7 @@ import { ExploreHero, ExploreResults, HERO_FLARE, HeroSearch, type ExploreMode }
 import { SegmentedField, SelectField } from "@/components/filters/FilterFields";
 import { BottomSheet } from "@/components/sheet/BottomSheet";
 import { SheetCard, SheetGlassButton, SheetPrimaryButton } from "@/components/sheet/SheetParts";
+import { ShowField } from "@/components/explore/ExploreShow";
 import { Notice, Type, space } from "@/components/ui";
 import {
   searchSales,
@@ -160,7 +161,6 @@ export function SaleExplore({
           inTabs={inTabs}
           actions={actions}
           mode="buy"
-          onModeChange={onModeChange}
           filterCount={refinements}
           onFilters={() => setFiltersOpen(true)}
           search={(
@@ -240,6 +240,9 @@ export function SaleExplore({
           </>
         )}
       >
+        <SheetCard>
+          <ShowField mode="buy" onChange={(next) => { setFiltersOpen(false); onModeChange(next); }} />
+        </SheetCard>
         <SheetCard>
           <SegmentedField label="What" value={kind} options={KINDS} onChange={(value) => setKind(value as "" | SaleKind)} />
           {kind === "residential" ? (

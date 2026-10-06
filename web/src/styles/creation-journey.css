@@ -60,3 +60,84 @@
 @media (prefers-reduced-motion: reduce) {
   .checkpoint-marker, .checkpoint-connector { transition: none; }
 }
+
+/* Navigable icons (owner, 2026-10-05): the tracker is how you move between
+   sections, so each reachable marker is a button with the marker's own look. */
+.checkpoint-button {
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: var(--space-1);
+  color: inherit;
+  font: inherit;
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: background-color var(--motion-duration-fast) var(--motion-easing-standard);
+}
+.checkpoint-button:hover { background: color-mix(in srgb, var(--color-kola-50) 70%, transparent); }
+.checkpoint-button:hover .checkpoint-marker { border-color: var(--color-kola-600); }
+.checkpoint-button:focus-visible { outline: 2px solid var(--color-kola-600); outline-offset: 2px; }
+.checkpoint-row.is-navigable .checkpoint-current .checkpoint-label { color: var(--color-kola-800); font-weight: 650; }
+
+/* The end of a step: one button, then quiet links (owner, 2026-10-05). */
+.step-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-5); }
+.step-link {
+  padding: var(--space-2) 0;
+  color: var(--color-ink-700);
+  font: inherit;
+  font-size: .875rem;
+  font-weight: 600;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+.step-link:hover:not(:disabled) { color: var(--color-kola-700, var(--color-kola-600)); text-decoration: underline; text-underline-offset: 3px; }
+.step-link:focus-visible { outline: 2px solid var(--color-kola-600); outline-offset: 2px; border-radius: 4px; }
+.step-link:disabled { color: var(--color-ink-300); cursor: default; }
+
+/* Small counts, side by side: bedrooms, bathrooms, floor. */
+.count-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr)); gap: var(--space-3); }
+.count-stepper {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  background: var(--color-field-0);
+  border: var(--border-hairline) solid var(--color-field-200);
+  border-radius: var(--radius-md);
+}
+.count-stepper-label { color: var(--color-ink-700); }
+.count-stepper-control { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
+.count-stepper-control button {
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  color: var(--color-kola-700, var(--color-kola-600));
+  font-size: 1.125rem;
+  font-weight: 600;
+  background: var(--color-kola-50);
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.count-stepper-control button:hover:not(:disabled) { background: color-mix(in srgb, var(--color-kola-600) 16%, var(--color-kola-50)); }
+.count-stepper-control button:disabled { color: var(--color-ink-300); background: var(--color-field-100); cursor: default; }
+.count-stepper-control button:focus-visible, .yes-no button:focus-visible { outline: 2px solid var(--color-kola-600); outline-offset: 2px; }
+.count-stepper-control output { color: var(--color-ink-900); font-family: var(--font-display); font-size: 1.25rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.yes-no { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 3px; background: var(--color-field-100); border-radius: 999px; }
+.yes-no button {
+  height: 2rem;
+  color: var(--color-ink-700);
+  font: inherit;
+  font-size: .875rem;
+  font-weight: 600;
+  background: transparent;
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.yes-no button[aria-checked="true"] { color: #fff; background: var(--color-kola-600); }

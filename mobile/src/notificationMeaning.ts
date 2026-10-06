@@ -24,6 +24,9 @@ const WANTS_A_REPLY = new Set([
   "rent.payment_due_now",
   "rent.payment_overdue",
   "rent.external_payment_recorded",
+  "maintenance.submitted",
+  "maintenance.awaiting_confirmation",
+  "maintenance.reopened",
 ]);
 
 export function wantsAReply(kind: string): boolean {
@@ -54,6 +57,7 @@ const SUCCESS = new Set([
   "rent.external_payment_confirmed",
   "billing.subscription_payment_succeeded",
   "organization.invitation_accepted",
+  "maintenance.completed",
 ]);
 
 const WARNING = new Set([
@@ -91,6 +95,7 @@ export function notificationSource(kind: string): string {
   if (kind.startsWith("rent.") || kind.startsWith("payment.")) return "Payments";
   if (kind.startsWith("billing.")) return "Plan & billing";
   if (kind.startsWith("organization.")) return "Portfolio";
+  if (kind.startsWith("maintenance.")) return "Maintenance";
   return "Rooomly";
 }
 
@@ -145,6 +150,8 @@ export function destination(
       return { pathname: "/(app)/portfolio-invitations" };
     case "billing":
       return { pathname: "/(app)/billing" };
+    case "maintenance_request":
+      return { pathname: "/(app)/maintenance-request", params: { id: item.target_id } };
     default:
       // Whichever side the person is on. There is no standalone home route on
       // mobile: the tab groups are the home for each workspace.

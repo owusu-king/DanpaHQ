@@ -114,12 +114,19 @@ test("Units are browsed two across on a handset", () => {
 });
 
 test("mobile creation chooses a Property, then reuses space-new", () => {
-  const create = read("mobile/app/(app)/unit-new.tsx");
+  // The choice lives in one component: a sheet from the Units tab (owner,
+  // 2026-10-05), and the same list on unit-new for other entry points.
+  const create = read("mobile/src/components/property/AddUnitSheet.tsx");
   const property = read("mobile/app/(app)/provider-property.tsx");
   const layout = read("mobile/app/(app)/_layout.tsx");
 
+  assert.match(create, /<BottomSheet/);
+  assert.match(read("mobile/app/(app)/units.tsx"), /useAddUnit\(\)/);
+  assert.match(read("mobile/app/(app)/unit-new.tsx"), /<PropertyChoices/);
   assert.match(create, /pathname: "\/\(app\)\/space-new"/);
   assert.match(create, /private_inventory\?\.allowed/);
+  // A sale is sold whole and takes no Units.
+  assert.match(create, /property\.purpose !== "sale"/);
   assert.doesNotMatch(create, /createUnit/);
   assert.match(layout, /name="unit-new" options=\{\{ title: "Add Unit" \}\}/);
   // Property → Add Unit still goes straight there; the Property is known.

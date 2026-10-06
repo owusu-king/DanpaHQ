@@ -54,7 +54,10 @@ export function ListingLocation({ listing, where, landmark }: {
       className="listing-section listing-location"
       aria-labelledby="listing-location-title"
     >
-      <h2 id="listing-location-title">Location</h2>
+      <h2 id="listing-location-title" className="listing-section-title">
+        <span aria-hidden="true"><Icon name="map" /></span>
+        Location
+      </h2>
       <p className="listing-location-where">
         <Icon name="pin" />
         <span>{where || "Ghana"}{landmark ? ` · near ${landmark}` : ""}</span>

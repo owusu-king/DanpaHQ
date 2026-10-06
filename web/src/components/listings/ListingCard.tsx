@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState, type PointerEvent } from "react";
+import { useRef, useState, type PointerEvent, type ReactNode } from "react";
 
 import { Icon } from "@/components/portal/icons";
 import type { Listing } from "@/lib/console";
@@ -24,6 +24,8 @@ export function ListingCard({
   onNavigate,
   highlighted = false,
   onHoverChange,
+  footnote,
+  unavailable = false,
 }: {
   listing: Listing;
   saved?: boolean;
@@ -34,6 +36,10 @@ export function ListingCard({
   highlighted?: boolean;
   /** Lets the map mark this rental while the pointer is over its card. */
   onHoverChange?: (hovering: boolean) => void;
+  /** One quiet line at the foot, e.g. when it was saved. */
+  footnote?: ReactNode;
+  /** No longer open to rent: kept recognisable, but clearly stepped back. */
+  unavailable?: boolean;
 }) {
   const photos = cardPhotos(listing);
   const [activePhoto, setActivePhoto] = useState(0);
@@ -86,7 +92,7 @@ export function ListingCard({
 
   return (
     <li
-      className={`listing-card card-interactive${highlighted ? " is-highlighted" : ""}`}
+      className={`listing-card card-interactive${highlighted ? " is-highlighted" : ""}${unavailable ? " is-unavailable" : ""}`}
       onPointerEnter={onHoverChange ? () => onHoverChange(true) : undefined}
       onPointerLeave={onHoverChange ? () => onHoverChange(false) : undefined}
     >
@@ -219,6 +225,8 @@ export function ListingCard({
             {listing.provider_label ? <span>{listing.provider_label}</span> : null}
           </div>
         ) : null}
+
+        {footnote ? <p className="listing-card-footnote">{footnote}</p> : null}
       </div>
     </li>
   );

@@ -1011,3 +1011,47 @@
   .tenant-gauge-progress { animation: none; }
   .tenant-gauge-track, .tenant-gauge-ticks, .tenant-gauge-mark { transition: none; }
 }
+
+/* --- tenant Home: colour pass (owner, 2026-10-05) ------------------------------
+ *
+ * The layout and the motion stay; only colour changes, to read cleaner. Paper
+ * is white rather than ivory, the green is the product's own kola rather than
+ * an olive, and the quiet text is quiet rather than faint — "Review" and the
+ * place under a row were at 38% ink and nearly vanished. Scoped to the tenant,
+ * so the provider's Home keeps its own register.
+ */
+.tenant-home {
+  --ph-paper: #fff;
+  --ph-brand: var(--color-kola-600);
+  --ph-sage: var(--color-kola-700, var(--color-kola-600));
+  --ph-green-soft: var(--color-kola-50);
+  --ph-ink-55: rgb(24 22 17 / 64%);
+  --ph-ink-38: rgb(24 22 17 / 52%);
+  --ph-line: rgb(24 22 17 / 8%);
+}
+.tenant-home .home-attention-value small { color: var(--color-kola-600); font-weight: 600; }
+
+/* --- tenant Home: density (owner, 2026-10-05) ----------------------------------
+ *
+ * Tighter cards and shorter rows, so the page reads at a glance: less padding
+ * inside each surface, less air between them, a row that is one line of title
+ * and one of place with no slack around them, and an empty schedule that does
+ * not stand as tall as a full one.
+ */
+.tenant-home { gap: var(--space-4); }
+.tenant-home .home-pulse { gap: 16px; padding: 20px 22px 18px; }
+.tenant-home .home-attention-panel,
+.tenant-home .home-panel { padding: 16px 20px 12px; }
+.tenant-home .home-finance-chart { padding: 20px 22px 16px; }
+.tenant-home .home-widget-head { margin-bottom: 8px; }
+.tenant-home .home-attention-list a { padding: 8px 8px; }
+.tenant-home .home-row { padding: 9px 8px; }
+.tenant-home .home-chart-empty { padding: var(--space-5) var(--space-4); }
+.tenant-home .tenant-schedule-body { grid-template-columns: minmax(0, 1fr) minmax(0, 14rem); gap: var(--space-6); }
+/* Rows inherited the page's 25px line height, which doubled their height
+   around two short lines; lists set their own. */
+.tenant-home .home-attention-list,
+.tenant-home .home-rows,
+.tenant-home .home-inventory-link,
+.tenant-home .tenant-timeline,
+.tenant-home .home-pulse-metrics { line-height: 1.35; }

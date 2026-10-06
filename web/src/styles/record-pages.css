@@ -1,0 +1,340 @@
+/* Two record pages a sheet opens into: a tenancy (/tenants/<id>) and its rent
+   account (/payments/<lease>). Drawn as the sheets are — the tenancy sheet
+   (TenantModal) and the balance sheet (RentDueModal) — so a page and the sheet
+   over the list read as one record: a tinted hero carrying the figures, glass
+   panels on the workspace wash, rows that take colour from their standing.
+   Tone is meaning: laterite overdue, harmattan due or waiting, kola settled.
+   The rent-account rules are scoped to `.ra-page`: `RecordPaymentForm` and
+   `.rent-actions` also live in Payments' own sheet and must not move there. */
+
+.tn-page,
+.ra-page {
+  --rec-glass: rgba(255, 255, 255, .76);
+  --rec-ring: 0 0 0 1px rgba(33, 26, 21, .07);
+  position: relative;
+  isolation: isolate;
+}
+
+/* The workspace wash, behind the glass. */
+.tn-page::before,
+.ra-page::before {
+  content: "";
+  position: absolute;
+  inset: 6rem 0 -2rem;
+  z-index: -1;
+  -webkit-mask-image: radial-gradient(ellipse 55% 50% at 50% 40%, #000 50%, transparent 100%);
+  mask-image: radial-gradient(ellipse 55% 50% at 50% 40%, #000 50%, transparent 100%);
+  background:
+    radial-gradient(40rem 26rem at 20% 20%, color-mix(in srgb, var(--color-kola-300) 22%, transparent), transparent 68%),
+    radial-gradient(34rem 24rem at 82% 34%, color-mix(in srgb, var(--color-gold-300) 20%, transparent), transparent 70%);
+  pointer-events: none;
+}
+
+/* --- shared: the tinted hero ---------------------------------------------------- */
+
+.tn-hero,
+.ra-hero {
+  --rec-tone: var(--color-kola-600);
+  --rec-wash: var(--color-kola-50);
+  display: grid;
+  gap: var(--space-5);
+  padding: var(--space-5);
+  background:
+    radial-gradient(90% 140% at 0% 0%, color-mix(in srgb, var(--rec-wash) 95%, transparent), transparent 62%),
+    radial-gradient(60% 120% at 100% 100%, color-mix(in srgb, var(--color-gold-50) 70%, transparent), transparent 70%),
+    linear-gradient(165deg, rgba(255, 255, 255, .96), rgba(255, 255, 255, .8));
+  border: 1px solid rgba(255, 255, 255, .95);
+  border-radius: 1.25rem;
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--rec-tone) 16%, rgba(33, 26, 21, .05)),
+    0 18px 38px -28px color-mix(in srgb, var(--rec-tone) 60%, transparent),
+    inset 0 1px 0 #fff;
+  animation: ws-rise var(--motion-duration-slow) var(--ws-enter) both;
+}
+:is(.tn-hero, .ra-hero)[data-tone="outstanding"] { --rec-tone: var(--color-harmattan-600); --rec-wash: var(--color-harmattan-100); }
+:is(.tn-hero, .ra-hero)[data-tone="overdue"] { --rec-tone: var(--color-laterite-600); --rec-wash: var(--color-laterite-100); }
+.ra-hero[data-tone="ended"] { --rec-tone: var(--color-ink-500); --rec-wash: var(--color-field-100); }
+
+/* --- the tenancy page ------------------------------------------------------------------ */
+
+.tn-hero { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); align-items: stretch; }
+
+.tn-rent { display: grid; align-content: start; gap: var(--space-2); }
+.tn-rent > small,
+.tn-lease small,
+.ra-hero-lead > small {
+  color: var(--color-ink-500);
+  font-size: .6875rem;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+.tn-rent > strong { color: var(--color-ink-900); font-family: var(--font-display); font-size: 2rem; font-weight: 650; font-variant-numeric: tabular-nums; letter-spacing: -.025em; line-height: 1.1; }
+.tn-rent > strong span { color: var(--color-ink-500); font-family: var(--font-body); font-size: .9375rem; font-weight: 500; letter-spacing: 0; }
+
+.tn-position {
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+  gap: 7px;
+  padding: 4px var(--space-3) 4px 10px;
+  color: var(--rec-tone);
+  font-size: .8125rem;
+  font-weight: 650;
+  background: color-mix(in srgb, var(--rec-wash) 85%, #fff);
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--rec-tone) 22%, transparent);
+}
+.tn-position i { width: 7px; height: 7px; background: currentColor; border-radius: 50%; }
+
+.tn-figures,
+.ra-hero-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); margin: var(--space-2) 0 0; }
+.ra-hero-facts { grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 0; }
+:is(.tn-figures, .ra-hero-facts) > div { display: grid; gap: 2px; padding: var(--space-3); background: rgba(255, 255, 255, .78); border-radius: var(--radius-md); box-shadow: var(--rec-ring); }
+:is(.tn-figures, .ra-hero-facts) dt { color: var(--color-ink-500); font-size: .6875rem; font-weight: 650; letter-spacing: .04em; text-transform: uppercase; }
+:is(.tn-figures, .ra-hero-facts) dd { margin: 0; color: var(--color-ink-900); font-size: 1rem; font-weight: 650; font-variant-numeric: tabular-nums; }
+:is(.tn-figures, .ra-hero-facts) [data-tone="overdue"] dd,
+:is(.tn-figures, .ra-hero-facts) dd[data-tone="overdue"] { color: var(--color-laterite-600); }
+.tn-figures [data-tone="outstanding"] dd { color: var(--color-harmattan-600); }
+
+.tn-lease {
+  display: grid;
+  align-content: start;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background: rgba(255, 255, 255, .72);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--rec-ring);
+}
+.tn-lease header { display: grid; gap: 2px; }
+.tn-lease header strong { color: var(--color-ink-900); font-family: var(--font-display); font-size: 1.25rem; font-weight: 650; }
+.tn-lease p { margin: 0; color: var(--color-ink-500); font-size: .875rem; }
+.tn-lease-bar,
+.ra-charge-bar { display: block; height: 8px; overflow: hidden; background: var(--color-field-100); border-radius: 999px; box-shadow: inset 0 0 0 1px rgba(33, 26, 21, .05); }
+.tn-lease-bar i,
+.ra-charge-bar i { display: block; height: 100%; background: linear-gradient(90deg, color-mix(in srgb, var(--color-kola-600) 75%, #fff), var(--color-kola-600)); border-radius: inherit; }
+.tn-lease-ends { display: flex; justify-content: space-between; color: var(--color-ink-500); font-size: .75rem; font-variant-numeric: tabular-nums; }
+
+.tn-callout {
+  --rec-tone: var(--color-harmattan-600);
+  --rec-wash: var(--color-harmattan-100);
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: color-mix(in srgb, var(--rec-wash) 60%, rgba(255, 255, 255, .9));
+  border-radius: var(--radius-lg);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--rec-tone) 20%, transparent);
+}
+.tn-callout[data-tone="critical"] { --rec-tone: var(--color-laterite-600); --rec-wash: var(--color-laterite-100); }
+.tn-callout-mark { display: grid; flex: none; place-items: center; width: 2.25rem; height: 2.25rem; color: #fff; background: var(--rec-tone); border-radius: .75rem; }
+.tn-callout-mark .portal-icon { width: 17px; height: 17px; color: inherit; }
+.tn-callout-title { margin: 0; color: var(--color-ink-900); font-weight: 650; }
+.tn-callout-body { margin: 2px 0 0; color: var(--color-ink-700); font-size: .875rem; }
+
+.tn-grid { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: var(--space-4); align-items: start; }
+
+.tn-panel,
+.ra-panel {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-5);
+  background: var(--rec-glass);
+  border: 1px solid rgba(255, 255, 255, .9);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--rec-ring), 0 14px 32px -28px rgba(33, 26, 21, .5), inset 0 1px 0 #fff;
+}
+.tn-panel-title { margin: 0; color: var(--color-ink-900); font-family: var(--font-display); font-size: 1.0625rem; font-weight: 650; }
+
+.tn-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); margin: 0; }
+.tn-fact { display: grid; gap: 3px; min-width: 0; padding: var(--space-3); background: rgba(255, 255, 255, .8); border-radius: var(--radius-md); box-shadow: 0 0 0 1px rgba(33, 26, 21, .06); }
+.tn-fact dt { display: flex; align-items: center; gap: 5px; color: var(--color-ink-500); font-size: .6875rem; font-weight: 650; letter-spacing: .04em; text-transform: uppercase; }
+.tn-fact dt .portal-icon { width: 12px; height: 12px; color: var(--color-kola-600); }
+.tn-fact dd { margin: 0; color: var(--color-ink-900); font-size: .875rem; font-weight: 600; overflow-wrap: anywhere; }
+
+.tn-links { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.tn-link,
+.ra-related {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: 3.5rem;
+  padding: var(--space-2) var(--space-2);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: background-color var(--motion-duration-fast) var(--ws-ease);
+}
+.tn-link:hover,
+.ra-related:hover { background: color-mix(in srgb, var(--color-kola-50) 70%, var(--color-field-0)); }
+.tn-link:focus-visible,
+.ra-related:focus-visible { outline: var(--border-emphasis) solid var(--color-kola-600); outline-offset: -2px; }
+.tn-link-mark,
+.ra-panel-mark { display: grid; flex: none; place-items: center; width: 2.25rem; height: 2.25rem; color: var(--color-kola-600); background: var(--color-kola-50); border-radius: .75rem; }
+.tn-link-mark .portal-icon,
+.ra-panel-mark .portal-icon { width: 17px; height: 17px; color: inherit; }
+.tn-link-text,
+.ra-related-copy { display: grid; gap: 1px; min-width: 0; }
+.tn-link-text strong,
+.ra-related-copy strong { overflow: hidden; color: var(--color-ink-900); font-size: .875rem; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.tn-link-text small,
+.ra-related-copy small { overflow: hidden; color: var(--color-ink-500); font-size: .75rem; text-overflow: ellipsis; white-space: nowrap; }
+.tn-link-go,
+.ra-related-go { color: var(--color-ink-300); }
+
+/* --- the rent account --------------------------------------------------------------------- */
+
+.ra { display: grid; gap: var(--space-4); min-width: 0; }
+
+.ra-hero { grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); align-items: center; }
+.ra-hero-lead { display: grid; gap: var(--space-1); }
+.ra-hero-lead > strong { color: var(--color-ink-900); font-family: var(--font-display); font-size: 2.25rem; font-weight: 650; font-variant-numeric: tabular-nums; letter-spacing: -.03em; line-height: 1.05; }
+.ra-hero[data-tone="overdue"] .ra-hero-lead > strong { color: var(--color-laterite-600); }
+.ra-hero-lead > span { display: flex; flex-wrap: wrap; gap: 0 var(--space-2); color: var(--color-ink-500); font-size: .875rem; }
+.ra-hero-lead em { color: var(--color-laterite-600); font-style: normal; font-weight: 650; }
+.ra-hero-lead i { color: var(--color-ink-300); font-style: normal; }
+
+/* The head line's state chip, in the tone of the money. */
+.ra-state { display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px 2px 8px; color: var(--color-kola-700, var(--color-kola-600)); font-size: .8125rem; font-weight: 650; background: var(--color-kola-50); border-radius: 999px; }
+.ra-state i { width: 6px; height: 6px; background: currentColor; border-radius: 50%; }
+.ra-state.is-outstanding { color: var(--color-harmattan-600); background: var(--color-harmattan-100); }
+.ra-state.is-overdue { color: var(--color-laterite-600); background: var(--color-laterite-100); }
+.ra-state.is-ended { color: var(--color-ink-700); background: var(--color-field-100); }
+.ra-mark {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  color: #fff;
+  font-size: .9375rem;
+  font-weight: 700;
+  background: linear-gradient(155deg, color-mix(in srgb, var(--color-kola-600) 72%, #fff), var(--color-kola-600));
+  border-radius: 999px;
+  box-shadow: 0 8px 18px -10px var(--color-kola-600), inset 0 1px 0 rgba(255, 255, 255, .3);
+}
+
+.ra-panel-head { display: flex; align-items: flex-start; gap: var(--space-3); }
+.ra-panel-head > div { flex: 1; display: grid; gap: 2px; min-width: 0; }
+.ra-panel-head h2 { display: flex; align-items: baseline; gap: var(--space-2); margin: 0; color: var(--color-ink-900); font-family: var(--font-display); font-size: 1.0625rem; font-weight: 650; }
+.ra-panel-head h2 span { color: var(--color-ink-300); font-family: var(--font-body); font-size: .8125rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.ra-panel-head p { margin: 0; color: var(--color-ink-500); font-size: .8125rem; line-height: 1.45; }
+.ra-panel-head .btn { flex: none; display: inline-flex; align-items: center; gap: 6px; }
+.ra-panel-head .btn .portal-icon { width: 15px; height: 15px; color: inherit; }
+.ra-quiet { margin: 0; color: var(--color-ink-500); font-size: .875rem; }
+
+/* Waiting on the provider's word: an amber panel with each claim its own card. */
+.ra-panel.is-review { background: color-mix(in srgb, var(--color-harmattan-100) 45%, var(--rec-glass)); box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-harmattan-600) 22%, transparent), 0 14px 32px -28px var(--color-harmattan-600); }
+.ra-panel.is-review .ra-panel-mark { color: var(--color-harmattan-600); background: var(--color-harmattan-100); }
+.ra-review-list { display: grid; gap: var(--space-2); }
+.ra-page .rent-review { gap: var(--space-3); padding: var(--space-4); background: rgba(255, 255, 255, .86); border-left: 0; border-radius: var(--radius-md); box-shadow: 0 0 0 1px rgba(33, 26, 21, .07); }
+.ra-page .rent-review strong { color: var(--color-ink-900); }
+/* The provider's word on a claim: kola to confirm, laterite to dispute. */
+.ra-page .rent-review .btn-primary,
+.ra-page .ra-panel-head .btn-primary {
+  color: #fff;
+  background: linear-gradient(150deg, var(--color-kola-600), color-mix(in srgb, var(--color-kola-600) 70%, var(--color-kola-800)));
+  border-color: transparent;
+  box-shadow: 0 10px 20px -12px color-mix(in srgb, var(--color-kola-600) 90%, transparent), inset 0 1px 0 rgba(255, 255, 255, .2);
+}
+.ra-page .ra-panel-head .btn-secondary { color: var(--color-kola-800); border-color: color-mix(in srgb, var(--color-kola-600) 30%, var(--color-field-300)); }
+
+/* Charges: what it is and when, how much is left, and how much of it is paid. */
+.ra-page .rent-charge-list { display: grid; gap: 2px; }
+.ra-page .rent-charge-list > li {
+  --row-tone: var(--color-harmattan-600);
+  position: relative;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  row-gap: var(--space-2);
+  min-height: 0;
+  padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4);
+  border-bottom: 0;
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, .6);
+}
+.ra-page .rent-charge-list > li::before { content: ""; position: absolute; top: var(--space-3); bottom: var(--space-3); left: 0; width: 3px; background: var(--row-tone); border-radius: 0 3px 3px 0; }
+.ra-page .rent-charge-list > li[data-tone="overdue"] { --row-tone: var(--color-laterite-600); background: color-mix(in srgb, var(--color-laterite-100) 45%, rgba(255, 255, 255, .7)); }
+.ra-page .rent-charge-list > li[data-tone="part"] { --row-tone: var(--color-lagoon-600); }
+.ra-page .rent-charge-list > li[data-tone="settled"] { --row-tone: var(--color-kola-600); }
+.ra-page .rent-charge-list > li > div:first-child strong { color: var(--color-ink-900); }
+.ra-page .rent-charge-list > li[data-tone="overdue"] > div:first-child span { color: var(--color-laterite-600); font-weight: 600; }
+.ra-page .rent-charge-amount strong { font-variant-numeric: tabular-nums; }
+.ra-page .ra-charge-bar { grid-column: 1 / -1; height: 6px; }
+.ra-page .rent-charge-list > li[data-tone="overdue"] .ra-charge-bar i { background: var(--color-laterite-600); }
+.ra-page .rent-pay-action { border-radius: 999px; background: linear-gradient(150deg, var(--color-kola-600), color-mix(in srgb, var(--color-kola-600) 70%, var(--color-kola-800))); box-shadow: 0 10px 20px -12px var(--color-kola-600); }
+
+/* History: a glyph in the record's tone, the amount, and where it stands. */
+.ra-page .rent-payment-list { display: grid; gap: 2px; }
+.ra-page .rent-payment-list > li {
+  --row-tone: var(--color-harmattan-600);
+  --row-wash: var(--color-harmattan-100);
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  padding: var(--space-3);
+  border-bottom: 0;
+  border-radius: var(--radius-md);
+  transition: background-color var(--motion-duration-fast) var(--ws-ease);
+}
+.ra-page .rent-payment-list > li:hover { background: rgba(255, 255, 255, .7); }
+.ra-page .rent-payment-list > li[data-tone="confirmed"] { --row-tone: var(--color-kola-600); --row-wash: var(--color-kola-50); }
+.ra-page .rent-payment-list > li[data-tone="disputed"] { --row-tone: var(--color-laterite-600); --row-wash: var(--color-laterite-100); }
+.ra-page .rent-payment-list > li[data-tone="waiting"] { --row-tone: var(--color-lagoon-600); --row-wash: var(--color-lagoon-100); }
+/* Columns by name: the glyph is the first child now, so the old global rule
+   that right-aligned the second child would push the amount to the far side. */
+.ra-page .rent-payment-list > li > div:nth-child(2) { text-align: left; }
+.ra-page .rent-payment-list > li > div:nth-child(3) { text-align: right; }
+.ra-page .rent-payment-list > li > div { gap: 2px; }
+.ra-pay-mark { display: grid; place-items: center; width: 2.5rem; height: 2.5rem; color: var(--row-tone); background: var(--row-wash); border-radius: .75rem; }
+.ra-pay-mark .portal-icon { width: 17px; height: 17px; color: inherit; }
+.ra-page .rent-payment-list > li > div:nth-of-type(1) strong { color: var(--color-ink-900); font-variant-numeric: tabular-nums; }
+.ra-page .ra-pay-state { color: var(--row-tone); font-weight: 650; }
+.ra-pay-extra { display: flex; flex-wrap: wrap; align-items: center; gap: 0 var(--space-4); grid-column: 2 / -1; margin-top: -4px; }
+.ra-pay-extra small { color: var(--color-ink-500); font-size: .75rem; }
+.ra-pay-extra .rent-evidence-link { min-height: 2rem; }
+.ra-dispute { color: var(--color-laterite-600) !important; }
+
+.ra-related { background: var(--rec-glass); border: 1px solid rgba(255, 255, 255, .9); box-shadow: var(--rec-ring); padding: var(--space-3); }
+
+/* --- narrow --------------------------------------------------------------------------------- */
+
+@media (max-width: 960px) {
+  .tn-grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (max-width: 640px) {
+  .tn-hero,
+  .ra-hero { grid-template-columns: minmax(0, 1fr); padding: var(--space-4); }
+  .tn-rent > strong { font-size: 1.625rem; }
+  .ra-hero-lead > strong { font-size: 1.875rem; }
+  .ra-hero-facts { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  :is(.tn-figures, .ra-hero-facts) > div { padding: var(--space-2); }
+  :is(.tn-figures, .ra-hero-facts) dd { font-size: .875rem; }
+  .tn-fact { padding: var(--space-2) var(--space-3); }
+  .tn-panel, .ra-panel { padding: var(--space-4); }
+  .ra-panel-head { flex-wrap: wrap; }
+  .ra-panel-head .btn { width: 100%; justify-content: center; }
+  .ra-page .rent-payment-list > li { grid-template-columns: auto minmax(0, 1fr); }
+  .ra-page .rent-payment-list > li > div:nth-of-type(2) { grid-column: 2; text-align: left; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tn-hero, .ra-hero { animation: none; }
+  .tn-link, .ra-related, .ra-page .rent-payment-list > li { transition: none; }
+}
+
+/* The tenant's own tenancy page: the home's photo as the head's mark. */
+.tn-home-mark {
+  flex: none;
+  width: 2.75rem;
+  height: 2.75rem;
+  object-fit: cover;
+  border-radius: var(--radius-md);
+  box-shadow: 0 0 0 1px rgba(33, 26, 21, .08);
+}

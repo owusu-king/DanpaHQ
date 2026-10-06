@@ -103,3 +103,12 @@ export function compactRent(minor: number | null, period = "monthly"): string {
 }
 
 const COMPACT = new Intl.NumberFormat("en-GH", { notation: "compact", maximumFractionDigits: 1 });
+
+/** "GH₵850k", "GH₵1.2m": a sale price short enough for a map marker. */
+export function compactSalePrice(minor: number | null): string {
+  if (minor === null) return "For sale";
+  const cedis = minor / 100;
+  if (cedis >= 1_000_000) return `GH₵${Math.round(cedis / 100_000) / 10}m`;
+  if (cedis >= 1_000) return `GH₵${Math.round(cedis / 1_000)}k`;
+  return `GH₵${Math.round(cedis)}`;
+}

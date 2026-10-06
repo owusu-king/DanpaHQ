@@ -7,6 +7,8 @@ from string import Template
 
 from apps.core.money import Money
 
+from .terms_templates import fill_placeholders
+
 RESPONSIBILITY_LABELS = {
     "structural_repairs": "structural repairs",
     "shared_areas": "shared-area upkeep",
@@ -142,7 +144,9 @@ def render_agreement(*, lease, template, terms: dict) -> tuple[dict, str]:
         )
     for index, custom in enumerate(structured.get("additional_terms") or [], start=1):
         title = str(custom.get("title") or f"Additional term {index}").strip()
-        body = str(custom.get("body") or "").strip()
+        # Saved terms templates carry ${placeholders}; they are filled from the
+        # same facts as the standard clauses, and only those facts.
+        body = fill_placeholders(str(custom.get("body") or "").strip(), context)
         if body:
             sections.append(
                 {

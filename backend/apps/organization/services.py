@@ -482,6 +482,10 @@ def properties_in_scope(*, user, organization=None):
     )
 
 
+#: How many past tenants the portfolio read carries for the Archive.
+PAST_TENANTS_SHOWN = 200
+
+
 def portfolio_summary(*, organization: Organization, user) -> dict:
     """One scoped read model for the mobile owner/manager daily workspace."""
     from apps.lease.models import Lease, LeaseStatus
@@ -517,7 +521,9 @@ def portfolio_summary(*, organization: Organization, user) -> dict:
             property_id__in=property_ids,
             ended_at__isnull=True,
             status="active",
-        ).select_related("user", "property", "unit", "bed", "tenancy", "lease")
+        ).select_related(
+            "user", "user__profile__avatar", "property", "unit", "bed", "tenancy", "lease"
+        )
     )
     # Physical availability starts as soon as possession is recorded, even if
     # the agreement still needs a lease. Keep that boundary aligned with
@@ -606,6 +612,12 @@ def portfolio_summary(*, organization: Organization, user) -> dict:
     for charge in charges:
         charges_by_lease.setdefault(charge.lease_id, []).append(charge)
 
+    def tenant_avatar(person) -> str | None:
+        from apps.identity.avatar import avatar_url  # function-scope cross-domain import
+
+        profile = getattr(person, "profile", None)
+        return avatar_url(profile) if profile is not None else None
+
     def tenant_row(occupancy) -> dict:
         """Project one active allocation without guessing its agreement.
 
@@ -628,6 +640,9 @@ def portfolio_summary(*, organization: Organization, user) -> dict:
             "tenancy_status": tenancy.status if tenancy else None,
             "user_id": str(occupancy.user_id),
             "name": occupancy.user.display_name,
+            # Their photo, as the same on-demand endpoint their own profile uses.
+            # Readable by this provider through `files.can_read`'s tenancy branch.
+            "avatar_url": tenant_avatar(occupancy.user),
             "property_id": str(occupancy.property_id),
             "property_title": occupancy.property.title,
             "unit_id": str(occupancy.unit_id),
@@ -641,6 +656,7 @@ def portfolio_summary(*, organization: Organization, user) -> dict:
             "lease_rent_period": lease.rent_period if lease else None,
             "lease_starts_on": lease.starts_on.isoformat() if lease else None,
             "lease_ends_on": lease.ends_on.isoformat() if lease and lease.ends_on else None,
+            "ended_at": occupancy.ended_at.isoformat() if occupancy.ended_at else None,
             "rent": {
                 "status": rent_status,
                 "outstanding_minor": sum(charge.outstanding_minor for charge in open_charges),
@@ -650,6 +666,23 @@ def portfolio_summary(*, organization: Organization, user) -> dict:
         }
 
     tenant_rows = [tenant_row(row) for row in occupancies]
+
+    # Past tenants, for the Tenants page's Archive (owner, 2026-10-05). Ended
+    # allocations in these properties, most recent first, each with whatever
+    # rent is still owed on its lease — a tenant who left owing is still worth
+    # finding. Capped: an archive is looked through, not reported on.
+    past_occupancies = list(
+        Occupancy.objects.filter(property_id__in=property_ids, status=OccupancyStatus.ENDED)
+        .select_related(
+            "user", "user__profile__avatar", "property", "unit", "bed", "tenancy", "lease"
+        )
+        .order_by("-ended_at", "-created_at")[:PAST_TENANTS_SHOWN]
+    )
+    past_lease_ids = {row.lease_id for row in past_occupancies if row.lease_id}
+    past_lease_ids -= set(charges_by_lease)
+    for charge in RentCharge.objects.filter(lease_id__in=past_lease_ids):
+        charges_by_lease.setdefault(charge.lease_id, []).append(charge)
+    past_tenant_rows = [tenant_row(row) for row in past_occupancies]
     tenant_rows.sort(
         key=lambda row: (
             row["property_title"].casefold(),
@@ -804,6 +837,7 @@ def portfolio_summary(*, organization: Organization, user) -> dict:
         "tenancy_requests": tenancy_requests,
         "tenant_access": tenant_access,
         "tenants": tenant_rows,
+        "past_tenants": past_tenant_rows,
         "recent_payments": [
             {
                 "id": str(payment.id),

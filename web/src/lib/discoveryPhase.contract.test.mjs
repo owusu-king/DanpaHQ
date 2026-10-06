@@ -57,7 +57,11 @@ test("mobile application form sends the shared application context", () => {
 
 test("tenant home always offers the canonical access-code tenancy-request entry", () => {
   const webHome = read("web/app/home/page.tsx");
-  const webSetup = read("web/app/tenant/setup/page.tsx");
+  // The flow lives in one component: a modal from Home (owner, 2026-10-05),
+  // and the same form on /tenant/setup for a direct link.
+  const webSetup = read("web/src/components/tenant/JoinHome.tsx");
+  assert.match(read("web/app/tenant/setup/page.tsx"), /<JoinHomeForm \/>/);
+  assert.match(webSetup, /<ModalSheet/);
   // The tenant's home moved into a component of its own when it became a
   // control centre; the tab is the shell around it.
   const mobileHome = read("mobile/src/components/home/TenantHome.tsx");
@@ -66,7 +70,7 @@ test("tenant home always offers the canonical access-code tenancy-request entry"
   // Web states it as the action on the Overview card, where the rest of the
   // account-level facts are. The entry itself is the rule, not the shape it
   // takes or where on the page it sits.
-  assert.match(webHome, /href="\/tenant\/setup" className="home-primary-action[^"]*"/);
+  assert.match(webHome, /<JoinHomeButton className="home-primary-action[^"]*"/);
   assert.match(webHome, /Join a home/);
   // Mobile states it in words rather than as a floating glyph; the entry
   // itself is the rule, not the shape it takes.
@@ -142,12 +146,62 @@ test("provider tenants is a portfolio route over tenancy, lease and rent data", 
   assert.match(navigation, /href: "\/tenants", label: "Tenants"/);
   assert.match(tenants, /getOrganizationPortfolio/);
   assert.match(tenants, /tenant\.tenancy_id/);
-  assert.match(tenants, /tenant\.rent\.outstanding_minor/);
+  // The rent reading moved to the module the card and the tenancy modal share.
+  assert.match(read("web/src/lib/tenancyDisplay.ts"), /tenant\.rent\.outstanding_minor/);
   assert.match(tenants, /Search tenants/);
-  assert.match(tenants, /Needs attention/);
+  // Plain filters (owner, 2026-10-05): Active and an Archive of past tenants,
+  // not "Needs attention" and "Paid up".
+  assert.match(tenants, /\{ key: "active", label: "Active" \}/);
+  assert.match(tenants, /\{ key: "archive", label: "Archive" \}/);
+  assert.doesNotMatch(tenants, /label: "Needs attention"|label: "Paid up"/);
+  assert.match(tenants, /portfolio\?\.past_tenants/);
+  assert.match(tenancy, /portfolio\.past_tenants/);
   assert.match(tenancy, /properties\/\$\{tenant\.property_id\}\/spaces\/\$\{tenant\.unit_id\}/);
-  // The agreement has an address of its own now, so this names it directly
-  // rather than asking the list to scroll to a hash.
-  assert.match(tenancy, /`\/leases\/\$\{tenant\.lease_id\}`/);
+  // A lease is a document: a manager reading a tenant opens it over the
+  // tenancy, in a modal, rather than leaving for another page.
+  assert.match(tenancy, /<LeaseModal/);
+  assert.match(tenancy, /setLeaseOpen\(tenant\.lease_id\)/);
+  const modal = read("web/src/components/leases/LeaseModal.tsx");
+  assert.match(modal, /<LeaseRecord lease=\{lease\} onChanged=\{changed\} \/>/);
+  assert.match(modal, /listGrantedLeases\(\)/);
   assert.doesNotMatch(tenants, /listUsers|createTenant/);
+});
+
+test("a tenant card is a portrait that opens its tenancy in a sheet", () => {
+  const tenants = read("web/app/tenants/page.tsx");
+  const modal = read("web/src/components/tenants/TenantModal.tsx");
+  const css = read("web/src/styles/tenants-workspace.css");
+
+  // Minimal: the person, the state, the home and one rent line.
+  assert.match(tenants, /className="tenant-card-avatar"/);
+  assert.doesNotMatch(tenants, /tenant-card-facts/);
+  // Their photo, not just initials (owner, 2026-10-05), from the row's own
+  // endpoint; the backend lets a provider read it while the person lives there.
+  assert.match(tenants, /<Avatar name=\{tenant\.name\} size=\{44\} photoUrl=\{tenant\.avatar_url \?\? null\} \/>/);
+  assert.match(read("backend/apps/files/services.py"), /if stored\.purpose == FilePurpose\.AVATAR:/);
+  // A plain record card (owner, 2026-10-05: the hover "looked fake"). Nothing
+  // hides on hover — no View pill swapping out the rent, no floating portrait,
+  // no lift — and Open is always there.
+  assert.doesNotMatch(tenants, /tenant-card-view/);
+  assert.match(tenants, /className="tenant-card-open" aria-hidden="true">Open/);
+  assert.doesNotMatch(css, /\.tenant-card:hover[^{]*\{[^}]*transform: translateY/);
+  assert.doesNotMatch(css, /\.tenant-card-avatar \{[^}]*position: absolute/);
+
+  // A plain click opens the sheet, kept in the address; the card still links
+  // to the tenancy's own page for a new tab.
+  assert.match(tenants, /search\.get\("tenant"\)/);
+  assert.match(tenants, /href=\{href as never\}/);
+  assert.match(tenants, /event\.preventDefault\(\);\s*onPeek\(\);/);
+  assert.match(tenants, /<TenantModal tenant=\{openedTenant\}/);
+
+  // The sheet does not repeat the card. Its only two actions leave for their
+  // own pages (owner, 2026-10-05): the tenant's payments and the tenancy page.
+  // Nothing nests — no agreement or payments view inside it, no modal over it.
+  assert.doesNotMatch(modal, /tm-hero/);
+  assert.doesNotMatch(modal, /useModalViews|<AgreementView|<PaymentsView|<LeaseModal|<ReceiptView/);
+  assert.match(modal, /href=\{`\/payments\/\$\{tenant\.lease_id\}` as never\}>\s*<Icon name="payments" \/>View payments/);
+  assert.match(modal, /href=\{`\/tenants\/\$\{id\}` as never\}>\s*<Icon name="users" \/>Open the tenancy page/);
+  const actions = modal.slice(modal.indexOf('className="tm-actions"'));
+  assert.equal((actions.match(/<Link className=/g) ?? []).length, 2, "the tenancy sheet has exactly two actions");
+  assert.match(modal, /href=\{`\/properties\/\$\{tenant\.property_id\}\/spaces\/\$\{tenant\.unit_id\}` as never\}/);
 });

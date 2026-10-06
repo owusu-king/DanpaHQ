@@ -196,9 +196,12 @@ export const SERVICES: Service[] = [
     summary: "Report a fault to your landlord",
     icon: "construct-outline",
     category: "home",
-    status: "later",
+    // Open: it takes no money, so it needs no biller — only its own screen
+    // (apps.maintenance, 2026-10-05).
+    status: "available",
     tone: "ink",
     promise: "Report a fault with photos, and follow what happens next.",
+    route: "/(app)/maintenance",
   },
   {
     id: "cleaning",
@@ -243,6 +246,15 @@ export function servicesIn(category: ServiceCategory): Service[] {
 /** Everything a tenant can open — buy now, or set up ready for launch. */
 export function openableServices(): Service[] {
   return SERVICES.filter((service) => service.status !== "later");
+}
+
+/**
+ * What the hub's picker offers: services bought against an account number.
+ * A service with a screen of its own (maintenance) opens from its tile instead —
+ * "what do you need to buy?" is not where a leak is reported.
+ */
+export function purchasableServices(): Service[] {
+  return openableServices().filter((service) => Boolean(service.identifier));
 }
 
 /**

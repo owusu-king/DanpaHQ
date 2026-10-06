@@ -27,6 +27,7 @@ import { Button } from "@/components/Button";
 import { Field } from "@/components/Field";
 import { Notice } from "@/components/Notice";
 import { LoadingRows } from "@/components/portal/PageHeader";
+import { Icon, type IconName } from "@/components/portal/icons";
 import { SpaceAmenities } from "@/components/property/SpaceAmenities";
 import { SpaceLifecycle } from "@/components/property/SpaceLifecycle";
 import { SpacePhotos } from "@/components/property/SpacePhotos";
@@ -34,11 +35,11 @@ import { UnitPrivateAccess } from "@/components/property/UnitPrivateAccess";
 import { UnitLifecycleActions } from "@/components/property/UnitLifecycleActions";
 import {
   DetailDisclosure,
-  EntityHeader,
   EntityPath,
   StatusLine,
   spaceStatus,
 } from "@/components/property/WorkspacePatterns";
+import { WorkspaceHead } from "@/components/workspace/Workspace";
 import { ApiFailure } from "@/lib/api";
 import {
   createBed,
@@ -89,44 +90,55 @@ export default function SpaceWorkspacePage() {
 
   if (error && !space) {
     return (
-      <div>
+      <div className="ws-page pd-page">
         <EntityPath items={[{ label: "Properties", href: "/properties" }, { label: "Property", href: `/properties/${propertyId}` }, { label: "Unavailable" }]} />
         <Notice tone="error" title={error} body="Return to the Property and try again." />
       </div>
     );
   }
 
-  if (!space) return <LoadingRows rows={5} />;
+  if (!space) return <div className="ws-page pd-page"><LoadingRows rows={5} /></div>;
 
   const where = [
     space.property.title,
-    space.building_id ? "in a block" : "",
-    space.wing ? `${space.wing} wing` : "",
-    space.floor_level === null ? "" : space.floor_level === 0 ? "ground floor" : `floor ${space.floor_level}`,
+    space.floor_level === null ? "" : space.floor_level === 0 ? "Ground floor" : `Floor ${space.floor_level}`,
   ]
     .filter(Boolean)
     .join(" · ");
   const isHostelRoom =
     space.property.property_type === "hostel" && space.space_type === "room";
+  // Served with the Unit; the fallback is an older API, which asked everything.
+  const asks = space.asks ?? { bedrooms: true, bathrooms: "count", floor: true };
   const status = spaceStatus(space);
-  const photo = space.primary_photo?.download_url ?? space.media[0]?.download_url ?? null;
+  const photos = [space.primary_photo, ...space.media.filter((row) => row.id !== space.primary_photo?.id)]
+    .filter((row): row is NonNullable<typeof row> => Boolean(row?.download_url));
+  const photo = photos[0]?.download_url ?? null;
 
   return (
-    <div>
-      <EntityPath items={[
-        { label: "Properties", href: "/properties" },
-        {
-          label: space.property.title || "Property",
-          href: `/properties/${propertyId}`,
-          mobileLabel: "Back to Property",
-        },
-        { label: space.label || "Unit" },
-      ]} />
-      <EntityHeader
-        eyebrow={space.space_type_label}
+    <div className="ws-page pd-page">
+      <WorkspaceHead
+        icon="units"
         title={space.label || "Unnamed Unit"}
-        subtitle={where}
-        status={<StatusLine label={status.label} tone={status.tone} />}
+        path={(
+          <EntityPath items={[
+            { label: "Properties", href: "/properties" },
+            {
+              label: space.property.title || "Property",
+              href: `/properties/${propertyId}`,
+              mobileLabel: "Back to Property",
+            },
+            { label: space.label || "Unit" },
+          ]} />
+        )}
+        summary={(
+          <>
+            <StatusLine label={status.label} tone={status.tone} />
+            <span className="ws-summary-sep" aria-hidden="true">·</span>
+            {space.space_type_label}
+            <span className="ws-summary-sep" aria-hidden="true">·</span>
+            {where}
+          </>
+        )}
       />
 
       {error ? <Notice tone="error" title={error} body="Some information may be out of date. Try again." /> : null}
@@ -142,88 +154,104 @@ export default function SpaceWorkspacePage() {
         />
       ) : null}
 
-      <div className="unit-workspace">
-        <div className="unit-workspace-main">
-          <div className="media-lead">
+      {/* What it looks like, beside the one thing to do next. */}
+      <div className="pd-top">
+        <figure className="pd-gallery">
+          <div className="pd-gallery-lead">
             {/* Signed media URLs are supplied at runtime by the API and are not
                 stable Next image-loader resources. */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            {photo ? <img src={photo} alt={space.label || "Unit"} /> : <span>No Unit photo yet</span>}
+            {photo ? <img src={photo} alt={space.label || "Unit"} /> : <span><Icon name="photos" />No photo yet</span>}
           </div>
+        </figure>
 
-          <section className="workspace-section" aria-labelledby="unit-information-heading">
-            <div className="workspace-section-head"><h2 id="unit-information-heading">Unit information</h2></div>
-            <dl className="fact-grid">
-              <div><dt>Type</dt><dd>{space.space_type_label}</dd></div>
-              <div><dt>Bedrooms</dt><dd>{space.bedrooms}</dd></div>
-              <div><dt>Bathrooms</dt><dd>{space.bathrooms}</dd></div>
-              {space.floor_area_sqm ? <div><dt>Floor area</dt><dd>{space.floor_area_sqm} m²</dd></div> : null}
-              {space.floor_level !== null ? <div><dt>Floor</dt><dd>{space.floor_level === 0 ? "Ground floor" : `Floor ${space.floor_level}`}</dd></div> : null}
-              <div><dt>Furnished</dt><dd>{space.is_furnished ? "Yes" : "No"}</dd></div>
-            </dl>
-          </section>
-
-          <section className="workspace-section" aria-labelledby="unit-manage-heading">
-            <div className="workspace-section-head"><h2 id="unit-manage-heading">Manage this Unit</h2></div>
-            <DetailDisclosure title={`Photos${space.photo_count ? ` (${space.photo_count})` : ""}`} open={space.verification.state !== "verified"}>
-              <p className="type-caption" style={{ margin: "0 0 var(--space-4)" }}>
-                {space.availability.state === "occupied"
-                  ? "These checked photos are protected while the Unit is occupied."
-                  : space.verification.state === "verified"
-                    ? "These are the photos that were checked. Start a re-check before changing them."
-                    : "The first photo is the primary view used for verification and tenant-facing presentation."}
-              </p>
-              <SpacePhotos unitId={space.id} editable={Boolean(space.permitted_actions.edit?.allowed)} onChanged={load} />
-            </DetailDisclosure>
-
-            <DetailDisclosure title={`Amenities${space.amenities.length ? ` (${space.amenities.length})` : ""}`}>
-              {space.permitted_actions.edit?.allowed ? (
-                <SpaceAmenities scope="unit" id={space.id} onSaved={load} />
-              ) : space.amenities.length ? (
-                <p className="type-body" style={{ margin: 0 }}>{space.amenities.map((row) => row.name).join(" · ")}</p>
-              ) : <p className="type-caption" style={{ margin: 0 }}>No Unit amenities recorded.</p>}
-            </DetailDisclosure>
-
-            <DetailDisclosure title="Details and entrance directions">
-              <SpaceDetails space={space} onSaved={load} />
-            </DetailDisclosure>
-
-            {isHostelRoom ? (
-              <DetailDisclosure title={`Beds${space.beds.length ? ` (${space.beds.length})` : ""}`}>
-                <Beds space={space} onChanged={load} />
-              </DetailDisclosure>
-            ) : null}
-
-            <DetailDisclosure title="Verification and publication details">
-              <SpaceLifecycle verification={space.verification} publication={space.publication} availability={space.availability} />
-              {space.verification.decision_note ? <Notice tone="info" title="Review note" body={space.verification.decision_note} /> : null}
-            </DetailDisclosure>
-
-            <UnitLifecycleActions unit={space} />
-
-            {/* The code belongs to this Unit, so it is managed from this Unit.
-                It used to be reachable only through the Portfolio summary,
-                which a provider holding a Property directly is not in. */}
-            <UnitPrivateAccess
-              unitId={space.id}
-              accessCode={space.access_code}
-              verified={space.verification.state === "verified"}
-              occupied={space.availability.state === "occupied"}
-              onChanged={load}
-            />
-
-            <p style={{ margin: "var(--space-5) 0 0" }}>
-              <Link href={"/tenants#access" as never} className="quiet-link">
-                Tenancy requests and tenancies →
-              </Link>
-            </p>
-          </section>
-        </div>
-
-        <aside className="unit-workspace-aside" aria-label="Unit actions">
+        <div className="pd-side">
           <WhatIsNext space={space} listing={listing} propertyId={propertyId} onChanged={load} />
-        </aside>
+          {/* The code belongs to this Unit, so it is managed from this Unit.
+              It used to be reachable only through the Portfolio summary,
+              which a provider holding a Property directly is not in. */}
+          <UnitPrivateAccess
+            unitId={space.id}
+            accessCode={space.access_code}
+            verified={space.verification.state === "verified"}
+            occupied={space.availability.state === "occupied"}
+            onChanged={load}
+          />
+        </div>
       </div>
+
+      <dl className="pd-facts" aria-label="Unit information">
+        <Fact icon="units" label="Type" value={space.space_type_label} />
+        {/* Only facts that fit this kind of space: a shop shows no bedrooms. */}
+        {asks.bedrooms ? <Fact icon="bed" label="Bedrooms" value={String(space.bedrooms)} /> : null}
+        {asks.bathrooms === "count" ? (
+          <Fact icon="bath" label="Bathrooms" value={String(space.bathrooms)} />
+        ) : asks.bathrooms === "yes_no" ? (
+          <Fact icon="bath" label="Own bathroom" value={space.bathrooms > 0 ? "Yes" : "No"} />
+        ) : null}
+        {space.space_type === "land" ? null : (
+          <Fact icon="sofa" label="Furnished" value={space.is_furnished ? "Yes" : "No"} />
+        )}
+        {asks.floor && space.floor_level !== null ? <Fact icon="properties" label="Floor" value={space.floor_level === 0 ? "Ground" : String(space.floor_level)} /> : null}
+        {space.floor_area_sqm ? <Fact icon="details" label="Area" value={`${space.floor_area_sqm} m²`} /> : null}
+      </dl>
+
+      <section className="pd-panel" aria-labelledby="unit-manage-heading">
+        <h2 id="unit-manage-heading" className="pd-panel-title">Manage this Unit</h2>
+        <DetailDisclosure title={`Photos${space.photo_count ? ` (${space.photo_count})` : ""}`} open={space.verification.state !== "verified"}>
+          <p className="pd-note">
+            {space.availability.state === "occupied"
+              ? "Locked while occupied."
+              : space.verification.state === "verified"
+                ? "Checked photos. Re-check to change them."
+                : "The first photo leads."}
+          </p>
+          <SpacePhotos unitId={space.id} editable={Boolean(space.permitted_actions.edit?.allowed)} onChanged={load} />
+        </DetailDisclosure>
+
+        <DetailDisclosure title={`Amenities${space.amenities.length ? ` (${space.amenities.length})` : ""}`}>
+          {space.permitted_actions.edit?.allowed ? (
+            <SpaceAmenities scope="unit" id={space.id} onSaved={load} />
+          ) : space.amenities.length ? (
+            <ul className="pd-chips">{space.amenities.map((row) => <li key={row.id}>{row.name}</li>)}</ul>
+          ) : <p className="pd-note">None recorded.</p>}
+        </DetailDisclosure>
+
+        <DetailDisclosure title="Details and entrance directions">
+          <SpaceDetails space={space} onSaved={load} />
+        </DetailDisclosure>
+
+        {isHostelRoom ? (
+          <DetailDisclosure title={`Beds${space.beds.length ? ` (${space.beds.length})` : ""}`}>
+            <Beds space={space} onChanged={load} />
+          </DetailDisclosure>
+        ) : null}
+
+        <DetailDisclosure title="Verification and publication details">
+          <SpaceLifecycle verification={space.verification} publication={space.publication} availability={space.availability} />
+          {space.verification.decision_note ? <Notice tone="info" title="Review note" body={space.verification.decision_note} /> : null}
+        </DetailDisclosure>
+
+        <UnitLifecycleActions unit={space} />
+      </section>
+
+      <Link href={"/tenants#access" as never} className="pd-link">
+        <span className="pd-link-mark" aria-hidden="true"><Icon name="users" /></span>
+        <span>Tenancy requests and tenancies</span>
+        <span aria-hidden="true">→</span>
+      </Link>
+    </div>
+  );
+}
+
+function Fact({ icon, label, value }: { icon: IconName; label: string; value: string }) {
+  return (
+    <div className="pd-fact">
+      <span className="pd-fact-mark" aria-hidden="true"><Icon name={icon} /></span>
+      <span>
+        <dt>{label}</dt>
+        <dd>{value}</dd>
+      </span>
     </div>
   );
 }
@@ -264,18 +292,17 @@ function WhatIsNext({
 
   if (space.availability.state === "occupied") {
     return (
-      <section style={CARD}>
-        <Notice
-          tone="info"
-          title="Currently occupied"
-          body="Rooomly will not accept new requests while someone lives here. Manage the tenant or end the occupancy from Tenants."
-        />
+      <section className="pd-next" data-tone="occupied">
+        <span className="pd-next-kicker">Currently occupied</span>
+        <h2>Someone lives here</h2>
+        <p>Rooomly will not accept new requests while someone lives here.</p>
+        <Link href={"/tenants" as never} className="ws-action">Manage in Tenants →</Link>
       </section>
     );
   }
 
   return (
-    <section style={CARD}>
+    <section className="pd-next" data-tone={space.verification.state !== "verified" ? "check" : space.publication.state === "published" ? "public" : "private"}>
       {space.verification.decision_note ? (
         <Notice
           tone={space.verification.state === "verified" ? "info" : "warning"}
@@ -288,14 +315,17 @@ function WhatIsNext({
 
       {space.verification.state !== "verified" ? (
         <>
-          <h2 className="type-title-2" style={{ margin: 0 }}>
-            Get this Unit checked
+          <span className="pd-next-kicker">Next step</span>
+          <h2>
+            {space.verification.state === "submitted" || space.verification.state === "under_review"
+              ? "With our review team"
+              : "Get it checked"}
           </h2>
-          <p className="type-body" style={{ margin: 0, maxWidth: "58ch" }}>
+          <p>
             {space.verification.state === "submitted" ||
             space.verification.state === "under_review"
-              ? "It is with our team. We will let you know the outcome — there is nothing more to do here, and the rest of the property is unaffected."
-              : "Until it passes, no private access code can be shared and it cannot be advertised. Everything else about it stays yours to edit."}
+              ? "Nothing to do now. We will tell you the outcome."
+              : "Needed before you share or advertise it."}
           </p>
 
           {space.verification.state === "draft" ||
@@ -322,18 +352,19 @@ function WhatIsNext({
         </>
       ) : (
         <>
-          <h2 className="type-title-2" style={{ margin: 0 }}>
+          <span className="pd-next-kicker">{space.publication.state === "published" ? "Public" : "Checked"}</span>
+          <h2>
             {space.publication.state === "published"
-              ? "This Unit is public"
-              : "Checked. Now decide who sees it."}
+              ? "Live in Explore"
+              : "Share it or publish it"}
           </h2>
-          <p className="type-body" style={{ margin: 0, maxWidth: "58ch" }}>
+          <p>
             {space.publication.state === "published"
-              ? "It is in Explore and anyone can request a viewing. Taking it down does not undo the check."
-              : "Being checked is not being advertised. Keep it private and share its access code, or publish it to Explore."}
+              ? "Anyone can request a viewing."
+              : "Share its access code, or publish it to Explore."}
           </p>
 
-          <div style={{ display: "flex", gap: "var(--space-3)", flexWrap: "wrap" }}>
+          <div className="pd-next-actions">
             {space.publication.state === "published" ? (
               <>
                 <Link
@@ -373,7 +404,7 @@ function WhatIsNext({
 
           {withdrawing && listing ? (
             <div style={{ display: "grid", gap: "var(--space-3)" }}>
-              <Notice tone="warning" title="Remove this Unit from Explore?" body="Existing viewing and tenancy records remain. The Unit stays verified and can be published again later if it is still available." />
+              <Notice tone="warning" title="Remove it from Explore?" body="Records stay. You can publish it again." />
               <div><Button variant="destructive" busy={busy} busyLabel="Taking down…" onClick={() => run(async () => {
                 await listingAction(listing.id, "withdraw", "Taken down by the provider");
                 setWithdrawing(false);
@@ -385,8 +416,8 @@ function WhatIsNext({
             <>
               <Notice
                 tone="warning"
-                title="A re-check takes this out of Explore"
-                body="The check stays on record, and this Unit goes back to draft so you can change its details and photos. It has to be checked again before private access or advertising becomes available."
+                title="A re-check takes it out of Explore"
+                body="It returns to draft for editing, then needs checking again."
               />
               <div>
                 <Button
@@ -528,7 +559,6 @@ function scrollToPhotos() {
 function SpaceDetails({ space, onSaved }: { space: UnitDetail; onSaved: () => Promise<void> }) {
   const [label, setLabel] = useState(space.label);
   const [description, setDescription] = useState(space.description);
-  const [wing, setWing] = useState(space.wing);
   const [entrance, setEntrance] = useState(space.entrance_note);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -539,16 +569,10 @@ function SpaceDetails({ space, onSaved }: { space: UnitDetail; onSaved: () => Pr
   if (!fullEditable && !operationalEditable) {
     return (
       <dl style={{ display: "grid", gap: "var(--space-3)", margin: 0 }}>
-        <Row term="Called" value={space.label || "Not named"} />
-        <Row term="What is let" value={space.space_type_label} />
-        {space.description ? <Row term="Described as" value={space.description} /> : null}
-        <Row
-          term="Rooms"
-          value={`${space.bedrooms} bedroom${space.bedrooms === 1 ? "" : "s"} · ${
-            space.bathrooms
-          } bathroom${space.bathrooms === 1 ? "" : "s"}`}
-        />
-        {space.entrance_note ? <Row term="Finding the door" value={space.entrance_note} /> : null}
+        <Row term="Name" value={space.label || "Not named"} />
+        <Row term="Type" value={space.space_type_label} />
+        {space.description ? <Row term="Description" value={space.description} /> : null}
+        {space.entrance_note ? <Row term="Entrance" value={space.entrance_note} /> : null}
         <p className="type-caption" style={{ margin: 0, color: "var(--color-ink-500)" }}>
           {space.permitted_actions.edit?.message ?? "These cannot be changed at the moment."}
         </p>
@@ -562,7 +586,7 @@ function SpaceDetails({ space, onSaved }: { space: UnitDetail; onSaved: () => Pr
     try {
       await updateUnit(space.id, {
         entrance_note: entrance,
-        ...(fullEditable ? { label, description, wing } : {}),
+        ...(fullEditable ? { label, description } : {}),
       });
       setSaved(true);
       await onSaved();
@@ -576,7 +600,7 @@ function SpaceDetails({ space, onSaved }: { space: UnitDetail; onSaved: () => Pr
   return (
     <div style={{ display: "grid", gap: "var(--space-4)" }}>
       {fullEditable ? <Field
-        label="What do you call it?"
+        label="Name"
         value={label}
         onChange={(event) => {
           setSaved(false);
@@ -592,7 +616,7 @@ function SpaceDetails({ space, onSaved }: { space: UnitDetail; onSaved: () => Pr
       ) : null}
       {fullEditable ? <label style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
         <span className="type-caption" style={{ color: "var(--color-ink-700)" }}>
-          Describe it
+          Description
         </span>
         <textarea
           value={description}
@@ -606,25 +630,15 @@ function SpaceDetails({ space, onSaved }: { space: UnitDetail; onSaved: () => Pr
           style={TEXTAREA}
         />
       </label> : null}
-      <div style={GRID}>
-        {fullEditable ? <Field
-          label="Wing"
-          value={wing}
-          onChange={(event) => {
-            setSaved(false);
-            setWing(event.target.value);
-          }}
-        /> : null}
-        <Field
-          label="How to find the door"
-          hint="Never shown publicly."
-          value={entrance}
-          onChange={(event) => {
-            setSaved(false);
-            setEntrance(event.target.value);
-          }}
-        />
-      </div>
+      <Field
+        label="Entrance directions"
+        hint="Never shown publicly."
+        value={entrance}
+        onChange={(event) => {
+          setSaved(false);
+          setEntrance(event.target.value);
+        }}
+      />
 
       {error ? <Notice tone="error" title={error} /> : null}
 
@@ -652,10 +666,7 @@ function Beds({ space, onChanged }: { space: UnitDetail; onChanged: () => Promis
 
   return (
     <div style={{ display: "grid", gap: "var(--space-4)" }}>
-      <p className="type-caption" style={{ margin: 0, maxWidth: "58ch" }}>
-        A room can be let whole, or bed by bed. Adding beds does not commit you to
-        either — it makes both possible.
-      </p>
+      <p className="pd-note">Let the room whole, or bed by bed.</p>
       {space.beds.length ? (
         <ul style={{ margin: 0, paddingLeft: "1.1rem" }}>
           {space.beds.map((bed) => (
@@ -723,21 +734,6 @@ function Row({ term, value }: { term: string; value: string }) {
     </div>
   );
 }
-
-const CARD: React.CSSProperties = {
-  display: "grid",
-  gap: "var(--space-4)",
-  padding: "var(--space-6)",
-  background: "var(--color-field-0)",
-  border: "var(--border-hairline) solid var(--color-field-200)",
-  borderRadius: "var(--radius-md)",
-};
-
-const GRID: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(11rem, 1fr))",
-  gap: "var(--space-4)",
-};
 
 const TEXTAREA: React.CSSProperties = {
   padding: "var(--space-3)",

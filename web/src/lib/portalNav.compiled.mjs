@@ -35,7 +35,7 @@ export function portalSections(me, portfolioName, access) {
           { href: "/properties", label: "Properties", icon: "properties", hint: "Buildings and their Units" },
           { href: "/units", label: "Units", icon: "units", hint: "Every rentable space in the Portfolio" },
           { href: "/tenants", label: "Tenants", icon: "users", hint: "Access, requests, tenancies and rent" },
-          { href: "/leases", label: "Leases", icon: "leases", hint: "Agreements you have granted" },
+          { href: "/documents", label: "Documents", icon: "leases", hint: "Contracts, terms templates and leases" },
         ]
         : []),
       ...(finances
@@ -53,7 +53,7 @@ export function portalSections(me, portfolioName, access) {
           items: [
             { href: "/applications", label: "Tenancy requests", icon: "applications", hint: "Review people asking to rent" },
             { href: "/viewings", label: "Viewings", icon: "viewings", hint: "Requests to see a place" },
-            { href: "/enquiries", label: "Buyer enquiries", icon: "chat", hint: "Questions about properties you are selling" },
+            { href: "/maintenance", label: "Maintenance", icon: "wrench", hint: "Repairs your tenants report" },
           ],
         }]
         : []),
@@ -72,11 +72,24 @@ export function portalSections(me, portfolioName, access) {
         { href: "/leases", label: "Agreements", icon: "leases", hint: "Offers waiting for your decision" },
         { href: "/payments", label: "Payments", icon: "payments", hint: "Rent due, payment activity and receipts" },
         { href: "/viewings", label: "Viewings", icon: "viewings", hint: "Times you arranged to visit" },
-        { href: "/enquiries", label: "Enquiries", icon: "chat", hint: "Properties you asked to buy" },
+        { href: "/maintenance", label: "Maintenance", icon: "wrench", hint: "Report a problem where you live" },
       ],
     },
     ACCOUNT_SECTION,
   ];
+}
+
+export function enquiriesEntry(me, access) {
+  const provider = me.capabilities.provider;
+  const inProvider =
+    me.capabilities.active_workspace === "provider"
+    && (provider.workspace_access || provider.exists);
+  if (inProvider && !provider.workspace_access) return null;
+  if (inProvider) {
+    const operates = access ? access.can.operate_properties : true;
+    return operates ? { href: "/enquiries", as: "seller" } : null;
+  }
+  return { href: "/enquiries", as: "buyer" };
 }
 
 export function activeHref(sections, pathname) {
@@ -108,7 +121,9 @@ const PORTAL_PREFIXES = [
   "/portfolio-invitations",
   "/updates",
   "/viewings",
+  "/maintenance",
   "/enquiries",
+  "/documents",
   "/organization",
   "/tenant",
   "/review",

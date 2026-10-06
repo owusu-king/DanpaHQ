@@ -98,6 +98,7 @@ export default function ProviderMoreScreen() {
         {operates ? <Row icon="grid-outline" label="Units" onPress={() => router.push("/(app)/units" as never)} /> : null}
         {operates ? <Row icon="calendar-outline" label="Viewings" onPress={() => router.push("/(app)/provider-viewings" as never)} /> : null}
         {operates ? <Row icon="document-text-outline" label="Tenancy requests" onPress={() => router.push("/(app)/provider-applications" as never)} /> : null}
+        {operates ? <Row icon="construct-outline" label="Maintenance" onPress={() => router.push("/(app)/maintenance" as never)} /> : null}
         {/* Buyers asking about what this Portfolio is selling (owner, 2026-09-29). */}
         {operates ? <Row icon="chatbubbles-outline" label="Buyer enquiries" onPress={() => router.push("/(app)/enquiries" as never)} /> : null}
         {operates || finances ? <Row icon="reader-outline" label="Leases" onPress={() => router.push("/(app)/leases" as never)} /> : null}

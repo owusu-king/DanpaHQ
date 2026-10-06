@@ -28,7 +28,7 @@ import { Notice } from "@/components/Notice";
 import { Select } from "@/components/Select";
 import { PropertyTypeChoice } from "@/components/property/PropertyTypeChoice";
 import { PurposeChoice, SaleTypeChoice } from "@/components/property/PurposeChoice";
-import { SetupProgress, SetupSteps, StepPanel } from "@/components/property/SetupSteps";
+import { SetupProgress, StepPanel } from "@/components/property/SetupSteps";
 import { ApiFailure } from "@/lib/api";
 import {
   createAddress,
@@ -172,7 +172,10 @@ function NewPropertyContent() {
         : await createPersonalPortfolioProperty(input);
       // Straight on to step two. `replace`, not `push`: going back should reach
       // the properties list, not a form that would create a second property.
-      router.replace(`/properties/${property.id}/setup?step=details` as never);
+      // A sale goes to its price and size: land has no water, meter or compound
+      // to ask about, and a building's are secondary to what it costs.
+      const next = purpose === "sale" ? "sale" : "details";
+      router.replace(`/properties/${property.id}/setup?step=${next}` as never);
     } catch (cause) {
       setError(
         cause instanceof ApiFailure ? cause.error.message : "Could not start this property.",
@@ -198,29 +201,21 @@ function NewPropertyContent() {
       </Link>
 
       <header style={{ marginTop: "var(--space-4)" }}>
-        <p className="type-label" style={{ color: "var(--color-ink-500)", margin: 0 }}>
-          PRIVATE BY DEFAULT
-        </p>
-        <h1 className="type-display-2" style={{ margin: "var(--space-2) 0 0" }}>
+        <h1 className="type-display-2" style={{ margin: 0 }}>
           Create a property
         </h1>
-        <p
-          className="type-body"
-          style={{ color: "var(--color-ink-700)", margin: "var(--space-2) 0 0", maxWidth: "58ch" }}
-        >
-          Everything saves as you go. Do them in any order.
+        <p className="type-caption" style={{ margin: "var(--space-2) 0 0" }}>
+          Private until you choose otherwise.
         </p>
       </header>
 
+      {/* The same tracker the rest of the flow navigates with. Nothing exists to
+          jump to until this step saves, so here it only shows the way ahead. */}
       <div style={{ marginTop: "var(--space-6)" }}>
         <SetupProgress steps={OUTLINE} current="basics" />
       </div>
 
       <div style={LAYOUT}>
-        <aside style={SIDEBAR}>
-          <SetupSteps steps={OUTLINE} current="basics" onSelect={() => undefined} />
-        </aside>
-
         <div style={CONTENT}>
           <StepPanel
             title="The property"
@@ -246,20 +241,15 @@ function NewPropertyContent() {
 
               <Field
                 label="Property name"
-                hint={
-                  purpose === "sale"
-                    ? "Your own label — buyers see the sale headline, not this."
-                    : "Your own label — tenants see the listing headline, not this."
-                }
+                hint="Only you see this."
                 value={title}
                 onChange={(event) => setTitle(event.target.value)}
               />
 
-              {/* Three categories, and the choice decides what may be let
-                  inside. A dropdown made the most consequential field on the
-                  page the least visible one. Portfolio activities describe the
-                  current focus; they do not remove valid categories from the
-                  backend vocabulary. */}
+              {/* Purpose and type are compact dropdowns (owner, 2026-10-05).
+                  Portfolio activities describe the current focus; they do not
+                  remove valid categories from the backend vocabulary. */}
+              <div style={PAIR}>
               <PurposeChoice
                 value={purpose}
                 onChange={(next) => {
@@ -279,11 +269,12 @@ function NewPropertyContent() {
                   onChange={setPropertyType}
                 />
               )}
+              </div>
 
               <div>
                 <Field
                   label="Town or neighbourhood"
-                  hint="Search anywhere in Ghana, then choose a result."
+                  hint="Type, then pick a result."
                   value={query}
                   autoComplete="off"
                   onChange={(event) => {
@@ -345,17 +336,17 @@ function NewPropertyContent() {
               </div>
 
               <Field
-                label="GhanaPost GPS (where available)"
+                label="GhanaPost GPS (optional)"
                 value={digitalAddress}
                 onChange={(event) => setDigitalAddress(event.target.value)}
               />
               <Field
-                label="Street"
+                label="Street (optional)"
                 value={street}
                 onChange={(event) => setStreet(event.target.value)}
               />
               <Field
-                label="Landmark"
+                label="Landmark (optional)"
                 value={landmark}
                 onChange={(event) => setLandmark(event.target.value)}
               />
@@ -372,7 +363,7 @@ function NewPropertyContent() {
               </div>
               {!ready ? (
                 <p className="type-caption" style={{ margin: 0 }}>
-                  A name, a kind and a town are needed before the next step.
+                  Add a name, type and town to continue.
                 </p>
               ) : null}
             </div>
@@ -403,29 +394,21 @@ const SHELL: React.CSSProperties = {
   padding: "var(--space-8) var(--space-5)",
 };
 
-/** Wraps to one column on a phone without a media query — see the setup page. */
-const LAYOUT: React.CSSProperties = {
-  marginTop: "var(--space-6)",
-  display: "flex",
-  flexWrap: "wrap",
-  gap: "var(--space-6)",
-  alignItems: "flex-start",
-};
-
-const SIDEBAR: React.CSSProperties = {
-  flex: "1 1 15rem",
-  maxWidth: "100%",
-  background: "var(--color-field-0)",
-  border: "var(--border-hairline) solid var(--color-field-200)",
-  borderRadius: "var(--radius-md)",
-  overflow: "hidden",
-};
+/** One column: the tracker above is the navigation. */
+const LAYOUT: React.CSSProperties = { marginTop: "var(--space-6)" };
 
 const CONTENT: React.CSSProperties = {
-  flex: "999 1 22rem",
   minWidth: 0,
   display: "grid",
   gap: "var(--space-4)",
+};
+
+/** Two short dropdowns side by side, stacking on a phone. */
+const PAIR: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(13rem, 1fr))",
+  gap: "var(--space-4)",
+  alignItems: "start",
 };
 
 const LINK: React.CSSProperties = { color: "var(--color-kola-600)" };

@@ -23,11 +23,13 @@ import { Notice } from "@/components/Notice";
 import { LoadingRows, PageHeader } from "@/components/portal/PageHeader";
 import { EntityPath } from "@/components/property/WorkspacePatterns";
 import { RequestRecord } from "@/components/requests/RequestRecord";
+import { PanelSkeleton, PanelState, WorkspaceHead } from "@/components/workspace/Workspace";
 import { ApiFailure } from "@/lib/api";
 import { type Lease } from "@/lib/console";
 import { useSession } from "@/lib/session";
 import { requestRecordId, requestWho } from "@/lib/tenancyRequests";
 import { listMyApplications, listMyLeases, type MyApplication } from "@/lib/tenant";
+import { onDate } from "@/lib/time";
 import { useProviderRequests } from "@/lib/useProviderRequests";
 
 export default function ApplicationRecordPage() {
@@ -50,7 +52,7 @@ export default function ApplicationRecordPage() {
 function ProviderRequest() {
   const { requestId } = useParams<{ requestId: string }>();
   const router = useRouter();
-  const { items, error, unauthorised, reload } = useProviderRequests();
+  const { items, portfolioName, error, unauthorised, reload } = useProviderRequests();
 
   useEffect(() => {
     if (unauthorised) router.push("/sign-in");
@@ -78,7 +80,7 @@ function ProviderRequest() {
       ) : item ? (
         <>
           <PageHeader title={requestWho(item)} description={kindLabel} />
-          <RequestRecord item={item} onChanged={reload} />
+          <section className="ws-panel request-record-panel"><RequestRecord item={item} portfolioName={portfolioName} onChanged={reload} /></section>
         </>
       ) : (
         <>
@@ -126,40 +128,53 @@ function TenantApplication() {
 
   const application = applications?.find((row) => row.id === requestId) ?? null;
 
+  const missing = applications !== null && !error && !application;
+
+  // The sheet the list opens, laid on the page: the same header words, the same
+  // record, one level deeper in the same workspace.
   return (
-    <div className="applications">
-      <EntityPath
-        items={[
-          { label: "Applications", href: "/applications", mobileLabel: "Back to Applications" },
-          { label: application ? application.listing_headline : "Application" },
-        ]}
+    <div className="ws-page applications-workspace application-record-page">
+      <WorkspaceHead
+        icon="applications"
+        title={missing ? "Application" : "Your application"}
+        summary={application ? `Sent ${onDate(application.created_at)}` : null}
+        path={
+          <EntityPath
+            items={[
+              { label: "Applications", href: "/applications", mobileLabel: "Back to Applications" },
+              { label: application ? application.property_title || application.listing_headline : "Application" },
+            ]}
+          />
+        }
       />
 
-      {applications === null ? (
-        <>
-          <PageHeader title="Application" />
-          <LoadingRows rows={4} />
-        </>
-      ) : error ? (
-        <Notice tone="error" title={error} />
-      ) : application ? (
-        <ApplicationRecord
-          key={application.id}
-          application={application}
-          leases={leases}
-          onChanged={load}
-        />
-      ) : (
-        <>
-          <PageHeader
-            title="Application not found"
-            description="It may have been withdrawn, or the listing is no longer available."
+      <section className="ws-panel request-record-panel" aria-busy={applications === null || undefined}>
+        {applications === null ? (
+          <PanelSkeleton rows={3} />
+        ) : error ? (
+          <PanelState
+            tone="error"
+            icon="warning"
+            title="Your application didn’t load"
+            body={error}
+            action={<button type="button" className="ws-action" onClick={() => void load()}>Try again</button>}
           />
-          <p className="type-caption">
-            <Link href="/applications">Back to Applications</Link>
-          </p>
-        </>
-      )}
+        ) : application ? (
+          <ApplicationRecord
+            key={application.id}
+            application={application}
+            leases={leases}
+            onChanged={load}
+          />
+        ) : (
+          <PanelState
+            icon="applications"
+            title="Application not found"
+            body="It may have been withdrawn, or the listing is no longer available. Your other applications are still on the list."
+            action={<Link href="/applications" className="ws-action is-primary">Back to Applications</Link>}
+          />
+        )}
+      </section>
     </div>
   );
 }

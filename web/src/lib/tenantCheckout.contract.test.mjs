@@ -34,16 +34,24 @@ test("tenant checkout is a resumable route and never trusts browser payment fact
 
 test("confirmed web payments lead to the durable receipt", () => {
   const returned = read("web/app/payments/return/page.tsx");
-  const receipt = read("web/app/payments/receipts/[receiptId]/page.tsx");
+  // The receipt is a sheet now; its old address redirects to it.
+  const receipt = read("web/src/components/payments/ReceiptModal.tsx");
+  assert.match(read("web/app/payments/receipts/[receiptId]/page.tsx"), /redirect\(`\/payments\?receipt=/);
+  assert.match(returned, /`\/payments\?receipt=\$\{intent\.receipt_id\}`/);
   const paymentsApi = read("web/src/lib/payments.ts");
   assert.match(returned, /intent\.receipt_id/);
   assert.match(returned, /Provider settlement is tracked separately/i);
   assert.match(receipt, /getPaymentReceipt/);
   assert.match(receipt, /snapshot\.tenant\.name/);
-  assert.match(receipt, /Period covered/);
+  assert.match(receipt, /snapshot\.obligation\.period_start/);
   assert.match(receipt, /getPaymentReceiptDocument/);
-  assert.match(receipt, /View PDF/);
   assert.match(receipt, /Download/);
-  assert.match(receipt, /pendingWindow\.print\(\)/);
+  // Printing never goes through a tab it has to wait on (lib/printDocument).
+  const printing = read("web/src/lib/printDocument.ts");
+  assert.match(printing, /export function printPdf\(/);
+  assert.match(printing, /export function printElement\(/);
+  for (const file of ["web/src/components/leases/LeaseRecord.tsx", "web/src/components/tenant/AgreementRecord.tsx", "web/src/components/payments/ReceiptModal.tsx"]) {
+    assert.doesNotMatch(read(file), /pendingWindow|addEventListener\("load", \(\) => pending/, `${file} still prints through a pending tab`);
+  }
   assert.match(paymentsApi, /document\.pdf\?disposition=inline/);
 });

@@ -9,6 +9,8 @@ import { useEffect, useState } from "react";
 import { SegmentedField, SelectField } from "@/components/filters/FilterFields";
 import { BottomSheet } from "@/components/sheet/BottomSheet";
 import { SheetCard, SheetGlassButton, SheetPrimaryButton } from "@/components/sheet/SheetParts";
+import type { ExploreMode } from "@/components/explore/ExploreHero";
+import { ShowField } from "@/components/explore/ExploreShow";
 import type { SaleFilters, SaleKind, SaleSort, Tenure } from "@/sales";
 
 export type SaleChoices = {
@@ -89,9 +91,12 @@ export function SaleFilterSheet({
   choices,
   onChange,
   resultLabel,
+  onModeChange,
 }: {
   visible: boolean;
   onClose: () => void;
+  /** Show (All / To rent / To buy), the sheet's first row. */
+  onModeChange?: (mode: ExploreMode) => void;
   choices: SaleChoices;
   onChange: (patch: Partial<SaleChoices>) => void;
   resultLabel: string;
@@ -122,6 +127,32 @@ export function SaleFilterSheet({
         </>
       )}
     >
+      {onModeChange ? (
+        <SheetCard>
+          <ShowField mode="buy" onChange={onModeChange} />
+        </SheetCard>
+      ) : null}
+      <SaleFilterCards choices={choices} onChange={onChange} />
+    </BottomSheet>
+  );
+}
+
+/**
+ * Buy's questions, without a sheet around them: Explore's one Filters sheet
+ * hosts them under its Show row (owner, 2026-10-05).
+ */
+export function SaleFilterCards({
+  choices,
+  onChange,
+}: {
+  choices: SaleChoices;
+  onChange: (patch: Partial<SaleChoices>) => void;
+}) {
+  // One dropdown open at a time.
+  const [menu, setMenu] = useState<Menu | null>(null);
+  const toggle = (next: Menu) => setMenu((current) => (current === next ? null : next));
+  return (
+    <>
       <SheetCard>
         <SegmentedField label="What" value={choices.kind} options={KINDS} onChange={(value) => onChange({ kind: value as "" | SaleKind })} />
         {choices.kind === "residential" ? (
@@ -156,6 +187,6 @@ export function SaleFilterSheet({
           onChange={(value) => { onChange({ sort: value as SaleSort }); setMenu(null); }}
         />
       </SheetCard>
-    </BottomSheet>
+    </>
   );
 }

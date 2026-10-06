@@ -7,18 +7,16 @@ import { fileURLToPath } from "node:url";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const read = (relative) => readFileSync(resolve(root, relative), "utf8");
 
-test("mobile Updates is a grouped, semantic communication centre", () => {
+test("mobile Updates groups what is new and what happened recently", () => {
   const screen = read("mobile/app/(app)/notifications.tsx");
 
   assert.match(screen, /SectionList/);
-  assert.match(screen, /Action needed/);
   assert.match(screen, /needsYou/);
-  assert.match(screen, /notificationCategory/);
   assert.match(screen, /notificationSource/);
   assert.match(screen, /notificationStatus/);
   assert.match(screen, /notificationTone/);
   assert.match(screen, /Needs your attention/);
-  assert.match(screen, /This week/);
+  assert.match(screen, /Recent activity/);
   assert.match(screen, /accessibilityRole="toolbar"/);
   assert.doesNotMatch(screen, /Your inbox/);
   assert.doesNotMatch(screen, /accessibilityRole="summary"/);
@@ -55,14 +53,13 @@ test("opening an update does not wait for the read acknowledgement", () => {
   assert.match(screen, /router\.push\(destination\(item, isProvider\)/);
 });
 
-test("mobile Updates presents ten records per page", () => {
+test("mobile Updates keeps no history to page through", () => {
   const screen = read("mobile/app/(app)/notifications.tsx");
 
-  assert.match(screen, /const PAGE_SIZE = 10/);
-  assert.match(screen, /orderedVisible\.slice\(\(currentPage - 1\) \* PAGE_SIZE, currentPage \* PAGE_SIZE\)/);
-  assert.match(screen, /\.\.\.visible\.filter\(needsYou\)/);
-  assert.match(screen, /function MobilePagination/);
-  assert.match(screen, /accessibilityLabel="Updates pages"/);
+  // Reminders clear once read and activity keeps the ten most recent, so there
+  // is nothing to page back through; management reads the audit log instead.
+  assert.match(screen, /const RECENT_KEPT = 10/);
+  assert.doesNotMatch(screen, /PAGE_SIZE|function MobilePagination|accessibilityLabel="Updates pages"/);
 });
 
 test("Explore keeps one search bar and one Filters button over the map, and every filter in a bottom sheet", () => {
@@ -77,8 +74,10 @@ test("Explore keeps one search bar and one Filters button over the map, and ever
   assert.match(hero, /function FiltersButton/);
   assert.match(hero, /export function HeroSearch/);
   assert.doesNotMatch(search, /accessibilityRole="toolbar"|function CompactFilter|function ActiveFilter/);
-  // All has no filters of its own; Rent and Buy each open theirs (owner, 2026-09-29).
-  assert.match(search, /onFilters=\{mode === "all" \? undefined : \(\) => \{ Keyboard\.dismiss\(\); setFiltersOpen\(true\); \}\}/);
+  // Every side opens Filters now, All included, and each sheet's first row is
+  // Show (owner, 2026-10-05: the All / Rent / Buy bar moved into the filter).
+  assert.match(search, /onFilters=\{\(\) => \{ Keyboard\.dismiss\(\); setFiltersOpen\(true\); \}\}/);
+  assert.match(search, /allCards=\{<AllFilterCards /);
   // Each question is one row — a rent range, dropdowns, a segmented choice and a
   // switch; see filterFields.contract.test.mjs.
   assert.match(search, /<PriceRange\n/);
@@ -100,8 +99,8 @@ test("Explore on the phone shows each choice once, and turning one on moves noth
   // The button counts the refinements, and names the count for a screen reader.
   const button = hero.slice(hero.indexOf("function FiltersButton("), hero.indexOf("export function HeroSearch("));
   assert.match(button, /accessibilityLabel=\{count \? `Filters, \$\{count\} active` : "Filters"\}/);
-  assert.match(search, /filterCount=\{mode === "all" \? undefined : filterCountForSide\}/);
-  assert.match(search, /const filterCountForSide = mode === "buy" \? saleRefinements\(saleChoices\) : refinementCount;/);
+  assert.match(search, /filterCount=\{filterCountForSide\}/);
+  assert.match(search, /const filterCountForSide = mode === "buy" \? saleRefinements\(saleChoices\) : mode === "all" \? allCount : refinementCount;/);
 
   // The one Clear all sits beside the count it changes.
   const results = hero.slice(hero.indexOf("export function ExploreResults("));

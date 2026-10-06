@@ -19,10 +19,11 @@
  */
 
 import { useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 
 import { Notice } from "@/components/Notice";
 import { FilterSelect, SegmentedChoice } from "@/components/explore/FilterFields";
+import { ExploreConsole, MoreFiltersButton, QuickChip, ShowChip } from "@/components/explore/ExploreConsole";
 import { Icon } from "@/components/portal/icons";
 import { PageHeader } from "@/components/portal/PageHeader";
 import { ApiFailure } from "@/lib/api";
@@ -79,7 +80,7 @@ const SORTS = [
 
 const KEYS = ["q", "kind", "price_max", "bedrooms_min", "tenure", "sort"] as const;
 
-export function SaleBrowser({ modeSwitch }: { modeSwitch: ReactNode }) {
+export function SaleBrowser() {
   const { state } = useSession();
   const signedIn = state.status === "signed_in";
   const params = useSearchParams();
@@ -215,34 +216,42 @@ export function SaleBrowser({ modeSwitch }: { modeSwitch: ReactNode }) {
 
   const discovery = (
     <div className="explore-discovery sale-discovery">
-      {modeSwitch}
-      <form className="explore-bar sale-bar" role="search" onSubmit={submitText}>
-        <label className="explore-search sale-search">
-          <Icon name="explore" />
-          <span className="sr-only">Search properties for sale</span>
-          <input
-            type="search"
-            value={text}
-            placeholder="Area or description"
-            onChange={(event) => setText(event.target.value)}
-            onBlur={() => { if ((filters.q ?? "") !== text.trim()) update({ q: text.trim() }); }}
-          />
-        </label>
-        <button
-          ref={trigger}
-          type="button"
-          className={`explore-filters-button${filterCount ? " is-active" : ""}${panelOpen ? " is-open" : ""}`}
-          aria-label={filterCount ? `Filters, ${filterCount} active` : "Filters"}
-          aria-haspopup="dialog"
-          aria-expanded={panelOpen}
-          aria-controls="sale-filters-panel"
-          onClick={() => setPanelOpen((open) => !open)}
-        >
-          <Icon name="filters" />
-          <span className="explore-filters-label">Filters</span>
-          {filterCount ? <span className="explore-filter-count" aria-hidden="true">{filterCount}</span> : null}
-        </button>
-      </form>
+      <ExploreConsole
+        search={(
+          <form className="explore-search-form" role="search" onSubmit={submitText}>
+            <label className="explore-search sale-search">
+              <Icon name="explore" />
+              <span className="sr-only">Search properties for sale</span>
+              <input
+                type="search"
+                value={text}
+                placeholder="Search by area or description"
+                onChange={(event) => setText(event.target.value)}
+                onBlur={() => { if ((filters.q ?? "") !== text.trim()) update({ q: text.trim() }); }}
+              />
+            </label>
+          </form>
+        )}
+        chips={(
+          <>
+            <ShowChip side="buy" />
+            <QuickChip label="What" value={filters.kind ?? ""} onChange={(value) => update({ kind: value })} options={KINDS} />
+            <QuickChip
+              label="Budget"
+              value={filters.price_max ? String(filters.price_max) : ""}
+              onChange={(value) => update({ price_max: value })}
+              options={BUDGETS}
+            />
+            <MoreFiltersButton
+              buttonRef={trigger}
+              count={filterCount}
+              open={panelOpen}
+              controls="sale-filters-panel"
+              onToggle={() => setPanelOpen((open) => !open)}
+            />
+          </>
+        )}
+      />
 
       {panelOpen ? (
         <>
@@ -381,35 +390,5 @@ export function SaleBrowser({ modeSwitch }: { modeSwitch: ReactNode }) {
       </section>
     </div>
     </>
-  );
-}
-
-/**
- * All, Rent or Buy — the first choice on Explore. All is where it opens.
- *
- * Switching clears the other side's search: a rent range means nothing to a
- * sale and a budget in millions means nothing to a room.
- */
-export function ExploreModeSwitch({ mode }: { mode: "all" | "rent" | "buy" }) {
-  function go(next: "all" | "rent" | "buy") {
-    if (next === mode) return;
-    const url = next === "all" ? window.location.pathname : `${window.location.pathname}?mode=${next}`;
-    window.history.pushState(null, "", url);
-  }
-  return (
-    <div className="explore-mode" role="tablist" aria-label="All, rent or buy">
-      {(["all", "rent", "buy"] as const).map((key) => (
-        <button
-          key={key}
-          type="button"
-          role="tab"
-          aria-selected={mode === key}
-          className="explore-mode-option"
-          onClick={() => go(key)}
-        >
-          {key === "all" ? "All" : key === "rent" ? "Rent" : "Buy"}
-        </button>
-      ))}
-    </div>
   );
 }

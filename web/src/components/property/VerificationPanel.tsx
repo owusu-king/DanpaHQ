@@ -161,14 +161,14 @@ export function VerificationPanel({
         <Notice
           tone="info"
           title="With our team"
-          body="We will let you know the outcome. There is nothing more to do here."
+          body="We’ll tell you the outcome."
         />
       ) : (
         <p className="type-caption" style={{ margin: 0 }}>
           {state.required_outstanding === 0
             ? showSubmit
-              ? "Everything needed is here. Send it for review."
-              : "Everything needed is here."
+              ? "All set. Send it for review."
+              : "All set."
             : `${state.required_outstanding} of ${state.required_total} still needed.`}
         </p>
       )}

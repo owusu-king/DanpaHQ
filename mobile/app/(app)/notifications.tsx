@@ -1,6 +1,6 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useRouter } from "expo-router";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -18,11 +18,8 @@ import { Panel } from "@/components/billing/BillingSurfaces";
 import { useHomeDensity } from "@/components/home/plinth";
 import {
   CHEVRON,
-  ChoiceRow,
   EDGE,
   EmptyState,
-  FilterButton,
-  FilterGroup,
   GLASS,
   GroupLabel,
   INK,
@@ -31,23 +28,18 @@ import {
   LATERITE,
   ListRow,
   MUTED,
-  PANEL_RADIUS,
   PRESSED,
   RULE,
-  SheetFooter,
   rowStyles,
   type IconName,
 } from "@/components/portfolio/PortfolioList";
-import { BottomSheet } from "@/components/sheet/BottomSheet";
 import { Notice, Type, radius, space } from "@/components/ui";
 import {
   destination,
   needsYou,
-  notificationCategory,
   notificationSource,
   notificationStatus,
   notificationTone,
-  type NotificationCategory,
   type NotificationTone,
 } from "@/notificationMeaning";
 import { listNotifications, markRead, timeAgo, type Notification } from "@/notifications";
@@ -55,51 +47,39 @@ import { pressableFeedback, useSafeBottom } from "@/platform";
 import { alpha } from "@/shell";
 import { theme } from "@/theme";
 
-type Filter = "all" | "unread" | "action" | NotificationCategory;
-type UpdateSection = { key: string; title: string; urgent?: boolean; data: Notification[] };
-const PAGE_SIZE = 10;
+type UpdateSection = { key: string; title: string; urgent?: boolean; note?: string; data: Notification[] };
 
-const CATEGORY_LABEL: Record<NotificationCategory, string> = {
-  rental: "Rental",
-  applications: "Applications",
-  payments: "Payments",
-  system: "System",
-};
-const CATEGORY_ICON: Record<NotificationCategory, IconName> = {
-  rental: "home-outline",
-  applications: "document-text-outline",
-  payments: "wallet-outline",
-  system: "business-outline",
-};
-const VIEW_TITLE: Record<"all" | "unread" | "action", string> = {
-  all: "All",
-  unread: "Unread",
-  action: "Action needed",
-};
+/** How much activity a person keeps; the server prunes to the same number. */
+const RECENT_KEPT = 10;
+/** Unread activity older than this is shown as past, not new — the web's rule. */
+const STALE_DAYS = 14;
 
 /**
- * Mobile's communication centre. Home remains the live source of outstanding work.
+ * Updates: what is new, and what happened recently — never a log.
  *
- * Refined on review (2026-09-15): the feed stands on the hub ground as glass, and
- * the rail of filter chips became one toolbar — what is showing and how many, Read
- * all, and one green Filter whose sheet holds the same vocabulary with its counts.
- * Still a log: no summary card above it, and the shell's title is not repeated.
+ * A reminder (rent due, a viewing about to start, a lease nearing its end) is
+ * informational: once read it has done its job and the server deletes it, so
+ * it leaves this screen the moment it is read. Activity — something that
+ * happened to a record — is kept, the ten most recent. Nothing pages back
+ * through history here; management reads the full record in the audit log, and
+ * Home stays the live source of outstanding work. Same rules as web Updates.
+ *
+ * The feed keeps its review-era shape (2026-09-15): glass on the hub ground,
+ * unread as a coloured rule, and one toolbar with Read all — the filter sheet
+ * and the pages went with the log they served.
  */
 export default function NotificationsScreen() {
   const router = useRouter();
   const density = useHomeDensity();
   const pageBottom = useSafeBottom(space[12]);
-  const listRef = useRef<SectionList<Notification, UpdateSection>>(null);
   const { state } = useAuth();
   const [items, setItems] = useState<Notification[] | null>(null);
   const [unread, setUnread] = useState(0);
-  const [view, setView] = useState<Filter>("all");
-  const [page, setPage] = useState(1);
-  const [filtering, setFiltering] = useState(false);
   const [error, setError] = useState("");
   const [refreshing, setRefreshing] = useState(false);
   const [markingAll, setMarkingAll] = useState(false);
 
+  // A reload keeps what is on screen; a failed refresh says so above it.
   const load = useCallback(async () => {
     try {
       const page = await listNotifications();
@@ -108,7 +88,7 @@ export default function NotificationsScreen() {
       setError("");
     } catch (cause) {
       setError(cause instanceof ApiFailure ? cause.error.message : "We could not load your updates.");
-      setItems([]);
+      setItems((current) => current ?? []);
     }
   }, []);
 
@@ -118,57 +98,57 @@ export default function NotificationsScreen() {
     && state.me.capabilities.active_workspace === "provider"
     && state.me.capabilities.provider.workspace_access;
 
-  const counts = useMemo(() => {
+  // New first — what needs an answer, then the rest unread — then the recent
+  // activity that has been read. Read reminders are never here.
+  const sections = useMemo<UpdateSection[]>(() => {
     const source = items ?? [];
-    return {
-      unread: source.filter((item) => !item.is_read).length,
-      action: source.filter(needsYou).length,
-      rental: source.filter((item) => notificationCategory(item.kind) === "rental").length,
-      applications: source.filter((item) => notificationCategory(item.kind) === "applications").length,
-      payments: source.filter((item) => notificationCategory(item.kind) === "payments").length,
-      system: source.filter((item) => notificationCategory(item.kind) === "system").length,
-    };
-  }, [items]);
-  // A topic with nothing in it does not take up a line of the sheet.
-  const topics = (Object.keys(CATEGORY_LABEL) as NotificationCategory[]).filter((category) => counts[category] > 0);
-
-  const visible = useMemo(() => {
-    const source = items ?? [];
-    if (view === "unread") return source.filter((item) => !item.is_read);
-    if (view === "action") return source.filter(needsYou);
-    if (view !== "all") return source.filter((item) => notificationCategory(item.kind) === view);
-    return source;
-  }, [items, view]);
-
-  const pageCount = Math.max(1, Math.ceil(visible.length / PAGE_SIZE));
-  const currentPage = Math.min(page, pageCount);
-  const orderedVisible = useMemo(
-    () => view === "all" ? [...visible.filter(needsYou), ...visible.filter((item) => !needsYou(item))] : visible,
-    [view, visible],
-  );
-  const paged = useMemo(
-    () => orderedVisible.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE),
-    [currentPage, orderedVisible],
-  );
-  const sections = useMemo(() => groupUpdates(paged, view === "all"), [paged, view]);
-
-  function selectView(next: Filter) {
-    setView(next);
-    setPage(1);
-  }
-
-  function changePage(next: number) {
-    setPage(next);
-    requestAnimationFrame(() => {
-      if (sections.length) {
-        listRef.current?.scrollToLocation({ sectionIndex: 0, itemIndex: 0, animated: true });
-      }
+    // A record does not know when the thing it is about was dealt with, so an
+    // unread one weeks old — even "an agreement to look at" — is past, not new:
+    // it joins the recent pool rather than waiting forever (a tenant had 72
+    // unread rows, 18 of them "needing" answers long since given). Repeats about
+    // the same thing keep only the newest. Home's own attention list reads live
+    // state, so nothing truly outstanding is lost.
+    const staleBefore = Date.now() - STALE_DAYS * 86_400_000;
+    const stale = (item: Notification) => new Date(item.created_at).getTime() < staleBefore;
+    const seen = new Set<string>();
+    const latest = source.filter((item) => {
+      const key = `${item.kind}:${item.target_type}:${item.target_id}`;
+      if (!item.target_id || !seen.has(key)) { seen.add(key); return true; }
+      return false;
     });
-  }
+    const fresh = latest.filter((item) => !item.is_read && !stale(item));
+    const waiting = fresh.filter(needsYou);
+    const other = fresh.filter((item) => !needsYou(item)).slice(0, RECENT_KEPT);
+    const recent = latest
+      .filter((item) => item.record === "activity" && (item.is_read || stale(item)))
+      .slice(0, RECENT_KEPT);
+    const result: UpdateSection[] = [];
+    if (waiting.length) result.push({ key: "attention", title: "Needs your attention", urgent: true, data: waiting });
+    if (other.length) result.push({ key: "new", title: "New", data: other });
+    if (recent.length) {
+      result.push({
+        key: "recent",
+        title: "Recent activity",
+        note: `Your ${RECENT_KEPT} most recent. Older activity clears on its own, and reminders clear once read.`,
+        data: recent,
+      });
+    }
+    return result;
+  }, [items]);
+  // What is listed as new — weeks-old records sit in Recent, so the server's
+  // unread total would overstate it.
+  const listedNew = sections
+    .filter((section) => section.key !== "recent")
+    .reduce((sum, section) => sum + section.data.length, 0);
 
+  const shown = sections.reduce((sum, section) => sum + section.data.length, 0);
+
+  /** Read: a reminder leaves the screen (the server deletes it); activity stays. */
   function open(item: Notification) {
     if (!item.is_read) {
-      setItems((current) => current?.map((row) => row.id === item.id ? { ...row, is_read: true } : row) ?? null);
+      setItems((current) => current
+        ?.filter((row) => !(row.id === item.id && row.record === "informational"))
+        .map((row) => row.id === item.id ? { ...row, is_read: true } : row) ?? null);
       setUnread((current) => Math.max(0, current - 1));
       void markRead([item.id]).catch(() => void load());
     }
@@ -179,7 +159,9 @@ export default function NotificationsScreen() {
     setMarkingAll(true);
     try {
       await markRead();
-      setItems((current) => current?.map((item) => ({ ...item, is_read: true })) ?? null);
+      setItems((current) => current
+        ?.filter((item) => item.record !== "informational")
+        .map((item) => ({ ...item, is_read: true })) ?? null);
       setUnread(0);
     } catch (cause) {
       setError(cause instanceof ApiFailure ? cause.error.message : "We could not mark these as read.");
@@ -191,7 +173,6 @@ export default function NotificationsScreen() {
   return (
     <IndexGround>
       <SectionList
-        ref={listRef}
         sections={sections}
         keyExtractor={(item) => item.id}
         stickySectionHeadersEnabled={false}
@@ -207,13 +188,20 @@ export default function NotificationsScreen() {
           <View style={styles.header}>
             {error ? <Notice tone="error" title={error} /> : null}
 
-            {items?.length ? (
-              <View style={styles.toolbar} accessibilityRole="toolbar" accessibilityLabel="Filter updates">
+            {shown ? (
+              <View style={styles.toolbar} accessibilityRole="toolbar" accessibilityLabel="Updates">
                 <View style={styles.toolbarTitle}>
-                  <Type variant="title2" accessibilityRole="header" numberOfLines={1} style={styles.toolbarTitleText}>
-                    {view === "all" || view === "unread" || view === "action" ? VIEW_TITLE[view] : CATEGORY_LABEL[view]}
-                  </Type>
-                  <Type variant="caption" style={styles.toolbarCount}>{visible.length}</Type>
+                  {listedNew > 0 ? (
+                    <>
+                      <Type variant="title2" accessibilityRole="header" numberOfLines={1} style={styles.toolbarTitleText}>Unread</Type>
+                      <Type variant="caption" style={styles.toolbarCount}>{listedNew}</Type>
+                    </>
+                  ) : (
+                    <View style={styles.caughtUp}>
+                      <Ionicons name="checkmark-done" size={17} color={KOLA} />
+                      <Type variant="bodyStrong" accessibilityRole="header" numberOfLines={1} style={styles.caughtUpText}>You’re all caught up</Type>
+                    </View>
+                  )}
                 </View>
                 {unread > 0 ? (
                   <Pressable
@@ -234,7 +222,6 @@ export default function NotificationsScreen() {
                     {density.veryCompact ? null : <Type variant="captionStrong" style={styles.readAllText}>Read all</Type>}
                   </Pressable>
                 ) : null}
-                <FilterButton count={view === "all" ? 0 : 1} tone="kola" onPress={() => setFiltering(true)} />
               </View>
             ) : null}
           </View>
@@ -242,110 +229,31 @@ export default function NotificationsScreen() {
         renderSectionHeader={({ section }) => (
           <View style={styles.sectionHeading}>
             <GroupLabel count={section.data.length} tone={section.urgent ? LATERITE : undefined}>{section.title}</GroupLabel>
+            {section.note ? <Type variant="caption" style={styles.sectionNote}>{section.note}</Type> : null}
           </View>
         )}
         renderSectionFooter={() => <View style={styles.sectionFooter} />}
         renderItem={({ item, index, section }) => (
           <ListRow first={index === 0} last={index === section.data.length - 1}>
-            <UpdateRow item={item} onPress={() => open(item)} />
+            <UpdateRow item={item} past={section.key === "recent"} onPress={() => open(item)} />
             {/* Drawn over the row rather than between rows, so an unread rule runs unbroken. */}
             {index === 0 ? null : <View pointerEvents="none" style={styles.rule} />}
           </ListRow>
         )}
-        ListFooterComponent={visible.length > PAGE_SIZE ? (
-          <MobilePagination
-            page={currentPage}
-            pages={pageCount}
-            total={visible.length}
-            onPage={changePage}
-          />
-        ) : null}
         ListEmptyComponent={(
           items === null ? (
             <UpdatesSkeleton />
-          ) : error ? null : items.length === 0 ? (
+          ) : error && !items.length ? null : (
             <EmptyState
-              icon="notifications-outline"
+              icon="checkmark-done-outline"
               hero
-              title="Nothing here yet"
-              hint="Rental, application, agreement and payment news will appear here."
-            />
-          ) : (
-            <EmptyState
-              icon="checkmark-circle-outline"
-              title={view === "action" ? "Nothing needs your attention" : "Nothing in this view"}
-              hint="Choose another filter to see the rest of your history."
+              title="You’re all caught up"
+              hint="New rental, application, agreement and payment updates appear here. Reminders clear once read; your ten most recent activities stay."
             />
           )
         )}
       />
-
-      <BottomSheet
-        visible={filtering}
-        onClose={() => setFiltering(false)}
-        title="Filter"
-        hideTitle
-        closeLabel="Close filter"
-        footer={<SheetFooter
-          canReset={view !== "all"}
-          onReset={() => selectView("all")}
-          results={visible.length}
-          onShow={() => setFiltering(false)}
-        />}
-      >
-        <FilterGroup title="Show">
-          <ChoiceRow first icon="albums-outline" label="All" count={items?.length ?? 0} selected={view === "all"} onPress={() => selectView("all")} />
-          <ChoiceRow first={false} icon="mail-unread-outline" label="Unread" count={counts.unread} selected={view === "unread"} onPress={() => selectView("unread")} />
-          <ChoiceRow first={false} icon="flash-outline" label="Action needed" count={counts.action} selected={view === "action"} onPress={() => selectView("action")} />
-        </FilterGroup>
-        {topics.length ? (
-          <FilterGroup title="Topic">
-            {topics.map((category, index) => (
-              <ChoiceRow
-                key={category}
-                first={index === 0}
-                icon={CATEGORY_ICON[category]}
-                label={CATEGORY_LABEL[category]}
-                count={counts[category]}
-                selected={view === category}
-                onPress={() => selectView(category)}
-              />
-            ))}
-          </FilterGroup>
-        ) : null}
-      </BottomSheet>
     </IndexGround>
-  );
-}
-
-function MobilePagination({ page, pages, total, onPage }: { page: number; pages: number; total: number; onPage: (page: number) => void }) {
-  const first = (page - 1) * PAGE_SIZE + 1;
-  const last = Math.min(page * PAGE_SIZE, total);
-  return (
-    <View style={styles.pagination} accessibilityRole="toolbar" accessibilityLabel="Updates pages">
-      <Type variant="caption" style={styles.pageRange}><Type variant="captionStrong" style={styles.pageRangeStrong}>{first}–{last}</Type> of {total}</Type>
-      <View style={styles.paginationActions}>
-        <PageButton icon="chevron-back" label="Previous page" disabled={page === 1} onPress={() => onPage(page - 1)} />
-        <Type variant="captionStrong" style={styles.pageNumber}>{page} / {pages}</Type>
-        <PageButton icon="chevron-forward" label="Next page" disabled={page === pages} onPress={() => onPage(page + 1)} />
-      </View>
-    </View>
-  );
-}
-
-function PageButton({ icon, label, disabled, onPress }: { icon: "chevron-back" | "chevron-forward"; label: string; disabled: boolean; onPress: () => void }) {
-  return (
-    <Pressable
-      onPress={onPress}
-      disabled={disabled}
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      aria-disabled={disabled}
-      {...pressableFeedback(alpha(KOLA, 0.14))}
-      style={({ pressed }) => [styles.pageButton, disabled && styles.pageButtonDisabled, pressed ? styles.pressed : null]}
-    >
-      <Ionicons name={icon} size={18} color={KOLA_DEEP} />
-    </Pressable>
   );
 }
 
@@ -354,10 +262,11 @@ function PageButton({ icon, label, disabled, onPress }: { icon: "chevron-back" |
  * it stands in words. Unread keeps its left rule in the update's colour — never a
  * dot — and a heavier title; what wants a reply says so beside its status.
  */
-function UpdateRow({ item, onPress }: { item: Notification; onPress: () => void }) {
+function UpdateRow({ item, past = false, onPress }: { item: Notification; past?: boolean; onPress: () => void }) {
   const tone = notificationTone(item);
   const palette = tonePalette(tone);
-  const actionable = needsYou(item);
+  // A weeks-old prompt in Recent is history: no "Review now" on it.
+  const actionable = needsYou(item) && !past;
   return (
     <Pressable
       onPress={onPress}
@@ -438,31 +347,6 @@ function tonePalette(tone: NotificationTone) {
   }[tone];
 }
 
-function groupUpdates(items: Notification[], pullActionForward: boolean): UpdateSection[] {
-  const action = pullActionForward ? items.filter(needsYou) : [];
-  const timeline = pullActionForward ? items.filter((item) => !needsYou(item)) : items;
-  const buckets = new Map<string, Notification[]>();
-  for (const item of timeline) {
-    const key = timeBucket(item.created_at);
-    buckets.set(key, [...(buckets.get(key) ?? []), item]);
-  }
-  const groups: UpdateSection[] = [];
-  if (action.length) groups.push({ key: "attention", title: "Needs your attention", urgent: true, data: action });
-  for (const [key, title] of [["today", "Today"], ["week", "This week"], ["earlier", "Earlier"]] as const) {
-    const grouped = buckets.get(key);
-    if (grouped?.length) groups.push({ key, title, data: grouped });
-  }
-  return groups;
-}
-
-function timeBucket(value: string): "today" | "week" | "earlier" {
-  const at = new Date(value);
-  const now = new Date();
-  if (at.toDateString() === now.toDateString()) return "today";
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-  return startOfToday - at.getTime() < 7 * 24 * 60 * 60 * 1000 ? "week" : "earlier";
-}
-
 const styles = StyleSheet.create({
   header: {
     gap: space[3],
@@ -511,7 +395,23 @@ const styles = StyleSheet.create({
     color: KOLA_DEEP,
   },
   sectionHeading: {
+    gap: space[1],
     paddingBottom: space[2],
+  },
+  sectionNote: {
+    paddingHorizontal: space[1],
+    fontSize: 12.5,
+    lineHeight: 17,
+    color: MUTED,
+  },
+  caughtUp: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space[2],
+  },
+  caughtUpText: {
+    flexShrink: 1,
+    color: KOLA_DEEP,
   },
   sectionFooter: {
     height: space[5],
@@ -595,47 +495,6 @@ const styles = StyleSheet.create({
   },
   chevron: {
     alignSelf: "center",
-  },
-  pagination: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: space[3],
-    paddingVertical: space[2],
-    paddingLeft: 14,
-    paddingRight: space[2],
-    borderRadius: PANEL_RADIUS,
-    borderWidth: 1,
-    borderColor: EDGE,
-    backgroundColor: GLASS,
-  },
-  pageRange: {
-    color: MUTED,
-  },
-  pageRangeStrong: {
-    color: INK,
-  },
-  paginationActions: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: space[2],
-  },
-  pageButton: {
-    width: 40,
-    height: 40,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 20,
-    backgroundColor: theme.color.kola["50"],
-  },
-  pageButtonDisabled: {
-    opacity: 0.4,
-  },
-  pageNumber: {
-    minWidth: 44,
-    textAlign: "center",
-    color: KOLA_DEEP,
-    fontVariant: ["tabular-nums"],
   },
   pressed: {
     opacity: 0.72,

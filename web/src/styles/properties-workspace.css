@@ -1,0 +1,411 @@
+/* The Portfolio's Properties, as cards on the shared workspace canvas
+   (`workspace.css`). A card leads with the Property's name; its photograph sits
+   in the lower corner, cut by the card's edge, so a building is recognized at a
+   glance without the picture taking the card over. The numbers a manager scans
+   for sit beside dots. Actions wake when a card is reached for. Adding a
+   Property is a card too — a dashed ghost of the Property it will become, which
+   fills in when pointed at. */
+
+.properties-canvas { gap: var(--space-6); }
+.properties-panel-head .ws-panel-tools { flex: 1 1 auto; flex-wrap: wrap; }
+
+.property-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 20rem), 1fr));
+  gap: var(--space-4);
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.property-card-item {
+  min-width: 0;
+  animation: ws-rise var(--motion-duration-slow) var(--ws-enter) both;
+  animation-delay: calc(var(--property-order, 0) * 30ms);
+}
+
+/* --- a Property ------------------------------------------------------------- */
+
+.property-card {
+  --card-ring: rgba(33, 26, 21, .07);
+  position: relative;
+  display: grid;
+  align-content: start;
+  gap: var(--space-2);
+  height: 100%;
+  min-height: 15.5rem;
+  padding: var(--space-5) var(--space-5) var(--space-4);
+  overflow: hidden;
+  isolation: isolate;
+  background: linear-gradient(165deg, rgba(255, 255, 255, .92), rgba(255, 255, 255, .7));
+  border: 1px solid rgba(255, 255, 255, .9);
+  border-radius: var(--radius-lg);
+  box-shadow:
+    0 0 0 1px var(--card-ring),
+    0 1px 2px rgba(33, 26, 21, .04),
+    inset 0 1px 0 rgba(255, 255, 255, .95);
+  backdrop-filter: blur(12px) saturate(140%);
+  -webkit-backdrop-filter: blur(12px) saturate(140%);
+  transition:
+    transform var(--motion-duration-base) var(--ws-ease),
+    box-shadow var(--motion-duration-base) var(--ws-ease);
+}
+
+.property-card[data-tone="attention"] { --card-ring: color-mix(in srgb, var(--color-harmattan-500) 32%, transparent); }
+
+/* The name is the link; its ::after stretches over the card so the whole card
+   opens the Property, while the actions sit above it and stay their own links. */
+.property-card-link {
+  color: var(--color-ink-900);
+  text-decoration: none;
+  outline: none;
+}
+
+.property-card-link::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: inherit;
+}
+
+.property-card-name {
+  display: block;
+  max-width: calc(100% - 2rem);
+  overflow: hidden;
+  font-family: var(--font-display);
+  font-size: 1.1875rem;
+  font-weight: 650;
+  letter-spacing: -0.015em;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.property-card-where { margin: 0; color: var(--color-ink-500); font-size: .8125rem; }
+
+/* A sale is a different kind of Property, said at a glance in the corner. */
+.property-card-sale {
+  position: absolute;
+  top: var(--space-4);
+  right: var(--space-4);
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px 4px 8px;
+  color: var(--color-gold-700);
+  font-size: .75rem;
+  font-weight: 700;
+  letter-spacing: .01em;
+  background: var(--color-gold-50);
+  border-radius: var(--radius-pill);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-gold-500) 35%, transparent);
+  pointer-events: none;
+}
+
+.property-card-sale::before { content: ""; width: 6px; height: 6px; background: var(--color-gold-500); border-radius: 50%; }
+.property-card[data-purpose="sale"] .property-card-name { max-width: calc(100% - 6.5rem); }
+.property-card-status { margin-top: 2px; font-size: .8125rem; }
+
+.property-card-stats {
+  display: grid;
+  gap: 6px;
+  max-width: 62%;
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  list-style: none;
+  color: var(--color-ink-500);
+  font-size: .8125rem;
+}
+
+.property-card-stats li { display: flex; align-items: center; gap: var(--space-2); min-width: 0; white-space: nowrap; }
+.property-card-stats li::before { content: ""; width: 6px; height: 6px; flex: 0 0 auto; background: var(--dot, var(--color-ink-300)); border-radius: 50%; }
+.property-card-stats strong { color: var(--color-ink-900); font-weight: 650; font-variant-numeric: tabular-nums; }
+.property-card-stats [data-dot="kola"] { --dot: var(--color-kola-600); }
+.property-card-stats [data-dot="lagoon"] { --dot: var(--color-lagoon-600); }
+.property-card-stats [data-dot="gold"] { --dot: var(--color-gold-500); }
+.property-card-stats [data-dot="ink"] { --dot: var(--color-ink-300); }
+
+/* Occupancy as a hairline, so the ratio reads before the numbers do. */
+.property-card-meter {
+  position: relative;
+  display: block;
+  width: 58%;
+  height: 3px;
+  margin-top: var(--space-1);
+  overflow: hidden;
+  background: var(--color-field-100);
+  border-radius: 2px;
+}
+
+.property-card-meter span {
+  position: absolute;
+  inset: 0;
+  background: var(--color-kola-600);
+  border-radius: inherit;
+  transform-origin: left center;
+  transition: transform var(--motion-duration-slow) var(--ws-enter);
+}
+
+/* The photograph, set into the lower corner and cut by the card's edge. */
+.property-card-photo {
+  position: absolute;
+  right: -2.25rem;
+  bottom: -2.25rem;
+  z-index: 0;
+  display: grid;
+  place-items: center;
+  width: 10.5rem;
+  height: 10.5rem;
+  overflow: hidden;
+  color: var(--color-kola-600);
+  background: linear-gradient(145deg, var(--color-kola-50), color-mix(in srgb, var(--color-gold-100) 60%, var(--color-kola-50)));
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 6px rgba(255, 255, 255, .85),
+    0 0 0 7px rgba(33, 26, 21, .05),
+    -12px -12px 32px -18px rgba(12, 58, 42, .35);
+  transition: transform var(--motion-duration-slow) var(--ws-ease), box-shadow var(--motion-duration-slow) var(--ws-ease);
+}
+
+.property-card-photo img { width: 100%; height: 100%; object-fit: cover; }
+.property-card-photo .portal-icon { width: 28px; height: 28px; margin: -1.5rem 0 0 -1.5rem; opacity: .7; }
+
+/* The way in, and what can be done: quiet at rest, awake when reached for. */
+.property-card-actions {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: auto;
+  padding-top: var(--space-4);
+  pointer-events: none;
+}
+
+.property-card-go {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  color: var(--color-ink-700);
+  border-radius: 50%;
+  transition: background-color var(--motion-duration-base) var(--ws-ease), color var(--motion-duration-base) var(--ws-ease), transform var(--motion-duration-base) var(--ws-ease);
+}
+
+.property-card-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 2rem;
+  padding: 0 var(--space-3);
+  color: var(--color-kola-800);
+  font-size: .8125rem;
+  font-weight: 650;
+  text-decoration: none;
+  background: rgba(255, 255, 255, .85);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 0 0 1px var(--color-field-200), 0 1px 2px rgba(33, 26, 21, .05);
+  opacity: 0;
+  transform: translateY(4px);
+  transition:
+    opacity var(--motion-duration-base) var(--ws-ease),
+    transform var(--motion-duration-base) var(--ws-ease),
+    background-color var(--motion-duration-fast) var(--ws-ease),
+    box-shadow var(--motion-duration-fast) var(--ws-ease);
+}
+
+.property-card-action .portal-icon { width: 14px; height: 14px; }
+.property-card-action:hover { background: var(--color-kola-50); box-shadow: 0 0 0 1px var(--color-kola-300); }
+.property-card-action:active { transform: scale(.97); }
+.property-card-action:focus-visible { opacity: 1; transform: none; outline: var(--border-emphasis) solid var(--color-kola-600); outline-offset: 2px; }
+
+.property-card:hover,
+.property-card:focus-within {
+  --card-ring: color-mix(in srgb, var(--color-kola-600) 24%, transparent);
+  transform: translateY(-3px);
+  box-shadow:
+    0 0 0 1px var(--card-ring),
+    0 20px 40px -22px rgba(12, 58, 42, .32),
+    inset 0 1px 0 rgba(255, 255, 255, .95);
+}
+
+.property-card:hover .property-card-photo,
+.property-card:focus-within .property-card-photo {
+  transform: translate(-.5rem, -.5rem) scale(1.04);
+  box-shadow:
+    0 0 0 6px rgba(255, 255, 255, .9),
+    0 0 0 7px color-mix(in srgb, var(--color-kola-600) 18%, transparent),
+    -16px -16px 36px -18px rgba(12, 58, 42, .42);
+}
+
+.property-card:hover .property-card-go,
+.property-card:focus-within .property-card-go { color: var(--color-field-0); background: var(--color-kola-600); transform: translateX(2px); }
+
+.property-card:hover .property-card-action,
+.property-card:focus-within .property-card-action { opacity: 1; transform: none; pointer-events: auto; }
+
+.property-card:has(.property-card-link:active) { transform: translateY(-1px) scale(.995); transition-duration: var(--motion-duration-instant); }
+
+.property-card:has(.property-card-link:focus-visible) {
+  outline: var(--border-emphasis) solid var(--color-kola-600);
+  outline-offset: 3px;
+}
+
+.property-card-item.is-returned .property-card { animation: property-found 1.8s var(--ws-ease); }
+
+@keyframes property-found {
+  0%, 35% { box-shadow: 0 0 0 2px var(--color-kola-300), 0 20px 40px -22px rgba(12, 58, 42, .32); }
+}
+
+.property-card.is-skeleton { pointer-events: none; }
+.property-card-photo.is-skeleton-photo { background: var(--color-field-100); box-shadow: 0 0 0 6px rgba(255, 255, 255, .85); }
+
+/* --- adding one ----------------------------------------------------------------- */
+
+.property-add {
+  position: relative;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: var(--space-1);
+  height: 100%;
+  min-height: 15.5rem;
+  padding: var(--space-6);
+  overflow: hidden;
+  color: var(--color-ink-700);
+  text-align: center;
+  text-decoration: none;
+  background: rgba(255, 255, 255, .35);
+  border: 1.5px dashed var(--color-field-300);
+  border-radius: var(--radius-lg);
+  transition:
+    background-color var(--motion-duration-base) var(--ws-ease),
+    border-color var(--motion-duration-base) var(--ws-ease),
+    transform var(--motion-duration-base) var(--ws-ease);
+}
+
+.property-add strong { position: relative; z-index: 1; color: var(--color-ink-900); font-size: 1rem; font-weight: 650; }
+.property-add small { position: relative; z-index: 1; color: var(--color-ink-500); font-size: .8125rem; }
+
+.property-add-plus {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 3rem;
+  height: 3rem;
+  margin-bottom: var(--space-2);
+  color: var(--color-ink-500);
+  background: var(--color-field-0);
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px var(--color-field-200), 0 4px 12px -6px rgba(33, 26, 21, .18);
+  transition: background-color var(--motion-duration-base) var(--ws-ease), color var(--motion-duration-base) var(--ws-ease), transform var(--motion-duration-base) var(--ws-spring, var(--ws-ease));
+}
+
+.property-add-plus .portal-icon { width: 20px; height: 20px; color: inherit; }
+
+/* The ghost of a Property card, drawn in dashes behind the invitation. */
+.property-add-ghost {
+  position: absolute;
+  inset: var(--space-5);
+  display: grid;
+  align-content: start;
+  gap: var(--space-2);
+  pointer-events: none;
+  opacity: .55;
+  transition: opacity var(--motion-duration-base) var(--ws-ease);
+}
+
+.property-add-ghost-line { display: block; width: 34%; height: .5rem; background: var(--color-field-200); border-radius: 4px; transition: background-color var(--motion-duration-base) var(--ws-ease); }
+.property-add-ghost-line.is-title { width: 48%; height: .75rem; }
+.property-add-ghost-dots { display: grid; gap: 6px; margin-top: var(--space-3); }
+.property-add-ghost-dots i { display: block; width: 26%; height: .375rem; background: var(--color-field-200); border-radius: 3px; transition: background-color var(--motion-duration-base) var(--ws-ease); }
+.property-add-ghost-dots i:nth-child(2) { width: 20%; }
+.property-add-ghost-dots i:nth-child(3) { width: 16%; }
+
+.property-add-ghost-photo {
+  position: absolute;
+  right: calc(-1 * var(--space-5) - 2.25rem);
+  bottom: calc(-1 * var(--space-5) - 2.25rem);
+  width: 10.5rem;
+  height: 10.5rem;
+  border: 1.5px dashed var(--color-field-300);
+  border-radius: 50%;
+  transition: border-color var(--motion-duration-base) var(--ws-ease), background-color var(--motion-duration-base) var(--ws-ease), transform var(--motion-duration-slow) var(--ws-ease);
+}
+
+.property-add:hover,
+.property-add:focus-visible {
+  background: color-mix(in srgb, var(--color-kola-50) 55%, rgba(255, 255, 255, .6));
+  border-color: var(--color-kola-600);
+}
+
+.property-add:hover .property-add-ghost,
+.property-add:focus-visible .property-add-ghost { opacity: 1; }
+
+.property-add:hover .property-add-ghost-line,
+.property-add:hover .property-add-ghost-dots i,
+.property-add:focus-visible .property-add-ghost-line,
+.property-add:focus-visible .property-add-ghost-dots i { background: color-mix(in srgb, var(--color-kola-300) 45%, transparent); }
+
+.property-add:hover .property-add-ghost-photo,
+.property-add:focus-visible .property-add-ghost-photo {
+  background: color-mix(in srgb, var(--color-kola-50) 80%, transparent);
+  border-color: var(--color-kola-300);
+  transform: translate(-.5rem, -.5rem);
+}
+
+.property-add:hover .property-add-plus,
+.property-add:focus-visible .property-add-plus { color: var(--color-field-0); background: var(--color-kola-600); transform: rotate(90deg); }
+
+.property-add:active { transform: scale(.99); }
+.property-add:focus-visible { outline: var(--border-emphasis) solid var(--color-kola-600); outline-offset: 3px; }
+
+.properties-first { display: grid; gap: var(--space-1); padding: var(--space-2) var(--space-1) 0; }
+.properties-first h2 { margin: 0; color: var(--color-ink-900); font-size: 1rem; font-weight: 650; }
+.properties-first p { max-width: 52ch; margin: 0; color: var(--color-ink-500); font-size: .875rem; line-height: 1.5; }
+
+/* --- narrow ---------------------------------------------------------------------- */
+
+@media (max-width: 760px) {
+  /* Search takes its own line; the menus and the count share the next. */
+  .properties-panel-head { flex-wrap: wrap; row-gap: var(--space-2); }
+  .properties-panel-head .ws-panel-tools { display: contents; }
+  .properties-panel-head .ws-search { flex: 1 1 100%; width: 100%; }
+  .properties-panel-head .ws-range { margin-left: auto; }
+}
+
+@media (max-width: 480px) {
+  .property-card { min-height: 14rem; padding: var(--space-4); }
+  .property-card-photo { width: 8.5rem; height: 8.5rem; }
+  .property-card-stats { max-width: 66%; }
+}
+
+/* Touch has no hover: the actions stay awake and nothing lifts. */
+@media (hover: none) {
+  .property-card-action { opacity: 1; transform: none; pointer-events: auto; }
+  .property-card:hover { transform: none; }
+  .property-card:hover .property-card-photo { transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .property-card-item,
+  .property-card-item.is-returned .property-card { animation: none; }
+  .property-card,
+  .property-card-photo,
+  .property-card-go,
+  .property-card-action,
+  .property-card-meter span,
+  .property-add,
+  .property-add-plus,
+  .property-add-ghost,
+  .property-add-ghost-photo { transition: none; }
+  .property-card:hover,
+  .property-card:focus-within,
+  .property-card:hover .property-card-photo,
+  .property-add:hover .property-add-plus,
+  .property-add:hover .property-add-ghost-photo { transform: none; }
+}

@@ -38,11 +38,14 @@ test("the sheet asks in seven compact rows: a range, dropdowns, a segmented choi
   // heading over any of them and no title over the sheet, and it ends with the
   // two pills every sheet shares.
   assert.match(body, /title="Filters"\s+hideTitle\s+closeLabel="Close filters"/);
-  assert.equal((body.match(/<SheetCard>/g) ?? []).length, 4);
-  assert.match(body, /<SheetCard>\s*<PriceRange/);
+  // A fifth card first: Show, the choice that used to be a bar above the
+  // search (owner, 2026-10-05).
+  assert.equal((body.match(/<SheetCard>/g) ?? []).length, 5);
+  assert.match(body, /<SheetCard>\s*<ShowField mode=\{draft\} onChange=\{setDraft\} \/>\s*<\/SheetCard>[\s\S]{0,120}<SheetCard>\s*<PriceRange/);
   assert.match(body, /<SheetCard>\s*<SelectField\s+label="Sort by"/);
-  assert.match(body, /<SheetGlassButton label="Clear all" icon="refresh" disabled=\{!canClear\} onPress=\{onClear\} \/>/);
-  assert.match(body, /<SheetPrimaryButton label=\{resultLabel\} onPress=\{onClose\} \/>/);
+  // Clear all clears the side Show is set to; the button applies that side.
+  assert.match(body, /<SheetGlassButton label="Clear all" icon="refresh" disabled=\{!clear\.can\} onPress=\{clear\.onClear\} \/>/);
+  assert.match(body, /<SheetPrimaryButton label=\{applyLabel\} onPress=\{apply\} \/>/);
 
   // One dropdown open at a time, and none left open when the sheet comes back.
   assert.match(body, /const toggle = \(field: FilterMenu\) => setOpen\(\(current\) => \(current === field \? null : field\)\);/);

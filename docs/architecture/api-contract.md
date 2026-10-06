@@ -647,3 +647,52 @@ receipt, settlement or confirmed rent record. A Paystack intent's `next_action`
 may include the short-lived transaction `access_code` used by web InlineJS in
 addition to its guarded hosted-checkout URL. Popup callbacks, browser redirects
 and client-provided success never settle an obligation.
+
+## Maintenance requests
+
+`apps.maintenance`. A request belongs to the **tenancy** (not the lease or the
+room), so its history survives renewals; Property, Unit and bed are copied from
+the tenancy when it is made.
+
+- `GET /me/maintenance/` — the tenant's requests. `?status=open` for everything
+  unfinished, or one status by name.
+- `POST /me/maintenance/` — report a problem on an **active** tenancy the caller
+  holds. Body: `tenancy_id`, `category`, `description` (≥ 10 characters),
+  `photo_file_id` (**required**, exactly one), optional `video_file_id`,
+  `video_duration_ms`, `video_clip_start_ms`, `video_clip_end_ms`. Accepts an
+  `Idempotency-Key`.
+- `GET /organizations/:id/maintenance/` — requests on the Portfolio's
+  properties this member can see. Same `?status=` filter.
+- `GET /maintenance/:id/` — the request, its `events` history, and
+  `permissions` (`start`, `report_fixed`, `confirm`, `reopen`) for the reader.
+  Not found for anyone who is neither the tenant nor manages the property.
+- `POST /maintenance/:id/start/` — provider; `submitted|reopened → in_progress`.
+- `POST /maintenance/:id/fixed/` — provider, optional `note`;
+  `in_progress → awaiting_tenant_confirmation`.
+- `POST /maintenance/:id/confirm/` — tenant; `awaiting_tenant_confirmation → completed`.
+- `POST /maintenance/:id/reopen/` — tenant, `reason` required;
+  `awaiting_tenant_confirmation → reopened`.
+
+The wrong side gets `403`, a move out of order `409`. "Provider" is anyone
+`Property.is_managed_by` accepts; no verification or collection capability is
+required, because a repair is operational.
+
+**Media.** Files go through the normal upload pipeline: the photo as
+`maintenance_photo` (JPEG/PNG/WebP/HEIC, 12MB), the clip as `maintenance_video`
+(MP4/QuickTime/WebM, 30MB). Each must be owned by the reporter, ready and
+clean, and not already attached to another request. Clips are at most five
+seconds and are cut **on the device**. When a device cannot cut the file, it
+sends the five-second window instead (`video_clip_start_ms` / `_end_ms`, enforced
+by a database check constraint), and players honour it. A `video_duration_ms`
+over 5000 without a window is refused. Responses carry short-lived inline URLs
+for `photo` and `video`. `files.can_read` admits the tenant and the property's
+managers.
+
+**Events and notifications.** `maintenance.submitted|started|fixed_reported|confirmed|reopened.v1`
+are emitted through the outbox. The tenant is told when work starts and when a
+fix awaits their confirmation. The landlord on the tenancy's agreement and the
+property's manager are told about new, confirmed and reopened requests.
+Notifications carry `target_type: "maintenance_request"`.
+
+**Not yet:** vendors and assignment. They will be one more event kind and one
+nullable field on the request; the statuses do not change.

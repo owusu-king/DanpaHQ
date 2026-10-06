@@ -56,42 +56,43 @@ test("a request opens at its own address, not in a layer", () => {
   assert.match(rule(css(), ".request-row"), /text-decoration: none/);
 });
 
-test("the page is laid out the way Payments is", () => {
+test("the page is the shared workspace, with the counts as rings", () => {
   const body = code(list());
+  const provider = body.slice(body.indexOf("function ProviderApplications()"));
 
-  // Three counts, a search, the stages as pills, then the list — in that order.
+  // The rings, the stages, then one panel of rows — in that order.
   //
   // Matched as whole class names inside a className attribute, not as bare
-  // substrings: `indexOf("requests-search")` also finds `requests-searchX`, so
-  // renaming the element out of the page left this passing.
-  const order = ["requests-overview", "requests-search", "requests-filters", "requests-list"];
+  // substrings, so renaming an element out of the page cannot leave this passing.
+  const order = ["requests-overview", "ws-panel requests-panel", "requests-list"];
   let at = -1;
   for (const className of order) {
-    const found = body.search(new RegExp(`className="${className}"`));
+    const found = provider.search(new RegExp(`className="${className}"`));
     assert.notEqual(found, -1, `${className} is not rendered`);
     assert.ok(found > at, `${className} is out of order`);
     at = found;
   }
+  assert.ok(provider.indexOf("<SegmentedControl") > provider.indexOf('className="requests-overview"'), "the stages follow the counts");
+  assert.ok(provider.indexOf("<SegmentedControl") < provider.indexOf('className="ws-panel requests-panel"'), "the stages lead the panel");
+  assert.match(provider, /<PanelSearch label="Search tenancy requests" placeholder="Search person, Property or Unit"/);
 
-  // The counts are drawn like the money facts: equal columns, display numerals.
-  const overview = rule(css(), ".requests-overview");
-  assert.match(overview, /grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
-  assert.match(rule(css(), ".requests-overview dd"), /font-family: var\(--font-display\)/);
+  // Three rings: where every request stands, then each decision as a share of
+  // the decisions made — so a withdrawn request never counts against anyone.
+  assert.match(provider, /<DonutRing/);
+  assert.match(provider, /\{ value: counts\.action, tone: "harmattan" \}/);
+  assert.match(provider, /<OutcomeFigure label="Accepted" tone="accepted"/);
+  assert.match(provider, /<OutcomeFigure label="Declined" tone="declined"/);
+  assert.match(provider, /const decided = outcomes\.accepted \+ outcomes\.declined;/);
+  assert.match(rule(css(), ".requests-overview"), /grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
+  assert.match(rule(css(), ".requests-figure-value"), /font-family: var\(--font-display\)/);
+
+  // The legend is also a way in: each segment filters the list to its stage.
+  assert.match(provider, /onPick=\{\(\) => chooseStage\("action"\)\}/);
   assert.match(
     rule(paymentsCss(), ".payments-overview"),
     /grid-template-columns: repeat\(4, minmax\(0, 1fr\)\)/,
     "Payments must keep its settlement-aware overview",
   );
-
-  // The stages are pills, not underlined tabs: the same control Payments uses
-  // for all/overdue/outstanding.
-  assert.match(rule(css(), ".requests-filters button"), /border-radius: 999px/);
-  assert.match(css(), /\.requests-filters button\[aria-pressed="true"\][\s\S]{0,140}--color-kola-50/);
-  assert.doesNotMatch(css(), /\.requests-tab\b/);
-
-  // Search gets its own line rather than sharing one with the tabs.
-  assert.doesNotMatch(css(), /\.requests-controls/);
-  assert.match(rule(css(), ".requests-search"), /width: min\(100%, 30rem\)/);
 });
 
 test("accepted and declined count decisions, not departures", () => {
@@ -158,4 +159,44 @@ test("moving the record did not move the authority", () => {
   // Declining is still confirmed rather than fired from one press.
   assert.match(body, /title="Decline this request\?"/);
   assert.match(body, /setConfirmingDecline\(true\)/);
+});
+
+test("a request opens in a sheet, and the agreement is prepared in the same sheet", () => {
+  const list = code(read("web/app/applications/page.tsx"));
+  const modal = code(read("web/src/components/requests/RequestModal.tsx"));
+  const wizard = code(read("web/src/components/leases/LeaseWizard.tsx"));
+  const entry = code(read("web/src/components/property/SpaceTenantAccess.tsx"));
+
+  // A plain click reads the request over the list, kept in the address; the
+  // row is still a link, so a new tab lands on the request's own page.
+  assert.match(list, /search\.get\("request"\)/);
+  assert.match(list, /<RequestModal item=\{opened\}/);
+  assert.match(list, /event\.preventDefault\(\);\s*onPeek\(\)/);
+
+  // One sheet: preparing widens it into the wizard rather than stacking a dialog.
+  assert.match(modal, /className=\{`request-sheet\$\{spec \? " is-wizard" : ""\}`\}/);
+  assert.match(modal, /<LeaseWizard/);
+  // Preparing is a deeper view of the sheet, with Back to the request.
+  assert.match(modal, /onPrepareAgreement=\{nav\.push\}/);
+
+  // The wizard sends the same payload to the same endpoints as the builder did,
+  // and sending stays a separate press after the agreement is rendered.
+  assert.match(wizard, /draftLease\(\{/);
+  assert.match(wizard, /updateLease\(current\.id, payload\)/);
+  assert.match(wizard, /leaseAction\(current\.id, "ready"\)/);
+  assert.match(wizard, /leaseAction\(lease\.id, "offer"\)/);
+  assert.match(wizard, /workflow_version: "canonical_v1"/);
+
+  // Preparing no longer navigates away from the request.
+  assert.doesNotMatch(entry, /router\.push\(`\/leases\/new/);
+  assert.match(entry, /<LeaseWizardModal/);
+});
+
+test("a generated agreement stays with its request until it is sent", () => {
+  // `ready` is what finishing the builder leaves; read as settled, it dropped
+  // out of Agreement with no way to send it from the request.
+  const source = code(read("web/src/lib/tenancyRequests.ts"));
+  assert.match(source, /return status === "draft" \|\| status === "ready";/);
+  assert.match(source, /agreementUnsent\(item\.lease\.status\)/);
+  assert.match(source, /agreementUnsent\(item\.request\.lease_status\)/);
 });

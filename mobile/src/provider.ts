@@ -32,10 +32,21 @@ export type UploadedFile = {
 
 export async function uploadImage(
   asset: ImagePickerAsset,
-  purpose: "identity_document" | "property_document" | "property_photo" | "payment_evidence" | "avatar",
+  purpose:
+    | "identity_document"
+    | "property_document"
+    | "property_photo"
+    | "payment_evidence"
+    | "avatar"
+    | "maintenance_photo"
+    | "maintenance_video",
 ) {
-  const mime = asset.mimeType ?? "image/jpeg";
-  const filename = asset.fileName ?? `${purpose}-${Date.now()}.jpg`;
+  // A video picked without a declared type is an iPhone's QuickTime or an
+  // Android camera's MP4; the server sniffs the bytes either way.
+  const video = asset.type === "video" || purpose === "maintenance_video";
+  const mime = asset.mimeType ?? (video ? (asset.uri.toLowerCase().endsWith(".mov") ? "video/quicktime" : "video/mp4") : "image/jpeg");
+  const extension = { "video/quicktime": "mov", "video/mp4": "mp4", "video/webm": "webm", "image/png": "png" }[mime] ?? "jpg";
+  const filename = asset.fileName ?? `${purpose}-${Date.now()}.${extension}`;
   const blob = await (await fetch(asset.uri)).blob();
   const size = asset.fileSize ?? blob.size;
   const reservation = await apiFetch<Reservation>("/files/uploads/", {
@@ -273,6 +284,8 @@ export type Unit = {
   label: string;
   space_type: string;
   space_type_label: string;
+  /** Which details fit this kind of space; absent from an older API. */
+  asks?: { bedrooms: boolean; bathrooms: "count" | "yes_no" | "none"; floor: boolean };
   description: string;
   bedrooms: number;
   bathrooms: number;

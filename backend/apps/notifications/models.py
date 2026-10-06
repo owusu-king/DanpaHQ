@@ -79,6 +79,27 @@ class Notification(BaseModel):
         return self.read_at is not None
 
 
+class NotificationKey(models.Model):
+    """Every dedupe key ever sent, kept after the notification itself is gone.
+
+    People are not shown a log: a reminder is deleted once it is read, and only
+    the ten most recent activity records are kept (``services.prune``). The
+    unique key on ``Notification`` stopped being enough once rows could be
+    deleted — a sweep that relies on "already sent" (the lease-expiry alerts,
+    an outbox retry) would find nothing and send the same thing again. This is
+    the memory that survives the deletion. It holds no message, only the key.
+    """
+
+    key = models.CharField(max_length=120, primary_key=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "notification_key"
+
+    def __str__(self) -> str:
+        return self.key
+
+
 class NotificationPreference(BaseModel):
     """What a person wants to be told, and how.
 
@@ -96,6 +117,17 @@ class NotificationPreference(BaseModel):
     #: Even with SMS on, only the things worth a text: a confirmed viewing, a
     #: decision on an application. Chatter stays in the app.
     sms_important_only = models.BooleanField(default=True)
+    #: Where texts go. Blank means the number the account signs in with, which
+    #: is right for most people; a caretaker's or office line is the exception.
+    sms_number = models.CharField(max_length=16, blank=True)
+    #: Kept ready for the WhatsApp channel. Nothing is sent there until that
+    #: channel is connected, and the client says so rather than implying it.
+    whatsapp_enabled = models.BooleanField(default=False)
+    whatsapp_number = models.CharField(max_length=16, blank=True)
+    #: Which kinds of alert may leave the app, by topic (see
+    #: ``services.ALERT_TOPICS``). A missing topic is on. Updates keeps every
+    #: record whatever is chosen here: this governs interruptions, not history.
+    alerts = models.JSONField(default=dict, blank=True)
 
     class Meta:
         db_table = "notification_preference"

@@ -2,55 +2,33 @@
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 
-import { AgreementDetailModal } from "@/components/tenant/AgreementRecord";
-import { Notice } from "@/components/Notice";
-import { Empty, LoadingRows, PageHeader } from "@/components/portal/PageHeader";
+import { AgreementSheet, agreementTone, type AgreementTone } from "@/components/tenant/AgreementRecord";
+import { LoadingRows, PageHeader } from "@/components/portal/PageHeader";
 import { Icon } from "@/components/portal/icons";
+import { NextUp, PanelSearch, PanelSkeleton, PanelState, SegmentedControl, WorkspaceHead } from "@/components/workspace/Workspace";
 import {
   agreedTerms,
   agreementFilters,
   homeOf,
+  money,
   matchesAgreementFilter,
+  per,
   standing,
   type AgreementFilter,
 } from "@/lib/agreementMeaning";
 import { ApiFailure } from "@/lib/api";
-import { listGrantedLeases, type Lease } from "@/lib/console";
-import {
-  LEASE_FILTERS,
-  leaseFilterLabel,
-  leasePlace,
-  leaseSearchText,
-  leaseTenant,
-  leaseTotals,
-  providerLeaseDate,
-  providerLeaseMoveIn,
-  providerLeaseRent,
-  providerLeaseStage,
-  providerLeaseStatus,
-  providerLeaseTone,
-  type LeaseFilter,
-} from "@/lib/leaseMeaning";
+import { type Lease } from "@/lib/console";
 import { useSession } from "@/lib/session";
-import { getLeaseLedger, listMyLeases, type RentCharge } from "@/lib/tenant";
+import { listMyLeases } from "@/lib/tenant";
 import { onDate } from "@/lib/time";
 
 /**
- * Agreements on the places I manage.
- *
- * A lease is drafted from an accepted application, because that is where the
- * terms were actually negotiated — the advance in particular is usually the
- * number the applicant offered, not the one the listing asked for. Retyping it
- * is how the two drift apart.
- */
-/**
  * Leases, from whichever side this account is on.
  *
- * A provider grants them; a tenant holds one. The tenant reading is the rent
- * ledger — what is owed, what is paid, and when — because that is what someone
- * opens their agreement to find out.
+ * A provider grants them; a tenant holds one. The provider's list moved into
+ * Documents; the tenant's reads as Agreements.
  */
 export default function LeasesPage() {
   return (
@@ -73,21 +51,19 @@ function LeasesContent() {
 }
 
 /**
- * The agreements this person holds.
+ * The agreements this person holds, on the shared workspace.
  *
- * The index is deliberately recognition-only: home, Unit, standing, one useful
- * date and the way into the record. Money, parties, conditions and acceptance
- * evidence belong to the reading surface, where the tenant can understand the
- * complete agreement before acting. Modified clicks retain the durable route.
+ * The index is recognition only: home, Unit, where it stands, one useful date
+ * and the way into the record. Money, parties, conditions and acceptance
+ * evidence belong to the record, where the tenant can read the whole agreement
+ * before acting — it opens in a sheet over the list, kept in the address. An
+ * agreement waiting for their answer is lifted above the list, because it is
+ * the one thing here that moves only when they do.
  */
 function TenantLeases() {
   const [leases, setLeases] = useState<Lease[] | null>(null);
   const [error, setError] = useState("");
-  const [filterOpen, setFilterOpen] = useState(false);
-  const [selectedLeaseId, setSelectedLeaseId] = useState<string | null>(null);
-  const [selectedCharges, setSelectedCharges] = useState<RentCharge[]>([]);
-  const filterRoot = useRef<HTMLDivElement>(null);
-  const filterButton = useRef<HTMLButtonElement>(null);
+  const [retrying, setRetrying] = useState(false);
 
   const router = useRouter();
   const pathname = usePathname();
@@ -95,36 +71,29 @@ function TenantLeases() {
   const filter: AgreementFilter =
     agreementFilters.map((option) => option.id).find((id) => id === search.get("show")) ?? "all";
   const query = search.get("q") ?? "";
+  // A plain click reads the agreement in a sheet over the list, kept in the
+  // address; the row is still a link to `/leases/<id>`.
+  const openId = search.get("agreement") ?? "";
 
+  // A reload keeps what is on screen, so an accepted agreement updates in the
+  // open sheet rather than the sheet losing it.
   const load = useCallback(async () => {
+    setError("");
     try {
       setLeases(await listMyLeases());
-      setError("");
     } catch (cause) {
-      setLeases([]);
+      setLeases((current) => current ?? []);
       setError(cause instanceof ApiFailure ? cause.error.message : "Could not load your agreements.");
     }
   }, []);
 
   useEffect(() => { void load(); }, [load]);
 
-  useEffect(() => {
-    if (!filterOpen) return;
-    const closeFromOutside = (event: PointerEvent) => {
-      if (!filterRoot.current?.contains(event.target as Node)) setFilterOpen(false);
-    };
-    const closeFromKeyboard = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      setFilterOpen(false);
-      filterButton.current?.focus();
-    };
-    document.addEventListener("pointerdown", closeFromOutside);
-    document.addEventListener("keydown", closeFromKeyboard);
-    return () => {
-      document.removeEventListener("pointerdown", closeFromOutside);
-      document.removeEventListener("keydown", closeFromKeyboard);
-    };
-  }, [filterOpen]);
+  const retry = useCallback(async () => {
+    setRetrying(true);
+    await load();
+    setRetrying(false);
+  }, [load]);
 
   // Preserve old pane-era deep links by resolving them to the durable record.
   useEffect(() => {
@@ -136,6 +105,8 @@ function TenantLeases() {
     if (requested) router.replace(`/leases/${requested}` as never);
   }, [router, search]);
 
+  // `replace`, so filtering does not build a history trail somebody has to walk
+  // back through to leave the page.
   const setParams = useCallback((changes: Record<string, string>) => {
     const next = new URLSearchParams(search.toString());
     for (const [key, value] of Object.entries(changes)) {
@@ -148,12 +119,10 @@ function TenantLeases() {
 
   const chooseFilter = useCallback((nextFilter: AgreementFilter) => {
     setParams({ show: nextFilter === "all" ? "" : nextFilter });
-    setFilterOpen(false);
-    filterButton.current?.focus();
   }, [setParams]);
 
   const rows = useMemo<TenantAgreementRow[]>(
-    () => (leases ?? []).map((lease) => ({ lease, state: standing(lease) })),
+    () => (leases ?? []).map((lease) => ({ lease, state: standing(lease), tone: agreementTone(lease) })),
     [leases],
   );
 
@@ -181,136 +150,119 @@ function TenantLeases() {
       .sort((left, right) => priority[left.state.stage] - priority[right.state.stage]);
   }, [filter, query, rows]);
 
+  const loading = leases === null;
+  const none = !loading && rows.length === 0;
+  const failed = Boolean(error) && none;
   const current = visible.filter((row) => row.state.stage !== "past");
   const history = visible.filter((row) => row.state.stage === "past");
+  const waiting = rows.filter((row) => row.state.decisionOpen);
+  // Controls earn their space: search once there is a list to search, the
+  // stages once agreements sit in more than one of them.
   const showSearch = (leases?.length ?? 0) > 5 || Boolean(query);
   const showFilter = new Set(rows.map((row) => row.state.stage)).size > 1 || filter !== "all";
   const selectedLabel = agreementFilters.find((option) => option.id === filter)?.label ?? "Agreements";
   const unfilteredView = filter === "all" && !query.trim();
   const initialCurrentLimit = Math.min(current.length, history.length ? 4 : 5);
   const initialHistoryLimit = Math.min(history.length, Math.max(0, 5 - initialCurrentLimit));
-  const selectedLease = leases?.find((lease) => lease.id === selectedLeaseId) ?? null;
-
-  const openAgreement = useCallback((lease: Lease) => {
-    setSelectedLeaseId(lease.id);
-    setSelectedCharges([]);
-    if (lease.status === "active") {
-      void getLeaseLedger(lease.id)
-        .then((ledger) => setSelectedCharges(ledger.charges))
-        .catch(() => setSelectedCharges([]));
-    }
-  }, []);
+  const opened = openId ? leases?.find((lease) => lease.id === openId) ?? null : null;
+  const open = useCallback((lease: Lease) => setParams({ agreement: lease.id }), [setParams]);
+  const first = waiting[0] ? agreedTerms(waiting[0].lease) : null;
 
   return (
-    <div className="agreements tenant-agreements">
-      <PageHeader
+    <div className="ws-page agreements-workspace">
+      <WorkspaceHead
+        icon="leases"
         title="Agreements"
-        description={leases === null || error ? undefined : agreementSummary(counts, rows.length)}
+        summary={loading || failed ? null : none ? "Tenancy agreements landlords send you wait here for your answer." : (
+          <AgreementSummary counts={counts} />
+        )}
       />
 
-      {leases === null ? (
-        <AgreementLoading />
-      ) : error ? (
-        <div className="agreements-error">
-          <Notice tone="error" title={error} body="Check your connection and try again." />
-          <button type="button" onClick={() => void load()}>Try again</button>
-        </div>
-      ) : leases.length === 0 ? (
-        <div className="agreements-empty">
-          <Empty
-            title="No agreement yet"
-            body="When a landlord sends you an agreement, it will wait here for your review."
-            action={<Link href="/rentals" className="type-body-strong">Explore rentals &rarr;</Link>}
+      {unfilteredView && waiting[0] && first ? (
+        <NextUp
+          eyebrow={waiting[0].state.line}
+          title={first.propertyTitle}
+          detail={[first.unitLabel, waiting[0].lease.locality_name].filter(Boolean).join(" · ")}
+          hint={`${first.landlordName} sent this on ${onDate(waiting[0].lease.created_at)}. Read it, then accept or decline.`}
+          icon="leases"
+          more={{ count: waiting.length - 1, onShow: () => chooseFilter("action") }}
+          onOpen={() => open(waiting[0]!.lease)}
+          action={{ label: "Review & decide", onClick: () => open(waiting[0]!.lease) }}
+        />
+      ) : null}
+
+      {showFilter ? (
+        <SegmentedControl
+          label="Agreement stage"
+          value={filter}
+          options={agreementFilters.map((option) => ({ key: option.id, label: option.label, count: counts[option.id] }))}
+          onChange={chooseFilter}
+        />
+      ) : null}
+
+      <section className="ws-panel agreements-panel" aria-label={unfilteredView ? "Your agreements" : `${selectedLabel} agreements`} aria-busy={loading || undefined}>
+        {showSearch ? (
+          <div className="ws-panel-head">
+            <PanelSearch label="Search your agreements" placeholder="Search Property, Unit or landlord" value={query} onChange={(value) => setParams({ q: value })} />
+            <p className="ws-range"><strong>{visible.length}</strong> of {counts.all}</p>
+          </div>
+        ) : null}
+
+        {error && rows.length ? (
+          <div className="ws-inline-error" role="alert">
+            <Icon name="warning" /><span>{error}</span>
+            <button type="button" disabled={retrying} onClick={() => void retry()}>{retrying ? "Retrying…" : "Try again"}</button>
+          </div>
+        ) : null}
+
+        {loading ? <PanelSkeleton rows={3} /> : failed ? (
+          <PanelState
+            tone="error"
+            icon="warning"
+            title="Agreements didn’t load"
+            body={`${error} Check your connection and try again.`}
+            action={<button type="button" className="ws-action" disabled={retrying} onClick={() => void retry()}>{retrying ? "Retrying…" : "Try again"}</button>}
           />
-        </div>
-      ) : (
-        <>
-          {showSearch || showFilter ? (
-            <div className="agreements-tools">
-              {showSearch ? (
-                <label className="agreements-search">
-                  <span className="sr-only">Search your agreements</span>
-                  <Icon name="explore" />
-                  <input
-                    type="search"
-                    value={query}
-                    onChange={(event) => setParams({ q: event.target.value })}
-                    placeholder="Search Property, Unit or landlord"
-                  />
-                </label>
-              ) : <span />}
+        ) : none ? (
+          <PanelState
+            icon="leases"
+            title="No agreement yet"
+            body="When a landlord accepts your application and sends an agreement, it waits here for you to read and answer."
+            action={<Link href="/applications" className="ws-action is-primary"><Icon name="applications" />See your applications</Link>}
+          />
+        ) : visible.length ? (
+          <div className="ws-panel-body agreements-body" key={`${filter}:${query.trim() ? "q" : ""}`}>
+            {unfilteredView ? (
+              <>
+                {current.length ? <AgreementGroup title="Current" rows={current} initialLimit={initialCurrentLimit} onOpen={open} /> : null}
+                {history.length ? <AgreementGroup title="History" rows={history} initialLimit={initialHistoryLimit} historical onOpen={open} /> : null}
+              </>
+            ) : (
+              <AgreementGroup
+                key={`${filter}:${query}`}
+                title={query ? "Matches" : selectedLabel}
+                // The segment above already names a chosen stage.
+                quiet={!query}
+                rows={visible}
+                initialLimit={5}
+                historical={visible.every((row) => row.state.stage === "past")}
+                onOpen={open}
+              />
+            )}
+          </div>
+        ) : query ? (
+          <PanelState
+            icon="explore"
+            title={`Nothing matches “${query.trim()}”`}
+            body="Try another Property, Unit or landlord."
+            action={<button type="button" className="ws-action" onClick={() => setParams({ q: "" })}>Clear search</button>}
+          />
+        ) : (
+          <AgreementFilterEmpty filter={filter} onShowAll={() => chooseFilter("all")} />
+        )}
+      </section>
 
-              {showFilter ? (
-                <div className="agreements-filter" ref={filterRoot}>
-                  <button
-                    ref={filterButton}
-                    type="button"
-                    className={`agreement-filter-trigger${filter !== "all" ? " is-active" : ""}`}
-                    aria-expanded={filterOpen}
-                    aria-haspopup="menu"
-                    aria-controls="agreement-filter-menu"
-                    onClick={() => setFilterOpen((open) => !open)}
-                  >
-                    <Icon name="filters" />
-                    <span>{filter === "all" ? "All agreements" : selectedLabel}</span>
-                    <Icon name="chevron-down" />
-                  </button>
-
-                  {filterOpen ? (
-                    <div id="agreement-filter-menu" className="agreement-filter-panel" role="menu" aria-label="Agreement view">
-                      <AgreementFilterOption id="all" current={filter} count={counts.all} onSelect={chooseFilter} />
-                      <div className="agreement-filter-group" role="group" aria-label="Current agreements">
-                        <span className="agreement-filter-group-label">Current</span>
-                        {(["action", "active"] as const).map((id) => (
-                          <AgreementFilterOption key={id} id={id} current={filter} count={counts[id]} onSelect={chooseFilter} />
-                        ))}
-                      </div>
-                      <div className="agreement-filter-group" role="group" aria-label="Agreement history">
-                        <span className="agreement-filter-group-label">History</span>
-                        <AgreementFilterOption id="past" current={filter} count={counts.past} onSelect={chooseFilter} />
-                      </div>
-                    </div>
-                  ) : null}
-                </div>
-              ) : null}
-            </div>
-          ) : null}
-
-          {visible.length ? (
-            <div className="agreements-results">
-              {unfilteredView ? (
-                <>
-                  {current.length ? <AgreementGroup title="Current" rows={current} initialLimit={initialCurrentLimit} onOpen={openAgreement} /> : null}
-                  {history.length ? <AgreementGroup title="History" rows={history} initialLimit={initialHistoryLimit} historical onOpen={openAgreement} /> : null}
-                </>
-              ) : (
-                <AgreementGroup
-                  key={`${filter}:${query}`}
-                  title={query ? "Matches" : selectedLabel}
-                  rows={visible}
-                  initialLimit={5}
-                  historical={visible.every((row) => row.state.stage === "past")}
-                  onOpen={openAgreement}
-                />
-              )}
-            </div>
-          ) : query ? (
-            <Empty title="No matching agreements" body="Try another Property, Unit or landlord." />
-          ) : (
-            <AgreementFilterEmpty filter={filter} />
-          )}
-
-          {selectedLease ? (
-            <AgreementDetailModal
-              key={selectedLease.id}
-              lease={selectedLease}
-              charges={selectedCharges}
-              onChanged={load}
-              onClose={() => setSelectedLeaseId(null)}
-            />
-          ) : null}
-        </>
-      )}
+      <AgreementSheet lease={opened} onChanged={load} onClose={() => setParams({ agreement: "" })} />
     </div>
   );
 }
@@ -318,54 +270,26 @@ function TenantLeases() {
 type TenantAgreementRow = {
   lease: Lease;
   state: ReturnType<typeof standing>;
+  tone: AgreementTone;
 };
 
-function agreementSummary(counts: Record<AgreementFilter, number>, total: number): string {
-  if (counts.action === 1) return `One agreement is ready for review · ${total} record${total === 1 ? "" : "s"}`;
-  if (counts.action > 1) return `${counts.action} agreements need your review · ${total} records`;
-  if (counts.active > 0) return `${counts.active} current · ${total} agreement${total === 1 ? "" : "s"}`;
-  return `${total} agreement record${total === 1 ? "" : "s"}`;
-}
-
-function AgreementLoading() {
+/** The head's one live line: what needs them first, then what is in place. */
+function AgreementSummary({ counts }: { counts: Record<AgreementFilter, number> }) {
+  const total = counts.all;
   return (
-    <div className="agreements-loading" role="status" aria-label="Loading agreements">
-      {Array.from({ length: 3 }).map((_, index) => (
-        <div className="agreement-loading-row" key={index} aria-hidden="true">
-          <span className="skeleton agreement-loading-mark" />
-          <span className="agreement-loading-copy"><i className="skeleton" /><i className="skeleton" /></span>
-          <span className="skeleton agreement-loading-status" />
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function AgreementFilterOption({
-  id,
-  current,
-  count,
-  onSelect,
-}: {
-  id: AgreementFilter;
-  current: AgreementFilter;
-  count: number;
-  onSelect: (filter: AgreementFilter) => void;
-}) {
-  const label = agreementFilters.find((option) => option.id === id)?.label ?? id;
-  const active = current === id;
-  return (
-    <button
-      type="button"
-      role="menuitemradio"
-      aria-checked={active}
-      className={`agreement-filter-option${active ? " is-selected" : ""}`}
-      onClick={() => onSelect(id)}
-    >
-      <span>{label}</span>
-      <small>{count}</small>
-      <span className="agreement-filter-mark" aria-hidden="true">{active ? <Icon name="check" /> : null}</span>
-    </button>
+    <>
+      {counts.action === 1 ? (
+        <span data-tone="good">One agreement is waiting for your answer</span>
+      ) : counts.action > 1 ? (
+        <span data-tone="good">{counts.action} agreements are waiting for your answer</span>
+      ) : counts.active ? (
+        <strong>{counts.active} current</strong>
+      ) : (
+        <strong>Nothing waiting on you</strong>
+      )}
+      <span className="ws-summary-sep" aria-hidden="true">·</span>
+      {total} agreement{total === 1 ? "" : "s"}
+    </>
   );
 }
 
@@ -374,27 +298,30 @@ function AgreementGroup({
   rows,
   initialLimit,
   historical = false,
+  quiet = false,
   onOpen,
 }: {
   title: string;
   rows: TenantAgreementRow[];
   initialLimit: number;
   historical?: boolean;
+  /** No visible heading: something on screen already names this group. */
+  quiet?: boolean;
   onOpen: (lease: Lease) => void;
 }) {
   const pageSize = 5;
   const [limit, setLimit] = useState(initialLimit);
   const shown = rows.slice(0, limit);
   const remaining = rows.length - shown.length;
+  const headingId = `agreements-${title.toLocaleLowerCase("en-GH").replace(/\s+/g, "-")}`;
 
   return (
-    <section className={`agreement-group${historical ? " is-history" : ""}`}>
-      <header className="agreement-group-head">
-        <h2>{title}</h2>
-        <span aria-label={`${rows.length} ${rows.length === 1 ? "agreement" : "agreements"}`}>{rows.length}</span>
-      </header>
+    <section className={`ws-group agreement-group${historical ? " is-history" : ""}`} aria-labelledby={headingId}>
+      <h2 className={`ws-group-heading${quiet ? " ws-visually-hidden" : ""}`} id={headingId}>
+        {title}<span aria-label={`${rows.length} ${rows.length === 1 ? "agreement" : "agreements"}`}>{rows.length}</span>
+      </h2>
       <ul className="agreements-list">
-        {shown.map((row) => <AgreementRow key={row.lease.id} {...row} onOpen={onOpen} />)}
+        {shown.map((row, index) => <AgreementRow key={row.lease.id} {...row} order={index} onOpen={onOpen} />)}
       </ul>
       {remaining > 0 ? (
         <button
@@ -411,18 +338,20 @@ function AgreementGroup({
   );
 }
 
-function AgreementFilterEmpty({ filter }: { filter: AgreementFilter }) {
+function AgreementFilterEmpty({ filter, onShowAll }: { filter: AgreementFilter; onShowAll: () => void }) {
   const copy: Record<AgreementFilter, { title: string; body: string }> = {
     all: { title: "No agreements here", body: "Your agreements will appear here." },
-    action: { title: "Nothing needs you", body: "You have reviewed every agreement sent to you." },
+    action: { title: "Nothing needs you", body: "You have answered every agreement sent to you." },
     active: { title: "No current agreements", body: "Accepted agreements will stay easy to find here." },
     past: { title: "No agreement history", body: "Ended or declined agreements will remain available here." },
   };
   return (
-    <div className="agreement-filter-empty" role="status">
-      <strong>{copy[filter].title}</strong>
-      <span>{copy[filter].body}</span>
-    </div>
+    <PanelState
+      icon={filter === "action" ? "check" : "leases"}
+      title={copy[filter].title}
+      body={copy[filter].body}
+      action={filter === "all" ? undefined : <button type="button" className="ws-action" onClick={onShowAll}>Show all agreements</button>}
+    />
   );
 }
 
@@ -435,18 +364,27 @@ function agreementDate(lease: Lease, state: ReturnType<typeof standing>): { labe
   return { label: "Created", value: lease.created_at };
 }
 
-function AgreementRow({ lease, state, onOpen }: TenantAgreementRow & { onOpen: (lease: Lease) => void }) {
+function AgreementRow({
+  lease,
+  state,
+  tone,
+  order,
+  onOpen,
+}: TenantAgreementRow & { order: number; onOpen: (lease: Lease) => void }) {
   const terms = agreedTerms(lease);
   const unit = [terms.unitLabel, terms.bedLabel].filter(Boolean).join(" · ");
   const date = agreementDate(lease, state);
 
   return (
-    <li>
+    <li style={{ "--agreement-order": Math.min(order, 12) } as React.CSSProperties}>
       <Link
         href={`/leases/${lease.id}` as never}
         className={`agreement-row is-${state.stage}`}
+        data-tone={tone}
+        aria-haspopup="dialog"
         aria-label={`Open the agreement for ${homeOf(terms)}. ${state.line}.`}
         onClick={(event) => {
+          // A new tab or window goes to the record's own page, as a link should.
           if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
           event.preventDefault();
           onOpen(lease);
@@ -456,8 +394,10 @@ function AgreementRow({ lease, state, onOpen }: TenantAgreementRow & { onOpen: (
 
         <span className="agreement-row-identity">
           <strong>{terms.propertyTitle}</strong>
-          {unit ? <span className="agreement-row-unit">{unit}</span> : null}
-          {lease.locality_name ? <span className="agreement-row-place">{lease.locality_name}</span> : null}
+          <span className="agreement-row-place">
+            {unit ? <span className="agreement-row-unit">{unit}</span> : null}
+            {lease.locality_name ? <span>{lease.locality_name}</span> : null}
+          </span>
         </span>
 
         <span className={`agreement-row-standing is-${state.stage}`}>
@@ -465,161 +405,40 @@ function AgreementRow({ lease, state, onOpen }: TenantAgreementRow & { onOpen: (
           <strong>{state.line}</strong>
         </span>
 
-        <span className="agreement-row-date">
-          <small>{date.label}</small>
-          <time dateTime={date.value}>{onDate(date.value)}</time>
+        <span className="agreement-row-meta">
+          <span>{money(terms.rentMinor, terms.rentCurrency)}<small> / {per(terms.rentPeriod)}</small></span>
+          <time dateTime={date.value}>{date.label} {onDate(date.value)}</time>
         </span>
 
-        <span className="agreement-row-action">
-          <span>{state.decisionOpen ? "Review" : "View"}</span>
-          <Icon name="chevron-down" />
-        </span>
+        <svg className="agreement-row-arrow" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false">
+          <path d="m6 3.5 4.5 4.5L6 12.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
       </Link>
     </li>
   );
 }
-/** Provider-side date formatting. The tenant screens use `onDate`. */
+
 /**
- * Agreements granted, for a landlord or agent.
+ * The provider's Leases page moved into Documents.
  *
- * Laid out the way Payments and Tenancy requests are, because it is the same
- * job: a stack of records worked through in an order, each row opening one
- * where a decision gets made. A provider should learn that shape once.
- *
- * Three counts across the top, a search, the stages as filter pills, then the
- * list. It used to be a split view with the first row always opened into the
- * pane beside it — so arriving at Leases meant looking at somebody's agreement
- * chosen by sort order, whether or not you had asked for it.
+ * A lease is a document, so it lives with the others at `/documents`, in its
+ * Leases view, and opens over that page. Old addresses still arrive: the stage
+ * and search carry across, and a `#lease-` link from the pane era opens that
+ * agreement.
  */
 function ProviderLeases() {
   const router = useRouter();
-  // An agreement belongs to the Portfolio whose Property granted it, so this
-  // list is about the Portfolio being operated and no other.
-  const { activeContext } = useSession();
-  const preferred = activeContext?.startsWith("organization:")
-    ? activeContext.slice("organization:".length)
-    : "";
-  const [leases, setLeases] = useState<Lease[] | null>(null);
-  const [error, setError] = useState("");
-
   const search = useSearchParams();
-  const pathname = usePathname();
-  const stage: LeaseFilter = LEASE_FILTERS.find((value) => value === search.get("show")) ?? "send";
-  const query = search.get("q") ?? "";
 
-  const load = useCallback(async () => {
-    setLeases(null);
-    try {
-      setLeases(await listGrantedLeases(preferred ? { organization: preferred } : undefined));
-      setError("");
-    } catch (cause) {
-      if (cause instanceof ApiFailure && (cause.status === 401 || cause.status === 403)) {
-        router.push("/sign-in");
-        return;
-      }
-      setError(cause instanceof ApiFailure ? cause.error.message : "Could not load agreements.");
-      setLeases([]);
-    }
-  }, [preferred, router]);
-
-  useEffect(() => { void load(); }, [load]);
-
-  // Older links carry a lease hash. They used to open the pane; now they name a
-  // page, so send them there rather than leaving somebody on a list that
-  // silently ignored the thing they clicked.
   useEffect(() => {
-    if (!window.location.hash.startsWith("#lease-")) return;
-    router.replace(`/leases/${window.location.hash.slice("#lease-".length)}` as never);
-  }, [router]);
+    const next = new URLSearchParams({ view: "leases" });
+    const show = search.get("show");
+    const query = search.get("q");
+    if (show) next.set("show", show);
+    if (query) next.set("q", query);
+    if (window.location.hash.startsWith("#lease-")) next.set("lease", window.location.hash.slice("#lease-".length));
+    router.replace(`/documents?${next.toString()}` as never);
+  }, [router, search]);
 
-  // `replace`, so filtering does not build a history trail somebody has to walk
-  // back through to leave the page.
-  const setParams = useCallback((changes: Record<string, string>) => {
-    const next = new URLSearchParams(search.toString());
-    for (const [key, value] of Object.entries(changes)) {
-      if (value) next.set(key, value);
-      else next.delete(key);
-    }
-    const queryString = next.toString();
-    router.replace((queryString ? `${pathname}?${queryString}` : pathname) as never, { scroll: false });
-  }, [pathname, router, search]);
-
-  const counts = useMemo(() => {
-    const rows = leases ?? [];
-    return {
-      all: rows.length,
-      send: rows.filter((lease) => providerLeaseStage(lease) === "send").length,
-      current: rows.filter((lease) => providerLeaseStage(lease) === "current").length,
-      history: rows.filter((lease) => providerLeaseStage(lease) === "history").length,
-    };
-  }, [leases]);
-
-  const totals = useMemo(() => leaseTotals(leases ?? []), [leases]);
-
-  const visible = useMemo(() => {
-    const needle = query.trim().toLocaleLowerCase("en-GH");
-    return (leases ?? [])
-      .filter((lease) => stage === "all" || providerLeaseStage(lease) === stage)
-      .filter((lease) => !needle || leaseSearchText(lease).toLocaleLowerCase("en-GH").includes(needle))
-      .sort((a, b) => b.created_at.localeCompare(a.created_at));
-  }, [leases, query, stage]);
-
-  return (
-    <div className="leases-workspace">
-      <PageHeader title="Leases" description="Send prepared agreements, follow acceptance and keep the final record." />
-      {error ? <Notice tone="error" title={error} /> : null}
-
-      <dl className="leases-overview">
-        <LeaseCount label="Total agreements" value={totals.total} />
-        <LeaseCount label="Active" value={totals.active} tone="active" />
-        <LeaseCount label="Awaiting tenant" value={totals.awaiting} tone="awaiting" />
-      </dl>
-
-      <label className="leases-search">
-        <span className="sr-only">Search leases</span>
-        <input type="search" value={query} onChange={(event) => setParams({ q: event.target.value })} placeholder="Search tenant, Property or Unit" />
-      </label>
-
-      <div className="leases-filters" aria-label="Agreement stage">
-        {LEASE_FILTERS.map((value) => (
-          <button key={value} type="button" aria-pressed={stage === value} onClick={() => setParams({ show: value === "send" ? "" : value })}>
-            {leaseFilterLabel(value)} <span>{counts[value]}</span>
-          </button>
-        ))}
-      </div>
-
-      {leases === null ? <LoadingRows rows={4} /> : visible.length ? (
-        <ul className="leases-list">
-          {visible.map((lease) => <ProviderLeaseRow key={lease.id} lease={lease} />)}
-        </ul>
-      ) : <Empty
-        title={query ? "No matching agreements" : stage === "send" ? "Nothing to send" : stage === "current" ? "No current agreements" : stage === "history" ? "No agreement history yet" : "No agreements yet"}
-        body={query ? "Try a different tenant, Property or Unit." : stage === "send" ? "Prepare agreements from accepted tenancy requests. Saved drafts appear here before they are sent." : stage === "current" ? "Sent, accepted and active agreements appear here." : stage === "history" ? "Declined, withdrawn and ended agreements remain available as records." : "Agreements you prepare from accepted tenancy requests appear here."}
-        action={(stage === "send" || stage === "all") && !query ? <Link href="/applications" className="type-body-strong">Open tenancy requests →</Link> : undefined}
-      />}
-    </div>
-  );
-}
-
-function LeaseCount({ label, value, tone }: { label: string; value: number; tone?: "active" | "awaiting" }) {
-  return (
-    <div>
-      <dt className="type-caption">{label}</dt>
-      <dd data-tone={value > 0 ? tone : undefined}>{value}</dd>
-    </div>
-  );
-}
-
-function ProviderLeaseRow({ lease }: { lease: Lease }) {
-  return (
-    <li>
-      <Link href={`/leases/${lease.id}` as never} className="lease-row">
-        <span className="lease-row-person"><strong>{leaseTenant(lease)}</strong><span>{leasePlace(lease)}</span></span>
-        <span className="lease-row-terms">{providerLeaseRent(lease)}<small>{providerLeaseMoveIn(lease)} to move in</small></span>
-        <span className={`lease-row-state is-${providerLeaseTone(lease)}`}><i />{providerLeaseStatus(lease)}</span>
-        <span className="lease-row-date">{providerLeaseDate(lease)}</span>
-        <span className="lease-row-arrow" aria-hidden="true">›</span>
-      </Link>
-    </li>
-  );
+  return <><PageHeader title="Documents" /><LoadingRows /></>;
 }

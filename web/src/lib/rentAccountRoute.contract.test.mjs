@@ -44,8 +44,10 @@ test("the list opens it by navigating, not by covering itself", () => {
   assert.doesNotMatch(body, /RentAccountDialog/);
   assert.doesNotMatch(body, /selectedLeaseId/);
   assert.doesNotMatch(body, /rent-dialog/);
-  // The expense form is still a dialog, and should be: it is one short form.
-  assert.match(body, /payment-dialog/);
+  // The expense form is still a sheet over the page, and should be: it is one
+  // short form. It is the shared sheet now, like every other modal here.
+  assert.match(body, /className="payment-sheet expense-sheet"/);
+  assert.match(body, /<ModalSheet/);
 
   // Both lists that carry a lease id link to the same place.
   assert.match(body, /href=\{`\/payments\/\$\{tenant\.lease_id\}` as never\}/);
@@ -100,7 +102,9 @@ test("moving the account did not move the authority", () => {
   // High-consequence gates are the ledger endpoint's server answers; route
   // params and a current-tenant Portfolio row are not authority for an ended
   // account.
-  assert.match(body, /ledger\.permissions\.record_payment && !recording/);
+  assert.match(body, /\{ledger\.permissions\.record_payment \? \(/);
+  // Recording opens a small modal over the account (owner, 2026-10-05).
+  assert.match(body, /<ModalSheet\s+open=\{recording\}/);
   // Both halves, in that order: waiving is a closing decision, so the client
   // asks for the server's permission *and* the server's post-tenancy answer.
   // Neither is client state, and the server enforces the same pair again.
@@ -145,4 +149,84 @@ test("the words a payment's state is described in are written once", () => {
   assert.doesNotMatch(code(account()), /^function (paymentStatus|formatDate)\(/m);
   assert.match(code(list()), /from "@\/lib\/rentDisplay"/);
   assert.match(code(account()), /from "@\/lib\/rentDisplay"/);
+});
+
+test("a payment record opens in a sheet over the list", () => {
+  const body = code(list());
+  const modal = code(read("web/src/components/payments/PaymentRecordModal.tsx"));
+
+  // A plain click reads the record over the list, kept in the address; the row
+  // is still the link to the rent account, for a new tab.
+  assert.match(body, /search\.get\("record"\)/);
+  assert.match(body, /<PaymentRecordModal record=\{openedRecord\}/);
+  assert.match(body, /href=\{`\/payments\/\$\{payment\.lease_id\}` as never\}[\s\S]{0,300}event\.preventDefault\(\);\s*onPeek\(\)/);
+  // Refreshed in place, so it does not close under the person who acted.
+  assert.match(body, /onChanged=\{load\}/);
+
+  // The full record comes from the lease's ledger; the decision goes to the
+  // same endpoint the rent account uses, and only when it is owed.
+  assert.match(modal, /getLeaseLedger\(record\.lease_id\)/);
+  assert.match(modal, /rentPaymentAction\(payment\.id, action, reason\.trim\(\)\)/);
+  assert.match(modal, /awaiting && payment \?/);
+  assert.match(modal, /disabled=\{decision === "dispute" && !reason\.trim\(\)\}/);
+  assert.match(modal, /getPaymentEvidenceDownload\(file\.id\)/);
+  // "All their payments" leaves for the tenant's payment page, not a sheet.
+  assert.match(modal, /href=\{`\/payments\/\$\{record\.lease_id\}` as never\}>\s*All their payments/);
+  assert.doesNotMatch(modal, /\/payments\?due=/);
+
+  // The balance sheet does not repeat the page's Record payment: its foot is
+  // the latest receipt and the full account (owner, 2026-10-05).
+  const due = code(read("web/src/components/payments/RentDueModal.tsx"));
+  assert.doesNotMatch(due, /onRecord|Record payment/);
+  assert.match(due, /onViewReceipt\(latestReceipt\)\}><Icon name="details" \/>Receipt/);
+  assert.match(due, /href=\{`\/payments\/\$\{tenant\.lease_id\}` as never\}><Icon name="payments" \/>Full account/);
+});
+
+test("a balance opens in a sheet, and a receipt is read before it is printed", () => {
+  const body = code(list());
+  const due = code(read("web/src/components/payments/RentDueModal.tsx"));
+  const receipt = code(read("web/src/components/payments/ReceiptModal.tsx"));
+  const record = code(read("web/src/components/payments/PaymentRecordModal.tsx"));
+
+  // Rent due rows open the balance over the list; the row still links to the account.
+  assert.match(body, /search\.get\("due"\)/);
+  assert.match(body, /<RentDueModal/);
+  assert.match(due, /getLeaseLedger\(tenant\.lease_id\)/);
+  assert.match(due, /charge\.outstanding_minor > 0/);
+  // Recording starts on the tenant it was opened for.
+  assert.match(body, /initialTenant=\{recordFor\}/);
+
+  // The receipt is a view of the record's own sheet, with Back to the record.
+  assert.match(record, /onViewReceipt\(payment\.receipt_id!\)/);
+  assert.match(record, /nav\.push\(\{ kind: "receipt", id \}\)/);
+  assert.match(record, /<ReceiptView/);
+  assert.doesNotMatch(record, /<ReceiptModal/);
+  assert.match(receipt, /getPaymentReceipt\(receiptId\)/);
+  // Print prints the receipt as shown, from a hidden frame on this page (no
+  // tab that never renders); Download saves the issued PDF. Print left, Download right.
+  assert.match(receipt, /printElement\(article\.current/);
+  assert.match(receipt, /downloadBlob\(await getPaymentReceiptDocument\(receipt\.id\)/);
+  assert.match(receipt, /Print<\/Button>\s*<span className="rc-actions-spacer" \/>[\s\S]*?Download\s*<\/Button>/);
+  assert.doesNotMatch(receipt, /\/payments\/receipts\//);
+
+  // Links out of a sheet navigate without closing it first: the close reset
+  // the address after the link had started, and the page stayed.
+  for (const source of [record, due]) assert.doesNotMatch(source, /as never\} onClick=\{onClose\}/);
+});
+
+test("links to a tenancy or a tenant's payments open their sheets", () => {
+  // The old detail pages stay for a new tab; links inside the app open the sheets.
+  const home = code(read("web/app/home/page.tsx"));
+  assert.match(home, /`\/tenants\?tenant=\$\{tenant\.tenancy_id \?\? tenant\.occupancy_id\}`/);
+  assert.match(home, /`\/payments\?view=records&record=\$\{row\.id\}`/);
+  assert.doesNotMatch(home, /`\/tenants\/\$\{/);
+  assert.doesNotMatch(home, /href: `\/payments\/\$\{/);
+  assert.match(code(read("web/src/components/payments/RentAccount.tsx")), /`\/tenants\?tenant=\$\{tenant\.tenancy_id\}`/);
+
+  // Payments opens a tenant's sheet by lease, and can start recording for one.
+  const body = code(list());
+  assert.match(body, /tenant\.lease_id === openDueId/);
+  assert.match(body, /search\.get\("payfor"\)/);
+  // The sheet carries the payment history, not only what is owed.
+  assert.match(code(read("web/src/components/payments/RentDueModal.tsx")), /className="dm-history"/);
 });

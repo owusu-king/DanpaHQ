@@ -22,6 +22,7 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 import { Button } from "@/components/Button";
+import { CountStepper, StepActions, YesNo } from "@/components/creation/StepActions";
 import {
   CheckpointJourney,
   type CreationCheckpoint,
@@ -124,18 +125,14 @@ export default function NewSpacePage() {
         <h1 className="type-display-2" style={{ margin: 0 }}>
           Add Unit
         </h1>
-        <p
-          className="type-body"
-          style={{ color: "var(--color-ink-700)", margin: "var(--space-2) 0 0", maxWidth: "58ch" }}
-        >
-          A Unit is the space a tenant actually rents — {property.property_type === "hostel"
-            ? "one hostel room or one bed space"
-            : "one flat, room, shop or other rentable space"}. It sits inside {property.title || "this property"} and takes its
-          address, its location and its checks from it.
+        <p className="type-caption" style={{ margin: "var(--space-2) 0 0" }}>
+          In {property.title || "this property"}
         </p>
       </header>
 
-      <Progress current={step} reached={space ? STEPS.indexOf(step) : 0} />
+      {/* The icons move between steps once the Unit exists (owner, 2026-10-05);
+          before it is saved there is nothing for the later steps to hold. */}
+      <Progress current={step} reached={space ? STEPS.indexOf(step) : 0} canJump={Boolean(space)} onJump={setStep} />
 
       {step === "Details" ? (
         <DetailsStep
@@ -153,41 +150,35 @@ export default function NewSpacePage() {
 
       {step === "Amenities" && space ? (
         <section style={CARD}>
-          <StepHeading
-            title="What does this Unit have?"
-            body={`Only what belongs to ${
-              space.label || "this Unit"
-            } itself. Anything the whole compound shares — a borehole, a guard, parking — is recorded once on the property.`}
-          />
+          <StepHeading title="Amenities" body="Only this Unit’s own." />
+          {/* Continuing with nothing ticked is the skip. */}
           <SpaceAmenities
             scope="unit"
             id={space.id}
-            saveLabel="Save and continue"
+            saveLabel="Continue"
             onSaved={() => setStep("Photos")}
+            onBack={() => setStep("Details")}
             saveForLaterLabel="Save for later"
             onSavedForLater={() =>
               router.push(`/properties/${propertyId}/spaces/${space.id}` as never)
             }
-          />
-          <StepFooter
-            back={() => setStep("Details")}
-            skip={() => setStep("Photos")}
-            skipLabel="Skip for now"
           />
         </section>
       ) : null}
 
       {step === "Photos" && space ? (
         <section style={CARD}>
-          <StepHeading
-            title="Show the Unit"
-            body="Add the main view, then one clear photo of every amenity you selected. Two further context views are optional. These are also the photos a tenant sees."
-          />
+          <StepHeading title="Photos" body="Main view, plus one per amenity." />
           <SpacePhotos unitId={space.id} editable onChanged={reload} />
-          <StepFooter
-            back={() => setStep("Amenities")}
-            next={() => setStep("Review")}
-            saveLater={() => router.push(`/properties/${propertyId}/spaces/${space.id}` as never)}
+          <StepActions
+            primary={<Button onClick={() => setStep("Review")}>Continue</Button>}
+            links={[
+              { label: "Back", onClick: () => setStep("Amenities") },
+              {
+                label: "Save for later",
+                onClick: () => router.push(`/properties/${propertyId}/spaces/${space.id}` as never),
+              },
+            ]}
           />
         </section>
       ) : null}
@@ -221,20 +212,16 @@ function DetailsStep({
   const [label, setLabel] = useState(existing?.label ?? "");
   const [spaceType, setSpaceType] = useState(existing?.space_type ?? "");
   const [description, setDescription] = useState(existing?.description ?? "");
-  const [bedrooms, setBedrooms] = useState(String(existing?.bedrooms ?? 1));
-  const [bathrooms, setBathrooms] = useState(String(existing?.bathrooms ?? 1));
-  const [floor, setFloor] = useState(
-    existing?.floor_level === null || existing?.floor_level === undefined
-      ? ""
-      : String(existing.floor_level),
-  );
-  const [wing, setWing] = useState(existing?.wing ?? "");
+  const [bedrooms, setBedrooms] = useState(existing?.bedrooms ?? 1);
+  const [bathrooms, setBathrooms] = useState(existing?.bathrooms ?? 1);
+  const [floor, setFloor] = useState(existing?.floor_level ?? 0);
   const [entrance, setEntrance] = useState(existing?.entrance_note ?? "");
   const [buildingId, setBuildingId] = useState(existing?.building_id ?? "");
   const [buildings, setBuildings] = useState<Building[]>([]);
   const [options, setOptions] = useState<SpaceTypeOption[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [missing, setMissing] = useState<{ type?: string; name?: string }>({});
 
   useEffect(() => {
     void loadPropertyTypes()
@@ -251,167 +238,168 @@ function DetailsStep({
   }, [property.id, property.property_type]);
 
   const chosen = options.find((option) => option.value === spaceType) ?? null;
-  // Land has nothing to count. Asking invites a record claiming a plot has two
-  // bathrooms, which the backend refuses anyway.
-  const countsApply = chosen?.has_interior !== false;
+  // Only what fits this kind of space is asked (owner, 2026-10-05): a shop is
+  // asked whether it has a bathroom, never how many bedrooms; a hostel room is
+  // not asked for rooms; a bed space is asked neither. The backend serves the
+  // rule and clears anything a space is never asked.
+  const asks = chosen?.asks ?? null;
 
   async function submit(saveForLater = false) {
+    const problems = {
+      type: spaceType ? undefined : "Choose the Unit type.",
+      name: label.trim() ? undefined : "Give it a name, e.g. Flat A or Room 3.",
+    };
+    setMissing(problems);
+    if (problems.type || problems.name) {
+      setError("");
+      return;
+    }
     setBusy(true);
     setError("");
     try {
       const created = await createUnit(property.id, {
-        label,
+        label: label.trim(),
         space_type: spaceType,
         description,
-        bedrooms: countsApply ? Number(bedrooms || 0) : 0,
-        bathrooms: countsApply ? Number(bathrooms || 0) : 0,
-        floor_level: floor === "" ? null : Number(floor),
-        wing,
+        bedrooms: asks?.bedrooms ? bedrooms : 0,
+        bathrooms: asks?.bathrooms === "none" ? 0 : bathrooms,
+        floor_level: asks?.floor ? floor : null,
         entrance_note: entrance,
         ...(buildingId ? { building_id: buildingId } : {}),
       });
       if (saveForLater) onSaved(created);
       else onDone(created);
     } catch (cause) {
-      setError(cause instanceof ApiFailure ? cause.error.message : "That did not save.");
+      // The backend names the problem ("A commercial property cannot contain
+      // land…"), so it is shown as it is rather than as "That did not save."
+      setError(
+        cause instanceof ApiFailure
+          ? cause.error.message
+          : "Could not save: check your connection and try again.",
+      );
     } finally {
       setBusy(false);
     }
   }
 
+  const counts = asks
+    ? [asks.bedrooms, asks.bathrooms !== "none", asks.floor].some(Boolean)
+    : false;
+
   return (
     <section style={CARD}>
-      <StepHeading
-        title="What is being let here?"
-        body="Only what is true of this Unit. The address, the area and who holds the Property come from the Property itself."
-      />
+      <StepHeading title="The Unit" />
 
       <div style={{ display: "grid", gap: "var(--space-4)" }}>
-        <Select
-          label="What is let here?"
-          hint={
-            options.length
-              ? "Only what this kind of property can contain is offered."
-              : "Loading the options for this property…"
-          }
-          value={spaceType}
-          onChange={setSpaceType}
-          options={[
-            ["", "Choose one"] as const,
-            ...options.map((option) => [option.value, option.label] as const),
-          ]}
-        />
+        <div style={GRID}>
+          <Select
+            label="Unit type"
+            hint={options.length ? undefined : "Loading…"}
+            error={missing.type}
+            value={spaceType}
+            onChange={(next) => {
+              setSpaceType(next);
+              setMissing((current) => ({ ...current, type: undefined }));
+            }}
+            options={[
+              ["", "Choose one"] as const,
+              ...options.map((option) => [option.value, option.label] as const),
+            ]}
+          />
+          <Field
+            label="Name"
+            placeholder="e.g. Flat A, Room 3"
+            error={missing.name}
+            value={label}
+            maxLength={60}
+            onChange={(event) => {
+              setLabel(event.target.value);
+              setMissing((current) => ({ ...current, name: undefined }));
+            }}
+          />
+        </div>
+
+        {counts && asks ? (
+          <div className="count-row">
+            {asks.bedrooms ? (
+              <CountStepper label="Bedrooms" value={bedrooms} onChange={setBedrooms} min={1} />
+            ) : null}
+            {asks.bathrooms === "count" ? (
+              <CountStepper label="Bathrooms" value={bathrooms} onChange={setBathrooms} />
+            ) : asks.bathrooms === "yes_no" ? (
+              <YesNo
+                label="Own bathroom"
+                value={bathrooms > 0}
+                onChange={(yes) => setBathrooms(yes ? 1 : 0)}
+              />
+            ) : null}
+            {asks.floor ? (
+              <CountStepper
+                label="Floor"
+                value={floor}
+                onChange={setFloor}
+                max={60}
+                format={(value) => (value === 0 ? "Ground" : String(value))}
+              />
+            ) : null}
+          </div>
+        ) : null}
+
+        {buildings.length ? (
+          <Select
+            label="Building or block"
+            value={buildingId}
+            onChange={setBuildingId}
+            options={[
+              ["", "Not in a named block"] as const,
+              ...buildings.map((row) => [row.id, row.name] as const),
+            ]}
+          />
+        ) : null}
 
         <Field
-          label="What do you call it?"
-          hint="Flat A, Room 3, Ground floor shop. How you refer to it."
-          value={label}
-          autoFocus
-          onChange={(event) => setLabel(event.target.value)}
+          label="Entrance directions (optional)"
+          hint="Shared after a confirmed viewing."
+          placeholder="e.g. Blue door, top of the outside stairs"
+          value={entrance}
+          onChange={(event) => setEntrance(event.target.value)}
         />
 
         <label style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
           <span className="type-caption" style={{ color: "var(--color-ink-700)" }}>
-            Describe it
+            Description (optional)
           </span>
           <textarea
             value={description}
             onChange={(event) => setDescription(event.target.value)}
-            rows={4}
+            rows={3}
             maxLength={1500}
-            placeholder="Two bedrooms, both facing the yard. Prepaid meter of its own."
             className="type-body"
             style={TEXTAREA}
           />
-          <span className="type-caption" style={{ color: "var(--color-ink-500)" }}>
-            This stays with the space. A tenant using private access never sees a
-            listing, and this is what they read.
-          </span>
         </label>
 
-        {countsApply ? (
-          <div style={GRID}>
-            <Field
-              label="Bedrooms"
-              hint="0 for a single room."
-              inputMode="numeric"
-              value={bedrooms}
-              onChange={(event) => setBedrooms(event.target.value.replace(/\D/g, ""))}
-            />
-            <Field
-              label="Bathrooms"
-              inputMode="numeric"
-              value={bathrooms}
-              onChange={(event) => setBathrooms(event.target.value.replace(/\D/g, ""))}
-            />
-          </div>
+        {chosen?.accepts_bed_spaces ? (
+          <Notice tone="info" title="Add beds after saving" body="Let the room whole, or bed by bed." />
         ) : null}
 
-        <fieldset style={{ border: "none", margin: 0, padding: 0 }}>
-          <legend
-            className="type-label"
-            style={{ color: "var(--color-ink-500)", textTransform: "uppercase", padding: 0 }}
-          >
-            Where inside the property
-          </legend>
-          <p className="type-caption" style={{ margin: "var(--space-2) 0 var(--space-3)" }}>
-            Only what differs between two spaces at this address. All optional.
-          </p>
-          <div style={GRID}>
-            {buildings.length ? (
-              <Select
-                label="Building or block"
-                value={buildingId}
-                onChange={setBuildingId}
-                options={[
-                  ["", "Not in a named block"] as const,
-                  ...buildings.map((row) => [row.id, row.name] as const),
-                ]}
-              />
-            ) : null}
-            <Field
-              label="Floor"
-              hint="0 for ground."
-              inputMode="numeric"
-              value={floor}
-              onChange={(event) => setFloor(event.target.value.replace(/[^0-9-]/g, ""))}
-            />
-            <Field
-              label="Wing"
-              hint="Where one is named."
-              value={wing}
-              onChange={(event) => setWing(event.target.value)}
-            />
-          </div>
-          <div style={{ marginTop: "var(--space-4)" }}>
-            <Field
-              label="How to find the door"
-              hint="Shared only after a viewing is confirmed, never on a public page."
-              placeholder="Blue door at the top of the outside stairs"
-              value={entrance}
-              onChange={(event) => setEntrance(event.target.value)}
-            />
-          </div>
-        </fieldset>
-
-        {chosen?.accepts_bed_spaces ? (
+        {missing.type || missing.name ? (
           <Notice
-            tone="info"
-            title="You can add bed spaces to this room"
-            body="Save the room first, then add each bed. A bed can be let on its own, or you can let the whole room."
+            tone="error"
+            title={missing.type && missing.name ? "Two details missing" : "One detail missing"}
+            body={[missing.type, missing.name].filter(Boolean).join(" ")}
           />
         ) : null}
+        {error ? <Notice tone="error" title="This Unit was not saved" body={error} /> : null}
 
-        {error ? <Notice tone="error" title={error} /> : null}
-
-        <div style={{ display: "flex", gap: "var(--space-3)", flexWrap: "wrap" }}>
-          <Button onClick={() => void submit(false)} busy={busy} busyLabel="Saving…" disabled={!spaceType}>
-            Save and continue
-          </Button>
-          <Button variant="quiet" onClick={() => void submit(true)} busy={busy} disabled={!spaceType}>
-            Save for later
-          </Button>
-        </div>
+        <StepActions
+          primary={
+            <Button onClick={() => void submit(false)} busy={busy} busyLabel="Saving…">
+              Save and continue
+            </Button>
+          }
+          links={[{ label: "Save for later", onClick: () => void submit(true), disabled: busy }]}
+        />
       </div>
     </section>
   );
@@ -432,6 +420,7 @@ function ReviewStep({
   onSent: () => void;
   onReload: () => Promise<void>;
 }) {
+  const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -463,14 +452,13 @@ function ReviewStep({
   return (
     <section style={CARD}>
       <StepHeading
-        title="Send it for checking"
-        body="Our team looks at the photo against what you have said the space is. Until that passes, private access and advertising stay unavailable."
+        title="Send for checking"
+        body="We compare the photos with your details."
       />
 
       <dl style={{ display: "grid", gap: "var(--space-3)", margin: 0 }}>
-        <Row term="What is let" value={space.space_type_label} />
-        <Row term="Called" value={space.label || "Not named"} />
-        {space.description ? <Row term="Described as" value={space.description} /> : null}
+        <Row term="Type" value={space.space_type_label} />
+        <Row term="Name" value={space.label || "Not named"} />
         <Row
           term="Amenities"
           value={
@@ -488,59 +476,62 @@ function ReviewStep({
       {ready ? (
         <Notice
           tone="info"
-          title="What sending this does"
-          body="It goes to our team with the photos attached. You can keep working on the rest of the property meanwhile — nothing else waits on this."
+          title="Ready to send"
+          body="You can keep working meanwhile."
         />
       ) : waitingOnProperty ? (
         <Notice
           tone="info"
-          title="The entire property has to be verified first"
-          body={
-            permitted?.message ??
-            "This Unit can be sent once the Property's documents and photographs are approved together."
-          }
+          title="The property must be checked first"
+          body={permitted?.message}
         />
       ) : (
         <Notice
           tone="warning"
-          title={`${space.verification.required_outstanding} photo still needed`}
-          body="Go back a step and add the main interior view. It is the one thing photographs of the building cannot show."
+          title={`${space.verification.required_outstanding} required photo${
+            space.verification.required_outstanding === 1 ? "" : "s"
+          } missing`}
+          body="Go back to Photos to add them."
         />
       )}
 
       {error ? <Notice tone="error" title={error} /> : null}
 
-      <div style={{ display: "flex", gap: "var(--space-3)", flexWrap: "wrap" }}>
-        <Button onClick={send} busy={busy} busyLabel="Sending…" disabled={!ready}>
-          Send for checking
-        </Button>
-        <Button variant="quiet" onClick={onBack}>
-          Back
-        </Button>
-        <Link
-          href={`/properties/${propertyId}/spaces/${space.id}` as never}
-          className="type-caption"
-          style={{ alignSelf: "center", color: "var(--color-kola-600)" }}
-        >
-          Save for later →
-        </Link>
-        {waitingOnProperty ? (
-          <Link
-            href={`/properties/${propertyId}` as never}
-            className="type-caption"
-            style={{ alignSelf: "center", color: "var(--color-kola-600)" }}
-          >
-            Get the property checked →
-          </Link>
-        ) : null}
-      </div>
+      <StepActions
+        primary={
+          <Button onClick={send} busy={busy} busyLabel="Sending…" disabled={!ready}>
+            Send for checking
+          </Button>
+        }
+        links={[
+          { label: "Back", onClick: onBack },
+          {
+            label: "Save for later",
+            onClick: () => router.push(`/properties/${propertyId}/spaces/${space.id}` as never),
+          },
+          waitingOnProperty && {
+            label: "Get the property checked",
+            onClick: () => router.push(`/properties/${propertyId}` as never),
+          },
+        ]}
+      />
     </section>
   );
 }
 
 // --- small pieces -------------------------------------------------------------
 
-function Progress({ current, reached }: { current: Step; reached: number }) {
+function Progress({
+  current,
+  reached,
+  canJump,
+  onJump,
+}: {
+  current: Step;
+  reached: number;
+  canJump: boolean;
+  onJump: (step: Step) => void;
+}) {
   const checkpoints: CreationCheckpoint[] = STEPS.map((step, index) => ({
     key: step.toLowerCase(),
     label: step,
@@ -558,52 +549,26 @@ function Progress({ current, reached }: { current: Step; reached: number }) {
         checkpoints={checkpoints}
         label="BUILDING UNIT"
         ariaLabel="Unit creation checkpoints"
+        onSelect={(key) => {
+          const step = STEPS.find((row) => row.toLowerCase() === key);
+          if (step) onJump(step);
+        }}
+        canSelect={(checkpoint) => canJump || checkpoint.key === "details"}
       />
     </div>
   );
 }
 
-function StepHeading({ title, body }: { title: string; body: string }) {
+function StepHeading({ title, body }: { title: string; body?: string }) {
   return (
-    <div style={{ display: "grid", gap: "var(--space-2)" }}>
+    <div style={{ display: "grid", gap: "var(--space-1)" }}>
       <h2 className="type-title-2" style={{ margin: 0 }}>
         {title}
       </h2>
-      <p className="type-caption" style={{ margin: 0, maxWidth: "58ch" }}>
-        {body}
-      </p>
-    </div>
-  );
-}
-
-function StepFooter({
-  back,
-  next,
-  skip,
-  skipLabel,
-  saveLater,
-}: {
-  back: () => void;
-  next?: () => void;
-  skip?: () => void;
-  skipLabel?: string;
-  saveLater?: () => void;
-}) {
-  return (
-    <div style={{ display: "flex", gap: "var(--space-3)", flexWrap: "wrap" }}>
-      {next ? <Button onClick={next}>Continue</Button> : null}
-      {skip ? (
-        <Button variant="secondary" onClick={skip}>
-          {skipLabel ?? "Skip"}
-        </Button>
-      ) : null}
-      <Button variant="quiet" onClick={back}>
-        Back
-      </Button>
-      {saveLater ? (
-        <Button variant="quiet" onClick={saveLater}>
-          Save for later
-        </Button>
+      {body ? (
+        <p className="type-caption" style={{ margin: 0, maxWidth: "58ch" }}>
+          {body}
+        </p>
       ) : null}
     </div>
   );
@@ -641,6 +606,8 @@ const GRID: React.CSSProperties = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit, minmax(11rem, 1fr))",
   gap: "var(--space-4)",
+  // A hint under one field must not stretch the input beside it.
+  alignItems: "start",
 };
 
 const TEXTAREA: React.CSSProperties = {

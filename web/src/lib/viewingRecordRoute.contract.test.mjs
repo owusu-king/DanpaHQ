@@ -68,6 +68,24 @@ test("a viewing opens at its own address", () => {
   assert.match(rule(css(), ".viewing-row"), /text-decoration: none/);
 });
 
+test("a plain click reads the viewing in a sheet; the address still works", () => {
+  // Deciding on a viewing should not cost the place in the agenda, so a plain
+  // click opens the same record over the list, kept in the address. The row is
+  // still a link: a new tab, or a copied link, lands on the record's page.
+  const body = providerHalf();
+  assert.match(body, /search\.get\("viewing"\)/);
+  assert.match(body, /<ViewingModal viewing=\{opened\}/);
+  assert.match(body, /event\.metaKey \|\| event\.ctrlKey/);
+  assert.match(body, /event\.preventDefault\(\);\s*onPeek\(viewing\)/);
+
+  const modal = code(read("web/src/components/viewings/ViewingModal.tsx"));
+  assert.match(modal, /<ModalSheet/);
+  assert.match(modal, /<ProviderViewingRecord/);
+
+  // The record draws itself with classes, so the sheet and the page match.
+  assert.doesNotMatch(code(record()), /style=\{\{/);
+});
+
 test("nobody's viewing is opened for them", () => {
   // The pane fell back to `visible[0]`, so arriving at Viewings meant reading
   // an appointment picked by sort order.
@@ -76,23 +94,34 @@ test("nobody's viewing is opened for them", () => {
   assert.doesNotMatch(body, /const explicit =/);
 });
 
-test("the page is laid out the way Payments is", () => {
+test("the page is the shared workspace, read as an agenda", () => {
   const body = providerHalf();
 
-  const order = ["viewings-overview", "viewings-search", "viewings-filters", "viewings-list"];
+  // Head, stages, then one panel holding the search and the days — the frame
+  // Updates and Tenants use, so a provider learns the shape once.
+  const order = ["<WorkspaceHead", "<SegmentedControl", 'className="ws-panel"', "<PanelSearch", 'className="viewings-list"'];
   let at = -1;
-  for (const className of order) {
-    const found = body.search(new RegExp(`className="${className}"`));
-    assert.notEqual(found, -1, `${className} is not rendered`);
-    assert.ok(found > at, `${className} is out of order`);
+  for (const marker of order) {
+    const found = body.indexOf(marker);
+    assert.notEqual(found, -1, `${marker} is not rendered`);
+    assert.ok(found > at, `${marker} is out of order`);
     at = found;
   }
 
-  assert.match(rule(css(), ".viewings-overview"), /grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
-  assert.match(rule(css(), ".viewings-overview dd"), /font-family: var\(--font-display\)/);
-  assert.match(rule(css(), ".viewings-filters button"), /border-radius: 999px/);
-  assert.match(css(), /\.viewings-filters button\[aria-pressed="true"\][\s\S]{0,140}--color-kola-50/);
-  assert.match(rule(css(), ".viewings-search"), /width: min\(100%, 30rem\)/);
+  // The three counts live in the summary line now, not in tiles above the stages.
+  assert.match(body, /viewingTotals\(all\)/);
+  assert.match(body, /totals\.confirmed/);
+  assert.match(body, /totals\.completed/);
+  assert.doesNotMatch(body, /viewings-overview/);
+  assert.doesNotMatch(css(), /\.viewings-overview/);
+  assert.doesNotMatch(css(), /\.viewings-filters/);
+
+  // Cards whose face is the date: a large day number, weekday and month beside it.
+  assert.match(body, /function agendaOf\(/);
+  assert.match(body, /"Waiting for a time"/);
+  assert.match(body, /className="viewing-row-day"/);
+  assert.match(rule(css(), ".viewing-row-day"), /font-variant-numeric: tabular-nums/);
+  assert.match(rule(css(), ".viewing-row-day"), /font-size: 2\.75rem/);
 
   assert.doesNotMatch(css(), /\.viewings-tab\b/);
   assert.doesNotMatch(css(), /\.viewings-controls/);
@@ -112,8 +141,9 @@ test("the three counts do not repeat the pills below them", () => {
   }
 
   assert.match(providerHalf(), /viewingTotals\(all\)/);
-  assert.match(providerHalf(), /label="Confirmed"/);
-  assert.match(providerHalf(), /label="Completed"/);
+  // Said once, in the line under the title.
+  assert.match(providerHalf(), /\{totals\.confirmed\} confirmed/);
+  assert.match(providerHalf(), /\{totals\.completed\} completed/);
 });
 
 test("leaving a viewing and coming back lands where you left", () => {
@@ -178,4 +208,26 @@ test("the words a viewing is described in are written once", () => {
   // The tenant's mirrored module is left alone: this is the host's reading and
   // has no mobile counterpart.
   assert.doesNotMatch(read("web/src/lib/viewingMeaning.ts"), /providerViewing/);
+});
+
+test("a viewing whose day has gone is not upcoming, and All is one set of cards", () => {
+  // A confirmed viewing nobody checked in to keeps the status `confirmed`, so
+  // placing it by status alone left 24 September under Upcoming on the 29th.
+  const source = code(meaning());
+  const routing = source.slice(
+    source.indexOf("export function providerViewingView"),
+    source.indexOf("\n}", source.indexOf("export function providerViewingView")),
+  );
+  assert.match(routing, /viewingLapsed\(viewing, now\)/);
+  assert.match(routing, /viewing\.status === "confirmed" && !lapsed/);
+  assert.match(source, /export function viewingLapsed\(/);
+  // The count in the summary line stops counting them as confirmed too.
+  assert.match(source, /viewing\.status === "confirmed" && !viewingLapsed\(viewing\)/);
+
+  // "All" returns a single group without a heading; the working views keep theirs.
+  const body = providerHalf();
+  assert.match(code(list()), /if \(flat\) return \[\{ key: "all", title: ""/);
+  assert.match(body, /agendaOf\(visible, view === "history", view === "all"\)/);
+  assert.match(body, /\{day\.title \? \(/);
+  assert.doesNotMatch(code(list()), /title: "Earlier"/);
 });

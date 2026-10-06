@@ -69,10 +69,10 @@ test("the search lives in the address bar, and the list and the map ask it the s
   // Both chromes host `Explore`, which reads `mode` and hands Rent to the
   // listing browser and Buy to the sale browser — inside that same boundary.
   assert.equal(page.match(/<Suspense fallback=\{<ExploreFallback \/>\}>\s*<Explore \/>/g)?.length, 2);
-  // Explore opens on All; Rent and Buy are chosen (owner, 2026-09-29).
-  assert.match(page, /const mode = asked === "buy" \? "buy" : asked === "rent" \? "rent" : "all";/);
-  assert.match(page, /if \(mode === "all"\) return <AllBrowser modeSwitch=\{modeSwitch\} \/>;/);
-  assert.match(page, /<SaleBrowser modeSwitch=\{modeSwitch\} \/> : <ListingBrowser modeSwitch=\{modeSwitch\} \/>/);
+  // Explore opens on All; the console’s Show chip chooses Rent or Buy (owner, 2026-10-05).
+  assert.match(page, /if \(asked === "buy"\) return <SaleBrowser \/>;/);
+  assert.match(page, /if \(asked === "rent"\) return <ListingBrowser \/>;/);
+  assert.match(page, /return <AllBrowser \/>;/);
 });
 
 test("the map is a view of the search: opening, closing and failing never clear it", () => {
@@ -100,11 +100,12 @@ test("one control per width moves between the list and the map, and says where i
   const mapCss = read("web/src/styles/explore-map.css");
   const phone = between(mapCss, "@media (max-width: 63.999rem) {", "\n}");
 
-  // Wide screens: Map completes the compact Search / Filters toolbar. Phones:
-  // one floating switch. Both are named for where they go, and the map keeps no
-  // way out of its own.
-  assert.match(browser, /className="explore-map-toggle"\s+onClick=\{mapView \? showList : showMap\}/);
-  assert.match(between(browser, '<div className="explore-bar">', "{advancedOpen ? ("), /className="explore-map-toggle"/);
+  // Wide screens: Map ends the search pill (MapToggle). Phones: one floating
+  // switch. Both are named for where they go, and the map keeps no way out of
+  // its own.
+  assert.match(browser, /map=\{<MapToggle mapView=\{mapView\} onToggle=\{mapView \? showList : showMap\} \/>\}/);
+  // One row: search, chips, then Map (owner, 2026-10-05).
+  assert.match(read("web/src/components/explore/ExploreConsole.tsx"), /<div className="explore-bar">\{search\}<\/div>\s*<div className="ec-chips">\{chips\}<\/div>\s*\{map\}/);
   assert.doesNotMatch(between(browser, 'className="explore-feedback"', "\n  const notices"), /className="explore-map-toggle"/);
   assert.equal(browser.match(/className="explore-view-switch"/g)?.length, 1);
   assert.match(browser, /<button type="button" className="explore-view-switch" onClick=\{mapView \? showList : showMap\}>/);

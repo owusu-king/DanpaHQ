@@ -167,7 +167,7 @@ test("a stylesheet does not undo the control it now contains", () => {
 test("a setting is a switch, and one of several answers is not", () => {
   // "Send me an email when rent is due" is on or off. A checkbox reads as one
   // of several answers to a question, which is a different thing.
-  assert.match(code(read("web/app/settings/notifications/page.tsx")), /<Switch/);
+  assert.match(code(read("web/app/settings/preferences/page.tsx")), /<Switch/);
   assert.match(code(check()), /role="switch"/);
   // The visible text belongs to the row, so the control carries its own name.
   assert.match(code(check()), /aria-label=\{label\}/);
@@ -183,9 +183,7 @@ test("native desktop dialogs restore centering after the CSS reset", () => {
   // The reset removes the browser's default `dialog { margin: auto }`. Without
   // putting it back, showModal() pins an otherwise correct dialog to (0, 0).
   for (const [sheet, selector] of [
-    ["payments-workspace.css", ".payment-dialog"],
     ["tenants-workspace.css", ".lease-dialog"],
-    ["team-workspace.css", ".team-dialog"],
     ["listing-workspace.css", ".listing-lightbox"],
   ]) {
     assert.match(
@@ -194,6 +192,8 @@ test("native desktop dialogs restore centering after the CSS reset", () => {
       `${selector} will open at the upper-left instead of centred`,
     );
   }
+  // Team's dialogs are the shared sheet now, which centres itself the same way.
+  assert.match(rule(read("web/src/styles/doc-modal.css"), ".doc-modal"), /margin: auto/);
 });
 
 test("the field is drawn once, not once per screen", () => {

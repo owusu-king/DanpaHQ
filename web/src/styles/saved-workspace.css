@@ -1,0 +1,159 @@
+/* Saved, on the shared workspace (workspace.css).
+   The shared listing card on the same fixed columns as Explore, so one saved
+   place is one card and never a banner across the page. A short list offers a
+   quiet way to keep looking in the next column; a removed place folds into a
+   slim Undo tile in its own spot. */
+
+.saved-workspace { min-width: 0; }
+
+.saved-panel .ws-panel-head .ws-search { flex: 1 1 14rem; max-width: 22rem; }
+
+/* Fixed tracks: `auto-fill` keeps empty columns, so a lone card keeps a
+   card's width. `auto-fit` + 1fr was what stretched one card across the page. */
+.saved-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 16rem), 1fr));
+  gap: var(--space-5) var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.saved-grid > li { min-width: 0; animation: ws-rise var(--motion-duration-base) var(--ws-enter) both; }
+
+/* No longer open to rent: still recognisable, clearly stepped back. */
+.listing-card.is-unavailable .listing-card-photo { filter: grayscale(.7); opacity: .7; }
+.listing-card.is-unavailable .listing-price { color: var(--color-ink-500); }
+
+.listing-card-footnote {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px var(--space-3);
+  margin: var(--space-1) 0 0;
+  padding-top: var(--space-2);
+  color: var(--color-ink-500);
+  font-size: .75rem;
+  border-top: var(--border-hairline) solid var(--color-field-200);
+}
+
+.saved-gone { display: inline-flex; align-items: center; gap: 5px; color: var(--color-laterite-600); font-weight: 650; }
+.saved-gone .portal-icon { width: 13px; height: 13px; color: inherit; }
+
+/* --- a short list: the next column says what to do with it -------------------- */
+
+.saved-more-link {
+  display: grid;
+  align-content: center;
+  justify-items: start;
+  gap: var(--space-2);
+  height: 100%;
+  min-height: 14rem;
+  padding: var(--space-5);
+  color: inherit;
+  text-decoration: none;
+  background:
+    radial-gradient(120% 90% at 0% 0%, color-mix(in srgb, var(--color-kola-50) 85%, transparent), transparent 65%),
+    rgba(255, 255, 255, .55);
+  border: 1.5px dashed color-mix(in srgb, var(--color-kola-600) 30%, var(--color-field-300));
+  border-radius: var(--radius-lg);
+  transition: border-color var(--motion-duration-fast) var(--ws-ease), background-color var(--motion-duration-fast) var(--ws-ease), transform var(--motion-duration-base) var(--ws-ease);
+}
+
+.saved-more-mark {
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  color: var(--color-kola-600);
+  background: var(--color-field-0);
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-kola-600) 18%, transparent), 0 8px 18px -12px var(--color-kola-600);
+  transition: transform var(--motion-duration-base) var(--ws-ease);
+}
+
+.saved-more-mark .portal-icon { width: 20px; height: 20px; color: inherit; }
+.saved-more-link strong { color: var(--color-kola-800); font-family: var(--font-display); font-size: 1rem; font-weight: 600; }
+.saved-more-link > span:last-child { max-width: 24ch; color: var(--color-ink-500); font-size: .8125rem; line-height: 1.45; }
+.saved-more-link:hover { border-color: var(--color-kola-600); background-color: rgba(255, 255, 255, .8); }
+.saved-more-link:hover .saved-more-mark { transform: scale(1.06) rotate(-6deg); }
+.saved-more-link:active { transform: scale(.99); }
+.saved-more-link:focus-visible { outline: var(--border-emphasis) solid var(--color-kola-600); outline-offset: 3px; }
+
+/* --- removed, with Undo -------------------------------------------------------------- */
+
+.saved-removed {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  align-self: start;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4);
+  background: rgba(255, 255, 255, .78);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 0 0 1px rgba(33, 26, 21, .08);
+  animation: saved-fold var(--motion-duration-slow) var(--ws-enter) both;
+}
+
+.saved-removed-mark { display: grid; place-items: center; width: 2.25rem; height: 2.25rem; color: var(--color-ink-500); background: var(--color-field-100); border-radius: 50%; }
+.saved-removed-mark .portal-icon { width: 16px; height: 16px; color: inherit; }
+.saved-removed-copy { display: grid; gap: 1px; min-width: 0; }
+.saved-removed-copy strong { color: var(--color-ink-900); font-size: .8125rem; font-weight: 650; }
+.saved-removed-copy span { overflow: hidden; color: var(--color-ink-500); font-size: .75rem; text-overflow: ellipsis; white-space: nowrap; }
+
+@keyframes saved-fold {
+  from { opacity: 0; transform: scale(.96); }
+}
+
+/* --- loading and states -------------------------------------------------------------------- */
+
+.saved-skeleton { display: grid; gap: var(--space-3); padding-bottom: var(--space-3); animation-delay: calc(var(--saved-order, 0) * 60ms) !important; }
+.saved-skeleton-photo { width: 100%; height: auto; aspect-ratio: 16 / 10; border-radius: var(--radius-lg); }
+.saved-state { background: var(--color-field-0); border: var(--border-hairline) solid var(--color-field-200); border-radius: var(--radius-lg); }
+.saved-panel > .ws-panel-head + .saved-state { margin-top: var(--space-4); }
+
+/* --- a phone: a row per place, not a screen per place ------------------------------- */
+
+/* One column of full cards made each saved place a whole screen. On a phone a
+   shortlist is scanned, so each place becomes a row: a square photograph, then
+   price, name, place and when it was saved. The essentials and trust line are
+   on the listing itself, one tap away. */
+@media (max-width: 40rem) {
+  .saved-grid { grid-template-columns: minmax(0, 1fr); gap: var(--space-3); }
+  .saved-grid .listing-card {
+    grid-template-columns: 7rem minmax(0, 1fr);
+    align-items: stretch;
+    min-height: 7.5rem;
+  }
+  .saved-grid .listing-card-photo { aspect-ratio: auto; height: 100%; min-height: 7.5rem; }
+  .saved-grid .listing-photo-dots,
+  .saved-grid .listing-photo-control,
+  .saved-grid .listing-card-facts,
+  .saved-grid .listing-card-trust { display: none; }
+  .saved-grid .listing-card-body { gap: 2px; padding: var(--space-3) var(--space-3) var(--space-2); }
+  .saved-grid .listing-card-price-row { flex-wrap: wrap; gap: 0 var(--space-2); }
+  .saved-grid .listing-price { font-size: 1rem; }
+  .saved-grid .listing-advance { font-size: .6875rem; }
+  .saved-grid .listing-card-headline { font-size: .875rem; }
+  .saved-grid .listing-card-footnote { margin-top: auto; padding-top: var(--space-1); border-top: 0; font-size: .6875rem; }
+  /* The heart sits on the photograph's corner, small enough not to cover it. */
+  .saved-grid .listing-save { top: 6px; right: auto; left: 6px; width: 32px; height: 32px; }
+  .saved-grid .listing-save .portal-icon { width: 16px; height: 16px; }
+
+  .saved-more-link {
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    column-gap: var(--space-3);
+    min-height: 0;
+    padding: var(--space-3) var(--space-4);
+  }
+  .saved-more-mark { grid-row: 1 / span 2; }
+  .saved-more-link > span:last-child { max-width: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .saved-grid > li,
+  .saved-removed { animation: none; }
+  .saved-more-link,
+  .saved-more-mark { transition: none; }
+}

@@ -21,6 +21,7 @@ import { searchSales, searchSalesPage, type SaleCard as Sale } from "@/sales";
 import { theme } from "@/theme";
 
 import { ExploreHero, ExploreResults, HERO_FLARE, HeroSearch, type ExploreMode } from "./ExploreHero";
+import { AllFilterSheet } from "./ExploreShow";
 
 type Item =
   | { side: "rent"; at: string; listing: Listing }
@@ -46,6 +47,7 @@ export function AllExplore({
   bottomPadding: number;
 }) {
   const router = useRouter();
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [text, setText] = useState("");
   const [q, setQ] = useState("");
   const [listings, setListings] = useState<Listing[] | null>(null);
@@ -109,7 +111,8 @@ export function AllExplore({
           inTabs={inTabs}
           actions={actions}
           mode="all"
-          onModeChange={onModeChange}
+          filterCount={0}
+          onFilters={() => setFiltersOpen(true)}
           search={(
             <HeroSearch
               label="Search places to rent or buy"
@@ -140,7 +143,7 @@ export function AllExplore({
               mode="all"
               busy={items === null}
               line={line}
-              detail="Choose Rent or Buy for filters and the map"
+              detail="To rent and to buy, every one verified"
             />
             {error ? <Notice tone="error" title={error} /> : null}
           </View>
@@ -167,6 +170,12 @@ export function AllExplore({
             </View>
           )
         }
+      />
+      <AllFilterSheet
+        visible={filtersOpen}
+        onClose={() => setFiltersOpen(false)}
+        onModeChange={(next) => { setFiltersOpen(false); onModeChange(next); }}
+        resultLabel={items === null ? "Updating…" : "Show results"}
       />
     </View>
   );

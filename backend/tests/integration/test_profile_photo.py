@@ -209,3 +209,69 @@ class TestTheUploadItself:
         )
 
         assert response.status_code == 422
+
+
+class TestWhoSeesTheTenantsPhoto:
+    """A provider's tenant cards show the person (owner, 2026-10-05).
+
+    The photo is readable by whoever manages a property its owner actively
+    lives in, and by nobody else who merely knows the file id.
+    """
+
+    @pytest.fixture
+    def lived_in(self, landlord, user, approve_provider):
+        from datetime import date
+
+        from apps.geo.models import Address, District, Locality, Region
+        from apps.lease import services as lease_services
+        from apps.property.models import Property, Unit
+
+        region, _ = Region.objects.get_or_create(name="Greater Accra", defaults={"code": "GA"})
+        district, _ = District.objects.get_or_create(region=region, name="Accra Metropolitan")
+        locality, _ = Locality.objects.get_or_create(district=district, name="Osu")
+        address = Address.objects.create(locality=locality, landmark="Near the beach")
+        prop = Property.objects.create(
+            owner=landlord, address=address, title="Osu block", property_type="apartment"
+        )
+        approve_provider(landlord, prop)
+        unit = Unit.objects.create(property=prop, label="Flat A", bedrooms=1, bathrooms=1)
+        lease = lease_services.draft_lease(
+            user=landlord,
+            unit=unit,
+            tenant=user,
+            data={
+                "rent_minor": 150000,
+                "advance_months": 6,
+                "starts_on": date.today(),
+                "term_months": 12,
+            },
+        )
+        lease = lease_services.offer_lease(lease=lease, user=landlord)
+        lease_services.accept_lease(lease=lease, user=user)
+        return prop
+
+    def _photo_of(self, person):
+        from apps.identity.models import Profile
+
+        stored = _upload(person)
+        profile, _ = Profile.objects.get_or_create(user=person)
+        profile.avatar = stored
+        profile.save(update_fields=["avatar"])
+        return stored
+
+    def test_their_landlord_can_read_it(self, lived_in, landlord, user):
+        from apps.files.services import can_read
+
+        assert can_read(user=landlord, stored=self._photo_of(user))
+
+    def test_another_landlord_cannot(self, lived_in, user, registered):
+        from apps.files.services import can_read
+
+        stranger = registered("0209111222")
+
+        assert not can_read(user=stranger, stored=self._photo_of(user))
+
+    def test_an_upload_nobody_uses_as_a_photo_stays_private(self, lived_in, landlord, user):
+        from apps.files.services import can_read
+
+        assert not can_read(user=landlord, stored=_upload(user))

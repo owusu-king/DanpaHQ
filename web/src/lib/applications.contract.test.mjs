@@ -123,36 +123,32 @@ test("withdrawing asks first", () => {
 
 test("a tenant record opens in context without surrendering its address", () => {
   const record = webRecord();
-  const css = read("web/src/styles/applications-workspace.css");
 
   // Ordinary clicks stay with the comparison list, while the real href remains
-  // available for copied links, modified clicks and direct navigation.
-  assert.match(webTenant(), /<ApplicationDetailModal/);
+  // available for copied links, modified clicks and direct navigation. The
+  // open record is in the address too, as a provider's request is.
+  assert.match(webTenant(), /<ApplicationSheet/);
+  assert.match(webTenant(), /search\.get\("application"\)/);
   assert.match(webTenant(), /event\.preventDefault\(\)/);
   assert.match(webTenant(), /href=\{`\/applications\/\$\{application\.id\}`/);
   assert.match(webRoute(), /<ApplicationRecord/);
 
-  // Native dialog semantics provide focus trapping and scroll locking. Closing
-  // restores the row, and every dismissal path shares the animated close.
-  assert.match(record, /<dialog/);
-  assert.match(record, /showModal\(\)/);
-  assert.match(record, /aria-labelledby="application-modal-title"/);
-  assert.match(record, /onCancel=/);
-  assert.match(record, /opener\?\.focus/);
-  assert.match(css, /\.application-modal::backdrop/);
-  assert.match(css, /\.application-modal\.is-leaving/);
-  assert.match(css, /\.application-modal \{[\s\S]{0,220}width: min\(54rem[\s\S]{0,140}height: var\(--application-modal-height, auto\)[\s\S]{0,100}max-height: min\(38rem/);
-  assert.match(record, /style\.setProperty\("--application-modal-height"[\s\S]{0,140}offsetHeight/);
-  assert.match(css, /\.application-modal-surface \{[\s\S]{0,180}overflow: hidden/);
-  assert.match(css, /\.application-modal \.application-detail-body \{[\s\S]{0,300}overflow-y: auto[\s\S]{0,180}scrollbar-gutter: stable/);
-  assert.match(css, /\.application-modal \.application-detail-body::-webkit-scrollbar-thumb/);
-  assert.match(css, /\.application-modal \.application-detail \{[\s\S]{0,180}grid-template-rows: auto minmax\(0, 1fr\) auto[\s\S]{0,120}height: 100%/);
-  assert.match(css, /\.application-modal \.application-detail-head \{[\s\S]{0,100}position: sticky[\s\S]{0,80}top: 0/);
-  assert.match(record, /data-body-scrolled=\{bodyScrolled \|\| undefined\}/);
-  assert.match(css, /data-body-scrolled="true"[\s\S]{0,180}box-shadow:/);
-  assert.match(css, /\.application-modal \.application-detail-foot \{[\s\S]{0,100}position: relative/);
-  assert.match(record, /application-detail-context-actions[\s\S]{0,420}View listing/);
-  assert.match(css, /@media \(max-width: 42rem\)[\s\S]{0,240}max-height: calc\(100dvh - \.75rem\)/);
+  // The shared sheet: native dialog semantics, placed over the page, grown from
+  // the row that opened it, and the one exit every modal plays.
+  assert.match(record, /<ModalSheet/);
+  assert.match(record, /className="request-sheet application-sheet"/);
+  assert.match(record, /closeLabel="Close application"/);
+  const sheet = read("web/src/components/workspace/ModalSheet.tsx");
+  assert.match(sheet, /dialog\.showModal\(\)/);
+  assert.match(sheet, /onCancel=/);
+  // The sheet holds the last record while it plays its exit.
+  assert.match(record, /const current = application \?\? shown;/);
+
+  // The actions stay reachable at the foot of the sheet, whatever its length.
+  const requestCss = read("web/src/styles/request-sheet.css");
+  assert.match(requestCss, /\.request-sheet \.rq-actions \{[\s\S]{0,60}position: sticky/);
+  assert.match(record, /className="rq-actions"/);
+  assert.match(record, /View listing/);
 
   // Mobile keeps its established dedicated screen; this request is web-only.
   const layout = read("mobile/app/(app)/_layout.tsx");
@@ -181,11 +177,11 @@ test("the comparison happens in the list, which is why the record can leave it",
   // contains `{state.line}`, so the bare form matched while the visible line
   // was gone.
   assert.match(webTenant(), /<strong>\{state\.line\}<\/strong>/);
-  assert.match(css, /\.application-standing\.is-action/);
+  assert.match(css, /\.application-row\[data-tone="action"\]/);
 
-  // Nothing opens by default: the modal is selected only by an explicit row action.
+  // Nothing opens by default: the sheet is chosen only by an explicit row action.
   assert.doesNotMatch(webTenant(), /const suggested = visibleRows\[0\]/);
-  assert.match(webTenant(), /useState<string \| null>\(null\)/);
+  assert.match(webTenant(), /search\.get\("application"\) \?\? ""/);
   assert.doesNotMatch(webTenant(), /data-open=/);
   assert.doesNotMatch(css, /\.applications-split/);
   assert.doesNotMatch(css, /\.application-detail-back/);
@@ -277,16 +273,15 @@ test("a row responds to its reclaimed content width", () => {
   // The list responds to the space the global shell gives it, including when
   // the sidebar collapses. It does not infer that space from viewport width.
   assert.match(css, /\.applications-list \{[\s\S]{0,500}container: application-list \/ inline-size/);
-  assert.match(css, /\.application-row \{[\s\S]{0,180}grid-template-columns: 4\.25rem minmax\(0, 1fr\) 2rem/);
-  assert.match(css, /@container application-list \(min-width: 44rem\)/);
-  assert.match(css, /@container application-list \(min-width: 68rem\)/);
+  assert.match(css, /\.application-row \{[\s\S]{0,180}grid-template-columns: 3\.25rem minmax\(0, 1fr\) 1rem/);
+  assert.match(css, /@container application-list \(min-width: 40rem\)/);
   assert.match(
     css,
-    /@container application-list \(min-width: 68rem\)[\s\S]{0,300}grid-template-columns: 4\.5rem minmax\(14rem, 1\.15fr\)/,
+    /@container application-list \(min-width: 40rem\)[\s\S]{0,300}grid-template-columns: 3\.5rem minmax\(12rem, 1\.25fr\)/,
   );
 
   // Property and Unit stay one-line scan anchors; metadata gets its own area
   // instead of squeezing the identity column.
   assert.match(css, /\.application-identity strong \{[\s\S]{0,240}text-overflow: ellipsis;[\s\S]{0,80}white-space: nowrap/);
-  assert.match(css, /\.application-row-meta \{[\s\S]{0,120}grid-area: meta/);
+  assert.match(css, /\.application-row-meta \{ grid-area: meta/);
 });

@@ -53,7 +53,6 @@ export function ExploreHero({
   inTabs,
   actions,
   mode,
-  onModeChange,
   search,
   filterCount,
   onFilters,
@@ -62,11 +61,10 @@ export function ExploreHero({
   /** Saved and profile, in the title row. Tabs only. */
   actions?: ReactNode;
   mode: ExploreMode;
-  onModeChange: (mode: ExploreMode) => void;
   search: ReactNode;
-  /** Absent on All: the filters belong to one side, and arrive with it. */
-  filterCount?: number;
-  onFilters?: () => void;
+  /** Every side has filters now; the first row of each sheet is Show (All / To rent / To buy). */
+  filterCount: number;
+  onFilters: () => void;
 }) {
   const insets = useSafeAreaInsets();
 
@@ -92,10 +90,11 @@ export function ExploreHero({
       ) : null}
 
       <View style={styles.controls}>
-        <ModeSwitch mode={mode} onChange={onModeChange} />
+        {/* The All / Rent / Buy bar that stood above the search is gone (owner,
+            2026-10-05): what to show is the first row of the Filters sheet. */}
         <View style={styles.searchRow}>
           <View style={{ flex: 1, minWidth: 0 }}>{search}</View>
-          {onFilters ? <FiltersButton count={filterCount ?? 0} onPress={onFilters} /> : null}
+          <FiltersButton count={filterCount} onPress={onFilters} />
         </View>
       </View>
 
@@ -126,41 +125,6 @@ function Flare({ side }: { side: "left" | "right" }) {
       <Svg width={r} height={r}>
         <Path d={d} fill={KOLA_DEEP} />
       </Svg>
-    </View>
-  );
-}
-
-/** Rent or Buy: a glass track on the green, the chosen side lifted out in white. */
-function ModeSwitch({ mode, onChange }: { mode: ExploreMode; onChange: (mode: ExploreMode) => void }) {
-  const sides: { value: ExploreMode; label: string; icon: IconName; chosenIcon: IconName }[] = [
-    { value: "all", label: "All", icon: "apps-outline", chosenIcon: "apps" },
-    { value: "rent", label: "Rent", icon: "key-outline", chosenIcon: "key" },
-    { value: "buy", label: "Buy", icon: "pricetag-outline", chosenIcon: "pricetag" },
-  ];
-  return (
-    <View accessibilityRole="tablist" accessibilityLabel="All, rent or buy" style={styles.track}>
-      {sides.map((side) => {
-        const chosen = side.value === mode;
-        return (
-          <Pressable
-            key={side.value}
-            accessibilityRole="tab"
-            aria-selected={chosen}
-            accessibilityLabel={side.value === "all" ? "Everything, to rent and to buy" : side.value === "rent" ? "Rent a place" : "Buy a property"}
-            onPress={() => onChange(side.value)}
-            style={({ pressed }) => [
-              styles.side,
-              chosen ? styles.sideChosen : null,
-              pressed && !chosen ? { backgroundColor: alpha(WHITE, 0.1) } : null,
-            ]}
-          >
-            <Ionicons name={chosen ? side.chosenIcon : side.icon} size={13} color={chosen ? KOLA : alpha(WHITE, 0.86)} />
-            <Type variant="bodyStrong" maxFontSizeMultiplier={1.2} style={[styles.sideText, chosen ? styles.sideTextChosen : null]}>
-              {side.label}
-            </Type>
-          </Pressable>
-        );
-      })}
     </View>
   );
 }
@@ -339,39 +303,6 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingHorizontal: space[4],
     paddingTop: 6,
-  },
-  track: {
-    flexDirection: "row",
-    padding: 3,
-    borderRadius: radius.pill,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: alpha(WHITE, 0.28),
-    backgroundColor: alpha(theme.color.kola["900"], 0.28),
-  },
-  side: {
-    flex: 1,
-    minHeight: 28,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    borderRadius: radius.pill,
-  },
-  sideChosen: {
-    backgroundColor: WHITE,
-    shadowColor: theme.color.kola["900"],
-    shadowOpacity: 0.22,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 3,
-  },
-  sideText: {
-    fontSize: 13,
-    lineHeight: 17,
-    color: alpha(WHITE, 0.9),
-  },
-  sideTextChosen: {
-    color: KOLA_DEEP,
   },
   searchRow: {
     flexDirection: "row",

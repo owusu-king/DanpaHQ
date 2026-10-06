@@ -30,7 +30,8 @@
       "supportsTablet": false,
       "infoPlist": {
         "NSCameraUsageDescription": "Take photos of a property or a document you are submitting.",
-        "NSLocationWhenInUseUsageDescription": "Show properties near where you are."
+        "NSLocationWhenInUseUsageDescription": "Show properties near where you are.",
+        "NSMicrophoneUsageDescription": "Record the sound in a short clip of a problem you are reporting to your landlord."
       }
     },
     "plugins": [
@@ -54,7 +55,8 @@
           "cameraPermission": "Allow Rooomly to scan a tenant's temporary viewing check-in QR code.",
           "recordAudioAndroid": false
         }
-      ]
+      ],
+      "expo-video"
     ],
     "experiments": {
       "typedRoutes": true

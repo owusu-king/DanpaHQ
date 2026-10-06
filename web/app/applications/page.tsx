@@ -2,12 +2,14 @@
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 
-import { ApplicationDetailModal } from "@/components/applications/ApplicationRecord";
-import { Notice } from "@/components/Notice";
-import { Empty, LoadingRows, PageHeader } from "@/components/portal/PageHeader";
+import { ApplicationSheet, applicationTone, type ApplicationTone } from "@/components/applications/ApplicationRecord";
+import { RequestModal } from "@/components/requests/RequestModal";
+import { LoadingRows, PageHeader } from "@/components/portal/PageHeader";
 import { Icon } from "@/components/portal/icons";
+import { DonutRing, type RingTone } from "@/components/workspace/DonutRing";
+import { NextUp, PanelSearch, PanelSkeleton, PanelState, SegmentedControl, WorkspaceHead } from "@/components/workspace/Workspace";
 import { ApiFailure } from "@/lib/api";
 import {
   applicationBucket,
@@ -40,13 +42,6 @@ import { listMyApplications, listMyLeases, type MyApplication } from "@/lib/tena
 import { onDate } from "@/lib/time";
 
 /**
- * Applications received, for a landlord or agent.
- *
- * The advance shortfall leads every card. It is what the decision turns on in
- * this market, and putting it below occupation and household size would mean
- * reading four fields to reach the one that settles it.
- */
-/**
  * Applications, from whichever side this account is on.
  *
  * One route because it is one idea — "applications that concern me" — and the
@@ -68,31 +63,32 @@ export default function ApplicationsPage() {
       <ProviderApplications />
     </Suspense>
   ) : (
-    <TenantApplications />
+    <Suspense fallback={<><PageHeader title="Applications" /><LoadingRows rows={3} /></>}>
+      <TenantApplications />
+    </Suspense>
   );
 }
 
 /**
- * Places this person has applied for.
+ * Places this person has applied for, on the shared workspace.
  *
  * Four questions, in this order: where did I apply, where does it stand, is
- * anything needed from me, and what happens next. The photograph answers the
- * first — a tenant recognizes a place by looking at it, not by reading a
- * headline — and `standing()` collapses the last three into one line, so a row
- * never carries a status word *and* an explanation of that status word.
+ * anything needed from me, and what happens next. The head answers the third
+ * in one live line; an agreement waiting for them is lifted above the list as
+ * the one thing worth doing; and each row answers the rest — the photograph for
+ * where (a tenant recognises a place by looking at it), `standing()` for where
+ * it stands and what follows, in one line rather than a status word and an
+ * explanation of it.
  *
  * Everything else — what was offered, what was told to the landlord, the
- * guarantor, the landlord's note — is in the record behind the row. A tenant
- * scanning five applications is not re-reading their own income band.
+ * guarantor, the landlord's note — is in the record behind the row, which opens
+ * in a sheet over the list and is kept in the address.
  */
 function TenantApplications() {
   const [applications, setApplications] = useState<MyApplication[] | null>(null);
   const [leases, setLeases] = useState<Lease[]>([]);
   const [error, setError] = useState("");
-  const [filterOpen, setFilterOpen] = useState(false);
-  const [selectedApplicationId, setSelectedApplicationId] = useState<string | null>(null);
-  const filterRoot = useRef<HTMLDivElement>(null);
-  const filterButton = useRef<HTMLButtonElement>(null);
+  const [retrying, setRetrying] = useState(false);
 
   const router = useRouter();
   const pathname = usePathname();
@@ -100,9 +96,13 @@ function TenantApplications() {
   const filter: ApplicationFilter =
     applicationFilters.map((option) => option.id).find((id) => id === search.get("show")) ?? "all";
   const query = search.get("q") ?? "";
+  // A plain click reads the record in a sheet over the list, kept in the
+  // address; the row is still a link to `/applications/<id>`.
+  const openId = search.get("application") ?? "";
 
+  // A reload keeps what is on screen: the sheet reading an application must not
+  // lose it mid-withdrawal because the list blanked behind it.
   const load = useCallback(async () => {
-    setApplications(null);
     setError("");
     try {
       // Acceptance is not the end of the story, and the story lives in the
@@ -114,30 +114,18 @@ function TenantApplications() {
       setApplications(nextApplications);
       setLeases(nextLeases);
     } catch (cause) {
-      setApplications([]);
+      setApplications((current) => current ?? []);
       setError(cause instanceof ApiFailure ? cause.error.message : "Could not load your applications.");
     }
   }, []);
 
   useEffect(() => { void load(); }, [load]);
 
-  useEffect(() => {
-    if (!filterOpen) return;
-    const closeFromOutside = (event: PointerEvent) => {
-      if (!filterRoot.current?.contains(event.target as Node)) setFilterOpen(false);
-    };
-    const closeFromKeyboard = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      setFilterOpen(false);
-      filterButton.current?.focus();
-    };
-    document.addEventListener("pointerdown", closeFromOutside);
-    document.addEventListener("keydown", closeFromKeyboard);
-    return () => {
-      document.removeEventListener("pointerdown", closeFromOutside);
-      document.removeEventListener("keydown", closeFromKeyboard);
-    };
-  }, [filterOpen]);
+  const retry = useCallback(async () => {
+    setRetrying(true);
+    await load();
+    setRetrying(false);
+  }, [load]);
 
   // `replace`, so filtering does not build a history trail somebody has to walk
   // back through to leave the page.
@@ -153,8 +141,6 @@ function TenantApplications() {
 
   const chooseFilter = useCallback((nextFilter: ApplicationFilter) => {
     setParams({ show: nextFilter === "all" ? "" : nextFilter });
-    setFilterOpen(false);
-    filterButton.current?.focus();
   }, [setParams]);
 
   const rows = useMemo<TenantApplicationRow[]>(
@@ -162,6 +148,7 @@ function TenantApplications() {
       application,
       standing: standing(application, leases),
       bucket: applicationBucket(application, leases),
+      tone: applicationTone(application, leases),
     })),
     [applications, leases],
   );
@@ -198,127 +185,128 @@ function TenantApplications() {
       .sort((left, right) => priority[left.bucket] - priority[right.bucket]);
   }, [filter, query, rows]);
 
+  const loading = applications === null;
+  const none = !loading && rows.length === 0;
+  const failed = Boolean(error) && none;
   const current = visible.filter((row) => row.bucket !== "past");
   const history = visible.filter((row) => row.bucket === "past");
+  const ready = rows.filter((row) => row.bucket === "action");
+  // Controls earn their space: search once there is a list to search, the
+  // stages once applications sit in more than one of them.
   const showSearch = (applications?.length ?? 0) > 5 || Boolean(query);
   const showFilter = new Set(rows.map((row) => row.bucket)).size > 1 || filter !== "all";
   const selectedLabel = applicationFilters.find((option) => option.id === filter)?.label ?? "Applications";
   const unfilteredView = filter === "all" && !query.trim();
   const initialCurrentLimit = Math.min(current.length, history.length ? 4 : 5);
   const initialHistoryLimit = Math.min(history.length, Math.max(0, 5 - initialCurrentLimit));
-  const selectedApplication = applications?.find((application) => application.id === selectedApplicationId) ?? null;
+  const opened = openId ? applications?.find((application) => application.id === openId) ?? null : null;
+  const open = useCallback((applicationId: string) => setParams({ application: applicationId }), [setParams]);
 
   return (
-    <div className="applications tenant-applications">
-      <PageHeader
+    <div className="ws-page applications-workspace">
+      <WorkspaceHead
+        icon="applications"
         title="Applications"
-        description={applications === null || error ? undefined : applicationSummary(counts, rows.length)}
+        summary={loading || failed ? null : none ? "Places you apply for are followed here, from sent to signed." : (
+          <ApplicationSummary counts={counts} />
+        )}
+        actions={none || loading ? null : (
+          <Link href="/rentals" className="ws-action"><Icon name="explore" />Find rentals</Link>
+        )}
       />
 
-      {applications === null ? (
-        <ApplicationLoading />
-      ) : error ? (
-        <div className="applications-error">
-          <Notice tone="error" title={error} body="Check your connection and try again." />
-          <button type="button" onClick={() => void load()}>Try again</button>
-        </div>
-      ) : applications.length === 0 ? (
-        <div className="applications-empty">
-          <Empty
-            title="Your rental journey starts here"
-            body="When you apply for a rental, its progress will appear here."
-            action={<Link href="/rentals" className="type-body-strong">Explore rentals &rarr;</Link>}
+      {unfilteredView && ready.length ? (
+        <NextUp
+          eyebrow={ready[0]!.standing.line}
+          title={ready[0]!.application.property_title || ready[0]!.application.listing_headline}
+          detail={[ready[0]!.application.unit_label, ready[0]!.application.locality_name].filter(Boolean).join(" · ")}
+          hint="The landlord has sent your tenancy agreement to read and sign."
+          photoUrl={ready[0]!.application.photo_url}
+          icon="leases"
+          more={{ count: ready.length - 1, onShow: () => chooseFilter("action") }}
+          onOpen={() => open(ready[0]!.application.id)}
+          action={{ label: "Review agreement", href: ready[0]!.standing.leaseId ? `/leases/${ready[0]!.standing.leaseId}` : "/leases" }}
+        />
+      ) : null}
+
+      {showFilter ? (
+        <SegmentedControl
+          label="Application stage"
+          value={filter}
+          options={applicationFilters.map((option) => ({ key: option.id, label: option.label, count: counts[option.id] }))}
+          onChange={chooseFilter}
+        />
+      ) : null}
+
+      <section className="ws-panel applications-panel" aria-label={unfilteredView ? "Your applications" : `${selectedLabel} applications`} aria-busy={loading || undefined}>
+        {showSearch ? (
+          <div className="ws-panel-head">
+            <PanelSearch label="Search your applications" placeholder="Search Property, Unit or place" value={query} onChange={(value) => setParams({ q: value })} />
+            <p className="ws-range"><strong>{visible.length}</strong> of {counts.all}</p>
+          </div>
+        ) : null}
+
+        {error && rows.length ? (
+          <div className="ws-inline-error" role="alert">
+            <Icon name="warning" /><span>{error}</span>
+            <button type="button" disabled={retrying} onClick={() => void retry()}>{retrying ? "Retrying…" : "Try again"}</button>
+          </div>
+        ) : null}
+
+        {/* The square mark is the photograph's shape, so nothing jumps when the rows land. */}
+        {loading ? <PanelSkeleton rows={3} /> : failed ? (
+          <PanelState
+            tone="error"
+            icon="warning"
+            title="Applications didn’t load"
+            body={`${error} Check your connection and try again.`}
+            action={<button type="button" className="ws-action" disabled={retrying} onClick={() => void retry()}>{retrying ? "Retrying…" : "Try again"}</button>}
           />
-        </div>
-      ) : (
-        <>
-          {showSearch || showFilter ? (
-            <div className="applications-tools">
-              {showSearch ? (
-                <label className="applications-search">
-                  <span className="sr-only">Search your applications</span>
-                  <Icon name="explore" />
-                  <input
-                    type="search"
-                    value={query}
-                    onChange={(event) => setParams({ q: event.target.value })}
-                    placeholder="Search Property, Unit or place"
-                  />
-                </label>
-              ) : <span />}
-              {showFilter ? (
-                <div className="applications-filter" ref={filterRoot}>
-                  <button
-                    ref={filterButton}
-                    type="button"
-                    className={`application-filter-trigger${filter !== "all" ? " is-active" : ""}`}
-                    aria-expanded={filterOpen}
-                    aria-haspopup="menu"
-                    aria-controls="application-filter-menu"
-                    onClick={() => setFilterOpen((open) => !open)}
-                  >
-                    <Icon name="filters" />
-                    <span className="application-filter-label">
-                      {filter === "all" ? "All applications" : selectedLabel}
-                    </span>
-                    <Icon name="chevron-down" />
-                  </button>
+        ) : none ? (
+          <PanelState
+            icon="applications"
+            title="Your rental journey starts here"
+            body="When you apply for a rental, you can follow it here — from the landlord reading it to the agreement you sign."
+            action={<Link href="/rentals" className="ws-action is-primary"><Icon name="explore" />Explore rentals</Link>}
+          />
+        ) : visible.length ? (
+          <div className="ws-panel-body applications-body" key={`${filter}:${query.trim() ? "q" : ""}`}>
+            {unfilteredView ? (
+              <>
+                {current.length ? <ApplicationGroup title="Current" rows={current} initialLimit={initialCurrentLimit} onOpen={open} /> : null}
+                {history.length ? <ApplicationGroup title="History" rows={history} initialLimit={initialHistoryLimit} historical onOpen={open} /> : null}
+              </>
+            ) : (
+              <ApplicationGroup
+                key={`${filter}:${query}`}
+                title={query ? "Matches" : selectedLabel}
+                // The segment above already names a chosen stage.
+                quiet={!query}
+                rows={visible}
+                initialLimit={5}
+                historical={visible.every((row) => row.bucket === "past")}
+                onOpen={open}
+              />
+            )}
+          </div>
+        ) : query ? (
+          <PanelState
+            icon="explore"
+            title={`Nothing matches “${query.trim()}”`}
+            body="Try another Property, Unit or place."
+            action={<button type="button" className="ws-action" onClick={() => setParams({ q: "" })}>Clear search</button>}
+          />
+        ) : (
+          <ApplicationFilterEmpty filter={filter} onShowAll={() => chooseFilter("all")} />
+        )}
+      </section>
 
-                  {filterOpen ? (
-                    <div id="application-filter-menu" className="application-filter-panel" role="menu" aria-label="Application view">
-                      <ApplicationFilterOption id="all" current={filter} count={counts.all} onSelect={chooseFilter} />
-                      <div className="application-filter-group" role="group" aria-label="Active journey">
-                        <span className="application-filter-group-label">Active journey</span>
-                        {(["action", "open", "approved"] as const).map((id) => (
-                          <ApplicationFilterOption key={id} id={id} current={filter} count={counts[id]} onSelect={chooseFilter} />
-                        ))}
-                      </div>
-                      <div className="application-filter-group" role="group" aria-label="History">
-                        <span className="application-filter-group-label">History</span>
-                        <ApplicationFilterOption id="past" current={filter} count={counts.past} onSelect={chooseFilter} />
-                      </div>
-                    </div>
-                  ) : null}
-                </div>
-              ) : null}
-            </div>
-          ) : null}
-
-          {visible.length ? (
-            <div className="applications-results">
-              {unfilteredView ? (
-                <>
-                  {current.length ? <ApplicationGroup title="Current" rows={current} initialLimit={initialCurrentLimit} onOpen={setSelectedApplicationId} /> : null}
-                  {history.length ? <ApplicationGroup title="History" rows={history} initialLimit={initialHistoryLimit} historical onOpen={setSelectedApplicationId} /> : null}
-                </>
-              ) : (
-                <ApplicationGroup
-                  key={`${filter}:${query}`}
-                  title={query ? "Matches" : selectedLabel}
-                  rows={visible}
-                  initialLimit={5}
-                  historical={visible.every((row) => row.bucket === "past")}
-                  onOpen={setSelectedApplicationId}
-                />
-              )}
-            </div>
-          ) : query ? (
-            <Empty title="No matching applications" body="Try another Property, Unit or place." />
-          ) : (
-            <ApplicationFilterEmpty filter={filter} />
-          )}
-
-          {selectedApplication ? (
-            <ApplicationDetailModal
-              key={selectedApplication.id}
-              application={selectedApplication}
-              leases={leases}
-              onChanged={load}
-              onClose={() => setSelectedApplicationId(null)}
-            />
-          ) : null}
-        </>
-      )}
+      <ApplicationSheet
+        application={opened}
+        leases={leases}
+        onChanged={load}
+        onClose={() => setParams({ application: "" })}
+      />
     </div>
   );
 }
@@ -327,59 +315,26 @@ type TenantApplicationRow = {
   application: MyApplication;
   standing: ReturnType<typeof standing>;
   bucket: ReturnType<typeof applicationBucket>;
+  tone: ApplicationTone;
 };
 
-function applicationSummary(counts: Record<ApplicationFilter, number>, total: number): string {
-  if (counts.action === 1) return `An agreement is ready for you \u00B7 ${total} application${total === 1 ? "" : "s"}`;
-  if (counts.action > 1) return `${counts.action} agreements are ready for you \u00B7 ${total} applications`;
-  if (counts.open > 0) return `${counts.open} in progress \u00B7 ${total} application${total === 1 ? "" : "s"}`;
-  return `${total} application record${total === 1 ? "" : "s"}`;
-}
-
-function ApplicationLoading() {
+/** The head's one live line: what needs them first, then what is moving. */
+function ApplicationSummary({ counts }: { counts: Record<ApplicationFilter, number> }) {
+  const total = counts.all;
   return (
-    <div className="applications-loading" role="status" aria-label="Loading applications">
-      {Array.from({ length: 3 }).map((_, index) => (
-        <div className="application-loading-row" key={index} aria-hidden="true">
-          <span className="skeleton application-loading-photo" />
-          <span className="application-loading-copy">
-            <i className="skeleton" />
-            <i className="skeleton" />
-          </span>
-          <span className="skeleton application-loading-status" />
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function ApplicationFilterOption({
-  id,
-  current,
-  count,
-  onSelect,
-}: {
-  id: ApplicationFilter;
-  current: ApplicationFilter;
-  count: number;
-  onSelect: (filter: ApplicationFilter) => void;
-}) {
-  const label = applicationFilters.find((option) => option.id === id)?.label ?? id;
-  const active = current === id;
-  return (
-    <button
-      type="button"
-      role="menuitemradio"
-      aria-checked={active}
-      className={`application-filter-option${active ? " is-selected" : ""}`}
-      onClick={() => onSelect(id)}
-    >
-      <span>{label}</span>
-      <small>{count}</small>
-      <span className="application-filter-mark" aria-hidden="true">
-        {active ? <Icon name="check" /> : null}
-      </span>
-    </button>
+    <>
+      {counts.action === 1 ? (
+        <span data-tone="good">An agreement is ready for you</span>
+      ) : counts.action > 1 ? (
+        <span data-tone="good">{counts.action} agreements are ready for you</span>
+      ) : counts.open ? (
+        <strong>{counts.open} in progress</strong>
+      ) : (
+        <strong>Nothing waiting on you</strong>
+      )}
+      <span className="ws-summary-sep" aria-hidden="true">·</span>
+      {total} application{total === 1 ? "" : "s"}
+    </>
   );
 }
 
@@ -388,27 +343,30 @@ function ApplicationGroup({
   rows,
   initialLimit,
   historical = false,
+  quiet = false,
   onOpen,
 }: {
   title: string;
   rows: TenantApplicationRow[];
   initialLimit: number;
   historical?: boolean;
+  /** No visible heading: something on screen already names this group. */
+  quiet?: boolean;
   onOpen: (applicationId: string) => void;
 }) {
   const pageSize = 5;
   const [limit, setLimit] = useState(initialLimit);
   const shown = rows.slice(0, limit);
   const remaining = rows.length - shown.length;
+  const headingId = `applications-${title.toLocaleLowerCase("en-GH").replace(/\s+/g, "-")}`;
 
   return (
-    <section className={`application-group${historical ? " is-history" : ""}`}>
-      <header className="application-group-head">
-        <h2>{title}</h2>
-        <span aria-label={`${rows.length} ${rows.length === 1 ? "application" : "applications"}`}>{rows.length}</span>
-      </header>
+    <section className={`ws-group application-group${historical ? " is-history" : ""}`} aria-labelledby={headingId}>
+      <h2 className={`ws-group-heading${quiet ? " ws-visually-hidden" : ""}`} id={headingId}>
+        {title}<span aria-label={`${rows.length} ${rows.length === 1 ? "application" : "applications"}`}>{rows.length}</span>
+      </h2>
       <ul className="applications-list">
-        {shown.map((row) => <ApplicationRow key={row.application.id} {...row} onOpen={onOpen} />)}
+        {shown.map((row, index) => <ApplicationRow key={row.application.id} {...row} order={index} onOpen={onOpen} />)}
       </ul>
       {remaining > 0 ? (
         <button
@@ -425,7 +383,7 @@ function ApplicationGroup({
   );
 }
 
-function ApplicationFilterEmpty({ filter }: { filter: ApplicationFilter }) {
+function ApplicationFilterEmpty({ filter, onShowAll }: { filter: ApplicationFilter; onShowAll: () => void }) {
   const copy: Record<ApplicationFilter, { title: string; body: string }> = {
     all: { title: "No applications here", body: "Your applications will appear here." },
     action: { title: "Nothing needs you", body: "You are up to date on every application." },
@@ -434,10 +392,12 @@ function ApplicationFilterEmpty({ filter }: { filter: ApplicationFilter }) {
     past: { title: "No application history", body: "Closed applications will remain available here." },
   };
   return (
-    <div className="application-filter-empty" role="status">
-      <strong>{copy[filter].title}</strong>
-      <span>{copy[filter].body}</span>
-    </div>
+    <PanelState
+      icon={filter === "action" ? "check" : "applications"}
+      title={copy[filter].title}
+      body={copy[filter].body}
+      action={filter === "all" ? undefined : <button type="button" className="ws-action" onClick={onShowAll}>Show all applications</button>}
+    />
   );
 }
 
@@ -445,19 +405,24 @@ function ApplicationRow({
   application,
   standing: state,
   bucket,
+  tone,
+  order,
   onOpen,
-}: TenantApplicationRow & { onOpen: (applicationId: string) => void }) {
+}: TenantApplicationRow & { order: number; onOpen: (applicationId: string) => void }) {
   const short = shortfallNote(application);
   const property = application.property_title || application.listing_headline;
-  const unit = [application.unit_label, application.space_type_label].filter(Boolean).join(" \u00B7 ");
+  const unit = [application.unit_label, application.space_type_label].filter(Boolean).join(" · ");
 
   return (
-    <li>
+    <li style={{ "--application-order": Math.min(order, 12) } as React.CSSProperties}>
       <Link
         href={`/applications/${application.id}` as never}
         className={`application-row is-${bucket}`}
+        data-tone={tone}
+        aria-haspopup="dialog"
         aria-label={`Open the application for ${property}, ${application.unit_label}. ${state.line}.`}
         onClick={(event) => {
+          // A new tab or window goes to the record's own page, as a link should.
           if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
           event.preventDefault();
           onOpen(application.id);
@@ -475,8 +440,10 @@ function ApplicationRow({
 
         <span className="application-identity">
           <strong>{property}</strong>
-          {unit ? <span className="application-unit">{unit}</span> : null}
-          {application.locality_name ? <span className="application-place">{application.locality_name}</span> : null}
+          <span className="application-place">
+            {unit ? <span className="application-unit">{unit}</span> : null}
+            {application.locality_name ? <span>{application.locality_name}</span> : null}
+          </span>
         </span>
 
         <span className={`application-standing is-${state.stage}`}>
@@ -488,13 +455,12 @@ function ApplicationRow({
           {application.rent_formatted ? (
             <span>{application.rent_formatted}<small> / month</small></span>
           ) : null}
-          <time dateTime={application.created_at}>Submitted {onDate(application.created_at)}</time>
+          <time dateTime={application.created_at}>Sent {onDate(application.created_at)}</time>
         </span>
 
-        <span className="application-row-action">
-          <span className="application-row-action-label">{state.stage === "action" ? "Review" : "View"}</span>
-          <Icon name="chevron-down" />
-        </span>
+        <svg className="application-row-arrow" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false">
+          <path d="m6 3.5 4.5 4.5L6 12.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
       </Link>
     </li>
   );
@@ -503,24 +469,25 @@ function ApplicationRow({
 /**
  * Tenancy requests received, for a landlord or agent.
  *
- * Laid out the way Payments is, because they are the same job: a stack of
- * things people have sent you, worked through in an order, each one opening a
- * record where a decision gets made. A provider should learn that shape once.
- *
- * Three counts across the top, then a search, then the stages as filter pills,
- * then the list. Every row is a link, so a request can be opened in a new tab,
- * sent to a colleague, or come back from history — none of which a dialog
- * could do.
+ * The shared workspace: the counts first, as three rings — where every request
+ * stands, and how often a decision went each way — then the stages as a
+ * segmented control and one panel of requests. Every row is a link, so a
+ * request can be opened in a new tab, sent to a colleague, or come back from
+ * history — none of which a dialog could do.
  */
 function ProviderApplications() {
   const router = useRouter();
-  const { items, error, unauthorised } = useProviderRequests();
+  const { items, portfolioName, error, unauthorised, reload } = useProviderRequests();
 
   const search = useSearchParams();
   const pathname = usePathname();
   const stage: RequestFilter =
     REQUEST_FILTERS.find((value) => value === search.get("show")) ?? "action";
   const query = search.get("q") ?? "";
+  // A plain click reads the request in a sheet over the list, kept in the
+  // address; the row is still a link to `/applications/<id>`.
+  const openId = search.get("request") ?? "";
+  const opened = openId ? items?.find((item) => requestRecordId(item) === openId) ?? null : null;
 
   useEffect(() => {
     if (unauthorised) router.push("/sign-in");
@@ -566,66 +533,175 @@ function ProviderApplications() {
       .filter((item) => !needle || requestSearchText(item).toLocaleLowerCase("en-GH").includes(needle));
   }, [items, query, stage]);
 
-  return (
-    <div className="requests-workspace">
-      <PageHeader title="Tenancy requests" description="Review people asking to rent, then prepare an agreement when you are ready." />
-      {error ? <Notice tone="error" title={error} /> : null}
+  const loading = items === null;
+  const none = items !== null && items.length === 0;
+  const decided = outcomes.accepted + outcomes.declined;
+  const chooseStage = (value: RequestFilter) => setParams({ show: value === "action" ? "" : value });
 
-      <dl className="requests-overview">
-        <CountFact label="Total requests" value={outcomes.total} />
-        <CountFact label="Accepted" value={outcomes.accepted} tone="accepted" />
-        <CountFact label="Declined" value={outcomes.declined} tone="declined" />
+  return (
+    <div className="ws-page requests-workspace">
+      <WorkspaceHead
+        icon="applications"
+        title="Tenancy requests"
+        summary={loading || none ? "Review people asking to rent, then prepare an agreement when you are ready." : (
+          <>
+            {counts.action ? <span data-tone="warning">{counts.action} need{counts.action === 1 ? "s" : ""} a decision</span> : <strong>Nothing waiting on you</strong>}
+            <span className="ws-summary-sep" aria-hidden="true">·</span>
+            {counts.agreement} agreement{counts.agreement === 1 ? "" : "s"} to prepare
+          </>
+        )}
+      />
+
+      <dl className="requests-overview" aria-busy={loading || undefined}>
+        <div className="requests-figure is-total">
+          <DonutRing
+            label={`${outcomes.total} requests: ${counts.action} need a decision, ${counts.agreement} need an agreement, ${counts.history} settled`}
+            segments={[
+              { value: counts.action, tone: "harmattan" },
+              { value: counts.agreement, tone: "lagoon" },
+              { value: counts.history, tone: "slate" },
+            ]}
+          >
+            <strong>{loading ? "–" : outcomes.total}</strong>
+          </DonutRing>
+          <div className="requests-figure-copy">
+            <dt>Total requests</dt>
+            <dd>
+              <ul className="requests-legend">
+                <LegendItem tone="harmattan" label="Needs a decision" value={counts.action} active={stage === "action"} onPick={() => chooseStage("action")} />
+                <LegendItem tone="lagoon" label="Agreement due" value={counts.agreement} active={stage === "agreement"} onPick={() => chooseStage("agreement")} />
+                <LegendItem tone="slate" label="Settled" value={counts.history} active={stage === "history"} onPick={() => chooseStage("history")} />
+              </ul>
+            </dd>
+          </div>
+        </div>
+        <OutcomeFigure label="Accepted" tone="accepted" value={outcomes.accepted} decided={decided} loading={loading} />
+        <OutcomeFigure label="Declined" tone="declined" value={outcomes.declined} decided={decided} loading={loading} />
       </dl>
 
-      <label className="requests-search">
-        <span className="sr-only">Search tenancy requests</span>
-        <input type="search" value={query} onChange={(event) => setParams({ q: event.target.value })} placeholder="Search person, Property or Unit" />
-      </label>
-
-      <div className="requests-filters" aria-label="Request stage">
-        {REQUEST_FILTERS.map((value) => (
-          <button key={value} type="button" aria-pressed={stage === value} onClick={() => setParams({ show: value === "action" ? "" : value })}>
-            {requestFilterLabel(value)} <span>{counts[value]}</span>
-          </button>
-        ))}
-      </div>
-
-      {items === null ? <LoadingRows rows={4} /> : visible.length ? (
-        <ul className="requests-list">
-          {visible.map((item) => <RequestRow key={item.key} item={item} />)}
-        </ul>
-      ) : (
-        <Empty
-          title={query ? "No matching requests" : stage === "action" ? "Nothing needs a decision" : stage === "agreement" ? "No agreements to prepare" : stage === "history" ? "No request history yet" : "No tenancy requests yet"}
-          body={query ? "Try a different person, Property or Unit." : stage === "action" ? "New public applications and private tenancy requests appear here." : stage === "agreement" ? "Accepted requests move here until their agreement is sent." : stage === "history" ? "Settled requests remain available as a record." : "Applications against your listings and direct requests to join a Unit both arrive here."}
+      {none ? null : (
+        <SegmentedControl
+          label="Request stage"
+          value={stage}
+          disabled={loading}
+          options={REQUEST_FILTERS.map((value) => ({ key: value, label: requestFilterLabel(value), count: counts[value] }))}
+          onChange={chooseStage}
         />
       )}
+
+      <section className="ws-panel requests-panel" aria-label="Tenancy requests" aria-busy={loading || undefined}>
+        {none ? null : (
+          <div className="ws-panel-head">
+            <PanelSearch label="Search tenancy requests" placeholder="Search person, Property or Unit" value={query} onChange={(value) => setParams({ q: value })} />
+            <p className="ws-range"><strong>{visible.length}</strong> of {counts.all}</p>
+          </div>
+        )}
+
+        {error && items?.length ? (
+          <div className="ws-inline-error" role="alert">
+            <Icon name="warning" /><span>{error}</span>
+            <button type="button" onClick={() => void reload()}>Try again</button>
+          </div>
+        ) : null}
+
+        {loading ? <PanelSkeleton rows={4} round /> : error && none ? (
+          <PanelState tone="error" icon="warning" title="Requests didn’t load" body={error}
+            action={<button type="button" className="ws-action" onClick={() => void reload()}>Try again</button>} />
+        ) : none ? (
+          <PanelState
+            icon="applications"
+            title="No tenancy requests yet"
+            body="Applications against your listings and direct requests to join a Unit both arrive here."
+            action={<Link href={"/units" as never} className="ws-action is-primary"><Icon name="units" />Open Units</Link>}
+          />
+        ) : visible.length ? (
+          <ul className="requests-list">
+            {visible.map((item, index) => (
+              <RequestRow key={item.key} item={item} order={index} onPeek={() => setParams({ request: requestRecordId(item) })} />
+            ))}
+          </ul>
+        ) : (
+          <PanelState
+            icon="applications"
+            title={query ? "No matching requests" : stage === "action" ? "Nothing needs a decision" : stage === "agreement" ? "No agreements to prepare" : stage === "history" ? "No request history yet" : "No tenancy requests yet"}
+            body={query ? "Try a different person, Property or Unit." : stage === "action" ? "New public applications and private tenancy requests appear here." : stage === "agreement" ? "Accepted requests move here until their agreement is sent." : stage === "history" ? "Settled requests remain available as a record." : "Applications against your listings and direct requests to join a Unit both arrive here."}
+          />
+        )}
+      </section>
+
+      <RequestModal item={opened} portfolioName={portfolioName} onClose={() => setParams({ request: "" })} onChanged={reload} />
     </div>
   );
 }
 
-function CountFact({ label, value, tone }: { label: string; value: number; tone?: "accepted" | "declined" }) {
-  return (
-    <div>
-      <dt className="type-caption">{label}</dt>
-      <dd data-tone={value > 0 ? tone : undefined}>{value}</dd>
-    </div>
-  );
-}
-
-function RequestRow({ item }: { item: RequestItem }) {
+function LegendItem({ tone, label, value, active, onPick }: { tone: RingTone; label: string; value: number; active: boolean; onPick: () => void }) {
   return (
     <li>
-      <Link href={`/applications/${requestRecordId(item)}` as never} className="request-row">
+      <button type="button" className={`requests-legend-item is-${tone}`} aria-pressed={active} onClick={onPick}>
+        <i aria-hidden="true" />
+        <span>{label}</span>
+        <strong>{value}</strong>
+      </button>
+    </li>
+  );
+}
+
+/** One way a decision can go, as a share of every decision made. */
+function OutcomeFigure({ label, tone, value, decided, loading }: { label: string; tone: "accepted" | "declined"; value: number; decided: number; loading: boolean }) {
+  const share = decided ? Math.round((value / decided) * 100) : null;
+  return (
+    <div className={`requests-figure is-${tone}`}>
+      <DonutRing
+        label={share === null ? `${label}: no decisions yet` : `${label}: ${value} of ${decided} decisions, ${share}%`}
+        segments={[
+          { value, tone: tone === "accepted" ? "kola" : "laterite" },
+          { value: decided - value, tone: "muted" },
+        ]}
+      >
+        <strong>{loading || share === null ? "–" : `${share}%`}</strong>
+      </DonutRing>
+      <div className="requests-figure-copy">
+        <dt>{label}</dt>
+        <dd>
+          <span className="requests-figure-value" data-tone={value > 0 ? tone : undefined}>{loading ? "–" : value}</span>
+          <small>{share === null ? "No decisions yet" : `of ${decided} decision${decided === 1 ? "" : "s"}`}</small>
+        </dd>
+      </div>
+    </div>
+  );
+}
+
+function RequestRow({ item, order, onPeek }: { item: RequestItem; order: number; onPeek: () => void }) {
+  const who = requestWho(item);
+  return (
+    <li style={{ "--request-order": Math.min(order, 12) } as React.CSSProperties}>
+      <Link
+        href={`/applications/${requestRecordId(item)}` as never}
+        className="request-row"
+        aria-haspopup="dialog"
+        onClick={(event) => {
+          // A new tab or window goes to the request's own page, as a link should.
+          if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
+          event.preventDefault();
+          onPeek();
+        }}
+      >
+        <span className="request-row-avatar" aria-hidden="true">{initialsOf(who)}</span>
         <span className="request-row-person">
-          <strong>{requestWho(item)}</strong>
+          <strong>{who}</strong>
           <span>{item.kind === "application" ? "Public listing" : "Direct request"}</span>
         </span>
         <span className="request-row-place">{requestWhere(item)}</span>
         <span className={`request-row-state is-${requestTone(item)}`}><i />{requestStatus(item)}</span>
         <span className="request-row-time">{formatRequestDate(requestCreatedAt(item))}</span>
-        <span className="request-row-arrow" aria-hidden="true">›</span>
+        <svg className="request-row-arrow" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false">
+          <path d="m6 3.5 4.5 4.5L6 12.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
       </Link>
     </li>
   );
+}
+
+function initialsOf(name: string) {
+  return name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase() ?? "").join("") || "?";
 }

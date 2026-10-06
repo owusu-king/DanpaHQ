@@ -542,3 +542,45 @@ class LeaseAcceptance(BaseModel):
     def matches_agreement(self) -> bool:
         """Whether this person accepted the terms the agreement now holds."""
         return self.content_hash == self.agreement.content_hash
+
+
+class TermsTemplate(BaseModel):
+    """A Portfolio's reusable wording for an agreement's additional terms.
+
+    Rooomly's standard clauses stay controlled: a template never touches them.
+    It only pre-fills the clearly labelled custom section of an agreement being
+    prepared, where the provider's own wording already lives. Placeholders in
+    the body are filled from the same agreement facts the standard clauses use,
+    at render time, and the rendered agreement is what is kept - editing or
+    deleting a template changes no agreement already prepared from it.
+    """
+
+    organization = models.ForeignKey(
+        "organization.Organization",
+        on_delete=models.CASCADE,
+        related_name="terms_templates",
+    )
+    name = models.CharField(max_length=120)
+    body = models.TextField()
+    is_default = models.BooleanField(default=False)
+    created_by = models.ForeignKey(
+        "identity.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="terms_templates_created",
+    )
+
+    class Meta:
+        db_table = "lease_terms_template"
+        ordering = ("-is_default", "name")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["organization"],
+                condition=models.Q(is_default=True),
+                name="lease_terms_template_one_default",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return self.name

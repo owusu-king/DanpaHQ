@@ -21,16 +21,19 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
-import { Notice } from "@/components/Notice";
+import { Button } from "@/components/Button";
 import { LoadingRows, PageHeader } from "@/components/portal/PageHeader";
+import { Icon } from "@/components/portal/icons";
 import { EntityPath } from "@/components/property/WorkspacePatterns";
 import { ViewingRecord } from "@/components/tenant/ViewingRecord";
 import { ProviderViewingRecord } from "@/components/viewings/ProviderViewingRecord";
+import { PanelSkeleton, PanelState, WorkspaceHead } from "@/components/workspace/Workspace";
 import { ApiFailure } from "@/lib/api";
 import { listHostViewings, type Viewing } from "@/lib/console";
 import { providerViewingSummary } from "@/lib/providerViewings";
 import { useSession } from "@/lib/session";
 import { listMyViewings, type MyViewing } from "@/lib/tenant";
+import { standing } from "@/lib/viewingMeaning";
 
 export default function ViewingRecordPage() {
   const { state } = useSession();
@@ -75,41 +78,84 @@ function HostViewing() {
 
   const viewing = viewings?.find((row) => row.id === viewingId) ?? null;
 
-  return (
-    <div className="viewings-workspace">
-      <EntityPath
-        items={[
-          { label: "Viewings", href: "/viewings", mobileLabel: "Back to Viewings" },
-          { label: viewing ? viewing.tenant_name : "Viewing" },
-        ]}
-      />
+  const summary = viewing ? providerViewingSummary(viewing) : null;
+  const path = (
+    <EntityPath
+      items={[
+        { label: "Viewings", href: "/viewings", mobileLabel: "Back to Viewings" },
+        { label: viewing ? viewing.tenant_name : "Viewing" },
+      ]}
+    />
+  );
 
-      {viewings === null ? (
-        <>
-          <PageHeader title="Viewing" />
-          <LoadingRows rows={4} />
-        </>
-      ) : error ? (
-        <Notice tone="error" title={error} />
-      ) : viewing ? (
-        <>
-          <PageHeader
-            title={viewing.tenant_name}
-            description={`${providerViewingSummary(viewing).label} · ${viewing.listing_headline}`}
+  if (viewings === null) {
+    return (
+      <div className="ws-page viewings-workspace">
+        <WorkspaceHead icon="viewings" title="Viewing" path={path} />
+        <section className="ws-panel" aria-busy="true" aria-label="Viewing"><PanelSkeleton rows={4} /></section>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="ws-page viewings-workspace">
+        <WorkspaceHead icon="viewings" title="Viewing" path={path} />
+        <section className="ws-panel" aria-label="Viewing">
+          <PanelState
+            tone="error"
+            icon="warning"
+            title="This viewing didn’t load"
+            body={error}
+            action={<Button variant="secondary" size="sm" onClick={() => { setViewings(null); void load(); }}>Try again</Button>}
           />
-          <ProviderViewingRecord key={viewing.id} viewing={viewing} onChanged={load} />
-        </>
-      ) : (
-        <>
-          <PageHeader
-            title="Viewing not found"
-            description="It may have been withdrawn, or it belongs to a Property you no longer host."
+        </section>
+      </div>
+    );
+  }
+
+  if (!viewing || !summary) {
+    return (
+      <div className="ws-page viewings-workspace">
+        <WorkspaceHead icon="viewings" title="Viewing not found" path={path} />
+        <section className="ws-panel" aria-label="Viewing">
+          <PanelState
+            icon="viewings"
+            title="This viewing isn’t on your agenda"
+            body="It may have been withdrawn, or it belongs to a Property you no longer host."
+            action={<Link href="/viewings" className="btn btn-quiet btn-sm">Back to Viewings</Link>}
           />
-          <p className="type-caption">
-            <Link href="/viewings">Back to Viewings</Link>
-          </p>
-        </>
-      )}
+        </section>
+      </div>
+    );
+  }
+
+  return (
+    <div className="ws-page viewings-workspace">
+      <WorkspaceHead
+        icon="viewings"
+        title={viewing.tenant_name}
+        path={path}
+        mark={(
+          <span className="viewing-record-mark" aria-hidden="true">
+            {viewing.photo_url ? (
+              /* Short-lived signed URLs from the files service. */
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img src={viewing.photo_url} alt="" />
+            ) : <Icon name="viewings" />}
+          </span>
+        )}
+        summary={(
+          <>
+            <span className={`viewing-row-state is-${summary.tone}`}><i aria-hidden="true" />{summary.label}</span>
+            <span className="ws-summary-sep" aria-hidden="true">·</span>
+            {viewing.listing_headline}
+          </>
+        )}
+      />
+      <section className="ws-panel viewing-record-panel" aria-label={`Viewing for ${viewing.tenant_name}`}>
+        <ProviderViewingRecord key={viewing.id} viewing={viewing} onChanged={load} />
+      </section>
     </div>
   );
 }
@@ -124,7 +170,9 @@ function TenantViewing() {
       setViewings(await listMyViewings());
       setError("");
     } catch (cause) {
-      setViewings([]);
+      // Kept, not blanked: the record polls during check-in, and one failed
+      // read must not take the appointment off the screen.
+      setViewings((current) => current ?? []);
       setError(cause instanceof ApiFailure ? cause.error.message : "Could not load your viewing.");
     }
   }, []);
@@ -134,36 +182,48 @@ function TenantViewing() {
   }, [load]);
 
   const viewing = viewings?.find((row) => row.id === viewingId) ?? null;
+  const missing = viewings !== null && !error && !viewing;
 
+  // The sheet the schedule opens, laid on the page: the same words, the same
+  // record, one level deeper in the same workspace.
   return (
-    <div className="viewings">
-      <EntityPath
-        items={[
-          { label: "Viewings", href: "/viewings", mobileLabel: "Back to Viewings" },
-          { label: viewing ? viewing.listing_headline : "Viewing" },
-        ]}
+    <div className="ws-page viewings-workspace tenant-viewing-page">
+      <WorkspaceHead
+        icon="viewings"
+        title={missing ? "Viewing" : "Your viewing"}
+        summary={viewing ? standing(viewing).line : null}
+        path={
+          <EntityPath
+            items={[
+              { label: "Viewings", href: "/viewings", mobileLabel: "Back to Viewings" },
+              { label: viewing ? viewing.property_title || viewing.listing_headline : "Viewing" },
+            ]}
+          />
+        }
       />
 
-      {viewings === null ? (
-        <>
-          <PageHeader title="Viewing" />
-          <LoadingRows rows={4} />
-        </>
-      ) : error ? (
-        <Notice tone="error" title={error} />
-      ) : viewing ? (
-        <ViewingRecord key={viewing.id} viewing={viewing} onChanged={load} />
-      ) : (
-        <>
-          <PageHeader
-            title="Viewing not found"
-            description="It may have been withdrawn, or the listing is no longer available."
+      <section className="ws-panel request-record-panel tenant-viewing-panel" aria-busy={viewings === null || undefined}>
+        {viewings === null ? (
+          <PanelSkeleton rows={3} />
+        ) : viewing ? (
+          <ViewingRecord key={viewing.id} viewing={viewing} onChanged={load} />
+        ) : error ? (
+          <PanelState
+            tone="error"
+            icon="warning"
+            title="Your viewing didn’t load"
+            body={error}
+            action={<button type="button" className="ws-action" onClick={() => void load()}>Try again</button>}
           />
-          <p className="type-caption">
-            <Link href="/viewings">Back to Viewings</Link>
-          </p>
-        </>
-      )}
+        ) : (
+          <PanelState
+            icon="viewings"
+            title="Viewing not found"
+            body="It may have been withdrawn, or the listing is no longer available. Your other viewings are still on the schedule."
+            action={<Link href="/viewings" className="ws-action is-primary">Back to Viewings</Link>}
+          />
+        )}
+      </section>
     </div>
   );
 }

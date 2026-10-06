@@ -16,6 +16,16 @@ import { ListingCard } from "@/components/listings/ListingCard";
 import { ExploreMapView } from "@/components/explore/ExploreMapView";
 import { FilterSelect, RentRange, SegmentedChoice } from "@/components/explore/FilterFields";
 import { PlaceSearch } from "@/components/explore/PlaceSearch";
+import {
+  BEDROOM_CHOICES,
+  ExploreConsole,
+  MapToggle,
+  MoreFiltersButton,
+  QuickChip,
+  RENT_BANDS,
+  ShowChip,
+  rentBand,
+} from "@/components/explore/ExploreConsole";
 import { ApiFailure, isAborted } from "@/lib/api";
 import type { Listing } from "@/lib/console";
 import {
@@ -94,10 +104,7 @@ const SORTS: ReadonlyArray<readonly [ListingSort, string]> = [
 /** Place is not a filter: clearing filters keeps it, and choosing one clears the others' area. */
 const NO_LOCATION: Partial<ExploreQuery> = { area: null, q: "", bbox: null, localityId: "", localityName: "" };
 
-export function ListingBrowser({ modeSwitch = null }: {
-  /** Explore's Rent/Buy choice, drawn above the search it switches. */
-  modeSwitch?: ReactNode;
-} = {}) {
+export function ListingBrowser() {
   const { state } = useSession();
   const { toast } = useToast();
   const signedIn = state.status === "signed_in";
@@ -425,37 +432,50 @@ export function ListingBrowser({ modeSwitch = null }: {
   function discovery(): ReactNode {
     return (
       <div className="explore-discovery">
-        {modeSwitch}
-        {/* One search bar and one Filters button, the pair the phone floats over
-            its map. Every other choice is in the panel the button opens. */}
-        <div className="explore-bar">
-          <PlaceSearch
-            label="Search by location or property"
-            area={query.area}
-            text={query.area ? "" : query.localityName || query.q}
-            onChoosePlace={choosePlace}
-            onSubmitText={(text) => update({ ...NO_LOCATION, q: text })}
-            onClear={() => update(NO_LOCATION)}
-          />
-          <button
-            ref={advancedTrigger}
-            type="button"
-            className={`explore-filters-button${filterCount ? " is-active" : ""}${advancedOpen ? " is-open" : ""}`}
-            aria-label={filterCount ? `Filters, ${filterCount} active` : "Filters"}
-            aria-haspopup="dialog"
-            aria-expanded={advancedOpen}
-            aria-controls="explore-advanced-filters"
-            onClick={() => setAdvancedOpen((open) => !open)}
-          >
-            <Icon name="filters" />
-            <span className="explore-filters-label">Filters</span>
-            {filterCount ? <span className="explore-filter-count" aria-hidden="true">{filterCount}</span> : null}
-          </button>
-          <button type="button" className="explore-map-toggle" onClick={mapView ? showList : showMap}>
-            <Icon name={mapView ? "listings" : "map"} />
-          <span>{mapView ? "List" : "Map"}</span>
-          </button>
-        </div>
+        {/* The search pill, then a few chips; everything else is behind More
+            filters (owner, 2026-10-05). Show is the first chip on every side. */}
+        <ExploreConsole
+          search={(
+            <PlaceSearch
+              label="Search by location or property"
+              area={query.area}
+              text={query.area ? "" : query.localityName || query.q}
+              onChoosePlace={choosePlace}
+              onSubmitText={(text) => update({ ...NO_LOCATION, q: text })}
+              onClear={() => update(NO_LOCATION)}
+            />
+          )}
+          map={<MapToggle mapView={mapView} onToggle={mapView ? showList : showMap} />}
+          chips={(
+            <>
+              <ShowChip side="rent" />
+              <QuickChip
+                label="Bedrooms"
+                value={query.bedrooms}
+                onChange={(value) => update({ bedrooms: value })}
+                options={BEDROOM_CHOICES}
+              />
+              <QuickChip
+                label="Rent"
+                value={rentBand(query.rentMin, query.rentMax)}
+                onChange={(value) => {
+                  const [minimum = "", maximum = ""] = value.split("-");
+                  update({ rentMin: minimum, rentMax: maximum });
+                }}
+                options={rentBand(query.rentMin, query.rentMax) === "custom"
+                  ? [...RENT_BANDS, ["custom", "Custom range"] as const]
+                  : RENT_BANDS}
+              />
+              <MoreFiltersButton
+                buttonRef={advancedTrigger}
+                count={filterCount}
+                open={advancedOpen}
+                controls="explore-advanced-filters"
+                onToggle={() => setAdvancedOpen((open) => !open)}
+              />
+            </>
+          )}
+        />
 
         {advancedOpen ? (
           <>

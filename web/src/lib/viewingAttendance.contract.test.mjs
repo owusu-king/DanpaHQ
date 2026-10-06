@@ -39,13 +39,15 @@ test("web encourages rescheduling and exposes counterparty attendance response",
 });
 
 test("provider web Viewings is a scalable queue with contextual detail", () => {
-  assert.match(page, /className="viewings-search"/);
+  // Searched and staged through the shared workspace controls.
+  assert.match(page, /<PanelSearch/);
   // The stage words moved to the module the list and the record share.
   for (const label of ["Needs action", "Upcoming", "History"]) {
     assert.ok(providerMeaning.includes(label), `${label} must still be a stage`);
   }
-  // The queue links to the record rather than opening it into a pane.
-  assert.match(page, /className="viewings-filters"/);
+  // The queue links to the record; a plain click reads it in the shared
+  // sheet (ViewingModal), never a page-local dialog.
+  assert.match(page, /<SegmentedControl[\s\S]{0,200}label="Viewing status"/);
   assert.match(page, /href=\{`\/viewings\/\$\{viewing\.id\}`/);
   assert.match(providerRecord, /export function ProviderViewingRecord/);
   assert.doesNotMatch(page, /ProviderViewingDialog/);

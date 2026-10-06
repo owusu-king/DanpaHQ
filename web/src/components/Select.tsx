@@ -14,6 +14,7 @@ export function Select({
   onChange,
   options,
   hint,
+  error,
   disabled = false,
 }: {
   label: string;
@@ -21,6 +22,8 @@ export function Select({
   onChange: (value: string) => void;
   options: readonly (readonly [string, string])[];
   hint?: string;
+  /** Replaces the hint, and says exactly what is missing. */
+  error?: string;
   /** Shown, and not changeable — for a value the backend will refuse. */
   disabled?: boolean;
 }) {
@@ -31,6 +34,7 @@ export function Select({
         <select
           value={value}
           disabled={disabled}
+          aria-invalid={Boolean(error)}
           onChange={(event) => onChange(event.target.value)}
           className="type-body select-control"
         >
@@ -41,7 +45,13 @@ export function Select({
           ))}
         </select>
       </span>
-      {hint ? <span className="type-caption field-hint">{hint}</span> : null}
+      {error ? (
+        <span role="alert" className="type-caption field-error">
+          {error}
+        </span>
+      ) : hint ? (
+        <span className="type-caption field-hint">{hint}</span>
+      ) : null}
     </label>
   );
 }

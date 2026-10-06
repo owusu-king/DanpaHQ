@@ -37,9 +37,10 @@ export default function IdentityVerificationPage() {
     <section className="verification-task" aria-labelledby="identity-verification-title">
       <Link href="/settings/verification" className="verification-back">← Verification</Link>
       <header className="verification-heading">
-        <p className="type-label">IDENTITY</p>
-        <h2 id="identity-verification-title">Identity verification</h2>
-        <p>Submit one clear document. This check carries across every Rooomly experience.</p>
+        <div>
+          <h2 id="identity-verification-title">Identity verification</h2>
+          <p>Submit one clear document. This check carries across every Rooomly experience.</p>
+        </div>
       </header>
       {error ? <Notice tone="error" title={error} /> : null}
       {!payload && !error ? <LoadingRows rows={3} /> : null}

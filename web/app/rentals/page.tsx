@@ -5,7 +5,7 @@ import { Suspense } from "react";
 
 import { ListingBrowser } from "@/components/listings/ListingBrowser";
 import { AllBrowser } from "@/components/explore/AllBrowser";
-import { ExploreModeSwitch, SaleBrowser } from "@/components/sales/SaleBrowser";
+import { SaleBrowser } from "@/components/sales/SaleBrowser";
 import { Reveal } from "@/components/motion/Reveal";
 import { useSession } from "@/lib/session";
 
@@ -82,17 +82,17 @@ export default function RentalsPage() {
 
 /**
  * All, Rent or Buy. Explore opens on everything — rentals and properties for
- * sale together — and the switch narrows it to one side (owner, 2026-09-29).
- * Properties for sale are their own search — sold whole, priced in the hundreds
- * of thousands, filtered by tenure — so Buy swaps the browser rather than
- * adding filters to Rent's (owner, 2026-09-28).
+ * sale together — and the console's Show chip narrows it to one side (owner,
+ * 2026-10-05; it was a segmented bar fused to the search). Properties for sale
+ * are their own search — sold whole, priced in the hundreds of thousands,
+ * filtered by tenure — so Buy swaps the browser rather than adding filters to
+ * Rent's (owner, 2026-09-28).
  */
 function Explore() {
   const asked = useSearchParams().get("mode");
-  const mode = asked === "buy" ? "buy" : asked === "rent" ? "rent" : "all";
-  const modeSwitch = <ExploreModeSwitch mode={mode} />;
-  if (mode === "all") return <AllBrowser modeSwitch={modeSwitch} />;
-  return mode === "buy" ? <SaleBrowser modeSwitch={modeSwitch} /> : <ListingBrowser modeSwitch={modeSwitch} />;
+  if (asked === "buy") return <SaleBrowser />;
+  if (asked === "rent") return <ListingBrowser />;
+  return <AllBrowser />;
 }
 
 /** The tray's footprint while the search is read, so nothing jumps when it arrives. */

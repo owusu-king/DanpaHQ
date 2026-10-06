@@ -30,6 +30,7 @@ import {
   QuietAct,
   RecordPanel,
 } from "@/components/record/RecordSurfaces";
+import { CountStepper, YesNo } from "@/components/form/CountStepper";
 import { Select } from "@/components/form/Select";
 import { Field, Notice, Type, space } from "@/components/ui";
 import { useSafeBottom } from "@/platform";
@@ -148,26 +149,27 @@ export default function NewSpaceScreen() {
 
       {step === "Amenities" && unit ? (
         <View style={styles.step}>
-          <GroupLabel>What this Unit has</GroupLabel>
-          <Footnote>Anything the whole compound shares is recorded once on the Property.</Footnote>
+          <GroupLabel>Amenities</GroupLabel>
+          <Footnote>Only this Unit’s own.</Footnote>
+          {/* One button and two quiet links; continuing with nothing ticked is the skip. */}
           <SpaceAmenities
             scope="unit"
             id={unit.id}
-            saveLabel="Save and continue"
+            saveLabel="Continue"
             onSaved={() => setStep("Photos")}
             saveForLaterLabel="Save for later"
             onSavedForLater={keep}
           />
           <View style={styles.quiet}>
-            <QuietAct label="Skip for now" onPress={() => setStep("Photos")} />
+            <QuietAct label="Back" icon="chevron-back" onPress={() => setStep("Details")} />
           </View>
         </View>
       ) : null}
 
       {step === "Photos" && unit ? (
         <View style={styles.step}>
-          <GroupLabel>Show the Unit</GroupLabel>
-          <Footnote>The main view, then one clear photo of each amenity. These are what a tenant sees.</Footnote>
+          <GroupLabel>Photos</GroupLabel>
+          <Footnote>Main view, plus one per amenity.</Footnote>
           <SpacePhotos unitId={unit.id} editable onChanged={reload} />
           <ActionBar>
             <Pill label="Continue" icon="arrow-forward" grow onPress={() => setStep("Review")} />
@@ -205,16 +207,16 @@ function DetailsStep({
   const [label, setLabel] = useState("");
   const [spaceType, setSpaceType] = useState("");
   const [description, setDescription] = useState("");
-  const [bedrooms, setBedrooms] = useState("1");
-  const [bathrooms, setBathrooms] = useState("1");
-  const [floor, setFloor] = useState("");
-  const [wing, setWing] = useState("");
+  const [bedrooms, setBedrooms] = useState(1);
+  const [bathrooms, setBathrooms] = useState(1);
+  const [floor, setFloor] = useState(0);
   const [entrance, setEntrance] = useState("");
   const [buildingId, setBuildingId] = useState("");
   const [buildings, setBuildings] = useState<Building[]>([]);
   const [options, setOptions] = useState<SpaceTypeOption[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [missing, setMissing] = useState<{ type?: string; name?: string }>({});
 
   useEffect(() => {
     void loadPropertyTypes()
@@ -229,63 +231,104 @@ function DetailsStep({
   }, [property.id, property.property_type]);
 
   const chosen = options.find((option) => option.value === spaceType) ?? null;
-  // Land has nothing to count, and asking invites a record claiming a plot has
-  // two bathrooms.
-  const countsApply = chosen?.has_interior !== false;
+  // Only what fits this kind of space (owner, 2026-10-05): a shop is asked
+  // whether it has a bathroom, never bedrooms; a bed space is asked neither.
+  const asks = chosen?.asks ?? null;
 
   async function submit(saveForLater = false) {
+    // Each gap is named at its own field, not left as a disabled button.
+    const problems = {
+      type: spaceType ? undefined : "Choose the Unit type.",
+      name: label.trim() ? undefined : "Give it a name, e.g. Flat A or Room 3.",
+    };
+    setMissing(problems);
+    if (problems.type || problems.name) {
+      setError("");
+      return;
+    }
     setBusy(true);
     setError("");
     try {
       const created = await createUnit(property.id, {
-        label,
+        label: label.trim(),
         space_type: spaceType,
         description,
-        bedrooms: countsApply ? Number(bedrooms || 0) : 0,
-        bathrooms: countsApply ? Number(bathrooms || 0) : 0,
-        floor_level: floor === "" ? null : Number(floor),
-        wing,
+        bedrooms: asks?.bedrooms ? bedrooms : 0,
+        bathrooms: asks?.bathrooms === "none" ? 0 : bathrooms,
+        floor_level: asks?.floor ? floor : null,
         entrance_note: entrance,
         ...(buildingId ? { building_id: buildingId } : {}),
       });
       if (saveForLater) onSaved(created);
       else onDone(created);
     } catch (cause) {
-      setError(cause instanceof ApiFailure ? cause.error.message : "That did not save.");
+      setError(
+        cause instanceof ApiFailure
+          ? cause.error.message
+          : "Could not save: check your connection and try again.",
+      );
     } finally {
       setBusy(false);
     }
   }
 
+  const counts = asks ? asks.bedrooms || asks.bathrooms !== "none" || asks.floor : false;
+
   return (
     <View style={styles.step}>
       <View style={styles.section}>
-        <GroupLabel>What is let here</GroupLabel>
+        <GroupLabel>The Unit</GroupLabel>
         <Select
-          label="Kind of space"
-          placeholder="Choose what is let"
+          label="Unit type"
+          placeholder="Choose one"
           value={spaceType}
+          error={missing.type}
           options={options.map((option) => ({
             value: option.value,
             label: option.label,
             detail: option.accepts_bed_spaces ? "Beds can be let separately" : undefined,
           }))}
-          onChange={setSpaceType}
+          onChange={(next) => {
+            setSpaceType(next);
+            setMissing((current) => ({ ...current, type: undefined }));
+          }}
         />
-        <Field label="Name" placeholder="Flat A, Room 3, Ground floor shop" value={label} onChangeText={setLabel} />
-        {countsApply ? (
+        <Field
+          label="Name"
+          placeholder="e.g. Flat A, Room 3"
+          value={label}
+          maxLength={60}
+          error={missing.name}
+          onChangeText={(next) => {
+            setLabel(next);
+            setMissing((current) => ({ ...current, name: undefined }));
+          }}
+        />
+        {/* Only what fits the type: a shop has no bedrooms, a bed no bathroom,
+            a house no floor. Small steppers, side by side. */}
+        {counts && asks ? (
           <View style={styles.pair}>
-            <View style={styles.half}>
-              <Field label="Bedrooms" placeholder="0 for a single room" value={bedrooms} onChangeText={setBedrooms} keyboardType="number-pad" />
-            </View>
-            <View style={styles.half}>
-              <Field label="Bathrooms" placeholder="1" value={bathrooms} onChangeText={setBathrooms} keyboardType="number-pad" />
-            </View>
+            {asks.bedrooms ? (
+              <CountStepper label="Bedrooms" value={bedrooms} onChange={setBedrooms} min={1} />
+            ) : null}
+            {asks.bathrooms === "count" ? (
+              <CountStepper label="Bathrooms" value={bathrooms} onChange={setBathrooms} />
+            ) : asks.bathrooms === "yes_no" ? (
+              <YesNo label="Own bathroom" value={bathrooms > 0} onChange={(yes) => setBathrooms(yes ? 1 : 0)} />
+            ) : null}
+            {asks.floor ? (
+              <CountStepper
+                label="Floor"
+                value={floor}
+                onChange={setFloor}
+                max={60}
+                format={(value) => (value === 0 ? "Ground" : String(value))}
+              />
+            ) : null}
           </View>
         ) : null}
         <Field
-          label="Describe it"
-          placeholder="What a tenant should know before they see it"
+          label="Description (optional)"
           value={description}
           onChangeText={setDescription}
           multiline
@@ -293,42 +336,37 @@ function DetailsStep({
       </View>
 
       <View style={styles.section}>
-        <GroupLabel>Where inside the Property</GroupLabel>
+        <GroupLabel>Finding it</GroupLabel>
         {buildings.length ? (
           <Select
             label="Block"
-            placeholder="Anywhere in the Property"
+            placeholder="Not in a named block"
             value={buildingId}
             options={buildings.map((row) => ({ value: row.id, label: row.name, detail: row.code || undefined }))}
             onChange={setBuildingId}
           />
         ) : null}
-        <View style={styles.pair}>
-          <View style={styles.half}>
-            <Field label="Floor" placeholder="0 for ground" value={floor} onChangeText={setFloor} keyboardType="numbers-and-punctuation" />
-          </View>
-          <View style={styles.half}>
-            <Field label="Wing" placeholder="East" value={wing} onChangeText={setWing} />
-          </View>
-        </View>
         <Field
-          label="How to find the door"
-          placeholder="Second door past the stairwell"
+          label="Entrance directions (optional)"
+          placeholder="e.g. Blue door, top of the stairs"
           value={entrance}
           onChangeText={setEntrance}
         />
-        <Footnote>Directions are shared only after a viewing is confirmed, never publicly.</Footnote>
+        <Footnote>Shared after a confirmed viewing.</Footnote>
       </View>
 
       {chosen?.accepts_bed_spaces ? (
-        <Notice
-          tone="info"
-          title="Beds can be let separately"
-          body="Save the room first, then add each bed."
-        />
+        <Notice tone="info" title="Add beds after saving" body="Let the room whole, or bed by bed." />
       ) : null}
 
-      {error ? <Notice tone="error" title={error} /> : null}
+      {missing.type || missing.name ? (
+        <Notice
+          tone="error"
+          title={missing.type && missing.name ? "Two details missing" : "One detail missing"}
+          body={[missing.type, missing.name].filter(Boolean).join(" ")}
+        />
+      ) : null}
+      {error ? <Notice tone="error" title="This Unit was not saved" body={error} /> : null}
 
       <ActionBar>
         <Pill
@@ -336,11 +374,10 @@ function DetailsStep({
           icon="arrow-forward"
           busy={busy}
           busyLabel="Saving"
-          disabled={!spaceType}
           grow
           onPress={() => void submit(false)}
         />
-        <QuietAct label="Save for later" disabled={busy || !spaceType} onPress={() => void submit(true)} />
+        <QuietAct label="Save for later" disabled={busy} onPress={() => void submit(true)} />
       </ActionBar>
     </View>
   );
@@ -378,8 +415,8 @@ function ReviewStep({
       <View style={styles.section}>
         <GroupLabel>Send it for checking</GroupLabel>
         <RecordPanel>
-          <Fact first label="Kind" value={unit.space_type_label} />
-          <Fact label="Called" value={unit.label || "Not named"} />
+          <Fact first label="Type" value={unit.space_type_label} />
+          <Fact label="Name" value={unit.label || "Not named"} />
           <Fact
             wide
             label="Amenities"
@@ -394,7 +431,7 @@ function ReviewStep({
       </View>
 
       {ready ? (
-        <Footnote>It goes to our team with the photos attached. Nothing else waits on this.</Footnote>
+        <Footnote>We compare the photos with your details.</Footnote>
       ) : waitingOnProperty ? (
         <Notice
           tone="info"
@@ -503,11 +540,8 @@ const styles = StyleSheet.create({
   /** Two short answers side by side rather than two full-width boxes. */
   pair: {
     flexDirection: "row",
+    flexWrap: "wrap",
     gap: space[3],
-  },
-  half: {
-    flex: 1,
-    minWidth: 0,
   },
   quiet: {
     alignItems: "flex-start",

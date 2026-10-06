@@ -72,8 +72,7 @@ import { getVerification, type VerificationProgress } from "@/verification";
 // Every step a property can have. Which of them this one has is
 // `describePropertySetup`'s answer — a sale adds `sale`, and land drops
 // `details` and `amenities` — so moving on reads `steps`, never this.
-const STEP_KEYS = ["basics", "details", "sale", "documents", "photos", "amenities", "review"] as const;
-type StepKey = (typeof STEP_KEYS)[number];
+type StepKey = "basics" | "details" | "sale" | "documents" | "photos" | "amenities" | "review";
 
 export default function PropertySetupScreen() {
   // Android draws edge-to-edge, so the last control sits under the navigation
@@ -149,7 +148,9 @@ export default function PropertySetupScreen() {
   useEffect(() => {
     if (landed.current || !steps.length) return;
     landed.current = true;
-    const asked = STEP_KEYS.includes(requested as StepKey) ? (requested as StepKey) : null;
+    // Only a step this property has: land for sale has no details or amenities,
+    // so an old `?step=details` link must not open the water and compound form.
+    const asked = steps.some((row) => row.key === requested) ? (requested as StepKey) : null;
     setStep(asked ?? (resumeAt(steps) as StepKey));
   }, [steps, requested]);
 
@@ -163,6 +164,9 @@ export default function PropertySetupScreen() {
 
   const readyToFinish = isSetupComplete(steps);
   const keys = steps.map((row) => row.key);
+  // What is drawn is a step this property has; one it lacks (details, for land
+  // on sale) falls back to the first, never to a form full of absurd questions.
+  const shown = (keys.includes(step) ? step : keys[0]) as StepKey;
   // The step after this one, among the ones this property has.
   const after = (key: StepKey) => (keys[keys.indexOf(key) + 1] ?? "review") as StepKey;
   const saleKind = property.purpose === "sale" ? (sale?.kind ?? null) : null;
@@ -193,13 +197,13 @@ export default function PropertySetupScreen() {
 
       {/* The journey is the way back, and the way ahead: these steps may be
           done in any order, so every checkpoint but the current one opens. */}
-      <SetupProgress steps={steps} current={step} onGoTo={(key) => setStep(key as StepKey)} />
+      <SetupProgress steps={steps} current={shown} onGoTo={(key) => setStep(key as StepKey)} />
 
       {error ? <Notice tone="error" title={error} /> : null}
 
-      {step === "basics" ? <BasicsStep property={property} onSaved={load} /> : null}
+      {shown === "basics" ? <BasicsStep property={property} onSaved={load} /> : null}
 
-      {step === "details" ? (
+      {shown === "details" ? (
         <DetailsStep
           property={property}
           vocabulary={vocabulary}
@@ -210,7 +214,7 @@ export default function PropertySetupScreen() {
         />
       ) : null}
 
-      {step === "sale" && sale ? (
+      {shown === "sale" && sale ? (
         <SaleDetailsForm
           propertyId={property.id}
           sale={sale}
@@ -223,7 +227,7 @@ export default function PropertySetupScreen() {
         />
       ) : null}
 
-      {step === "documents" ? (
+      {shown === "documents" ? (
         <DocumentsStep
           property={property}
           saleKind={saleKind}
@@ -232,7 +236,7 @@ export default function PropertySetupScreen() {
         />
       ) : null}
 
-      {step === "photos" ? (
+      {shown === "photos" ? (
         <PhotosStep
           propertyId={property.id}
           progress={photos}
@@ -241,7 +245,7 @@ export default function PropertySetupScreen() {
         />
       ) : null}
 
-      {step === "amenities" ? (
+      {shown === "amenities" ? (
         <AmenitiesStep
           propertyId={property.id}
           onChanged={load}
@@ -249,7 +253,7 @@ export default function PropertySetupScreen() {
         />
       ) : null}
 
-      {step === "review" ? (
+      {shown === "review" ? (
         <ReviewStep
           property={property}
           steps={steps}

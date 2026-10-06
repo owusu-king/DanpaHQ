@@ -331,7 +331,9 @@ test("More stops advertising features that are not enabled", () => {
   const more = read(PROVIDER);
 
   assert.doesNotMatch(more, /is not enabled yet/);
-  assert.doesNotMatch(more, /label="Maintenance"/);
+  // Maintenance is enabled now (apps.maintenance, 2026-10-05). It may be listed
+  // only because it opens a real screen, and only for those who operate.
+  assert.match(more, /\{operates \? <Row icon="construct-outline" label="Maintenance" onPress=\{\(\) => router\.push\("\/\(app\)\/maintenance" as never\)\} \/> : null\}/);
   assert.doesNotMatch(more, /label="Documents"/);
   assert.doesNotMatch(more, /label="Reports"/);
 });

@@ -21,6 +21,8 @@ from .serializers import (
     DraftLeaseSerializer,
     LeaseSerializer,
     ReasonSerializer,
+    TermsTemplateInputSerializer,
+    TermsTemplateSerializer,
     UpdateLeaseSerializer,
 )
 
@@ -238,3 +240,93 @@ class LeaseDocumentView(APIView):
         response["ETag"] = f'"{agreement.final_pdf_hash}"'
         response["X-Content-Type-Options"] = "nosniff"
         return response
+
+
+class OrganizationContractsView(APIView):
+    """GET /organizations/<id>/contracts/ - what a Portfolio's agreements are made of.
+
+    Rooomly's controlled agreement (read-only: its clauses and version), the
+    placeholders a provider may use, and the Portfolio's own terms templates.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, organization_pk):
+        from apps.organization.services import get_organization_or_404
+
+        from . import terms_templates
+        from .templates import canonical_template
+
+        organization = get_organization_or_404(organization_pk, request.user)
+        templates = terms_templates.list_templates(organization=organization, user=request.user)
+        agreement = canonical_template()
+        return Response(
+            {
+                "agreement": {
+                    "title": agreement.title,
+                    "version": agreement.version,
+                    "review_status": agreement.review_status,
+                    "clauses": [
+                        {"id": clause["id"], "title": clause["title"], "body": clause["body"]}
+                        for clause in agreement.clauses
+                    ],
+                },
+                "placeholders": terms_templates.placeholder_catalogue(),
+                "templates": TermsTemplateSerializer(templates, many=True).data,
+            }
+        )
+
+
+class OrganizationTermsTemplatesView(APIView):
+    """POST /organizations/<id>/terms-templates/ - save reusable additional terms."""
+
+    permission_classes = [IsAuthenticated]
+
+    @idempotent_mutation(resource_type="terms_template")
+    def post(self, request, organization_pk):
+        from apps.organization.services import get_organization_or_404
+
+        from . import terms_templates
+
+        organization = get_organization_or_404(organization_pk, request.user)
+        payload = TermsTemplateInputSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+        template = terms_templates.create_template(
+            organization=organization, user=request.user, data=payload.validated_data
+        )
+        return Response(TermsTemplateSerializer(template).data, status=status.HTTP_201_CREATED)
+
+
+class OrganizationTermsTemplateView(APIView):
+    """PATCH/DELETE /organizations/<id>/terms-templates/<template>/."""
+
+    permission_classes = [IsAuthenticated]
+
+    def _template(self, request, organization_pk, pk):
+        from apps.organization.services import get_organization_or_404
+
+        from .models import TermsTemplate
+
+        organization = get_organization_or_404(organization_pk, request.user)
+        template = TermsTemplate.objects.filter(organization=organization, id=pk).first()
+        if template is None:
+            raise NotFound("We could not find that template.")
+        return template
+
+    def patch(self, request, organization_pk, pk):
+        from . import terms_templates
+
+        template = self._template(request, organization_pk, pk)
+        payload = TermsTemplateInputSerializer(data=request.data, partial=True)
+        payload.is_valid(raise_exception=True)
+        template = terms_templates.update_template(
+            template=template, user=request.user, data=payload.validated_data
+        )
+        return Response(TermsTemplateSerializer(template).data)
+
+    def delete(self, request, organization_pk, pk):
+        from . import terms_templates
+
+        template = self._template(request, organization_pk, pk)
+        terms_templates.delete_template(template=template, user=request.user)
+        return Response(status=status.HTTP_204_NO_CONTENT)

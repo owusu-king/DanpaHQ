@@ -1,206 +1,409 @@
-.tenants-summary {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2) var(--space-5);
-  margin: 0 0 var(--space-5);
-  color: var(--color-ink-500);
-}
+/* Tenants sits in the shared workspace frame (`workspace.css`); this file is
+   the tenant cards, the private-access list and the tenancy record.
 
-.tenants-tabs {
-  display: flex;
-  gap: var(--space-1);
-  margin-bottom: var(--space-7);
-  padding: var(--space-1);
-  width: fit-content;
-  max-width: 100%;
-  overflow-x: auto;
-  border: var(--border-hairline) solid var(--color-field-200);
-  border-radius: var(--radius-md);
-  background: var(--color-field-100);
-}
+   A tenant card is a plain record: photo or initials, name and standing, the
+   home, then the rent and a quiet Open. Colour is kept for meaning — gold when
+   money is outstanding, red when it is overdue. */
 
-.tenants-tab {
-  min-height: var(--target-min);
-  padding: var(--space-2) var(--space-4);
-  border: 0;
-  border-radius: calc(var(--radius-md) - 2px);
-  background: transparent;
-  color: var(--color-ink-600);
-  white-space: nowrap;
-  cursor: pointer;
-}
+/* --- the collection --------------------------------------------------------- */
 
-.tenants-tab[aria-selected="true"] {
-  background: var(--color-field-0);
-  color: var(--color-ink-900);
-  box-shadow: var(--shadow-flat);
-}
+.tenants-group { min-width: 0; }
+.tenants-group .ws-group-heading { margin-bottom: var(--space-3); padding-inline: var(--space-1); }
 
-.tenants-toolbar {
+.tenant-grid {
   display: grid;
-  grid-template-columns: minmax(15rem, 1fr) minmax(11rem, 14rem);
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 16.5rem), 1fr));
   gap: var(--space-3);
-  align-items: end;
-  margin-bottom: var(--space-5);
-}
-
-.tenants-filter {
-  display: grid;
-  gap: var(--space-2);
-  color: var(--color-ink-700);
-}
-
-.tenants-filter select {
-  min-height: var(--target-min);
-  padding: 0 var(--space-3);
-  border: var(--border-hairline) solid var(--color-field-300);
-  border-radius: var(--radius-md);
-  background: var(--color-field-0);
-  color: var(--color-ink-900);
-}
-
-.tenant-table {
   margin: 0;
   padding: 0;
   list-style: none;
+}
+
+.tenant-card-item {
+  min-width: 0;
+  animation: ws-rise var(--motion-duration-base) var(--ws-enter) both;
+  animation-delay: calc(var(--tenant-order, 0) * 24ms);
+}
+
+/* --- a card -----------------------------------------------------------------
+   A plain record (owner, 2026-10-05: the floating portrait, the hop on hover
+   and the View pill that replaced the rent line "looked fake"). The person and
+   their standing on top, the home under it, the rent and a quiet "Open" in a
+   footer. Hover only firms the edge and nudges the arrow; nothing hides. */
+
+.tenant-card {
+  --tone: var(--color-ink-700);
+  --tone-wash: var(--color-field-100);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  height: 100%;
+  padding: var(--space-4);
+  color: inherit;
+  text-decoration: none;
+  background: var(--color-field-0);
+  border: var(--border-hairline) solid var(--color-field-200);
+  border-radius: var(--radius-lg, 1rem);
+  box-shadow: 0 1px 2px rgba(33, 26, 21, .04);
+  transition:
+    border-color var(--motion-duration-fast) var(--motion-easing-standard),
+    box-shadow var(--motion-duration-fast) var(--motion-easing-standard);
+}
+/* Only money that is owed takes a colour. */
+.tenant-card[data-rent="outstanding"] { --tone: var(--color-harmattan-600); --tone-wash: var(--color-harmattan-100); }
+.tenant-card[data-rent="overdue"] { --tone: var(--color-laterite-600); --tone-wash: var(--color-laterite-100); }
+
+/* A past tenant: the same card, a step quieter, so the Archive reads as history. */
+.tenant-card[data-archived] { background: color-mix(in srgb, var(--color-field-50, #faf8f5) 70%, var(--color-field-0)); }
+.tenant-card[data-archived] .tenant-card-avatar { filter: grayscale(1); opacity: .8; }
+.tenant-card[data-archived] .tenant-card-name { color: var(--color-ink-700); }
+
+.tenant-card-head { display: flex; align-items: center; gap: var(--space-3); min-width: 0; }
+
+/* The person: their photo, or their initials in the rent's tone. */
+.tenant-card-avatar {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--tone-wash) 80%, #fff);
+  border-radius: 999px;
+  box-shadow: 0 0 0 1px rgba(33, 26, 21, .08);
+}
+.tenant-card-avatar .portal-avatar {
+  width: 100% !important;
+  height: 100% !important;
+  color: var(--tone);
+  font-family: var(--font-display);
+  font-size: .9375rem !important;
+  font-weight: 600;
+  background: transparent;
+  border-radius: 0;
+}
+.tenant-card-avatar .portal-avatar-photo { object-fit: cover; }
+
+.tenant-card-who { display: grid; gap: 2px; min-width: 0; }
+
+.tenant-card-name {
+  overflow: hidden;
+  color: var(--color-ink-900);
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: -.01em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tenant-state {
+  --state: var(--color-ink-500);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--state);
+  font-size: .75rem;
+  font-weight: 600;
+}
+.tenant-state::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  background: currentColor;
+  border-radius: 999px;
+}
+.tenant-state[data-state="active"] { --state: var(--color-kola-600); }
+.tenant-state[data-state="ending"] { --state: var(--color-harmattan-600); }
+.tenant-state[data-state="pending"],
+.tenant-state[data-state="upcoming"] { --state: var(--color-lagoon-600); }
+
+.tenant-card-place {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-ink-600, var(--color-ink-500));
+  font-size: .8125rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tenant-card-place .portal-icon { flex: none; width: 15px; height: 15px; color: var(--color-ink-400, var(--color-ink-500)); }
+
+.tenant-card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-top: auto;
+  padding-top: var(--space-3);
   border-top: var(--border-hairline) solid var(--color-field-200);
 }
 
-.tenant-table-head,
-.tenant-table-row {
-  display: grid;
-  grid-template-columns: minmax(10rem, 1.15fr) minmax(12rem, 1.4fr) minmax(9rem, 0.8fr) 3rem;
-  gap: var(--space-4);
-  align-items: center;
-}
-
-.tenant-table-head {
-  padding: var(--space-2) var(--space-3);
-  color: var(--color-ink-500);
-}
-
-.tenant-table-row {
-  position: relative;
-  min-height: 76px;
-  padding: var(--space-3);
-  border-bottom: var(--border-hairline) solid var(--color-field-200);
-}
-
-.tenant-table-row:hover {
-  background: var(--color-field-0);
-}
-
-.tenant-table-primary,
-.tenant-table-secondary {
-  display: grid;
-  gap: var(--space-1);
+/* The rent: plain when paid up, a tinted chip when money is owed. */
+.tenant-pay {
   min-width: 0;
+  overflow: hidden;
+  color: var(--color-ink-700);
+  font-size: .75rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tenant-card[data-rent="outstanding"] .tenant-pay,
+.tenant-card[data-rent="overdue"] .tenant-pay {
+  padding: 3px 8px;
+  color: var(--tone);
+  background: var(--tone-wash);
+  border-radius: 999px;
 }
 
-.tenant-table-primary a,
-.tenant-table-link {
-  color: var(--color-ink-900);
-  text-decoration: none;
-}
-
-.tenant-table-primary a::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-}
-
-.tenant-table-meta {
-  overflow-wrap: anywhere;
+.tenant-card-open {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
   color: var(--color-ink-500);
+  font-size: .8125rem;
+  font-weight: 600;
+  transition: color var(--motion-duration-fast) var(--motion-easing-standard);
+}
+.tenant-card-arrow {
+  display: inline-block;
+  transition: transform var(--motion-duration-fast) var(--motion-easing-standard);
 }
 
-.tenant-table-rent[data-tone="overdue"] {
-  color: var(--color-laterite-600);
+.tenant-card:hover {
+  border-color: color-mix(in srgb, var(--color-kola-600) 35%, var(--color-field-200));
+  box-shadow: 0 1px 2px rgba(33, 26, 21, .04), 0 6px 16px -12px rgba(33, 26, 21, .28);
+}
+.tenant-card:hover .tenant-card-open,
+.tenant-card:focus-visible .tenant-card-open { color: var(--color-kola-700, var(--color-kola-600)); }
+.tenant-card:hover .tenant-card-arrow,
+.tenant-card:focus-visible .tenant-card-arrow { transform: translateX(3px); }
+.tenant-card:active { background: var(--color-field-50, var(--color-field-0)); }
+.tenant-card:focus-visible { outline: 2px solid var(--color-kola-600); outline-offset: 2px; }
+
+.tenant-card-item.is-returned .tenant-card { animation: tenant-found 1.8s var(--ws-ease); }
+@keyframes tenant-found {
+  0%, 100% { box-shadow: 0 1px 2px rgba(33, 26, 21, .04); }
+  25% { box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-kola-600) 40%, transparent); }
 }
 
-.tenant-table-rent[data-tone="outstanding"] {
-  color: var(--color-harmattan-600);
-}
+.tenant-card.is-skeleton { pointer-events: none; }
+.tenant-card.is-skeleton .tenant-card-avatar { background: var(--color-field-100); box-shadow: none; }
 
-.tenant-table-link {
-  position: relative;
-  z-index: 1;
-  display: grid;
-  place-items: center;
-  min-width: var(--target-min);
-  min-height: var(--target-min);
+/* --- private access ------------------------------------------------------------ */
+
+.ws-crumb {
+  padding: 0;
   color: var(--color-kola-600);
-  font-size: 1.25rem;
+  font: inherit;
+  font-weight: 600;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
 }
 
-.tenant-task-grid {
+.ws-crumb:hover { color: var(--color-kola-800); text-decoration: underline; text-underline-offset: 3px; }
+
+
+.tenants-access-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 22rem), 32rem));
-  gap: var(--space-4);
+  grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+  padding: var(--space-4);
+  list-style: none;
 }
 
-.tenant-access-grid {
+.tenants-access-card {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
-  gap: var(--space-4);
+  grid-template-rows: auto 1fr;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-4);
+  background: var(--color-field-0);
+  border: var(--border-hairline) solid var(--color-field-200);
+  border-radius: var(--radius-lg, var(--radius-md));
+  box-shadow: 0 1px 2px rgba(33, 26, 21, .04);
+  animation: ws-rise var(--motion-duration-base) var(--ws-enter) both;
+  animation-delay: calc(var(--tenant-order, 0) * 40ms);
 }
+
+.tenants-access-unit { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: start; gap: var(--space-3); min-width: 0; }
+.tenants-access-unit > div { min-width: 0; }
+
+.tenants-access-mark {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  color: var(--color-kola-600);
+  background: var(--color-kola-50);
+  border-radius: var(--radius-md);
+}
+
+.tenants-access-mark .portal-icon { width: 18px; height: 18px; }
+.tenants-access-property { margin: 0; color: var(--color-ink-500); font-size: .75rem; font-weight: 600; }
+.tenants-access-unit h3 { overflow: hidden; margin: 2px 0 0; text-overflow: ellipsis; white-space: nowrap; color: var(--color-ink-900); font-size: 1rem; font-weight: 650; }
+
+.tenants-access-link { color: var(--color-kola-600); font-size: .8125rem; font-weight: 600; text-decoration: none; }
+.tenants-access-link:hover { color: var(--color-kola-800); text-decoration: underline; text-underline-offset: 3px; }
+
+/* The code block is the same one each Unit's page shows; here the row already
+   names the Unit, so its own rule and eyebrow step back. */
+.tenants-access-code .unit-access { margin-top: 0; padding-top: var(--space-3); border-top: var(--border-hairline) solid var(--color-field-200); }
+.tenants-access-code, .tenants-access-code > div { display: flex; flex-direction: column; min-height: 0; }
+.tenants-access-code > div, .tenants-access-code .unit-access { flex: 1; }
+.tenants-access-code .unit-access { display: flex; flex-direction: column; gap: var(--space-2); }
+.tenants-access-code .unit-access-actions { margin-top: auto; }
+.tenants-access-code .unit-access-actions .btn { min-height: 2.25rem; padding-block: 0; font-size: .875rem; }
+.tenants-access-code .unit-access h3 {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* --- tenancy record --------------------------------------------------------------- */
+
+.tenant-avatar.is-large { overflow: hidden; }
+.tenant-avatar.is-large .portal-avatar {
+  width: 100% !important;
+  height: 100% !important;
+  color: inherit;
+  font-size: inherit !important;
+  background: transparent;
+  border-radius: 0;
+}
+.tenant-avatar.is-large .portal-avatar-photo { object-fit: cover; }
+.tenant-avatar.is-large {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  color: var(--color-kola-800);
+  font-size: .875rem;
+  font-weight: 700;
+  background: linear-gradient(145deg, var(--color-kola-50), color-mix(in srgb, var(--color-kola-300) 26%, var(--color-kola-50)));
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px var(--color-field-0), 0 0 0 3px color-mix(in srgb, var(--color-kola-600) 16%, transparent);
+}
+
+.tenancy-status { color: var(--color-kola-800); font-weight: 600; }
+.tenancy-status[data-attention] { color: var(--color-harmattan-600); }
+
+.tenancy-callout {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  animation: ws-rise var(--motion-duration-base) var(--ws-enter) both;
+}
+
+.tenancy-callout[data-tone="warning"] { color: var(--color-harmattan-600); background: var(--color-harmattan-100); }
+.tenancy-callout[data-tone="critical"] { color: var(--color-laterite-600); background: var(--color-laterite-100); }
+
+.tenancy-callout-mark {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  background: color-mix(in srgb, var(--color-field-0) 60%, transparent);
+  border-radius: var(--radius-sm);
+}
+
+.tenancy-callout-mark .portal-icon { width: 18px; height: 18px; }
+.tenancy-callout-title { margin: 0; font-size: .9375rem; font-weight: 650; }
+.tenancy-callout-body { margin: 2px 0 0; color: var(--color-ink-700); font-size: .875rem; line-height: 1.5; }
+
+.tenancy-figures { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.tenancy-figure { display: grid; gap: var(--space-1); min-width: 0; padding: var(--space-4) var(--space-5); }
+.tenancy-figure + .tenancy-figure { border-left: var(--border-hairline) solid var(--color-field-200); }
+.tenancy-figure-label { color: var(--color-ink-500); font-size: .75rem; font-weight: 600; }
+.tenancy-figure-value { color: var(--color-ink-900); font-size: 1.125rem; font-weight: 650; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+.tenancy-figure-value small { color: var(--color-ink-500); font-size: .75rem; font-weight: 500; letter-spacing: 0; }
+.tenancy-figure[data-tone="current"] .tenancy-figure-value { color: var(--color-kola-600); }
+.tenancy-figure[data-tone="outstanding"] .tenancy-figure-value { color: var(--color-harmattan-600); }
+.tenancy-figure[data-tone="overdue"] .tenancy-figure-value { color: var(--color-laterite-600); }
 
 .tenancy-detail-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(17rem, 0.65fr);
-  gap: var(--space-8);
+  grid-template-columns: minmax(0, 1.6fr) minmax(16rem, .8fr);
+  gap: var(--space-5);
   align-items: start;
+}
+
+.tenancy-main { display: grid; gap: var(--space-5); min-width: 0; }
+
+.tenancy-panel-title {
+  margin: 0;
+  padding: var(--space-4) var(--space-5) var(--space-2);
+  color: var(--color-ink-500);
+  font-size: .75rem;
+  font-weight: 650;
+  letter-spacing: .06em;
+  text-transform: uppercase;
 }
 
 .tenancy-facts {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   margin: 0;
-  border-top: var(--border-hairline) solid var(--color-field-200);
+  padding: 0 var(--space-5) var(--space-2);
 }
 
-.tenancy-fact {
+.tenancy-fact { display: grid; gap: 2px; padding: var(--space-3) 0; border-top: var(--border-hairline) solid var(--color-field-200); }
+.tenancy-fact:nth-child(odd) { padding-right: var(--space-5); }
+.tenancy-fact:nth-child(even) { padding-left: var(--space-5); }
+.tenancy-fact dt { color: var(--color-ink-500); font-size: .75rem; font-weight: 600; }
+.tenancy-fact dd { margin: 0; color: var(--color-ink-900); font-size: .9375rem; font-weight: 600; overflow-wrap: anywhere; }
+
+.tenancy-links { display: grid; gap: 2px; margin: 0; padding: 0 var(--space-2) var(--space-2); list-style: none; }
+
+.tenancy-link {
   display: grid;
-  gap: var(--space-1);
-  padding: var(--space-4) 0;
-  border-bottom: var(--border-hairline) solid var(--color-field-200);
-}
-
-.tenancy-fact:nth-child(odd) {
-  padding-right: var(--space-5);
-}
-
-.tenancy-fact:nth-child(even) {
-  padding-left: var(--space-5);
-  border-left: var(--border-hairline) solid var(--color-field-200);
-}
-
-.tenancy-fact dt {
-  color: var(--color-ink-500);
-}
-
-.tenancy-fact dd {
-  margin: 0;
-}
-
-.tenancy-quick-links {
-  display: grid;
-  gap: var(--space-2);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.tenancy-quick-links a {
-  display: flex;
+  grid-template-columns: 2rem minmax(0, 1fr) 1rem;
   align-items: center;
-  justify-content: space-between;
-  min-height: var(--target-min);
-  padding: var(--space-2) 0;
-  border-bottom: var(--border-hairline) solid var(--color-field-200);
-  color: var(--color-ink-900);
+  gap: var(--space-3);
+  min-height: 3.25rem;
+  padding: var(--space-2) var(--space-3);
+  color: inherit;
   text-decoration: none;
+  border-radius: var(--radius-md);
+  transition: background-color var(--motion-duration-fast) var(--ws-ease), transform var(--motion-duration-instant) var(--ws-ease);
 }
+
+.tenancy-link-mark {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  color: var(--color-kola-600);
+  background: var(--color-kola-50);
+  border-radius: var(--radius-sm);
+}
+
+.tenancy-link-mark .portal-icon { width: 16px; height: 16px; }
+.tenancy-link-text { display: grid; min-width: 0; }
+.tenancy-link-text span { overflow: hidden; color: var(--color-ink-900); font-size: .875rem; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.tenancy-link-text small { color: var(--color-ink-500); font-size: .75rem; }
+.tenancy-link-go { color: var(--color-ink-300); transition: color var(--motion-duration-fast) var(--ws-ease), transform var(--motion-duration-fast) var(--ws-ease); }
+.tenancy-link:hover { background: var(--color-field-50); }
+.tenancy-link:hover .tenancy-link-go { color: var(--color-kola-600); transform: translateX(2px); }
+.tenancy-link:active { transform: scale(.99); background: var(--color-field-100); }
+.tenancy-link:focus-visible { outline: var(--border-emphasis) solid var(--color-kola-600); outline-offset: -2px; border-radius: var(--radius-md); }
+
+/* --- the agreement dialog ------------------------------------------------------------ */
 
 .lease-dialog {
   width: min(46rem, calc(100vw - 2rem));
@@ -241,52 +444,153 @@
   resize: vertical;
 }
 
-@media (max-width: 980px) {
-  .tenants-toolbar,
-  .tenancy-detail-grid {
-    grid-template-columns: 1fr;
-  }
+/* --- a tenancy, in a sheet (TenantModal) --------------------------------------
+   Flat and quiet: one line for who, then sections divided by hairlines rather
+   than boxed. Colour only where it means something (money owed, overdue, the
+   one primary action). */
 
-  .tenant-table-head {
-    display: none;
-  }
-
-  .tenant-table-row {
-    grid-template-columns: 1fr auto;
-    gap: var(--space-2) var(--space-3);
-    min-height: 92px;
-  }
-
-  .tenant-table-secondary,
-  .tenant-table-rent {
-    grid-column: 1;
-  }
-
-  .tenant-table-link {
-    grid-column: 2;
-    grid-row: 1 / span 3;
+@media (min-width: 48rem) {
+  .doc-modal.is-sm.tenant-sheet {
+    width: min(30rem, calc(100vw - var(--modal-area-left, 0px) - 2rem));
+    max-height: min(40rem, calc(100vh - var(--modal-area-top, 0px) - 3rem));
   }
 }
+.tenant-sheet .doc-modal-body { --sheet-x: var(--space-5); padding: var(--space-4) var(--sheet-x) 0; }
+/* The agreement, as a view of the tenancy sheet: a document's width and padding. */
+.tenant-sheet.is-document .doc-modal-body { padding: var(--space-4) var(--space-6) var(--space-6); }
+.tm-view-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 0 6px; margin: 0 0 var(--space-3); color: var(--color-ink-500); font-size: .75rem; }
 
-@media (max-width: 420px) {
-  .tenants-tabs {
-    width: 100%;
-  }
+.tm { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4); padding-bottom: var(--space-5); }
+.tm > * { min-width: 0; margin: 0; }
 
-  .tenants-tab {
-    flex: 1 0 auto;
-    padding-inline: var(--space-3);
-  }
+.tm-who { display: flex; align-items: center; gap: var(--space-3); }
+.tm-avatar {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 3rem;
+  height: 3rem;
+  color: var(--color-ink-700);
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 600;
+  background: var(--color-field-100);
+  border-radius: 999px;
+  box-shadow: 0 0 0 1px rgba(33, 26, 21, .06);
+}
+.tm-who-copy { display: grid; gap: 2px; min-width: 0; }
+.tm-who-copy strong { overflow: hidden; color: var(--color-ink-900); font-family: var(--font-display); font-size: 1.1875rem; font-weight: 600; letter-spacing: -.01em; text-overflow: ellipsis; white-space: nowrap; }
 
-  .tenancy-facts {
-    grid-template-columns: 1fr;
-  }
+.tm-alert { display: flex; gap: var(--space-3); padding: var(--space-2) var(--space-3); font-size: .8125rem; border-radius: var(--radius-md); }
+.tm-alert .portal-icon { flex: none; width: 16px; height: 16px; margin-top: 1px; color: inherit; }
+.tm-alert span { display: grid; gap: 1px; color: var(--color-ink-700); }
+.tm-alert strong { color: var(--color-ink-900); font-weight: 650; }
+.tm-alert[data-tone="warning"] { color: var(--color-harmattan-600); background: color-mix(in srgb, var(--color-harmattan-100) 55%, transparent); }
+.tm-alert[data-tone="critical"] { color: var(--color-laterite-600); background: color-mix(in srgb, var(--color-laterite-100) 55%, transparent); }
 
+/* Three figures in one row, divided, not boxed. */
+.tm-figures {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0;
+  padding: var(--space-3) 0;
+  border-block: 1px solid rgba(33, 26, 21, .08);
+}
+.tm-figures div { display: grid; gap: 3px; min-width: 0; padding: 0 var(--space-3); }
+.tm-figures div:first-child { padding-left: 0; }
+.tm-figures div + div { border-left: 1px solid rgba(33, 26, 21, .08); }
+.tm-figures dt { color: var(--color-ink-500); font-size: .6875rem; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; }
+.tm-figures dd { margin: 0; color: var(--color-ink-900); font-size: .9375rem; font-weight: 650; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.tm-figures dd small { color: var(--color-ink-500); font-size: .75rem; font-weight: 500; }
+.tm-figures div[data-tone="outstanding"] dd { color: var(--color-harmattan-600); }
+.tm-figures div[data-tone="overdue"] dd { color: var(--color-laterite-600); }
+
+.tm-lease { display: grid; gap: var(--space-2); }
+.tm-lease header { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-2); }
+.tm-lease header strong { color: var(--color-ink-900); font-size: .8125rem; font-weight: 650; }
+.tm-lease header span { color: var(--color-ink-500); font-size: .75rem; font-weight: 600; }
+.tm-lease-bar { position: relative; height: 4px; overflow: hidden; background: var(--color-field-200); border-radius: 999px; }
+.tm-lease-bar i { position: absolute; inset: 0 auto 0 0; background: var(--color-ink-700); border-radius: 999px; animation: tm-bar-in 800ms cubic-bezier(.22, 1, .36, 1) 120ms both; }
+@keyframes tm-bar-in { from { width: 0 !important; } }
+.tm-lease-ends { display: flex; justify-content: space-between; gap: var(--space-3); color: var(--color-ink-500); font-size: .75rem; font-variant-numeric: tabular-nums; }
+.tm-quiet { margin: 0; color: var(--color-ink-500); font-size: .8125rem; }
+
+.tm-links { display: grid; margin: 0; padding: 0; list-style: none; border-top: 1px solid rgba(33, 26, 21, .08); }
+.tm-links li { border-bottom: 1px solid rgba(33, 26, 21, .06); }
+.tm-link {
+  display: grid;
+  grid-template-columns: 2rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 10px 2px;
+  color: inherit;
+  text-decoration: none;
+  border-radius: var(--radius-sm);
+  transition: background-color var(--motion-duration-fast) var(--ws-ease);
+}
+.tm-link:hover { background: rgba(255, 255, 255, .6); }
+.tm-link:focus-visible { outline: 2px solid var(--color-kola-600); outline-offset: -2px; }
+.tm-link-mark { display: grid; place-items: center; width: 2rem; height: 2rem; color: var(--color-ink-500); background: var(--color-field-100); border-radius: .625rem; }
+.tm-link-mark .portal-icon { width: 15px; height: 15px; color: inherit; }
+.tm-link-copy { display: grid; gap: 1px; min-width: 0; }
+.tm-link-copy strong { overflow: hidden; color: var(--color-ink-900); font-size: .875rem; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.tm-link-copy small { color: var(--color-ink-500); font-size: .75rem; }
+.tm-link-go { color: var(--color-ink-300); transition: transform var(--motion-duration-fast) var(--ws-ease), color var(--motion-duration-fast) var(--ws-ease); }
+.tm-link:hover .tm-link-go { color: var(--color-ink-700); transform: translateX(2px); }
+
+.tm-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 calc(var(--sheet-x, var(--space-5)) * -1) calc(var(--space-5) * -1);
+  padding: var(--space-3) var(--sheet-x, var(--space-5));
+  background: rgba(255, 255, 255, .8);
+  border-top: 1px solid rgba(33, 26, 21, .07);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+}
+.tm-actions .btn { display: inline-flex; align-items: center; text-decoration: none; }
+.tm-actions .btn .portal-icon { width: 16px; height: 16px; margin-right: 6px; color: inherit; }
+.tm-actions-spacer { flex: 1; }
+.tm-page-link { display: grid; place-items: center; width: 2.5rem; height: 2.5rem; color: var(--color-ink-500); border-radius: 999px; transition: color var(--motion-duration-fast) var(--ws-ease), background-color var(--motion-duration-fast) var(--ws-ease); }
+.tm-page-link .portal-icon { width: 15px; height: 15px; color: inherit; }
+.tm-page-link:hover { color: var(--color-ink-900); background: var(--color-field-100); }
+
+@media (max-width: 47.99rem) {
+  .tenant-sheet .doc-modal-body { --sheet-x: var(--space-4); }
+  .tenant-sheet .tm-figures dd { font-size: .8125rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tm-lease-bar i { animation: none; }
+  .tm-link,
+  .tm-link-go { transition: none; }
+}
+
+/* --- narrow ---------------------------------------------------------------------------- */
+
+@media (max-width: 980px) {
+  .tenancy-detail-grid { grid-template-columns: 1fr; }
+  .tenancy-figures { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .tenancy-figure:nth-child(3) { border-left: 0; }
+  .tenancy-figure:nth-child(n + 3) { border-top: var(--border-hairline) solid var(--color-field-200); }
+}
+
+@media (max-width: 760px) {
+  .tenants-access-grid { padding: var(--space-3); }
+}
+
+@media (max-width: 480px) {
+  .tenancy-facts { grid-template-columns: 1fr; padding-inline: var(--space-4); }
   .tenancy-fact:nth-child(odd),
-  .tenancy-fact:nth-child(even) {
-    padding-inline: 0;
-    border-left: 0;
-  }
+  .tenancy-fact:nth-child(even) { padding-inline: 0; }
+  .tenancy-panel-title { padding-inline: var(--space-4); }
+  .tenancy-figure { padding: var(--space-3) var(--space-4); }
+  .tenancy-figure-value { font-size: 1rem; }
 }
 
 @media (max-width: 600px) {
@@ -304,9 +608,23 @@
   }
 }
 
+/* Touch has no hover: a tap is the way in, so nothing should stick looking hovered. */
+@media (hover: none) {
+  .tenant-card:hover { border-color: var(--color-field-200); box-shadow: 0 1px 2px rgba(33, 26, 21, .04); }
+  .tenant-card:hover .tenant-card-arrow { transform: none; }
+  .tenancy-link:hover { background: transparent; }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .tenant-table-row,
-  .tenants-tab {
-    transition: none;
-  }
+  .tenant-card-item,
+  .tenant-card-item.is-returned .tenant-card,
+  .tenants-access-card,
+  .tenancy-callout { animation: none; }
+  .tenant-card,
+  .tenant-card-open,
+  .tenant-card-arrow,
+  .tenancy-link,
+  .tenancy-link-go { transition: none; }
+  .tenant-card:hover .tenant-card-arrow,
+  .tenancy-link:active { transform: none; }
 }

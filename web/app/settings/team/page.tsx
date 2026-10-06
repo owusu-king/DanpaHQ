@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/Button";
 import { Field } from "@/components/Field";
@@ -31,6 +31,7 @@ import {
 } from "@/lib/console";
 import { useSession } from "@/lib/session";
 import { Check } from "@/components/Check";
+import { ModalSheet } from "@/components/workspace/ModalSheet";
 
 /** What a Portfolio is, in the words its owner would use about their business. */
 const PORTFOLIO_TYPES: ReadonlyArray<readonly [Organization["organization_type"], string]> = [
@@ -104,6 +105,9 @@ export default function TeamPage() {
     activities: Organization["activities"];
   } | null>(null);
   const [savingDetails, setSavingDetails] = useState(false);
+  // The details are read far more often than changed, so they show as a
+  // summary and open into the form only when somebody asks to edit them.
+  const [editingDetails, setEditingDetails] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
@@ -182,6 +186,7 @@ export default function TeamPage() {
       // The name is on the header switcher, the rail and every receipt, so the
       // session has to hear about it rather than waiting for the next reload.
       await refresh();
+      setEditingDetails(false);
       setNotice("Portfolio details saved.");
     } catch (cause) {
       setError(
@@ -213,8 +218,10 @@ export default function TeamPage() {
   if (loading && !organization) {
     return (
       <div className="team-workspace">
-        <section className="settings-section"><h2>Team</h2></section>
-        <LoadingRows rows={4} />
+        <header className="team-hero" aria-busy="true">
+          <div className="team-hero-copy"><h2>Team</h2><p>Loading who can operate this Portfolio…</p></div>
+        </header>
+        <div className="team-card"><LoadingRows rows={4} /></div>
       </div>
     );
   }
@@ -222,7 +229,9 @@ export default function TeamPage() {
   if (hasPortfolio === false) {
     return (
       <div className="team-workspace">
-        <section className="settings-section"><h2>Team</h2></section>
+        <header className="team-hero">
+          <div className="team-hero-copy"><h2>Team</h2></div>
+        </header>
         <Empty
           title="Your Portfolio is on its way"
           body="Rooomly gives you your Portfolio when your provider verification is approved, and your Team lives inside it. Nothing to set up."
@@ -238,10 +247,30 @@ export default function TeamPage() {
 
   return (
     <div className="team-workspace">
-      <section className="settings-section team-head">
-        <h2>Team</h2>
+      <header className="team-hero">
+        <div className="team-hero-copy">
+          <h2>Team</h2>
+          <p>
+            {organization?.name ?? "Your Portfolio"}
+            {canManageTeam ? (
+              <>
+                <span aria-hidden="true"> · </span>
+                {members.length} {members.length === 1 ? "member" : "members"}
+                {pending.length ? <>{" · "}<b>{pending.length} pending</b></> : null}
+              </>
+            ) : null}
+          </p>
+        </div>
+        {canManageTeam && members.length ? (
+          <span className="team-stack" aria-hidden="true">
+            {members.slice(0, 4).map((member) => (
+              <span key={member.id} className="team-avatar" data-role={member.role}>{initials(member.display_name)}</span>
+            ))}
+            {members.length > 4 ? <span className="team-avatar is-more">+{members.length - 4}</span> : null}
+          </span>
+        ) : null}
         {canGrant ? <Button onClick={() => setInviting(true)}>Invite someone</Button> : null}
-      </section>
+      </header>
 
       {error ? <Notice tone="error" title={error} /> : null}
       {notice ? <Notice tone="success" title={notice} /> : null}
@@ -262,7 +291,23 @@ export default function TeamPage() {
         />
       ) : null}
 
-      {canManageTeam && details ? (
+      {canManageTeam && details && organization && !editingDetails ? (
+        <section className="team-card team-identity" aria-labelledby="team-identity-title">
+          <span className="team-identity-mark" aria-hidden="true">{initials(organization.name)}</span>
+          <div className="team-identity-copy">
+            <h3 id="team-identity-title">{organization.name}</h3>
+            <p>
+              {PORTFOLIO_TYPES.find(([value]) => value === organization.organization_type)?.[1] ?? "Portfolio"}
+              <span aria-hidden="true"> · </span>
+              {organization.activities.map((value) => ACTIVITIES.find(([key]) => key === value)?.[1] ?? value).join(", ") || "No activities set"}
+            </p>
+            <small>The name your tenants, agreements and receipts carry.</small>
+          </div>
+          <button type="button" className="team-quiet-action" onClick={() => setEditingDetails(true)}>Edit details</button>
+        </section>
+      ) : null}
+
+      {canManageTeam && details && editingDetails ? (
         <Section title="Portfolio details">
           {/* Rooomly names the Portfolio when it provisions it, which is why
               nobody is asked to invent one up front — and why this has to
@@ -310,21 +355,34 @@ export default function TeamPage() {
                 />
               ))}
             </fieldset>
-            <Button
-              type="submit"
-              busy={savingDetails}
-              disabled={!details.name.trim() || details.activities.length === 0}
-            >
-              Save details
-            </Button>
+            <div className="team-actions">
+              <Button
+                type="submit"
+                busy={savingDetails}
+                disabled={!details.name.trim() || details.activities.length === 0}
+              >
+                Save details
+              </Button>
+              <Button
+                variant="quiet"
+                type="button"
+                disabled={savingDetails}
+                onClick={() => {
+                  if (organization) {
+                    setDetails({ name: organization.name, organization_type: organization.organization_type, activities: [...organization.activities] });
+                  }
+                  setEditingDetails(false);
+                }}
+              >Cancel</Button>
+            </div>
           </form>
         </Section>
       ) : null}
 
       {canManageTeam ? (
         <>
-          <Section title={`${members.length} ${members.length === 1 ? "member" : "members"}`}>
-            {members.length > 6 ? (
+          <Section title="Members">
+            {members.length > 4 ? (
               <label className="team-search">
                 <span className="sr-only">Search members</span>
                 <input
@@ -339,14 +397,22 @@ export default function TeamPage() {
               <ul className="team-rows">
                 {visibleMembers.map((member) => (
                   <li key={member.id}>
-                    <button type="button" className="team-row" onClick={() => setOpenMemberId(member.id)}>
+                    <button type="button" className="team-row" aria-haspopup="dialog" onClick={() => setOpenMemberId(member.id)}>
+                      <span className="team-avatar" data-role={member.role} aria-hidden="true">{initials(member.display_name)}</span>
                       <span className="team-row-person">
-                        <strong>{member.display_name}{member.user_id === me?.id ? " · You" : ""}</strong>
+                        <strong>
+                          {member.display_name}
+                          {member.user_id === me?.id ? <em className="team-you">You</em> : null}
+                        </strong>
                         <span>{member.phone}</span>
                       </span>
-                      <span className="team-row-role">{roleLabel(member.role)}</span>
-                      <span className="team-row-access">{accessLabel(member)}</span>
-                      <span className="team-row-arrow" aria-hidden="true">›</span>
+                      <span className="team-row-role" data-role={member.role}>{roleLabel(member.role)}</span>
+                      <span className="team-row-access" data-state={member.access?.state ?? "active"}>
+                        <i aria-hidden="true" />{accessLabel(member)}
+                      </span>
+                      <svg className="team-row-arrow" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false">
+                        <path d="m6 3.5 4.5 4.5L6 12.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
                     </button>
                   </li>
                 ))}
@@ -357,8 +423,8 @@ export default function TeamPage() {
           </Section>
 
           {pending.length ? (
-            <Section title={`${pending.length} pending ${pending.length === 1 ? "invitation" : "invitations"}`}>
-              <p className="type-caption">
+            <Section title={`Pending ${pending.length === 1 ? "invitation" : "invitations"}`}>
+              <p className="team-section-note">
                 Nothing is granted until the person signs in with that exact number and accepts.
               </p>
               <ul className="team-rows">
@@ -435,11 +501,17 @@ function InvitationRow({
     : `${window.location.origin}/portfolio-invitations?invitation=${invitation.id}&token=${encodeURIComponent(invitation.token)}`;
 
   return (
-    <li className="team-invite-row">
+    <li className={`team-invite-row${confirming ? " is-confirming" : ""}`}>
+      <span className="team-avatar is-invite" aria-hidden="true">
+        <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M3.5 5.5h13v9h-13Z" /><path d="m3.5 6 6.5 5 6.5-5" />
+        </svg>
+      </span>
       <span className="team-row-person">
         <strong>{invitation.invitee_phone}</strong>
         <span>
-          {roleLabel(invitation.role)} · expires {new Date(invitation.expires_at).toLocaleDateString("en-GH", { day: "numeric", month: "short" })}
+          <span className="team-row-role" data-role={invitation.role}>{roleLabel(invitation.role)}</span>
+          {" · expires "}{new Date(invitation.expires_at).toLocaleDateString("en-GH", { day: "numeric", month: "short" })}
         </span>
         <span>
           {invitation.properties.length
@@ -511,37 +583,22 @@ function Dialog({
   footer?: React.ReactNode;
   children: React.ReactNode;
 }) {
-  const ref = useRef<HTMLDialogElement>(null);
-  useEffect(() => {
-    const dialog = ref.current;
-    if (!dialog) return;
-    if (open && !dialog.open) dialog.showModal();
-    if (!open && dialog.open) dialog.close();
-  }, [open]);
-
+  // The workspace's sheet: narrow, over the page, closing the way every other
+  // modal here does. The label reads as the line under the title.
   return (
-    <dialog
-      ref={ref}
-      className="team-dialog"
-      aria-labelledby={`${id}-title`}
+    <ModalSheet
+      open={open}
       onClose={onClose}
-      onCancel={(event) => { event.preventDefault(); onClose(); }}
-      onClick={(event) => { if (event.target === ref.current) onClose(); }}
+      icon="users"
+      size="sm"
+      className="team-sheet"
+      titleId={`${id}-title`}
+      title={title}
+      meta={label.charAt(0) + label.slice(1).toLowerCase()}
+      footer={footer ? () => footer : undefined}
     >
-      {open ? (
-        <div className="team-dialog-panel">
-          <header className="team-dialog-head">
-            <div>
-              <p className="type-label">{label}</p>
-              <h2 id={`${id}-title`}>{title}</h2>
-            </div>
-            <button type="button" className="team-dialog-close" aria-label="Close" onClick={onClose}>×</button>
-          </header>
-          <div className="team-dialog-body">{children}</div>
-          {footer}
-        </div>
-      ) : null}
-    </dialog>
+      {children}
+    </ModalSheet>
   );
 }
 
@@ -900,4 +957,8 @@ function accessLabel(member: PortfolioMember) {
       ? " · limited"
       : "";
   return `${scope}${waiting}`;
+}
+
+function initials(name: string) {
+  return name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase() ?? "").join("") || "?";
 }

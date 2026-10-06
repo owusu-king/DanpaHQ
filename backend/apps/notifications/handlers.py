@@ -1036,3 +1036,142 @@ def _where_unit(unit) -> str:
     address = getattr(unit.property, "address", None)
     locality = getattr(address, "locality", None)
     return getattr(locality, "name", "") or "Ghana"
+
+
+# --- maintenance ---------------------------------------------------------------
+
+
+def _maintenance(request_id):
+    from apps.maintenance.models import MaintenanceRequest
+
+    return (
+        MaintenanceRequest.objects.filter(id=request_id)
+        .select_related(
+            "tenant",
+            "property__owner",
+            "property__managed_by",
+            "unit",
+            "tenancy__activation_lease__landlord",
+        )
+        .first()
+    )
+
+
+def _maintenance_providers(request) -> list:
+    """Who hears about a repair: the landlord on the tenancy's agreement, and
+    the property's named manager. The owner stands in when neither is set."""
+    lease = request.tenancy.activation_lease
+    people = [lease.landlord if lease else None, request.property.managed_by]
+    found = {str(person.id): person for person in people if person is not None}
+    if not found and request.property.owner_id:
+        found[str(request.property.owner_id)] = request.property.owner
+    return list(found.values())
+
+
+def _maintenance_where(request) -> str:
+    return f"{request.unit.label} at {request.property.title}"
+
+
+def _latest_note(request) -> str:
+    event = request.events.order_by("-created_at").first()
+    return event.note if event else ""
+
+
+@subscribe("maintenance.submitted.v1")
+def on_maintenance_submitted(event) -> None:
+    request = _maintenance(event.aggregate_id)
+    if request is None:
+        return
+    for provider in _maintenance_providers(request):
+        notify(
+            user=provider,
+            kind="maintenance.submitted",
+            title=f"New maintenance request: {request.get_category_display()}",
+            body=(
+                f"{request.tenant.display_name} reported a problem in "
+                f"{_maintenance_where(request)}."
+            ),
+            dedupe_key=_key(event, provider.id),
+            target_type="maintenance_request",
+            target_id=request.id,
+        )
+
+
+@subscribe("maintenance.started.v1")
+def on_maintenance_started(event) -> None:
+    request = _maintenance(event.aggregate_id)
+    if request is None:
+        return
+    notify(
+        user=request.tenant,
+        kind="maintenance.in_progress",
+        title="Work has started on your request",
+        body=(
+            f"Your {request.get_category_display().lower()} request at "
+            f"{_maintenance_where(request)} is in progress."
+        ),
+        dedupe_key=_key(event, request.tenant_id),
+        target_type="maintenance_request",
+        target_id=request.id,
+    )
+
+
+@subscribe("maintenance.fixed_reported.v1")
+def on_maintenance_fixed_reported(event) -> None:
+    request = _maintenance(event.aggregate_id)
+    if request is None:
+        return
+    note = _latest_note(request)
+    notify(
+        user=request.tenant,
+        kind="maintenance.awaiting_confirmation",
+        title="Is it fixed? Please confirm",
+        body=(
+            f"Your landlord reported the problem at {_maintenance_where(request)} fixed"
+            f"{f': {note}' if note else '.'} Confirm it, or reopen it if it is not."
+        ),
+        dedupe_key=_key(event, request.tenant_id),
+        target_type="maintenance_request",
+        target_id=request.id,
+    )
+
+
+@subscribe("maintenance.confirmed.v1")
+def on_maintenance_confirmed(event) -> None:
+    request = _maintenance(event.aggregate_id)
+    if request is None:
+        return
+    for provider in _maintenance_providers(request):
+        notify(
+            user=provider,
+            kind="maintenance.completed",
+            title="Repair confirmed",
+            body=(
+                f"{request.tenant.display_name} confirmed the fix in "
+                f"{_maintenance_where(request)}."
+            ),
+            dedupe_key=_key(event, provider.id),
+            target_type="maintenance_request",
+            target_id=request.id,
+        )
+
+
+@subscribe("maintenance.reopened.v1")
+def on_maintenance_reopened(event) -> None:
+    request = _maintenance(event.aggregate_id)
+    if request is None:
+        return
+    note = _latest_note(request)
+    for provider in _maintenance_providers(request):
+        notify(
+            user=provider,
+            kind="maintenance.reopened",
+            title="A repair was reopened",
+            body=(
+                f"{request.tenant.display_name} says the problem in {_maintenance_where(request)} "
+                f"is not fixed{f': {note}' if note else '.'}"
+            ),
+            dedupe_key=_key(event, provider.id),
+            target_type="maintenance_request",
+            target_id=request.id,
+        )

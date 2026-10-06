@@ -106,12 +106,27 @@ export default function VerificationSettingsPage() {
     RELEVANT_KINDS[payload?.primary_role as keyof typeof RELEVANT_KINDS]
     ?? RELEVANT_KINDS.tenant;
 
+  // How much of this person's standing is confirmed, for the meter in the head.
+  const personal = payload ? kinds.map((kind) => (payload.trust[kind] ?? emptyTrustEntry).state) : [];
+  const providerState = me?.capabilities.provider.exists
+    ? providerTrustState(me.capabilities.provider.verification_status)
+    : null;
+  const states = providerState ? [...personal, providerState] : personal;
+  const confirmed = states.filter((value) => value === "verified").length;
+
   return (
     <section className="verification-overview" aria-labelledby="verification-title">
       <header className="verification-heading">
-        <p className="type-label">TRUST &amp; IDENTITY</p>
-        <h2 id="verification-title">Verification</h2>
-        <p>See what Rooomly has confirmed and continue only the checks that need you.</p>
+        <div>
+          <h2 id="verification-title">Verification</h2>
+          <p>See what Rooomly has confirmed and continue only the checks that need you.</p>
+        </div>
+        {payload ? (
+          <div className="verification-meter" role="img" aria-label={`${confirmed} of ${states.length} checks confirmed`}>
+            <span><strong>{confirmed}</strong> of {states.length} confirmed</span>
+            <i aria-hidden="true"><b style={{ width: `${states.length ? (confirmed / states.length) * 100 : 0}%` }} /></i>
+          </div>
+        ) : null}
       </header>
 
       {error ? <Notice tone="error" title={error} /> : null}
@@ -220,7 +235,7 @@ function SettlementRow({
         : savedProfiles.length
           ? `${settlement.organization.name} · Choose which verified account should receive new rent payments.`
           : `${settlement.organization.name} · Add where Paystack should send rent.`}
-      actionHref={`/payments/payout-account?organization=${settlement.organization.id}`}
+      actionHref={`/settings/settlement?organization=${settlement.organization.id}`}
       actionLabel={profile || savedProfiles.length ? "Manage" : "Set up"}
     />
   );

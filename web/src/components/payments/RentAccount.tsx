@@ -23,7 +23,10 @@ import { useState } from "react";
 
 import { Button } from "@/components/Button";
 import { Field } from "@/components/Field";
+import { ReceiptModal } from "@/components/payments/ReceiptModal";
 import { Notice } from "@/components/Notice";
+import { Icon } from "@/components/portal/icons";
+import { ModalSheet } from "@/components/workspace/ModalSheet";
 import { ApiFailure } from "@/lib/api";
 import { type ProviderTenant, uploadFile } from "@/lib/console";
 import { formatMoney } from "@/lib/money";
@@ -46,25 +49,6 @@ const PAYMENT_METHODS: [RentPayment["method"], string][] = [
   ["other", "Other"],
 ];
 
-export function MoneyFact({
-  label,
-  value,
-  overdue = false,
-}: {
-  label: string;
-  value: number;
-  overdue?: boolean;
-}) {
-  return (
-    <div>
-      <dt className="type-caption">{label}</dt>
-      <dd data-tone={overdue && value > 0 ? "overdue" : undefined}>
-        {formatMoney({ minor: value, currency: "GHS" })}
-      </dd>
-    </div>
-  );
-}
-
 export function RentAccountDetail({
   tenant,
   tenantMode = false,
@@ -83,6 +67,7 @@ export function RentAccountDetail({
   onChanged: () => Promise<void>;
 }) {
   const [recording, setRecording] = useState(false);
+  const [receiptOpen, setReceiptOpen] = useState<string | null>(null);
   const outstanding = ledger.financial_summary.is_post_tenancy
     ? ledger.financial_summary.outstanding_balance_minor
     : ledger.charges.reduce((total, charge) => total + charge.outstanding_minor, 0);
@@ -90,54 +75,98 @@ export function RentAccountDetail({
     .filter((charge) => charge.is_overdue)
     .reduce((total, charge) => total + charge.outstanding_minor, 0);
   const awaiting = ledger.payments.filter((payment) => payment.awaiting_you);
+  const paid = ledger.payments
+    .filter((payment) => payment.is_confirmed)
+    .reduce((total, payment) => total + payment.amount_minor, 0);
+  const nextDue = ledger.charges
+    .filter((charge) => charge.outstanding_minor > 0)
+    .sort((a, b) => a.due_on.localeCompare(b.due_on))[0];
+  const ended = ledger.financial_summary.is_post_tenancy;
+  const tone = ended ? "ended" : overdue > 0 ? "overdue" : outstanding > 0 ? "outstanding" : "current";
+  const currency = ledger.financial_summary.currency || "GHS";
+  const money = (minor: number) => formatMoney({ minor, currency });
+  const history = [...ledger.payments].sort((a, b) => b.paid_on.localeCompare(a.paid_on));
 
   return (
-    <>
-      <dl className="rent-detail-summary">
-        <MoneyFact label="Outstanding" value={outstanding} />
-        <MoneyFact label="Overdue" value={overdue} overdue />
-      </dl>
+    <div className="ra">
+      {/* Where the money stands, in one tinted card: the figure that matters and
+          the three that explain it. Laterite when late, harmattan when due,
+          kola when nothing is. */}
+      <section className="ra-hero" data-tone={tone} aria-label="Balance">
+        <div className="ra-hero-lead">
+          <small>{ended ? "Outstanding after the tenancy" : "Outstanding"}</small>
+          <strong>{money(outstanding)}</strong>
+          <span>
+            {overdue > 0 ? <em>{money(overdue)} overdue</em> : null}
+            {overdue > 0 && nextDue ? <i aria-hidden="true">·</i> : null}
+            {nextDue ? `Next due ${formatDate(nextDue.due_on)}` : outstanding === 0 ? "Nothing due" : null}
+          </span>
+        </div>
+        <dl className="ra-hero-facts">
+          <div><dt>Overdue</dt><dd data-tone={overdue > 0 ? "overdue" : undefined}>{money(overdue)}</dd></div>
+          <div><dt>Paid to date</dt><dd>{money(paid)}</dd></div>
+          <div><dt>Payment records</dt><dd>{ledger.payments.length}</dd></div>
+        </dl>
+      </section>
 
-      {ledger.financial_summary.is_post_tenancy ? (
-        <ClosingSummary summary={ledger.financial_summary} />
-      ) : null}
+      {ended ? <ClosingSummary summary={ledger.financial_summary} /> : null}
 
       {awaiting.length ? (
-        <section className="rent-detail-section">
-          <h3>Needs your review</h3>
-          <p className="type-caption">
-            Confirm only after checking that the money was received. A claim does not change the
-            balance until both parties agree.
-          </p>
-          {awaiting.map((payment) => (
-            <PaymentReview key={payment.id} payment={payment} onChanged={onChanged} />
-          ))}
+        <section className="ra-panel is-review" aria-labelledby="ra-review">
+          <header className="ra-panel-head">
+            <span className="ra-panel-mark" aria-hidden="true"><Icon name="warning" /></span>
+            <div>
+              <h2 id="ra-review">Needs your review <span>{awaiting.length}</span></h2>
+              <p>
+                Confirm only after checking that the money was received. A claim does not change the
+                balance until both parties agree.
+              </p>
+            </div>
+          </header>
+          <div className="ra-review-list">
+            {awaiting.map((payment) => (
+              <PaymentReview key={payment.id} payment={payment} onChanged={onChanged} />
+            ))}
+          </div>
         </section>
       ) : null}
 
-      <section className="rent-detail-section">
-        <div className="rent-section-head">
+      <section className="ra-panel" aria-labelledby="ra-due">
+        <header className="ra-panel-head">
+          <span className="ra-panel-mark" aria-hidden="true"><Icon name="payments" /></span>
           <div>
-            <h3>What is due</h3>
-            <p className="type-caption">Each amount keeps its purpose and due date.</p>
+            <h2 id="ra-due">What is due <span>{ledger.charges.length}</span></h2>
+            <p>Each amount keeps its purpose and due date.</p>
           </div>
-          {ledger.permissions.record_payment && !recording ? (
-            <Button variant="secondary" onClick={() => setRecording(true)}>
-              Record external payment
+          {ledger.permissions.record_payment ? (
+            <Button variant="secondary" aria-haspopup="dialog" onClick={() => setRecording(true)}>
+              <Icon name="plus" />Record external payment
             </Button>
           ) : null}
-        </div>
-        {recording ? (
-          <RecordPaymentForm
-            leaseId={leaseId}
-            charges={ledger.charges}
-            onCancel={() => setRecording(false)}
-            onDone={async () => {
-              setRecording(false);
-              await onChanged();
-            }}
-          />
-        ) : null}
+        </header>
+        {/* A small modal over the account, not a form pushing the charges down
+            the page (owner, 2026-10-05). */}
+        <ModalSheet
+          open={recording}
+          onClose={() => setRecording(false)}
+          icon="payments"
+          title="Record external payment"
+          meta="Money received outside Rooomly."
+          size="sm"
+          className="payment-sheet"
+        >
+          {(close) => (
+            <RecordPaymentForm
+              leaseId={leaseId}
+              charges={ledger.charges}
+              onCancel={close}
+              onDone={async () => {
+                close();
+                await onChanged();
+              }}
+            />
+          )}
+        </ModalSheet>
         {tenantMode && !ledger.digital_payment.available ? (
           <Notice
             tone="info"
@@ -163,7 +192,7 @@ export function RentAccountDetail({
             ))}
           </ul>
         ) : (
-          <p className="type-caption">No charges have been scheduled.</p>
+          <p className="ra-quiet">No charges have been scheduled.</p>
         )}
         {!tenantMode && !ledger.permissions.record_payment ? (
           <Notice
@@ -174,46 +203,68 @@ export function RentAccountDetail({
         ) : null}
       </section>
 
-      <section className="rent-detail-section" id="payment-history">
-        <h3>Payment history</h3>
-        {ledger.payments.length ? (
+      <section className="ra-panel" id="payment-history" aria-labelledby="ra-history">
+        <header className="ra-panel-head">
+          <span className="ra-panel-mark" aria-hidden="true"><Icon name="details" /></span>
+          <div>
+            <h2 id="ra-history">Payment history <span>{ledger.payments.length}</span></h2>
+            <p>Every record, newest first, with how it was paid and where it stands.</p>
+          </div>
+        </header>
+        {history.length ? (
           <ul className="rent-payment-list">
-            {ledger.payments.map((payment) => (
-              <li key={payment.id}>
+            {history.map((payment) => (
+              <li key={payment.id} data-tone={paymentTone(payment)}>
+                <span className="ra-pay-mark" aria-hidden="true">
+                  <Icon name={payment.source === "PLATFORM_PSP" ? "payments" : "details"} />
+                </span>
                 <div>
                   <strong>{payment.amount_formatted}</strong>
                   <span>
                     {payment.method_display} · {formatDate(payment.paid_on)}
+                    {payment.obligation_label ? ` · ${payment.obligation_label}` : ""}
                   </span>
                 </div>
                 <div>
-                  <span className="type-body-strong">{paymentStatus(payment)}</span>
+                  <span className="ra-pay-state">{paymentStatus(payment)}</span>
                   <span>{payment.source === "PLATFORM_PSP" ? "Processed through Rooomly" : "Paid externally · recorded through Rooomly"}</span>
                 </div>
-                {payment.reference ? <small>Reference {payment.reference}</small> : null}
-                {payment.evidence_file ? <PaymentEvidenceLink payment={payment} /> : null}
-                {payment.receipt_id ? <small><Link href={`/payments/receipts/${payment.receipt_id}` as never}>View receipt →</Link></small> : null}
-                {payment.dispute_reason ? <small>{payment.dispute_reason}</small> : null}
+                {payment.reference || payment.evidence_file || payment.receipt_id || payment.dispute_reason ? (
+                  <div className="ra-pay-extra">
+                    {payment.reference ? <small>Reference {payment.reference}</small> : null}
+                    {payment.evidence_file ? <PaymentEvidenceLink payment={payment} /> : null}
+                    {payment.receipt_id ? <button type="button" className="rent-evidence-link" aria-haspopup="dialog" onClick={() => setReceiptOpen(payment.receipt_id)}>View receipt →</button> : null}
+                    {payment.dispute_reason ? <small className="ra-dispute">{payment.dispute_reason}</small> : null}
+                  </div>
+                ) : null}
               </li>
             ))}
           </ul>
         ) : (
-          <p className="type-caption">No payment records yet.</p>
+          <p className="ra-quiet">No payment records yet.</p>
         )}
       </section>
 
       {tenant?.tenancy_id ? (
-        <section className="rent-detail-section">
-          <h3>Related record</h3>
-          <p>
-            <Link href={`/tenants/${tenant.tenancy_id}` as never} className="type-body-strong">
-              Open tenancy →
-            </Link>
-          </p>
-        </section>
+        <Link href={`/tenants?tenant=${tenant.tenancy_id}` as never} className="ra-related">
+          <span className="ra-panel-mark" aria-hidden="true"><Icon name="users" /></span>
+          <span className="ra-related-copy">
+            <strong>Open tenancy</strong>
+            <small>{tenant.name} · {tenant.property_title} · {tenant.unit_label}</small>
+          </span>
+          <span className="ra-related-go" aria-hidden="true">→</span>
+        </Link>
       ) : null}
-    </>
+      <ReceiptModal receiptId={receiptOpen} onClose={() => setReceiptOpen(null)} />
+    </div>
   );
+}
+
+/** A record's standing as a colour: confirmed kola, waiting on you amber, disputed laterite. */
+function paymentTone(payment: RentPayment) {
+  if (payment.evidence === "PSP_CONFIRMED" || payment.status === "confirmed") return "confirmed";
+  if (payment.status === "disputed") return "disputed";
+  return payment.awaiting_you ? "review" : "waiting";
 }
 
 function ClosingSummary({ summary }: { summary: LeaseLedger["financial_summary"] }) {
@@ -374,8 +425,12 @@ function ChargeRow({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
+  const paidMinor = charge.amount_paid_minor ?? 0;
+  const share = charge.amount_minor > 0 ? Math.min(1, paidMinor / charge.amount_minor) : 0;
+  const tone = charge.outstanding_minor === 0 ? "settled" : charge.is_overdue ? "overdue" : paidMinor > 0 ? "part" : "due";
+
   return (
-    <li>
+    <li data-tone={tone}>
       <div>
         <strong>{charge.kind_display}</strong>
         <span>
@@ -385,9 +440,11 @@ function ChargeRow({
         </span>
       </div>
       <div className="rent-charge-amount">
-        <strong>{charge.outstanding_formatted}</strong>
+        <strong>{charge.outstanding_minor === 0 ? charge.amount_formatted : charge.outstanding_formatted}</strong>
         <span>{charge.status_display}</span>
       </div>
+      {/* How much of it is paid, as a bar: full and kola once settled. */}
+      <span className="ra-charge-bar" aria-hidden="true"><i style={{ width: `${Math.round(share * 100)}%` }} /></span>
       {payHref ? (
         <Link className="rent-pay-action type-body-strong" href={payHref as never}>
           Pay rent
@@ -474,7 +531,7 @@ function ChargeRow({
   );
 }
 
-function RecordPaymentForm({
+export function RecordPaymentForm({
   leaseId,
   charges,
   onCancel,
@@ -497,12 +554,28 @@ function RecordPaymentForm({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
+  // Nothing is owed: say so, rather than an empty "Apply to" and a disabled send.
+  if (!openCharges.length) {
+    return (
+      <div className="rent-record-form">
+        <Notice
+          tone="info"
+          title="Nothing is owed right now"
+          body="A payment is recorded against an amount due. When the next charge is raised, you can record money received for it here."
+        />
+        <div className="rent-actions">
+          <Button variant="secondary" onClick={onCancel}>Close</Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="rent-record-form">
       <Notice
         tone="info"
-        title="Record money received elsewhere"
-        body="This does not collect or transfer money. The tenant must confirm the record before it changes the balance."
+        title="Recorded, not collected"
+        body="This does not collect or transfer money. The tenant must confirm it before the balance changes."
       />
       <label className="rent-field type-caption">
         Apply to
@@ -523,7 +596,8 @@ function RecordPaymentForm({
       </label>
       <div className="rent-form-grid">
         <Field
-          label="Amount (GH₵)"
+          label="Amount"
+          prefix="GH₵"
           value={amount}
           onChange={(event) => setAmount(event.target.value.replace(/[^0-9.]/g, ""))}
           inputMode="decimal"
@@ -535,19 +609,22 @@ function RecordPaymentForm({
           type="date"
         />
       </div>
-      <label className="rent-field type-caption">
-        Method
-        <select
-          value={method}
-          onChange={(event) => setMethod(event.target.value as RentPayment["method"])}
-        >
-          {PAYMENT_METHODS.map(([value, label]) => (
-            <option key={value} value={value}>
-              {label}
-            </option>
-          ))}
-        </select>
-      </label>
+      <fieldset className="payment-chips">
+        <legend className="type-caption">Method</legend>
+        {PAYMENT_METHODS.map(([value, label]) => (
+          <label key={value} className="payment-chip">
+            <input
+              type="radio"
+              name={`payment-method-${leaseId}`}
+              value={value}
+              checked={method === value}
+              onChange={() => setMethod(value)}
+              className="control-input"
+            />
+            {label}
+          </label>
+        ))}
+      </fieldset>
       <Field
         label="Reference (optional)"
         value={reference}

@@ -105,7 +105,6 @@ export default function SpaceScreen() {
 
   const where = [
     unit.property.title,
-    unit.wing ? `${unit.wing} wing` : "",
     unit.floor_level === null
       ? ""
       : unit.floor_level === 0
@@ -121,10 +120,7 @@ export default function SpaceScreen() {
 
   const occupied = unit.availability.state === "occupied";
   const published = unit.publication.state === "published" && unit.publication.listing_status === "active";
-  const size = [
-    unit.bedrooms === 0 ? "Single room" : `${unit.bedrooms} bedroom${unit.bedrooms === 1 ? "" : "s"}`,
-    unit.bathrooms ? `${unit.bathrooms} bath${unit.bathrooms === 1 ? "" : "s"}` : "",
-  ].filter(Boolean).join(" · ");
+  const size = sizeLine(unit);
 
   return (
     <View style={styles.screen}>
@@ -208,7 +204,7 @@ export default function SpaceScreen() {
             <LinkRow
               icon="navigate-outline"
               label="Details and entrance"
-              detail="Description, floor, wing and how to find the door"
+              detail="Description and entrance directions"
               onPress={() => setSheet("details")}
             />
             {isHostelRoom ? (
@@ -701,6 +697,22 @@ function WhatIsNext({
   );
 }
 
+/**
+ * Only the counts that fit this kind of space (owner, 2026-10-05): a shop reads
+ * "Own bathroom", never "0 bedrooms"; a bed space reads nothing.
+ */
+function sizeLine(unit: UnitDetail): string {
+  const asks = unit.asks ?? { bedrooms: true, bathrooms: "count", floor: true };
+  return [
+    asks.bedrooms ? `${unit.bedrooms} bedroom${unit.bedrooms === 1 ? "" : "s"}` : "",
+    asks.bathrooms === "count"
+      ? `${unit.bathrooms} bath${unit.bathrooms === 1 ? "" : "s"}`
+      : asks.bathrooms === "yes_no"
+        ? unit.bathrooms > 0 ? "Own bathroom" : "Shared bathroom"
+        : "",
+  ].filter(Boolean).join(" · ");
+}
+
 // --- details ------------------------------------------------------------------
 
 function Details({ unit, onSaved }: { unit: UnitDetail; onSaved: () => Promise<void> }) {
@@ -718,10 +730,7 @@ function Details({ unit, onSaved }: { unit: UnitDetail; onSaved: () => Promise<v
       <View style={{ gap: space[2] }}>
         <Type variant="body">{unit.label || "Not named"}</Type>
         {unit.description ? <Type variant="caption">{unit.description}</Type> : null}
-        <Type variant="caption">
-          {unit.bedrooms} bedroom{unit.bedrooms === 1 ? "" : "s"} · {unit.bathrooms} bathroom
-          {unit.bathrooms === 1 ? "" : "s"}
-        </Type>
+        {sizeLine(unit) ? <Type variant="caption">{sizeLine(unit)}</Type> : null}
         <Type variant="caption" style={{ color: theme.color.ink["500"] }}>
           {unit.permitted_actions.edit?.message ?? "These cannot be changed at the moment."}
         </Type>
@@ -732,7 +741,7 @@ function Details({ unit, onSaved }: { unit: UnitDetail; onSaved: () => Promise<v
   return (
     <View style={{ gap: space[3] }}>
       {fullEditable ? <Field
-        label="What do you call it?"
+        label="Name"
         value={label}
         onChangeText={(value) => {
           setSaved(false);

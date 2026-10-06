@@ -10,6 +10,7 @@
 
 import { apiFetch, idempotentMutation } from "./api";
 import { authedBlob, authedFetch } from "./auth";
+import type { SpaceQuestions } from "./propertyTypes";
 
 // --- geography ---------------------------------------------------------------
 
@@ -452,6 +453,8 @@ export type Unit = {
   label: string;
   space_type: string;
   space_type_label: string;
+  /** Which details fit this kind of space; absent from an older API. */
+  asks?: SpaceQuestions;
   description: string;
   bedrooms: number;
   bathrooms: number;
@@ -1194,6 +1197,10 @@ export type ProviderTenant = {
   tenancy_status: "pending_lease" | "upcoming" | "active" | "ended" | null;
   user_id: string;
   name: string;
+  /** Their photo's download endpoint (resolve with `lib/photo`); null without one. */
+  avatar_url?: string | null;
+  /** When they moved out; set only on a past tenant. */
+  ended_at?: string | null;
   property_id: string;
   property_title: string;
   unit_id: string;
@@ -1315,6 +1322,8 @@ export type OrganizationPortfolio = {
   tenancy_requests: ProviderTenancyRequest[];
   tenant_access: ProviderTenantAccess[];
   tenants: ProviderTenant[];
+  /** Ended tenancies, most recent first — the Tenants page's Archive. Absent from an older API. */
+  past_tenants?: ProviderTenant[];
 };
 
 export function getOrganizationPortfolio(organizationId: string) {
@@ -1353,6 +1362,57 @@ export function recordPropertyExpense(organizationId: string, input: {
     body: JSON.stringify(input),
     ...idempotentMutation(),
   });
+}
+
+/** A Portfolio's saved wording for an agreement's additional terms. */
+export type TermsTemplate = {
+  id: string;
+  name: string;
+  body: string;
+  is_default: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AgreementPlaceholder = { name: string; label: string; example: string };
+
+/** What a Portfolio's agreements are made of: the controlled agreement, its facts, its own terms. */
+export type PortfolioContracts = {
+  agreement: {
+    title: string;
+    version: string;
+    review_status: string;
+    clauses: { id: string; title: string; body: string }[];
+  };
+  placeholders: AgreementPlaceholder[];
+  templates: TermsTemplate[];
+};
+
+export function getPortfolioContracts(organizationId: string) {
+  return authedFetch<PortfolioContracts>(`/organizations/${organizationId}/contracts/`, { cache: "no-store" });
+}
+
+export function createTermsTemplate(organizationId: string, input: { name: string; body: string; is_default: boolean }) {
+  return authedFetch<TermsTemplate>(`/organizations/${organizationId}/terms-templates/`, {
+    method: "POST",
+    body: JSON.stringify(input),
+    ...idempotentMutation(),
+  });
+}
+
+export function updateTermsTemplate(
+  organizationId: string,
+  templateId: string,
+  input: Partial<{ name: string; body: string; is_default: boolean }>,
+) {
+  return authedFetch<TermsTemplate>(`/organizations/${organizationId}/terms-templates/${templateId}/`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+}
+
+export function deleteTermsTemplate(organizationId: string, templateId: string) {
+  return authedFetch<null>(`/organizations/${organizationId}/terms-templates/${templateId}/`, { method: "DELETE" });
 }
 
 export function listOrganizationProperties(organizationId: string) {
@@ -1850,6 +1910,9 @@ export type Notification = {
   target_id: string;
   read_at: string | null;
   is_read: boolean;
+  /** A reminder ("informational") is deleted once read; "activity" is kept,
+   *  the ten most recent. The server decides; the client only reads it. */
+  record: "informational" | "activity";
   created_at: string;
 };
 
@@ -2143,21 +2206,72 @@ export function setProfilePhoto(fileId: string | null) {
   });
 }
 
+export type AlertTopic = { key: string; label: string; description: string };
+
 export type NotificationPreferences = {
   sms_enabled: boolean;
   push_enabled: boolean;
   sms_important_only: boolean;
+  /** E.164, or blank for the account's own number. */
+  sms_number: string;
+  whatsapp_enabled: boolean;
+  whatsapp_number: string;
+  /** Every topic, on or off: whether it may leave the app. */
+  alerts: Record<string, boolean>;
+  account_phone: string;
+  alert_topics: AlertTopic[];
+  /** False until Rooomly's WhatsApp channel is connected. */
+  whatsapp_available: boolean;
 };
+
+export type NotificationPreferencesInput = Partial<
+  Pick<NotificationPreferences, "sms_enabled" | "push_enabled" | "sms_important_only" | "sms_number" | "whatsapp_enabled" | "whatsapp_number" | "alerts">
+>;
 
 export function getNotificationPreferences() {
   return authedFetch<NotificationPreferences>("/me/notification-preferences/", { cache: "no-store" });
 }
 
-export function updateNotificationPreferences(input: Partial<NotificationPreferences>) {
+export function updateNotificationPreferences(input: NotificationPreferencesInput) {
   return authedFetch<NotificationPreferences>("/me/notification-preferences/", {
     method: "PATCH",
     body: JSON.stringify(input),
   });
+}
+
+/** A request to delete this account. Management decides; the person may withdraw it while it waits. */
+export type AccountDeletionRequest = {
+  id: string;
+  status: "pending" | "completed" | "declined" | "cancelled";
+  status_display: string;
+  reason: string;
+  blockers: string[];
+  requested_at: string;
+  decided_at: string | null;
+  decision_note: string;
+};
+
+export type AccountDeletionState = {
+  request: AccountDeletionRequest | null;
+  /** What Management will have to settle first, as of now. */
+  blockers: string[];
+  /** The word to type to confirm. */
+  confirmation: string;
+};
+
+export function getAccountDeletion() {
+  return authedFetch<AccountDeletionState>("/me/account-deletion/", { cache: "no-store" });
+}
+
+export function requestAccountDeletion(input: { reason: string; confirmation: string }) {
+  return authedFetch<{ request: AccountDeletionRequest }>("/me/account-deletion/", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export function withdrawAccountDeletion() {
+  return authedFetch<{ request: AccountDeletionRequest }>("/me/account-deletion/", { method: "DELETE" });
 }
 
 export type SignedInDevice = {

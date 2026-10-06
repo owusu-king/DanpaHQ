@@ -1,0 +1,207 @@
+/* A document opened over the page that asked for it — a lease today, other
+   tenancy documents as they arrive. The same glass sheet and motion as the
+   enquiries inbox: a document header, then the record scrolling beneath it. */
+
+.doc-modal {
+  --doc-ease: var(--motion-easing-standard);
+  inset: var(--modal-area-top, 0px) 0 0 var(--modal-area-left, 0px);
+  width: min(38rem, calc(100vw - var(--modal-area-left, 0px) - 2rem));
+  max-width: none;
+  height: min(44rem, calc(100vh - var(--modal-area-top, 0px) - 2.5rem));
+  max-height: none;
+  padding: 0;
+  margin: auto;
+  overflow: hidden;
+  color: var(--color-ink-900);
+  background: linear-gradient(170deg, rgba(255, 255, 255, .96), rgba(255, 255, 255, .9));
+  border: 1px solid rgba(255, 255, 255, .9);
+  border-radius: 1.25rem;
+  box-shadow:
+    0 0 0 1px rgba(33, 26, 21, .08),
+    0 30px 70px -24px rgba(22, 17, 14, .45),
+    inset 0 1px 0 rgba(255, 255, 255, .95);
+  backdrop-filter: blur(22px) saturate(160%);
+  -webkit-backdrop-filter: blur(22px) saturate(160%);
+}
+
+/* A short form sizes to its content rather than to a document's height. */
+.doc-modal.is-sm {
+  width: min(34rem, calc(100vw - var(--modal-area-left, 0px) - 2rem));
+  /* fit-content, not auto: with both insets set, auto stretches to fill them. */
+  height: fit-content;
+  max-height: calc(100vh - var(--modal-area-top, 0px) - 2.5rem);
+}
+
+/* The motion is "Change plan"'s (billing-workspace.css): the whole sheet grows
+   out of the control that opened it on a spring, sharpening from a blur, and
+   arrives as one surface. The header and body used to fade in 60ms and 120ms
+   behind it, which showed an empty sheet for a beat and read as a flicker. */
+.doc-modal[open] { display: flex; flex-direction: column; animation: modal-spring 460ms var(--modal-spring) both, modal-focus 220ms var(--motion-easing-enter) both; }
+.doc-modal.is-closing { animation: modal-out 180ms var(--motion-easing-exit) forwards; }
+.doc-modal::backdrop { inset: var(--modal-area-top, 0px) 0 0 var(--modal-area-left, 0px); background: rgba(33, 29, 24, .3); animation: modal-backdrop-in 260ms var(--doc-ease) both; }
+.doc-modal.is-closing::backdrop { animation: modal-backdrop-out 180ms var(--doc-ease) forwards; }
+
+/* While any modal is open the page behind it holds still, as it does under
+   "Change plan": the backdrop already takes the pointer, and this takes the
+   wheel. The root reserves its scrollbar gutter, so nothing shifts. */
+html:has(dialog[open]) { overflow: hidden; }
+
+.doc-modal-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-4) var(--space-4) var(--space-5);
+  border-bottom: var(--border-hairline) solid rgba(33, 26, 21, .08);
+}
+
+.doc-modal-mark {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  color: var(--color-kola-600);
+  background: var(--color-kola-50);
+  border-radius: var(--radius-md);
+}
+
+.doc-modal-mark .portal-icon { width: 19px; height: 19px; }
+.doc-modal-title { flex: 1; min-width: 0; }
+.doc-modal-title h2 { margin: 0; overflow: hidden; font-family: var(--font-display); font-size: 1.125rem; font-weight: 650; letter-spacing: -0.01em; text-overflow: ellipsis; white-space: nowrap; }
+.doc-modal-title p { display: flex; flex-wrap: wrap; align-items: center; gap: 0 6px; margin: 2px 0 0; color: var(--color-ink-500); font-size: .75rem; }
+.doc-modal-sep { color: var(--color-ink-300); }
+
+.doc-modal-status { display: inline-flex; align-items: center; gap: 5px; color: var(--color-ink-700); font-weight: 650; }
+.doc-modal-status i { width: 6px; height: 6px; background: currentColor; border-radius: 50%; }
+.doc-modal-status.is-good { color: var(--color-kola-600); }
+.doc-modal-status.is-waiting { color: var(--color-lagoon-600); }
+.doc-modal-status.is-attention { color: var(--color-harmattan-600); }
+.doc-modal-status.is-muted { color: var(--color-ink-500); }
+
+/* Back, in place of the mark, while a deeper view shows (ModalViews). */
+.doc-modal-back {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  color: var(--color-ink-700);
+  background: rgba(255, 255, 255, .7);
+  border: 0;
+  border-radius: var(--radius-md);
+  box-shadow: 0 0 0 1px rgba(33, 26, 21, .08);
+  cursor: pointer;
+  animation: modal-title-in 280ms var(--motion-easing-enter) both;
+  transition: background-color var(--motion-duration-fast) var(--doc-ease), color var(--motion-duration-fast) var(--doc-ease), transform var(--motion-duration-fast) var(--doc-ease);
+}
+.doc-modal-back:hover { color: var(--color-ink-900); background: #fff; transform: translateX(-1px); }
+.doc-modal-back:active { transform: translateX(-1px) scale(.96); }
+.doc-modal-back:focus-visible { outline: var(--border-emphasis) solid var(--color-kola-600); outline-offset: 2px; }
+
+/* The header's words change with the view; they cross-fade, never swap. */
+.doc-modal-title { animation: modal-title-in 260ms var(--motion-easing-enter) both; }
+@keyframes modal-title-in { from { opacity: 0; transform: translateY(3px); } }
+
+/* One sheet, several views: the view travelled to slides in from the side it
+   lies on, while the sheet's size glides (glideModalHeight) under it. */
+.doc-modal-views { min-width: 0; }
+.doc-modal-view { min-width: 0; }
+.doc-modal-view[hidden] { display: none; }
+.doc-modal-views[data-direction="forward"] > .doc-modal-view:not([hidden]) { animation: modal-view-forward 380ms cubic-bezier(.22, 1, .36, 1) both; }
+.doc-modal-views[data-direction="back"] > .doc-modal-view:not([hidden]) { animation: modal-view-back 380ms cubic-bezier(.22, 1, .36, 1) both; }
+@keyframes modal-view-forward { from { opacity: 0; transform: translateX(24px) scale(.992); } }
+@keyframes modal-view-back { from { opacity: 0; transform: translateX(-24px) scale(.992); } }
+/* A view that fills the sheet (the agreement wizard) passes its height through. */
+.doc-modal.is-wizard .doc-modal-views,
+.doc-modal.is-wizard .doc-modal-view:not([hidden]) { display: flex; flex: 1; min-height: 0; }
+.doc-modal.is-wizard .doc-modal-view > * { flex: 1; min-width: 0; }
+/* Views change the sheet's width as well as its height; it glides too. */
+.doc-modal { transition: width 420ms cubic-bezier(.22, 1, .36, 1); }
+
+.doc-modal-close {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  color: var(--color-ink-500);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background-color var(--motion-duration-fast) var(--doc-ease), color var(--motion-duration-fast) var(--doc-ease);
+}
+
+.doc-modal-close .portal-icon { width: 17px; height: 17px; }
+.doc-modal-close:hover { color: var(--color-ink-900); background: var(--color-field-100); }
+.doc-modal-close:focus-visible { outline: var(--border-emphasis) solid var(--color-kola-600); outline-offset: 2px; }
+
+.doc-modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  /* Vertical only. overflow-y: auto quietly makes x auto too, and a view
+     sliding in from the side overflowed for a moment: a horizontal scrollbar
+     flickered in and the sheet shuddered. */
+  overflow-x: clip;
+  overflow-y: auto;
+  /* The scrollbar's room is kept whether or not it is needed, so content
+     never narrows when a view grows past the sheet, or widens when it stops. */
+  scrollbar-gutter: stable;
+  padding: var(--space-5) var(--space-6) var(--space-6);
+  scrollbar-width: thin;
+}
+
+/* While the sheet glides (glideModalHeight) the scrollbar stays: hiding it
+   and showing it again changed the content's width twice per transition.
+   Its room is reserved above, so its coming and going moves nothing. */
+
+.doc-modal-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-5);
+  border-top: var(--border-hairline) solid rgba(33, 26, 21, .08);
+  background: rgba(250, 248, 244, .7);
+}
+
+.doc-modal-foot .doc-modal-foot-note { margin-right: auto; color: var(--color-ink-500); font-size: .75rem; }
+
+.doc-modal-record { animation: inbox-thread-in var(--motion-duration-base) var(--motion-easing-enter) both; }
+/* A narrow sheet reads the agreement at a document's size, not a page title's. */
+.doc-modal-record .lease-document { padding: var(--space-5); border-radius: var(--radius-md); }
+.doc-modal-record .lease-document header h3 { font-size: 1.375rem; line-height: 1.25; letter-spacing: -0.01em; }
+/* The modal header already states the lease's status; the record need not repeat it. */
+.doc-modal-record .lease-record-place .lease-row-state { display: none; }
+.doc-modal-skeleton { display: grid; gap: var(--space-3); }
+.doc-modal-skeleton-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); margin: var(--space-2) 0; }
+
+.doc-modal-state { display: grid; justify-items: center; gap: var(--space-1); padding: var(--space-12) var(--space-5); text-align: center; }
+.doc-modal-state strong { font-size: .9375rem; font-weight: 650; }
+.doc-modal-state span { max-width: 36ch; color: var(--color-ink-500); font-size: .8125rem; line-height: 1.45; }
+
+/* The Tenancy page's related records: the lease opens here, so its row is a button. */
+button.tenancy-link { width: 100%; font: inherit; text-align: left; background: transparent; border: 0; cursor: pointer; }
+
+@media (max-width: 47.99rem) {
+  .doc-modal,
+  .doc-modal.is-sm { inset: 0; width: 100vw; height: 100dvh; max-height: none; margin: 0; border: 0; border-radius: 0; }
+  .doc-modal::backdrop { inset: 0; }
+  .doc-modal-body { padding: var(--space-4); }
+  .doc-modal[open] { animation: modal-sheet-in 440ms var(--modal-spring) both; }
+  .doc-modal.is-closing { animation: modal-sheet-out 240ms var(--motion-easing-exit) forwards; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .doc-modal[open],
+  .doc-modal.is-closing,
+  .doc-modal::backdrop,
+  .doc-modal-record { animation: none; }
+  .doc-modal-close,
+  .doc-modal-back,
+  .doc-modal { transition: none; }
+  .doc-modal-title,
+  .doc-modal-back,
+  .doc-modal-views > .doc-modal-view:not([hidden]) { animation: none !important; }
+}

@@ -6,22 +6,33 @@
 @import "../src/styles/forms.css";
 @import "../src/styles/portal.css";
 @import "../src/styles/property-workspace.css";
+@import "../src/styles/workspace.css";
+@import "../src/styles/enquiries-inbox.css";
+@import "../src/styles/doc-modal.css";
+@import "../src/styles/properties-workspace.css";
+@import "../src/styles/documents-workspace.css";
 @import "../src/styles/tenants-workspace.css";
 @import "../src/styles/payments-workspace.css";
 @import "../src/styles/viewings-workspace.css";
 @import "../src/styles/tenancy-requests-workspace.css";
+@import "../src/styles/request-sheet.css";
 @import "../src/styles/leases-workspace.css";
 @import "../src/styles/team-workspace.css";
 @import "../src/styles/settings-workspace.css";
 @import "../src/styles/billing-workspace.css";
 @import "../src/styles/updates-workspace.css";
 @import "../src/styles/home-workspace.css";
+@import "../src/styles/home-provider.css";
 @import "../src/styles/units-workspace.css";
 @import "../src/styles/explore-workspace.css";
 @import "../src/styles/explore-map.css";
 @import "../src/styles/listing-workspace.css";
 @import "../src/styles/creation-journey.css";
 @import "../src/styles/applications-workspace.css";
+@import "../src/styles/saved-workspace.css";
+@import "../src/styles/maintenance-workspace.css";
+@import "../src/styles/record-pages.css";
+@import "../src/styles/property-detail.css";
 @import "../src/styles/agreements-workspace.css";
 @import "../src/styles/lease-builder.css";
 @import "../src/styles/viewings-tenant.css";
@@ -502,3 +513,7 @@ body {
   .management-login-card-wrap { padding: 1rem; }
   .management-login-card { padding: 1.35rem; }
 }
+
+/* A refresh on Explore by someone who was signed in: hold the public layout
+   back until the session answers (see the head script in app/layout). */
+html[data-session-hint] .shared-pending { visibility: hidden; }

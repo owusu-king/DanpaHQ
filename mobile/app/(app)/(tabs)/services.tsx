@@ -34,7 +34,7 @@ import {
 import {
   CATEGORIES,
   SERVICES,
-  openableServices,
+  purchasableServices,
   serviceById,
   servicesIn,
   type Service,
@@ -142,7 +142,7 @@ export default function ServicesScreen() {
     );
   }
 
-  const openable = openableServices();
+  const openable = purchasableServices();
   // The picker starts on what this household already uses, else the first thing
   // that opens. It never holds a `later` service.
   const chosen =
@@ -150,8 +150,11 @@ export default function ServicesScreen() {
     openable.find((service) => service.id === saved[0]?.serviceId) ??
     openable[0];
 
+  // A service with a screen of its own opens it; the rest open the service screen.
   const openService = (service: Service) =>
-    router.push({ pathname: "/(app)/service", params: { id: service.id } } as never);
+    service.route
+      ? router.push(service.route as never)
+      : router.push({ pathname: "/(app)/service", params: { id: service.id } } as never);
 
   return (
     // The same page and ground as More, so the two hub tabs read as one product.

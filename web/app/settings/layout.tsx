@@ -4,8 +4,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef } from "react";
 
-import { PageHeader } from "@/components/portal/PageHeader";
+import { Avatar, Icon, type IconName } from "@/components/portal/icons";
 import { useSession } from "@/lib/session";
+import { useGlide } from "@/lib/useGlide";
 
 /**
  * The Settings shell.
@@ -17,6 +18,11 @@ import { useSession } from "@/lib/session";
  * Team lives here too. It was briefly a primary destination; a provider does not
  * open it daily, and the rail is for what they do. Deciding who may operate the
  * business is settings work.
+ *
+ * The index is a glass card of its own: who you are at the top, then each
+ * concern by name. A single tile glides to the one open, and a lighter one
+ * follows the pointer, the way the rail does. There is no page header: the
+ * index already says where you are.
  */
 export default function SettingsLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -32,36 +38,64 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
   ) ?? me?.contexts.find((context) => context.type === "organization");
   const can = portfolio?.access?.can;
 
+  const index = useRef<HTMLElement>(null);
+  const glide = useGlide(index, {
+    link: ".settings-link",
+    current: '.settings-link[aria-current="page"]',
+    layoutKey: `${pathname}|${isProvider}|${Boolean(can?.view_billing)}|${Boolean(can?.operate_properties)}`,
+  });
+
   return (
-    <div>
-      <PageHeader title="Settings" description="Your account, how Rooomly reaches you, and the records you keep." />
+    <div className="ws-page settings-page">
       <div className="settings-shell">
-        <nav className="settings-index" aria-label="Settings">
+        <nav
+          ref={index}
+          className="settings-index"
+          aria-label="Settings"
+          onPointerOver={glide.follow}
+          onFocus={glide.follow}
+          onPointerLeave={glide.rest}
+          onBlur={glide.rest}
+        >
+          <span className="settings-tile is-current" aria-hidden="true" />
+          <span className="settings-tile is-hover" aria-hidden="true" />
+
+          {me ? (
+            <div className="settings-who">
+              <Avatar name={me.display_name} photoUrl={me.profile?.avatar_url ?? null} />
+              <span>
+                <strong>{me.display_name}</strong>
+                <small>{isProvider ? portfolio?.label ?? "Provider" : me.capabilities.account_type === "provider" ? "Provider account" : "Tenant"}</small>
+              </span>
+            </div>
+          ) : null}
+
           <div className="settings-group">
-            <p className="type-label">ACCOUNT</p>
+            <p className="settings-group-title">Account</p>
             <ul>
-              <IndexLink href="/settings" pathname={pathname}>Profile</IndexLink>
-              <IndexLink href="/settings/security" pathname={pathname}>Security</IndexLink>
-              <IndexLink href="/settings/notifications" pathname={pathname}>Notifications</IndexLink>
-              <IndexLink href="/settings/verification" pathname={pathname}>Verification</IndexLink>
+              <IndexLink href="/settings" pathname={pathname} icon="account">Profile</IndexLink>
+              <IndexLink href="/settings/security" pathname={pathname} icon="lock">Security</IndexLink>
+              <IndexLink href="/settings/preferences" pathname={pathname} icon="filters">Preferences</IndexLink>
+              <IndexLink href="/settings/verification" pathname={pathname} icon="verification">Verification</IndexLink>
             </ul>
           </div>
           {isProvider ? (
             <>
               <div className="settings-group">
-                <p className="type-label">PORTFOLIO</p>
+                <p className="settings-group-title">Portfolio</p>
                 <ul>
-                  <IndexLink href="/settings/team" pathname={pathname}>Team</IndexLink>
+                  <IndexLink href="/settings/team" pathname={pathname} icon="users">Team</IndexLink>
                   {can?.view_billing ?? true ? (
-                    <IndexLink href="/settings/billing" pathname={pathname}>Plan &amp; billing</IndexLink>
+                    <IndexLink href="/settings/billing" pathname={pathname} icon="payments">Plan &amp; billing</IndexLink>
                   ) : null}
+                  <IndexLink href="/settings/settlement" pathname={pathname} icon="landmark">Settlement account</IndexLink>
                 </ul>
               </div>
               {can?.operate_properties ?? true ? (
                 <div className="settings-group">
-                  <p className="type-label">RECORDS</p>
+                  <p className="settings-group-title">Records</p>
                   <ul>
-                    <IndexLink href="/settings/archive" pathname={pathname}>Archive</IndexLink>
+                    <IndexLink href="/settings/archive" pathname={pathname} icon="archive">Archive</IndexLink>
                   </ul>
                 </div>
               ) : null}
@@ -77,10 +111,12 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
 function IndexLink({
   href,
   pathname,
+  icon,
   children,
 }: {
   href: string;
   pathname: string;
+  icon: IconName;
   children: React.ReactNode;
 }) {
   // The root is exact; a concern remains selected while one of its focused
@@ -99,7 +135,8 @@ function IndexLink({
   return (
     <li>
       <Link ref={linkRef} href={href as never} className="settings-link" aria-current={current ? "page" : undefined}>
-        {children}
+        <span className="settings-link-mark" aria-hidden="true"><Icon name={icon} /></span>
+        <span className="settings-link-text">{children}</span>
       </Link>
     </li>
   );

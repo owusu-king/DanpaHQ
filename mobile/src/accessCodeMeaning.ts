@@ -71,21 +71,21 @@ export function privateAccess(
       show: true,
       headline: context.occupied ? "Not while someone lives here" : "Not available yet",
       detail: context.occupied
-        ? "End the tenancy before sharing this space again."
-        : "Both the Property and this Unit must stay verified for a code to work.",
+        ? "End the tenancy to share it again."
+        : "Property and Unit must stay verified.",
       primary: null,
       canRevoke: false,
       tone: "blocked",
     };
   }
 
-  const expiry = code.expires_at ? ` It expires ${onDay(code.expires_at)}.` : "";
+  const expiry = code.expires_at ? `Expires ${onDay(code.expires_at)}. ` : "";
 
   if (code.state === "active") {
     return {
       show: true,
       headline: "A code is active",
-      detail: `Rooomly does not keep the readable value.${expiry} Make a new one if you need another copy.`,
+      detail: `${expiry}Shown once, never stored.`,
       primary: code.can_rotate ? "New code" : null,
       canRevoke: code.can_revoke,
       tone: "active",
@@ -102,7 +102,7 @@ export function privateAccess(
   return {
     show: true,
     headline,
-    detail: "Anyone with the code can ask to join this space. You still approve or reject them.",
+    detail: "Lets someone ask to join. You approve.",
     primary: code.can_rotate ? (code.state === "not_created" ? "Create code" : "New code") : null,
     canRevoke: false,
     tone: "idle",

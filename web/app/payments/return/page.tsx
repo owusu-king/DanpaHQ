@@ -120,7 +120,7 @@ export default function PaymentReturnPage() {
           <p className="payment-status-amount">{intent.amount_formatted}</p>
           <p className="type-caption">Your rent account has been updated. Provider settlement is tracked separately.</p>
           <div className="rent-actions">
-            {intent.receipt_id ? <Link className="payment-link-button" href={`/payments/receipts/${intent.receipt_id}` as never}>View receipt</Link> : null}
+            {intent.receipt_id ? <Link className="payment-link-button" href={`/payments?receipt=${intent.receipt_id}` as never}>View receipt</Link> : null}
             <Link className="payment-secondary-link" href={`/payments/${intent.lease_id}?mode=tenant` as never}>Rent account</Link>
           </div>
         </>

@@ -374,7 +374,7 @@ class TestEditing:
 
         assert unit.label == "Flat A1"
 
-    def test_a_plot_still_cannot_acquire_bathrooms(self, held, landlord):
+    def test_a_shop_cannot_acquire_bedrooms(self, held, landlord):
         """The same `space_rules` the creation path uses, on the edit path too.
 
         A rule enforced only where the form posts is a rule the API does not
@@ -386,12 +386,40 @@ class TestEditing:
         prop, _ = held
         Property.objects.filter(id=prop.id).update(property_type=PropertyType.COMMERCIAL)
         prop.refresh_from_db()
-        plot = services.add_unit(
-            prop=prop, user=landlord, data={"space_type": "land", "bedrooms": 0, "bathrooms": 0}
+        shop = services.add_unit(prop=prop, user=landlord, data={"space_type": "shop"})
+
+        with pytest.raises(ValidationFailed, match="no bedrooms"):
+            spaces.update_space(unit=shop, user=landlord, data={"bedrooms": 2})
+        with pytest.raises(ValidationFailed, match="one bathroom at most"):
+            spaces.update_space(unit=shop, user=landlord, data={"bathrooms": 3})
+
+    def test_creation_clears_what_a_space_is_never_asked(self, held, landlord):
+        """Older clients send "1 bedroom" whatever was chosen; a shop stores none."""
+        from apps.property import services
+        from apps.property.models import Property, PropertyType
+
+        prop, _ = held
+        Property.objects.filter(id=prop.id).update(property_type=PropertyType.COMMERCIAL)
+        prop.refresh_from_db()
+        shop = services.add_unit(
+            prop=prop,
+            user=landlord,
+            data={"space_type": "warehouse", "bedrooms": 1, "bathrooms": 2, "floor_level": 3},
         )
 
-        with pytest.raises(ValidationFailed):
-            spaces.update_space(unit=plot, user=landlord, data={"bathrooms": 2})
+        assert (shop.bedrooms, shop.bathrooms, shop.floor_level) == (0, 1, None)
+
+    def test_land_is_not_a_unit_of_a_commercial_property(self, held, landlord):
+        """A plot is its own Property, sold whole (owner, 2026-10-05)."""
+        from apps.property import services
+        from apps.property.models import Property, PropertyType
+
+        prop, _ = held
+        Property.objects.filter(id=prop.id).update(property_type=PropertyType.COMMERCIAL)
+        prop.refresh_from_db()
+
+        with pytest.raises(ValidationFailed, match="cannot contain land"):
+            services.add_unit(prop=prop, user=landlord, data={"space_type": "land"})
 
     def test_editing_stops_once_a_reviewer_holds_it(self, held, landlord):
         from apps.property import spaces

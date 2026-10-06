@@ -16,9 +16,11 @@ from apps.geo import views as geo_views
 from apps.identity import views as identity_views
 from apps.lease import views as lease_views
 from apps.listing import views as listing_views
+from apps.maintenance import views as maintenance_views
 from apps.notifications import views as notification_views
 from apps.occupancy import tenancy_views
 from apps.occupancy import views as occupancy_views
+from apps.operations import views as operations_views
 from apps.organization import views as organization_views
 from apps.payments import views as payment_views
 from apps.property import lifecycle_views
@@ -645,6 +647,21 @@ application_patterns = [
 lease_patterns = [
     path("me/leases/", lease_views.MyLeasesView.as_view(), name="me-leases"),
     path("me/granted-leases/", lease_views.LandlordLeasesView.as_view(), name="granted-leases"),
+    path(
+        "organizations/<uuid:organization_pk>/contracts/",
+        lease_views.OrganizationContractsView.as_view(),
+        name="organization-contracts",
+    ),
+    path(
+        "organizations/<uuid:organization_pk>/terms-templates/",
+        lease_views.OrganizationTermsTemplatesView.as_view(),
+        name="organization-terms-templates",
+    ),
+    path(
+        "organizations/<uuid:organization_pk>/terms-templates/<uuid:pk>/",
+        lease_views.OrganizationTermsTemplateView.as_view(),
+        name="organization-terms-template",
+    ),
     path("leases/<uuid:pk>/", lease_views.LeaseDetailView.as_view(), name="lease-detail"),
     path(
         "leases/<uuid:pk>/document.pdf",
@@ -680,6 +697,38 @@ rent_patterns = [
         name="rent-charge-write-off",
     ),
     path("me/rental-history/", rent_views.RentalHistoryView.as_view(), name="me-rental-history"),
+    # Maintenance (apps.maintenance)
+    path("me/maintenance/", maintenance_views.MyMaintenanceView.as_view(), name="me-maintenance"),
+    path(
+        "organizations/<uuid:organization_pk>/maintenance/",
+        maintenance_views.OrganizationMaintenanceView.as_view(),
+        name="organization-maintenance",
+    ),
+    path(
+        "maintenance/<uuid:pk>/",
+        maintenance_views.MaintenanceDetailView.as_view(),
+        name="maintenance-detail",
+    ),
+    path(
+        "maintenance/<uuid:pk>/start/",
+        maintenance_views.StartWorkView.as_view(),
+        name="maintenance-start",
+    ),
+    path(
+        "maintenance/<uuid:pk>/fixed/",
+        maintenance_views.ReportFixedView.as_view(),
+        name="maintenance-fixed",
+    ),
+    path(
+        "maintenance/<uuid:pk>/confirm/",
+        maintenance_views.ConfirmFixedView.as_view(),
+        name="maintenance-confirm",
+    ),
+    path(
+        "maintenance/<uuid:pk>/reopen/",
+        maintenance_views.ReopenView.as_view(),
+        name="maintenance-reopen",
+    ),
 ]
 
 
@@ -743,6 +792,11 @@ urlpatterns = [
     path("meta/", meta, name="meta"),
     path("healthz/", healthz, name="healthz"),
     path("readyz/", readyz, name="readyz"),
+    path(
+        "me/account-deletion/",
+        operations_views.MyAccountDeletionView.as_view(),
+        name="me-account-deletion",
+    ),
     path("management/", include("apps.operations.urls")),
     *auth_patterns,
     *me_patterns,

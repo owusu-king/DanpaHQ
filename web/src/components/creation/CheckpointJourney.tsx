@@ -14,8 +14,10 @@ export type CreationCheckpoint = {
 /**
  * The milestone language shared by Property and Unit creation.
  *
- * This is progress, not navigation. Property's separate checklist remains the
- * place where non-sequential work is opened; Unit creation remains sequential.
+ * Progress, and — when the page passes `onSelect` — the way between sections
+ * too (owner, 2026-10-05: jump "via the tracking icons", with no side list).
+ * `canSelect` says which icons may be pressed: every section of a property
+ * that already exists, but a Unit step only once the steps before it are done.
  */
 export function CheckpointJourney({
   checkpoints,
@@ -23,10 +25,15 @@ export function CheckpointJourney({
   ariaLabel,
   valueNow,
   valueMax,
+  onSelect,
+  canSelect,
 }: {
   checkpoints: CreationCheckpoint[];
   label: string;
   ariaLabel: string;
+  /** Makes each reachable icon a button that opens its section. */
+  onSelect?: (key: string) => void;
+  canSelect?: (checkpoint: CreationCheckpoint) => boolean;
   /** Optional domain-specific completion value (for example required setup work). */
   valueNow?: number;
   valueMax?: number;
@@ -58,8 +65,8 @@ export function CheckpointJourney({
         </span>
       </div>
 
-      <CheckpointRow checkpoints={checkpoints} className="checkpoint-row-wide" />
-      <CheckpointRow checkpoints={nearby} className="checkpoint-row-compact" />
+      <CheckpointRow checkpoints={checkpoints} className="checkpoint-row-wide" onSelect={onSelect} canSelect={canSelect} />
+      <CheckpointRow checkpoints={nearby} className="checkpoint-row-compact" onSelect={onSelect} canSelect={canSelect} />
     </section>
   );
 }
@@ -67,15 +74,21 @@ export function CheckpointJourney({
 function CheckpointRow({
   checkpoints,
   className,
+  onSelect,
+  canSelect,
 }: {
   checkpoints: CreationCheckpoint[];
   className: string;
+  onSelect?: (key: string) => void;
+  canSelect?: (checkpoint: CreationCheckpoint) => boolean;
 }) {
   return (
     <ol
-      className={`checkpoint-row ${className}`}
+      className={`checkpoint-row ${className}${onSelect ? " is-navigable" : ""}`}
       style={{ "--checkpoint-count": checkpoints.length } as React.CSSProperties}
-      aria-hidden="true"
+      // Read once, by the progressbar above, unless the icons are controls.
+      aria-hidden={onSelect ? undefined : "true"}
+      aria-label={onSelect ? "Sections" : undefined}
     >
       {checkpoints.map((checkpoint, index) => {
         const previous = checkpoints[index - 1];
@@ -87,19 +100,40 @@ function CheckpointRow({
             className={`checkpoint checkpoint-${checkpoint.state}${connectorComplete ? " connector-complete" : ""}`}
           >
             {index ? <span className="checkpoint-connector" /> : null}
-            <span className="checkpoint-marker">
-              {checkpoint.state === "completed" ? (
-                <span className="checkpoint-check">✓</span>
-              ) : checkpoint.state === "attention" ? (
-                <span className="checkpoint-warning">!</span>
-              ) : (
-                <Icon name={checkpoint.icon} />
-              )}
-            </span>
-            <span className="checkpoint-label">{checkpoint.label}</span>
+            {onSelect && (canSelect ? canSelect(checkpoint) : true) ? (
+              <button
+                type="button"
+                className="checkpoint-button"
+                aria-current={checkpoint.state === "current" ? "step" : undefined}
+                aria-label={`${checkpoint.label}${checkpoint.state === "completed" ? ", done" : checkpoint.state === "attention" ? ", started" : ""}`}
+                onClick={() => onSelect(checkpoint.key)}
+              >
+                <Marker checkpoint={checkpoint} />
+                <span className="checkpoint-label">{checkpoint.label}</span>
+              </button>
+            ) : (
+              <>
+                <Marker checkpoint={checkpoint} />
+                <span className="checkpoint-label">{checkpoint.label}</span>
+              </>
+            )}
           </li>
         );
       })}
     </ol>
+  );
+}
+
+function Marker({ checkpoint }: { checkpoint: CreationCheckpoint }) {
+  return (
+    <span className="checkpoint-marker" aria-hidden="true">
+      {checkpoint.state === "completed" ? (
+        <span className="checkpoint-check">✓</span>
+      ) : checkpoint.state === "attention" ? (
+        <span className="checkpoint-warning">!</span>
+      ) : (
+        <Icon name={checkpoint.icon} />
+      )}
+    </span>
   );
 }

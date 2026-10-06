@@ -43,9 +43,9 @@ test("the Portfolio switcher is the header's navigation context", () => {
   const shell = code(read("web/src/components/portal/PortalShell.tsx"));
   const css = read("web/src/styles/portal.css");
 
-  // Portfolio context comes before the centred search, with a mark when there
-  // is somewhere else to be — never a count, which would read as unread work.
-  assert.match(shell, /<PortfolioMenu me=\{me\} context \/>[\s\S]*<PortalSearch[\s\S]*portal-header-actions/);
+  // Portfolio context comes first, then the actions, with a mark when there is
+  // somewhere else to be — never a count, which would read as unread work.
+  assert.match(shell, /<PortfolioMenu me=\{me\} context \/>[\s\S]*portal-header-actions/);
   assert.match(switcher, /portal-context-copy/);
   assert.match(switcher, /portal-header-dot/);
   assert.match(switcher, /title="Switch portfolio"/);
@@ -89,20 +89,21 @@ test("the Portfolio switcher is the header's navigation context", () => {
   }
 });
 
-test("the provider header is context, centred search, notifications and profile", () => {
+test("the provider header is context on the left, Enquiries and Updates on the right", () => {
   const shell = code(read("web/src/components/portal/PortalShell.tsx"));
   const switcher = code(read("web/src/components/portal/PortfolioMenu.tsx"));
   const icons = read("web/src/components/portal/icons.tsx");
   const css = read("web/src/styles/portal.css");
 
   assert.match(shell, /className=\{`portal-header\$\{isProviderSpace \? " is-provider" : ""\}`\}/);
-  assert.match(shell, /<div className="portal-header-actions">[\s\S]*portal-header-updates[\s\S]*<AccountMenu me=\{me\} collapsed placement="header" \/>/);
-  assert.match(css, /grid-template-columns: minmax\(11rem, 1fr\) minmax\(18rem, 36rem\) minmax\(11rem, 1fr\)/);
-  assert.match(css, /\.portal-header\.is-provider \.portal-search/);
-  assert.match(css, /\.portal-search-field \{[^}]*height: 2\.75rem;/);
-  assert.match(css, /\.portal-account\.is-header \.portal-account-trigger/);
-  // Search is what gives way first when the header runs out of room.
-  assert.match(css, /@media \(max-width: 47\.99rem\) \{\s*\.portal-search \{ display: none; \}/);
+  // Two zones. Enquiries comes before the bell; the
+  // account stays at the foot of the rail rather than in the bar.
+  assert.match(shell, /<div className="portal-header-actions">[\s\S]*portal-header-support[\s\S]*portal-header-updates/);
+  assert.match(css, /\.portal-header \{[^}]*justify-content: space-between;/);
+  assert.match(css, /\.portal-header-support \{[^}]*height: 2\.75rem;/);
+  // There is no global search in the bar; each workspace searches its own list.
+  assert.doesNotMatch(shell, /PortalSearch/);
+  assert.doesNotMatch(css, /\.portal-search\b/);
 
   // Provider chrome does not repeat the page's heading; the title remains only
   // for the tenant shell, which has no Portfolio context.
@@ -196,7 +197,7 @@ test("the Provider Properties page is one Portfolio at a time", () => {
 test("every provider list is about the Portfolio on screen", () => {
   const services = read("backend/apps/organization/services.py");
   const hook = code(read("web/src/lib/useProviderRequests.ts"));
-  const leases = code(read("web/app/leases/page.tsx"));
+  const leases = code(read("web/src/components/documents/LeasesView.tsx"));
   const viewings = code(read("web/app/viewings/page.tsx"));
   const home = code(read("web/app/home/page.tsx"));
 
@@ -217,7 +218,7 @@ test("every provider list is about the Portfolio on screen", () => {
   assert.match(hook, /listReceivedApplications\(false, \{ organization: scope\.id \}\)/);
   assert.match(hook, /\}, \[preferred\]\);/);
 
-  assert.match(leases, /listGrantedLeases\(preferred \? \{ organization: preferred \} : undefined\)/);
+  assert.match(leases, /listGrantedLeases\(organizationId \? \{ organization: organizationId \} : undefined\)/);
   assert.match(viewings, /listHostViewings\(false, preferred \? \{ organization: preferred \} : undefined\)/);
 
   // Home asked for everything and sifted it by Unit id — and viewings by
@@ -250,11 +251,21 @@ test("provider Home is a control center that only states what it can calculate",
   const chart = read("web/src/components/home/ProviderFinanceChart.tsx");
   const providerHome = home.slice(home.indexOf("function ProviderHome"));
 
-  // Five things, in this order: overview, attention, collection, activity,
-  // one Property. The leasing pipeline, the viewings panel and the readiness
-  // tiles were removed from Home on purpose — each already has a workspace, and
-  // a dashboard that restates every one of them stops having a shape.
+  // One composition: the hero is the overview (occupancy, counts, what is
+  // owed); a reading column (collection, what is coming up, activity) beside an
+  // acting column (attention, enquiries, the Properties). The leasing pipeline
+  // and the readiness tiles stay off Home — each has a workspace. "Coming up"
+  // is not the old viewings panel: it is one dated agenda across viewings, rent
+  // due and leases ending, built only from what the backend has dated.
   assert.match(providerHome, /label="Properties"/);
+  assert.match(providerHome, /className="home-hero"/);
+  assert.match(providerHome, /Coming up/);
+  assert.match(providerHome, /function agendaOf\(viewings: Viewing\[\], tenants: ProviderTenant\[\]\)/);
+  assert.match(providerHome, /viewing\.status !== "confirmed" \|\| !viewing\.confirmed_starts_at/);
+  // Enquiries are read only where the role operates Properties, and open over
+  // the page rather than leaving it.
+  assert.match(providerHome, /readsEnquiries \? listEnquiries\("seller"\)/);
+  assert.match(providerHome, /openEnquiries\(\{ id: row\.id, side: "seller" \}\)/);
   assert.match(providerHome, /<OccupancyRing/);
   assert.match(providerHome, /<ProviderFinanceChart/);
   assert.match(providerHome, /home-attention-panel/);
@@ -310,19 +321,12 @@ test("provider Home uses an authoritative interactive collection series", () => 
   assert.doesNotMatch(home, /sparkline|this month/i);
 });
 
-test("provider Home has Portfolio search and a real Property highlight", () => {
+test("provider Home has a real Property highlight and no search of its own", () => {
   const home = read("web/app/home/page.tsx");
   const shell = read("web/src/components/portal/PortalShell.tsx");
 
-  // Search is a way of getting anywhere, so it belongs to the shell beside the
-  // navigation rather than to one page.
-  const search = read("web/src/components/portal/PortalSearch.tsx");
-  // Four things a provider goes looking for by name.
-  assert.match(search, /Search Properties, Units, tenants or agreements/);
-  assert.match(search, /listPortfolioUnits/);
-  assert.match(search, /getOrganizationPortfolio/);
-  assert.match(search, /listGrantedLeases/);
-  assert.match(shell, /<PortalSearch/);
+  // The global search left the bar; Home does not take it back. Each workspace
+  // (Properties, Units, Tenants, Payments, Viewings) searches its own list.
   assert.doesNotMatch(home, /Search Properties/);
 
   // The provider dashboard carries no page-level call to action at all. Adding

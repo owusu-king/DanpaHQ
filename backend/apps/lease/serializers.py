@@ -12,7 +12,7 @@ from rest_framework import serializers
 from apps.core.money import Money
 
 from . import advance_policy
-from .models import Lease, LeaseWorkflow
+from .models import Lease, LeaseWorkflow, TermsTemplate
 
 UTILITY_PARTIES = ["tenant", "provider", "included", "shared", "not_applicable"]
 RESPONSIBILITIES = [
@@ -280,3 +280,20 @@ class ReasonSerializer(serializers.Serializer):
     #: Recorded, never required: making acceptance conditional on it would turn
     #: the `warn` stance into `block` for anyone whose client does not send it.
     acknowledged = serializers.BooleanField(required=False, default=False)
+
+
+class TermsTemplateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TermsTemplate
+        fields = ["id", "name", "body", "is_default", "created_at", "updated_at"]
+        read_only_fields = fields
+
+
+class TermsTemplateInputSerializer(serializers.Serializer):
+    """Shape only; the wording rules live in ``terms_templates._clean``."""
+
+    name = serializers.CharField(max_length=200, required=False, allow_blank=True)
+    body = serializers.CharField(
+        max_length=12000, required=False, allow_blank=True, trim_whitespace=False
+    )
+    is_default = serializers.BooleanField(required=False)

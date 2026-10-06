@@ -244,6 +244,89 @@ class TestDelivery:
         )
         assert len(sms.outbox) == 0
 
+    def test_a_muted_alert_stays_in_the_app(self, user, sms):
+        from apps.notifications.models import Notification
+        from apps.notifications.services import preferences_for
+
+        preference = preferences_for(user)
+        preference.alerts = {"viewings": False}
+        preference.save(update_fields=["alerts"])
+
+        notify(
+            user=user,
+            kind="viewing.confirmed",
+            title="Viewing confirmed",
+            body="x",
+            dedupe_key="m1:u",
+        )
+        assert len(sms.outbox) == 0
+        # Updates keeps the record: the choice is about interruptions.
+        assert Notification.objects.filter(user=user, kind="viewing.confirmed").exists()
+
+        # Other topics are untouched.
+        notify(user=user, kind="rent.payment_overdue", title="Overdue", body="x", dedupe_key="m2:u")
+        assert len(sms.outbox) == 1
+
+    def test_texts_go_to_the_chosen_number(self, user, sms):
+        from apps.notifications.services import preferences_for
+
+        preference = preferences_for(user)
+        preference.sms_number = "+233201112233"
+        preference.save(update_fields=["sms_number"])
+
+        notify(
+            user=user,
+            kind="viewing.confirmed",
+            title="Viewing confirmed",
+            body="x",
+            dedupe_key="n1:u",
+        )
+        assert sms.outbox[-1].to == "+233201112233"
+
+    def test_every_notification_kind_belongs_to_a_topic(self):
+        """A kind with no topic could never be muted; name them all."""
+        import re
+        from pathlib import Path
+
+        from apps.notifications.services import topic_for
+
+        root = Path(__file__).resolve().parents[2] / "apps"
+        sources = [root / "notifications" / "handlers.py", root / "lease" / "tasks.py"]
+        kinds = set()
+        for source in sources:
+            kinds |= set(re.findall(r'kind="([a-z_]+\.[a-z_]+)"', source.read_text()))
+        kinds |= {"rent.payment_due_soon", "rent.payment_due_now", "rent.payment_overdue"}
+        assert kinds, "no kinds found"
+        assert {kind: topic_for(kind) for kind in kinds if topic_for(kind) is None} == {}
+        assert topic_for("lease.expiring") == "lease_expiry"
+        assert topic_for("lease.offered") == "leases"
+
+
+class TestLeaseExpiry:
+    def test_both_parties_hear_once_at_each_checkpoint(self, user, landlord, live_listing, sms):
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from apps.lease.models import Lease
+        from apps.lease.tasks import emit_expiry_alerts
+        from apps.notifications.models import Notification
+
+        lease = Lease(
+            tenant=user, landlord=landlord, ends_on=timezone.localdate() + timedelta(days=30)
+        )
+        lease.status = "active"
+        lease.unit = live_listing.unit
+        lease.rent_minor = 100000
+        lease.starts_on = timezone.localdate() - timedelta(days=335)
+        lease.save()
+
+        assert emit_expiry_alerts()["sent"] == 2
+        assert emit_expiry_alerts()["sent"] == 0
+        rows = Notification.objects.filter(kind="lease.expiring", target_id=str(lease.id))
+        assert {row.user_id for row in rows} == {user.id, landlord.id}
+        assert all(row.title == "A lease ends in 30 days" for row in rows)
+
 
 class TestReading:
     def test_unread_count_and_marking_read(self, user):
@@ -267,6 +350,79 @@ class TestReading:
 
         mark_read(user=user)
         assert unread_count(user=landlord) == 1
+
+
+def _note(user, kind, key, title="x"):
+    return notify(user=user, kind=kind, title=title, body="x", dedupe_key=key)
+
+
+class TestRetention:
+    """People are not shown a log.
+
+    A reminder is gone once it is read; activity keeps only the ten most
+    recent. Nothing unread is ever deleted, and a deleted notification still
+    counts as sent, so a sweep never sends it twice. Management reads the full
+    history in the audit log, which none of this touches.
+    """
+
+    def test_a_reminder_is_deleted_once_read(self, user):
+        reminder = _note(user, "rent.payment_due_now", "r:1")
+        activity = _note(user, "application.accepted", "a:1")
+
+        mark_read(user=user)
+
+        assert not Notification.objects.filter(id=reminder.id).exists()
+        assert Notification.objects.filter(id=activity.id).exists()
+
+    def test_an_unread_reminder_stays(self, user):
+        reminder = _note(user, "lease.expiring", "r:2")
+        activity = _note(user, "application.accepted", "a:2")
+
+        mark_read(user=user, notification_ids=[activity.id])
+
+        assert Notification.objects.filter(id=reminder.id, read_at__isnull=True).exists()
+
+    def test_only_the_ten_most_recent_activities_are_kept(self, user):
+        for index in range(14):
+            _note(user, "viewing.confirmed", f"v:{index}", title=f"Confirmed {index}")
+        mark_read(user=user)
+
+        kept = Notification.objects.filter(user=user).order_by("created_at")
+        expected = [f"Confirmed {index}" for index in range(4, 14)]
+        assert list(kept.values_list("title", flat=True)) == expected
+
+    def test_unread_activity_is_never_pruned(self, user):
+        for index in range(14):
+            _note(user, "viewing.confirmed", f"u:{index}")
+
+        assert Notification.objects.filter(user=user).count() == 14
+
+    def test_a_deleted_reminder_is_not_sent_again(self, user):
+        key = "lease.expiring:L:30:U"
+        _note(user, "lease.expiring", key)
+        mark_read(user=user)
+        assert not Notification.objects.filter(user=user).exists()
+
+        assert _note(user, "lease.expiring", key) is None
+        assert not Notification.objects.filter(user=user).exists()
+
+    def test_retention_is_per_person(self, user, landlord):
+        for index in range(12):
+            _note(landlord, "viewing.requested", f"l:{index}")
+        _note(user, "viewing.confirmed", "m:1")
+        mark_read(user=landlord)
+        mark_read(user=user)
+
+        assert Notification.objects.filter(user=landlord).count() == 10
+        assert Notification.objects.filter(user=user).count() == 1
+
+    def test_each_record_says_what_kind_it_is(self, user):
+        from apps.notifications.serializers import NotificationSerializer
+
+        reminder = _note(user, "viewing.approaching", "s:1")
+        activity = _note(user, "lease.offered", "s:2")
+        assert NotificationSerializer(reminder).data["record"] == "informational"
+        assert NotificationSerializer(activity).data["record"] == "activity"
 
 
 class TestApi:
@@ -296,6 +452,33 @@ class TestApi:
         assert response.status_code == 200
         assert response.data["sms_enabled"] is False
 
+    def test_numbers_and_alerts_are_read_back_complete(self, api):
+        response = api.patch(
+            "/api/v1/me/notification-preferences/",
+            {"sms_number": "024 111 2233", "whatsapp_enabled": True, "alerts": {"payments": False}},
+            format="json",
+        )
+        assert response.status_code == 200, response.data
+        assert response.data["sms_number"] == "+233241112233"
+        assert response.data["whatsapp_enabled"] is True
+        assert response.data["alerts"]["payments"] is False
+        assert response.data["alerts"]["lease_expiry"] is True
+        assert [topic["key"] for topic in response.data["alert_topics"]][:2] == [
+            "payments",
+            "lease_expiry",
+        ]
+        assert response.data["whatsapp_available"] is False
+
+    def test_a_bad_number_or_alert_is_refused(self, api):
+        bad_number = api.patch(
+            "/api/v1/me/notification-preferences/", {"sms_number": "12"}, format="json"
+        )
+        assert bad_number.status_code == 422
+        bad_alert = api.patch(
+            "/api/v1/me/notification-preferences/", {"alerts": {"weather": False}}, format="json"
+        )
+        assert bad_alert.status_code == 422
+
     def test_notifications_require_signing_in(self):
         from rest_framework.test import APIClient
 
@@ -312,3 +495,56 @@ class TestOutboxStillWorks:
 
         event = OutboxEvent.objects.get(name="viewing.requested.v1")
         assert event.status == OutboxStatus.PUBLISHED
+
+
+class TestStaleNotificationsAgeOut:
+    """Unread for weeks, a notification is history (owner, 2026-10-05).
+
+    A tenant's badge read 72: prompts about agreements and viewings dealt with
+    long ago. Reading the list ages them out; the daily sweep does it for all.
+    """
+
+    @pytest.fixture
+    def api(self):
+        from rest_framework.test import APIClient
+
+        return APIClient()
+
+    def _make(self, user, *, days_old, kind="lease.offered", key="k"):
+        note = notify(user=user, kind=kind, title="T", body="B", dedupe_key=f"{key}:{user.id}")
+        Notification.objects.filter(id=note.id).update(
+            created_at=timezone.now() - timedelta(days=days_old)
+        )
+        return note
+
+    def test_reading_the_list_ages_out_only_the_old(self, api, sign_in_as, user):
+        old = self._make(user, days_old=20, key="old")
+        fresh = self._make(user, days_old=2, key="fresh")
+        sign_in_as(api, user=user)
+
+        response = api.get("/api/v1/me/notifications/")
+
+        assert response.status_code == 200
+        assert response.data["unread_count"] == 1
+        unread = {row["id"] for row in response.data["results"] if not row["is_read"]}
+        assert unread == {str(fresh.id)}
+        assert str(old.id) not in unread
+
+    def test_an_aged_out_reminder_is_pruned(self, user):
+        from apps.notifications.services import age_out
+
+        reminder = self._make(user, days_old=30, kind="rent.payment_overdue", key="due")
+
+        assert age_out(user=user) == 1
+        assert not Notification.objects.filter(id=reminder.id).exists()
+
+    def test_the_daily_sweep_covers_everyone(self, user, registered):
+        from apps.notifications.tasks import age_out_stale
+
+        other = registered("0209333444")
+        self._make(user, days_old=15, key="a")
+        self._make(other, days_old=40, key="b")
+        self._make(other, days_old=1, key="c")
+
+        assert age_out_stale() == {"aged_out": 2}
+        assert Notification.objects.filter(read_at__isnull=True).count() == 1

@@ -12,14 +12,15 @@ test("web Payments is role-aware and gives tenants a first-class destination", (
   const tenant = read("web/src/components/payments/TenantPayments.tsx");
   const navigation = read("web/src/lib/portalNav.ts");
 
-  assert.match(route, /inProvider \? <ProviderPaymentsContent \/> : <TenantPaymentsWorkspace \/>/);
+  assert.match(route, /\{inProvider \? <ProviderPaymentsContent \/> : <TenantPaymentsWorkspace \/>\}/);
   assert.match(navigation, /href: "\/payments", label: "Payments"/);
   assert.match(tenant, /Due now/);
   assert.match(tenant, /Pay rent/);
   assert.doesNotMatch(tenant, /Open account/);
   assert.match(tenant, /Check status/);
   assert.match(tenant, /Unsuccessful attempts/);
-  assert.match(tenant, /payments\/receipts/);
+  // A receipt opens in its sheet; there is no receipt page any more.
+  assert.match(tenant, /<ReceiptModal receiptId=\{receiptOpen\}/);
 });
 
 test("landlord Payments keeps tenant payment and provider settlement distinct", () => {

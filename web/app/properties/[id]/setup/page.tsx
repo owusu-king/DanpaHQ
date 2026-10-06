@@ -62,7 +62,6 @@ import { SpaceAmenities } from "@/components/property/SpaceAmenities";
 import { PropertySummary } from "@/components/property/PropertySummary";
 import {
   SetupProgress,
-  SetupSteps,
   StepPanel,
 } from "@/components/property/SetupSteps";
 import { VerificationPanel } from "@/components/property/VerificationPanel";
@@ -88,8 +87,7 @@ import { getVerification, type VerificationProgress } from "@/lib/verification";
 // Every step a property can have. Which of them this one has is
 // `describePropertySetup`'s answer — a sale adds `sale`, and land drops
 // `details` and `amenities` — so walking the journey reads `steps`, never this.
-const STEP_KEYS = ["basics", "details", "sale", "documents", "photos", "amenities", "review"] as const;
-type StepKey = (typeof STEP_KEYS)[number];
+type StepKey = "basics" | "details" | "sale" | "documents" | "photos" | "amenities" | "review";
 
 export default function PropertySetupPage() {
   const params = useParams<{ id: string }>();
@@ -175,7 +173,9 @@ export default function PropertySetupPage() {
   useEffect(() => {
     if (landed.current || !steps.length) return;
     landed.current = true;
-    const asked = STEP_KEYS.includes(requested as StepKey) ? (requested as StepKey) : null;
+    // Only a step this property has: land for sale has no details or amenities,
+    // so an old `?step=details` link must not open the water and compound form.
+    const asked = steps.some((row) => row.key === requested) ? (requested as StepKey) : null;
     setStep(asked ?? (resumeAt(steps) as StepKey));
   }, [steps, requested]);
 
@@ -202,6 +202,9 @@ export default function PropertySetupPage() {
 
   const active = steps.find((row) => row.key === step) ?? steps[0]!;
   const keys = steps.map((row) => row.key);
+  // What is drawn is a step this property has; one it lacks (details, for land
+  // on sale) falls back to the first, never to a form full of absurd questions.
+  const shown = (keys.includes(step) ? step : keys[0]) as StepKey;
   // The step after this one, among the ones this property has.
   const after = (key: StepKey) => (keys[keys.indexOf(key) + 1] ?? "review") as StepKey;
   const saleKind = property.purpose === "sale" ? (sale?.kind ?? null) : null;
@@ -215,54 +218,36 @@ export default function PropertySetupPage() {
 
   return (
     <main style={SHELL}>
-      <Link href={`/properties/${propertyId}`} className="type-caption" style={LINK}>
-        ← {property.title || "This property"}
-      </Link>
+      <div style={TOPLINE}>
+        <Link href={`/properties/${propertyId}`} className="type-caption" style={LINK}>
+          ← {property.title || "This property"}
+        </Link>
+        <Link href="/properties" className="type-caption" style={{ ...LINK, fontWeight: 600 }}>
+          Save and finish later
+        </Link>
+      </div>
 
       <header style={{ marginTop: "var(--space-4)" }}>
         <h1 className="type-display-2" style={{ margin: 0 }}>
           {property.title || "Untitled property"}
         </h1>
-        <p
-          className="type-body"
-          style={{ color: "var(--color-ink-700)", margin: "var(--space-2) 0 0", maxWidth: "58ch" }}
-        >
-          {settled
-            ? "Change what is still yours to change. Anything our team checked is fixed."
-            : readyToFinish
-              ? "Everything needed is here."
-              : "Everything saves as you go. Do them in any order."}
+        <p className="type-caption" style={{ margin: "var(--space-2) 0 0" }}>
+          {settled ? "Checked items are locked." : readyToFinish ? "All set." : "Saves as you go."}
         </p>
       </header>
 
+      {/* The icons are the way between sections: no side list (owner, 2026-10-05). */}
       <div style={{ marginTop: "var(--space-6)" }}>
-        <SetupProgress steps={steps} current={step} />
+        <SetupProgress steps={steps} current={active.key} onSelect={(key) => setStep(key as StepKey)} />
       </div>
 
       <div style={LAYOUT}>
-        <aside style={SIDEBAR}>
-          <SetupSteps
-            steps={steps}
-            current={active.key}
-            onSelect={(key) => setStep(key as StepKey)}
-          />
-          <div style={{ padding: "var(--space-3)" }}>
-            <Link
-              href="/properties"
-              className="type-caption"
-              style={{ ...LINK, fontWeight: 600 }}
-            >
-              Save and finish later →
-            </Link>
-          </div>
-        </aside>
-
         <div style={CONTENT}>
-          {step === "basics" ? (
+          {shown === "basics" ? (
             <BasicsStep property={property} onSaved={load} />
           ) : null}
 
-          {step === "details" ? (
+          {shown === "details" ? (
             <DetailsStep
               property={property}
               vocabulary={vocabulary}
@@ -273,10 +258,10 @@ export default function PropertySetupPage() {
             />
           ) : null}
 
-          {step === "sale" && sale ? (
+          {shown === "sale" && sale ? (
             <StepPanel
               title="Sale details"
-              summary="What a buyer reads first: the price, the tenure, and what they are buying."
+              summary="Price, tenure and what is for sale."
             >
               <SaleDetailsForm
                 propertyId={propertyId}
@@ -291,7 +276,7 @@ export default function PropertySetupPage() {
             </StepPanel>
           ) : null}
 
-          {step === "documents" ? (
+          {shown === "documents" ? (
             <DocumentsStep
               property={property}
               saleKind={saleKind}
@@ -300,7 +285,7 @@ export default function PropertySetupPage() {
             />
           ) : null}
 
-          {step === "photos" ? (
+          {shown === "photos" ? (
             <PhotosStep
               propertyId={propertyId}
               progress={photos}
@@ -309,7 +294,7 @@ export default function PropertySetupPage() {
             />
           ) : null}
 
-          {step === "amenities" ? (
+          {shown === "amenities" ? (
             <AmenitiesStep
               propertyId={propertyId}
               onChanged={load}
@@ -317,7 +302,7 @@ export default function PropertySetupPage() {
             />
           ) : null}
 
-          {step !== "review" ? (
+          {shown !== "review" ? (
             <StepFooter
               steps={keys}
               current={step}
@@ -325,7 +310,7 @@ export default function PropertySetupPage() {
             />
           ) : null}
 
-          {step === "review" ? (
+          {shown === "review" ? (
             <ReviewStep
               property={property}
               steps={steps}
@@ -421,13 +406,13 @@ function BasicsStep({
       <div style={{ display: "grid", gap: "var(--space-4)" }}>
         <Field
           label="Property name"
-          hint="Your own label — tenants see the listing headline, not this."
+          hint="Only you see this."
           value={title}
           onChange={(event) => setTitle(event.target.value)}
         />
         <div>
           <p className="type-caption" style={{ margin: "0 0 var(--space-1)", color: "var(--color-ink-500)" }}>
-            Kind
+            Type
           </p>
           <p className="type-body" style={{ margin: 0 }}>
             {property.property_type.replace(/_/g, " ")}
@@ -435,7 +420,7 @@ function BasicsStep({
         </div>
         <div>
           <p className="type-caption" style={{ margin: "0 0 var(--space-1)", color: "var(--color-ink-500)" }}>
-            Where it is
+            Address
           </p>
           <p className="type-body" style={{ margin: 0 }}>
             {address
@@ -443,9 +428,6 @@ function BasicsStep({
                   .filter(Boolean)
                   .join(", ")
               : "No address recorded"}
-          </p>
-          <p className="type-caption" style={{ margin: "var(--space-1) 0 0" }}>
-            A property is one address. Moving it would make it a different one.
           </p>
         </div>
 
@@ -533,13 +515,13 @@ function DetailsStep({
         <div style={{ display: "grid", gap: "var(--space-4)" }}>
           <div style={GRID}>
             <Select
-              label="What is the water source?"
+              label="Water source"
               value={water}
               onChange={setWater}
               options={vocabulary.water_sources.map((row) => [row.value, row.label] as const)}
             />
             <Select
-              label="How is the electricity metered?"
+              label="Power meter"
               value={power}
               onChange={setPower}
               options={vocabulary.power_meter_types.map(
@@ -547,7 +529,7 @@ function DetailsStep({
               )}
             />
             <Select
-              label="What kind of compound?"
+              label="Compound"
               value={compound}
               onChange={setCompound}
               options={vocabulary.compound_types.map((row) => [row.value, row.label] as const)}
@@ -559,14 +541,14 @@ function DetailsStep({
               Security
             </legend>
             <div style={{ display: "flex", gap: "var(--space-3)", flexWrap: "wrap" }}>
-              <Toggle label="Someone on the gate" on={security} onChange={setSecurity} />
+              <Toggle label="Guard on site" on={security} onChange={setSecurity} />
               <Toggle label="Walled and gated" on={gated} onChange={setGated} />
             </div>
           </fieldset>
 
           <label style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
             <span className="type-caption" style={{ color: "var(--color-ink-700)" }}>
-              Anything else worth recording
+              Notes (optional)
             </span>
             <textarea
               value={notes}
@@ -581,7 +563,7 @@ function DetailsStep({
           {missing ? (
             <Notice
               tone="info"
-              title="Left unknown, the photo checklist guesses — and guesses short"
+              title="Choose the water source and power meter."
             />
           ) : null}
           {error ? <Notice tone="error" title={error} /> : null}
@@ -700,7 +682,7 @@ function PhotosStep({
         </Button>
         {progress && progress.required_outstanding > 0 ? (
           <span className="type-caption" style={{ alignSelf: "center" }}>
-            {progress.required_outstanding} still needed before this can be sent.
+            {progress.required_outstanding} still needed.
           </span>
         ) : null}
       </div>
@@ -722,7 +704,7 @@ function AmenitiesStep({
   return (
     <StepPanel
       title="Shared amenities"
-      summary="Shared by everything inside — what one flat has of its own goes on that space."
+      summary="Shared by every Unit."
     >
       <SpaceAmenities
         scope="property"
@@ -798,8 +780,8 @@ function ReviewStep({
       ) : (
         <p className="type-caption">
           {selling
-            ? "Private until verified. Once verified, buyers find it on Explore straight away."
-            : "It stays private until you send it for verification, from the property itself."}
+            ? "Goes public once verified."
+            : "Stays private until you send it for checking."}
         </p>
       )}
 
@@ -820,40 +802,20 @@ const SHELL: React.CSSProperties = {
   padding: "var(--space-8) var(--space-5)",
 };
 
-/**
- * Wraps to one column on a narrow screen, without a media query.
- *
- * A two-column grid computed to `279px 0px` at phone width — the step list took
- * its minimum and the panel beside it collapsed to nothing, so the flow was
- * unusable on exactly the device this product is built for first. Flex with
- * `wrap` solves it intrinsically: each child asks for a basis, and when the two
- * bases no longer fit the row they stack. The content's huge `flex-grow` is what
- * keeps the sidebar at its natural width when they do fit.
- */
-const LAYOUT: React.CSSProperties = {
-  marginTop: "var(--space-6)",
-  display: "flex",
-  flexWrap: "wrap",
-  gap: "var(--space-6)",
-  alignItems: "flex-start",
-};
+/** One column: the tracker above is the navigation, so nothing sits beside the step. */
+const LAYOUT: React.CSSProperties = { marginTop: "var(--space-6)" };
 
-const SIDEBAR: React.CSSProperties = {
-  flex: "1 1 15rem",
-  maxWidth: "100%",
-  background: "var(--color-field-0)",
-  border: "var(--border-hairline) solid var(--color-field-200)",
-  borderRadius: "var(--radius-md)",
-  overflow: "hidden",
-};
-
-/** Grows far harder than the sidebar, so the sidebar keeps its size when both
- *  fit and the panel takes the whole row when they do not. */
 const CONTENT: React.CSSProperties = {
-  flex: "999 1 22rem",
   minWidth: 0,
   display: "grid",
   gap: "var(--space-4)",
+};
+
+const TOPLINE: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: "var(--space-4)",
+  flexWrap: "wrap",
 };
 
 const GRID: React.CSSProperties = {

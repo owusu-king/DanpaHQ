@@ -216,6 +216,20 @@ function validContextIds(me: Me): string[] {
   ].filter((id) => contextBelongsToWorkspace(id, workspace));
 }
 
+/** Set while signed in, so a refresh on a shared page can hold its public
+ *  layout back until the session answers (see the script in app/layout). */
+export const SESSION_HINT_KEY = "session.hint";
+
+function rememberSignedIn(signedIn: boolean) {
+  try {
+    if (signedIn) window.localStorage.setItem(SESSION_HINT_KEY, "1");
+    else window.localStorage.removeItem(SESSION_HINT_KEY);
+  } catch {
+    // Storage can be unavailable (private mode); the hint is only a nicety.
+  }
+  if (!signedIn) document.documentElement.removeAttribute("data-session-hint");
+}
+
 export function SessionProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [state, setState] = useState<SessionState>({ status: "loading" });
@@ -234,9 +248,11 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       setActiveContextState(context);
       if (context) window.localStorage.setItem("account.active_context", context);
       setState({ status: "signed_in", me });
+      rememberSignedIn(true);
     } catch (cause) {
       if (isRefusal(cause)) clearAccessToken();
       setState((current) => stateAfterFailure(cause, current));
+      if (isRefusal(cause)) rememberSignedIn(false);
     }
   }, []);
 
@@ -263,6 +279,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       // A resolved photo URL outliving the session is a leak, and on a shared
       // machine the next person would load the last one's picture.
       forgetPhotoUrls();
+      rememberSignedIn(false);
       setState({ status: "signed_out" });
       router.replace("/");
       router.refresh();

@@ -12,7 +12,7 @@
  * came here about.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { ApiFailure } from "@/lib/api";
 import {
@@ -35,13 +35,18 @@ export function useProviderRequests() {
     ? activeContext.slice("organization:".length)
     : "";
   const [items, setItems] = useState<RequestItem[] | null>(null);
+  const [portfolioName, setPortfolioName] = useState("");
   const [error, setError] = useState("");
+  const loadedFor = useRef<string | null>(null);
   const [unauthorised, setUnauthorised] = useState(false);
 
   const load = useCallback(async () => {
-    // Blank first: a switch must not leave the previous Portfolio's requests on
-    // screen while the next Portfolio's are still in flight.
-    setItems(null);
+    // Blank first on a switch: the previous Portfolio's requests must not stay
+    // on screen while the next Portfolio's are in flight. A reload of the same
+    // Portfolio refreshes in place, so the rows (and a record open over them)
+    // stay put after a decision instead of flashing to a skeleton.
+    if (loadedFor.current !== preferred) setItems(null);
+    loadedFor.current = preferred;
     try {
       const organizations = await listOrganizations();
       const scope = organizations.find((row) => row.id === preferred) ?? organizations[0] ?? null;
@@ -66,11 +71,14 @@ export function useProviderRequests() {
         application,
         lease: leaseByApplication.get(application.id) ?? null,
       }));
+      const leaseById = new Map<string, Lease>(leases.map((lease) => [lease.id, lease]));
       const privateItems: RequestItem[] = portfolio.tenancy_requests.map((request) => ({
         key: `private:${request.id}`,
         kind: "private",
         request,
+        lease: request.lease_id ? leaseById.get(request.lease_id) ?? null : null,
       }));
+      setPortfolioName(portfolio.organization.name);
 
       setItems(
         [...publicItems, ...privateItems].sort((a, b) =>
@@ -92,5 +100,5 @@ export function useProviderRequests() {
     void load();
   }, [load]);
 
-  return { items, error, unauthorised, reload: load };
+  return { items, portfolioName, error, unauthorised, reload: load };
 }

@@ -266,8 +266,12 @@ test("the page opens on one question and one way in, and neither takes money", (
   const panel = between(screen, "function StartPanel(", "function ServicePicker(");
   const picker = between(screen, "function ServicePicker(", "function RentRow(");
 
-  // The picker only ever holds a service that opens; `later` is not a choice.
-  assert.match(screen, /const openable = openableServices\(\);/);
+  // The picker only ever holds a service that opens and is bought against an
+  // account number; `later` is not a choice, and neither is Maintenance, which
+  // opens from its own tile onto its own screen.
+  assert.match(screen, /const openable = purchasableServices\(\);/);
+  assert.match(catalogue(), /return openableServices\(\)\.filter\(\(service\) => Boolean\(service\.identifier\)\);/);
+  assert.match(screen, /service\.route\s*\?\s*router\.push\(service\.route as never\)/);
   assert.match(screen, /services=\{openable\}/);
   assert.match(screen, /openable\.find\(\(service\) => service\.id === saved\[0\]\?\.serviceId\)/);
   assert.match(picker, /<BottomSheet visible=\{visible\}/);

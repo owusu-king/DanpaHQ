@@ -81,7 +81,7 @@ export function portalSections(
           { href: "/properties", label: "Properties", icon: "properties", hint: "Buildings and their Units" },
           { href: "/units", label: "Units", icon: "units", hint: "Every rentable space in the Portfolio" },
           { href: "/tenants", label: "Tenants", icon: "users", hint: "Access, requests, tenancies and rent" },
-          { href: "/leases", label: "Leases", icon: "leases", hint: "Agreements you have granted" },
+          { href: "/documents", label: "Documents", icon: "leases", hint: "Contracts, terms templates and leases" },
         ] as PortalItem[])
         : []),
       ...(finances
@@ -101,7 +101,7 @@ export function portalSections(
           items: [
             { href: "/applications", label: "Tenancy requests", icon: "applications", hint: "Review people asking to rent" },
             { href: "/viewings", label: "Viewings", icon: "viewings", hint: "Requests to see a place" },
-            { href: "/enquiries", label: "Buyer enquiries", icon: "chat", hint: "Questions about properties you are selling" },
+            { href: "/maintenance", label: "Maintenance", icon: "wrench", hint: "Repairs your tenants report" },
           ] as PortalItem[],
         }]
         : []),
@@ -122,11 +122,37 @@ export function portalSections(
         { href: "/leases", label: "Agreements", icon: "leases", hint: "Offers waiting for your decision" },
         { href: "/payments", label: "Payments", icon: "payments", hint: "Rent due, payment activity and receipts" },
         { href: "/viewings", label: "Viewings", icon: "viewings", hint: "Times you arranged to visit" },
-        { href: "/enquiries", label: "Enquiries", icon: "chat", hint: "Properties you asked to buy" },
+        { href: "/maintenance", label: "Maintenance", icon: "wrench", hint: "Report a problem where you live" },
       ],
     },
     ACCOUNT_SECTION,
   ];
+}
+
+/**
+ * Enquiries, as the top bar's Support button reaches them.
+ *
+ * They are conversations rather than a place to work through, so they left the
+ * rail for the header. Who may reach them is unchanged from when they were a
+ * rail item: a tenant always (the properties they asked to buy), a provider
+ * only once approved and only where their Portfolio role operates Properties
+ * (the questions about properties they sell), and nobody still in review.
+ * `as` is the side of the conversation the list is read from.
+ */
+export function enquiriesEntry(
+  me: Me,
+  access?: PortfolioAccess | null,
+): { href: "/enquiries"; as: "buyer" | "seller" } | null {
+  const provider = me.capabilities.provider;
+  const inProvider =
+    me.capabilities.active_workspace === "provider"
+    && (provider.workspace_access || provider.exists);
+  if (inProvider && !provider.workspace_access) return null;
+  if (inProvider) {
+    const operates = access ? access.can.operate_properties : true;
+    return operates ? { href: "/enquiries", as: "seller" } : null;
+  }
+  return { href: "/enquiries", as: "buyer" };
 }
 
 /**
@@ -149,6 +175,9 @@ const ACCOUNT_SECTION: PortalSection = {
  * slash. Exported for the test.
  */
 export function activeHref(sections: PortalSection[], pathname: string): string | null {
+  // A tenant's own tenancy is one of their homes, reached from Home; it has no
+  // rail entry of its own, so it lights Home rather than falling to "Portal".
+  if (pathname.startsWith("/tenancies/")) pathname = "/home";
   let best: string | null = null;
   for (const section of sections) {
     for (const item of section.items) {
@@ -188,7 +217,9 @@ const PORTAL_PREFIXES = [
   "/portfolio-invitations",
   "/updates",
   "/viewings",
+  "/maintenance",
   "/enquiries",
+  "/documents",
   "/organization",
   "/tenant",
   "/review",

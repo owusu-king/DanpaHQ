@@ -6,16 +6,16 @@ import { useCallback, useEffect, useState } from "react";
 
 import { Notice } from "@/components/Notice";
 import { Empty, LoadingRows } from "@/components/portal/PageHeader";
+import { Icon, type IconName } from "@/components/portal/icons";
 import { PropertyLifecycle, PropertyMore } from "@/components/property/PropertyLifecycle";
 import { SalePanel } from "@/components/property/SalePanel";
 import {
-  DetailDisclosure,
-  EntityHeader,
   EntityPath,
   StatusLine,
   propertyStatus,
   spaceStatus,
 } from "@/components/property/WorkspacePatterns";
+import { WorkspaceHead } from "@/components/workspace/Workspace";
 import { ApiFailure } from "@/lib/api";
 import {
   getProperty,
@@ -68,14 +68,14 @@ export default function PropertyDetailPage() {
 
   if (error && !property) {
     return (
-      <div>
+      <div className="ws-page pd-page">
         <EntityPath items={[{ label: "Properties", href: "/properties" }, { label: "Unavailable" }]} />
         <Notice tone="error" title={error} body="Return to Properties and try again." />
       </div>
     );
   }
 
-  if (!property) return <LoadingRows rows={5} />;
+  if (!property) return <div className="ws-page pd-page"><LoadingRows rows={5} /></div>;
 
   const address = property.address;
   const fullAddress = address
@@ -112,14 +112,25 @@ export default function PropertyDetailPage() {
     : null;
 
   return (
-    <div>
-      <EntityPath items={[{ label: "Properties", href: "/properties" }, { label: property.title || "Property" }]} />
-      <EntityHeader
-        eyebrow={selling ? `${propertyTypeLabel(property.property_type)} · For sale` : propertyTypeLabel(property.property_type)}
+    <div className="ws-page pd-page">
+      <WorkspaceHead
+        icon="properties"
         title={property.title || "Untitled property"}
-        subtitle={fullAddress}
-        status={<StatusLine label={status.label} tone={status.tone} />}
-        actions={primary ? <Link href={primary.href as never} className="button-link">{primary.label}</Link> : undefined}
+        path={<EntityPath items={[{ label: "Properties", href: "/properties" }, { label: property.title || "Property" }]} />}
+        mark={property.cover_url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img className="pd-cover" src={property.cover_url} alt="" />
+        ) : undefined}
+        summary={(
+          <>
+            <StatusLine label={status.label} tone={status.tone} />
+            <span className="ws-summary-sep" aria-hidden="true">·</span>
+            {selling ? `${propertyTypeLabel(property.property_type)} · For sale` : propertyTypeLabel(property.property_type)}
+            <span className="ws-summary-sep" aria-hidden="true">·</span>
+            {fullAddress}
+          </>
+        )}
+        actions={primary ? <Link href={primary.href as never} className="ws-action is-primary"><Icon name="plus" />{primary.label}</Link> : undefined}
       />
 
       {error ? <Notice tone="error" title={error} body="Some information may be out of date. Try again." /> : null}
@@ -142,18 +153,18 @@ export default function PropertyDetailPage() {
           />
         ) : null
       ) : (
-      <section className="workspace-section" aria-labelledby="units-heading">
-        <div className="workspace-section-head">
-          <h2 id="units-heading">Units <span style={{ color: "var(--color-ink-500)", fontWeight: 400 }}>({units.length})</span></h2>
+      <section className="pd-panel" aria-labelledby="units-heading">
+        <div className="pd-panel-head">
+          <h2 id="units-heading" className="pd-panel-title">Units <span>{units.length}</span></h2>
           {canAddUnit && primary?.label !== "Add Unit" ? (
-            <Link href={`/properties/${property.id}/spaces/new` as never}>Add Unit</Link>
+            <Link href={`/properties/${property.id}/spaces/new` as never} className="ws-action">Add Unit</Link>
           ) : null}
         </div>
 
         {units.length === 0 ? (
           <Empty
             title="No Units yet"
-            body="Add the room, apartment, shop or other space a tenant can rent."
+            body="Add a room, flat, shop or other space to rent."
           />
         ) : (
           <ul className="unit-columns" aria-label={`Units at ${property.title}`}>
@@ -161,43 +172,59 @@ export default function PropertyDetailPage() {
           </ul>
         )}
         {units.length ? (
-          <p style={{ margin: "var(--space-4) 0 0" }}>
-            <Link href={"/tenants" as never} className="quiet-link">
-              Manage tenant access and tenancies →
-            </Link>
-          </p>
+          <Link href={"/tenants" as never} className="pd-link is-inline">
+            <span className="pd-link-mark" aria-hidden="true"><Icon name="users" /></span>
+            <span>Manage tenant access and tenancies</span>
+            <span aria-hidden="true">→</span>
+          </Link>
         ) : null}
       </section>
       )}
 
-      <section className="workspace-section" aria-labelledby="about-property-heading">
-        <div className="workspace-section-head"><h2 id="about-property-heading">About this Property</h2></div>
-        <DetailDisclosure title="Property information">
-          <dl className="fact-grid">
-            <div><dt>Type</dt><dd>{propertyTypeLabel(property.property_type)}</dd></div>
-            <div><dt>Address</dt><dd>{fullAddress}</dd></div>
-            {address?.digital_address ? <div><dt>Digital address</dt><dd style={{ fontFamily: "var(--font-mono)" }}>{address.digital_address}</dd></div> : null}
-            {address?.landmark ? <div><dt>Landmark</dt><dd>{address.landmark}</dd></div> : null}
-            {land ? null : (
-              <>
-                <div><dt>Water</dt><dd>{valueLabel(property.water_source)}</dd></div>
-                <div><dt>Power meter</dt><dd>{valueLabel(property.power_meter_type)}</dd></div>
-                <div><dt>Compound</dt><dd>{valueLabel(property.compound_type)}</dd></div>
-                <div><dt>Security</dt><dd>{property.has_security ? "Security recorded" : "Not recorded"}</dd></div>
-              </>
-            )}
-          </dl>
-          {edit?.allowed ? <p style={{ margin: "var(--space-5) 0 0" }}><Link href={`/properties/${property.id}/setup` as never} className="quiet-link">Edit Property information →</Link></p> : null}
-        </DetailDisclosure>
-        {land ? null : <DetailDisclosure title={`Shared amenities${amenities?.length ? ` (${amenities.length})` : ""}`}>
-          {amenities === null ? <LoadingRows rows={2} /> : amenities.length ? (
-            <p className="type-body" style={{ margin: 0 }}>{amenities.map((amenity) => amenity.name).join(" · ")}</p>
-          ) : <p className="type-caption" style={{ margin: 0 }}>No shared amenities recorded.</p>}
-          {edit?.allowed ? <p style={{ margin: "var(--space-4) 0 0" }}><Link href={`/properties/${property.id}/setup?step=amenities` as never} className="quiet-link">Edit shared amenities →</Link></p> : null}
-        </DetailDisclosure>}
+      {/* What the property is, said once and in view: no disclosure to open. */}
+      <section className="pd-panel" aria-labelledby="about-property-heading">
+        <div className="pd-panel-head">
+          <h2 id="about-property-heading" className="pd-panel-title">About this Property</h2>
+          {edit?.allowed ? <Link href={`/properties/${property.id}/setup` as never} className="ws-action"><Icon name="pencil" />Edit</Link> : null}
+        </div>
+        <dl className="pd-facts is-compact">
+          <Fact icon="properties" label="Type" value={propertyTypeLabel(property.property_type)} />
+          <Fact icon="pin" label="Address" value={fullAddress} />
+          {address?.digital_address ? <Fact icon="map" label="Digital address" value={address.digital_address} /> : null}
+          {address?.landmark ? <Fact icon="landmark" label="Landmark" value={address.landmark} /> : null}
+          {land ? null : (
+            <>
+              <Fact icon="water" label="Water" value={valueLabel(property.water_source)} />
+              <Fact icon="power" label="Power meter" value={valueLabel(property.power_meter_type)} />
+              <Fact icon="home" label="Compound" value={valueLabel(property.compound_type)} />
+              <Fact icon="shield" label="Security" value={property.has_security ? "On site" : "Not recorded"} />
+            </>
+          )}
+        </dl>
+        {land ? null : (
+          <div className="pd-amenities">
+            <span className="pd-amenities-label">Shared amenities</span>
+            {amenities === null ? <LoadingRows rows={1} /> : amenities.length ? (
+              <ul className="pd-chips">{amenities.map((amenity) => <li key={amenity.id}>{amenity.name}</li>)}</ul>
+            ) : <span className="pd-note">None recorded.</span>}
+            {edit?.allowed ? <Link href={`/properties/${property.id}/setup?step=amenities` as never} className="pd-edit">Edit</Link> : null}
+          </div>
+        )}
       </section>
 
       <PropertyMore property={property} />
+    </div>
+  );
+}
+
+function Fact({ icon, label, value }: { icon: IconName; label: string; value: string }) {
+  return (
+    <div className="pd-fact">
+      <span className="pd-fact-mark" aria-hidden="true"><Icon name={icon} /></span>
+      <span>
+        <dt>{label}</dt>
+        <dd>{value}</dd>
+      </span>
     </div>
   );
 }

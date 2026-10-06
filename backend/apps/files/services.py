@@ -72,6 +72,9 @@ def _extension_for(content_type: str) -> str:
         "image/webp": "webp",
         "image/heic": "heic",
         "application/pdf": "pdf",
+        "video/mp4": "mp4",
+        "video/quicktime": "mov",
+        "video/webm": "webm",
     }.get(content_type, "bin")
 
 
@@ -361,14 +364,16 @@ def issue_download(*, user, stored: StoredFile, reason: str = "") -> object:
 def can_read(*, user, stored: StoredFile) -> bool:
     """Who may read a file.
 
-    Three ways in, and no others:
+    Four ways in, and no others:
 
     1. You uploaded it.
     2. You are staff, support or admin — the review team must see the evidence
        they are deciding on.
-    3. You are a party to the rent payment this file evidences.
+    3. You are a party to the rent payment this file evidences, or to the
+       maintenance request this photograph or video shows.
+    4. It is the profile photo of somebody living in a property you manage.
 
-    Notably absent: any notion of "public". There is no fourth branch, and
+    Notably absent: any notion of "public". There is no branch for it, and
     adding one should require changing this function and its tests.
     """
     if user is None or not getattr(user, "is_authenticated", False):
@@ -394,6 +399,39 @@ def can_read(*, user, stored: StoredFile) -> bool:
             if str(payment.lease.tenant_id) == str(user.id):
                 return True
             return payment.lease.unit.property.is_managed_by(user)
+
+    if stored.purpose in (FilePurpose.MAINTENANCE_PHOTO, FilePurpose.MAINTENANCE_VIDEO):
+        from django.db.models import Q
+
+        from apps.maintenance.models import MaintenanceRequest
+
+        request = (
+            MaintenanceRequest.objects.filter(Q(photo=stored) | Q(video=stored))
+            .select_related("property")
+            .first()
+        )
+        if request is not None:
+            if str(request.tenant_id) == str(user.id):
+                return True
+            return request.property.is_managed_by(user)
+
+    if stored.purpose == FilePurpose.AVATAR:
+        # A provider sees the photo of somebody living in a property they
+        # manage (owner, 2026-10-05: tenant cards should show the person). Only
+        # an active occupancy counts — not an enquiry, not a past tenant — so a
+        # photo reaches the people the tenant actually lives with as a landlord.
+        # Whose photo it is comes from the profile it is set on: an upload that
+        # is not anybody's current photo is readable by its owner alone.
+        from apps.identity.models import Profile  # function-scope cross-domain import
+        from apps.occupancy.models import Occupancy  # function-scope cross-domain import
+
+        person_ids = list(Profile.objects.filter(avatar=stored).values_list("user_id", flat=True))
+        if not person_ids:
+            return False
+        occupancies = Occupancy.objects.filter(
+            user_id__in=person_ids, ended_at__isnull=True, status="active"
+        ).select_related("property")
+        return any(row.property.is_managed_by(user) for row in occupancies)
     return False
 
 

@@ -25,7 +25,9 @@ const nextConfig = {
           { key: "X-Frame-Options", value: "DENY" },
           {
             key: "Permissions-Policy",
-            value: "camera=(), microphone=(), geolocation=(self)",
+            // Camera and microphone for this site only: a tenant records a
+            // repair clip in the page (maintenance). Never for embedded frames.
+            value: "camera=(self), microphone=(self), geolocation=(self)",
           },
         ],
       },

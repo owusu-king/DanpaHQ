@@ -3,9 +3,11 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
-import { Button } from "@/components/Button";
 import { Notice } from "@/components/Notice";
-import { Empty, LoadingRows, Section } from "@/components/portal/PageHeader";
+import { Icon } from "@/components/portal/icons";
+import { SettingsCard } from "@/components/settings/SettingsCard";
+import { useToast } from "@/components/toast/Toaster";
+import { ModalSheet } from "@/components/workspace/ModalSheet";
 import { ApiFailure } from "@/lib/api";
 import {
   listMyArchive,
@@ -16,11 +18,21 @@ import {
   type ArchiveSummary,
 } from "@/lib/console";
 
+type Archived = ArchivedProperty | ArchivedSpace;
+
+/**
+ * Archive: what was put away, and the way back.
+ *
+ * One card, a row per Property or space. Restoring is confirmed in a small
+ * sheet that says what comes back; a record the server will not restore yet
+ * says why on its own row, so nobody presses a button to find out.
+ */
 export default function ArchivePage() {
+  const { toast } = useToast();
   const [archive, setArchive] = useState<ArchiveSummary | null>(null);
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
-  const [message, setMessage] = useState("");
+  const [confirming, setConfirming] = useState<Archived | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -34,14 +46,13 @@ export default function ArchivePage() {
 
   useEffect(() => { void load(); }, [load]);
 
-  async function restore(resource: ArchivedProperty | ArchivedSpace) {
+  async function restore(resource: Archived) {
     setBusy(resource.id);
     setError("");
-    setMessage("");
     try {
       if (resource.resource_type === "property") await restoreProperty(resource.id);
       else await restoreSpace(resource.id);
-      setMessage(`${resource.label} was restored to your working portfolio.`);
+      toast({ tone: "success", title: `${resource.label} restored`, description: "It is back in your working portfolio." });
       await load();
     } catch (cause) {
       setError(cause instanceof ApiFailure ? cause.error.message : "That resource could not be restored.");
@@ -51,164 +62,142 @@ export default function ArchivePage() {
     }
   }
 
-  const empty = archive !== null && archive.properties.length === 0 && archive.spaces.length === 0;
+  const count = archive ? archive.properties.length + archive.spaces.length : 0;
+  const empty = archive !== null && count === 0;
 
   return (
-    <div>
-      <section className="settings-section">
-        <h2>Archive</h2>
-      </section>
+    <>
+      <SettingsCard
+        title="Archive"
+        description="Properties and spaces you put away. Restoring brings them back into your working portfolio."
+        action={archive && count ? <span className="prefs-count"><strong>{count}</strong> archived</span> : null}
+      >
+        {error ? <Notice tone="error" title={error} /> : null}
+        {archive === null ? (
+          <div className="prefs-skeleton" aria-busy="true" aria-label="Loading your archive">
+            {Array.from({ length: 3 }).map((_, index) => <span key={index} className="ws-skeleton-block" />)}
+          </div>
+        ) : null}
 
-      {message ? <Notice tone="success" title={message} /> : null}
-      {error ? <Notice tone="error" title={error} /> : null}
-      {archive === null ? <LoadingRows rows={4} /> : null}
-      {empty ? (
-        <Empty
-          title="Your archive is empty"
-          body="Properties and spaces you archive will remain available here without appearing in the working portfolio."
-          action={<Link href="/properties" className="type-body-strong">Back to properties →</Link>}
-        />
-      ) : null}
+        {empty ? (
+          <div className="archive-empty">
+            <span className="archive-empty-mark" aria-hidden="true"><Icon name="archive" /></span>
+            <strong>Your archive is empty</strong>
+            <span>Properties and spaces you archive stay here, out of the working portfolio.</span>
+            <Link href="/properties" className="ws-action">Back to Properties</Link>
+          </div>
+        ) : null}
 
-      {archive?.properties.length ? (
-        <Section title="Properties">
-          <div style={{ display: "grid", gap: "var(--space-4)" }}>
+        {archive?.properties.length ? (
+          <ArchiveGroup title="Properties" count={archive.properties.length}>
             {archive.properties.map((property) => (
-              <ArchivedPropertyCard
+              <ArchiveRow
                 key={property.id}
-                property={property}
+                icon="properties"
+                resource={property}
+                meta={`${property.property_type_label} · ${property.locality}, ${property.district}`}
+                inventory={`${property.unit_count} ${property.unit_count === 1 ? "space" : "spaces"}${property.bed_count ? ` · ${property.bed_count} beds` : ""}`}
                 busy={busy === property.id}
-                onRestore={() => restore(property)}
+                onRestore={() => setConfirming(property)}
               />
             ))}
-          </div>
-        </Section>
-      ) : null}
+          </ArchiveGroup>
+        ) : null}
 
-      {archive?.spaces.length ? (
-        <div style={{ marginTop: "var(--space-8)" }}>
-          <Section title="Spaces">
-            <div style={{ display: "grid", gap: "var(--space-4)" }}>
-              {archive.spaces.map((space) => (
-                <ArchivedSpaceCard
-                  key={space.id}
-                  space={space}
-                  busy={busy === space.id}
-                  onRestore={() => restore(space)}
-                />
-              ))}
-            </div>
-          </Section>
-        </div>
-      ) : null}
+        {archive?.spaces.length ? (
+          <ArchiveGroup title="Spaces" count={archive.spaces.length}>
+            {archive.spaces.map((space) => (
+              <ArchiveRow
+                key={space.id}
+                icon="units"
+                resource={space}
+                meta={`${space.property_title} · ${space.space_type_label}`}
+                inventory={`${space.bed_count} ${space.bed_count === 1 ? "bed" : "beds"}${space.property_archived ? " · parent property archived" : ""}`}
+                busy={busy === space.id}
+                onRestore={() => setConfirming(space)}
+              />
+            ))}
+          </ArchiveGroup>
+        ) : null}
+      </SettingsCard>
+
+      <ModalSheet
+        open={Boolean(confirming)}
+        onClose={() => setConfirming(null)}
+        icon="archive"
+        size="sm"
+        title={confirming ? `Restore ${confirming.label}?` : "Restore"}
+        meta={confirming?.resource_type === "property" ? "Property" : "Space"}
+        footer={(close) => (
+          <>
+            <button type="button" className="ws-action" onClick={close}>Cancel</button>
+            <button
+              type="button"
+              className="ws-action is-primary"
+              onClick={() => {
+                const target = confirming;
+                close();
+                if (target) void restore(target);
+              }}
+            >Restore</button>
+          </>
+        )}
+      >
+        <p className="sheet-copy">
+          It returns to your working portfolio as it was when you archived it. Its history, agreements and records are unchanged.
+        </p>
+      </ModalSheet>
+    </>
+  );
+}
+
+function ArchiveGroup({ title, count, children }: { title: string; count: number; children: React.ReactNode }) {
+  return (
+    <div className="archive-group">
+      <p className="archive-group-title">{title}<span>{count}</span></p>
+      <ul className="archive-rows">{children}</ul>
     </div>
   );
 }
 
-function ArchivedPropertyCard({
-  property,
-  busy,
-  onRestore,
-}: {
-  property: ArchivedProperty;
-  busy: boolean;
-  onRestore: () => void;
-}) {
-  return (
-    <ArchiveCard
-      title={property.label}
-      kind="Property"
-      meta={`${property.property_type_label} · ${property.locality}, ${property.district}`}
-      archivedAt={property.archived_at}
-      reason={property.archived_reason}
-      detail={`${property.unit_count} ${property.unit_count === 1 ? "space" : "spaces"}${property.bed_count ? ` · ${property.bed_count} beds` : ""}`}
-      decision={property.restore}
-      busy={busy}
-      onRestore={onRestore}
-    />
-  );
-}
-
-function ArchivedSpaceCard({
-  space,
-  busy,
-  onRestore,
-}: {
-  space: ArchivedSpace;
-  busy: boolean;
-  onRestore: () => void;
-}) {
-  return (
-    <ArchiveCard
-      title={space.label}
-      kind="Space"
-      meta={`${space.property_title} · ${space.space_type_label}`}
-      archivedAt={space.archived_at}
-      reason={space.archived_reason}
-      detail={`${space.bed_count} ${space.bed_count === 1 ? "bed" : "beds"}${space.property_archived ? " · parent property archived" : ""}`}
-      decision={space.restore}
-      busy={busy}
-      onRestore={onRestore}
-    />
-  );
-}
-
-function ArchiveCard({
-  title,
-  kind,
+function ArchiveRow({
+  icon,
+  resource,
   meta,
-  archivedAt,
-  reason,
-  detail,
-  decision,
+  inventory,
   busy,
   onRestore,
 }: {
-  title: string;
-  kind: string;
+  icon: "properties" | "units";
+  resource: Archived;
   meta: string;
-  archivedAt: string;
-  reason: string;
-  detail: string;
-  decision: ArchivedProperty["restore"];
+  inventory: string;
   busy: boolean;
   onRestore: () => void;
 }) {
+  const decision = resource.restore;
   return (
-    <article className="portal-panel">
-      <div className="portal-panel-lead">
-        <div>
-          <p className="type-label" style={{ margin: 0, color: "var(--color-ink-500)", textTransform: "uppercase" }}>{kind}</p>
-          <h2 className="type-title-2" style={{ margin: "var(--space-1) 0 0" }}>{title}</h2>
-          <p className="type-caption" style={{ margin: "var(--space-1) 0 0" }}>{meta}</p>
-        </div>
-        <span className="type-caption">Archived {formatDate(archivedAt)}</span>
-      </div>
-
-      <dl style={{ display: "grid", gap: "var(--space-3)", margin: "var(--space-5) 0" }}>
-        <Detail label="Reason" value={reason || "No reason was recorded for this older archive entry."} />
-        <Detail label="Inventory" value={detail} />
-      </dl>
-
-      {decision.allowed ? (
-        <Button busy={busy} busyLabel="Restoring…" onClick={onRestore}>Restore</Button>
-      ) : (
-        <Notice
-          tone="warning"
-          title="Cannot restore yet"
-          body={[decision.message, ...decision.blockers.map((blocker) => blocker.message)].join(" ")}
-        />
-      )}
-    </article>
-  );
-}
-
-function Detail({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <dt className="type-label" style={{ color: "var(--color-ink-500)", textTransform: "uppercase" }}>{label}</dt>
-      <dd className="type-body" style={{ margin: "var(--space-1) 0 0" }}>{value}</dd>
-    </div>
+    <li className={`archive-row${decision.allowed ? "" : " is-blocked"}`}>
+      <span className="archive-row-mark" aria-hidden="true"><Icon name={icon} /></span>
+      <span className="archive-row-text">
+        <strong>{resource.label}</strong>
+        <small>{meta} · {inventory}</small>
+        <span className="archive-row-reason">{resource.archived_reason || "No reason was recorded for this older archive entry."}</span>
+        {decision.allowed ? null : (
+          <span className="archive-row-blocked" role="note">
+            <b>Cannot restore yet.</b> {[decision.message, ...decision.blockers.map((blocker) => blocker.message)].join(" ")}
+          </span>
+        )}
+      </span>
+      <span className="archive-row-side">
+        <time dateTime={resource.archived_at}>Archived {formatDate(resource.archived_at)}</time>
+        {decision.allowed ? (
+          <button type="button" className="ws-action" aria-haspopup="dialog" disabled={busy} onClick={onRestore}>
+            {busy ? "Restoring…" : "Restore"}
+          </button>
+        ) : null}
+      </span>
+    </li>
   );
 }
 

@@ -30,6 +30,9 @@ import type { GeoBounds, MapConfig } from "@/lib/places";
 export type { MapMove };
 export type MapSelection = { key: string; ids: string[] } | null;
 
+/** A property for sale on the same map as the rentals (Explore's All view). */
+export type SalePin = { id: string; lat: number; lng: number; label: string; title: string };
+
 const currency = new Intl.NumberFormat("en-GH", {
   style: "currency",
   currency: "GHS",
@@ -94,6 +97,8 @@ export function ExploreMap({
   onSelectCluster,
   onBackgroundClick,
   onFailure,
+  salePins = [],
+  onOpenSale,
 }: {
   config: MapConfig;
   features: MapFeature[];
@@ -111,11 +116,15 @@ export function ExploreMap({
   onSelectCluster: (feature: MapClusterFeature) => void;
   onBackgroundClick: () => void;
   onFailure: () => void;
+  /** Sales over the same search, drawn as their own markers beside the rentals. */
+  salePins?: SalePin[];
+  onOpenSale?: (id: string) => void;
 }) {
   const container = useRef<HTMLDivElement>(null);
   const mapRef = useRef<RooomlyMap | null>(null);
   const markers = useRef(new Map<string, { marker: MapMarker; element: HTMLElement; feature: MapFeature }>());
   const previewPin = useRef<MapMarker | null>(null);
+  const saleMarkers = useRef(new Map<string, MapMarker>());
   const [previewNode] = useState(() => (typeof document === "undefined" ? null : previewAnchor()));
   // Counts maps made, so drawing follows a map that arrived after the features.
   const [mapped, setMapped] = useState(0);
@@ -123,10 +132,32 @@ export function ExploreMap({
 
   // Callbacks change every render; the map's listeners are bound once and read
   // these. Refreshed after each render, never during it.
-  const latest = useRef({ onMove, onSelectListing, onSelectCluster, onBackgroundClick, onFailure });
+  const latest = useRef({ onMove, onSelectListing, onSelectCluster, onBackgroundClick, onFailure, onOpenSale });
   useEffect(() => {
-    latest.current = { onMove, onSelectListing, onSelectCluster, onBackgroundClick, onFailure };
+    latest.current = { onMove, onSelectListing, onSelectCluster, onBackgroundClick, onFailure, onOpenSale };
   });
+
+  // Sales: their own markers, redrawn whole — there are few, and they are not
+  // clustered with the rentals, whose groups the server makes.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapped) return;
+    for (const marker of saleMarkers.current.values()) marker.remove();
+    saleMarkers.current.clear();
+    for (const pin of salePins) {
+      const element = document.createElement("span");
+      element.className = "explore-marker explore-sale-marker";
+      element.textContent = pin.label;
+      const marker = map.addMarker({
+        position: { lat: pin.lat, lng: pin.lng },
+        element,
+        anchor: "bottom",
+        title: pin.title,
+        onClick: () => latest.current.onOpenSale?.(pin.id),
+      });
+      saleMarkers.current.set(pin.id, marker);
+    }
+  }, [salePins, mapped]);
 
   useEffect(() => {
     const element = container.current;

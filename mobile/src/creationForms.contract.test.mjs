@@ -33,8 +33,10 @@ test("a creation form groups its work and names each group", () => {
   // The two halves of an address-bearing record, said once each.
   assert.match(read(FORMS["property creation"]), /<GroupLabel>What it is<\/GroupLabel>/);
   assert.match(read(FORMS["property creation"]), /<GroupLabel>Where it is<\/GroupLabel>/);
-  assert.match(read(FORMS["Unit creation"]), /<GroupLabel>What is let here<\/GroupLabel>/);
-  assert.match(read(FORMS["Unit creation"]), /<GroupLabel>Where inside the Property<\/GroupLabel>/);
+  // Short names for the Unit's two groups (owner, 2026-10-05: "what is being
+  // let here?" was unnecessary text).
+  assert.match(read(FORMS["Unit creation"]), /<GroupLabel>The Unit<\/GroupLabel>/);
+  assert.match(read(FORMS["Unit creation"]), /<GroupLabel>Finding it<\/GroupLabel>/);
 });
 
 test("an example belongs in the box, not in a line beneath it", () => {
@@ -46,8 +48,9 @@ test("an example belongs in the box, not in a line beneath it", () => {
   }
   assert.match(read(FORMS["property creation"]), /placeholder="Adom Heights"/);
   assert.match(read(FORMS["property creation"]), /placeholder="GA-492-1234"/);
-  assert.match(read(FORMS["Unit creation"]), /placeholder="Flat A, Room 3, Ground floor shop"/);
-  assert.match(read(FORMS["Unit creation"]), /placeholder="0 for ground"/);
+  assert.match(read(FORMS["Unit creation"]), /placeholder="e\.g\. Flat A, Room 3"/);
+  // Counts are steppers now, so the floor reads "Ground" rather than asking for 0.
+  assert.match(read(FORMS["Unit creation"]), /value === 0 \? "Ground"/);
 });
 
 test("one act is pinned where a thumb is, and the rest are quiet", () => {
@@ -69,11 +72,12 @@ test("one act is pinned where a thumb is, and the rest are quiet", () => {
 });
 
 test("two short answers share a line rather than taking one each", () => {
-  // Bedrooms and bathrooms, floor and wing: four full-width boxes for four
-  // short numbers is most of a screenful on a phone.
+  // Bedrooms and bathrooms share a line. Wing is gone (owner, 2026-10-05) and
+  // floor is asked alone, only where a floor means something.
   const source = read(FORMS["Unit creation"]);
   assert.match(source, /pair: \{\n    flexDirection: "row",/);
-  assert.equal((source.match(/<View style=\{styles\.pair\}>/g) ?? []).length, 2);
+  assert.equal((source.match(/<View style=\{styles\.pair\}>/g) ?? []).length, 1);
+  assert.doesNotMatch(source, /label="Wing"/);
 });
 
 test("a set of answers is a field that opens, not chips thrown on the page", () => {
@@ -94,7 +98,7 @@ test("a set of answers is a field that opens, not chips thrown on the page", () 
   assert.match(read(FORMS["property setup"]), /<Select label="Water"/);
   assert.match(read(FORMS["property setup"]), /<Select label="Electricity"/);
   assert.match(read(FORMS["property setup"]), /<Select label="Compound"/);
-  assert.match(read(FORMS["Unit creation"]), /<Select\n          label="Kind of space"/);
+  assert.match(read(FORMS["Unit creation"]), /<Select\n          label="Unit type"/);
   assert.match(read("src/components/property/AuthorityClaim.tsx"), /<Select\n        label="Your relationship to this property"/);
   for (const [name, path] of Object.entries(FORMS)) {
     assert.doesNotMatch(read(path), /<Choice\b/, `${name} still throws chips across the page`);
@@ -124,7 +128,9 @@ test("the journey is the way back to a step already done", () => {
   // Property setup may be done in any order, so it can jump ahead; Unit
   // creation cannot, because each step writes to the record before it made.
   assert.match(read("src/components/property/SetupSteps.tsx"), /onGoTo=\{onGoTo\}\n      skipAhead/);
-  assert.match(read(FORMS["property setup"]), /<SetupProgress steps=\{steps\} current=\{step\} onGoTo=/);
+  // `shown`, not `step`: a step this property lacks (details, for land on sale)
+  // falls back rather than drawing its form.
+  assert.match(read(FORMS["property setup"]), /<SetupProgress steps=\{steps\} current=\{shown\} onGoTo=/);
   assert.match(read(FORMS["Unit creation"]), /onGoTo=\{\(key\) => \{/);
   assert.doesNotMatch(read(FORMS["Unit creation"]), /skipAhead/);
 });

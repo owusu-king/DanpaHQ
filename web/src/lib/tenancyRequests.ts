@@ -20,7 +20,7 @@ import type { Lease, ProviderTenancyRequest, RentalApplication } from "@/lib/con
 
 export type RequestItem =
   | { key: string; kind: "application"; application: RentalApplication; lease: Lease | null }
-  | { key: string; kind: "private"; request: ProviderTenancyRequest };
+  | { key: string; kind: "private"; request: ProviderTenancyRequest; lease: Lease | null };
 
 /** Where a request has got to, which is also the order somebody works in. */
 export type RequestStage = "action" | "agreement" | "history";
@@ -42,7 +42,7 @@ export function requestFilterLabel(filter: RequestFilter) {
 export function requestStage(item: RequestItem): RequestStage {
   if (item.kind === "application") {
     if (["submitted", "under_review"].includes(item.application.status)) return "action";
-    if (item.application.status === "accepted" && (!item.lease || item.lease.status === "draft")) {
+    if (item.application.status === "accepted" && (!item.lease || agreementUnsent(item.lease.status))) {
       return "agreement";
     }
     return "history";
@@ -50,7 +50,7 @@ export function requestStage(item: RequestItem): RequestStage {
   if (item.request.status === "pending") return "action";
   if (
     item.request.status === "approved" &&
-    (!item.request.lease_id || item.request.lease_status === "draft")
+    (!item.request.lease_id || agreementUnsent(item.request.lease_status))
   ) {
     return "agreement";
   }
@@ -77,12 +77,22 @@ export function requestOutcome(item: RequestItem): "accepted" | "declined" | "op
   return "open";
 }
 
+/**
+ * Saved but not sent. "Ready" is what finishing the builder leaves behind; it
+ * was read as settled, so a generated agreement dropped out of Agreement with
+ * no way to send it from the request.
+ */
+export function agreementUnsent(status: Lease["status"] | null | undefined) {
+  return status === "draft" || status === "ready";
+}
+
 export function agreementStatus(value: Lease | Lease["status"] | null | undefined) {
   const status = typeof value === "string" ? value : value?.status;
   return (
     (
       {
-        draft: "Agreement ready to send",
+        draft: "Agreement in progress",
+        ready: "Agreement ready to send",
         offered: "Waiting for tenant",
         awaiting_activation: "Waiting for activation",
         active: "Tenancy active",
@@ -104,7 +114,11 @@ export function requestStatus(item: RequestItem) {
 
 export function requestTone(item: RequestItem) {
   const stage = requestStage(item);
-  return stage === "action" ? "attention" : stage === "agreement" ? "waiting" : "good";
+  // Settled is quiet unless it settled into a tenancy: a decline or a
+  // withdrawal is a record, not a success.
+  if (stage === "action") return "attention";
+  if (stage === "agreement") return "waiting";
+  return requestOutcome(item) === "accepted" ? "good" : "muted";
 }
 
 export function requestCreatedAt(item: RequestItem) {

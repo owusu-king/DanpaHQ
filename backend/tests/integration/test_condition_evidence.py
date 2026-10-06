@@ -591,8 +591,8 @@ class TestTheVocabularyIsServed:
         assert hostel == {"room", "bed_space"}
 
         commercial = {s["value"] for s in by_value["commercial"]["space_types"]}
-        assert "land" in commercial
-        assert "room" not in commercial
+        # Land is its own Property, sold whole (owner, 2026-10-05).
+        assert commercial == {"shop", "office", "warehouse"}
 
     def test_the_client_is_told_which_spaces_take_beds(self, api, sign_in_as, user):
         """So a form can offer bed setup without hardcoding the rule."""
@@ -608,15 +608,28 @@ class TestTheVocabularyIsServed:
         assert hostel_by_value["bed_space"]["accepts_bed_spaces"] is False
         assert residential_by_value["room"]["accepts_bed_spaces"] is False
 
-    def test_land_is_marked_as_having_no_interior(self, api, sign_in_as, user):
+    def test_each_kind_of_space_is_asked_only_what_fits_it(self, api, sign_in_as, user):
+        """A shop is not asked for bedrooms; a bed is not asked for rooms at all."""
         sign_in_as(api, user=user)
 
         rows = api.get("/api/v1/property-types/").data["property_types"]
-        commercial = next(row for row in rows if row["value"] == "commercial")
-        by_value = {s["value"]: s for s in commercial["space_types"]}
+        asks = {
+            (row["value"], s["value"]): s["asks"] for row in rows for s in row["space_types"]
+        }
 
-        assert by_value["land"]["has_interior"] is False
-        assert by_value["shop"]["has_interior"] is True
+        assert asks[("residential", "apartment")] == {
+            "bedrooms": True, "bathrooms": "count", "floor": True,
+        }
+        assert asks[("residential", "house")]["floor"] is False
+        assert asks[("residential", "studio")]["bedrooms"] is False
+        assert asks[("commercial", "shop")] == {
+            "bedrooms": False, "bathrooms": "yes_no", "floor": True,
+        }
+        assert asks[("commercial", "warehouse")]["floor"] is False
+        assert asks[("hostel", "room")]["bedrooms"] is False
+        assert asks[("hostel", "bed_space")] == {
+            "bedrooms": False, "bathrooms": "none", "floor": False,
+        }
 
 
 class TestATenantJoinsACheckedSpace:

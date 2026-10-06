@@ -6,10 +6,11 @@ import { useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/Button";
 import { Notice } from "@/components/Notice";
-import { Icon } from "@/components/portal/icons";
-import { Stamp } from "@/components/Stamp";
+import { Icon, type IconName } from "@/components/portal/icons";
 import { ListingCard } from "@/components/listings/ListingCard";
 import { ListingLocation } from "@/components/listings/ListingLocation";
+import { EntityPath } from "@/components/property/WorkspacePatterns";
+import { PanelState } from "@/components/workspace/Workspace";
 import { ApiFailure } from "@/lib/api";
 import { isLive } from "@/lib/applicationMeaning";
 import {
@@ -22,6 +23,8 @@ import {
 } from "@/lib/listings";
 import { useSession } from "@/lib/session";
 import { listMyApplications, listMyViewings, listSavedListings } from "@/lib/tenant";
+import { onDate } from "@/lib/time";
+import { STATE_LABEL, type TrustState } from "@/lib/trust";
 
 /**
  * The page a tenant decides on.
@@ -29,6 +32,11 @@ import { listMyApplications, listMyViewings, listSavedListings } from "@/lib/ten
  * Glance → understand → decide → act. Photographs lead because that is how
  * anyone recognizes a place; the rent and the terms sit in a panel that follows
  * the decision down the page; every other answer is one scannable line.
+ *
+ * Drawn in the workspace's vocabulary (Saved, Applications, the tenancy
+ * request): glass sections on a kola-and-gold wash, facts as tiles with their
+ * glyph, the money to move in as the same deep-kola receipt the lease wizard
+ * totals with, and verification as rows that say what was checked.
  *
  * Two rules shape what is *not* here. Nothing is said twice — the locality is
  * stated once, the rent once, the availability once. And the street, house
@@ -97,30 +105,78 @@ export default function PublicListingPage() {
   }, [listing, signedIn]);
 
   if (error && !listing) {
-    return <main className="listing"><Notice tone="error" title={error} /></main>;
+    return (
+      <main className="listing">
+        <ListingPath />
+        <section className="ws-panel listing-missing">
+          <PanelState
+            icon="listings"
+            title="This rental isn’t available"
+            body={`${error} It may have been taken or withdrawn — there are others like it in Explore.`}
+            action={<Link href="/rentals" className="ws-action is-primary"><Icon name="explore" />Back to Explore</Link>}
+          />
+        </section>
+      </main>
+    );
   }
-  if (!listing) {
-    return <main className="listing"><p className="type-caption">Loading…</p></main>;
-  }
+  if (!listing) return <ListingSkeleton />;
 
   const space = listing.space;
   const place = listing.property_context;
   const where = [place.locality_name, place.district_name].filter(Boolean).join(", ");
   const photos = listing.gallery.filter((photo) => photo.download_url);
   const taken = listing.status !== "active";
+  // A date in the future is when it opens; today or earlier is simply now.
+  const opensLater = listing.available_from && new Date(listing.available_from) > new Date()
+    ? listing.available_from
+    : null;
 
-  const facts = [
-    space.space_type_label,
-    space.bedrooms === 0 ? "Single room" : `${space.bedrooms} bedroom${space.bedrooms === 1 ? "" : "s"}`,
-    space.bathrooms ? `${space.bathrooms} bathroom${space.bathrooms === 1 ? "" : "s"}` : null,
-    space.is_furnished ? "Furnished" : null,
-    space.has_private_bathroom ? "Private bath" : null,
+  // The four things a tenant compares rentals on, each a tile with its glyph.
+  const facts: Array<{ icon: IconName; label: string; value: string }> = [
+    { icon: "properties", label: "Type", value: space.space_type_label },
+    { icon: "bed", label: "Bedrooms", value: space.bedrooms === 0 ? "Single room" : String(space.bedrooms) },
+    ...(space.bathrooms ? [{ icon: "bath" as const, label: "Bathrooms", value: String(space.bathrooms) }] : []),
+    { icon: "sofa", label: "Furnishing", value: space.is_furnished ? "Furnished" : "Unfurnished" },
+  ];
+
+  // The space's own amenities and its private features are one list to a
+  // tenant. Merged here, by name, so "Air conditioning" is never said twice.
+  const features = [
+    ...space.amenities.map((row) => row.name),
+    space.has_private_bathroom ? "Private bathroom" : null,
+    space.has_private_toilet ? "Private toilet" : null,
     space.has_private_kitchen ? "Private kitchen" : null,
     space.has_air_conditioning ? "Air conditioning" : null,
-  ].filter(Boolean) as string[];
+  ].filter((name, index, all): name is string =>
+    Boolean(name) && all.findIndex((other) => other?.toLowerCase() === name!.toLowerCase()) === index,
+  );
+
+  const security = place.features.has_security ? "On site" : place.features.is_gated ? "Gated" : "None stated";
+  const utilities: Array<{ kind: string; icon: IconName; label: string; value: string; quiet?: boolean }> = [
+    { kind: "water", icon: "water", label: "Water", value: place.features.water_source_label },
+    { kind: "power", icon: "power", label: "Power", value: place.features.power_meter_label },
+    { kind: "compound", icon: "home", label: "Compound", value: place.features.compound_label },
+    { kind: "security", icon: "shield", label: "Security", value: security, quiet: security === "None stated" },
+  ];
+
+  // What it costs to move in, line by line. The backend's total is the sum of
+  // these months of rent, so each line is the rent times its months.
+  const cedis = (minor: number) => `GH₵${(minor / 100).toLocaleString("en-GH")}`;
+  const months = (count: number) => `${count} month${count === 1 ? "" : "s"}`;
+  const rentMinor = listing.rent_minor;
+  const moveIn = [
+    { label: "Advance", detail: listing.advance_label, months: listing.advance_months },
+    { label: "Deposit", detail: months(listing.caution_months), months: listing.caution_months },
+    { label: "Agency fee", detail: months(listing.agency_fee_months), months: listing.agency_fee_months },
+  ].filter((row) => row.months > 0);
 
   const longDescription = space.description.length > 320;
   const verified = space.verification.checked && place.authority.state === "verified";
+  const checks: Array<{ what: string; state: TrustState }> = [
+    { what: "Identity", state: listing.trust_stamps.identity.state },
+    { what: listing.trust_stamps.relationship === "owner" ? "Ownership" : "Authority to let", state: place.authority.state },
+    { what: "This space", state: space.verification.checked ? "verified" : "unverified" },
+  ];
 
   function requireAccount(next: string) {
     router.push(`/sign-in?workspace=tenant&next=${encodeURIComponent(next)}` as never);
@@ -175,7 +231,7 @@ export default function PublicListingPage() {
 
   return (
     <main className="listing">
-      <p><Link href="/rentals" className="listing-back">← Keep looking</Link></p>
+      <ListingPath headline={listing.headline} />
 
       {/* A preview, not the exploration. Three photographs at a capped height,
           and one plainly named way into the rest. */}
@@ -197,37 +253,46 @@ export default function PublicListingPage() {
           </div>
           {photos.length > 1 ? (
             <button type="button" className="listing-gallery-all" onClick={() => setLightbox(0)}>
+              <Icon name="photos" />
               View all {photos.length} photos
             </button>
           ) : null}
         </div>
       ) : (
-        <div className="listing-gallery-empty"><span className="type-caption">Photos pending</span></div>
+        <div className="listing-gallery-empty">
+          <Icon name="photos" />
+          <span>Photos pending</span>
+        </div>
       )}
 
       <div className="listing-body">
         <div className="listing-main">
           <header className="listing-head">
             <h1>{listing.headline}</h1>
-            <p>{where || "Ghana"}{place.landmark ? ` · near ${place.landmark}` : ""}</p>
+            <p><Icon name="pin" /><span>{where || "Ghana"}{place.landmark ? ` · near ${place.landmark}` : ""}</span></p>
           </header>
 
-          <ul className="listing-facts">
-            {facts.map((fact) => <li key={fact}>{fact}</li>)}
+          <ul className="listing-facts" aria-label="At a glance">
+            {facts.map((fact) => (
+              <li key={fact.label}>
+                <span className="listing-fact-mark" aria-hidden="true"><Icon name={fact.icon} /></span>
+                <span className="listing-fact-copy"><small>{fact.label}</small><strong>{fact.value}</strong></span>
+              </li>
+            ))}
           </ul>
 
-          {space.amenities.length ? (
+          {features.length ? (
             <section className="listing-section">
-              <h2>What this space has</h2>
+              <SectionTitle icon="amenities">What this space has</SectionTitle>
               <ul className="listing-tags">
-                {space.amenities.map((row) => <li key={row.id} className="listing-tag">{row.name}</li>)}
+                {features.map((name) => <li key={name} className="listing-tag"><Icon name="check" />{name}</li>)}
               </ul>
             </section>
           ) : null}
 
           {space.description ? (
             <section className="listing-section">
-              <h2>About this place</h2>
+              <SectionTitle icon="details">About this place</SectionTitle>
               <p className="type-body">
                 {longDescription && !expanded ? `${space.description.slice(0, 320).trimEnd()}…` : space.description}
               </p>
@@ -240,21 +305,24 @@ export default function PublicListingPage() {
           ) : null}
 
           <section className="listing-section listing-where">
-            <h2>The property</h2>
-            <p className="type-caption">
-              {place.title} · {place.property_type_label}
-              {place.region_name ? ` · ${place.region_name}` : ""}
+            <SectionTitle icon="city">The property</SectionTitle>
+            <p className="listing-where-name">
+              <strong>{place.title}</strong>
+              <span>{place.property_type_label}{place.region_name ? ` · ${place.region_name}` : ""}</span>
             </p>
             {/* The Ghana facts that decide what living here costs and feels
-                like. Each is one choice from a fixed set, so each is one line. */}
-            <dl>
-              <div><dt>Water</dt><dd>{place.features.water_source_label}</dd></div>
-              <div><dt>Power</dt><dd>{place.features.power_meter_label}</dd></div>
-              <div><dt>Compound</dt><dd>{place.features.compound_label}</dd></div>
-              <div><dt>Security</dt><dd>{place.features.has_security ? "On site" : place.features.is_gated ? "Gated" : "None stated"}</dd></div>
+                like. Each is one choice from a fixed set, so each is one tile. */}
+            <dl className="listing-utilities">
+              {utilities.map((row) => (
+                <div key={row.kind} data-kind={row.kind} data-quiet={row.quiet || undefined}>
+                  <span className="listing-utility-mark" aria-hidden="true"><Icon name={row.icon} /></span>
+                  <dt>{row.label}</dt>
+                  <dd>{row.value}</dd>
+                </div>
+              ))}
             </dl>
             {place.amenities.length ? (
-              <ul className="listing-tags" style={{ marginTop: "var(--space-3)" }}>
+              <ul className="listing-tags is-shared" aria-label="Shared on the property">
                 {place.amenities.map((row) => <li key={row.id} className="listing-tag">{row.name}</li>)}
               </ul>
             ) : null}
@@ -263,32 +331,35 @@ export default function PublicListingPage() {
           <ListingLocation listing={listing} where={where} landmark={place.landmark} />
         </div>
 
-        <aside className="listing-panel">
-          <div>
+        <aside className="listing-panel" aria-label="Rent and next steps">
+          <div className="listing-pricing">
             <p className="listing-rent">{listing.rent_formatted} <span>/ month</span></p>
-            <p className={`listing-status ${taken ? "is-taken" : "is-available"}`}>
-              {taken ? "No longer available" : "Available now"}
+            <p className={`listing-status ${taken ? "is-taken" : opensLater ? "is-later" : "is-available"}`}>
+              <i aria-hidden="true" />
+              {taken ? "No longer available" : opensLater ? `Available from ${onDate(opensLater)}` : "Available now"}
             </p>
+            {listing.minimum_lease_months ? (
+              <p className="listing-minimum"><Icon name="clock" />{months(listing.minimum_lease_months)} minimum stay</p>
+            ) : null}
           </div>
 
-          <dl className="listing-terms">
-            <div><dt>Advance</dt><dd>{listing.advance_label}</dd></div>
-            {listing.caution_months ? (
-              <div><dt>Deposit</dt><dd>{listing.caution_months} months</dd></div>
-            ) : null}
-            {listing.agency_fee_months ? (
-              <div><dt>Agency fee</dt><dd>{listing.agency_fee_months} months</dd></div>
-            ) : null}
-            <div>
-              <dt>To move in</dt>
-              <dd>GH₵{(listing.total_move_in_minor / 100).toLocaleString("en-GH")}</dd>
-            </div>
-          </dl>
+          <div className="listing-receipt">
+            <small>To move in</small>
+            <strong>{cedis(listing.total_move_in_minor)}</strong>
+            <dl className="listing-terms">
+              {moveIn.map((row) => (
+                <div key={row.label}>
+                  <dt>{row.label} <em>{row.detail}</em></dt>
+                  <dd>{rentMinor !== null ? cedis(rentMinor * row.months) : row.detail}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
 
           {error ? <Notice tone="error" title={error} /> : null}
 
           {taken ? (
-            <p className="type-caption">This place has been taken. Keep looking for something similar.</p>
+            <p className="listing-taken"><Icon name="info" />This place has been taken. Keep looking for something similar.</p>
           ) : (
             <div className="listing-actions">
               {/* Applying leads. It is the thing this page exists to produce,
@@ -310,10 +381,13 @@ export default function PublicListingPage() {
                   {viewing === "confirmed" ? "Viewing confirmed — open it" : "Viewing requested — open it"}
                 </Button>
               ) : confirmingViewing ? (
-                <div className="listing-confirm">
-                  <p className="type-caption">
-                    Send a viewing request? {listing.provider_label} sees your name and phone
-                    number, and replies with times.
+                <div className="listing-confirm" role="group" aria-label="Confirm viewing request">
+                  <p>
+                    <Icon name="viewings" />
+                    <span>
+                      <strong>Send a viewing request?</strong>
+                      <small>{listing.provider_label} sees your name and phone number, and replies with times.</small>
+                    </span>
                   </p>
                   <div className="listing-confirm-actions">
                     <Button busy={busy === "viewing"} onClick={() => void requestViewing()}>
@@ -359,25 +433,33 @@ export default function PublicListingPage() {
             </div>
           )}
 
-          {/* Stated, not hidden behind a disclosure. Three stamps and one
+          {/* Stated, not hidden behind a disclosure. Three checks and one
               line is short enough to read at a glance, and a dropdown made the
               reader open something to find out whether to trust the listing —
               which is the question they came with. */}
-          <section className="listing-trust" aria-labelledby="listing-trust-title">
+          <section className="listing-trust" data-verified={verified || undefined} aria-labelledby="listing-trust-title">
             <p className="listing-trust-title" id="listing-trust-title">
-              <Icon name="verification" />
-              {verified ? "Verified rental" : "Verification"}
+              <span className="listing-trust-seal" aria-hidden="true"><Icon name="verification" /></span>
+              <span>
+                <strong>{verified ? "Verified rental" : "Verification"}</strong>
+                <small>
+                  {listing.trust_stamps.relationship === "owner"
+                    ? "Listed by its owner"
+                    : "Listed by an authorized representative"}
+                </small>
+              </span>
             </p>
-            <div className="listing-trust-stamps">
-              <Stamp state={listing.trust_stamps.identity.state} what="Identity" />
-              <Stamp state={place.authority.state} what={listing.provider_label} />
-              <Stamp state={space.verification.checked ? "verified" : "unverified"} what="This space" />
-            </div>
-            <p className="type-caption">
-              {listing.trust_stamps.relationship === "owner"
-                ? "Checked as this property's owner."
-                : "Checked as an authorized representative."}
-            </p>
+            <ul className="listing-trust-stamps">
+              {checks.map((check) => (
+                <li key={check.what} className="listing-check" data-state={check.state}>
+                  <span className="listing-check-mark" aria-hidden="true">
+                    <Icon name={check.state === "verified" ? "check" : check.state === "pending" ? "clock" : check.state === "expired" ? "warning" : "info"} />
+                  </span>
+                  <span className="listing-check-what">{check.what}</span>
+                  <span className="listing-check-state">{STATE_LABEL[check.state]}</span>
+                </li>
+              ))}
+            </ul>
           </section>
         </aside>
 
@@ -404,6 +486,53 @@ export default function PublicListingPage() {
         onClose={() => setLightbox(null)}
         onMove={(next) => setLightbox(next)}
       />
+    </main>
+  );
+}
+
+/** Where this page sits: one level into Explore, and the way back to it. */
+function ListingPath({ headline }: { headline?: string }) {
+  return (
+    <div className="listing-path">
+      <EntityPath
+        items={[
+          { label: "Explore", href: "/rentals", mobileLabel: "Back to Explore" },
+          { label: headline ?? "Rental" },
+        ]}
+      />
+    </div>
+  );
+}
+
+/** A section's heading with its glyph, so the page scans by mark as well as word. */
+function SectionTitle({ icon, children }: { icon: IconName; children: React.ReactNode }) {
+  return (
+    <h2 className="listing-section-title">
+      <span aria-hidden="true"><Icon name={icon} /></span>
+      {children}
+    </h2>
+  );
+}
+
+/** Loading in the page's own shape, so nothing jumps when the listing lands. */
+function ListingSkeleton() {
+  return (
+    <main className="listing" aria-busy="true" aria-label="Loading rental">
+      <span className="ws-skeleton-block listing-skeleton-path" />
+      <span className="ws-skeleton-block listing-skeleton-gallery" />
+      <div className="listing-body">
+        <div className="listing-main">
+          <span className="ws-skeleton-lines">
+            <span className="ws-skeleton-block listing-skeleton-title" />
+            <span className="ws-skeleton-block is-thin" style={{ width: "40%" }} />
+          </span>
+          <span className="listing-skeleton-facts">
+            {Array.from({ length: 4 }).map((_, index) => <span key={index} className="ws-skeleton-block" />)}
+          </span>
+          <span className="ws-skeleton-block listing-skeleton-card" />
+        </div>
+        <span className="ws-skeleton-block listing-skeleton-panel" />
+      </div>
     </main>
   );
 }

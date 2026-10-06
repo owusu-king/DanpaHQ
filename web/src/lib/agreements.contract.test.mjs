@@ -37,7 +37,7 @@ function at(source, needle, what) {
 // The phone's provider-side `formatLeaseDate` moved to `providerLeaseMeaning.ts`;
 // its tenant half now ends at the tenant's own date helper.
 const tenantList = () => ({
-  web: tenantHalf(webList(), "function TenantLeases()", "/** Provider-side date formatting"),
+  web: tenantHalf(webList(), "function TenantLeases()", "function ProviderLeases()"),
   mobile: tenantHalf(mobileList(), "function TenantLeasesScreen()", "function shortDate("),
 });
 
@@ -180,23 +180,21 @@ test("a substantial tenant agreement opens in context and keeps its dedicated ad
 
   // A normal list click keeps comparison context, while the same immutable
   // record remains addressable for refresh, modified clicks and shared links.
-  assert.match(record, /export function AgreementDetailModal/);
-  assert.match(record, /<dialog/);
-  assert.match(record, /showModal\(\)/);
-  assert.match(list, /<AgreementDetailModal/);
-  assert.match(list, /event\.preventDefault\(\)[\s\S]{0,100}onOpen\(lease\)/);
+  // It opens in the shared sheet, and the open record is in the address.
+  assert.match(record, /export function AgreementSheet/);
+  assert.match(record, /<ModalSheet/);
+  assert.match(list, /<AgreementSheet/);
+  assert.match(list, /search\.get\("agreement"\)/);
+  assert.match(list, /event\.preventDefault\(\);\s*onOpen\(lease\)/);
   assert.match(list, /href=\{`\/leases\/\$\{lease\.id\}`/);
   assert.doesNotMatch(list, /tenant-agreements-split/);
 
-  // The shell never scrolls. Header and footer stay put while the agreement
-  // body owns the curved, integrated reading scrollbar.
-  assert.match(css, /\.agreement-modal-surface \{[\s\S]{0,120}overflow: hidden/);
-  assert.match(css, /grid-template-rows: auto minmax\(0, 1fr\) auto/);
-  assert.match(css, /\.agreement-modal \.tenant-agreement-record-body \{[\s\S]{0,220}overflow-y: auto[\s\S]{0,160}scrollbar-gutter: stable/);
-  assert.match(record, /<footer className="tenant-agreement-record-footer">/);
+  // The sheet scrolls as one reading surface; the decision bar stays pinned
+  // at its foot while the agreement scrolls under it.
+  assert.match(css, /\.agreement-sheet \.doc-modal-body \{[^}]*overflow-y: auto/);
+  assert.match(record, /className="rq-actions ag-decision"/);
   assert.match(record, /<Icon name="download" \/>Download/);
   assert.match(record, /<Icon name="print" \/>Print/);
-  assert.match(record, /data-body-scrolled=\{bodyScrolled \|\| undefined\}/);
 
   const agreementRoute = read("web/app/leases/[leaseId]/page.tsx");
   assert.match(agreementRoute, /<AgreementRecord/);

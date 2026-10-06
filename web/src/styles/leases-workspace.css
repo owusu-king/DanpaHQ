@@ -80,3 +80,137 @@
 @media (prefers-reduced-motion: reduce) { .lease-row { transition: none; } }
 
 .lease-row:hover .lease-row-arrow { transform: translateX(2px); color: var(--color-ink-500); }
+
+/* --- a lease, read (LeaseRecord) ---------------------------------------------
+   Top to bottom the way an agreement is checked: who and what is let, where
+   it has got to, the money and the dates, the document, and what can be done
+   now — pinned to the foot in a sheet. Quiet by default; colour only for the
+   state (the track) and for warnings. */
+
+.lr { gap: var(--space-4); }
+.lr > * { min-width: 0; margin: 0; }
+
+.lr-parties {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-4);
+  background: rgba(255, 255, 255, .7);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 0 0 1px rgba(33, 26, 21, .07);
+}
+.lr-party { display: grid; gap: 2px; min-width: 0; }
+.lr-party:nth-of-type(2) { text-align: right; }
+.lr-party small,
+.lr-figures dt,
+.lr-terms dt,
+.lr-block h3 { color: var(--color-ink-500); font-size: .6875rem; font-weight: 650; letter-spacing: .05em; text-transform: uppercase; }
+.lr-party strong { overflow: hidden; color: var(--color-ink-900); font-size: .9375rem; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.lr-parties-join { display: grid; place-items: center; width: 1.75rem; height: 1.75rem; color: var(--color-ink-500); background: var(--color-field-100); border-radius: 999px; }
+.lr-home { display: grid; grid-column: 1 / -1; gap: 1px; padding-top: var(--space-3); border-top: 1px solid rgba(33, 26, 21, .07); }
+.lr-home strong { color: var(--color-ink-900); font-size: .875rem; font-weight: 600; }
+.lr-home span { color: var(--color-ink-500); font-size: .75rem; }
+.lr-state { grid-column: 1 / -1; justify-self: start; }
+/* In a sheet, the header already states it. */
+.doc-modal-record .lr-state { display: none; }
+
+/* Where it has got to: four stops on a line. */
+.lr-track { position: relative; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-2); margin: 0; padding: 0 var(--space-1); list-style: none; }
+.lr-track::before { content: ""; position: absolute; top: calc(.625rem - 1px); right: 12.5%; left: 12.5%; height: 2px; background: var(--color-field-200); border-radius: 2px; }
+.lr-track li { position: relative; display: grid; justify-items: center; align-content: start; gap: 4px; text-align: center; }
+.lr-track-mark { width: 1.25rem; height: 1.25rem; background: #fff; border-radius: 999px; box-shadow: 0 0 0 1.5px var(--color-field-300); }
+.lr-track li[data-state="done"] .lr-track-mark { background: var(--color-kola-600) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='m5.5 10.25 3 3 6-6.5' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 14px no-repeat; box-shadow: none; }
+.lr-track li[data-state="now"] .lr-track-mark { background: var(--color-lagoon-100); box-shadow: 0 0 0 1.5px var(--color-lagoon-600), 0 0 0 5px color-mix(in srgb, var(--color-lagoon-600) 12%, transparent); }
+.lr-track li[data-state="bad"] .lr-track-mark { background: var(--color-laterite-600); box-shadow: none; }
+.lr-track strong { color: var(--color-ink-900); font-size: .75rem; font-weight: 650; }
+.lr-track small { color: var(--color-ink-500); font-size: .6875rem; }
+.lr-track li[data-state="todo"] strong { color: var(--color-ink-500); font-weight: 600; }
+.lr-track li[data-state="bad"] strong { color: var(--color-laterite-600); }
+
+/* The money and the dates: three figures, then the rest in one row. */
+.lr-figures { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 0; padding: var(--space-3) 0; border-block: 1px solid rgba(33, 26, 21, .08); }
+.lr-figures div { display: grid; gap: 3px; min-width: 0; padding: 0 var(--space-3); }
+.lr-figures div:first-child { padding-left: 0; }
+.lr-figures div + div { border-left: 1px solid rgba(33, 26, 21, .08); }
+.lr-figures dd { margin: 0; color: var(--color-ink-900); font-family: var(--font-display); font-size: 1.125rem; font-weight: 600; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.lr-figures dd small { color: var(--color-ink-500); font-family: var(--font-body); font-size: .75rem; font-weight: 500; }
+.lr-terms { display: grid; grid-template-columns: repeat(auto-fit, minmax(6.5rem, 1fr)); gap: var(--space-3); margin: 0; }
+.lr-terms div { display: grid; gap: 2px; min-width: 0; }
+.lr-terms dd { margin: 0; color: var(--color-ink-900); font-size: .875rem; font-weight: 600; }
+
+.lr-block { display: grid; gap: var(--space-1); }
+.lr-block p { margin: 0; color: var(--color-ink-700); font-size: .875rem; line-height: 1.55; white-space: pre-line; }
+
+/* The document: what it is, its actions in view, the text behind a disclosure. */
+.lr-doc { display: grid; gap: var(--space-3); padding: var(--space-4); background: rgba(255, 255, 255, .72); border-radius: var(--radius-lg); box-shadow: 0 0 0 1px rgba(33, 26, 21, .07); }
+.lr-doc-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
+.lr-doc-mark { display: grid; flex: none; place-items: center; width: 2.25rem; height: 2.25rem; color: var(--color-ink-700); background: var(--color-field-100); border-radius: .75rem; }
+.lr-doc-copy { display: grid; flex: 1; gap: 1px; min-width: 10rem; }
+.lr-doc-copy strong { color: var(--color-ink-900); font-size: .875rem; font-weight: 650; font-variant-numeric: tabular-nums; }
+.lr-doc-copy small { color: var(--color-ink-500); font-size: .75rem; }
+.lr-doc-actions { display: flex; flex-wrap: wrap; gap: var(--space-1); }
+.lr-doc-read summary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-ink-700);
+  font-size: .8125rem;
+  font-weight: 650;
+  list-style: none;
+  cursor: pointer;
+}
+.lr-doc-read summary::-webkit-details-marker { display: none; }
+.lr-doc-read summary::before { content: ""; width: .35rem; height: .35rem; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(-45deg); transition: transform var(--motion-duration-base) var(--ws-ease); }
+.lr-doc-read[open] summary::before { transform: rotate(45deg); }
+.lr-doc-read summary:hover { color: var(--color-ink-900); }
+.lr-doc-read[open] > .lease-document { margin-top: var(--space-3); animation: ws-rise var(--motion-duration-base) var(--ws-enter) both; }
+.lr .lease-document { padding: var(--space-5); background: #fff; border-radius: .75rem; box-shadow: 0 0 0 1px rgba(33, 26, 21, .06); }
+.lr-doc-hash { display: flex; align-items: baseline; gap: var(--space-2); min-width: 0; margin: 0; color: var(--color-ink-500); font-size: .6875rem; }
+.lr-doc-hash span { flex: none; font-weight: 650; letter-spacing: .05em; text-transform: uppercase; }
+.lr-doc-hash code { overflow: hidden; font-size: .6875rem; text-overflow: ellipsis; white-space: nowrap; }
+
+.lr-confirm { padding: var(--space-4); background: color-mix(in srgb, var(--color-laterite-100) 50%, rgba(255, 255, 255, .85)); border-radius: var(--radius-lg); box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-laterite-600) 16%, transparent); animation: ws-rise var(--motion-duration-base) var(--ws-enter) both; }
+
+.lr-actions { align-items: center; padding-top: var(--space-3); border-top: 1px solid rgba(33, 26, 21, .08); }
+.lr-actions .btn { text-decoration: none; }
+.lr-actions-spacer { flex: 1; }
+.lr-unit-link { display: inline-flex; align-items: center; min-height: 2.5rem; padding: 0 var(--space-3); color: var(--color-ink-700); font-size: .8125rem; font-weight: 650; text-decoration: none; border-radius: 999px; transition: background-color var(--motion-duration-fast) var(--ws-ease); }
+.lr-unit-link:hover { color: var(--color-ink-900); background: var(--color-field-100); }
+
+/* In a sheet the actions stay in reach while the agreement scrolls. A pinned
+   bar can only travel to where the sheet's bottom padding starts, so the
+   padding moves inside the record and the bar sits flush with the edge. */
+.doc-modal-record { --lr-x: var(--space-6); --lr-b: var(--space-6); }
+.doc-modal-body:has(> .doc-modal-record),
+.doc-modal-body:has(.doc-modal-view > .doc-modal-record) { padding-bottom: 0; }
+.doc-modal-record .lr { padding-bottom: var(--lr-b); }
+.doc-modal-record .lr-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  margin: 0 calc(var(--lr-x) * -1) calc(var(--lr-b) * -1);
+  padding: var(--space-3) var(--lr-x);
+  background: rgba(255, 255, 255, .82);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+}
+
+@media (max-width: 47.99rem) {
+  .doc-modal-record { --lr-x: var(--space-4); --lr-b: var(--space-4); }
+  /* Three amounts do not fit a phone's width side by side: one per row,
+     label left, amount right, never broken mid-number. */
+  .lr-figures { grid-template-columns: minmax(0, 1fr); gap: var(--space-2); }
+  .lr-figures div { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); padding: 0; }
+  .lr-figures div + div { border-left: 0; }
+  .lr-figures dd { font-size: 1rem; white-space: nowrap; overflow-wrap: normal; }
+  .lr-terms { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .lr-track strong { font-size: .6875rem; }
+  .lr-doc-actions { width: 100%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lr-confirm,
+  .lr-doc-read[open] > .lease-document { animation: none; }
+  .lr-doc-read summary::before { transition: none; }
+}

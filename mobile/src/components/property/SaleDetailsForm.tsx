@@ -101,7 +101,7 @@ export function SaleDetailsForm({
       const next = await updateSale(propertyId, input);
       await onSaved(next);
     } catch (cause) {
-      setError(cause instanceof ApiFailure ? cause.error.message : "That did not save.");
+      setError(cause instanceof ApiFailure ? cause.error.message : "Could not save: check your connection and try again.");
     } finally {
       setBusy(false);
     }
@@ -150,7 +150,11 @@ export function SaleDetailsForm({
         />
         <Field
           label="Description"
-          hint="At least 40 characters."
+          // How far off it is, said before saving rather than refused after.
+          hint={description.trim().length >= 40 ? `${description.trim().length} characters.` : undefined}
+          error={description.trim().length < 40
+            ? `${40 - description.trim().length} more character${40 - description.trim().length === 1 ? "" : "s"} needed (40 minimum).`
+            : undefined}
           placeholder="What it is, its condition, and what is close by"
           multiline
           numberOfLines={5}

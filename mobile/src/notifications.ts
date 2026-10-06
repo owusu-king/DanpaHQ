@@ -17,6 +17,9 @@ export type Notification = {
   target_id: string;
   read_at: string | null;
   is_read: boolean;
+  /** A reminder ("informational") is deleted once read; "activity" is kept,
+   *  the ten most recent. The server decides; the app only reads it. */
+  record: "informational" | "activity";
   created_at: string;
 };
 

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import {
   activeHref,
+  enquiriesEntry,
   isPortalRoute,
   isSharedListingRoute,
   portalSections,
@@ -37,8 +38,8 @@ test("a tenant is offered their rental journey, and no provider operations", () 
   const links = hrefs(account());
 
   assert.deepEqual(links, [
-    "/home", "/rentals", "/saved", "/applications", "/leases", "/payments", "/viewings", "/enquiries",
-    "/updates",
+    "/home", "/rentals", "/saved", "/applications", "/leases", "/payments", "/viewings",
+    "/maintenance", "/updates",
   ]);
   assert.ok(!links.includes("/properties"));
   assert.ok(!links.includes("/provider"));
@@ -50,8 +51,8 @@ test("an approved provider is offered the portfolio, and no tenant shortlist", (
   }));
 
   assert.deepEqual(links, [
-    "/home", "/properties", "/units", "/tenants", "/leases", "/payments",
-    "/applications", "/viewings", "/enquiries", "/updates",
+    "/home", "/properties", "/units", "/tenants", "/documents", "/payments",
+    "/applications", "/viewings", "/maintenance", "/updates",
   ]);
   assert.ok(!links.includes("/saved"));
 });
@@ -182,4 +183,24 @@ test("the operational section is named after the Portfolio being operated", () =
   assert.equal(portalSections(me, "   ")[1].title, "Portfolio");
   assert.equal(portalSections(me, null)[1].title, "Portfolio");
   assert.equal(portalSections(me)[1].title, "Portfolio");
+});
+
+test("enquiries are reached from the top bar, on the same terms the rail offered them", () => {
+  // A tenant reads the properties they asked to buy.
+  assert.deepEqual(enquiriesEntry(account()), { href: "/enquiries", as: "buyer" });
+  // An approved provider reads questions about what they sell…
+  assert.deepEqual(
+    enquiriesEntry(account({ workspace: "provider", exists: true, workspaceAccess: true })),
+    { href: "/enquiries", as: "seller" },
+  );
+  // …unless their Portfolio role does not operate Properties…
+  assert.equal(
+    enquiriesEntry(
+      account({ workspace: "provider", exists: true, workspaceAccess: true }),
+      { can: { operate_properties: false } },
+    ),
+    null,
+  );
+  // …and a provider still in review has nothing to answer yet.
+  assert.equal(enquiriesEntry(account({ workspace: "provider", exists: true, workspaceAccess: false })), null);
 });

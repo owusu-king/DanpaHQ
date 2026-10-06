@@ -4,8 +4,8 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { PhotoSection, ProfileSection } from "@/components/account/AccountSections";
-import { Notice } from "@/components/Notice";
-import { LoadingRows } from "@/components/portal/PageHeader";
+import { Icon } from "@/components/portal/icons";
+import { SettingsCard } from "@/components/settings/SettingsCard";
 import { listMyPortfolioInvitations } from "@/lib/console";
 import { useSession } from "@/lib/session";
 
@@ -22,33 +22,35 @@ export default function ProfileSettingsPage() {
       .catch(() => setWaiting(0));
   }, []);
 
-  if (state.status !== "signed_in") return <LoadingRows rows={3} />;
+  if (state.status !== "signed_in") {
+    return (
+      <SettingsCard title="Profile">
+        <div className="prefs-skeleton" aria-busy="true" aria-label="Loading your profile">
+          {Array.from({ length: 3 }).map((_, index) => <span key={index} className="ws-skeleton-block" />)}
+        </div>
+      </SettingsCard>
+    );
+  }
   const me = state.me;
 
   return (
     <>
       {waiting ? (
-        <section className="settings-section">
-          <Notice
-            tone="info"
-            title={`${waiting} Portfolio ${waiting === 1 ? "invitation" : "invitations"} waiting for you`}
-            body="Someone has invited you into their property business. Nothing is granted until you accept."
-          />
-          <p>
-            <Link href={"/portfolio-invitations" as never} className="type-body-strong">
-              Review {waiting === 1 ? "it" : "them"} →
-            </Link>
-          </p>
-        </section>
+        <Link href={"/portfolio-invitations" as never} className="settings-invite">
+          <span className="settings-invite-mark" aria-hidden="true"><Icon name="users" /></span>
+          <span className="settings-invite-text">
+            <strong>{waiting} Portfolio {waiting === 1 ? "invitation" : "invitations"} waiting for you</strong>
+            <small>Someone has invited you into their property business. Nothing is granted until you accept.</small>
+          </span>
+          <span className="settings-invite-go">Review {waiting === 1 ? "it" : "them"}<Icon name="chevron-down" /></span>
+        </Link>
       ) : null}
-      <section className="settings-section">
-        <h2>Photo</h2>
-        <PhotoSection name={me.display_name} photoUrl={me.profile?.avatar_url ?? null} onSaved={refresh} />
-      </section>
 
-      <section className="settings-section">
-        <h2>Your details</h2>
-        <p className="type-caption">{me.phone_display} · used to sign in</p>
+      <SettingsCard title="Photo" description="Shown to landlords, agents and your team. Initials are used until you add one.">
+        <PhotoSection name={me.display_name} photoUrl={me.profile?.avatar_url ?? null} onSaved={refresh} />
+      </SettingsCard>
+
+      <SettingsCard title="Your details" description={<><span className="settings-mono">{me.phone_display}</span> · the number you sign in with</>}>
         <ProfileSection
           initial={{
             first_name: me.first_name,
@@ -58,7 +60,7 @@ export default function ProfileSettingsPage() {
           }}
           onSaved={refresh}
         />
-      </section>
+      </SettingsCard>
     </>
   );
 }

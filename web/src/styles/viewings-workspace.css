@@ -1,89 +1,131 @@
-.viewings-workspace {
-  display: grid;
-  gap: var(--space-6);
-}
+/* The host's viewings sit in the shared workspace frame (`workspace.css`).
+   Each viewing is a compact glass card whose face is its date: a large day
+   number with the weekday and month beside it, then the time, the person and
+   the Unit, then one quiet line saying where it stands. Today's cards carry the
+   brand colour; other dates stay in ink and read as secondary. The cards are
+   links to the record, never pressed buttons. */
 
-/* Three counts, a search, then the stages — the shape Payments, Tenancy
-   requests and Leases use, because it is the same job. */
-.viewings-overview {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  margin: 0 0 var(--space-8);
-  border-block: var(--border-hairline) solid var(--color-field-200);
-}
-.viewings-overview > div { display: grid; gap: var(--space-1); padding: var(--space-5) 0; }
-.viewings-overview > div + div { padding-left: var(--space-5); border-left: var(--border-hairline) solid var(--color-field-200); }
-.viewings-overview dt { color: var(--color-ink-500); }
-.viewings-overview dd { margin: 0; font-family: var(--font-display); font-size: 1.5rem; line-height: 2rem; font-weight: 600; }
-.viewings-overview [data-tone="confirmed"] { color: var(--color-kola-600); }
-.viewings-overview [data-tone="completed"] { color: var(--color-ink-700); }
+/* --- agenda ------------------------------------------------------------------ */
 
-.viewings-filters { display: flex; max-width: 100%; gap: var(--space-2); margin-bottom: var(--space-3); overflow-x: auto; scrollbar-width: none; }
-.viewings-filters::-webkit-scrollbar { display: none; }
-.viewings-filters button { min-height: 44px; padding: 0 var(--space-3); color: var(--color-ink-500); background: transparent; border: var(--border-hairline) solid var(--color-field-200); border-radius: 999px; font: inherit; font-size: .875rem; font-weight: 600; white-space: nowrap; cursor: pointer; }
-.viewings-filters button[aria-pressed="true"] { color: var(--color-kola-600); background: var(--color-kola-50); border-color: var(--color-kola-300); }
-.viewings-filters span { color: inherit; opacity: .75; }
-
-.viewings-search { display: block; width: min(100%, 30rem); }
-
-.viewings-search input {
-  width: 100%;
-  min-height: 48px;
-  padding: 0 var(--space-4);
-  color: var(--color-ink-900);
-  background: var(--color-field-0);
-  border: var(--border-hairline) solid var(--color-field-300);
-  border-radius: var(--radius-sm);
-  font: inherit;
-}
+.viewings-agenda { gap: var(--space-8); padding: var(--space-5) var(--space-4) var(--space-5); }
+.viewings-day .ws-group-heading { margin-bottom: var(--space-3); padding-inline: var(--space-1); }
 
 .viewings-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 15.5rem), 1fr));
+  gap: var(--space-3);
   width: 100%;
   min-width: 0;
   padding: 0;
   margin: 0;
   list-style: none;
-  border-top: var(--border-hairline) solid var(--color-field-200);
 }
+
+.viewing-item {
+  min-width: 0;
+  animation: ws-rise var(--motion-duration-slow) var(--ws-enter) both;
+  animation-delay: calc(var(--viewing-order, 0) * 26ms);
+}
+
+/* --- a card ------------------------------------------------------------------ */
 
 .viewing-row {
+  --viewing-ring: rgba(33, 26, 21, .07);
+  --viewing-day: var(--color-ink-800);
   display: grid;
-  grid-template-columns: minmax(13rem, 1.6fr) minmax(8rem, 0.75fr) minmax(9rem, 0.8fr) minmax(11rem, 1fr) 1.5rem;
-  width: 100%;
-  min-height: 76px;
-  align-items: center;
-  gap: var(--space-4);
-  padding: var(--space-3) var(--space-2);
+  gap: var(--space-3);
+  height: 100%;
+  padding: var(--space-4) var(--space-4) var(--space-3);
   color: inherit;
-  text-align: left; text-decoration: none;
-  background: transparent;
-  border: 0;
-  border-bottom: var(--border-hairline) solid var(--color-field-200);
-  cursor: pointer;
-  transition: background-color 120ms ease;
+  text-align: left;
+  text-decoration: none;
+  background: linear-gradient(170deg, rgba(255, 255, 255, .9), rgba(255, 255, 255, .7));
+  border: 1px solid rgba(255, 255, 255, .9);
+  border-radius: var(--radius-lg);
+  box-shadow:
+    0 0 0 1px var(--viewing-ring),
+    0 1px 2px rgba(33, 26, 21, .04),
+    inset 0 1px 0 rgba(255, 255, 255, .95);
+  backdrop-filter: blur(12px) saturate(140%);
+  -webkit-backdrop-filter: blur(12px) saturate(140%);
+  transition:
+    transform var(--motion-duration-base) var(--ws-ease),
+    box-shadow var(--motion-duration-base) var(--ws-ease),
+    background-color var(--motion-duration-base) var(--ws-ease);
 }
 
-.viewing-row:hover { background: var(--color-field-0); }
+/* Today is the brand moment; the past steps back; the rest is plain ink. */
+.viewing-row[data-when="today"] {
+  --viewing-ring: color-mix(in srgb, var(--color-kola-600) 22%, transparent);
+  --viewing-day: var(--color-kola-600);
+  background: linear-gradient(170deg, rgba(255, 255, 255, .92), color-mix(in srgb, var(--color-kola-50) 60%, rgba(255, 255, 255, .7)));
+}
+.viewing-row[data-when="past"] { --viewing-day: var(--color-ink-500); }
+.viewing-row[data-when="none"] { --viewing-day: var(--color-harmattan-600); }
 
-.viewing-row-person,
+/* The date is the face of the card. */
+.viewing-row-date { display: flex; align-items: center; gap: var(--space-3); min-width: 0; }
+
+.viewing-row-day {
+  min-width: 2.75rem;
+  color: var(--viewing-day);
+  font-family: var(--font-display);
+  font-size: 2.75rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.04em;
+  line-height: .9;
+  transition: color var(--motion-duration-base) var(--ws-ease), transform var(--motion-duration-base) var(--ws-ease);
+}
+
+.viewing-row-day.is-open { min-width: 1.75rem; font-weight: 400; }
+
+.viewing-row-daytext { display: grid; gap: 1px; min-width: 0; padding-left: var(--space-3); border-left: var(--border-hairline) solid rgba(33, 26, 21, .09); }
+.viewing-row-daytext span { overflow: hidden; color: var(--color-ink-900); font-size: .875rem; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.viewing-row-daytext small { color: var(--color-ink-500); font-size: .75rem; font-weight: 500; }
+.viewing-row[data-when="today"] .viewing-row-daytext span { color: var(--color-kola-800); }
+.viewing-row[data-when="none"] .viewing-row-daytext span { color: var(--color-harmattan-600); }
+
+.viewing-row-time {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  padding: 3px 9px 3px 7px;
+  color: var(--color-ink-800);
+  font-size: .8125rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  background: rgba(255, 255, 255, .6);
+  border-radius: var(--radius-sm);
+  box-shadow: inset 0 0 0 1px rgba(33, 26, 21, .07);
+}
+
+.viewing-row-time .portal-icon { width: 14px; height: 14px; color: var(--color-ink-500); }
+.viewing-row-time em { color: var(--color-lagoon-600); font-size: .75rem; font-style: normal; font-weight: 600; }
+.viewing-row[data-when="today"] .viewing-row-time { color: var(--color-kola-800); }
+.viewing-row[data-when="today"] .viewing-row-time .portal-icon { color: var(--color-kola-600); }
+
+.viewing-row-person { display: grid; gap: 2px; min-width: 0; }
+
 .viewing-row-person strong,
 .viewing-row-person span {
-  display: block;
-  min-width: 0;
-}
-
-.viewing-row-person strong {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.viewing-row-person span,
-.viewing-row-place,
-.viewing-row-time {
-  color: var(--color-ink-500);
-  font-size: 0.875rem;
-  line-height: 1.35;
+.viewing-row-person strong { color: var(--color-ink-900); font-size: .9375rem; font-weight: 650; line-height: 1.3; }
+.viewing-row-person span { color: var(--color-ink-500); font-size: .8125rem; line-height: 1.35; }
+
+.viewing-row-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-width: 0;
+  padding-top: var(--space-2);
+  border-top: var(--border-hairline) solid rgba(33, 26, 21, .07);
 }
 
 .viewing-row-state {
@@ -91,27 +133,559 @@
   align-items: center;
   gap: var(--space-2);
   min-width: 0;
+  overflow: hidden;
   color: var(--color-ink-500);
-  font-size: 0.875rem;
+  font-size: .75rem;
   font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
+/* The line clips for its ellipsis, which also clipped the dot's halo. Room for
+   the glow inside the clip, given back by an equal negative margin so nothing
+   moves. */
+.viewing-row-state { padding: 8px 0 8px 8px; margin: -8px 0 -8px -8px; }
+
 .viewing-row-state i {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
   flex: 0 0 auto;
   background: currentColor;
   border-radius: 50%;
+  box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 16%, transparent);
+  transition: box-shadow var(--motion-duration-fast) var(--motion-easing-standard);
+}
+/* Pointing at the row wakes the dot: a fuller ring and a soft glow. */
+.viewing-row:hover .viewing-row-state i,
+.viewing-row:focus-visible .viewing-row-state i {
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, currentColor 24%, transparent),
+    0 0 7px 1px color-mix(in srgb, currentColor 55%, transparent);
 }
 
 .viewing-row-state.is-good { color: var(--color-kola-600); }
-.viewing-row-state.is-waiting { color: var(--color-harmattan-600); }
-.viewing-row-state.is-attention { color: var(--color-laterite-600); }
+.viewing-row-state.is-waiting { color: var(--color-lagoon-600); }
+.viewing-row-state.is-attention { color: var(--color-harmattan-600); }
+
 .viewing-row-arrow {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
   color: var(--color-ink-300);
-  font-size: 1.5rem;
+  border-radius: 50%;
   transition: transform var(--motion-duration-fast) var(--motion-easing-standard),
-    color var(--motion-duration-fast) var(--motion-easing-standard);
+    color var(--motion-duration-fast) var(--motion-easing-standard),
+    background-color var(--motion-duration-fast) var(--motion-easing-standard);
+}
+
+/* Pointing at a card lifts it a little and wakes its way in; pressing settles it. */
+.viewing-row:hover {
+  --viewing-ring: color-mix(in srgb, var(--color-kola-600) 26%, transparent);
+  background: color-mix(in srgb, var(--color-kola-50) 35%, var(--color-field-0));
+  transform: translateY(-2px);
+  box-shadow:
+    0 0 0 1px var(--viewing-ring),
+    0 14px 30px -18px rgba(12, 58, 42, .28),
+    inset 0 1px 0 rgba(255, 255, 255, .95);
+}
+
+.viewing-row:hover .viewing-row-arrow { transform: translateX(2px); color: var(--color-field-0); background: var(--color-kola-600); }
+.viewing-row:hover .viewing-row-day { color: var(--color-kola-600); }
+.viewing-row[data-when="past"]:hover .viewing-row-day { color: var(--color-ink-700); }
+.viewing-row:active { transform: translateY(0) scale(.99); transition-duration: var(--motion-duration-instant); }
+
+.viewing-row:focus-visible {
+  outline: var(--border-emphasis) solid var(--color-kola-600);
+  outline-offset: 3px;
+  border-radius: var(--radius-lg);
+}
+
+.viewing-item.is-returned .viewing-row { animation: viewing-found 1.8s var(--ws-ease); }
+
+@keyframes viewing-found {
+  0%, 35% { box-shadow: 0 0 0 2px var(--color-kola-300), 0 14px 30px -18px rgba(12, 58, 42, .28); }
+}
+
+.viewing-row.is-skeleton { pointer-events: none; }
+.viewings-skeleton-day { width: 2.75rem; height: 2.5rem; border-radius: var(--radius-sm); }
+.viewings-skeleton-heading { width: 7rem; margin: 0 var(--space-1) var(--space-3); }
+
+/* --- the record ------------------------------------------------------------- */
+
+.viewing-record-mark {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 3rem;
+  height: 3rem;
+  overflow: hidden;
+  color: var(--color-kola-600);
+  background: var(--color-kola-50);
+  border-radius: var(--radius-md);
+  box-shadow: 0 0 0 1px rgba(33, 26, 21, .06);
+}
+
+.viewing-record-mark img { width: 100%; height: 100%; object-fit: cover; }
+.viewing-record-panel { padding: var(--space-6); }
+.viewing-record-panel .vr { max-width: 46rem; }
+
+/* --- the host's record ------------------------------------------------------
+   One column read top to bottom, the same in the sheet and on its own page:
+   a hero card (when, where it stands, where it is), what the tenant said, who
+   to call and how to find the door, then whatever can be done now. Words are
+   kept to labels; the colour of the hero says the state before the text does. */
+
+.vr { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-3); min-width: 0; }
+.vr > * { grid-column: 1 / -1; grid-row: auto; min-width: 0; margin: 0; }
+
+/* --- hero --- */
+
+.vr-hero {
+  --vr-tone: var(--color-kola-600);
+  --vr-wash: var(--color-kola-50);
+  overflow: hidden;
+  background:
+    radial-gradient(90% 120% at 0% 0%, color-mix(in srgb, var(--vr-wash) 95%, transparent), transparent 65%),
+    linear-gradient(165deg, rgba(255, 255, 255, .95), rgba(255, 255, 255, .72));
+  border: 1px solid rgba(255, 255, 255, .95);
+  border-radius: var(--radius-lg);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--vr-tone) 14%, rgba(33, 26, 21, .05)),
+    0 10px 28px -18px color-mix(in srgb, var(--vr-tone) 55%, transparent),
+    inset 0 1px 0 #fff;
+}
+.vr-hero[data-tone="waiting"] { --vr-tone: var(--color-lagoon-600); --vr-wash: var(--color-lagoon-100); }
+.vr-hero[data-tone="attention"] { --vr-tone: var(--color-harmattan-600); --vr-wash: var(--color-harmattan-100); }
+.vr-hero[data-tone="neutral"] { --vr-tone: var(--color-ink-500); --vr-wash: var(--color-field-100); }
+
+.vr-when { display: flex; align-items: center; gap: var(--space-4); padding: var(--space-4); }
+
+.vr-date {
+  display: grid;
+  flex: none;
+  place-content: center;
+  place-items: center;
+  width: 3.5rem;
+  height: 3.5rem;
+  color: #fff;
+  text-align: center;
+  background: linear-gradient(155deg, color-mix(in srgb, var(--vr-tone) 78%, #fff), var(--vr-tone) 70%);
+  border-radius: 1rem;
+  box-shadow: 0 10px 20px -12px var(--vr-tone), inset 0 1px 0 rgba(255, 255, 255, .4);
+}
+.vr-date strong { font-family: var(--font-display); font-size: 1.5rem; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -.03em; line-height: 1; }
+.vr-date small { margin-top: 3px; font-size: .625rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; opacity: .9; }
+.vr-date svg { width: 1.375rem; height: 1.375rem; }
+
+.vr-when-copy { display: grid; gap: 6px; justify-items: start; min-width: 0; }
+.vr-when-copy > strong { color: var(--color-ink-900); font-family: var(--font-display); font-size: 1.0625rem; font-weight: 600; letter-spacing: -.01em; line-height: 1.25; }
+
+.vr-place {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: rgba(255, 255, 255, .55);
+  border-top: 1px solid rgba(33, 26, 21, .06);
+}
+.vr-photo {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  overflow: hidden;
+  color: var(--color-kola-600);
+  background: var(--color-kola-50);
+  border-radius: .75rem;
+  box-shadow: 0 0 0 1px rgba(33, 26, 21, .06);
+}
+.vr-photo img { width: 100%; height: 100%; object-fit: cover; }
+.vr-photo svg { width: 1.25rem; height: 1.25rem; }
+.vr-place-copy { display: grid; gap: 1px; min-width: 0; }
+.vr-place-copy strong { overflow: hidden; color: var(--color-ink-900); font-size: .875rem; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.vr-place-copy small { overflow: hidden; color: var(--color-ink-500); font-size: .75rem; text-overflow: ellipsis; white-space: nowrap; }
+
+/* --- what the tenant said --- */
+
+.vr-note { display: flex; align-items: flex-start; gap: var(--space-3); padding: var(--space-1) var(--space-1) 0; }
+.vr-note > div { display: grid; gap: 6px; min-width: 0; }
+.vr-avatar {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  color: var(--color-lagoon-600);
+  font-size: .75rem;
+  font-weight: 700;
+  background: var(--color-lagoon-100);
+  border-radius: 999px;
+  box-shadow: 0 0 0 2px #fff, 0 0 0 3px rgba(33, 26, 21, .06);
+}
+.vr-avatar.is-contact { color: var(--color-kola-700, var(--color-kola-600)); background: var(--color-kola-50); }
+.vr-note-who { margin: 0; color: var(--color-ink-700); font-size: .75rem; font-weight: 650; }
+.vr-note blockquote {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  color: var(--color-ink-800);
+  font-size: .875rem;
+  line-height: 1.5;
+  background: linear-gradient(160deg, #fff, color-mix(in srgb, var(--color-field-100) 60%, #fff));
+  border-radius: 4px 1rem 1rem 1rem;
+  box-shadow: 0 0 0 1px rgba(33, 26, 21, .06), 0 4px 12px -10px rgba(33, 26, 21, .4);
+}
+.vr-note-small { display: flex; align-items: center; gap: 6px; margin: 0; color: var(--color-ink-500); font-size: .75rem; }
+.vr-note-small svg { flex: none; width: 13px; height: 13px; }
+
+/* --- who to call --- */
+
+.vr-contact {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-3);
+  background: rgba(255, 255, 255, .7);
+  border-radius: 999px;
+  box-shadow: 0 0 0 1px rgba(33, 26, 21, .07), 0 6px 16px -14px rgba(33, 26, 21, .5);
+}
+.vr-contact-copy { display: grid; flex: 1; gap: 1px; min-width: 0; }
+.vr-contact-copy strong { overflow: hidden; color: var(--color-ink-900); font-size: .875rem; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.vr-contact-copy small { color: var(--color-ink-500); font-size: .75rem; font-variant-numeric: tabular-nums; }
+
+.vr-icon-button {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  color: #fff;
+  background: linear-gradient(155deg, color-mix(in srgb, var(--color-kola-600) 80%, #fff), var(--color-kola-600));
+  border-radius: 999px;
+  box-shadow: 0 8px 16px -10px var(--color-kola-600), inset 0 1px 0 rgba(255, 255, 255, .35);
+  transition: transform var(--motion-duration-fast) var(--ws-ease), box-shadow var(--motion-duration-fast) var(--ws-ease);
+}
+.vr-icon-button svg { width: 17px; height: 17px; }
+.vr-icon-button:hover { transform: translateY(-1px) scale(1.04); box-shadow: 0 12px 20px -10px var(--color-kola-600), inset 0 1px 0 rgba(255, 255, 255, .35); }
+.vr-icon-button:active { transform: scale(.96); }
+.vr-icon-button:focus-visible { outline: 2px solid var(--color-kola-600); outline-offset: 3px; }
+
+/* --- how to find the door (the shared component, drawn for the host) --- */
+
+.vr .viewing-directions {
+  gap: 4px;
+  padding: var(--space-3) var(--space-4);
+  background: linear-gradient(160deg, color-mix(in srgb, var(--color-lagoon-100) 70%, #fff), rgba(255, 255, 255, .75));
+  border: 0;
+  border-radius: var(--radius-lg);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-lagoon-600) 14%, transparent);
+}
+.vr .viewing-directions h3 { margin: 0 0 2px; color: var(--color-lagoon-600); font-size: .6875rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.vr .viewing-directions .viewing-address { font-size: .9375rem; }
+.vr .viewing-directions .type-caption { color: var(--color-ink-500); font-size: .8125rem; line-height: 1.4; }
+.vr .viewing-directions p:last-child { margin-top: var(--space-2); }
+.vr .viewing-map {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2rem;
+  padding: 0 var(--space-3);
+  color: var(--color-lagoon-600);
+  font-size: .75rem;
+  font-weight: 700;
+  text-decoration: none;
+  background: #fff;
+  border-radius: 999px;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-lagoon-600) 22%, transparent);
+  transition: background-color var(--motion-duration-fast) var(--ws-ease);
+}
+.vr .viewing-map:hover { background: var(--color-lagoon-100); }
+
+/* --- history --- */
+
+.vr-history { padding: 0 var(--space-1); }
+.vr-history summary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-ink-500);
+  font-size: .75rem;
+  font-weight: 650;
+  list-style: none;
+  cursor: pointer;
+}
+.vr-history summary:hover { color: var(--color-ink-900); }
+.vr-history summary::-webkit-details-marker { display: none; }
+.vr-history summary::before {
+  content: "";
+  width: .35rem;
+  height: .35rem;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform var(--motion-duration-base) var(--ws-ease);
+}
+.vr-history[open] summary::before { transform: rotate(45deg); }
+.vr-history ol {
+  display: grid;
+  gap: var(--space-2);
+  margin: var(--space-2) 0 0;
+  padding: 0 0 0 var(--space-4);
+  color: var(--color-ink-500);
+  font-size: .75rem;
+  border-left: 2px solid var(--color-field-200);
+  list-style: none;
+}
+
+/* --- a step in progress --- */
+
+.vr-panel {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background: color-mix(in srgb, var(--color-kola-50) 50%, rgba(255, 255, 255, .85));
+  border-radius: var(--radius-lg);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-kola-600) 12%, transparent);
+  animation: ws-rise var(--motion-duration-base) var(--ws-enter) both;
+}
+.vr-panel.is-danger,
+.vr-confirm.is-danger {
+  background: color-mix(in srgb, var(--color-laterite-100) 60%, rgba(255, 255, 255, .85));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-laterite-600) 18%, transparent);
+}
+.vr-confirm { display: grid; gap: var(--space-2); padding: var(--space-4); border-radius: var(--radius-lg); animation: ws-rise var(--motion-duration-base) var(--ws-enter) both; }
+.vr-confirm .vr-row { margin-top: var(--space-1); }
+.vr-panel-title { margin: 0; color: var(--color-ink-900); font-size: .9375rem; font-weight: 650; }
+.vr-panel-body { margin: 0; color: var(--color-ink-500); font-size: .8125rem; line-height: 1.5; }
+.vr-row { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+
+.vr-select { display: grid; gap: var(--space-1); color: var(--color-ink-700); font-size: .8125rem; font-weight: 650; }
+.vr-select select {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 var(--space-3);
+  color: var(--color-ink-900);
+  font: inherit;
+  font-weight: 500;
+  background: #fff;
+  border: 1px solid var(--color-field-300);
+  border-radius: var(--radius-md);
+}
+.vr-select select:focus-visible { outline: none; border-color: var(--color-kola-600); box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-kola-600) 18%, transparent); }
+
+/* A one-line status where a notice box used to be. */
+.vr-hint {
+  display: flex;
+  flex-basis: 100%;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  color: var(--color-ink-700);
+  font-size: .8125rem;
+  font-weight: 550;
+  background: color-mix(in srgb, var(--color-field-100) 70%, #fff);
+  border-radius: 999px;
+}
+.vr-hint svg { flex: none; width: 15px; height: 15px; color: var(--color-lagoon-600); }
+.vr-hint.is-quiet { padding: 0 var(--space-1); color: var(--color-ink-500); font-size: .75rem; background: none; }
+.vr-hint.is-quiet svg { width: 13px; height: 13px; color: var(--color-kola-600); }
+
+/* --- offer times --- */
+
+.vr-offer {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  background:
+    radial-gradient(100% 80% at 100% 0%, color-mix(in srgb, var(--color-kola-50) 90%, transparent), transparent 70%),
+    rgba(255, 255, 255, .8);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-kola-600) 16%, transparent), 0 12px 28px -22px var(--color-kola-600);
+  animation: ws-rise var(--motion-duration-base) var(--ws-enter) both;
+  scroll-margin-bottom: 6rem;
+}
+.vr-offer-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); margin-bottom: 2px; }
+.vr-offer-head strong { color: var(--color-ink-900); font-size: .9375rem; font-weight: 650; }
+.vr-offer-count {
+  padding: 2px var(--space-2);
+  color: var(--color-kola-700, var(--color-kola-600));
+  font-size: .6875rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  background: var(--color-kola-50);
+  border-radius: 999px;
+}
+
+.vr-slots { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
+.vr-slot {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 44px;
+  padding: 0 var(--space-1) 0 6px;
+  background: #fff;
+  border-radius: 999px;
+  box-shadow: 0 0 0 1px rgba(33, 26, 21, .1);
+  transition: box-shadow var(--motion-duration-fast) var(--ws-ease);
+  animation: ws-rise var(--motion-duration-base) var(--ws-enter) both;
+}
+.vr-slot:hover { box-shadow: 0 0 0 1px rgba(33, 26, 21, .2); }
+.vr-slot:focus-within { box-shadow: 0 0 0 1.5px var(--color-kola-600), 0 0 0 4px color-mix(in srgb, var(--color-kola-600) 14%, transparent); }
+.vr-slot-mark {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  color: var(--color-ink-500);
+  font-size: .6875rem;
+  font-weight: 700;
+  background: var(--color-field-100);
+  border-radius: 999px;
+  transition: color var(--motion-duration-fast) var(--ws-ease), background-color var(--motion-duration-fast) var(--ws-ease);
+}
+.vr-slot[data-filled] .vr-slot-mark { color: #fff; background: var(--color-kola-600); }
+.vr-slot-input {
+  flex: 1;
+  min-width: 0;
+  height: 42px;
+  padding: 0 var(--space-1);
+  color: var(--color-ink-900);
+  font: inherit;
+  font-size: .875rem;
+  font-variant-numeric: tabular-nums;
+  background: transparent;
+  border: 0;
+}
+.vr-slot-input:focus-visible { outline: none; }
+.vr-slot-input::-webkit-calendar-picker-indicator { opacity: .55; cursor: pointer; }
+.vr-slot-remove {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  color: var(--color-ink-500);
+  background: transparent;
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.vr-slot-remove svg { width: 14px; height: 14px; }
+.vr-slot-remove:hover { color: var(--color-laterite-600); background: var(--color-laterite-100); }
+
+.vr-slot-add {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 40px;
+  color: var(--color-kola-700, var(--color-kola-600));
+  font: inherit;
+  font-size: .8125rem;
+  font-weight: 650;
+  background: transparent;
+  border: 1.5px dashed color-mix(in srgb, var(--color-kola-600) 35%, transparent);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background-color var(--motion-duration-fast) var(--ws-ease), border-color var(--motion-duration-fast) var(--ws-ease);
+}
+.vr-slot-add svg { width: 15px; height: 15px; }
+.vr-slot-add:hover { background: color-mix(in srgb, var(--color-kola-50) 70%, transparent); border-color: var(--color-kola-600); }
+
+/* --- check in --- */
+
+.vr-checkin {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-3);
+  flex-basis: 100%;
+  padding: var(--space-4);
+  background: linear-gradient(150deg, color-mix(in srgb, var(--color-kola-50) 90%, #fff), color-mix(in srgb, var(--color-gold-50) 70%, #fff));
+  border-radius: var(--radius-lg);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-kola-600) 18%, transparent);
+}
+.vr-checkin-mark {
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  color: #fff;
+  background: var(--color-kola-600);
+  border-radius: 999px;
+  box-shadow: 0 6px 14px -8px var(--color-kola-600);
+}
+.vr-checkin-mark svg { width: 1.125rem; height: 1.125rem; }
+.vr-checkin h3 { margin: 0; color: var(--color-ink-900); font-size: .9375rem; font-weight: 650; }
+.vr-checkin p { margin: 2px 0 0; color: var(--color-ink-500); font-size: .8125rem; }
+.vr-checkin-form { display: flex; flex-wrap: wrap; grid-column: 1 / -1; gap: var(--space-2); align-items: end; }
+.vr-checkin-form > :first-child { flex: 1 1 10rem; }
+
+/* --- actions --- */
+
+.vr-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding-top: var(--space-3);
+  border-top: 1px solid rgba(33, 26, 21, .07);
+}
+.vr-actions:empty { display: none; }
+.vr-actions .btn .portal-icon { width: 16px; height: 16px; margin-right: 6px; }
+/* `.portal-icon` paints itself grey ink; on a coloured surface it takes the text colour. */
+.vr-date .portal-icon,
+.vr-icon-button .portal-icon,
+.vr-checkin-mark .portal-icon,
+.vr-actions .btn .portal-icon,
+.vr-slot-add .portal-icon,
+.vr-slot-remove .portal-icon { color: inherit; }
+
+/* --- in the sheet ---------------------------------------------------------------
+   The sheet has a ceiling, so a long record never makes a tall modal: the body
+   scrolls under a pinned header, and the actions stay pinned to the foot. */
+
+@media (min-width: 48rem) {
+  .doc-modal.is-sm.host-viewing-sheet {
+    width: min(32rem, calc(100vw - var(--modal-area-left, 0px) - 2rem));
+    max-height: min(38rem, calc(100vh - var(--modal-area-top, 0px) - 3rem));
+  }
+}
+.doc-modal.host-viewing-sheet {
+  background:
+    radial-gradient(120% 60% at 0% 0%, color-mix(in srgb, var(--color-kola-50) 70%, transparent), transparent 60%),
+    radial-gradient(90% 50% at 100% 100%, color-mix(in srgb, var(--color-gold-50) 70%, transparent), transparent 60%),
+    linear-gradient(170deg, rgba(255, 255, 255, .97), rgba(252, 250, 246, .94));
+}
+.host-viewing-sheet .doc-modal-head { background: rgba(255, 255, 255, .55); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+.host-viewing-sheet .doc-modal-body { --sheet-x: var(--space-5); padding: var(--space-4) var(--sheet-x) 0; }
+.host-viewing-sheet .vr { padding-bottom: var(--space-5); }
+.host-viewing-sheet .vr-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  margin: var(--space-1) calc(var(--sheet-x) * -1) calc(var(--space-5) * -1);
+  padding: var(--space-3) var(--sheet-x);
+  background: rgba(255, 255, 255, .82);
+  border-top: 1px solid rgba(33, 26, 21, .07);
+  box-shadow: 0 -12px 24px -20px rgba(33, 26, 21, .35);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+}
+/* The bar changes what it holds (actions, then Send and Cancel); it settles in rather than swaps. */
+.host-viewing-sheet .vr-actions > * { animation: vr-bar-in 320ms var(--ws-enter, ease-out) both; }
+@keyframes vr-bar-in { from { opacity: 0; transform: translateY(4px); } }
+@media (prefers-reduced-motion: reduce) { .host-viewing-sheet .vr-actions > * { animation: none; } }
+/* A check-in form is a step of its own, too tall to pin; it scrolls with the record. */
+.host-viewing-sheet .vr-actions:has(.vr-checkin) { position: static; background: none; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
+@media (max-width: 47.99rem) { .host-viewing-sheet .doc-modal-body { --sheet-x: var(--space-4); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .vr-panel, .vr-confirm, .vr-offer, .vr-slot { animation: none; }
+  .vr-icon-button, .vr-slot, .vr-slot-add { transition: none; }
+  .vr-icon-button:hover { transform: none; }
 }
 
 .viewing-detail {
@@ -163,38 +737,26 @@
   gap: var(--space-3);
 }
 
-@media (max-width: 900px) {
-  .viewing-row {
-    grid-template-columns: minmax(0, 1fr) minmax(9rem, auto) 1.5rem;
-  }
-  .viewing-row-place { display: none; }
-  .viewing-row-time { grid-column: 1; }
-  .viewing-row-state { grid-column: 2; grid-row: 1 / span 2; }
-  .viewing-row-arrow { grid-column: 3; grid-row: 1 / span 2; }
+/* --- narrow ----------------------------------------------------------------- */
+
+@media (max-width: 640px) {
+  .viewings-agenda { gap: var(--space-6); padding: var(--space-4) var(--space-3); }
+  .viewings-list { gap: var(--space-2); }
+  .viewing-row-day { font-size: 2.375rem; }
+  .viewing-record-panel { padding: var(--space-4); }
+  .viewing-detail { padding-left: 0; padding-right: 0; }
 }
 
-@media (max-width: 600px) {
-  
-  .viewings-search { width: 100%; }
-  .viewings-overview { grid-template-columns: 1fr; }
-  .viewings-overview > div + div { padding-left: 0; border-left: 0; border-top: var(--border-hairline) solid var(--color-field-200); }
-  
-  
-  .viewing-row {
-    grid-template-columns: minmax(0, 1fr) 1.5rem;
-    gap: var(--space-2);
-    min-height: 88px;
-    padding: var(--space-3) 0;
-  }
-  .viewing-row-person strong { white-space: normal; }
-  .viewing-row-state,
-  .viewing-row-time { grid-column: 1; grid-row: auto; }
-  .viewing-row-arrow { grid-column: 2; grid-row: 1 / span 3; }
-  .viewing-detail { padding-left: var(--space-5); padding-right: var(--space-5); }
+@media (hover: none) {
+  .viewing-row:hover { transform: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .viewing-row { transition: none; }
+  .viewing-item,
+  .viewing-item.is-returned .viewing-row { animation: none; }
+  .viewing-row,
+  .viewing-row-arrow,
+  .viewing-row-day { transition: none; }
+  .viewing-row:hover,
+  .viewing-row:active { transform: none; }
 }
-
-.viewing-row:hover .viewing-row-arrow { transform: translateX(2px); color: var(--color-ink-500); }

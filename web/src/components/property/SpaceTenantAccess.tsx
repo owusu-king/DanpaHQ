@@ -1,11 +1,13 @@
 "use client";
 
-import { usePathname, useRouter } from "next/navigation";
+import { useState } from "react";
 
 import { Button } from "@/components/Button";
+import { LeaseWizardModal, type LeaseSpec } from "@/components/leases/LeaseWizard";
 import { Notice } from "@/components/Notice";
+import { Icon, type IconName } from "@/components/portal/icons";
 import { UnitPrivateAccess } from "@/components/property/UnitPrivateAccess";
-import { type AccessCodeState } from "@/lib/console";
+import { type AccessCodeState, type Lease } from "@/lib/console";
 
 /**
  * Private acquisition starts with one verified Unit access code.
@@ -50,6 +52,14 @@ export function SpaceTenantAccess({
   );
 }
 
+/**
+ * The way into preparing an agreement for an accepted request.
+ *
+ * It used to navigate to `/leases/new`, which took the provider away from the
+ * request they had just accepted. The wizard opens in place now: handed to the
+ * modal the request is already in (`onOpen`), or in a sheet of its own when the
+ * request is on its own page. `/leases/new` still works for a direct link.
+ */
 export function LeasePreparationForm({
   unitId,
   bedId,
@@ -57,6 +67,12 @@ export function LeasePreparationForm({
   source,
   initialRentMinor = 0,
   initialAdvanceMonths = 1,
+  context,
+  lease,
+  label = "Prepare agreement",
+  icon = "leases",
+  variant = "primary",
+  onOpen,
   onDone,
 }: {
   unitId: string;
@@ -65,31 +81,25 @@ export function LeasePreparationForm({
   source: { kind: "join_request" | "application"; id: string; listingId?: string };
   initialRentMinor?: number;
   initialAdvanceMonths?: number;
+  context?: LeaseSpec["context"];
+  lease?: Lease | null;
+  label?: string;
+  icon?: IconName;
+  variant?: "primary" | "secondary";
+  onOpen?: (spec: LeaseSpec) => void;
   onDone: () => Promise<void>;
 }) {
-  const router = useRouter();
-  const pathname = usePathname();
-
-  function openBuilder() {
-    const params = new URLSearchParams({
-      unitId,
-      tenantId,
-      sourceKind: source.kind,
-      sourceId: source.id,
-      rentMinor: String(initialRentMinor),
-      advanceMonths: String(initialAdvanceMonths),
-      returnTo: pathname,
-    });
-    if (bedId) params.set("bedId", bedId);
-    if (source.listingId) params.set("listingId", source.listingId);
-    router.push(`/leases/new?${params.toString()}` as never);
-  }
-
-  // Completion happens on the dedicated route; retain the callback in this
-  // public component contract for existing callers until they migrate.
-  void onDone;
+  const [open, setOpen] = useState(false);
+  const spec: LeaseSpec = { unitId, bedId, tenantId, source, initialRentMinor, initialAdvanceMonths, context, lease };
 
   return (
-    <Button variant="secondary" onClick={openBuilder}>Prepare agreement</Button>
+    <>
+      <Button variant={variant} onClick={() => (onOpen ? onOpen(spec) : setOpen(true))}>
+        <Icon name={icon} />{label}
+      </Button>
+      {onOpen ? null : (
+        <LeaseWizardModal open={open} spec={spec} onClose={() => setOpen(false)} onSent={() => onDone()} />
+      )}
+    </>
   );
 }

@@ -39,6 +39,7 @@ export function Select<T extends string>({
   options,
   placeholder = "Choose",
   disabled = false,
+  error,
   onChange,
 }: {
   label: string;
@@ -46,6 +47,8 @@ export function Select<T extends string>({
   options: SelectOption<T>[];
   placeholder?: string;
   disabled?: boolean;
+  /** Says exactly what is missing, under the field, as `Field` does. */
+  error?: string;
   onChange: (value: T) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -68,6 +71,7 @@ export function Select<T extends string>({
         style={({ pressed }) => [
           styles.trigger,
           open ? styles.triggerOpen : null,
+          error && !open ? styles.triggerError : null,
           disabled ? styles.dim : null,
           pressed ? { backgroundColor: PRESSED } : null,
         ]}
@@ -81,6 +85,16 @@ export function Select<T extends string>({
         </Type>
         <Ionicons name="chevron-down" size={18} color={open ? KOLA : theme.color.ink["500"]} />
       </Pressable>
+      {error ? (
+        <Type
+          variant="caption"
+          accessibilityLiveRegion="polite"
+          accessibilityRole="alert"
+          style={styles.error}
+        >
+          {error}
+        </Type>
+      ) : null}
 
       <BottomSheet
         visible={open}
@@ -180,6 +194,13 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: KOLA,
     backgroundColor: theme.color.kola["50"],
+  },
+  triggerError: {
+    borderColor: theme.color.laterite["600"],
+    backgroundColor: theme.color.laterite["100"],
+  },
+  error: {
+    color: theme.color.laterite["600"],
   },
   dim: {
     opacity: 0.55,

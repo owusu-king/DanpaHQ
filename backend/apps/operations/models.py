@@ -193,3 +193,50 @@ class SupportCase(BaseModel):
                 fields=["status", "priority", "-created_at"], name="operations_support_queue_idx"
             )
         ]
+
+
+class DeletionStatus(models.TextChoices):
+    PENDING = "pending", "Waiting for Management"
+    COMPLETED = "completed", "Account deleted"
+    DECLINED = "declined", "Declined"
+    CANCELLED = "cancelled", "Cancelled by the person"
+
+
+class AccountDeletionRequest(BaseModel):
+    """Someone asking for their account and personal data to be deleted.
+
+    The person asks; Management decides. Deletion cannot be undone and can
+    collide with obligations the platform has to others — a tenancy still
+    running, money still owed, records the law says to keep — so a person
+    never erases themselves directly. While it waits they can withdraw it.
+    """
+
+    user = models.ForeignKey(
+        "identity.User", on_delete=models.PROTECT, related_name="deletion_requests"
+    )
+    reason = models.TextField(blank=True, max_length=1000)
+    status = models.CharField(
+        max_length=16, choices=DeletionStatus.choices, default=DeletionStatus.PENDING
+    )
+    #: What stood in the way when it was asked, as the person was shown it.
+    blockers = models.JSONField(default=list, blank=True)
+    decided_by = models.ForeignKey(
+        ManagementUser,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="deletion_decisions",
+    )
+    decided_at = models.DateTimeField(null=True, blank=True)
+    decision_note = models.TextField(blank=True, max_length=1000)
+
+    class Meta:
+        db_table = "operations_account_deletion_request"
+        ordering = ("-created_at",)
+        constraints: ClassVar[list] = [
+            models.UniqueConstraint(
+                fields=["user"],
+                condition=models.Q(status="pending"),
+                name="operations_one_pending_deletion_per_user",
+            )
+        ]

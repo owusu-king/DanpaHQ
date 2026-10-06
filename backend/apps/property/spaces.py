@@ -168,7 +168,7 @@ def update_space(*, unit: Unit, user, data: dict) -> Unit:
     skipped the form.
     """
     from .models import Building
-    from .space_rules import assert_interior_is_coherent
+    from .space_rules import assert_asked, assert_interior_is_coherent
 
     unit = Unit.objects.select_for_update().select_related("property").get(id=unit.id)
     payload = {key: value for key, value in data.items() if key in EDITABLE_FIELDS}
@@ -203,6 +203,7 @@ def update_space(*, unit: Unit, user, data: dict) -> Unit:
         bedrooms=payload.get("bedrooms", unit.bedrooms),
         bathrooms=payload.get("bathrooms", unit.bathrooms),
     )
+    assert_asked(space_type=unit.space_type, label=unit.get_space_type_display(), payload=payload)
 
     before = {key: getattr(unit, key) for key in payload}
     for key, value in payload.items():

@@ -32,6 +32,9 @@ const WANTS_A_REPLY = new Set([
   "rent.payment_due_now",
   "rent.payment_overdue",
   "rent.external_payment_recorded",
+  "maintenance.submitted",
+  "maintenance.awaiting_confirmation",
+  "maintenance.reopened",
 ]);
 
 export function wantsAReply(kind: string): boolean {
@@ -63,6 +66,7 @@ const SUCCESS = new Set([
   "rent.external_payment_confirmed",
   "billing.subscription_payment_succeeded",
   "organization.invitation_accepted",
+  "maintenance.completed",
 ]);
 
 const WARNING = new Set([
@@ -102,6 +106,7 @@ export function notificationSource(kind: string): string {
   if (kind.startsWith("rent.") || kind.startsWith("payment.")) return "Payments";
   if (kind.startsWith("billing.")) return "Plan & billing";
   if (kind.startsWith("organization.")) return "Portfolio";
+  if (kind.startsWith("maintenance.")) return "Maintenance";
   return "Rooomly";
 }
 
@@ -153,6 +158,8 @@ export function destination(item: { target_type: string; target_id: string }): s
       return "/portfolio-invitations";
     case "billing":
       return "/settings/billing";
+    case "maintenance_request":
+      return `/maintenance?request=${item.target_id}`;
     default:
       return "/home";
   }

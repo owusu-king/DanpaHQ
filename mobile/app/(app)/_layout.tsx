@@ -44,6 +44,9 @@ export default function AppLayout() {
       <Stack.Screen name="provider-viewings" options={{ title: "Viewings" }} />
       <Stack.Screen name="provider-viewing" options={{ title: "Viewing" }} />
       <Stack.Screen name="provider-viewing-check-in" options={{ title: "Check in tenant" }} />
+      <Stack.Screen name="maintenance" options={{ title: "Maintenance" }} />
+      <Stack.Screen name="maintenance-request" options={{ title: "Maintenance request" }} />
+      <Stack.Screen name="maintenance-report" options={{ title: "Report a problem" }} />
       <Stack.Screen name="provider-applications" options={{ title: "Tenancy requests" }} />
       <Stack.Screen name="provider-application" options={{ title: "Tenancy request" }} />
       <Stack.Screen name="leases" options={{ title: "Agreements" }} />

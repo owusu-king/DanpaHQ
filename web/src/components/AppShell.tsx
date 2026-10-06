@@ -65,10 +65,16 @@ function ConsumerChrome({
     return <PortalShell>{children}</PortalShell>;
   }
 
-  return (
+  // A shared page whose session is still unknown: the public layout renders
+  // (it is the right answer for a stranger, and what the server sent), but in
+  // a wrapper the head script hides when this browser was last signed in — so
+  // a refresh shows nothing for a moment rather than the wrong page.
+  const pending = state.status === "loading" && isSharedListingRoute(pathname);
+  const chrome = (
     <>
       <SiteNav />
       <main id="main">{children}</main>
     </>
   );
+  return pending ? <div className="shared-pending">{chrome}</div> : chrome;
 }

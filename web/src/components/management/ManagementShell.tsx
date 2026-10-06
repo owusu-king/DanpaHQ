@@ -17,6 +17,7 @@ const NAV = [
   { href: "/management/listings", label: "Listings", capability: "view_properties", icon: "listings" },
   { href: "/management/reports", label: "Reports", capability: "view_reports", icon: "reports" },
   { href: "/management/support", label: "Support", capability: "view_support", icon: "support" },
+  { href: "/management/account-deletions", label: "Account deletions", capability: "view_users", icon: "trash" },
   { href: "/management/rentals", label: "Rental operations", capability: "view_rentals", icon: "leases" },
   { href: "/management/payments", label: "Payment operations", capability: "view_payments", icon: "payments" },
   { href: "/management/billing", label: "Billing", capability: "view_billing", icon: "payments" },

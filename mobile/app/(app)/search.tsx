@@ -30,13 +30,14 @@ import { SaleCard } from "@/components/sales/SaleCard";
 import { SaleExplore } from "@/components/sales/SaleExplore";
 import {
   NO_SALE_CHOICES,
-  SaleFilterSheet,
+  SaleFilterCards,
   saleFiltersFrom,
   saleRefinements,
   type SaleChoices,
 } from "@/components/sales/SaleFilterSheet";
 import { BottomSheet } from "@/components/sheet/BottomSheet";
 import { SheetCard, SheetGlassButton, SheetPrimaryButton } from "@/components/sheet/SheetParts";
+import { AllFilterCards, ShowField } from "@/components/explore/ExploreShow";
 import { Notice, Type, radius, space } from "@/components/ui";
 import {
   formatMinor,
@@ -64,7 +65,7 @@ import {
 } from "@/places";
 import { pressableFeedback } from "@/platform";
 import { loadPropertyTypes, type PropertyTypeOption } from "@/propertyTypes";
-import { searchSales, searchSalesPage, type SaleCard as Sale } from "@/sales";
+import { searchSales, searchSalesPage, type SaleCard as Sale, type SaleKind } from "@/sales";
 import { theme } from "@/theme";
 
 /**
@@ -260,6 +261,8 @@ function MapExplore({
 
   const [propertyTypes, setPropertyTypes] = useState<PropertyTypeOption[]>([]);
   const [propertyType, setPropertyType] = useState("");
+  // All asks only the kinds both sides know; a hostel is only let, land only sold.
+  const allType = propertyType === "residential" || propertyType === "commercial" ? propertyType : "";
   const [spaceType, setSpaceType] = useState("");
   const [bedrooms, setBedrooms] = useState("");
   const [rentMin, setRentMin] = useState("");
@@ -372,7 +375,12 @@ function MapExplore({
     east: filters.east,
     north: filters.north,
     ...(mode === "buy" ? saleFiltersFrom(saleChoices) : {}),
-  }), [filters.q, filters.west, filters.south, filters.east, filters.north, mode, saleChoices]);
+    // All's shared filters reach the sales too: the kind both sides know, and bedrooms.
+    ...(mode === "all" && (propertyType === "residential" || propertyType === "commercial")
+      ? { kind: propertyType as SaleKind }
+      : {}),
+    ...(mode === "all" && bedrooms ? { bedrooms_min: Number(bedrooms) } : {}),
+  }), [filters.q, filters.west, filters.south, filters.east, filters.north, mode, saleChoices, propertyType, bedrooms]);
 
   const loadSales = useCallback(async () => {
     const id = ++saleRequest.current;
@@ -620,7 +628,9 @@ function MapExplore({
       : mode === "buy"
         ? `${saleCount} for sale`
         : `${resultCount} to rent · ${saleCount} for sale`;
-  const filterCountForSide = mode === "buy" ? saleRefinements(saleChoices) : refinementCount;
+  // All counts the two filters both sides answer; Rent and Buy count their own.
+  const allCount = [allType, bedrooms].filter(Boolean).length;
+  const filterCountForSide = mode === "buy" ? saleRefinements(saleChoices) : mode === "all" ? allCount : refinementCount;
   const areaName = bbox ? " in this map area" : area ? ` in ${area.name.split(",")[0]}` : "";
   const sheetOpen = stop !== "peek";
   // The rentals scroll once the sheet is full; below that, dragging them moves the sheet.
@@ -863,10 +873,8 @@ function MapExplore({
           inTabs={heroInTabs}
           actions={actions}
           mode={mode}
-          onModeChange={onModeChange}
-          // All has no filters of its own: they belong to one side each.
-          filterCount={mode === "all" ? undefined : filterCountForSide}
-          onFilters={mode === "all" ? undefined : () => { Keyboard.dismiss(); setFiltersOpen(true); }}
+          filterCount={filterCountForSide}
+          onFilters={() => { Keyboard.dismiss(); setFiltersOpen(true); }}
           search={(
             <HeroSearch
               label="Search area"
@@ -992,7 +1000,7 @@ function MapExplore({
             detail={areaName
               ? areaName.trim().replace(/^in /, "In ")
               : mode === "all"
-                ? "Choose Rent or Buy for filters"
+                ? "To rent and to buy, every one verified"
                 : mode === "buy"
                   ? "Title checked by our team"
                   : showMap ? "Verified and ready to let" : "Verified and ready to let · map not in this build"}
@@ -1112,16 +1120,14 @@ function MapExplore({
         </View>
       </Animated.View>
 
-      <SaleFilterSheet
-        visible={filtersOpen && mode === "buy"}
-        onClose={() => setFiltersOpen(false)}
-        choices={saleChoices}
-        onChange={(patch) => setSaleChoices((current) => ({ ...current, ...patch }))}
-        resultLabel={sales === null ? "Updating…" : `Show ${saleCount}`}
-      />
-
       <FilterSheet
-        visible={filtersOpen && mode === "rent"}
+        visible={filtersOpen}
+        mode={mode}
+        onApplySide={onModeChange}
+        saleCards={<SaleFilterCards choices={saleChoices} onChange={(patch) => setSaleChoices((current) => ({ ...current, ...patch }))} />}
+        saleClear={{ can: saleRefinements(saleChoices) > 0, onClear: () => setSaleChoices(NO_SALE_CHOICES) }}
+        allCards={<AllFilterCards type={allType} onTypeChange={setPropertyType} bedrooms={bedrooms} onBedroomsChange={setBedrooms} />}
+        allClear={{ can: allCount > 0, onClear: () => { setPropertyType(""); setBedrooms(""); } }}
         onClose={() => setFiltersOpen(false)}
         propertyTypes={propertyTypes}
         propertyType={propertyType}
@@ -1414,6 +1420,12 @@ const SORT_OPTIONS = SORTS.map(([value, label]) => ({ value, label }));
 function FilterSheet({
   visible,
   onClose,
+  mode,
+  onApplySide,
+  saleCards,
+  saleClear,
+  allCards,
+  allClear,
   propertyTypes,
   propertyType,
   onPropertyTypeChange,
@@ -1459,12 +1471,33 @@ function FilterSheet({
   canClear: boolean;
   onClear: () => void;
   resultLabel: string;
+  /** The side on screen; the Show row picks a draft that the button applies. */
+  mode: ExploreMode;
+  onApplySide: (mode: ExploreMode) => void;
+  /** Buy's and All's cards, shown when Show is set to them. */
+  saleCards: ReactNode;
+  saleClear: { can: boolean; onClear: () => void };
+  allCards: ReactNode;
+  allClear: { can: boolean; onClear: () => void };
 }) {
   // One dropdown open at a time, and none left open when the sheet comes back.
   const [open, setOpen] = useState<FilterMenu | null>(null);
+  // Show is a draft until the button (owner, 2026-10-05: switching "just
+  // applies" and "is not smooth"). One sheet, its cards swapped in place —
+  // never one native sheet closing while another opens.
+  const [draft, setDraft] = useState<ExploreMode>(mode);
   useEffect(() => {
     if (!visible) setOpen(null);
-  }, [visible]);
+    else setDraft(mode);
+  }, [visible, mode]);
+  const clear = draft === "buy" ? saleClear : draft === "all" ? allClear : { can: canClear, onClear };
+  const applyLabel = draft === mode
+    ? resultLabel
+    : draft === "rent" ? "Show rentals" : draft === "buy" ? "Show properties for sale" : "Show everything";
+  function apply() {
+    if (draft !== mode) onApplySide(draft);
+    onClose();
+  }
   const toggle = (field: FilterMenu) => setOpen((current) => (current === field ? null : field));
 
   // The sheet itself — its drag, its way back, its safe edges, its grey and its
@@ -1480,11 +1513,16 @@ function FilterSheet({
       closeLabel="Close filters"
       footer={(
         <>
-          <SheetGlassButton label="Clear all" icon="refresh" disabled={!canClear} onPress={onClear} />
-          <SheetPrimaryButton label={resultLabel} onPress={onClose} />
+          <SheetGlassButton label="Clear all" icon="refresh" disabled={!clear.can} onPress={clear.onClear} />
+          <SheetPrimaryButton label={applyLabel} onPress={apply} />
         </>
       )}
     >
+      <SheetCard>
+        <ShowField mode={draft} onChange={setDraft} />
+      </SheetCard>
+      {draft === "buy" ? saleCards : draft === "all" ? allCards : (
+      <>
       <SheetCard>
         <PriceRange
           minimum={rentMin}
@@ -1556,6 +1594,8 @@ function FilterSheet({
           }}
         />
       </SheetCard>
+      </>
+      )}
     </BottomSheet>
   );
 }

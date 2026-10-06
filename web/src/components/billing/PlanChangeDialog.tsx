@@ -55,6 +55,7 @@ import {
 } from "@/lib/billingPresentation";
 import { paymentMethodLabel, paystackAccessCode, type DigitalPaymentMethod } from "@/lib/payments";
 import { openPaystackPopup } from "@/lib/paystackPopup";
+import { aimModalFrom, glideModalHeight, holdModalInWorkspace } from "@/lib/modalOrigin";
 
 export type PlanChangeStart =
   | { step: "compare" }
@@ -131,8 +132,16 @@ function PlanChangeFlow({ start, organizationId, billing, catalogue, onClose, on
   useEffect(() => {
     const dialog = dialogRef.current;
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    if (dialog && !dialog.open) dialog.showModal();
+    const release = dialog ? holdModalInWorkspace(dialog) : undefined;
+    if (dialog && !dialog.open) {
+      dialog.showModal();
+      aimModalFrom(dialog, opener);
+    }
+    // Each step is a different height; the sheet glides between them.
+    const stopGliding = dialog ? glideModalHeight(dialog) : undefined;
     return () => {
+      release?.();
+      stopGliding?.();
       if (dialog?.open) dialog.close();
       opener?.focus({ preventScroll: true });
     };
@@ -667,7 +676,10 @@ function CompareStep({
 
   return (
     <div className="billing-compare">
-      <div className="billing-cycle" role="radiogroup" aria-label="Billing cycle">
+      <div className="billing-cycle" role="radiogroup" aria-label="Billing cycle" data-interval={interval}>
+        {/* One raised thumb that slides between the two, rather than each
+            option painting its own. */}
+        <span className="billing-cycle-thumb" aria-hidden="true" />
         {(["monthly", "annual"] as const).map((value) => (
           <label key={value} className="billing-cycle-option">
             <input
@@ -709,7 +721,12 @@ function PlanCard({ option, interval, onChoose }: { option: PlanOption; interval
   const free = isFreePlan(plan);
   const nameId = `billing-option-${plan.code.toLowerCase()}`;
   return (
-    <li className="billing-option" data-current={option.isCurrent} aria-labelledby={nameId}>
+    <li
+      className="billing-option"
+      data-current={option.isCurrent}
+      data-recommended={option.recommended || undefined}
+      aria-labelledby={nameId}
+    >
       <div className="billing-option-intro">
         <div className="billing-option-head">
           <h3 id={nameId} className="billing-option-name">

@@ -18,6 +18,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/Button";
 import { CheckChip } from "@/components/Check";
 import { Notice } from "@/components/Notice";
+import { StepActions } from "@/components/creation/StepActions";
 import { ApiFailure } from "@/lib/api";
 import {
   getPropertyAmenities,
@@ -37,6 +38,7 @@ export function SpaceAmenities({
   saveForLaterLabel,
   onSavedForLater,
   autoSave = false,
+  onBack,
 }: {
   scope: Scope;
   /** The unit id, or the property id when `scope` is "property". */
@@ -47,6 +49,8 @@ export function SpaceAmenities({
   onSavedForLater?: (names: string[]) => void | Promise<void>;
   /** Used by the guided create flow, where the step's own button advances. */
   autoSave?: boolean;
+  /** In a creation step: the save is the step's one button; back and later are links. */
+  onBack?: () => void;
 }) {
   const [options, setOptions] = useState<AmenityOption[]>([]);
   const [chosen, setChosen] = useState<Set<string>>(new Set());
@@ -153,12 +157,27 @@ export function SpaceAmenities({
       {scope === "unit" && chosen.size ? (
         <Notice
           tone="info"
-          title={`${chosen.size} amenity photo${chosen.size === 1 ? "" : "s"} will be required`}
-          body="The next step asks for one clear photo of every selected feature. This keeps the Unit's promises visible and reviewable."
+          title={`${chosen.size} amenity photo${chosen.size === 1 ? "" : "s"} needed next`}
         />
       ) : null}
 
-      {autoSave ? null : (
+      {autoSave ? null : onBack ? (
+        <StepActions
+          primary={
+            <Button onClick={() => void save(onSaved)} busy={busy} busyLabel="Saving…">
+              {saveLabel}
+            </Button>
+          }
+          links={[
+            { label: "Back", onClick: onBack },
+            Boolean(onSavedForLater) && {
+              label: saveForLaterLabel ?? "Save for later",
+              onClick: () => void save(onSavedForLater),
+              disabled: busy,
+            },
+          ]}
+        />
+      ) : (
         <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)", flexWrap: "wrap" }}>
           <Button onClick={() => void save(onSaved)} busy={busy} busyLabel="Saving…" variant="secondary">
             {saveLabel}

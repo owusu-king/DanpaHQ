@@ -2,12 +2,15 @@
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
-import { Notice } from "@/components/Notice";
-import { Empty, LoadingRows, PageHeader } from "@/components/portal/PageHeader";
+import { Button } from "@/components/Button";
+import { LoadingRows, PageHeader } from "@/components/portal/PageHeader";
 import { Icon } from "@/components/portal/icons";
-import { ViewingDetailModal } from "@/components/tenant/ViewingRecord";
+import { ViewingSheet, tenantViewingTone, type TenantViewingTone } from "@/components/tenant/ViewingRecord";
+import { Countdown, SoonChip, countsDown, useNow } from "@/components/viewings/Countdown";
+import { ViewingModal } from "@/components/viewings/ViewingModal";
+import { NextUp, PanelSearch, PanelSkeleton, PanelState, SegmentedControl, WorkspaceHead, gridKeyNavigation } from "@/components/workspace/Workspace";
 import { ApiFailure } from "@/lib/api";
 import {
   bySoonest,
@@ -36,13 +39,6 @@ import { useSession } from "@/lib/session";
 import { listMyViewings, type MyViewing } from "@/lib/tenant";
 
 /**
- * Viewing requests, from the landlord's or agent's side.
- *
- * This is a queue, so it is ordered by what needs an answer rather than by
- * date, and each row states the one decision available. A tenant waiting for a
- * reply is a tenant deciding whether this platform is worth using.
- */
-/**
  * Viewings, from whichever side this account is on. Same reasoning as
  * applications: one idea, two readings, both scoped by the backend.
  */
@@ -60,34 +56,28 @@ export default function ViewingsPage() {
       <ProviderViewings />
     </Suspense>
   ) : (
-    <TenantViewings />
+    <Suspense fallback={<><PageHeader title="Viewings" /><LoadingRows rows={3} /></>}>
+      <TenantViewings />
+    </Suspense>
   );
 }
 
 /**
- * The tenant's schedule.
+ * The tenant's schedule, on the shared workspace and drawn like the host's
+ * agenda: each viewing a card whose face is its date, so both sides of one
+ * appointment look like one appointment.
  *
- * A viewing is an appointment, not a status. So a row says the two things
+ * A viewing is an appointment, not a status. So a card says the two things
  * somebody standing at a junction needs — where, and when — and everything the
- * lifecycle might allow at that moment lives one click away.
- *
- * The old page put the whole machine on every card: the slot picker, the exact
- * directions, the appointment history, the contact number, the QR check-in, the
- * post-viewing follow-up, the attendance panel and three quiet buttons, all
- * rendered at once, on every row, forever. A tenant with three viewings read
- * that machine three times to find out what time to be somewhere.
- *
- * All opens first so the schedule and its history are immediately useful.
- * Upcoming still leads inside that view, anything waiting on the tenant is
- * pulled into its own group, and focused filters remain one tap away.
+ * lifecycle might allow at that moment lives one click away, in a sheet over
+ * the schedule that the address keeps. What is waiting on the tenant is lifted
+ * above it; when nothing is, the next confirmed visit is, with a countdown once
+ * it is close enough to matter.
  */
 function TenantViewings() {
   const [viewings, setViewings] = useState<MyViewing[] | null>(null);
   const [error, setError] = useState("");
-  const [filterOpen, setFilterOpen] = useState(false);
-  const [selectedViewingId, setSelectedViewingId] = useState<string | null>(null);
-  const filterRoot = useRef<HTMLDivElement>(null);
-  const filterButton = useRef<HTMLButtonElement>(null);
+  const [retrying, setRetrying] = useState(false);
 
   const router = useRouter();
   const pathname = usePathname();
@@ -95,42 +85,38 @@ function TenantViewings() {
   const filter: ViewingFilter =
     viewingFilters.map((option) => option.id).find((id) => id === search.get("show")) ?? "all";
   const query = search.get("q") ?? "";
+  // A plain click reads the viewing in a sheet over the schedule, kept in the
+  // address; the card is still a link to `/viewings/<id>`.
+  const openId = search.get("viewing") ?? "";
 
+  // A reload keeps what is on screen, so a confirmed time updates in the open
+  // sheet instead of the sheet losing its viewing.
   const load = useCallback(async () => {
     try {
       setViewings(await listMyViewings());
       setError("");
     } catch (cause) {
-      setViewings([]);
+      setViewings((current) => current ?? []);
       setError(cause instanceof ApiFailure ? cause.error.message : "Could not load your viewings.");
     }
   }, []);
 
   useEffect(() => { void load(); }, [load]);
 
-  useEffect(() => {
-    if (!filterOpen) return;
-    const closeFromOutside = (event: PointerEvent) => {
-      if (!filterRoot.current?.contains(event.target as Node)) setFilterOpen(false);
-    };
-    const closeFromKeyboard = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      setFilterOpen(false);
-      filterButton.current?.focus();
-    };
-    document.addEventListener("pointerdown", closeFromOutside);
-    document.addEventListener("keydown", closeFromKeyboard);
-    return () => {
-      document.removeEventListener("pointerdown", closeFromOutside);
-      document.removeEventListener("keydown", closeFromKeyboard);
-    };
-  }, [filterOpen]);
+  const retry = useCallback(async () => {
+    setRetrying(true);
+    await load();
+    setRetrying(false);
+  }, [load]);
 
+  // Reminders sent before viewings had addresses still point at one appointment.
   useEffect(() => {
     if (!window.location.hash.startsWith("#viewing-")) return;
     router.replace(`/viewings/${window.location.hash.slice("#viewing-".length)}` as never);
   }, [router]);
 
+  // `replace`, so filtering does not build a history trail somebody has to walk
+  // back through to leave the page.
   const setParams = useCallback((changes: Record<string, string>) => {
     const next = new URLSearchParams(search.toString());
     for (const [key, value] of Object.entries(changes)) {
@@ -143,12 +129,10 @@ function TenantViewings() {
 
   const chooseFilter = useCallback((nextFilter: ViewingFilter) => {
     setParams({ show: nextFilter === "all" ? "" : nextFilter });
-    setFilterOpen(false);
-    filterButton.current?.focus();
   }, [setParams]);
 
   const rows = useMemo<TenantViewingRow[]>(
-    () => (viewings ?? []).map((viewing) => ({ viewing, state: standing(viewing) })),
+    () => (viewings ?? []).map((viewing) => ({ viewing, state: standing(viewing), tone: tenantViewingTone(viewing) })),
     [viewings],
   );
 
@@ -173,122 +157,126 @@ function TenantViewings() {
       .sort((left, right) => priority[left.state.group] - priority[right.state.group] || bySoonest(left.viewing, right.viewing));
   }, [filter, query, rows]);
 
-  const current = visible.filter((row) => row.state.group !== "past");
-  const history = visible.filter((row) => row.state.group === "past");
+  const loading = viewings === null;
+  const none = !loading && rows.length === 0;
+  const failed = Boolean(error) && none;
+  const waiting = visible.filter((row) => row.state.group === "action");
+  const upcoming = visible.filter((row) => row.state.group === "upcoming");
+  // History reads most recent first; the rest soonest first.
+  const history = visible.filter((row) => row.state.group === "past").reverse();
   const unfilteredView = filter === "all" && !query.trim();
-  const initialCurrentLimit = Math.min(current.length, history.length ? 4 : 5);
-  const initialHistoryLimit = Math.min(history.length, Math.max(0, 5 - initialCurrentLimit));
   const showSearch = (viewings?.length ?? 0) > 5 || Boolean(query);
   const showFilter = new Set(rows.map((row) => row.state.group)).size > 1 || filter !== "all";
   const selectedLabel = viewingFilters.find((option) => option.id === filter)?.label ?? "Viewings";
-  const selectedViewing = viewings?.find((viewing) => viewing.id === selectedViewingId) ?? null;
+  const opened = openId ? viewings?.find((viewing) => viewing.id === openId) ?? null : null;
+  const open = useCallback((viewingId: string) => setParams({ viewing: viewingId }), [setParams]);
+
+  const firstAction = rows.find((row) => row.state.group === "action") ?? null;
+  // The next visit actually booked: the one a countdown is for.
+  const nextBooked = rows
+    .filter((row) => row.viewing.status === "confirmed" && row.viewing.confirmed_starts_at)
+    .sort((left, right) => bySoonest(left.viewing, right.viewing))[0] ?? null;
 
   return (
-    <div className="viewings tenant-viewings">
-      <PageHeader
+    <div className="ws-page viewings-workspace tenant-viewings">
+      <WorkspaceHead
+        icon="viewings"
         title="Viewings"
-        description={viewings === null || error ? undefined : tenantViewingSummary(counts, rows.length)}
+        summary={loading || failed ? null : none ? "Places you ask to see are scheduled here." : (
+          <TenantViewingSummary counts={counts} />
+        )}
+        actions={none || loading ? null : (
+          <Link href="/rentals" className="ws-action"><Icon name="explore" />Find rentals</Link>
+        )}
       />
 
-      {viewings === null ? (
-        <TenantViewingsLoading />
-      ) : error ? (
-        <div className="tenant-viewings-error">
-          <Notice tone="error" title={error} body="Check your connection and try again." />
-          <button type="button" onClick={() => void load()}>Try again</button>
-        </div>
-      ) : viewings.length === 0 ? (
-        <div className="tenant-viewings-empty">
-          <Empty
-            title="No viewings yet"
-            body="When you ask to see a rental, the appointment will appear here."
-            action={<Link href="/rentals" className="type-body-strong">Explore rentals &rarr;</Link>}
+      {unfilteredView && firstAction ? (
+        <NextUp
+          eyebrow={firstAction.state.line}
+          title={firstAction.viewing.property_title || firstAction.viewing.listing_headline}
+          detail={[firstAction.viewing.unit_label, placeOf(firstAction.viewing)].filter(Boolean).join(" · ")}
+          hint={firstAction.viewing.status === "offered" ? "The landlord offered times. Pick the one that suits you." : "This viewing is waiting for your answer."}
+          photoUrl={firstAction.viewing.photo_url}
+          icon="viewings"
+          more={{ count: counts.action - 1, onShow: () => chooseFilter("action") }}
+          onOpen={() => open(firstAction.viewing.id)}
+          action={{ label: firstAction.state.callToAction ?? "Open", onClick: () => open(firstAction.viewing.id) }}
+        />
+      ) : unfilteredView && nextBooked ? (
+        <NextVisit row={nextBooked} onOpen={open} />
+      ) : null}
+
+      {showFilter ? (
+        <SegmentedControl
+          label="Viewing stage"
+          value={filter}
+          options={viewingFilters.map((option) => ({ key: option.id, label: option.label, count: counts[option.id] }))}
+          onChange={chooseFilter}
+        />
+      ) : null}
+
+      <section className="ws-panel tenant-viewings-panel" aria-label={unfilteredView ? "Your viewings" : `${selectedLabel} viewings`} aria-busy={loading || undefined}>
+        {showSearch ? (
+          <div className="ws-panel-head">
+            <PanelSearch label="Search your viewings" placeholder="Search Property, Unit or place" value={query} onChange={(value) => setParams({ q: value })} />
+            <p className="ws-range"><strong>{visible.length}</strong> of {counts.all}</p>
+          </div>
+        ) : null}
+
+        {error && rows.length ? (
+          <div className="ws-inline-error" role="alert">
+            <Icon name="warning" /><span>{error}</span>
+            <button type="button" disabled={retrying} onClick={() => void retry()}>{retrying ? "Retrying…" : "Try again"}</button>
+          </div>
+        ) : null}
+
+        {loading ? <PanelSkeleton rows={3} /> : failed ? (
+          <PanelState
+            tone="error"
+            icon="warning"
+            title="Viewings didn’t load"
+            body={`${error} Check your connection and try again.`}
+            action={<button type="button" className="ws-action" disabled={retrying} onClick={() => void retry()}>{retrying ? "Retrying…" : "Try again"}</button>}
           />
-        </div>
-      ) : (
-        <>
-          {showSearch || showFilter ? (
-            <div className="tenant-viewings-tools">
-              {showSearch ? (
-                <label className="tenant-viewings-search">
-                  <span className="sr-only">Search your viewings</span>
-                  <Icon name="explore" />
-                  <input
-                    type="search"
-                    value={query}
-                    onChange={(event) => setParams({ q: event.target.value })}
-                    placeholder="Search Property, Unit or place"
-                  />
-                </label>
-              ) : <span />}
-              {showFilter ? (
-                <div className="tenant-viewings-filter" ref={filterRoot}>
-                  <button
-                    ref={filterButton}
-                    type="button"
-                    className={`tenant-viewing-filter-trigger${filter !== "all" ? " is-active" : ""}`}
-                    aria-expanded={filterOpen}
-                    aria-haspopup="menu"
-                    aria-controls="tenant-viewing-filter-menu"
-                    onClick={() => setFilterOpen((open) => !open)}
-                  >
-                    <Icon name="filters" />
-                    <span>{filter === "all" ? "All viewings" : selectedLabel}</span>
-                    <Icon name="chevron-down" />
-                  </button>
-                  {filterOpen ? (
-                    <div id="tenant-viewing-filter-menu" className="tenant-viewing-filter-panel" role="menu" aria-label="Viewing stage">
-                      <ViewingFilterOption id="all" current={filter} count={counts.all} onSelect={chooseFilter} />
-                      <div className="tenant-viewing-filter-group" role="group" aria-label="Current appointments">
-                        <span>Current appointments</span>
-                        <ViewingFilterOption id="action" current={filter} count={counts.action} onSelect={chooseFilter} />
-                        <ViewingFilterOption id="upcoming" current={filter} count={counts.upcoming} onSelect={chooseFilter} />
-                      </div>
-                      <div className="tenant-viewing-filter-group" role="group" aria-label="Viewing history">
-                        <span>History</span>
-                        <ViewingFilterOption id="past" current={filter} count={counts.past} onSelect={chooseFilter} />
-                      </div>
-                    </div>
-                  ) : null}
-                </div>
-              ) : null}
-            </div>
-          ) : null}
+        ) : none ? (
+          <PanelState
+            icon="viewings"
+            title="No viewings yet"
+            body="When you ask to see a rental, the appointment appears here — with the time, the way in and a countdown when it is close."
+            action={<Link href="/rentals" className="ws-action is-primary"><Icon name="explore" />Explore rentals</Link>}
+          />
+        ) : visible.length ? (
+          <div className="ws-panel-body viewings-agenda tenant-viewings-agenda" key={`${filter}:${query.trim() ? "q" : ""}`} onKeyDown={moveTenantViewingFocus}>
+            {/* "All" is one set of cards, as the host's agenda draws it: what needs
+                you, then the soonest ahead, then the most recent past. Groups
+                would each start a row of their own and leave every row short. */}
+            {unfilteredView ? (
+              <ViewingGroup title="All viewings" quiet rows={[...waiting, ...upcoming, ...history]} initialLimit={8} onOpen={open} />
+            ) : (
+              <ViewingGroup
+                key={`${filter}:${query}`}
+                title={query ? "Matches" : selectedLabel}
+                quiet={!query}
+                rows={filter === "past" ? history : visible}
+                initialLimit={8}
+                historical={visible.every((row) => row.state.group === "past")}
+                onOpen={open}
+              />
+            )}
+          </div>
+        ) : query ? (
+          <PanelState
+            icon="explore"
+            title={`Nothing matches “${query.trim()}”`}
+            body="Try another Property, Unit or place."
+            action={<button type="button" className="ws-action" onClick={() => setParams({ q: "" })}>Clear search</button>}
+          />
+        ) : (
+          <TenantViewingFilterEmpty filter={filter} onShowAll={() => chooseFilter("all")} />
+        )}
+      </section>
 
-          {visible.length ? (
-            <div className="tenant-viewings-results">
-              {unfilteredView ? (
-                <>
-                  {current.length ? <ViewingGroup title="Current" rows={current} initialLimit={initialCurrentLimit} onOpen={setSelectedViewingId} /> : null}
-                  {history.length ? <ViewingGroup title="History" rows={history} initialLimit={initialHistoryLimit} historical onOpen={setSelectedViewingId} /> : null}
-                </>
-              ) : (
-                <ViewingGroup
-                  key={`${filter}:${query}`}
-                  title={query ? "Matches" : selectedLabel}
-                  rows={visible}
-                  initialLimit={5}
-                  historical={visible.every((row) => row.state.group === "past")}
-                  onOpen={setSelectedViewingId}
-                />
-              )}
-            </div>
-          ) : query ? (
-            <Empty title="No matching viewings" body="Try another Property, Unit or place." />
-          ) : (
-            <TenantViewingFilterEmpty filter={filter} />
-          )}
-
-          {selectedViewing ? (
-            <ViewingDetailModal
-              key={selectedViewing.id}
-              viewing={selectedViewing}
-              onChanged={load}
-              onClose={() => setSelectedViewingId(null)}
-            />
-          ) : null}
-        </>
-      )}
+      <ViewingSheet viewing={opened} onChanged={load} onClose={() => setParams({ viewing: "" })} />
     </div>
   );
 }
@@ -296,54 +284,65 @@ function TenantViewings() {
 type TenantViewingRow = {
   viewing: MyViewing;
   state: ReturnType<typeof standing>;
+  tone: TenantViewingTone;
 };
 
-function tenantViewingSummary(counts: Record<ViewingFilter, number>, total: number): string {
-  if (counts.action === 1) return `One viewing needs you · ${total} viewing${total === 1 ? "" : "s"}`;
-  if (counts.action > 1) return `${counts.action} viewings need you · ${total} total`;
-  if (counts.upcoming > 0) return `${counts.upcoming} upcoming · ${total} viewing${total === 1 ? "" : "s"}`;
-  return `${total} viewing record${total === 1 ? "" : "s"}`;
-}
+/** Arrow keys move between cards the way the eye does. */
+const moveTenantViewingFocus = gridKeyNavigation("a.tenant-viewing-row");
 
-function TenantViewingsLoading() {
+/** The head's one live line: what needs them, then what is coming. */
+function TenantViewingSummary({ counts }: { counts: Record<ViewingFilter, number> }) {
+  const total = counts.all;
   return (
-    <div className="tenant-viewings-loading" role="status" aria-label="Loading viewings">
-      {Array.from({ length: 3 }).map((_, index) => (
-        <div className="tenant-viewing-loading-row" key={index} aria-hidden="true">
-          <span className="skeleton tenant-viewing-loading-photo" />
-          <span className="tenant-viewing-loading-copy"><i className="skeleton" /><i className="skeleton" /></span>
-          <span className="skeleton tenant-viewing-loading-status" />
-        </div>
-      ))}
-    </div>
+    <>
+      {counts.action === 1 ? (
+        <span data-tone="warning">One viewing needs you</span>
+      ) : counts.action > 1 ? (
+        <span data-tone="warning">{counts.action} viewings need you</span>
+      ) : counts.upcoming ? (
+        <strong>{counts.upcoming} upcoming</strong>
+      ) : (
+        <strong>Nothing waiting on you</strong>
+      )}
+      <span className="ws-summary-sep" aria-hidden="true">·</span>
+      {total} viewing{total === 1 ? "" : "s"}
+    </>
   );
 }
 
-function ViewingFilterOption({
-  id,
-  current,
-  count,
-  onSelect,
-}: {
-  id: ViewingFilter;
-  current: ViewingFilter;
-  count: number;
-  onSelect: (filter: ViewingFilter) => void;
-}) {
-  const label = viewingFilters.find((option) => option.id === id)?.label ?? id;
-  const active = current === id;
+/**
+ * The next booked visit, lifted above the schedule: the date as its face, the
+ * place, and — within a week — a live countdown. The way in is check-in once
+ * it opens, else the viewing itself.
+ */
+function NextVisit({ row, onOpen }: { row: TenantViewingRow; onOpen: (viewingId: string) => void }) {
+  const { viewing, state } = row;
+  const now = useNow(viewing.confirmed_starts_at);
+  const at = new Date(viewing.confirmed_starts_at!);
+  const close = countsDown(viewing.confirmed_starts_at, now);
+  const property = viewing.property_title || viewing.listing_headline;
   return (
-    <button
-      type="button"
-      role="menuitemradio"
-      aria-checked={active}
-      className={`tenant-viewing-filter-option${active ? " is-selected" : ""}`}
-      onClick={() => onSelect(id)}
-    >
-      <span>{label}</span>
-      <small>{count}</small>
-      <span className="tenant-viewing-filter-mark" aria-hidden="true">{active ? <Icon name="check" /> : null}</span>
-    </button>
+    <section className="tenant-next-visit" data-close={close || undefined} aria-label="Your next viewing">
+      <button type="button" className="tenant-next-visit-open" aria-haspopup="dialog" onClick={() => onOpen(viewing.id)}>
+        <span className="tenant-next-visit-date" aria-hidden="true">
+          <strong>{at.toLocaleDateString("en-GH", { day: "numeric" })}</strong>
+          <small>{at.toLocaleDateString("en-GH", { month: "short" })}</small>
+        </span>
+        <span className="tenant-next-visit-copy">
+          <small>Your next viewing</small>
+          <strong>{property}</strong>
+          <span>{[whenLabel(viewing.confirmed_starts_at), viewing.unit_label, placeOf(viewing)].filter(Boolean).join(" · ")}</span>
+        </span>
+      </button>
+      {close ? (
+        <div className="tenant-next-visit-count">
+          <Countdown target={viewing.confirmed_starts_at!} />
+        </div>
+      ) : null}
+      <Button className="tenant-next-visit-action" variant={state.callToAction ? "primary" : "secondary"} onClick={() => onOpen(viewing.id)}>
+        {state.callToAction ? <><Icon name="verification" />{state.callToAction}</> : "Details"}
+      </Button>
+    </section>
   );
 }
 
@@ -352,27 +351,31 @@ function ViewingGroup({
   rows,
   initialLimit,
   historical = false,
+  quiet = false,
   onOpen,
 }: {
   title: string;
   rows: TenantViewingRow[];
   initialLimit: number;
   historical?: boolean;
+  /** No visible heading: something on screen already names this group. */
+  quiet?: boolean;
   onOpen: (viewingId: string) => void;
 }) {
-  const pageSize = 5;
+  // Two rows of four at a time, so a disclosed page fills the grid.
+  const pageSize = 8;
   const [limit, setLimit] = useState(initialLimit);
   const shown = rows.slice(0, limit);
   const remaining = rows.length - shown.length;
+  const headingId = `viewings-${title.toLocaleLowerCase("en-GH").replace(/\s+/g, "-")}`;
 
   return (
-    <section className={`tenant-viewing-group${historical ? " is-history" : ""}`}>
-      <header className="tenant-viewing-group-head">
-        <h2>{title}</h2>
-        <span aria-label={`${rows.length} ${rows.length === 1 ? "viewing" : "viewings"}`}>{rows.length}</span>
-      </header>
-      <ul className="tenant-viewings-list">
-        {shown.map((row) => <ViewingRow key={row.viewing.id} {...row} onOpen={onOpen} />)}
+    <section className={`ws-group viewings-day tenant-viewing-group${historical ? " is-history" : ""}`} aria-labelledby={headingId}>
+      <h2 className={`ws-group-heading viewings-day-heading${quiet ? " ws-visually-hidden" : ""}`} id={headingId}>
+        {title}<span aria-label={`${rows.length} ${rows.length === 1 ? "viewing" : "viewings"}`}>{rows.length}</span>
+      </h2>
+      <ul className="viewings-list">
+        {shown.map((row, index) => <ViewingCard key={row.viewing.id} {...row} order={index} onOpen={onOpen} />)}
       </ul>
       {remaining > 0 ? (
         <button
@@ -389,7 +392,7 @@ function ViewingGroup({
   );
 }
 
-function TenantViewingFilterEmpty({ filter }: { filter: ViewingFilter }) {
+function TenantViewingFilterEmpty({ filter, onShowAll }: { filter: ViewingFilter; onShowAll: () => void }) {
   const copy: Record<ViewingFilter, { title: string; body: string }> = {
     all: { title: "No viewings here", body: "Your viewing requests will appear here." },
     upcoming: { title: "No upcoming visits", body: "Confirmed visits and requests waiting for a time will appear here." },
@@ -397,83 +400,116 @@ function TenantViewingFilterEmpty({ filter }: { filter: ViewingFilter }) {
     past: { title: "No viewing history", body: "Completed and cancelled visits will remain available here." },
   };
   return (
-    <div className="tenant-viewing-filter-empty" role="status">
-      <strong>{copy[filter].title}</strong>
-      <span>{copy[filter].body}</span>
-    </div>
+    <PanelState
+      icon={filter === "action" ? "check" : "viewings"}
+      title={copy[filter].title}
+      body={copy[filter].body}
+      action={filter === "all" ? undefined : <button type="button" className="ws-action" onClick={onShowAll}>Show all viewings</button>}
+    />
   );
 }
 
-function ViewingRow({
+/**
+ * A viewing as the host's agenda draws one — the date as its face — with the
+ * place where the host has the person, and a countdown once it is close.
+ */
+function ViewingCard({
   viewing,
   state,
+  tone,
+  order,
   onOpen,
-}: TenantViewingRow & { onOpen: (viewingId: string) => void }) {
+}: TenantViewingRow & { order: number; onOpen: (viewingId: string) => void }) {
   const when = whenLabel(viewing.confirmed_starts_at);
   const property = viewing.property_title || viewing.listing_headline;
   const context = [viewing.unit_label, placeOf(viewing)].filter(Boolean).join(" · ");
-  const tone = viewing.status === "checked_in" || viewing.status === "completed"
-    ? "positive"
-    : state.group === "action"
-      ? "action"
-      : state.group === "past"
-        ? "past"
-        : "upcoming";
+  const at = viewing.confirmed_starts_at ? new Date(viewing.confirmed_starts_at) : null;
+  const today = new Date();
+  const sameDay = at ? at.toDateString() === today.toDateString() : false;
+  const dayWhen = !at ? "none" : sameDay ? "today" : at.getTime() < today.getTime() ? "past" : "ahead";
+  const time = at ? at.toLocaleTimeString("en-GH", { hour: "numeric", minute: "2-digit" }) : null;
 
   return (
-    <li>
+    <li className="viewing-item" data-past={state.group === "past" || undefined} style={{ "--viewing-order": Math.min(order, 12) } as React.CSSProperties}>
       <Link
         href={`/viewings/${viewing.id}` as never}
-        className={`tenant-viewing-row is-${tone}`}
+        className="viewing-row tenant-viewing-row"
+        data-when={dayWhen}
+        data-tone={tone}
+        aria-haspopup="dialog"
         aria-label={`${property}. ${context}. ${when ?? state.line}. ${state.callToAction ?? "View details"}.`}
         onClick={(event) => {
+          // A new tab or window goes to the viewing's own page, as a link should.
           if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
           event.preventDefault();
           onOpen(viewing.id);
         }}
       >
-        <span className="viewing-photo">
-          {viewing.photo_url ? (
-            /* Short-lived signed URLs from the files service. */
-            /* eslint-disable-next-line @next/next/no-img-element */
-            <img src={viewing.photo_url} alt="" />
+        <span className="viewing-row-date" aria-hidden="true">
+          {at ? (
+            <>
+              <strong className="viewing-row-day">{at.toLocaleDateString("en-GH", { day: "numeric" })}</strong>
+              <span className="viewing-row-daytext">
+                <span>{sameDay ? "Today" : at.toLocaleDateString("en-GH", { weekday: "long" })}</span>
+                <small>{at.toLocaleDateString("en-GH", { month: "long" })}</small>
+              </span>
+            </>
           ) : (
-            <span className="viewing-photo-fallback" aria-hidden="true"><Icon name="properties" /></span>
+            <>
+              <strong className="viewing-row-day is-open">—</strong>
+              <span className="viewing-row-daytext">
+                <span>{viewing.status === "offered" ? "Times offered" : "No time yet"}</span>
+                <small>{viewing.status === "offered" ? "Pick one" : "Being arranged"}</small>
+              </span>
+            </>
           )}
+          <span className="tenant-viewing-photo">
+            {viewing.photo_url ? (
+              /* Short-lived signed URLs from the files service. */
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img src={viewing.photo_url} alt="" />
+            ) : <Icon name="properties" />}
+          </span>
         </span>
 
-        <span className="viewing-identity">
+        {time ? (
+          <span className="viewing-row-time">
+            <Icon name="clock" />
+            {time}
+            {viewing.status === "confirmed" ? <SoonChip target={viewing.confirmed_starts_at} /> : null}
+          </span>
+        ) : null}
+
+        <span className="viewing-row-person">
           <strong>{property}</strong>
-          {context ? <span className="viewing-context">{context}</span> : null}
+          {context ? <span>{context}</span> : null}
         </span>
 
-        <span className="viewing-schedule">
-          <small>{viewing.confirmed_starts_at ? "Appointment" : "Scheduling"}</small>
-          <strong>{when ?? "Time to be arranged"}</strong>
-        </span>
-
-        <span className={`viewing-standing is-${tone}`}>
-          <i aria-hidden="true" />
-          <strong>{state.line}</strong>
-        </span>
-
-        <span className="tenant-viewing-row-action" aria-hidden="true">
-          <Icon name="chevron-down" />
+        <span className="viewing-row-foot">
+          <span className={`viewing-row-state is-${tone}`}><i aria-hidden="true" />{state.line}</span>
+          <span className="tenant-viewing-row-arrow" aria-hidden="true">
+            <svg viewBox="0 0 16 16" width="16" height="16" focusable="false">
+              <path d="m6 3.5 4.5 4.5L6 12.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </span>
         </span>
       </Link>
     </li>
   );
 }
+
 /**
  * Viewings received, for a landlord or agent.
  *
- * Laid out the way Payments, Tenancy requests and Leases are, because it is the
- * same job: a stack of records worked through in an order, each row opening one
- * where a decision gets made. A provider should learn that shape once.
+ * An agenda, because a viewing is an appointment: what needs an answer first,
+ * then the days ahead, each day read down by time the way a diary is. A row is
+ * a link to the viewing's own address; a plain click opens the same record in
+ * a sheet over the agenda (`?viewing=`), so a decision does not cost the place
+ * in the list. A modified click still opens the page. Nothing is opened for
+ * anyone on arrival.
  *
- * It used to be a split view with the first row always opened into the pane
- * beside it — so arriving at Viewings meant looking at somebody's appointment
- * chosen by sort order, whether or not you had asked for it.
+ * The counts moved into the one line under the title. Tiles above the stages
+ * said the same kind of number twice and pushed the work below the fold.
  */
 function ProviderViewings() {
   const router = useRouter();
@@ -485,15 +521,18 @@ function ProviderViewings() {
     : "";
   const [viewings, setViewings] = useState<Viewing[] | null>(null);
   const [error, setError] = useState("");
+  const [retrying, setRetrying] = useState(false);
+  const [returnedTo, setReturnedTo] = useState<string | null>(null);
+  const pendingReturn = useRef<HostReturnPoint | null>(null);
 
   const search = useSearchParams();
   const pathname = usePathname();
   const view: ProviderViewingFilter =
     PROVIDER_VIEWING_FILTERS.find((value) => value === search.get("show")) ?? "action";
   const query = search.get("q") ?? "";
+  const openId = search.get("viewing") ?? "";
 
   const load = useCallback(async () => {
-    setViewings(null);
     try {
       setViewings(
         await listHostViewings(false, preferred ? { organization: preferred } : undefined),
@@ -505,9 +544,21 @@ function ProviderViewings() {
         return;
       }
       setError(cause instanceof ApiFailure ? cause.error.message : "Could not load viewings.");
-      setViewings([]);
+      setViewings((current) => current ?? []);
     }
   }, [preferred, router]);
+
+  useEffect(() => {
+    // Restored in an effect rather than initial state, so the server render and
+    // the first client render agree. The filter already lives in the address.
+    try {
+      const saved = JSON.parse(window.sessionStorage.getItem(HOST_RETURN_KEY) ?? "null") as HostReturnPoint | null;
+      window.sessionStorage.removeItem(HOST_RETURN_KEY);
+      if (saved && Date.now() - saved.at < HOST_RETURN_WINDOW_MS) pendingReturn.current = saved;
+    } catch {
+      // Storage can be unavailable; the page simply opens at the top.
+    }
+  }, []);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -543,72 +594,346 @@ function ProviderViewings() {
       .sort(providerViewingSort(view === "all" ? "upcoming" : view));
   }, [all, query, view]);
 
+  const days = useMemo(() => agendaOf(visible, view === "history", view === "all"), [visible, view]);
+  const opened = openId ? all.find((item) => item.id === openId) ?? null : null;
+
+  // Coming back from a viewing: the same place, and a brief mark on the row
+  // that was opened so the eye finds its way back.
+  useLayoutEffect(() => {
+    const saved = pendingReturn.current;
+    if (!saved || !viewings) return;
+    pendingReturn.current = null;
+    window.scrollTo({ top: saved.y, behavior: "instant" });
+    setReturnedTo(saved.id);
+    document.querySelector<HTMLAnchorElement>(`[data-viewing-id="${CSS.escape(saved.id)}"]`)?.focus({ preventScroll: true });
+    const timer = window.setTimeout(() => setReturnedTo(null), 1600);
+    return () => window.clearTimeout(timer);
+  }, [viewings]);
+
+  function remember(viewing: Viewing) {
+    try {
+      const point: HostReturnPoint = { id: viewing.id, y: window.scrollY, at: Date.now() };
+      window.sessionStorage.setItem(HOST_RETURN_KEY, JSON.stringify(point));
+    } catch {
+      // Without storage, Back simply opens Viewings at the top.
+    }
+  }
+
+  async function retry() {
+    setRetrying(true);
+    await load();
+    setRetrying(false);
+  }
+
+  const loading = viewings === null;
+  const failed = Boolean(error) && !all.length;
+  const label = providerViewingFilterLabel(view);
+
   return (
-    <div className="viewings-workspace">
-      <PageHeader title="Viewings" description="Schedule visits, verify attendance and close the loop." />
-      {error ? <Notice tone="error" title={error} /> : null}
+    <div className="ws-page viewings-workspace">
+      <WorkspaceHead
+        icon="viewings"
+        title="Viewings"
+        summary={loading || failed ? null : all.length ? (
+          <>
+            {counts.action
+              ? <span data-tone="warning">{counts.action} need{counts.action === 1 ? "s" : ""} you</span>
+              : <strong>Nothing needs you</strong>}
+            <span className="ws-summary-sep" aria-hidden="true">·</span>
+            {totals.confirmed} confirmed
+            <span className="ws-summary-sep" aria-hidden="true">·</span>
+            {totals.completed} completed
+          </>
+        ) : "Requests to visit your listings arrive here."}
+      />
 
-      <dl className="viewings-overview">
-        <ViewingCount label="Total viewings" value={totals.total} />
-        <ViewingCount label="Confirmed" value={totals.confirmed} tone="confirmed" />
-        <ViewingCount label="Completed" value={totals.completed} tone="completed" />
-      </dl>
-
-      <label className="viewings-search">
-        <span className="sr-only">Search viewings</span>
-        <input type="search" value={query} onChange={(event) => setParams({ q: event.target.value })} placeholder="Search tenant or Property…" />
-      </label>
-
-      <div className="viewings-filters" aria-label="Viewing status">
-        {PROVIDER_VIEWING_FILTERS.map((value) => (
-          <button key={value} type="button" aria-pressed={view === value} onClick={() => setParams({ show: value === "action" ? "" : value })}>
-            {providerViewingFilterLabel(value)} <span>{counts[value]}</span>
-          </button>
-        ))}
-      </div>
-
-      {viewings === null ? <LoadingRows rows={5} /> : visible.length ? (
-        <ul className="viewings-list" aria-label={`${providerViewingFilterLabel(view)} viewings`}>
-          {visible.map((viewing) => <ProviderViewingRow key={viewing.id} viewing={viewing} />)}
-        </ul>
-      ) : (
-        <Empty
-          title={query ? "No matching viewings" : view === "all" ? "No viewings yet" : viewingEmptyTitle(view)}
-          body={query ? "Try another tenant, Property or location." : view === "all" ? "Requests to visit your listings appear here." : viewingEmptyBody(view)}
-          action={view === "action" && counts.upcoming ? <button type="button" className="quiet-link" onClick={() => setParams({ show: "upcoming" })}>View upcoming visits →</button> : undefined}
+      {loading || all.length ? (
+        <SegmentedControl
+          label="Viewing status"
+          value={view}
+          disabled={loading}
+          options={PROVIDER_VIEWING_FILTERS.map((value) => ({ key: value, label: providerViewingFilterLabel(value), count: counts[value] }))}
+          onChange={(value) => setParams({ show: value === "action" ? "" : value })}
         />
-      )}
+      ) : null}
+
+      <section className="ws-panel" aria-label={`${label} viewings`} aria-busy={loading || undefined}>
+        {all.length ? (
+          <div className="ws-panel-head">
+            <PanelSearch
+              label="Search viewings"
+              placeholder="Tenant, listing or place"
+              value={query}
+              onChange={(value) => setParams({ q: value })}
+            />
+            <p className="ws-range">
+              <strong>{visible.length}</strong> {visible.length === 1 ? "viewing" : "viewings"}
+            </p>
+          </div>
+        ) : null}
+
+        {error && all.length ? (
+          <div className="ws-inline-error" role="alert">
+            <Icon name="warning" />
+            <span>{error}</span>
+            <button type="button" onClick={() => void retry()} disabled={retrying}>{retrying ? "Retrying…" : "Try again"}</button>
+          </div>
+        ) : null}
+
+        {loading ? <ViewingAgendaSkeleton /> : null}
+
+        {failed ? (
+          <PanelState
+            tone="error"
+            icon="warning"
+            title="Viewings didn’t load"
+            body={error}
+            action={<Button variant="secondary" size="sm" busy={retrying} busyLabel="Retrying…" onClick={() => void retry()}>Try again</Button>}
+          />
+        ) : null}
+
+        {!loading && !failed && !all.length ? (
+          <PanelState
+            icon="viewings"
+            title="No viewings yet"
+            body="When someone asks to see one of your listings, the request appears here for you to offer times."
+            action={<Link href="/properties" className="btn btn-quiet btn-sm">Review your Properties</Link>}
+          />
+        ) : null}
+
+        {all.length && !visible.length ? (
+          <PanelState
+            icon={query ? "explore" : "check"}
+            title={query ? `Nothing matches “${query.trim()}”` : viewingEmptyTitle(view === "all" ? "upcoming" : view)}
+            body={query ? "Try another tenant, listing or place." : viewingEmptyBody(view === "all" ? "upcoming" : view)}
+            action={query ? (
+              <Button variant="quiet" size="sm" onClick={() => setParams({ q: "" })}>Clear search</Button>
+            ) : view === "action" && counts.upcoming ? (
+              <Button variant="quiet" size="sm" onClick={() => setParams({ show: "upcoming" })}>See upcoming visits</Button>
+            ) : undefined}
+          />
+        ) : null}
+
+        {visible.length ? (
+          <div className="ws-panel-body viewings-agenda" key={`${view}-${query.trim() ? "q" : ""}`} onKeyDown={moveViewingFocus}>
+            {days.map((day) => (
+              <section
+                key={day.key}
+                className="ws-group viewings-day"
+                {...(day.title ? { "aria-labelledby": `viewings-${day.key}` } : { "aria-label": "All viewings" })}
+              >
+                {day.title ? (
+                  <h2 className="ws-group-heading viewings-day-heading" id={`viewings-${day.key}`}>
+                    {day.title}<span>{day.rows.length}</span>
+                  </h2>
+                ) : null}
+                <ul className="viewings-list">
+                  {day.rows.map((viewing, index) => (
+                    <ProviderViewingCard
+                      key={viewing.id}
+                      viewing={viewing}
+                      order={index}
+                      returned={returnedTo === viewing.id}
+                      onOpen={remember}
+                      onPeek={(item) => setParams({ viewing: item.id })}
+                    />
+                  ))}
+                </ul>
+              </section>
+            ))}
+          </div>
+        ) : null}
+      </section>
+
+      <ViewingModal viewing={opened} onClose={() => setParams({ viewing: "" })} onChanged={load} />
     </div>
   );
 }
 
-function ViewingCount({ label, value, tone }: { label: string; value: number; tone?: "confirmed" | "completed" }) {
+const HOST_RETURN_KEY = "viewings.return";
+const HOST_RETURN_WINDOW_MS = 30 * 60 * 1000;
+type HostReturnPoint = { id: string; y: number; at: number };
+
+type AgendaDay = { key: string; title: string; rows: Viewing[] };
+
+/** When a viewing sits on the agenda: its agreed time, else the first time offered. */
+function agendaMoment(viewing: Viewing): string | null {
+  if (viewing.confirmed_starts_at) return viewing.confirmed_starts_at;
+  if (viewing.status === "offered") return viewing.slots.find((slot) => !slot.is_past)?.starts_at ?? null;
+  // A finished request that never got a time is dated by when it was asked,
+  // so it sits with the past rather than among the ones waiting for a time.
+  if (providerViewingView(viewing) === "history") return viewing.created_at;
+  return null;
+}
+
+/**
+ * The cards carry their own dates, so the headings only say what the dates
+ * cannot: which ones are still waiting for a time and which are scheduled.
+ * History is grouped by month, most recent first.
+ *
+ * "All" is one set of cards with no headings, as asked: the ones waiting for a
+ * time first, then the soonest ahead, then the past with the most recent first.
+ */
+function agendaOf(rows: Viewing[], history: boolean, flat: boolean): AgendaDay[] {
+  if (history) {
+    const months = new Map<string, AgendaDay>();
+    for (const viewing of rows) {
+      const date = new Date(agendaMoment(viewing)!);
+      const key = `m-${date.getFullYear()}-${date.getMonth()}`;
+      if (!months.has(key)) months.set(key, { key, title: date.toLocaleDateString("en-GH", { month: "long", year: "numeric" }), rows: [] });
+      months.get(key)!.rows.push(viewing);
+    }
+    return [...months.values()];
+  }
+  const today = startOfDay(new Date()).getTime();
+  const byTime = (a: Viewing, b: Viewing) => new Date(agendaMoment(a)!).getTime() - new Date(agendaMoment(b)!).getTime();
+  const waiting = rows.filter((viewing) => !agendaMoment(viewing));
+  const dated = rows.filter((viewing) => agendaMoment(viewing));
+  const ahead = dated.filter((viewing) => startOfDay(new Date(agendaMoment(viewing)!)).getTime() >= today).sort(byTime);
+  const earlier = dated.filter((viewing) => startOfDay(new Date(agendaMoment(viewing)!)).getTime() < today).sort(byTime);
+  if (flat) return [{ key: "all", title: "", rows: [...waiting, ...ahead, ...earlier.reverse()] }];
+  const groups = [
+    { key: "waiting", title: "Waiting for a time", rows: waiting },
+    { key: "ahead", title: "Scheduled", rows: [...earlier, ...ahead] },
+  ];
+  return groups.filter((group) => group.rows.length);
+}
+
+function startOfDay(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+function ViewingAgendaSkeleton() {
   return (
-    <div>
-      <dt className="type-caption">{label}</dt>
-      <dd data-tone={value > 0 ? tone : undefined}>{value}</dd>
+    <div className="ws-panel-body viewings-agenda" aria-busy="true" aria-label="Loading viewings">
+      <div className="ws-group">
+        <span className="ws-skeleton-block is-thin viewings-skeleton-heading" />
+        <ul className="viewings-list">
+          {Array.from({ length: 6 }).map((_, index) => (
+            <li key={index} className="viewing-item" style={{ "--viewing-order": index } as React.CSSProperties}>
+              <div className="viewing-row is-skeleton">
+                <span className="viewing-row-date">
+                  <span className="ws-skeleton-block viewings-skeleton-day" />
+                  <span className="ws-skeleton-lines" style={{ flex: 1 }}>
+                    <span className="ws-skeleton-block is-thin" style={{ width: "60%" }} />
+                    <span className="ws-skeleton-block is-thin" style={{ width: "40%" }} />
+                  </span>
+                </span>
+                <span className="ws-skeleton-lines">
+                  <span className="ws-skeleton-block" style={{ width: "58%" }} />
+                  <span className="ws-skeleton-block is-thin" style={{ width: "74%" }} />
+                </span>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </div>
     </div>
   );
 }
 
-function ProviderViewingRow({ viewing }: { viewing: Viewing }) {
+/**
+ * A viewing as a compact card with the date as its face: a large day number,
+ * the weekday and month beside it, then the time, the person and the Unit. One
+ * quiet line says where it stands, because in "All" that is the difference
+ * between a request that needs an answer and a visit that is simply booked.
+ */
+function ProviderViewingCard({
+  viewing,
+  order,
+  returned,
+  onOpen,
+  onPeek,
+}: {
+  viewing: Viewing;
+  order: number;
+  returned: boolean;
+  onOpen: (viewing: Viewing) => void;
+  onPeek: (viewing: Viewing) => void;
+}) {
   const summary = providerViewingSummary(viewing);
+  const at = agendaMoment(viewing);
+  const date = at ? new Date(at) : null;
+  const offered = viewing.status === "offered" && !viewing.confirmed_starts_at;
+  const now = startOfDay(new Date()).getTime();
+  const day = date ? startOfDay(date).getTime() : null;
+  const when = day === null ? "none" : day === now ? "today" : day < now ? "past" : "ahead";
+  const unit = unitName(viewing);
+  const time = date ? date.toLocaleTimeString("en-GH", { hour: "numeric", minute: "2-digit" }) : null;
   return (
-    <li>
+    <li
+      className={`viewing-item${returned ? " is-returned" : ""}`}
+      style={{ "--viewing-order": Math.min(order, 12) } as React.CSSProperties}
+    >
       <Link
         href={`/viewings/${viewing.id}` as never}
         className="viewing-row"
-        aria-label={`Open viewing for ${viewing.tenant_name} at ${viewing.listing_headline}. ${summary.label}.`}
+        data-viewing-id={viewing.id}
+        data-when={when}
+        data-tone={summary.tone}
+        onClick={(event) => {
+          // A new tab or window goes to the record's own page, as a link should.
+          if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) {
+            onOpen(viewing);
+            return;
+          }
+          event.preventDefault();
+          onPeek(viewing);
+        }}
+        aria-haspopup="dialog"
+        aria-label={`Open viewing for ${viewing.tenant_name}, ${unit}. ${providerViewingMoment(viewing)}. ${summary.label}.`}
       >
+        <span className="viewing-row-date" aria-hidden="true">
+          {date ? (
+            <>
+              <strong className="viewing-row-day">{date.toLocaleDateString("en-GH", { day: "numeric" })}</strong>
+              <span className="viewing-row-daytext">
+                <span>{when === "today" ? "Today" : date.toLocaleDateString("en-GH", { weekday: "long" })}</span>
+                <small>{date.toLocaleDateString("en-GH", { month: "long" })}</small>
+              </span>
+            </>
+          ) : (
+            <>
+              <strong className="viewing-row-day is-open">—</strong>
+              <span className="viewing-row-daytext">
+                <span>No time yet</span>
+                <small>Offer a few times</small>
+              </span>
+            </>
+          )}
+        </span>
+
+        {time ? (
+          <span className="viewing-row-time">
+            <Icon name="clock" />
+            {time}{offered ? <em>offered</em> : null}
+          </span>
+        ) : null}
+
         <span className="viewing-row-person">
           <strong>{viewing.tenant_name}</strong>
-          <span>{viewing.listing_headline}</span>
+          <span>{unit}</span>
         </span>
-        <span className="viewing-row-place">{viewing.locality_name || "Location unavailable"}</span>
-        <span className={`viewing-row-state is-${summary.tone}`}><i aria-hidden="true" />{summary.label}</span>
-        <span className="viewing-row-time">{providerViewingMoment(viewing)}</span>
-        <span className="viewing-row-arrow" aria-hidden="true">›</span>
+
+        <span className="viewing-row-foot">
+          <span className={`viewing-row-state is-${summary.tone}`}><i aria-hidden="true" />{summary.label}</span>
+          <span className="viewing-row-arrow" aria-hidden="true">
+            <svg viewBox="0 0 16 16" width="16" height="16" focusable="false">
+              <path d="m6 3.5 4.5 4.5L6 12.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </span>
+        </span>
       </Link>
     </li>
   );
 }
+
+/** Arrow keys move between cards the way the eye does. */
+const moveViewingFocus = gridKeyNavigation("a.viewing-row");
+
+/** The Unit as a manager names it: "Flat 2A · Adenta Court", else the listing. */
+function unitName(viewing: Viewing) {
+  if (viewing.unit_label && viewing.property_title) return `${viewing.unit_label} · ${viewing.property_title}`;
+  return viewing.unit_label || viewing.property_title || viewing.listing_headline;
+}
+

@@ -42,11 +42,13 @@ ALLOWED_SPACE_TYPES: dict[str, tuple[str, ...]] = {
         RentableSpaceType.STUDIO,
         RentableSpaceType.ROOM,
     ),
+    #: No land. A plot is its own Property, sold whole through the sale flow;
+    #: a plot "inside" a commercial building was never a real arrangement
+    #: (owner, 2026-10-05). Existing land Units stay readable.
     PropertyType.COMMERCIAL: (
         RentableSpaceType.SHOP,
         RentableSpaceType.OFFICE,
         RentableSpaceType.WAREHOUSE,
-        RentableSpaceType.LAND,
     ),
     PropertyType.HOSTEL: (
         RentableSpaceType.ROOM,
@@ -69,6 +71,76 @@ WITHOUT_INTERIOR: frozenset[str] = frozenset({RentableSpaceType.LAND})
 
 #: Space types that are one sleeping place inside a shared room.
 SHARED_ROOM_SPACES: frozenset[str] = frozenset({RentableSpaceType.BED_SPACE})
+
+#: The only space types whose bedrooms are worth counting. A studio, a room or
+#: a bed *is* the sleeping space, and a shop or an office has none; asking
+#: "how many bedrooms?" of either invites nonsense (owner, 2026-10-05).
+COUNTS_BEDROOMS: frozenset[str] = frozenset(
+    {RentableSpaceType.APARTMENT, RentableSpaceType.HOUSE}
+)
+
+#: Where bathrooms are counted rather than simply present or not. Everywhere
+#: else with an interior, one question is enough: does it have its own?
+COUNTS_BATHROOMS: frozenset[str] = COUNTS_BEDROOMS
+
+#: No bathroom question at all: a bed shares its room's, a plot has none.
+WITHOUT_BATHROOM: frozenset[str] = frozenset(
+    {RentableSpaceType.BED_SPACE, RentableSpaceType.LAND}
+)
+
+#: Where a floor number means something. A house is the building; a warehouse
+#: is a ground-level shed; a bed takes its room's floor.
+HAS_FLOOR: frozenset[str] = frozenset(
+    {
+        RentableSpaceType.APARTMENT,
+        RentableSpaceType.STUDIO,
+        RentableSpaceType.ROOM,
+        RentableSpaceType.SHOP,
+        RentableSpaceType.OFFICE,
+    }
+)
+
+
+def questions_for(space_type: str) -> dict:
+    """Which details a form should ask about a space of this kind.
+
+    `bathrooms` is "count", "yes_no" or "none". Served to both clients so each
+    asks the same questions, and backing `normalise_interior` so a client that
+    sends a default anyway does not store a shop with a bedroom.
+    """
+    if space_type in COUNTS_BATHROOMS:
+        bathrooms = "count"
+    elif space_type in WITHOUT_BATHROOM:
+        bathrooms = "none"
+    else:
+        bathrooms = "yes_no"
+    return {
+        "bedrooms": space_type in COUNTS_BEDROOMS,
+        "bathrooms": bathrooms,
+        "floor": space_type in HAS_FLOOR,
+    }
+
+
+def normalise_interior(*, space_type: str, data: dict) -> dict:
+    """Clear what this kind of space is not asked, and cap yes/no answers at one.
+
+    Run on creation, where older clients still send a form's defaults (one
+    bedroom, one bathroom) whatever was chosen. Clearing is right there: the
+    value was never a claim, only an unanswered field.
+    """
+    asks = questions_for(space_type)
+    cleaned = dict(data)
+    if not asks["bedrooms"]:
+        cleaned["bedrooms"] = 0
+    if asks["bathrooms"] == "none":
+        cleaned["bathrooms"] = 0
+    elif asks["bathrooms"] == "yes_no":
+        cleaned["bathrooms"] = 1 if (cleaned.get("bathrooms", 1) or 0) > 0 else 0
+    if not asks["floor"]:
+        cleaned["floor_level"] = None
+    if "bathrooms" in cleaned and asks["bathrooms"] != "count":
+        cleaned["has_private_bathroom"] = cleaned["bathrooms"] > 0
+    return cleaned
 
 
 def allowed_space_types(property_type: str) -> tuple[str, ...]:
@@ -96,6 +168,7 @@ def space_type_options(property_type: str) -> list[dict]:
                 property_type == PropertyType.HOSTEL and value in ACCEPTS_BED_SPACES
             ),
             "has_interior": value not in WITHOUT_INTERIOR,
+            "asks": questions_for(value),
         }
         for value in allowed_space_types(property_type)
     ]
@@ -134,6 +207,23 @@ def assert_interior_is_coherent(
             f"{labels.get(space_type, space_type)} has no rooms to count. "
             "Leave bedrooms and bathrooms at zero."
         )
+
+
+def assert_asked(*, space_type: str, label: str, payload: dict) -> None:
+    """Refuse an edit that sets a detail this kind of space is never asked.
+
+    Only what the edit sends is checked, so an older record carrying a default
+    (a shop saved with "1 bedroom") can still have its other details corrected.
+    """
+    asks = questions_for(space_type)
+    if not asks["bedrooms"] and (payload.get("bedrooms") or 0) > 0:
+        raise ValidationFailed(f"A {label.lower()} has no bedrooms to count.")
+    if asks["bathrooms"] == "none" and (payload.get("bathrooms") or 0) > 0:
+        raise ValidationFailed(f"A {label.lower()} has no bathroom of its own.")
+    if asks["bathrooms"] == "yes_no" and (payload.get("bathrooms") or 0) > 1:
+        raise ValidationFailed(f"A {label.lower()} has one bathroom at most.")
+    if not asks["floor"] and payload.get("floor_level") not in (None, ""):
+        raise ValidationFailed(f"A {label.lower()} has no floor to record.")
 
 
 def assert_accepts_bed_spaces(*, unit) -> None:

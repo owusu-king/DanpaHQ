@@ -125,13 +125,13 @@ test("nothing explains how viewings work in general", () => {
 test("a substantial tenant viewing has a stable modal and a durable route", () => {
   // The tenant can inspect the record without losing list context, while the
   // same full record remains directly addressable for reminders and new tabs.
-  assert.match(webRecord(), /export function ViewingDetailModal/);
-  assert.match(webRecord(), /<dialog/);
-  assert.match(webRecord(), /dialog\.showModal\(\)/);
-  assert.match(webListPage(), /<ViewingDetailModal/);
+  // It opens in the shared sheet, as the host's does.
+  assert.match(webRecord(), /export function ViewingSheet/);
+  assert.match(webRecord(), /<ModalSheet/);
+  assert.match(webListPage(), /<ViewingSheet/);
   assert.doesNotMatch(rendered(webListPage()), /viewing_directions/);
 
-  assert.match(webRecord(), /className={`viewing-detail/);
+  assert.match(webRecord(), /className="vr viewing-detail tenant-vr"/);
   assert.doesNotMatch(webRecord(), /<aside/);
   assert.match(read("web/app/viewings/[viewingId]/page.tsx"), /<ViewingRecord/);
 

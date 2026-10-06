@@ -61,6 +61,16 @@ urlpatterns = [
     ),
     path("reports/", views.ReportsView.as_view(), name="management-reports"),
     path("reports/<uuid:pk>/", views.ReportDetailView.as_view(), name="management-report-detail"),
+    path(
+        "account-deletions/",
+        views.AccountDeletionsView.as_view(),
+        name="management-account-deletions",
+    ),
+    path(
+        "account-deletions/<uuid:pk>/<str:action>/",
+        views.AccountDeletionDecisionView.as_view(),
+        name="management-account-deletion-decision",
+    ),
     path("support/", views.SupportCasesView.as_view(), name="management-support"),
     path(
         "support/<uuid:pk>/",

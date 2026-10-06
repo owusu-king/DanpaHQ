@@ -28,7 +28,7 @@ const ROWS = [
     row: "request-row",
     page: "web/app/applications/page.tsx",
   },
-  { sheet: "leases-workspace.css", row: "lease-row", page: "web/app/leases/page.tsx" },
+  { sheet: "documents-workspace.css", row: "docs-lease-row", page: "web/src/components/documents/LeasesView.tsx" },
   { sheet: "viewings-workspace.css", row: "viewing-row", page: "web/app/viewings/page.tsx" },
   {
     sheet: "applications-workspace.css",

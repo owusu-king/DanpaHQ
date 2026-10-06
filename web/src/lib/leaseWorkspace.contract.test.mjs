@@ -8,11 +8,12 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const read = (relative) => readFileSync(resolve(root, relative), "utf8");
 
 test("provider Leases owns agreement status without duplicating request preparation", () => {
-  const page = read("web/app/leases/page.tsx");
+  // The provider's list is the Leases view of Documents now.
+  const page = read("web/src/components/documents/LeasesView.tsx");
 
   assert.match(page, /listGrantedLeases/);
   assert.doesNotMatch(page, /listReceivedApplications|draftLease|function DraftLease/);
-  assert.match(page, /href="\/applications"/);
+  assert.match(page, /href=\{"\/applications" as never\}/);
   assert.match(page, /Search tenant, Property or Unit/);
 
   // The stages and their words moved to the module both halves of the journey
@@ -28,19 +29,34 @@ test("provider agreement details use the frozen record and deliberate actions", 
   // The record left the split pane for `/leases/<leaseId>`. Everything this
   // test was protecting went with it and none of it changed.
   const record = read("web/src/components/leases/LeaseRecord.tsx");
-  const page = read("web/app/leases/page.tsx");
-  const css = read("web/src/styles/leases-workspace.css");
+  const page = read("web/src/components/documents/LeasesView.tsx");
+  const css = read("web/src/styles/documents-workspace.css");
 
   assert.match(record, /lease\.agreement\?\.terms/);
   assert.match(record, /lease\.agreement\.content_hash/);
   assert.match(record, /Withdraw this offer\?/);
   assert.match(record, /End this tenancy\?/);
   assert.match(record, /Reason \(optional\)/);
-  assert.match(record, /Open Unit/);
+  // One or two actions per state (owner, 2026-10-05). Ended opens the closing
+  // account only; active ends the tenancy (in red) or downloads; the document
+  // offers Print alone; and nothing links off to the Unit or Properties.
+  assert.match(record, /lease\.status === "ended" \? \(\s*<Link className="btn btn-secondary" href=\{`\/payments\/\$\{lease\.id\}` as never\}>\s*Open closing account/);
+  assert.match(record, /<Button variant="destructive" disabled=\{busy\} onClick=\{\(\) => setConfirmation\("end"\)\}>\s*End tenancy/);
+  assert.match(record, /documentAction\("download"\)\}>\s*Download/);
+  assert.doesNotMatch(record, /View PDF|Open Unit|Open Properties/);
+  // Preparing and sending belong to the tenancy request: a draft or ready
+  // agreement reads as Pending here, with one way back to its request, and no
+  // Send or Discard of its own.
+  assert.match(record, /\{pending \? "Pending" : providerLeaseStatus\(lease\)\}/);
+  assert.match(record, /<Link className="btn btn-primary" href=\{requestHref\}>Review to send<\/Link>/);
+  assert.match(record, /`\/applications\?request=\$\{lease\.application\}`/);
+  assert.doesNotMatch(record, /Send agreement|Discard draft|act\("offer"\)/);
 
-  // Still not a dialog, and now not a pane either: the list links to it.
+  // The record itself is never the dialog: the lease modal hosts it, and the
+  // same record is what the page at its own address renders.
   assert.doesNotMatch(page, /ProviderLeaseDialog|showModal\(\)/);
   assert.doesNotMatch(record, /<dialog/);
+  assert.match(read("web/src/components/leases/LeaseModal.tsx"), /<LeaseRecord lease=\{lease\}/);
   assert.match(read("web/app/leases/[leaseId]/page.tsx"), /<LeaseRecord/);
   assert.match(page, /href=\{`\/leases\/\$\{lease\.id\}`/);
 

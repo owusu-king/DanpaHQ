@@ -27,9 +27,9 @@ import { useParams, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 import { Notice } from "@/components/Notice";
-import { LoadingRows, PageHeader } from "@/components/portal/PageHeader";
 import { RentAccountDetail } from "@/components/payments/RentAccount";
 import { EntityPath } from "@/components/property/WorkspacePatterns";
+import { PanelSkeleton, PanelState, WorkspaceHead } from "@/components/workspace/Workspace";
 import { ApiFailure } from "@/lib/api";
 import { getOrganizationPortfolio, listOrganizations, type ProviderTenant } from "@/lib/console";
 import { rentStatus } from "@/lib/rentDisplay";
@@ -100,51 +100,72 @@ export default function ProviderRentAccountPage() {
       ? `${ledger.context.property_title} · ${ledger.context.unit_label}`
       : null;
   const accountName = tenant?.name ?? ledger?.context.tenant_name ?? "Rent account";
+  const ended = ledger?.financial_summary.is_post_tenancy;
 
+  // The same workspace head as Tenants and Payments: the person, then one live
+  // line — where the money stands, and where they live.
   return (
-    <div className="rent-workspace">
-      <EntityPath
-        items={[
-          {
-            label: tenantMode ? "Your home" : "Payments",
-            href: tenantMode ? "/home" : "/payments",
-            mobileLabel: tenantMode ? "Back to your home" : "Back to Payments",
-          },
-          { label: accountName },
-        ]}
-      />
-      <PageHeader title={accountName} description={where ?? undefined} />
-
-      {tenant ? (
-        <div className="rent-detail-place">
-          <p className="type-body-strong">{where}</p>
-          <span className={`rent-row-state is-${tenant.rent.status}`}>
-            <i />
-            {rentStatus(tenant)}
-          </span>
-        </div>
-      ) : null}
-
-      {error ? <Notice tone="error" title={error} /> : null}
-      {loading && !ledger ? <LoadingRows rows={4} /> : null}
-
-      {ledger ? (
-        <div className="rent-detail">
-          <RentAccountDetail
-            tenant={tenant}
-            tenantMode={tenantMode}
-            leaseId={leaseId}
-            ledger={ledger}
-            onChanged={load}
+    <div className="ws-page ra-page">
+      <WorkspaceHead
+        icon="payments"
+        title={accountName}
+        mark={<span className="ra-mark" aria-hidden="true">{initialsOf(accountName)}</span>}
+        path={(
+          <EntityPath
+            items={[
+              {
+                label: tenantMode ? "Your home" : "Payments",
+                href: tenantMode ? "/home" : "/payments",
+                mobileLabel: tenantMode ? "Back to your home" : "Back to Payments",
+              },
+              { label: accountName },
+            ]}
           />
-        </div>
-      ) : null}
+        )}
+        summary={ledger || tenant ? (
+          <>
+            {tenant ? (
+              <span className={`ra-state is-${tenant.rent.status}`}><i aria-hidden="true" />{rentStatus(tenant)}</span>
+            ) : ended ? (
+              <span className="ra-state is-ended"><i aria-hidden="true" />Tenancy ended</span>
+            ) : null}
+            {where ? <><span className="ws-summary-sep" aria-hidden="true">·</span>{where}</> : null}
+            <span className="ws-summary-sep" aria-hidden="true">·</span>Rent account
+          </>
+        ) : null}
+      />
 
-      {!loading && !ledger && !error ? (
-        <p className="type-caption">
-          <Link href={tenantMode ? "/home" : "/payments"}>Back</Link>
-        </p>
-      ) : null}
+      {error && ledger ? <Notice tone="error" title={error} /> : null}
+
+      {loading && !ledger ? (
+        <section className="ws-panel" aria-busy="true" aria-label="Rent account"><PanelSkeleton rows={4} /></section>
+      ) : ledger ? (
+        <RentAccountDetail
+          tenant={tenant}
+          tenantMode={tenantMode}
+          leaseId={leaseId}
+          ledger={ledger}
+          onChanged={load}
+        />
+      ) : (
+        <section className="ws-panel" aria-label="Rent account">
+          <PanelState
+            tone={error ? "error" : "calm"}
+            icon={error ? "warning" : "payments"}
+            title={error ? "This rent account didn’t load" : "Rent account not found"}
+            body={error || "It may belong to a Portfolio you no longer operate."}
+            action={(
+              <Link href={tenantMode ? "/home" : "/payments"} className="ws-action">
+                {tenantMode ? "Back to your home" : "Back to Payments"}
+              </Link>
+            )}
+          />
+        </section>
+      )}
     </div>
   );
+}
+
+function initialsOf(name: string) {
+  return name.split(/s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase() ?? "").join("") || "?";
 }

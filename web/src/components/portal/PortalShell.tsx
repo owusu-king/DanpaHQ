@@ -1,17 +1,20 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { listNotifications } from "@/lib/console";
+import { listEnquiries } from "@/lib/sales";
 import { useSession, type Me } from "@/lib/session";
-import { activeHref, portalSections, type PortalSection } from "@/lib/portalNav";
+import { useGlide } from "@/lib/useGlide";
+import { activeHref, enquiriesEntry, portalSections, type PortalSection } from "@/lib/portalNav";
+
+import { EnquiriesInbox, OPEN_ENQUIRIES, openEnquiries, type EnquiriesRequest } from "@/components/enquiries/EnquiriesInbox";
 
 import { AccountMenu } from "./AccountMenu";
 import { PortalGate } from "./PortalGate";
 import { PortfolioMenu } from "./PortfolioMenu";
-import { PortalSearch } from "./PortalSearch";
 import { Icon } from "./icons";
 
 /**
@@ -38,6 +41,40 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
   const { state, activeContext } = useSession();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [unread, setUnread] = useState(0);
+  const [enquiryWaiting, setEnquiryWaiting] = useState(false);
+  // The enquiries inbox opens over whatever page is showing, from Enquiries or
+  // from anywhere that calls `openEnquiries()` (a notification, a sale page).
+  const [inbox, setInbox] = useState<{ open: boolean; request: EnquiriesRequest }>({ open: false, request: {} });
+
+  // `/enquiries` and `/enquiries/<id>` are still addresses (notifications and
+  // sale pages link to them), but not pages: arriving at one opens the inbox at
+  // what it names and returns to the page the person was on, or Home.
+  const router = useRouter();
+  const lastPage = useRef<string | null>(null);
+  const signedIn = state.status === "signed_in";
+  useEffect(() => {
+    const inEnquiries = pathname === "/enquiries" || pathname.startsWith("/enquiries/");
+    if (!inEnquiries) {
+      lastPage.current = `${pathname}${window.location.search}`;
+      return;
+    }
+    // Wait for the session: the shell is rebuilt when it arrives, and an inbox
+    // opened before then would be opened in a tree that no longer exists.
+    if (!signedIn) return;
+    const id = pathname.split("/")[2] || undefined;
+    const asked = new URLSearchParams(window.location.search).get("as");
+    const side = asked === "seller" || asked === "buyer" ? asked : undefined;
+    setInbox({ open: true, request: { id, side } });
+    router.replace((lastPage.current ?? "/home") as never, { scroll: false });
+  }, [pathname, router, signedIn]);
+
+  useEffect(() => {
+    const onOpen = (event: Event) => {
+      setInbox({ open: true, request: (event as CustomEvent<EnquiriesRequest>).detail ?? {} });
+    };
+    window.addEventListener(OPEN_ENQUIRIES, onOpen);
+    return () => window.removeEventListener(OPEN_ENQUIRIES, onOpen);
+  }, []);
 
   // `null` until the stored preference is read. Rendering expanded and then
   // snapping to collapsed would animate a jump on every load, so the shell
@@ -108,6 +145,29 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
     };
   }, [drawerOpen]);
 
+  // Whether a conversation is waiting behind Enquiries. Read again on every
+  // navigation, so opening the enquiry that was unread clears the mark on the
+  // way back, and polled like the bell between navigations.
+  useEffect(() => {
+    if (state.status !== "signed_in") return;
+    const organization = state.me.contexts.find(
+      (context) => context.type === "organization" && context.id === activeContext,
+    ) ?? state.me.contexts.find((context) => context.type === "organization") ?? null;
+    const entry = enquiriesEntry(state.me, organization?.access ?? null);
+    if (!entry) {
+      setEnquiryWaiting(false);
+      return;
+    }
+    let cancelled = false;
+    const read = () =>
+      listEnquiries(entry.as)
+        .then((rows) => !cancelled && setEnquiryWaiting(rows.some((row) => row.unread)))
+        .catch(() => undefined);
+    void read();
+    const timer = setInterval(read, 60_000);
+    return () => { cancelled = true; clearInterval(timer); };
+  }, [state, activeContext, pathname, inbox.open]);
+
   // Polled rather than pushed: there is no socket here, and someone opening the
   // portal wants the count to be right now, not eventually.
   useEffect(() => {
@@ -119,7 +179,14 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
         .catch(() => undefined);
     void read();
     const timer = setInterval(read, 60_000);
-    return () => { cancelled = true; clearInterval(timer); };
+    // Updates announces its own count changes, so the badge agrees with the
+    // page the moment something is read rather than a minute later.
+    const onUnread = (event: Event) => {
+      const count = (event as CustomEvent<number>).detail;
+      if (typeof count === "number") setUnread(count);
+    };
+    window.addEventListener("rooomly:unread", onUnread);
+    return () => { cancelled = true; clearInterval(timer); window.removeEventListener("rooomly:unread", onUnread); };
   }, [state.status]);
 
   if (state.status !== "signed_in") {
@@ -150,6 +217,11 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
     .find((item) => item.href === current)?.label ?? "Portal";
   const isProviderSpace = me.capabilities.active_workspace === "provider"
     && me.capabilities.provider.workspace_access;
+  const enquiries = enquiriesEntry(me, portfolio?.access ?? null);
+  // Selling needs property, and only a provider account holds any; a provider
+  // at work opens on the selling side.
+  const canSell = me.capabilities.provider.workspace_access;
+  const inboxSide = canSell && me.capabilities.active_workspace === "provider" ? "seller" : "buyer";
 
   const isCollapsed = collapsed === true;
 
@@ -191,9 +263,9 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
         inert={drawerOpen ? true : undefined}
         aria-hidden={drawerOpen || undefined}
       >
-        {/* Provider chrome carries workspace context rather than repeating the
-            page heading. Equal outer zones keep search centred while account
-            actions stay in a predictable place on every provider screen. */}
+        {/* Two zones: where you are on the left (the Portfolio for a provider,
+            the page for a tenant), and the two things that come to you on the
+            right — conversations behind Enquiries, and Updates. */}
         <header className={`portal-header${isProviderSpace ? " is-provider" : ""}`}>
           <div className="portal-header-context">
             <button
@@ -213,18 +285,22 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
             )}
           </div>
 
-          {isProviderSpace ? (
-            <PortalSearch
-              organizationId={
-                activeContext?.startsWith("organization:")
-                  ? activeContext.slice("organization:".length)
-                  : null
-              }
-            />
-          ) : null}
-
           <div className="portal-header-actions">
-            <Link href="/updates" className="portal-header-updates">
+            {enquiries ? (
+              <button
+                type="button"
+                className="portal-header-support"
+                aria-haspopup="dialog"
+                aria-expanded={inbox.open}
+                aria-label={enquiryWaiting ? "Enquiries, a conversation is waiting" : "Enquiries"}
+                onClick={() => openEnquiries({ side: enquiries.as })}
+              >
+                <Icon name="headset" />
+                <span className="portal-header-support-label" aria-hidden="true">Enquiries</span>
+                {enquiryWaiting ? <span className="portal-header-dot" aria-hidden="true" /> : null}
+              </button>
+            ) : null}
+            <Link href="/updates" className="portal-header-updates" aria-current={pathname === "/updates" ? "page" : undefined}>
               <Icon name="updates" />
               <span className="sr-only">
                 {unread > 0 ? `Updates, ${unread} unread` : "Updates"}
@@ -242,6 +318,14 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
           screen cannot show the Portfolio somebody has just left while the next
           one loads. Page state is about that Portfolio, and it goes with it.
         */}
+        <EnquiriesInbox
+          open={inbox.open}
+          request={inbox.request}
+          canSell={canSell}
+          defaultSide={inboxSide}
+          onClose={() => setInbox((current) => ({ ...current, open: false }))}
+        />
+
         <main id="main" className="portal-main" key={activeContext ?? "no-context"}>
           {state.stale ? (
             <p className="portal-stale" role="status">
@@ -317,8 +401,28 @@ function PortalNav({
   collapsed: boolean;
   withHints?: boolean;
 }) {
+  const nav = useRef<HTMLElement>(null);
+  const glide = useGlide(nav, {
+    link: ".portal-nav-link",
+    current: '.portal-nav-link[aria-current="page"]',
+    layoutKey: `${current}|${collapsed}|${sections.map((section) => section.items.length).join(",")}`,
+  });
+
   return (
-    <nav className="portal-nav" aria-label="Portal">
+    <nav
+      ref={nav}
+      className="portal-nav"
+      aria-label="Portal"
+      onPointerOver={glide.follow}
+      onFocus={glide.follow}
+      onPointerLeave={glide.rest}
+      onBlur={glide.rest}
+    >
+      {/* Two glass tiles drawn once and moved, rather than every link painting
+          its own: one marks the page you are on and slides when it changes,
+          the other follows the pointer (or focus) between links. */}
+      <span className="portal-nav-tile is-current" aria-hidden="true" />
+      <span className="portal-nav-tile is-hover" aria-hidden="true" />
       {sections.map((section, index) => (
         <div className="portal-nav-section" key={section.title ?? `section-${index}`}>
           {/* The heading is hidden from sight when collapsed but kept for
