@@ -42,7 +42,7 @@ import {
   type PayoutProfile,
 } from "@/organizations";
 import { pressableFeedback, useSafeBottom } from "@/platform";
-import { alpha } from "@/shell";
+import { alpha, shell } from "@/shell";
 import { theme } from "@/theme";
 
 /**
@@ -624,7 +624,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: 1,
     borderColor: theme.color.field["200"],
-    backgroundColor: theme.color.field["50"],
+    backgroundColor: shell.record,
   },
   institution: {
     minHeight: 50,

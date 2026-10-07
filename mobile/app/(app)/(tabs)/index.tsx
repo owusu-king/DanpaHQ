@@ -8,10 +8,12 @@ import { useAuth } from "@/auth";
 import { listNotifications, type Notification } from "@/notifications";
 import { HomeGround } from "@/components/home/HomeGround";
 import { PublicHome } from "@/components/home/PublicHome";
-import { TenantHome } from "@/components/home/TenantHome";
+import { HomeHeroScroll, type HeroChip } from "@/components/home/HomeHero";
+import { rankHomes, TenantHome } from "@/components/home/TenantHome";
 import { useHomeDensity } from "@/components/home/plinth";
 import { Notice, space } from "@/components/ui";
 import { listMyLeases, type Lease } from "@/leases";
+import { greeting } from "@/homeMeaning";
 import { resolveEntryRoute } from "@/navigation";
 import { listMyJoinRequests, listMyTenancies, type MyJoinRequest, type Tenancy } from "@/tenancy";
 import { listMyViewings, type Viewing } from "@/viewings";
@@ -162,6 +164,70 @@ function DiscoveryHome() {
     }
   }, [openListingWorkspace, providerRequested, state.status]);
 
+  if (tenantMode) {
+    const home = rankHomes(tenancies)[0];
+    // The home you rent first (or your viewings, while you are still looking),
+    // and Saved, which the header no longer carries. Joining has its own card.
+    const chips: HeroChip[] = [
+      home
+        ? {
+            id: "home",
+            icon: "home-outline",
+            label: home.property.title,
+            onPress: () => router.push({ pathname: "/(app)/tenancy", params: { tenancyId: home.id } } as never),
+          }
+        : {
+            id: "viewings",
+            icon: "calendar-outline",
+            label: "Viewings",
+            onPress: () => router.push("/(app)/viewings" as never),
+          },
+      { id: "saved", icon: "bookmark-outline", label: "Saved", onPress: () => router.push("/(app)/saved" as never) },
+    ];
+
+    return (
+      <HomeHeroScroll title={greeting(displayName)} chips={chips} padding={density.pagePadding} gap={space[4]}>
+        <TenantHome
+          tenancies={tenancies}
+          applications={applications}
+          viewings={viewings}
+          leases={leases}
+          joinRequests={joinRequests}
+          error={homeError}
+          loading={homeLoading}
+          unreadNotifications={unreadNotifications}
+          recentActivity={recentActivity}
+          onNotifications={() => router.push("/(app)/notifications" as never)}
+          onRentAccount={(tenancy) =>
+            router.push({
+              pathname: "/(app)/rent-account",
+              params: {
+                leaseId: tenancy.lease?.id ?? "",
+                tenantName: displayName,
+                propertyTitle: tenancy.property.title,
+                unitLabel: tenancy.space.unit_label,
+                bedLabel: tenancy.space.bed_label ?? "",
+                tenancyId: tenancy.id,
+                mode: "tenant",
+              },
+            } as never)
+          }
+          onJoin={() => router.push("/(app)/tenant-setup" as never)}
+          onExplore={() => router.push("/(app)/(tabs)/explore" as never)}
+          onTenancy={(tenancy) =>
+            router.push({
+              pathname: "/(app)/tenancy",
+              params: { tenancyId: tenancy.id },
+            } as never)
+          }
+          onAgreements={() => router.push("/(app)/leases" as never)}
+          onViewings={() => router.push("/(app)/viewings" as never)}
+          onApplications={() => router.push("/(app)/applications" as never)}
+        />
+      </HomeHeroScroll>
+    );
+  }
+
   return (
     <ScrollView
       // The soft green ground behind this (`HomeGround`) is what sets the white
@@ -170,70 +236,27 @@ function DiscoveryHome() {
       // left to virtualise, and a list that can never have a row is machinery
       // pretending to be a feature.
       contentContainerStyle={{
-        padding: tenantMode ? density.pagePadding : space[5],
+        padding: space[5],
         paddingBottom: space[12],
         gap: space[4],
       }}
     >
       <View style={{ gap: space[4] }}>
-        {tenantMode ? (
-            <TenantHome
-              name={displayName}
-              tenancies={tenancies}
-              applications={applications}
-              viewings={viewings}
-              leases={leases}
-              joinRequests={joinRequests}
-              error={homeError}
-              loading={homeLoading}
-              unreadNotifications={unreadNotifications}
-              recentActivity={recentActivity}
-              onNotifications={() => router.push("/(app)/notifications" as never)}
-              onRentAccount={(tenancy) =>
-                router.push({
-                  pathname: "/(app)/rent-account",
-                  params: {
-                    leaseId: tenancy.lease?.id ?? "",
-                    tenantName: displayName,
-                    propertyTitle: tenancy.property.title,
-                    unitLabel: tenancy.space.unit_label,
-                    bedLabel: tenancy.space.bed_label ?? "",
-                    tenancyId: tenancy.id,
-                    mode: "tenant",
-                  },
-                } as never)
-              }
-              onJoin={() => router.push("/(app)/tenant-setup" as never)}
-              onExplore={() => router.push("/(app)/(tabs)/explore" as never)}
-              onTenancy={(tenancy) =>
-                router.push({
-                  pathname: "/(app)/tenancy",
-                  params: { tenancyId: tenancy.id },
-                } as never)
-              }
-              onAgreements={() => router.push("/(app)/leases" as never)}
-              onViewings={() => router.push("/(app)/viewings" as never)}
-              onApplications={() => router.push("/(app)/applications" as never)}
-            />
-        ) : (
-          <>
-            <PublicHome
-              onExplore={() => router.push("/(app)/(tabs)/explore")}
-              onProvider={() => void openListingWorkspace()}
-              providerLabel={
-                me?.capabilities.provider.workspace_access
-                  ? "Open property tools"
-                  : "I own or manage property"
-              }
-              providerBusy={workspaceBusy || providerRequested}
-              providerBusyLabel={
-                state.status === "loading" ? "Checking your session…" : "Opening…"
-              }
-              showProvider={!me || me.capabilities.available_workspaces.includes("provider")}
-            />
-            {workspaceError ? <Notice tone="error" title={workspaceError} /> : null}
-          </>
-        )}
+        <PublicHome
+          onExplore={() => router.push("/(app)/(tabs)/explore")}
+          onProvider={() => void openListingWorkspace()}
+          providerLabel={
+            me?.capabilities.provider.workspace_access
+              ? "Open property tools"
+              : "I own or manage property"
+          }
+          providerBusy={workspaceBusy || providerRequested}
+          providerBusyLabel={
+            state.status === "loading" ? "Checking your session…" : "Opening…"
+          }
+          showProvider={!me || me.capabilities.available_workspaces.includes("provider")}
+        />
+        {workspaceError ? <Notice tone="error" title={workspaceError} /> : null}
       </View>
     </ScrollView>
   );

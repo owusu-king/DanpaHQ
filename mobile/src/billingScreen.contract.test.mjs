@@ -34,7 +34,7 @@ test("a provider reaches Plan & billing from More, and every step of changing pl
   const more = read("mobile/app/(app)/(provider-tabs)/more.tsx");
   const layout = read("mobile/app/(app)/_layout.tsx");
 
-  assert.match(more, /label="Plan & billing" onPress=\{\(\) => router\.push\("\/\(app\)\/billing" as never\)\}/);
+  assert.match(more, /label: "Plan & billing", onPress: go\("\/\(app\)\/billing"\)/);
   for (const name of ["billing", "billing-plans", "billing-review", "billing-payment"]) {
     assert.match(layout, new RegExp(`<Stack\\.Screen name="${name}"`));
   }

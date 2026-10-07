@@ -8,11 +8,9 @@ import {
   FlatList,
   Image,
   Keyboard,
-  PanResponder,
   Pressable,
   RefreshControl,
   View,
-  type PanResponderGestureState,
 
   type StyleProp,
   type ViewStyle,
@@ -72,9 +70,10 @@ import { theme } from "@/theme";
  * Finding a place to rent, on a map.
  *
  * Search → scan → compare → open, with the map as the ground it happens on.
- * One search bar and one Filters button float over the map. The rentals rise
- * in a sheet from the bottom: collapsed to its count, halfway to compare beside
- * the map, or over the whole map to read like any list. A marker previews its
+ * One search bar and one Filters button float over the map. The map and the
+ * list are two views, switched with a button — List floats over the map,
+ * Map sits beside the count over the list — and never dragged between (owner,
+ * 2026-10-06: the sliding sheet is gone). A marker previews its
  * rental without leaving the map, and the list and the markers are one search —
  * the same filters and the same box, built once (`listingQuery`).
  *
@@ -111,16 +110,8 @@ const SORTS: readonly (readonly [ListingSort, string])[] = [
 
 type SearchArea = { name: string; bounds: GeoBounds; ref: string };
 type Selection = { key: string; ids: string[] };
-type SheetStop = "peek" | "half" | "full";
-
-/** From least of the screen to most: a flick up moves along it, a flick down back. */
-const SHEET_ORDER: readonly SheetStop[] = ["peek", "half", "full"];
-
-/** The collapsed sheet before its header has been measured. */
-const FALLBACK_PEEK = 76;
-
-/** How far a released drag carries on: this many milliseconds of its velocity. */
-const FLICK_MS = 200;
+/** What the List button keeps of the map's foot: its height and its margin. */
+const LIST_BUTTON_ROOM = 76;
 
 /** Controls floating over the map carry a soft shadow, so they read on any tile. */
 const FLOATING = {
@@ -293,16 +284,12 @@ function MapExplore({
   const viewRef = useRef<MapMove | null>(null);
   const extentFitted = useRef(false);
 
-  // The sheet the rentals rise in, and where it rests.
-  const [stop, setStop] = useState<SheetStop>("peek");
-  const stopRef = useRef<SheetStop>("peek");
+  // Map or list. A build without a map is only ever the list.
+  const [listOpen, setListOpen] = useState(!showMap);
   const [screenHeight, setScreenHeight] = useState(0);
   const [controlsHeight, setControlsHeight] = useState(0);
-  const [sheetHeaderHeight, setSheetHeaderHeight] = useState(0);
-  const [pillHeight, setPillHeight] = useState(44);
-  const offset = useRef(new Animated.Value(showMap ? 2000 : 0)).current;
-  const resting = useRef(showMap ? 2000 : 0);
-  const dragStart = useRef(0);
+  const [previewHeight, setPreviewHeight] = useState(0);
+  const [listFade] = useState(() => new Animated.Value(showMap ? 0 : 1));
   const list = useRef<FlatList<Item>>(null);
 
   // Properties for sale: their own search, over the same place and area.
@@ -510,92 +497,14 @@ function MapExplore({
     return () => { live = false; };
   }, [selection, listings]);
 
-  // The sheet's geometry. It hangs below the controls, so full is the whole
-  // content area under them; collapsed shows exactly its measured header.
-  const peek = sheetHeaderHeight > 0 ? Math.ceil(sheetHeaderHeight) : FALLBACK_PEEK;
-  const sheetHeight = Math.max(0, screenHeight - controlsHeight);
-  const stops = useMemo<Record<SheetStop, number>>(() => {
-    const collapsed = Math.max(0, sheetHeight - peek);
-    return { full: 0, half: Math.min(Math.round(sheetHeight * 0.45), collapsed), peek: collapsed };
-  }, [sheetHeight, peek]);
-
-  const moveSheet = useCallback((toValue: number, velocity = 0) => {
-    resting.current = toValue;
-    if (reduceMotion) offset.setValue(toValue);
-    else {
-      Animated.spring(offset, {
-        toValue,
-        velocity,
-        useNativeDriver: true,
-        speed: 16,
-        bounciness: 0,
-        // It snaps to the stop and stays there, rather than bouncing past it.
-        overshootClamping: true,
-      }).start();
-    }
-  }, [offset, reduceMotion]);
-
+  // The list covers everything below the hero. It fades over the map rather
+  // than sliding up it: the two views are switched, not dragged between.
+  const listHeight = Math.max(0, screenHeight - controlsHeight);
   useEffect(() => {
-    stopRef.current = stop;
-    if (!sheetHeight) return;
-    const toValue = showMap ? stops[stop] : 0;
-    // A release has already sent the sheet here, carrying its own velocity.
-    if (toValue !== resting.current) moveSheet(toValue);
-  }, [stop, stops, showMap, sheetHeight, moveSheet]);
-
-  // A list left scrolled down would sit mid-way in a sheet that cannot scroll.
-  useEffect(() => {
-    if (stop !== "full") list.current?.scrollToOffset({ offset: 0, animated: false });
-  }, [stop]);
-
-  // The sheet follows a drag and snaps to the stop the release is heading for;
-  // a deliberate flick always moves at least one stop. Its header always drags
-  // it, and the rentals drag it too until it is full — then they scroll.
-  const [handleDrag, listDrag] = useMemo(() => {
-    const nearest = (value: number) => SHEET_ORDER.reduce<SheetStop>(
-      (best, candidate) => (Math.abs(stops[candidate] - value) < Math.abs(stops[best] - value) ? candidate : best),
-      "half",
-    );
-    const settle = (gesture: PanResponderGestureState) => {
-      const from = nearest(dragStart.current);
-      let target = nearest(dragStart.current + gesture.dy + gesture.vy * FLICK_MS);
-      if (target === from && Math.abs(gesture.vy) > 0.3) {
-        const index = SHEET_ORDER.indexOf(from) + (gesture.vy < 0 ? 1 : -1);
-        target = SHEET_ORDER[Math.max(0, Math.min(SHEET_ORDER.length - 1, index))] ?? from;
-      }
-      setStop(target);
-      // The spring takes the finger's speed with it: points per second.
-      moveSheet(stops[target], gesture.vy * 1000);
-    };
-    const drag = (allowed: () => boolean) => PanResponder.create({
-      onMoveShouldSetPanResponderCapture: (_, gesture) =>
-        allowed() && Math.abs(gesture.dy) > 6 && Math.abs(gesture.dy) > Math.abs(gesture.dx),
-      onPanResponderGrant: () => {
-        Keyboard.dismiss();
-        dragStart.current = resting.current;
-        offset.stopAnimation((value) => { dragStart.current = value; });
-      },
-      onPanResponderMove: (_, gesture) => {
-        offset.setValue(Math.min(stops.peek, Math.max(stops.full, dragStart.current + gesture.dy)));
-      },
-      // Once the sheet is moving, nothing inside it may take the drag away.
-      onPanResponderTerminationRequest: () => false,
-      onPanResponderRelease: (_, gesture) => settle(gesture),
-      onPanResponderTerminate: (_, gesture) => settle(gesture),
-    });
-    return [drag(() => true), drag(() => stopRef.current !== "full")] as const;
-  }, [offset, stops, moveSheet]);
-
-  // "Search this area" rides a step above the sheet, and fades before the sheet
-  // can crowd it against the controls — it never sits over the rentals.
-  const areaPillOpacity = useMemo(
-    () => offset.interpolate({
-      inputRange: [pillHeight + space[6], pillHeight + space[12]],
-      outputRange: [0, 1],
-      extrapolate: "clamp",
-    }),
-    [offset, pillHeight],
-  );
+    const toValue = listOpen ? 1 : 0;
+    if (reduceMotion) listFade.setValue(toValue);
+    else Animated.timing(listFade, { toValue, duration: 180, useNativeDriver: true }).start();
+  }, [listOpen, listFade, reduceMotion]);
 
   // Everything the sheet holds, counted once for the Filters button. Place is
   // not one of them: the search bar owns it, and the one clear for it.
@@ -632,17 +541,13 @@ function MapExplore({
   const allCount = [allType, bedrooms].filter(Boolean).length;
   const filterCountForSide = mode === "buy" ? saleRefinements(saleChoices) : mode === "all" ? allCount : refinementCount;
   const areaName = bbox ? " in this map area" : area ? ` in ${area.name.split(",")[0]}` : "";
-  const sheetOpen = stop !== "peek";
-  // The rentals scroll once the sheet is full; below that, dragging them moves the sheet.
-  const listScrolls = !showMap || stop === "full";
-
-  // What the screen covers of the map. Full keeps half's: the map is out of sight then.
+  // What the screen covers of the map: the hero above, the List button below.
   const mapInsets = useMemo(() => ({
     top: controlsHeight,
     right: 0,
-    bottom: stop === "peek" ? peek : Math.max(peek, sheetHeight - stops.half),
+    bottom: LIST_BUTTON_ROOM,
     left: 0,
-  }), [controlsHeight, stop, peek, sheetHeight, stops.half]);
+  }), [controlsHeight]);
 
   const rentMarkers = useMemo(() => features.map((feature): MapMarker => {
     const key = markerKey(feature);
@@ -695,7 +600,7 @@ function MapExplore({
 
   const showSearchArea = Boolean(showMap && userMoved && view && anchor && movedMeaningfully(view, anchor));
   const previewListing = preview[Math.min(previewIndex, Math.max(preview.length - 1, 0))];
-  const previewing = Boolean(showMap && selection && previewListing && stop === "peek");
+  const previewing = Boolean(showMap && selection && previewListing && !listOpen);
 
   function openSaleMarker(id: string) {
     setVisited((current) => new Set(current).add(id));
@@ -714,14 +619,12 @@ function MapExplore({
     if (feature.type === "listing") {
       setPreviewIndex(0);
       setSelection({ key, ids: [feature.id] });
-      setStop("peek");
       return;
     }
     // A stack never separates by zooming, so it opens its rentals instead.
     if (feature.stacked && feature.ids?.length) {
       setPreviewIndex(0);
       setSelection({ key, ids: feature.ids });
-      setStop("peek");
       return;
     }
     setSelection(null);
@@ -756,10 +659,6 @@ function MapExplore({
       north: roundCoordinate(view.bounds.north),
     });
     setUserMoved(false);
-  }
-
-  function stepSheet(by: 1 | -1) {
-    setStop((current) => SHEET_ORDER[Math.max(0, Math.min(SHEET_ORDER.length - 1, SHEET_ORDER.indexOf(current) + by))] ?? current);
   }
 
   // Typing over a place, or over an area searched from the map, asks a new question.
@@ -797,7 +696,6 @@ function MapExplore({
       setBbox(null);
       setArea({ name: chosen.display_name, bounds: chosen.bounds, ref: `${chosen.provider}:${chosen.reference}` });
       setPlace(chosen.display_name);
-      setStop("peek");
       setError("");
     } catch {
       if (id === resolveRequest.current) setError("That place did not open. Choose it again, or search the text.");
@@ -901,25 +799,15 @@ function MapExplore({
         />
       ) : null}
 
-      {showSearchArea && stop !== "full" && !previewing ? (
-        <Animated.View
+      {showSearchArea && !listOpen ? (
+        // Just under the hero, over the map: never over the list.
+        <View
           pointerEvents="box-none"
-          style={{
-            position: "absolute",
-            left: 0,
-            right: 0,
-            // Placed against the sheet's top edge, and carried with it.
-            top: controlsHeight - pillHeight - space[3],
-            zIndex: 3,
-            alignItems: "center",
-            opacity: areaPillOpacity,
-            transform: [{ translateY: offset }],
-          }}
+          style={{ position: "absolute", left: 0, right: 0, top: controlsHeight + space[3], zIndex: 3, alignItems: "center" }}
         >
           <Pressable
             accessibilityRole="button"
             onPress={searchThisArea}
-            onLayout={(event) => setPillHeight(event.nativeEvent.layout.height)}
             {...pressableFeedback(theme.color.kola["50"])}
             style={({ pressed }) => ({
               minHeight: 44,
@@ -938,58 +826,79 @@ function MapExplore({
             <Ionicons name="search" size={16} color={theme.color.kola["600"]} />
             <Type variant="captionStrong" style={{ color: theme.color.kola["800"] }}>Search this area</Type>
           </Pressable>
-        </Animated.View>
+        </View>
       ) : null}
 
       {previewing ? (
-        <MapPreview
-          listings={preview}
-          index={Math.min(previewIndex, preview.length - 1)}
-          onStep={setPreviewIndex}
-          onOpen={openListing}
-          onClose={() => setSelection(null)}
-          style={{ position: "absolute", left: space[3], right: space[3], bottom: peek + space[3], zIndex: 5 }}
-        />
+        <View
+          pointerEvents="box-none"
+          onLayout={(event) => setPreviewHeight(event.nativeEvent.layout.height)}
+          style={{ position: "absolute", left: space[3], right: space[3], bottom: space[3], zIndex: 5 }}
+        >
+          <MapPreview
+            listings={preview}
+            index={Math.min(previewIndex, preview.length - 1)}
+            onStep={setPreviewIndex}
+            onOpen={openListing}
+            onClose={() => setSelection(null)}
+          />
+        </View>
+      ) : null}
+
+      {/* The way to the list: centred at the map's foot, over the Services tab,
+          and lifted above a marker's preview while one is open. */}
+      {showMap && !listOpen ? (
+        <View
+          pointerEvents="box-none"
+          style={{
+            position: "absolute",
+            left: 0,
+            right: 0,
+            bottom: previewing ? previewHeight + space[3] * 2 : space[5],
+            zIndex: 6,
+            alignItems: "center",
+          }}
+        >
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`List. ${resultLine}`}
+            onPress={() => { Keyboard.dismiss(); setListOpen(true); }}
+            hitSlop={4}
+            style={({ pressed }) => ({
+              minHeight: 48,
+              flexDirection: "row",
+              alignItems: "center",
+              gap: space[2],
+              paddingHorizontal: space[5],
+              borderRadius: radius.pill,
+              borderWidth: 1.5,
+              borderColor: "rgba(255,255,255,0.7)",
+              backgroundColor: pressed ? theme.color.kola["900"] : theme.color.kola["800"],
+              ...FLOATING,
+            })}
+          >
+            <Ionicons name="list" size={18} color={theme.color.field["0"]} />
+            <Type variant="bodyStrong" style={{ color: theme.color.field["0"] }}>List</Type>
+          </Pressable>
+        </View>
       ) : null}
 
       <Animated.View
+        pointerEvents={listOpen ? "auto" : "none"}
+        accessibilityElementsHidden={!listOpen}
+        importantForAccessibility={listOpen ? "auto" : "no-hide-descendants"}
         style={{
           position: "absolute",
           left: 0,
           right: 0,
           top: controlsHeight,
-          height: sheetHeight,
+          height: listHeight,
           zIndex: 2,
-          borderTopLeftRadius: showMap ? 20 : 0,
-          borderTopRightRadius: showMap ? 20 : 0,
           backgroundColor: theme.color.field["50"],
-          shadowColor: theme.color.ink["950"],
-          shadowOpacity: showMap ? 0.14 : 0,
-          shadowRadius: 18,
-          shadowOffset: { width: 0, height: -4 },
-          elevation: showMap ? 12 : 0,
-          transform: [{ translateY: offset }],
+          opacity: listFade,
         }}
       >
-        <View
-          {...(showMap ? handleDrag.panHandlers : {})}
-          onLayout={(event) => setSheetHeaderHeight(event.nativeEvent.layout.height)}
-          style={{ paddingHorizontal: space[4], paddingTop: showMap ? 0 : HERO_FLARE - space[1], paddingBottom: space[1] }}
-        >
-          {showMap ? (
-            <Pressable
-              accessibilityRole="adjustable"
-              accessibilityLabel="Rentals list"
-              accessibilityValue={{ text: stop === "full" ? "Whole screen" : stop === "half" ? "Half the screen" : "Below the map" }}
-              accessibilityActions={[{ name: "increment" }, { name: "decrement" }]}
-              onAccessibilityAction={(event) => stepSheet(event.nativeEvent.actionName === "increment" ? 1 : -1)}
-              hitSlop={{ top: 8, bottom: 4, left: 48, right: 48 }}
-              onPress={() => setStop(sheetOpen ? "peek" : "half")}
-              style={{ alignSelf: "center", paddingTop: space[2], paddingBottom: space[1], paddingHorizontal: space[6] }}
-            >
-              <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: theme.color.field["300"] }} />
-            </Pressable>
-          ) : null}
+        <View style={{ paddingHorizontal: space[4], paddingTop: HERO_FLARE - space[1], paddingBottom: space[1] }}>
 
           {/* What the search produced: the count and where, beside the one way
               to undo the filters and, over a full list, the way back to the map. */}
@@ -1007,12 +916,12 @@ function MapExplore({
             onClear={mode === "buy"
               ? saleRefinements(saleChoices) ? () => setSaleChoices(NO_SALE_CHOICES) : undefined
               : mode === "rent" && refinementCount ? clearFilters : undefined}
-            trailing={showMap && stop === "full" ? (
+            trailing={showMap ? (
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Show the map"
                 hitSlop={6}
-                onPress={() => setStop("peek")}
+                onPress={() => setListOpen(false)}
                 {...pressableFeedback("rgba(255,255,255,0.24)")}
                 style={({ pressed }) => ({
                   minHeight: 36,
@@ -1039,12 +948,11 @@ function MapExplore({
           {error ? <Notice tone="error" title={error} /> : null}
         </View>
 
-        <View style={{ flex: 1 }} {...(showMap ? listDrag.panHandlers : {})}>
+        <View style={{ flex: 1 }}>
           <FlatList
             ref={list}
             data={items ?? []}
             keyExtractor={(item) => (item.side === "rent" ? `rent-${item.listing.id}` : `sale-${item.sale.id}`)}
-            scrollEnabled={listScrolls}
             contentContainerStyle={{
               // A little narrower than the screen (owner, 2026-09-29).
               paddingHorizontal: space[5] + 2,
@@ -1054,8 +962,6 @@ function MapExplore({
             }}
             refreshControl={
               <RefreshControl
-                // Android's pull-to-refresh would otherwise take the drag that moves the sheet.
-                enabled={listScrolls}
                 refreshing={refreshing}
                 onRefresh={async () => { setRefreshing(true); await Promise.all([load(), showSale ? loadSales() : null]); setRefreshing(false); }}
                 tintColor={theme.color.kola["600"]}
@@ -1087,8 +993,6 @@ function MapExplore({
                 saved={saved.has(item.listing.id)}
                 onSave={() => void toggleSave(item.listing)}
                 onPress={() => openListing(item.listing)}
-                // Photos swipe once the list is the screen; below that a swipe moves the sheet.
-                photoSwipe={listScrolls}
                 compact
               />
             ) : (

@@ -1,41 +1,36 @@
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useState } from "react";
 
+import { ApiFailure } from "@/api";
 import { useAuth } from "@/auth";
-import {
-  Group,
-  IndexActions,
-  IndexPage,
-  Row,
-  SignOutButton,
-  SwitchExperienceButton,
-} from "@/components/account/IndexRows";
+import { Identity, YouPage, type YouItem, type YouSection } from "@/components/account/YouParts";
+import { useProfilePhoto } from "@/components/nav/TabHeaderControls";
+import { Notice } from "@/components/ui";
 import { resolveEntryRoute } from "@/navigation";
 import { listNotifications } from "@/notifications";
 import { listMyPortfolioInvitations } from "@/organizations";
 import { chooseWorkspace } from "@/workspace";
 
 /**
- * Everything that is not a tab.
+ * Everything that is not a tab, laid out like WhatsApp's "You" tab (owner,
+ * 2026-10-06): the person first, then untitled white cards.
  *
- * A navigation surface, not an information page. A row that says Leases and
- * leads to Leases needs no sentence under it, so none of them has one — the
- * label, the glyph and the chevron are the whole design. Each group is one glass
- * panel rather than a card per row; `IndexRows` says why it looks the way it does.
+ * The cards are, in order: the work (what a Portfolio runs on), the business
+ * (who works in it and how it is paid), the account, and leaving. The photo,
+ * name and pencil open the profile, so there is no Profile row; the pill's plus
+ * is the same create sheet as the header's elsewhere.
  *
- * Nor does it title itself: the header says "More", which this page used to
- * repeat as its own eyebrow and heading.
- *
- * Account destinations are listed here rather than behind a Settings row.
- * Making someone tap More → Settings → Security is one level more than the task
- * deserves. The tenant's equivalent is their own More; the two list different
- * things and are built from the same rows.
+ * Rows that this person's role would refuse are not listed: an accountant
+ * offered Units and Listings gets a menu of dead ends, which reads as the app
+ * being broken rather than as a role doing its job.
  */
 export default function ProviderMoreScreen() {
   const router = useRouter();
   const { activeContext, state, refreshMe, signOut } = useAuth();
+  const photoUri = useProfilePhoto();
   const [switching, setSwitching] = useState(false);
   const [leaving, setLeaving] = useState(false);
+  const [error, setError] = useState("");
   const [unread, setUnread] = useState(0);
   const [invitations, setInvitations] = useState(0);
 
@@ -53,15 +48,14 @@ export default function ProviderMoreScreen() {
 
   const me = state.status === "signed_in" ? state.me : null;
   // The Portfolio being operated, and what this person's role reaches in it.
-  // Rows that would refuse are not listed: an accountant offered Units and
-  // Listings gets a menu of dead ends, which reads as the app being broken
-  // rather than as a role doing its job.
   const context = me?.contexts.find((row) => row.type === "organization" && row.id === activeContext)
     ?? me?.contexts.find((row) => row.type === "organization");
   const can = context?.access?.can;
   const operates = can?.operate_properties ?? true;
   const finances = can?.view_finances ?? true;
   const billing = can?.view_billing ?? true;
+  const go = (path: string) => () => router.push(path as never);
+  const only = (when: boolean, item: YouItem): YouItem[] => (when ? [item] : []);
 
   /**
    * Move to the tenant experience.
@@ -72,80 +66,91 @@ export default function ProviderMoreScreen() {
    */
   async function switchToTenant() {
     setSwitching(true);
+    setError("");
     try {
-      const me = await chooseWorkspace("tenant");
+      const next = await chooseWorkspace("tenant");
       await refreshMe();
-      router.replace(resolveEntryRoute(me) as never);
+      router.replace(resolveEntryRoute(next) as never);
+    } catch (cause) {
+      setError(cause instanceof ApiFailure ? cause.error.message : "Could not switch.");
     } finally {
       setSwitching(false);
     }
   }
 
+  async function leave() {
+    setLeaving(true);
+    try {
+      await signOut();
+      router.replace("/(auth)/start");
+    } finally {
+      setLeaving(false);
+    }
+  }
+
+  const sections: YouSection[] = [
+    {
+      key: "waiting",
+      items: only(invitations > 0, { key: "invitations", icon: "people-circle-outline", label: "Portfolio invitations", count: invitations, onPress: go("/(app)/portfolio-invitations") }),
+    },
+    {
+      key: "work",
+      items: [
+        ...only(operates, { key: "units", icon: "grid-outline", label: "Units", onPress: go("/(app)/units") }),
+        ...only(operates, { key: "listings", icon: "megaphone-outline", label: "Listings", onPress: go("/(app)/(provider-tabs)/properties") }),
+        ...only(operates, { key: "viewings", icon: "calendar-outline", label: "Viewings", onPress: go("/(app)/provider-viewings") }),
+        ...only(operates, { key: "requests", icon: "document-text-outline", label: "Tenancy requests", onPress: go("/(app)/provider-applications") }),
+        ...only(operates || finances, { key: "leases", icon: "reader-outline", label: "Leases", onPress: go("/(app)/leases") }),
+        ...only(operates, { key: "maintenance", icon: "construct-outline", label: "Maintenance", onPress: go("/(app)/maintenance") }),
+        // Buyers asking about what this Portfolio is selling (owner, 2026-09-29).
+        ...only(operates, { key: "enquiries", icon: "chatbubbles-outline", label: "Buyer enquiries", onPress: go("/(app)/enquiries") }),
+        { key: "updates", icon: "notifications-outline", label: "Updates", count: unread, onPress: go("/(app)/notifications") },
+      ],
+    },
+    {
+      key: "business",
+      items: [
+        { key: "team", icon: "people-outline", label: "Team", onPress: go("/(app)/team") },
+        ...only(billing, { key: "settlement", icon: "card-outline", label: "Settlement account", onPress: go("/(app)/payout-account") }),
+        ...only(billing, { key: "billing", icon: "pricetag-outline", label: "Plan & billing", onPress: go("/(app)/billing") }),
+        ...only(operates, { key: "archive", icon: "archive-outline", label: "Archive", onPress: go("/(app)/archive") }),
+      ],
+    },
+    {
+      key: "account",
+      items: [
+        { key: "security", icon: "key-outline", label: "Security", onPress: go("/(app)/security") },
+        { key: "verification", icon: "shield-checkmark-outline", label: "Verification", onPress: go("/(app)/trust") },
+        { key: "notifications", icon: "options-outline", label: "Notifications", onPress: go("/(app)/notification-settings") },
+      ],
+    },
+    {
+      key: "leave",
+      items: [
+        // A change of view, not of account. Switching back is one tap from the tenant's More.
+        { key: "switch", icon: "swap-horizontal-outline", label: "Switch to renting", busy: switching, busyLabel: "Switching…", onPress: () => void switchToTenant() },
+        { key: "sign-out", icon: "log-out-outline", label: "Sign out", danger: true, busy: leaving, busyLabel: "Signing out…", onPress: () => void leave() },
+      ],
+    },
+  ];
+
   return (
-    <IndexPage>
-      {invitations ? (
-        <Group title="Waiting for you" tone="harmattan">
-          <Row
-            icon="people-circle-outline"
-            label="Portfolio invitations"
-            count={invitations}
-            onPress={() => router.push("/(app)/portfolio-invitations" as never)}
-          />
-        </Group>
+    <YouPage
+      tools={[
+        { key: "create", icon: "add", label: "Add or create", onPress: go("/(app)/provider-actions") },
+        { key: "edit", icon: "pencil", label: "Edit your profile", onPress: go("/(app)/profile-edit") },
+      ]}
+      identity={me ? (
+        <Identity
+          name={me.display_name}
+          photoUri={photoUri}
+          note={(me.profile?.completeness ?? 0) < 100 ? "Finish your profile" : context?.label}
+          verified={me.is_phone_verified}
+          onPress={go("/(app)/profile-edit")}
+        />
       ) : null}
-
-      <Group title="Management" tone="lagoon">
-        {operates ? <Row icon="grid-outline" label="Units" onPress={() => router.push("/(app)/units" as never)} /> : null}
-        {operates ? <Row icon="calendar-outline" label="Viewings" onPress={() => router.push("/(app)/provider-viewings" as never)} /> : null}
-        {operates ? <Row icon="document-text-outline" label="Tenancy requests" onPress={() => router.push("/(app)/provider-applications" as never)} /> : null}
-        {operates ? <Row icon="construct-outline" label="Maintenance" onPress={() => router.push("/(app)/maintenance" as never)} /> : null}
-        {/* Buyers asking about what this Portfolio is selling (owner, 2026-09-29). */}
-        {operates ? <Row icon="chatbubbles-outline" label="Buyer enquiries" onPress={() => router.push("/(app)/enquiries" as never)} /> : null}
-        {operates || finances ? <Row icon="reader-outline" label="Leases" onPress={() => router.push("/(app)/leases" as never)} /> : null}
-        <Row icon="notifications-outline" label="Updates" count={unread} onPress={() => router.push("/(app)/notifications" as never)} />
-      </Group>
-
-      {/* Harmattan, not laterite: a shield in laterite beside "Verification"
-          reads as a check that failed. */}
-      <Group title="Growth and trust" tone="harmattan">
-        {operates ? <Row icon="megaphone-outline" label="Listings" onPress={() => router.push("/(app)/(provider-tabs)/properties" as never)} /> : null}
-        <Row icon="shield-checkmark-outline" label="Verification" onPress={() => router.push("/(app)/trust" as never)} />
-      </Group>
-
-      <Group title="Account and settings" tone="kola">
-        <Row icon="person-outline" label="Profile" onPress={() => router.push("/(app)/profile-edit" as never)} />
-        {billing ? <Row icon="card-outline" label="Settlement account" onPress={() => router.push("/(app)/payout-account" as never)} /> : null}
-        <Row icon="lock-closed-outline" label="Security" onPress={() => router.push("/(app)/security" as never)} />
-        <Row icon="options-outline" label="Notifications" onPress={() => router.push("/(app)/notification-settings" as never)} />
-        <Row icon="people-circle-outline" label="Team" onPress={() => router.push("/(app)/team" as never)} />
-        {billing ? <Row icon="pricetag-outline" label="Plan & billing" onPress={() => router.push("/(app)/billing" as never)} /> : null}
-        {operates ? <Row icon="archive-outline" label="Archive" onPress={() => router.push("/(app)/archive" as never)} /> : null}
-      </Group>
-
-      <IndexActions>
-        {/* A change of view, not of account. Switching back is one tap from
-            the tenant's More. */}
-        <SwitchExperienceButton
-          label="Switch to renting"
-          busyLabel="Switching…"
-          busy={switching}
-          onPress={() => void switchToTenant()}
-        />
-        <SignOutButton
-          label="Sign out"
-          busyLabel="Signing out…"
-          busy={leaving}
-          onPress={async () => {
-            setLeaving(true);
-            try {
-              await signOut();
-              router.replace("/(auth)/start");
-            } finally {
-              setLeaving(false);
-            }
-          }}
-        />
-      </IndexActions>
-    </IndexPage>
+      sections={sections}
+      notice={error ? <Notice tone="error" title={error} /> : null}
+    />
   );
 }

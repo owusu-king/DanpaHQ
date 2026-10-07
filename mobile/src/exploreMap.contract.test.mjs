@@ -124,14 +124,12 @@ test("the map searches a new area only when asked, and offers it only over the m
   // A gesture is the tenant's; a fit is ours.
   assert.match(native, /const byUser = details\?\.isGesture \?\? !ours\.current;/);
 
-  // It rides a step above the sheet and fades before the sheet can crowd it:
-  // gone at full, gone behind a preview, and never over the rentals.
-  assert.match(search, /\{showSearchArea && stop !== "full" && !previewing \? \(/);
-  assert.match(search, /opacity: areaPillOpacity,\s+transform: \[\{ translateY: offset \}\],/);
-  assert.match(search, /inputRange: \[pillHeight \+ space\[6\], pillHeight \+ space\[12\]\],/);
+  // It sits just under the hero, over the map only: never over the list.
+  assert.match(search, /\{showSearchArea && !listOpen \? \(/);
+  assert.match(search, /top: controlsHeight \+ space\[3\], zIndex: 3, alignItems: "center"/);
 
   // "This area" is what the tenant can see — the map between the controls and
-  // the sheet, measured on the screen — so every provider means the same by it.
+  // the List button, measured on the screen — so every provider means the same by it.
   assert.match(search, /insets=\{mapInsets\}/);
   assert.match(native, /mapPadding=\{insets\}/);
   assert.match(native, /view\.coordinateForPoint\(\{ x: covered\.left, y: covered\.top \}\),/);
@@ -141,7 +139,7 @@ test("the map searches a new area only when asked, and offers it only over the m
   assert.match(native, /const edge = \(inset: number\) => FIT_MARGIN \+ \(PROVIDER === PROVIDER_GOOGLE \? 0 : inset\);/);
 });
 
-test("a marker previews its rental while the list waits in a sheet that reaches the whole screen", () => {
+test("a marker previews its rental, and the map and the list are two views switched by a button", () => {
   const search = read("app/(app)/search.tsx");
   const native = read("src/maps/RooomlyMap.native.tsx");
 
@@ -160,27 +158,25 @@ test("a marker previews its rental while the list waits in a sheet that reaches 
   assert.match(preview, /const advance = advanceTerm\(listing\.advance_label\);/);
   assert.match(preview, /\{advance\}<\/Type>/);
 
-  // Full is the whole content area below the hero; collapsed is exactly the
-  // sheet's measured header.
-  assert.match(search, /const sheetHeight = Math\.max\(0, screenHeight - controlsHeight\);/);
+  // No sheet to drag (owner, 2026-10-06): List floats over the map, centred
+  // over the Services tab and lifted above a preview; the list fades over the
+  // map and its Map button, beside the count, brings the map back.
+  assert.doesNotMatch(search, /PanResponder|SheetStop|FLICK_MS|FALLBACK_PEEK|setStop\(/);
+  assert.match(search, /const \[listOpen, setListOpen\] = useState\(!showMap\);/);
+  assert.match(search, /accessibilityLabel=\{.List\. \$\{resultLine\}.\}/);
+  assert.match(search, /color: theme\.color\.field\["0"\] \}\}>List<\/Type>/);
+  assert.match(search, /onPress=\{\(\) => \{ Keyboard\.dismiss\(\); setListOpen\(true\); \}\}/);
+  assert.match(search, /bottom: previewing \? previewHeight \+ space\[3\] \* 2 : space\[5\],/);
+  assert.match(search, /\{showMap && !listOpen \? \(/);
+  assert.match(search, /accessibilityLabel="Show the map"[\s\S]{0,40}hitSlop=\{6\}\s*onPress=\{\(\) => setListOpen\(false\)\}/);
+  assert.match(search, /pointerEvents=\{listOpen \? "auto" : "none"\}/);
+  assert.match(search, /opacity: listFade,/);
+  assert.match(search, /Animated\.timing\(listFade, \{ toValue, duration: 180, useNativeDriver: true \}\)/);
+  // The list covers everything below the hero, and a preview only shows over the map.
+  assert.match(search, /const listHeight = Math\.max\(0, screenHeight - controlsHeight\);/);
+  assert.match(search, /const previewing = Boolean\(showMap && selection && previewListing && !listOpen\);/);
   // List view keeps the same header as map view: no fold, no one-row form.
   assert.doesNotMatch(search, /oneRow|collapsed=/);
-  assert.match(search, /const peek = sheetHeaderHeight > 0 \? Math\.ceil\(sheetHeaderHeight\) : FALLBACK_PEEK;/);
-  assert.match(search, /return \{ full: 0, half: Math\.min\(Math\.round\(sheetHeight \* 0\.45\), collapsed\), peek: collapsed \};/);
-  // It snaps to where the release is heading, and a deliberate flick always
-  // moves at least one stop, without bouncing past it.
-  assert.match(search, /PanResponder\.create\(\{/);
-  assert.match(search, /let target = nearest\(dragStart\.current \+ gesture\.dy \+ gesture\.vy \* FLICK_MS\);/);
-  assert.match(search, /if \(target === from && Math\.abs\(gesture\.vy\) > 0\.3\) \{/);
-  assert.match(search, /overshootClamping: true,/);
-  assert.match(search, /onPanResponderTerminationRequest: \(\) => false,/);
-  // The rentals drag the sheet until it is full and only then scroll — photo
-  // swipes and Android's pull-to-refresh included, which would take the drag.
-  assert.match(search, /return \[drag\(\(\) => true\), drag\(\(\) => stopRef\.current !== "full"\)\] as const;/);
-  assert.match(search, /const listScrolls = !showMap \|\| stop === "full";/);
-  assert.match(search, /scrollEnabled=\{listScrolls\}/);
-  assert.match(search, /enabled=\{listScrolls\}/);
-  assert.match(search, /photoSwipe=\{listScrolls\}/);
   // Outside the tabs, the list keeps clear of the home indicator itself.
   assert.match(search, /paddingBottom: space\[8\] \+ \(inTabs \? 0 : insets\.bottom\),/);
   // Without a map the screen is the whole list, and says why.

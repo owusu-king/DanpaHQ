@@ -26,7 +26,7 @@ test("the shortlist is a pushed screen, not a tab with its bar hidden", () => {
     read("src/components/nav/ExploreHeaderActions.tsx"),
     /router\.push\("\/\(app\)\/saved" as never\)/,
   );
-  assert.match(read("app/(app)/(tabs)/profile.tsx"), /router\.push\("\/\(app\)\/saved" as never\)/);
+  assert.match(read("app/(app)/(tabs)/profile.tsx"), /const go = \(path: string\) => \(\) => router\.push\(path as never\);[\s\S]*onPress: go\("\/\(app\)\/saved"\)/);
 });
 
 test("signed out, it asks for the account the shortlist belongs to", () => {

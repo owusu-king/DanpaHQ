@@ -14,7 +14,7 @@ test("mobile provider Team supports the same membership lifecycle", () => {
 
   // More is the provider's index and reaches Team directly. A tenant has no
   // Team, so their index does not list one.
-  assert.match(more, /label="Team"/);
+  assert.match(more, /label: "Team"/);
   assert.match(more, /\/\(app\)\/team"/);
   // The roster invites; changing one person's access belongs to that person's
   // own screen rather than to controls inside every row.
@@ -114,7 +114,7 @@ test("switching Portfolio leaves nothing of the last one on screen", () => {
     );
   }
   // These two hold one list each and already empty it at the top of every load.
-  for (const screen of ["mobile/app/(app)/provider-viewings.tsx", "mobile/app/(app)/leases.tsx"]) {
+  for (const screen of ["mobile/app/(app)/provider-viewings.tsx", "mobile/src/components/agreements/ProviderAgreements.tsx"]) {
     assert.match(code(read(screen)), /setItems\(null\);/, `${screen} keeps its rows through a switch`);
   }
 });
@@ -122,7 +122,7 @@ test("switching Portfolio leaves nothing of the last one on screen", () => {
 test("mobile provider lists are about the Portfolio on screen", () => {
   const code = (text) => text.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
   const requests = code(read("mobile/app/(app)/provider-applications.tsx"));
-  const leases = code(read("mobile/app/(app)/leases.tsx"));
+  const leases = code(read("mobile/src/components/agreements/ProviderAgreements.tsx"));
   const viewings = code(read("mobile/app/(app)/provider-viewings.tsx"));
   const home = code(read("mobile/app/(app)/(provider-tabs)/index.tsx"));
 
@@ -220,10 +220,12 @@ test("mobile Property and Unit screens mirror the operational hierarchy", () => 
   // The Unit was five stacked disclosures under one heading — a settings page,
   // not a record. Each is its own piece of work, so each opens on the row that
   // names it, and the photograph leads because that is how a Unit is known.
-  assert.match(unit, /<GroupLabel>What it is<\/GroupLabel>/);
+  assert.match(unit, /<UnitFact label="Type"/);
   assert.match(unit, /<GroupLabel>Manage this Unit<\/GroupLabel>/);
   assert.match(unit, /label="Verification and publication"/);
-  assert.match(unit, /style=\{styles\.hero\}/);
+  assert.match(unit, /<View style=\{styles\.hero\}>/);
+  // Mid-page acts are a row in the page; the pinned bar drew a white slab there.
+  assert.doesNotMatch(unit, /<ActionBar>/);
   assert.doesNotMatch(unit, /<Disclosure/, "a record does not stack disclosures");
   // The Unit's own access code is managed on the Unit. It used to be reachable
   // only through the Portfolio's tenant work, which a provider holding a
@@ -231,9 +233,21 @@ test("mobile Property and Unit screens mirror the operational hierarchy", () => 
   assert.match(unit, /<UnitAccessCodeManagement/);
   assert.match(unit, /Tenancy requests and tenancies/);
   assert.match(unit, /property_type === "hostel" && unit\.space_type === "room"/);
-  assert.match(unit, /Rooomly will not accept new requests while someone lives here/);
+  // Occupied: a card that says so and leads to Tenants, not a boxed notice with nothing to press.
+  assert.match(unit, /<StandingLine tone="good" line="Someone lives here" \/>/);
+  assert.match(unit, /<Pill label="Open Tenants" icon="people-outline"/);
   assert.match(unit, /Alert\.alert\([\s\S]*Take this Unit out of Explore\?/);
   assert.match(unit, /style: destructiveConfirmStyle/);
+  // The setup tracker counts only steps to fill in — "Review" is the act of
+  // finishing and is never ticked — names the next one, and draws a segment each.
+  assert.match(lifecycle, /const required = steps\.filter\(\(step\) => !step\.optional && !step\.terminal\);/);
+  assert.match(lifecycle, /<Segments total=\{required\.length\} done=\{complete\}/);
+  assert.match(lifecycle, /<Type variant="bodyStrong" style=\{styles\.nextTitle\}>\{next\.title\}<\/Type>/);
+  // A provider's Viewing offers a change only when the backend allows it.
+  const providerViewing = read("mobile/app/(app)/provider-viewing.tsx");
+  assert.match(providerViewing, /const canReschedule = viewing\.status === "confirmed" && Boolean\(viewing\.actions\.can_reschedule\);/);
+  assert.match(providerViewing, /\{canCancel \? \(/);
+  assert.doesNotMatch(providerViewing, /viewing\.actions\.can_cancel \|\| viewing\.status === "confirmed"/);
   assert.match(lifecycle, /With our review team/);
   assert.match(lifecycle, /This returns the submission to you/);
   assert.match(patterns, /availability\.state === "occupied"/);
@@ -243,69 +257,162 @@ test("mobile Property and Unit screens mirror the operational hierarchy", () => 
   assert.match(layout, /name="space" options=\{\{ title: "Unit" \}\}/);
 });
 
-test("mobile Home is a control center recomposed for a phone", () => {
+test("mobile Home leads with the next move, then one strong figure", () => {
   const home = read("mobile/app/(app)/(provider-tabs)/index.tsx");
 
-  // One overview surface, not four KPI cards squeezed into a two-column wrap.
+  // The order a provider reads it in (owner, 2026-10-06).
+  const order = [...home.matchAll(/<Section title="([^"]+)"/g)].map((match) => match[1]);
+  assert.deepEqual(order, ["Your next move", "Overview", "Highlights", "Rent collection", "Coming up", "Recent activity"]);
+
+  // Both Homes are built from one kit, so they cannot drift.
+  const kit = read("mobile/src/components/home/DashboardParts.tsx");
+  assert.match(home, /from "@\/components\/home\/DashboardParts";/);
+
+  // One move leads with its verb as the page's one solid button; the rest are rows.
+  const moves = kit.slice(kit.indexOf("export function NextMoves("), kit.indexOf("export function Ring("));
+  assert.match(moves, /const \[lead, \.\.\.rest\] = moves;/);
+  assert.match(moves, /<Act label=\{lead\.act\} primary onPress=\{lead\.onPress\} \/>/);
+  assert.match(moves, /icon="checkmark-done-outline" title=\{calm\.title\}/);
+  assert.match(home, /moves=\{moves\.map\(\(move\) => \(\{ \.\.\.move, onPress: \(\) => go\(move\.to\) \}\)\)\}/);
+  assert.match(home, /calm=\{\{ title: "Nothing is waiting on you"/);
+
+  // One overview surface with occupancy as its figure, and the counts behind it
+  // each opening their list — not four KPI cards of equal weight.
   assert.match(home, /<PortfolioOverview/);
-  assert.match(home, /<Svg/);
-  assert.match(home, /label="Properties"/);
-  assert.match(home, /label="Tenancies"/);
-  assert.match(home, /accessibilityLabel=\{`\$\{units\} Units`\}/);
-  assert.match(home, /accessibilityLabel=\{`\$\{available\} Vacant Units`\}/);
-  assert.match(home, /function PortfolioLedger/);
-  assert.doesNotMatch(home, /function OverviewFigure/);
-  assert.doesNotMatch(home, /function Figure/);
-  // The card, the ground, the paper and the registration ticks are one
-  // vocabulary shared with the tenant's Home rather than a copy per screen —
-  // two palettes is how one of them ends up a shade whiter than the other.
-  const plinth = read("mobile/src/components/home/plinth.tsx");
-  assert.match(plinth, /export function PlinthCard/);
-  assert.match(plinth, /export const ph = \{/);
-  assert.match(home, /\} from "@\/components\/home\/plinth";/);
-  assert.doesNotMatch(home, /const ph = \{/);
-  assert.match(home, /function PortfolioHighlight/);
-  assert.match(home, /right\.unit_count - left\.unit_count/);
-  assert.match(home, /height: cardHeight/);
-  assert.doesNotMatch(home, /minHeight: density\.compact \? 104 : 112/);
-  assert.doesNotMatch(home, /function StreetElevation/);
+  assert.match(home, /<Cell label="Units" value=\{units\} onPress=\{onUnits\} \/>/);
+  assert.match(home, /<Cell label="Vacant" value=\{available\} onPress=\{onUnits\} alert=\{available > 0\} \/>/);
+  assert.match(home, /<Cell label="Properties" value=\{properties\} onPress=\{onProperties\} \/>/);
+  assert.match(home, /<Cell label="Tenancies" value=\{tenants\} onPress=\{onTenants\} \/>/);
+  assert.match(kit, /accessibilityLabel=\{`\$\{value\} \$\{label\}`\}/);
+  // No Units, no percentage.
+  assert.match(home, /No Units yet/);
 
-  // Priority order for a phone: recognize the featured Property, understand
-  // the Portfolio, see what needs action, then the money and current activity.
-  const order = ["<PortfolioHighlight", "<PortfolioOverview", "<AttentionPanel", "<RentCollection", 'title="Upcoming viewings"', 'title="Recent activity"']
-    .map((marker) => home.indexOf(marker));
-  assert.ok(order.every((at) => at > -1), "a Home region is missing");
-  assert.deepEqual([...order].sort((a, b) => a - b), order, "Home regions are out of priority order");
+  // Two rings, refined from the earlier Home's one (owner, 2026-10-06): what
+  // is let and what of this month's rent is in, each done in green with the rest
+  // as its own softer arc, and holding one shows the figures behind it.
+  const overview = home.slice(home.indexOf("function PortfolioOverview("), home.indexOf("function shortMoney("));
+  assert.match(overview, /<Ring\s+share=\{occupied \/ units\}\s+rest=\{RING_EMPTY\}/);
+  assert.match(overview, /<Ring\s+share=\{month\.collected_minor \/ due\}\s+rest=\{RING_OWED\}/);
+  assert.match(overview, /heldFigure=\{`\$\{occupied\}\/\$\{units\}`\}/);
+  const ring = kit.slice(kit.indexOf("export function Ring("), kit.indexOf("export function Rings("));
+  assert.match(ring, /onPressIn=\{\(\) => setShowCount\(true\)\}/);
+  assert.match(ring, /\{showCount \? heldFigure : figure\}/);
+  assert.match(ring, /stroke=\{rest\}/);
+  assert.match(ring, /stroke=\{KOLA\}/);
+  assert.match(home, /month=\{summary\?\.rent_collection\.monthly\.at\(-1\) \?\? null\}/);
+  // With nothing due, the rent ring still stands beside occupancy, drawn as
+  // nothing: a faint dashed outline, "None due", and nothing to hold for.
+  assert.match(overview, /<Ring\s+share=\{null\}\s+rest=\{RING_OWED\}\s+figure="None"\s+unit="due"/);
+  assert.match(overview, /line="No rent due yet"/);
+  assert.match(ring, /disabled=\{empty\}/);
+  assert.match(ring, /stroke=\{RING_NONE\} strokeWidth=\{2\} strokeDasharray="3 6"/);
+  // And the four counts back on one straight line under them.
+  assert.match(home, /<StatCells>\s*<Cell label="Units"/);
+  assert.match(kit, /cells: \{\s*flexDirection: "row",/);
+  // The template's drafting marks are gone: the ledger, ticks, gold register and highlight card.
+  assert.doesNotMatch(home, /function PortfolioLedger|function PortfolioHighlight|<Ticks|PORTFOLIO HIGHLIGHT|ph\.gold/);
+});
 
-  assert.match(home, /pending_join_requests/);
-  assert.match(home, /payment_records_awaiting_you/);
-  assert.match(home, /occupied_units/);
-  assert.match(home, /vacant_units/);
+test("the tenant's Home is built from the same kit, and leads with what waits on them", async () => {
+  const home = read("mobile/src/components/home/TenantHome.tsx");
+  assert.match(home, /from "@\/components\/home\/DashboardParts";/);
+  const order = [...home.matchAll(/<Section title="([^"]+)"/g)].map((match) => match[1]);
+  assert.deepEqual(order, ["Your next move", "Overview", "Highlights", "Coming up", "Recent activity", "Find your home", "In progress"]);
+  assert.match(home, /<Section title=\{tenancies\.length > 1 \? "My homes" : "My home"\}/);
 
-  // Money that would be a lie. Period figures are now shown, but only the ones
-  // the server built from dated payments and open charges — the same
-  // `rent_collection` the web dashboard charts. Nothing is aggregated here.
-  const rendered = home.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
-  assert.doesNotMatch(rendered, /\brevenue\b/i);
-  assert.doesNotMatch(rendered, /available balance/i);
-  assert.match(home, /summary\?\.rent_collection/);
-  assert.match(home, /settlement_attention_minor/);
-  assert.match(home, /key=\{`chart-touch-\$\{row\.period\}`\}/);
-  assert.match(home, /onPress=\{\(\) => selectPoint\(index\)\}/);
-  assert.match(home, /hapticsPolicy\.onSelection/);
-  // Collected and outstanding are two questions, never netted into one.
-  assert.doesNotMatch(rendered, /collected_minor\s*-\s*[^;]*outstanding_minor/);
+  // What they owe stays the page's one big figure, summed in minor units, over the counts on one line.
+  assert.match(home, /minor \+= rent\.outstanding_minor \?\? 0;/);
+  assert.match(home, /<StatCells>\s*<Cell label=\{plural\(homes, "Home", "Homes"\)\}/);
+  // Each home's amount still opens its own rent account.
+  assert.match(home, /accessibilityLabel=\{`Rent account for \$\{unit\}\./);
+  // Joining another home stays reachable whenever a tenant has one.
+  assert.match(home, /<JoinAnother key="join" onJoin=\{onJoin\} \/>/);
+  assert.doesNotMatch(home, /<Ticks|<Register|ph\.gold|PlinthCard/);
 
-  // Semantic state is not colour alone, and motion-sensitive native surfaces
-  // keep immediate press feedback.
-  assert.match(home, /"Act now" : "Soon"/);
-  assert.match(home, /accessibilityLabel/);
-  assert.match(home, /pressableFeedback/);
-  // A phone cannot hover: the gauge reads out on press instead.
-  assert.match(home, /onPressIn=\{\(\) => setShowCount\(true\)\}/);
+  const { moveTone, rankMoves, tenantHighlights, termProgress } = await import("./tenantHomeWork.ts");
+  assert.deepEqual(["rent_overdue", "agreement_offered", "viewing", "application", "join_rejected"].map(moveTone), ["danger", "danger", "warning", "warning", "calm"]);
+  assert.deepEqual(rankMoves([{ kind: "viewing" }, { kind: "agreement_offered" }, { kind: "rent_overdue" }]).map((row) => row.kind), ["rent_overdue", "agreement_offered", "viewing"]);
 
-  // Maintenance is not enabled, so it is absent rather than shown at zero.
-  assert.doesNotMatch(home, /maintenance/i);
+  const now = new Date("2026-10-06T12:00:00").getTime();
+  const term = termProgress("2026-06-08", "2027-06-08", now);
+  assert.deepEqual([term.month, term.months], [4, 12]);
+  const rows = tenantHighlights({
+    tenancies: [
+      { id: "t1", status: "active", starts_on: "2026-06-08", ends_on: "2027-06-08", name: "Unit 3D" },
+      { id: "t2", status: "active", starts_on: "2025-11-01", ends_on: "2026-11-01", name: "Room 4" },
+    ],
+    now,
+    date: (iso) => iso,
+  });
+  assert.deepEqual(rows.map((row) => row.headline), ["Month 4 of 12 at Unit 3D", "Your agreement ends in 26 days"]);
+  assert.deepEqual(rows.map((row) => row.tag), ["Tenancy", "Ending"]);
+
+  // Never one card alone (owner, 2026-10-06): rent leads — late, coming or paid —
+  // and every home says where it has got to, dates or not.
+  const rent = (extra) => ({ tenancyId: "t1", name: "Unit 3D", amount: "GH₵4,500.00", dueOn: null, overdue: false, owedMinor: 0, ...extra });
+  const one = { id: "t1", status: "active", starts_on: null, ends_on: null, name: "Unit 3D" };
+  const highlightsFor = (input) => tenantHighlights({ tenancies: [one], now, date: (iso) => iso, ...input });
+  assert.deepEqual(highlightsFor({ rent: rent({ dueOn: "2026-10-18" }) }).map((row) => row.headline), ["Rent due in 12 days", "Your home: Unit 3D"]);
+  assert.deepEqual(highlightsFor({ rent: rent({ dueOn: "2026-10-03", overdue: true }) }).map((row) => [row.tag, row.to]), [["Overdue", "rent"], ["Tenancy", "tenancy"]]);
+  assert.equal(highlightsFor({ rent: rent({}) })[0].headline, "You are paid up");
+  assert.ok(highlightsFor({ rent: rent({}) }).length >= 2);
+  assert.match(home, /if \(reading\.to === "rent" && tenancy\.lease\) onRentAccount\(tenancy\);/);
+
+  // The applications half dial stays in the Overview, refined, and is not a highlight as well.
+  assert.match(home, /\{applications \? <ApplicationDial total=\{applications\} accepted=\{accepted\} onPress=\{onApplications\} \/> : null\}\s*<StatCells>/);
+  const dial = home.slice(home.indexOf("function ApplicationDial("), home.indexOf("function HomeRow("));
+  assert.match(dial, /const angle = Math\.PI \+ share \* Math\.PI;/);
+  assert.match(dial, /stroke=\{TONE\.kola\.ink\} strokeWidth=\{stroke\} strokeLinecap="round"/);
+  assert.doesNotMatch(dial, /ph\.gold|strokeDasharray/);
+  assert.doesNotMatch(read("mobile/src/tenantHomeWork.ts"), /applications accepted/);
+});
+
+test("mobile Home's chart keeps its reading, in the product's colours", () => {
+  const home = read("mobile/app/(app)/(provider-tabs)/index.tsx");
+  const chart = home.slice(home.indexOf("function RentCollection("), home.indexOf("function Figure("));
+
+  // Still read by tapping a period, with haptics, and monthly or yearly.
+  assert.match(chart, /setActive\(\(current\) => current === index \? null : index\);/);
+  assert.match(chart, /haptics\.selectionAsync\(\)/);
+  assert.match(chart, /setPeriod\(option\); setActive\(null\);/);
+  assert.match(chart, /aria-selected=\{active === index\}/);
+  // A tooltip beside the column it reads, so it never covers that reading.
+  assert.match(chart, /const tipLeft = tipX > width \/ 2 \? Math\.max\(0, tipX - TIP - 12\) : Math\.min\(width - TIP, tipX \+ 12\);/);
+  assert.match(chart, /<TipLine dot=\{COLLECTED\} label="Collected"/);
+  // Money in is the brand's green, money owed is harmattan, gridlines are the ground's green.
+  assert.match(home, /const COLLECTED = theme\.color\.kola\["600"\];/);
+  assert.match(home, /const OWED = theme\.color\.harmattan\["500"\];/);
+  assert.match(chart, /stroke=\{RULE\}/);
+  assert.doesNotMatch(home, /#12181F|#0F1620|#B5822E|ph\.navy|ph\.gold/);
+});
+
+test("mobile Home's moves are ordered by what waiting costs", async () => {
+  const { nextMoves, insights, ago } = await import("./dashboardWork.ts");
+  const money = (minor) => `GH₵${minor / 100}`;
+  const all = nextMoves({
+    overdueMinor: 120000, settlementAttentionMinor: 5000, recordsToConfirm: 2, maintenanceAlerts: 1,
+    requests: 3, viewingRequests: 4, draftAgreements: 1, propertiesToUpdate: 1, unreadEnquiries: 2, money,
+  });
+  assert.deepEqual(all.map((move) => move.key), ["overdue", "payout", "records", "repairs", "requests", "viewings", "drafts", "properties", "enquiries"]);
+  assert.deepEqual(all.map((move) => move.tone), ["danger", "danger", "warning", "warning", "warning", "warning", "calm", "calm", "calm"]);
+  assert.equal(all[0].title, "GH₵1200 overdue");
+  assert.equal(all[2].title, "2 payment records to confirm");
+  assert.equal(all[6].title, "1 agreement to send");
+  // Nothing waiting is no moves at all, not a list of zeroes.
+  assert.deepEqual(nextMoves({ overdueMinor: 0, settlementAttentionMinor: 0, recordsToConfirm: 0, maintenanceAlerts: 0, requests: 0, viewingRequests: 0, draftAgreements: 0, propertiesToUpdate: 0, unreadEnquiries: 0, money }), []);
+
+  // Highlights say what follows, and only when there is something to say.
+  // This month's collection is the rent ring's to say, never a highlight as well.
+  const readings = insights({ units: 12, occupied: 10, vacant: 2, largest: { id: "p1", title: "Osu Heights", units: 6, occupied: 5 } });
+  assert.deepEqual(readings.map((row) => row.headline), ["2 Units are empty", "Osu Heights is 83% let"]);
+  assert.equal(readings[0].act, "Fill them");
+  // Each card's corner arc is its reading: the empty share, and the largest Property's let share.
+  assert.deepEqual(readings.map((row) => [row.tag, Math.round(row.share * 100)]), [["2 empty", 17], ["Largest", 83]]);
+  assert.deepEqual(insights({ units: 0, occupied: 0, vacant: 0, largest: null }), []);
+  assert.doesNotMatch(read("mobile/src/dashboardWork.ts"), /rent is in/);
+
+  const now = new Date(2026, 9, 6, 12).getTime();
+  assert.deepEqual([ago(new Date(2026, 9, 6, 8).toISOString(), now), ago(new Date(2026, 9, 5, 8).toISOString(), now), ago(new Date(2026, 9, 3, 8).toISOString(), now)], ["Today", "Yesterday", "3 days ago"]);
 });
 
 test("Home rows carry a destination, not an explanation", () => {
@@ -349,18 +456,22 @@ test("mobile separates tenancy requests from active tenant relationships", () =>
   const layout = read("mobile/app/(app)/_layout.tsx");
   const providerTabs = read("mobile/app/(app)/(provider-tabs)/_layout.tsx");
 
-  assert.match(tenants, /type ViewName = "tenants" \| "access"/);
+  // Tenancies and private access on one page: private access folds at the foot.
+  assert.match(tenants, /title="Private access"/);
   assert.match(tenants, /Search tenants/);
-  assert.match(tenants, /tenantNeedsAttention/);
-  assert.match(tenants, /summary\.tenant_access/);
+  assert.match(tenants, /tenantWork\(all\)/);
+  assert.match(tenants, /summary\?\.tenant_access/);
   assert.match(tenants, /provider-tenancy/);
   assert.doesNotMatch(tenants, /listUnits|listOrganizationProperties/);
   assert.doesNotMatch(tenants, /RequestLeaseActions|decidePropertyJoinRequest/);
   assert.match(requests, /summaries[\s\S]*flatMap\(\(summary\) => summary\.tenancy_requests/);
   assert.match(requests, /listReceivedApplications/);
-  assert.match(requests, /label="Needs action"/);
-  assert.match(requests, /label="Agreement"/);
-  assert.match(requests, /label="History"/);
+  // Requests are worked through the leasing journey (owner, 2026-10-06): the
+  // decision, the agreement, the tenant's turn, moving in — and Settled.
+  assert.match(requests, /<Journey counts=\{work\.counts\}/);
+  assert.match(requests, /"Your move"/);
+  assert.match(requests, /"Waiting on others"/);
+  assert.match(requests, /function SettledFold\(/);
   assert.match(requestDetail, /decideApplication/);
   assert.match(requestDetail, /ApplicationLeaseActions/);
   assert.match(requestDetail, /RequestLeaseActions/);

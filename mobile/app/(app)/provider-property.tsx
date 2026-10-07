@@ -1,6 +1,6 @@
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { FlatList, StyleSheet, View } from "react-native";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 
 import { ApiFailure } from "@/api";
 import { Bone } from "@/components/billing/BillingParts";
@@ -10,7 +10,9 @@ import {
   Fact,
   Footnote,
   GroupLabel,
+  HARMATTAN,
   INK,
+  KOLA_DEEP,
   Lead,
   LinkRow,
   Pill,
@@ -39,6 +41,7 @@ import {
   type Unit,
 } from "@/provider";
 import { getSellerSale, type SellerSale } from "@/sales";
+import { theme } from "@/theme";
 import { getVerification, type VerificationProgress } from "@/verification";
 
 type Sheet = "information" | "amenities" | "buildings" | "more" | "danger" | "sale";
@@ -100,7 +103,8 @@ export default function ProviderPropertyScreen() {
     }
   }, [propertyId]);
 
-  useEffect(() => { void load(); }, [load]);
+  // On focus, so coming back from a Unit, setup or verification shows what changed.
+  useFocusEffect(useCallback(() => { void load(); }, [load]));
 
   if (!property) {
     return (
@@ -175,42 +179,55 @@ export default function ProviderPropertyScreen() {
               />
             ) : null}
 
-            <View style={styles.identity}>
-              <Type variant="title2" accessibilityRole="header" numberOfLines={2} style={styles.who}>
-                {property.title || "Untitled Property"}
-              </Type>
-              <Type variant="caption" numberOfLines={2} style={styles.where}>
-                {fullAddress || `${property.address.locality_name}, ${property.address.district_name}`}
-              </Type>
-              <StandingLine tone={tone} line={status.label} />
+            {/* One card says what this Property is (owner, 2026-10-06): its name,
+                where it is and where it stands, how much of it is let as a bar,
+                and its counts on one straight line — not a title on the ground
+                over a separate "Let 5/6" panel. */}
+            <View style={styles.card}>
+              <View style={styles.identity}>
+                <Type variant="title2" accessibilityRole="header" numberOfLines={2} style={styles.who}>
+                  {property.title || "Untitled Property"}
+                </Type>
+                <Type variant="caption" numberOfLines={2} style={styles.where}>
+                  {fullAddress || `${property.address.locality_name}, ${property.address.district_name}`}
+                </Type>
+                <StandingLine tone={tone} line={status.label} />
+              </View>
+              {selling ? (
+                <View style={styles.sale}>
+                  <Lead
+                    label="Asking price"
+                    value={sale?.price_formatted ?? "No price yet"}
+                    note={shown ? `${shown.label} · ${shown.note}` : "Loading…"}
+                    tone={shown?.tone ?? "quiet"}
+                  />
+                </View>
+              ) : units.length ? (
+                <View accessible accessibilityLabel={`${occupied} of ${units.length} Units let`} style={styles.letting}>
+                  <View style={styles.lettingHead}>
+                    <Type variant="caption" style={styles.lettingLabel}>Let</Type>
+                    <Type variant="captionStrong" style={{ color: vacant ? HARMATTAN : KOLA_DEEP }}>
+                      {vacant ? `${vacant} still to let` : "Every Unit is let"}
+                    </Type>
+                  </View>
+                  <View style={styles.bar}>
+                    <View style={[styles.barFill, { flex: occupied }]} />
+                    <View style={{ flex: vacant }} />
+                  </View>
+                </View>
+              ) : null}
+              <View style={styles.facts}>
+                <PropertyFact label="Type" wide value={propertyTypeLabel(property.property_type).replace(/ Property$/, "")} />
+                {selling ? null : (
+                  <>
+                    <View style={styles.factRule} />
+                    <PropertyFact label="Units" value={units.length ? `${occupied}/${units.length} let` : "None yet"} />
+                    <View style={styles.factRule} />
+                    <PropertyFact label="Blocks" value={buildings.length ? String(buildings.length) : "One"} />
+                  </>
+                )}
+              </View>
             </View>
-
-            {selling ? (
-              <RecordPanel>
-                <Lead
-                  label="Asking price"
-                  value={sale?.price_formatted ?? "No price yet"}
-                  note={shown ? `${shown.label} · ${shown.note}` : "Loading…"}
-                  tone={shown?.tone ?? "quiet"}
-                />
-                <View style={styles.rule} />
-                <Fact first label="Type" value={propertyTypeLabel(property.property_type)} />
-              </RecordPanel>
-            ) : (
-            <RecordPanel>
-              <Lead
-                label="Let"
-                value={units.length ? `${occupied}/${units.length}` : "No Units yet"}
-                note={units.length
-                  ? (vacant ? `${vacant} still to let` : "Every Unit is let")
-                  : "Add the first space a tenant can rent"}
-                tone={units.length && vacant === 0 ? "good" : units.length ? "waiting" : "quiet"}
-              />
-              <View style={styles.rule} />
-              <Fact first label="Type" value={propertyTypeLabel(property.property_type)} />
-              {buildings.length ? <Fact label="Blocks" value={String(buildings.length)} /> : null}
-            </RecordPanel>
-            )}
 
             {access && restricted ? (
               <Notice
@@ -299,8 +316,8 @@ export default function ProviderPropertyScreen() {
                 first
                 icon="people-outline"
                 label="Tenant access and tenancies"
-                detail="Requests, agreements and who lives here"
-                onPress={() => router.push("/(app)/(provider-tabs)/tenants" as never)}
+                detail="Requests, agreements and who lives here, in this Property"
+                onPress={() => router.push({ pathname: "/(app)/(provider-tabs)/tenants", params: { propertyId: property.id, scopeLabel: property.title } } as never)}
               />
             </RecordPanel>}
             {canEdit ? null : <Footnote>This Property is read-only for your role.</Footnote>}
@@ -403,6 +420,16 @@ export default function ProviderPropertyScreen() {
   );
 }
 
+/** One of the Property's facts on the identity card's straight line. */
+function PropertyFact({ label, value, wide = false }: { label: string; value: string; wide?: boolean }) {
+  return (
+    <View accessible accessibilityLabel={`${label}, ${value}`} style={[styles.fact, wide ? { flex: 1.5 } : null]}>
+      <Type variant="caption" style={styles.factLabel}>{label}</Type>
+      <Type variant="bodyStrong" numberOfLines={2} style={styles.factValue}>{value}</Type>
+    </View>
+  );
+}
+
 function sheetTitle(sheet: Sheet | null) {
   if (sheet === "information") return "Property information";
   if (sheet === "amenities") return "Shared amenities";
@@ -480,22 +507,78 @@ const styles = StyleSheet.create({
     gap: space[4],
     marginBottom: space[1],
   },
+  card: {
+    overflow: "hidden",
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: EDGE,
+    backgroundColor: theme.color.field["0"],
+  },
   identity: {
     gap: space[2],
-    paddingHorizontal: 2,
+    paddingHorizontal: space[4],
+    paddingTop: space[4],
   },
   who: {
-    fontSize: 19,
-    lineHeight: 25,
+    fontSize: 22,
+    lineHeight: 28,
     color: INK,
   },
   where: {
-    paddingHorizontal: 1,
+    marginTop: -4,
   },
-  rule: {
-    height: StyleSheet.hairlineWidth,
-    marginHorizontal: space[4],
+  sale: {
+    marginHorizontal: -space[4],
+  },
+  letting: {
+    gap: space[2],
+    paddingHorizontal: space[4],
+    paddingTop: space[4],
+  },
+  lettingHead: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    justifyContent: "space-between",
+  },
+  lettingLabel: {
+    color: theme.color.ink["500"],
+  },
+  bar: {
+    height: 8,
+    flexDirection: "row",
+    overflow: "hidden",
+    borderRadius: 4,
+    backgroundColor: theme.color.harmattan["100"],
+  },
+  barFill: {
+    borderRadius: 4,
+    backgroundColor: theme.color.kola["600"],
+  },
+  facts: {
+    flexDirection: "row",
+    marginTop: space[4],
+    paddingVertical: space[3],
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: EDGE,
+  },
+  fact: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2,
+    paddingHorizontal: space[4],
+  },
+  factRule: {
+    width: StyleSheet.hairlineWidth,
     backgroundColor: EDGE,
+  },
+  factLabel: {
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  factValue: {
+    fontSize: 14,
+    lineHeight: 19,
+    color: INK,
   },
   section: {
     gap: space[2],

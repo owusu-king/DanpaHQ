@@ -33,7 +33,7 @@ test("Services is a primary tab and Saved kept every way it was reached", () => 
   const order = [...layout.matchAll(/name="([a-z]+)"[^\n]*tabBarLabel: "([A-Za-z]+)"/g)].map(
     (match) => match[2],
   );
-  assert.deepEqual(order, ["Home", "Explore", "Services", "Payments", "More"]);
+  assert.deepEqual(order, ["Home", "Explore", "Services", "Payments", "Menu"]);
 
   // Saved is a pushed screen rather than a hidden tab, and both ways in say so.
   assert.doesNotMatch(layout, /name="saved"/);
@@ -43,7 +43,7 @@ test("Services is a primary tab and Saved kept every way it was reached", () => 
   );
   assert.match(
     read("app/(app)/(tabs)/profile.tsx"),
-    /router\.push\("\/\(app\)\/saved" as never\)/,
+    /const go = \(path: string\) => \(\) => router\.push\(path as never\);[\s\S]*onPress: go\("\/\(app\)\/saved"\)/,
   );
 });
 
@@ -72,7 +72,7 @@ test("the categories are the ones a household thinks in, in order", () => {
   // The hub renders from the declaration rather than listing services itself,
   // so next quarter's service is one entry there and no change here.
   const screen = code(hub());
-  assert.match(screen, /CATEGORIES\.flatMap/);
+  assert.match(screen, /CATEGORIES\.filter\(\(category\) => group\.categories\.includes\(category\.id\)\)\.flatMap\(\(category\) => servicesIn\(category\.id\)\)/);
   assert.match(screen, /servicesIn\(category\.id\)/);
   for (const label of ["Electricity", "DStv", "GOtv", "Airtime", "Mobile data", "Cleaning"]) {
     assert.doesNotMatch(screen, new RegExp(`"${label}"`));
@@ -207,10 +207,9 @@ test("loading has the shape of what is coming, and failure keeps the page", () =
 });
 
 /*
- * The offers page (product owner, 2026-09-27, after a banking app's loans tab):
- * one question and one way in at the top, a row to the rent, then every service
- * as a compact white card two to a row under a single heading — no group names,
- * because the colours already sort the range.
+ * The page, redesigned (owner, 2026-10-06): a carousel of the services that
+ * open, then the range as small square cards three to a row and centred, in
+ * two groups and no more.
  */
 
 const between = (source, start, end) => {
@@ -221,79 +220,85 @@ const between = (source, start, end) => {
   return source.slice(at, stop);
 };
 
-test("the range is one grid of cards, two to a row, under one heading and no group names", () => {
+test("the range is two groups of small cards, three to a row and centred", () => {
   const screen = code(hub());
 
   // The hub ground More stands on, and cards rather than ruled rows in surfaces.
   assert.match(screen, /import \{ IndexPage \} from "@\/components\/account\/IndexRows";/);
   assert.match(screen, /return \(\s*<IndexPage>/);
-  assert.doesNotMatch(screen, /<Surface|function ServiceRow|borderTopColor: theme\.color\.field\["200"\]/);
+  assert.doesNotMatch(screen, /<Surface|function ServiceRow/);
   assert.match(screen, /\{services\.map\(\(service\) => \(\s*<ServiceTile/);
-  assert.match(screen, /const TILE_WIDTH = "48\.5%";/);
-  assert.match(screen, /grid: \{\s*flexDirection: "row",\s*flexWrap: "wrap",\s*justifyContent: "space-between",\s*\}/);
 
-  // Still in the order a household thinks in, and still from the declaration —
-  // but flattened into one grid, with no category's name printed over it.
-  assert.match(screen, /services=\{CATEGORIES\.flatMap\(\(category\) => servicesIn\(category\.id\)\)\}/);
-  assert.match(screen, /<SectionTitle>Explore our range of offers<\/SectionTitle>/);
-  assert.doesNotMatch(screen, /\{category\.label\}|title=\{category\.label\}|function CategoryBlock/);
-  assert.doesNotMatch(screen, /paid for in one place/);
+  // Two groups, never more, and every category in exactly one of them.
+  const groups = between(screen, "const GROUPS", "];");
+  const titles = [...groups.matchAll(/title: "([^"]+)"/g)].map((match) => match[1]);
+  assert.deepEqual(titles, ["Bills and top-ups", "Around your home"]);
+  const claimed = [...groups.matchAll(/"(utilities|entertainment|connectivity|home)"/g)].map((match) => match[1]);
+  assert.deepEqual(claimed, ["utilities", "entertainment", "connectivity", "home"]);
+  assert.match(screen, /\{GROUPS\.map\(\(group\) => \(\s*<Catalogue/);
+  assert.match(screen, /<SectionTitle count=\{services\.length\}>\{title\}<\/SectionTitle>/);
   assert.doesNotMatch(code(catalogue()), /blurb/);
 
-  // Cards in one row stand equally tall because only the pressable fills its
-  // frame; a grid item that grew would eat the gap between the two.
-  assert.match(screen, /style=\{\[styles\.tile, styles\.card, styles\.fill, shape\]\}/);
-  assert.doesNotMatch(between(screen, "  tile: {", "  fill: {"), /flexGrow/);
+  // Three across any phone, and a short last row sits in the middle.
+  assert.match(screen, /const tileWidth = Math\.floor\(\(width - density\.pagePadding \* 2 - TILE_GAP \* 2\) \/ 3\);/);
+  assert.match(screen, /grid: \{\s*flexDirection: "row",\s*flexWrap: "wrap",\s*justifyContent: "center",\s*gap: TILE_GAP,\s*\}/);
 
-  // A rounded square, never wider than it is tall, with no height of its own
-  // to grow past that.
+  // A rounded square with the art in the middle and the name under it.
   const tile = between(screen, "function ServiceTile(", "function MoreServices(");
   const shape = between(tile, "const shape = {", "};");
   assert.match(shape, /aspectRatio: 1,/);
   assert.doesNotMatch(shape, /minHeight/);
-
-  // Art and badge along the top, name and one short line at the foot, and the
-  // space between them is the card's own. "Coming later" is read, not printed.
-  assert.match(tile, /<View style=\{styles\.tileTop\}>\s*<ServiceArt/);
-  assert.match(between(screen, "  tile: {", "  fill: {"), /justifyContent: "space-between",/);
-  assert.match(tile, /numberOfLines=\{2\}[\s\S]*?>\s*\{service\.summary\}\s*</);
+  assert.match(between(screen, "  tile: {", "  tileName: {"), /alignItems: "center",\s*justifyContent: "center",/);
+  assert.match(between(screen, "  tileName: {", "  corner: {"), /textAlign: "center",/);
+  // What a service is, is read rather than printed on a card this small.
+  assert.doesNotMatch(tile, />\s*\{service\.summary\}\s*</);
   assert.doesNotMatch(screen, />\s*Coming later\s*</);
   assert.match(screen, /accessibilityLabel=\{`\$\{service\.label\}\. \$\{service\.summary\}\. Coming later\.`\}/);
 });
 
-test("the page opens on one question and one way in, and neither takes money", () => {
+test("the page opens on a carousel of what opens, and no slide takes money", () => {
   const screen = code(hub());
-  const panel = between(screen, "function StartPanel(", "function ServicePicker(");
-  const picker = between(screen, "function ServicePicker(", "function RentRow(");
+  const carousel = between(screen, "function Carousel(", "function Slide(");
 
-  // The picker only ever holds a service that opens and is bought against an
-  // account number; `later` is not a choice, and neither is Maintenance, which
-  // opens from its own tile onto its own screen.
-  assert.match(screen, /const openable = purchasableServices\(\);/);
-  assert.match(catalogue(), /return openableServices\(\)\.filter\(\(service\) => Boolean\(service\.identifier\)\);/);
+  // Every service that opens has a slide, the household's own leads, and a
+  // \`later\` service never has one.
+  assert.match(screen, /const openable = openableServices\(\);/);
+  assert.match(screen, /const mine = openable\.find\(\(service\) => service\.id === saved\[0\]\?\.serviceId\);/);
+  assert.match(screen, /services=\{featured\}/);
+
+  // A slide is the catalogue's own words, so a new service brings its slide.
+  assert.match(carousel, /eyebrow=\{service\.label\}\s+title=\{service\.summary\}\s+body=\{service\.promise\}/);
+  // Its one act is what can be done today: save the number, or open the screen.
+  assert.match(carousel, /act=\{service\.identifier \? `Save \$\{service\.identifier\.label\.toLowerCase\(\)\}` : `Open \$\{service\.label\}`\}/);
   assert.match(screen, /service\.route\s*\?\s*router\.push\(service\.route as never\)/);
-  assert.match(screen, /services=\{openable\}/);
-  assert.match(screen, /openable\.find\(\(service\) => service\.id === saved\[0\]\?\.serviceId\)/);
-  assert.match(picker, /<BottomSheet visible=\{visible\}/);
-  assert.match(picker, /accessibilityRole="radio"/);
+  assert.doesNotMatch(carousel, /act="(Pay|Buy|Top up|Recharge|Renew)/);
+  assert.match(carousel, /Nothing is charged yet\./);
 
-  // The button goes to the chosen service's own screen and is named for that,
-  // not for a purchase. The line under it says nothing is charged.
-  assert.match(screen, /onContinue=\{\(\) => openService\(chosen\)\}/);
-  assert.match(panel, />Continue<\/Type>/);
-  assert.match(panel, /accessibilityLabel=\{`Continue to \$\{service\.label\}`\}/);
-  assert.match(panel, /Nothing<\/Type> is charged/);
-  assert.doesNotMatch(panel, /\b(Pay|Buy|Top up|Recharge|Renew)\b/);
+  // It swipes and snaps a slide at a time, the next one peeking in, and the
+  // dots say where you are without being read out.
+  assert.match(carousel, /snapToInterval=\{slideWidth \+ SLIDE_GAP\}/);
+  assert.match(carousel, /const slideWidth = Math\.round\(\(width - density\.pagePadding \* 2\) \* \(width < 360 \? NARROW_SLIDE_SHARE : SLIDE_SHARE\)\);/);
 
-  // It leads without weighing the page down: a kola tint with deep kola words,
-  // not a solid slab with a glow under it.
-  assert.match(screen, /const ACTION_WASH = theme\.color\.kola\["50"\];/);
-  assert.match(screen, /const ACTION_INK = theme\.color\.kola\["800"\];/);
-  assert.match(between(screen, "  action: {", "  actionText: {"), /backgroundColor: ACTION_WASH,/);
-  assert.doesNotMatch(screen, /actionLift|backgroundColor: ACTION,/);
+  // Short white cards like the rest of the page (revised on review: full-colour
+  // slides were too big and too loud). Colour stays on the art's tile and the act.
+  const slideBody = between(screen, "function Slide(", "function Strip(");
+  assert.match(slideBody, /style=\{\[styles\.slide, styles\.card\]\}/);
+  assert.match(slideBody, /<View style=\{\[styles\.slideArt, \{ backgroundColor: tone\.wash \}\]\}>\{art\}<\/View>/);
+  assert.match(slideBody, /style=\{\[styles\.slideActText, \{ color: tone\.ink \}\]\}/);
+  assert.match(carousel, /tone=\{TONE\[service\.tone\]\}/);
+  assert.doesNotMatch(screen, /const SLIDE:|backgroundColor: ground/);
+  assert.match(between(screen, "  slide: {", "  slideArt: {"), /flexGrow: 1,[\s\S]*flexDirection: "row",/);
+  assert.match(carousel, /<View style=\{styles\.dots\} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">/);
+  // Each slide is one control that says its place, not a button inside a button.
+  const slide = between(screen, "function Slide(", "function Strip(");
+  assert.match(slide, /accessibilityLabel=\{`\$\{eyebrow\}\. \$\{title\}\. \$\{body\} \$\{act\}\. \$\{position\}\.`\}/);
+  assert.match(slide, /<PressableScale/);
+  assert.doesNotMatch(slide, /<Pressable\b/);
 
-  // And the rent is pointed to, not repeated.
-  assert.match(screen, /<RentRow onPress=\{\(\) => router\.push\("\/\(app\)\/\(tabs\)\/payments" as never\)\} \/>/);
+  // And the rent is pointed to from the last slide, not repeated.
+  assert.match(screen, /onRent=\{\(\) => router\.push\("\/\(app\)\/\(tabs\)\/payments" as never\)\}/);
+  assert.match(carousel, /act="Go to Payments"/);
+  assert.doesNotMatch(screen, /<BottomSheet|function StartPanel|function RentRow/);
 });
 
 test("Referrals joins Home, and says honestly that it is not open", () => {
@@ -327,14 +332,14 @@ test("a card is in its service's colour when it opens, and drained when it does 
   assert.match(tile, /<ServiceArt\s+service=\{service\}\s+index=\{SERVICES\.indexOf\(service\)\}\s+width=\{[^}]+\}\s+muted=\{later\}\s+\/>/);
   assert.match(
     tile,
-    /<View style=\{\[styles\.saved, \{ backgroundColor: tone\.wash \}\]\}>\s*<Ionicons name="checkmark-circle" size=\{12\} color=\{tone\.ink\} \/>/,
+    /<View style=\{\[styles\.corner, styles\.saved, \{ backgroundColor: tone\.wash \}\]\}>\s*<Ionicons name="checkmark-circle" size=\{12\} color=\{tone\.ink\} \/>/,
   );
   assert.match(tile, /\$\{savedCount\} saved\./);
 
   // One that does not: the same card, drained art, a quieter name and a clock.
-  assert.match(tile, /later \? \(\s*<View style=\{styles\.clock\}>\s*<Ionicons name="time-outline"/);
-  assert.match(tile, /color: later \? CLOSED : INK,/);
-  assert.match(screen, /style=\{\[styles\.tile, styles\.card, shape, \{ width: TILE_WIDTH \}\]\}/);
+  assert.match(tile, /later \? \(\s*<View style=\{\[styles\.corner, styles\.clock\]\}>\s*<Ionicons name="time-outline"/);
+  assert.match(tile, /color: later \? CLOSED : INK \}/);
+  assert.match(screen, /style=\{\[styles\.tile, styles\.card, shape\]\}/);
 
   // The art is every tone's palette, drained to the neutrals when closed, and
   // silent to a screen reader because the card's label already says it all.
@@ -348,7 +353,7 @@ test("a card is in its service's colour when it opens, and drained when it does 
   // A soft shadow on a frame that takes the card's corners, and none on
   // Android, where elevation under a rounded card draws a hard ring.
   assert.match(screen, /lift: isAndroid\s*\? \{\}\s*: \{[^}]*shadowOpacity: 0\.06,/);
-  assert.match(screen, /frame=\{\[styles\.lift, \{ width: TILE_WIDTH, borderRadius: shape\.borderRadius \}\]\}/);
+  assert.match(screen, /frame=\{\[styles\.lift, \{ width, borderRadius: shape\.borderRadius \}\]\}/);
 });
 
 test("the words on the page read on the paper they stand on", () => {
@@ -383,8 +388,10 @@ test("the words on the page read on the paper they stand on", () => {
   assert.ok(contrast(tokenOf("SUMMARY"), paper) >= 4.5, "the line under a name");
   assert.ok(contrast(tokenOf("FAINT"), token("field", "100")) >= 3, "the clock on its well");
 
-  // The button's words on its tint.
-  assert.ok(contrast(tokenOf("ACTION_INK"), tokenOf("ACTION_WASH")) >= 4.5, "Continue on its tint");
+  // A slide's act is its service's ink on the white card.
+  for (const [, name, inkFamily, inkStep] of [...glyph.matchAll(/(\w+): \{ ink: theme\.color\.(\w+)\["(\d+)"\]/g)]) {
+    assert.ok(contrast(token(inkFamily, inkStep), paper) >= 4.5, `${name}: a slide's act on white`);
+  }
 
   // A saved count is its colour's ink on its colour's wash, and every colour a
   // service can take keeps that at 4.5:1.

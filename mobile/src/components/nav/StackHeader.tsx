@@ -5,11 +5,14 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { HeaderChromeBackground } from "@/components/nav/HeaderChromeBackground";
 import { space } from "@/components/ui";
-import { safeHeaderTop } from "@/platform";
+import { isAndroid, safeHeaderTop } from "@/platform";
 import { shell } from "@/shell";
 
-const ROW_HEIGHT = 52;
-const NARROW_ROW_HEIGHT = 48;
+// Android reads a 52pt title row under its status bar as too tall for a
+// heading (owner, 2026-10-06), so there it is Material's compact bar: room for
+// the 44pt back control and no more.
+const ROW_HEIGHT = isAndroid ? 46 : 52;
+const NARROW_ROW_HEIGHT = isAndroid ? 46 : 48;
 const NARROW_WIDTH = 360;
 
 /**
@@ -73,7 +76,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: space[4],
-    paddingVertical: space[1],
+    paddingVertical: isAndroid ? 0 : space[1],
   },
   rowNarrow: {
     minHeight: NARROW_ROW_HEIGHT,
@@ -90,7 +93,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 17,
     lineHeight: 23,
-    fontWeight: "700",
+    fontWeight: "600",
     letterSpacing: -0.1,
     color: shell.onChrome,
   },

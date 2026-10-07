@@ -22,30 +22,35 @@ const properties = () => read("app/(app)/(provider-tabs)/properties.tsx");
 const units = () => read("app/(app)/units.tsx");
 const tile = () => read("src/components/property/UnitTile.tsx");
 
-test("both inventory screens stand on the green, over their own figures", () => {
+test("both inventory screens stand on the green, over the dashboards' figures", () => {
+  // Redesigned (owner, 2026-10-06): both end their summary on the Homes'
+  // straight line of counts, from the same kit, so it cannot drift.
   for (const [name, source] of [["Properties", properties()], ["Units", units()]]) {
     assert.match(source, /<IndexGround>/, `${name} is still on the flat background`);
-    assert.match(source, /<SummaryPanel/, `${name} leads with words rather than figures`);
-    assert.match(source, /<ListHead/, `${name} has no list heading`);
+    assert.match(source, /from "@\/components\/home\/DashboardParts";/, `${name} has its own figures`);
+    assert.match(source, /<StatCells>/, `${name} has no line of counts`);
+    assert.equal((source.match(/<Cell label=/g) ?? []).length, 4, `${name} has a line of four counts`);
     assert.match(source, /<SearchField/, `${name} cannot be searched`);
     assert.match(source, /<EmptyState/, `${name} rolls its own empty state`);
+    assert.doesNotMatch(source, /<SummaryPanel/, `${name} keeps the old summary`);
   }
-
-  // Properties had no way to narrow itself at all, which a Portfolio of twenty
-  // buildings felt first.
   assert.match(properties(), /label="Search Properties"/);
-  assert.match(properties(), /<BottomSheet/);
   assert.match(properties(), /function stageOf/);
-
-  // `SummaryPanel` lays its facts out at 45% each in a row that does not wrap,
-  // so a third one is cut off the right edge rather than moved to a new line.
-  const facts = read("src/components/portfolio/PortfolioList.tsx");
-  assert.match(facts, /summaryFacts: \{\n    flexDirection: "row",/);
-  assert.doesNotMatch(facts, /summaryFacts: \{[\s\S]{0,120}flexWrap/);
-  for (const [name, source] of [["Properties", properties()], ["Units", units()]]) {
-    const given = source.match(/facts=\{\[[\s\S]*?\]\}/)?.[0] ?? "";
-    assert.equal((given.match(/\{ label:/g) ?? []).length, 2, `${name} gives the panel more facts than it can show`);
-  }
+  // Units keeps the rings: what is let, and what of the vacant is on Explore.
+  assert.match(units(), /<Rings>[\s\S]*<Ring[\s\S]*<Ring[\s\S]*<\/Rings>\s*<StatCells>/);
+  assert.match(units(), /title="On Explore"/);
+  // Properties draws the Portfolio instead of repeating the Home's rings (owner,
+  // 2026-10-06): one bar split by verification stage, whose legend narrows the
+  // list, and each Property as a row of windows, one per Unit, let or empty.
+  assert.doesNotMatch(properties(), /<Ring\b|<Rings>/);
+  assert.match(properties(), /<StageBar counts=\{counts\} total=\{properties\.length\} onPick=\{setFilter\} \/>/);
+  assert.match(properties(), /<UnitWindows/);
+  assert.match(properties(), /backgroundColor: index < property\.occupied_unit_count \? KOLA : RING_EMPTY/);
+  assert.match(properties(), /onPress=\{\(\) => onPick\(stage\)\}/);
+  assert.match(units(), /const listedVacant = all\.filter\(\(unit\) => unit\.availability\.state === "available" && isPublic\(unit\)\)\.length;/);
+  // Properties' Vacant count opens Units narrowed to what is available, and Units honours it.
+  assert.match(properties(), /params: \{ view: "available" \}/);
+  assert.match(units(), /useLocalSearchParams<\{ view\?: string \}>\(\)/);
 });
 
 test("Units is still a grid, and the tile is what carries the design", () => {
@@ -87,7 +92,10 @@ test("a Property is its Units, with reference material one tap away", () => {
   // The record leads with how much of the building is let, and the address,
   // services, blocks and verification trail each open from the row that names
   // them rather than unfolding in the middle of the Units.
-  assert.match(source, /<Lead\s+label="Let"/);
+  // One identity card (owner, 2026-10-06): name, address, standing, a bar of
+  // what is let, and the counts on one line.
+  assert.match(source, /accessibilityLabel=\{`\$\{occupied\} of \$\{units\.length\} Units let`\}/);
+  assert.match(source, /<PropertyFact label="Units"/);
   assert.match(source, /<GroupLabel>About this Property<\/GroupLabel>/);
   for (const row of ["Property information", "Shared amenities", "Buildings and blocks", "Verification details"]) {
     assert.match(source, new RegExp(`label="${row}"`), `${row} is not a row`);
@@ -109,18 +117,30 @@ test("a Unit is a record, not a settings page", () => {
 
   // A Unit is recognized by sight, so the photograph leads and carries the two
   // facts that would otherwise be words.
-  assert.match(source, /style=\{styles\.hero\}/);
+  // One identity card (owner, 2026-10-06): the photograph, the name with whether
+  // somebody lives there, where it stands, and what it is on one line of facts.
+  assert.match(source, /<View style=\{styles\.card\}>\s*\{photo \? \(\s*<View style=\{styles\.hero\}>/);
+  // Without a photo, a strip that leads to adding one, not a grey slab.
+  assert.match(source, /accessibilityLabel="No photo yet\. Add photos\."\s+onPress=\{\(\) => setSheet\("photos"\)\}/);
   assert.match(source, /occupied \? "Occupied" : "Vacant"/);
   assert.match(source, /styles\.heroPublic/);
+  assert.match(source, /<UnitFact label="Type" value=\{unit\.space_type_label\} \/>/);
+  assert.match(source, /<UnitFact label="Size" value=\{size \|\| "—"\} wide \/>/);
+  assert.doesNotMatch(source, /<GroupLabel>What it is<\/GroupLabel>/);
 
-  // Four separate facts for type, bedrooms, bathrooms and furnished became a
-  // panel of three, with the size read as one line.
-  assert.match(source, /<GroupLabel>What it is<\/GroupLabel>/);
-  assert.match(source, /label="Size" value=\{size\}/);
-
-  // Archiving or deleting waits behind one quiet way in, as on every record.
-  assert.match(source, /<QuietAct\s+label="Archive or delete this Unit"/);
+  // Archiving or deleting waits behind one quiet way in, offered only when the
+  // backend allows one of them and named for that one — an occupied Unit used
+  // to open a sheet with nothing in it (owner, 2026-10-06). When neither is
+  // allowed, the page says why instead.
+  assert.match(source, /\{removal \? \(\s*<View style=\{styles\.exit\}>\s*<QuietAct\s+label=\{removal === "delete" \? "Delete this Unit" : "Archive this Unit"\}/);
+  assert.match(source, /<Footnote>\{unitRemovalBlocker\(unit\)\}<\/Footnote>/);
   assert.match(source, /sheet === "danger" \? \(/);
+  const removal = read("src/components/property/UnitLifecycleActions.tsx");
+  assert.match(removal, /if \(unit\.permitted_actions\.delete\?\.allowed\) return "delete";/);
+  assert.doesNotMatch(removal, /<Disclosure/, "a sheet already is the disclosure");
+  // A Unit already on Explore is never offered "Publish" again: it names its own listing.
+  assert.match(source, /const listingId = unit\.publication\.listing_id \?\? listing\?\.id \?\? null;/);
+  assert.match(source, /\) : !published && !listingId && publish\?\.allowed \? \(/);
 });
 
 test("a row's own name wraps rather than being cut", () => {
@@ -135,21 +155,22 @@ test("a row's own name wraps rather than being cut", () => {
   assert.match(kit, /linkChevron: \{\n    marginTop: 9,\n  \},/);
 });
 
-test("each screen is narrowed by exactly one control", () => {
-  // Units was filtered two ways at once and Properties not at all. Both now
-  // open the same sheet, and what is on is a token that clears with a tap.
+test("each screen's filters are out where they can be seen", () => {
+  // Redesigned (owner, 2026-10-06): a Filter button, a sheet and a token saying
+  // what the sheet did were three controls for one choice. Each choice is now a
+  // chip with its colour and count, and the one that is on is filled.
   for (const [name, source] of [["Properties", properties()], ["Units", units()]]) {
-    assert.match(source, /<ActiveFilter/, `${name} does not say what is on`);
-    assert.match(source, /<SheetFooter/, `${name} cannot reset`);
-    assert.doesNotMatch(source, /horizontal showsHorizontalScrollIndicator/, `${name} keeps a second filter row`);
+    assert.match(source, /<FilterChips/, `${name} hides its filters`);
+    assert.doesNotMatch(source, /<BottomSheet|<ActiveFilter|<SheetFooter|<ListHead/, `${name} keeps the old filter sheet`);
+    assert.match(source, /count: counts\[value\],/, `${name}'s chips do not say how many`);
   }
-  // A list of what you own has one creative act, and it is drawn in full kola:
-  // an outlined pill on the green ground reads as unfinished, which is what it
-  // looked like as a `QuietAction`.
-  assert.match(properties(), /<PrimaryAction icon="add" label="Add Property"/);
-  assert.match(units(), /<PrimaryAction icon="add" label="Add Unit"/);
-  const kit = read("src/components/portfolio/PortfolioList.tsx");
-  assert.match(kit, /export function PrimaryAction/);
-  assert.match(kit, /primaryAction: \{[\s\S]{0,220}backgroundColor: KOLA,/);
-  assert.match(kit, /primaryActionText: \{[\s\S]{0,80}color: WHITE,/);
+  const chips = read("src/components/portfolio/FilterChips.tsx");
+  assert.match(chips, /aria-selected=\{on\}/);
+  assert.match(chips, /filled \? \{ backgroundColor: tone, borderColor: tone \} : null/);
+  // A choice with nothing in it steps back rather than vanishing, so the row never reshuffles.
+  assert.match(chips, /const empty = option\.count === 0 && !on;/);
+  // The list's one creative act stays solid kola, now compact beside its heading.
+  assert.match(properties(), /<AddButton label="Add Property" onPress=\{add\} \/>/);
+  assert.match(units(), /<AddButton label="Add Unit" onPress=\{addUnit\} \/>/);
+  assert.match(chips, /add: \{[\s\S]{0,220}backgroundColor: KOLA_DEEP,/);
 });

@@ -1,26 +1,26 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
-import { Modal, Pressable, ScrollView, TextInput, View } from "react-native";
+import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useAuth, type Me } from "@/auth";
 import { ModalSafeArea } from "@/components/sheet/ModalSafeArea";
 import { Type, space } from "@/components/ui";
 import { pressableFeedback } from "@/platform";
-import { shell } from "@/shell";
+import { alpha, shell } from "@/shell";
 import { theme } from "@/theme";
 
 /**
  * Which Portfolio is being operated, and the way to change it.
  *
- * One icon in the header, and a sheet that comes up from the thumb. Switching
+ * A chip in the header, with the Portfolio's name, and a sheet that comes up from the thumb. Switching
  * Portfolio changes what every screen is about — the Properties, the tenants,
  * the agreements, the money — so it belongs to the workspace chrome rather than
  * to a picker sitting on top of one tab, which is where it used to live and
  * where it moved that tab alone while everything else stayed behind.
  *
- * One icon, a quick look at where you are, a switch, back to work.
+ * One tap, a quick look at where you are, a switch, back to work.
  */
 
 /** When the list is long enough that reading it beats scanning it. */
@@ -69,10 +69,6 @@ export function PortfolioHeaderButton({ compact = false }: { compact?: boolean }
   const current = portfolios.find((row) => row.id === activeContext) ?? portfolios[0];
   if (!current) return null;
 
-  // The paper well every header disc shares: 40pt drawn, and the 48pt floor
-  // reached with slop rather than with a heavier circle.
-  const size = 40;
-
   return (
     <>
       <Pressable
@@ -83,34 +79,46 @@ export function PortfolioHeaderButton({ compact = false }: { compact?: boolean }
         hitSlop={4}
         {...pressableFeedback(shell.chromePressed)}
         style={({ pressed }) => ({
-          width: size,
-          height: size,
+          height: 40,
+          maxWidth: compact ? 196 : 232,
           marginLeft: compact ? 12 : 16,
-          borderRadius: size / 2,
+          paddingLeft: 3,
+          paddingRight: 12,
+          borderRadius: 20,
+          flexDirection: "row",
           alignItems: "center",
-          justifyContent: "center",
-          // A translucent well on the kola chrome, like every other header control.
-          backgroundColor: pressed ? shell.chromePressed : shell.chromeRaised,
+          gap: 8,
+          // A darker well cut into the kola chrome, like the tenant's search pill.
+          backgroundColor: alpha(theme.color.kola["900"], pressed ? 0.58 : 0.4),
+          borderWidth: StyleSheet.hairlineWidth,
+          borderColor: alpha(shell.onChrome, 0.16),
         })}
       >
-        <Ionicons name="albums-outline" size={20} color={shell.onChrome} />
-        {/* A mark that there is somewhere else to be — never a count, which
-            would read as unread work and belongs to the bell. White, cut out of
-            the green behind it. */}
+        {/* The Portfolio's initials on white: the one solid mark on the left. */}
+        <View
+          style={{
+            width: 34,
+            height: 34,
+            borderRadius: 17,
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: shell.onChrome,
+          }}
+        >
+          <Text allowFontScaling={false} style={{ fontSize: 12, lineHeight: 15, fontWeight: "600", color: shell.chrome }}>
+            {initials(current.label)}
+          </Text>
+        </View>
+        <Text
+          allowFontScaling={false}
+          numberOfLines={1}
+          style={{ flexShrink: 1, fontSize: 15, lineHeight: 20, fontWeight: "500", color: shell.onChrome }}
+        >
+          {current.label}
+        </Text>
+        {/* A chevron only when there is somewhere else to be. */}
         {portfolios.length > 1 ? (
-          <View
-            style={{
-              position: "absolute",
-              top: 6,
-              right: 6,
-              width: 8,
-              height: 8,
-              borderRadius: 4,
-              backgroundColor: shell.onChrome,
-              borderWidth: 1.5,
-              borderColor: shell.chrome,
-            }}
-          />
+          <Ionicons name="chevron-down" size={15} color={shell.onChromeMuted} />
         ) : null}
       </Pressable>
 
@@ -266,7 +274,7 @@ function PortfolioSheet({ open, onClose }: { open: boolean; onClose: () => void 
                   <Type
                     variant="caption"
                     style={{
-                      fontWeight: "600",
+                      fontWeight: "500",
                       color: isCurrent ? theme.color.field["0"] : theme.color.ink["700"],
                     }}
                   >

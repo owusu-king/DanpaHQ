@@ -22,8 +22,8 @@ test("mobile Verification is an overview with focused identity and payout journe
   assert.match(identity, /ImagePicker/);
   assert.match(identity, /Ghana Card number/);
   assert.match(layout, /name="trust" options=\{\{ title: "Verification"/);
-  assert.match(tenantIndex, /label="Verification"/);
-  assert.match(providerIndex, /label="Verification"/);
+  assert.match(tenantIndex, /label: "Verification"/);
+  assert.match(providerIndex, /label: "Verification"/);
   assert.doesNotMatch(tenantIndex, /Your checks/);
   assert.doesNotMatch(providerIndex, /Your checks/);
 });

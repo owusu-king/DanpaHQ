@@ -20,6 +20,7 @@ import { StyleSheet, View } from "react-native";
 import { ApiFailure } from "@/api";
 import { Button, Field, Notice, Surface, Type, space } from "@/components/ui";
 import { Fact, Pill, QuietAct, RecordPanel, StandingLine, type RecordTone } from "@/components/record/RecordSurfaces";
+import { Segments } from "@/components/work/WorkParts";
 import type { SetupStep } from "@/propertySetup";
 import {
   archiveProperty,
@@ -161,11 +162,22 @@ function CompactLifecycle({ property, steps, onChanged }: { property: Property; 
         status={attentionTitle}
         body={property.verification.decision_note || "Update the requested information before sending this Property again."}
       >
-        {edit?.allowed || submit?.allowed ? (
+        {/* One act leads. Two pills side by side cut "Update Property" to
+            "Update Prop…" on an ordinary phone, and fixing what was asked comes
+            before sending it again (owner, 2026-10-06). */}
+        {edit?.allowed ? (
           <View style={styles.acts}>
-            {edit?.allowed ? <Pill label="Update Property" icon="create-outline" grow onPress={openSetup} /> : null}
-            {submit?.allowed ? <Pill label="Resubmit" icon="paper-plane-outline" tone={edit?.allowed ? "quiet" : "primary"} grow onPress={openVerify} /> : null}
+            <Pill label="Update Property" icon="create-outline" grow onPress={openSetup} />
           </View>
+        ) : null}
+        {submit?.allowed ? (
+          edit?.allowed ? (
+            <QuietAct label="Already fixed? Resubmit" icon="paper-plane-outline" onPress={openVerify} />
+          ) : (
+            <View style={styles.acts}>
+              <Pill label="Resubmit" icon="paper-plane-outline" grow onPress={openVerify} />
+            </View>
+          )
         ) : null}
       </LifecycleCard>
     );
@@ -187,28 +199,37 @@ function CompactLifecycle({ property, steps, onChanged }: { property: Property; 
     );
   }
 
-  const required = steps.filter((step) => !step.optional);
+  // Only the steps that are things to fill in. "Review" is the act of
+  // finishing, never ticked, so counting it kept the bar from ever filling and
+  // said "1 of 6" when five were left (owner, 2026-10-06).
+  const required = steps.filter((step) => !step.optional && !step.terminal);
   const complete = required.filter((step) => step.status === "done").length;
+  const next = required.find((step) => step.status !== "done") ?? null;
   return (
-    <LifecycleCard
-      tone="quiet"
-      status="Finish setting up this Property"
-      body={`${complete} of ${required.length} required steps complete. Everything is saved as you go.`}
-    >
-      <View
-        accessible
-        accessibilityRole="progressbar"
-        accessibilityLabel={`${complete} of ${required.length} required steps complete`}
-        style={styles.track}
-      >
-        <View style={[styles.progress, { width: `${required.length ? Math.round((complete / required.length) * 100) : 0}%` }]} />
+    <RecordPanel style={styles.card}>
+      <View style={styles.trackerHead}>
+        <StandingLine tone="action" line="Finish setting up" />
+        <Type variant="captionStrong" style={styles.trackerCount}>{complete} of {required.length} done</Type>
       </View>
+      <View accessible accessibilityRole="progressbar" accessibilityLabel={`${complete} of ${required.length} setup steps done`}>
+        <Segments total={required.length} done={complete} tone={theme.color.kola["600"]} />
+      </View>
+      {next ? (
+        <View style={styles.next}>
+          <Type variant="caption" style={styles.nextLabel}>Next</Type>
+          <Type variant="bodyStrong" style={styles.nextTitle}>{next.title}</Type>
+          <Type variant="caption" style={styles.body}>{next.detail ? `${next.summary} ${next.detail}.` : next.summary}</Type>
+        </View>
+      ) : (
+        <Type variant="caption" style={styles.body}>Every step is filled in. Review it and finish creating it.</Type>
+      )}
       {edit?.allowed ? (
         <View style={styles.acts}>
-          <Pill label="Continue setup" icon="arrow-forward" grow onPress={openSetup} />
+          <Pill label={next ? "Continue setup" : "Review and finish"} icon="arrow-forward" grow onPress={openSetup} />
         </View>
       ) : null}
-    </LifecycleCard>
+      <Type variant="caption" style={styles.saved}>Everything is saved as you go.</Type>
+    </RecordPanel>
   );
 }
 
@@ -784,17 +805,28 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: space[2],
   },
-  // Setup's progress: a kola bar filling a pale track, read aloud as a count.
-  track: {
-    height: 6,
-    overflow: "hidden",
-    borderRadius: 3,
-    backgroundColor: theme.color.field["100"],
+  trackerHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: space[2],
   },
-  progress: {
-    height: "100%",
-    borderRadius: 3,
-    backgroundColor: theme.color.kola["600"],
+  trackerCount: {
+    color: theme.color.kola["800"],
+  },
+  next: {
+    gap: 2,
+  },
+  nextLabel: {
+    color: theme.color.ink["500"],
+  },
+  nextTitle: {
+    fontSize: 16,
+    lineHeight: 22,
+    color: theme.color.ink["900"],
+  },
+  saved: {
+    color: theme.color.ink["500"],
   },
   removal: {
     gap: space[3],

@@ -198,7 +198,7 @@ function Group({
             opacity: pressed ? 0.72 : 1,
           })}
         >
-          <Type variant="caption" style={{ color: theme.color.kola["600"], fontWeight: "700" }}>
+          <Type variant="caption" style={{ color: theme.color.kola["600"], fontWeight: "600" }}>
             Edit
           </Type>
         </Pressable>

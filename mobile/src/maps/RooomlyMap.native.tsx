@@ -410,7 +410,7 @@ const styles = StyleSheet.create({
   priceLabel: {
     fontSize: 13,
     lineHeight: LABEL_LINE,
-    fontWeight: "700",
+    fontWeight: "600",
     letterSpacing: 0,
     fontVariant: ["tabular-nums"],
     // Android pads text for accents it never draws here, which pushes it off centre.
@@ -427,7 +427,7 @@ const styles = StyleSheet.create({
   countLabel: {
     fontSize: 11,
     lineHeight: COUNT_LINE,
-    fontWeight: "700",
+    fontWeight: "600",
     letterSpacing: 0,
     includeFontPadding: false,
     textAlignVertical: "center",
@@ -468,7 +468,7 @@ const styles = StyleSheet.create({
   clusterLabel: {
     fontSize: 13,
     lineHeight: LABEL_LINE,
-    fontWeight: "700",
+    fontWeight: "600",
     letterSpacing: 0,
     fontVariant: ["tabular-nums"],
     color: theme.color.field["0"],

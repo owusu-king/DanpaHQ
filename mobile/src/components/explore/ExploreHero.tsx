@@ -58,7 +58,7 @@ export function ExploreHero({
   onFilters,
 }: {
   inTabs: boolean;
-  /** Saved and profile, in the title row. Tabs only. */
+  /** Saved, beside the search. Tabs only. */
   actions?: ReactNode;
   mode: ExploreMode;
   search: ReactNode;
@@ -72,28 +72,14 @@ export function ExploreHero({
     <View style={[styles.hero, { paddingTop: inTabs ? safeHeaderTop(insets.top) : space[2] }]}>
       <HeaderChromeBackground edge={false} />
 
-      {inTabs ? (
-        <View style={styles.titleRow}>
-          <View style={styles.titleBlock}>
-            <Type accessibilityRole="header" variant="title1" maxFontSizeMultiplier={1.2} style={styles.title}>
-              Explore
-            </Type>
-            <View style={styles.tagline}>
-              <Ionicons name="shield-checkmark" size={11} color={GOLD} />
-              <Type variant="caption" numberOfLines={1} maxFontSizeMultiplier={1.2} style={styles.taglineText}>
-                {mode === "buy" ? "Verified properties for sale" : mode === "rent" ? "Verified rentals across Ghana" : "Verified places to rent and buy"}
-              </Type>
-            </View>
-          </View>
-            {actions}
-        </View>
-      ) : null}
-
       <View style={styles.controls}>
         {/* The All / Rent / Buy bar that stood above the search is gone (owner,
             2026-10-05): what to show is the first row of the Filters sheet. */}
+        {/* One row (owner, 2026-10-06): where, Saved, and the filters. No title,
+            no profile, no bell — they made the top heavy and are a tab away. */}
         <View style={styles.searchRow}>
           <View style={{ flex: 1, minWidth: 0 }}>{search}</View>
+          {actions}
           <FiltersButton count={filterCount} onPress={onFilters} />
         </View>
       </View>
@@ -108,7 +94,7 @@ export function ExploreHero({
  * One corner that curves outward: the green filling the corner of a small
  * square below the band, with a quarter circle of whatever is beneath carved
  * out of it. Drawn, not masked, so it works over the map as well as the page.
- * The band's edges are its deepest green, so the flare takes that tone.
+ * The band is one flat green now, so the flare is that green too.
  */
 function Flare({ side }: { side: "left" | "right" }) {
   const r = HERO_FLARE;
@@ -123,7 +109,7 @@ function Flare({ side }: { side: "left" | "right" }) {
       style={[styles.flare, side === "left" ? { left: 0 } : { right: 0 }]}
     >
       <Svg width={r} height={r}>
-        <Path d={d} fill={KOLA_DEEP} />
+        <Path d={d} fill={KOLA} />
       </Svg>
     </View>
   );
@@ -139,7 +125,7 @@ function FiltersButton({ count, onPress }: { count: number; onPress: () => void 
       {...pressableFeedback(theme.color.kola["50"])}
       style={({ pressed }) => [styles.filters, pressed ? { backgroundColor: theme.color.kola["50"] } : null]}
     >
-      <Ionicons name="options-outline" size={16} color={KOLA} />
+      <Ionicons name="options-outline" size={18} color={KOLA} />
       {count ? (
         <View style={styles.badge}>
           <Type variant="label" style={styles.badgeText}>{count}</Type>
@@ -173,7 +159,7 @@ export function HeroSearch({
     <View>
       {focused ? <View pointerEvents="none" style={styles.ring} /> : null}
       <View style={styles.field}>
-        <Ionicons name={icon} size={15} color={KOLA} />
+        <Ionicons name={icon} size={16} color={KOLA} />
         <TextInput
           accessibilityLabel={label}
           value={value}
@@ -271,38 +257,11 @@ const styles = StyleSheet.create({
     width: HERO_FLARE,
     height: HERO_FLARE,
   },
-  titleRow: {
-    minHeight: 40,
-    flexDirection: "row",
-    alignItems: "center",
-    paddingLeft: space[5],
-  },
-  titleBlock: {
-    flex: 1,
-    minWidth: 0,
-    gap: 1,
-  },
-  title: {
-    fontSize: 18,
-    lineHeight: 22,
-    fontWeight: "700",
-    letterSpacing: -0.4,
-    color: WHITE,
-  },
-  tagline: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-  },
-  taglineText: {
-    fontSize: 11,
-    lineHeight: 13,
-    color: alpha(WHITE, 0.78),
-  },
   controls: {
     gap: 6,
     paddingHorizontal: space[4],
-    paddingTop: 6,
+    paddingTop: space[2],
+    paddingBottom: space[2],
   },
   searchRow: {
     flexDirection: "row",
@@ -319,7 +278,7 @@ const styles = StyleSheet.create({
     backgroundColor: alpha(WHITE, 0.32),
   },
   field: {
-    minHeight: 38,
+    minHeight: 42,
     flexDirection: "row",
     alignItems: "center",
     gap: space[2],
@@ -336,12 +295,12 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     minWidth: 0,
-    minHeight: 36,
+    minHeight: 40,
     paddingVertical: 0,
     paddingRight: space[3],
     color: theme.color.ink["900"],
-    fontSize: 14,
-    fontWeight: "600",
+    fontSize: 14.5,
+    fontWeight: "500",
     includeFontPadding: false,
   },
   clear: {
@@ -353,11 +312,11 @@ const styles = StyleSheet.create({
     backgroundColor: theme.color.field["50"],
   },
   filters: {
-    width: 38,
-    height: 38,
+    width: 42,
+    height: 42,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 12,
+    borderRadius: 21,
     backgroundColor: WHITE,
     shadowColor: theme.color.kola["900"],
     shadowOpacity: 0.2,

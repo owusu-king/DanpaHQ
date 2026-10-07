@@ -1,18 +1,29 @@
 /**
- * Leases, refined on review (2026-09-15), for the provider who grants agreements
- * and the tenant who holds them.
+ * Agreements, for the provider who grants them and the tenant who holds them.
  *
- * One route, two readers, one shape: glass groups, rows that never cut an amount
- * or a status short, and one green Filter control found at a glance. These tests
- * hold what the redesign must not lose — the provider's stages, now with every
- * canonical status; what "waiting for tenant" means; the tenant's decision first,
- * with Review only while it is open; and empty states whose animation gives way
- * to anybody who has asked for less motion.
+ * The provider's page is read as work (owner, 2026-10-06): the monthly rent the
+ * running agreements bring in, what waits on the provider with the step on the
+ * row, the agreements being signed with their four steps drawn, tenancies whose
+ * term is running out, and everything running with how far through its term it
+ * is. The tenant's keeps the review-era shape (2026-09-15): one green Filter,
+ * what needs deciding first, Review only while it is open.
  */
 
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+
+import {
+  ENDING_DAYS,
+  agreementWork,
+  laneOf,
+  monthlyRentMinor,
+  nextAct,
+  signingLine,
+  stepsDone,
+  termProgress,
+} from "./agreementWork.ts";
+import { TENANT_STEPS, laneOf as tenantLane, stepsDone as tenantSteps, termOf } from "./tenantAgreementWork.ts";
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8").replaceAll("\r\n", "\n");
 const code = (source) => source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*/g, "");
@@ -24,206 +35,139 @@ const between = (source, start, end) => {
   return source.slice(at, stop);
 };
 const screen = () => code(read("app/(app)/leases.tsx"));
+const provider = () => code(read("src/components/agreements/ProviderAgreements.tsx"));
 const kit = () => code(read("src/components/portfolio/PortfolioList.tsx"));
+const work = () => code(read("src/components/work/WorkParts.tsx"));
 const meaning = () => code(read("src/providerLeaseMeaning.ts"));
-const provider = () => between(screen(), "function ProviderLeasesScreen(", "type AgreementRowData");
-const tenant = () => between(screen(), "function TenantLeasesScreen(", "function shortDate(");
+const tenant = () => code(read("src/components/agreements/TenantAgreements.tsx"));
 
-test("both readers get one green Filter instead of tabs", () => {
-  const source = screen();
-  const parts = kit();
-
-  assert.doesNotMatch(source, /accessibilityRole="tab"|accessibilityRole="tablist"|function LeaseTab|function TenantAgreementFilters/);
-  assert.match(provider(), /<ListHead title=\{VIEW_LABEL\[view\]\} count=\{matching\.length\} filters=\{view === "all" \? 0 : 1\} filterTone="kola" onFilter=\{\(\) => setFiltering\(true\)\} \/>/);
-  assert.match(tenant(), /<ListHead title=\{FILTER_TITLE\[filter\]\} count=\{counts\[filter\]\} filters=\{filter === "all" \? 0 : 1\} filterTone="kola" onFilter=\{\(\) => setFiltering\(true\)\} \/>/);
-  assert.equal(
-    (source.match(/<BottomSheet\s+visible=\{filtering\}\s+onClose=\{\(\) => setFiltering\(false\)\}\s+title="Filter"\s+hideTitle\s+closeLabel="Close filter"/g) ?? []).length,
-    2,
-    "each reader has the one shared sheet",
-  );
-
-  // The green pill: a kola ground, white words and glyph, and a white badge when a filter is on.
-  const button = between(parts, "export function FilterButton(", "export function ActiveFilter(");
-  assert.match(button, /kola \? styles\.filterButtonKola : active \? styles\.filterButtonActive : null/);
-  assert.match(button, /color=\{kola \? WHITE : active \? KOLA_DEEP : MUTED\}/);
-  assert.match(button, /color: kola \? WHITE : active \? KOLA_DEEP : INK/);
-  assert.match(button, /kola \? styles\.filterBadgeKola : null/);
-  assert.match(parts, /filterButtonKola: \{\s*borderColor: KOLA,\s*backgroundColor: KOLA,\s*\}/);
-  // Payments and Tenants keep their glass pill until they ask for green.
-  assert.match(button, /tone = "glass"/);
+const DAY = 86_400_000;
+const NOW = Date.parse("2026-10-06T12:00:00Z");
+const date = (days) => new Date(NOW + days * DAY).toISOString().slice(0, 10);
+const lease = (status, extra = {}) => ({
+  id: extra.id ?? status, status, created_at: extra.created_at ?? "2026-09-01T10:00:00Z", activation_requirement: "initial_payment",
+  rent_minor: 300000, rent_currency: "GHS", rent_period: "monthly", starts_on: date(-90), ends_on: date(275), term_months: 12, agreement: null, ...extra,
 });
 
-test("the provider's stages hold every canonical status, and the list and the record say the same", () => {
-  const rules = meaning();
-  assert.match(
-    rules,
-    /return \["draft", "ready"\]\.includes\(lease\.status\)\s*\? "send"\s*: \["offered", "tenant_accepted", "awaiting_activation", "active"\]\.includes\(lease\.status\)\s*\? "current"\s*: "history";/,
-  );
-  for (const [status, label] of [
-    ["draft", "Draft"],
-    ["ready", "Ready to send"],
-    ["offered", "Waiting for tenant"],
-    ["tenant_accepted", "Confirmation needed"],
-    ["awaiting_activation", "Awaiting activation"],
-    ["active", "Active tenancy"],
-    ["declined", "Declined"],
-    ["cancelled", "Withdrawn"],
-    ["ended", "Ended"],
-  ]) {
-    assert.match(rules, new RegExp(`${status}: "${label}",`), status);
-  }
+test("every agreement lands in one lane, by whose move it is and how much term is left", () => {
+  assert.equal(laneOf(lease("draft"), NOW), "yours");
+  assert.equal(laneOf(lease("ready"), NOW), "yours");
+  assert.equal(laneOf(lease("tenant_accepted"), NOW), "yours");
+  assert.equal(laneOf(lease("offered"), NOW), "signing");
+  assert.equal(laneOf(lease("awaiting_activation"), NOW), "signing");
+  assert.equal(laneOf(lease("active"), NOW), "running");
+  // A day either side of the line, so no time zone can move a date across it.
+  assert.equal(laneOf(lease("active", { ends_on: date(ENDING_DAYS - 1) }), NOW), "ending");
+  assert.equal(laneOf(lease("active", { ends_on: date(ENDING_DAYS + 2) }), NOW), "running");
+  for (const status of ["declined", "cancelled", "ended"]) assert.equal(laneOf(lease(status), NOW), "closed", status);
+  // The frozen agreement's term wins over the lease's own fields.
+  assert.equal(laneOf(lease("active", { agreement: { terms: { term: { starts_on: date(-300), ends_on: date(10), term_months: 12 }, money: { rent_minor: 1, rent_currency: "GHS", rent_period: "monthly" } } } }), NOW), "ending");
+});
 
-  // The agreement screen reads the same words and colours from the same place.
-  const record = code(read("app/(app)/provider-lease.tsx"));
-  assert.match(record, /from "@\/providerLeaseMeaning";/);
-  assert.match(record, /return providerLeaseStatus\(lease\);/);
-  assert.match(record, /const tone = providerLeaseTone\(lease\);/);
-  assert.doesNotMatch(record, /tenant_accepted: "/);
+test("the provider's step is on the row, and the steps of signing are drawn", () => {
+  assert.deepEqual(nextAct(lease("draft")), { label: "Send agreement", icon: "send-outline" });
+  assert.deepEqual(nextAct(lease("ready")), { label: "Send agreement", icon: "send-outline" });
+  assert.deepEqual(nextAct(lease("tenant_accepted")), { label: "Confirm move-in", icon: "checkmark-done-outline" });
+  assert.equal(nextAct(lease("offered")), null);
+  assert.deepEqual(["draft", "offered", "tenant_accepted", "awaiting_activation", "active"].map((status) => stepsDone({ status })), [1, 2, 3, 3, 4]);
+  assert.equal(signingLine(lease("awaiting_activation")), "Accepted — waiting for the first payment");
+  assert.equal(signingLine({ status: "awaiting_activation", activation_requirement: "lease_accepted" }), "Accepted — waiting to activate");
 
+  const row = between(provider(), "function AgreementRow(", "function shortDate(");
+  assert.match(row, /<Segments total=\{SIGNING_STEPS\.length\} done=\{stepsDone\(lease\)\} tone=\{look\.ink\} \/>/);
+  assert.match(row, /<Act label=\{act\.label\} icon=\{act\.icon\} primary onPress=\{onOpen\} \/>/);
+  assert.match(row, /<Bar value=\{progress\?\.share \?\? 1\} tone=\{look\.ink\} \/>/);
+  // Both steps happen on the agreement itself.
+  assert.match(provider(), /router\.push\(\{ pathname: "\/\(app\)\/provider-lease", params: \{ leaseId: lease\.id \} \} as never\)/);
+});
+
+test("a running term says which month of how many, and the rent roll adds yearly to monthly", () => {
+  const halfway = termProgress(lease("active", { starts_on: date(-182), ends_on: date(183), term_months: 12 }), NOW);
+  assert.ok(halfway && Math.abs(halfway.share - 0.5) < 0.01);
+  assert.deepEqual([halfway.month, halfway.months], [6, 12]);
+  assert.equal(termProgress(lease("active", { ends_on: null }), NOW), null);
+
+  assert.deepEqual(monthlyRentMinor(lease("active", { rent_minor: 2_400_000, rent_period: "yearly" })), { minor: 200_000, currency: "GHS" });
+  const lanes = agreementWork([
+    lease("active", { id: "a", rent_minor: 300_000 }),
+    lease("active", { id: "b", rent_minor: 2_400_000, rent_period: "yearly", ends_on: date(20) }),
+    lease("offered", { id: "c" }),
+    lease("draft", { id: "d" }),
+  ], NOW);
+  assert.deepEqual(lanes.rentRoll, { minor: 500_000, currency: "GHS" });
+  assert.deepEqual([lanes.yours, lanes.signing, lanes.ending, lanes.running].map((rows) => rows.map((row) => row.id)), [["d"], ["c"], ["b"], ["a"]]);
+  assert.equal(agreementWork([lease("draft")], NOW).rentRoll, null);
+});
+
+test("the provider's page is a briefing, lanes and a fold, with no Filter sheet", () => {
   const source = provider();
-  assert.match(screen(), /const STAGES: readonly ProviderLeaseStage\[\] = \["send", "current", "history"\];/);
-  assert.match(source, /\.filter\(\(lease\) => view === "all" \|\| providerLeaseStage\(lease\) === view\)/);
-  assert.match(source, /\(view === "all" \? STAGES : \[view\]\)/);
-  assert.match(source, /title: view === "all" \? VIEW_LABEL\[stage\] : undefined/);
+  assert.match(screen(), /return provider \? <ProviderAgreementsScreen \/> : <TenantAgreementsScreen \/>;/);
+  assert.doesNotMatch(source, /<BottomSheet|<ListHead|<SummaryPanel|<ChoiceRow/);
+  assert.match(source, /figure=\{work\.rentRoll \? formatMinor\(work\.rentRoll\.minor, work\.rentRoll\.currency\)\.replace\(\/\\\.00\$\/, ""\) : undefined\}/);
+  assert.match(source, /for \(const section of \["yours", "signing", "ending", "running"\] as const\)/);
+  assert.match(source, /yours: \{ title: "Your move", ink: LATERITE/);
+  assert.match(source, /ending: \{ title: "Ending soon", ink: HARMATTAN/);
+  assert.match(source, /title="Closed"/);
+  assert.match(source, /if \(!work\.yours\.length && out\.length\) out\.unshift\(\{ kind: "calm", key: "calm" \}\);/);
+  // Search earns its place only once there is more than a glance can take in.
+  assert.match(source, /trailing=\{all\.length >= SEARCH_FROM/);
+  assert.match(source, /<SearchField label="Search agreements" placeholder="Tenant, Property or Unit"/);
 
-  // The sheet: All and every stage, each with its count, closing on what it will show.
-  assert.match(source, /\{\(\["all", \.\.\.STAGES\] as const\)\.map\(\(value, index\) => \(/);
-  assert.match(source, /count=\{stageCount\(value\)\}/);
-  assert.match(source, /onPress=\{\(\) => setView\(value\)\}/);
-  assert.match(source, /results=\{matching\.length\}/);
-  assert.match(source, /onReset=\{\(\) => \{ setView\("all"\); setQuery\(""\); \}\}/);
-});
-
-test("what is running leads, and waiting for the tenant means offered and nothing else", () => {
-  const source = provider();
-  assert.match(source, /<SummaryPanel\s+label="Active"\s+value=\{String\(active\)\}/);
-  assert.match(source, /const active = all\.filter\(\(lease\) => lease\.status === "active"\)\.length;/);
-  assert.match(source, /const awaiting = all\.filter\(\(lease\) => lease\.status === "offered"\)\.length;/);
-  assert.match(source, /const toSend = stageCount\("send"\);/);
-  assert.match(source, /const toConfirm = all\.filter\(\(lease\) => lease\.status === "tenant_accepted"\)\.length;/);
-  assert.match(source, /note=\{onYou \? \{ text: onYou, tone: "alert" \} : \{ text: "Nothing waiting on you", tone: "calm" \}\}/);
-  assert.match(source, /\{ label: "Waiting for tenant", value: String\(awaiting\) \},\s*\{ label: "All agreements", value: String\(all\.length\) \},/);
-});
-
-test("a provider's row says who, where, how much and where it stands, and opens the record", () => {
-  const source = screen();
-  const row = between(source, "function ProviderLeaseRow(", "function ProviderEmpty(");
-
-  assert.match(
-    row,
-    /accessibilityLabel=\{`\$\{tenant\}\. \$\{place\.join\(", "\)\}\. \$\{status\}\. \$\{rent \? `\$\{rent\} per \$\{period\}` : "Rent not recorded"\}\. \$\{when\}\. Open agreement\.`\}/,
-  );
-  assert.match(row, /end=\{rent \? <Type variant="bodyStrong" numberOfLines=\{1\} style=\{rowStyles\.rowAmount\}>\{rent\}<\/Type> : undefined\}/);
-  assert.match(row, /end=\{<Type variant="caption" numberOfLines=\{1\} style=\{\[rowStyles\.rowStatus, \{ color: tone\.text \}\]\}>\{status\}<\/Type>\}/);
-  assert.match(row, /const tone = TONE\[providerLeaseTone\(lease\)\];/);
-  // On the narrowest phones the space keeps its whole line, and the status moves under it.
-  assert.match(source, /<ProviderLeaseRow lease=\{item\} narrow=\{density\.veryCompact\}/);
-  assert.match(row, /\{narrow \? \(/);
-  assert.match(
-    row,
-    /<Type variant="caption" numberOfLines=\{1\} style=\{rowStyles\.rowSub\}>\{place\.join\(" · "\)\}<\/Type>\s*<Type variant="caption" numberOfLines=\{2\} style=\{rowStyles\.rowMeta\}>\s*<Type variant="caption" style=\{\[rowStyles\.rowStatus, \{ color: tone\.text \}\]\}>\{status\}<\/Type>/,
-  );
-  assert.match(between(kit(), "export function RowLine(", "export function EmptyState("), /<View style=\{styles\.lineEnd\}>\{end\}<\/View>/);
-  assert.match(source, /router\.push\(\{ pathname: "\/\(app\)\/provider-lease", params: \{ leaseId: item\.id \} \} as never\)/);
-  assert.match(source, /\.sort\(\(a, b\) => b\.created_at\.localeCompare\(a\.created_at\)\)/);
-  assert.match(source, /<SearchField label="Search agreements" placeholder="Tenant, Property or Unit" value=\{query\} onChangeText=\{setQuery\} \/>/);
-
-  // The place is exact, down to the bed, and the frozen agreement wins where there is one.
+  // The place stays exact, down to the bed, and the frozen agreement wins.
   const rules = meaning();
   assert.match(rules, /terms\?\.space\.bed_label \?\? lease\.bed_label,/);
   assert.match(rules, /return money \? formatMinor\(money\.rent_minor, money\.rent_currency\) : lease\.rent_formatted;/);
-
-  // The one date that matters now.
-  const when = between(rules, "export function providerLeaseWhen(", "export function leaseSearchText(");
-  assert.match(when, /\["offered", "tenant_accepted", "awaiting_activation"\]\.includes\(lease\.status\)/);
-  assert.match(when, /`Starts \$\{formatLeaseDate\(startsOn\)\}`/);
-  assert.match(when, /endsOn \? `Ends \$\{formatLeaseDate\(endsOn\)\}` : `Since \$\{formatLeaseDate\(startsOn\)\}`/);
-  assert.match(when, /return `Prepared \$\{formatLeaseDate\(lease\.created_at\)\}`;/);
 });
 
-test("a tenant sees what needs deciding first, and Review only while they may still decide", () => {
+test("a tenant sees their decision first, then their home and its term", () => {
+  assert.deepEqual(["offered", "tenant_accepted", "awaiting_activation", "active", "declined", "cancelled", "ended"].map((status) => tenantLane({ status })), ["decide", "finalising", "finalising", "home", "past", "past", "past"]);
+  assert.deepEqual(TENANT_STEPS, ["Offered", "You accepted", "Landlord confirmed", "In place"]);
+  assert.deepEqual(["offered", "tenant_accepted", "awaiting_activation", "active"].map((status) => tenantSteps({ status })), [1, 2, 3, 4]);
+  const term = termOf({ startsOn: "2026-01-01", endsOn: "2026-12-31", termMonths: 12 }, Date.parse("2026-07-02T12:00:00"));
+  assert.deepEqual([term.month, term.months], [6, 12]);
+  assert.equal(termOf({ startsOn: "2026-01-01", endsOn: null, termMonths: 12 }), null);
+
   const source = tenant();
-  assert.match(screen(), /const TENANT_STAGES: readonly AgreementStage\[\] = \["action", "active", "past"\];/);
-  assert.match(screen(), /action: "Needs your decision",/);
-  assert.match(source, /\.filter\(\(stage\) => matchesAgreementFilter\(stage, filter\)\)/);
-  assert.match(source, /title: filter === "all" \? STAGE_TITLE\[stage\] : undefined/);
-  assert.match(source, /tone=\{section\.key === "action" \? KOLA_DEEP : undefined\}/);
-
-  const row = between(source, "function TenantAgreementRow(", "function TenantEmpty(");
-  assert.match(row, /const decide = state\.decisionOpen;/);
-  assert.match(row, /\{decide \? \(\s*<View style=\{styles\.review\}>\s*<Type variant="captionStrong" style=\{styles\.reviewText\}>Review<\/Type>/);
-  assert.match(
-    row,
-    /accessibilityLabel=\{`\$\{homeOf\(terms\)\}\. With \$\{terms\.landlordName\}\. \$\{money\(terms\.rentMinor, terms\.rentCurrency\)\} per \$\{per\(terms\.rentPeriod\)\}\. \$\{state\.line\}\.`\}/,
-  );
-
-  // Five of the six questions: which home, with whom, how much, for how long, what needs deciding.
-  assert.match(row, /\{homeOf\(terms\)\}/);
+  assert.match(source, /<Section title="Needs your decision" tone=\{LATERITE\} rows=\{lanes\.decide\} lane="decide" onOpen=\{open\} \/>/);
+  const row = between(source, "function AgreementRow(", "function AgreementsSkeleton(");
+  // The list offers the review, never the decision: accepting happens there, after the terms.
+  assert.match(row, /<Act label="Review agreement" icon="document-text-outline" primary onPress=\{onOpen\} \/>/);
+  assert.doesNotMatch(source, /acceptLease|declineLease|Accept agreement/);
+  assert.match(row, /\$\{money\(terms\.moveInTotalMinor, terms\.rentCurrency\)\} to move in/);
   assert.match(row, /With \{terms\.landlordName\}/);
-  assert.match(
-    row,
-    /<Type variant="bodyStrong" style=\{rowStyles\.rowAmount\}>\{money\(terms\.rentMinor, terms\.rentCurrency\)\}<\/Type>\s*\{` \/ \$\{per\(terms\.rentPeriod\)\}`\}\s*\{` · \$\{months\(terms\.termMonths\)\}`\}/,
-  );
-  assert.match(row, /\{money\(terms\.moveInTotalMinor, terms\.rentCurrency\)\} to move in/);
-  assert.match(row, /\{terms\.startsOn \? ` · starts \$\{shortDate\(terms\.startsOn\)\}` : ""\}/);
-  assert.match(row, /\{` · \$\{months\(terms\.termMonths\)\}`\}/);
-  assert.match(row, /\{state\.line\}/);
-
+  assert.match(row, /.Month \$\{term\.month\} of \$\{term\.months\} · ends /);
+  assert.match(row, /<Segments total=\{TENANT_STEPS\.length\} done=\{stepsDone\(row\.lease\)\} tone=\{LAGOON\} \/>/);
   assert.match(source, /router\.push\(\{ pathname: "\/\(app\)\/agreement\/\[id\]", params: \{ id: lease\.id \} \}\);/);
   assert.match(source, /useFocusEffect\(useCallback\(\(\) => \{ void load\(\); \}, \[load\]\)\);/);
+  assert.doesNotMatch(source, /<BottomSheet|<ListHead|agreementFilters/);
 });
 
-test("the tenant's Filter is the shared agreement filters, with their counts", () => {
-  const source = tenant();
-  assert.match(source, /\{agreementFilters\.map\(\(option, index\) => \(/);
-  assert.match(source, /count=\{counts\[option\.id\]\}/);
-  assert.match(source, /onPress=\{\(\) => setFilter\(option\.id\)\}/);
-  assert.match(source, /results=\{counts\[filter\]\}/);
-  assert.match(source, /onReset=\{\(\) => setFilter\("all"\)\}/);
-  assert.match(source, /action: rows\.filter\(\(row\) => row\.state\.stage === "action"\)\.length,/);
-});
-
-test("an empty list's animation gives way to anybody who asked for less motion", () => {
-  const parts = kit();
-  const empty = between(parts, "export function EmptyState(", "export function initialsOf(");
-  assert.match(empty, /const reduceMotion = useReduceMotion\(\);/);
-  assert.match(empty, /\{art && !reduceMotion \? \(/);
-  assert.match(empty, /accessibilityElementsHidden\s+importantForAccessibility="no-hide-descendants"/);
-  assert.match(empty, /<Image source=\{art\} resizeMode="contain" style=\{styles\.art\} \/>/);
-  assert.match(empty, /<Ionicons name=\{icon\} size=\{20\} color=\{KOLA\} \/>/);
-  // Where the whole page is empty, the glyph sits large in the disc an animation would use.
-  assert.match(empty, /const disc = hero \|\| Boolean\(art\);/);
-  assert.match(empty, /<Ionicons name=\{icon\} size=\{36\} color=\{KOLA\} \/>/);
-  assert.match(screen(), /<EmptyState icon=\{VIEW_ICON\.all\} hero title="No agreements yet"/);
-  assert.match(screen(), /<EmptyState\s+icon=\{FILTER_ICON\.all\}\s+hero\s+title="No agreements yet"/);
-
-  const source = screen();
-  assert.match(between(source, "function ProviderEmpty(", "type AgreementRowData"), /title="No agreements yet"[\s\S]*action=\{requests\}/);
-  assert.match(source, /label="Open tenancy requests" onPress=\{onRequests\}/);
-  assert.match(source, /onRequests=\{\(\) => router\.push\("\/\(app\)\/provider-applications" as never\)\}/);
-  assert.match(between(source, "function TenantEmpty(", "function shortDate("), /Nothing binds you until you accept\./);
+test("nothing yet is the page's own glyph, struck, with one way on", () => {
+  const empty = between(work(), "export function Empty(", "export function Age(");
+  assert.match(work(), /export const EMPTY_CLAY = "#CC9B8B";/);
+  assert.match(empty, /const strike = crossed && !done;/);
+  assert.match(empty, /<Ionicons name=\{icon\} size=\{size\} color=\{ink\} \/>/);
+  assert.doesNotMatch(empty, /borderRadius|backgroundColor: ink/);
+  assert.match(provider(), /<Empty\s+icon="document-text-outline"\s+title="No agreements yet"/);
+  assert.match(provider(), /label="Open tenancy requests" onPress=\{\(\) => router\.push\("\/\(app\)\/provider-applications" as never\)\}/);
+  assert.match(provider(), /<Empty icon="search-outline" title="No matching agreements"/);
+  assert.match(tenant(), /<Empty\s+icon="document-text-outline"\s+title="No agreements yet"\s+hint="When a landlord sends one, it waits here for you\. Nothing binds you until you accept\."/);
 });
 
 test("both readers keep everything the page could do", () => {
-  const source = screen();
-  assert.match(source, /capabilities\.active_workspace === "provider"/);
-  assert.equal((source.match(/refreshControl=\{<RefreshControl refreshing=\{refreshing\}/g) ?? []).length, 2, "pull to refresh");
-  assert.equal((source.match(/\{error \? <Notice tone="error" title=\{error\} \/> : null\}/g) ?? []).length, 2, "load failures said");
-  assert.equal(
-    (source.match(/items === null \? <Type variant="caption" style=\{styles\.loading\}>Loading…<\/Type> : error \? null : \(/g) ?? []).length,
-    2,
-    "loading said, and no empty state claimed after a failure",
-  );
+  assert.match(screen(), /capabilities\.active_workspace === "provider"/);
+  for (const page of [tenant(), provider()]) {
+    assert.match(page, /refreshControl=\{<RefreshControl refreshing=\{refreshing\}/);
+    assert.match(page, /\{error \? <Notice tone="error" title=\{error\} \/> : null\}/);
+  }
   assert.match(provider(), /setItems\(null\);/);
   assert.match(provider(), /listGrantedLeases\(preferred \? \{ organization: preferred \} : undefined\)/);
+  assert.match(provider(), /accessibilityRole="progressbar" accessibilityLabel="Loading agreements"/);
   assert.match(tenant(), /setItems\(await listMyLeases\(\)\);/);
 });
 
-test("every status keeps its colour legibly, on glass and on its wash", () => {
+test("every lane keeps its colour legibly on its wash", () => {
   const tokens = JSON.parse(read("../packages/design-tokens/tokens.json"));
-  const parts = kit();
-  const source = screen();
-
   const channels = (hex) => [1, 3, 5].map((at) => Number.parseInt(hex.slice(at, at + 2), 16));
   const token = (family, step) => channels(tokens.color[family][step].value);
   const luminance = (rgb) => {
@@ -237,26 +181,18 @@ test("every status keeps its colour legibly, on glass and on its wash", () => {
     const [light, dark] = [luminance(a), luminance(b)].sort((x, y) => y - x);
     return (light + 0.05) / (dark + 0.05);
   };
-  const stepOf = (name, family) => {
-    const step = new RegExp(`export const ${name} = theme\\.color\\.${family}\\["(\\d+)"\\];`).exec(parts)?.[1];
-    assert.ok(step, `${name} is not a ${family} token`);
-    return step;
-  };
-
-  assert.match(source, /good: \{ text: KOLA, ink: KOLA_DEEP, wash: theme\.color\.kola\["50"\] \},/);
-  assert.match(source, /attention: \{ text: LATERITE, ink: LATERITE, wash: theme\.color\.laterite\["100"\] \},/);
-  assert.match(source, /waiting: \{ text: HARMATTAN, ink: HARMATTAN, wash: theme\.color\.harmattan\["100"\] \},/);
-  assert.match(source, /muted: \{ text: MUTED, ink: theme\.color\.ink\["700"\], wash: theme\.color\.field\["100"\] \},/);
-
+  const source = provider();
+  assert.match(source, /wash: theme\.color\.laterite\["100"\]/);
+  assert.match(source, /wash: theme\.color\.harmattan\["100"\]/);
+  assert.match(source, /wash: theme\.color\.lagoon\["100"\]/);
   for (const [ink, wash, label] of [
-    [token("laterite", stepOf("LATERITE", "laterite")), token("laterite", "100"), "initials waiting on the provider"],
-    [token("harmattan", stepOf("HARMATTAN", "harmattan")), token("harmattan", "100"), "initials waiting on somebody else"],
-    [token("kola", stepOf("KOLA_DEEP", "kola")), token("kola", "50"), "initials of a running tenancy"],
-    [token("ink", "700"), token("field", "100"), "initials of a closed agreement"],
+    [token("laterite", "600"), token("laterite", "100"), "the provider's move"],
+    [token("harmattan", "600"), token("harmattan", "100"), "a term running out"],
+    [token("lagoon", "600"), token("lagoon", "100"), "being signed"],
+    [token("kola", "600"), token("kola", "50"), "running"],
+    [token("ink", "700"), token("field", "100"), "closed"],
   ]) {
     assert.ok(contrast(ink, wash) >= 4.5, label);
   }
-
-  // White words on the green Filter and on the Review pill.
-  assert.ok(contrast(token("field", "0"), token("kola", stepOf("KOLA", "kola"))) >= 4.5, "white on kola");
+  assert.ok(contrast(token("field", "0"), token("kola", "800")) >= 4.5, "white on the step");
 });

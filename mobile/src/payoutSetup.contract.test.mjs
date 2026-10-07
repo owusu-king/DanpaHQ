@@ -16,7 +16,7 @@ test("mobile payout setup is a dedicated screen with owner and admin gating", ()
   assert.match(workspace, /\(app\)\/payout-account/);
   assert.match(workspace, /Activate online rent payments/);
   assert.match(workspace, /Add a verified bank or Mobile Money account/);
-  assert.match(more, /label="Settlement account"/);
+  assert.match(more, /label: "Settlement account"/);
   assert.match(more, /\(app\)\/payout-account/);
   assert.match(layout, /name="payout-account"/);
   assert.match(page, /current_user_role === "owner"/);

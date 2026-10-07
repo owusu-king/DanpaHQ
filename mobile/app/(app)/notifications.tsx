@@ -5,9 +5,10 @@ import {
   ActivityIndicator,
   Pressable,
   RefreshControl,
-  SectionList,
+  ScrollView,
   StyleSheet,
   View,
+  useWindowDimensions,
 } from "react-native";
 
 import { ApiFailure } from "@/api";
@@ -17,56 +18,51 @@ import { Bone } from "@/components/billing/BillingParts";
 import { Panel } from "@/components/billing/BillingSurfaces";
 import { useHomeDensity } from "@/components/home/plinth";
 import {
-  CHEVRON,
-  EDGE,
-  EmptyState,
-  GLASS,
+  FAINT,
   GroupLabel,
   INK,
   KOLA,
   KOLA_DEEP,
   LATERITE,
-  ListRow,
   MUTED,
   PRESSED,
   RULE,
-  rowStyles,
   type IconName,
 } from "@/components/portfolio/PortfolioList";
+import { Briefing, Empty } from "@/components/work/WorkParts";
 import { Notice, Type, radius, space } from "@/components/ui";
 import {
   destination,
   needsYou,
   notificationSource,
-  notificationStatus,
   notificationTone,
   type NotificationTone,
 } from "@/notificationMeaning";
 import { listNotifications, markRead, timeAgo, type Notification } from "@/notifications";
-import { pressableFeedback, useSafeBottom } from "@/platform";
+import { isAndroid, pressableFeedback, useSafeBottom } from "@/platform";
 import { alpha } from "@/shell";
 import { theme } from "@/theme";
-
-type UpdateSection = { key: string; title: string; urgent?: boolean; note?: string; data: Notification[] };
 
 /** How much activity a person keeps; the server prunes to the same number. */
 const RECENT_KEPT = 10;
 /** Unread activity older than this is shown as past, not new — the web's rule. */
 const STALE_DAYS = 14;
 
+type Day = { key: string; title: string; items: Notification[] };
+
 /**
- * Updates: what is new, and what happened recently — never a log.
+ * Updates: what wants an answer, then what happened — never a log.
  *
  * A reminder (rent due, a viewing about to start, a lease nearing its end) is
  * informational: once read it has done its job and the server deletes it, so
  * it leaves this screen the moment it is read. Activity — something that
  * happened to a record — is kept, the ten most recent. Nothing pages back
- * through history here; management reads the full record in the audit log, and
- * Home stays the live source of outstanding work. Same rules as web Updates.
+ * through history here; Home stays the live source of outstanding work. Same
+ * rules as web Updates.
  *
- * The feed keeps its review-era shape (2026-09-15): glass on the hub ground,
- * unread as a coloured rule, and one toolbar with Read all — the filter sheet
- * and the pages went with the log they served.
+ * Read as work (owner, 2026-10-06): what is waiting on the reader leads as a
+ * row of cards to swipe through, each with its one step; everything else is a
+ * timeline by day, unread first in weight, with a dot rather than a rule.
  */
 export default function NotificationsScreen() {
   const router = useRouter();
@@ -98,16 +94,13 @@ export default function NotificationsScreen() {
     && state.me.capabilities.active_workspace === "provider"
     && state.me.capabilities.provider.workspace_access;
 
-  // New first — what needs an answer, then the rest unread — then the recent
-  // activity that has been read. Read reminders are never here.
-  const sections = useMemo<UpdateSection[]>(() => {
+  // What needs an answer, then the rest unread, then the recent activity that
+  // has been read. Read reminders are never here.
+  const { waiting, timeline, listedNew } = useMemo(() => {
     const source = items ?? [];
     // A record does not know when the thing it is about was dealt with, so an
-    // unread one weeks old — even "an agreement to look at" — is past, not new:
-    // it joins the recent pool rather than waiting forever (a tenant had 72
-    // unread rows, 18 of them "needing" answers long since given). Repeats about
-    // the same thing keep only the newest. Home's own attention list reads live
-    // state, so nothing truly outstanding is lost.
+    // unread one weeks old is past, not new: it joins the recent pool rather
+    // than waiting forever. Repeats about the same thing keep only the newest.
     const staleBefore = Date.now() - STALE_DAYS * 86_400_000;
     const stale = (item: Notification) => new Date(item.created_at).getTime() < staleBefore;
     const seen = new Set<string>();
@@ -117,31 +110,18 @@ export default function NotificationsScreen() {
       return false;
     });
     const fresh = latest.filter((item) => !item.is_read && !stale(item));
-    const waiting = fresh.filter(needsYou);
+    const nowWaiting = fresh.filter(needsYou);
     const other = fresh.filter((item) => !needsYou(item)).slice(0, RECENT_KEPT);
     const recent = latest
       .filter((item) => item.record === "activity" && (item.is_read || stale(item)))
       .slice(0, RECENT_KEPT);
-    const result: UpdateSection[] = [];
-    if (waiting.length) result.push({ key: "attention", title: "Needs your attention", urgent: true, data: waiting });
-    if (other.length) result.push({ key: "new", title: "New", data: other });
-    if (recent.length) {
-      result.push({
-        key: "recent",
-        title: "Recent activity",
-        note: `Your ${RECENT_KEPT} most recent. Older activity clears on its own, and reminders clear once read.`,
-        data: recent,
-      });
-    }
-    return result;
+    return {
+      waiting: nowWaiting,
+      timeline: byDay([...other, ...recent].sort((a, b) => b.created_at.localeCompare(a.created_at))),
+      listedNew: nowWaiting.length + other.length,
+    };
   }, [items]);
-  // What is listed as new — weeks-old records sit in Recent, so the server's
-  // unread total would overstate it.
-  const listedNew = sections
-    .filter((section) => section.key !== "recent")
-    .reduce((sum, section) => sum + section.data.length, 0);
-
-  const shown = sections.reduce((sum, section) => sum + section.data.length, 0);
+  const shown = waiting.length + timeline.reduce((sum, day) => sum + day.items.length, 0);
 
   /** Read: a reminder leaves the screen (the server deletes it); activity stays. */
   function open(item: Notification) {
@@ -172,11 +152,8 @@ export default function NotificationsScreen() {
 
   return (
     <IndexGround>
-      <SectionList
-        sections={sections}
-        keyExtractor={(item) => item.id}
-        stickySectionHeadersEnabled={false}
-        contentContainerStyle={{ paddingHorizontal: density.pagePadding, paddingTop: density.compact ? space[4] : space[5], paddingBottom: pageBottom }}
+      <ScrollView
+        contentContainerStyle={{ paddingTop: density.compact ? space[4] : space[5], paddingBottom: pageBottom }}
         refreshControl={(
           <RefreshControl
             refreshing={refreshing}
@@ -184,26 +161,31 @@ export default function NotificationsScreen() {
             tintColor={KOLA}
           />
         )}
-        ListHeaderComponent={(
-          <View style={styles.header}>
-            {error ? <Notice tone="error" title={error} /> : null}
+      >
+        <View style={[styles.pad, { paddingHorizontal: density.pagePadding }]}>
+          {error ? <Notice tone="error" title={error} /> : null}
+          {items === null ? <UpdatesSkeleton /> : null}
+        </View>
 
-            {shown ? (
-              <View style={styles.toolbar} accessibilityRole="toolbar" accessibilityLabel="Updates">
-                <View style={styles.toolbarTitle}>
-                  {listedNew > 0 ? (
-                    <>
-                      <Type variant="title2" accessibilityRole="header" numberOfLines={1} style={styles.toolbarTitleText}>Unread</Type>
-                      <Type variant="caption" style={styles.toolbarCount}>{listedNew}</Type>
-                    </>
-                  ) : (
-                    <View style={styles.caughtUp}>
-                      <Ionicons name="checkmark-done" size={17} color={KOLA} />
-                      <Type variant="bodyStrong" accessibilityRole="header" numberOfLines={1} style={styles.caughtUpText}>You’re all caught up</Type>
-                    </View>
-                  )}
-                </View>
-                {unread > 0 ? (
+        {items !== null && !shown && !(error && !items.length) ? (
+          <Empty
+            icon="notifications-off-outline"
+            crossed={false}
+            title="You’re all caught up"
+            hint="Rental, application, agreement and payment updates appear here. Reminders clear once read; your ten most recent activities stay."
+          />
+        ) : null}
+
+        {items !== null && shown ? (
+          <>
+            <View style={[styles.pad, { paddingHorizontal: density.pagePadding }]}>
+              <Briefing
+                title={listedNew ? `${listedNew} new ${listedNew === 1 ? "update" : "updates"}` : "You’re all caught up"}
+                parts={[
+                  waiting.length ? { text: `${waiting.length} ${waiting.length === 1 ? "wants" : "want"} an answer`, tone: LATERITE, strong: true } : null,
+                  { text: "Reminders clear once read", tone: MUTED },
+                ].filter((part): part is NonNullable<typeof part> => part !== null)}
+                trailing={unread > 0 ? (
                   <Pressable
                     onPress={() => void markAllRead()}
                     disabled={markingAll}
@@ -214,109 +196,140 @@ export default function NotificationsScreen() {
                     {...pressableFeedback(theme.color.kola["50"])}
                     style={({ pressed }) => [styles.readAll, pressed ? styles.pressed : null]}
                   >
-                    {markingAll ? (
-                      <ActivityIndicator size="small" color={KOLA} />
-                    ) : (
-                      <Ionicons name="checkmark-done" size={16} color={KOLA} />
-                    )}
+                    {markingAll ? <ActivityIndicator size="small" color={KOLA} /> : <Ionicons name="checkmark-done" size={16} color={KOLA} />}
                     {density.veryCompact ? null : <Type variant="captionStrong" style={styles.readAllText}>Read all</Type>}
                   </Pressable>
-                ) : null}
+                ) : undefined}
+              />
+            </View>
+
+            {waiting.length ? (
+              <View style={styles.block}>
+                <View style={{ paddingHorizontal: density.pagePadding }}>
+                  <GroupLabel count={waiting.length} tone={LATERITE}>Wants an answer</GroupLabel>
+                </View>
+                <AnswerCards items={waiting} gutter={density.pagePadding} onOpen={open} />
               </View>
             ) : null}
-          </View>
-        )}
-        renderSectionHeader={({ section }) => (
-          <View style={styles.sectionHeading}>
-            <GroupLabel count={section.data.length} tone={section.urgent ? LATERITE : undefined}>{section.title}</GroupLabel>
-            {section.note ? <Type variant="caption" style={styles.sectionNote}>{section.note}</Type> : null}
-          </View>
-        )}
-        renderSectionFooter={() => <View style={styles.sectionFooter} />}
-        renderItem={({ item, index, section }) => (
-          <ListRow first={index === 0} last={index === section.data.length - 1}>
-            <UpdateRow item={item} past={section.key === "recent"} onPress={() => open(item)} />
-            {/* Drawn over the row rather than between rows, so an unread rule runs unbroken. */}
-            {index === 0 ? null : <View pointerEvents="none" style={styles.rule} />}
-          </ListRow>
-        )}
-        ListEmptyComponent={(
-          items === null ? (
-            <UpdatesSkeleton />
-          ) : error && !items.length ? null : (
-            <EmptyState
-              icon="checkmark-done-outline"
-              hero
-              title="You’re all caught up"
-              hint="New rental, application, agreement and payment updates appear here. Reminders clear once read; your ten most recent activities stay."
-            />
-          )
-        )}
-      />
+
+            {timeline.map((day) => (
+              <View key={day.key} style={[styles.block, { paddingHorizontal: density.pagePadding }]}>
+                <GroupLabel>{day.title}</GroupLabel>
+                <View style={styles.timeline}>
+                  {day.items.map((item, index) => (
+                    <TimelineRow key={item.id} item={item} last={index === day.items.length - 1} onPress={() => open(item)} />
+                  ))}
+                </View>
+              </View>
+            ))}
+
+            <Type variant="caption" style={[styles.footnote, { paddingHorizontal: density.pagePadding }]}>
+              {`Your ${RECENT_KEPT} most recent activities stay. Older ones clear on their own.`}
+            </Type>
+          </>
+        ) : null}
+      </ScrollView>
     </IndexGround>
   );
 }
 
 /**
- * One update: where it came from and when, what happened, a line of it, and how
- * it stands in words. Unread keeps its left rule in the update's colour — never a
- * dot — and a heavier title; what wants a reply says so beside its status.
+ * What wants an answer, as cards to swipe through: what it is about, what
+ * happened, a line of it, and the one step. Each is the size of a decision, not
+ * of a row, so three of them never read as a list of chores.
  */
-function UpdateRow({ item, past = false, onPress }: { item: Notification; past?: boolean; onPress: () => void }) {
-  const tone = notificationTone(item);
-  const palette = tonePalette(tone);
-  // A weeks-old prompt in Recent is history: no "Review now" on it.
-  const actionable = needsYou(item) && !past;
+function AnswerCards({ items, gutter, onOpen }: { items: Notification[]; gutter: number; onOpen: (item: Notification) => void }) {
+  const { width } = useWindowDimensions();
+  const cardWidth = items.length === 1 ? width - gutter * 2 : Math.min(300, Math.round(width * 0.78));
+  return (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      snapToInterval={cardWidth + space[3]}
+      decelerationRate="fast"
+      contentContainerStyle={{ paddingHorizontal: gutter, gap: space[3] }}
+    >
+      {items.map((item) => {
+        const palette = tonePalette(notificationTone(item));
+        return (
+          <Pressable
+            key={item.id}
+            onPress={() => onOpen(item)}
+            accessibilityRole="button"
+            accessibilityLabel={`${notificationSource(item.kind)}. ${item.title}. ${item.body}. ${timeAgo(item.created_at)}. Review.`}
+            {...pressableFeedback(PRESSED)}
+            style={({ pressed }) => [styles.card, { width: cardWidth }, isAndroid ? null : styles.lift, pressed ? { opacity: 0.92 } : null]}
+          >
+            <View style={styles.cardTop}>
+              <View style={[styles.well, { backgroundColor: palette.bg }]}>
+                <Ionicons name={iconFor(item.kind)} size={18} color={palette.fg} />
+              </View>
+              <View style={styles.cardSource}>
+                <Type variant="label" numberOfLines={1} style={[styles.source, { color: palette.fg }]}>{notificationSource(item.kind).toUpperCase()}</Type>
+                <Type variant="caption" numberOfLines={1} style={styles.time}>{timeAgo(item.created_at)}</Type>
+              </View>
+            </View>
+            <Type variant="bodyStrong" numberOfLines={2} style={styles.cardTitle}>{item.title}</Type>
+            <Type variant="caption" numberOfLines={2} style={styles.cardBody}>{item.body}</Type>
+            <View style={styles.cardAct}>
+              <Type variant="captionStrong" style={styles.cardActText}>Review</Type>
+              <Ionicons name="arrow-forward" size={14} color={theme.color.field["0"]} />
+            </View>
+          </Pressable>
+        );
+      })}
+    </ScrollView>
+  );
+}
+
+/**
+ * One thing that happened, on a rail: its kind as a glyph, what happened and a
+ * line of it, and when. Unread is heavier, with a kola dot.
+ */
+function TimelineRow({ item, last, onPress }: { item: Notification; last: boolean; onPress: () => void }) {
+  const palette = tonePalette(notificationTone(item));
   return (
     <Pressable
       onPress={onPress}
       accessibilityRole="link"
-      accessibilityLabel={`${notificationSource(item.kind)}. ${item.title}. ${item.body}. ${notificationStatus(item)}. ${timeAgo(item.created_at)}`}
+      accessibilityLabel={`${notificationSource(item.kind)}. ${item.title}. ${item.body}. ${item.is_read ? "Read" : "Unread"}. ${timeAgo(item.created_at)}`}
       {...pressableFeedback(PRESSED)}
-      style={({ pressed }) => [
-        styles.row,
-        !item.is_read && { borderLeftColor: palette.fg, backgroundColor: palette.wash },
-        pressed ? { backgroundColor: PRESSED } : null,
-      ]}
+      style={({ pressed }) => [styles.event, pressed ? { backgroundColor: PRESSED } : null]}
     >
-      <View style={[styles.rowIcon, { backgroundColor: palette.bg }]}>
-        <Ionicons name={iconFor(item.kind, tone)} size={17} color={palette.fg} />
-      </View>
-      <View style={rowStyles.rowBody}>
-        <View style={styles.metaRow}>
-          <Type variant="label" numberOfLines={1} style={[styles.source, { color: palette.fg }]}>{notificationSource(item.kind).toUpperCase()}</Type>
-          <Type variant="caption" numberOfLines={1} style={styles.time}>{`· ${timeAgo(item.created_at)}`}</Type>
+      <View style={styles.railColumn}>
+        <View style={[styles.node, { backgroundColor: palette.bg }]}>
+          <Ionicons name={iconFor(item.kind)} size={15} color={palette.fg} />
         </View>
-        <Type variant={item.is_read ? "body" : "bodyStrong"} style={styles.title}>{item.title}</Type>
-        <Type variant="caption" numberOfLines={2} style={rowStyles.rowSub}>{item.body}</Type>
-        <View style={styles.rowFooter}>
-          <Type variant="captionStrong" style={[styles.status, { color: palette.fg }]}>{notificationStatus(item)}</Type>
-          {actionable ? (
-            <View style={styles.review}>
-              <Type variant="captionStrong" style={styles.reviewText}>Review now</Type>
-              <Ionicons name="arrow-forward" size={13} color={KOLA_DEEP} />
-            </View>
-          ) : null}
-        </View>
+        {last ? null : <View style={styles.rail} />}
       </View>
-      <Ionicons name="chevron-forward" size={15} color={CHEVRON} style={styles.chevron} />
+      <View style={styles.eventBody}>
+        <View style={styles.eventTop}>
+          <Type variant={item.is_read ? "body" : "bodyStrong"} numberOfLines={2} style={[styles.eventTitle, item.is_read ? styles.read : null]}>{item.title}</Type>
+          <View style={styles.eventMeta}>
+            {item.is_read ? null : <View style={styles.unreadDot} />}
+            <Type variant="caption" style={styles.time}>{shortTime(item.created_at)}</Type>
+          </View>
+        </View>
+        <Type variant="caption" numberOfLines={2} style={styles.eventText}>{item.body}</Type>
+      </View>
     </Pressable>
   );
 }
 
-/** Shaped like the toolbar and the first rows, so nothing jumps when they arrive. */
+/** Shaped like the briefing, the cards and the first events, so nothing jumps when they arrive. */
 function UpdatesSkeleton() {
   return (
     <View accessible accessibilityRole="progressbar" accessibilityLabel="Loading updates" style={styles.skeleton}>
-      <Bone width="34%" height={20} />
+      <Bone width="44%" height={22} />
+      <Bone width="60%" height={12} />
+      <Bone height={150} round={18} />
       <Panel>
-        {[0, 1, 2, 3].map((key) => (
+        {[0, 1, 2].map((key) => (
           <View key={key} style={[styles.skeletonRow, key ? styles.ruled : null]}>
-            <Bone width={36} height={36} round={11} />
+            <Bone width={32} height={32} round={16} />
             <View style={styles.skeletonLines}>
-              <Bone width="30%" height={10} />
-              <Bone width="76%" height={14} />
-              <Bone width="92%" />
+              <Bone width="70%" height={14} />
+              <Bone width="90%" />
             </View>
           </View>
         ))}
@@ -325,58 +338,60 @@ function UpdatesSkeleton() {
   );
 }
 
-function iconFor(kind: string, tone: NotificationTone): IconName {
-  if (tone === "critical" || tone === "warning" || tone === "action") return "alert-circle-outline";
+/** Today, Yesterday, this week by weekday, then Earlier. */
+function byDay(items: Notification[]): Day[] {
+  const now = new Date();
+  const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const days = new Map<string, Day>();
+  for (const item of items) {
+    const at = new Date(item.created_at);
+    const daysAgo = Math.floor((midnight - new Date(at.getFullYear(), at.getMonth(), at.getDate()).getTime()) / 86_400_000);
+    const key = daysAgo <= 0 ? "today" : daysAgo === 1 ? "yesterday" : daysAgo < 7 ? `d${daysAgo}` : "earlier";
+    const title = key === "today" ? "Today" : key === "yesterday" ? "Yesterday" : key === "earlier" ? "Earlier" : at.toLocaleDateString("en-GH", { weekday: "long" });
+    if (!days.has(key)) days.set(key, { key, title, items: [] });
+    days.get(key)!.items.push(item);
+  }
+  return [...days.values()];
+}
+
+/** The time for today's, the day and month for anything older: the day heading says the rest. */
+function shortTime(iso: string) {
+  const at = new Date(iso);
+  const today = new Date();
+  if (at.toDateString() === today.toDateString()) return at.toLocaleTimeString("en-GH", { hour: "numeric", minute: "2-digit" });
+  return at.toLocaleDateString("en-GH", { day: "numeric", month: "short" });
+}
+
+function iconFor(kind: string): IconName {
   if (kind.startsWith("payment.") || kind.startsWith("rent.") || kind.startsWith("billing.")) return "wallet-outline";
-  if (kind.startsWith("application.") || kind.startsWith("tenancy_request.")) return "document-text-outline";
+  if (kind.startsWith("application.") || kind.startsWith("tenancy_request.") || kind.startsWith("property_invitation.")) return "document-text-outline";
   if (kind.startsWith("viewing.")) return "calendar-outline";
   if (kind.startsWith("lease.")) return "reader-outline";
-  if (tone === "success") return "checkmark-circle-outline";
+  if (kind.startsWith("maintenance.")) return "construct-outline";
+  if (kind.startsWith("organization.")) return "people-outline";
+  if (kind.startsWith("sale")) return "pricetags-outline";
   return "notifications-outline";
 }
 
-/** Each tone's ink, the well its glyph sits in, and the faint wash of an unread row on glass. */
+/** Each tone's ink and the well its glyph sits in. */
 function tonePalette(tone: NotificationTone) {
   return {
-    success: { fg: theme.color.kola["600"], bg: theme.color.kola["50"], wash: alpha(theme.color.kola["600"], 0.05) },
-    action: { fg: theme.color.harmattan["600"], bg: theme.color.harmattan["100"], wash: alpha(theme.color.harmattan["600"], 0.06) },
-    warning: { fg: theme.color.harmattan["600"], bg: theme.color.harmattan["100"], wash: alpha(theme.color.harmattan["600"], 0.06) },
-    critical: { fg: theme.color.laterite["600"], bg: theme.color.laterite["100"], wash: alpha(theme.color.laterite["600"], 0.05) },
-    info: { fg: theme.color.lagoon["600"], bg: theme.color.lagoon["100"], wash: alpha(theme.color.lagoon["600"], 0.05) },
-    neutral: { fg: theme.color.ink["500"], bg: theme.color.field["100"], wash: alpha(INK, 0.03) },
+    success: { fg: theme.color.kola["600"], bg: theme.color.kola["50"] },
+    action: { fg: theme.color.harmattan["600"], bg: theme.color.harmattan["100"] },
+    warning: { fg: theme.color.harmattan["600"], bg: theme.color.harmattan["100"] },
+    critical: { fg: theme.color.laterite["600"], bg: theme.color.laterite["100"] },
+    info: { fg: theme.color.lagoon["600"], bg: theme.color.lagoon["100"] },
+    neutral: { fg: theme.color.ink["500"], bg: theme.color.field["100"] },
   }[tone];
 }
 
 const styles = StyleSheet.create({
-  header: {
+  pad: {
     gap: space[3],
-    marginBottom: space[4],
   },
-  toolbar: {
-    minHeight: 40,
-    flexDirection: "row",
-    alignItems: "center",
+  block: {
     gap: space[2],
-    paddingLeft: space[1],
-  },
-  toolbarTitle: {
-    flex: 1,
-    minWidth: 0,
-    flexDirection: "row",
-    alignItems: "baseline",
-    gap: space[2],
-  },
-  toolbarTitleText: {
-    flexShrink: 1,
-    fontSize: 17.5,
-    lineHeight: 23,
-    letterSpacing: -0.2,
-    color: INK,
-  },
-  toolbarCount: {
-    fontSize: 13,
-    lineHeight: 18,
-    color: MUTED,
+    marginTop: space[6],
   },
   readAll: {
     minHeight: 38,
@@ -385,127 +400,162 @@ const styles = StyleSheet.create({
     gap: space[1],
     paddingHorizontal: space[3],
     borderRadius: radius.pill,
-    borderWidth: 1,
-    borderColor: EDGE,
-    backgroundColor: GLASS,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: RULE,
+    backgroundColor: theme.color.field["0"],
   },
   readAllText: {
     fontSize: 13.5,
     lineHeight: 18,
     color: KOLA_DEEP,
   },
-  sectionHeading: {
-    gap: space[1],
-    paddingBottom: space[2],
-  },
-  sectionNote: {
-    paddingHorizontal: space[1],
-    fontSize: 12.5,
-    lineHeight: 17,
-    color: MUTED,
-  },
-  caughtUp: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: space[2],
-  },
-  caughtUpText: {
-    flexShrink: 1,
-    color: KOLA_DEEP,
-  },
-  sectionFooter: {
-    height: space[5],
-  },
-  rule: {
-    position: "absolute",
-    top: 0,
-    left: 14,
-    right: 0,
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: RULE,
-  },
-  ruled: {
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: RULE,
-  },
-  row: {
-    minHeight: 72,
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: space[3],
-    paddingVertical: space[3],
-    paddingLeft: 11,
-    paddingRight: 14,
-    borderLeftWidth: 3,
-    borderLeftColor: "transparent",
-  },
-  rowIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 11,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  metaRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  source: {
-    flexShrink: 1,
-    letterSpacing: 0.4,
-  },
-  time: {
-    flexShrink: 0,
-    fontSize: 12,
-    lineHeight: 16,
-    color: MUTED,
-  },
-  title: {
-    marginTop: 2,
-    fontSize: 15,
-    lineHeight: 20,
-    color: INK,
-  },
-  rowFooter: {
-    marginTop: space[2],
-    flexDirection: "row",
-    flexWrap: "wrap",
-    alignItems: "center",
-    columnGap: space[3],
-    rowGap: space[1],
-  },
-  status: {
-    fontSize: 12.5,
-    lineHeight: 17,
-  },
-  review: {
-    minHeight: 26,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 10,
-    borderRadius: radius.pill,
-    backgroundColor: theme.color.kola["50"],
-  },
-  reviewText: {
-    fontSize: 12.5,
-    lineHeight: 17,
-    color: KOLA_DEEP,
-  },
-  chevron: {
-    alignSelf: "center",
-  },
   pressed: {
     opacity: 0.72,
   },
+  card: {
+    gap: space[2],
+    padding: space[4],
+    borderRadius: 18,
+    backgroundColor: theme.color.field["0"],
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: RULE,
+  },
+  lift: {
+    shadowColor: theme.color.kola["900"],
+    shadowOpacity: 0.07,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 6 },
+  },
+  cardTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space[3],
+  },
+  well: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  cardSource: {
+    flex: 1,
+    minWidth: 0,
+  },
+  source: {
+    letterSpacing: 0.4,
+  },
+  time: {
+    fontSize: 12,
+    lineHeight: 16,
+    color: FAINT,
+  },
+  cardTitle: {
+    fontSize: 16,
+    lineHeight: 21,
+    color: INK,
+  },
+  cardBody: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: MUTED,
+  },
+  cardAct: {
+    alignSelf: "flex-start",
+    minHeight: 32,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    marginTop: space[1],
+    paddingHorizontal: space[3],
+    borderRadius: radius.pill,
+    backgroundColor: theme.color.kola["800"],
+  },
+  cardActText: {
+    color: theme.color.field["0"],
+  },
+  timeline: {
+    marginTop: space[1],
+  },
+  event: {
+    flexDirection: "row",
+    gap: space[3],
+    paddingRight: space[1],
+    borderRadius: 12,
+  },
+  railColumn: {
+    width: 32,
+    alignItems: "center",
+  },
+  node: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  rail: {
+    flex: 1,
+    width: 2,
+    marginVertical: 3,
+    borderRadius: 1,
+    backgroundColor: alpha(theme.color.kola["900"], 0.1),
+  },
+  eventBody: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2,
+    paddingTop: 5,
+    paddingBottom: space[4],
+  },
+  eventTop: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: space[2],
+  },
+  eventTitle: {
+    flex: 1,
+    fontSize: 14.5,
+    lineHeight: 20,
+    color: INK,
+  },
+  read: {
+    color: theme.color.ink["700"],
+  },
+  eventMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingTop: 2,
+  },
+  unreadDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: KOLA,
+  },
+  eventText: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: MUTED,
+  },
+  footnote: {
+    marginTop: space[2],
+    fontSize: 12,
+    lineHeight: 17,
+    color: FAINT,
+  },
   skeleton: {
-    gap: space[4],
+    gap: space[3],
   },
   skeletonRow: {
     flexDirection: "row",
     gap: space[3],
     padding: 14,
+  },
+  ruled: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: RULE,
   },
   skeletonLines: {
     flex: 1,

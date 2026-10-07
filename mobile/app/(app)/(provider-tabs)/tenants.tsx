@@ -1,19 +1,18 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Pressable, RefreshControl, SectionList, StyleSheet, View } from "react-native";
+import { FlatList, Pressable, RefreshControl, StyleSheet, View } from "react-native";
 
 import { privateAccess } from "@/accessCodeMeaning";
 import { ApiFailure } from "@/api";
 import { useAuth } from "@/auth";
 import { IndexGround } from "@/components/account/IndexRows";
+import { Bone } from "@/components/billing/BillingParts";
+import { Panel } from "@/components/billing/BillingSurfaces";
 import { shortDate, useHomeDensity } from "@/components/home/plinth";
 import {
-  ActiveFilter,
-  ChoiceRow,
   EDGE,
-  EmptyState,
-  FilterGroup,
+  FAINT,
   Footnote,
   GLASS,
   GroupLabel,
@@ -21,106 +20,117 @@ import {
   InfoNote,
   KOLA,
   KOLA_DEEP,
+  LAGOON,
   LATERITE,
-  ListHead,
   ListRow,
   MUTED,
   PANEL_RADIUS,
   PRESSED,
   QuietAction,
+  RULE,
   RowLine,
-  RowSeparator,
   SearchField,
-  SheetFooter,
   SignalPanel,
-  SummaryPanel,
-  initialsOf,
   rowStyles,
-  type IconName,
   type Signal,
 } from "@/components/portfolio/PortfolioList";
 import { UnitAccessCodeManagement } from "@/components/property/UnitAccessCodeManagement";
-import { BottomSheet } from "@/components/sheet/BottomSheet";
+import { Act, Acts, Bar, Briefing, BriefingButton, Calm, Empty, Face, Fold, MoreRow } from "@/components/work/WorkParts";
 import { Notice, Type, space } from "@/components/ui";
 import { formatMinor } from "@/listings";
 import { getPortfolioSummary, listOrganizations, type PortfolioSummary } from "@/organizations";
-import { pressableFeedback } from "@/platform";
+import { pressableFeedback, useSafeBottom } from "@/platform";
+import { ENDING_DAYS, endsIn, laneOf, monthlyRent, startsIn, tenantWork, termShare, type Tenant, type TenantLane, type TenantWork } from "@/tenantWork";
 import { theme } from "@/theme";
 
 /**
- * The Portfolio's tenancies, and the Units ready to share privately.
+ * The Portfolio's tenancies, read as the people in its homes (owner, 2026-10-06).
  *
- * Refined on review (2026-09-15) into the reading order Payments uses. How many
- * tenancies need attention leads, in one glass panel; a tenancy request waiting is
- * one row that goes to the requests inbox; then the list. It is grouped — what
- * needs attention, then what is on track — and each row is one exact Unit or bed
- * tenancy, not one person: initials in the colour of its rent, the Property and
- * Unit, what is owed and when, and the agreement's term. The two views and the
- * four statuses used to be tabs and a row of choices; they are one Filter control
- * now, opening a sheet that groups what to show and which tenancies. The parts are
- * `PortfolioList`'s, shared with Payments.
+ * How many tenancies need the landlord leads, with what is overdue in money;
+ * then who needs them — overdue rent first, unfinished paperwork, rent coming
+ * due — with the rent account one tap from an overdue row; who is moving in;
+ * whose term is running out; and everyone settled, by the Property they live
+ * in. Private access, which used to be a second "view" behind the Filter, folds
+ * into one line at the foot that opens the share-ready Units.
  *
- * Private access stays a secondary view and stays short: three share-ready Units,
- * each a card because each carries its own code and actions, then one note saying
- * what is off screen and the way to all of it.
+ * Each row is one exact Unit or bed tenancy, not one person.
  */
 
-type Tenant = PortfolioSummary["tenants"][number];
 type Access = PortfolioSummary["tenant_access"][number];
+type Entry =
+  | { kind: "label"; key: string; title: string; count: number; tone?: string; first: boolean }
+  | { kind: "row"; key: string; tenant: Tenant; first: boolean; last: boolean }
+  | { kind: "more"; key: string; section: "needs"; hidden: number }
+  | { kind: "calm"; key: string }
+  | { kind: "access"; key: string; open: boolean; ready: number }
+  | { kind: "card"; key: string; access: Access }
+  | { kind: "accessFoot"; key: string };
 
-/** How many share-ready Units this tab shows before handing over to Units. */
+/** How many share-ready Units the fold shows before handing over to Units. */
 const ACCESS_PREVIEW = 3;
 /**
  * What a code lets someone do, said once above the cards rather than in each —
  * in `privateAccess`'s own words for a Unit that can share, so the two never differ.
  */
 const SHARING = privateAccess({ state: "not_created", expires_at: null, can_rotate: true, can_revoke: false }, { verified: true, occupied: false }).detail;
-type ViewName = "tenants" | "access";
-type TenantFilter = "all" | "attention" | "overdue" | "current";
-type Row = { kind: "tenant"; value: Tenant } | { kind: "access"; value: Access };
-type Section = { key: "attention" | "track" | "access"; title?: string; data: Row[] };
+const SEARCH_FROM = 9;
+const NEEDS_SHOWN = 8;
 
-const VIEWS: readonly ViewName[] = ["tenants", "access"];
-const FILTERS: readonly TenantFilter[] = ["all", "attention", "overdue", "current"];
-
-const VIEW_LABEL: Record<ViewName, string> = {
-  tenants: "Tenancies",
-  access: "Private access",
-};
-const VIEW_ICON: Record<ViewName, IconName> = {
-  tenants: "people-outline",
-  access: "key-outline",
-};
-const FILTER_LABEL: Record<TenantFilter, string> = {
-  all: "All tenancies",
-  attention: "Needs attention",
-  overdue: "Overdue",
-  current: "Paid up",
-};
-/** Each status in the colour it already carries across the product. */
-const FILTER_TONE: Record<Exclude<TenantFilter, "all">, string> = {
-  attention: HARMATTAN,
-  overdue: LATERITE,
-  current: KOLA,
+/** Each lane in the colour the product already gives it. */
+const LANE: Record<TenantLane, { ink: string; wash: string }> = {
+  overdue: { ink: LATERITE, wash: theme.color.laterite["100"] },
+  paperwork: { ink: HARMATTAN, wash: theme.color.harmattan["100"] },
+  due: { ink: HARMATTAN, wash: theme.color.harmattan["100"] },
+  moving_in: { ink: LAGOON, wash: theme.color.lagoon["100"] },
+  ending: { ink: HARMATTAN, wash: theme.color.harmattan["100"] },
+  settled: { ink: KOLA_DEEP, wash: theme.color.kola["50"] },
 };
 
 export default function ProviderTenantsScreen() {
   const router = useRouter();
   const density = useHomeDensity();
-  const { view: requestedView } = useLocalSearchParams<{ view?: ViewName | "requests" }>();
+  const pageBottom = useSafeBottom(space[12]);
+  const { view: requestedView, unitId: requestedUnit, propertyId: requestedProperty, scopeLabel } = useLocalSearchParams<{
+    view?: "tenants" | "access" | "requests";
+    unitId?: string;
+    propertyId?: string;
+    /** The Unit or Property by name, from the page that opened this, for when no record here names it. */
+    scopeLabel?: string;
+  }>();
   const { activeContext } = useAuth();
   const [organizationId, setOrganizationId] = useState("");
   const [summary, setSummary] = useState<PortfolioSummary | null>(null);
-  const [view, setView] = useState<ViewName>(requestedView === "access" ? "access" : "tenants");
+  const [loaded, setLoaded] = useState(false);
+  const [accessOpen, setAccessOpen] = useState(requestedView === "access" || Boolean(requestedUnit));
+  const [needsAll, setNeedsAll] = useState(false);
+  const [searching, setSearching] = useState(false);
   const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState<TenantFilter>("all");
-  const [filtering, setFiltering] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
 
+  // Opened from a Unit or a Property, the page is about that Unit or Property
+  // until the chip saying so is cleared (owner, 2026-10-06). It used to open on
+  // the whole Portfolio, and a provider had to find the one Unit again.
+  const [scope, setScope] = useState<Scope>(() => scopeFrom(requestedUnit, requestedProperty));
+  const [seenScope, setSeenScope] = useState(`${requestedUnit ?? ""}|${requestedProperty ?? ""}`);
+  if (`${requestedUnit ?? ""}|${requestedProperty ?? ""}` !== seenScope) {
+    setSeenScope(`${requestedUnit ?? ""}|${requestedProperty ?? ""}`);
+    setScope(scopeFrom(requestedUnit, requestedProperty));
+    if (requestedUnit) setAccessOpen(true);
+  }
+  const clearScope = () => {
+    setScope(null);
+    router.setParams({ unitId: undefined, propertyId: undefined } as never);
+  };
+
+  // Arriving with `view=access` opens the private-access fold, as it once opened that view.
+  const [seenView, setSeenView] = useState(requestedView);
+  if (requestedView !== seenView) {
+    setSeenView(requestedView);
+    if (requestedView === "access") setAccessOpen(true);
+  }
   useEffect(() => {
     if (requestedView === "requests") router.replace("/(app)/provider-applications" as never);
-    else if (requestedView === "access" || requestedView === "tenants") setView(requestedView);
   }, [requestedView, router]);
 
   const load = useCallback(async () => {
@@ -135,51 +145,31 @@ export default function ProviderTenantsScreen() {
       // Keep what was on screen: a failed refresh must not unmount a Unit's card
       // and take a code that was just issued with it.
       setError(cause instanceof ApiFailure ? cause.error.message : "Could not load tenants.");
+    } finally {
+      setLoaded(true);
     }
   }, [activeContext]);
 
   useFocusEffect(useCallback(() => { void load(); }, [load]));
 
-  const all = useMemo(() => summary?.tenants ?? [], [summary]);
-  const tenants = useMemo(() => {
-    const needle = query.trim().toLocaleLowerCase("en-GH");
-    return all
-      .filter((tenant) => matchesFilter(tenant, filter))
-      .filter((tenant) => !needle || [tenant.name, tenant.property_title, tenant.unit_label, tenant.bed_label]
-        .filter(Boolean)
-        .some((value) => value!.toLocaleLowerCase("en-GH").includes(needle)))
-      .sort((a, b) => Number(tenantNeedsAttention(b)) - Number(tenantNeedsAttention(a)) || a.name.localeCompare(b.name));
-  }, [all, filter, query]);
-
+  const all = useMemo(() => (summary?.tenants ?? []).filter((row) => inScope(row, scope)), [summary, scope]);
+  const access = useMemo(() => (summary?.tenant_access ?? []).filter((row) => inScope(row, scope)), [summary, scope]);
+  const work = useMemo(() => tenantWork(all), [all]);
   // Only verified, available Units are sharing work; the rest are summarised.
   const ready = useMemo(
-    () => summary ? summary.tenant_access.filter((value) => value.condition_state === "approved" && value.availability.state === "available") : [],
-    [summary],
+    () => access.filter((value) => value.condition_state === "approved" && value.availability.state === "available"),
+    [access],
   );
-  const readyCount = ready.length;
-  const notReady = (summary?.tenant_access.length ?? 0) - readyCount;
-  const shownAccess = useMemo(() => ready.slice(0, ACCESS_PREVIEW), [ready]);
-
-  const sections = useMemo<Section[]>(() => {
-    if (!summary) return [];
-    if (view === "access") {
-      return shownAccess.length ? [{ key: "access", data: shownAccess.map((value) => ({ kind: "access", value })) }] : [];
-    }
-    const attention = tenants.filter(tenantNeedsAttention);
-    const track = tenants.filter((tenant) => !tenantNeedsAttention(tenant));
-    return [
-      ...(attention.length ? [{ key: "attention" as const, title: "Needs attention", data: attention.map((value) => ({ kind: "tenant" as const, value })) }] : []),
-      ...(track.length ? [{ key: "track" as const, title: "On track", data: track.map((value) => ({ kind: "tenant" as const, value })) }] : []),
-    ];
-  }, [shownAccess, summary, tenants, view]);
-
-  const attentionCount = all.filter(tenantNeedsAttention).length;
-  const filterCount = (value: TenantFilter) => all.filter((tenant) => matchesFilter(tenant, value)).length;
-  const results = view === "access" ? shownAccess.length : tenants.length;
-  const activeFilters = view === "tenants" && filter !== "all" ? 1 : 0;
+  const notReady = access.length - ready.length;
+  const scopeName = scope ? nameOf(scope, summary, scopeLabel) : "";
+  const needle = query.trim().toLocaleLowerCase("en-GH");
+  const entries = useMemo(
+    () => entriesFor(work, all, { needle, needsAll, accessOpen, ready, hasAccess: Boolean(access.length) }),
+    [work, all, needle, needsAll, accessOpen, ready, access],
+  );
 
   // A request is decided in its own inbox; this only says one is waiting.
-  const pendingRequests = summary ? summary.tenancy_requests.filter((request) => request.status === "pending").length : 0;
+  const pendingRequests = summary ? summary.tenancy_requests.filter((request) => request.status === "pending" && inScope(request, scope)).length : 0;
   const signals: Signal[] = pendingRequests
     ? [{
       key: "requests",
@@ -192,155 +182,283 @@ export default function ProviderTenantsScreen() {
     }]
     : [];
 
+  const openTenancy = (tenant: Tenant) =>
+    router.push({ pathname: "/(app)/provider-tenancy", params: { tenancyId: tenant.tenancy_id ?? tenant.occupancy_id, organizationId } } as never);
+  const openAccount = (tenant: Tenant) => tenant.lease_id && router.push({
+    pathname: "/(app)/rent-account",
+    params: { leaseId: tenant.lease_id, tenantName: tenant.name, propertyTitle: tenant.property_title, unitLabel: tenant.unit_label, bedLabel: tenant.bed_label ?? "", tenancyId: tenant.tenancy_id ?? "", canRecord: tenant.can_record_payment ? "1" : "0" },
+  } as never);
+
+  const loading = !loaded && summary === null;
+  const nothingAtAll = loaded && !error && summary !== null && all.length === 0 && !access.length;
+  const needs = work.needsYou.length;
+  const parts = [
+    work.overdueMinor > 0 ? { text: `${formatMinor(work.overdueMinor)} overdue`, tone: LATERITE, strong: true } : null,
+    work.count.paperwork ? { text: `${work.count.paperwork} without an agreement`, tone: HARMATTAN } : null,
+    work.count.moving_in ? { text: `${work.count.moving_in} moving in`, tone: LAGOON } : null,
+    work.count.ending ? { text: `${work.count.ending} ending within ${ENDING_DAYS} days`, tone: HARMATTAN } : null,
+    !needs && all.length ? { text: `${all.length} ${all.length === 1 ? "tenancy" : "tenancies"}`, tone: MUTED } : null,
+  ].filter((part): part is NonNullable<typeof part> => part !== null);
+
   return (
     <IndexGround>
-      <SectionList<Row, Section>
-        sections={sections}
-        keyExtractor={(item) => item.kind === "tenant" ? item.value.occupancy_id : item.value.unit_id}
-        stickySectionHeadersEnabled={false}
-        contentContainerStyle={{ paddingHorizontal: density.pagePadding, paddingTop: density.compact ? space[4] : space[5], paddingBottom: space[12] }}
+      <FlatList
+        data={loading || nothingAtAll ? [] : entries}
+        keyExtractor={(entry) => entry.key}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{ paddingHorizontal: density.pagePadding, paddingTop: density.compact ? space[4] : space[5], paddingBottom: pageBottom }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await load(); setRefreshing(false); }} tintColor={KOLA} />}
-        ListHeaderComponent={<View style={{ gap: density.sectionGap + space[2], marginBottom: space[4] }}>
-          {error ? <Notice tone="error" title={error} /> : null}
-          {summary ? <SummaryPanel
-            label="Needs attention"
-            value={attentionCount ? String(attentionCount) : "None"}
-            note={summary.money.overdue_minor > 0
-              ? { text: `${formatMinor(summary.money.overdue_minor)} overdue`, tone: "alert" }
-              : { text: "Nothing overdue", tone: "calm" }}
-            facts={[
-              { label: "Tenancies", value: String(all.length) },
-              { label: "Paid up", value: String(filterCount("current")) },
-            ]}
-          /> : null}
-          <SignalPanel signals={signals} />
-          {summary ? <View style={{ gap: space[3] }}>
-            <ListHead title={VIEW_LABEL[view]} count={view === "access" ? readyCount : tenants.length} filters={activeFilters} onFilter={() => setFiltering(true)} />
-            {view === "access" && shownAccess.length ? <Footnote>{SHARING}</Footnote> : null}
-            {view === "tenants" && filter !== "all" ? (
-              <ActiveFilter label={FILTER_LABEL[filter]} tone={FILTER_TONE[filter]} onClear={() => setFilter("all")} />
-            ) : null}
-            {view === "tenants" && all.length ? (
-              <SearchField label="Search tenants" placeholder="Name, Property, Unit or bed" value={query} onChangeText={setQuery} />
-            ) : null}
-          </View> : null}
-        </View>}
-        renderSectionHeader={({ section }) => section.title ? (
-          <View style={styles.sectionHead}>
-            <GroupLabel count={section.data.length}>{section.title}</GroupLabel>
-          </View>
-        ) : null}
-        renderSectionFooter={() => <View style={{ height: space[5] }} />}
-        // Tenancies read as one panel per group; each Unit's access is its own card.
-        ItemSeparatorComponent={({ section }: { section: Section }) => section.key === "access" ? <View style={{ height: space[3] }} /> : <RowSeparator />}
-        renderItem={({ item, index, section }) => item.kind === "tenant" ? (
-          <ListRow first={index === 0} last={index === section.data.length - 1}>
-            <TenantRow
-              tenant={item.value}
-              narrow={density.veryCompact}
-              onPress={() => router.push({ pathname: "/(app)/provider-tenancy", params: { tenancyId: item.value.tenancy_id ?? item.value.occupancy_id, organizationId } } as never)}
-            />
-          </ListRow>
+        ListHeaderComponent={loading || nothingAtAll ? (
+          error ? <Notice tone="error" title={error} />
+            : scope && !loading ? <View style={styles.header}><ScopeChip label={scopeName} unit={scope.kind === "unit"} onClear={clearScope} /></View>
+              : null
         ) : (
-          <AccessCard
-            access={item.value}
-            onChanged={load}
-            onView={() => router.push({ pathname: "/(app)/space", params: { propertyId: item.value.property_id, unitId: item.value.unit_id } } as never)}
-          />
-        )}
-        ListFooterComponent={view === "access" && shownAccess.length ? (
-          <AccessFooter shown={shownAccess.length} ready={readyCount} unavailable={notReady} onUnits={() => router.push("/(app)/units" as never)} />
-        ) : null}
-        ListEmptyComponent={summary === null ? (error ? null : <Type variant="caption" style={styles.loading}>Loading…</Type>) : (
-          <Empty
-            view={view}
-            hasTenants={Boolean(all.length)}
-            unavailableAccess={notReady}
-            onProperties={() => router.push("/(app)/(provider-tabs)/properties" as never)}
-          />
-        )}
-      />
-      <BottomSheet
-        visible={filtering}
-        onClose={() => setFiltering(false)}
-        title="Filter"
-        hideTitle
-        closeLabel="Close filter"
-        footer={<SheetFooter
-          canReset={view !== "tenants" || filter !== "all"}
-          onReset={() => { setView("tenants"); setFilter("all"); setQuery(""); }}
-          results={results}
-          onShow={() => setFiltering(false)}
-        />}
-      >
-        <FilterGroup title="Show">
-          {VIEWS.map((value, index) => (
-            <ChoiceRow
-              key={value}
-              first={index === 0}
-              icon={VIEW_ICON[value]}
-              label={VIEW_LABEL[value]}
-              count={value === "tenants" ? all.length : readyCount}
-              selected={view === value}
-              onPress={() => setView(value)}
-            />
-          ))}
-        </FilterGroup>
-        {view === "tenants" ? (
-          <FilterGroup title="Status">
-            {FILTERS.map((value, index) => (
-              <ChoiceRow
-                key={value}
-                first={index === 0}
-                tone={value === "all" ? undefined : FILTER_TONE[value]}
-                label={FILTER_LABEL[value]}
-                count={filterCount(value)}
-                selected={filter === value}
-                onPress={() => setFilter(value)}
+          <View style={styles.header}>
+            {error ? <Notice tone="error" title={error} /> : null}
+            {scope ? <ScopeChip label={scopeName} unit={scope.kind === "unit"} onClear={clearScope} /> : null}
+            {scope && !all.length ? (
+              // Not an all-clear: an empty Unit is work to do, so it carries the Unit, not a tick.
+              <Calm icon={scope.kind === "unit" ? "key-outline" : "business-outline"} text={scope.kind === "unit" ? "Nobody lives here yet. Share it privately below, or list it on Explore." : "Nobody lives in this Property yet."} />
+            ) : null}
+            {all.length ? (
+              <Briefing
+                title={needs ? `${needs} ${needs === 1 ? "tenancy needs" : "tenancies need"} you` : "Everyone is paid up"}
+                parts={parts}
+                trailing={all.length >= SEARCH_FROM
+                  ? <BriefingButton icon={searching ? "close" : "search"} label={searching ? "Close search" : "Search tenants"} onPress={() => { setSearching((current) => !current); setQuery(""); }} />
+                  : undefined}
               />
-            ))}
-          </FilterGroup>
+            ) : null}
+            {searching ? <SearchField label="Search tenants" placeholder="Name, Property, Unit or bed" value={query} onChangeText={setQuery} /> : null}
+            <SignalPanel signals={signals} />
+          </View>
+        )}
+        renderItem={({ item: entry }) => {
+          if (entry.kind === "label") {
+            return (
+              <View style={[styles.label, entry.first ? null : styles.labelGap]}>
+                <GroupLabel count={entry.count} tone={entry.tone}>{entry.title}</GroupLabel>
+              </View>
+            );
+          }
+          if (entry.kind === "more") {
+            return (
+              <ListRow first={false} last>
+                <View style={styles.rule} />
+                <MoreRow label={`Show ${entry.hidden} more`} onPress={() => setNeedsAll(true)} />
+              </ListRow>
+            );
+          }
+          if (entry.kind === "calm") return <Calm text="Nobody is behind on rent or waiting on paperwork." />;
+          if (entry.kind === "access") {
+            return (
+              <View style={styles.labelGap}>
+                <Fold
+                  title="Private access"
+                  icon="key-outline"
+                  summary={entry.ready ? `${entry.ready} ${entry.ready === 1 ? "Unit" : "Units"} ready to share with a code` : "No Unit is ready to share yet"}
+                  count={entry.ready}
+                  open={entry.open}
+                  onToggle={() => setAccessOpen((current) => !current)}
+                />
+                {entry.open && entry.ready ? <View style={styles.sharing}><Footnote>{SHARING}</Footnote></View> : null}
+              </View>
+            );
+          }
+          if (entry.kind === "card") {
+            return (
+              <View style={styles.card}>
+                <AccessCard
+                  access={entry.access}
+                  onChanged={load}
+                  onView={() => router.push({ pathname: "/(app)/space", params: { propertyId: entry.access.property_id, unitId: entry.access.unit_id } } as never)}
+                />
+              </View>
+            );
+          }
+          if (entry.kind === "accessFoot") {
+            return ready.length ? (
+              <AccessFooter shown={Math.min(ready.length, ACCESS_PREVIEW)} ready={ready.length} unavailable={notReady} onUnits={() => router.push("/(app)/units" as never)} />
+            ) : (
+              <Empty
+                compact
+                icon="key-outline"
+                title="No Units ready to share privately"
+                hint={notReady > 0 ? `${notReady} Unit${notReady === 1 ? " is" : "s are"} not verified or available.` : "A Unit must be verified and available before it can issue an access code."}
+                action={<QuietAction icon="business-outline" label="Review Properties" onPress={() => router.push("/(app)/(provider-tabs)/properties" as never)} />}
+              />
+            );
+          }
+          return (
+            <ListRow first={entry.first} last={entry.last}>
+              {entry.first ? null : <View style={styles.rule} />}
+              <TenantRow tenant={entry.tenant} onOpen={() => openTenancy(entry.tenant)} onAccount={() => openAccount(entry.tenant)} />
+            </ListRow>
+          );
+        }}
+        ListEmptyComponent={loading ? <TenantsSkeleton /> : nothingAtAll && scope ? (
+          <Empty
+            icon="people-outline"
+            title={scope.kind === "unit" ? "Nobody lives here yet" : "No tenants in this Property yet"}
+            hint="People appear here once an agreement is accepted and their tenancy begins."
+            action={<QuietAction icon="people-outline" label="Show every tenant" onPress={clearScope} />}
+          />
+        ) : nothingAtAll ? (
+          <Empty
+            icon="people-outline"
+            title="No tenants yet"
+            hint="People appear here once an agreement is accepted and their tenancy begins."
+            action={<QuietAction icon="mail-open-outline" label="Open tenancy requests" onPress={() => router.push("/(app)/provider-applications" as never)} />}
+          />
+        ) : needle ? (
+          <Empty icon="search-outline" title="No matching tenants" hint="Try another name, Property, Unit or bed." />
         ) : null}
-      </BottomSheet>
+      />
     </IndexGround>
   );
 }
 
+/** What the page is narrowed to, from the link that opened it. A Unit wins over its Property. */
+type Scope = { kind: "unit"; id: string } | { kind: "property"; id: string } | null;
+
+function scopeFrom(unitId?: string, propertyId?: string): Scope {
+  if (unitId) return { kind: "unit", id: unitId };
+  if (propertyId) return { kind: "property", id: propertyId };
+  return null;
+}
+
+function inScope(row: { unit_id: string; property_id: string }, scope: Scope): boolean {
+  if (!scope) return true;
+  return scope.kind === "unit" ? row.unit_id === scope.id : row.property_id === scope.id;
+}
+
+/** The Unit or Property by name, from whichever record names it. */
+function nameOf(scope: NonNullable<Scope>, summary: PortfolioSummary | null, given?: string): string {
+  const rows = [...(summary?.tenants ?? []), ...(summary?.tenant_access ?? []), ...(summary?.tenancy_requests ?? [])];
+  const row = rows.find((candidate) => inScope(candidate, scope));
+  if (!row) return given || (scope.kind === "unit" ? "This Unit" : "This Property");
+  return scope.kind === "unit" ? `${row.unit_label} · ${row.property_title}` : row.property_title;
+}
+
+/** What the page is narrowed to, said once, with the way back to everyone. */
+function ScopeChip({ label, unit, onClear }: { label: string; unit: boolean; onClear: () => void }) {
+  return (
+    <View style={styles.scopeRow}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Showing ${label}. Show every tenant.`}
+        onPress={onClear}
+        hitSlop={6}
+        {...pressableFeedback(theme.color.kola["50"])}
+        style={({ pressed }) => [styles.scope, pressed ? { opacity: 0.85 } : null]}
+      >
+        <Ionicons name={unit ? "grid-outline" : "business-outline"} size={15} color={KOLA_DEEP} />
+        <Type variant="captionStrong" numberOfLines={1} style={styles.scopeText}>{label}</Type>
+        <Ionicons name="close" size={16} color={KOLA_DEEP} />
+      </Pressable>
+    </View>
+  );
+}
+
+function entriesFor(
+  work: TenantWork,
+  all: Tenant[],
+  { needle, needsAll, accessOpen, ready, hasAccess }: { needle: string; needsAll: boolean; accessOpen: boolean; ready: Access[]; hasAccess: boolean },
+): Entry[] {
+  const out: Entry[] = [];
+  const rows = (list: Tenant[], prefix: string, open = false) => list.forEach((tenant, index) => {
+    out.push({ kind: "row", key: `${prefix}:${tenant.occupancy_id}`, tenant, first: index === 0, last: !open && index === list.length - 1 });
+  });
+  const label = (key: string, title: string, count: number, tone?: string) =>
+    out.push({ kind: "label", key: `label:${key}`, title, count, tone, first: out.length === 0 });
+
+  if (needle) {
+    const found = all
+      .filter((tenant) => [tenant.name, tenant.property_title, tenant.unit_label, tenant.bed_label].filter(Boolean).some((value) => value!.toLocaleLowerCase("en-GH").includes(needle)))
+      .sort((a, b) => a.name.localeCompare(b.name, "en-GH"));
+    rows(found, "found");
+    return out;
+  }
+
+  if (work.needsYou.length) {
+    label("needs", "Needs you", work.needsYou.length, LATERITE);
+    const cut = !needsAll && work.needsYou.length > NEEDS_SHOWN + 1;
+    const shown = cut ? work.needsYou.slice(0, NEEDS_SHOWN) : work.needsYou;
+    rows(shown, "needs", cut);
+    if (cut) out.push({ kind: "more", key: "more:needs", section: "needs", hidden: work.needsYou.length - shown.length });
+  } else if (all.length) {
+    out.push({ kind: "calm", key: "calm" });
+  }
+  if (work.movingIn.length) { label("moving", "Moving in", work.movingIn.length); rows(work.movingIn, "moving"); }
+  if (work.ending.length) { label("ending", "Ending soon", work.ending.length); rows(work.ending, "ending"); }
+  for (const group of work.byProperty) {
+    label(`property:${group.property}`, group.property, group.tenants.length);
+    rows(group.tenants, `property:${group.property}`);
+  }
+
+  if (hasAccess) {
+    out.push({ kind: "access", key: "access", open: accessOpen, ready: ready.length });
+    if (accessOpen) {
+      ready.slice(0, ACCESS_PREVIEW).forEach((access) => out.push({ kind: "card", key: `card:${access.unit_id}`, access }));
+      out.push({ kind: "accessFoot", key: "accessFoot" });
+    }
+  }
+  return out;
+}
+
 /**
- * One tenancy. The name and what is owed lead; where it is and how the rent stands
- * sit under them; the agreement's term closes it. The initials carry the rent's
- * colour, so a thumb finds the overdue rows before reading them.
+ * One tenancy: who, and the one figure that matters for its lane — what is
+ * overdue or due, else the rent; where; and the one line about where it stands.
+ * An overdue row carries the way into its rent account.
  */
-function TenantRow({ tenant, narrow, onPress }: { tenant: Tenant; narrow: boolean; onPress: () => void }) {
-  const standing = standingOf(tenant);
-  const agreementNeeded = tenant.tenancy_status === "pending_lease" || !tenant.lease_id;
-  const term = termOf(tenant, narrow);
+function TenantRow({ tenant, onOpen, onAccount }: { tenant: Tenant; onOpen: () => void; onAccount: () => void }) {
+  const lane = laneOf(tenant);
+  const look = LANE[lane];
+  const currency = tenant.lease_rent_currency ?? "GHS";
+  const rent = monthlyRent(tenant);
   const place = [tenant.property_title, tenant.unit_label, tenant.bed_label].filter(Boolean).join(" · ");
-  // On the narrowest phones a paid-up row's next date gives way to the place.
-  const status = standing.paid && narrow ? "" : standing.status;
+  const figure = lane === "overdue"
+    ? formatMinor(tenant.rent.overdue_minor, currency)
+    : lane === "due"
+      ? formatMinor(tenant.rent.outstanding_minor, currency)
+      : rent !== null ? `${formatMinor(rent, currency).replace(/\.00$/, "")}/mo` : "";
+  const ends = endsIn(tenant);
+  const starts = startsIn(tenant);
+  const line = lane === "overdue"
+    ? "Overdue"
+    : lane === "paperwork"
+      ? "No agreement yet"
+      : lane === "due"
+        ? tenant.rent.next_due_on ? `Due ${shortDate(tenant.rent.next_due_on)}` : "Rent due"
+        : lane === "moving_in"
+          ? tenant.lease_starts_on ? `Moves in ${shortDate(tenant.lease_starts_on)}${starts !== null && starts >= 0 ? ` · in ${starts} ${starts === 1 ? "day" : "days"}` : ""}` : "Moving in"
+          : lane === "ending"
+            ? `Ends ${shortDate(tenant.lease_ends_on as string)}${ends !== null ? ` · in ${ends} ${ends === 1 ? "day" : "days"}` : ""}`
+            : tenant.rent.next_due_on ? `Paid up · next due ${shortDate(tenant.rent.next_due_on)}` : "Paid up";
+  const term = lane === "ending" ? termShare(tenant) : null;
+
   return (
     <Pressable
       accessibilityRole="link"
-      accessibilityLabel={`${tenant.name}, ${tenancyLabel(tenant)}, ${[tenant.property_title, tenant.unit_label, tenant.bed_label].filter(Boolean).join(", ")}, ${rentLabel(tenant)}${term ? `, ${term}` : ""}`}
-      onPress={onPress}
+      accessibilityLabel={`${tenant.name}, ${place}. ${line}${figure ? `, ${figure}` : ""}. Open tenancy.`}
+      onPress={onOpen}
       {...pressableFeedback(PRESSED)}
-      style={({ pressed }) => [rowStyles.row, pressed ? { backgroundColor: PRESSED } : null]}
+      style={({ pressed }) => [rowStyles.row, styles.row, pressed ? { backgroundColor: PRESSED } : null]}
     >
-      <View style={[styles.initials, { backgroundColor: standing.wash }]}>
-        <Type variant="captionStrong" style={[styles.initialsText, { color: standing.ink }]}>{initialsOf(tenant.name)}</Type>
-      </View>
-      <View style={rowStyles.rowBody}>
+      <Face name={tenant.name} ink={look.ink} wash={look.wash} />
+      <View style={[rowStyles.rowBody, styles.body]}>
         <RowLine
-          start={<Type variant="bodyStrong" numberOfLines={1} style={rowStyles.rowTitle}>{tenant.name}</Type>}
-          end={<Type variant="bodyStrong" numberOfLines={1} style={[rowStyles.rowAmount, standing.paid ? { color: KOLA_DEEP } : null]}>{standing.figure}</Type>}
+          start={<Type variant="bodyStrong" numberOfLines={2} style={rowStyles.rowTitle}>{tenant.name}</Type>}
+          end={figure ? <Type variant="bodyStrong" numberOfLines={1} style={[styles.figure, lane === "overdue" ? { color: LATERITE } : lane === "settled" || lane === "moving_in" || lane === "ending" ? styles.figureQuiet : null]}>{figure}</Type> : undefined}
         />
-        <RowLine
-          start={<Type variant="caption" numberOfLines={1} style={rowStyles.rowSub}>{place}</Type>}
-          end={status ? <Type variant="caption" numberOfLines={1} style={[rowStyles.rowStatus, { color: standing.statusInk }]}>{status}</Type> : undefined}
-        />
-        <Type variant="caption" numberOfLines={1} style={[rowStyles.rowMeta, agreementNeeded ? styles.agreementNeeded : null]}>
-          {agreementNeeded ? "Agreement needed" : term || tenancyLabel(tenant)}
-        </Type>
+        <Type variant="caption" numberOfLines={1} style={rowStyles.rowSub}>{place}</Type>
+        {term !== null ? <View style={styles.term}><Bar value={term} tone={HARMATTAN} /></View> : null}
+        <Type variant="caption" numberOfLines={1} style={[styles.line, { color: lane === "settled" ? MUTED : look.ink }]}>{line}</Type>
+        {lane === "overdue" && tenant.lease_id ? (
+          <Acts>
+            <Act label="Rent account" icon="wallet-outline" primary onPress={onAccount} />
+          </Acts>
+        ) : null}
       </View>
     </Pressable>
   );
@@ -406,146 +524,68 @@ function AccessFooter({ shown, ready, unavailable, onUnits }: { shown: number; r
   );
 }
 
-function Empty({ view, hasTenants, unavailableAccess, onProperties }: { view: ViewName; hasTenants: boolean; unavailableAccess: number; onProperties: () => void }) {
-  if (view === "tenants") {
-    return (
-      <EmptyState
-        icon={hasTenants ? "search-outline" : "people-outline"}
-        title={hasTenants ? "No matching tenants" : "No active tenancies"}
-        hint={hasTenants ? "Change the search or filter to see other relationships." : "Approved requests appear here after an agreement is accepted and activated."}
-      />
-    );
-  }
+function TenantsSkeleton() {
   return (
-    <EmptyState
-      icon="key-outline"
-      title="No Units ready to share privately"
-      hint={unavailableAccess > 0 ? `${unavailableAccess} Unit${unavailableAccess === 1 ? " is" : "s are"} not verified or available.` : "A Unit must be verified and available before it can issue an access code."}
-      action={<View style={styles.emptyAction}><QuietAction icon="business-outline" label="Review Properties" onPress={onProperties} /></View>}
-    />
+    <View accessible accessibilityRole="progressbar" accessibilityLabel="Loading tenants" style={styles.skeleton}>
+      <Bone width="58%" height={22} />
+      <Bone width="42%" height={12} />
+      <Panel>
+        {[0, 1, 2].map((key) => (
+          <View key={key} style={[styles.skeletonRow, key ? styles.ruled : null]}>
+            <Bone width={38} height={38} round={19} />
+            <View style={styles.skeletonLines}>
+              <Bone width="46%" height={14} />
+              <Bone width="70%" />
+            </View>
+          </View>
+        ))}
+      </Panel>
+    </View>
   );
 }
 
-function matchesFilter(tenant: Tenant, filter: TenantFilter) {
-  if (filter === "attention") return tenantNeedsAttention(tenant);
-  if (filter === "overdue") return tenant.rent.status === "overdue";
-  if (filter === "current") return tenant.rent.status === "current" && tenant.tenancy_status === "active";
-  return true;
-}
-
-function tenantNeedsAttention(tenant: Tenant) {
-  return tenant.tenancy_status === "pending_lease" || !tenant.lease_id || tenant.rent.status !== "current";
-}
-
-function tenancyLabel(tenant: Tenant) {
-  if (tenant.tenancy_status === "pending_lease" || !tenant.lease_id) return "Agreement needed";
-  if (tenant.tenancy_status === "upcoming") return "Upcoming tenancy";
-  return tenant.tenancy_status === "active" ? "Active tenancy" : "Tenancy";
-}
-
-function rentLabel(tenant: Tenant) {
-  if (tenant.rent.status === "current") return "Paid up";
-  const amount = tenant.rent.status === "overdue" ? tenant.rent.overdue_minor : tenant.rent.outstanding_minor;
-  return `${formatMinor(amount, tenant.lease_rent_currency ?? "GHS")} ${tenant.rent.status}`;
-}
-
-/** How the rent stands, in the colour the product already gives it. */
-function standingOf(tenant: Tenant) {
-  const currency = tenant.lease_rent_currency ?? "GHS";
-  if (tenant.rent.status === "overdue") {
-    return { figure: formatMinor(tenant.rent.overdue_minor, currency), status: "Overdue", statusInk: LATERITE, ink: LATERITE, wash: theme.color.laterite["100"], paid: false };
-  }
-  if (tenant.rent.status === "outstanding") {
-    return {
-      figure: formatMinor(tenant.rent.outstanding_minor, currency),
-      status: tenant.rent.next_due_on ? `Due ${shortDate(tenant.rent.next_due_on)}` : "Outstanding",
-      statusInk: HARMATTAN,
-      ink: HARMATTAN,
-      wash: theme.color.harmattan["100"],
-      paid: false,
-    };
-  }
-  const attention = tenantNeedsAttention(tenant);
-  return {
-    figure: "Paid up",
-    status: tenant.rent.next_due_on ? `Next ${shortDate(tenant.rent.next_due_on)}` : "",
-    statusInk: MUTED,
-    ink: attention ? HARMATTAN : KOLA_DEEP,
-    wash: attention ? theme.color.harmattan["100"] : theme.color.kola["50"],
-    paid: true,
-  };
-}
-
-/** The agreement's term, said the way it matters today: when it starts, or when it ends. */
-function termOf(tenant: Tenant, narrow: boolean) {
-  if (tenant.tenancy_status === "pending_lease" || !tenant.lease_id) return "";
-  if (tenant.tenancy_status === "upcoming" && tenant.lease_starts_on) return `Starts ${onDay(tenant.lease_starts_on, narrow)}`;
-  if (tenant.tenancy_status === "active" && tenant.lease_ends_on) return `Ends ${onDay(tenant.lease_ends_on, narrow)}`;
-  return "";
-}
-
-/** A calendar date with its year, in `shortDate`'s words; at midday, so no time zone moves it a day. */
-function onDay(value: string, narrow: boolean) {
-  const at = new Date(`${value.slice(0, 10)}T12:00:00`);
-  if (Number.isNaN(at.getTime())) return value;
-  return at.toLocaleDateString("en-GH", narrow ? { month: "short", year: "numeric" } : { day: "numeric", month: "short", year: "numeric" });
-}
-
 const styles = StyleSheet.create({
-  sectionHead: {
-    paddingBottom: space[2],
+  scopeRow: {
+    flexDirection: "row",
   },
-  initials: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  initialsText: {
-    fontSize: 13,
-    lineHeight: 17,
-    letterSpacing: 0.3,
-  },
-  agreementNeeded: {
-    color: HARMATTAN,
-    fontWeight: "600",
-  },
-  access: {
-    overflow: "hidden",
-    borderRadius: PANEL_RADIUS,
-    borderWidth: 1,
-    borderColor: EDGE,
-    backgroundColor: GLASS,
-  },
-  accessHead: {
-    minHeight: 60,
+  scope: {
+    maxWidth: "100%",
+    minHeight: 36,
     flexDirection: "row",
     alignItems: "center",
-    gap: space[3],
-    paddingVertical: space[3],
-    paddingHorizontal: 14,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: EDGE,
+    gap: 6,
+    paddingLeft: 12,
+    paddingRight: 10,
+    borderRadius: 999,
+    borderWidth: 1.5,
+    borderColor: KOLA_DEEP,
+    backgroundColor: theme.color.kola["50"],
   },
-  viewUnit: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 2,
+  scopeText: {
+    flexShrink: 1,
+    fontSize: 13.5,
+    lineHeight: 18,
+    color: KOLA_DEEP,
   },
-  accessBody: {
-    paddingHorizontal: 14,
-    paddingVertical: space[3],
-  },
-  accessFooter: {
-    gap: space[3],
-  },
-  emptyAction: {
-    marginTop: space[2],
-  },
-  loading: {
-    paddingVertical: space[6],
-    textAlign: "center",
-    color: MUTED,
-  },
+  header: { gap: space[4], marginBottom: space[5] },
+  label: { paddingBottom: space[2] },
+  labelGap: { marginTop: space[5] },
+  rule: { height: StyleSheet.hairlineWidth, marginLeft: 64, backgroundColor: RULE },
+  ruled: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: RULE },
+  row: { paddingVertical: 14 },
+  body: { gap: 3 },
+  figure: { fontSize: 14.5, lineHeight: 20, color: theme.color.ink["900"], fontVariant: ["tabular-nums"] },
+  figureQuiet: { fontSize: 13.5, fontWeight: "500", color: FAINT },
+  term: { marginTop: 6 },
+  line: { fontSize: 12.5, lineHeight: 17, fontWeight: "500", marginTop: 2 },
+  sharing: { marginTop: space[3] },
+  card: { marginTop: space[3] },
+  access: { overflow: "hidden", borderRadius: PANEL_RADIUS, borderWidth: 1, borderColor: EDGE, backgroundColor: GLASS },
+  accessHead: { minHeight: 60, flexDirection: "row", alignItems: "center", gap: space[3], paddingVertical: space[3], paddingHorizontal: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: EDGE },
+  viewUnit: { flexDirection: "row", alignItems: "center", gap: 2 },
+  accessBody: { paddingHorizontal: 14, paddingVertical: space[3] },
+  accessFooter: { gap: space[3], marginTop: space[3] },
+  skeleton: { gap: space[3] },
+  skeletonRow: { flexDirection: "row", gap: space[3], padding: 14 },
+  skeletonLines: { flex: 1, justifyContent: "center", gap: space[2] },
 });

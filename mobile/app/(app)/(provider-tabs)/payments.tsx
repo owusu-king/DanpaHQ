@@ -5,39 +5,33 @@ import { FlatList, Modal, RefreshControl, ScrollView, StyleSheet, View, Pressabl
 
 import { useAuth } from "@/auth";
 import { IndexGround } from "@/components/account/IndexRows";
+import { Bone } from "@/components/billing/BillingParts";
+import { Panel } from "@/components/billing/BillingSurfaces";
 import { shortDate, useHomeDensity } from "@/components/home/plinth";
 import {
-  ActiveFilter,
-  ChoiceRow,
-  EmptyState,
   FAINT,
-  Figure,
-  FigureGrid,
-  FilterGroup,
   Footnote,
+  GroupLabel,
   HARMATTAN,
+  INK,
   InfoNote,
   KOLA,
   KOLA_DEEP,
   LAGOON,
   LATERITE,
-  ListHead,
   ListRow,
   MUTED,
   PRESSED,
   QuietAction,
+  RULE,
   RowLine,
-  RowSeparator,
   SearchField,
-  SheetFooter,
   SignalPanel,
-  SummaryPanel,
   rowStyles,
-  type IconName,
   type Signal,
 } from "@/components/portfolio/PortfolioList";
-import { BottomSheet } from "@/components/sheet/BottomSheet";
 import { ModalSafeArea, SafeBottom } from "@/components/sheet/ModalSafeArea";
+import { Bar, Briefing, BriefingButton, Calm, Empty, Face, Fold, MoreRow } from "@/components/work/WorkParts";
 import { Button, Field, Notice, Type, space } from "@/components/ui";
 import { formatMinor } from "@/listings";
 import {
@@ -52,83 +46,62 @@ import {
   type PortfolioSummary,
   type PropertyExpense,
 } from "@/organizations";
-import { pressableFeedback } from "@/platform";
-import { alpha } from "@/shell";
+import { moneyWork, paymentStatus, thisMonth, type MoneyWork } from "@/paymentsWork";
+import { pressableFeedback, useSafeBottom } from "@/platform";
 import { theme } from "@/theme";
 
 /**
- * The Portfolio's money: what is owed, what was paid, and what reached you.
+ * The Portfolio's money, read as work (owner, 2026-10-06).
  *
- * Refined on review (2026-09-15) into one calm reading order. The figures come
- * first, in one glass panel that leads with what is still owed; then anything
- * that needs a decision, as rows that go straight to it; then the list. The four
- * views and the rent statuses used to be a row of tabs and a row of chips spread
- * across the page. They are one Filter control now, opening a sheet that groups
- * what to show and, for rent, which balances — and the list's heading and a single
- * removable token say what is on. The parts are `PortfolioList`'s, shared with
- * Tenants, so the two pages read as one product.
+ * This month's rent leads — what has come in against what is still
+ * outstanding, as one bar. Then what needs the landlord: overdue balances,
+ * tenant claims to confirm or dispute, and any payout that failed. Then what is
+ * moving: rent coming due, money paid by tenants and still on its way, and what
+ * was received lately. What was paid out and the Property expenses fold into
+ * one line each. The four views behind the Filter sheet are gone; each is a
+ * section where it matters.
  *
  * Tenant payment and provider settlement stay different financial facts:
  * "Awaiting settlement" is never counted as money that arrived, and a payout row
  * shows both checkpoints, Paid and then Settled.
  */
 
-type PaymentsView = "balances" | "records" | "payouts" | "expenses";
-type BalanceFilter = "all" | "overdue" | "outstanding" | "current";
 type Tenant = PortfolioSummary["tenants"][number];
 type Payment = PortfolioSummary["recent_payments"][number];
 type Settlement = PortfolioSummary["recent_settlements"][number];
-type Row = { kind: "tenant"; tenant: Tenant } | { kind: "payment"; payment: Payment } | { kind: "settlement"; settlement: Settlement } | { kind: "expense"; expense: PropertyExpense };
+type FoldKind = "paid" | "expenses";
+type Entry =
+  | { kind: "label"; key: string; title: string; count: number; tone?: string; first: boolean }
+  | { kind: "tenant"; key: string; tenant: Tenant; first: boolean; last: boolean }
+  | { kind: "payment"; key: string; payment: Payment; first: boolean; last: boolean }
+  | { kind: "settlement"; key: string; settlement: Settlement; first: boolean; last: boolean }
+  | { kind: "expense"; key: string; expense: PropertyExpense; first: boolean; last: boolean }
+  | { kind: "more"; key: string; hidden: number }
+  | { kind: "payoutNote"; key: string }
+  | { kind: "fold"; key: string; fold: FoldKind; count: number; summary: string; open: boolean }
+  | { kind: "noExpenses"; key: string }
+  | { kind: "recordExpense"; key: string }
+  | { kind: "calm"; key: string };
 
-const VIEWS: readonly PaymentsView[] = ["balances", "records", "payouts", "expenses"];
-const STATUSES: readonly BalanceFilter[] = ["all", "overdue", "outstanding", "current"];
-
-const VIEW_LABEL: Record<PaymentsView, string> = {
-  balances: "Rent due",
-  records: "Records",
-  payouts: "Payouts",
-  expenses: "Expenses",
-};
-const VIEW_ICON: Record<PaymentsView, IconName> = {
-  balances: "time-outline",
-  records: "document-text-outline",
-  payouts: "arrow-down-circle-outline",
-  expenses: "receipt-outline",
-};
-const STATUS_LABEL: Record<BalanceFilter, string> = {
-  all: "All balances",
-  overdue: "Overdue",
-  outstanding: "Outstanding",
-  current: "Current",
-};
-const SEARCH: Record<Exclude<PaymentsView, "expenses">, { label: string; hint: string }> = {
-  balances: { label: "Search balances", hint: "Tenant, Property or Unit" },
-  records: { label: "Search records", hint: "Tenant, Property or method" },
-  payouts: { label: "Search payouts", hint: "Tenant, Property or status" },
-};
-
-/** Each rent status in the colour it already carries across the product. */
-const STATUS_TONE: Record<Exclude<BalanceFilter, "all">, string> = {
-  overdue: LATERITE,
-  outstanding: HARMATTAN,
-  current: KOLA,
-};
+const RECENT_SHOWN = 5;
+const SEARCH_FROM = 9;
 
 export default function ProviderPaymentsScreen() {
   const router = useRouter();
   const density = useHomeDensity();
+  const pageBottom = useSafeBottom(space[12]);
   const { action } = useLocalSearchParams<{ action?: string }>();
   const { activeContext } = useAuth();
   const [organizationId, setOrganizationId] = useState("");
   const [canManagePayouts, setCanManagePayouts] = useState(false);
   const [payoutDestination, setPayoutDestination] = useState<PayoutDestinationState | null>(null);
   const [summary, setSummary] = useState<PortfolioSummary | null>(null);
+  const [loaded, setLoaded] = useState(false);
   const [properties, setProperties] = useState<ManagedProperty[]>([]);
   const [expenses, setExpenses] = useState<PropertyExpense[]>([]);
-  const [view, setView] = useState<PaymentsView>("balances");
-  const [filter, setFilter] = useState<BalanceFilter>("all");
+  const [open, setOpen] = useState<{ recent: boolean; paid: boolean; expenses: boolean }>({ recent: false, paid: false, expenses: action === "expense" });
+  const [searching, setSearching] = useState(false);
   const [query, setQuery] = useState("");
-  const [filtering, setFiltering] = useState(false);
   const [showExpense, setShowExpense] = useState(action === "expense");
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
@@ -156,38 +129,28 @@ export default function ProviderPaymentsScreen() {
       } else { setSummary(null); setProperties([]); setExpenses([]); setPayoutDestination(null); }
       setError("");
     } catch { setError("Could not load Portfolio payments."); }
+    finally { setLoaded(true); }
   }, [activeContext]);
   useFocusEffect(useCallback(() => { void load(); }, [load]));
 
-  const rows = useMemo<Row[]>(() => {
-    const needle = query.trim().toLocaleLowerCase("en-GH");
-    if (view === "balances") return (summary?.tenants ?? []).filter((tenant) => filter === "all" || tenant.rent.status === filter).filter((tenant) => !needle || `${tenant.name} ${tenant.property_title} ${tenant.unit_label} ${tenant.bed_label ?? ""}`.toLocaleLowerCase("en-GH").includes(needle)).sort((a, b) => rentPriority(a) - rentPriority(b) || a.name.localeCompare(b.name, "en-GH")).map((tenant) => ({ kind: "tenant", tenant }));
-    if (view === "records") return (summary?.recent_payments ?? []).filter((payment) => !needle || `${payment.tenant_name} ${payment.property_title} ${payment.unit_label} ${payment.method_display}`.toLocaleLowerCase("en-GH").includes(needle)).map((payment) => ({ kind: "payment", payment }));
-    if (view === "payouts") return (summary?.recent_settlements ?? []).filter((settlement) => !needle || `${settlement.tenant_name} ${settlement.property_title} ${settlement.unit_label} ${settlement.status_display}`.toLocaleLowerCase("en-GH").includes(needle)).map((settlement) => ({ kind: "settlement", settlement }));
-    return expenses.map((expense) => ({ kind: "expense", expense }));
-  }, [expenses, filter, query, summary, view]);
-
-  const viewCount = (value: PaymentsView) =>
-    value === "balances"
-      ? summary?.tenants.length ?? 0
-      : value === "records"
-        ? summary?.recent_payments.length ?? 0
-        : value === "payouts"
-          ? summary?.recent_settlements.length ?? 0
-          : expenses.length;
-  const statusCount = (value: BalanceFilter) =>
-    (summary?.tenants ?? []).filter((tenant) => value === "all" || tenant.rent.status === value).length;
-
-  function showView(value: PaymentsView) {
-    setView(value);
-    setQuery("");
-  }
+  const work = useMemo(() => summary ? moneyWork(summary) : null, [summary]);
+  const month = useMemo(() => summary ? thisMonth(summary) : null, [summary]);
+  const needle = query.trim().toLocaleLowerCase("en-GH");
+  const entries = useMemo(
+    () => summary && work ? entriesFor(summary, work, expenses, { open, needle, payouts: canManagePayouts && Boolean(organizationId) }) : [],
+    [summary, work, expenses, open, needle, canManagePayouts, organizationId],
+  );
 
   function openAccount(input: { leaseId: string; tenantName: string; propertyTitle: string; unitLabel: string; bedLabel?: string | null; tenancyId?: string | null; canRecord?: boolean }) {
     router.push({ pathname: "/(app)/rent-account", params: { leaseId: input.leaseId, tenantName: input.tenantName, propertyTitle: input.propertyTitle, unitLabel: input.unitLabel, bedLabel: input.bedLabel ?? "", tenancyId: input.tenancyId ?? "", canRecord: input.canRecord ? "1" : "0" } } as never);
   }
+  const openTenant = (tenant: Tenant) => tenant.lease_id && openAccount({ leaseId: tenant.lease_id, tenantName: tenant.name, propertyTitle: tenant.property_title, unitLabel: tenant.unit_label, bedLabel: tenant.bed_label, tenancyId: tenant.tenancy_id, canRecord: tenant.can_record_payment });
+  const openPayment = (payment: Payment) => {
+    const tenant = summary?.tenants.find((row) => row.lease_id === payment.lease_id);
+    openAccount({ leaseId: payment.lease_id, tenantName: payment.tenant_name, propertyTitle: payment.property_title, unitLabel: payment.unit_label, tenancyId: tenant?.tenancy_id, canRecord: tenant?.can_record_payment });
+  };
 
-  // What needs a decision, in the order it always had. Each goes straight to it.
+  // Turning online collection on is the one decision that has no row of its own.
   const signals: Signal[] = [];
   if (canManagePayouts && organizationId && payoutDestination && payoutDestination.active_profile?.status !== "verified") {
     signals.push({
@@ -200,127 +163,274 @@ export default function ProviderPaymentsScreen() {
       onPress: () => router.push({ pathname: "/(app)/payout-account", params: { organizationId } } as never),
     });
   }
-  if (summary) {
-    if (summary.money.overdue_minor > 0) {
-      signals.push({ key: "overdue", icon: "alert-circle-outline", tone: LATERITE, wash: theme.color.laterite["100"], title: `${formatMinor(summary.money.overdue_minor)} overdue`, hint: "Shows overdue balances", onPress: () => { setView("balances"); setFilter("overdue"); } });
-    }
-    if (summary.money.payment_records_awaiting_you > 0) {
-      signals.push({ key: "records", icon: "document-text-outline", tone: HARMATTAN, wash: theme.color.harmattan["100"], title: `${summary.money.payment_records_awaiting_you} record${summary.money.payment_records_awaiting_you === 1 ? "" : "s"} to review`, hint: "Confirm or dispute tenant claims", onPress: () => { setView("records"); setQuery(""); } });
-    }
-    if (summary.money.awaiting_settlement_minor > 0) {
-      signals.push({ key: "awaiting", icon: "hourglass-outline", tone: LAGOON, wash: theme.color.lagoon["100"], title: `${formatMinor(summary.money.awaiting_settlement_minor)} awaiting payout`, hint: "Shows payouts", onPress: () => { setView("payouts"); setQuery(""); } });
-    }
-    if (summary.money.settlement_attention_minor > 0) {
-      signals.push({ key: "attention", icon: "warning-outline", tone: LATERITE, wash: theme.color.laterite["100"], title: "Payout needs attention", hint: "Shows payouts", onPress: () => { setView("payouts"); setQuery(""); } });
-    }
-  }
 
-  const activeFilters = view === "balances" && filter !== "all" ? 1 : 0;
-  const last = rows.length - 1;
-  const narrow = density.veryCompact;
+  const loading = !loaded && summary === null;
+  const nothingAtAll = loaded && !error && (!summary || (!summary.tenants.length && !summary.recent_payments.length && !summary.recent_settlements.length && !expenses.length));
+  // Claims to confirm are counted by the server: the recent list it sends is capped,
+  // so counting the rows on screen would undercount them.
+  const toConfirm = summary && summary.money.payment_records_awaiting_you > 0 ? summary.money.payment_records_awaiting_you : 0;
+  const needsYou = work ? work.overdue.length + toConfirm + work.attention.length : 0;
+  const parts = summary && work ? [
+    summary.money.overdue_minor > 0 ? { text: `${formatMinor(summary.money.overdue_minor)} overdue`, tone: LATERITE, strong: true } : null,
+    toConfirm ? { text: `${toConfirm} ${toConfirm === 1 ? "record" : "records"} to confirm`, tone: HARMATTAN } : null,
+    summary.money.awaiting_settlement_minor > 0 ? { text: `${formatMinor(summary.money.awaiting_settlement_minor)} on its way`, tone: LAGOON } : null,
+    !needsYou ? { text: "Nothing overdue or waiting on you", tone: MUTED } : null,
+  ].filter((part): part is NonNullable<typeof part> => part !== null) : [];
+  const searchable = (summary?.tenants.length ?? 0) + (summary?.recent_payments.length ?? 0) >= SEARCH_FROM;
 
   return (
     <IndexGround>
       <FlatList
-        data={rows}
-        keyExtractor={(row) => row.kind === "tenant" ? row.tenant.occupancy_id : row.kind === "payment" ? row.payment.id : row.kind === "settlement" ? row.settlement.id : row.expense.id}
-        contentContainerStyle={{ paddingHorizontal: density.pagePadding, paddingTop: density.compact ? space[4] : space[5], paddingBottom: space[12] }}
+        data={loading || nothingAtAll ? [] : entries}
+        keyExtractor={(entry) => entry.key}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{ paddingHorizontal: density.pagePadding, paddingTop: density.compact ? space[4] : space[5], paddingBottom: pageBottom }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await load(); setRefreshing(false); }} tintColor={KOLA} />}
-        ItemSeparatorComponent={RowSeparator}
-        ListHeaderComponent={<View style={{ gap: density.sectionGap + space[2], marginBottom: space[3] }}>
-          {error ? <Notice tone="error" title={error} /> : null}
-          {summary ? <SummaryPanel
-            label="Outstanding"
-            value={formatMinor(summary.money.outstanding_minor)}
-            note={summary.money.overdue_minor > 0
-              ? { text: `${formatMinor(summary.money.overdue_minor)} overdue`, tone: "alert" }
-              : { text: "Nothing overdue", tone: "calm" }}
-            facts={[
-              { label: "Rent recorded", value: formatMinor(summary.money.confirmed_received_minor) },
-              { label: "Settled to you", value: formatMinor(summary.money.settled_net_minor) },
-            ]}
-          /> : null}
-          <SignalPanel title="Needs attention" signals={signals} />
-          {summary ? <View style={{ gap: space[3] }}>
-            <ListHead title={VIEW_LABEL[view]} count={rows.length} filters={activeFilters} onFilter={() => setFiltering(true)} />
-            {view === "balances" && filter !== "all" ? (
-              <ActiveFilter label={STATUS_LABEL[filter]} tone={STATUS_TONE[filter]} onClear={() => setFilter("all")} />
-            ) : null}
-            {view !== "expenses" ? <SearchField label={SEARCH[view].label} placeholder={SEARCH[view].hint} value={query} onChangeText={setQuery} /> : null}
-            {view === "payouts" ? <View style={{ gap: space[3] }}>
-              <FigureGrid figures={[
-                { label: "Paid online", value: formatMinor(summary.money.online_paid_minor) },
-                { label: "Awaiting settlement", value: formatMinor(summary.money.awaiting_settlement_minor) },
-                { label: "Settled to you", value: formatMinor(summary.money.settled_net_minor) },
-                { label: "Fees deducted", value: formatMinor(summary.money.settled_fee_minor) },
-              ]} />
-              {summary.money.awaiting_settlement_minor > 0 ? <InfoNote tone="lagoon" icon="hourglass-outline" title="Payout in progress" body={`${formatMinor(summary.money.awaiting_settlement_minor)} is waiting for Paystack's settlement batch.`} /> : null}
-              {summary.money.settlement_attention_minor > 0 ? <InfoNote tone="laterite" icon="warning-outline" title="A payout needs review" body="It is not counted as settled until it is reconciled." /> : null}
-              <Footnote>Property owners bear Paystack’s transaction fee. Completed payouts show the final amount after fees.</Footnote>
-              {canManagePayouts && organizationId ? <QuietAction icon="card-outline" label="Manage settlement account" onPress={() => router.push({ pathname: "/(app)/payout-account", params: { organizationId } } as never)} /> : null}
-            </View> : null}
-            {view === "expenses" ? <View style={styles.expenseBar}>
-              <Figure label="Recorded" value={formatMinor(expenses.reduce((total, expense) => total + expense.amount_minor, 0))} />
-              <QuietAction icon="add" label="Record expense" onPress={() => setShowExpense(true)} />
-            </View> : null}
-          </View> : null}
-        </View>}
-        renderItem={({ item, index }) => <ListRow first={index === 0} last={index === last}>
-          {item.kind === "tenant" ? <TenantRow tenant={item.tenant} narrow={narrow} onPress={() => item.tenant.lease_id && openAccount({ leaseId: item.tenant.lease_id, tenantName: item.tenant.name, propertyTitle: item.tenant.property_title, unitLabel: item.tenant.unit_label, bedLabel: item.tenant.bed_label, tenancyId: item.tenant.tenancy_id, canRecord: item.tenant.can_record_payment })} /> : item.kind === "payment" ? <PaymentRow payment={item.payment} onPress={() => { const tenant = summary?.tenants.find((row) => row.lease_id === item.payment.lease_id); openAccount({ leaseId: item.payment.lease_id, tenantName: item.payment.tenant_name, propertyTitle: item.payment.property_title, unitLabel: item.payment.unit_label, tenancyId: tenant?.tenancy_id, canRecord: tenant?.can_record_payment }); }} /> : item.kind === "settlement" ? <SettlementRow settlement={item.settlement} narrow={narrow} /> : <ExpenseRow expense={item.expense} />}
-        </ListRow>}
-        ListEmptyComponent={summary === null && !error ? <Type variant="caption" style={styles.loading}>Loading payments…</Type> : error ? null : <EmptyState
-          icon={query ? "search-outline" : VIEW_ICON[view]}
-          title={query ? "No matching records" : view === "balances" ? "No balances in this view" : view === "records" ? "No payment records yet" : view === "payouts" ? "No online payouts yet" : "No expenses recorded"}
-          hint={query ? "Try a different search." : view === "balances" ? "Choose another rent status." : undefined}
-        />}
-        ListFooterComponent={summary && summary.verification.payments_ready < summary.verification.properties_total && (view === "balances" || view === "records") ? <View style={{ marginTop: space[5] }}><InfoNote tone="lagoon" icon="information-circle-outline" title="Online collection is not ready for some Properties" body="It needs current identity, Property authority and a verified settlement account. Recording money paid to you directly still works." /></View> : null}
+        ListHeaderComponent={loading || nothingAtAll ? (error ? <Notice tone="error" title={error} /> : null) : (
+          <View style={styles.header}>
+            {error ? <Notice tone="error" title={error} /> : null}
+            {month ? <MonthCard month={month} /> : null}
+            <Briefing
+              title={needsYou ? `${needsYou} ${needsYou === 1 ? "thing needs" : "things need"} you` : "Rent is on track"}
+              parts={parts}
+              trailing={searchable
+                ? <BriefingButton icon={searching ? "close" : "search"} label={searching ? "Close search" : "Search payments"} onPress={() => { setSearching((current) => !current); setQuery(""); }} />
+                : undefined}
+            />
+            {searching ? <SearchField label="Search payments" placeholder="Tenant, Property, Unit or method" value={query} onChangeText={setQuery} /> : null}
+            <SignalPanel signals={signals} />
+          </View>
+        )}
+        renderItem={({ item: entry }) => {
+          if (entry.kind === "label") {
+            return (
+              <View style={[styles.label, entry.first ? null : styles.labelGap]}>
+                <GroupLabel count={entry.count} tone={entry.tone}>{entry.title}</GroupLabel>
+              </View>
+            );
+          }
+          if (entry.kind === "more") {
+            return (
+              <ListRow first={false} last>
+                <View style={styles.rule} />
+                <MoreRow label={`Show ${entry.hidden} more`} onPress={() => setOpen((current) => ({ ...current, recent: true }))} />
+              </ListRow>
+            );
+          }
+          if (entry.kind === "calm") return <Calm text="Nobody is overdue and no tenant claim waits on you." />;
+          if (entry.kind === "payoutNote") {
+            return (
+              <View style={styles.note}>
+                <Footnote>Property owners bear Paystack’s transaction fee. A payout is counted as yours once it is settled.</Footnote>
+                {canManagePayouts && organizationId ? <QuietAction icon="card-outline" label="Manage settlement account" onPress={() => router.push({ pathname: "/(app)/payout-account", params: { organizationId } } as never)} /> : null}
+              </View>
+            );
+          }
+          if (entry.kind === "fold") {
+            return (
+              <View style={styles.labelGap}>
+                <Fold
+                  title={entry.fold === "paid" ? "Paid out to you" : "Expenses"}
+                  icon={entry.fold === "paid" ? "arrow-down-circle-outline" : "receipt-outline"}
+                  summary={entry.summary}
+                  count={entry.count}
+                  open={entry.open}
+                  onToggle={() => setOpen((current) => ({ ...current, [entry.fold]: !current[entry.fold] }))}
+                />
+              </View>
+            );
+          }
+          if (entry.kind === "noExpenses") {
+            return <Empty compact icon="receipt-outline" title="No expenses recorded" hint="Repairs, utilities and levies you pay for a Property can be kept here. Recording one moves no money." />;
+          }
+          if (entry.kind === "recordExpense") {
+            return <View style={styles.record}><QuietAction icon="add" label="Record expense" onPress={() => setShowExpense(true)} /></View>;
+          }
+          return (
+            <ListRow first={entry.first} last={entry.last}>
+              {entry.first ? null : <View style={styles.rule} />}
+              {entry.kind === "tenant" ? <TenantRow tenant={entry.tenant} onPress={() => openTenant(entry.tenant)} />
+                : entry.kind === "payment" ? <PaymentRow payment={entry.payment} onPress={() => openPayment(entry.payment)} />
+                  : entry.kind === "settlement" ? <SettlementRow settlement={entry.settlement} narrow={density.veryCompact} />
+                    : <ExpenseRow expense={entry.expense} />}
+            </ListRow>
+          );
+        }}
+        ListEmptyComponent={loading ? <PaymentsSkeleton /> : nothingAtAll ? (
+          <Empty
+            icon="wallet-outline"
+            title="No rent to track yet"
+            hint="Balances, payments and payouts appear here once a tenancy is running."
+            action={<QuietAction icon="add" label="Record an expense" onPress={() => setShowExpense(true)} />}
+          />
+        ) : needle ? (
+          <Empty icon="search-outline" title="No matching payments" hint="Try another tenant, Property, Unit or method." />
+        ) : null}
+        ListFooterComponent={summary && !needle && summary.verification.payments_ready < summary.verification.properties_total ? (
+          <View style={styles.labelGap}>
+            <InfoNote tone="lagoon" icon="information-circle-outline" title="Online collection is not ready for some Properties" body="It needs current identity, Property authority and a verified settlement account. Recording money paid to you directly still works." />
+          </View>
+        ) : null}
       />
-      <FilterSheet
-        visible={filtering}
-        onClose={() => setFiltering(false)}
-        view={view}
-        filter={filter}
-        results={rows.length}
-        viewCount={viewCount}
-        statusCount={statusCount}
-        onView={showView}
-        onFilter={setFilter}
-        onReset={() => { setView("balances"); setFilter("all"); setQuery(""); }}
-      />
-      <ExpenseModal visible={showExpense} organizationId={organizationId} properties={properties} onClose={() => setShowExpense(false)} onDone={async () => { setShowExpense(false); await load(); }} />
+      <ExpenseModal visible={showExpense} organizationId={organizationId} properties={properties} onClose={() => setShowExpense(false)} onDone={async () => { setShowExpense(false); setOpen((current) => ({ ...current, expenses: true })); await load(); }} />
     </IndexGround>
   );
 }
 
-function TenantRow({ tenant, narrow, onPress }: { tenant: Tenant; narrow: boolean; onPress: () => void }) {
-  const tone = rentColor(tenant.rent.status);
-  const amount = formatMinor(tenant.rent.outstanding_minor, tenant.lease_rent_currency ?? "GHS");
+function entriesFor(
+  summary: PortfolioSummary,
+  work: MoneyWork,
+  expenses: PropertyExpense[],
+  { open, needle, payouts }: { open: { recent: boolean; paid: boolean; expenses: boolean }; needle: string; payouts: boolean },
+): Entry[] {
+  const out: Entry[] = [];
+  const label = (key: string, title: string, count: number, tone?: string) =>
+    out.push({ kind: "label", key: `label:${key}`, title, count, tone, first: out.length === 0 });
+  const tenants = (list: Tenant[], prefix: string) => list.forEach((tenant, index) => out.push({ kind: "tenant", key: `${prefix}:${tenant.occupancy_id}`, tenant, first: index === 0, last: index === list.length - 1 }));
+  const payments = (list: Payment[], prefix: string, cut = false) => list.forEach((payment, index) => out.push({ kind: "payment", key: `${prefix}:${payment.id}`, payment, first: index === 0, last: !cut && index === list.length - 1 }));
+  const settlements = (list: Settlement[], prefix: string) => list.forEach((settlement, index) => out.push({ kind: "settlement", key: `${prefix}:${settlement.id}`, settlement, first: index === 0, last: index === list.length - 1 }));
+
+  if (needle) {
+    const matches = (text: string) => text.toLocaleLowerCase("en-GH").includes(needle);
+    const foundTenants = summary.tenants.filter((tenant) => matches(`${tenant.name} ${tenant.property_title} ${tenant.unit_label} ${tenant.bed_label ?? ""}`));
+    const foundPayments = summary.recent_payments.filter((payment) => matches(`${payment.tenant_name} ${payment.property_title} ${payment.unit_label} ${payment.method_display}`));
+    if (foundTenants.length) { label("found-tenants", "Balances", foundTenants.length); tenants(foundTenants, "found"); }
+    if (foundPayments.length) { label("found-payments", "Payments", foundPayments.length); payments(foundPayments, "found"); }
+    return out;
+  }
+
+  // What needs the landlord, in the order it costs them.
+  if (work.overdue.length) { label("overdue", "Overdue", work.overdue.length, LATERITE); tenants(work.overdue, "overdue"); }
+  if (work.toReview.length) { label("review", "To confirm", work.toReview.length, HARMATTAN); payments(work.toReview, "review"); }
+  if (work.attention.length) { label("attention", "Payout needs review", work.attention.length, LATERITE); settlements(work.attention, "attention"); }
+  if (!work.overdue.length && !work.toReview.length && !work.attention.length && (summary.tenants.length || summary.recent_payments.length)) out.push({ kind: "calm", key: "calm" });
+
+  // What is moving.
+  if (work.due.length) { label("due", "Coming due", work.due.length); tenants(work.due, "due"); }
+  if (work.onTheWay.length) {
+    label("way", "On its way to you", work.onTheWay.length, LAGOON);
+    settlements(work.onTheWay, "way");
+    out.push({ kind: "payoutNote", key: "payoutNote" });
+  }
+  if (work.recent.length) {
+    label("recent", "Received", work.recent.length);
+    const cut = !open.recent && work.recent.length > RECENT_SHOWN + 1;
+    const shown = cut ? work.recent.slice(0, RECENT_SHOWN) : work.recent;
+    payments(shown, "recent", cut);
+    if (cut) out.push({ kind: "more", key: "more:recent", hidden: work.recent.length - shown.length });
+  }
+
+  // What is done, one line each.
+  if (work.paidOut.length) {
+    out.push({
+      kind: "fold",
+      key: "fold:paid",
+      fold: "paid",
+      count: work.paidOut.length,
+      summary: `${formatMinor(summary.money.settled_net_minor)} after ${formatMinor(summary.money.settled_fee_minor)} in fees`,
+      open: open.paid,
+    });
+    if (open.paid) {
+      settlements(work.paidOut, "paid");
+      if (payouts && !work.onTheWay.length) out.push({ kind: "payoutNote", key: "payoutNote:paid" });
+    }
+  }
+  const spent = expenses.reduce((total, expense) => total + expense.amount_minor, 0);
+  out.push({
+    kind: "fold",
+    key: "fold:expenses",
+    fold: "expenses",
+    count: expenses.length,
+    summary: expenses.length ? `${formatMinor(spent)} recorded` : "Nothing recorded yet",
+    open: open.expenses,
+  });
+  if (open.expenses) {
+    if (expenses.length) expenses.forEach((expense, index) => out.push({ kind: "expense", key: `expense:${expense.id}`, expense, first: index === 0, last: index === expenses.length - 1 }));
+    else out.push({ kind: "noExpenses", key: "noExpenses" });
+    out.push({ kind: "recordExpense", key: "recordExpense" });
+  }
+  return out;
+}
+
+/**
+ * This month's rent as one bar: received against what is still outstanding for
+ * charges due this month. Outstanding is today's balance, so it is said as
+ * "still outstanding" — never as what was owed at some earlier point.
+ */
+function MonthCard({ month }: { month: NonNullable<ReturnType<typeof thisMonth>> }) {
+  const total = month.collected + month.outstanding;
+  return (
+    <View accessible accessibilityLabel={`${month.label} rent: ${formatMinor(month.collected)} received${month.outstanding ? `, ${formatMinor(month.outstanding)} still outstanding` : ""}.`} style={styles.month}>
+      <Type variant="label" style={styles.monthEyebrow}>{`${month.label.toUpperCase()} RENT`}</Type>
+      <View style={styles.monthFigures}>
+        <Type variant="display2" numberOfLines={1} style={styles.monthFigure}>{formatMinor(month.collected).replace(/\.00$/, "")}</Type>
+        <Type variant="caption" style={styles.monthOf}>{total ? `received of ${formatMinor(total).replace(/\.00$/, "")}` : "received"}</Type>
+      </View>
+      <Bar value={total ? month.share : 0} tone={KOLA} track={theme.color.harmattan["100"]} />
+      <View style={styles.monthLegend}>
+        <View style={styles.legendItem}>
+          <View style={[styles.legendDot, { backgroundColor: KOLA }]} />
+          <Type variant="caption" style={styles.legendText}>{total ? `${Math.round(month.share * 100)}% in` : "Nothing due yet"}</Type>
+        </View>
+        {month.outstanding ? (
+          <View style={styles.legendItem}>
+            <View style={[styles.legendDot, { backgroundColor: HARMATTAN }]} />
+            <Type variant="caption" style={styles.legendText}>{`${formatMinor(month.outstanding).replace(/\.00$/, "")} still outstanding`}</Type>
+          </View>
+        ) : total ? (
+          <Type variant="caption" style={[styles.legendText, { color: KOLA_DEEP }]}>{`All of ${month.label}’s rent is in`}</Type>
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
+/** One balance: who, the amount, where, and how it stands — overdue in laterite, coming due in harmattan. */
+function TenantRow({ tenant, onPress }: { tenant: Tenant; onPress: () => void }) {
+  const overdue = tenant.rent.status === "overdue";
+  const tone = overdue ? LATERITE : HARMATTAN;
+  const amount = formatMinor(overdue ? tenant.rent.overdue_minor : tenant.rent.outstanding_minor, tenant.lease_rent_currency ?? "GHS");
   const due = tenant.rent.next_due_on;
+  const line = overdue ? (due ? `Overdue · was due ${shortDate(due)}` : "Overdue") : due ? `Due ${shortDate(due)}` : "Payment due";
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${tenant.name}. ${tenant.property_title}, ${tenant.unit_label}. ${rentStatus(tenant)}. ${amount} outstanding.${due ? ` Due ${shortDate(due)}.` : ""}`}
+      accessibilityLabel={`${tenant.name}. ${tenant.property_title}, ${tenant.unit_label}. ${line}. ${amount}. Open rent account.`}
       disabled={!tenant.lease_id}
       onPress={onPress}
       {...pressableFeedback(PRESSED)}
-      style={({ pressed }) => [rowStyles.row, tenant.lease_id ? null : { opacity: 0.55 }, pressed ? { backgroundColor: PRESSED } : null]}
+      style={({ pressed }) => [rowStyles.row, styles.row, tenant.lease_id ? null : { opacity: 0.55 }, pressed ? { backgroundColor: PRESSED } : null]}
     >
-      <View style={[styles.statusDot, { backgroundColor: tone, borderColor: alpha(tone, 0.18) }]} />
+      <Face name={tenant.name} ink={tone} wash={overdue ? theme.color.laterite["100"] : theme.color.harmattan["100"]} />
       <View style={rowStyles.rowBody}>
         <RowLine
-          start={<Type variant="bodyStrong" numberOfLines={1} style={rowStyles.rowTitle}>{tenant.name}</Type>}
-          end={<Type variant="bodyStrong" numberOfLines={1} style={rowStyles.rowAmount}>{amount}</Type>}
+          start={<Type variant="bodyStrong" numberOfLines={2} style={rowStyles.rowTitle}>{tenant.name}</Type>}
+          end={<Type variant="bodyStrong" numberOfLines={1} style={[rowStyles.rowAmount, overdue ? { color: LATERITE } : null]}>{amount}</Type>}
         />
-        <RowLine
-          start={<Type variant="caption" numberOfLines={1} style={rowStyles.rowSub}>{tenant.property_title} · {tenant.unit_label}{tenant.bed_label ? ` · ${tenant.bed_label}` : ""}</Type>}
-          end={(
-            <Type variant="caption" numberOfLines={1} style={[rowStyles.rowStatus, { color: tone }]}>
-              {rentStatus(tenant)}{due && !narrow ? ` · ${shortDate(due)}` : ""}
-            </Type>
-          )}
-        />
+        <Type variant="caption" numberOfLines={1} style={rowStyles.rowSub}>{[tenant.property_title, tenant.unit_label, tenant.bed_label].filter(Boolean).join(" · ")}</Type>
+        <Type variant="caption" numberOfLines={1} style={[styles.line, { color: tone }]}>{line}</Type>
       </View>
     </Pressable>
+  );
+}
+
+function PaymentsSkeleton() {
+  return (
+    <View accessible accessibilityRole="progressbar" accessibilityLabel="Loading payments" style={styles.skeleton}>
+      <Bone height={128} round={20} />
+      <Bone width="56%" height={22} />
+      <Panel>
+        {[0, 1, 2].map((key) => (
+          <View key={key} style={[styles.skeletonRow, key ? styles.ruled : null]}>
+            <Bone width={38} height={38} round={19} />
+            <View style={styles.skeletonLines}>
+              <Bone width="46%" height={14} />
+              <Bone width="70%" />
+            </View>
+          </View>
+        ))}
+      </Panel>
+    </View>
   );
 }
 
@@ -365,7 +475,7 @@ function SettlementRow({ settlement, narrow }: { settlement: Settlement; narrow:
   return (
     <View accessible accessibilityLabel={`${settlement.tenant_name}. Tenant paid. ${label}. ${formatMinor(amount, settlement.currency)}. ${fee}.`} style={rowStyles.row}>
       <View style={[rowStyles.well, { backgroundColor: wash }]}>
-        <Ionicons name={attention ? "warning-outline" : VIEW_ICON.payouts} size={15} color={tone} />
+        <Ionicons name={attention ? "warning-outline" : "arrow-down-circle-outline"} size={15} color={tone} />
       </View>
       <View style={rowStyles.rowBody}>
         <RowLine
@@ -413,98 +523,32 @@ function ExpenseRow({ expense }: { expense: PropertyExpense }) {
   );
 }
 
-/**
- * Every filter, in one sheet, in two groups: what to show, and — for rent —
- * which balances. Each answer carries its count, so a choice never lands on an
- * empty list by surprise, and the sheet closes on what it will show.
- */
-function FilterSheet({
-  visible,
-  onClose,
-  view,
-  filter,
-  results,
-  viewCount,
-  statusCount,
-  onView,
-  onFilter,
-  onReset,
-}: {
-  visible: boolean;
-  onClose: () => void;
-  view: PaymentsView;
-  filter: BalanceFilter;
-  results: number;
-  viewCount: (value: PaymentsView) => number;
-  statusCount: (value: BalanceFilter) => number;
-  onView: (value: PaymentsView) => void;
-  onFilter: (value: BalanceFilter) => void;
-  onReset: () => void;
-}) {
-  const changed = view !== "balances" || filter !== "all";
-  return (
-    <BottomSheet
-      visible={visible}
-      onClose={onClose}
-      title="Filter"
-      hideTitle
-      closeLabel="Close filter"
-      footer={<SheetFooter canReset={changed} onReset={onReset} results={results} onShow={onClose} />}
-    >
-      <FilterGroup title="Show">
-        {VIEWS.map((value, index) => (
-          <ChoiceRow
-            key={value}
-            first={index === 0}
-            icon={VIEW_ICON[value]}
-            label={VIEW_LABEL[value]}
-            count={viewCount(value)}
-            selected={view === value}
-            onPress={() => onView(value)}
-          />
-        ))}
-      </FilterGroup>
-      {view === "balances" ? (
-        <FilterGroup title="Rent status">
-          {STATUSES.map((value, index) => (
-            <ChoiceRow
-              key={value}
-              first={index === 0}
-              tone={value === "all" ? undefined : STATUS_TONE[value]}
-              label={STATUS_LABEL[value]}
-              count={statusCount(value)}
-              selected={filter === value}
-              onPress={() => onFilter(value)}
-            />
-          ))}
-        </FilterGroup>
-      ) : null}
-    </BottomSheet>
-  );
-}
-
 function ExpenseModal({ visible, organizationId, properties, onClose, onDone }: { visible: boolean; organizationId: string; properties: ManagedProperty[]; onClose: () => void; onDone: () => Promise<void> }) { return <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}><ModalSafeArea><SafeBottom render={(bottom) => <ScrollView contentContainerStyle={{ padding: space[5], paddingBottom: space[8] + bottom, gap: space[4] }}><View style={{ gap: space[1] }}><Type variant="label">INTERNAL RECORD</Type><Type variant="title1" accessibilityRole="header">Record Property expense</Type><Type variant="caption">This records an expense. It does not move money.</Type></View><ExpenseForm organizationId={organizationId} properties={properties} onDone={onDone} /><Button label="Cancel" variant="quiet" onPress={onClose} /></ScrollView>} /></ModalSafeArea></Modal>; }
 const EXPENSE_CATEGORIES = [["maintenance", "Maintenance"], ["utilities", "Utilities"], ["staff", "Staff"], ["tax", "Tax or levy"], ["supplies", "Supplies"], ["other", "Other"]] as const;
 function ExpenseForm({ organizationId, properties, onDone }: { organizationId: string; properties: ManagedProperty[]; onDone: () => Promise<void> }) { const [propertyId, setPropertyId] = useState(properties[0]?.id ?? ""); const [category, setCategory] = useState("maintenance"); const [amount, setAmount] = useState(""); const [incurredOn, setIncurredOn] = useState(new Date().toISOString().slice(0, 10)); const [note, setNote] = useState(""); const [busy, setBusy] = useState(false); const [error, setError] = useState(""); return <View style={{ gap: space[3] }}><Type variant="label">PROPERTY</Type>{properties.map((property) => <Button key={property.id} label={property.title} variant="secondary" selected={propertyId === property.id} onPress={() => setPropertyId(property.id)} />)}<Type variant="label">CATEGORY</Type><View style={{ flexDirection: "row", flexWrap: "wrap", gap: space[2] }}>{EXPENSE_CATEGORIES.map(([value, label]) => <Button key={value} label={label} variant="quiet" selected={category === value} onPress={() => setCategory(value)} />)}</View><Field label="Amount (GH₵)" value={amount} onChangeText={setAmount} keyboardType="decimal-pad" /><Field label="Date (YYYY-MM-DD)" value={incurredOn} onChangeText={setIncurredOn} /><Field label="Note (optional)" value={note} onChangeText={setNote} />{error ? <Notice tone="error" title={error} /> : null}<Button label="Save expense record" busy={busy} disabled={!propertyId || !amount.trim()} onPress={async () => { const amountMinor = Math.round(Number(amount) * 100); if (!Number.isFinite(amountMinor) || amountMinor <= 0) return setError("Enter a valid amount."); setBusy(true); setError(""); try { await recordPropertyExpense(organizationId, { property_id: propertyId, amount_minor: amountMinor, category, incurred_on: incurredOn, note }); await onDone(); } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not record the expense."); } finally { setBusy(false); } }} /></View>; }
-function rentPriority(tenant: Tenant) { return tenant.rent.status === "overdue" ? 0 : tenant.rent.status === "outstanding" ? 1 : 2; }
-function rentStatus(tenant: Tenant) { return tenant.rent.status === "overdue" ? "Overdue" : tenant.rent.status === "outstanding" ? "Payment due" : "Current"; }
-function rentColor(status: Tenant["rent"]["status"]) { return status === "overdue" ? LATERITE : status === "outstanding" ? HARMATTAN : KOLA; }
-function paymentStatus(payment: Payment) { return payment.evidence === "PSP_CONFIRMED" ? "Processor confirmed" : payment.awaiting_you ? "Review needed" : payment.status === "confirmed" ? "Confirmed by both" : payment.status === "disputed" ? "Disputed" : "Waiting for tenant"; }
-
 const styles = StyleSheet.create({
-  expenseBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: space[3],
-    paddingHorizontal: space[1],
-  },
-  statusDot: {
-    width: 10,
-    height: 10,
-    marginTop: 5,
-    borderRadius: 5,
-    borderWidth: 3,
-  },
+  header: { gap: space[4], marginBottom: space[5] },
+  label: { paddingBottom: space[2] },
+  labelGap: { marginTop: space[5] },
+  rule: { height: StyleSheet.hairlineWidth, marginLeft: 64, backgroundColor: RULE },
+  ruled: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: RULE },
+  row: { paddingVertical: 14 },
+  line: { fontSize: 12.5, lineHeight: 17, fontWeight: "500", marginTop: 2 },
+  note: { gap: space[3], marginTop: space[3] },
+  record: { marginTop: space[3], alignItems: "flex-start" },
+  // This month: the one figure that says how the rent is coming in.
+  month: { gap: space[3], padding: space[4], borderRadius: 20, backgroundColor: theme.color.field["0"], borderWidth: StyleSheet.hairlineWidth, borderColor: RULE },
+  monthEyebrow: { color: MUTED, letterSpacing: 0.6 },
+  monthFigures: { flexDirection: "row", alignItems: "baseline", flexWrap: "wrap", columnGap: space[2] },
+  monthFigure: { fontSize: 30, lineHeight: 36, letterSpacing: -0.6, color: INK, fontVariant: ["tabular-nums"] },
+  monthOf: { fontSize: 13.5, lineHeight: 19, color: MUTED },
+  monthLegend: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", columnGap: space[4], rowGap: space[1] },
+  legendItem: { flexDirection: "row", alignItems: "center", gap: 6 },
+  legendDot: { width: 8, height: 8, borderRadius: 4 },
+  legendText: { fontSize: 12.5, lineHeight: 17, color: MUTED },
+  skeleton: { gap: space[3] },
+  skeletonRow: { flexDirection: "row", gap: space[3], padding: 14 },
+  skeletonLines: { flex: 1, justifyContent: "center", gap: space[2] },
   checkpoints: {
     flexDirection: "row",
     alignItems: "center",
@@ -514,7 +558,7 @@ const styles = StyleSheet.create({
   checkpoint: {
     fontSize: 12,
     lineHeight: 16,
-    fontWeight: "600",
+    fontWeight: "500",
   },
   checkpointLine: {
     width: 14,
@@ -527,10 +571,5 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 16,
     color: FAINT,
-  },
-  loading: {
-    paddingVertical: space[6],
-    textAlign: "center",
-    color: MUTED,
   },
 });

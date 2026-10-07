@@ -247,7 +247,7 @@ export default function CodeScreen() {
     >
       <AuthHeading
         title="Enter the code"
-        line={`We sent six digits to ${params.phoneDisplay}.`}
+        line={params.phoneDisplay ? `We sent six digits to ${params.phoneDisplay}.` : "We sent six digits to your number."}
       />
 
       {/* The six cells stand on the page, not inside a panel. Framed by one,

@@ -57,8 +57,12 @@ test("the inset is added to the page's own breathing room, not substituted for i
 });
 
 test("no pushed list ends under Android's navigation buttons", () => {
+  // Agreements renders one of two screens, and they carry its page bottom.
+  const sourceOf = (page) => page === "leases.tsx"
+    ? read("src/components/agreements/ProviderAgreements.tsx") + read("src/components/agreements/TenantAgreements.tsx")
+    : read(`app/(app)/${page}`);
   for (const page of PUSHED) {
-    const source = read(`app/(app)/${page}`);
+    const source = sourceOf(page);
     assert.match(source, /useSafeBottom/, `${page} pads by a fixed amount`);
     assert.match(source, /const pageBottom = useSafeBottom\(space\[12\]\);/, `${page} is missing the page bottom`);
     assert.match(source, /paddingBottom: pageBottom/, `${page} never uses it`);
@@ -134,9 +138,7 @@ test("the auth flow answers the inset once, in the frame all of it stands on", (
   // see: the frame takes both insets, and every screen in the flow uses it.
   const root = new URL("../app/(auth)/", import.meta.url);
   const scene = readFileSync(new URL("../src/components/auth/AuthScene.tsx", import.meta.url), "utf8");
-  // `lift` is the optical-centre bias, which only ever adds; the inset itself
-  // is what has to be in there.
-  assert.match(scene, /const bottom = insets\.bottom \+ space\[6\] \+ lift;/);
+  assert.match(scene, /const bottom = insets\.bottom \+ space\[6\];/);
   assert.match(scene, /paddingBottom: bottom\b/);
 
   const loose = [];

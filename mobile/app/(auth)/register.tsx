@@ -174,8 +174,8 @@ export default function RegisterScreen() {
       <AuthHeading title="Set up your account" line="The last step. Nothing exists until you finish it." />
 
       <View style={{ gap: space[3] }}>
-        <Type variant="label" style={styles.group}>
-          WHAT BRINGS YOU HERE
+        <Type variant="title2" accessibilityRole="header" style={styles.group}>
+          What brings you here
         </Type>
         <View accessibilityRole="radiogroup" style={{ gap: space[3] }}>
           <PickCard
@@ -209,8 +209,8 @@ export default function RegisterScreen() {
           Five separately-framed fields stacked down the page was the single
           biggest reason this form read as an endurance test. */}
       <View style={{ gap: space[3] }}>
-        <Type variant="label" style={styles.group}>
-          WHO YOU ARE
+        <Type variant="title2" accessibilityRole="header" style={styles.group}>
+          Who you are
         </Type>
         <AuthFields>
           <AuthField
@@ -250,8 +250,8 @@ export default function RegisterScreen() {
       </View>
 
       <View style={{ gap: space[3] }}>
-        <Type variant="label" style={styles.group}>
-          GETTING BACK IN
+        <Type variant="title2" accessibilityRole="header" style={styles.group}>
+          Getting back in
         </Type>
         {/* The password stands on its own surface. It is the one field here
             that is a secret rather than a fact, and joining it to an optional
@@ -312,8 +312,12 @@ function formatDate(value: string): string {
 }
 
 const styles = StyleSheet.create({
+  // Section names in the app's title case, as the record pages name theirs.
   group: {
-    color: theme.color.kola["800"],
+    fontSize: 17,
+    lineHeight: 23,
+    letterSpacing: -0.2,
+    color: theme.color.ink["900"],
     marginLeft: space[1],
   },
 });

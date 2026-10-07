@@ -1,16 +1,19 @@
 /**
- * A host's Viewings, refined on review (2026-09-15).
+ * A host's Viewings, read as a day to plan (owner, 2026-10-06).
  *
- * Today leads — visits in hand, what needs the host, when the next one is and how
- * many wait on a tenant. Then one virtualised queue in the order it is worked:
- * what needs action, what is coming by day, and the latest of what is done. One
- * green Filter and a search replace the three tabs. These tests hold what a row
- * tells the host, not only where it sits.
+ * The visit to be at next leads on its own dark card, with how long until it
+ * starts and — once the window opens — the check-in. Then what waits on the
+ * host with the step on the row, the schedule as an agenda by day, the visits
+ * waiting on a tenant to pick a time, and the past folded into one line. A week
+ * strip is the only filter: a day shows that day. Most of these tests run the
+ * meaning module itself (`viewingWork.ts`).
  */
 
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+
+import { actOf, countdown, dayKey, laneOf, lineOf, upNext, viewingWork, week } from "./viewingWork.ts";
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8").replaceAll("\r\n", "\n");
 const code = (source) => source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*/g, "");
@@ -23,110 +26,115 @@ const between = (source, start, end) => {
 };
 const screen = () => code(read("app/(app)/provider-viewings.tsx"));
 
-test("today leads: visits in hand, what needs the host, the next visit and who is waiting", () => {
-  const source = screen();
-  assert.match(
-    source,
-    /const visitsToday = all\.filter\(\(item\) => item\.confirmed_starts_at && \["confirmed", "checked_in"\]\.includes\(item\.status\)\s*&& dayKeyOf\(new Date\(item\.confirmed_starts_at\)\) === today\)\.length;/,
-  );
-  assert.match(source, /\.filter\(\(item\) => item\.status === "confirmed" && item\.confirmed_starts_at && new Date\(item\.confirmed_starts_at\)\.getTime\(\) >= Date\.now\(\) - 60 \* 60 \* 1000\)/);
-  assert.match(source, /const waiting = all\.filter\(\(item\) => item\.status === "offered"\)\.length;/);
-  assert.match(source, /<SummaryPanel\s+label="Visits today"\s+value=\{String\(visitsToday\)\}/);
-  assert.match(source, /note=\{counts\.action \? \{ text: `\$\{counts\.action\} \$\{counts\.action === 1 \? "needs" : "need"\} action`, tone: "alert" \} : \{ text: "Nothing needs you", tone: "calm" \}\}/);
-  assert.match(source, /\{ label: "Next visit", value: next\?\.confirmed_starts_at \? nextVisitLabel\(next\.confirmed_starts_at, density\.veryCompact\) : "None booked" \},\s*\{ label: "Waiting for tenant", value: String\(waiting\) \},/);
-
-  // The next visit is a figure that is never cut: a time today, and a weekday on the narrowest phones.
-  const label = between(source, "function nextVisitLabel(", "const styles = StyleSheet.create(");
-  assert.match(label, /if \(day === "Today"\) return time;/);
-  assert.match(label, /if \(day === "Tomorrow" && !compact\) return `\$\{day\} \$\{time\}`;/);
-  assert.match(label, /return `\$\{new Date\(iso\)\.toLocaleDateString\("en-GH", \{ weekday: "short" \}\)\} \$\{time\}`;/);
+const HOUR = 3_600_000;
+const NOW = new Date(2026, 9, 6, 9, 0).getTime();
+const at = (hours) => new Date(NOW + hours * HOUR).toISOString();
+const viewing = (status, extra = {}) => ({
+  id: extra.id ?? status, status, status_display: status, confirmed_starts_at: null, created_at: at(-48), slots: [], cancelled_by: null,
+  ...extra,
+  check_in: { can_validate: false, ...(extra.check_in ?? {}) },
+  attendance: { can_respond: false, ...(extra.attendance ?? {}) },
 });
 
-test("one queue in the order a host works it, under one green Filter", () => {
-  const source = screen();
-  const entries = between(source, "function entriesFor(", "function ViewingRow(");
-
-  assert.match(source, /<FlatList\s+ref=\{list\}\s+data=\{entries\}/);
-  assert.doesNotMatch(source, /accessibilityRole="tab"|accessibilityRole="tablist"|function ViewingTab\(/);
-  assert.match(source, /const \[view, setView\] = useState<Show>\("all"\);/);
-  assert.match(source, /<ListHead title=\{TITLE\[view\]\} count=\{visible\.length\} filters=\{view === "all" \? 0 : 1\} filterTone="kola" onFilter=\{\(\) => setFiltering\(true\)\} \/>/);
-  assert.match(source, /<SearchField label="Search viewings" placeholder="Tenant, Property or location" value=\{query\} onChangeText=\{setQuery\} \/>/);
-
-  // Needs action, then Upcoming by day, then the latest of History.
-  assert.match(entries, /for \(const view of show === "all" \? \(\["action", "upcoming", "history"\] as const\) : \[show\]\)/);
-  assert.match(entries, /tone: view === "action" \? LATERITE : undefined/);
-  assert.match(entries, /if \(view === "upcoming"\) \{\s*for \(const \[day, visits\] of byDay\(group\)\) \{\s*out\.push\(\{ kind: "day", key: `day:\$\{day\}`, title: dayTitle\(day\) \}\);/);
-  assert.match(source, /const HISTORY_SHOWN = 3;/);
-  assert.match(entries, /view === "history" && show === "all" && group\.length > HISTORY_SHOWN/);
-  assert.match(entries, /frame\(group\.slice\(0, HISTORY_SHOWN\), view, true\);\s*out\.push\(\{ kind: "more", key: "more:history", count: group\.length \}\);/);
-  assert.match(source, /<ViewAll count=\{entry\.count\} noun="in history" onPress=\{\(\) => choose\("history"\)\} \/>/);
-  assert.match(source, /const key = viewing\.confirmed_starts_at \? dayKeyOf\(new Date\(viewing\.confirmed_starts_at\)\) : "open";/);
-  assert.match(source, /\(a === "open" \? 1 : b === "open" \? -1 : a\.localeCompare\(b\)\)/);
-  assert.match(between(source, "function dayTitle(", "function nextVisitLabel("), /if \(day === "open"\) return "Times offered";[\s\S]*return "Today";[\s\S]*return "Tomorrow";/);
-
-  // The sheet: every view with its count, closing on what it will show.
-  for (const [label, value] of [["All viewings", "all"], ["Needs action", "action"], ["Upcoming", "upcoming"], ["History", "history"]]) {
-    assert.match(source, new RegExp(`label="${label}" count=\\{counts\\.${value}\\} selected=\\{view === "${value}"\\} onPress=\\{\\(\\) => choose\\("${value}"\\)\\}`), label);
-  }
-  assert.match(source, /onReset=\{\(\) => \{ choose\("all"\); setQuery\(""\); \}\}/);
-  assert.match(source, /results=\{visible\.length\}/);
-  assert.match(source, /const choose = \(next: Show\) => \{\s*setView\(next\);\s*list\.current\?\.scrollToOffset\(\{ offset: 0, animated: false \}\);\s*\};/);
+test("every viewing lands in one lane, by whose move it is", () => {
+  assert.equal(laneOf(viewing("requested")), "yours");
+  assert.equal(laneOf(viewing("checked_in")), "yours");
+  assert.equal(laneOf(viewing("confirmed", { check_in: { can_validate: true } })), "yours");
+  assert.equal(laneOf(viewing("attendance_pending", { attendance: { can_respond: true } })), "yours");
+  assert.equal(laneOf(viewing("confirmed")), "scheduled");
+  assert.equal(laneOf(viewing("attendance_pending")), "scheduled");
+  assert.equal(laneOf(viewing("offered")), "waiting");
+  for (const status of ["completed", "declined", "withdrawn", "cancelled", "tenant_no_show"]) assert.equal(laneOf(viewing(status)), "past", status);
 });
 
-test("a row says who, how it stands, where, and the one detail that matters", () => {
+test("the host's step is on the row, in the record's own words", () => {
+  assert.deepEqual(actOf(viewing("requested")), { label: "Offer times", icon: "time-outline", to: "record" });
+  assert.deepEqual(actOf(viewing("confirmed", { check_in: { can_validate: true } })), { label: "Check in", icon: "qr-code-outline", to: "check-in" });
+  assert.deepEqual(actOf(viewing("checked_in")), { label: "Mark completed", icon: "checkmark-done-outline", to: "record" });
+  assert.deepEqual(actOf(viewing("attendance_pending", { attendance: { can_respond: true } })), { label: "Respond", icon: "chatbubble-ellipses-outline", to: "record" });
+  assert.equal(actOf(viewing("confirmed")), null);
+  // The record names that step "Mark Viewing completed"; the row says it shorter, never differently.
+  assert.match(read("app/(app)/provider-viewing.tsx"), /label: "Mark Viewing completed"/);
+
+  assert.equal(lineOf(viewing("offered", { slots: [{ is_past: false }, { is_past: false }, { is_past: true }] })), "2 times offered — tenant to pick");
+  assert.equal(lineOf(viewing("cancelled", { cancelled_by: "host" })), "You cancelled");
+
   const source = screen();
-  const row = between(source, "function ViewingRow(", "function QueueEmpty(");
+  assert.match(source, /if \(act\?\.to === "check-in"\) router\.push\(\{ pathname: "\/\(app\)\/provider-viewing-check-in", params: \{ viewingId: viewing\.id \} \} as never\);/);
+  assert.match(source, /router\.push\(\{ pathname: "\/\(app\)\/provider-viewing", params: \{ viewingId: viewing\.id \} \} as never\)/);
+});
 
-  assert.match(row, /accessibilityLabel=\{`\$\{viewing\.tenant_name\}\. \$\{viewing\.listing_headline\}\. \$\{summary\.label\}\. \$\{viewingMoment\(viewing\)\}\. Open viewing\.`\}/);
-  assert.match(row, /end=\{<Type variant="caption" numberOfLines=\{1\} style=\{\[rowStyles\.rowStatus, \{ color: tone\.text \}\]\}>\{summary\.label\}<\/Type>\}/);
-  assert.match(row, /const detail = \[placeOf\(viewing\), viewingDetail\(viewing\)\]\.filter\(Boolean\)\.join\(" · "\);/);
-  // On the narrowest phones the name keeps its whole line and the status moves under it.
-  assert.match(source, /<ViewingRow viewing=\{entry\.viewing\} narrow=\{density\.veryCompact\} onPress=\{\(\) => open\(entry\.viewing\)\} \/>/);
-  assert.match(row, /\{narrow \? <Type variant="caption" style=\{\[rowStyles\.rowStatus, \{ color: tone\.text \}\]\}>\{`\$\{summary\.label\}\$\{detail \? " · " : ""\}`\}<\/Type> : null\}/);
+test("up next is the first booked visit not long since begun, with a countdown", () => {
+  const list = [
+    viewing("confirmed", { id: "late", confirmed_starts_at: at(-2) }),
+    viewing("confirmed", { id: "soon", confirmed_starts_at: at(1.5) }),
+    viewing("confirmed", { id: "later", confirmed_starts_at: at(26) }),
+    viewing("offered", { id: "unbooked" }),
+  ];
+  assert.equal(upNext(list, NOW)?.id, "soon");
+  assert.equal(upNext([viewing("confirmed", { id: "now", confirmed_starts_at: at(-0.5) })], NOW)?.id, "now");
+  assert.equal(upNext([viewing("offered")], NOW), null);
+  assert.equal(countdown(new Date(NOW + 95 * 60_000), NOW), "in 1h 35m");
+  assert.equal(countdown(new Date(NOW + 2 * 60_000), NOW), "now");
+  assert.equal(countdown(new Date(NOW + 50 * HOUR), NOW), "in 2 days");
 
-  // The tile: the time of a visit in hand, the date of one that is done.
-  const tile = between(source, "function timeTile(", "function viewingSort(");
-  assert.match(tile, /if \(viewingView\(viewing\) === "history"\) \{\s*return \{ top: String\(at\.getDate\(\)\), bottom: at\.toLocaleDateString\("en-GH", \{ month: "short" \}\)\.toUpperCase\(\) \};/);
-  assert.match(tile, /\.toLocaleTimeString\("en-GH", \{ hour: "numeric", minute: "2-digit" \}\)\.split\(" "\);/);
-  const detail = between(source, "function viewingDetail(", "function timeTile(");
-  assert.match(detail, /if \(viewing\.confirmed_starts_at\) return "";/);
-  assert.match(detail, /if \(viewing\.status === "requested"\) return `Asked \$\{timeAgo\(viewing\.created_at\)\}`;/);
+  const source = screen();
+  assert.match(source, /\{next && !searching \? <UpNext viewing=\{next\} onOpen=\{\(\) => openRecord\(next\)\} onAct=\{\(\) => runAct\(next\)\} \/> : null\}/);
+  // The schedule never repeats the visit already on the card.
+  assert.match(source, /const booked = work\.scheduled\.filter\(\(viewing\) => viewing\.id !== nextId && startsAt\(viewing\)\);/);
+});
 
-  // What waits on the host is laterite; somebody else, harmattan; a visit in hand, kola.
-  const summary = between(source, "function viewingSummary(", "function viewingMoment(");
-  for (const line of [
-    /viewing\.status === "requested"\) return \{ label: "Needs a reply", tone: "attention"/,
-    /viewing\.status === "offered"\) return \{ label: "Waiting for tenant", tone: "waiting"/,
-    /viewing\.status === "confirmed" && viewing\.check_in\.can_validate\) return \{ label: "Ready for check-in", tone: "attention"/,
-    /viewing\.status === "checked_in"\) return \{ label: "Checked in", tone: "attention"/,
-    /viewing\.status === "attendance_pending" && viewing\.attendance\.can_respond\) return \{ label: "Response needed", tone: "attention"/,
-  ]) {
-    assert.match(summary, line);
-  }
-  assert.match(source, /attention: \{ text: LATERITE, ink: LATERITE, wash: theme\.color\.laterite\["100"\] \},/);
-  assert.match(source, /waiting: \{ text: HARMATTAN, ink: HARMATTAN, wash: theme\.color\.harmattan\["100"\] \},/);
+test("the week strip counts booked visits per day and is the only filter", () => {
+  const today = new Date(NOW);
+  const days = week([
+    viewing("confirmed", { confirmed_starts_at: at(2) }),
+    viewing("confirmed", { confirmed_starts_at: at(3) }),
+    viewing("confirmed", { confirmed_starts_at: at(27) }),
+    viewing("offered", { confirmed_starts_at: at(4) }),
+    viewing("completed", { confirmed_starts_at: at(-30) }),
+  ], today);
+  assert.equal(days.length, 7);
+  assert.equal(days[0].key, dayKey(today));
+  assert.deepEqual(days.slice(0, 3).map((row) => row.count), [2, 1, 0]);
 
-  assert.match(source, /router\.push\(\{ pathname: "\/\(app\)\/provider-viewing", params: \{ viewingId: viewing\.id \} \} as never\);/);
-  assert.match(
-    between(source, "function viewingView(", "function viewingSummary("),
-    /viewing\.status === "requested" \|\|\s*viewing\.status === "checked_in" \|\|\s*\(viewing\.status === "attendance_pending" && viewing\.attendance\.can_respond\) \|\|\s*\(viewing\.status === "confirmed" && viewing\.check_in\.can_validate\)\s*\) return "action";/,
-  );
+  const source = screen();
+  assert.doesNotMatch(source, /<BottomSheet|<ListHead|<SummaryPanel|<ChoiceRow/);
+  assert.match(source, /<WeekStrip days=\{days\} selected=\{day\} onChoose=\{chooseDay\} \/>/);
+  assert.match(source, /setDay\(\(current\) => \(current === key \? null : key\)\);/);
+  assert.match(source, /aria-selected=\{chosen\}/);
+  // A chosen day with nothing in it is an absence, struck like any other.
+  assert.match(source, /<Empty compact icon="calendar-clear-outline" title=\{entry\.title\}/);
+});
+
+test("lanes sort the way a host works them", () => {
+  const lanes = viewingWork([
+    viewing("confirmed", { id: "b", confirmed_starts_at: at(30) }),
+    viewing("confirmed", { id: "a", confirmed_starts_at: at(5) }),
+    viewing("requested", { id: "r" }),
+    viewing("completed", { id: "old", confirmed_starts_at: at(-100) }),
+    viewing("completed", { id: "recent", confirmed_starts_at: at(-10) }),
+  ]);
+  assert.deepEqual(lanes.scheduled.map((row) => row.id), ["a", "b"]);
+  assert.deepEqual(lanes.yours.map((row) => row.id), ["r"]);
+  assert.deepEqual(lanes.past.map((row) => row.id), ["recent", "old"]);
+
+  const source = screen();
+  // The visit on the Up next card is not offered a second time below it.
+  assert.match(source, /const yours = work\.yours\.filter\(\(viewing\) => viewing\.id !== nextId\);/);
+  assert.match(source, /out\.push\(\{ kind: "label", key: "label:yours", title: "Your move", count: yours\.length, tone: LATERITE, first: true \}\);/);
+  assert.match(source, /out\.push\(\{ kind: "calm", key: "calm" \}\);/);
+  assert.match(source, /title: "Waiting on a tenant"/);
+  assert.match(source, /title="Past"/);
 });
 
 test("the Portfolio on screen, loading, nothing yet and a failure are each handled", () => {
   const source = screen();
-  assert.match(source, /setItems\(null\);\s*try \{\s*setItems\(\s*await listReceivedViewings\(false, preferred \? \{ organization: preferred \} : undefined\),/);
+  assert.match(source, /setItems\(null\);\s*try \{\s*setItems\(await listReceivedViewings\(false, preferred \? \{ organization: preferred \} : undefined\)\);/);
   assert.match(source, /useFocusEffect\(useCallback\(\(\) => \{ void load\(\); \}, \[load\]\)\);/);
   assert.match(source, /refreshControl=\{<RefreshControl refreshing=\{refreshing\}/);
   assert.match(source, /\{error \? <Notice tone="error" title=\{error\} \/> : null\}/);
-  assert.match(source, /ListEmptyComponent=\{items === null \? <QueueSkeleton \/> : error \? null : \(/);
-  assert.match(between(source, "function QueueSkeleton(", "function viewingView("), /accessibilityRole="progressbar" accessibilityLabel="Loading viewings"/);
-
-  const empty = between(source, "function QueueEmpty(", "function QueueSkeleton(");
-  assert.match(empty, /if \(searching\) return <EmptyState icon="search-outline" title="No matching viewings"/);
-  assert.match(empty, /hero\s+title="No viewings yet"/);
-  assert.match(empty, /label="Your Properties" onPress=\{onProperties\}/);
-  assert.match(empty, /action=\{upcoming \? <View style=\{styles\.emptyAction\}><QuietAction icon="calendar-outline" label="Upcoming visits" onPress=\{onUpcoming\} \/><\/View> : undefined\}/);
-  assert.match(source, /onUpcoming=\{\(\) => choose\("upcoming"\)\}/);
-  assert.match(source, /onProperties=\{\(\) => router\.push\("\/\(app\)\/\(provider-tabs\)\/properties" as never\)\}/);
+  assert.match(between(source, "function ViewingsSkeleton(", "function dayTitle("), /accessibilityRole="progressbar" accessibilityLabel="Loading viewings"/);
+  assert.match(source, /<Empty\s+icon="calendar-outline"\s+title="No viewings yet"/);
+  assert.match(source, /label="Your Properties" onPress=\{\(\) => router\.push\("\/\(app\)\/\(provider-tabs\)\/properties" as never\)\}/);
+  assert.match(source, /<Empty icon="search-outline" title="No matching viewings"/);
 });

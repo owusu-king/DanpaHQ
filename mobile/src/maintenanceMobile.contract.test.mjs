@@ -73,6 +73,31 @@ test("every way in leads to the real screens", () => {
   assert.match(read("app/(app)/tenancy.tsx"), /pathname: "\/\(app\)\/maintenance-report", params: \{ tenancy: tenancy\.id \}/);
   assert.match(read("src/notificationMeaning.ts"), /case "maintenance_request":\s*return \{ pathname: "\/\(app\)\/maintenance-request", params: \{ id: item\.target_id \} \};/);
   assert.match(read("src/serviceCatalogue.ts"), /route: "\/\(app\)\/maintenance",/);
+  // One route, each side reading repairs as its own work (owner, 2026-10-06).
+  assert.match(list(), /return provider \? <ProviderMaintenanceScreen \/> : <TenantMaintenanceScreen \/>;/);
   // Provider new work oldest first: what has waited longest is what to start.
-  assert.match(list(), /side === "provider" && stage === "new"\s*\? a\.status_changed_at\.localeCompare\(b\.status_changed_at\)/);
+  assert.match(read("src/maintenanceWork.ts"), /lanes\.start\.sort\(oldest\);/);
+});
+
+test("a tenant reads their repairs as what to confirm and what waits on their landlord", async () => {
+  const screen = read("src/components/maintenance/TenantMaintenance.tsx");
+  const { tenantLaneOf, tenantLineOf, tenantRepairs } = await import("./maintenanceWork.ts");
+  assert.deepEqual(
+    ["awaiting_tenant_confirmation", "submitted", "reopened", "in_progress", "completed"].map((status) => tenantLaneOf({ status })),
+    ["confirm", "sent", "sent", "fixing", "done"],
+  );
+  assert.equal(tenantLineOf({ status: "awaiting_tenant_confirmation", reopen_count: 0 }), "Fixed, says your landlord — is it?");
+  const lanes = tenantRepairs([
+    { status: "submitted", status_changed_at: "2026-10-01" },
+    { status: "submitted", status_changed_at: "2026-10-04" },
+  ]);
+  assert.equal(lanes.sent[0].status_changed_at, "2026-10-04", "newest first");
+  // The fix to confirm leads, then what the landlord holds; fixed folds away.
+  assert.match(screen, /for \(const lane of \["confirm", "sent", "fixing"\] as const\)/);
+  assert.match(screen, /title="Fixed"/);
+  // Confirming happens on the record, after looking; the row only leads there.
+  assert.match(screen, /<Act label="Check and confirm" icon="checkmark-circle-outline" primary onPress=\{onOpen\} \/>/);
+  assert.match(screen, /<Pill grow icon="add-circle-outline" label="Report a problem" onPress=\{report\} \/>/);
+  assert.doesNotMatch(screen, /<BottomSheet|<SummaryPanel|<ListHead/);
+  assert.match(screen, /<Empty\s+icon="construct-outline"\s+title="Nothing reported"/);
 });

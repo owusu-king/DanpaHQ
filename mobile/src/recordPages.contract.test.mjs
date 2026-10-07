@@ -37,7 +37,12 @@ const RECORDS = [
 test("a record stands on paper, not on the dashboard's glass", () => {
   const source = kit();
   assert.match(source, /export const PAPER = theme\.color\.field\["0"\];/);
-  assert.match(source, /export const EDGE = theme\.color\.field\["200"\];/);
+  // The dashboards' card on the record's green (owner, 2026-10-06): a hairline of
+  // the ground's own green, 20pt corners, and title-case section names.
+  assert.match(source, /export const EDGE = alpha\(theme\.color\.kola\["900"\], 0\.09\);/);
+  assert.match(source, /export const PANEL_RADIUS = 20;/);
+  assert.match(source, /<Type variant="title2" accessibilityRole="header" style=\{styles\.groupLabel\}>\{children\}<\/Type>/);
+  assert.doesNotMatch(source, /children\.toUpperCase\(\)/);
   // The house rule for depth: a very subtle shadow on iOS, hairlines on Android.
   assert.match(source, /\.\.\.surfaceElevation,/);
   // The green ground's glass must not be borrowed onto ivory, where it is

@@ -35,7 +35,6 @@ test("the shared press feedback hands out no ripple", () => {
 
 test("no rounded control takes a rectangular ripple, and no press style is iOS-only", () => {
   const circles = new Set([
-    "app/(app)/(provider-tabs)/_layout.tsx",
     "src/components/nav/HeaderCircleButton.tsx",
     "src/components/nav/MainTabBar.tsx",
   ]);

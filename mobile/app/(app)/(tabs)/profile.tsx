@@ -4,45 +4,37 @@ import { useCallback, useState } from "react";
 import { ApiFailure } from "@/api";
 import { useAuth } from "@/auth";
 import { AuthPrompt } from "@/components/AuthPrompt";
-import {
-  Group,
-  IndexActions,
-  IndexPage,
-  Row,
-  SignOutButton,
-  SwitchExperienceButton,
-} from "@/components/account/IndexRows";
+import { Identity, YouPage, type YouSection } from "@/components/account/YouParts";
+import { useProfilePhoto } from "@/components/nav/TabHeaderControls";
 import { Notice } from "@/components/ui";
 import { resolveEntryRoute } from "@/navigation";
 import { listMyPortfolioInvitations } from "@/organizations";
 import { chooseWorkspace } from "@/workspace";
 
 /**
- * The tenant's More: everything that is not a tab, in groups.
+ * The tenant's More, laid out like WhatsApp's "You" tab (owner, 2026-10-06):
+ * the person first, then everything that is not a tab in untitled white cards.
  *
- * A hub, not a profile. It used to open with a photo, a display-size name and a
- * phone number, under a header that said "Profile" while the tab said "More", so
- * the fifth tab read as a page about the person rather than the way to everything
- * else. Who you are is behind the Profile row now, where it can be changed, and
- * the page opens with its sections.
+ * The photo, the name and the pencil all open the profile, so there is no
+ * Profile row. The cards group by what they are for — what you are looking at
+ * and have asked for; how the account is kept; and leaving — without naming the
+ * groups, because a card of six rows that says what it holds needs no heading.
  *
- * The provider's equivalent is their More. They list different things — a tenant
- * has no Team and no Archive — but they are built from the same page, groups, rows
- * and acts. There was a separate Settings screen sitting between this tab and its
- * own account destinations; it listed most of the same rows a second time and had
- * to be kept in step by hand, so it is gone.
+ * The provider's equivalent is their More, built from the same parts. There was
+ * once a separate Settings screen listing most of these a second time; it is
+ * gone, and stays gone.
  */
 export default function ProfileTab() {
   const router = useRouter();
   const { state, refreshMe, signOut } = useAuth();
+  const photoUri = useProfilePhoto();
   const [switching, setSwitching] = useState(false);
   const [leaving, setLeaving] = useState(false);
   const [error, setError] = useState("");
 
   // Somebody invited into a Portfolio may not be a provider at all, so the way
   // in cannot sit behind a provider-only screen. It appears only while an
-  // invitation is waiting — a permanent row for a rare event is the noise that
-  // buried it — and on focus, so answering one clears it on the way back.
+  // invitation is waiting, and on focus, so answering one clears it on the way back.
   const [invitationsWaiting, setInvitationsWaiting] = useState(0);
   useFocusEffect(
     useCallback(() => {
@@ -70,6 +62,8 @@ export default function ProfileTab() {
   }
 
   const me = state.me;
+  const go = (path: string) => () => router.push(path as never);
+  const unfinished = (me.profile?.completeness ?? 0) < 100;
 
   async function switchToProvider() {
     setSwitching(true);
@@ -85,72 +79,73 @@ export default function ProfileTab() {
     }
   }
 
+  async function leave() {
+    setLeaving(true);
+    try {
+      await signOut();
+      router.replace("/(auth)/start");
+    } finally {
+      setLeaving(false);
+    }
+  }
+
+  const sections: YouSection[] = [
+    {
+      key: "waiting",
+      items: invitationsWaiting
+        ? [{ key: "invitations", icon: "people-circle-outline", label: "Portfolio invitations", count: invitationsWaiting, onPress: go("/(app)/portfolio-invitations") }]
+        : [],
+    },
+    {
+      key: "renting",
+      items: [
+        { key: "saved", icon: "bookmark-outline", label: "Saved places", onPress: go("/(app)/saved") },
+        { key: "applications", icon: "document-text-outline", label: "Applications", onPress: go("/(app)/applications") },
+        { key: "viewings", icon: "calendar-outline", label: "Viewings", onPress: go("/(app)/viewings") },
+        { key: "agreements", icon: "document-outline", label: "Agreements", onPress: go("/(app)/leases") },
+        // Properties you asked to buy: the conversations a sale starts.
+        { key: "enquiries", icon: "chatbubbles-outline", label: "Enquiries", onPress: go("/(app)/enquiries") },
+      ],
+    },
+    {
+      key: "account",
+      items: [
+        { key: "security", icon: "key-outline", label: "Security", onPress: go("/(app)/security") },
+        { key: "verification", icon: "shield-checkmark-outline", label: "Verification", onPress: go("/(app)/trust") },
+        { key: "notifications", icon: "notifications-outline", label: "Notifications", onPress: go("/(app)/notification-settings") },
+      ],
+    },
+    {
+      key: "leave",
+      items: [
+        // Offered only to an account that actually holds provider capability.
+        // A change of view, not of account.
+        ...(me.capabilities.available_workspaces.includes("provider")
+          ? [{ key: "switch", icon: "swap-horizontal-outline" as const, label: "Switch to managing property", busy: switching, busyLabel: "Switching…", onPress: () => void switchToProvider() }]
+          : []),
+        { key: "sign-out", icon: "log-out-outline", label: "Sign out", danger: true, busy: leaving, busyLabel: "Signing out…", onPress: () => void leave() },
+      ],
+    },
+  ];
+
   return (
-    <IndexPage>
-      {invitationsWaiting ? (
-        <Group title="Waiting for you" tone="harmattan">
-          <Row
-            icon="people-circle-outline"
-            label="Portfolio invitations"
-            count={invitationsWaiting}
-            onPress={() => router.push("/(app)/portfolio-invitations" as never)}
-          />
-        </Group>
-      ) : null}
-
-      {/* Saved leads its own group now that it is no longer a tab. It is a
-          shortlist somebody returns to, not a record of something that already
-          happened, and burying it under "Your history" made it the third row of
-          a group it never belonged to. Explore's header reaches the same place
-          for anyone already browsing. */}
-      <Group title="Your shortlist" tone="laterite">
-        <Row icon="bookmark-outline" label="Saved places" onPress={() => router.push("/(app)/saved" as never)} />
-      </Group>
-
-      <Group title="Your history" tone="lagoon">
-        <Row icon="document-text-outline" label="Applications" onPress={() => router.push("/(app)/applications" as never)} />
-        <Row icon="calendar-outline" label="Viewings" onPress={() => router.push("/(app)/viewings" as never)} />
-        {/* Properties you asked to buy: the conversations a sale starts. */}
-        <Row icon="chatbubbles-outline" label="Enquiries" onPress={() => router.push("/(app)/enquiries" as never)} />
-        <Row icon="document-outline" label="Agreements" onPress={() => router.push("/(app)/leases" as never)} />
-      </Group>
-
-      <Group title="Account and settings" tone="kola">
-        <Row icon="person-outline" label="Profile" onPress={() => router.push("/(app)/profile-edit" as never)} />
-        <Row icon="lock-closed-outline" label="Security" onPress={() => router.push("/(app)/security" as never)} />
-        <Row icon="options-outline" label="Notifications" onPress={() => router.push("/(app)/notification-settings" as never)} />
-        <Row icon="shield-checkmark-outline" label="Verification" onPress={() => router.push("/(app)/trust" as never)} />
-      </Group>
-
-      {/* A switch that fails says so beside the switch. At the top of the page
-          it was out of sight of the thumb that had just pressed it. */}
-      {error ? <Notice tone="error" title={error} /> : null}
-      <IndexActions>
-        {/* Offered only to an account that actually holds provider capability.
-            A change of view, not of account. */}
-        {me.capabilities.available_workspaces.includes("provider") ? (
-          <SwitchExperienceButton
-            label="Switch to managing property"
-            busyLabel="Switching…"
-            busy={switching}
-            onPress={() => void switchToProvider()}
-          />
-        ) : null}
-        <SignOutButton
-          label="Sign out"
-          busyLabel="Signing out…"
-          busy={leaving}
-          onPress={async () => {
-            setLeaving(true);
-            try {
-              await signOut();
-              router.replace("/(auth)/start");
-            } finally {
-              setLeaving(false);
-            }
-          }}
+    <YouPage
+      tools={[
+        { key: "join", icon: "key-outline", label: "Join your home with a code", onPress: go("/(app)/tenant-setup") },
+        { key: "edit", icon: "pencil", label: "Edit your profile", onPress: go("/(app)/profile-edit") },
+      ]}
+      identity={
+        <Identity
+          name={me.display_name}
+          photoUri={photoUri}
+          note={unfinished ? "Finish your profile" : me.phone_display}
+          verified={me.is_phone_verified}
+          onPress={go("/(app)/profile-edit")}
         />
-      </IndexActions>
-    </IndexPage>
+      }
+      sections={sections}
+      // A switch that fails says so beside the switch.
+      notice={error ? <Notice tone="error" title={error} /> : null}
+    />
   );
 }

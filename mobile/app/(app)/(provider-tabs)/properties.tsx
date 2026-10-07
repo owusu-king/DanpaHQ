@@ -8,29 +8,23 @@ import { useAuth } from "@/auth";
 import { IndexGround } from "@/components/account/IndexRows";
 import { Bone } from "@/components/billing/BillingParts";
 import { useHomeDensity } from "@/components/home/plinth";
+import { Cell, CellRule, RING_EMPTY, StatCells, dash } from "@/components/home/DashboardParts";
+import { AddButton, FilterChips } from "@/components/portfolio/FilterChips";
 import {
-  ActiveFilter,
-  ChoiceRow,
   EmptyState,
-  FilterGroup,
   HARMATTAN,
   KOLA,
   LATERITE,
-  ListHead,
   ListRow,
   MUTED,
   PRESSED,
   PrimaryAction,
   RowSeparator,
   SearchField,
-  SheetFooter,
-  SummaryPanel,
   Thumb,
   rowStyles,
   type IconName,
-  type SummaryNote,
 } from "@/components/portfolio/PortfolioList";
-import { BottomSheet } from "@/components/sheet/BottomSheet";
 import { Notice, Type, space } from "@/components/ui";
 import { propertyStatus } from "@/components/property/WorkspacePatterns";
 import {
@@ -46,16 +40,17 @@ import { theme } from "@/theme";
 /**
  * Every Property in the Portfolio.
  *
- * Refined on review (2026-09-21) into the shape its sibling tabs already have.
- * It was the last provider tab standing on the flat background while Home,
- * Tenants and Payments stood on the green, and it led with the words
- * "2 Properties" where they lead with figures. It also had no way to narrow
- * itself at all: a Portfolio with twenty buildings scrolled.
+ * Redesigned (owner, 2026-10-06). The figures above the list are a picture of
+ * the Portfolio rather than the Home's rings again: one bar split by where
+ * each Property stands in verification, its legend the way to narrow the list,
+ * and every Property as a row of windows — one per Unit, let or empty — so the
+ * building with the vacancies is seen before it is read. A straight line of
+ * counts sits under it, each opening what it counts. The filters are out where they can be seen, as chips
+ * with their colours and counts, instead of behind a Filter button, a sheet
+ * and a token saying what the sheet had done.
  *
- * The view is unchanged — one Property to a row, the photograph, where it is,
- * where it stands and how much of it is let. What changed is the ground it
- * stands on, the figures above it, and that there is now one Filter and a
- * search, which is what every other list of this size already offers.
+ * The rows are unchanged — one Property to a row, the photograph, where it
+ * is, where it stands and how much of it is let.
  */
 
 type PropertyFilter = "all" | "verified" | "review" | "attention" | "setup";
@@ -117,7 +112,6 @@ export default function ProviderPropertiesScreen() {
   const [properties, setProperties] = useState<ManagedProperty[]>([]);
   const [filter, setFilter] = useState<PropertyFilter>("all");
   const [query, setQuery] = useState("");
-  const [filtering, setFiltering] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
@@ -171,15 +165,6 @@ export default function ProviderPropertiesScreen() {
         .toLocaleLowerCase("en-GH").includes(needle));
   }, [properties, filter, query]);
 
-  // What the figure's line says: the worst thing outstanding, or that nothing is.
-  const note: SummaryNote = counts.attention
-    ? { text: `${counts.attention} needs attention`, tone: "alert" }
-    : counts.review
-      ? { text: `${counts.review} in review`, tone: "calm" }
-      : counts.setup
-        ? { text: `${counts.setup} to finish setting up`, tone: "calm" }
-        : { text: "All verified", tone: "calm" };
-
   const add = () => router.push({ pathname: "/(app)/private-property", params: { organizationId } });
 
   return (
@@ -197,40 +182,45 @@ export default function ProviderPropertiesScreen() {
             ) : null}
 
             {properties.length ? (
-              <SummaryPanel
-                label="Properties"
-                value={String(properties.length)}
-                note={note}
-                // Two, because the panel lays its facts out at 45% each in a
-                // row that does not wrap. What is held, and what of it is
-                // still to let — which is the one a provider acts on.
-                facts={[
-                  { label: "Units", value: String(units) },
-                  { label: "Vacant", value: String(units - occupied) },
-                ]}
-              />
+              <View style={dash.card}>
+                <StageBar counts={counts} total={properties.length} onPick={setFilter} />
+                <View style={[dash.rule, { marginLeft: 0, marginVertical: space[4] }]} />
+                <UnitWindows
+                  properties={properties}
+                  onOpen={(id) => router.push({ pathname: "/(app)/provider-property", params: { propertyId: id } })}
+                />
+                <StatCells>
+                  <Cell label="Properties" value={properties.length} onPress={() => setFilter("all")} />
+                  <CellRule />
+                  <Cell label="Units" value={units} onPress={() => router.push("/(app)/units" as never)} />
+                  <CellRule />
+                  <Cell label="Vacant" value={units - occupied} alert={units - occupied > 0} onPress={() => router.push({ pathname: "/(app)/units", params: { view: "available" } } as never)} />
+                  <CellRule />
+                  <Cell label="Attention" value={counts.attention} alert={counts.attention > 0} onPress={() => setFilter("attention")} />
+                </StatCells>
+              </View>
             ) : null}
 
             {properties.length ? (
               <View style={{ gap: space[3] }}>
-                <ListHead
-                  title={FILTER_LABEL[filter]}
-                  count={visible.length}
-                  filters={filter === "all" ? 0 : 1}
-                  filterTone="kola"
-                  onFilter={() => setFiltering(true)}
+                <View style={styles.head}>
+                  <Type variant="title2" accessibilityRole="header" style={styles.headTitle}>{FILTER_LABEL[filter]}</Type>
+                  <Type variant="caption" style={{ color: MUTED }}>{visible.length}</Type>
+                  <View style={{ flex: 1 }} />
+                  {canCreateProperty ? <AddButton label="Add Property" onPress={add} /> : null}
+                </View>
+                <FilterChips
+                  label="Show Properties"
+                  value={filter}
+                  onChange={setFilter}
+                  options={FILTERS.map((value) => ({
+                    value,
+                    label: value === "all" ? "All" : FILTER_LABEL[value],
+                    count: counts[value],
+                    tone: value === "all" ? undefined : FILTER_TONE[value],
+                  }))}
                 />
-                {filter === "all" ? null : (
-                  <View style={styles.tokens}>
-                    <ActiveFilter label={FILTER_LABEL[filter]} tone={FILTER_TONE[filter]} onClear={() => setFilter("all")} />
-                  </View>
-                )}
                 <SearchField label="Search Properties" placeholder="Property, town or district" value={query} onChangeText={setQuery} />
-                {canCreateProperty ? (
-                  <View style={styles.add}>
-                    <PrimaryAction icon="add" label="Add Property" onPress={add} />
-                  </View>
-                ) : null}
               </View>
             ) : null}
           </View>
@@ -267,34 +257,125 @@ export default function ProviderPropertiesScreen() {
         }
       />
 
-      <BottomSheet
-        visible={filtering}
-        onClose={() => setFiltering(false)}
-        title="Filter"
-        hideTitle
-        closeLabel="Close filter"
-        footer={<SheetFooter
-          canReset={filter !== "all" || Boolean(query)}
-          onReset={() => { setFilter("all"); setQuery(""); }}
-          results={visible.length}
-          onShow={() => setFiltering(false)}
-        />}
-      >
-        <FilterGroup title="Show">
-          {FILTERS.map((value, index) => (
-            <ChoiceRow
-              key={value}
-              first={index === 0}
-              icon={FILTER_ICON[value]}
-              label={FILTER_LABEL[value]}
-              count={counts[value]}
-              selected={filter === value}
-              onPress={() => setFilter(value)}
-            />
-          ))}
-        </FilterGroup>
-      </BottomSheet>
     </IndexGround>
+  );
+}
+
+const STAGES: Exclude<PropertyFilter, "all">[] = ["verified", "review", "attention", "setup"];
+const STAGE_SHORT: Record<Exclude<PropertyFilter, "all">, string> = {
+  verified: "Verified",
+  review: "In review",
+  attention: "To fix",
+  setup: "Setting up",
+};
+
+/**
+ * Where the Portfolio stands in verification, as one bar split by stage in
+ * each stage's colour, with a legend under it whose every entry narrows the
+ * list to that stage.
+ */
+function StageBar({
+  counts,
+  total,
+  onPick,
+}: {
+  counts: Record<PropertyFilter, number>;
+  total: number;
+  onPick: (filter: PropertyFilter) => void;
+}) {
+  const shown = STAGES.filter((stage) => counts[stage] > 0);
+  return (
+    <View style={{ gap: space[3] }}>
+      <View style={styles.pictureHead}>
+        <Type variant="bodyStrong" style={styles.pictureTitle}>Verification</Type>
+        <Type variant="caption" style={{ color: MUTED }}>
+          {counts.verified} of {total} verified
+        </Type>
+      </View>
+      <View style={styles.stageBar} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+        {shown.map((stage) => (
+          <View key={stage} style={{ flex: counts[stage], backgroundColor: FILTER_TONE[stage], borderRadius: 6 }} />
+        ))}
+      </View>
+      <View style={styles.legend}>
+        {STAGES.map((stage) => (
+          <Pressable
+            key={stage}
+            accessibilityRole="button"
+            accessibilityLabel={`${counts[stage]} ${STAGE_SHORT[stage]}. Show them.`}
+            onPress={() => onPick(stage)}
+            disabled={!counts[stage]}
+            {...pressableFeedback(PRESSED)}
+            style={({ pressed }) => [styles.legendItem, !counts[stage] ? { opacity: 0.45 } : null, pressed ? { backgroundColor: PRESSED } : null]}
+          >
+            <View style={[styles.legendDot, { backgroundColor: FILTER_TONE[stage] }]} />
+            <Type variant="caption" numberOfLines={1} style={styles.legendLabel}>{STAGE_SHORT[stage]}</Type>
+            <Type variant="captionStrong" style={styles.legendCount}>{counts[stage]}</Type>
+          </Pressable>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+/** More Units than this and a Property's windows become one bar, or the row would wrap past reading. */
+const MAX_WINDOWS = 24;
+
+/**
+ * Every Property as a row of windows, one per Unit: kola where somebody lives,
+ * soft laterite where nobody does. The building with the vacancies is seen
+ * before it is read. Largest first, four at most; the list below has the rest.
+ */
+function UnitWindows({ properties, onOpen }: { properties: ManagedProperty[]; onOpen: (id: string) => void }) {
+  const letting = [...properties]
+    .filter((property) => property.purpose !== "sale" && property.unit_count > 0)
+    .sort((a, b) => b.unit_count - a.unit_count || a.title.localeCompare(b.title, "en-GH"))
+    .slice(0, 4);
+  if (!letting.length) return null;
+  return (
+    <View style={{ gap: space[3] }}>
+      <View style={styles.pictureHead}>
+        <Type variant="bodyStrong" style={styles.pictureTitle}>Where the Units are</Type>
+        <View style={styles.key}>
+          <View style={[styles.keyDot, { backgroundColor: KOLA }]} />
+          <Type variant="caption" style={styles.keyText}>Let</Type>
+          <View style={[styles.keyDot, { backgroundColor: RING_EMPTY }]} />
+          <Type variant="caption" style={styles.keyText}>Empty</Type>
+        </View>
+      </View>
+      {letting.map((property) => {
+        const vacant = property.unit_count - property.occupied_unit_count;
+        return (
+          <Pressable
+            key={property.id}
+            accessibilityRole="link"
+            accessibilityLabel={`${property.title}. ${property.occupied_unit_count} of ${property.unit_count} Units let${vacant ? `, ${vacant} empty` : ""}.`}
+            onPress={() => onOpen(property.id)}
+            {...pressableFeedback(PRESSED)}
+            style={({ pressed }) => [styles.windowRow, pressed ? { backgroundColor: PRESSED } : null]}
+          >
+            <View style={styles.windowHead}>
+              <Type variant="body" numberOfLines={1} style={styles.windowTitle}>{property.title || "Untitled Property"}</Type>
+              <Type variant="caption" style={[styles.windowCount, vacant ? { color: LATERITE } : null]}>
+                {vacant ? `${vacant} empty` : "Full"}
+              </Type>
+            </View>
+            {property.unit_count <= MAX_WINDOWS ? (
+              <View style={styles.windows}>
+                {Array.from({ length: property.unit_count }, (_, index) => (
+                  <View key={index} style={[styles.window, { backgroundColor: index < property.occupied_unit_count ? KOLA : RING_EMPTY }]} />
+                ))}
+              </View>
+            ) : (
+              <View style={styles.windowBar}>
+                <View style={{ flex: property.occupied_unit_count, backgroundColor: KOLA }} />
+                <View style={{ flex: vacant, backgroundColor: RING_EMPTY }} />
+              </View>
+            )}
+          </Pressable>
+        );
+      })}
+    </View>
   );
 }
 
@@ -369,10 +450,122 @@ function PropertiesSkeleton() {
 }
 
 const styles = StyleSheet.create({
-  tokens: {
+  pictureHead: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    justifyContent: "space-between",
+    gap: space[2],
+  },
+  pictureTitle: {
+    fontSize: 15.5,
+    lineHeight: 21,
+    color: theme.color.ink["900"],
+  },
+  stageBar: {
+    height: 14,
+    flexDirection: "row",
+    gap: 3,
+  },
+  legend: {
     flexDirection: "row",
     flexWrap: "wrap",
+    marginHorizontal: -6,
+  },
+  legendItem: {
+    width: "50%",
+    minHeight: 34,
+    flexDirection: "row",
+    alignItems: "center",
     gap: space[2],
+    paddingHorizontal: 6,
+    borderRadius: 10,
+  },
+  legendDot: {
+    width: 9,
+    height: 9,
+    borderRadius: 3,
+  },
+  legendLabel: {
+    flex: 1,
+    minWidth: 0,
+    fontSize: 13,
+    lineHeight: 18,
+    color: MUTED,
+  },
+  legendCount: {
+    marginRight: space[2],
+    fontSize: 13.5,
+    lineHeight: 18,
+    color: theme.color.ink["900"],
+  },
+  key: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+  },
+  keyDot: {
+    width: 9,
+    height: 9,
+    marginLeft: 4,
+    borderRadius: 2.5,
+  },
+  keyText: {
+    fontSize: 12,
+    lineHeight: 16,
+    color: MUTED,
+  },
+  windowRow: {
+    gap: 7,
+    marginHorizontal: -8,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  windowHead: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    gap: space[2],
+  },
+  windowTitle: {
+    flex: 1,
+    minWidth: 0,
+    fontSize: 14.5,
+    lineHeight: 19,
+    color: theme.color.ink["900"],
+  },
+  windowCount: {
+    fontSize: 12.5,
+    lineHeight: 17,
+    color: MUTED,
+  },
+  windows: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 5,
+  },
+  window: {
+    width: 22,
+    height: 16,
+    borderRadius: 4,
+  },
+  windowBar: {
+    height: 12,
+    flexDirection: "row",
+    gap: 3,
+    overflow: "hidden",
+    borderRadius: 6,
+  },
+  head: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space[2],
+    paddingLeft: space[1],
+  },
+  headTitle: {
+    fontSize: 18,
+    lineHeight: 24,
+    letterSpacing: -0.2,
+    color: theme.color.ink["900"],
   },
   add: {
     flexDirection: "row",

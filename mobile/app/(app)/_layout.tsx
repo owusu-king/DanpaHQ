@@ -17,7 +17,7 @@ export default function AppLayout() {
         // platform button rather than joining it, so `headerBackVisible` goes.
         headerLeft: backHeaderLeft,
         headerBackVisible: false,
-        contentStyle: { backgroundColor: shell.canvas },
+        contentStyle: { backgroundColor: shell.record },
         animation: stackAnimation,
         gestureEnabled: gestureBackEnabled,
       }}

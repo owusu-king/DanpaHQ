@@ -10,23 +10,34 @@
  * a future change is a decision rather than a drift.
  */
 
-import { Platform, StatusBar as NativeStatusBar } from "react-native";
+import { Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export const isAndroid = Platform.OS === "android";
 export const isIOS = Platform.OS === "ios";
 
 /**
- * The space interactive header content must keep above itself.
+ * A breath between the status bar and a header's controls on Android (owner,
+ * 2026-10-07): fitted exactly to the inset, they sat against the clock. iOS
+ * already leaves this room under its own status bar.
+ */
+export const ANDROID_HEADER_BREATH = isAndroid ? 8 : 0;
+
+/**
+ * The space interactive header content must keep above itself: the safe-area
+ * inset, plus the Android breath above.
  *
- * Android edge-to-edge can report a zero safe-area inset while its status bar
- * still occupies the top of an older device. The native measurement is a
- * floor, not an added margin, so correct cutout insets are never doubled.
+ * The inset is how far the status bar actually overlaps this app. Drawn edge to
+ * edge it is the bar's height; on a phone where the app starts below the bar —
+ * a Galaxy S10+ in Expo Go, say — it is zero, because nothing overlaps.
+ *
+ * It used to fall back to `StatusBar.currentHeight` when the inset read zero,
+ * and before that to take the larger of the two. Both added a status bar's worth
+ * of empty green over every header on exactly those phones, with the controls
+ * pushed to its foot (owner, 2026-10-07).
  */
 export const safeHeaderTop = (safeAreaTop: number) =>
-  isAndroid
-    ? Math.max(safeAreaTop, NativeStatusBar.currentHeight ?? 0)
-    : safeAreaTop;
+  Math.max(0, safeAreaTop) + ANDROID_HEADER_BREATH;
 
 /**
  * The room a scrolling page keeps under its last row — `safeHeaderTop`'s twin.

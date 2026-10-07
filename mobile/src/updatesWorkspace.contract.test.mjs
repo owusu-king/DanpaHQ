@@ -7,17 +7,15 @@ import { fileURLToPath } from "node:url";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const read = (relative) => readFileSync(resolve(root, relative), "utf8");
 
-test("mobile Updates groups what is new and what happened recently", () => {
+test("mobile Updates leads with what wants an answer, then what happened by day", () => {
   const screen = read("mobile/app/(app)/notifications.tsx");
 
-  assert.match(screen, /SectionList/);
   assert.match(screen, /needsYou/);
   assert.match(screen, /notificationSource/);
-  assert.match(screen, /notificationStatus/);
   assert.match(screen, /notificationTone/);
-  assert.match(screen, /Needs your attention/);
-  assert.match(screen, /Recent activity/);
-  assert.match(screen, /accessibilityRole="toolbar"/);
+  assert.match(screen, /Wants an answer/);
+  assert.match(screen, /function byDay\(/);
+  assert.match(screen, /<Briefing/);
   assert.doesNotMatch(screen, /Your inbox/);
   assert.doesNotMatch(screen, /accessibilityRole="summary"/);
 });
@@ -36,12 +34,13 @@ test("no notification is a dead tap any more", () => {
   assert.doesNotMatch(screen, /else if \(item\.target_type/);
 });
 
-test("the feed is rows, and unread does not depend on colour", () => {
+test("the feed is a timeline, and unread does not depend on colour", () => {
   const screen = read("mobile/app/(app)/notifications.tsx");
 
   assert.doesNotMatch(screen, /<Surface/);
-  assert.match(screen, /borderLeftWidth: 3/);
-  assert.match(screen, /notificationStatus\(item\)/);
+  // Unread is said in words for a screen reader and in weight on screen.
+  assert.match(screen, /item\.is_read \? "Read" : "Unread"/);
+  assert.match(screen, /variant=\{item\.is_read \? "body" : "bodyStrong"\}/);
   assert.match(screen, /accessibilityLabel=.*notificationSource/s);
   assert.match(screen, /tonePalette/);
 });

@@ -48,9 +48,9 @@ test("the tab you are on grows a pale kola indicator, fills in deep kola and tur
   assert.doesNotMatch(source, /gold|ink\["500"\]/);
 
   // Colour is never the only cue: the indicator appears, the glyph fills and the
-  // name turns bold, so the state survives both kinds of colour blindness.
+  // name turns heavier, so the state survives both kinds of colour blindness.
   assert.match(source, /restingLabel: \{ color: RESTING, fontWeight: "500" \}/);
-  assert.match(source, /activeLabel: \{[^}]*color: ACTIVE, fontWeight: "700" \}/);
+  assert.match(source, /activeLabel: \{[^}]*color: ACTIVE, fontWeight: "600" \}/);
   for (const layout of [renter, provider]) {
     assert.match(layout, /focused \? "home" : "home-outline"/);
   }

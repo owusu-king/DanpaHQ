@@ -1,24 +1,38 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useFocusEffect, useRouter } from "expo-router";
-import { useCallback, useState } from "react";
-import { Image, Pressable, RefreshControl, ScrollView, View } from "react-native";
-import Svg, { Circle, Line, Path, Rect } from "react-native-svg";
+import { Fragment, useCallback, useState } from "react";
+import { Pressable, RefreshControl, StyleSheet, View } from "react-native";
+import Svg, { Circle, Defs, Line, LinearGradient, Path, Rect, Stop } from "react-native-svg";
 
 import { useAuth } from "@/auth";
-import { Button, Notice, Type, space } from "@/components/ui";
-import {
-  ph,
-  PlinthCard,
-  plinthRow,
-  plural,
-  primarySurface,
-  shortDate,
-  surface,
-  Ticks,
-  tile,
-  useHomeDensity,
-} from "@/components/home/plinth";
+import { Button, Notice, Type, radius, space } from "@/components/ui";
+import { ph, useHomeDensity } from "@/components/home/plinth";
 import { HomeGround } from "@/components/home/HomeGround";
+import { HomeHeroScroll, type HeroChip } from "@/components/home/HomeHero";
+import { Empty } from "@/components/work/WorkParts";
+import {
+  ActivityItem,
+  Cell,
+  CellRule,
+  DayTile,
+  Highlights,
+  INK,
+  KOLA_DEEP,
+  MUTED,
+  NextMoves,
+  PRESSED,
+  RING_EMPTY,
+  RING_OWED,
+  RULE,
+  Section,
+  Ring,
+  Rings,
+  StatCells,
+  WHITE,
+  dash,
+  type ActivityRow,
+} from "@/components/home/DashboardParts";
+import { ago, insights, monthName, nextMoves, type Href } from "@/dashboardWork";
 import { formatMinor } from "@/listings";
 import { listReceivedApplications } from "@/applications";
 import { listGrantedLeases, type Lease } from "@/leases";
@@ -33,31 +47,27 @@ import {
 import { hapticsPolicy, pressableFeedback } from "@/platform";
 import { useBlankOnPortfolioSwitch } from "@/portfolioScope";
 import { listEnquiries } from "@/sales";
+import { alpha } from "@/shell";
 import { theme } from "@/theme";
 
-type AttentionSignal = {
-  label: string;
-  to: string;
-  icon: keyof typeof Ionicons.glyphMap;
-  tone: "warning" | "danger";
-};
-
 /**
- * The provider's control center, composed for a phone.
+ * The provider's Home: what to do next, then how the Portfolio stands
+ * (owner, 2026-10-06).
  *
- * The web dashboard's design language — paper surfaces, registration ticks on
- * the two that carry the screen, one gauge and one chart — recomposed for a
- * device that scrolls in one column and cannot hover, and set on the soft green
- * ground both phone Homes share.
+ * It used to give every figure the same weight — a gauge, a ledger, a highlight
+ * card and a list of counts each marked "Soon" — on drafting marks of its own,
+ * so it read as an admin template beside the rest of the app. Now it is built
+ * from the work pages' parts, on the same white cards, and in this order:
  *
- * What that costs and what it buys: the leasing pipeline is gone, as it is on
- * web, because Home answers *what needs me* and a pipeline of everything in
- * flight is the Leases screen's job. Upcoming viewings stays, unlike web —
- * there is no persistent rail here, and "what is happening today" is the thing
- * a provider opens a phone for.
+ * 1. **Your next move.** The costliest thing waiting leads, with the verb for
+ *    it as a button; everything else waiting is a row under it.
+ * 2. **Overview.** One strong figure, occupancy, over the four counts behind it.
+ * 3. **Highlights.** Readings with a consequence and a way to act, not stat tiles.
+ * 4. **Rent collection.** The chart, still read by tapping a month, now with a
+ *    tooltip and the product's colours.
+ * 5. **Coming up** and **Recent activity**, each a short list that scans.
  *
- * Where the web hovers, this presses: holding the gauge reveals the count
- * behind the percentage, and tapping a column reads that period.
+ * What to do and in what order is decided in `dashboardWork.ts`.
  */
 export default function ProviderHomeScreen() {
   // Behind every state — a first Property, the skeleton and the Portfolio
@@ -69,6 +79,11 @@ export default function ProviderHomeScreen() {
   );
 }
 
+/** The rent chart's colours: money in is the brand's green, money owed is harmattan. */
+const COLLECTED = theme.color.kola["600"];
+const OWED = theme.color.harmattan["500"];
+const OWED_PAST = alpha(theme.color.harmattan["500"], 0.32);
+const OWED_ACTIVE = theme.color.harmattan["600"];
 function ProviderHome() {
   const router = useRouter();
   const density = useHomeDensity();
@@ -154,582 +169,291 @@ function ProviderHome() {
   const unitCount = counts?.units ?? 0;
   const occupied = counts?.occupied_units ?? 0;
   const available = counts?.vacant_units ?? 0;
-  const occupancy = unitCount ? Math.round((occupied / unitCount) * 100) : 0;
 
   const needsUpdate = properties.filter((row) =>
-    ["changes_required", "rejected", "suspended", "expired"].includes(row.verification.review_state),
+    ["changes_required", "rejected", "suspended", "expired"].includes(row.verification?.review_state ?? ""),
   ).length;
   const drafts = leases.filter((lease) => lease.status === "draft").length;
-  const awaitingYou = money?.payment_records_awaiting_you ?? 0;
-  const requests = applications + (counts?.pending_join_requests ?? 0);
 
-  const attention = [
-    requests ? { label: `${requests} tenancy ${plural(requests, "request", "requests")}`, to: "/(app)/provider-applications", icon: "document-text-outline", tone: "warning" } : null,
-    viewings.length ? { label: `${viewings.length} viewing ${plural(viewings.length, "request", "requests")}`, to: "/(app)/provider-viewings", icon: "calendar-outline", tone: "warning" } : null,
-    unreadEnquiries ? { label: `${unreadEnquiries} unread buyer ${plural(unreadEnquiries, "enquiry", "enquiries")}`, to: "/(app)/enquiries", icon: "chatbubbles-outline", tone: "warning" } : null,
-    drafts ? { label: `${drafts} ${plural(drafts, "agreement", "agreements")} to send`, to: "/(app)/leases", icon: "create-outline", tone: "warning" } : null,
-    awaitingYou ? { label: `${awaitingYou} payment ${plural(awaitingYou, "record", "records")} to confirm`, to: "/(app)/(provider-tabs)/payments", icon: "wallet-outline", tone: "warning" } : null,
-    money?.overdue_minor ? { label: `${formatMinor(money.overdue_minor)} overdue`, to: "/(app)/(provider-tabs)/payments", icon: "alert-circle-outline", tone: "danger" } : null,
-    money?.settlement_attention_minor ? { label: `${formatMinor(money.settlement_attention_minor)} needs payout review`, to: "/(app)/(provider-tabs)/payments", icon: "alert-circle-outline", tone: "danger" } : null,
-    needsUpdate ? { label: `${needsUpdate} ${plural(needsUpdate, "Property needs", "Properties need")} an update`, to: "/(app)/(provider-tabs)/properties", icon: "shield-checkmark-outline", tone: "danger" } : null,
-  ].filter((item): item is AttentionSignal => item !== null);
+  const moves = nextMoves({
+    overdueMinor: money?.overdue_minor ?? 0,
+    settlementAttentionMinor: money?.settlement_attention_minor ?? 0,
+    // Only the records the provider still owes an answer on.
+    recordsToConfirm: money?.payment_records_awaiting_you ?? 0,
+    maintenanceAlerts: counts?.maintenance_alerts ?? 0,
+    requests: applications + (counts?.pending_join_requests ?? 0),
+    viewingRequests: viewings.filter((row) => !row.confirmed_starts_at).length,
+    draftAgreements: drafts,
+    propertiesToUpdate: needsUpdate,
+    unreadEnquiries,
+    money: (minor) => formatMinor(minor),
+  });
 
   const upcoming = viewings
     .filter((row) => row.confirmed_starts_at && row.is_upcoming)
     .sort((a, b) => (a.confirmed_starts_at ?? "").localeCompare(b.confirmed_starts_at ?? ""))
     .slice(0, 3);
 
-  const activity = [
-    ...(summary?.recent_payments ?? []).map((row) => ({
-      id: `payment-${row.id}`,
-      at: row.paid_on,
-      text: `${row.status === "confirmed" ? "Payment confirmed" : "Payment recorded"} — ${row.tenant_name}, ${row.unit_label}`,
-      icon: "wallet-outline" as const,
-    })),
-    ...(summary?.recent_activity ?? []).map((row) => ({
-      id: `a-${row.id}`,
-      at: row.at,
-      text: row.title,
-      icon: (row.kind === "property_added" ? "business-outline" : "people-outline") as keyof typeof Ionicons.glyphMap,
-    })),
-  ].sort((a, b) => b.at.localeCompare(a.at)).slice(0, 3);
-
   // The web and mobile Homes highlight the same Property. Size leads because
   // this is a Portfolio summary; occupancy only breaks a tie.
-  const featuredProperty = [...properties].sort((left, right) =>
+  const largest = [...properties].sort((left, right) =>
     right.unit_count - left.unit_count
     || right.occupied_unit_count - left.occupied_unit_count
     || left.title.localeCompare(right.title)
   )[0] ?? null;
 
+  const readings = insights({
+    units: unitCount,
+    occupied,
+    vacant: available,
+    largest: largest ? { id: largest.id, title: largest.title, units: largest.unit_count, occupied: largest.occupied_unit_count } : null,
+  });
+
+  const activity: (ActivityRow & { at: string })[] = [
+    ...(summary?.recent_payments ?? []).map((row): ActivityRow & { at: string } => ({
+      id: `payment-${row.id}`,
+      at: row.paid_on,
+      title: row.tenant_name,
+      line: `${formatMinor(row.amount_minor)} · ${row.unit_label}`,
+      icon: "wallet-outline",
+      tone: row.awaiting_you ? "warning" : "calm",
+      status: row.awaiting_you ? "To confirm" : row.status === "confirmed" ? "Paid" : "Recorded",
+      when: ago(row.paid_on, openedAt),
+    })),
+    ...(summary?.recent_activity ?? []).map((row): ActivityRow & { at: string } => ({
+      id: `a-${row.id}`,
+      at: row.at,
+      title: row.title,
+      line: row.kind === "property_added" ? "Property added" : "Tenant joined",
+      icon: row.kind === "property_added" ? "business-outline" : "person-add-outline",
+      tone: row.kind === "property_added" ? "ink" : "lagoon",
+      status: null,
+      when: ago(row.at, openedAt),
+    })),
+  ].sort((a, b) => b.at.localeCompare(a.at)).slice(0, 4);
+
+  const go = (to: Href) => router.push(to as never);
+
   // A Portfolio with nothing in it gets a beginning, not a screen of zeroes.
   if (!loading && !summary && !error) {
     return (
-      <ScrollView contentContainerStyle={{ padding: density.pagePadding, gap: density.sectionGap }}>
-        <View style={{ gap: space[1] }}>
-          {/* The type's muted default is set for ivory; on the green it is darker. */}
-          <Type variant="label" style={{ color: ph.ink70 }}>YOUR PORTFOLIO</Type>
-          <Type variant="display2" accessibilityRole="header" style={{ fontSize: density.headingSize, lineHeight: density.headingLine }}>Good day, {name}</Type>
-        </View>
-        <View style={{ gap: space[3], paddingLeft: space[4], borderLeftWidth: 3, borderLeftColor: theme.color.kola["600"] }}>
-          <Type variant="title2" accessibilityRole="header">Your Portfolio starts here</Type>
-          <Type variant="caption" style={{ color: ph.ink70 }}>
+      <HomeHeroScroll title={`Good day, ${name}`} padding={density.pagePadding} gap={density.sectionGap}>
+        <View style={[dash.card, { gap: space[3] }]}>
+          <Type variant="title2" accessibilityRole="header" style={{ color: INK }}>Your Portfolio starts here</Type>
+          <Type variant="caption" style={{ color: MUTED }}>
             Add your first Property and Rooomly will help you organize its Units, tenants,
             agreements and rent.
           </Type>
           <Button label="Add first Property" onPress={() => router.push("/(app)/private-property" as never)} />
         </View>
-      </ScrollView>
+      </HomeHeroScroll>
     );
   }
 
   if (loading && !summary) {
     return (
-      <ScrollView contentContainerStyle={{ padding: density.pagePadding, paddingBottom: space[12], gap: density.sectionGap }}>
-        <View style={{ gap: space[1] }}>
-          <Type variant="label" style={{ color: ph.ink70 }}>YOUR PORTFOLIO</Type>
-          <Type variant="display2" accessibilityRole="header" style={{ fontSize: density.headingSize, lineHeight: density.headingLine }}>Good day, {name}</Type>
-        </View>
+      <HomeHeroScroll title={`Good day, ${name}`} padding={density.pagePadding} gap={density.sectionGap}>
         <ProviderDashboardSkeleton />
-      </ScrollView>
+      </HomeHeroScroll>
     );
   }
 
+  // Two ways into the Portfolio's people and places, under the greeting.
+  const chips: HeroChip[] = [
+    {
+      id: "properties",
+      icon: "business-outline",
+      label: `${counts?.properties ?? properties.length} ${(counts?.properties ?? properties.length) === 1 ? "Property" : "Properties"}`,
+      onPress: () => router.push("/(app)/(provider-tabs)/properties" as never),
+    },
+    {
+      id: "tenants",
+      icon: "people-outline",
+      label: `${counts?.active_tenants ?? 0} ${(counts?.active_tenants ?? 0) === 1 ? "tenant" : "tenants"}`,
+      onPress: () => router.push("/(app)/(provider-tabs)/tenants" as never),
+    },
+  ];
+
   return (
-    <ScrollView
-      contentContainerStyle={{ padding: density.pagePadding, paddingBottom: space[12], gap: density.sectionGap }}
+    <HomeHeroScroll
+      title={`Good day, ${name}`}
+      chips={chips}
+      padding={density.pagePadding}
+      gap={space[6]}
       refreshControl={
         <RefreshControl
           refreshing={refreshing}
           onRefresh={async () => { setRefreshing(true); await load(); setRefreshing(false); }}
-          tintColor={ph.brand}
+          // White, on the hero's green.
+          tintColor={theme.color.field["0"]}
         />
       }
     >
-      <View style={{ gap: space[1], paddingBottom: density.compact ? space[1] : space[2] }}>
-        <Type variant="label" style={{ fontSize: density.labelSize, lineHeight: 14, color: ph.ink70 }}>
-          {summary?.organization.name.toUpperCase() ?? "YOUR PORTFOLIO"}
-        </Type>
-        <Type variant="display2" accessibilityRole="header" style={{ fontSize: density.headingSize, lineHeight: density.headingLine, color: ph.ink }}>
-          Good day, {name}
-        </Type>
-        <View pointerEvents="none" style={{ flexDirection: "row", alignItems: "center", gap: space[2], marginTop: density.compact ? 2 : space[1] }}>
-          <View style={{ width: density.compact ? 24 : 30, height: 2, backgroundColor: ph.gold }} />
-          <View style={{ flex: 1, height: 1, backgroundColor: ph.line }} />
-        </View>
-      </View>
-
       {error ? <Notice tone="error" title={error} /> : null}
 
-      {featuredProperty ? (
-        <PortfolioHighlight
-          property={featuredProperty}
-          onPress={() => router.push({ pathname: "/(app)/provider-property", params: { propertyId: featuredProperty.id } })}
+      <Section title="Your next move" meta={moves.length ? `${moves.length} waiting` : undefined}>
+        <NextMoves
+          moves={moves.map((move) => ({ ...move, onPress: () => go(move.to) }))}
+          calm={{ title: "Nothing is waiting on you", hint: "Rent, requests and agreements are up to date." }}
         />
+      </Section>
+
+      <Section title="Overview">
+        <PortfolioOverview
+          occupied={occupied}
+          units={unitCount}
+          available={available}
+          properties={counts?.properties ?? properties.length}
+          tenants={counts?.active_tenants ?? 0}
+          month={summary?.rent_collection.monthly.at(-1) ?? null}
+          onProperties={() => go("/(app)/(provider-tabs)/properties")}
+          onUnits={() => go("/(app)/units")}
+          onTenants={() => go("/(app)/(provider-tabs)/tenants")}
+        />
+      </Section>
+
+      {readings.length ? (
+        <Section title="Highlights">
+          <Highlights items={readings.map((reading) => ({ ...reading, onPress: () => go(reading.to) }))} />
+        </Section>
       ) : null}
 
-      <PortfolioOverview
-        occupancy={occupancy}
-        occupied={occupied}
-        units={unitCount}
-        available={available}
-        properties={counts?.properties ?? properties.length}
-        tenants={counts?.active_tenants ?? 0}
-        attention={attention.length}
-        onProperties={() => router.push("/(app)/(provider-tabs)/properties" as never)}
-        onUnits={() => router.push("/(app)/units" as never)}
-        onTenants={() => router.push("/(app)/(provider-tabs)/tenants" as never)}
-      />
+      <Section title="Rent collection" link={{ label: "Payments", onPress: () => go("/(app)/(provider-tabs)/payments") }}>
+        <RentCollection collection={summary?.rent_collection ?? null} />
+      </Section>
 
-      <AttentionPanel signals={attention} onOpen={(to) => router.push(to as never)} />
-
-      <RentCollection
-        collection={summary?.rent_collection ?? null}
-        onPress={() => router.push("/(app)/(provider-tabs)/payments" as never)}
-      />
-
-      <PlinthCard
-        title="Upcoming viewings"
-        meta={upcoming.length ? `${upcoming.length} booked` : undefined}
-        action={{ label: "All viewings", onPress: () => router.push("/(app)/provider-viewings" as never) }}
-      >
-        {upcoming.length ? (
-          upcoming.map((row, index) => (
-            <View key={row.id} style={plinthRow(index === 0, density.compact)}>
-              <View style={{ width: density.compact ? 62 : 72 }}>
-                <Type variant="bodyStrong" style={{ fontSize: density.compact ? 12.25 : 13, lineHeight: 17, color: ph.ink }}>
-                  {whenLabel(row.confirmed_starts_at as string, openedAt)}
-                </Type>
-                <Type variant="caption" style={{ fontSize: density.compact ? 10.5 : 11, lineHeight: 15, color: ph.ink38 }}>
-                  {shortDate(row.confirmed_starts_at as string)}
-                </Type>
-              </View>
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <Type variant="bodyStrong" style={{ fontSize: density.compact ? 12.5 : 13.5, lineHeight: 18, color: ph.ink }}>{row.listing_headline}</Type>
-                <Type variant="caption" style={{ fontSize: density.compact ? 11 : 12, lineHeight: 16, color: ph.ink55 }}>{row.tenant_name}</Type>
-              </View>
-            </View>
-          ))
-        ) : (
-          <Type variant="caption" style={{ color: ph.ink38, paddingVertical: space[3] }}>
-            {viewings.length ? `${viewings.length} waiting for times` : "Nothing booked"}
-          </Type>
-        )}
-      </PlinthCard>
+      {upcoming.length ? (
+        <Section title="Coming up" link={{ label: "All viewings", onPress: () => go("/(app)/provider-viewings") }}>
+          <View style={dash.card}>
+            {upcoming.map((row, index) => (
+              <Fragment key={row.id}>
+                {index ? <View style={dash.rule} /> : null}
+                <VisitRow viewing={row} openedAt={openedAt} onPress={() => go({ pathname: "/(app)/provider-viewing", params: { viewingId: row.id } })} />
+              </Fragment>
+            ))}
+          </View>
+        </Section>
+      ) : null}
 
       {activity.length ? (
-        <PlinthCard
-          title="Recent activity"
-          action={{ label: "Updates", onPress: () => router.push("/(app)/notifications" as never) }}
-        >
-          {activity.map((event, index) => (
-            <View key={event.id} style={plinthRow(index === 0, density.compact)}>
-              <View style={tile(event.icon === "wallet-outline", density.compact)}>
-                <Ionicons
-                  name={event.icon}
-                  size={density.compact ? 13.5 : 15}
-                  color={event.icon === "wallet-outline" ? ph.sage : ph.graphite}
-                />
-              </View>
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <Type variant="bodyStrong" style={{ fontSize: density.compact ? 12.25 : 13, lineHeight: 17, color: ph.ink }}>{event.text}</Type>
-                <Type variant="caption" style={{ fontSize: density.compact ? 10.5 : 11.5, lineHeight: 15, color: ph.ink38 }}>{shortDate(event.at)}</Type>
-              </View>
-            </View>
-          ))}
-        </PlinthCard>
-      ) : null}
-    </ScrollView>
-  );
-}
-
-/**
- * One Property worth recognizing, before the Portfolio is reduced to figures.
- * It stays deliberately shorter than the overview card: this is a way into the
- * Portfolio, not a second dashboard instrument.
- */
-function PortfolioHighlight({
-  property,
-  onPress,
-}: {
-  property: ManagedProperty;
-  onPress: () => void;
-}) {
-  const density = useHomeDensity();
-  const occupied = property.occupied_unit_count;
-  const total = property.unit_count;
-  const occupancy = total ? Math.round((occupied / total) * 100) : 0;
-  const where = [property.address.locality_name, property.address.district_name]
-    .filter(Boolean)
-    .join(", ");
-  const imageWidth = density.veryCompact ? 88 : density.compact ? 96 : 108;
-  const cardHeight = density.veryCompact ? 96 : density.compact ? 102 : 110;
-
-  return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={`Open ${property.title}. Portfolio highlight. ${occupancy}% occupied.`}
-      accessibilityHint="Open Property details"
-      {...pressableFeedback(ph.paperDim)}
-      style={({ pressed }) => ({
-        width: "100%",
-        height: cardHeight,
-        flexDirection: "row",
-        overflow: "hidden",
-        backgroundColor: ph.paper,
-        borderWidth: 1,
-        borderColor: ph.edge,
-        borderRadius: density.compact ? 14 : 16,
-        opacity: pressed ? 0.88 : 1,
-        transform: [{ scale: pressed ? 0.992 : 1 }],
-      })}
-    >
-      <View
-        style={{
-          width: imageWidth,
-          alignItems: "center",
-          justifyContent: "center",
-          overflow: "hidden",
-          backgroundColor: ph.navy,
-          borderRightWidth: 1,
-          borderRightColor: ph.line,
-        }}
-      >
-        {property.cover_url ? (
-          <Image
-            source={{ uri: property.cover_url }}
-            accessible={false}
-            resizeMode="cover"
-            style={{ position: "absolute", inset: 0 }}
-          />
-        ) : (
-          <Ionicons name="image-outline" size={density.compact ? 22 : 24} color="rgba(255,255,255,0.62)" />
-        )}
-      </View>
-
-      <View style={{ flex: 1, minWidth: 0, justifyContent: "center", paddingHorizontal: density.compact ? 11 : 14, paddingVertical: density.compact ? 9 : 11 }}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-          <View style={{ width: 5, height: 5, transform: [{ rotate: "45deg" }], backgroundColor: ph.gold }} />
-          <Type variant="label" style={{ flex: 1, fontSize: density.compact ? 8.5 : 9.5, lineHeight: 12, letterSpacing: 0.55, color: ph.ink38 }} numberOfLines={1}>
-            PORTFOLIO HIGHLIGHT
-          </Type>
-          <Ionicons name="arrow-forward" size={density.compact ? 11 : 12} color={ph.graphite} />
-        </View>
-
-        <Type variant="bodyStrong" numberOfLines={1} style={{ marginTop: 3, fontSize: density.compact ? 13.5 : 14.5, lineHeight: 19, color: ph.ink }}>
-          {property.title}
-        </Type>
-        <Type variant="caption" numberOfLines={1} style={{ fontSize: density.compact ? 10.5 : 11.5, lineHeight: 16, color: ph.ink55 }}>
-          {where || "Location not added"} · {total} {plural(total, "Unit", "Units")}
-        </Type>
-
-        <View style={{ flexDirection: "row", alignItems: "center", gap: space[2], marginTop: density.compact ? 6 : 8 }}>
-          <View style={{ flex: 1, height: 4, overflow: "hidden", borderRadius: 3, backgroundColor: ph.lineStrong }}>
-            <View style={{ width: `${occupancy}%`, height: "100%", borderRadius: 3, backgroundColor: ph.sage }} />
+        <Section title="Recent activity" link={{ label: "Updates", onPress: () => go("/(app)/notifications") }}>
+          <View style={dash.card}>
+            {activity.map((row, index) => (
+              <Fragment key={row.id}>
+                {index ? <View style={dash.rule} /> : null}
+                <ActivityItem row={row} />
+              </Fragment>
+            ))}
           </View>
-          <Type variant="caption" style={{ fontSize: density.compact ? 9.5 : 10.5, lineHeight: 13, fontWeight: "600", color: ph.sage }}>
-            {occupancy}%
-          </Type>
-        </View>
-      </View>
-    </Pressable>
+        </Section>
+      ) : null}
+    </HomeHeroScroll>
   );
 }
 
 /**
- * The Portfolio, at a glance.
+ * The Portfolio at a glance: two rings side by side, then the four counts on
+ * one straight line under them (owner, 2026-10-06).
  *
- * The gauge is the screen's one instrument. A phone has no hover, so the
- * gesture that reveals the count behind the percentage is a press — the same
- * trade the web dashboard makes, in the input this device actually has.
+ * The rings are the two things a landlord tracks: how much of the Portfolio
+ * is let, and how much of this month's rent is in. Each is the brand's green
+ * for what is done, with the rest as its own softer arc in the colour it has
+ * elsewhere — an empty Unit in laterite, rent still owed in harmattan, as on
+ * the chart — so the gap is seen and not just implied. Holding a ring shows
+ * the figures behind its percentage; a phone has no hover, so the press is the
+ * gesture. Each count on the line opens its list.
  */
 function PortfolioOverview({
-  occupancy,
   occupied,
   units,
   available,
   properties,
   tenants,
-  attention,
+  month,
   onProperties,
   onUnits,
   onTenants,
 }: {
-  occupancy: number;
   occupied: number;
   units: number;
   available: number;
   properties: number;
   tenants: number;
-  attention: number;
+  /** This month's rent: the last monthly point of the chart. */
+  month: { period: string; collected_minor: number; outstanding_minor: number } | null;
   onProperties: () => void;
   onUnits: () => void;
   onTenants: () => void;
 }) {
-  const density = useHomeDensity();
-  const [showCount, setShowCount] = useState(false);
-  const clamped = Math.max(0, Math.min(occupancy, 100));
-  const size = density.ringSize;
-  const radius = size * 0.402;
-  const strokeWidth = density.compact ? 7.5 : 9;
-  const circumference = 2 * Math.PI * radius;
-  const centre = size / 2;
-  const markAngle = (clamped * 3.6 - 90) * (Math.PI / 180);
-
+  const due = month ? month.collected_minor + month.outstanding_minor : 0;
   return (
-    <View style={[primarySurface, { padding: density.cardPadding, borderRadius: density.compact ? 14 : 16 }]}>
-      <Ticks />
-      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: space[2], marginBottom: density.compact ? space[3] : space[4] }}>
-        <Type variant="bodyStrong" style={{ fontSize: density.compact ? 13 : 14, lineHeight: 19, color: ph.ink }}>Portfolio overview</Type>
-        <View style={{ flexShrink: 1, paddingHorizontal: density.compact ? 7 : 9, paddingVertical: density.compact ? 2 : 3, borderRadius: 20, backgroundColor: attention ? ph.amberSoft : ph.greenSoft }}>
-          <Type variant="caption" numberOfLines={1} style={{ fontSize: density.compact ? 10.25 : 11.5, lineHeight: 15, fontWeight: "500", color: attention ? ph.amber : ph.sage }}>
-            {attention ? `${attention} ${plural(attention, "item needs", "items need")} you` : "All systems normal"}
-          </Type>
-        </View>
-      </View>
-
-      {/* Side by side. Stacked, the dial pushed the figures most of a screen
-          down and the card was most of a phone tall for six numbers. */}
-      <View style={{ flexDirection: "row", alignItems: "center", gap: density.compact ? space[3] : space[4] }}>
-        <Pressable
-          onPressIn={() => setShowCount(true)}
-          onPressOut={() => setShowCount(false)}
-          accessibilityRole="summary"
-          accessibilityLabel={`${clamped}% occupancy, ${occupied} of ${units} Units occupied`}
-          style={{ width: size, height: size }}
-        >
-          <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-            <Circle cx={centre} cy={centre} r={radius} fill="none" stroke={ph.lineStrong} strokeWidth={strokeWidth} />
-            <Circle
-              cx={centre}
-              cy={centre}
-              r={radius}
-              fill="none"
-              stroke={ph.brand}
-              strokeWidth={showCount ? strokeWidth + 1.5 : strokeWidth}
-              strokeLinecap="round"
-              strokeDasharray={`${circumference} ${circumference}`}
-              strokeDashoffset={circumference * (1 - clamped / 100)}
-              transform={`rotate(-90 ${centre} ${centre})`}
+    <View style={dash.card}>
+      {units ? (
+        <Rings>
+          <Ring
+            share={occupied / units}
+            rest={RING_EMPTY}
+            figure={`${Math.round((occupied / units) * 100)}%`}
+            unit="let"
+            heldFigure={`${occupied}/${units}`}
+            heldUnit="Units let"
+            title="Occupancy"
+            line={`${occupied} of ${units} Units let`}
+          />
+          {month && due ? (
+            <Ring
+              share={month.collected_minor / due}
+              rest={RING_OWED}
+              figure={`${Math.round((month.collected_minor / due) * 100)}%`}
+              unit="in"
+              heldFigure={shortMoney(month.collected_minor)}
+              heldUnit={`of ${shortMoney(due)}`}
+              title={`${monthName(month.period)} rent`}
+              line={`${shortMoney(month.outstanding_minor)} still owed`}
             />
-            {/* The gold register, and a caliper mark at the reading. */}
-            <Circle
-              cx={centre}
-              cy={centre}
-              r={radius}
-              fill="none"
-              stroke={ph.gold}
-              strokeWidth={1}
-              strokeDasharray="1 7.6"
-              opacity={showCount ? 0.9 : 0.45}
+          ) : (
+            // Nothing due this month still gets its ring, drawn as nothing:
+            // a faint dashed outline, and the words to match.
+            <Ring
+              share={null}
+              rest={RING_OWED}
+              figure="None"
+              unit="due"
+              title={month ? `${monthName(month.period)} rent` : "This month's rent"}
+              line="No rent due yet"
             />
-            {showCount ? (
-              <Line
-                x1={centre + Math.cos(markAngle) * (radius + (density.compact ? 6 : 8))}
-                y1={centre + Math.sin(markAngle) * (radius + (density.compact ? 6 : 8))}
-                x2={centre + Math.cos(markAngle) * (radius + (density.compact ? 13 : 17))}
-                y2={centre + Math.sin(markAngle) * (radius + (density.compact ? 13 : 17))}
-                stroke={ph.gold}
-                strokeWidth={2}
-                strokeLinecap="round"
-              />
-            ) : null}
-          </Svg>
-          <View style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, alignItems: "center", justifyContent: "center" }}>
-            <Type variant="display2" style={{ fontSize: density.compact ? 22 : 26, lineHeight: density.compact ? 25 : 30, color: ph.ink }}>{clamped}%</Type>
-            <Type variant="label" style={{ fontSize: density.compact ? 8 : 9, lineHeight: 11, color: ph.ink38 }}>OCCUPIED</Type>
-            <Type variant="caption" style={{ fontSize: density.compact ? 9 : 10.5, lineHeight: 12, color: showCount ? ph.graphite : "transparent", marginTop: 1 }}>
-              {occupied} of {units}
-            </Type>
+          )}
+        </Rings>
+      ) : (
+        // No Units, no ring: 0% of nothing is a figure about nothing.
+        <Pressable accessibilityRole="link" onPress={onUnits} style={styles.noUnits}>
+          <Type variant="caption" style={{ color: MUTED }}>Occupancy</Type>
+          <Type variant="bodyStrong" style={dash.leadTitle}>No Units yet</Type>
+          <View style={styles.insightAct}>
+            <Type variant="captionStrong" style={{ color: KOLA_DEEP }}>Add Units to start letting</Type>
+            <Ionicons name="arrow-forward" size={13} color={KOLA_DEEP} />
           </View>
         </Pressable>
-
-        <PortfolioLedger
-          height={size}
-          compact={density.compact}
-          properties={properties}
-          units={units}
-          tenants={tenants}
-          available={available}
-          onProperties={onProperties}
-          onUnits={onUnits}
-          onTenants={onTenants}
-        />
-      </View>
-    </View>
-  );
-}
-
-/**
- * The numbers form a ledger, not four equal KPIs. Inventory is the governing
- * figure; Properties and tenancies explain its structure; vacancy is the
- * current operational condition. The gold register joins this reading to the
- * calibrated ring beside it.
- */
-function PortfolioLedger({
-  height,
-  compact,
-  properties,
-  units,
-  tenants,
-  available,
-  onProperties,
-  onUnits,
-  onTenants,
-}: {
-  height: number;
-  compact: boolean;
-  properties: number;
-  units: number;
-  tenants: number;
-  available: number;
-  onProperties: () => void;
-  onUnits: () => void;
-  onTenants: () => void;
-}) {
-  return (
-    <View
-      style={{
-        flex: 1,
-        minWidth: 0,
-        height,
-        paddingLeft: compact ? space[2] : space[3],
-        borderLeftWidth: 1,
-        borderLeftColor: ph.lineStrong,
-      }}
-    >
-      <Pressable
-        onPress={onUnits}
-        accessibilityRole="button"
-        accessibilityLabel={`${units} Units`}
-        accessibilityHint="Open Units"
-        hitSlop={compact ? 3 : 2}
-        style={{ flex: 1, minHeight: compact ? 35 : 42, justifyContent: "center" }}
-        {...pressableFeedback(ph.paperDim)}
-      >
-        <View style={{ flexDirection: "row", alignItems: "center" }}>
-          <Type variant="display2" style={{ fontSize: compact ? 23 : 27, lineHeight: compact ? 26 : 30, letterSpacing: -0.4, color: ph.ink }}>
-            {units}
-          </Type>
-          <View style={{ minWidth: 0, marginLeft: compact ? 7 : 9 }}>
-            <Type variant="label" style={{ fontSize: compact ? 8.5 : 9, lineHeight: 11, letterSpacing: 0.55, color: ph.ink38 }}>
-              RENTABLE
-            </Type>
-            <Type variant="bodyStrong" style={{ fontSize: compact ? 11.5 : 12.5, lineHeight: 15, fontWeight: "600", color: ph.ink70 }}>
-              Units
-            </Type>
-          </View>
-          <Ionicons name="arrow-forward" size={compact ? 10 : 11} color={ph.ink38} style={{ marginLeft: "auto" }} />
-        </View>
-      </Pressable>
-
-      {/* A measured rule rather than another container: gold establishes the
-          register, graphite carries it to the edge. */}
-      <View pointerEvents="none" style={{ flexDirection: "row", alignItems: "center" }}>
-        <View style={{ width: compact ? 18 : 22, height: 1.5, backgroundColor: ph.gold }} />
-        <View style={{ flex: 1, height: 1, backgroundColor: ph.line }} />
-      </View>
-
-      <View style={{ flexDirection: "row", alignItems: "stretch", minHeight: compact ? 29 : 34 }}>
-        <LedgerRelation label="Properties" value={properties} onPress={onProperties} compact={compact} />
-        <View pointerEvents="none" style={{ width: 1, marginVertical: compact ? 6 : 7, backgroundColor: ph.line }} />
-        <LedgerRelation label="Tenancies" value={tenants} onPress={onTenants} compact={compact} />
-      </View>
-
-      <Pressable
-        onPress={onUnits}
-        accessibilityRole="button"
-        accessibilityLabel={`${available} Vacant Units`}
-        accessibilityHint="Open vacant Units"
-        hitSlop={compact ? 4 : 3}
-        style={{ minHeight: compact ? 22 : 25, flexDirection: "row", alignItems: "center", gap: 6, borderTopWidth: 1, borderTopColor: ph.line }}
-        {...pressableFeedback(ph.paperDim)}
-      >
-        <View style={{ width: 9, height: 9, borderRadius: 5, alignItems: "center", justifyContent: "center", backgroundColor: ph.greenSoft }}>
-          <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: ph.sage }} />
-        </View>
-        <Type variant="caption" style={{ flex: 1, fontSize: compact ? 9.5 : 10.5, lineHeight: 13, color: ph.ink55 }} numberOfLines={1}>
-          <Type variant="caption" style={{ fontSize: compact ? 10.5 : 11.5, lineHeight: 13, fontWeight: "700", color: ph.sage }}>{available}</Type>
-          {"  "}{available ? "vacant · ready to let" : "vacant · fully occupied"}
-        </Type>
-      </Pressable>
-    </View>
-  );
-}
-
-function LedgerRelation({ label, value, onPress, compact }: { label: "Properties" | "Tenancies"; value: number; onPress: () => void; compact: boolean }) {
-  return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={`${value} ${label}`}
-      accessibilityHint={`Open ${label.toLowerCase()}`}
-      hitSlop={compact ? 3 : 2}
-      style={{ flex: 1, minWidth: 0, flexDirection: "row", alignItems: "baseline", gap: compact ? 4 : 5, paddingHorizontal: compact ? 4 : 6 }}
-      {...pressableFeedback(ph.paperDim)}
-    >
-      <Type variant="display2" style={{ fontSize: compact ? 14.5 : 16, lineHeight: compact ? 18 : 20, color: ph.ink }}>
-        {value}
-      </Type>
-      <Type variant="caption" style={{ flex: 1, fontSize: compact ? 9.5 : 10.5, lineHeight: 13, color: ph.ink55 }} numberOfLines={1}>
-        {label}
-      </Type>
-    </Pressable>
-  );
-}
-
-/** Severity is a dot with a halo, and the action sits on the right. */
-function AttentionPanel({ signals, onOpen }: { signals: AttentionSignal[]; onOpen: (to: string) => void }) {
-  const density = useHomeDensity();
-  return (
-    <View style={[surface, { padding: density.cardPadding, borderRadius: density.compact ? 14 : 16 }]}>
-      <View style={{ flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", marginBottom: space[2] }}>
-        <Type variant="bodyStrong" style={{ fontSize: density.compact ? 13 : 14, lineHeight: 19, color: ph.ink }}>Needs attention</Type>
-        <Type variant="caption" style={{ fontSize: density.compact ? 11.5 : 12.5, lineHeight: 17, color: ph.ink38 }}>
-          {signals.length ? `${signals.length} ${plural(signals.length, "item", "items")}` : "All clear"}
-        </Type>
-      </View>
-
-      {signals.length ? (
-        signals.slice(0, 5).map((signal, index) => (
-          <Pressable
-            key={signal.label}
-            onPress={() => onOpen(signal.to)}
-            style={plinthRow(index === 0, density.compact)}
-            accessibilityRole="button"
-            {...pressableFeedback(ph.paperDim)}
-          >
-            <View
-              style={{
-                width: density.compact ? 6 : 7,
-                height: density.compact ? 6 : 7,
-                borderRadius: 4,
-                backgroundColor: signal.tone === "danger" ? ph.brick : ph.amber,
-                borderWidth: 3,
-                borderColor: signal.tone === "danger" ? ph.brickSoft : ph.amberSoft,
-              }}
-            />
-            <Type variant="bodyStrong" style={{ flex: 1, fontSize: density.compact ? 12.25 : 13.2, lineHeight: 17, color: ph.ink }}>{signal.label}</Type>
-            <Type variant="caption" style={{ fontSize: density.compact ? 10.25 : 11, lineHeight: 15, color: ph.ink38 }}>
-              {signal.tone === "danger" ? "Act now" : "Soon"}
-            </Type>
-            <Ionicons name="chevron-forward" size={density.compact ? 12 : 14} color={ph.ink38} />
-          </Pressable>
-        ))
-      ) : (
-        <View style={{ flexDirection: "row", alignItems: "center", gap: density.compact ? space[2] : space[3], paddingVertical: space[2] }}>
-          <View style={{ width: density.compact ? 24 : 26, height: density.compact ? 24 : 26, borderRadius: 13, alignItems: "center", justifyContent: "center", backgroundColor: ph.greenSoft }}>
-            <Ionicons name="checkmark" size={density.compact ? 13 : 14} color={ph.sage} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Type variant="bodyStrong" style={{ fontSize: density.compact ? 12.25 : 13.2, lineHeight: 17, color: ph.ink }}>Nothing is waiting on you.</Type>
-            <Type variant="caption" style={{ fontSize: density.compact ? 11 : 12, lineHeight: 16, color: ph.ink55 }}>Rent, agreements and Property checks are up to date.</Type>
-          </View>
-        </View>
       )}
+      <StatCells>
+        <Cell label="Units" value={units} onPress={onUnits} />
+        <CellRule />
+        <Cell label="Vacant" value={available} onPress={onUnits} alert={available > 0} />
+        <CellRule />
+        <Cell label="Properties" value={properties} onPress={onProperties} />
+        <CellRule />
+        <Cell label="Tenancies" value={tenants} onPress={onTenants} />
+      </StatCells>
     </View>
   );
+}
+
+/** "GH₵14.2k" — short enough for the middle of a ring. */
+function shortMoney(minor: number): string {
+  const cedis = minor / 100;
+  if (cedis >= 1_000_000) return `GH₵${(cedis / 1_000_000).toFixed(1).replace(/\.0$/, "")}m`;
+  if (cedis >= 1_000) return `GH₵${(cedis / 1_000).toFixed(1).replace(/\.0$/, "")}k`;
+  return `GH₵${Math.round(cedis)}`;
 }
 
 /**
@@ -739,20 +463,16 @@ function AttentionPanel({ signals, onOpen }: { signals: AttentionSignal[]; onOpe
  * is a quantity standing at a moment. They are never netted — money that
  * arrived and money that has not are different questions.
  *
- * A phone cannot hover, so a period is read by tapping its column. Six months
+ * A phone cannot hover, so a period is read by tapping it: a tooltip rises over
+ * its column with both figures, and tapping again puts it away. Six months
  * rather than twelve: twelve labels on a 360px screen is a smear, and the
  * yearly view is one tap away.
  */
-function RentCollection({
-  collection,
-  onPress,
-}: {
-  collection: PortfolioSummary["rent_collection"] | null;
-  onPress: () => void;
-}) {
+function RentCollection({ collection }: { collection: PortfolioSummary["rent_collection"] | null }) {
   const density = useHomeDensity();
   const [period, setPeriod] = useState<"monthly" | "yearly">("monthly");
   const [active, setActive] = useState<number | null>(null);
+  const [plotWidth, setPlotWidth] = useState(0);
 
   const all = collection ? collection[period] : [];
   const points = period === "monthly" ? all.slice(-6) : all;
@@ -765,26 +485,27 @@ function RentCollection({
     { collected: 0, outstanding: 0 },
   );
 
-  const width = 300;
+  // Drawn in the plot's own pixels once it is measured, so the line and its dots keep their shape.
+  const width = Math.max(plotWidth, 240);
   const height = density.chartHeight;
-  const left = 8;
-  const right = 8;
-  const top = 10;
-  const bottom = 24;
-  const plotWidth = width - left - right;
-  const plotHeight = height - top - bottom;
+  const left = 10;
+  const right = 10;
+  const top = 12;
+  const bottom = 6;
+  const innerWidth = width - left - right;
+  const innerHeight = height - top - bottom;
   const peak = Math.max(1, ...points.map((row) => Math.max(row.collected_minor, row.outstanding_minor)));
-  const ceiling = Math.ceil((peak * 1.12) / 10 ** Math.max(Math.floor(Math.log10(peak * 1.12)) - 1, 0))
-    * 10 ** Math.max(Math.floor(Math.log10(peak * 1.12)) - 1, 0);
-  const step = points.length > 1 ? plotWidth / (points.length - 1) : 0;
-  const x = (index: number) => (points.length > 1 ? left + step * index : left + plotWidth / 2);
-  const y = (value: number) => top + plotHeight * (1 - value / ceiling);
+  const magnitude = 10 ** Math.max(Math.floor(Math.log10(peak * 1.12)) - 1, 0);
+  const ceiling = Math.ceil((peak * 1.12) / magnitude) * magnitude;
+  const step = points.length > 1 ? innerWidth / (points.length - 1) : 0;
+  const x = (index: number) => (points.length > 1 ? left + step * index : left + innerWidth / 2);
+  const y = (value: number) => top + innerHeight * (1 - value / ceiling);
 
   const line = points.map((row, index) => `${index ? "L" : "M"} ${x(index)} ${y(row.collected_minor)}`).join(" ");
   const area = points.length
-    ? `${line} L ${x(points.length - 1)} ${top + plotHeight} L ${x(0)} ${top + plotHeight} Z`
+    ? `${line} L ${x(points.length - 1)} ${top + innerHeight} L ${x(0)} ${top + innerHeight} Z`
     : "";
-  const barWidth = Math.min(18, Math.max(8, step * 0.34));
+  const barWidth = Math.min(16, Math.max(8, step * 0.3));
   const reading = active !== null ? points[active] : null;
   const percent = (value: number) => `${value}%` as `${number}%`;
   const selectPoint = (index: number) => {
@@ -796,34 +517,32 @@ function RentCollection({
     }
   };
 
+  // The tooltip stands beside its column, on the side with room, so it never
+  // covers the reading it describes.
+  const TIP = 184;
+  const tipX = active !== null ? x(active) : 0;
+  const tipLeft = tipX > width / 2 ? Math.max(0, tipX - TIP - 12) : Math.min(width - TIP, tipX + 12);
+
   return (
-    <View style={[primarySurface, { padding: density.cardPadding, borderRadius: density.compact ? 14 : 16 }]}>
-      <Ticks />
-      <View style={{ flexDirection: density.veryCompact ? "column" : "row", alignItems: "flex-start", justifyContent: "space-between", gap: density.compact ? space[2] : space[3] }}>
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <Type variant="label" style={{ fontSize: density.compact ? 9.5 : 10.5, lineHeight: 13, color: ph.ink38 }}>RENT COLLECTION</Type>
-          <Type variant="bodyStrong" style={{ fontSize: density.compact ? 13 : 14, lineHeight: 19, color: ph.ink }}>Received and outstanding</Type>
+    <View style={dash.card}>
+      <View style={styles.chartHead}>
+        <View style={{ flex: 1, minWidth: 0, flexDirection: "row", gap: space[5] }}>
+          <Figure dot={COLLECTED} label="Collected" value={formatMinor(totals.collected)} />
+          <Figure dot={OWED} label="Outstanding" value={formatMinor(totals.outstanding)} />
         </View>
         {hasYearly ? (
-          <View style={{ flexDirection: "row", alignSelf: density.veryCompact ? "flex-start" : "auto", padding: density.compact ? 2 : 3, borderRadius: 9, backgroundColor: ph.paperDim, borderWidth: 1, borderColor: ph.line }}>
+          <View style={styles.toggle}>
             {(["monthly", "yearly"] as const).map((option) => (
               <Pressable
                 key={option}
                 onPress={() => { setPeriod(option); setActive(null); }}
-                hitSlop={density.compact ? 7 : 6}
+                hitSlop={6}
                 accessibilityRole="button"
                 aria-selected={period === option}
-                style={{
-                  minHeight: density.compact ? 30 : 32,
-                  justifyContent: "center",
-                  paddingHorizontal: density.compact ? 8 : 11,
-                  paddingVertical: density.compact ? 3 : 5,
-                  borderRadius: 6,
-                  backgroundColor: period === option ? ph.navy : "transparent",
-                }}
+                style={[styles.toggleOption, period === option ? styles.toggleOn : null]}
               >
-                <Type variant="caption" style={{ fontSize: density.compact ? 10.5 : 11.5, lineHeight: 15, fontWeight: "500", color: period === option ? "#fff" : ph.ink55 }}>
-                  {option === "monthly" ? "Monthly" : "Yearly"}
+                <Type variant="caption" style={{ fontSize: 12, lineHeight: 16, color: period === option ? INK : MUTED }}>
+                  {option === "monthly" ? "6 months" : "Years"}
                 </Type>
               </Pressable>
             ))}
@@ -831,55 +550,34 @@ function RentCollection({
         ) : null}
       </View>
 
-      <View style={{ flexDirection: "row", gap: density.compact ? space[3] : space[6], marginTop: density.compact ? space[3] : space[4], marginBottom: density.compact ? space[2] : space[3] }}>
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-            <View style={{ width: density.compact ? 7 : 8, height: density.compact ? 7 : 8, borderRadius: 2, backgroundColor: ph.navy }} />
-            <Type variant="caption" style={{ fontSize: density.compact ? 10.5 : 11.5, lineHeight: 15, color: ph.ink55 }}>Collected</Type>
-          </View>
-          <Type variant="display2" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82} style={{ fontSize: density.compact ? 17 : 19, lineHeight: density.compact ? 21 : 24, color: ph.ink }}>
-            {formatMinor(reading ? reading.collected_minor : totals.collected)}
-          </Type>
-        </View>
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-            <View style={{ width: density.compact ? 7 : 8, height: density.compact ? 7 : 8, borderRadius: 2, backgroundColor: ph.goldStrong }} />
-            <Type variant="caption" style={{ fontSize: density.compact ? 10.5 : 11.5, lineHeight: 15, color: ph.ink55 }}>Outstanding</Type>
-          </View>
-          <Type variant="display2" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82} style={{ fontSize: density.compact ? 17 : 19, lineHeight: density.compact ? 21 : 24, color: ph.ink }}>
-            {formatMinor(reading ? reading.outstanding_minor : totals.outstanding)}
-          </Type>
-        </View>
-      </View>
-
       {points.length ? (
         <>
-          <View style={{ minHeight: 18, flexDirection: "row", alignItems: "center", gap: 6, marginBottom: density.compact ? 2 : 4 }}>
-            <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: reading ? ph.gold : ph.lineStrong }} />
-            <Type variant="caption" style={{ flex: 1, fontSize: density.compact ? 9.5 : 10.5, lineHeight: 14, color: reading ? ph.ink70 : ph.ink38 }} numberOfLines={1}>
-              {reading ? `${periodLabel(reading.period, period)} selected` : "Touch a period to inspect it"}
-            </Type>
-            {reading ? (
-              <Type variant="caption" style={{ fontSize: density.compact ? 9 : 10, lineHeight: 14, color: ph.ink38 }}>Tap again to reset</Type>
-            ) : null}
-          </View>
-
-          <View style={{ position: "relative", height }}>
+          <View style={{ position: "relative", height, marginTop: space[4] }} onLayout={(event) => setPlotWidth(event.nativeEvent.layout.width)}>
             <Svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`}>
+              <Defs>
+                <LinearGradient id="collected" x1="0" y1="0" x2="0" y2="1">
+                  <Stop offset="0" stopColor={COLLECTED} stopOpacity={0.16} />
+                  <Stop offset="1" stopColor={COLLECTED} stopOpacity={0} />
+                </LinearGradient>
+              </Defs>
               {[0, 0.5, 1].map((ratio) => (
                 <Line
                   key={ratio}
                   x1={left}
-                  y1={top + plotHeight * ratio}
-                  x2={left + plotWidth}
-                  y2={top + plotHeight * ratio}
-                  stroke="rgba(24,22,17,0.08)"
+                  y1={top + innerHeight * ratio}
+                  x2={left + innerWidth}
+                  y2={top + innerHeight * ratio}
+                  stroke={RULE}
                   strokeWidth={1}
+                  strokeDasharray={ratio === 1 ? undefined : "3 4"}
                 />
               ))}
+              {active !== null ? (
+                <Line x1={x(active)} y1={top} x2={x(active)} y2={top + innerHeight} stroke={alpha(theme.color.kola["900"], 0.22)} strokeWidth={1} />
+              ) : null}
               {points.map((row, index) => {
                 const barY = y(row.outstanding_minor);
-                const barHeight = Math.max(0, top + plotHeight - barY);
+                const barHeight = Math.max(0, top + innerHeight - barY);
                 return (
                   <Rect
                     key={`bar-${row.period}`}
@@ -887,13 +585,13 @@ function RentCollection({
                     y={barY}
                     width={barWidth}
                     height={barHeight}
-                    rx={Math.min(barWidth / 2, barHeight / 2)}
-                    fill={active === index ? "#B5822E" : index === points.length - 1 ? ph.goldStrong : ph.goldSoft}
+                    rx={Math.min(4, barWidth / 2, barHeight / 2)}
+                    fill={active === index ? OWED_ACTIVE : index === points.length - 1 ? OWED : OWED_PAST}
                   />
                 );
               })}
-              {area ? <Path d={area} fill="rgba(27,36,48,0.10)" /> : null}
-              {line ? <Path d={line} fill="none" stroke="#12181F" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" /> : null}
+              {area ? <Path d={area} fill="url(#collected)" /> : null}
+              {line ? <Path d={line} fill="none" stroke={COLLECTED} strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" /> : null}
               {points.map((row, index) =>
                 active === index || index === points.length - 1 ? (
                   <Circle
@@ -901,15 +599,12 @@ function RentCollection({
                     cx={x(index)}
                     cy={y(row.collected_minor)}
                     r={active === index ? 5 : 4}
-                    fill="#0F1620"
-                    stroke={ph.paper}
+                    fill={KOLA_DEEP}
+                    stroke={WHITE}
                     strokeWidth={2}
                   />
                 ) : null,
               )}
-              {active !== null ? (
-                <Line x1={x(active)} y1={top} x2={x(active)} y2={top + plotHeight} stroke={ph.ink55} strokeWidth={1} strokeDasharray="2 3" />
-              ) : null}
             </Svg>
 
             {/* The plotted marks are the controls. Each period owns the space
@@ -925,43 +620,40 @@ function RentCollection({
                   accessibilityRole="button"
                   aria-selected={active === index}
                   accessibilityLabel={`${periodLabel(row.period, period)}: ${formatMinor(row.collected_minor)} collected, ${formatMinor(row.outstanding_minor)} outstanding`}
-                  style={({ pressed }) => ({
-                    position: "absolute",
-                    top: 0,
-                    bottom: 0,
-                    left: percent(start),
-                    width: percent(end - start),
-                    backgroundColor: pressed
-                      ? "rgba(156,122,56,0.11)"
-                      : active === index
-                        ? "rgba(156,122,56,0.055)"
-                        : "transparent",
-                    borderRadius: 5,
-                  })}
+                  style={{ position: "absolute", top: 0, bottom: 0, left: percent(start), width: percent(end - start) }}
                 />
               );
             })}
+
+            {reading ? (
+              <View pointerEvents="none" style={[styles.tip, { left: tipLeft, width: TIP }]}>
+                <Type variant="captionStrong" style={styles.tipTitle}>{periodName(reading.period, period)}</Type>
+                <TipLine dot={COLLECTED} label="Collected" value={formatMinor(reading.collected_minor)} />
+                <TipLine dot={OWED} label="Owed" value={formatMinor(reading.outstanding_minor)} />
+              </View>
+            ) : null}
           </View>
 
-          {/* Tap targets and their labels, laid out in the same rhythm as the
-              chart above so a column and its month stay together. */}
-          <View style={{ flexDirection: "row" }}>
+          {/* The months under their columns, in the same rhythm, and each one a
+              second way to read its period. */}
+          <View style={{ flexDirection: "row", marginTop: space[1] }}>
             {points.map((row, index) => (
               <Pressable
                 key={`hit-${row.period}`}
                 onPress={() => selectPoint(index)}
-                hitSlop={density.compact ? 6 : 4}
+                hitSlop={4}
                 accessibilityRole="button"
                 aria-selected={active === index}
                 accessibilityLabel={`${periodLabel(row.period, period)}: ${formatMinor(row.collected_minor)} collected, ${formatMinor(row.outstanding_minor)} outstanding`}
-                style={{ flex: 1, minHeight: density.compact ? 32 : 36, alignItems: "center", justifyContent: "center", paddingVertical: space[1] }}
+                style={{ flex: 1, minHeight: 32, alignItems: "center", justifyContent: "center" }}
               >
                 <Type
                   variant="caption"
                   style={{
-                    fontSize: density.compact ? 9.5 : 10.5,
-                    fontWeight: active === index || index === points.length - 1 ? "600" : "400",
-                    color: active === index || index === points.length - 1 ? ph.ink : ph.ink55,
+                    fontSize: 12,
+                    lineHeight: 16,
+                    fontWeight: active === index ? "500" : "400",
+                    color: active === index ? INK : MUTED,
                   }}
                 >
                   {periodLabel(row.period, period)}
@@ -969,72 +661,177 @@ function RentCollection({
               </Pressable>
             ))}
           </View>
+          <Type variant="caption" style={styles.chartHint}>
+            {reading ? "Tap it again to close" : "Tap a month for its figures"}
+          </Type>
         </>
       ) : (
-        <View style={{ paddingVertical: space[6], alignItems: "center", borderWidth: 1, borderStyle: "dashed", borderColor: ph.lineStrong, borderRadius: 12 }}>
-          <Type variant="bodyStrong" style={{ fontSize: density.compact ? 12.25 : 13, lineHeight: 17, color: ph.ink }}>No rent scheduled yet.</Type>
-          <Type variant="caption" style={{ fontSize: density.compact ? 11 : 12, lineHeight: 16, color: ph.ink55 }}>Collection appears once a lease is active.</Type>
+        <View style={{ marginTop: space[3] }}>
+          <Empty icon="bar-chart-outline" title="No rent scheduled yet" hint="Collection appears once a lease is active." compact ground={WHITE} />
         </View>
       )}
-
-      <Pressable
-        onPress={onPress}
-        accessibilityRole="button"
-        style={{
-          marginTop: density.compact ? space[2] : space[3],
-          paddingTop: density.compact ? space[2] : space[3],
-          borderTopWidth: 1,
-          borderTopColor: ph.line,
-          flexDirection: "row",
-          alignItems: "center",
-          justifyContent: "space-between",
-        }}
-        {...pressableFeedback(ph.paperDim)}
-      >
-        <Type variant="caption" numberOfLines={density.veryCompact ? 1 : undefined} style={{ flex: 1, fontSize: density.compact ? 10.5 : 12, lineHeight: 16, color: ph.ink55 }}>
-          {reading ? "Tap the column again to clear" : "Every confirmed payment and open charge"}
-        </Type>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-          <Type variant="caption" style={{ fontSize: density.compact ? 11.5 : 12.5, lineHeight: 17, fontWeight: "500", color: ph.graphite }}>Payments</Type>
-          <Ionicons name="chevron-forward" size={density.compact ? 11 : 12} color={ph.graphite} />
-        </View>
-      </Pressable>
     </View>
+  );
+}
+
+function Figure({ dot, label, value }: { dot: string; label: string; value: string }) {
+  return (
+    <View style={{ minWidth: 0, flexShrink: 1 }}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+        <View style={[styles.key, { backgroundColor: dot }]} />
+        <Type variant="caption" style={{ fontSize: 12.5, lineHeight: 17, color: MUTED }}>{label}</Type>
+      </View>
+      <Type variant="amount" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={styles.figureSmall}>{value}</Type>
+    </View>
+  );
+}
+
+function TipLine({ dot, label, value }: { dot: string; label: string; value: string }) {
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+      <View style={[styles.key, { backgroundColor: dot }]} />
+      <Type variant="caption" style={styles.tipLabel}>{label}</Type>
+      <Type variant="captionStrong" style={styles.tipValue}>{value}</Type>
+    </View>
+  );
+}
+
+/** A visit with a time: the day on a tile, the place and who is coming beside it. */
+function VisitRow({ viewing, openedAt, onPress }: { viewing: Viewing; openedAt: number; onPress: () => void }) {
+  const at = new Date(viewing.confirmed_starts_at as string);
+  return (
+    <Pressable
+      accessibilityRole="link"
+      onPress={onPress}
+      {...pressableFeedback(PRESSED)}
+      style={({ pressed }) => [dash.listRow, pressed ? { backgroundColor: PRESSED } : null]}
+    >
+      <DayTile at={at} />
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Type variant="body" numberOfLines={1} style={dash.rowTitle}>{viewing.listing_headline}</Type>
+        <Type variant="caption" numberOfLines={1} style={dash.rowLine}>{viewing.tenant_name} · {whenLabel(viewing.confirmed_starts_at as string, openedAt)}</Type>
+      </View>
+      <Ionicons name="chevron-forward" size={16} color={theme.color.ink["300"]} />
+    </Pressable>
   );
 }
 
 /** The shape of the screen, before it arrives. */
 function ProviderDashboardSkeleton() {
-  const density = useHomeDensity();
   const block = (height: number) => ({
     height,
-    borderRadius: density.compact ? 14 : 16,
+    borderRadius: 20,
     backgroundColor: ph.paper,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: ph.edge,
     opacity: 0.7,
   });
   return (
-    <View accessibilityRole="progressbar" accessibilityLabel="Loading your Portfolio" style={{ gap: density.sectionGap }}>
-      <View style={block(density.compact ? 218 : 260)} />
-      <View style={block(density.compact ? 128 : 150)} />
-      <View style={block(density.compact ? 192 : 230)} />
+    <View accessibilityRole="progressbar" accessibilityLabel="Loading your Portfolio" style={{ gap: space[6] }}>
+      <View style={block(196)} />
+      <View style={block(150)} />
+      <View style={block(240)} />
     </View>
   );
 }
 
 function periodLabel(value: string, period: "monthly" | "yearly"): string {
   if (period === "yearly") return value;
-  const month = Number(value.slice(5, 7));
-  return ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][month - 1] ?? value;
+  return monthName(value).slice(0, 3);
 }
 
-/** Today keeps its clock; tomorrow says so; anything further keeps its date. */
+function periodName(value: string, period: "monthly" | "yearly"): string {
+  return period === "yearly" ? value : `${monthName(value)} ${value.slice(0, 4)}`;
+}
+
+/** Today keeps its clock; tomorrow says so; anything further keeps its weekday. */
 function whenLabel(value: string, openedAt: number) {
   const at = new Date(value);
   const time = at.toLocaleTimeString("en-GH", { hour: "numeric", minute: "2-digit" });
   const day = at.toDateString();
-  if (day === new Date(openedAt).toDateString()) return time;
-  if (day === new Date(openedAt + 86_400_000).toDateString()) return `Tmrw ${time}`;
-  return at.toLocaleDateString("en-GH", { day: "numeric", month: "short" });
+  if (day === new Date(openedAt).toDateString()) return `Today ${time}`;
+  if (day === new Date(openedAt + 86_400_000).toDateString()) return `Tomorrow ${time}`;
+  return `${at.toLocaleDateString("en-GH", { weekday: "short" })} ${time}`;
 }
+
+const styles = StyleSheet.create({
+  noUnits: {
+    gap: 4,
+    marginTop: 4,
+  },
+  insightAct: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  chartHead: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: space[3],
+  },
+  key: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  figureSmall: {
+    fontSize: 19,
+    lineHeight: 25,
+    color: INK,
+  },
+  toggle: {
+    flexDirection: "row",
+    padding: 3,
+    borderRadius: radius.pill,
+    backgroundColor: theme.color.field["100"],
+  },
+  toggleOption: {
+    minHeight: 28,
+    justifyContent: "center",
+    paddingHorizontal: 10,
+    borderRadius: radius.pill,
+  },
+  toggleOn: {
+    backgroundColor: WHITE,
+    shadowColor: theme.color.kola["900"],
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 1 },
+  },
+  // The reading, as the app's dark tooltip: deep kola, white words, the keys in their colours.
+  tip: {
+    position: "absolute",
+    top: 4,
+    gap: 3,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderRadius: 12,
+    backgroundColor: theme.color.kola["900"],
+    shadowColor: theme.color.kola["900"],
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+  },
+  tipTitle: {
+    fontSize: 12.5,
+    lineHeight: 17,
+    color: WHITE,
+  },
+  tipLabel: {
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 16,
+    color: alpha(WHITE, 0.72),
+  },
+  tipValue: {
+    fontSize: 12.5,
+    lineHeight: 16,
+    color: WHITE,
+  },
+  chartHint: {
+    textAlign: "center",
+    fontSize: 12,
+    lineHeight: 16,
+    color: MUTED,
+  },
+});

@@ -1,19 +1,15 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useVideoPlayer, VideoView } from "expo-video";
 import { useEffect } from "react";
-import { Image, Pressable, StyleSheet, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 
-import { MUTED, PRESSED, rowStyles } from "@/components/portfolio/PortfolioList";
-import { Type, space } from "@/components/ui";
+import { MUTED } from "@/components/portfolio/PortfolioList";
+import { Type } from "@/components/ui";
 import {
-  categoryIcon,
-  maintenanceStatusLabel,
   maintenanceStops,
-  maintenanceTone,
   type MaintenanceRequest,
   type MaintenanceTone,
 } from "@/maintenance";
-import { pressableFeedback } from "@/platform";
 import { theme } from "@/theme";
 
 /**
@@ -38,62 +34,6 @@ export const STAGE: Record<MaintenanceTone, { ink: string; wash: string; icon: k
 export function dateLabel(iso: string | null) {
   if (!iso) return "";
   return new Date(iso).toLocaleDateString("en-GH", { day: "numeric", month: "short" });
-}
-
-/** A dot and the stage's name, in its colour. Colour is never the only cue. */
-export function StageChip({ request, side }: { request: MaintenanceRequest; side: "tenant" | "provider" }) {
-  const stage = STAGE[maintenanceTone(request.status)];
-  return (
-    <View style={[styles.chip, { backgroundColor: stage.wash }]}>
-      <View style={[styles.chipDot, { backgroundColor: stage.ink }]} />
-      <Type variant="captionStrong" numberOfLines={1} style={{ color: stage.ink }}>{maintenanceStatusLabel(request.status, side)}</Type>
-    </View>
-  );
-}
-
-/**
- * One request in a list: the photograph (or the category's glyph), what kind of
- * problem, where — and for a provider, whose — and where it stands.
- */
-export function RequestRow({
-  request,
-  side,
-  onPress,
-}: {
-  request: MaintenanceRequest;
-  side: "tenant" | "provider";
-  onPress: () => void;
-}) {
-  const stage = STAGE[maintenanceTone(request.status)];
-  const where = [side === "provider" ? request.tenant.name : null, request.place.unit_label, request.place.property_title].filter(Boolean).join(" · ");
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={`${request.category_display}. ${where}. ${maintenanceStatusLabel(request.status, side)}. Open request.`}
-      onPress={onPress}
-      {...pressableFeedback(PRESSED)}
-      style={({ pressed }) => [rowStyles.row, pressed ? { backgroundColor: PRESSED } : null]}
-    >
-      <View style={[styles.thumb, { backgroundColor: stage.wash }]}>
-        {request.photo ? (
-          <Image source={{ uri: request.photo.url }} style={styles.thumbImage} accessibilityIgnoresInvertColors />
-        ) : (
-          <Ionicons name={categoryIcon(request.category) as never} size={20} color={stage.ink} />
-        )}
-        {request.video ? (
-          <View style={styles.thumbVideo}><Ionicons name="videocam" size={10} color="#fff" /></View>
-        ) : null}
-      </View>
-      <View style={rowStyles.rowBody}>
-        <Type variant="bodyStrong" numberOfLines={1} style={rowStyles.rowTitle}>{request.category_display}</Type>
-        <Type variant="caption" numberOfLines={1} style={rowStyles.rowSub}>{where}</Type>
-        <View style={styles.rowFoot}>
-          <StageChip request={request} side={side} />
-          <Type variant="caption" style={styles.rowDate}>{dateLabel(request.status_changed_at)}</Type>
-        </View>
-      </View>
-    </Pressable>
-  );
 }
 
 /** Reported → in progress → fixed → confirmed, as four bars. */
@@ -151,38 +91,6 @@ export function ClipPlayer({ uri, startMs, endMs, height = 200 }: { uri: string;
 }
 
 const styles = StyleSheet.create({
-  chip: {
-    flexDirection: "row",
-    alignItems: "center",
-    alignSelf: "flex-start",
-    gap: 6,
-    paddingHorizontal: 9,
-    paddingVertical: 3,
-    borderRadius: 999,
-  },
-  chipDot: { width: 6, height: 6, borderRadius: 3 },
-  thumb: {
-    width: 52,
-    height: 52,
-    borderRadius: 14,
-    overflow: "hidden",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  thumbImage: { width: "100%", height: "100%" },
-  thumbVideo: {
-    position: "absolute",
-    right: 3,
-    bottom: 3,
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(15, 24, 20, 0.62)",
-  },
-  rowFoot: { flexDirection: "row", alignItems: "center", gap: space[2], marginTop: 4 },
-  rowDate: { color: MUTED, fontVariant: ["tabular-nums"] },
   track: { flexDirection: "row", gap: 4 },
   trackStop: { flex: 1, gap: 4 },
   trackBar: { height: 4, borderRadius: 2, overflow: "hidden", backgroundColor: theme.color.field["200"] },

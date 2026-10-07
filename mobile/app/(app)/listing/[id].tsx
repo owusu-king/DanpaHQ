@@ -36,6 +36,7 @@ import { rememberOnboardingIntent } from "@/onboardingIntent";
 import { listMyApplications } from "@/applications";
 import { listMyViewings, requestViewing } from "@/viewings";
 import { pressableFeedback, useSafeBottom } from "@/platform";
+import { shell } from "@/shell";
 import { theme } from "@/theme";
 
 type IconName = keyof typeof Ionicons.glyphMap;
@@ -239,7 +240,7 @@ export default function ListingDetailScreen() {
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: theme.color.field["50"] }}>
+    <View style={{ flex: 1, backgroundColor: shell.record }}>
       <ScrollView contentContainerStyle={{ paddingBottom: pageBottom }}>
         {photos.length ? (
           <View>

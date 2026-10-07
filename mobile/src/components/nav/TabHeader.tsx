@@ -1,35 +1,35 @@
 import type { BottomTabHeaderProps } from "expo-router/tabs";
-import { getHeaderTitle } from "expo-router/react-navigation";
-import { StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { StyleSheet, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { HeaderChromeBackground } from "@/components/nav/HeaderChromeBackground";
 import { space } from "@/components/ui";
-import { safeHeaderTop } from "@/platform";
+import { isAndroid, safeHeaderTop } from "@/platform";
 import { shell } from "@/shell";
 
 /** Compact chrome around 40pt controls, without sacrificing their touch area. */
-const ROW_HEIGHT = 56;
-const NARROW_ROW_HEIGHT = 52;
+// Shorter on Android, where the status bar above it already adds a band of
+// green (owner, 2026-10-06/07): the 40pt discs with 4pt above and below, no more.
+const ROW_HEIGHT = isAndroid ? 48 : 58;
+const NARROW_ROW_HEIGHT = isAndroid ? 48 : 54;
 const NARROW_WIDTH = 360;
 
 /**
- * The top of every tab: the page's name, on Rooomly's green.
+ * The top of every tab: a tool row on Rooomly's textured green.
  *
- * The header used to stand on the page's own ground, which made header, page and
- * tab bar one flat surface — calm, with nothing to say which part was which. It
- * is the chrome now (`shell.chrome`): a kola band from the top of the glass to
- * the bottom of the title row, with the name in white, so the page below reads
- * as the thing being framed.
+ * It does not name the page. The tab bar already says where you are, and the
+ * page opens with what it is for, so a title here was a third copy. The row is
+ * the workspace's tools in fixed places, the way a banking app's header is:
  *
- * The earlier refinements hold. The name is said here once and the page opens
- * with what it is for; the row is compact and steps down on the narrowest
- * handsets; and on Android the status bar's measured height is the band's floor.
+ * - `headerLeft` on the leading side (you, or the Portfolio),
+ * - `headerTitle`, when it is a function, drawn in the middle (the tenant's
+ *   search pill) — a string title is never drawn,
+ * - `headerRight` on the trailing side (the bell, and anything the tab adds).
  *
- * - A tab whose page names itself with its content passes a `headerTitle`
- *   function — both Homes pass the wordmark — which is drawn in the title's place.
- * - With no title and no controls, the header is only the band behind the status
- *   bar and a breath beneath it.
+ * The two sides share the spare width equally, so the middle stays centred
+ * whichever side is busier. On Android the status bar's measured height is the
+ * band's floor. With no controls at all, the header is only the band behind the
+ * status bar and a breath beneath it.
  */
 export function TabHeader({
   options,
@@ -43,16 +43,17 @@ export function TabHeader({
   // occupying space. Its measured height is the floor, never extra padding.
   const topInset = safeHeaderTop(insets.top);
   const tintColor = shell.onChrome;
-  const customTitle = typeof options.headerTitle === "function"
+  const middle = typeof options.headerTitle === "function"
     ? options.headerTitle({ children: options.title ?? route.name, tintColor })
     : null;
-  const title = customTitle ? "" : getHeaderTitle(options, route.name);
   const left = options.headerLeft?.({ tintColor }) ?? null;
   const right = options.headerRight?.({ tintColor, canGoBack: false }) ?? null;
+  // A Home hero carries the green on down, so the header draws no edge and only
+  // its upper band: the hero draws the lower one, and the two read as one piece.
+  const continues = options.headerShadowVisible === false;
 
-  if (!customTitle && !title && !left && !right) {
-    // A breath under the status bar, so a page that names itself does not start
-    // against the clock.
+  if (!middle && !left && !right) {
+    // A breath under the status bar, so a page does not start against the clock.
     return (
       <View style={{ height: topInset + space[2], backgroundColor: shell.chrome }}>
         <HeaderChromeBackground />
@@ -69,31 +70,11 @@ export function TabHeader({
         backgroundColor: shell.chrome,
       }}
     >
-      <HeaderChromeBackground />
-      <View
-        style={[
-          styles.row,
-          narrow ? styles.rowNarrow : null,
-          {
-            paddingLeft: left ? 0 : narrow ? space[4] : space[5],
-            paddingRight: right ? 0 : narrow ? space[4] : space[5],
-          },
-        ]}
-      >
-        {left}
-        <View style={[styles.identity, left ? { paddingLeft: narrow ? space[2] : space[3] } : null]}>
-          {customTitle ?? (title ? (
-            <Text
-              accessibilityRole="header"
-              numberOfLines={1}
-              maxFontSizeMultiplier={1.25}
-              style={[styles.title, narrow ? styles.titleNarrow : null]}
-            >
-              {title}
-            </Text>
-          ) : null)}
-        </View>
-        {right}
+      <HeaderChromeBackground edge={!continues} leading={!continues} />
+      <View style={[styles.row, narrow ? styles.rowNarrow : null]}>
+        <View style={[styles.side, middle ? styles.sideShared : styles.sideOwn]}>{left}</View>
+        {middle}
+        <View style={[styles.side, middle ? styles.sideShared : null, styles.trailing]}>{right}</View>
       </View>
     </View>
   );
@@ -104,26 +85,26 @@ const styles = StyleSheet.create({
     minHeight: ROW_HEIGHT,
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: space[1],
+    paddingVertical: isAndroid ? 0 : space[1],
   },
   rowNarrow: {
     minHeight: NARROW_ROW_HEIGHT,
   },
-  identity: {
+  side: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  // With a middle, both sides take equal shares so it sits on the centre line.
+  sideShared: {
+    flex: 1,
+    flexBasis: 0,
+  },
+  // Without one, the leading side may use whatever the trailing tools leave.
+  sideOwn: {
     flex: 1,
     minWidth: 0,
-    justifyContent: "center",
   },
-  // A compact navigation title, stepping down again on the narrowest handsets.
-  title: {
-    fontSize: 20,
-    lineHeight: 26,
-    fontWeight: "700",
-    letterSpacing: -0.2,
-    color: shell.onChrome,
-  },
-  titleNarrow: {
-    fontSize: 18,
-    lineHeight: 24,
+  trailing: {
+    justifyContent: "flex-end",
   },
 });

@@ -135,6 +135,6 @@ const styles = StyleSheet.create({
   },
   half: { flex: 1, height: 32, borderRadius: 999, alignItems: "center", justifyContent: "center" },
   halfOn: { backgroundColor: KOLA },
-  halfText: { fontWeight: "600", color: theme.color.ink["700"] },
+  halfText: { fontWeight: "500", color: theme.color.ink["700"] },
   halfTextOn: { color: PAPER },
 });

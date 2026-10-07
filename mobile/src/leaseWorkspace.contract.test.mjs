@@ -9,18 +9,20 @@ const read = (relative) => readFileSync(resolve(root, relative), "utf8");
 
 test("mobile Leases switches between provider and tenant agreement work", () => {
   const list = read("mobile/app/(app)/leases.tsx");
+  const provider = read("mobile/src/components/agreements/ProviderAgreements.tsx");
   const more = read("mobile/app/(app)/(provider-tabs)/more.tsx");
   const layout = read("mobile/app/(app)/_layout.tsx");
 
   assert.match(list, /capabilities\.active_workspace === "provider"/);
-  assert.match(list, /listGrantedLeases/);
-  assert.match(list, /listMyLeases/);
-  assert.match(list, /Search agreements/);
-  assert.match(list, /"send", "current", "history"/);
-  assert.match(list, /provider-lease/);
+  assert.match(list, /<ProviderAgreementsScreen \/> : <TenantAgreementsScreen \/>/);
+  assert.match(provider, /listGrantedLeases/);
+  assert.match(read("mobile/src/components/agreements/TenantAgreements.tsx"), /listMyLeases/);
+  assert.match(provider, /Search agreements/);
+  assert.match(provider, /\["yours", "signing", "ending", "running"\] as const/);
+  assert.match(provider, /provider-lease/);
   // More names the destination and nothing else; the description went with the
   // rest of the passive copy.
-  assert.match(more, /label="Leases"/);
+  assert.match(more, /label: "Leases"/);
   assert.match(layout, /name="provider-lease"/);
 });
 
@@ -46,8 +48,10 @@ test("mobile provider Home surfaces saved agreements that still need sending", (
   // list. The Draft/Sent pipeline panel was removed from Home along with the
   // web one: Home answers "what needs me", and everything in flight is the
   // Leases screen's job.
-  assert.match(home, /to send/);
-  assert.match(home, /drafts \?/);
-  assert.match(home, /\/\(app\)\/leases/);
+  assert.match(home, /draftAgreements: drafts,/);
+  const moves = read("mobile/src/dashboardWork.ts");
+  assert.match(moves, /input\.draftAgreements > 0/);
+  assert.match(moves, /agreements"\)\} to send`/);
+  assert.match(moves, /to: "\/\(app\)\/leases"/);
   assert.doesNotMatch(home, /function LeasingPosition|function FlowStage/);
 });

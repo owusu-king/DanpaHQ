@@ -70,7 +70,7 @@ function Mark({ what, says, tone }: { what: string; says: string; tone: Tone }) 
       <Type variant="label" style={{ color: theme.color.ink["500"] }}>
         {what.toUpperCase()}
       </Type>
-      <Type variant="caption" style={{ color: ink, fontWeight: "600" }}>
+      <Type variant="caption" style={{ color: ink, fontWeight: "500" }}>
         {says}
       </Type>
     </View>
@@ -105,7 +105,7 @@ export function SpaceLifecycle({
           : verification.state === "submitted" || verification.state === "under_review"
             ? "waiting"
             : "neutral";
-    return <Type variant="caption" style={{ color: TONES[tone].ink, fontWeight: "600" }}>{label}</Type>;
+    return <Type variant="caption" style={{ color: TONES[tone].ink, fontWeight: "500" }}>{label}</Type>;
   }
   return (
     <View style={{ flexDirection: "row", flexWrap: "wrap", gap: space[2] }}>

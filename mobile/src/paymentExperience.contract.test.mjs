@@ -23,7 +23,8 @@ test("mobile tenant Payments owns due items, attempts, history and receipts", ()
   assert.match(tab, /tenant-payments/);
   assert.doesNotMatch(home, /label: "Payments"/);
   assert.match(screen, /<AuthPrompt[\s\S]{0,180}next="\/\(app\)\/\(tabs\)\/payments"/);
-  assert.match(screen, /Due now/);
+  assert.match(screen, /function NextDue\(/);
+  assert.match(screen, /Also due/);
   assert.match(screen, /Check status/);
   assert.match(screen, /Pay rent/);
   assert.doesNotMatch(screen, /Open account/);

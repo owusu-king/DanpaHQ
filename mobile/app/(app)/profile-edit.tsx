@@ -441,7 +441,7 @@ function Initials({ initials, size }: { initials: string; size: number }) {
           <Rect x="0" y="0" width="100%" height="100%" fill={`url(#${id})`} />
         </Svg>
       </View>
-      <Type style={{ fontSize: Math.round(size * 0.32), lineHeight: Math.round(size * 0.4), fontWeight: "600", letterSpacing: 0.6, color: WHITE }}>
+      <Type style={{ fontSize: Math.round(size * 0.32), lineHeight: Math.round(size * 0.4), fontWeight: "500", letterSpacing: 0.6, color: WHITE }}>
         {initials}
       </Type>
     </View>

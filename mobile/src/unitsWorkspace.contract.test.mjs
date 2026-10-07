@@ -23,18 +23,14 @@ test("mobile Units is a real screen, not the web page shrunk", () => {
   assert.match(screen, /label="Search Units"/);
   assert.match(screen, /label="Add Unit"/);
 
-  // One Filter, holding all three questions. It used to be narrowed two ways at
-  // once — a row of chips for availability, and a page sheet for Property and
-  // sort — so neither control could say what was on.
-  assert.doesNotMatch(screen, /function Chip/, "the chip row is a second filter");
-  assert.doesNotMatch(screen, /presentationStyle="pageSheet"/, "the filter is the shared sheet now");
-  assert.equal((screen.match(/<FilterGroup title=/g) ?? []).length, 3, "Show, Property and Order");
-  assert.match(screen, /<FilterGroup title="Show">/);
-  assert.match(screen, /<FilterGroup title="Property">/);
-  assert.match(screen, /<FilterGroup title="Order">/);
-  // And whatever is on is a token under the heading, which clears with a tap.
-  assert.match(screen, /const narrowed = \(view === "all" \? 0 : 1\) \+ \(propertyId \? 1 : 0\) \+ \(sort === "property" \? 0 : 1\);/);
-  assert.match(screen, /<ActiveFilter label=\{VIEW_LABEL\[view\]\}/);
+  // Three questions, each on the screen (owner, 2026-10-06): where a Unit
+  // stands as a row of chips, which Property as a quieter row under it, and the
+  // order as a toggle beside the search. Each says what is on by being on.
+  assert.doesNotMatch(screen, /<BottomSheet|<FilterGroup|<ActiveFilter/);
+  assert.match(screen, /<FilterChips\s+label="Show Units"/);
+  assert.match(screen, /<FilterChips\s+label="Units in"\s+quiet/);
+  assert.match(screen, /<ToolButton\s+icon="swap-vertical-outline"/);
+  assert.match(screen, /onPress=\{\(\) => setSort\(sort === "label" \? "property" : "label"\)\}/);
 });
 
 test("a mobile Unit tile recognizes, then opens the canonical Unit", () => {
@@ -152,7 +148,7 @@ test("Units is reachable without spending a tab", () => {
   const more = read("mobile/app/(app)/(provider-tabs)/more.tsx");
   const tabs = read("mobile/app/(app)/(provider-tabs)/_layout.tsx");
 
-  assert.match(more, /label="Units"/);
+  assert.match(more, /label: "Units"/);
   assert.match(more, /\/\(app\)\/units"/);
   // Five tabs stays five: Home, Properties, Tenants, Payments, More.
   assert.equal((tabs.match(/<Tabs\.Screen name="(?!add)/g) ?? []).length, 5);
@@ -168,8 +164,10 @@ test("choosing an option looks like choosing", () => {
   // choice wrote a "✓ " into the label instead.
   assert.match(ui, /const palette = selected/);
   assert.match(ui, /selected \? \{ borderWidth: 2 \} : null/);
-  for (const source of [units, patterns]) {
-    assert.doesNotMatch(source, /"✓ "/);
-    assert.match(source, /selected=\{/);
-  }
+  for (const source of [units, patterns]) assert.doesNotMatch(source, /"✓ "/);
+  assert.match(patterns, /selected=\{/);
+  // Units' choices are chips that say they are chosen, to the eye and to a screen reader.
+  const chips = read("mobile/src/components/portfolio/FilterChips.tsx");
+  assert.match(chips, /aria-selected=\{on\}/);
+  assert.match(units, /<FilterChips/);
 });

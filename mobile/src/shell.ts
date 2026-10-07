@@ -44,6 +44,12 @@ export const shell = {
   canvas: theme.color.field["50"],
   /** Where the two Homes stand: the chrome's green softened into the ivory. */
   dashboard: ph.ground,
+  /**
+   * Where a pushed record stands (owner, 2026-10-06): the same green at its
+   * lightest, so a Unit, a Property or a Viewing reads as the same product as
+   * the dashboards and lists it was opened from, not a flat ivory page.
+   */
+  record: ph.groundLow,
   /** Cards, sheets and inputs — and the tab bar. */
   paper: theme.color.field["0"],
   rule: theme.color.field["200"],

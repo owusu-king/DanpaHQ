@@ -305,7 +305,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   restingLabel: { color: RESTING, fontWeight: "500" },
-  activeLabel: { position: "absolute", top: 0, right: 0, left: 0, color: ACTIVE, fontWeight: "700" },
+  activeLabel: { position: "absolute", top: 0, right: 0, left: 0, color: ACTIVE, fontWeight: "600" },
   badge: {
     position: "absolute",
     top: -space[1] / 2,
@@ -324,6 +324,6 @@ const styles = StyleSheet.create({
     color: theme.color.field["0"],
     fontSize: 9,
     lineHeight: 11,
-    fontWeight: "700",
+    fontWeight: "600",
   },
 });

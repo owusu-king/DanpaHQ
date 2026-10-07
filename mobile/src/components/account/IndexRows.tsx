@@ -481,7 +481,7 @@ const styles = StyleSheet.create({
   countText: {
     fontSize: 12,
     lineHeight: 16,
-    fontWeight: "700",
+    fontWeight: "600",
     color: WHITE,
   },
   actions: {

@@ -1,5 +1,5 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { forwardRef, useRef, useState, type ReactNode, type RefObject } from "react";
+import { Children, forwardRef, isValidElement, useRef, useState, type ReactNode, type RefObject } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -7,16 +7,15 @@ import {
   ScrollView,
   StyleSheet,
   TextInput,
-  useWindowDimensions,
   View,
   type TextInputProps,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import Svg, { Defs, LinearGradient, RadialGradient, Rect, Stop } from "react-native-svg";
-
+import { ph } from "@/components/home/plinth";
+import { HeaderChromeBackground } from "@/components/nav/HeaderChromeBackground";
 import { Type, space } from "@/components/ui";
 import { isIOS, maxFontSizeMultiplier, otpInputProps, pressableFeedback } from "@/platform";
-import { alpha } from "@/shell";
+import { alpha, shell } from "@/shell";
 import { theme } from "@/theme";
 
 /**
@@ -46,6 +45,14 @@ import { theme } from "@/theme";
  * - **The order never changes**: mark, heading, one supporting line, the form,
  *   the one act, then everything else as text.
  *
+ * **Redesigned on the product's own look (owner, 2026-10-06).** The dawn read
+ * as decoration rather than as Rooomly: every page past sign-in opens on the
+ * textured green chrome with a pale panel rising under it, and these did not.
+ * So an auth screen is now built the way the Homes are — the green hero carries
+ * the mark, the way back, the step marks and the heading in white, and the form
+ * stands on the dashboards' pale green in a rounded panel that rises over the
+ * hero's foot, on white cards. The order is unchanged.
+ *
  * The frame is here rather than in each screen for one unglamorous reason too:
  * the bottom inset. Android draws edge-to-edge, and eight of these nine screens
  * had their last control sitting under the navigation buttons.
@@ -58,13 +65,16 @@ const WHITE = theme.color.field["0"];
 const MUTED = theme.color.ink["500"];
 const ALERT = theme.color.laterite["600"];
 
-const GLASS = alpha(WHITE, 0.9);
+/** A card on the panel: white paper, as the dashboards' are. */
+const GLASS = WHITE;
 /** How strong a press ripple is: a wash of the card's colour, never the colour itself. */
 const RIPPLE = 0.12;
-const EDGE = alpha(DEEP, 0.1);
+const EDGE = alpha(DEEP, 0.09);
 const JOIN = alpha(DEEP, 0.07);
 const CHEVRON = alpha(DEEP, 0.3);
 const PANEL_RADIUS = 20;
+/** How far the panel rises over the hero's foot, and its corner: the Homes' own. */
+const RISE = 28;
 
 /** The widest the column is allowed to get, whatever the screen is. */
 const MEASURE = 440;
@@ -78,59 +88,19 @@ const TONE: Record<AuthTone, { ink: string; wash: string }> = {
   gold: { ink: theme.color.gold["600"], wash: theme.color.gold["50"] },
 };
 
-/**
- * The dawn behind the page.
- *
- * Sized as a share of the window rather than a constant: on a 640-point handset
- * a fixed 480 would put the fold in the middle of the form, and on a tall
- * screen a fixed 380 would leave the bottom two thirds flat.
- */
-function AuthAtmosphere() {
-  const { height } = useWindowDimensions();
-
-  return (
-    <View
-      pointerEvents="none"
-      accessibilityElementsHidden
-      importantForAccessibility="no-hide-descendants"
-      style={[styles.atmosphere, { height: Math.max(360, Math.round(height * 0.62)) }]}
-    >
-      <Svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none">
-        <Defs>
-          <LinearGradient id="auth-sky" x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0" stopColor={theme.color.kola["50"]} />
-            <Stop offset="0.7" stopColor={theme.color.field["50"]} />
-            <Stop offset="1" stopColor={theme.color.field["50"]} />
-          </LinearGradient>
-          {/* Fractions, not percentages. These gradients are in the default
-              `objectBoundingBox` space, where react-native-svg wants 0–1 on
-              native; a "90%" renders on the web renderer and is not the same
-              thing on a device. */}
-          <RadialGradient id="auth-warm" cx="0.9" cy="0.02" r="0.7">
-            <Stop offset="0" stopColor={theme.color.gold["100"]} stopOpacity="0.95" />
-            <Stop offset="1" stopColor={theme.color.gold["100"]} stopOpacity="0" />
-          </RadialGradient>
-          <RadialGradient id="auth-deep" cx="0" cy="0.16" r="0.62">
-            <Stop offset="0" stopColor={theme.color.kola["300"]} stopOpacity="0.4" />
-            <Stop offset="1" stopColor={theme.color.kola["300"]} stopOpacity="0" />
-          </RadialGradient>
-        </Defs>
-        <Rect x="0" y="0" width="100" height="100" fill="url(#auth-sky)" />
-        <Rect x="0" y="0" width="100" height="100" fill="url(#auth-warm)" />
-        <Rect x="0" y="0" width="100" height="100" fill="url(#auth-deep)" />
-      </Svg>
-    </View>
-  );
+/** Whether a child belongs in the green hero rather than on the panel. */
+function inHero(child: ReactNode): boolean {
+  return isValidElement(child) && (child.type === AuthMark || child.type === AuthHeading);
 }
 
 /**
- * An auth screen: the dawn, a bounded column, a keyboard that gets out of the
- * way, and both insets.
+ * An auth screen: the green hero, the panel that rises over it, a keyboard that
+ * gets out of the way, and both insets.
  *
- * A screen with nothing pinned above it finds its own centre, which is what
- * stops a two-field sign-in from sitting under the status bar with a third of
- * the page empty below it. A screen with a back mark or step marks is anchored
- * to those instead — centring as well left a lake between the two.
+ * Screens keep composing themselves the way they always have — mark, heading,
+ * then the body — and the frame sorts them: the mark and the heading go up into
+ * the hero, in white on the green, and everything after them stands on the
+ * panel. The way back and the step marks ride the hero's top line.
  */
 export function AuthScene({
   children,
@@ -141,82 +111,63 @@ export function AuthScene({
   /**
    * The way back.
    *
-   * Pinned to the top of the screen rather than passed as the first child,
-   * because a centred block carries its first child into the middle of the
-   * page with it — which put the back arrow halfway down the code screen,
-   * floating above the thing it was supposed to be the escape from.
+   * Pinned to the top of the hero rather than passed as the first child, so it
+   * is always where a way back is on every other screen in the app.
    */
   header?: ReactNode;
   /**
-   * How far through a journey this screen is: three short marks, under the
-   * back mark rather than beside it.
-   *
-   * They briefly became a full-width rail across the top of the page, which
-   * read as a loading bar rather than as a position in a journey. What they
-   * must not go back to is sitting on the back mark's line — "where am I" and
-   * "get me out" are not a pair and should not share a row.
+   * How far through a journey this screen is: short marks on the hero's top
+   * line, never mistaken for the way back beside them.
    */
   progress?: { step: number; of: number };
 }) {
   const insets = useSafeAreaInsets();
-  const { height } = useWindowDimensions();
-
-  // A page with step marks or a back mark is anchored to them; a page with
-  // neither finds its own centre. Doing both left a lake between the two — the
-  // back arrow at the top of the code screen, then four hundred points of
-  // nothing, and only then the question.
+  const all = Children.toArray(children);
+  const hero = all.filter(inHero);
+  const body = all.filter((child) => !inHero(child));
   const crown = Boolean(header || progress);
-  const centred = !crown;
-
-  // Optical centre is above true centre. Dead centre leaves a block looking as
-  // though it has slipped down the page, and the effect gets worse the taller
-  // the screen — it was most obvious on a tablet, where the form is small and
-  // the page is enormous.
-  const lift = centred ? Math.round(height * 0.06) : 0;
-  const top = crown ? space[5] : insets.top + space[6];
-  const bottom = insets.bottom + space[6] + lift;
+  const bottom = insets.bottom + space[6];
 
   return (
     <View style={styles.ground}>
-      <AuthAtmosphere />
       <KeyboardAvoidingView style={styles.fill} behavior={isIOS ? "padding" : undefined}>
-        {crown ? (
-          <View style={[styles.crown, { paddingTop: insets.top + space[3] }]}>
-            <View style={styles.crownInner}>
-              {header}
-              {progress ? <AuthProgress step={progress.step} of={progress.of} /> : null}
-            </View>
-          </View>
-        ) : null}
         <ScrollView
-          contentContainerStyle={[
-            styles.page,
-            centred ? styles.pageCentred : null,
-            { paddingTop: top, paddingBottom: bottom },
-          ]}
+          contentContainerStyle={[styles.page, { paddingBottom: bottom }]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
+          bounces={false}
         >
-          <View style={styles.column}>{children}</View>
+          <View style={[styles.hero, { paddingTop: insets.top + space[3] }]}>
+            <HeaderChromeBackground edge={false} />
+            <View style={styles.heroInner}>
+              {crown ? (
+                <View style={styles.crownInner}>
+                  {header ?? <View />}
+                  {progress ? <AuthProgress step={progress.step} of={progress.of} /> : null}
+                </View>
+              ) : null}
+              {hero.length ? <View style={styles.heroBody}>{hero}</View> : null}
+            </View>
+          </View>
+          <View style={styles.panel}>
+            <View style={styles.column}>{body}</View>
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
     </View>
   );
 }
 
-
 /**
- * Rooomly, small, at the top of the composition.
- *
- * The hierarchy starts with who this is. It is a mark, not a heading — the
- * heading is the next line and says what the screen wants — so it is set small
- * and never scaled by the reader's font size.
+ * Rooomly, in white on the green, at the top of the hero. A mark, not a
+ * heading — the heading is the next line — so it is set small and never scaled
+ * by the reader's font size.
  */
 export function AuthMark() {
   return (
     <View accessible accessibilityRole="header" accessibilityLabel="Rooomly" style={styles.mark}>
       <View style={styles.markDot}>
-        <Ionicons name="home" size={13} color={WHITE} />
+        <Ionicons name="home" size={14} color={KOLA} />
       </View>
       <Type variant="bodyStrong" allowFontScaling={false} style={styles.markWord}>
         Rooomly
@@ -226,11 +177,9 @@ export function AuthMark() {
 }
 
 /**
- * What this screen is asking, in at most three parts.
- *
- * The heading is `display3` rather than `display2`: at 40 points "Sign in to
- * manage your property" took two enormous lines and became the screen. The
- * supporting line is a caption under it, not a second paragraph.
+ * What this screen is asking, in white on the hero: the heading and one line
+ * under it. `display3`, because at 40 points "Sign in to manage your property"
+ * took two enormous lines and became the screen.
  */
 export function AuthHeading({
   title,
@@ -254,17 +203,8 @@ export function AuthHeading({
 }
 
 /**
- * How far through a journey somebody is: three short marks.
- *
- * "STEP 1 OF 3" set in small caps said the same thing in nine characters of
- * shouting. The marks say it without being read, and the step is still spoken —
- * the label is the whole sentence, so a screen reader is not left assembling it
- * from a row of anonymous views.
- *
- * It briefly became a full-width rail across the top of the page, which read as
- * a loading bar rather than as a position in a journey. Short marks, on their
- * own line under the back mark — never beside it, because "where am I" and "get
- * me out" are not a pair and should not share a row.
+ * How far through a journey somebody is: short white marks on the hero. The
+ * step is still spoken — the label is the whole sentence.
  */
 export function AuthProgress({ step, of }: { step: number; of: number }) {
   return (
@@ -344,7 +284,7 @@ export const AuthField = forwardRef<TextInput, TextInputProps & {
         />
         <View style={styles.rowBody}>
           <Type
-            variant="label"
+            variant="caption"
             allowFontScaling={false}
             style={[styles.rowLabel, focused ? { color: KOLA } : null, wrong ? { color: ALERT } : null]}
           >
@@ -666,10 +606,10 @@ export function AuthBack({ label, onPress }: { label: string; onPress: () => voi
       accessibilityRole="button"
       accessibilityLabel={label}
       hitSlop={10}
-      {...pressableFeedback(alpha(KOLA, RIPPLE))}
-      style={({ pressed }) => [styles.back, pressed ? { opacity: 0.85 } : null]}
+      {...pressableFeedback(shell.chromePressed)}
+      style={({ pressed }) => [styles.back, pressed ? { backgroundColor: shell.chromePressed } : null]}
     >
-      <Ionicons name="arrow-back" size={19} color={theme.color.kola["800"]} />
+      <Ionicons name="arrow-back" size={20} color={shell.onChrome} />
     </Pressable>
   );
 }
@@ -677,36 +617,46 @@ export function AuthBack({ label, onPress }: { label: string; onPress: () => voi
 const styles = StyleSheet.create({
   ground: {
     flex: 1,
-    backgroundColor: theme.color.field["50"],
-  },
-  atmosphere: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    top: 0,
+    backgroundColor: ph.ground,
   },
   fill: {
     flex: 1,
   },
   page: {
     flexGrow: 1,
+  },
+  // The Homes' hero: the chrome's textured green, its foot hidden under the panel.
+  hero: {
     paddingHorizontal: space[5],
+    paddingBottom: RISE + space[6],
+    backgroundColor: shell.chrome,
   },
-  pageCentred: {
-    justifyContent: "center",
-  },
-  crown: {
-    paddingHorizontal: space[5],
-    paddingBottom: space[2],
-  },
-  // The back mark, then the step marks under it. Stacked, so neither reads as
-  // an accessory of the other.
-  crownInner: {
+  heroInner: {
     width: "100%",
     maxWidth: MEASURE,
     alignSelf: "center",
-    alignItems: "flex-start",
+    gap: space[5],
+  },
+  // The way back on the leading side, the step marks on the trailing side.
+  crownInner: {
+    minHeight: 40,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     gap: space[4],
+  },
+  heroBody: {
+    gap: space[4],
+  },
+  // The pale green panel rising over the hero's foot, with the Homes' corners.
+  panel: {
+    flexGrow: 1,
+    marginTop: -RISE,
+    paddingTop: space[6],
+    paddingHorizontal: space[5],
+    borderTopLeftRadius: RISE,
+    borderTopRightRadius: RISE,
+    backgroundColor: ph.ground,
   },
   // Bounded and centred, so a two-field form is a column on a tablet rather
   // than a row of inputs stretched across it.
@@ -724,27 +674,29 @@ const styles = StyleSheet.create({
     alignSelf: "flex-start",
   },
   markDot: {
-    width: 26,
-    height: 26,
+    width: 28,
+    height: 28,
     borderRadius: 9,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: KOLA,
+    backgroundColor: shell.onChrome,
   },
   markWord: {
-    color: theme.color.kola["900"],
+    color: shell.onChrome,
     letterSpacing: -0.3,
   },
 
   heading: {
-    gap: space[1],
+    gap: space[2],
   },
   title: {
-    color: INK,
+    color: shell.onChrome,
   },
   line: {
-    color: theme.color.ink["700"],
+    color: shell.onChromeMuted,
     maxWidth: 360,
+    fontSize: 15,
+    lineHeight: 21,
   },
 
   progress: {
@@ -756,14 +708,14 @@ const styles = StyleSheet.create({
     width: 18,
     height: 4,
     borderRadius: 2,
-    backgroundColor: alpha(DEEP, 0.12),
+    backgroundColor: alpha(WHITE, 0.28),
   },
   tickDone: {
-    backgroundColor: theme.color.kola["300"],
+    backgroundColor: alpha(WHITE, 0.6),
   },
   tickHere: {
     width: 30,
-    backgroundColor: KOLA,
+    backgroundColor: WHITE,
   },
 
   // A whole pixel, never `hairlineWidth`.
@@ -788,10 +740,10 @@ const styles = StyleSheet.create({
   // second point of kola, and the row turning laterite when a code is refused.
   cell: {
     flex: 1,
-    height: 56,
-    borderRadius: 8,
+    height: 58,
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: theme.color.field["300"],
+    borderColor: alpha(DEEP, 0.14),
     backgroundColor: WHITE,
     alignItems: "center",
     justifyContent: "center",
@@ -849,10 +801,13 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 1,
   },
+  // A name in sentence case over the value, as the app's own forms label —
+  // not a tracked small-caps tag.
   rowLabel: {
     color: MUTED,
-    fontSize: 11,
-    lineHeight: 14,
+    fontSize: 12.5,
+    lineHeight: 16,
+    letterSpacing: 0,
   },
   rowValue: {
     flexDirection: "row",
@@ -933,14 +888,6 @@ const styles = StyleSheet.create({
     gap: space[2],
   },
 
-  panel: {
-    padding: space[4],
-    gap: space[4],
-    borderRadius: PANEL_RADIUS,
-    borderWidth: 1,
-    borderColor: EDGE,
-    backgroundColor: GLASS,
-  },
 
   card: {
     flexDirection: "row",
@@ -989,15 +936,14 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
 
+  // A white well on the green, as every header's controls are.
   back: {
     width: 40,
     height: 40,
-    borderRadius: 13,
+    borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 1,
-    borderColor: EDGE,
-    backgroundColor: GLASS,
+    backgroundColor: shell.chromeRaised,
     overflow: "hidden",
   },
 });

@@ -16,10 +16,11 @@ const between = (source, start, end) => {
 };
 
 const ROWS = "mobile/src/components/account/IndexRows.tsx";
+const YOU = "mobile/src/components/account/YouParts.tsx";
 const TENANT = "mobile/app/(app)/(tabs)/profile.tsx";
 const PROVIDER = "mobile/app/(app)/(provider-tabs)/more.tsx";
 
-test("each side has one index, built from one set of rows", () => {
+test("each side has one index, built from one set of parts", () => {
   const more = read(PROVIDER);
   const tab = read(TENANT);
 
@@ -31,7 +32,7 @@ test("each side has one index, built from one set of rows", () => {
     "settings.tsx is back — the account rows have two homes again",
   );
   for (const screen of [more, tab]) {
-    assert.match(screen, /from "@\/components\/account\/IndexRows"/);
+    assert.match(screen, /import \{ Identity, YouPage, [^}]*\} from "@\/components\/account\/YouParts";/);
     for (const route of ["profile-edit", "security", "notification-settings", "trust"]) {
       assert.match(screen, new RegExp(`/\\(app\\)/${route}"`), `${route} is missing from an index`);
     }
@@ -39,60 +40,66 @@ test("each side has one index, built from one set of rows", () => {
 
   // What they list differs, and should: a tenant has no Team and no Archive,
   // a provider has no rental history.
-  assert.match(more, /label="Team"/);
-  assert.match(more, /label="Archive"/);
-  assert.doesNotMatch(tab, /label="Team"/);
-  assert.doesNotMatch(tab, /label="Archive"/);
-  assert.match(tab, /label="Applications"/);
-  assert.doesNotMatch(more, /label="Applications"/);
+  assert.match(more, /label: "Team"/);
+  assert.match(more, /label: "Archive"/);
+  assert.doesNotMatch(tab, /label: "Team"/);
+  assert.doesNotMatch(tab, /label: "Archive"/);
+  assert.match(tab, /label: "Applications"/);
+  assert.doesNotMatch(more, /label: "Applications"/);
 });
 
 test("an index is a navigation surface, not an information page", () => {
-  const rows = read(ROWS);
+  const you = code(read(YOU));
   const more = read(PROVIDER);
   const tab = read(TENANT);
 
   // A row that says Security and leads to Security needs no sentence under it.
-  assert.doesNotMatch(rows, /detail/);
+  assert.doesNotMatch(you, /detail/);
   for (const screen of [more, tab]) {
     assert.doesNotMatch(screen, /<Surface/);
-    assert.doesNotMatch(screen, /detail=/);
+    assert.doesNotMatch(screen, /detail[=:]/);
   }
 
   // Changing view and leaving are acts, not destinations.
   assert.match(more, /Switch to renting/);
   assert.match(tab, /Switch to managing property/);
   for (const screen of [more, tab]) {
-    assert.match(screen, /label="Sign out"/);
+    assert.match(screen, /label: "Sign out", danger: true/);
   }
 });
 
-test("More is a hub of sections, not a profile page", () => {
+test("More opens with the person, like WhatsApp's You, and then its cards", () => {
   const tab = code(read(TENANT));
   const more = code(read(PROVIDER));
   const layout = read("mobile/app/(app)/(tabs)/_layout.tsx");
+  const providerLayout = read("mobile/app/(app)/(provider-tabs)/_layout.tsx");
 
-  // The header names the page what the tab bar calls it. It said "Profile" over
-  // a tab called More.
-  assert.match(layout, /<Tabs\.Screen name="profile" options=\{\{ title: "More", tabBarLabel: "More",/);
+  // The tab bar names it More; the page stands on its own ground with no bar
+  // (owner, 2026-10-06), so the clock turns dark while it is in front.
+  assert.match(layout, /<Tabs\.Screen name="profile" options=\{\{ title: "Menu", tabBarLabel: "Menu", headerShown: false,/);
+  assert.match(providerLayout, /<Tabs\.Screen name="more" options=\{\{ title: "Menu", tabBarLabel: "Menu", headerShown: false,/);
+  const you = code(read(YOU));
+  assert.match(you, /\{focused \? <StatusBar style="dark" \/> : null\}/);
 
-  // Nobody's photo, name or number opens it. Who you are is behind the Profile
-  // row, and the page opens with its sections, in the order they were agreed.
-  assert.doesNotMatch(tab, /display_name|phone_display|avatar_url|resolvePhotoUrl|<Image\b/);
-  assert.match(tab, /return \(\s*<IndexPage>\s*\{invitationsWaiting \? \(\s*<Group title="Waiting for you"/);
-  assert.deepEqual(
-    [...tab.matchAll(/<Group title="([^"]+)"/g)].map((match) => match[1]),
-    ["Waiting for you", "Your shortlist", "Your history", "Account and settings"],
-  );
+  // The photo, name and pencil all open the profile, so there is no Profile row.
+  for (const screen of [tab, more]) {
+    assert.match(screen, /<Identity\s+name=\{me\.display_name\}\s+photoUri=\{photoUri\}/);
+    assert.match(screen, /\(me\.profile\?\.completeness \?\? 0\) < 100/);
+    assert.match(screen, /verified=\{me\.is_phone_verified\}\s+onPress=\{go\("\/\(app\)\/profile-edit"\)\}/);
+    assert.match(screen, /\{ key: "edit", icon: "pencil", label: "Edit your profile", onPress: go\("\/\(app\)\/profile-edit"\) \}/);
+    assert.doesNotMatch(screen, /label: "Profile"/);
+  }
+  assert.match(tab, /\{ key: "join", icon: "key-outline", label: "Join your home with a code", onPress: go\("\/\(app\)\/tenant-setup"\) \}/);
+  assert.match(more, /\{ key: "create", icon: "add", label: "Add or create", onPress: go\("\/\(app\)\/provider-actions"\) \}/);
+
+  // Untitled cards, in the order agreed.
+  const keys = (screen) => [...screen.matchAll(/^ {4}\{\n {6}key: "([a-z]+)",/gm)].map((match) => match[1]);
+  assert.deepEqual(keys(tab), ["waiting", "renting", "account", "leave"]);
+  assert.deepEqual(keys(more), ["waiting", "work", "business", "account", "leave"]);
+  assert.doesNotMatch(you, /export type YouSection = \{[^}]*title/);
+
   assert.match(tab, /<AuthPrompt\s+icon="list"/);
   assert.match(tab, /next="\/\(app\)\/\(tabs\)\/profile"/);
-
-  // Both indexes stand on the same page, and the provider's keeps its order.
-  assert.match(more, /return \(\s*<IndexPage>\s*\{invitations \? \(\s*<Group title="Waiting for you"/);
-  assert.deepEqual(
-    [...more.matchAll(/<Group title="([^"]+)"/g)].map((match) => match[1]),
-    ["Waiting for you", "Management", "Growth and trust", "Account and settings"],
-  );
 });
 
 test("a signed-out tab gives a reason and both ways in", () => {
@@ -134,55 +141,35 @@ test("a signed-out tab gives a reason and both ways in", () => {
   }
 });
 
-test("each group is one glass panel, and its rows share one colour", () => {
-  const rows = code(read(ROWS));
+test("each card is white and plain, and search reaches every row", () => {
+  const you = code(read(YOU));
 
-  // One frosted panel per group, clipped inside so a press never paints past
-  // its corners, on a ground the chrome's green reaches into.
-  assert.match(rows, /const GLASS = alpha\(WHITE, 0\.72\);/);
-  assert.match(rows, /panel: \{\s*backgroundColor: GLASS,\s*borderWidth: 1,\s*borderColor: GLASS_EDGE,/);
-  assert.match(rows, /<View style=\{\{ borderRadius: geometry\.panelRadius - 1, overflow: "hidden" \}\}>/);
-  assert.match(rows, /<IndexGround>\s*<ScrollView/);
-  assert.match(rows, /pointerEvents="none"\s+accessibilityElementsHidden\s+importantForAccessibility="no-hide-descendants"/);
-  assert.match(rows, /const id = `index\$\{useId\(\)\.replace\(\/\[\^a-zA-Z0-9\]\/g, ""\)\}`;/);
+  // WhatsApp's rows: a line glyph in ink with no well, the body's size and
+  // weight, a light chevron, and a hairline that starts where the words start.
+  assert.match(you, /<Ionicons name=\{item\.icon\} size=\{24\} color=\{ink\} style=\{styles\.itemIcon\} \/>/);
+  assert.match(you, /itemLabel: \{\s*flex: 1,\s*minWidth: 0,\s*fontSize: 17,/);
+  assert.match(you, /\{item\.danger \? null : <Ionicons name="chevron-forward" size=\{18\} color=\{CHEVRON\} \/>\}/);
+  assert.match(you, /card: \{\s*overflow: "hidden",\s*borderRadius: 26,\s*backgroundColor: WHITE,/);
+  assert.match(you, /\{index \? <View style=\{styles\.rule\} \/> : null\}/);
+  assert.match(you, /rule: \{\s*height: StyleSheet\.hairlineWidth,\s*marginLeft: 66,/);
+  // A card a role has emptied draws nothing.
+  assert.match(you, /const visible = sections\.filter\(\(section\) => section\.items\.length\);/);
+  // Rows lead to pages; on the web a row is a link, so a button never nests.
+  assert.match(you, /accessibilityRole=\{item\.danger \? "button" : "link"\}/);
 
-  // Android draws elevation through a translucent fill as a smudge, so only the
-  // other platforms lift a panel, and only by a whisper.
-  assert.match(rows, /style=\{\[styles\.panel, isAndroid \? null : styles\.panelLift,/);
-  const lift = /panelLift: \{[^}]*shadowOpacity: ([\d.]+)/.exec(rows);
-  assert.ok(lift && Number(lift[1]) <= 0.06, `a panel's shadow is a whisper: ${lift?.[1]}`);
+  // Search filters every row on the page by name, and says so when none match.
+  assert.match(you, /sections\.flatMap\(\(section\) => section\.items\)\.filter\(\(item\) => item\.label\.toLocaleLowerCase\("en-GH"\)\.includes\(needle\)\)/);
+  assert.match(you, /<Empty icon="search-outline" title="Nothing by that name"/);
+  assert.match(you, /<IndexGround>/);
 
-  // Hairlines go between the rows that remain, inset past the glyph, and a group
-  // a role has emptied draws nothing.
-  assert.match(
-    rows,
-    /\{index \? \(\s*<View\s+style=\{\{\s*height: StyleSheet\.hairlineWidth,\s*marginLeft: geometry\.inset \+ geometry\.well \+ geometry\.gap,/,
-  );
-  assert.match(rows, /if \(!rows\.length\) return null;/);
-  assert.match(rows, /<Type\s+variant="label"\s+accessibilityRole="header"/);
-
-  // A row takes its colour from its group, in the families Services sorts by.
-  assert.match(rows, /import \{ TONE \} from "@\/components\/services\/ServiceGlyph";/);
-  assert.match(rows, /<GroupTone\.Provider value=\{tone\}>/);
-  assert.match(rows, /const palette = TONE\[useContext\(GroupTone\)\];/);
-  assert.match(rows, /backgroundColor: palette\.wash,/);
-  assert.match(rows, /<Ionicons name=\{icon\} size=\{geometry\.glyph\} color=\{palette\.ink\} \/>/);
-
-  // Every group names a colour, neighbours never share one, and Verification is
-  // never laterite: a shield in that colour reads as a check that failed.
-  for (const path of [TENANT, PROVIDER]) {
-    const screen = code(read(path));
-    const groups = screen.split("<Group ").slice(1);
-    assert.ok(groups.length >= 3, `${path}: expected its groups`);
-    const tones = groups.map((group) => /^title="[^"]+" tone="([a-z]+)">/.exec(group)?.[1]);
-    assert.ok(tones.every(Boolean), `${path}: a group without a colour`);
-    tones.forEach((tone, index) => {
-      if (index) assert.notEqual(tone, tones[index - 1], `${path}: neighbouring groups share ${tone}`);
-    });
-    const verification = groups.findIndex((group) => /label="Verification"/.test(group));
-    assert.notEqual(verification, -1, `${path}: Verification is missing`);
-    assert.notEqual(tones[verification], "laterite", `${path}: Verification stands in laterite`);
-  }
+  // Role gating survives the move to data: a row a role would refuse is not listed.
+  const more = code(read(PROVIDER));
+  assert.match(more, /\.\.\.only\(operates, \{ key: "units", icon: "grid-outline", label: "Units", onPress: go\("\/\(app\)\/units"\) \}\)/);
+  assert.match(more, /\.\.\.only\(operates \|\| finances, \{ key: "leases"/);
+  assert.match(more, /\.\.\.only\(billing, \{ key: "settlement"/);
+  assert.match(more, /\.\.\.only\(billing, \{ key: "billing"/);
+  assert.match(more, /\.\.\.only\(operates, \{ key: "archive"/);
+  assert.match(more, /label: "Updates", count: unread,/);
 });
 
 test("the index's colours read on what they stand on", () => {
@@ -231,6 +218,14 @@ test("the index's colours read on what they stand on", () => {
     assert.ok(contrast(token(inkFamily, inkStep), token(washFamily, washStep)) >= 3, `${name}: glyph on its wash`);
   }
 
+  // The WhatsApp-style cards: words in ink on white, leaving in laterite on white.
+  const you = code(read(YOU));
+  assert.match(you, /const WHITE = theme\.color\.field\["0"\];/);
+  assert.match(you, /const INK = theme\.color\.ink\["900"\];/);
+  assert.ok(contrast(token("ink", "900"), white) >= 12, "a row's name on its card");
+  assert.ok(contrast(token("laterite", "600"), white) >= 4.5, "Sign out on its card");
+  assert.match(you, /count: \{[^}]*backgroundColor: theme\.color\.kola\["600"\],/);
+
   // A count is white on kola.
   assert.ok(contrast(white, token("kola", "600")) >= 4.5, "a count on kola-600");
   assert.match(rows, /count: \{[^}]*backgroundColor: theme\.color\.kola\["600"\],/);
@@ -245,59 +240,27 @@ test("the index's colours read on what they stand on", () => {
   assert.ok(contrast(token("laterite", "600"), footGlass) >= 4.5, "Sign out on glass");
 });
 
-test("changing experience and signing out are designed acts that still say what they do", () => {
-  const rows = code(read(ROWS));
+test("changing experience and signing out are the last card, and still say what they do", () => {
+  const you = code(read(YOU));
   const tab = code(read(TENANT));
   const more = code(read(PROVIDER));
 
-  // Both indexes end on the same two acts, with the words they always had, and
-  // the text links they replaced are gone from both.
-  assert.match(tab, /available_workspaces\.includes\("provider"\) \? \(\s*<SwitchExperienceButton/);
-  assert.match(
-    tab,
-    /<SwitchExperienceButton\s+label="Switch to managing property"\s+busyLabel="Switching…"\s+busy=\{switching\}\s+onPress=\{\(\) => void switchToProvider\(\)\}/,
-  );
-  assert.match(
-    more,
-    /<SwitchExperienceButton\s+label="Switch to renting"\s+busyLabel="Switching…"\s+busy=\{switching\}\s+onPress=\{\(\) => void switchToTenant\(\)\}/,
-  );
+  assert.match(tab, /\.\.\.\(me\.capabilities\.available_workspaces\.includes\("provider"\)\s*\? \[\{ key: "switch", icon: "swap-horizontal-outline" as const, label: "Switch to managing property", busy: switching, busyLabel: "Switching…", onPress: \(\) => void switchToProvider\(\) \}\]/);
+  assert.match(more, /\{ key: "switch", icon: "swap-horizontal-outline", label: "Switch to renting", busy: switching, busyLabel: "Switching…", onPress: \(\) => void switchToTenant\(\) \}/);
   for (const screen of [tab, more]) {
-    assert.match(screen, /<IndexActions>[\s\S]*<SwitchExperienceButton[\s\S]*<SignOutButton\s+label="Sign out"\s+busyLabel="Signing out…"\s+busy=\{leaving\}/);
+    assert.match(screen, /key: "leave",\s*items: \[[\s\S]*key: "switch"[\s\S]*\{ key: "sign-out", icon: "log-out-outline", label: "Sign out", danger: true, busy: leaving, busyLabel: "Signing out…", onPress: \(\) => void leave\(\) \}/);
     assert.match(screen, /await signOut\(\);\s*router\.replace\("\/\(auth\)\/start"\);/);
-    assert.doesNotMatch(screen, /<QuietLink/);
+    // A switch that fails says so under the card it was pressed in.
+    assert.match(screen, /notice=\{error \? <Notice tone="error" title=\{error\} \/> : null\}/);
+    assert.match(screen, /setError\(cause instanceof ApiFailure \? cause\.error\.message : "Could not switch\."\);/);
   }
 
-  // A switch that fails says so beside the switch, not at the top of the page.
-  assert.match(tab, /\{error \? <Notice tone="error" title=\{error\} \/> : null\}\s*<IndexActions>/);
-
-  // Both acts are one glass tile in two tones (revised on review, 2026-09-15): a
-  // button that says when it is working and cannot be pressed twice meanwhile.
-  const tile = between(rows, "function ActionTile(", "export function SwitchExperienceButton(");
-  assert.match(tile, /accessibilityRole="button"/);
-  assert.match(tile, /accessibilityLabel=\{busy \? busyLabel : label\}/);
-  assert.match(tile, /aria-busy=\{busy\} aria-disabled=\{busy\}/);
-  assert.match(tile, /disabled=\{busy\}/);
-  assert.match(tile, /\{busy \? \(\s*<ActivityIndicator size="small"/);
-  assert.match(tile, /\{busy \? busyLabel :/);
-  assert.match(tile, /onPressIn=\{press\.pressIn\}\s+onPressOut=\{press\.pressOut\}/);
-
-  // Leaving keeps laterite, so it is never mistaken for the way onward.
-  assert.match(tile, /const ink = tone === "leave" \? theme\.color\.laterite\["600"\] :/);
-  const switcher = between(rows, "export function SwitchExperienceButton(", "export function SignOutButton(");
-  const leave = between(rows, "export function SignOutButton(", "export function QuietLink(");
-  assert.match(switcher, /<ActionTile[^>]*icon="swap-horizontal"[^>]*tone="switch"/);
-  assert.match(leave, /<ActionTile[^>]*icon="log-out-outline"[^>]*tone="leave"/);
-
-  // They press like the tab bar, and Reduce Motion keeps the feedback while
-  // dropping the movement.
-  const spring = (text) => ({
-    speed: Number(/speed:\s*([\d.]+)/.exec(text)?.[1]),
-    bounciness: Number(/bounciness:\s*([\d.]+)/.exec(text)?.[1]),
-  });
-  const press = between(rows, "function usePressSpring()", "function ActionTile(");
-  assert.deepEqual(spring(press), spring(code(read("mobile/src/components/nav/MainTabBar.tsx"))));
-  assert.match(press, /const reduceMotion = useReduceMotion\(\);/);
-  assert.match(press, /if \(reduceMotion\) \{\s*scale\.setValue\(toValue\);\s*return;\s*\}/);
+  // A row that is working says so and cannot be pressed twice; leaving is laterite.
+  assert.match(you, /aria-busy=\{item\.busy\}\s+disabled=\{item\.busy\}/);
+  assert.match(you, /\{item\.busy \? \(\s*<ActivityIndicator size="small"/);
+  assert.match(you, /item\.busy && item\.busyLabel \? item\.busyLabel : item\.label/);
+  assert.match(you, /const DANGER = theme\.color\.laterite\["600"\];/);
+  assert.match(you, /const ink = item\.danger \? DANGER : INK;/);
 });
 
 test("editing your profile is a focused screen, not the index", () => {
@@ -333,9 +296,9 @@ test("More stops advertising features that are not enabled", () => {
   assert.doesNotMatch(more, /is not enabled yet/);
   // Maintenance is enabled now (apps.maintenance, 2026-10-05). It may be listed
   // only because it opens a real screen, and only for those who operate.
-  assert.match(more, /\{operates \? <Row icon="construct-outline" label="Maintenance" onPress=\{\(\) => router\.push\("\/\(app\)\/maintenance" as never\)\} \/> : null\}/);
-  assert.doesNotMatch(more, /label="Documents"/);
-  assert.doesNotMatch(more, /label="Reports"/);
+  assert.match(more, /\.\.\.only\(operates, \{ key: "maintenance", icon: "construct-outline", label: "Maintenance", onPress: go\("\/\(app\)\/maintenance"\) \}\)/);
+  assert.doesNotMatch(more, /label: "Documents"/);
+  assert.doesNotMatch(more, /label: "Reports"/);
 });
 
 test("no two route files claim the same path", () => {

@@ -223,10 +223,9 @@ test("the composition is the same on every screen, and bounded", () => {
   assert.match(scene, /const MEASURE = 440;/);
   assert.match(scene, /maxWidth: MEASURE,/);
   assert.match(scene, /alignSelf: "center",/);
-  assert.match(scene, /pageCentred: \{\s*justifyContent: "center",/);
-  // A page is centred only when nothing is pinned above it; otherwise it is
-  // anchored to the crown, with no lake in between.
-  assert.match(scene, /const centred = !crown;/);
+  // The mark and the heading go up into the hero; everything after them stands on the panel.
+  assert.match(scene, /return isValidElement\(child\) && \(child\.type === AuthMark \|\| child\.type === AuthHeading\);/);
+  assert.match(scene, /\{hero\.length \? <View style=\{styles\.heroBody\}>\{hero\}<\/View> : null\}/);
 
   // The live act is solid kola with white on it. The inactive state is neutral
   // and never a paler green: `kola-50` and then kola at 16% both read as the
@@ -248,7 +247,7 @@ test("the composition is the same on every screen, and bounded", () => {
   // line: the back mark, then the step marks under it. The marks are short —
   // a full-width rail read as a loading bar rather than a position.
   assert.match(scene, /progress\?: \{ step: number; of: number \};/);
-  assert.match(scene, /crownInner: \{[\s\S]{0,180}?alignItems: "flex-start",/);
+  assert.match(scene, /crownInner: \{[\s\S]{0,180}?justifyContent: "space-between",/);
   assert.match(scene, /tick: \{\s*width: 18,\s*height: 4,/);
   assert.match(scene, /tickHere: \{\s*width: 30,/);
   assert.doesNotMatch(scene, /tick: \{\s*flex: 1,/);
@@ -306,7 +305,7 @@ test("the heading says where signing in leads", () => {
   assert.match(code(signIn()), /signInHeading\(workspace\)/);
 });
 
-test("the identity is the ground, not a band waiting for an illustration", () => {
+test("the identity is the product's own green hero, not a dawn", () => {
   // The crest was a 132-point header that drew a gradient and left a hole for
   // artwork nobody drew, so in every shipped build it was empty space at the
   // top of the screen most launches end on. The colour is in the page now.
@@ -314,15 +313,20 @@ test("the identity is the ground, not a band waiting for an illustration", () =>
   assert.match(screen, /<AuthScene>/);
   assert.doesNotMatch(screen, /AuthCrest|OPENING_SCENE/);
 
+  // Redesigned (owner, 2026-10-06): the dawn read as decoration rather than as
+  // Rooomly. The screens open on the chrome's textured green, as every page past
+  // sign-in does, with the Homes' pale panel rising over its foot.
   const body = code(scene());
-  assert.match(body, /id="auth-sky"/);
-  assert.match(body, /id="auth-warm"/);
-  assert.match(body, /id="auth-deep"/);
+  assert.doesNotMatch(body, /auth-sky|auth-warm|auth-deep/);
+  assert.match(body, /<HeaderChromeBackground edge=\{false\} \/>/);
+  assert.match(body, /hero: \{[\s\S]{0,160}backgroundColor: shell\.chrome,/);
+  assert.match(body, /panel: \{[\s\S]{0,200}marginTop: -RISE,[\s\S]{0,200}borderTopLeftRadius: RISE,[\s\S]{0,120}backgroundColor: ph\.ground,/);
+  assert.match(body, /title: \{\s*color: shell\.onChrome,/);
+  // The texture is silent to a screen reader and never takes a touch.
+  assert.match(code(read("mobile/src/components/nav/HeaderChromeBackground.tsx")), /pointerEvents="none"\s+accessibilityElementsHidden/);
   // Static. A header that moves while somebody is typing a password is a header
   // that is in the way.
   assert.doesNotMatch(body, /Animated|useNativeDriver/);
-  assert.match(body, /pointerEvents="none"/);
-  assert.match(body, /accessibilityElementsHidden/);
 });
 
 test("every auth screen clears the navigation buttons at the bottom", () => {
@@ -332,15 +336,14 @@ test("every auth screen clears the navigation buttons at the bottom", () => {
   // answers it once — so the rule is that they all use the frame.
   const body = code(scene());
   assert.match(body, /const insets = useSafeAreaInsets\(\);/);
-  assert.match(body, /const bottom = insets\.bottom \+ space\[6\] \+ lift;/);
+  assert.match(body, /const bottom = insets\.bottom \+ space\[6\];/);
   assert.match(body, /paddingBottom: bottom\b/);
   // The top belongs to whichever element is actually first: the step rail or
   // the back control when either is there, the scroll when neither is. Either
   // way it is *added* to the inset, never substituted for it.
   assert.match(body, /const crown = Boolean\(header \|\| progress\);/);
-  assert.match(body, /const top = crown \? space\[5\] : insets\.top \+ space\[6\];/);
-  assert.match(body, /styles\.crown, \{ paddingTop: insets\.top \+ space\[3\] \}/);
-  assert.match(body, /paddingTop: top,/);
+  // The hero takes the top inset; the way back and the step marks ride its first line.
+  assert.match(body, /styles\.hero, \{ paddingTop: insets\.top \+ space\[3\] \}/);
   assert.match(body, /<KeyboardAvoidingView/);
 
   for (const name of ["start", "sign-in", "phone", "code", "register"]) {

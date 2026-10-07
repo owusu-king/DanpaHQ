@@ -1,61 +1,53 @@
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { Pressable, StyleSheet } from "react-native";
 
-import { useAuth } from "@/auth";
-import { HeaderActions, HeaderCircleButton } from "@/components/nav/HeaderCircleButton";
-import { resolvePhotoUrl } from "@/photo";
+import { alpha, shell } from "@/shell";
+
+/** The same height as the search field and the Filters button beside it. */
+const SIZE = 42;
 
 /**
- * Saved and Profile, reachable from the top of Explore.
+ * Saved, beside Explore's search: where a search here leads.
+ *
+ * Explore's top is one row — search, Saved, Filters — with no profile and no
+ * bell (owner, 2026-10-06): a row of tools above the search made the top
+ * heavy, and both are a tab away. Saved is a glass well, so the white Filters
+ * button stays the one solid control beside the field.
  *
  * Scoped to the Explore *tab* rather than to the screen behind it. That screen
  * is `search.tsx`, which is also registered as a pushed `/search` route — one
- * component, two places — and a header wired inside it would have appeared on
- * both, giving the pushed route a second way to reach tabs it has no tab bar
- * for.
- *
- * Saved is a pushed screen of its own (2026-09-15) rather than a hidden tab, so
- * it carries a back arrow and no tab bar, beside Verification and Security. More
- * → "Saved places" pushes this exact href too: one transition, one behaviour.
+ * component, two places — and a button wired inside it would have appeared on
+ * both.
  */
 export function ExploreHeaderActions() {
   const router = useRouter();
-  const { state } = useAuth();
-  const [photoUri, setPhotoUri] = useState<string | null>(null);
-
-  const avatarEndpoint =
-    state.status === "signed_in" ? (state.me.profile?.avatar_url ?? null) : null;
-
-  useEffect(() => {
-    let live = true;
-    setPhotoUri(null);
-    if (!avatarEndpoint) return;
-    // Guarded: the photo may change before this resolves, and writing a stale
-    // URL would flash the previous picture. `resolvePhotoUrl` caches, so this
-    // costs one request per session rather than one per screen.
-    void resolvePhotoUrl(avatarEndpoint).then((url) => {
-      if (live) setPhotoUri(url);
-    });
-    return () => {
-      live = false;
-    };
-  }, [avatarEndpoint]);
 
   return (
-    <HeaderActions>
-      <HeaderCircleButton
-        icon="bookmark-outline"
-        label="Saved"
-        compact
-        onPress={() => router.push("/(app)/saved" as never)}
-      />
-      <HeaderCircleButton
-        icon="person-outline"
-        label="Your profile"
-        imageUri={photoUri}
-        compact
-        onPress={() => router.push("/(app)/(tabs)/profile" as never)}
-      />
-    </HeaderActions>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel="Saved"
+      onPress={() => router.push("/(app)/saved" as never)}
+      hitSlop={3}
+      style={({ pressed }) => [styles.saved, pressed ? styles.pressed : null]}
+    >
+      <Ionicons name="bookmark-outline" size={18} color={shell.onChrome} />
+    </Pressable>
   );
 }
+
+const styles = StyleSheet.create({
+  saved: {
+    width: SIZE,
+    height: SIZE,
+    borderRadius: SIZE / 2,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: shell.chromeRaised,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: alpha(shell.onChrome, 0.3),
+  },
+  pressed: {
+    backgroundColor: shell.chromePressed,
+  },
+});

@@ -124,6 +124,30 @@ const TOKEN_KEY: Record<TypeName, keyof typeof theme.type> = {
   mono: "code",
 };
 
+/**
+ * Mobile sets its own weights (owner, 2026-10-06): the clean, regular look of
+ * the More page everywhere, with bold kept for where it is needed — headlines
+ * and the figures a page is about. Emphasis below a headline is medium, not
+ * semibold. Web keeps the tokens' weights.
+ */
+const WEIGHT: Record<TypeName, "400" | "500" | "600"> = {
+  display1: "600",
+  display2: "600",
+  display3: "600",
+  title1: "600",
+  title2: "500",
+  bodyLg: "400",
+  body: "400",
+  bodyStrong: "500",
+  caption: "400",
+  captionStrong: "500",
+  label: "500",
+  amountXl: "600",
+  amountLg: "600",
+  amount: "500",
+  mono: "500",
+};
+
 /** Secondary text is muted; everything else carries full ink. */
 const MUTED: ReadonlySet<TypeName> = new Set<TypeName>(["caption", "captionStrong", "label"]);
 
@@ -136,7 +160,7 @@ const buildType = (name: TypeName) => {
   return {
     fontSize,
     lineHeight: px(token.lineHeight),
-    fontWeight: token.weight as "400" | "500" | "600",
+    fontWeight: WEIGHT[name],
     letterSpacing: Number((em * fontSize).toFixed(2)),
     color: MUTED.has(name) ? theme.color.ink["500"] : theme.color.ink["900"],
     // Present only for the display face. Body text is deliberately left to the

@@ -15,14 +15,13 @@
  */
 
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import { useCallback, useEffect, useState } from "react";
-import { Alert, Image, ScrollView, StyleSheet, View } from "react-native";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import { useCallback, useState } from "react";
+import { Alert, Image, Pressable, ScrollView, StyleSheet, View } from "react-native";
 
 import { ApiFailure } from "@/api";
 import { Bone } from "@/components/billing/BillingParts";
 import {
-  ActionBar,
   EDGE,
   Fact,
   Footnote,
@@ -38,11 +37,11 @@ import {
   type RecordTone,
 } from "@/components/record/RecordSurfaces";
 import { BottomSheet } from "@/components/sheet/BottomSheet";
-import { Button, Field, Notice, Surface, Type, space } from "@/components/ui";
+import { Button, Field, Notice, Type, space } from "@/components/ui";
 import { SpaceAmenities } from "@/components/property/SpaceAmenities";
 import { SpaceLifecycle } from "@/components/property/SpaceLifecycle";
 import { UnitAccessCodeManagement } from "@/components/property/UnitAccessCodeManagement";
-import { UnitLifecycleActions } from "@/components/property/UnitLifecycleActions";
+import { UnitLifecycleActions, unitRemoval, unitRemovalBlocker } from "@/components/property/UnitLifecycleActions";
 import { SpacePhotos } from "@/components/property/SpacePhotos";
 import { spaceStatus } from "@/components/property/WorkspacePatterns";
 import type { Listing } from "@/listings";
@@ -91,9 +90,8 @@ export default function SpaceScreen() {
     }
   }, [unitId]);
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  // On focus, so coming back from setup or a photo upload shows what changed.
+  useFocusEffect(useCallback(() => { void load(); }, [load]));
 
   if (!unit) {
     return (
@@ -121,18 +119,11 @@ export default function SpaceScreen() {
   const occupied = unit.availability.state === "occupied";
   const published = unit.publication.state === "published" && unit.publication.listing_status === "active";
   const size = sizeLine(unit);
+  const removal = unitRemoval(unit);
 
   return (
     <View style={styles.screen}>
       <ScrollView contentContainerStyle={[styles.page, { paddingBottom: pageBottom }]} keyboardShouldPersistTaps="handled">
-        <View style={styles.identity}>
-          <Type variant="title2" accessibilityRole="header" numberOfLines={2} style={styles.who}>
-            {unit.label || "Unnamed Unit"}
-          </Type>
-          <Type variant="caption" numberOfLines={2} style={styles.where}>{where}</Type>
-          <StandingLine tone={recordTone(status.tone)} line={status.label} />
-        </View>
-
         {error ? <Notice tone="error" title={error} body="Some information may be out of date. Try again." /> : null}
         {unit.billing_access && unit.billing_access.state !== "full" ? (
           <Notice
@@ -146,41 +137,61 @@ export default function SpaceScreen() {
           />
         ) : null}
 
-        {/* The photograph is how a Unit is recognized, so it leads — and it
-            carries the two facts that would otherwise be words: whether
-            somebody lives here, and whether a tenant can find it. */}
-        <View style={styles.hero}>
+        {/* One card says what this Unit is (owner, 2026-10-06): the photograph,
+            which is how it is recognised; its name, where it is and where it
+            stands; and what kind of space it is, on one straight line. */}
+        <View style={styles.card}>
           {photo ? (
-            <Image source={{ uri: photo }} accessibilityLabel={unit.label || "Unit"} style={styles.heroPhoto} resizeMode="cover" />
+            <View style={styles.hero}>
+              <Image source={{ uri: photo }} accessibilityLabel={unit.label || "Unit"} style={styles.heroPhoto} resizeMode="cover" />
+              <View style={styles.heroChip}>
+                <View style={[styles.heroDot, { backgroundColor: occupied ? INK : KOLA_DEEP }]} />
+                <Type variant="captionStrong" style={[styles.heroChipText, { color: occupied ? INK : KOLA_DEEP }]}>
+                  {occupied ? "Occupied" : "Vacant"}
+                </Type>
+              </View>
+              {published ? (
+                <View style={styles.heroPublic} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+                  <Ionicons name="earth" size={13} color={theme.color.field["0"]} />
+                </View>
+              ) : null}
+            </View>
           ) : (
-            <View style={styles.heroEmpty}>
-              <Ionicons name="image-outline" size={26} color={theme.color.ink["300"]} />
-              <Type variant="caption">No Unit photo yet</Type>
-            </View>
+            // Without a photograph, a strip that leads to adding one, not two
+            // hundred points of grey.
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="No photo yet. Add photos."
+              onPress={() => setSheet("photos")}
+              style={({ pressed }) => [styles.heroBare, pressed ? { opacity: 0.85 } : null]}
+            >
+              <Ionicons name="image-outline" size={20} color={KOLA_DEEP} />
+              <Type variant="captionStrong" style={{ flex: 1, color: KOLA_DEEP }}>Add the first photo</Type>
+              <Ionicons name="add" size={18} color={KOLA_DEEP} />
+            </Pressable>
           )}
-          <View style={styles.heroChip}>
-            <View style={[styles.heroDot, { backgroundColor: occupied ? INK : KOLA_DEEP }]} />
-            <Type variant="captionStrong" style={[styles.heroChipText, { color: occupied ? INK : KOLA_DEEP }]}>
-              {occupied ? "Occupied" : "Vacant"}
-            </Type>
-          </View>
-          {published ? (
-            <View style={styles.heroPublic} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-              <Ionicons name="earth" size={13} color={theme.color.field["0"]} />
+          <View style={styles.identity}>
+            <View style={styles.identityHead}>
+              <Type variant="title2" accessibilityRole="header" numberOfLines={2} style={styles.who}>
+                {unit.label || "Unnamed Unit"}
+              </Type>
+              <View style={[styles.state, { backgroundColor: occupied ? theme.color.field["100"] : theme.color.kola["50"] }]}>
+                <Type variant="captionStrong" style={{ color: occupied ? INK : KOLA_DEEP }}>{occupied ? "Occupied" : "Vacant"}</Type>
+              </View>
             </View>
-          ) : null}
+            <Type variant="caption" numberOfLines={2} style={styles.where}>{where}</Type>
+            <StandingLine tone={recordTone(status.tone)} line={status.label} />
+          </View>
+          <View style={styles.facts}>
+            <UnitFact label="Type" value={unit.space_type_label} />
+            <View style={styles.factRule} />
+            <UnitFact label="Size" value={size || "—"} wide />
+            <View style={styles.factRule} />
+            <UnitFact label="Furnished" value={unit.is_furnished ? "Yes" : "No"} />
+          </View>
         </View>
 
         <WhatIsNext unit={unit} listing={listing} onChanged={load} />
-
-        <View style={styles.section}>
-          <GroupLabel>What it is</GroupLabel>
-          <RecordPanel>
-            <Fact first label="Type" value={unit.space_type_label} />
-            <Fact label="Size" value={size} />
-            <Fact label="Furnished" value={unit.is_furnished ? "Yes" : "No"} />
-          </RecordPanel>
-        </View>
 
         {/* Five stacked disclosures under one heading is a settings page. Each
             is its own piece of work, so each opens on the row that names it. */}
@@ -192,7 +203,9 @@ export default function SpaceScreen() {
               icon="images-outline"
               tone={unit.verification.state === "verified" ? "quiet" : "action"}
               label="Photos"
-              detail={unit.photo_count ? `${unit.photo_count} on file` : "None yet — verification needs them"}
+              detail={unit.photo_count
+                ? `${unit.photo_count} on file`
+                : unit.verification.state === "verified" ? "None on file" : "None yet — verification needs them"}
               onPress={() => setSheet("photos")}
             />
             <LinkRow
@@ -239,24 +252,31 @@ export default function SpaceScreen() {
             first
             icon="people-outline"
             label="Tenancy requests and tenancies"
-            detail="Who is asking, and who lives here"
-            onPress={() => router.push("/(app)/(provider-tabs)/tenants" as never)}
+            detail="Who is asking, and who lives here, for this Unit"
+            onPress={() => router.push({ pathname: "/(app)/(provider-tabs)/tenants", params: { unitId: unit.id, scopeLabel: `${unit.label} · ${unit.property.title}` } } as never)}
           />
         </RecordPanel>
 
-        <View style={styles.exit}>
-          <QuietAct
-            label="Archive or delete this Unit"
-            icon="trash-outline"
-            onPress={() => setSheet("danger")}
-          />
-        </View>
+        {/* Offered only when the backend allows one of the two, and named for
+            that one. An occupied Unit used to offer "Archive or delete" and
+            open a sheet with nothing in it (owner, 2026-10-06). */}
+        {removal ? (
+          <View style={styles.exit}>
+            <QuietAct
+              label={removal === "delete" ? "Delete this Unit" : "Archive this Unit"}
+              icon={removal === "delete" ? "trash-outline" : "archive-outline"}
+              onPress={() => setSheet("danger")}
+            />
+          </View>
+        ) : (
+          <Footnote>{unitRemovalBlocker(unit)}</Footnote>
+        )}
       </ScrollView>
 
       <BottomSheet
         visible={sheet !== null}
         onClose={() => setSheet(null)}
-        title={sheetTitle(sheet, unit)}
+        title={sheetTitle(sheet, unit, removal)}
         closeLabel="Close"
       >
         {sheet === "photos" ? (
@@ -294,21 +314,31 @@ export default function SpaceScreen() {
             {unit.verification.decision_note ? <Notice tone="info" title="Review note" body={unit.verification.decision_note} /> : null}
           </View>
         ) : sheet === "danger" ? (
-          <View style={styles.sheetBody}><UnitLifecycleActions unit={unit} /></View>
+          <View style={styles.sheetBody}><UnitLifecycleActions unit={unit} onCancel={() => setSheet(null)} /></View>
         ) : null}
       </BottomSheet>
     </View>
   );
 }
 
-function sheetTitle(sheet: Sheet | null, unit: UnitDetail) {
+function sheetTitle(sheet: Sheet | null, unit: UnitDetail, removal: "delete" | "archive" | null) {
   if (sheet === "photos") return unit.photo_count ? `Photos · ${unit.photo_count}` : "Photos";
   if (sheet === "amenities") return "Amenities";
   if (sheet === "details") return "Details and entrance";
   if (sheet === "beds") return unit.beds.length ? `Beds · ${unit.beds.length}` : "Beds";
   if (sheet === "lifecycle") return "Verification and publication";
-  if (sheet === "danger") return "Archive or delete";
+  if (sheet === "danger") return removal === "delete" ? "Delete this Unit" : "Archive this Unit";
   return "";
+}
+
+/** One of the Unit's facts on the identity card's straight line. */
+function UnitFact({ label, value, wide = false }: { label: string; value: string; wide?: boolean }) {
+  return (
+    <View accessible accessibilityLabel={`${label}, ${value}`} style={[styles.fact, wide ? { flex: 1.6 } : null]}>
+      <Type variant="caption" style={styles.factLabel}>{label}</Type>
+      <Type variant="bodyStrong" numberOfLines={2} style={styles.factValue}>{value}</Type>
+    </View>
+  );
 }
 
 /** The workspace status tones, said in the record kit's vocabulary. */
@@ -340,36 +370,96 @@ const styles = StyleSheet.create({
     padding: space[4],
     gap: space[4],
   },
+  next: {
+    gap: space[3],
+    padding: space[4],
+  },
+  nextBody: {
+    color: theme.color.ink["700"],
+  },
+  card: {
+    overflow: "hidden",
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: EDGE,
+    backgroundColor: theme.color.field["0"],
+  },
   identity: {
     gap: space[2],
-    paddingHorizontal: 2,
+    paddingHorizontal: space[4],
+    paddingTop: space[4],
+  },
+  identityHead: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: space[2],
   },
   who: {
-    fontSize: 19,
-    lineHeight: 25,
+    flex: 1,
+    minWidth: 0,
+    fontSize: 22,
+    lineHeight: 28,
     color: INK,
   },
+  state: {
+    marginTop: 3,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 999,
+  },
   where: {
-    paddingHorizontal: 1,
+    marginTop: -4,
+  },
+  facts: {
+    flexDirection: "row",
+    marginTop: space[4],
+    paddingVertical: space[3],
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: EDGE,
+  },
+  fact: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2,
+    paddingHorizontal: space[4],
+  },
+  factRule: {
+    width: StyleSheet.hairlineWidth,
+    backgroundColor: EDGE,
+  },
+  factLabel: {
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  factValue: {
+    fontSize: 14,
+    lineHeight: 19,
+    color: INK,
   },
   section: {
     gap: space[2],
   },
   hero: {
     height: 200,
-    overflow: "hidden",
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: EDGE,
-    backgroundColor: theme.color.field["100"],
     alignItems: "center",
     justifyContent: "center",
+    backgroundColor: theme.color.field["100"],
   },
   heroPhoto: {
     width: "100%",
     height: "100%",
   },
-  heroEmpty: {
+  heroBare: {
+    minHeight: 48,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space[2],
+    paddingHorizontal: space[4],
+    backgroundColor: theme.color.kola["50"],
+  },
+  acts: {
+    flexDirection: "row",
+    flexWrap: "wrap",
     alignItems: "center",
     gap: space[2],
   },
@@ -450,14 +540,18 @@ function WhatIsNext({
   }
 
   if (unit.availability.state === "occupied") {
+    // A card and its way on, rather than a notice boxed inside a card with
+    // nothing to press (owner, 2026-10-06).
     return (
-      <Surface style={{ gap: space[3] }}>
-        <Notice
-          tone="info"
-          title="Currently occupied"
-          body="Rooomly will not accept new requests while someone lives here. Manage the tenant or end the occupancy from Tenants."
-        />
-      </Surface>
+      <RecordPanel style={{ gap: space[3], padding: space[4] }}>
+        <StandingLine tone="good" line="Someone lives here" />
+        <Type variant="caption" style={{ color: theme.color.ink["700"] }}>
+          Rooomly takes no new requests for it while it is let. The tenancy, its rent and its end are managed from Tenants.
+        </Type>
+        <View style={{ flexDirection: "row" }}>
+          <Pill label="Open Tenants" icon="people-outline" onPress={() => router.push({ pathname: "/(app)/(provider-tabs)/tenants", params: { unitId: unit.id, scopeLabel: `${unit.label} · ${unit.property.title}` } } as never)} />
+        </View>
+      </RecordPanel>
     );
   }
 
@@ -473,106 +567,70 @@ function WhatIsNext({
     );
 
     return (
-      <Surface style={{ gap: space[3] }}>
-        <Type variant="title2">Get this Unit checked</Type>
-        <Type variant="caption">
+      // The record kit's card, its standing in colour, one solid act and the
+      // rest quiet — not a beige box with a gradient button (owner, 2026-10-06).
+      <RecordPanel style={styles.next}>
+        <StandingLine
+          tone={waiting ? "waiting" : unit.verification.decision_note ? "alert" : "action"}
+          line={waiting ? "With our review team" : unit.verification.decision_note ? "Changes requested" : "Get this Unit checked"}
+        />
+        <Type variant="caption" style={styles.nextBody}>
           {waiting
-            ? "It is with our team. We will let you know the outcome — there is nothing more to do here, and the rest of the property is unaffected."
-            : "Until it passes, no private access code can be shared and it cannot be advertised. Everything else about the Unit stays yours to edit."}
+            ? "We will let you know the outcome. There is nothing more to do here, and the rest of the Property is unaffected."
+            : "Until it passes, no private access code can be shared and it cannot be advertised. Everything else stays yours to edit."}
         </Type>
 
-        {unit.verification.state === "draft" ||
-        unit.verification.state === "ready_for_submission" ? (
-          <Button
-            label="Continue setup"
-            variant="secondary"
-            onPress={() =>
-              router.push({
-                pathname: "/(app)/space-new",
-                params: {
-                  propertyId: unit.property.id,
-                  unitId: unit.id,
-                  step: unit.verification.can_submit ? "review" : "amenities",
-                },
-              })
-            }
-          />
-        ) : null}
-
         {unit.verification.decision_note ? (
-          <Notice
-            tone="warning"
-            title="From our review team"
-            body={unit.verification.decision_note}
-          />
+          <Notice tone="warning" title="From our review team" body={unit.verification.decision_note} />
         ) : null}
         {error ? <Notice tone="error" title={error} /> : null}
-
-        {/* With a reviewer: no submit, and a way to take it back — the same
-            shape the property screen uses, because it is the same act one level
-            down. */}
-        {waiting ? (
-          unit.permitted_actions.withdraw_submission?.allowed ? (
-            <Button
-              label="Withdraw submission"
-              variant="quiet"
-              busy={busy}
-              onPress={() =>
-                void run(() =>
-                  withdrawSpaceSubmission(unit.id, "Withdrawn by the provider."),
-                )
-              }
-            />
-          ) : null
-        ) : submit?.allowed ? (
-          <Button
-            label="Send for checking"
-            busy={busy}
-            onPress={() => void run(() => submitForReview("unit", unit.id))}
+        {!waiting && !submit?.allowed ? (
+          <Notice
+            tone="info"
+            title={waitingOnProperty ? "The whole Property has to be verified first" : "This cannot be sent yet"}
+            body={submit?.message ?? `${unit.verification.required_outstanding} of ${unit.verification.required_total} photos still needed. Add them under Photos below.`}
           />
-        ) : (
-          <>
-            <Notice
-              tone="info"
-              title={
-                waitingOnProperty
-                  ? "The entire property has to be verified first"
-                  : "This cannot be sent yet"
-              }
-              body={
-                submit?.message ??
-                `${unit.verification.required_outstanding} of ${unit.verification.required_total} photos still needed. Add them under Photos below.`
-              }
+        ) : null}
+
+        <View style={styles.acts}>
+          {waiting ? null : submit?.allowed ? (
+            <Pill label="Send for checking" icon="paper-plane-outline" grow busy={busy} busyLabel="Sending…" onPress={() => void run(() => submitForReview("unit", unit.id))} />
+          ) : waitingOnProperty ? (
+            <Pill label="Open the Property" icon="business-outline" grow onPress={() => router.push({ pathname: "/(app)/provider-property", params: { propertyId: unit.property.id } })} />
+          ) : unit.verification.state === "draft" || unit.verification.state === "ready_for_submission" ? (
+            <Pill
+              label="Continue setup"
+              icon="arrow-forward"
+              grow
+              onPress={() => router.push({ pathname: "/(app)/space-new", params: { propertyId: unit.property.id, unitId: unit.id, step: unit.verification.can_submit ? "review" : "amenities" } })}
             />
-            {waitingOnProperty ? (
-              <Button
-                label="Open the property"
-                variant="secondary"
-                onPress={() =>
-                  router.push({
-                    pathname: "/(app)/provider-property",
-                    params: { propertyId: unit.property.id },
-                  })
-                }
-              />
-            ) : null}
-            {/* Complete on its own terms but refused: offering the call is what
-                turns a silent refusal into a stated one. */}
-            {unit.verification.can_submit ? (
-              <Button
-                label="Try sending anyway"
-                variant="quiet"
-                busy={busy}
-                onPress={() => void run(() => submitForReview("unit", unit.id))}
-              />
-            ) : null}
-          </>
-        )}
-      </Surface>
+          ) : null}
+        </View>
+
+        {/* Everything quieter sits under the one act. */}
+        {!waiting && submit?.allowed && (unit.verification.state === "draft" || unit.verification.state === "ready_for_submission") ? (
+          <QuietAct
+            label="Continue setup first"
+            icon="create-outline"
+            onPress={() => router.push({ pathname: "/(app)/space-new", params: { propertyId: unit.property.id, unitId: unit.id, step: unit.verification.can_submit ? "review" : "amenities" } })}
+          />
+        ) : null}
+        {!waiting && !submit?.allowed && unit.verification.can_submit ? (
+          // Complete on its own terms but refused: offering the call is what turns a silent refusal into a stated one.
+          <QuietAct label="Try sending anyway" icon="paper-plane-outline" busy={busy} onPress={() => void run(() => submitForReview("unit", unit.id))} />
+        ) : null}
+        {waiting && unit.permitted_actions.withdraw_submission?.allowed ? (
+          <QuietAct label="Withdraw submission" icon="arrow-undo-outline" busy={busy} onPress={() => void run(() => withdrawSpaceSubmission(unit.id, "Withdrawn by the provider."))} />
+        ) : null}
+      </RecordPanel>
     );
   }
 
   const published = unit.publication.state === "published";
+  // The Unit names its own listing. The list of the provider's listings is only
+  // a fallback: when it missed, a Unit already on Explore was offered "Publish
+  // to Explore" again (owner, 2026-10-06).
+  const listingId = unit.publication.listing_id ?? listing?.id ?? null;
 
   return (
     <View style={styles.section}>
@@ -594,7 +652,7 @@ function WhatIsNext({
         <Notice tone="info" title="This cannot be published" body={publish.message} />
       ) : null}
 
-      {composing && !listing ? (
+      {composing && !listingId ? (
         <ComposeListing
           unitId={unit.id}
           onDone={async () => {
@@ -613,7 +671,7 @@ function WhatIsNext({
             title="A re-check takes this out of Explore"
             body="The check stays on record, and this Unit goes back to draft so you can change its details and photos. It has to be checked again before private access or advertising becomes available."
           />
-          <ActionBar>
+          <View style={styles.acts}>
             <Pill
               label="Reopen this Unit"
               icon="refresh-outline"
@@ -629,11 +687,13 @@ function WhatIsNext({
               }
             />
             <QuietAct label="Never mind" disabled={busy} onPress={() => setRechecking(false)} />
-          </ActionBar>
+          </View>
         </>
       ) : (
-        <ActionBar>
-          {published && listing ? (
+        // A row in the page. `ActionBar` is the bar pinned under the thumb, and
+        // dropped mid-page it drew a white slab across the ground (owner, 2026-10-06).
+        <View style={styles.acts}>
+          {published && listingId ? (
             <Pill
               label="Take it out of Explore"
               icon="eye-off-outline"
@@ -652,23 +712,23 @@ function WhatIsNext({
                       style: destructiveConfirmStyle,
                       onPress: () =>
                         void run(() =>
-                          withdrawListing(listing.id, "Taken down by the provider"),
+                          withdrawListing(listingId, "Taken down by the provider"),
                         ),
                     },
                   ],
                 );
               }}
             />
-          ) : listing && publish?.allowed ? (
+          ) : !published && listingId && publish?.allowed ? (
             <Pill
               label="Publish to Explore"
               icon="earth"
               busy={busy}
               busyLabel="Publishing"
               grow
-              onPress={() => void run(() => publishListing(listing.id))}
+              onPress={() => void run(() => publishListing(listingId))}
             />
-          ) : !listing && publish?.allowed ? (
+          ) : !published && !listingId && publish?.allowed ? (
             <Pill
               label={composing ? "Not now" : "Publish to Explore"}
               icon={composing ? "close" : "earth"}
@@ -677,7 +737,7 @@ function WhatIsNext({
               onPress={() => setComposing((open) => !open)}
             />
           ) : null}
-        </ActionBar>
+        </View>
       )}
 
       {/* Below the bar, not beside it. "Change what was checked" is too long to

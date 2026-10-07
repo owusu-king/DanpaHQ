@@ -21,6 +21,7 @@ import { LinkRow, RecordPanel } from "@/components/record/RecordSurfaces";
 import { Notice, Type, space } from "@/components/ui";
 import { isIOS, maxFontSizeMultiplier, useSafeBottom } from "@/platform";
 import { getEnquiry, replyToEnquiry, type EnquiryDetail } from "@/sales";
+import { shell } from "@/shell";
 import { theme } from "@/theme";
 
 export default function EnquiryScreen() {
@@ -243,7 +244,7 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     borderWidth: 1,
     borderColor: theme.color.field["300"],
-    backgroundColor: theme.color.field["50"],
+    backgroundColor: shell.record,
     color: INK,
     fontSize: 16,
   },

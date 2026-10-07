@@ -16,6 +16,7 @@ const code = (source) => source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*
 
 const layout = () => read("app/(app)/(tabs)/_layout.tsx");
 const actions = () => read("src/components/nav/ExploreHeaderActions.tsx");
+const controls = () => read("src/components/nav/TabHeaderControls.tsx");
 const button = () => read("src/components/nav/HeaderCircleButton.tsx");
 
 test("the actions belong to the Explore tab, not to the screen behind it", () => {
@@ -35,38 +36,49 @@ test("the actions belong to the Explore tab, not to the screen behind it", () =>
   const search = code(read("app/(app)/search.tsx"));
   assert.match(search, /const actions = inTabs \? <ExploreHeaderActions \/> : undefined;/);
   assert.equal((search.match(/<ExploreHeaderActions/g) ?? []).length, 1);
-  // And the hero drops its title row off the tabs, under that route's own header.
-  // The title stays in every view; the All / Rent / Buy bar above the search is
-  // gone — Show is the first row of the Filters sheet (owner, 2026-10-05).
+  // The hero is one row (owner, 2026-10-06): the search, Saved and Filters. No
+  // title, profile or bell — they made the top heavy and are a tab away. The
+  // All / Rent / Buy bar is gone too — Show is the first row of the Filters
+  // sheet (owner, 2026-10-05).
   const hero = code(read("src/components/explore/ExploreHero.tsx"));
-  assert.match(hero, /\{inTabs \? \(\s*<View style=\{styles\.titleRow\}>/);
+  assert.doesNotMatch(hero, /titleRow|>\s*Explore\s*</);
+  assert.match(hero, /<View style=\{styles\.searchRow\}>\s*<View style=\{\{ flex: 1, minWidth: 0 \}\}>\{search\}<\/View>\s*\{actions\}\s*<FiltersButton/);
+  assert.doesNotMatch(code(actions()), /TenantProfileButton|notifications|UpdatesBell/);
+  // Field, Saved and Filters stand at one height.
+  assert.match(hero, /field: \{\s*minHeight: 42,/);
+  assert.match(hero, /filters: \{\s*width: 42,\s*height: 42,/);
+  assert.match(code(actions()), /const SIZE = 42;/);
   assert.doesNotMatch(hero, /ModeSwitch/);
   assert.match(hero, /<View style=\{styles\.controls\}>[\s\S]{0,40}<View style=\{styles\.searchRow\}>/);
 });
 
 test("each button opens the tab it names, the way the app already does", () => {
-  const source = code(actions());
-  assert.match(source, /icon="bookmark-outline"[\s\S]{0,80}label="Saved"/);
-  assert.match(source, /label="Your profile"/);
+  const explore = code(actions());
+  assert.match(explore, /accessibilityLabel="Saved"/);
+  assert.match(explore, /router\.push\("\/\(app\)\/saved" as never\)/);
+  assert.match(explore, /name="bookmark-outline"/);
+  // The tenant tabs' avatar opens the profile.
+  const source = code(controls());
+  assert.match(source, /"Your profile"/);
 
-  // The same hrefs and the same method More -> "Saved places" uses. One
+  // The same href and the same method More -> "Saved places" uses. One
   // transition should not behave two ways. Saved is a pushed screen now.
-  assert.match(source, /router\.push\("\/\(app\)\/saved" as never\)/);
-  assert.match(source, /router\.push\("\/\(app\)\/profile-edit" as never\)/);
+  assert.match(source, /"\/\(app\)\/profile-edit"/);
   assert.match(
     read("app/(app)/(tabs)/profile.tsx"),
-    /router\.push\("\/\(app\)\/saved" as never\)/,
+    /const go = \(path: string\) => \(\) => router\.push\(path as never\);[\s\S]*onPress: go\("\/\(app\)\/saved"\)/,
   );
 });
 
 test("a real face beats a generic silhouette, without a request per render", () => {
-  const source = code(actions());
-  assert.match(source, /resolvePhotoUrl\(avatarEndpoint\)/);
-  assert.match(source, /imageUri=\{photoUri\}/);
-  // The same guarded effect the Profile screen uses: a photo that changes
-  // mid-resolve must not flash the previous one back.
-  assert.match(source, /if \(live\) setPhotoUri\(url\)/);
+  const source = code(controls());
+  assert.match(source, /resolvePhotoUrl\(endpoint\)/);
+  assert.match(source, /<Image source=\{\{ uri: photoUri \}\}/);
+  // A photo that changes mid-resolve must not flash the previous one back: the
+  // answer is kept with the endpoint it belongs to, and a stale one is ignored.
+  assert.match(source, /if \(live\) setResolved\(\{ endpoint, url \}\)/);
   assert.match(source, /live = false/);
+  assert.match(source, /resolved\?\.endpoint === endpoint \? resolved\.url : null/);
 });
 
 test("the disc is smaller than the target it sits in", () => {

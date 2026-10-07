@@ -1,24 +1,39 @@
-import { useId } from "react";
+import { useState } from "react";
 import { StyleSheet, View } from "react-native";
-import Svg, { Defs, LinearGradient, RadialGradient, Rect, Stop } from "react-native-svg";
+import Svg, { Circle, G } from "react-native-svg";
 
 import { theme } from "@/theme";
 
-const WHITE = theme.color.field["0"];
+/** Distance between two rows of dots, and between two dots along a row. */
+const RING_GAP = 6;
+const DOT_GAP = 6;
+/** How many rows make up one wave. The middle rows are the strongest. */
+const RINGS = 15;
 
 /**
- * Rooomly's mobile header material.
+ * Rooomly's mobile header material: flat brand green with a dotted texture.
+ *
+ * Two bands of dotted contours sweep in from off-canvas, one low on the leading
+ * side and one high on the trailing side, like a halftone print. The dots are a
+ * deeper kola, so the texture reads as part of the green rather than something
+ * laid on top of it. Each band fades toward its edges, so no row starts or stops
+ * abruptly.
+ *
+ * This replaced a gradient with a translucent glass plane. Gradients and glare
+ * read as an effect; a single colour with a fine texture reads as a material.
  *
  * Navigation still owns every measurement and safe-area inset. This layer only
- * paints within that stable frame: brand green with tonal depth, a soft light
- * catch, and one translucent architectural plane. The result reads as glass
- * without blur, visual noise, or compromised title contrast.
+ * paints inside that frame, takes no touches, and is hidden from screen readers.
  */
-export function HeaderChromeBackground({ edge = true }: {
+export function HeaderChromeBackground({ edge = true, leading = true, trailing = true }: {
   /** False where the green continues past the bottom — Explore's flared corners. */
   edge?: boolean;
+  /** The low band on the leading side. Off for a header that a Home hero continues. */
+  leading?: boolean;
+  /** The high band on the trailing side. Off for the hero under such a header. */
+  trailing?: boolean;
 } = {}) {
-  const id = `header${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
+  const [size, setSize] = useState<{ width: number; height: number } | null>(null);
 
   return (
     <View
@@ -26,41 +41,48 @@ export function HeaderChromeBackground({ edge = true }: {
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
       style={styles.fill}
+      onLayout={(event) => {
+        const { width, height } = event.nativeEvent.layout;
+        if (width !== size?.width || height !== size?.height) setSize({ width, height });
+      }}
     >
-      <Svg width="100%" height="100%" preserveAspectRatio="none">
-        <Defs>
-          <LinearGradient id={`${id}tone`} x1="0" y1="0" x2="1" y2="0.9">
-            <Stop offset="0" stopColor={theme.color.kola["800"]} />
-            <Stop offset="0.3" stopColor={theme.color.kola["600"]} />
-            <Stop offset="0.72" stopColor={theme.color.kola["600"]} />
-            <Stop offset="1" stopColor={theme.color.kola["800"]} />
-          </LinearGradient>
-          <LinearGradient id={`${id}glaze`} x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0" stopColor={WHITE} stopOpacity={0.11} />
-            <Stop offset="0.48" stopColor={WHITE} stopOpacity={0.025} />
-            <Stop offset="1" stopColor={theme.color.kola["900"]} stopOpacity={0.1} />
-          </LinearGradient>
-          <RadialGradient id={`${id}light`} cx="0.84" cy="0" r="0.82">
-            <Stop offset="0" stopColor={WHITE} stopOpacity={0.2} />
-            <Stop offset="0.42" stopColor={WHITE} stopOpacity={0.055} />
-            <Stop offset="1" stopColor={WHITE} stopOpacity={0} />
-          </RadialGradient>
-          <RadialGradient id={`${id}depth`} cx="0" cy="1" r="0.9">
-            <Stop offset="0" stopColor={theme.color.kola["900"]} stopOpacity={0.19} />
-            <Stop offset="1" stopColor={theme.color.kola["900"]} stopOpacity={0} />
-          </RadialGradient>
-        </Defs>
-        <Rect x="0" y="0" width="100%" height="100%" fill={`url(#${id}tone)`} />
-        <Rect x="0" y="0" width="100%" height="100%" fill={`url(#${id}depth)`} />
-        <Rect x="0" y="0" width="100%" height="100%" fill={`url(#${id}glaze)`} />
-        <Rect x="0" y="0" width="100%" height="100%" fill={`url(#${id}light)`} />
-      </Svg>
-
-      <View style={styles.glassPlane}>
-        <View style={styles.planeHighlight} />
-      </View>
+      {size ? (
+        <Svg width={size.width} height={size.height}>
+          {/* Low on the leading side, curving up and away. */}
+          {leading ? <Wave cx={-size.width * 0.15} cy={size.height * 1.9} inner={size.height * 1.15} /> : null}
+          {/* High on the trailing side, curving down past the corner. */}
+          {trailing ? <Wave cx={size.width * 1.08} cy={-size.height * 0.9} inner={size.height * 1.05} /> : null}
+        </Svg>
+      ) : null}
       {edge ? <View style={styles.edge} /> : null}
     </View>
+  );
+}
+
+/** One band of dotted concentric rows around a centre off the canvas. */
+function Wave({ cx, cy, inner }: { cx: number; cy: number; inner: number }) {
+  return (
+    <G>
+      {Array.from({ length: RINGS }, (_, index) => {
+        // 0 at either edge of the band, 1 in the middle.
+        const strength = 1 - Math.abs(index - (RINGS - 1) / 2) / ((RINGS - 1) / 2);
+        return (
+          <Circle
+            key={index}
+            cx={cx}
+            cy={cy}
+            r={inner + index * RING_GAP}
+            fill="none"
+            stroke={theme.color.kola["900"]}
+            strokeOpacity={0.06 + strength * 0.56}
+            strokeWidth={2.2}
+            strokeLinecap="round"
+            // A near-zero dash with round caps draws a dot.
+            strokeDasharray={`0.01 ${DOT_GAP}`}
+          />
+        );
+      })}
+    </G>
   );
 }
 
@@ -69,30 +91,12 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFill,
     overflow: "hidden",
   },
-  glassPlane: {
-    position: "absolute",
-    top: "-52%",
-    right: "5%",
-    width: "38%",
-    height: "205%",
-    borderLeftWidth: StyleSheet.hairlineWidth,
-    borderRightWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(255,255,255,0.075)",
-    backgroundColor: "rgba(255,255,255,0.026)",
-    transform: [{ rotate: "-12deg" }],
-  },
-  planeHighlight: {
-    width: StyleSheet.hairlineWidth,
-    height: "100%",
-    marginLeft: "27%",
-    backgroundColor: "rgba(255,255,255,0.08)",
-  },
   edge: {
     position: "absolute",
     right: 0,
     bottom: 0,
     left: 0,
     height: StyleSheet.hairlineWidth,
-    backgroundColor: "rgba(255,255,255,0.18)",
+    backgroundColor: "rgba(255,255,255,0.12)",
   },
 });

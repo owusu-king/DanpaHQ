@@ -551,7 +551,7 @@ export const rowStyles = StyleSheet.create({
   rowStatus: {
     fontSize: 12.5,
     lineHeight: 17,
-    fontWeight: "600",
+    fontWeight: "500",
     textAlign: "right",
   },
 });

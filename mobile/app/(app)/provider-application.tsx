@@ -43,12 +43,14 @@ type Mode = "none" | "accept" | "decline";
  */
 export default function ProviderApplicationDetailScreen() {
   const router = useRouter();
-  const { kind, id, organizationId } = useLocalSearchParams<{ kind?: "application" | "private"; id?: string; organizationId?: string }>();
+  const { kind, id, organizationId, decide } = useLocalSearchParams<{ kind?: "application" | "private"; id?: string; organizationId?: string; decide?: "accept" | "decline" }>();
   const [application, setApplication] = useState<RentalApplication | null>(null);
   const [request, setRequest] = useState<PrivateRequest | null>(null);
   const [lease, setLease] = useState<Lease | null>(null);
   const [note, setNote] = useState("");
-  const [mode, setMode] = useState<Mode>("none");
+  // A row in the requests list can start the decision itself; the confirmation
+  // and the note still happen here, on the record.
+  const [mode, setMode] = useState<Mode>(decide === "accept" || decide === "decline" ? decide : "none");
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -106,7 +108,8 @@ export default function ProviderApplicationDetailScreen() {
     : request!.status === "approved" && (!request!.lease_id || request!.lease_status === "draft");
   const message = application?.message || request?.message || "";
   const decided = (application?.decision_note && !open) || request?.decision_note;
-  const focused = mode !== "none";
+  // Only an open request someone here may answer can be decided, whatever the link asked for.
+  const focused = mode !== "none" && open && mayManage;
   const barShown = open && mayManage && !focused;
 
   return (

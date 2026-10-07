@@ -16,6 +16,7 @@ import {
 import { sheetCardStyle, useInSheet } from "@/components/sheet/SheetParts";
 import { Type, space } from "@/components/ui";
 import { pressableFeedback, surfaceElevation } from "@/platform";
+import { alpha } from "@/shell";
 import { theme } from "@/theme";
 
 /**
@@ -26,19 +27,25 @@ import { theme } from "@/theme";
  * stands on the warm ivory every pushed screen has always used, and there the
  * same glass is nothing: 72% white over `field-50` lifts by about one percent.
  *
- * So a record's panel is paper on ivory, held by a warm hairline and, on iOS
- * only, the house's very subtle shadow. The vocabulary is deliberately the same
- * as `PortfolioList` — panel, fact, group label, a lead figure, one pill — so
- * the two halves of the app read as one product in two rooms.
+ * So a record's panel is paper, held by a hairline and, on iOS only, the
+ * house's very subtle shadow. The vocabulary is deliberately the same as
+ * `PortfolioList` — panel, fact, group label, a lead figure, one pill — so the
+ * two halves of the app read as one product in two rooms.
+ *
+ * Brought to the dashboards' look (owner, 2026-10-06): records now stand on the
+ * Homes' green at its lightest (`shell.record`), so a panel is the dashboards'
+ * card — 20pt corners and a hairline of the ground's own green — a section is
+ * named in the dashboards' title case rather than a grey all-caps label, and a
+ * row's glyph sits in a round well in its tone instead of a grey square.
  */
 
-/** Paper, on the warm ground the pushed screens keep. */
+/** Paper, on the green the pushed screens now share with the dashboards. */
 export const PAPER = theme.color.field["0"];
 export const GROUND = theme.color.field["50"];
-/** A warm hairline, never a green-tinted one: this ground is ivory. */
-export const EDGE = theme.color.field["200"];
-export const PRESSED = theme.color.field["100"];
-export const PANEL_RADIUS = 16;
+/** A hairline of the ground's own green, as the dashboards' cards have. */
+export const EDGE = alpha(theme.color.kola["900"], 0.09);
+export const PRESSED = alpha(theme.color.kola["900"], 0.05);
+export const PANEL_RADIUS = 20;
 
 export { FAINT, HARMATTAN, INK, KOLA, KOLA_DEEP, LATERITE, MUTED };
 
@@ -62,15 +69,21 @@ export function RecordPanel({ children, style }: { children: ReactNode; style?: 
   return <View style={[styles.panel, inSheet ? sheetCardStyle : null, style]}>{children}</View>;
 }
 
-/** A section's name, standing on the ground rather than inside a panel. */
+/** A section's name, standing on the ground rather than inside a panel, in the dashboards' title case. */
 export function GroupLabel({ children, action }: { children: string; action?: ReactNode }) {
   return (
     <View style={styles.groupLabelRow}>
-      <Type variant="label" accessibilityRole="header" style={styles.groupLabel}>{children.toUpperCase()}</Type>
+      <Type variant="title2" accessibilityRole="header" style={styles.groupLabel}>{children}</Type>
       {action}
     </View>
   );
 }
+
+/** A row's well: quiet rows take the brand's pale green rather than a grey square. */
+const WELL: Record<RecordTone, { ink: string; wash: string }> = {
+  ...TONE,
+  quiet: { ink: KOLA_DEEP, wash: theme.color.kola["50"] },
+};
 
 /**
  * The one figure a record leads with.
@@ -202,8 +215,8 @@ export function LinkRow({
         pressed ? { backgroundColor: PRESSED } : null,
       ]}
     >
-      <View style={[styles.well, { backgroundColor: TONE[tone].wash }]}>
-        <Ionicons name={icon} size={16} color={TONE[tone].ink} />
+      <View style={[styles.well, { backgroundColor: WELL[tone].wash }]}>
+        <Ionicons name={icon} size={18} color={WELL[tone].ink} />
       </View>
       <View style={styles.linkBody}>
         {/* A 320pt handset leaves this about 188 points, which is short of
@@ -367,11 +380,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     gap: space[3],
-    paddingHorizontal: 2,
+    paddingHorizontal: space[1],
+    marginTop: space[1],
   },
   groupLabel: {
-    letterSpacing: 0.6,
-    color: alphaInk(0.62),
+    flexShrink: 1,
+    fontSize: 17,
+    lineHeight: 23,
+    letterSpacing: -0.2,
+    color: INK,
   },
   lead: {
     gap: 2,
@@ -414,7 +431,7 @@ const styles = StyleSheet.create({
   fact: {
     gap: space[2],
     paddingVertical: space[3],
-    paddingHorizontal: 14,
+    paddingHorizontal: space[4],
   },
   factLine: {
     minHeight: 24,
@@ -449,18 +466,18 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
   },
   linkRow: {
-    minHeight: 60,
+    minHeight: 64,
     flexDirection: "row",
     alignItems: "flex-start",
     gap: space[3],
     paddingVertical: space[3],
-    paddingHorizontal: 14,
+    paddingHorizontal: space[4],
   },
   well: {
-    width: 32,
-    height: 32,
-    marginTop: 1,
-    borderRadius: 10,
+    width: 36,
+    height: 36,
+    marginTop: -1,
+    borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -500,7 +517,7 @@ const styles = StyleSheet.create({
     backgroundColor: KOLA,
   },
   pillQuiet: {
-    borderColor: EDGE,
+    borderColor: alpha(theme.color.kola["900"], 0.14),
     backgroundColor: PAPER,
   },
   pillDanger: {
@@ -553,10 +570,10 @@ const styles = StyleSheet.create({
     gap: space[1],
     paddingVertical: space[3],
     paddingHorizontal: space[4],
-    borderRadius: 12,
+    borderRadius: 16,
     borderLeftWidth: 3,
-    borderLeftColor: theme.color.field["300"],
-    backgroundColor: theme.color.field["100"],
+    borderLeftColor: theme.color.kola["300"],
+    backgroundColor: PAPER,
   },
   quoteText: {
     fontSize: 14.5,
@@ -569,9 +586,3 @@ const styles = StyleSheet.create({
     color: FAINT,
   },
 });
-
-/** Ink at an opacity, for the one label that must sit under everything else. */
-function alphaInk(opacity: number) {
-  const value = Number.parseInt(INK.slice(1), 16);
-  return `rgba(${(value >> 16) & 255}, ${(value >> 8) & 255}, ${value & 255}, ${opacity})`;
-}

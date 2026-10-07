@@ -12,9 +12,11 @@ test("mobile Payments supports scale and opens a focused rent account", () => {
   const layout = read("mobile/app/(app)/_layout.tsx");
 
   assert.match(list, /FlatList/);
-  assert.match(list, /"balances", "records", "payouts", "expenses"/);
-  assert.match(list, /Search balances/);
-  assert.match(list, /"all", "overdue", "outstanding", "current"/);
+  // Read as work (owner, 2026-10-06): balances, claims, payouts and expenses are sections, not views.
+  assert.match(list, /label\("overdue", "Overdue"/);
+  assert.match(list, /label\("review", "To confirm"/);
+  assert.match(list, /label\("way", "On its way to you"/);
+  assert.match(list, /Search payments/);
   assert.match(list, /rent-account/);
 
   // Tenant payment and provider settlement are different financial facts.
@@ -54,7 +56,8 @@ test("mobile payment attention counts only the claims the provider still owes", 
   assert.doesNotMatch(payments, /pending_payment_records/);
   assert.match(home, /money\?\.payment_records_awaiting_you/);
   assert.doesNotMatch(home, /pending_payment_records/);
-  assert.match(home, /to confirm/);
+  assert.match(home, /recordsToConfirm: money\?\.payment_records_awaiting_you \?\? 0,/);
+  assert.match(read("mobile/src/dashboardWork.ts"), /"records"\)\} to confirm`/);
 });
 
 test("mobile tenant Payments keeps ended rent accounts reachable", () => {
@@ -74,8 +77,9 @@ test("external payments are explicit, evidenced and tenant-confirmed on mobile",
   assert.match(record, /uploadImage\(evidence, "payment_evidence"\)/);
   assert.match(detail, /I didn’t make this payment/);
   assert.match(detail, /Paid externally · recorded through Rooomly/);
-  // A group label, written in sentence case and drawn in capitals.
-  assert.match(tenant, /CONFIRM AN EXTERNAL PAYMENT/i);
+  // A claim the landlord recorded is the tenant's to confirm or dispute, said on the row.
+  assert.match(tenant, />To confirm<\/GroupLabel>/);
+  assert.match(tenant, /<Act label="Confirm or dispute"/);
   assert.match(tenant, /receiptId: payment\.receipt_id/);
   assert.match(receipt, /snapshot\.payment\.source === "PLATFORM_PSP"/);
   assert.match(api, /evidence_file_id\?: string \| null/);

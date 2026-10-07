@@ -130,7 +130,9 @@ test("green frames the page: kola above, ivory beneath, paper under the thumb", 
   // glyphs turn dark only on the ivory sign-in journey.
   // The curtain is ivory now, so the glyphs over it are dark like the auth
   // flow's — white ones would be invisible for the whole of a slow launch.
-  assert.match(body, /const statusBar = settled && segments\[0\] !== "\(auth\)" \? "light" : "dark";/);
+  // The sign-in screens open on the green hero now (owner, 2026-10-06), so only
+  // the ivory launch curtain takes dark glyphs.
+  assert.match(body, /const statusBar = settled \? "light" : "dark";/);
   assert.match(body, /<StatusBar style=\{statusBar\} \/>/);
   assert.match(body, /<SafeAreaProvider initialMetrics=\{initialWindowMetrics\}>/);
   assert.match(body, /<TypographyScaleProvider>[\s\S]*<AuthProvider>/);
@@ -143,17 +145,34 @@ test("green frames the page: kola above, ivory beneath, paper under the thumb", 
   }
   const header = code(read("src/components/nav/TabHeader.tsx"));
   assert.match(header, /safeHeaderTop\(insets\.top\)/);
+  // The safe-area inset is the measure; the status bar's reported height is only
+  // the fallback when it reads zero. Taking the larger of the two left a band of
+  // empty green over every Android header (owner, 2026-10-07).
+  const platform = code(read("src/platform.ts"));
+  assert.match(platform, /export const safeHeaderTop = \(safeAreaTop: number\) =>\s+Math\.max\(0, safeAreaTop\) \+ ANDROID_HEADER_BREATH;/);
+  assert.match(platform, /export const ANDROID_HEADER_BREATH = isAndroid \? 8 : 0;/);
+  assert.doesNotMatch(platform, /currentHeight/);
+  assert.doesNotMatch(platform, /Math\.max\(safeAreaTop, NativeStatusBar\.currentHeight/);
+  // And each row is only as tall as what is in it on Android.
+  assert.match(header, /const ROW_HEIGHT = isAndroid \? 48 : 58;/);
+  assert.match(code(read("src/components/nav/StackHeader.tsx")), /const ROW_HEIGHT = isAndroid \? 46 : 52;/);
   assert.match(
     header,
     /paddingTop: topInset,[\s\S]*paddingLeft: insets\.left,[\s\S]*paddingRight: insets\.right,[\s\S]*backgroundColor: shell\.chrome/,
   );
   assert.match(header, /height: topInset \+ space\[2\], backgroundColor: shell\.chrome/);
-  assert.match(header, /color: shell\.onChrome,/);
+  // The chrome is one green with a dotted texture, not a gradient with glare.
+  const material = code(read("src/components/nav/HeaderChromeBackground.tsx"));
+  assert.match(material, /strokeDasharray=\{.0\.01 \$\{DOT_GAP\}.\}/);
+  assert.match(material, /stroke=\{theme\.color\.kola\["900"\]\}/);
+  assert.doesNotMatch(material, /LinearGradient|RadialGradient|glassPlane/);
 
   // …and so is every pushed screen's, with its way back in the header's white.
   const stack = read("app/(app)/_layout.tsx");
   assert.match(stack, /header: \(props\) => <StackHeader \{\.\.\.props\} \/>/);
-  assert.match(stack, /contentStyle: \{ backgroundColor: shell\.canvas \}/);
+  // Records stand on the Homes' green at its lightest (owner, 2026-10-06).
+  assert.match(stack, /contentStyle: \{ backgroundColor: shell\.record \}/);
+  assert.match(code(read("src/shell.ts")), /record: ph\.groundLow,/);
   const stackHeader = code(read("src/components/nav/StackHeader.tsx"));
   assert.match(stackHeader, /const topInset = safeHeaderTop\(insets\.top\);/);
   assert.match(
@@ -163,15 +182,18 @@ test("green frames the page: kola above, ivory beneath, paper under the thumb", 
   assert.match(stackHeader, /const tintColor = options\.headerTintColor \?\? shell\.onChrome;/);
   assert.match(code(read("src/components/nav/BackControl.tsx")), /color=\{tintColor \?\? shell\.onChrome\}/);
 
-  // A control on the chrome is a translucent well the green shows through; the
+  // A control on the chrome is a bare white glyph or a translucent well; the
+  // search pill and the Portfolio chip are darker wells cut into the green; the
   // create action is a solid white disc with its glyph in the chrome's kola.
   assert.match(code(read("src/components/nav/HeaderCircleButton.tsx")), /backgroundColor: shell\.chromeRaised,/);
   assert.match(
     code(read("src/components/portfolio/PortfolioSwitcher.tsx")),
-    /backgroundColor: pressed \? shell\.chromePressed : shell\.chromeRaised,/,
+    /backgroundColor: alpha\(theme\.color\.kola\["900"\], pressed \? 0\.58 : 0\.4\),/,
   );
-  assert.match(providerTabs(), /backgroundColor: pressed && !isAndroid \? theme\.color\.field\["200"\] : shell\.onChrome,/);
-  assert.match(providerTabs(), /<Ionicons name="add" size=\{24\} color=\{shell\.chrome\} \/>/);
+  const controls = code(read("src/components/nav/TabHeaderControls.tsx"));
+  assert.match(controls, /backgroundColor: alpha\(theme\.color\.kola\["900"\], 0\.4\),/);
+  assert.match(controls, /<Ionicons name="add" size=\{24\} color=\{shell\.chrome\} \/>/);
+  assert.match(controls, /create: \{[^}]*backgroundColor: shell\.onChrome,/);
 
   // The tab bar is paper under a hairline, lifted by a whisper of shadow on iOS only.
   const bar = code(read("src/components/nav/MainTabBar.tsx"));
@@ -207,7 +229,7 @@ test("a page's name is said once, by its header", () => {
     "app/(app)/(provider-tabs)/payments.tsx": "Payments",
     "app/(app)/(provider-tabs)/tenants.tsx": "Tenants",
     "app/(app)/(provider-tabs)/properties.tsx": "Properties",
-    "app/(app)/(provider-tabs)/more.tsx": "More",
+    "app/(app)/(provider-tabs)/more.tsx": "Menu",
     "app/(app)/provider-viewings.tsx": "Viewings",
     "app/(app)/archive.tsx": "Archive",
   };
@@ -215,26 +237,31 @@ test("a page's name is said once, by its header", () => {
     assert.doesNotMatch(code(read(path)), new RegExp(`>\\s*${name}\\s*</Type>`), `${path} titles itself under its header`);
   }
 
-  // Home's greeting is its title, so its header carries Rooomly's mark rather
-  // than a second name — and the mark is announced as the word.
-  for (const layout of [renterTabs(), providerTabs()]) {
-    assert.match(layout, /name="index" options=\{\{ title: "Home", headerTitle: \(\) => <Wordmark \/>,/);
-  }
-  assert.match(code(read("src/components/shell/Wordmark.tsx")), /accessibilityRole="header" accessibilityLabel="Rooomly"/);
-
-  // The header draws a title only when there is one, and a drawn title in its place.
+  // A tab's header names nothing: the tab bar says where you are. It is a tool
+  // row — you or the Portfolio, the tenant's search, the bell — the same on
+  // every tab of a workspace.
   const header = code(read("src/components/nav/TabHeader.tsx"));
+  assert.doesNotMatch(header, /getHeaderTitle|accessibilityRole="header"|<Text/);
   assert.match(header, /typeof options\.headerTitle === "function"/);
-  assert.match(header, /if \(!customTitle && !title && !left && !right\) \{/);
-  assert.match(header, /accessibilityRole="header"/);
-  // Provider chrome keeps one line: the page name. Portfolio scope remains in
-  // the labelled switcher rather than stacking a second heading above it.
-  assert.match(providerTabs(), /header: \(props\) => <TabHeader \{\.\.\.props\} \/>/);
-  assert.doesNotMatch(providerTabs(), /eyebrow=|portfolio\?\.label/);
-  assert.doesNotMatch(header, /eyebrow/);
-  assert.match(header, /fontSize: 20,[\s\S]*fontWeight: "700"/);
-  assert.match(header, /fontSize: 18,[\s\S]*lineHeight: 24/);
+  assert.match(header, /if \(!middle && !left && !right\) \{/);
   assert.match(header, /paddingLeft: insets\.left,[\s\S]*paddingRight: insets\.right/);
+  for (const layout of [renterTabs(), providerTabs()]) {
+    assert.doesNotMatch(layout, /Wordmark/);
+  }
+  const renter = renterTabs();
+  assert.match(renter, /headerLeft: \(\) => <TenantProfileButton \/>,/);
+  assert.match(renter, /headerTitle: \(\) => <HeaderSearchPill \/>,/);
+  assert.match(renter, /headerRight: \(\) => <TenantHeaderActions \/>,/);
+  // Services and Payments keep their help, beside the bell.
+  assert.match(renter, /headerRight: \(\) => <TenantHeaderActions helpTopic="services" \/>/);
+  assert.match(renter, /headerRight: \(\) => <TenantHeaderActions helpTopic="payments" \/>/);
+  assert.match(providerTabs(), /header: \(props\) => <TabHeader \{\.\.\.props\} \/>/);
+  assert.match(providerTabs(), /headerRight: \(\) => <ProviderHeaderActions \/>,/);
+  assert.doesNotMatch(providerTabs(), /eyebrow=|portfolio\?\.label/);
+  // The bell counts unread updates, read again whenever the tab comes back.
+  const controls = code(read("src/components/nav/TabHeaderControls.tsx"));
+  assert.match(controls, /const unread = useUnreadUpdates\(\);[\s\S]*badge=\{unread\}/);
+  assert.match(code(read("src/components/nav/useUnreadUpdates.ts")), /useFocusEffect\(useCallback\(/);
   const stack = code(read("app/(app)/_layout.tsx"));
   assert.match(stack, /name="provider-viewings" options=\{\{ title: "Viewings" \}\}/);
 });

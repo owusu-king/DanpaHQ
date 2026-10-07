@@ -35,6 +35,7 @@ import { Button, Field, Notice, Type, space } from "@/components/ui";
 import { rememberOnboardingIntent } from "@/onboardingIntent";
 import { isIOS, useSafeBottom } from "@/platform";
 import { getSale, saleFacts, startEnquiry, type SaleDetail } from "@/sales";
+import { shell } from "@/shell";
 import { theme } from "@/theme";
 
 type IconName = keyof typeof Ionicons.glyphMap;
@@ -119,7 +120,7 @@ export default function SaleScreen() {
   return (
     // The enquiry is written in the bar at the foot, so the keyboard lifts the page.
     <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: theme.color.field["50"] }}
+      style={{ flex: 1, backgroundColor: shell.record }}
       behavior={isIOS ? "padding" : undefined}
       keyboardVerticalOffset={isIOS ? headerHeight : 0}
     >

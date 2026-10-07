@@ -1,14 +1,14 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useRef } from "react";
-import { Animated, Image, Pressable, StyleSheet, View } from "react-native";
+import { Animated, Image, Pressable, StyleSheet, Text, View } from "react-native";
 
 import { radius, space } from "@/components/ui";
 import { isAndroid } from "@/platform";
-import { alpha, shell } from "@/shell";
+import { shell } from "@/shell";
+import { theme } from "@/theme";
 
 /** The visible disc. Smaller than the target it sits in, on purpose. */
 const DISC = 40;
-const COMPACT_DISC = 36;
 
 /**
  * A circular action in a screen header.
@@ -31,15 +31,19 @@ export function HeaderCircleButton({
   label,
   onPress,
   imageUri,
-  compact = false,
+  bare = false,
+  badge = 0,
 }: {
   icon: keyof typeof Ionicons.glyphMap;
   label: string;
   onPress: () => void;
   /** Shown instead of the glyph — a real face beats a generic silhouette. */
   imageUri?: string | null;
-  /** Quieter paired actions keep the 48pt touch target. */
-  compact?: boolean;
+  /** Just the glyph on the green, the way the tab headers draw their tools. A
+   *  well appears only while it is pressed. */
+  bare?: boolean;
+  /** Unread work behind this button. Shown as a count, capped at 9+. */
+  badge?: number;
 }) {
   const scale = useRef(new Animated.Value(1)).current;
 
@@ -55,20 +59,29 @@ export function HeaderCircleButton({
         onPressIn={() => press(0.92)}
         onPressOut={() => press(1)}
         // Both disc sizes reach the 48pt floor without drawing a heavier circle.
-        hitSlop={compact ? 6 : space[1]}
+        hitSlop={space[1]}
         android_ripple={
           isAndroid
-            ? { color: shell.chromePressed, radius: (compact ? COMPACT_DISC : DISC) / 2, borderless: true }
+            ? { color: shell.chromePressed, radius: DISC / 2, borderless: true }
             : undefined
         }
-        style={({ pressed }) => [styles.disc, compact ? styles.compactDisc : null, pressed && !isAndroid ? styles.pressed : null]}
+        style={({ pressed }) => [
+          styles.disc,
+          bare ? styles.bareDisc : null,
+          pressed && (bare || !isAndroid) ? styles.pressed : null,
+        ]}
       >
         {imageUri ? (
           <Image source={{ uri: imageUri }} accessible={false} style={styles.photo} />
         ) : (
-          <Ionicons name={icon} size={compact ? 17 : 20} color={shell.onChrome} />
+          <Ionicons name={icon} size={bare ? 23 : 20} color={shell.onChrome} />
         )}
       </Pressable>
+      {badge > 0 ? (
+        <View pointerEvents="none" style={styles.badge}>
+          <Text allowFontScaling={false} style={styles.badgeText}>{badge > 9 ? "9+" : badge}</Text>
+        </View>
+      ) : null}
     </Animated.View>
   );
 }
@@ -94,14 +107,33 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     backgroundColor: shell.chromeRaised,
   },
-  compactDisc: {
-    width: COMPACT_DISC,
-    height: COMPACT_DISC,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: alpha(shell.onChrome, 0.22),
+  bareDisc: {
+    backgroundColor: "transparent",
+    borderWidth: 0,
   },
   pressed: {
     backgroundColor: shell.chromePressed,
+  },
+  // Laterite, cut out of the green by a ring of the chrome itself.
+  badge: {
+    position: "absolute",
+    top: -3,
+    right: -4,
+    minWidth: 18,
+    height: 18,
+    paddingHorizontal: 4,
+    borderRadius: 9,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: theme.color.laterite["600"],
+    borderWidth: 2,
+    borderColor: shell.chrome,
+  },
+  badgeText: {
+    fontSize: 10,
+    lineHeight: 12,
+    fontWeight: "600",
+    color: shell.onChrome,
   },
   photo: {
     width: "100%",

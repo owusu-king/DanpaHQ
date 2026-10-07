@@ -160,8 +160,25 @@ test("what sits on the ground reads clearly, and what leads onward is glass", ()
   // The eyebrows standing on the ground, not on a card, are set dark enough to read.
   assert.match(shortcuts, /lineHeight: 14, color: ph\.ink70 \}/);
   for (const path of ["src/components/home/TenantHome.tsx", "app/(app)/(provider-tabs)/index.tsx"]) {
-    const screen = code(read(path));
-    assert.match(screen, /fontSize: density\.labelSize, lineHeight: 14, color: ph\.ink70 \}/, path);
-    assert.doesNotMatch(screen, /fontSize: density\.labelSize, lineHeight: 14, color: ph\.ink38/, path);
+    assert.doesNotMatch(code(read(path)), /fontSize: density\.labelSize, lineHeight: 14, color: ph\.ink38/, path);
+  }
+});
+
+test("both Homes open on the green hero, which hands over to the header on scroll", () => {
+  const hero = code(read("src/components/home/HomeHero.tsx"));
+  // The greeting is white on the chrome, and the dashboard rises on a rounded panel.
+  assert.match(hero, /color: shell\.onChrome,/);
+  assert.match(hero, /marginTop: -PANEL_RADIUS,[\s\S]*borderTopLeftRadius: PANEL_RADIUS,[\s\S]*backgroundColor: ph\.ground,/);
+  // As the page scrolls the greeting fades, drifts and settles, on the native driver.
+  assert.match(hero, /\{ useNativeDriver: true \}/);
+  assert.match(hero, /opacity: scrollY\.interpolate/);
+  // Header and hero share one texture: the header drops its edge and lower band.
+  assert.match(hero, /<HeaderChromeBackground edge=\{false\} trailing=\{false\} \/>/);
+  assert.match(code(read("src/components/nav/TabHeader.tsx")), /<HeaderChromeBackground edge=\{!continues\} leading=\{!continues\} \/>/);
+
+  assert.match(code(read("app/(app)/(tabs)/index.tsx")), /<HomeHeroScroll title=\{greeting\(displayName\)\}/);
+  assert.equal((code(read("app/(app)/(provider-tabs)/index.tsx")).match(/<HomeHeroScroll/g) ?? []).length, 3);
+  for (const path of ["app/(app)/(tabs)/_layout.tsx", "app/(app)/(provider-tabs)/_layout.tsx"]) {
+    assert.match(code(read(path)), /name="index" options=\{\{ title: "Home", headerShadowVisible: false,/);
   }
 });

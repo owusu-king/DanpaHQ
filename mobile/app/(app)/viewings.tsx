@@ -1,107 +1,66 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useFocusEffect, useRouter } from "expo-router";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Image, Pressable, RefreshControl, ScrollView, StyleSheet, View } from "react-native";
 
 import { ApiFailure } from "@/api";
 import { IndexGround } from "@/components/account/IndexRows";
 import { Bone } from "@/components/billing/BillingParts";
-import { Panel, ViewAll } from "@/components/billing/BillingSurfaces";
+import { Panel } from "@/components/billing/BillingSurfaces";
 import { useHomeDensity } from "@/components/home/plinth";
 import {
-  CHEVRON,
-  ChoiceRow,
-  DEEP,
-  EDGE,
-  EmptyState,
-  FilterGroup,
-  GLASS,
   GroupLabel,
+  HARMATTAN,
   INK,
   KOLA,
   KOLA_DEEP,
-  ListHead,
+  LATERITE,
   MUTED,
-  PANEL_RADIUS,
   PRESSED,
   QuietAction,
   RULE,
-  SheetFooter,
   Thumb,
-  WHITE,
   rowStyles,
-  type IconName,
 } from "@/components/portfolio/PortfolioList";
-import { BottomSheet } from "@/components/sheet/BottomSheet";
-import { Notice, Type, radius, space } from "@/components/ui";
-import { isAndroid, pressableFeedback, useSafeBottom } from "@/platform";
+import { Act, Acts, Calm, Empty, Fold } from "@/components/work/WorkParts";
+import { Type, Notice, radius, space } from "@/components/ui";
+import { pressableFeedback, useSafeBottom } from "@/platform";
 import { alpha } from "@/shell";
 import { theme } from "@/theme";
-import {
-  bySoonest,
-  matchesViewingFilter,
-  placeOf,
-  standing,
-  viewingFilters,
-  whenLabel,
-  type ViewingFilter,
-  type ViewingGroup,
-  type ViewingStanding,
-} from "@/viewingMeaning";
+import { bySoonest, placeOf, standing, whenLabel, type ViewingStanding } from "@/viewingMeaning";
 import { listMyViewings, type Viewing } from "@/viewings";
 
-const FILTER_TITLE: Record<ViewingFilter, string> = {
-  all: "All viewings",
-  upcoming: "Upcoming",
-  action: "Needs you",
-  past: "Past",
-};
-const FILTER_ICON: Record<ViewingFilter, IconName> = {
-  all: "calendar-outline",
-  upcoming: "time-outline",
-  action: "hand-right-outline",
-  past: "checkmark-done-outline",
-};
-const EMPTY: Record<ViewingFilter, { title: string; hint: string }> = {
-  all: { title: "No viewings here", hint: "Your viewing requests will appear here." },
-  upcoming: { title: "No upcoming visits", hint: "Confirmed visits and requests waiting for a time appear here." },
-  action: { title: "Nothing needs you", hint: "You are up to date on every viewing." },
-  past: { title: "No past viewings", hint: "Completed and cancelled visits stay here." },
-};
-/** How many past visits the whole schedule shows before the rest are one tap away. */
-const PAST_SHOWN = 3;
+type Row = { viewing: Viewing; state: ViewingStanding };
+const WHITE = theme.color.field["0"];
 
 /**
- * The tenant's schedule.
+ * The tenant's viewings, read as where they have to be (owner, 2026-10-06).
  *
- * A viewing is an appointment, not a status. So a row says the two things
- * somebody standing at a junction needs — where, and when — and everything the
- * lifecycle might allow at that moment lives one tap away, on the record.
+ * A viewing is an appointment, not a status. The next visit leads on its own
+ * card — the photograph, when, how long until, where — with the one thing to do
+ * there (check in, once the window opens). Then anything that waits on the
+ * tenant, with its step on the row (choose a time, say what happened, what
+ * next); the rest of the schedule by day; the requests still waiting on a
+ * landlord; and the past, folded. The Filter sheet is gone.
  *
- * Refined on review (2026-09-15): the very next visit leads as a card with its
- * photograph and its day, because it is what somebody opened the page to check.
- * The rest of the schedule is one glass list per group; the past shows its
- * latest few, and "View all" turns the one green Filter to it.
+ * What the tenant may do is `standing()`'s answer, shared with web; this screen
+ * only arranges it.
  */
 export default function ViewingsScreen() {
   const router = useRouter();
   const density = useHomeDensity();
   const pageBottom = useSafeBottom(space[12]);
-  const scroll = useRef<ScrollView>(null);
   const [viewings, setViewings] = useState<Viewing[] | null>(null);
+  const [pastOpen, setPastOpen] = useState(false);
   const [error, setError] = useState("");
   const [refreshing, setRefreshing] = useState(false);
-  const [filter, setFilter] = useState<ViewingFilter>("all");
-  const [filtering, setFiltering] = useState(false);
 
   const load = useCallback(async () => {
     try {
       setViewings(await listMyViewings());
       setError("");
     } catch (cause) {
-      setError(
-        cause instanceof ApiFailure ? cause.error.message : "We could not load your viewings.",
-      );
+      setError(cause instanceof ApiFailure ? cause.error.message : "We could not load your viewings.");
       setViewings([]);
     }
   }, []);
@@ -110,45 +69,26 @@ export default function ViewingsScreen() {
   // the schedule has to be right when it comes back into view.
   useFocusEffect(useCallback(() => { void load(); }, [load]));
 
-  const rows = (viewings ?? []).map((viewing) => ({ viewing, state: standing(viewing) }));
-  const sections: readonly {
-    id: ViewingGroup;
-    label: string;
-    rows: typeof rows;
-  }[] = [
-    {
-      id: "upcoming",
-      label: FILTER_TITLE.upcoming,
-      rows: rows
-        .filter((row) => row.state.group === "upcoming")
-        .sort((a, b) => bySoonest(a.viewing, b.viewing)),
-    },
-    { id: "action", label: FILTER_TITLE.action, rows: rows.filter((row) => row.state.group === "action") },
-    { id: "past", label: FILTER_TITLE.past, rows: rows.filter((row) => row.state.group === "past") },
-  ];
-  const visibleSections = sections
-    .filter((section) => matchesViewingFilter(section.id, filter))
-    .filter((section) => section.rows.length > 0);
-  const counts: Record<ViewingFilter, number> = {
-    all: rows.length,
-    upcoming: rows.filter((row) => row.state.group === "upcoming").length,
-    action: rows.filter((row) => row.state.group === "action").length,
-    past: rows.filter((row) => row.state.group === "past").length,
-  };
+  const lanes = useMemo(() => {
+    const rows: Row[] = (viewings ?? []).map((viewing) => ({ viewing, state: standing(viewing) }));
+    const upcoming = rows.filter((row) => row.state.group === "upcoming").sort((a, b) => bySoonest(a.viewing, b.viewing));
+    const timed = upcoming.filter((row) => row.viewing.confirmed_starts_at);
+    return {
+      next: timed[0] ?? null,
+      yours: rows.filter((row) => row.state.group === "action"),
+      later: timed.slice(1),
+      waiting: upcoming.filter((row) => !row.viewing.confirmed_starts_at),
+      past: rows.filter((row) => row.state.group === "past").sort((a, b) => (b.viewing.confirmed_starts_at ?? b.viewing.created_at).localeCompare(a.viewing.confirmed_starts_at ?? a.viewing.created_at)),
+    };
+  }, [viewings]);
 
-  const open = (viewing: Viewing) =>
-    router.push({ pathname: "/(app)/viewing/[id]", params: { id: viewing.id } });
-  // A new filter starts at the top of what it shows.
-  const choose = (next: ViewingFilter) => {
-    setFilter(next);
-    scroll.current?.scrollTo({ y: 0, animated: false });
-  };
+  const open = (viewing: Viewing) => router.push({ pathname: "/(app)/viewing/[id]", params: { id: viewing.id } });
+  const byDay = groupByDay(lanes.later);
 
   return (
     <IndexGround>
       <ScrollView
-        ref={scroll}
-        contentContainerStyle={{ paddingHorizontal: density.pagePadding, paddingTop: density.compact ? space[4] : space[5], paddingBottom: pageBottom, gap: density.sectionGap + space[2] }}
+        contentContainerStyle={{ paddingHorizontal: density.pagePadding, paddingTop: density.compact ? space[4] : space[5], paddingBottom: pageBottom, gap: space[5] }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await load(); setRefreshing(false); }} tintColor={KOLA} />}
       >
         {error ? <Notice tone="error" title={error} /> : null}
@@ -157,192 +97,164 @@ export default function ViewingsScreen() {
           <ScheduleSkeleton />
         ) : viewings.length === 0 ? (
           error ? null : (
-            <EmptyState
+            <Empty
               icon="calendar-outline"
-              hero
               title="No viewings yet"
               hint="Ask to see a place and the landlord offers you times."
-              action={<View style={styles.emptyAction}><QuietAction icon="compass-outline" label="Explore homes" onPress={() => router.push("/(app)/(tabs)/explore" as never)} /></View>}
+              action={<QuietAction icon="compass-outline" label="Explore homes" onPress={() => router.push("/(app)/(tabs)/explore" as never)} />}
             />
           )
         ) : (
           <>
-            <ListHead title={FILTER_TITLE[filter]} count={counts[filter]} filters={filter === "all" ? 0 : 1} filterTone="kola" onFilter={() => setFiltering(true)} />
+            {lanes.next ? <NextVisit row={lanes.next} onPress={() => open(lanes.next!.viewing)} /> : null}
 
-            {visibleSections.length ? (
-              visibleSections.map((section) => {
-                // The next timed visit leads as a card; a request still waiting for a time never does.
-                const lead = section.id === "upcoming" && section.rows[0]?.viewing.confirmed_starts_at ? section.rows[0] : null;
-                const rest = lead ? section.rows.slice(1) : section.rows;
-                const cut = section.id === "past" && filter === "all" && rest.length > PAST_SHOWN;
-                const shown = cut ? rest.slice(0, PAST_SHOWN) : rest;
-                return (
-                  <View key={section.id} style={styles.section}>
-                    {filter === "all" ? (
-                      <GroupLabel count={section.rows.length} tone={section.id === "action" ? KOLA_DEEP : undefined}>{section.label}</GroupLabel>
-                    ) : null}
-                    {lead ? <NextVisit viewing={lead.viewing} state={lead.state} onPress={() => open(lead.viewing)} /> : null}
-                    {shown.length ? (
-                      <Panel>
-                        {shown.map((row, index) => (
-                          <ScheduleRow key={row.viewing.id} viewing={row.viewing} state={row.state} first={index === 0} onPress={() => open(row.viewing)} />
-                        ))}
-                        {cut ? <ViewAll count={section.rows.length} noun="past viewings" onPress={() => choose("past")} /> : null}
-                      </Panel>
-                    ) : null}
+            {lanes.yours.length ? (
+              <View style={styles.section}>
+                <GroupLabel count={lanes.yours.length} tone={LATERITE}>Needs you</GroupLabel>
+                <Panel>
+                  {lanes.yours.map((row, index) => <VisitRow key={row.viewing.id} row={row} first={index === 0} onPress={() => open(row.viewing)} />)}
+                </Panel>
+              </View>
+            ) : lanes.next || lanes.later.length || lanes.waiting.length ? (
+              <Calm text="Nothing waits on you. A landlord’s offer of times shows here first." />
+            ) : null}
+
+            {byDay.length ? (
+              <View style={styles.section}>
+                <GroupLabel count={lanes.later.length}>Coming up</GroupLabel>
+                {byDay.map(([day, rows]) => (
+                  <View key={day} style={styles.day}>
+                    <Type variant="label" style={styles.dayTitle}>{day.toUpperCase()}</Type>
+                    <Panel>
+                      {rows.map((row, index) => <VisitRow key={row.viewing.id} row={row} first={index === 0} onPress={() => open(row.viewing)} />)}
+                    </Panel>
                   </View>
-                );
-              })
-            ) : (
-              <EmptyState icon={FILTER_ICON[filter]} title={EMPTY[filter].title} hint={EMPTY[filter].hint} />
-            )}
+                ))}
+              </View>
+            ) : null}
+
+            {lanes.waiting.length ? (
+              <View style={styles.section}>
+                <GroupLabel count={lanes.waiting.length}>Waiting on a landlord</GroupLabel>
+                <Panel>
+                  {lanes.waiting.map((row, index) => <VisitRow key={row.viewing.id} row={row} first={index === 0} onPress={() => open(row.viewing)} />)}
+                </Panel>
+              </View>
+            ) : null}
+
+            {lanes.past.length ? (
+              <View>
+                <Fold
+                  title="Past"
+                  icon="calendar-clear-outline"
+                  summary={`${lanes.past.filter((row) => row.viewing.status === "completed").length} viewed`}
+                  count={lanes.past.length}
+                  open={pastOpen}
+                  onToggle={() => setPastOpen((current) => !current)}
+                />
+                {pastOpen ? (
+                  <View style={styles.foldBody}>
+                    <Panel>
+                      {lanes.past.map((row, index) => <VisitRow key={row.viewing.id} row={row} first={index === 0} onPress={() => open(row.viewing)} />)}
+                    </Panel>
+                  </View>
+                ) : null}
+              </View>
+            ) : null}
           </>
         )}
       </ScrollView>
-
-      <BottomSheet
-        visible={filtering}
-        onClose={() => setFiltering(false)}
-        title="Filter"
-        hideTitle
-        closeLabel="Close filter"
-        footer={<SheetFooter
-          canReset={filter !== "all"}
-          onReset={() => choose("all")}
-          results={counts[filter]}
-          onShow={() => setFiltering(false)}
-        />}
-      >
-        <FilterGroup title="Show">
-          {viewingFilters.map((option, index) => (
-            <ChoiceRow
-              key={option.id}
-              first={index === 0}
-              icon={FILTER_ICON[option.id]}
-              label={option.label}
-              count={counts[option.id]}
-              selected={filter === option.id}
-              onPress={() => choose(option.id)}
-            />
-          ))}
-        </FilterGroup>
-      </BottomSheet>
     </IndexGround>
   );
 }
 
 /**
- * The next visit, as a card: its photograph with the day on it, then the time
- * large, the place, and how it stands beside the one thing to do.
+ * The next visit: its photograph with the countdown on it, then when, the place
+ * and where it is — and the one thing to do there, when the lifecycle offers it.
  */
-function NextVisit({ viewing, state, onPress }: { viewing: Viewing; state: ViewingStanding; onPress: () => void }) {
-  const density = useHomeDensity();
+function NextVisit({ row, onPress }: { row: Row; onPress: () => void }) {
+  const { viewing, state } = row;
   const when = whenLabel(viewing.confirmed_starts_at);
-  const day = dayTile(viewing.confirmed_starts_at);
+  const until = countdown(viewing.confirmed_starts_at as string);
   return (
     <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={`${viewing.listing_headline}. ${placeOf(viewing)}. ${when ?? state.line}. ${state.callToAction ?? "View details"}.`}
+      accessibilityRole="link"
+      accessibilityLabel={`Next viewing: ${viewing.listing_headline}. ${placeOf(viewing)}. ${when ?? ""}, ${until}. ${state.line}.`}
       onPress={onPress}
-      {...pressableFeedback(PRESSED)}
-      style={({ pressed }) => [styles.card, isAndroid ? null : styles.lift, pressed ? { opacity: 0.94 } : null]}
+      {...pressableFeedback(theme.color.kola["900"])}
+      style={({ pressed }) => [styles.next, pressed ? { backgroundColor: theme.color.kola["900"] } : null]}
     >
-      <View style={[styles.cover, { height: density.compact ? 132 : 150 }]}>
+      <View style={styles.cover}>
         {viewing.photo_url ? (
           <Image source={{ uri: viewing.photo_url }} accessible={false} resizeMode="cover" style={styles.coverImage} />
         ) : (
-          <Ionicons name="image-outline" size={28} color={CHEVRON} />
+          <Ionicons name="home-outline" size={30} color={alpha(WHITE, 0.5)} />
         )}
-        {day ? (
-          <View style={styles.tile}>
-            <Type variant="label" style={styles.tileMonth}>{day.month}</Type>
-            <Type variant="bodyStrong" style={styles.tileDay}>{day.date}</Type>
-          </View>
-        ) : null}
+        <View style={styles.countdown}>
+          <View style={styles.countdownDot} />
+          <Type variant="label" style={styles.countdownText}>{`UP NEXT · ${until.toUpperCase()}`}</Type>
+        </View>
       </View>
-      <View style={styles.cardBody}>
-        {when ? (
-          <Type variant="title2" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85} style={styles.cardWhen}>{when}</Type>
-        ) : null}
-        <Type variant="bodyStrong" numberOfLines={2} style={rowStyles.rowTitle}>{viewing.listing_headline}</Type>
-        <Type variant="caption" numberOfLines={1} style={rowStyles.rowSub}>{placeOf(viewing) || "Ghana"}</Type>
-        <Standing state={state} />
+      <View style={styles.nextBody}>
+        {when ? <Type variant="title2" numberOfLines={1} style={styles.nextWhen}>{when}</Type> : null}
+        <Type variant="bodyStrong" numberOfLines={2} style={styles.nextTitle}>{viewing.listing_headline}</Type>
+        {placeOf(viewing) ? <Type variant="caption" numberOfLines={1} style={styles.nextPlace}>{placeOf(viewing)}</Type> : null}
+        {state.callToAction ? (
+          <View style={styles.nextAct}>
+            <Ionicons name="arrow-forward-circle-outline" size={17} color={KOLA_DEEP} />
+            <Type variant="bodyStrong" style={{ color: KOLA_DEEP }}>{state.callToAction}</Type>
+          </View>
+        ) : (
+          <Type variant="captionStrong" style={styles.nextLine}>{state.line}</Type>
+        )}
       </View>
     </Pressable>
   );
 }
 
-/**
- * Where, when, and one way in. A timed visit leads with its time, the largest
- * words on the row; a request still waiting for one leads with the place.
- */
-function ScheduleRow({ viewing, state, first, onPress }: { viewing: Viewing; state: ViewingStanding; first: boolean; onPress: () => void }) {
+/** Where, when, how it stands, and the one thing to do — on the row, when there is one. */
+function VisitRow({ row, first, onPress }: { row: Row; first: boolean; onPress: () => void }) {
+  const { viewing, state } = row;
   const when = whenLabel(viewing.confirmed_starts_at);
+  const past = state.group === "past";
+  // Waiting on the tenant in laterite; a visit with a time in kola; one still waiting for a time in harmattan.
+  const tone = state.group === "action" ? LATERITE : past ? MUTED : viewing.confirmed_starts_at ? KOLA_DEEP : HARMATTAN;
   return (
     <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={`${viewing.listing_headline}. ${placeOf(viewing)}. ${when ?? state.line}. ${state.callToAction ?? "View details"}.`}
+      accessibilityRole="link"
+      accessibilityLabel={`${viewing.listing_headline}. ${placeOf(viewing)}. ${when ?? state.line}. ${state.line}.`}
       onPress={onPress}
       {...pressableFeedback(PRESSED)}
       style={({ pressed }) => [rowStyles.row, first ? null : styles.ruled, pressed ? { backgroundColor: PRESSED } : null]}
     >
-      <Thumb uri={viewing.photo_url} />
-      <View style={rowStyles.rowBody}>
-        {when ? (
-          <Type variant="bodyStrong" numberOfLines={1} style={[styles.rowWhen, state.group === "past" ? { color: MUTED } : null]}>{when}</Type>
-        ) : null}
-        <Type variant="bodyStrong" numberOfLines={2} style={when ? styles.rowHeadline : rowStyles.rowTitle}>{viewing.listing_headline}</Type>
+      <Thumb uri={viewing.photo_url} size={56} />
+      <View style={[rowStyles.rowBody, styles.body]}>
+        {when ? <Type variant="bodyStrong" numberOfLines={1} style={[styles.when, past ? { color: MUTED } : null]}>{when}</Type> : null}
+        <Type variant="bodyStrong" numberOfLines={2} style={when ? styles.headline : rowStyles.rowTitle}>{viewing.listing_headline}</Type>
         <Type variant="caption" numberOfLines={1} style={rowStyles.rowSub}>{placeOf(viewing) || "Ghana"}</Type>
-        <Standing state={state} />
+        <Type variant="captionStrong" numberOfLines={2} style={[styles.line, { color: tone }]}>{state.line}</Type>
+        {state.callToAction && !past ? (
+          <Acts>
+            <Act label={state.callToAction} icon="arrow-forward" primary={state.group === "action"} onPress={onPress} />
+          </Acts>
+        ) : null}
       </View>
     </Pressable>
   );
 }
 
-/**
- * How it stands, and — when the lifecycle offers one — the one thing to do, as a
- * pill. Where the two do not fit side by side the pill drops under the line
- * rather than cutting it short.
- */
-function Standing({ state }: { state: ViewingStanding }) {
-  const act = state.group === "action";
-  const dot = act ? KOLA : state.group === "upcoming" ? theme.color.kola["300"] : alpha(INK, 0.3);
-  return (
-    <View style={styles.standing}>
-      <View style={styles.standingLine}>
-        <View style={[styles.dot, { backgroundColor: dot }]} />
-        <Type variant="captionStrong" style={[styles.standingText, { color: act ? KOLA_DEEP : MUTED }]}>{state.line}</Type>
-      </View>
-      {state.callToAction ? (
-        <View style={[styles.act, act ? null : styles.actQuiet]}>
-          <Type variant="captionStrong" style={[styles.actText, act ? null : { color: KOLA_DEEP }]}>{state.callToAction}</Type>
-          <Ionicons name="arrow-forward" size={13} color={act ? WHITE : KOLA_DEEP} />
-        </View>
-      ) : null}
-    </View>
-  );
-}
-
-/** Shaped like the card and the rows, so nothing jumps when they arrive. */
+/** Shaped like the next-visit card and a row, so nothing jumps when they arrive. */
 function ScheduleSkeleton() {
   return (
     <View accessible accessibilityRole="progressbar" accessibilityLabel="Loading your viewings" style={styles.skeleton}>
-      <Panel>
-        <Bone height={132} round={0} />
-        <View style={styles.skeletonBody}>
-          <Bone width="46%" height={20} />
-          <Bone width="70%" />
-          <Bone width="38%" />
-        </View>
-      </Panel>
+      <Bone height={240} round={22} />
       <Panel>
         {[0, 1].map((key) => (
           <View key={key} style={[styles.skeletonRow, key ? styles.ruled : null]}>
-            <Bone width={60} height={60} round={12} />
+            <Bone width={56} height={56} round={12} />
             <View style={styles.skeletonLines}>
               <Bone width="40%" height={14} />
               <Bone width="72%" />
-              <Bone width="50%" />
             </View>
           </View>
         ))}
@@ -351,158 +263,52 @@ function ScheduleSkeleton() {
   );
 }
 
-/** The day on the card's photograph, as a calendar tile reads: month over date. */
-function dayTile(iso: string | null) {
-  if (!iso) return null;
-  const at = new Date(iso);
-  if (Number.isNaN(at.getTime())) return null;
-  return {
-    month: at.toLocaleDateString("en-GH", { month: "short" }).toUpperCase(),
-    date: String(at.getDate()),
-  };
+/** The schedule by day, in the order the days come: "Today", "Tomorrow", then the date. */
+function groupByDay(rows: Row[]): [string, Row[]][] {
+  const days = new Map<string, Row[]>();
+  for (const row of rows) {
+    const day = (whenLabel(row.viewing.confirmed_starts_at) ?? "").split(" · ")[0] || "Later";
+    days.set(day, [...(days.get(day) ?? []), row]);
+  }
+  return [...days.entries()];
+}
+
+/** "in 2h 15m", "in 3 days", "now". */
+function countdown(iso: string) {
+  const minutes = Math.round((new Date(iso).getTime() - Date.now()) / 60_000);
+  if (minutes <= 5) return minutes < -5 ? "started" : "now";
+  if (minutes < 60) return `in ${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `in ${hours}h${minutes % 60 ? ` ${minutes % 60}m` : ""}`;
+  const days = Math.round(hours / 24);
+  return `in ${days} ${days === 1 ? "day" : "days"}`;
 }
 
 const styles = StyleSheet.create({
-  section: {
-    gap: space[2],
-  },
-  ruled: {
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: RULE,
-  },
-  card: {
-    overflow: "hidden",
-    borderRadius: PANEL_RADIUS,
-    borderWidth: 1,
-    borderColor: EDGE,
-    backgroundColor: GLASS,
-  },
-  // A whisper of green shadow, off Android, where elevation smudges through glass.
-  lift: {
-    shadowColor: DEEP,
-    shadowOpacity: 0.06,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 8 },
-  },
-  cover: {
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: alpha(DEEP, 0.06),
-  },
-  coverImage: {
-    position: "absolute",
-    top: 0,
-    right: 0,
-    bottom: 0,
-    left: 0,
-  },
-  tile: {
-    position: "absolute",
-    top: space[3],
-    left: space[3],
-    minWidth: 46,
-    alignItems: "center",
-    paddingVertical: 5,
-    paddingHorizontal: space[2],
-    borderRadius: 12,
-    backgroundColor: alpha(WHITE, 0.92),
-  },
-  tileMonth: {
-    color: KOLA_DEEP,
-    letterSpacing: 0.6,
-  },
-  tileDay: {
-    fontSize: 19,
-    lineHeight: 23,
-    color: INK,
-    fontVariant: ["tabular-nums"],
-  },
-  cardBody: {
-    gap: 2,
-    paddingHorizontal: 14,
-    paddingTop: space[3],
-    paddingBottom: 14,
-  },
-  cardWhen: {
-    marginBottom: 2,
-    fontSize: 20,
-    lineHeight: 26,
-    letterSpacing: -0.2,
-    color: INK,
-  },
-  rowWhen: {
-    fontSize: 15.5,
-    lineHeight: 21,
-    color: INK,
-  },
-  rowHeadline: {
-    fontSize: 14,
-    lineHeight: 19,
-    color: INK,
-  },
-  standing: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    alignItems: "center",
-    columnGap: space[2],
-    rowGap: space[2],
-    marginTop: space[2],
-  },
-  standingLine: {
-    flexGrow: 1,
-    flexShrink: 1,
-    flexBasis: 110,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: space[2],
-  },
-  dot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-  },
-  standingText: {
-    flex: 1,
-    minWidth: 0,
-    fontSize: 12.5,
-    lineHeight: 17,
-  },
-  act: {
-    marginLeft: "auto",
-    minHeight: 28,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: space[3],
-    borderRadius: radius.pill,
-    backgroundColor: KOLA,
-  },
-  actQuiet: {
-    backgroundColor: theme.color.kola["50"],
-  },
-  actText: {
-    fontSize: 13,
-    lineHeight: 17,
-    color: WHITE,
-  },
-  emptyAction: {
-    marginTop: space[2],
-  },
-  skeleton: {
-    gap: space[5],
-  },
-  skeletonBody: {
-    gap: space[2],
-    padding: 14,
-  },
-  skeletonRow: {
-    flexDirection: "row",
-    gap: space[3],
-    padding: 14,
-  },
-  skeletonLines: {
-    flex: 1,
-    justifyContent: "center",
-    gap: space[2],
-  },
+  section: { gap: space[2] },
+  day: { gap: space[2], marginTop: space[1] },
+  dayTitle: { paddingHorizontal: space[1], color: MUTED },
+  ruled: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: RULE },
+  foldBody: { marginTop: space[3] },
+  body: { gap: 2 },
+  when: { fontSize: 15.5, lineHeight: 21, color: INK },
+  headline: { fontSize: 14, lineHeight: 19, color: INK },
+  line: { marginTop: 2, fontSize: 12.5, lineHeight: 17 },
+  // The next visit: Rooomly's deepest green, as the host's Up next card is.
+  next: { overflow: "hidden", borderRadius: 22, backgroundColor: theme.color.kola["800"] },
+  cover: { height: 140, alignItems: "center", justifyContent: "center", backgroundColor: alpha(WHITE, 0.06) },
+  coverImage: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0 },
+  countdown: { position: "absolute", top: space[3], left: space[3], flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: space[2], paddingVertical: 4, borderRadius: radius.pill, backgroundColor: alpha(theme.color.kola["900"], 0.72) },
+  countdownDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: theme.color.kola["300"] },
+  countdownText: { color: WHITE, letterSpacing: 0.5 },
+  nextBody: { gap: 3, padding: space[4] },
+  nextWhen: { fontSize: 21, lineHeight: 27, letterSpacing: -0.3, color: WHITE },
+  nextTitle: { fontSize: 15, lineHeight: 20, color: alpha(WHITE, 0.92) },
+  nextPlace: { fontSize: 13, lineHeight: 18, color: alpha(WHITE, 0.7) },
+  nextLine: { marginTop: space[2], fontSize: 13, lineHeight: 18, color: theme.color.kola["50"] },
+  nextAct: { minHeight: 46, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: space[2], marginTop: space[3], borderRadius: radius.pill, backgroundColor: WHITE },
+  skeleton: { gap: space[4] },
+  skeletonRow: { flexDirection: "row", gap: space[3], padding: 14 },
+  skeletonLines: { flex: 1, justifyContent: "center", gap: space[2] },
 });
+

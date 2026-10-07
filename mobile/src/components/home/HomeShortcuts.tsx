@@ -107,7 +107,7 @@ function ShortcutTile({ shortcut }: { shortcut: Shortcut }) {
         </Type>
         {counted ? (
           <View style={{ minWidth: density.compact ? 18 : 20, paddingHorizontal: 5, paddingVertical: 1, borderRadius: 20, alignItems: "center", backgroundColor: ph.goldSoft }}>
-            <Type variant="caption" style={{ fontSize: density.compact ? 10 : 11, lineHeight: 15, fontWeight: "700", color: ph.ink }}>
+            <Type variant="caption" style={{ fontSize: density.compact ? 10 : 11, lineHeight: 15, fontWeight: "600", color: ph.ink }}>
               {shortcut.count}
             </Type>
           </View>

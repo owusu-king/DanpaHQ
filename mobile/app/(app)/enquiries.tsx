@@ -6,21 +6,40 @@
  * selling one plot while asking about another — so theirs has both. A tenant
  * account owns no property, so it has only what it asked about (owner,
  * 2026-09-29): no Selling side to be empty.
+ *
+ * Read as conversations rather than records (owner, 2026-10-06): new replies
+ * lead, then the conversations still open, and what closed or sold folds into
+ * one line.
  */
 
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useCallback, useEffect, useState } from "react";
-import { FlatList, Pressable, RefreshControl, StyleSheet, View } from "react-native";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from "react-native";
 
 import { ApiFailure } from "@/api";
 import { useAuth } from "@/auth";
 import { AuthPrompt } from "@/components/AuthPrompt";
 import { IndexGround } from "@/components/account/IndexRows";
 import { Bone } from "@/components/billing/BillingParts";
-import { EDGE, EmptyState, GLASS, INK, KOLA, MUTED, PRESSED, QuietAction } from "@/components/portfolio/PortfolioList";
+import { Panel } from "@/components/billing/BillingSurfaces";
+import { useHomeDensity } from "@/components/home/plinth";
+import {
+  FAINT,
+  GroupLabel,
+  HARMATTAN,
+  INK,
+  KOLA,
+  KOLA_DEEP,
+  MUTED,
+  PRESSED,
+  QuietAction,
+  RULE,
+  rowStyles,
+} from "@/components/portfolio/PortfolioList";
 import { PillSwitch } from "@/components/sales/PillSwitch";
-import { Notice, Type, space } from "@/components/ui";
+import { Briefing, Calm, Empty, Face, Fold } from "@/components/work/WorkParts";
+import { Notice, Type, radius, space } from "@/components/ui";
 import { pressableFeedback, useSafeBottom } from "@/platform";
 import { listEnquiries, type Enquiry } from "@/sales";
 import { theme } from "@/theme";
@@ -29,6 +48,7 @@ type Side = "buyer" | "seller";
 
 export default function EnquiriesScreen() {
   const router = useRouter();
+  const density = useHomeDensity();
   const pageBottom = useSafeBottom(space[12]);
   const { as } = useLocalSearchParams<{ as?: string }>();
   const { state } = useAuth();
@@ -39,6 +59,7 @@ export default function EnquiriesScreen() {
   const [chosen, setSide] = useState<Side>(as === "seller" || as === "buyer" ? as : provider ? "seller" : "buyer");
   const side: Side = canSell ? chosen : "buyer";
   const [rows, setRows] = useState<Enquiry[] | null>(null);
+  const [closedOpen, setClosedOpen] = useState(false);
   const [error, setError] = useState("");
   const [refreshing, setRefreshing] = useState(false);
 
@@ -58,6 +79,17 @@ export default function EnquiriesScreen() {
     void load();
   }, [load]);
 
+  const lanes = useMemo(() => {
+    const all = rows ?? [];
+    const closed = (row: Enquiry) => row.status === "closed" || row.sale.status === "sold";
+    const latest = (a: Enquiry, b: Enquiry) => (b.last_message_at ?? b.created_at).localeCompare(a.last_message_at ?? a.created_at);
+    return {
+      fresh: all.filter((row) => !closed(row) && row.unread).sort(latest),
+      open: all.filter((row) => !closed(row) && !row.unread).sort(latest),
+      closed: all.filter(closed).sort(latest),
+    };
+  }, [rows]);
+
   if (!signedIn) {
     return (
       <AuthPrompt
@@ -69,106 +101,117 @@ export default function EnquiriesScreen() {
     );
   }
 
+  const openRow = (row: Enquiry) => router.push({ pathname: "/(app)/enquiry/[id]", params: { id: row.id } });
+  const live = lanes.fresh.length + lanes.open.length;
+
   return (
     <IndexGround>
-      <FlatList
-        data={rows ?? []}
-        keyExtractor={(row) => row.id}
-        contentContainerStyle={[styles.page, { paddingBottom: pageBottom }]}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={async () => { setRefreshing(true); await load(); setRefreshing(false); }}
-            tintColor={KOLA}
+      <ScrollView
+        contentContainerStyle={{ paddingHorizontal: density.pagePadding, paddingTop: density.compact ? space[4] : space[5], paddingBottom: pageBottom, gap: space[5] }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await load(); setRefreshing(false); }} tintColor={KOLA} />}
+      >
+        {canSell ? (
+          <PillSwitch
+            label="Which side"
+            value={side}
+            options={[{ value: "seller", label: "Selling" }, { value: "buyer", label: "Buying" }]}
+            onChange={setSide}
           />
-        }
-        ListHeaderComponent={
-          <View style={styles.head}>
-            {canSell ? (
-              <PillSwitch
-                label="Which side"
-                value={side}
-                options={[{ value: "seller", label: "Selling" }, { value: "buyer", label: "Buying" }]}
-                onChange={setSide}
-              />
-            ) : null}
-            {error ? <Notice tone="error" title={error} /> : null}
+        ) : null}
+        {error ? <Notice tone="error" title={error} /> : null}
+
+        {rows === null ? (
+          <View accessible accessibilityRole="progressbar" accessibilityLabel="Loading enquiries" style={styles.skeleton}>
+            <Bone width="52%" height={22} />
+            <Bone height={84} />
+            <Bone height={84} />
           </View>
-        }
-        renderItem={({ item }) => (
-          <EnquiryRow
-            row={item}
-            side={side}
-            onOpen={() => router.push({ pathname: "/(app)/enquiry/[id]", params: { id: item.id } })}
+        ) : rows.length === 0 ? (error ? null : side === "seller" ? (
+          <Empty
+            icon="chatbubbles-outline"
+            title="No enquiries yet"
+            hint="When a buyer asks about a property you are selling, it arrives here."
           />
+        ) : (
+          <Empty
+            icon="pricetag-outline"
+            title="You have not asked about anything yet"
+            hint="Find a property under Buy on Explore and send the seller a message."
+            action={<QuietAction icon="compass-outline" label="Browse properties for sale" onPress={() => router.push({ pathname: "/(app)/search", params: { mode: "buy" } })} />}
+          />
+        )) : (
+          <>
+            <Briefing
+              title={lanes.fresh.length
+                ? `${lanes.fresh.length} new ${lanes.fresh.length === 1 ? "reply" : "replies"}`
+                : live ? "No new replies" : "No open conversations"}
+              parts={live ? [{ text: `${live} ${live === 1 ? "conversation" : "conversations"} open`, tone: MUTED }] : []}
+            />
+            {lanes.fresh.length ? (
+              <Section title="New" tone={KOLA_DEEP} rows={lanes.fresh} side={side} onOpen={openRow} />
+            ) : live ? <Calm text={side === "seller" ? "You are up to date with every buyer." : "You are up to date with every seller."} /> : null}
+            {lanes.open.length ? <Section title="Conversations" rows={lanes.open} side={side} onOpen={openRow} /> : null}
+            {lanes.closed.length ? (
+              <View>
+                <Fold title="Closed or sold" icon="lock-closed-outline" summary="Kept so you can read them back" count={lanes.closed.length} open={closedOpen} onToggle={() => setClosedOpen((current) => !current)} />
+                {closedOpen ? <View style={styles.foldBody}><Section rows={lanes.closed} side={side} onOpen={openRow} /></View> : null}
+              </View>
+            ) : null}
+          </>
         )}
-        ListEmptyComponent={
-          rows === null ? (
-            <View style={{ gap: space[3] }}>
-              <Bone height={84} />
-              <Bone height={84} />
-            </View>
-          ) : error ? null : side === "seller" ? (
-            <EmptyState
-              icon="chatbubbles-outline"
-              hero
-              title="No enquiries yet"
-              hint="When a buyer asks about a property you are selling, it arrives here."
-            />
-          ) : (
-            <EmptyState
-              icon="pricetag-outline"
-              hero
-              title="You have not asked about anything yet"
-              hint="Find a property under Buy on Explore and send the seller a message."
-              action={
-                <View style={{ marginTop: space[2] }}>
-                  <QuietAction
-                    icon="compass-outline"
-                    label="Browse properties for sale"
-                    onPress={() => router.push({ pathname: "/(app)/search", params: { mode: "buy" } })}
-                  />
-                </View>
-              }
-            />
-          )
-        }
-      />
+      </ScrollView>
     </IndexGround>
   );
 }
 
-function EnquiryRow({ row, side, onOpen }: { row: Enquiry; side: Side; onOpen: () => void }) {
+function Section({ title, tone, rows, side, onOpen }: { title?: string; tone?: string; rows: Enquiry[]; side: Side; onOpen: (row: Enquiry) => void }) {
+  return (
+    <View style={styles.section}>
+      {title ? <GroupLabel count={rows.length} tone={tone}>{title}</GroupLabel> : null}
+      <Panel>
+        {rows.map((row, index) => <EnquiryRow key={row.id} row={row} side={side} first={index === 0} onOpen={() => onOpen(row)} />)}
+      </Panel>
+    </View>
+  );
+}
+
+/**
+ * One conversation: who or what it is about, the last thing said, and when. A
+ * seller sees the buyer's name on the face; a buyer sees the property's tag.
+ */
+function EnquiryRow({ row, side, first, onOpen }: { row: Enquiry; side: Side; first: boolean; onOpen: () => void }) {
   const closed = row.status === "closed" || row.sale.status === "sold";
-  const meta = [side === "seller" ? row.buyer_name : null, row.sale.price_formatted, row.sale.locality_name]
-    .filter(Boolean)
-    .join(" · ");
+  const headline = row.sale.headline || "Property for sale";
+  const meta = [side === "seller" ? headline : null, row.sale.price_formatted, row.sale.locality_name].filter(Boolean).join(" · ");
+  const title = side === "seller" ? row.buyer_name : headline;
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${row.sale.headline || "Property for sale"}. ${meta}. ${row.unread ? "New." : ""}`}
+      accessibilityLabel={`${title}. ${meta}. ${row.last_message}. ${row.unread ? "New reply." : ""}${closed ? (row.sale.status === "sold" ? " Sold." : " Closed.") : ""}`}
       onPress={onOpen}
       {...pressableFeedback(PRESSED)}
-      style={({ pressed }) => [styles.row, row.unread ? styles.unread : null, pressed ? { backgroundColor: PRESSED } : null]}
+      style={({ pressed }) => [rowStyles.row, first ? null : styles.ruled, pressed ? { backgroundColor: PRESSED } : null]}
     >
-      <View style={styles.rowBody}>
-        <Type variant="bodyStrong" numberOfLines={1} style={styles.title}>
-          {row.sale.headline || "Property for sale"}
-        </Type>
-        {meta ? <Type variant="caption" numberOfLines={1} style={styles.meta}>{meta}</Type> : null}
+      {side === "seller" ? (
+        <Face name={row.buyer_name} ink={closed ? theme.color.ink["700"] : KOLA_DEEP} wash={closed ? theme.color.field["100"] : theme.color.kola["50"]} fresh={row.unread && !closed} />
+      ) : (
+        <View style={[styles.tagWell, closed ? styles.tagWellClosed : null]}>
+          <Ionicons name="pricetag-outline" size={17} color={closed ? theme.color.ink["700"] : HARMATTAN} />
+          {row.unread && !closed ? <View style={styles.freshDot} /> : null}
+        </View>
+      )}
+      <View style={[rowStyles.rowBody, styles.body]}>
+        <View style={styles.top}>
+          <Type variant="bodyStrong" numberOfLines={2} style={[styles.title, closed ? { color: MUTED } : null]}>{title}</Type>
+          {row.last_message_at ? <Type variant="caption" style={[styles.when, row.unread ? { color: KOLA_DEEP, fontWeight: "600" } : null]}>{when(row.last_message_at)}</Type> : null}
+        </View>
+        {meta ? <Type variant="caption" numberOfLines={1} style={rowStyles.rowSub}>{meta}</Type> : null}
         {row.last_message ? (
-          <Type variant="caption" numberOfLines={1} style={styles.last}>{row.last_message}</Type>
+          <Type variant={row.unread ? "captionStrong" : "caption"} numberOfLines={2} style={[styles.last, row.unread ? { color: INK } : null]}>{row.last_message}</Type>
         ) : null}
-      </View>
-      <View style={styles.rowEnd}>
-        {row.last_message_at ? <Type variant="caption" style={styles.when}>{when(row.last_message_at)}</Type> : null}
         {closed ? (
-          <View style={styles.tag}><Type variant="captionStrong" style={styles.tagText}>{row.sale.status === "sold" ? "Sold" : "Closed"}</Type></View>
-        ) : row.unread ? (
-          <View style={[styles.tag, styles.tagNew]}><Type variant="captionStrong" style={styles.tagNewText}>New</Type></View>
-        ) : (
-          <Ionicons name="chevron-forward" size={18} color={MUTED} />
-        )}
+          <View style={styles.closed}><Type variant="captionStrong" style={styles.closedText}>{row.sale.status === "sold" ? "Sold" : "Closed"}</Type></View>
+        ) : null}
       </View>
     </Pressable>
   );
@@ -182,73 +225,18 @@ function when(value: string): string {
 }
 
 const styles = StyleSheet.create({
-  page: {
-    padding: space[4],
-    gap: space[3],
-  },
-  head: {
-    gap: space[3],
-    marginBottom: space[1],
-  },
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: space[3],
-    minHeight: 76,
-    paddingVertical: space[3],
-    paddingHorizontal: space[4],
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: EDGE,
-    backgroundColor: GLASS,
-  },
-  unread: {
-    borderLeftWidth: 3,
-    borderLeftColor: KOLA,
-  },
-  rowBody: {
-    flex: 1,
-    minWidth: 0,
-    gap: 2,
-  },
-  title: {
-    fontSize: 15,
-    lineHeight: 20,
-    color: INK,
-  },
-  meta: {
-    fontSize: 13,
-    lineHeight: 17,
-    color: MUTED,
-  },
-  last: {
-    fontSize: 13,
-    lineHeight: 17,
-    color: theme.color.ink["500"],
-  },
-  rowEnd: {
-    alignItems: "flex-end",
-    gap: space[1],
-  },
-  when: {
-    fontSize: 12,
-    color: theme.color.ink["500"],
-  },
-  tag: {
-    paddingHorizontal: 10,
-    paddingVertical: 2,
-    borderRadius: 999,
-    backgroundColor: theme.color.field["100"],
-  },
-  tagText: {
-    fontSize: 12,
-    color: theme.color.ink["700"],
-  },
-  tagNew: {
-    backgroundColor: KOLA,
-  },
-  tagNewText: {
-    fontSize: 12,
-    color: theme.color.field["0"],
-  },
+  section: { gap: space[2] },
+  ruled: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: RULE },
+  foldBody: { marginTop: space[3] },
+  body: { gap: 2 },
+  top: { flexDirection: "row", alignItems: "baseline", gap: space[2] },
+  title: { flex: 1, minWidth: 0, fontSize: 15, lineHeight: 20, color: INK },
+  when: { fontSize: 12, lineHeight: 16, color: FAINT },
+  last: { marginTop: 2, fontSize: 13, lineHeight: 18, color: MUTED },
+  tagWell: { width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center", backgroundColor: theme.color.harmattan["100"] },
+  tagWellClosed: { backgroundColor: theme.color.field["100"] },
+  freshDot: { position: "absolute", top: -1, right: -1, width: 11, height: 11, borderRadius: 6, backgroundColor: KOLA, borderWidth: 2, borderColor: theme.color.field["0"] },
+  closed: { alignSelf: "flex-start", marginTop: space[1], paddingHorizontal: space[2], paddingVertical: 1, borderRadius: radius.pill, backgroundColor: theme.color.field["100"] },
+  closedText: { fontSize: 11.5, lineHeight: 15, color: theme.color.ink["700"] },
+  skeleton: { gap: space[3] },
 });

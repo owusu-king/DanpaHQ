@@ -1,6 +1,18 @@
-import { useFocusEffect, useRouter } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
 import { FlatList, RefreshControl, StyleSheet, View } from "react-native";
+
+import {
+  Cell,
+  CellRule,
+  RING_EMPTY,
+  RING_OWED,
+  Ring,
+  Rings,
+  StatCells,
+  dash,
+} from "@/components/home/DashboardParts";
+import { AddButton, FilterChips, ToolButton } from "@/components/portfolio/FilterChips";
 
 import { ApiFailure } from "@/api";
 import { useAuth } from "@/auth";
@@ -8,30 +20,23 @@ import { IndexGround } from "@/components/account/IndexRows";
 import { Bone } from "@/components/billing/BillingParts";
 import { useHomeDensity } from "@/components/home/plinth";
 import {
-  ActiveFilter,
-  ChoiceRow,
   EmptyState,
-  FilterGroup,
   KOLA,
   KOLA_DEEP,
   LATERITE,
-  ListHead,
   MUTED,
   PrimaryAction,
   QuietAction,
   SearchField,
-  SheetFooter,
-  SummaryPanel,
   type IconName,
-  type SummaryNote,
 } from "@/components/portfolio/PortfolioList";
 import { UNIT_COLUMNS, UNIT_TILE_GAP, UnitTile } from "@/components/property/UnitTile";
 import { useAddUnit } from "@/components/property/AddUnitSheet";
-import { BottomSheet } from "@/components/sheet/BottomSheet";
-import { Notice, space } from "@/components/ui";
+import { Notice, Type, space } from "@/components/ui";
 import { listOrganizations } from "@/organizations";
 import { listPortfolioUnits, type Unit } from "@/provider";
 import { useSafeBottom } from "@/platform";
+import { theme } from "@/theme";
 
 type UnitView = "all" | "available" | "public" | "occupied" | "attention";
 type Sort = "property" | "label";
@@ -90,25 +95,25 @@ const needsAttention = (unit: Unit) =>
  * is Room 4", which is the question a provider with eleven Properties has. Both
  * open the same Unit.
  *
- * Refined on review (2026-09-21). It stays a grid — Units are told apart by
- * sight before they are told apart by name — standing now on the green its
- * sibling tabs stand on, over figures that say what the Portfolio holds. It had
- * been filtered two ways at once: a row of chips for availability and a
- * separate sheet for Property and sort, so neither control could say what was
- * on. There is one Filter now, it holds all three questions, and whatever is on
- * is a token under the heading that clears with a tap.
+ * Redesigned (owner, 2026-10-06) on the dashboards' parts. It stays a grid —
+ * Units are told apart by sight before they are told apart by name — under the
+ * Homes' card: two rings, how much is let and how much of what is vacant is on
+ * Explore, over a straight line of counts. The filters are out where they can
+ * be seen: a row of chips for where a Unit stands, a row for which Property,
+ * and a toggle beside the search for the order. Each says what is on by being
+ * on, so there is no sheet and no token to clear.
  */
 export default function UnitsScreen() {
   const router = useRouter();
   const density = useHomeDensity();
   const pageBottom = useSafeBottom(space[12]);
   const { activeContext } = useAuth();
+  const params = useLocalSearchParams<{ view?: string }>();
   const [units, setUnits] = useState<Unit[] | null>(null);
   const [query, setQuery] = useState("");
-  const [view, setView] = useState<UnitView>("all");
+  const [view, setView] = useState<UnitView>(() => (VIEWS as readonly string[]).includes(params.view ?? "") ? params.view as UnitView : "all");
   const [propertyId, setPropertyId] = useState("");
   const [sort, setSort] = useState<Sort>("property");
-  const [filtering, setFiltering] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
 
@@ -160,15 +165,8 @@ export default function UnitsScreen() {
         : a.property_title.localeCompare(b.property_title, "en-GH") || a.label.localeCompare(b.label, "en-GH"));
   }, [all, propertyId, view, query, sort]);
 
-  const propertyName = properties.find(([id]) => id === propertyId)?.[1] ?? "";
-  const narrowed = (view === "all" ? 0 : 1) + (propertyId ? 1 : 0) + (sort === "property" ? 0 : 1);
-
-  // The figure's line says the one thing outstanding, or that nothing is.
-  const note: SummaryNote = counts.attention
-    ? { text: `${counts.attention} needs attention`, tone: "alert" }
-    : counts.available
-      ? { text: `${counts.available} ready to let`, tone: "calm" }
-      : { text: "All let", tone: "calm" };
+  // Of what is vacant, how much a tenant can find on Explore.
+  const listedVacant = all.filter((unit) => unit.availability.state === "available" && isPublic(unit)).length;
 
   const clearAll = () => { setView("all"); setPropertyId(""); setSort("property"); setQuery(""); };
   // A sheet to choose the Property, not a screen (owner, 2026-10-05).
@@ -200,50 +198,96 @@ export default function UnitsScreen() {
             {error ? <Notice tone="error" title={error} /> : null}
 
             {counts.all ? (
-              <SummaryPanel
-                label="Units"
-                value={String(counts.all)}
-                note={note}
-                // Two, because the panel lays its facts out at 45% each in a
-                // row that does not wrap — a third is cut off the right edge.
-                // These two are the split that sums to the figure above them.
-                facts={[
-                  { label: "Occupied", value: String(counts.occupied) },
-                  { label: "Available", value: String(counts.available) },
-                ]}
-              />
+              <View style={dash.card}>
+                <Rings>
+                  <Ring
+                    share={counts.occupied / counts.all}
+                    rest={RING_EMPTY}
+                    figure={`${Math.round((counts.occupied / counts.all) * 100)}%`}
+                    unit="let"
+                    heldFigure={`${counts.occupied}/${counts.all}`}
+                    heldUnit="Units let"
+                    title="Occupancy"
+                    line={`${counts.available} vacant of ${counts.all}`}
+                  />
+                  {counts.available ? (
+                    <Ring
+                      share={listedVacant / counts.available}
+                      rest={RING_OWED}
+                      figure={`${Math.round((listedVacant / counts.available) * 100)}%`}
+                      unit="listed"
+                      heldFigure={`${listedVacant}/${counts.available}`}
+                      heldUnit="vacant listed"
+                      title="On Explore"
+                      line={listedVacant === counts.available ? "Every vacancy is listed" : `${counts.available - listedVacant} vacant not listed`}
+                    />
+                  ) : (
+                    <Ring share={null} rest={RING_OWED} figure="None" unit="vacant" title="On Explore" line="Nothing to list" />
+                  )}
+                </Rings>
+                <StatCells>
+                  <Cell label="Units" value={counts.all} onPress={() => setView("all")} />
+                  <CellRule />
+                  <Cell label="Vacant" value={counts.available} onPress={() => setView("available")} />
+                  <CellRule />
+                  <Cell label="On Explore" value={counts.public} onPress={() => setView("public")} />
+                  <CellRule />
+                  <Cell label="Attention" value={counts.attention} alert={counts.attention > 0} onPress={() => setView("attention")} />
+                </StatCells>
+              </View>
             ) : null}
 
             {counts.all ? (
               <View style={{ gap: space[3] }}>
-                <ListHead
-                  title={VIEW_LABEL[view]}
-                  count={visible.length}
-                  filters={narrowed}
-                  filterTone="kola"
-                  onFilter={() => setFiltering(true)}
+                <View style={styles.head}>
+                  <Type variant="title2" accessibilityRole="header" style={styles.headTitle}>{VIEW_LABEL[view]}</Type>
+                  <Type variant="caption" style={{ color: MUTED }}>{visible.length}</Type>
+                  <View style={{ flex: 1 }} />
+                  <AddButton label="Add Unit" onPress={addUnit} />
+                </View>
+                <FilterChips
+                  label="Show Units"
+                  value={view}
+                  onChange={setView}
+                  options={VIEWS.map((value) => ({
+                    value,
+                    label: value === "all" ? "All" : VIEW_LABEL[value],
+                    count: counts[value],
+                    tone: value === "all" ? undefined : VIEW_TONE[value],
+                  }))}
                 />
-                {narrowed ? (
-                  <View style={styles.tokens}>
-                    {view === "all" ? null : (
-                      <ActiveFilter label={VIEW_LABEL[view]} tone={VIEW_TONE[view]} onClear={() => setView("all")} />
-                    )}
-                    {propertyId ? (
-                      <ActiveFilter label={propertyName} tone={KOLA_DEEP} onClear={() => setPropertyId("")} />
-                    ) : null}
-                    {sort === "property" ? null : (
-                      <ActiveFilter label={SORT_LABEL[sort]} tone={MUTED} onClear={() => setSort("property")} />
-                    )}
-                  </View>
+                {properties.length > 1 ? (
+                  <FilterChips
+                    label="Units in"
+                    quiet
+                    value={propertyId || "every"}
+                    onChange={(value) => setPropertyId(value === "every" ? "" : value)}
+                    options={[
+                      { value: "every", label: "Every Property", count: counts.all, icon: "business-outline" as const },
+                      ...properties.map(([id, title]) => ({
+                        value: id,
+                        label: title,
+                        count: all.filter((unit) => unit.property_id === id).length,
+                        icon: "business-outline" as const,
+                      })),
+                    ]}
+                  />
                 ) : null}
-                <SearchField
-                  label="Search Units"
-                  placeholder="Unit, Property or type"
-                  value={query}
-                  onChangeText={setQuery}
-                />
-                <View style={styles.add}>
-                  <PrimaryAction icon="add" label="Add Unit" onPress={addUnit} />
+                <View style={styles.searchRow}>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <SearchField
+                      label="Search Units"
+                      placeholder="Unit, Property or type"
+                      value={query}
+                      onChangeText={setQuery}
+                    />
+                  </View>
+                  <ToolButton
+                    icon="swap-vertical-outline"
+                    label={`Ordered ${SORT_LABEL[sort].toLocaleLowerCase("en-GH")}. Order ${SORT_LABEL[sort === "label" ? "property" : "label"].toLocaleLowerCase("en-GH")}`}
+                    active={sort === "label"}
+                    onPress={() => setSort(sort === "label" ? "property" : "label")}
+                  />
                 </View>
               </View>
             ) : null}
@@ -277,71 +321,6 @@ export default function UnitsScreen() {
         }
       />
 
-      <BottomSheet
-        visible={filtering}
-        onClose={() => setFiltering(false)}
-        title="Filter"
-        hideTitle
-        closeLabel="Close filter"
-        footer={<SheetFooter
-          canReset={narrowed > 0 || Boolean(query)}
-          onReset={clearAll}
-          results={visible.length}
-          onShow={() => setFiltering(false)}
-        />}
-      >
-        <FilterGroup title="Show">
-          {VIEWS.map((value, index) => (
-            <ChoiceRow
-              key={value}
-              first={index === 0}
-              icon={VIEW_ICON[value]}
-              label={VIEW_LABEL[value]}
-              count={counts[value]}
-              selected={view === value}
-              onPress={() => setView(value)}
-            />
-          ))}
-        </FilterGroup>
-
-        {properties.length > 1 ? (
-          <FilterGroup title="Property">
-            <ChoiceRow
-              first
-              icon="business-outline"
-              label="Every Property"
-              count={counts.all}
-              selected={!propertyId}
-              onPress={() => setPropertyId("")}
-            />
-            {properties.map(([id, title]) => (
-              <ChoiceRow
-                key={id}
-                first={false}
-                icon="business-outline"
-                label={title}
-                count={all.filter((unit) => unit.property_id === id).length}
-                selected={propertyId === id}
-                onPress={() => setPropertyId(id)}
-              />
-            ))}
-          </FilterGroup>
-        ) : null}
-
-        <FilterGroup title="Order">
-          {(["property", "label"] as const).map((value, index) => (
-            <ChoiceRow
-              key={value}
-              first={index === 0}
-              icon={value === "property" ? "business-outline" : "text-outline"}
-              label={SORT_LABEL[value]}
-              count={counts.all}
-              selected={sort === value}
-              onPress={() => setSort(value)}
-            />
-          ))}
-        </FilterGroup>
-      </BottomSheet>
       {addUnitSheet}
     </IndexGround>
   );
@@ -363,9 +342,21 @@ function UnitsSkeleton() {
 }
 
 const styles = StyleSheet.create({
-  tokens: {
+  head: {
     flexDirection: "row",
-    flexWrap: "wrap",
+    alignItems: "center",
+    gap: space[2],
+    paddingLeft: space[1],
+  },
+  headTitle: {
+    fontSize: 18,
+    lineHeight: 24,
+    letterSpacing: -0.2,
+    color: theme.color.ink["900"],
+  },
+  searchRow: {
+    flexDirection: "row",
+    alignItems: "center",
     gap: space[2],
   },
   add: {

@@ -1,10 +1,11 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useState, type ReactNode } from "react";
-import { Pressable, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
 
 import { Type, space } from "@/components/ui";
 import type { SpaceAvailability, SpacePublication, SpaceVerification } from "@/provider";
-import { pressableFeedback } from "@/platform";
+import { pressableFeedback, surfaceElevation } from "@/platform";
+import { alpha } from "@/shell";
 import { theme } from "@/theme";
 
 export type StatusTone = "neutral" | "good" | "waiting" | "attention";
@@ -58,7 +59,7 @@ export function StatusLine({
         numberOfLines={compact ? 2 : undefined}
         style={{
           color,
-          fontWeight: "600",
+          fontWeight: "500",
           flexShrink: 1,
           ...(compact ? { fontSize: 13, lineHeight: 18 } : null),
         }}
@@ -117,12 +118,15 @@ export function EntityHeader({
   subtitle?: string;
   status?: ReactNode;
 }) {
+  // A white card on the record's green, as the dashboards' are (owner,
+  // 2026-10-06). It was an all-caps eyebrow repeating the title bar, the
+  // name, and a beige rule under it — the template look the redesign replaced.
   return (
-    <View style={{ gap: space[2], paddingBottom: space[5], borderBottomWidth: 1, borderBottomColor: theme.color.field["200"] }}>
-      {eyebrow ? <Type variant="label">{eyebrow.toUpperCase()}</Type> : null}
-      <Type variant="title1">{title}</Type>
-      {subtitle ? <Type variant="caption">{subtitle}</Type> : null}
-      {status}
+    <View style={styles.entity}>
+      {eyebrow ? <Type variant="caption" style={styles.entityEyebrow}>{eyebrow}</Type> : null}
+      <Type variant="title1" style={styles.entityTitle}>{title}</Type>
+      {subtitle ? <Type variant="caption" style={styles.entitySubtitle}>{subtitle}</Type> : null}
+      {status ? <View style={{ marginTop: space[1] }}>{status}</View> : null}
     </View>
   );
 }
@@ -166,3 +170,28 @@ export function LoadingRows({ rows = 4 }: { rows?: number }) {
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  entity: {
+    gap: space[1],
+    padding: space[4],
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: alpha(theme.color.kola["900"], 0.09),
+    backgroundColor: theme.color.field["0"],
+    ...surfaceElevation,
+  },
+  entityEyebrow: {
+    color: theme.color.ink["500"],
+  },
+  entityTitle: {
+    fontSize: 24,
+    lineHeight: 30,
+    color: theme.color.ink["900"],
+  },
+  entitySubtitle: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: theme.color.ink["500"],
+  },
+});

@@ -131,7 +131,9 @@ function Shell() {
   // header in the app is the green chrome, so those are white; the sign-in
   // journey stands on ivory, and so now does the launch curtain — three dots on
   // the page's own ground, not a green field — so both of those turn dark.
-  const statusBar = settled && segments[0] !== "(auth)" ? "light" : "dark";
+  // The sign-in screens open on the green hero now too, so only the launch
+  // curtain — three dots on ivory — takes dark glyphs.
+  const statusBar = settled ? "light" : "dark";
 
   return (
     <View style={{ flex: 1, backgroundColor: shell.canvas }}>

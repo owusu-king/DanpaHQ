@@ -169,7 +169,7 @@ export function CheckpointJourney({
                   style={{
                     textAlign: "center",
                     color: palette.label,
-                    fontWeight: checkpoint.state === "current" ? "700" : "600",
+                    fontWeight: checkpoint.state === "current" ? "600" : "500",
                     letterSpacing: 0,
                     textTransform: "none",
                   }}

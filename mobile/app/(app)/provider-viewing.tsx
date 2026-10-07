@@ -104,8 +104,14 @@ export default function ProviderViewingScreen() {
 
   const summary = viewingSummary(viewing);
   const focused = mode !== "idle";
-  const canOffer = viewing.actions.can_decline;
-  const hasExits = canOffer || viewing.status === "confirmed" || viewing.actions.can_cancel;
+  // Every change is the backend's to allow. A confirmed Viewing used to offer
+  // "Offer different times" and "Cancel appointment" whatever the server said —
+  // after it had passed, say — and both were refused only once pressed
+  // (owner, 2026-10-06).
+  const canOffer = Boolean(viewing.actions.can_decline);
+  const canReschedule = viewing.status === "confirmed" && Boolean(viewing.actions.can_reschedule);
+  const canCancel = Boolean(viewing.actions.can_cancel);
+  const hasExits = canOffer || canReschedule || canCancel;
   const primary = primaryAct(viewing);
   const barShown = !focused && (Boolean(primary) || hasExits);
 
@@ -116,7 +122,7 @@ export default function ProviderViewingScreen() {
         keyboardShouldPersistTaps="handled"
       >
         <EntityHeader
-          eyebrow="Viewing"
+          eyebrow="Viewing with"
           title={viewing.tenant_name}
           subtitle={viewing.listing_headline}
           status={<StatusLine label={summary.label} tone={summary.tone} />}
@@ -145,7 +151,8 @@ export default function ProviderViewingScreen() {
           <>
             {viewing.confirmed_starts_at ? (
               <RecordPanel>
-                <Lead label="Scheduled" value={formatSlot(viewing.confirmed_starts_at)} />
+                {/* What the time is to the Viewing now: ahead, happened, or did not. */}
+                <Lead label={timeLabel(viewing)} value={formatSlot(viewing.confirmed_starts_at)} />
               </RecordPanel>
             ) : null}
 
@@ -288,18 +295,18 @@ export default function ProviderViewingScreen() {
       <BottomSheet visible={exits} onClose={() => setExits(false)} title="Change or cancel" closeLabel="Close options">
         <View style={styles.sheetBody}>
           <RecordPanel>
-            {viewing.status === "confirmed" || canOffer ? (
+            {canReschedule || canOffer ? (
               <LinkRow
                 first
                 icon="time-outline"
                 label="Offer different times"
                 detail="The tenant confirms one, and that becomes the appointment."
-                onPress={() => choose(viewing.status === "confirmed" ? "reschedule" : "offer")}
+                onPress={() => choose(canReschedule ? "reschedule" : "offer")}
               />
             ) : null}
-            {viewing.actions.can_cancel || viewing.status === "confirmed" ? (
+            {canCancel ? (
               <LinkRow
-                first={!(viewing.status === "confirmed" || canOffer)}
+                first={!(canReschedule || canOffer)}
                 icon="close-circle-outline"
                 tone="alert"
                 label="Cancel appointment"
@@ -337,9 +344,20 @@ export default function ProviderViewingScreen() {
   );
 }
 
+/**
+ * What the appointment's time is to it now. A completed Viewing used to read
+ * "Scheduled" for a date that had passed (owner, 2026-10-06).
+ */
+function timeLabel(viewing: Viewing): string {
+  if (viewing.status === "completed" || viewing.status === "checked_in") return "Took place";
+  if (viewing.status === "cancelled") return "Was booked for";
+  if (["tenant_no_show", "host_no_show", "attendance_pending", "disputed"].includes(viewing.status)) return "Was booked for";
+  return "Scheduled";
+}
+
 /** The one act the lifecycle is waiting on, if there is one. */
 function primaryAct(viewing: Viewing): { kind: "offer" | "check-in" | "complete"; label: string; icon: "time-outline" | "qr-code-outline" | "checkmark-done-outline" } | null {
-  if (viewing.status === "checked_in") {
+  if (viewing.status === "checked_in" && viewing.actions.can_complete !== false) {
     return { kind: "complete", label: "Mark Viewing completed", icon: "checkmark-done-outline" };
   }
   if (viewing.status === "confirmed" && viewing.check_in.can_validate) {
