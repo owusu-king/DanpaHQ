@@ -1,6 +1,6 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Platform, StyleSheet, TextInput, View } from "react-native";
+import { ActivityIndicator, Platform, StyleSheet, TextInput, View } from "react-native";
 
 import { apiFetch, ApiFailure } from "@/api";
 import { useAuth, type Me } from "@/auth";
@@ -16,11 +16,20 @@ import { Notice, Type, space } from "@/components/ui";
 import { hapticsPolicy } from "@/platform";
 import { theme } from "@/theme";
 import { resolveEntryRoute } from "@/navigation";
+import { fieldErrorsFrom, summaryErrorFrom } from "@/formErrors";
 import {
   asOnboardingIntent,
+  clearPendingOnboardingIntent,
   pendingOnboardingIntent,
   rememberOnboardingIntent,
 } from "@/onboardingIntent";
+import {
+  clearRegistrationDraft,
+  markAccountJustCreated,
+  registrationDraft,
+  returnDraftWithErrors,
+  submitRegistration,
+} from "@/registrationDraft";
 
 /**
  * A buzz, which must never decide whether a sign-up completes.
@@ -105,6 +114,9 @@ export default function CodeScreen() {
   const inputRef = useRef<TextInput>(null);
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
+  // The code was right and the account is being made: the cells have done
+  // their job, so the screen says what is happening instead of waiting silently.
+  const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
   const [resendIn, setResendIn] = useState(Number(params.resendIn ?? 60));
   const [expiresIn, setExpiresIn] = useState(Number(params.expiresIn ?? 300));
@@ -154,16 +166,42 @@ export default function CodeScreen() {
           ?? (requestedIntent === "manage_property" ? "provider" : "tenant");
 
         // The number is proved and nothing has been created. The ticket is the
-        // proof, and it is spent on the next screen — where the person says who
-        // they are, which is the point they actually join.
+        // proof, and the details were given on the step before — so this is the
+        // moment the person joins.
         if (result.registration_required) {
-          // Remember the journey before leaving: the register screen can also
-          // be reached by the route gate, which arrives without our parameters.
-          if (requestedIntent) await rememberOnboardingIntent(requestedIntent);
-          router.replace({
-            pathname: "/(auth)/register",
-            params: { workspace, ticket: result.registration_ticket ?? "" },
-          });
+          const ticket = result.registration_ticket ?? "";
+          const draft = registrationDraft();
+
+          // No details in memory: the app was restarted between the two steps.
+          // Remember the journey and take the proof back to the details screen,
+          // which creates the account from there.
+          if (!draft) {
+            if (requestedIntent) await rememberOnboardingIntent(requestedIntent);
+            router.replace({ pathname: "/(auth)/register", params: { workspace, ticket } });
+            return;
+          }
+
+          setCreating(true);
+          try {
+            const { session } = await submitRegistration({ details: draft, ticket, deviceFingerprint });
+            // Before the session lands, so the gate's first signed-in frame
+            // shows the welcome rather than an ordinary arrival.
+            markAccountJustCreated(draft.accountType);
+            clearRegistrationDraft();
+            await clearPendingOnboardingIntent();
+            if (session) await signIn(session);
+          } catch (cause) {
+            // The server refused a detail it alone can judge — an email in use,
+            // a password it considers common — or the connection dropped. Back
+            // to the details, with the reason on the field and the proof kept:
+            // the code is spent, but the ticket is good for half an hour, so
+            // "Create account" there finishes without a second text.
+            const fields = fieldErrorsFrom(cause);
+            returnDraftWithErrors(ticket, fields, summaryErrorFrom(cause, fields));
+            router.replace({ pathname: "/(auth)/register", params: { workspace: draft.accountType } });
+          } finally {
+            setCreating(false);
+          }
           return;
         }
 
@@ -242,7 +280,7 @@ export default function CodeScreen() {
 
   return (
     <AuthScene
-      progress={{ step: 2, of: 3 }}
+      progress={{ step: 3, of: 3 }}
       header={<AuthBack label="Back to your number" onPress={() => router.back()} />}
     >
       <AuthHeading
@@ -283,19 +321,40 @@ export default function CodeScreen() {
         </View>
       </View>
 
+      {creating ? (
+        <View style={styles.creating} accessibilityLiveRegion="polite">
+          <ActivityIndicator size="small" color={theme.color.kola["600"]} />
+          <View style={{ flex: 1 }}>
+            <Type variant="bodyStrong">Number confirmed</Type>
+            <Type variant="caption">Creating your account…</Type>
+          </View>
+        </View>
+      ) : null}
+
       {error ? <Notice tone="error" title={error} /> : null}
 
-      <AuthFoot>
-        <TextLink label="Wrong number? Change it" onPress={() => router.back()} />
-        <Type variant="caption" style={styles.footnote}>
-          Delivery can take a minute. We will never ask you for this code.
-        </Type>
-      </AuthFoot>
+      {/* Nothing to change once the number is proved and the account is being made. */}
+      {creating ? null : (
+        <AuthFoot>
+          <TextLink label="Wrong number? Change it" onPress={() => router.back()} />
+          <Type variant="caption" style={styles.footnote}>
+            Delivery can take a minute. We will never ask you for this code.
+          </Type>
+        </AuthFoot>
+      )}
     </AuthScene>
   );
 }
 
 const styles = StyleSheet.create({
+  creating: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space[3],
+    padding: space[4],
+    borderRadius: 16,
+    backgroundColor: theme.color.kola["50"],
+  },
   codeBlock: {
     gap: space[3],
   },

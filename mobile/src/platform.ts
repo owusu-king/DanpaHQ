@@ -10,6 +10,8 @@
  * a future change is a decision rather than a drift.
  */
 
+import { BottomTabBarHeightContext } from "expo-router/tabs";
+import { useContext } from "react";
 import { Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -52,7 +54,24 @@ export const safeHeaderTop = (safeAreaTop: number) =>
  */
 export function useSafeBottom(base: number) {
   const insets = useSafeAreaInsets();
+  const floatingBar = useFloatingTabBarClearance();
+  // The floating bar already stands above the home indicator, so its height
+  // replaces the inset rather than adding to it.
+  if (floatingBar > 0) return base + floatingBar;
   return base + insets.bottom;
+}
+
+/**
+ * How much of a tab screen the iOS glass tab bar covers, home indicator
+ * included — zero on Android, whose bar sits in the layout below the page, and
+ * on every pushed screen, which has no tab bar at all.
+ *
+ * Use it for anything pinned to a tab screen's foot, so it rides above the
+ * glass rather than under it.
+ */
+export function useFloatingTabBarClearance() {
+  const tabBarHeight = useContext(BottomTabBarHeightContext);
+  return isIOS && tabBarHeight ? tabBarHeight : 0;
 }
 
 export const platformName = Platform.select({ android: "android", ios: "ios", default: "web" });

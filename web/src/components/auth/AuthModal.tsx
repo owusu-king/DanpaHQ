@@ -29,6 +29,7 @@ export function AuthModal({
   progress,
   children,
   footer,
+  closeHref,
 }: {
   title: string;
   description?: ReactNode;
@@ -39,6 +40,11 @@ export function AuthModal({
   children: ReactNode;
   /** The quiet row under the form: the other ways in and out. */
   footer?: ReactNode;
+  /**
+   * Where closing goes, when "back" would be wrong — the welcome, whose history
+   * is a sign-up that has already finished.
+   */
+  closeHref?: string;
 }) {
   const router = useRouter();
   const titleId = useId();
@@ -46,6 +52,10 @@ export function AuthModal({
 
   // Out is back where they came from on this site, else the front door.
   function close() {
+    if (closeHref) {
+      router.replace(closeHref as never);
+      return;
+    }
     const cameFromHere = typeof document !== "undefined"
       && document.referrer.startsWith(window.location.origin)
       && window.history.length > 1;

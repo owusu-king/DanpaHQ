@@ -40,6 +40,7 @@
 @import "../src/styles/sales.css";
 @import "../src/styles/explore-hero.css";
 @import "../src/styles/auth.css";
+@import "../src/styles/onboarding.css";
 
 /* Type is loaded in app/layout.tsx through next/font, which self-hosts both
    families from the build output and exposes them as --font-display-face and

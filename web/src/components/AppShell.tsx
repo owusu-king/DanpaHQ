@@ -40,7 +40,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 }
 
 /** Screens that carry their own full-page layout and want no header at all. */
-const BARE = ["/sign-in", "/register", "/forgot-password", "/restricted"];
+const BARE = ["/sign-in", "/register", "/welcome", "/forgot-password", "/restricted"];
 
 function ConsumerChrome({
   pathname,
@@ -62,7 +62,7 @@ function ConsumerChrome({
   // public header: flashing marketing chrome and then replacing it is worse
   // than a moment of empty rail, and the portal routes are behind a gate anyway.
   if (inPortal || (state.status === "loading" && isPortalRoute(pathname))) {
-    return <PortalShell>{children}</PortalShell>;
+    return <PortalShell key={state.status === "signed_in" ? state.me.id : "public"}>{children}</PortalShell>;
   }
 
   // A shared page whose session is still unknown: the public layout renders

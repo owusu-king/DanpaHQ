@@ -192,6 +192,18 @@ PAYOUT_ACCOUNT_RESOLUTION_CACHE_SECONDS = env(
     "PAYOUT_ACCOUNT_RESOLUTION_CACHE_SECONDS", 3600, cast=int
 )
 PAYMENT_RECEIPT_EMAIL_DOMAIN = env("PAYMENT_RECEIPT_EMAIL_DOMAIN", "receipts.rooomly.com")
+
+# Outgoing email: today, only the code that confirms an address on an account.
+# SMTP by default; a deployment sets EMAIL_HOST and credentials (or swaps the
+# backend for a provider's) — local development prints to the console instead.
+EMAIL_BACKEND = env("EMAIL_BACKEND", "django.core.mail.backends.smtp.EmailBackend")
+EMAIL_HOST = env("EMAIL_HOST", "localhost")
+EMAIL_PORT = env("EMAIL_PORT", 587, cast=int)
+EMAIL_HOST_USER = env("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", "")
+EMAIL_USE_TLS = env("EMAIL_USE_TLS", "true").lower() == "true"
+EMAIL_TIMEOUT = env("EMAIL_TIMEOUT", 10, cast=int)
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", "Rooomly <no-reply@rooomly.com>")
 # The floor under a part payment, in pesewas. It exists because the receiving
 # Portfolio bears the processor's transaction fee, so unbounded micro-payments
 # are a cost transfer onto the person owed the money. Settling the entire

@@ -10,10 +10,10 @@ const read = (relative) => readFileSync(resolve(root, relative), "utf8");
 test("mobile Updates leads with what wants an answer, then what happened by day", () => {
   const screen = read("mobile/app/(app)/notifications.tsx");
 
-  assert.match(screen, /needsYou/);
+  assert.match(screen, /item.record === "informational"/);
   assert.match(screen, /notificationSource/);
   assert.match(screen, /notificationTone/);
-  assert.match(screen, /Wants an answer/);
+  assert.match(screen, />Alerts</);
   assert.match(screen, /function byDay\(/);
   assert.match(screen, /<Briefing/);
   assert.doesNotMatch(screen, /Your inbox/);
@@ -52,13 +52,12 @@ test("opening an update does not wait for the read acknowledgement", () => {
   assert.match(screen, /router\.push\(destination\(item, isProvider\)/);
 });
 
-test("mobile Updates keeps no history to page through", () => {
+test("mobile Updates shows five recent activities and preserves Older", () => {
   const screen = read("mobile/app/(app)/notifications.tsx");
-
-  // Reminders clear once read and activity keeps the ten most recent, so there
-  // is nothing to page back through; management reads the audit log instead.
-  assert.match(screen, /const RECENT_KEPT = 10/);
-  assert.doesNotMatch(screen, /PAGE_SIZE|function MobilePagination|accessibilityLabel="Updates pages"/);
+  assert.match(screen, /const RECENT_SHOWN = 5/);
+  assert.match(screen, /activity.slice\(RECENT_SHOWN\)/);
+  assert.match(screen, /accessibilityLabel="Older activity"/);
+  assert.match(screen, /listNotificationHistory/);
 });
 
 test("Explore keeps one search bar and one Filters button over the map, and every filter in a bottom sheet", () => {

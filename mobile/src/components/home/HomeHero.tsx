@@ -5,6 +5,7 @@ import { Animated, Pressable, StyleSheet, Text, View, type RefreshControlProps }
 import { ph } from "@/components/home/plinth";
 import { HeaderChromeBackground } from "@/components/nav/HeaderChromeBackground";
 import { space } from "@/components/ui";
+import { useFloatingTabBarClearance } from "@/platform";
 import { alpha, shell } from "@/shell";
 import { theme } from "@/theme";
 
@@ -54,6 +55,7 @@ export function HomeHeroScroll({
   children: ReactNode;
 }) {
   const [scrollY] = useState(() => new Animated.Value(0));
+  const barClearance = useFloatingTabBarClearance();
 
   const greetingStyle = {
     opacity: scrollY.interpolate({ inputRange: [0, FADE_DISTANCE * 0.8], outputRange: [1, 0], extrapolate: "clamp" }),
@@ -97,7 +99,7 @@ export function HomeHeroScroll({
         </Animated.View>
       </View>
 
-      <View style={[styles.panel, { padding, gap }]}>{children}</View>
+      <View style={[styles.panel, { padding, gap, paddingBottom: space[12] + barClearance }]}>{children}</View>
     </Animated.ScrollView>
   );
 }
@@ -165,7 +167,6 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     marginTop: -PANEL_RADIUS,
     paddingTop: space[6],
-    paddingBottom: space[12],
     borderTopLeftRadius: PANEL_RADIUS,
     borderTopRightRadius: PANEL_RADIUS,
     backgroundColor: ph.ground,

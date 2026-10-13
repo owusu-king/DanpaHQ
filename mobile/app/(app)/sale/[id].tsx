@@ -96,7 +96,7 @@ export default function SaleScreen() {
 
   async function signIn() {
     await rememberOnboardingIntent("find_property");
-    router.push({ pathname: "/(auth)/phone", params: { next: `/(app)/sale/${id}`, intent: "find_property" } });
+    router.push({ pathname: "/(auth)/register", params: { workspace: "tenant", next: `/(app)/sale/${id}` } });
   }
 
   async function send() {

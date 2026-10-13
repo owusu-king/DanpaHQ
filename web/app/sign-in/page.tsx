@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 
 import { AuthModal, AuthSide } from "@/components/auth/AuthModal";
 import { Button } from "@/components/Button";
@@ -36,7 +36,7 @@ import { getWebDeviceContext } from "@/lib/device";
 function SignInContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { refresh, signOut } = useSession();
+  const { state, activeContext, refresh, signOut } = useSession();
 
   const requested = searchParams.get("workspace");
   const [workspace, setWorkspace] = useState<Extract<Workspace, "tenant" | "provider"> | null>(
@@ -59,6 +59,11 @@ function SignInContent() {
   // Signed in fine, but this account is not a provider. Not a failure to fix —
   // a fact to state, with somewhere to go.
   const [notAProvider, setNotAProvider] = useState(false);
+  useEffect(() => {
+    if (state.status === "signed_in" && !busy && !notAProvider) {
+      router.replace(resolveWebEntry(state.me, activeContext) as never);
+    }
+  }, [state, activeContext, busy, notAProvider, router]);
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();

@@ -1,5 +1,6 @@
 "use client";
 
+import { ArrowLeft, Building2, Check, Home } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
@@ -8,86 +9,213 @@ import { AuthModal } from "@/components/auth/AuthModal";
 import { Button } from "@/components/Button";
 import { Field } from "@/components/Field";
 import { Notice } from "@/components/Notice";
-import { Select } from "@/components/Select";
 import { apiFetch, ApiFailure } from "@/lib/api";
 import { authedFetch, setAccessToken } from "@/lib/auth";
+import { getWebDeviceContext } from "@/lib/device";
 import {
   fieldErrorsFrom,
   isAccountExists,
   summaryErrorFrom,
   type FieldErrors,
 } from "@/lib/formErrors";
-import { chooseWorkspace, useSession, type Me, type Workspace } from "@/lib/session";
-import { resolveWebEntry } from "@/lib/navigation";
+import { markAccountJustCreated, type AccountType } from "@/lib/registration";
 import { safeInternalPath } from "@/lib/safeRedirect";
-import { getWebDeviceContext } from "@/lib/device";
+import { chooseWorkspace, useSession, type Me } from "@/lib/session";
 
 /**
- * Creating an account, as its own thing.
+ * Creating an account: Get Started → how will you use Rooomly → who you are →
+ * your number → in (owner, 2026-10-07).
  *
- * Three steps that either finish or leave nothing at all: prove the number, say
- * what you came here to be and who you are, set a credential. Proving the number
- * creates no account — it returns a signed ticket, and the account is created
- * when this form is submitted. Abandoning it halfway writes nothing, so someone
- * who changes their mind was never a member.
+ * The role is asked first and only once — it is the account type, so the
+ * details step never asks it again. Name, date of birth and a password come
+ * next and are held here, in this component, while the number is proved. The
+ * backend rule is unchanged: proving the number returns a signed ticket and
+ * creates nothing, and the account exists only once `/me/registration/` is
+ * called with that ticket — which happens the moment the code is right.
+ * Closing the dialog anywhere before then leaves nothing behind.
  *
- * The account type is a starting point, not a grant. Choosing "property
- * provider" here opens the provider journey; it does not open the provider
- * workspace, which waits on a review.
+ * If the server refuses a detail only it can judge (an email in use, a password
+ * it considers common) the person goes back to the details with the reason on
+ * the field and the ticket kept, so fixing it creates the account without a
+ * second text.
  */
 const MIN_PASSWORD_LENGTH = 8;
 
-type Step = "phone" | "code" | "details";
+type Step = "role" | "details" | "phone" | "code";
+
+const SIDES: Record<AccountType, {
+  title: string;
+  body: string;
+  points: string[];
+  Icon: typeof Home;
+}> = {
+  tenant: {
+    title: "Tenant",
+    body: "I'm renting, or looking for a place to rent.",
+    points: ["Find, view and apply for homes", "Pay rent and keep every receipt"],
+    Icon: Home,
+  },
+  provider: {
+    title: "Provider",
+    body: "I own or manage property for rent or sale.",
+    points: ["Properties, Units and tenants", "Verified once, before you operate"],
+    Icon: Building2,
+  },
+};
 
 function RegisterContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { state, refresh } = useSession();
   const requested = searchParams.get("workspace");
-  const preselected: Workspace | null =
+  const preselected: AccountType | null =
     requested === "tenant" || requested === "provider" ? requested : null;
   const safeNext = safeInternalPath(searchParams.get("next"));
 
-  function signInHref(phoneNumber = "") {
-    const query = new URLSearchParams();
-    if (phoneNumber) query.set("phone", phoneNumber);
-    if (preselected) query.set("workspace", preselected);
-    if (safeNext) query.set("next", safeNext);
-    return query.size ? `/sign-in?${query.toString()}` : "/sign-in";
-  }
+  // An account left unfinished before tickets existed arrives signed in, and
+  // finishes itself from the details step.
+  const resuming = state.status === "signed_in" && state.me.registration_state !== "complete";
 
-  // Someone who proved their number and then closed the tab comes back with a
-  // session and an unfinished account. Making them start at the phone step
-  // again would ask for a code they have already given.
-  const resuming =
-    state.status === "signed_in" && state.me.registration_state !== "complete";
+  const [step, setStep] = useState<Step>(resuming || preselected ? "details" : "role");
+  const [chosenType, setAccountType] = useState<AccountType | null>(preselected);
+  // A resumed account already has a type on file; it is the default until changed.
+  const accountType: AccountType | null = chosenType
+    ?? (resuming && state.status === "signed_in" ? state.me.capabilities.account_type ?? "tenant" : null);
 
-  const [step, setStep] = useState<Step>(resuming ? "details" : "phone");
-  // Carried over from "no account for that number" on the reset screen, so the
-  // number they just typed is not asked for twice.
-  const [phone, setPhone] = useState(searchParams.get("phone") ?? "");
-  const [phoneDisplay, setPhoneDisplay] = useState("");
-  const [challengeId, setChallengeId] = useState("");
-  const [code, setCode] = useState("");
-  // Proof the number was confirmed. Spent on the last step, never stored.
-  const [ticket, setTicket] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const [errors, setErrors] = useState<FieldErrors>({});
-  // Not an error: the number is fine, it simply already belongs to someone.
-  const [accountExists, setAccountExists] = useState(false);
-
-  const [accountType, setAccountType] = useState<"tenant" | "provider">(
-    preselected === "provider" ? "provider" : "tenant",
-  );
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [dateOfBirth, setDateOfBirth] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
 
-  async function requestCode(event: React.FormEvent) {
+  // Carried over from "no account for that number" on the reset screen.
+  const [phone, setPhone] = useState(searchParams.get("phone") ?? "");
+  const [phoneDisplay, setPhoneDisplay] = useState("");
+  const [challengeId, setChallengeId] = useState("");
+  const [code, setCode] = useState("");
+  // Proof the number was confirmed: once held, the details create the account.
+  const [ticket, setTicket] = useState("");
+
+  const [busy, setBusy] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [error, setError] = useState("");
+  const [errors, setErrors] = useState<FieldErrors>({});
+  const [accountExists, setAccountExists] = useState(false);
+  // Bumped on each refused press, so the form nudges.
+  const [refusals, setRefusals] = useState(0);
+
+  const createsHere = Boolean(ticket) || resuming;
+
+  function signInHref(phoneNumber = "") {
+    const query = new URLSearchParams();
+    if (phoneNumber) query.set("phone", phoneNumber);
+    if (accountType) query.set("workspace", accountType);
+    if (safeNext) query.set("next", safeNext);
+    return query.size ? `/sign-in?${query.toString()}` : "/sign-in";
+  }
+
+  function go(next: Step) {
+    setError("");
+    setStep(next);
+  }
+
+  /** Clear a field's error the moment the person starts fixing it. */
+  function edit(fields: string[], set: (value: string) => void) {
+    return (event: React.ChangeEvent<HTMLInputElement>) => {
+      set(event.target.value);
+      setError("");
+      setErrors((current) => {
+        if (!fields.some((field) => current[field])) return current;
+        const next = { ...current };
+        for (const field of fields) delete next[field];
+        return next;
+      });
+    };
+  }
+
+  function localProblems(): FieldErrors {
+    const found: FieldErrors = {};
+    if (!firstName.trim()) found.first_name = "Enter your first name.";
+    if (!lastName.trim()) found.last_name = "Enter your last name.";
+    if (!dateOfBirth) found.date_of_birth = "Enter your date of birth.";
+    if (!password) {
+      found.password = "Choose a password.";
+    } else if (password.length < MIN_PASSWORD_LENGTH) {
+      found.password = `Use at least ${MIN_PASSWORD_LENGTH} characters.`;
+    }
+    if (password && confirm !== password) {
+      found.confirm_password = confirm ? "The two passwords do not match." : "Type the password again.";
+    }
+    return found;
+  }
+
+  /** The one call that makes a member — with the ticket, or as a resumed account. */
+  async function createAccount(proof: string) {
+    if (!accountType) return;
+    setCreating(true);
+    setBusy(true);
+    setError("");
+    setErrors({});
+    try {
+      const body = JSON.stringify({
+        registration_ticket: proof || undefined,
+        account_type: accountType,
+        first_name: firstName.trim(),
+        last_name: lastName.trim(),
+        date_of_birth: dateOfBirth,
+        email: email.trim() || null,
+        password,
+        ...getWebDeviceContext(),
+      });
+      const created = proof
+        ? await apiFetch<{ access_token?: string; expires_in?: number; user?: Me }>(
+            "/me/registration/",
+            { method: "POST", body },
+          )
+        : await authedFetch<{ access_token?: string; expires_in?: number; user?: Me }>(
+            "/me/registration/",
+            { method: "POST", body },
+          );
+      if (created.access_token) setAccessToken(created.access_token, created.expires_in ?? 0);
+      // A missed preference must never strand somebody who just joined.
+      await chooseWorkspace(accountType).catch(() => null);
+      markAccountJustCreated(accountType, safeNext ?? null);
+      await refresh();
+      router.replace("/welcome" as never);
+    } catch (cause) {
+      // Back to the details, with the reason on the field. The ticket is kept:
+      // the code is spent, but the proof lasts half an hour.
+      const fields = fieldErrorsFrom(cause);
+      setErrors(fields);
+      setError(summaryErrorFrom(cause, fields));
+      setRefusals((count) => count + 1);
+      setStep("details");
+      setCreating(false);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function submitDetails(event: React.FormEvent) {
     event.preventDefault();
+    const problems = localProblems();
+    if (Object.keys(problems).length > 0) {
+      setErrors(problems);
+      setError("");
+      setRefusals((count) => count + 1);
+      return;
+    }
+    if (createsHere) {
+      void createAccount(ticket);
+      return;
+    }
+    // Nothing is created yet: on to the number.
+    go("phone");
+  }
+
+  async function requestCode(event?: React.FormEvent) {
+    event?.preventDefault();
     setBusy(true);
     setError("");
     try {
@@ -95,16 +223,13 @@ function RegisterContent() {
         "/auth/challenge/",
         {
           method: "POST",
-          body: JSON.stringify({
-            phone: phone.trim(),
-            purpose: "sign_up",
-            ...getWebDeviceContext(),
-          }),
+          body: JSON.stringify({ phone: phone.trim(), purpose: "sign_up", ...getWebDeviceContext() }),
         },
       );
       setChallengeId(result.challenge_id);
       setPhoneDisplay(result.phone_display);
-      setStep("code");
+      setCode("");
+      go("code");
     } catch (cause) {
       if (isAccountExists(cause)) {
         setAccountExists(true);
@@ -116,8 +241,7 @@ function RegisterContent() {
     }
   }
 
-  async function confirmCode(event: React.FormEvent) {
-    event.preventDefault();
+  async function confirmCode(value: string) {
     setBusy(true);
     setError("");
     try {
@@ -128,100 +252,60 @@ function RegisterContent() {
         expires_in?: number;
       }>("/auth/verify/", {
         method: "POST",
-        body: JSON.stringify({
-          challenge_id: challengeId,
-          code: code.trim(),
-          ...getWebDeviceContext(),
-        }),
+        body: JSON.stringify({ challenge_id: challengeId, code: value.trim(), ...getWebDeviceContext() }),
       });
       if (result.registration_ticket) {
         setTicket(result.registration_ticket);
-      } else if (result.access_token) {
-        // An account left unfinished before tickets existed, which still comes
-        // back with a session to finish itself in.
-        setAccessToken(result.access_token, result.expires_in ?? 0);
-      }
-      setStep("details");
-    } catch (cause) {
-      setError(cause instanceof ApiFailure ? cause.error.message : "That code did not work.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function completeRegistration(event: React.FormEvent) {
-    event.preventDefault();
-    setBusy(true);
-    setError("");
-    setErrors({});
-    try {
-      const problems: FieldErrors = {};
-      if (!firstName.trim()) problems.first_name = "Enter your first name.";
-      if (!lastName.trim()) problems.last_name = "Enter your last name.";
-      if (!dateOfBirth) problems.date_of_birth = "Enter your date of birth.";
-      if (!password) {
-        problems.password = "Choose a password.";
-      } else if (password.length < MIN_PASSWORD_LENGTH) {
-        problems.password = `Use at least ${MIN_PASSWORD_LENGTH} characters.`;
-      }
-      if (Object.keys(problems).length > 0) {
-        setErrors(problems);
         setBusy(false);
+        await createAccount(result.registration_ticket);
         return;
       }
-
-      // The call that creates the account, and therefore the one that opens the
-      // first session. A ticket goes unauthenticated; a resumed unfinished row
-      // already has a token to send.
-      const body = JSON.stringify({
-        registration_ticket: ticket || undefined,
-        account_type: accountType,
-        first_name: firstName.trim(),
-        last_name: lastName.trim(),
-        date_of_birth: dateOfBirth,
-        email: email.trim() || null,
-        password,
-        ...getWebDeviceContext(),
-      });
-      const created = ticket
-        ? await apiFetch<{ access_token?: string; expires_in?: number; user?: Me }>(
-            "/me/registration/",
-            { method: "POST", body },
-          )
-        : await authedFetch<{ access_token?: string; expires_in?: number; user?: Me }>(
-            "/me/registration/",
-            { method: "POST", body },
-          );
-      if (created.access_token) {
-        setAccessToken(created.access_token, created.expires_in ?? 0);
+      if (result.access_token) {
+        // An account left unfinished before tickets: it comes back with a
+        // session, and finishing it is the details step.
+        setAccessToken(result.access_token, result.expires_in ?? 0);
+        await refresh();
+        await createAccount("");
+        return;
       }
-      const me = await chooseWorkspace(
-        accountType === "provider" ? "provider" : "tenant",
-      );
-      await refresh();
-      router.replace((safeNext ?? resolveWebEntry(me)) as never);
+      setError("This page is out of date. Reload it and try again.");
     } catch (cause) {
-      const fields = fieldErrorsFrom(cause);
-      setErrors(fields);
-      setError(summaryErrorFrom(cause, fields));
+      setCode("");
+      setError(cause instanceof ApiFailure ? cause.error.message : "That code did not work.");
+      setRefusals((count) => count + 1);
     } finally {
       setBusy(false);
     }
   }
 
-  const stepNumber = step === "phone" ? 1 : step === "code" ? 2 : 3;
+  const stepNumber = step === "details" ? 1 : step === "phone" ? 2 : 3;
+  const side = accountType ? SIDES[accountType] : null;
 
-  // A dialog over the front door, one step at a time (owner, 2026-09-29).
+  const heading = {
+    role: {
+      title: "How will you use Rooomly?",
+      description: "Choose one to start. You can add the other side later.",
+    },
+    details: createsHere
+      ? { title: "Almost there", description: "Your number is confirmed. Check the details below to finish." }
+      : { title: "Tell us about you", description: "Just the essentials. Everything else can wait for your profile." },
+    phone: {
+      title: "Confirm your number",
+      description: "It is how you sign in and how we reach you. We'll text a six-digit code.",
+    },
+    code: {
+      title: "Enter the code",
+      description: <>We sent six digits to {phoneDisplay || "your number"}.</>,
+    },
+  }[step];
+
   return (
     <AuthModal
-      eyebrow={`Step ${stepNumber} of 3`}
-      progress={stepNumber / 3}
-      title={step === "details" ? "About you" : "Create your account"}
-      description={step === "phone"
-        ? "We'll text a six-digit code to confirm the number is yours."
-        : step === "code"
-          ? <>Enter the code we sent to {phoneDisplay}.</>
-          : "A few details, and a password to sign in with."}
+      // Back on the details with a proved number is the last step, not the first.
+      eyebrow={step === "role" ? "Get started" : step === "details" && createsHere ? "Last step" : `Step ${stepNumber} of 3`}
+      progress={step === "role" ? undefined : step === "details" && createsHere ? 1 : stepNumber / 3}
+      title={heading.title}
+      description={heading.description}
       footer={(
         <>
           Already have an account?
@@ -229,130 +313,253 @@ function RegisterContent() {
         </>
       )}
     >
-      {step === "phone" ? (
-        <form onSubmit={requestCode} className="auth-form">
-          <Field
-            label="Mobile number"
-            value={phone}
-            onChange={(event) => {
-              setPhone(event.target.value);
-              setAccountExists(false);
-              if (error) setError("");
+      {/* Keyed by step, so each question arrives with the same short rise. */}
+      <div key={step} className="auth-step">
+        {step === "role" ? (
+          <form
+            className="auth-form"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (accountType) go("details");
             }}
-            inputMode="tel"
-            autoComplete="tel"
-            placeholder="024 123 4567"
-          />
-          {error ? <Notice tone="error" title={error} /> : null}
-          {accountExists ? (
-            <>
-              <p className="auth-note">
-                <strong>This number already has an account.</strong> Sign in instead to continue.
-              </p>
-              <Link href={signInHref(phone.trim()) as never} className="btn btn-primary auth-submit">
-                Sign in instead
-              </Link>
-            </>
-          ) : (
-            <Button type="submit" className="auth-submit" busy={busy} busyLabel="Sending…" disabled={!phone.trim()}>
-              Send code
+          >
+            <div className="auth-roles" role="radiogroup" aria-label="How you will use Rooomly">
+              {(Object.keys(SIDES) as AccountType[]).map((key) => {
+                const option = SIDES[key];
+                const on = accountType === key;
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    role="radio"
+                    aria-checked={on}
+                    className={`auth-role is-${key}`}
+                    onClick={() => setAccountType(key)}
+                  >
+                    <span className="auth-role-top">
+                      <span className="auth-role-tile" aria-hidden="true"><option.Icon /></span>
+                      <span className="auth-role-tick" aria-hidden="true"><Check /></span>
+                    </span>
+                    <strong>{option.title}</strong>
+                    <span className="auth-role-body">{option.body}</span>
+                    <ul className="auth-role-points">
+                      {option.points.map((point) => <li key={point}>{point}</li>)}
+                    </ul>
+                  </button>
+                );
+              })}
+            </div>
+            <Button type="submit" className="auth-submit" disabled={!accountType}>
+              {side ? `Continue as ${side.title.toLowerCase()}` : "Choose one to continue"}
             </Button>
-          )}
-        </form>
-      ) : null}
-
-      {step === "code" ? (
-        <form onSubmit={confirmCode} className="auth-form">
-          <Field
-            label="Six-digit code"
-            value={code}
-            onChange={(event) => setCode(event.target.value)}
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            maxLength={6}
-            required
-          />
-          {error ? <Notice tone="error" title={error} /> : null}
-          <Button type="submit" className="auth-submit" busy={busy} busyLabel="Checking…" disabled={code.trim().length < 4}>
-            Confirm number
-          </Button>
-          <p className="auth-note">
-            <strong>We will never ask you for this code</strong> — not by call, not by message. Anyone who does is trying to take your account.
-          </p>
-        </form>
-      ) : null}
-
-      {step === "details" ? (
-        <form onSubmit={completeRegistration} className="auth-form">
-          <Select
-            label="What brings you here?"
-            value={accountType}
-            onChange={(value) => setAccountType(value as "tenant" | "provider")}
-            options={[
-              ["tenant", "I'm looking for a place"],
-              ["provider", "I own or manage property"],
-            ]}
-          />
-          {accountType === "provider" ? (
-            <p className="auth-note">
-              Set up your account and buildings straight away. Advertising and collecting rent open once your provider verification is approved.
+            <p className="auth-aside">
+              Just browsing? <Link href={"/rentals" as never} className="auth-link">Explore homes</Link>
             </p>
-          ) : null}
-          <div className="auth-row">
+          </form>
+        ) : null}
+
+        {step === "details" ? (
+          <form onSubmit={submitDetails} className="auth-form" noValidate>
+            {side && accountType ? (
+              <div className={`auth-account is-${accountType}`}>
+                <span className="auth-account-tile" aria-hidden="true"><side.Icon /></span>
+                <span className="auth-account-text">
+                  <small>Creating a</small>
+                  <strong>{side.title} account</strong>
+                </span>
+                <button
+                  type="button"
+                  className="auth-account-change"
+                  onClick={() => {
+                    // Before the number is proved, the question is one step back.
+                    // After, going back would lose the proof, so it switches here.
+                    if (createsHere) setAccountType(accountType === "provider" ? "tenant" : "provider");
+                    else go("role");
+                  }}
+                >
+                  {createsHere ? `Switch to ${accountType === "provider" ? "tenant" : "provider"}` : "Change"}
+                </button>
+              </div>
+            ) : null}
+
+            <div key={refusals} className={refusals ? "auth-shake" : undefined}>
+              <div className="auth-form">
+                <div className="auth-row">
+                  <Field
+                    label="First name"
+                    value={firstName}
+                    onChange={edit(["first_name"], setFirstName)}
+                    error={errors.first_name}
+                    autoComplete="given-name"
+                  />
+                  <Field
+                    label="Last name"
+                    value={lastName}
+                    onChange={edit(["last_name"], setLastName)}
+                    error={errors.last_name}
+                    autoComplete="family-name"
+                  />
+                </div>
+                <Field
+                  label="Date of birth"
+                  type="date"
+                  value={dateOfBirth}
+                  onChange={edit(["date_of_birth"], setDateOfBirth)}
+                  error={errors.date_of_birth}
+                  autoComplete="bday"
+                  hint="Tenancy agreements need an adult on them."
+                />
+                <div className="auth-row">
+                  <Field
+                    label="Password"
+                    type="password"
+                    value={password}
+                    onChange={edit(["password", "confirm_password"], setPassword)}
+                    error={errors.password}
+                    autoComplete="new-password"
+                  />
+                  <Field
+                    label="Confirm password"
+                    type="password"
+                    value={confirm}
+                    onChange={edit(["confirm_password"], setConfirm)}
+                    error={errors.confirm_password}
+                    autoComplete="new-password"
+                  />
+                </div>
+                <ul className="auth-checks" aria-live="polite">
+                  <li className={password.length >= MIN_PASSWORD_LENGTH ? "is-met" : undefined}>
+                    <Check aria-hidden="true" />{MIN_PASSWORD_LENGTH}+ characters
+                  </li>
+                  <li className={confirm && confirm === password ? "is-met" : undefined}>
+                    <Check aria-hidden="true" />Passwords match
+                  </li>
+                </ul>
+                <Field
+                  label="Email (optional)"
+                  type="email"
+                  value={email}
+                  onChange={edit(["email"], setEmail)}
+                  error={errors.email}
+                  autoComplete="email"
+                  hint="For receipts and account recovery. You can add it later."
+                />
+              </div>
+            </div>
+
+            {accountType === "provider" ? (
+              <p className="auth-note">
+                <strong>Verification comes after this.</strong> Your account is created first. You then send one ID document, and provider tools open once it is approved.
+              </p>
+            ) : null}
+            {error ? <Notice tone="error" title={error} /> : null}
+            {/* Never disabled for a validation reason: pressing always continues
+                or says which field to fix. */}
+            <Button type="submit" className="auth-submit" busy={busy} busyLabel="Creating your account…">
+              {createsHere ? "Create account" : "Continue"}
+            </Button>
+            {!createsHere ? (
+              <p className="auth-aside">Next, we confirm your phone number. Nothing is created until then.</p>
+            ) : null}
+          </form>
+        ) : null}
+
+        {step === "phone" ? (
+          <form onSubmit={requestCode} className="auth-form">
+            <button type="button" className="auth-back" onClick={() => go("details")}>
+              <ArrowLeft aria-hidden="true" /> Your details
+            </button>
             <Field
-              label="First name"
-              value={firstName}
-              onChange={(event) => setFirstName(event.target.value)}
-              error={errors.first_name}
-              autoComplete="given-name"
+              label="Mobile number"
+              value={phone}
+              onChange={(event) => {
+                setPhone(event.target.value);
+                setAccountExists(false);
+                if (error) setError("");
+              }}
+              inputMode="tel"
+              autoComplete="tel"
+              placeholder="024 123 4567"
+              autoFocus
             />
-            <Field
-              label="Last name"
-              value={lastName}
-              onChange={(event) => setLastName(event.target.value)}
-              error={errors.last_name}
-              autoComplete="family-name"
-            />
-          </div>
-          <Field
-            label="Date of birth"
-            type="date"
-            value={dateOfBirth}
-            onChange={(event) => setDateOfBirth(event.target.value)}
-            error={errors.date_of_birth}
-          />
-          <Field
-            label="Email (optional)"
-            type="email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            error={errors.email}
-            autoComplete="email"
-          />
-          <Field
-            label="Password"
-            type="password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            error={errors.password}
-            autoComplete="new-password"
-            hint={`At least ${MIN_PASSWORD_LENGTH} characters. Not all digits, and not your own number.`}
-          />
-          {error ? <Notice tone="error" title={error} /> : null}
-          {/*
-            Never disabled for a validation reason. A dead button with nothing
-            explaining it leaves someone who filled the form in correctly with no
-            way to find out what the form disagrees with.
-          */}
-          <Button type="submit" className="auth-submit" busy={busy} busyLabel="Creating…">
-            Create account
-          </Button>
-        </form>
-      ) : null}
+            {error ? <Notice tone="error" title={error} /> : null}
+            {accountExists ? (
+              <>
+                <p className="auth-note">
+                  <strong>This number already has an account.</strong> Sign in instead to continue.
+                </p>
+                <Link href={signInHref(phone.trim()) as never} className="btn btn-primary auth-submit">
+                  Sign in instead
+                </Link>
+              </>
+            ) : (
+              <Button type="submit" className="auth-submit" busy={busy} busyLabel="Sending…" disabled={!phone.trim()}>
+                Send code
+              </Button>
+            )}
+            <p className="auth-aside">We will never ask you for your code. Standard SMS rates apply.</p>
+          </form>
+        ) : null}
+
+        {step === "code" ? (
+          <form
+            className="auth-form"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (code.trim().length === 6) void confirmCode(code);
+            }}
+          >
+            <button type="button" className="auth-back" onClick={() => go("phone")} disabled={creating}>
+              <ArrowLeft aria-hidden="true" /> Wrong number? Change it
+            </button>
+            <div key={refusals} className={refusals ? "auth-shake" : undefined}>
+              <Field
+                label="Six-digit code"
+                value={code}
+                onChange={(event) => {
+                  const digits = event.target.value.replace(/\D/g, "").slice(0, 6);
+                  setCode(digits);
+                  if (error) setError("");
+                  // It submits itself on the sixth digit.
+                  if (digits.length === 6 && !busy) void confirmCode(digits);
+                }}
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                maxLength={6}
+                className="auth-code"
+                autoFocus
+                disabled={creating}
+              />
+            </div>
+            {creating ? (
+              <div className="auth-creating" role="status">
+                <span className="auth-spinner" aria-hidden="true" />
+                <span>
+                  <strong>Number confirmed</strong>
+                  <small>Creating your account…</small>
+                </span>
+              </div>
+            ) : null}
+            {error ? <Notice tone="error" title={error} /> : null}
+            {!creating ? (
+              <>
+                <Button type="submit" className="auth-submit" busy={busy} busyLabel="Checking…" disabled={code.length < 6}>
+                  Confirm number
+                </Button>
+                <p className="auth-aside">
+                  Nothing arrived?{" "}
+                  <button type="button" className="auth-inline" onClick={() => void requestCode()} disabled={busy}>
+                    Send a new code
+                  </button>
+                </p>
+              </>
+            ) : null}
+          </form>
+        ) : null}
+      </div>
     </AuthModal>
   );
 }
-
 
 export default function RegisterPage() {
   return (

@@ -166,7 +166,8 @@ test("a marker previews its rental, and the map and the list are two views switc
   assert.match(search, /accessibilityLabel=\{.List\. \$\{resultLine\}.\}/);
   assert.match(search, /color: theme\.color\.field\["0"\] \}\}>List<\/Type>/);
   assert.match(search, /onPress=\{\(\) => \{ Keyboard\.dismiss\(\); setListOpen\(true\); \}\}/);
-  assert.match(search, /bottom: previewing \? previewHeight \+ space\[3\] \* 2 : space\[5\],/);
+  // On iOS the glass tab bar floats over the map, so the button rides above it.
+  assert.match(search, /bottom: \(previewing \? previewHeight \+ space\[3\] \* 2 : space\[5\]\) \+ barClearance,/);
   assert.match(search, /\{showMap && !listOpen \? \(/);
   assert.match(search, /accessibilityLabel="Show the map"[\s\S]{0,40}hitSlop=\{6\}\s*onPress=\{\(\) => setListOpen\(false\)\}/);
   assert.match(search, /pointerEvents=\{listOpen \? "auto" : "none"\}/);
@@ -178,7 +179,7 @@ test("a marker previews its rental, and the map and the list are two views switc
   // List view keeps the same header as map view: no fold, no one-row form.
   assert.doesNotMatch(search, /oneRow|collapsed=/);
   // Outside the tabs, the list keeps clear of the home indicator itself.
-  assert.match(search, /paddingBottom: space\[8\] \+ \(inTabs \? 0 : insets\.bottom\),/);
+  assert.match(search, /paddingBottom: space\[8\] \+ \(inTabs \? barClearance : insets\.bottom\),/);
   // Without a map the screen is the whole list, and says why.
   assert.match(search, /const showMap = mapAvailable\(\);/);
   // Said once, quietly, under the count rather than as a sentence of its own.

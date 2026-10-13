@@ -25,6 +25,14 @@ import { secure } from "@/secure";
 import { serviceById, type Service } from "@/serviceCatalogue";
 
 const STORE_KEY = "rooomly.service.details.v1";
+let generation = 0;
+let pendingWrite: Promise<void> = Promise.resolve();
+
+export async function clearServiceDetails() {
+  generation += 1;
+  await pendingWrite.catch(() => undefined);
+  await secure.clear(STORE_KEY);
+}
 
 export type SavedDetail = {
   serviceId: string;
@@ -68,8 +76,12 @@ async function read(): Promise<Store> {
   }
 }
 
-async function write(store: Store): Promise<void> {
-  await secure.set(STORE_KEY, JSON.stringify(store));
+async function write(store: Store, started: number): Promise<void> {
+  const writing = pendingWrite.catch(() => undefined).then(async () => {
+    if (started === generation) await secure.set(STORE_KEY, JSON.stringify(store));
+  });
+  pendingWrite = writing;
+  await writing;
 }
 
 /** Everything saved, most-used first, then most-recently-added. */
@@ -96,6 +108,7 @@ export async function saveDetail(input: {
   nickname?: string;
 }): Promise<SavedDetail[]> {
   const value = input.value.replace(/\s+/g, "");
+  const started = generation;
   const store = await read();
   const existing = store.details.find(
     (detail) => detail.serviceId === input.serviceId && detail.value === value,
@@ -114,16 +127,17 @@ export async function saveDetail(input: {
     });
   }
 
-  await write(store);
+  await write(store, started);
   return listSavedDetails();
 }
 
 export async function forgetDetail(serviceId: string, value: string): Promise<SavedDetail[]> {
+  const started = generation;
   const store = await read();
   store.details = store.details.filter(
     (detail) => !(detail.serviceId === serviceId && detail.value === value),
   );
-  await write(store);
+  await write(store, started);
   return listSavedDetails();
 }
 
@@ -135,6 +149,7 @@ export async function forgetDetail(serviceId: string, value: string): Promise<Sa
  * what it started to pay for and abandoned.
  */
 export async function markDetailUsed(serviceId: string, value: string): Promise<void> {
+  const started = generation;
   const store = await read();
   const detail = store.details.find(
     (row) => row.serviceId === serviceId && row.value === value,
@@ -142,7 +157,7 @@ export async function markDetailUsed(serviceId: string, value: string): Promise<
   if (!detail) return;
   detail.useCount += 1;
   detail.lastUsedAt = Date.now();
-  await write(store);
+  await write(store, started);
 }
 
 /**

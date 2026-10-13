@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { PhotoSection, ProfileSection } from "@/components/account/AccountSections";
+import { BusinessSection, EmailSection, TenantDetailsSection } from "@/components/account/ProfileDetails";
 import { Icon } from "@/components/portal/icons";
 import { SettingsCard } from "@/components/settings/SettingsCard";
 import { listMyPortfolioInvitations } from "@/lib/console";
@@ -56,11 +57,31 @@ export default function ProfileSettingsPage() {
             first_name: me.first_name,
             last_name: me.last_name,
             preferred_name: me.preferred_name,
-            email: me.email ?? "",
+            date_of_birth: me.date_of_birth ?? null,
+            bio: me.profile?.bio ?? "",
           }}
           onSaved={refresh}
         />
       </SettingsCard>
+
+      {/* An address joins the account only through its code (owner, 2026-10-07). */}
+      <SettingsCard title="Email" description="Confirmed with a six-digit code sent to the address.">
+        <EmailSection current={me.email} verified={Boolean(me.is_email_verified)} onChanged={refresh} />
+      </SettingsCard>
+
+      {/* Each part is drawn only for a role this account holds: the API refuses
+          the others, and asking a tenant for a company number is noise. */}
+      {me.roles.includes("tenant") ? (
+        <SettingsCard title="For your applications" description="Helps a provider read your application. Leave anything you would rather not say.">
+          <TenantDetailsSection />
+        </SettingsCard>
+      ) : null}
+
+      {me.roles.includes("landlord") ? (
+        <SettingsCard title="Your business" description="If you let property through a registered company.">
+          <BusinessSection />
+        </SettingsCard>
+      ) : null}
     </>
   );
 }

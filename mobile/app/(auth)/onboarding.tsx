@@ -120,7 +120,7 @@ export default function OnboardingScreen() {
         <TextLink
           label="Sign out and return"
           muted
-          onPress={() => void signOut().then(() => router.replace("/(auth)/start"))}
+          onPress={() => void signOut().then(() => router.replace("/(auth)/sign-in"))}
         />
       </AuthFoot>
     </AuthScene>

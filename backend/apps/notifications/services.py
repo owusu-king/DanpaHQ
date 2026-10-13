@@ -61,9 +61,6 @@ INFORMATIONAL_KINDS = frozenset({
     "lease.expiring",
 })
 
-#: How much activity a person keeps. People are not shown a log; the full
-#: history of what happened is the audit log, which management reads.
-RECENT_ACTIVITY_KEPT = 10
 
 
 def is_informational(kind: str) -> bool:
@@ -235,27 +232,11 @@ def mark_read(*, user, notification_ids: list[str] | None = None) -> int:
 
 
 def prune(*, user) -> int:
-    """Keep only what a person still needs to see.
-
-    * A read reminder is deleted — it has done its job.
-    * Activity is kept to the ``RECENT_ACTIVITY_KEPT`` most recent; older read
-      activity is deleted.
-    * Nothing unread is ever deleted, whatever its age: nobody loses a thing
-      they have not seen.
-
-    Returns how many were deleted.
-    """
+    """Delete acknowledged informational alerts; retain all activity."""
     informational = Q(kind__in=INFORMATIONAL_KINDS)
     read = Notification.objects.filter(user=user, read_at__isnull=False)
     reminders, _ = read.filter(informational).delete()
-    recent = list(
-        Notification.objects.filter(user=user)
-        .exclude(informational)
-        .order_by("-created_at")
-        .values_list("id", flat=True)[:RECENT_ACTIVITY_KEPT]
-    )
-    older, _ = read.exclude(informational).exclude(id__in=recent).delete()
-    return reminders + older
+    return reminders
 
 
 #: Unread longer than this, a notification is history (owner, 2026-10-05). A
@@ -269,12 +250,14 @@ STALE_AFTER_DAYS = 14
 def age_out(*, user=None) -> int:
     """Mark notifications unread for longer than ``STALE_AFTER_DAYS`` as read.
 
-    Then the usual prune applies to each person touched: old reminders go, and
-    activity is kept to the most recent. For one person on each read of their
+    Activity stays in history. Informational alerts wait for an explicit read
+    or dismissal, regardless of age. For one person on each read of their
     list, and for everyone in the daily sweep. Returns how many were aged out.
     """
     cutoff = timezone.now() - timedelta(days=STALE_AFTER_DAYS)
-    stale = Notification.objects.filter(read_at__isnull=True, created_at__lt=cutoff)
+    stale = Notification.objects.filter(read_at__isnull=True, created_at__lt=cutoff).exclude(
+        kind__in=INFORMATIONAL_KINDS
+    )
     if user is not None:
         stale = stale.filter(user=user)
         people = [user]

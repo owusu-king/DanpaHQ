@@ -82,8 +82,7 @@ class Notification(BaseModel):
 class NotificationKey(models.Model):
     """Every dedupe key ever sent, kept after the notification itself is gone.
 
-    People are not shown a log: a reminder is deleted once it is read, and only
-    the ten most recent activity records are kept (``services.prune``). The
+    A reminder is deleted once it is read; activity is retained. The
     unique key on ``Notification`` stopped being enough once rows could be
     deleted — a sweep that relies on "already sent" (the lease-expiry alerts,
     an outbox retry) would find nothing and send the same thing again. This is

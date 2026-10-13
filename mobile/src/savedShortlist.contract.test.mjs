@@ -33,7 +33,7 @@ test("signed out, it asks for the account the shortlist belongs to", () => {
   const source = screen();
   // The prompt lives on the screen itself now that there is no wrapper, and it
   // returns to this route rather than to the tab it used to be.
-  assert.match(source, /<AuthPrompt\s+icon="bookmark"/);
+  assert.match(source, /<AuthPrompt\s+title="Saved places"/);
   assert.match(source, /next="\/\(app\)\/saved"/);
 });
 

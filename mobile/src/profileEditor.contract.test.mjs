@@ -21,6 +21,8 @@ const between = (source, start, end) => {
   return source.slice(at, stop);
 };
 const editor = () => code(read("app/(app)/profile-edit.tsx"));
+// The rows, panels and email sheet the page is built from (phase 2, 2026-10-07).
+const sections = () => code(read("src/components/account/ProfileSections.tsx"));
 
 test("the editor keeps everything it could do", () => {
   const source = editor();
@@ -28,8 +30,14 @@ test("the editor keeps everything it could do", () => {
   // The names are saved to the account, with the data saver carried unchanged.
   assert.match(
     source,
-    /await apiFetch\("\/me\/", \{\s*method: "PATCH",\s*body: \{\s*first_name: firstName,\s*last_name: lastName,\s*preferred_name: preferredName,\s*data_saver: dataSaver,\s*\},\s*\}\);\s*await refreshMe\(\);\s*setSaved\(true\);/,
+    /apiFetch\("\/me\/", \{\s*method: "PATCH",\s*body: \{\s*first_name: firstName,\s*last_name: lastName,\s*preferred_name: preferredName,\s*data_saver: dataSaver,\s*\},\s*\}\),/,
   );
+  // Every part of the profile is written together, and "Saved" waits for all of it.
+  assert.match(source, /await Promise\.all\(writes\);[\s\S]{0,120}?await refreshMe\(\);\s*setSaved\(true\);/);
+  // The rest of the profile, saved only where it changed (phase 2, 2026-10-07).
+  assert.match(source, /apiFetch\("\/me\/profile\/", \{ method: "PATCH", body: \{ bio \} \}\)/);
+  assert.match(source, /apiFetch\("\/me\/profile\/tenant\/", \{ method: "PATCH", body: tenantChanges \}\)/);
+  assert.match(source, /apiFetch\("\/me\/profile\/landlord\/", \{ method: "PATCH", body: businessChanges \}\)/);
 
   // The photo is asked for when it is wanted, cropped square for the circle,
   // uploaded as an avatar, linked, and can be taken away again.
@@ -64,7 +72,7 @@ test("a session that arrives after the screen fills the fields once, and never o
   assert.match(source, /const seeded = useRef\(me !== null\);/);
   assert.match(
     source,
-    /if \(!me \|\| seeded\.current\) return;\s*seeded\.current = true;\s*setFirstName\(me\.first_name\);\s*setLastName\(me\.last_name\);\s*setPreferredName\(me\.preferred_name\);\s*setDataSaver\(me\.data_saver\);\s*\}, \[me\]\);/,
+    /if \(!me \|\| seeded\.current\) return;\s*seeded\.current = true;\s*setFirstName\(me\.first_name\);\s*setLastName\(me\.last_name\);\s*setPreferredName\(me\.preferred_name\);\s*setBio\(me\.profile\?\.bio \?\? ""\);\s*setDataSaver\(me\.data_saver\);\s*\}, \[me\]\);/,
   );
   // Hooks run before the screen can return early, or React's order breaks.
   assert.match(between(source, "export default function ProfileScreen()", "if (!me) return null;"), /const seeded = useRef/);
@@ -132,13 +140,14 @@ test("the names are one glass panel of real inputs, on the hub ground", () => {
   assert.doesNotMatch(source, /<Surface|<Field\b/);
   assert.match(
     source,
-    /<GlassPanel>\s*<NameRow\s+label="Preferred name"[\s\S]*?<NameRow\s+label="First name"[\s\S]*?<NameRow\s+label="Surname"[\s\S]*?<\/GlassPanel>/,
+    /<GlassPanel>\s*<FieldRow\s+label="Preferred name"[\s\S]*?<FieldRow\s+label="First name"[\s\S]*?<FieldRow\s+label="Surname"[\s\S]*?<\/GlassPanel>/,
   );
-  assert.match(source, /panel: \{\s*borderRadius: PANEL_RADIUS,\s*backgroundColor: GLASS,\s*borderWidth: 1,\s*borderColor: GLASS_EDGE,/);
-  assert.match(source, /style=\{\[styles\.panel, isAndroid \? null : styles\.panelLift\]\}/);
+  const kit = sections();
+  assert.match(kit, /panel: \{\s*borderRadius: PANEL_RADIUS,\s*backgroundColor: GLASS,\s*borderWidth: 1,\s*borderColor: GLASS_EDGE,/);
+  assert.match(kit, /style=\{\[styles\.panel, isAndroid \? null : styles\.panelLift\]\}/);
 
   // Each row is an input a screen reader can name, with the platform's hints.
-  const row = between(source, "function NameRow(", "function SaveButton(");
+  const row = between(kit, "export function FieldRow(", "export function ReadRow(");
   assert.match(row, /accessibilityLabel=\{label\}/);
   assert.match(row, /autoCapitalize="words"/);
   assert.match(row, /maxFontSizeMultiplier=\{maxFontSizeMultiplier\}/);
@@ -179,9 +188,11 @@ test("the words left read on the ground and on the glass", () => {
     kola,
     number(rows, /const AURA_OPACITY = ([\d.]+);/),
   );
-  const glass = mix(ground, white, number(source, /const GLASS = alpha\(WHITE, ([\d.]+)\);/));
+  const kit = sections();
+  const glass = mix(ground, white, number(kit, /const GLASS = alpha\(WHITE, ([\d.]+)\);/));
   const meta = number(source, /const META = alpha\(INK, ([\d.]+)\);/);
-  const focus = mix(glass, kola, number(source, /const FOCUS = alpha\(KOLA, ([\d.]+)\);/));
+  assert.equal(number(kit, /export const META = alpha\(INK, ([\d.]+)\);/), meta, "the rows' labels and the page's meta drift apart");
+  const focus = mix(glass, kola, number(kit, /const FOCUS = alpha\(KOLA, ([\d.]+)\);/));
 
   assert.ok(contrast(ink, ground) >= 12, "the name on the ground");
   assert.ok(contrast(mix(ground, ink, meta), ground) >= 4.5, "the number and the figure on the ground");
@@ -216,4 +227,20 @@ test("Save presses like the tab bar and says when it is working", () => {
   const frame = between(source, "saveFrame: {", "  save: {");
   assert.ok(Number(/shadowOpacity: ([\d.]+)/.exec(frame)?.[1]) <= 0.16, "Save throws a heavy shadow");
   assert.ok(Number(/elevation: (\d+)/.exec(frame)?.[1]) <= 2, "Save floats on Android");
+});
+
+test("an email reaches the account only through its code", () => {
+  // Owner, 2026-10-07: email is added or changed from Profile and confirmed by
+  // a six-digit code. The page never writes it directly.
+  const source = editor();
+  assert.doesNotMatch(source, /body: \{[^}]*\bemail\b/);
+  assert.match(source, /<EmailSheet\b/);
+
+  const sheet = between(sections(), "export function EmailSheet(", "const styles = StyleSheet.create(");
+  assert.match(sheet, /apiFetch<Started>\("\/me\/email\/", \{ method: "POST", body: \{ email: email\.trim\(\) \} \}\)/);
+  assert.match(sheet, /apiFetch<Me>\("\/me\/email\/verify\/", \{/);
+  assert.match(sheet, /<CodeCells\b/);
+  // Confirmed or not is said where the address is shown.
+  assert.match(source, /<StatusBadge tone="good" label="Confirmed" \/>/);
+  assert.match(source, /<StatusBadge tone="waiting" label="Tap to confirm" \/>/);
 });

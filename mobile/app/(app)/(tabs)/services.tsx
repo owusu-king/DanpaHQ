@@ -8,8 +8,6 @@ import {
   StyleSheet,
   View,
   useWindowDimensions,
-  type NativeScrollEvent,
-  type NativeSyntheticEvent,
   type StyleProp,
   type ViewStyle,
 } from "react-native";
@@ -18,7 +16,7 @@ import { useAuth } from "@/auth";
 import { AuthPrompt } from "@/components/AuthPrompt";
 import { IndexPage } from "@/components/account/IndexRows";
 import { useHomeDensity } from "@/components/home/plinth";
-import { ServiceArt } from "@/components/services/ServiceArt";
+import { ServiceHighlights } from "@/components/services/ServiceHighlights";
 import { ServiceGlyph, TONE } from "@/components/services/ServiceGlyph";
 import { Notice, Type, radius, space } from "@/components/ui";
 import { formatMinor } from "@/listings";
@@ -33,8 +31,6 @@ import {
 } from "@/serviceAccounts";
 import {
   CATEGORIES,
-  SERVICES,
-  openableServices,
   serviceById,
   servicesIn,
   type Service,
@@ -46,15 +42,11 @@ import { theme } from "@/theme";
 /**
  * Services: what a household buys, beside the rent.
  *
- * **A carousel first, then the range in two groups** (owner, 2026-10-06). The
- * page opens on a strip of slides that swipe sideways, one for each service
- * that opens today, in its own colour, with what it is and what it will do —
- * and a last slide pointing to where the rent lives. The household's own
- * service leads. Under it, the range as small square cards three to a row and
- * centred, in two groups: the bills and top-ups, and the help around the home.
+ * A fading glass banner introduces the service tools. The full
+ * catalogue appears once below, grouped into bills and help around the home.
  *
  * **Nothing here sells anything yet, and it does not pretend to.** No biller is
- * integrated and `apps.payments` registers no production adapter, so a slide
+ * integrated and `apps.payments` registers no production adapter, so the page
  * offers to save the number a service will need, never to buy, and a `later`
  * card is not a control at all.
  */
@@ -63,9 +55,9 @@ const WHITE = theme.color.field["0"];
 const DEEP = theme.color.kola["900"];
 const INK = theme.color.ink["900"];
 
-/** Cards are paper on the ground, edged rather than boxed in shadow. */
-const CARD = WHITE;
-const CARD_EDGE = theme.color.field["200"];
+/** A quiet translucent surface; colour belongs to the service glyphs. */
+const CARD = alpha(WHITE, 0.9);
+const CARD_EDGE = alpha(DEEP, 0.09);
 /** The quiet words: a strip tile's second line, the reassurance, a count. */
 const SUMMARY = theme.color.ink["500"];
 /** A closed service's name: still read, no longer leading. */
@@ -82,13 +74,8 @@ const GROUPS: { title: string; categories: ServiceCategory[] }[] = [
   { title: "Around your home", categories: ["home"] },
 ];
 
-/** Three to a row, with this between them. */
-const TILE_GAP = 10;
-/** A slide is this much of the page's width, so the next one shows and the strip says it swipes. */
-const SLIDE_SHARE = 0.8;
-/** On a narrow phone a slide takes more, so its act still fits on one line. */
-const NARROW_SLIDE_SHARE = 0.88;
-const SLIDE_GAP = 10;
+/** The space between catalogue cards. */
+const TILE_GAP = 12;
 
 export default function ServicesScreen() {
   const router = useRouter();
@@ -129,25 +116,13 @@ export default function ServicesScreen() {
   if (!signedIn) {
     return (
       <AuthPrompt
-        icon="grid"
-        tone="harmattan"
         title="Household services"
-        body="Electricity, water, data and TV — paid from the same place as your rent."
+        body="Sign in to use household services."
         next="/(app)/(tabs)/services"
-        points={[
-          { icon: "bookmark-outline", label: "Keep your meter and decoder numbers" },
-          { icon: "flash-outline", label: "Top up in a few taps, not a few screens" },
-          { icon: "receipt-outline", label: "Every purchase kept with its receipt" },
-        ]}
       />
     );
   }
 
-  // Every service that opens has a slide, and the one this household already
-  // uses leads. A `later` service never does: there is nothing to do there yet.
-  const openable = openableServices();
-  const mine = openable.find((service) => service.id === saved[0]?.serviceId);
-  const featured = mine ? [mine, ...openable.filter((service) => service !== mine)] : openable;
 
   // A service with a screen of its own opens it; the rest open the service screen.
   const openService = (service: Service) =>
@@ -162,11 +137,7 @@ export default function ServicesScreen() {
     <IndexPage>
       {error ? <Notice tone="info" title={error} /> : null}
 
-      <Carousel
-        services={featured}
-        onOpen={openService}
-        onRent={() => router.push("/(app)/(tabs)/payments" as never)}
-      />
+      <ServiceHighlights />
 
       {/* Only when there is something to glance at. A strip of zeroes is not a
           shortcut, it is a reminder that nothing is set up. */}
@@ -207,136 +178,6 @@ function SectionTitle({ children, count }: { children: string; count?: number })
       </Type>
       {count ? <Type variant="caption" style={{ color: SUMMARY }}>{count}</Type> : null}
     </View>
-  );
-}
-
-/**
- * The page's opening: one slide per service that opens, swiped sideways.
- *
- * Each slide is a short white card like the rest of the page (revised on
- * review, 2026-10-06: full-colour slides were too big and too loud). Colour is
- * kept to the illustration's tile and the act. It shows the service's name
- * over what it is, from the catalogue's own words, so a new service brings its
- * slide with it. Its one act is what the service can do today: save the number
- * it will need, or open its own screen. What the service will do is read out,
- * not printed. The next slide shows at the edge, and the dots say where you
- * are. The last slide points to the rent, which lives in Payments.
- */
-function Carousel({
-  services,
-  onOpen,
-  onRent,
-}: {
-  services: Service[];
-  onOpen: (service: Service) => void;
-  onRent: () => void;
-}) {
-  const density = useHomeDensity();
-  const { width } = useWindowDimensions();
-  const slideWidth = Math.round((width - density.pagePadding * 2) * (width < 360 ? NARROW_SLIDE_SHARE : SLIDE_SHARE));
-  const [current, setCurrent] = useState(0);
-  const count = services.length + 1;
-
-  const onScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const index = Math.round(event.nativeEvent.contentOffset.x / (slideWidth + SLIDE_GAP));
-    const next = Math.max(0, Math.min(count - 1, index));
-    if (next !== current) setCurrent(next);
-  };
-
-  return (
-    <View style={{ gap: space[3] }}>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        decelerationRate="fast"
-        snapToInterval={slideWidth + SLIDE_GAP}
-        snapToAlignment="start"
-        disableIntervalMomentum
-        onScroll={onScroll}
-        scrollEventThrottle={32}
-        accessibilityLabel="Featured services"
-        style={{ marginHorizontal: -density.pagePadding, marginVertical: -6 }}
-        contentContainerStyle={{ gap: SLIDE_GAP, paddingHorizontal: density.pagePadding, paddingVertical: 6 }}
-      >
-        {services.map((service, index) => (
-          <Slide
-            key={service.id}
-            width={slideWidth}
-            tone={TONE[service.tone]}
-            eyebrow={service.label}
-            title={service.summary}
-            body={service.promise}
-            act={service.identifier ? `Save ${service.identifier.label.toLowerCase()}` : `Open ${service.label}`}
-            position={`${index + 1} of ${count}`}
-            art={<ServiceArt service={service} index={SERVICES.indexOf(service)} width={56} />}
-            onPress={() => onOpen(service)}
-          />
-        ))}
-        <Slide
-          width={slideWidth}
-          tone={TONE.kola}
-          eyebrow="Rent"
-          title="Rent is in Payments"
-          body="What is due, what you have paid and every receipt."
-          act="Go to Payments"
-          position={`${count} of ${count}`}
-          art={<Ionicons name="receipt-outline" size={26} color={TONE.kola.ink} />}
-          onPress={onRent}
-        />
-      </ScrollView>
-
-      <View style={styles.dots} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-        {Array.from({ length: count }, (_, index) => (
-          <View key={index} style={[styles.dot, index === current ? styles.dotOn : null]} />
-        ))}
-      </View>
-
-      <Type variant="caption" style={styles.reassure}>
-        Nothing is charged yet. Save your numbers now, and paying is one tap when it opens.
-      </Type>
-    </View>
-  );
-}
-
-function Slide({
-  width,
-  tone,
-  eyebrow,
-  title,
-  body,
-  act,
-  position,
-  art,
-  onPress,
-}: {
-  width: number;
-  /** The service's colour: a tint behind the art, and the ink of the act. */
-  tone: { ink: string; wash: string };
-  eyebrow: string;
-  title: string;
-  body: string;
-  act: string;
-  position: string;
-  art: ReactNode;
-  onPress: () => void;
-}) {
-  return (
-    <PressableScale
-      accessibilityLabel={`${eyebrow}. ${title}. ${body} ${act}. ${position}.`}
-      onPress={onPress}
-      frame={[styles.lift, styles.slideFrame, { width }]}
-      style={[styles.slide, styles.card]}
-    >
-      <View style={[styles.slideArt, { backgroundColor: tone.wash }]}>{art}</View>
-      <View style={styles.slideWords}>
-        <Type variant="caption" numberOfLines={1} style={styles.slideEyebrow}>{eyebrow}</Type>
-        <Type variant="bodyStrong" numberOfLines={2} style={styles.slideTitle}>{title}</Type>
-        <View style={styles.slideAct}>
-          <Type variant="captionStrong" numberOfLines={1} style={[styles.slideActText, { color: tone.ink }]}>{act}</Type>
-          <Ionicons name="arrow-forward" size={13} color={tone.ink} />
-        </View>
-      </View>
-    </PressableScale>
   );
 }
 
@@ -460,7 +301,7 @@ function RecentActivity({ purchases }: { purchases: RecentPurchase[] }) {
   );
 }
 
-/** One group of the range: its name, then its services three to a row, centred. */
+/** One group of the range, with two or three columns to suit the phone. */
 function Catalogue({
   title,
   services,
@@ -474,11 +315,12 @@ function Catalogue({
 }) {
   const density = useHomeDensity();
   const { width } = useWindowDimensions();
-  // Three across whatever the phone, and a short last row sits in the middle.
-  const tileWidth = Math.floor((width - density.pagePadding * 2 - TILE_GAP * 2) / 3);
+  // Keep names whole on narrow phones instead of squeezing three cards across.
+  const columns = width < 360 ? 2 : 3;
+  const tileWidth = Math.floor((width - density.pagePadding * 2 - TILE_GAP * (columns - 1)) / columns);
   return (
     <View style={{ gap: space[3] }}>
-      <SectionTitle count={services.length}>{title}</SectionTitle>
+      <SectionTitle>{title}</SectionTitle>
       <View style={styles.grid}>
         {services.map((service) => (
           <ServiceTile
@@ -495,8 +337,8 @@ function Catalogue({
 }
 
 /**
- * One service, as a small square card: its illustration in the middle and its
- * name under it. What it is lives in the card's label and on its slide.
+ * One service, with a centred outline glyph and its name beneath it.
+ * The card's accessible label also describes what the service does.
  *
  * A service that opens is in its colour, with a check and a count when numbers
  * are saved for it.
@@ -504,8 +346,8 @@ function Catalogue({
  * A `later` card is not a `Pressable`. A disabled control still invites a tap and
  * answers with nothing, which teaches people the screen is broken; a card that
  * was never a control says the same thing without the rejection. It keeps its
- * shape and position and loses its colour — a drained illustration, a quieter
- * name and a clock — and a screen reader hears "Coming later".
+ * shape and position, with a quieter name and a clock. The glyph's colour
+ * identifies the service family; a screen reader hears "Coming later".
  */
 function ServiceTile({
   service,
@@ -521,10 +363,10 @@ function ServiceTile({
   const later = service.status === "later";
   const tone = TONE[service.tone];
   const shape = {
-    // A rounded square, as tall as it is wide.
+    // Room for two-line names, including on a narrow phone.
     width,
-    aspectRatio: 1,
-    borderRadius: 20,
+    minHeight: 112,
+    borderRadius: 12,
   };
 
   const body = (
@@ -541,15 +383,12 @@ function ServiceTile({
           </Type>
         </View>
       ) : null}
-      <ServiceArt
-        service={service}
-        index={SERVICES.indexOf(service)}
-        width={Math.round(width * 0.56)}
-        muted={later}
-      />
+      <View style={styles.tileGlyph} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+        <Ionicons name={service.icon} size={28} color={tone.ink} />
+      </View>
       <Type
         variant="bodyStrong"
-        numberOfLines={1}
+        numberOfLines={2}
         style={[styles.tileName, { fontSize: width < 96 ? 12.5 : width < 108 ? 13 : 14, color: later ? CLOSED : INK }]}
       >
         {service.label}
@@ -664,7 +503,7 @@ const styles = StyleSheet.create({
     letterSpacing: -0.2,
     color: INK,
   },
-  // Three to a row, the rows centred, so a group of four ends on one card in the middle.
+  // Keep an incomplete final row centred within its group.
   grid: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -677,9 +516,9 @@ const styles = StyleSheet.create({
     ? {}
     : {
       shadowColor: DEEP,
-      shadowOpacity: 0.06,
-      shadowRadius: 14,
-      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.045,
+      shadowRadius: 5,
+      shadowOffset: { width: 0, height: 2 },
     },
   clip: {
     overflow: "hidden",
@@ -687,89 +526,28 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: CARD,
     borderColor: CARD_EDGE,
-    borderWidth: StyleSheet.hairlineWidth,
-  },
-  // The frame takes the card's corners, or the web draws its shadow square.
-  slideFrame: {
-    borderRadius: 20,
-  },
-  // A short white card: the art's tile on the left, three lines on the right.
-  slide: {
-    // Fills its frame, so every slide in the strip stands as tall as the tallest.
-    flexGrow: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 14,
-    padding: 12,
-    borderRadius: 20,
-  },
-  slideArt: {
-    width: 62,
-    height: 62,
-    borderRadius: 16,
-    alignItems: "center",
-    justifyContent: "center",
-    overflow: "hidden",
-  },
-  slideWords: {
-    flex: 1,
-    minWidth: 0,
-    gap: 2,
-  },
-  slideEyebrow: {
-    fontSize: 12.5,
-    lineHeight: 16,
-    color: SUMMARY,
-  },
-  slideTitle: {
-    fontSize: 15.5,
-    lineHeight: 21,
-    color: INK,
-  },
-  slideAct: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    marginTop: 4,
-  },
-  slideActText: {
-    flexShrink: 1,
-    fontSize: 13,
-    lineHeight: 17,
-  },
-  dots: {
-    flexDirection: "row",
-    justifyContent: "center",
-    gap: 6,
-  },
-  dot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: alpha(DEEP, 0.18),
-  },
-  dotOn: {
-    width: 18,
-    backgroundColor: theme.color.kola["600"],
-  },
-  reassure: {
-    textAlign: "center",
-    fontSize: 12.5,
-    lineHeight: 18,
-    color: SUMMARY,
-    paddingHorizontal: space[4],
+    borderWidth: 1,
   },
   tile: {
     alignItems: "center",
     justifyContent: "center",
-    gap: 6,
-    paddingHorizontal: 4,
+    gap: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 18,
     overflow: "hidden",
   },
   tileName: {
     maxWidth: "100%",
+    minHeight: 36,
     lineHeight: 18,
     textAlign: "center",
+    fontWeight: "500",
+  },
+  tileGlyph: {
+    width: 36,
+    height: 36,
+    alignItems: "center",
+    justifyContent: "center",
   },
   corner: {
     position: "absolute",

@@ -640,6 +640,7 @@ export const dash = StyleSheet.create({
     position: "absolute",
     right: 0,
     bottom: 0,
+    opacity: 0.15,
   },
   insightHeadline: {
     flex: 1,

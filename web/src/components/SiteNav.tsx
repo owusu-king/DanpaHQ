@@ -152,7 +152,8 @@ export function SiteNav() {
           ) : (
             <>
               <Button asChild size="lg" className="hidden rounded-full bg-brand px-6 text-brand-foreground hover:bg-brand/90 sm:inline-flex">
-                <Link href="/sign-in">
+                {/* Get started asks how you will use Rooomly (owner, 2026-10-07). */}
+                <Link href="/register">
                   Get started
                   <ArrowRight className="size-4" />
                 </Link>
@@ -198,7 +199,7 @@ export function SiteNav() {
                 ) : (
                   <SheetClose asChild>
                     <Button asChild size="lg">
-                      <Link href="/sign-in">Get started</Link>
+                      <Link href="/register">Get started</Link>
                     </Button>
                   </SheetClose>
                 )}

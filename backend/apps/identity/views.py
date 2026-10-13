@@ -540,6 +540,32 @@ class MeView(APIView):
         }
         payload = {k: v for k, v in request.data.items() if k in allowed}
 
+        # An address reaches the account only through its code (/me/email/).
+        # Sending back the one already on file, or clearing it, is still fine
+        # here — forms that save every field at once do both — but a new
+        # address written directly would be an unproven one.
+        if "email" in payload:
+            proposed = str(payload["email"] or "").strip().lower()
+            if not proposed:
+                payload.pop("email")
+                if request.user.email:
+                    from .email_verification import clear_email
+
+                    clear_email(user=request.user)
+            elif proposed == (request.user.email or ""):
+                payload.pop("email")
+            else:
+                raise ValidationFailed(
+                    "Confirm a new email address with the code we send to it.",
+                    details={
+                        "fields": {
+                            "email": ["Confirm a new email address with the code we send to it."]
+                        }
+                    },
+                )
+        if not payload:
+            return Response(MeSerializer(request.user).data)
+
         serializer = MeSerializer(request.user, data=payload, partial=True)
         serializer.is_valid(raise_exception=True)
 
@@ -557,6 +583,62 @@ class MeView(APIView):
             changes={k: [before[k], payload[k]] for k in payload},
         )
         return Response(serializer.data)
+
+
+class EmailView(APIView):
+    """POST /me/email — send a code to an address; DELETE — take it off.
+
+    POST is both "add" and "change", and asking again for the same address is a
+    resend. Nothing changes on the account until /me/email/verify succeeds.
+    """
+
+    permission_classes = [IsAuthenticated, IsRegistrationComplete]
+
+    def post(self, request):
+        from .email_verification import start_email_verification
+        from .serializers import StartEmailVerificationSerializer
+
+        payload = StartEmailVerificationSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+        verification = start_email_verification(
+            user=request.user, raw_email=payload.validated_data["email"]
+        )
+        return Response(
+            {
+                "verification_id": verification.id,
+                "email": verification.email,
+                "expires_in": CODE_TTL_SECONDS,
+                "resend_in": resend_delay(verification.send_count),
+                "attempts_allowed": MAX_VERIFY_ATTEMPTS,
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+    def delete(self, request):
+        from .email_verification import clear_email
+
+        user = clear_email(user=request.user)
+        return Response(MeSerializer(user).data)
+
+
+class VerifyEmailView(APIView):
+    """POST /me/email/verify — confirm the code; the address joins the account."""
+
+    permission_classes = [IsAuthenticated, IsRegistrationComplete]
+    throttle_classes = [OtpVerifyThrottle]
+
+    def post(self, request):
+        from .email_verification import verify_email
+        from .serializers import VerifyEmailSerializer
+
+        payload = VerifyEmailSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+        user = verify_email(
+            user=request.user,
+            verification_id=payload.validated_data["verification_id"],
+            code=payload.validated_data["code"],
+        )
+        return Response(MeSerializer(user).data)
 
 
 class ProfileView(APIView):

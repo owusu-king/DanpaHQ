@@ -17,21 +17,37 @@ export type Notification = {
   target_id: string;
   read_at: string | null;
   is_read: boolean;
-  /** A reminder ("informational") is deleted once read; "activity" is kept,
-   *  the ten most recent. The server decides; the app only reads it. */
+  /** A reminder ("informational") is deleted once read; "activity" is retained in history. The server decides; the app only reads it. */
   record: "informational" | "activity";
   created_at: string;
 };
 
 export type NotificationPage = {
+  next_cursor?: string | null;
   unread_count: number;
   results: Notification[];
 };
 
-export function listNotifications(unreadOnly = false) {
+export function listNotifications(unreadOnly = false, cursor?: string) {
+  const query = new URLSearchParams();
+  if (unreadOnly) query.set("unread", "true");
+  if (cursor) query.set("cursor", cursor);
   return apiFetch<NotificationPage>(
-    `/me/notifications/${unreadOnly ? "?unread=true" : ""}`,
+    `/me/notifications/${query.size ? `?${query}` : ""}`,
   );
+}
+
+/** The Updates history follows every page; header badges still need only one. */
+export async function listNotificationHistory(): Promise<NotificationPage> {
+  const first = await listNotifications();
+  const results = [...first.results];
+  let cursor = first.next_cursor;
+  while (cursor) {
+    const page = await listNotifications(false, cursor);
+    results.push(...page.results);
+    cursor = page.next_cursor;
+  }
+  return { ...first, results: [...new Map(results.map((item) => [item.id, item])).values()], next_cursor: null };
 }
 
 export function markRead(ids?: string[]) {

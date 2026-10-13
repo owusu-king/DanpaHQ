@@ -11,8 +11,8 @@ test("Updates is what is new and what happened recently, never a log", () => {
   const page = read("web/app/updates/page.tsx");
 
   // New first — what needs an answer, then the rest unread — then recent activity.
-  assert.match(page, /title: "Needs your attention"/);
-  assert.match(page, /title: "New"/);
+  assert.match(page, /title: "Alerts"/);
+  assert.match(page, /title: "Older"/);
   assert.match(page, /title: "Recent activity"/);
   assert.match(page, /notificationSource/);
   assert.match(page, /notificationStatus/);
@@ -95,21 +95,16 @@ test("a row navigates immediately while its read acknowledgement settles", () =>
   assert.match(page, /router\.push\(destination\(item\)/);
 });
 
-test("a reminder leaves once read; only the ten most recent activities stay", () => {
+test("a reminder leaves once read; all activities stay", () => {
   const page = read("web/app/updates/page.tsx");
   const types = read("web/src/lib/console.ts");
 
   // The server says which a record is; the client never guesses from the kind.
   assert.match(types, /record: "informational" \| "activity"/);
-  assert.match(page, /const RECENT_KEPT = 10/);
-  assert.match(page, /item\.record === "activity" && \(item\.is_read \|\| stale\(item\)\)\)\s*\.slice\(0, RECENT_KEPT\)/);
-  // Unread activity weeks old is past, not new, and New is capped too — a
-  // tenant had 72 unread rows under New (owner, 2026-10-05: "listing too many").
-  assert.match(page, /const STALE_DAYS = 14;/);
-  assert.match(page, /const stale = \(item: Notification\) => new Date\(item\.created_at\)\.getTime\(\) < staleBefore;/);
-  // Repeats about the same thing keep only the newest.
-  assert.match(page, /const key = `\$\{item\.kind\}:\$\{item\.target_type\}:\$\{item\.target_id\}`;/);
-  assert.match(page, /const other = fresh\.filter\(\(item\) => !needsYou\(item\)\)\.slice\(0, RECENT_KEPT\);/);
+  assert.match(page, /activity.slice\(0, 5\)/);
+  assert.match(page, /activity.slice\(5\)/);
+  assert.match(page, /listNotificationHistory/);
+  assert.doesNotMatch(page, /const seen|RECENT_KEPT|STALE_DAYS/);
   // Reading a reminder removes it here as the server deletes it.
   assert.match(page, /filter\(\(row\) => !\(row\.id === item\.id && row\.record === "informational"\)\)/);
   assert.match(page, /filter\(\(item\) => item\.record !== "informational"\)/);

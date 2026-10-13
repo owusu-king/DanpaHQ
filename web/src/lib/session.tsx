@@ -10,11 +10,12 @@
  * answer is consistent and fetched once.
  */
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { apiFetch, ApiFailure } from "./api";
-import { authedFetch, clearAccessToken } from "./auth";
+import { authedFetch, clearAccessToken, endSession } from "./auth";
+import { finishAccountWelcome } from "./registration";
 import { forgetPhotoUrls } from "./photo";
 import { contextBelongsToWorkspace } from "./navigation";
 import type { PortfolioAccess } from "./console";
@@ -81,6 +82,10 @@ export type Me = {
   phone_display: string;
   /** Optional at registration, so absent for plenty of real accounts. */
   email: string | null;
+  /** True only once the address was confirmed by its code (/me/email/verify). */
+  is_email_verified?: boolean;
+  /** Set at registration and read-only afterwards. */
+  date_of_birth?: string | null;
   display_name: string;
   first_name: string;
   last_name: string;
@@ -96,7 +101,7 @@ export type Me = {
   /** Null until a profile row exists. `avatar_url` is null when no photo is set,
    *  and also when the one on file is not servable yet — the shell shows initials
    *  in both cases, so it never has to reason about upload state. */
-  profile: { avatar_url: string | null; completeness: number } | null;
+  profile: { avatar_url: string | null; completeness: number; bio?: string } | null;
   onboarding_state: "profile_required" | "intent_required" | "complete";
   available_contexts: string[];
   default_context: string | null;
@@ -219,10 +224,14 @@ function validContextIds(me: Me): string[] {
 /** Set while signed in, so a refresh on a shared page can hold its public
  *  layout back until the session answers (see the script in app/layout). */
 export const SESSION_HINT_KEY = "session.hint";
+export const VISITED_KEY = "installation.visited";
 
 function rememberSignedIn(signedIn: boolean) {
   try {
-    if (signedIn) window.localStorage.setItem(SESSION_HINT_KEY, "1");
+    if (signedIn) {
+      window.localStorage.setItem(SESSION_HINT_KEY, "1");
+      window.localStorage.setItem(VISITED_KEY, "1");
+    }
     else window.localStorage.removeItem(SESSION_HINT_KEY);
   } catch {
     // Storage can be unavailable (private mode); the hint is only a nicety.
@@ -234,10 +243,13 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [state, setState] = useState<SessionState>({ status: "loading" });
   const [activeContext, setActiveContextState] = useState<string | null>(null);
+  const generation = useRef(0);
 
   const refresh = useCallback(async (preferredContext?: string) => {
+    const started = generation.current;
     try {
       const me = await authedFetch<Me>("/me/");
+      if (started !== generation.current) return;
       const stored = window.localStorage.getItem("account.active_context");
       const available = validContextIds(me);
       const context = preferredContext && available.includes(preferredContext)
@@ -250,6 +262,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       setState({ status: "signed_in", me });
       rememberSignedIn(true);
     } catch (cause) {
+      if (started !== generation.current) return;
       if (isRefusal(cause)) clearAccessToken();
       setState((current) => stateAfterFailure(cause, current));
       if (isRefusal(cause)) rememberSignedIn(false);
@@ -267,23 +280,26 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   }, [refresh]);
 
   const signOut = useCallback(async () => {
-    try {
-      // Ends the session server-side and clears the refresh cookie. If it fails
-      // we still drop the local token: a sign-out that visibly does nothing is
-      // worse than one that is only local.
-      await authedFetch("/auth/sign-out/", { method: "POST", body: JSON.stringify({}) });
-    } catch {
-      // Deliberately ignored - see above.
-    } finally {
-      clearAccessToken();
+      generation.current += 1;
+      const ending = endSession();
+      setState({ status: "loading" });
       // A resolved photo URL outliving the session is a leak, and on a shared
       // machine the next person would load the last one's picture.
       forgetPhotoUrls();
+      finishAccountWelcome();
+      setActiveContextState(null);
+      try {
+        window.localStorage.setItem(VISITED_KEY, "1");
+        window.localStorage.removeItem("account.active_context");
+        window.localStorage.removeItem("rooomly:recent-places:v2");
+        window.sessionStorage.removeItem("rooomly:visited-listings");
+        window.sessionStorage.removeItem("rentals:return-scroll");
+      } catch { /* Session credentials are already cleared in memory. */ }
       rememberSignedIn(false);
+      await ending;
       setState({ status: "signed_out" });
-      router.replace("/");
+      router.replace("/sign-in");
       router.refresh();
-    }
   }, [router]);
 
   const value = useMemo(

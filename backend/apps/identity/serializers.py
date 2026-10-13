@@ -167,6 +167,17 @@ class StartProviderVerificationSerializer(serializers.Serializer):
     documents = ProviderVerificationDocumentSerializer(many=True, allow_empty=False)
 
 
+class StartEmailVerificationSerializer(serializers.Serializer):
+    #: Validated by the service, so a malformed address is reported on the field
+    #: with the same wording as every other email problem.
+    email = serializers.CharField(max_length=254)
+
+
+class VerifyEmailSerializer(serializers.Serializer):
+    verification_id = serializers.UUIDField()
+    code = serializers.CharField(min_length=4, max_length=10, trim_whitespace=True)
+
+
 class ChooseWorkspaceSerializer(serializers.Serializer):
     workspace = serializers.ChoiceField(choices=["discovery", "tenant", "provider"])
 
@@ -354,6 +365,7 @@ class MeSerializer(serializers.ModelSerializer):
             "preferred_name",
             "phone_display",
             "email",
+            "is_email_verified",
             "date_of_birth",
             "account_type",
             "is_phone_verified",
@@ -382,6 +394,7 @@ class MeSerializer(serializers.ModelSerializer):
         read_only_fields = [
             "id",
             "is_phone_verified",
+            "is_email_verified",
             "created_at",
             "account_type",
             "date_of_birth",

@@ -61,7 +61,7 @@ import {
   type PlaceKind,
   type PlaceSuggestion,
 } from "@/places";
-import { pressableFeedback } from "@/platform";
+import { pressableFeedback, useFloatingTabBarClearance } from "@/platform";
 import { loadPropertyTypes, type PropertyTypeOption } from "@/propertyTypes";
 import { searchSales, searchSalesPage, type SaleCard as Sale, type SaleKind } from "@/sales";
 import { theme } from "@/theme";
@@ -179,9 +179,10 @@ export default function SearchScreen() {
   const [side, setSide] = useState<ExploreMode>(mode === "buy" ? "buy" : mode === "rent" ? "rent" : "all");
   const insets = useSafeAreaInsets();
   const inTabs = useContext(BottomTabBarHeightContext) !== undefined;
+  const barClearance = useFloatingTabBarClearance();
   // Inside the tabs the hero is the header, and carries Saved and profile.
   const actions = inTabs ? <ExploreHeaderActions /> : undefined;
-  const bottomPadding = space[8] + (inTabs ? 0 : insets.bottom);
+  const bottomPadding = space[8] + (inTabs ? barClearance : insets.bottom);
   // With a map every side is the map screen, and sales stand on it beside the
   // rentals (owner, 2026-09-29). A build without one lists each side instead.
   if (mapAvailable()) {
@@ -226,6 +227,9 @@ function MapExplore({
   // Inside the tabs the tab bar already keeps clear of the home indicator; a
   // pushed search has no bar, so its list keeps clear itself.
   const inTabs = useContext(BottomTabBarHeightContext) !== undefined;
+  // On iOS the glass bar floats over the map, so whatever sits at the map's
+  // foot rides above it.
+  const barClearance = useFloatingTabBarClearance();
   const reduceMotion = useReduceMotion();
   const { state } = useAuth();
   const signedIn = state.status === "signed_in";
@@ -545,9 +549,9 @@ function MapExplore({
   const mapInsets = useMemo(() => ({
     top: controlsHeight,
     right: 0,
-    bottom: LIST_BUTTON_ROOM,
+    bottom: LIST_BUTTON_ROOM + barClearance,
     left: 0,
-  }), [controlsHeight]);
+  }), [barClearance, controlsHeight]);
 
   const rentMarkers = useMemo(() => features.map((feature): MapMarker => {
     const key = markerKey(feature);
@@ -833,7 +837,7 @@ function MapExplore({
         <View
           pointerEvents="box-none"
           onLayout={(event) => setPreviewHeight(event.nativeEvent.layout.height)}
-          style={{ position: "absolute", left: space[3], right: space[3], bottom: space[3], zIndex: 5 }}
+          style={{ position: "absolute", left: space[3], right: space[3], bottom: space[3] + barClearance, zIndex: 5 }}
         >
           <MapPreview
             listings={preview}
@@ -854,7 +858,7 @@ function MapExplore({
             position: "absolute",
             left: 0,
             right: 0,
-            bottom: previewing ? previewHeight + space[3] * 2 : space[5],
+            bottom: (previewing ? previewHeight + space[3] * 2 : space[5]) + barClearance,
             zIndex: 6,
             alignItems: "center",
           }}
@@ -957,7 +961,7 @@ function MapExplore({
               // A little narrower than the screen (owner, 2026-09-29).
               paddingHorizontal: space[5] + 2,
               paddingTop: space[1],
-              paddingBottom: space[8] + (inTabs ? 0 : insets.bottom),
+              paddingBottom: space[8] + (inTabs ? barClearance : insets.bottom),
               gap: space[4],
             }}
             refreshControl={

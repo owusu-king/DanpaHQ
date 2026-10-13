@@ -93,3 +93,23 @@ BY_PURPOSE = {
     "change_phone": otp_change_phone,
     "recover_account": otp_recover_account,
 }
+
+
+def email_verification(code: str) -> tuple[str, str]:
+    """Subject and plain-text body for confirming an email address.
+
+    The SMS rules hold here too: the code first, no link, and the warning. The
+    subject carries the code as well, so it can be read from a notification
+    without opening the message.
+    """
+    return (
+        f"{code} is your Rooomly email code",
+        (
+            f"{code}\n\n"
+            "Enter this code in Rooomly to confirm this email address. "
+            "It expires in 5 minutes.\n\n"
+            "We will never ask you for this code. If you did not ask for it, "
+            "ignore this email and nothing will change.\n\n"
+            "Rooomly"
+        ),
+    )

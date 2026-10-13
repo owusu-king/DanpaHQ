@@ -69,6 +69,8 @@ me_patterns = [
         name="me-registration",
     ),
     path("me/password/", identity_views.ChangePasswordView.as_view(), name="me-password"),
+    path("me/email/", identity_views.EmailView.as_view(), name="me-email"),
+    path("me/email/verify/", identity_views.VerifyEmailView.as_view(), name="me-email-verify"),
     path("me/workspace/", identity_views.WorkspaceView.as_view(), name="me-workspace"),
     path(
         "me/provider-verification/",

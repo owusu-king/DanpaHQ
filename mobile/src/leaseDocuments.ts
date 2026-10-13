@@ -1,17 +1,15 @@
-import { File, Paths } from "expo-file-system";
+import type { File } from "expo-file-system";
 import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
 
 import { apiFetchBytes } from "@/api";
 import type { Lease } from "@/leases";
+import { cachePrivateDocument } from "@/privateDocuments";
 
 async function localAgreement(lease: Lease): Promise<File> {
   const reference = (lease.agreement?.reference_number || lease.id).replace(/[^a-zA-Z0-9-]/g, "-");
-  const file = new File(Paths.cache, `rooomly-agreement-${reference}.pdf`);
-  if (file.exists) file.delete();
-  file.create();
-  file.write(await apiFetchBytes(`/leases/${lease.id}/document.pdf?disposition=inline`));
-  return file;
+  return cachePrivateDocument(`rooomly-agreement-${reference}.pdf`, () =>
+    apiFetchBytes(`/leases/${lease.id}/document.pdf?disposition=inline`));
 }
 
 /** Opens the native document sheet, where the PDF can be viewed or saved. */

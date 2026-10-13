@@ -81,15 +81,9 @@ export default function SavedScreen() {
   if (!signedIn) {
     return (
       <AuthPrompt
-        icon="bookmark"
-        tone="laterite"
-        title="Save your shortlist"
-        body="The places you are weighing up, kept together and on every device."
+        title="Saved places"
+        body="Sign in to see your saved places."
         next="/(app)/saved"
-        points={[
-          { icon: "phone-portrait-outline", label: "Your shortlist follows your account" },
-          { icon: "eye-outline", label: "Ask to view without retyping anything" },
-        ]}
       />
     );
   }

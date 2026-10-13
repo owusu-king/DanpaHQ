@@ -1,6 +1,6 @@
 import type { Route } from "next";
 import Link from "next/link";
-import { BadgeCheck, Receipt, ShieldCheck } from "lucide-react";
+import { ArrowRight, BadgeCheck, Receipt, ShieldCheck } from "lucide-react";
 
 import { Reveal } from "@/components/motion/Reveal";
 
@@ -11,12 +11,14 @@ const CHECKS = [
 ] as const;
 
 /**
- * The front door itself: one question, asked plainly — are you looking for a
- * place, or managing one? (owner, 2026-09-29.)
+ * The front door itself (owner, 2026-09-29): a headline, a line of reassurance,
+ * and one way in. Get Started asks how somebody will use Rooomly — tenant or
+ * provider — as the first step of sign-up (owner, 2026-10-07); Sign in is for
+ * those who have answered it already.
  *
  * Its own component because it is also what the sign-in modal opens over: the
  * modal belongs to this page rather than replacing it with a screen of its own.
- * Each way in carries its side through sign-in (`workspace`).
+ * The side chosen inside sign-up becomes the account type.
  */
 export function FrontDoor() {
   return (
@@ -45,11 +47,14 @@ export function FrontDoor() {
 
         <Reveal delay={0.15}>
           <div className="lp-door-actions">
-            <Link href={"/sign-in?workspace=tenant" as Route} className="lp-door-action is-primary">
-              Tenant
+            {/* Get Started opens the question "How will you use Rooomly?" (owner,
+                2026-10-07); the answer rides into sign-up as the account type. */}
+            <Link href={"/register" as Route} className="lp-door-action is-primary">
+              Get Started
+              <ArrowRight aria-hidden="true" className="lp-door-arrow" />
             </Link>
-            <Link href={"/sign-in?workspace=provider" as Route} className="lp-door-action">
-              Manage Property
+            <Link href={"/sign-in" as Route} className="lp-door-action">
+              Sign in
             </Link>
           </div>
         </Reveal>

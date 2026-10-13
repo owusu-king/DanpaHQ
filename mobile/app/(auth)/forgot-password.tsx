@@ -188,7 +188,7 @@ export default function ForgotPasswordScreen() {
               />
               <AuthAction
                 label="Create an account"
-                onPress={() => router.replace("/(auth)/phone")}
+                onPress={() => router.replace("/(auth)/start")}
               />
             </>
           ) : (

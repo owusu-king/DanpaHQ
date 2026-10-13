@@ -18,6 +18,7 @@ import { resolveEntryRoute } from "@/navigation";
 import { listMyJoinRequests, listMyTenancies, type MyJoinRequest, type Tenancy } from "@/tenancy";
 import { listMyViewings, type Viewing } from "@/viewings";
 import { chooseWorkspace } from "@/workspace";
+import { useFloatingTabBarClearance } from "@/platform";
 
 /**
  * Home: the tenant's dashboard signed in, and what Rooomly is signed out.
@@ -40,6 +41,7 @@ export default function DiscoveryHomeScreen() {
 function DiscoveryHome() {
   const router = useRouter();
   const density = useHomeDensity();
+  const pageBottom = space[12] + useFloatingTabBarClearance();
   const { providerError } = useLocalSearchParams<{ providerError?: string }>();
   const { state, refreshMe } = useAuth();
   const [workspaceBusy, setWorkspaceBusy] = useState(false);
@@ -237,7 +239,7 @@ function DiscoveryHome() {
       // pretending to be a feature.
       contentContainerStyle={{
         padding: space[5],
-        paddingBottom: space[12],
+        paddingBottom: pageBottom,
         gap: space[4],
       }}
     >

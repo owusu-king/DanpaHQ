@@ -1,16 +1,18 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { Children, forwardRef, isValidElement, useRef, useState, type ReactNode, type RefObject } from "react";
+import { Children, forwardRef, isValidElement, useImperativeHandle, useRef, useState, type ReactNode, type RefObject } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Pressable,
   ScrollView,
   StyleSheet,
+  Text,
   TextInput,
   View,
   type TextInputProps,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { FieldEdge, Rise } from "@/components/auth/AuthMotion";
 import { ph } from "@/components/home/plinth";
 import { HeaderChromeBackground } from "@/components/nav/HeaderChromeBackground";
 import { Type, space } from "@/components/ui";
@@ -73,6 +75,8 @@ const EDGE = alpha(DEEP, 0.09);
 const JOIN = alpha(DEEP, 0.07);
 const CHEVRON = alpha(DEEP, 0.3);
 const PANEL_RADIUS = 20;
+/** The icon column of a field row: the icon and the gap after it. */
+const MESSAGE_INDENT = 20 + space[4];
 /** How far the panel rises over the hero's foot, and its corner: the Homes' own. */
 const RISE = 28;
 
@@ -149,8 +153,11 @@ export function AuthScene({
               {hero.length ? <View style={styles.heroBody}>{hero}</View> : null}
             </View>
           </View>
+          {/* The hero stays put; the step's own content rises in on the panel,
+              so moving through the journey reads as one surface changing its
+              question rather than a page being replaced. */}
           <View style={styles.panel}>
-            <View style={styles.column}>{body}</View>
+            <Rise style={styles.column}>{body}</Rise>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -272,9 +279,15 @@ export const AuthField = forwardRef<TextInput, TextInputProps & {
 ) {
   const [focused, setFocused] = useState(false);
   const wrong = Boolean(error);
+  const input = useRef<TextInput>(null);
+  useImperativeHandle(ref, () => input.current as TextInput);
 
   return (
-    <View style={[styles.row, focused ? styles.rowFocused : null, wrong ? styles.rowWrong : null]}>
+    // The whole row is the target, not the one line of text inside it: a tap
+    // on the icon, the label or the padding puts the cursor in the field. The
+    // input keeps its own accessibility, so the row adds no second element.
+    <Pressable accessible={false} onPress={() => input.current?.focus()} style={styles.row}>
+      <FieldEdge focused={focused} wrong={wrong} />
       <View style={styles.rowTop}>
         <Ionicons
           name={icon}
@@ -292,12 +305,14 @@ export const AuthField = forwardRef<TextInput, TextInputProps & {
           </Type>
           <View style={styles.rowValue}>
             {prefix ? (
-              <Type variant="body" style={styles.rowPrefix}>
+              // The input's own type, size for size, so "+233" and the number
+              // typed after it share one baseline.
+              <Text maxFontSizeMultiplier={maxFontSizeMultiplier} style={styles.rowPrefix}>
                 {prefix}
-              </Type>
+              </Text>
             ) : null}
             <TextInput
-              ref={ref}
+              ref={input}
               {...props}
               accessibilityLabel={label}
               accessibilityHint={hint}
@@ -331,7 +346,7 @@ export const AuthField = forwardRef<TextInput, TextInputProps & {
           {hint}
         </Type>
       ) : null}
-    </View>
+    </Pressable>
   );
 });
 
@@ -773,21 +788,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: space[4],
     paddingVertical: space[3],
   },
-  // A tint alone was almost invisible over white in daylight, and a border
-  // would move the row. The edge is drawn inside the padding the row already
-  // has, so lighting up costs no layout.
-  rowFocused: {
-    backgroundColor: theme.color.kola["50"],
-    borderLeftWidth: 3,
-    borderLeftColor: KOLA,
-    paddingLeft: space[4] - 3,
-  },
-  rowWrong: {
-    backgroundColor: theme.color.laterite["100"],
-    borderLeftWidth: 3,
-    borderLeftColor: ALERT,
-    paddingLeft: space[4] - 3,
-  },
+  // Focus and error are drawn by `FieldEdge` behind the row — a tint and an
+  // edge over the padding the row already has — so lighting up costs no layout
+  // and eases in rather than switching.
   rowTop: {
     flexDirection: "row",
     alignItems: "center",
@@ -813,25 +816,37 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
   },
+  // The input's size at its natural height: the row centres both, and a
+  // fixed-height Text would draw its glyphs at the top of the box instead.
   rowPrefix: {
+    fontSize: 16,
+    includeFontPadding: false,
     color: theme.color.ink["500"],
     marginRight: space[2],
   },
+  // No lineHeight: iOS draws a TextInput's text low in a line box taller than
+  // the font, which is what set the number below "+233". A fixed height
+  // centres it instead, and Android drops its extra font padding likewise.
   input: {
     flex: 1,
+    height: 24,
     padding: 0,
     fontSize: 16,
-    lineHeight: 22,
+    includeFontPadding: false,
+    textAlignVertical: "center",
     color: INK,
   },
+  // Under the label, not under the label plus the row's padding: the row's
+  // own padding is already to the left of this line, so the indent is the icon
+  // column alone.
   rowError: {
     marginTop: space[1],
-    marginLeft: 52,
+    marginLeft: MESSAGE_INDENT,
     color: ALERT,
   },
   rowHint: {
     marginTop: space[1],
-    marginLeft: 52,
+    marginLeft: MESSAGE_INDENT,
     color: MUTED,
   },
   reveal: {

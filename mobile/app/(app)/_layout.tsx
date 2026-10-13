@@ -66,7 +66,9 @@ export default function AppLayout() {
       <Stack.Screen name="listing/[id]" options={{ title: "" }} />
       <Stack.Screen name="trust" options={{ title: "Verification" }} />
       <Stack.Screen name="identity-verification" options={{ title: "Identity verification" }} />
-      <Stack.Screen name="provider" options={{ title: "Provider verification" }} />
+      {/* Until approval this is the provider's Home, so it draws its own green
+          hero, and a way back only when there is somewhere to go back to. */}
+      <Stack.Screen name="provider" options={{ title: "Provider verification", headerShown: false }} />
       <Stack.Screen name="provider-property" options={{ title: "Property" }} />
       {/* Properties for sale (owner, 2026-09-28): the public page a buyer
           decides on, and the conversations it starts. The thread names the

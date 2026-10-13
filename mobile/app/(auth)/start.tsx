@@ -1,61 +1,101 @@
 import { useRouter } from "expo-router";
+import { useState } from "react";
 import { View } from "react-native";
 
 import { TextLink } from "@/components/auth/AuthFields";
+import { RoleCard } from "@/components/auth/AuthMotion";
 import {
+  AuthAction,
   AuthAside,
   AuthFoot,
   AuthHeading,
   AuthMark,
   AuthScene,
-  ChoiceCard,
 } from "@/components/auth/AuthScene";
+import { WelcomeIntro } from "@/components/auth/WelcomeIntro";
 import { Type, space } from "@/components/ui";
 import { rememberOnboardingIntent, type OnboardingIntent } from "@/onboardingIntent";
+import { theme } from "@/theme";
 
 /**
- * The first thing anybody sees: one question, three ways in.
+ * The first thing anybody sees: one question, two answers.
  *
- * This replaces a three-scene introduction that swiped through a neighbourhood,
- * a living room and a portfolio before arriving at exactly this question. The
- * scenes were built to carry illustrations that were never drawn, so what a
- * launch actually showed was three tonal washes and two taps of nothing, and a
- * returning person had to be specially exempted from it by a flag kept in the
- * keychain. Asking the question immediately is both the better first launch and
- * the better second one, and it deletes the exemption along with the story.
+ * Tenant or provider. The answer is the account type, so the details screen
+ * after this never asks it again — it used to, in a radio group above the name,
+ * which made the opening question look like it had not been listened to.
  *
  * **The question is not a profile.** It is remembered as an onboarding intent —
- * the value the rest of the flow already reads — and carried into sign-in as a
- * workspace, so the backend puts somebody where they asked to be rather than
- * inferring it from whatever they last were. Nobody is locked into the answer;
- * `register` offers it again, and an account can hold both sides.
+ * the value the rest of the flow already reads — and carried forward as a
+ * workspace, so the backend puts somebody where they asked to be.
  *
- * Browsing is here because it is a way of *using* Rooomly, not a third kind of
- * person to be — so it is drawn quieter than the two that start a relationship,
- * and it asks for no account and no workspace.
+ * Choosing and continuing are two acts on purpose. A card that navigates on
+ * touch gives no moment to see what was picked; here the choice settles — the
+ * card fills, the tick lands — and Continue says where it leads.
+ *
+ * Browsing stays one line at the foot: it is a way of *using* Rooomly that asks
+ * for no account at all, not a third kind of person to be.
  */
+
+type Side = "tenant" | "provider";
+
+const SIDES: Record<Side, {
+  intent: OnboardingIntent;
+  icon: "home" | "business";
+  tone: { ink: string; wash: string; deep: string };
+  title: string;
+  body: string;
+}> = {
+  tenant: {
+    intent: "current_tenant",
+    icon: "home",
+    tone: { ink: theme.color.kola["600"], wash: theme.color.kola["50"], deep: theme.color.kola["900"] },
+    title: "Tenant",
+    body: "Renting, or looking for a home.",
+  },
+  provider: {
+    intent: "manage_property",
+    icon: "business",
+    tone: { ink: theme.color.lagoon["600"], wash: theme.color.lagoon["100"], deep: theme.color.lagoon["600"] },
+    title: "Provider",
+    body: "Owning or managing property.",
+  },
+};
+
 export default function StartScreen() {
   const router = useRouter();
+  const [side, setSide] = useState<Side | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [choosing, setChoosing] = useState(false);
 
   /**
-   * Which side of the tenancy this person is on.
-   *
-   * Remembered before leaving, because the register screen can also be reached
+   * Remembered before leaving, because the details screen can also be reached
    * by the route gate, which arrives without parameters and reads it back.
    */
-  async function choose(intent: OnboardingIntent) {
-    await rememberOnboardingIntent(intent);
-
-    // The one way in that asks nothing of anybody.
-    if (intent === "find_property") {
-      router.replace("/(app)/(tabs)/explore");
-      return;
+  async function proceed() {
+    if (!side) return;
+    setBusy(true);
+    try {
+      const intent = SIDES[side].intent;
+      await rememberOnboardingIntent(intent);
+      router.push({
+        pathname: "/(auth)/register",
+        params: { workspace: intent === "manage_property" ? "provider" : "tenant" },
+      });
+    } finally {
+      setBusy(false);
     }
+  }
 
-    router.push({
-      pathname: "/(auth)/sign-in",
-      params: { workspace: intent === "manage_property" ? "provider" : "tenant" },
-    });
+  // A fresh install says hello on clean ivory before it asks anything; the
+  // green hero starts at the question (owner, 2026-10-13).
+  if (!choosing) {
+    return (
+      <WelcomeIntro
+        onStart={() => setChoosing(true)}
+        onSignIn={() => router.replace("/(auth)/sign-in")}
+        onExplore={() => router.replace("/(app)/(tabs)/explore")}
+      />
+    );
   }
 
   return (
@@ -64,33 +104,30 @@ export default function StartScreen() {
 
       <AuthHeading
         title={`How will you\nuse Rooomly?`}
-        line="You can do more than one later."
+        line="Choose one to start. You can add the other side later."
       />
 
-      <View style={{ gap: space[3] }}>
-        <ChoiceCard
-          icon="home"
-          tone="kola"
-          title="I'm renting"
-          body="My home, my agreement, my rent"
-          onPress={() => void choose("current_tenant")}
-        />
-        <ChoiceCard
-          icon="business"
-          tone="lagoon"
-          title="I manage property"
-          body="Properties, Units and tenants"
-          onPress={() => void choose("manage_property")}
-        />
-        <ChoiceCard
-          icon="search"
-          tone="gold"
-          title="Just browsing"
-          body="Public homes · no account needed"
-          quiet
-          onPress={() => void choose("find_property")}
-        />
+      <View style={{ gap: space[3] }} accessibilityRole="radiogroup">
+        {(Object.keys(SIDES) as Side[]).map((key) => (
+          <RoleCard
+            key={key}
+            icon={SIDES[key].icon}
+            tone={SIDES[key].tone}
+            title={SIDES[key].title}
+            body={SIDES[key].body}
+            selected={side === key}
+            onPress={() => setSide(key)}
+          />
+        ))}
       </View>
+
+      <AuthAction
+        label={side ? `Continue as ${SIDES[side].title.toLowerCase()}` : "Choose one to continue"}
+        busyLabel="Opening…"
+        onPress={() => void proceed()}
+        busy={busy}
+        disabled={!side}
+      />
 
       {/* Somebody who has an account has already answered the question above,
           and should not have to answer it again to reach the front door. */}
@@ -99,6 +136,11 @@ export default function StartScreen() {
           <Type variant="caption">Already with us?</Type>
           <TextLink label="Sign in" strong onPress={() => router.push("/(auth)/sign-in")} />
         </AuthAside>
+        <TextLink
+          label="Just browsing? Explore homes"
+          muted
+          onPress={() => router.replace("/(app)/(tabs)/explore")}
+        />
       </AuthFoot>
     </AuthScene>
   );

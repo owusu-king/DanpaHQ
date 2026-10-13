@@ -3,6 +3,8 @@ import { useEffect, useMemo, useRef } from "react";
 import { Animated, Easing, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { GlassTabBar } from "@/components/nav/GlassTabBar";
+import { isHiddenFromBar } from "@/components/nav/tabRoutes";
 import { motion, radius, space } from "@/components/ui";
 import { useReduceMotion } from "@/motion";
 import { hapticsPolicy, isAndroid, isIOS } from "@/platform";
@@ -48,7 +50,12 @@ const RESTING = shell.resting;
  *
  * Every duration, curve, radius and gap below is a shared token.
  */
-export function MainTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
+export function MainTabBar(props: BottomTabBarProps) {
+  // iOS floats a glass capsule over the page instead (owner, 2026-10-13).
+  return isIOS ? <GlassTabBar {...props} /> : <ShelfTabBar {...props} />;
+}
+
+function ShelfTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
 
   // `flatMap` rather than `filter` because a missing descriptor has to narrow
@@ -86,27 +93,6 @@ export function MainTabBar({ state, descriptors, navigation }: BottomTabBarProps
       </View>
     </View>
   );
-}
-
-/**
- * Whether expo-router has taken this route out of the bar.
- *
- * `href: null` is the way to keep a route in the navigator and off the tab bar
- * — the provider's `add` screen. But **`href` never reaches a custom tab bar.**
- * expo-router destructures it away in `TabsClient` and marks the route two other
- * ways instead: `tabBarItemStyle: { display: "none" }`, and a `tabBarButton`
- * that renders `null`. The default bar honours it only because it renders that
- * button; anything custom has to read the marker.
- *
- * Reading `options.href` therefore matched nothing, and the provider grew a
- * sixth tab labelled from its filename.
- *
- * The `href` check stays as well, because the transform is skipped entirely when
- * a screen's `options` is a function — and then `href` *does* survive.
- */
-function isHiddenFromBar(options: BottomTabBarProps["descriptors"][string]["options"]): boolean {
-  if ((options as { href?: string | null }).href === null) return true;
-  return StyleSheet.flatten(options.tabBarItemStyle)?.display === "none";
 }
 
 type TabItemProps = {

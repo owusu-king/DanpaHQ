@@ -210,7 +210,7 @@ export const SERVICES: Service[] = [
     icon: "sparkles-outline",
     category: "home",
     status: "later",
-    tone: "ink",
+    tone: "lagoon",
     promise: "Book a vetted cleaner for a one-off or a regular slot.",
   },
   {
@@ -220,8 +220,31 @@ export const SERVICES: Service[] = [
     icon: "cube-outline",
     category: "home",
     status: "later",
-    tone: "ink",
+    tone: "laterite",
     promise: "Arrange a van and hands for a move-in or move-out day.",
+  },
+  {
+    id: "artisan",
+    label: "Find an Artisan",
+    summary: "Find skilled help for your home",
+    icon: "hammer-outline",
+    category: "home",
+    status: "later",
+    tone: "harmattan",
+    promise: "Find an artisan for repairs and improvements around your home.",
+  },
+  {
+    id: "passport",
+    // Future Housing Passport: a private, portable record of housing evidence.
+    // Sharing stays tenant-controlled; this is a credential, not a credit score
+    // or another dashboard. No verification or sharing is available yet.
+    label: "My Passport",
+    summary: "Your private housing history",
+    icon: "id-card-outline",
+    category: "home",
+    status: "later",
+    tone: "lagoon",
+    promise: "Build a portable record of your tenancies, rent payments and housing evidence. Choose what to share and with whom.",
   },
   {
     id: "referrals",

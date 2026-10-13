@@ -12,6 +12,7 @@ import {
   changePassword,
   listMyVerifications,
   startVerification,
+  setProfileBio,
   setProfilePhoto,
   updateProfile,
   uploadFile,
@@ -20,6 +21,15 @@ import { fieldErrorsFrom, summaryErrorFrom, type FieldErrors } from "@/lib/formE
 import type { Capabilities } from "@/lib/session";
 
 const MIN_PASSWORD_LENGTH = 8;
+
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+/** `1994-03-02` as "2 March 1994". */
+function longDate(value: string | null): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value ?? "");
+  if (!match) return "Not given";
+  return `${Number(match[3])} ${MONTHS[Number(match[2]) - 1] ?? ""} ${match[1]}`;
+}
 
 /**
  * Content only.
@@ -103,7 +113,6 @@ function Row({ label, value, mono = false }: { label: string; value: string; mon
   );
 }
 
-/** Name and email. Everything here is the person's to change. */
 /**
  * The profile photo. Optional, and it stays optional.
  *
@@ -208,13 +217,19 @@ export function ProfileSection({
   initial,
   onSaved,
 }: {
-  initial: { first_name: string; last_name: string; preferred_name: string; email: string };
+  initial: {
+    first_name: string;
+    last_name: string;
+    preferred_name: string;
+    date_of_birth: string | null;
+    bio: string;
+  };
   onSaved: () => Promise<void>;
 }) {
   const [firstName, setFirstName] = useState(initial.first_name);
   const [lastName, setLastName] = useState(initial.last_name);
   const [preferredName, setPreferredName] = useState(initial.preferred_name);
-  const [email, setEmail] = useState(initial.email);
+  const [bio, setBio] = useState(initial.bio);
   const [busy, setBusy] = useState(false);
   const [errors, setErrors] = useState<FieldErrors>({});
   const [summary, setSummary] = useState("");
@@ -227,12 +242,16 @@ export function ProfileSection({
     setSummary("");
     setSaved(false);
     try {
-      await updateProfile({
-        first_name: firstName.trim(),
-        last_name: lastName.trim(),
-        preferred_name: preferredName.trim(),
-        email: email.trim() || null,
-      });
+      // The email is not here: an address joins the account only through its
+      // code, in the Email panel. The bio is part of the profile, not the account.
+      await Promise.all([
+        updateProfile({
+          first_name: firstName.trim(),
+          last_name: lastName.trim(),
+          preferred_name: preferredName.trim(),
+        }),
+        bio !== initial.bio ? setProfileBio(bio.trim()) : Promise.resolve(null),
+      ]);
       await onSaved();
       setSaved(true);
     } catch (cause) {
@@ -270,14 +289,22 @@ export function ProfileSection({
           autoComplete="family-name"
         />
       </div>
-      <Field
-        label="Email (optional)"
-        type="email"
-        value={email}
-        onChange={(event) => setEmail(event.target.value)}
-        error={errors.email}
-        autoComplete="email"
-      />
+      <div className="profile-readonly">
+        <span className="type-caption">Date of birth</span>
+        <strong>{longDate(initial.date_of_birth)}</strong>
+        <small>Set when you joined. Contact support if it is wrong.</small>
+      </div>
+      <label className="field">
+        <span className="type-caption field-label">About you (optional)</span>
+        <textarea
+          className="profile-textarea"
+          rows={3}
+          maxLength={600}
+          value={bio}
+          onChange={(event) => setBio(event.target.value)}
+          placeholder="A line or two for providers you apply to"
+        />
+      </label>
       {summary ? <Notice tone="error" title={summary} /> : null}
       {saved ? <Notice tone="success" title="Saved" /> : null}
       <Button type="submit" busy={busy}>Save changes</Button>

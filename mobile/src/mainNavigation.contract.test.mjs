@@ -4,6 +4,8 @@ import test from "node:test";
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 const bar = read("src/components/nav/MainTabBar.tsx");
+// The hidden-route rule is shared by both bars, so it lives beside them.
+const routes = read("src/components/nav/tabRoutes.ts");
 const code = (source) => source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*/g, "");
 const renter = read("app/(app)/(tabs)/_layout.tsx");
 const provider = read("app/(app)/(provider-tabs)/_layout.tsx");
@@ -151,10 +153,10 @@ test("a route hidden from the bar stays hidden", () => {
   assert.match(upstream, /tabBarItemStyle: href == null \? \{ display: 'none' \}/);
 
   // So the bar reads the marker, not the prop that no longer exists.
-  assert.match(bar, /StyleSheet\.flatten\(options\.tabBarItemStyle\)\?\.display === "none"/);
+  assert.match(routes, /StyleSheet\.flatten\(options\.tabBarItemStyle\)\?\.display === "none"/);
   // `href` is still checked too: the transform above is skipped when a screen's
   // `options` is a function, and then `href` does survive.
-  assert.match(bar, /\.href === null\) return true/);
+  assert.match(routes, /\.href === null\) return true/);
   assert.match(bar, /isHiddenFromBar\(descriptor\.options\)/);
 
   // Narrowed away rather than asserted away, so a missing descriptor cannot
@@ -173,4 +175,50 @@ test("a label stays on one line and stops growing before the bar breaks", () => 
   // would push the bar taller than its safe-area allowance.
   assert.match(bar, /numberOfLines=\{1\}/);
   assert.match(bar, /maxFontSizeMultiplier=\{1\.25\}/);
+});
+
+test("iOS floats a glass capsule over the page, and every tab clears it", () => {
+  const glass = code(read("src/components/nav/GlassTabBar.tsx"));
+  // One entry point: iOS gets the glass, Android keeps its shelf.
+  assert.match(code(bar), /return isIOS \? <GlassTabBar \{\.\.\.props\} \/> : <ShelfTabBar \{\.\.\.props\} \/>;/);
+
+  // Real Liquid Glass where the system has it, a chrome blur where it does not.
+  assert.match(glass, /const LIQUID_GLASS = isLiquidGlassAvailable\(\);/);
+  assert.match(glass, /<GlassView glassEffectStyle="regular"/);
+  assert.match(glass, /<BlurView tint="systemChromeMaterialLight"/);
+
+  // Out of the layout flow, so it reports what it covers…
+  assert.match(glass, /position: "absolute"/);
+  assert.match(glass, /reportHeight\?\.\(CAPSULE_HEIGHT \+ dockLift\)/);
+  // …and the pages read it back, on iOS only.
+  const platform = code(read("src/platform.ts"));
+  assert.match(platform, /return isIOS && tabBarHeight \? tabBarHeight : 0;/);
+  assert.match(platform, /if \(floatingBar > 0\) return base \+ floatingBar;/);
+  assert.match(code(read("src/components/home/HomeHero.tsx")), /paddingBottom: space\[12\] \+ barClearance/);
+
+  // The same hidden-route rule and the same accessible tabs as the shelf.
+  assert.match(glass, /isHiddenFromBar\(descriptor\.options\)/);
+  assert.match(glass, /accessibilityRole="tablist"/);
+  assert.match(glass, /aria-selected=\{focused\}/);
+  assert.match(glass, /import\("expo-haptics"\)[\s\S]{0,120}\.catch\(\(\) => null\)/);
+
+  // It moves like the system bar: a drag scrubs, the lozenge is a stiff lead
+  // and a soft trail so it stretches as it travels, it swells under a finger,
+  // and colour follows its position rather than a timer.
+  assert.match(glass, /PanResponder\.create\(/);
+  assert.match(glass, /Animated\.parallel\(\[spring\(lead, target, LEAD\), spring\(trail, target, TRAIL\)\]\)/);
+  assert.match(glass, /transform: \[\{ translateX: centre \}, \{ scaleX: stretch \}, \{ scaleY: thin \}, \{ scale: swell \}\]/);
+  assert.match(glass, /inputRange: \[\(position - 1\) \* cell, position \* cell, \(position \+ 1\) \* cell\]/);
+  assert.match(glass, /if \(!placed\.current \|\| reduceMotion\)/);
+  // Every animation stays on the native driver.
+  assert.match(glass, /Animated\.spring\(value, \{ toValue, \.\.\.config, useNativeDriver: true \}\)/);
+  // A touch the system takes away opens nothing and goes home.
+  assert.match(glass, /onPanResponderTerminate: \(\) => release\(false\)/);
+  // VoiceOver still activates every tab.
+  assert.match(glass, /accessibilityActions=\{\[\{ name: "activate" \}\]\}/);
+
+  // Reanimated, Worklets and Gesture Handler froze the app at launch in Expo Go
+  // on an iPhone 17 Pro Max (2026-10-13). The bar stays on React Native's own
+  // Animated and PanResponder.
+  assert.doesNotMatch(glass, /react-native-reanimated|react-native-gesture-handler|react-native-worklets/);
 });

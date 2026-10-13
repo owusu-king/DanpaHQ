@@ -64,7 +64,7 @@ test("a path both tab groups answer lands in the one this person may use", () =>
   assert.match(decide, /if \(atRoot\) return destination;/);
 
   // Signed out, the renter's tab at that address is public; the provider's never is.
-  assert.match(decide, /return renterTwin \?\? "\/\(auth\)\/start";/);
+  assert.match(decide, /return renterTwin \?\? \(session\.firstVisit \? "\/\(auth\)\/start" : "\/\(auth\)\/sign-in"\);/);
 });
 
 test("the launch is three dots on the page's own ivory, and it lets go gently", () => {

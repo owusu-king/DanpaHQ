@@ -159,11 +159,12 @@ export default function SignInScreen() {
           <TextLink
             label="Create an account"
             strong
+            // Into the journey at the right step: the details when the question
+            // was already answered on the way here, the question when it was not.
             onPress={() =>
-              router.push({
-                pathname: "/(auth)/phone",
-                params: { workspace: workspace ?? undefined },
-              })
+              workspace
+                ? router.push({ pathname: "/(auth)/register", params: { workspace } })
+                : router.push("/(auth)/start")
             }
           />
         </AuthAside>

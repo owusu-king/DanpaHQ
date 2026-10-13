@@ -82,7 +82,7 @@ export default function ProviderMoreScreen() {
     setLeaving(true);
     try {
       await signOut();
-      router.replace("/(auth)/start");
+      router.replace("/(auth)/sign-in");
     } finally {
       setLeaving(false);
     }

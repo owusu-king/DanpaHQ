@@ -93,9 +93,8 @@ export default function EnquiriesScreen() {
   if (!signedIn) {
     return (
       <AuthPrompt
-        icon="chatbubbles-outline"
         title="Your enquiries"
-        body="Conversations with buyers and sellers, without sharing your phone number."
+        body="Sign in to see your conversations."
         next="/(app)/enquiries"
       />
     );

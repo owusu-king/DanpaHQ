@@ -98,49 +98,36 @@ test("More opens with the person, like WhatsApp's You, and then its cards", () =
   assert.deepEqual(keys(more), ["waiting", "work", "business", "account", "leave"]);
   assert.doesNotMatch(you, /export type YouSection = \{[^}]*title/);
 
-  assert.match(tab, /<AuthPrompt\s+icon="list"/);
+  assert.match(tab, /<AuthPrompt\s+title="Your account"/);
   assert.match(tab, /next="\/\(app\)\/\(tabs\)\/profile"/);
 });
 
-test("a signed-out tab gives a reason and both ways in", () => {
-  // The prompt was a display heading, an info `Notice` carrying the body copy,
-  // and a button saying "Sign In" — on bare ivory, while the signed-in version
-  // of the same tab stood on the hub's ground behind frosted glass. So the tab
-  // changed character on sign-in, a warning shape was doing the work of a
-  // paragraph, and the one control assumed an account the reader may not have.
+test("signed-out screens share one quiet icon and preserve the sign-in destination", () => {
   const prompt = code(read("mobile/src/components/AuthPrompt.tsx"));
-
-  // The same ground as the tab it stands in.
   assert.match(prompt, /<IndexGround>/);
-  assert.doesNotMatch(prompt, /<Notice/);
-
-  // A reason before the ask, in this tab's own colour and glyph.
-  assert.match(prompt, /points\?: PromptPoint\[\];/);
-  assert.match(prompt, /const hue = TONE\[tone\];/);
-
-  // Both ways in. Sign-in is the act; making an account is beside it, not
-  // behind it.
-  assert.match(prompt, /<PromptAct label="Sign in" onPress=\{\(\) => go\("\/\(auth\)\/sign-in"\)\} \/>/);
-  assert.match(prompt, /go\("\/\(auth\)\/phone"\)/);
-  // The workspace intent is still written down, and the tab still comes back.
+  assert.equal((prompt.match(/<Ionicons\b/g) ?? []).length, 1);
+  assert.match(prompt, /name="lock-closed-outline"/);
+  assert.doesNotMatch(prompt, /<Notice|points|Create an account/);
+  assert.equal((prompt.match(/<Pressable\b/g) ?? []).length, 1);
+  assert.match(prompt, /accessibilityLabel="Sign in"/);
   assert.match(prompt, /rememberOnboardingIntent\("find_property"\)\.then/);
-  assert.match(prompt, /params: \{ next, intent: "find_property" \}/);
+  assert.match(prompt, /pathname: "\/\(auth\)\/sign-in", params: \{ next, intent: "find_property" \}/);
 
-  // Every screen that shows it gives it a glyph, a colour and its promises, so
-  // no tab falls back to a generic wall.
   for (const path of [
     "mobile/app/(app)/(tabs)/profile.tsx",
     "mobile/app/(app)/(tabs)/services.tsx",
     "mobile/app/(app)/tenant-payments.tsx",
     "mobile/app/(app)/saved.tsx",
+    "mobile/app/(app)/enquiries.tsx",
   ]) {
     const screen = code(read(path));
-    assert.match(screen, /<AuthPrompt\s+icon="/, `${path}: the prompt has no glyph`);
-    assert.match(screen, /\n\s+tone="/, `${path}: the prompt has no colour`);
-    assert.match(screen, /points=\{\[/, `${path}: the prompt gives no reason`);
+    const state = screen.match(/<AuthPrompt\b[\s\S]*?\/>/)?.[0];
+    assert.ok(state, `${path}: missing signed-out state`);
+    assert.match(state, /body="Sign in to [^"]+"/);
+    assert.match(state, /next="\/\(app\)\//);
+    assert.doesNotMatch(state, /points=|icon=|tone=/);
   }
 });
-
 test("each card is white and plain, and search reaches every row", () => {
   const you = code(read(YOU));
 
@@ -249,7 +236,7 @@ test("changing experience and signing out are the last card, and still say what 
   assert.match(more, /\{ key: "switch", icon: "swap-horizontal-outline", label: "Switch to renting", busy: switching, busyLabel: "Switching…", onPress: \(\) => void switchToTenant\(\) \}/);
   for (const screen of [tab, more]) {
     assert.match(screen, /key: "leave",\s*items: \[[\s\S]*key: "switch"[\s\S]*\{ key: "sign-out", icon: "log-out-outline", label: "Sign out", danger: true, busy: leaving, busyLabel: "Signing out…", onPress: \(\) => void leave\(\) \}/);
-    assert.match(screen, /await signOut\(\);\s*router\.replace\("\/\(auth\)\/start"\);/);
+    assert.match(screen, /await signOut\(\);\s*router\.replace\("\/\(auth\)\/sign-in"\);/);
     // A switch that fails says so under the card it was pressed in.
     assert.match(screen, /notice=\{error \? <Notice tone="error" title=\{error\} \/> : null\}/);
     assert.match(screen, /setError\(cause instanceof ApiFailure \? cause\.error\.message : "Could not switch\."\);/);

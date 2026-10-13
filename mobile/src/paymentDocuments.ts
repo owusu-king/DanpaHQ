@@ -1,22 +1,19 @@
-import { File, Paths } from "expo-file-system";
+import type { File } from "expo-file-system";
 import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
 
 import { apiFetchBytes } from "@/api";
 import type { PaymentReceipt } from "@/payments";
+import { cachePrivateDocument } from "@/privateDocuments";
 
 /** The frozen PDF issued when the provider confirmed a payment, rent or subscription. */
 async function localReceipt(receiptId: string, reference: string): Promise<File> {
   const name = reference.replace(/[^a-zA-Z0-9-]/g, "-");
-  const file = new File(Paths.cache, `rooomly-receipt-${name}.pdf`);
-  if (file.exists) file.delete();
-  file.create();
-  file.write(
-    await apiFetchBytes(
+  return cachePrivateDocument(`rooomly-receipt-${name}.pdf`, () =>
+    apiFetchBytes(
       `/payments/receipts/${receiptId}/document.pdf?disposition=inline`,
     ),
   );
-  return file;
 }
 
 async function shareFile(file: File) {

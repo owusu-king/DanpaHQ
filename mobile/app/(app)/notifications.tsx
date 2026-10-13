@@ -29,41 +29,24 @@ import {
   RULE,
   type IconName,
 } from "@/components/portfolio/PortfolioList";
-import { Briefing, Empty } from "@/components/work/WorkParts";
+import { Briefing } from "@/components/work/WorkParts";
 import { Notice, Type, radius, space } from "@/components/ui";
 import {
   destination,
-  needsYou,
   notificationSource,
   notificationTone,
   type NotificationTone,
 } from "@/notificationMeaning";
-import { listNotifications, markRead, timeAgo, type Notification } from "@/notifications";
+import { listNotificationHistory, markRead, timeAgo, type Notification } from "@/notifications";
 import { isAndroid, pressableFeedback, useSafeBottom } from "@/platform";
 import { alpha } from "@/shell";
 import { theme } from "@/theme";
 
-/** How much activity a person keeps; the server prunes to the same number. */
-const RECENT_KEPT = 10;
-/** Unread activity older than this is shown as past, not new — the web's rule. */
-const STALE_DAYS = 14;
+const RECENT_SHOWN = 5;
 
 type Day = { key: string; title: string; items: Notification[] };
 
-/**
- * Updates: what wants an answer, then what happened — never a log.
- *
- * A reminder (rent due, a viewing about to start, a lease nearing its end) is
- * informational: once read it has done its job and the server deletes it, so
- * it leaves this screen the moment it is read. Activity — something that
- * happened to a record — is kept, the ten most recent. Nothing pages back
- * through history here; Home stays the live source of outstanding work. Same
- * rules as web Updates.
- *
- * Read as work (owner, 2026-10-06): what is waiting on the reader leads as a
- * row of cards to swipe through, each with its one step; everything else is a
- * timeline by day, unread first in weight, with a dot rather than a rule.
- */
+/** Informational alerts clear when read; activity remains in the history. */
 export default function NotificationsScreen() {
   const router = useRouter();
   const density = useHomeDensity();
@@ -74,11 +57,12 @@ export default function NotificationsScreen() {
   const [error, setError] = useState("");
   const [refreshing, setRefreshing] = useState(false);
   const [markingAll, setMarkingAll] = useState(false);
+  const [showOlder, setShowOlder] = useState(false);
 
   // A reload keeps what is on screen; a failed refresh says so above it.
   const load = useCallback(async () => {
     try {
-      const page = await listNotifications();
+      const page = await listNotificationHistory();
       setItems(page.results);
       setUnread(page.unread_count);
       setError("");
@@ -94,37 +78,21 @@ export default function NotificationsScreen() {
     && state.me.capabilities.active_workspace === "provider"
     && state.me.capabilities.provider.workspace_access;
 
-  // What needs an answer, then the rest unread, then the recent activity that
-  // has been read. Read reminders are never here.
-  const { waiting, timeline, listedNew } = useMemo(() => {
-    const source = items ?? [];
-    // A record does not know when the thing it is about was dealt with, so an
-    // unread one weeks old is past, not new: it joins the recent pool rather
-    // than waiting forever. Repeats about the same thing keep only the newest.
-    const staleBefore = Date.now() - STALE_DAYS * 86_400_000;
-    const stale = (item: Notification) => new Date(item.created_at).getTime() < staleBefore;
-    const seen = new Set<string>();
-    const latest = source.filter((item) => {
-      const key = `${item.kind}:${item.target_type}:${item.target_id}`;
-      if (!item.target_id || !seen.has(key)) { seen.add(key); return true; }
-      return false;
-    });
-    const fresh = latest.filter((item) => !item.is_read && !stale(item));
-    const nowWaiting = fresh.filter(needsYou);
-    const other = fresh.filter((item) => !needsYou(item)).slice(0, RECENT_KEPT);
-    const recent = latest
-      .filter((item) => item.record === "activity" && (item.is_read || stale(item)))
-      .slice(0, RECENT_KEPT);
+  const { waiting, recent, older, listedNew } = useMemo(() => {
+    const source = [...(items ?? [])].sort((a, b) => b.created_at.localeCompare(a.created_at));
+    const activity = source.filter((item) => item.record === "activity");
     return {
-      waiting: nowWaiting,
-      timeline: byDay([...other, ...recent].sort((a, b) => b.created_at.localeCompare(a.created_at))),
-      listedNew: nowWaiting.length + other.length,
+      waiting: source.filter((item) => item.record === "informational" && !item.is_read),
+      recent: activity.slice(0, RECENT_SHOWN),
+      older: activity.slice(RECENT_SHOWN),
+      listedNew: source.filter((item) => !item.is_read).length,
     };
   }, [items]);
-  const shown = waiting.length + timeline.reduce((sum, day) => sum + day.items.length, 0);
+  const timeline = byDay(recent);
+  const shown = waiting.length + recent.length + older.length;
 
   /** Read: a reminder leaves the screen (the server deletes it); activity stays. */
-  function open(item: Notification) {
+  function acknowledge(item: Notification) {
     if (!item.is_read) {
       setItems((current) => current
         ?.filter((row) => !(row.id === item.id && row.record === "informational"))
@@ -132,6 +100,10 @@ export default function NotificationsScreen() {
       setUnread((current) => Math.max(0, current - 1));
       void markRead([item.id]).catch(() => void load());
     }
+  }
+
+  function open(item: Notification) {
+    acknowledge(item);
     router.push(destination(item, isProvider) as never);
   }
 
@@ -167,22 +139,20 @@ export default function NotificationsScreen() {
           {items === null ? <UpdatesSkeleton /> : null}
         </View>
 
-        {items !== null && !shown && !(error && !items.length) ? (
-          <Empty
-            icon="notifications-off-outline"
-            crossed={false}
-            title="You’re all caught up"
-            hint="Rental, application, agreement and payment updates appear here. Reminders clear once read; your ten most recent activities stay."
-          />
+        {items !== null && !waiting.length && !(error && !items.length) ? (
+          <View style={styles.caughtUp}>
+            <Ionicons name="checkmark-done-outline" size={32} color={KOLA} />
+            <Type variant="bodyStrong" style={{ color: KOLA_DEEP }}>You’re all caught up!</Type>
+          </View>
         ) : null}
 
         {items !== null && shown ? (
           <>
             <View style={[styles.pad, { paddingHorizontal: density.pagePadding }]}>
               <Briefing
-                title={listedNew ? `${listedNew} new ${listedNew === 1 ? "update" : "updates"}` : "You’re all caught up"}
+                title={listedNew ? `${listedNew} new ${listedNew === 1 ? "update" : "updates"}` : "Activity"}
                 parts={[
-                  waiting.length ? { text: `${waiting.length} ${waiting.length === 1 ? "wants" : "want"} an answer`, tone: LATERITE, strong: true } : null,
+                  waiting.length ? { text: `${waiting.length} ${waiting.length === 1 ? "alert" : "alerts"}`, tone: LATERITE, strong: true } : null,
                   { text: "Reminders clear once read", tone: MUTED },
                 ].filter((part): part is NonNullable<typeof part> => part !== null)}
                 trailing={unread > 0 ? (
@@ -206,9 +176,9 @@ export default function NotificationsScreen() {
             {waiting.length ? (
               <View style={styles.block}>
                 <View style={{ paddingHorizontal: density.pagePadding }}>
-                  <GroupLabel count={waiting.length} tone={LATERITE}>Wants an answer</GroupLabel>
+                  <GroupLabel count={waiting.length} tone={LATERITE}>Alerts</GroupLabel>
                 </View>
-                <AnswerCards items={waiting} gutter={density.pagePadding} onOpen={open} />
+                <AnswerCards items={waiting} gutter={density.pagePadding} onOpen={open} onDismiss={acknowledge} />
               </View>
             ) : null}
 
@@ -223,9 +193,23 @@ export default function NotificationsScreen() {
               </View>
             ))}
 
-            <Type variant="caption" style={[styles.footnote, { paddingHorizontal: density.pagePadding }]}>
-              {`Your ${RECENT_KEPT} most recent activities stay. Older ones clear on their own.`}
-            </Type>
+            {older.length ? (
+              <View style={[styles.block, { paddingHorizontal: density.pagePadding }]}>
+                <Pressable accessibilityRole="button" accessibilityState={{ expanded: showOlder }}
+                  accessibilityLabel="Older activity" onPress={() => setShowOlder((value) => !value)} style={styles.olderToggle}>
+                  <Type variant="bodyStrong" style={{ color: KOLA_DEEP }}>Older · {older.length}</Type>
+                  <Ionicons name={showOlder ? "chevron-up" : "chevron-down"} size={18} color={KOLA} />
+                </Pressable>
+                {showOlder ? byDay(older).map((day) => (
+                  <View key={day.key} style={{ gap: space[2] }}>
+                    <GroupLabel>{day.title}</GroupLabel>
+                    {day.items.map((item, index) => (
+                      <TimelineRow key={item.id} item={item} last={index === day.items.length - 1} onPress={() => open(item)} />
+                    ))}
+                  </View>
+                )) : null}
+              </View>
+            ) : null}
           </>
         ) : null}
       </ScrollView>
@@ -238,7 +222,7 @@ export default function NotificationsScreen() {
  * happened, a line of it, and the one step. Each is the size of a decision, not
  * of a row, so three of them never read as a list of chores.
  */
-function AnswerCards({ items, gutter, onOpen }: { items: Notification[]; gutter: number; onOpen: (item: Notification) => void }) {
+function AnswerCards({ items, gutter, onOpen, onDismiss }: { items: Notification[]; gutter: number; onOpen: (item: Notification) => void; onDismiss: (item: Notification) => void }) {
   const { width } = useWindowDimensions();
   const cardWidth = items.length === 1 ? width - gutter * 2 : Math.min(300, Math.round(width * 0.78));
   return (
@@ -252,14 +236,7 @@ function AnswerCards({ items, gutter, onOpen }: { items: Notification[]; gutter:
       {items.map((item) => {
         const palette = tonePalette(notificationTone(item));
         return (
-          <Pressable
-            key={item.id}
-            onPress={() => onOpen(item)}
-            accessibilityRole="button"
-            accessibilityLabel={`${notificationSource(item.kind)}. ${item.title}. ${item.body}. ${timeAgo(item.created_at)}. Review.`}
-            {...pressableFeedback(PRESSED)}
-            style={({ pressed }) => [styles.card, { width: cardWidth }, isAndroid ? null : styles.lift, pressed ? { opacity: 0.92 } : null]}
-          >
+          <View key={item.id} style={[styles.card, { width: cardWidth }, isAndroid ? null : styles.lift]}>
             <View style={styles.cardTop}>
               <View style={[styles.well, { backgroundColor: palette.bg }]}>
                 <Ionicons name={iconFor(item.kind)} size={18} color={palette.fg} />
@@ -268,14 +245,18 @@ function AnswerCards({ items, gutter, onOpen }: { items: Notification[]; gutter:
                 <Type variant="label" numberOfLines={1} style={[styles.source, { color: palette.fg }]}>{notificationSource(item.kind).toUpperCase()}</Type>
                 <Type variant="caption" numberOfLines={1} style={styles.time}>{timeAgo(item.created_at)}</Type>
               </View>
+              <Pressable accessibilityRole="button" accessibilityLabel={`Dismiss ${item.title}`}
+                onPress={() => onDismiss(item)} style={styles.dismiss}>
+                <Ionicons name="close" size={20} color={MUTED} />
+              </Pressable>
             </View>
             <Type variant="bodyStrong" numberOfLines={2} style={styles.cardTitle}>{item.title}</Type>
             <Type variant="caption" numberOfLines={2} style={styles.cardBody}>{item.body}</Type>
-            <View style={styles.cardAct}>
+            <Pressable accessibilityRole="button" accessibilityLabel={`Review ${item.title}`} onPress={() => onOpen(item)} style={styles.cardAct}>
               <Type variant="captionStrong" style={styles.cardActText}>Review</Type>
               <Ionicons name="arrow-forward" size={14} color={theme.color.field["0"]} />
-            </View>
-          </Pressable>
+            </Pressable>
+          </View>
         );
       })}
     </ScrollView>
@@ -386,6 +367,9 @@ function tonePalette(tone: NotificationTone) {
 }
 
 const styles = StyleSheet.create({
+  caughtUp: { minHeight: 160, alignItems: "center", justifyContent: "center", gap: space[3] },
+  olderToggle: { minHeight: 48, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  dismiss: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
   pad: {
     gap: space[3],
   },

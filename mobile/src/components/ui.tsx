@@ -6,7 +6,7 @@
  * single blended one.
  */
 
-import { createContext, forwardRef, useContext, useState, type ReactNode } from "react";
+import { createContext, forwardRef, useContext, useImperativeHandle, useRef, useState, type ReactNode } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -378,6 +378,8 @@ export const Field = forwardRef<TextInput, TextInputProps & {
   suffix?: ReactNode;
 }>(function Field({ label, hint, error, prefix, suffix, style, onFocus, onBlur, ...props }, ref) {
   const [focused, setFocused] = useState(false);
+  const input = useRef<TextInput>(null);
+  useImperativeHandle(ref, () => input.current as TextInput);
 
   return (
     <View style={{ gap: space[2] }}>
@@ -414,14 +416,16 @@ export const Field = forwardRef<TextInput, TextInputProps & {
           ]}
         >
         {prefix ? (
-          <View style={styles.inputPrefix}>
-            <Type variant="body" style={{ color: theme.color.ink["500"] }}>
+          // A tap on "+233" or "GH₵" is a tap on the field, and the prefix is
+          // set in the input's own size so the two share a baseline.
+          <Pressable accessible={false} onPress={() => input.current?.focus()} style={styles.inputPrefix}>
+            <Text maxFontSizeMultiplier={maxFontSizeMultiplier} style={styles.inputPrefixText}>
               {prefix}
-            </Type>
-          </View>
+            </Text>
+          </Pressable>
         ) : null}
         <TextInput
-          ref={ref}
+          ref={input}
           {...props}
           accessibilityLabel={label}
           accessibilityHint={hint}
@@ -706,6 +710,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: space[3],
   },
   inputPrefix: { justifyContent: "center", paddingLeft: space[3], paddingRight: space[2] },
+  inputPrefixText: { fontSize: 16, includeFontPadding: false, color: theme.color.ink["500"] },
   inputSuffix: { justifyContent: "center", paddingRight: space[2] },
   stamp: {
     paddingVertical: space[2],

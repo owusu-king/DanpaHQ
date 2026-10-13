@@ -32,6 +32,20 @@
 
 /* --- rows ------------------------------------------------------------------ */
 
+.updates-older > summary {
+  min-height: 44px;
+  cursor: pointer;
+  list-style: none;
+}
+.updates-older > summary::-webkit-details-marker { display: none; }
+.updates-older > summary .updates-chevron { margin-left: auto; transform: rotate(90deg); }
+.updates-older[open] > summary .updates-chevron { transform: rotate(-90deg); }
+.updates-older > summary:focus-visible {
+  outline: 2px solid var(--color-kola-600);
+  outline-offset: 4px;
+  border-radius: var(--radius-sm);
+}
+
 .update-item {
   position: relative;
   min-width: 0;

@@ -27,6 +27,9 @@ export default function AuthLayout() {
       <Stack.Screen name="code" options={{ headerShown: false }} />
       <Stack.Screen name="role" options={{ headerShown: false, gestureEnabled: false }} />
       <Stack.Screen name="onboarding" options={{ headerShown: false, gestureEnabled: false }} />
+      {/* Arrived at by the gate the moment an account exists. There is nothing
+          behind it to go back to: the steps before it are finished. */}
+      <Stack.Screen name="welcome" options={{ headerShown: false, gestureEnabled: false, animation: "fade" }} />
     </Stack>
   );
 }

@@ -18,8 +18,37 @@ import { getWebDeviceContext } from "./device";
 let accessToken: string | null = null;
 let expiresAt = 0;
 let inFlight: Promise<string> | null = null;
+let generation = 0;
+let loggedOut = false;
+const LOGOUT_KEY = "session.logged_out";
+
+function sessionEnded(): boolean {
+  try { return loggedOut || window.localStorage.getItem(LOGOUT_KEY) === "1"; }
+  catch { return loggedOut; }
+}
+
+function endedError() {
+  return new ApiFailure({ code: "signed_out", message: "Sign in to continue.", details: {}, requestId: "" }, 401);
+}
+
+/** Explicit logout survives an offline reload even if the HttpOnly cookie remains. */
+export async function endSession() {
+  const token = accessToken;
+  generation += 1;
+  loggedOut = true;
+  try { window.localStorage.setItem(LOGOUT_KEY, "1"); } catch { /* memory still protects this tab */ }
+  clearAccessToken();
+  // Let any cookie rotation finish before the final cookie deletion.
+  await inFlight?.catch(() => undefined);
+  if (token) await apiFetch("/auth/sign-out/", {
+    method: "POST", body: JSON.stringify({}), headers: { Authorization: `Bearer ${token}` },
+  }).catch(() => undefined);
+}
 
 export function setAccessToken(token: string, expiresInSeconds: number) {
+  generation += 1;
+  loggedOut = false;
+  try { window.localStorage.removeItem(LOGOUT_KEY); } catch { /* storage optional */ }
   accessToken = token;
   expiresAt = Date.now() + expiresInSeconds * 1000;
 }
@@ -38,7 +67,9 @@ export function clearAccessToken() {
  * guessed "signed out" — so an unreachable API logged people out.
  */
 async function refresh(): Promise<string> {
+  if (sessionEnded()) throw endedError();
   if (inFlight) return inFlight;
+  const started = generation;
 
   inFlight = (async () => {
     try {
@@ -46,13 +77,21 @@ async function refresh(): Promise<string> {
         "/auth/refresh/",
         { method: "POST", body: JSON.stringify(getWebDeviceContext()) },
       );
-      setAccessToken(result.access_token, result.expires_in);
+      if (started !== generation || sessionEnded()) {
+        if (sessionEnded()) await apiFetch("/auth/sign-out/", {
+          method: "POST", body: JSON.stringify({}),
+          headers: { Authorization: `Bearer ${result.access_token}` },
+        }).catch(() => undefined);
+        throw endedError();
+      }
+      accessToken = result.access_token;
+      expiresAt = Date.now() + result.expires_in * 1000;
       return result.access_token;
     } catch (cause) {
       // Refused: the refresh token is spent, revoked or absent. That is a real
       // sign-out and the memory copy goes with it. Unreachable is not, and the
       // token is left alone so a later attempt can still use it.
-      if (cause instanceof ApiFailure && cause.status >= 400 && cause.status < 500) {
+      if (started === generation && cause instanceof ApiFailure && [400, 401, 403, 422].includes(cause.status)) {
         clearAccessToken();
       }
       throw cause;
@@ -72,6 +111,7 @@ async function refresh(): Promise<string> {
  * those two must not arrive looking the same.
  */
 export async function getAccessToken(): Promise<string> {
+  if (sessionEnded()) throw endedError();
   // Refresh a minute early so a token cannot expire mid-request.
   if (accessToken && Date.now() < expiresAt - 60_000) return accessToken;
   return refresh();

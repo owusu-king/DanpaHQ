@@ -387,6 +387,69 @@ class AuthChallenge(models.Model):
         return max(int((self.locked_until - timezone.now()).total_seconds()), 0)
 
 
+class EmailVerification(models.Model):
+    """A six-digit code sent to an email address someone wants on their account.
+
+    The address is not the account's until the code comes back. Until then it
+    lives here, and whatever address the account already had stays exactly as
+    it was — so a mistyped address, or one belonging to somebody else, never
+    replaces a working one.
+
+    Separate from :class:`AuthChallenge`, which is keyed on a phone number and
+    carries sign-in semantics; this proves an inbox for an account that is
+    already signed in, and nothing else. Like it, it never stores the code: only
+    a peppered HMAC.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="email_verifications")
+    email = models.EmailField()
+
+    code_hash = models.CharField(max_length=64)
+    code_salt = models.CharField(max_length=32)
+
+    status = models.CharField(
+        max_length=16, choices=ChallengeStatus.choices, default=ChallengeStatus.PENDING
+    )
+    attempts = models.PositiveSmallIntegerField(default=0)
+    send_count = models.PositiveSmallIntegerField(default=1)
+
+    expires_at = models.DateTimeField()
+    last_sent_at = models.DateTimeField(default=timezone.now)
+    consumed_at = models.DateTimeField(null=True, blank=True)
+    locked_until = models.DateTimeField(null=True, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "identity_email_verification"
+        indexes = [
+            models.Index(
+                fields=["user", "-created_at"],
+                name="email_verify_lookup_idx",
+                condition=models.Q(status="pending"),
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"email verification for {self.user_id} ({self.status})"
+
+    @property
+    def is_live(self) -> bool:
+        return self.status == ChallengeStatus.PENDING and timezone.now() < self.expires_at
+
+    @property
+    def age_seconds(self) -> int:
+        return int((timezone.now() - self.last_sent_at).total_seconds())
+
+    @property
+    def lockout_seconds_remaining(self) -> int:
+        if not self.locked_until:
+            return 0
+        return max(int((self.locked_until - timezone.now()).total_seconds()), 0)
+
+
 class Device(models.Model):
     """A phone or browser that has signed in.
 

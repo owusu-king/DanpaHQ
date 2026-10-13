@@ -81,7 +81,9 @@ export default function ListingDetailScreen() {
 
   async function continueWithPhone(next = `/(app)/listing/${id}`) {
     await rememberOnboardingIntent("find_property");
-    router.push({ pathname: "/(auth)/phone", params: { next, intent: "find_property" } });
+    // Somebody saving or applying for a home is a tenant: straight to the
+    // details step, which already knows which account this is.
+    router.push({ pathname: "/(auth)/register", params: { workspace: "tenant", next } });
   }
 
   useEffect(() => {

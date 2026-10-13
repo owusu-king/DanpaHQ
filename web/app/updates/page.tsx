@@ -8,7 +8,7 @@ import { Icon, type IconName } from "@/components/portal/icons";
 import { useToast } from "@/components/toast/Toaster";
 import { PanelSkeleton, PanelState, WorkspaceHead } from "@/components/workspace/Workspace";
 import { ApiFailure } from "@/lib/api";
-import { listNotifications, markNotificationsRead, type Notification } from "@/lib/console";
+import { listNotificationHistory, markNotificationsRead, type Notification } from "@/lib/console";
 import {
   destination,
   needsYou,
@@ -18,11 +18,6 @@ import {
 } from "@/lib/notificationMeaning";
 
 type Group = { key: string; title: string; items: Notification[]; urgent?: boolean; note?: string };
-
-/** How much activity a person keeps; the server prunes to the same number. */
-const RECENT_KEPT = 10;
-/** Unread activity older than this is shown as past, not new. */
-const STALE_DAYS = 14;
 
 /** Where someone was when they opened an update, so Back lands them there. */
 const RETURN_KEY = "updates.return";
@@ -34,16 +29,7 @@ function announceUnread(count: number) {
   window.dispatchEvent(new CustomEvent("rooomly:unread", { detail: count }));
 }
 
-/**
- * Updates: what is new, and what happened recently — never a log.
- *
- * A reminder (rent due, a viewing about to start, a lease nearing its end) is
- * informational: once read it has done its job and the server deletes it, so
- * it leaves this page the moment it is read. Activity — something that
- * happened to a record — is kept, the ten most recent. Nobody pages through
- * history here; management reads the full record in the audit log, and the
- * work itself lives on Home and each record's page.
- */
+/** Alerts clear when read; activity stays available in full. */
 export default function UpdatesPage() {
   const router = useRouter();
   const { toast } = useToast();
@@ -59,7 +45,7 @@ export default function UpdatesPage() {
 
   const load = useCallback(async () => {
     try {
-      const page = await listNotifications();
+      const page = await listNotificationHistory();
       setItems(page.results);
       setUnread(page.unread_count);
       announceUnread(page.unread_count);
@@ -87,47 +73,20 @@ export default function UpdatesPage() {
     void load();
   }, [load]);
 
-  // New first — what needs an answer, then everything else unread — then the
-  // recent activity that has been read. Read reminders are never here.
   const groups = useMemo<Group[]>(() => {
-    const source = items ?? [];
-    // A record does not know when the thing it is about was dealt with, so an
-    // unread one weeks old — even "an agreement to look at" — is past, not new:
-    // it joins the recent pool rather than waiting forever (a tenant had 72
-    // unread rows, 18 of them "needing" answers long since given). Repeats about
-    // the same thing keep only the newest. Home's own attention list reads live
-    // state, so nothing truly outstanding is lost.
-    const staleBefore = Date.now() - STALE_DAYS * 86_400_000;
-    const stale = (item: Notification) => new Date(item.created_at).getTime() < staleBefore;
-    const seen = new Set<string>();
-    const latest = source.filter((item) => {
-      const key = `${item.kind}:${item.target_type}:${item.target_id}`;
-      if (!item.target_id || !seen.has(key)) { seen.add(key); return true; }
-      return false;
-    });
-    const fresh = latest.filter((item) => !item.is_read && !stale(item));
-    const waiting = fresh.filter(needsYou);
-    const other = fresh.filter((item) => !needsYou(item)).slice(0, RECENT_KEPT);
-    const recent = latest
-      .filter((item) => item.record === "activity" && (item.is_read || stale(item)))
-      .slice(0, RECENT_KEPT);
+    const source = [...(items ?? [])].sort((a, b) => b.created_at.localeCompare(a.created_at));
+    const alerts = source.filter((item) => item.record === "informational" && !item.is_read);
+    const activity = source.filter((item) => item.record === "activity");
     const result: Group[] = [];
-    if (waiting.length) result.push({ key: "attention", title: "Needs your attention", items: waiting, urgent: true });
-    if (other.length) result.push({ key: "new", title: "New", items: other });
-    if (recent.length) {
-      result.push({
-        key: "recent",
-        title: "Recent activity",
-        items: recent,
-        note: `Your ${RECENT_KEPT} most recent. Older activity clears on its own, and reminders clear once read.`,
-      });
-    }
+    if (alerts.length) result.push({ key: "attention", title: "Alerts", items: alerts });
+    if (activity.length) result.push({ key: "recent", title: "Recent activity", items: activity.slice(0, 5) });
+    if (activity.length > 5) result.push({ key: "older", title: "Older", items: activity.slice(5) });
     return result;
   }, [items]);
 
   const shown = groups.reduce((sum, group) => sum + group.items.length, 0);
   const waitingCount = groups.find((group) => group.key === "attention")?.items.length ?? 0;
-  const newCount = waitingCount + (groups.find((group) => group.key === "new")?.items.length ?? 0);
+  const newCount = items?.filter((item) => !item.is_read).length ?? 0;
 
   // Coming back from a record: the same place, and a brief mark on the row
   // that was opened so the eye finds its way back — if it is still here.
@@ -135,8 +94,10 @@ export default function UpdatesPage() {
     const saved = pendingReturn.current;
     if (!saved || !items?.length) return;
     pendingReturn.current = null;
-    window.scrollTo({ top: saved.y, behavior: "instant" });
     const row = document.querySelector<HTMLButtonElement>(`[data-update-id="${CSS.escape(saved.id)}"]`);
+    const older = row?.closest<HTMLDetailsElement>("details");
+    if (older) older.open = true;
+    window.scrollTo({ top: saved.y, behavior: "instant" });
     if (!row) return;
     setReturnedTo(saved.id);
     row.focus({ preventScroll: true });
@@ -178,7 +139,7 @@ export default function UpdatesPage() {
         .map((item) => ({ ...item, is_read: true })) ?? null);
       setUnread(0);
       announceUnread(0);
-      toast({ tone: "success", title: "All caught up", description: "Reminders were cleared. Your recent activity stays." });
+      toast({ tone: "success", title: "All caught up", description: "Reminders were cleared. Your activity history stays." });
     } catch (cause) {
       toast({
         tone: "error",
@@ -255,7 +216,7 @@ export default function UpdatesPage() {
           <PanelState
             icon="check"
             title="You’re all caught up"
-            body="New viewing, application, agreement and payment updates appear here. Reminders clear once read, and your ten most recent activities stay."
+            body="New viewing, application, agreement and payment updates appear here. Alerts clear once read. Your activity history stays."
           />
         ) : null}
 
@@ -298,12 +259,7 @@ function UpdateSection({
   onOpen: (item: Notification) => void;
   onAcknowledge: (item: Notification) => void;
 }) {
-  return (
-    <section className={`ws-group${group.urgent ? " is-urgent" : ""}`} aria-labelledby={`updates-${group.key}`}>
-      <h2 className="ws-group-heading" id={`updates-${group.key}`}>
-        {group.title}<span>{group.items.length}</span>
-      </h2>
-      {group.note ? <p className="updates-group-note">{group.note}</p> : null}
+  const rows = (
       <ul className="ws-rows">
         {group.items.map((item, index) => (
           <UpdateRow
@@ -318,6 +274,27 @@ function UpdateSection({
           />
         ))}
       </ul>
+  );
+
+  if (group.key === "older") {
+    return (
+      <details className="ws-group updates-older">
+        <summary className="ws-group-heading">
+          {group.title}<span>{group.items.length}</span>
+          <Chevron />
+        </summary>
+        {rows}
+      </details>
+    );
+  }
+
+  return (
+    <section className={`ws-group${group.urgent ? " is-urgent" : ""}`} aria-labelledby={`updates-${group.key}`}>
+      <h2 className="ws-group-heading" id={`updates-${group.key}`}>
+        {group.title}<span>{group.items.length}</span>
+      </h2>
+      {group.note ? <p className="updates-group-note">{group.note}</p> : null}
+      {rows}
     </section>
   );
 }
@@ -406,7 +383,8 @@ function moveFocus(event: React.KeyboardEvent<HTMLDivElement>) {
   if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
   const target = event.target as HTMLElement;
   if (!target.classList.contains("update-row")) return;
-  const rows = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>(".update-row"));
+  const rows = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>(".update-row"))
+    .filter((row) => row.offsetParent !== null);
   const index = rows.indexOf(target as HTMLButtonElement);
   const next = event.key === "Home" ? 0
     : event.key === "End" ? rows.length - 1

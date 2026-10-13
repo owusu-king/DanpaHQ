@@ -9,6 +9,7 @@ import { LaunchCurtain } from "@/components/shell/LaunchScreen";
 import { TypographyScaleProvider } from "@/components/ui";
 import { resolveEntryRoute } from "@/navigation";
 import { gestureBackEnabled, stackAnimation } from "@/platform";
+import { accountJustCreated } from "@/registrationDraft";
 import { navigationTheme, shell } from "@/shell";
 
 /**
@@ -75,10 +76,16 @@ function entryRedirect(
 
   if (session.status === "signed_out") {
     if (inPublicDiscovery || (inAuthFlow && signedOutScreen)) return null;
-    // Always the question. There is no longer a story in front of it to skip,
-    // and so no flag deciding whether this person has earned the right to skip
-    // it: opening the app signed out means being asked how you will use it.
-    return renterTwin ?? "/(auth)/start";
+    // Installation history only chooses the front door. Account completion and
+    // provider verification are read from /me after authentication.
+    return renterTwin ?? (session.firstVisit ? "/(auth)/start" : "/(auth)/sign-in");
+  }
+
+  // An account created a moment ago on this device sees the welcome before
+  // anything else, exactly once. The flag lives in memory, so a relaunch never
+  // shows it again: a returning person goes straight to where they belong.
+  if (accountJustCreated() && session.me.registration_state === "complete") {
+    return inAuthFlow && screen === "welcome" ? null : "/(auth)/welcome";
   }
 
   const destination = resolveEntryRoute(session.me, activeContext);
@@ -144,6 +151,7 @@ function Shell() {
         importantForAccessibility={settled ? "auto" : "no-hide-descendants"}
       >
         <Stack
+          key={state.status === "signed_in" ? state.me.id : "public"}
           screenOptions={{
             headerShown: false,
             contentStyle: { backgroundColor: shell.canvas },

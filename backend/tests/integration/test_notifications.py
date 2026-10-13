@@ -357,13 +357,7 @@ def _note(user, kind, key, title="x"):
 
 
 class TestRetention:
-    """People are not shown a log.
-
-    A reminder is gone once it is read; activity keeps only the ten most
-    recent. Nothing unread is ever deleted, and a deleted notification still
-    counts as sent, so a sweep never sends it twice. Management reads the full
-    history in the audit log, which none of this touches.
-    """
+    """Read alerts disappear; every activity remains in the user history."""
 
     def test_a_reminder_is_deleted_once_read(self, user):
         reminder = _note(user, "rent.payment_due_now", "r:1")
@@ -382,13 +376,13 @@ class TestRetention:
 
         assert Notification.objects.filter(id=reminder.id, read_at__isnull=True).exists()
 
-    def test_only_the_ten_most_recent_activities_are_kept(self, user):
+    def test_all_read_activities_are_kept(self, user):
         for index in range(14):
             _note(user, "viewing.confirmed", f"v:{index}", title=f"Confirmed {index}")
         mark_read(user=user)
 
         kept = Notification.objects.filter(user=user).order_by("created_at")
-        expected = [f"Confirmed {index}" for index in range(4, 14)]
+        expected = [f"Confirmed {index}" for index in range(14)]
         assert list(kept.values_list("title", flat=True)) == expected
 
     def test_unread_activity_is_never_pruned(self, user):
@@ -413,7 +407,7 @@ class TestRetention:
         mark_read(user=landlord)
         mark_read(user=user)
 
-        assert Notification.objects.filter(user=landlord).count() == 10
+        assert Notification.objects.filter(user=landlord).count() == 12
         assert Notification.objects.filter(user=user).count() == 1
 
     def test_each_record_says_what_kind_it_is(self, user):
@@ -444,6 +438,33 @@ class TestApi:
 
         read = api.post("/api/v1/me/notifications/read/", {}, format="json")
         assert read.data["unread_count"] == 0
+
+    def test_full_history_pages_without_crossing_accounts(self, api, user, landlord):
+        # Same kind and target must remain distinct historical events.
+        notes = [Notification(user=user, kind="viewing.confirmed", title=f"Event {i}",
+                              body="History", target_type="viewing", target_id="same", dedupe_key=f"history:{i}")
+                 for i in range(115)]
+        Notification.objects.bulk_create(notes)
+        _note(landlord, "viewing.confirmed", "private-other")
+        mark_read(user=user)
+        first = api.get("/api/v1/me/notifications/")
+        assert len(first.data["results"]) == 100
+        second = api.get("/api/v1/me/notifications/", {"cursor": first.data["next_cursor"]})
+        assert len(second.data["results"]) == 15
+        assert second.data["next_cursor"] is None
+        ids = [row["id"] for row in first.data["results"] + second.data["results"]]
+        assert len(set(ids)) == 115
+        assert set(ids) == {str(note.id) for note in notes}
+
+    def test_dismissing_alert_keeps_activity_and_other_users_alerts(self, api, user, landlord):
+        alert = _note(user, "lease.expiring", "dismiss-me")
+        event = _note(user, "lease.offered", "keep-event")
+        other = _note(landlord, "lease.expiring", "keep-private")
+        response = api.post("/api/v1/me/notifications/read/", {"ids": [str(alert.id), str(other.id)]}, format="json")
+        assert response.status_code == 200
+        assert not Notification.objects.filter(id=alert.id).exists()
+        assert Notification.objects.filter(id=event.id).exists()
+        assert Notification.objects.filter(id=other.id, read_at__isnull=True).exists()
 
     def test_preferences_can_be_changed(self, api):
         response = api.patch(
@@ -530,12 +551,14 @@ class TestStaleNotificationsAgeOut:
         assert unread == {str(fresh.id)}
         assert str(old.id) not in unread
 
-    def test_an_aged_out_reminder_is_pruned(self, user):
+    def test_an_old_alert_waits_for_explicit_acknowledgement(self, user):
         from apps.notifications.services import age_out
 
         reminder = self._make(user, days_old=30, kind="rent.payment_overdue", key="due")
 
-        assert age_out(user=user) == 1
+        assert age_out(user=user) == 0
+        assert Notification.objects.filter(id=reminder.id, read_at__isnull=True).exists()
+        mark_read(user=user, notification_ids=[reminder.id])
         assert not Notification.objects.filter(id=reminder.id).exists()
 
     def test_the_daily_sweep_covers_everyone(self, user, registered):

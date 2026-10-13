@@ -1,6 +1,6 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import * as ImagePicker from "expo-image-picker";
-import { Fragment, useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -10,20 +10,30 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  TextInput,
   View,
-  type TextInputProps,
 } from "react-native";
 import Svg, { Circle, Defs, LinearGradient, Rect, Stop } from "react-native-svg";
 
 import { apiFetch, ApiFailure } from "@/api";
 import { useAuth } from "@/auth";
 import { IndexGround } from "@/components/account/IndexRows";
+import {
+  ActionRow,
+  ChoiceRow,
+  EmailSheet,
+  FieldRow,
+  GlassPanel,
+  ReadRow,
+  SectionTitle,
+  StatusBadge,
+  StepperRow,
+  YesNoRow,
+} from "@/components/account/ProfileSections";
 import { ph, useHomeDensity } from "@/components/home/plinth";
 import { Notice, Type, space } from "@/components/ui";
 import { useReduceMotion } from "@/motion";
 import { resolvePhotoUrl, setProfilePhoto } from "@/photo";
-import { isAndroid, isIOS, maxFontSizeMultiplier, useSafeBottom } from "@/platform";
+import { isAndroid, isIOS, useSafeBottom } from "@/platform";
 import { uploadImage } from "@/provider";
 import { alpha } from "@/shell";
 import { theme } from "@/theme";
@@ -52,17 +62,62 @@ const DEEP = theme.color.kola["900"];
 const INK = theme.color.ink["900"];
 const KOLA = theme.color.kola["600"];
 
-/** Frosted glass on the hub ground, settled by a line in its own green. */
-const GLASS = alpha(WHITE, 0.72);
+/** The badge's edge on the hub ground, in its own green. */
 const GLASS_EDGE = alpha(DEEP, 0.08);
-const RULE = alpha(DEEP, 0.08);
-/** A row being typed in: a breath of kola behind it. */
-const FOCUS = alpha(KOLA, 0.06);
 /** Secondary words, dark enough to read over the deepest part of the ground. */
 const META = alpha(INK, 0.7);
-const PLACEHOLDER = alpha(INK, 0.42);
 const RING_TRACK = alpha(DEEP, 0.1);
-const PANEL_RADIUS = 16;
+
+type TenantDetails = {
+  occupation: string;
+  employer: string;
+  income_band: string;
+  household_size: number | null;
+  move_in_from: string | null;
+  budget_max_minor: number | null;
+  has_pets: boolean | null;
+  smoker: boolean | null;
+};
+
+type BusinessDetails = {
+  is_company: boolean;
+  company_name: string;
+  company_registration_number: string;
+};
+
+const INCOME_BANDS = [
+  { value: "under_1000", label: "Under GH₵1,000" },
+  { value: "1000_3000", label: "GH₵1,000 – 3,000" },
+  { value: "3000_6000", label: "GH₵3,000 – 6,000" },
+  { value: "6000_10000", label: "GH₵6,000 – 10,000" },
+  { value: "over_10000", label: "Over GH₵10,000" },
+  { value: "prefer_not_to_say", label: "Prefer not to say" },
+];
+
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+/** `1994-03-02` as "2 March 1994", without leaning on a device's Intl data. */
+function longDate(value: string | null | undefined): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value ?? "");
+  if (!match) return "Not given";
+  return `${Number(match[3])} ${MONTHS[Number(match[2]) - 1] ?? ""} ${match[1]}`;
+}
+
+/** Digits in, `YYYY-MM-DD` out, as far as the person has typed. */
+function formatDate(value: string): string {
+  const digits = value.replace(/\D/g, "").slice(0, 8);
+  return [digits.slice(0, 4), digits.slice(4, 6), digits.slice(6, 8)].filter(Boolean).join("-");
+}
+
+/** Only the fields that changed, so a save never rewrites what it did not touch. */
+function changed<T extends Record<string, unknown>>(before: T | null, after: T | null): Partial<T> {
+  if (!before || !after) return {};
+  const out: Partial<T> = {};
+  for (const key of Object.keys(after) as (keyof T)[]) {
+    if (after[key] !== before[key]) out[key] = after[key];
+  }
+  return out;
+}
 
 export default function ProfileScreen() {
   const pageBottom = useSafeBottom(space[12]);
@@ -74,11 +129,24 @@ export default function ProfileScreen() {
   const [firstName, setFirstName] = useState(me?.first_name ?? "");
   const [lastName, setLastName] = useState(me?.last_name ?? "");
   const [preferredName, setPreferredName] = useState(me?.preferred_name ?? "");
+  const [bio, setBio] = useState(me?.profile?.bio ?? "");
   const [dataSaver, setDataSaver] = useState(me?.data_saver ?? false);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
   const [photoBusy, setPhotoBusy] = useState(false);
   const [photoUri, setPhotoUri] = useState<string | null>(null);
+  const [emailOpen, setEmailOpen] = useState(false);
+
+  // The role parts of a profile, read once and saved only where they changed.
+  // A section is drawn only for a role this account holds: the API refuses the
+  // others, and asking a tenant for a company registration number is noise.
+  const isTenant = Boolean(me?.roles.includes("tenant"));
+  const isLandlord = Boolean(me?.roles.includes("landlord"));
+  const [tenant, setTenant] = useState<TenantDetails | null>(null);
+  const [tenantSaved, setTenantSaved] = useState<TenantDetails | null>(null);
+  const [business, setBusiness] = useState<BusinessDetails | null>(null);
+  const [businessSaved, setBusinessSaved] = useState<BusinessDetails | null>(null);
+  const [budgetText, setBudgetText] = useState("");
 
   // The screen can mount before the session has been read: a refresh, or a link
   // straight here, draws it behind the launch curtain. So the fields are filled
@@ -92,8 +160,35 @@ export default function ProfileScreen() {
     setFirstName(me.first_name);
     setLastName(me.last_name);
     setPreferredName(me.preferred_name);
+    setBio(me.profile?.bio ?? "");
     setDataSaver(me.data_saver);
   }, [me]);
+
+  useEffect(() => {
+    let live = true;
+    if (isTenant) {
+      void apiFetch<TenantDetails>("/me/profile/tenant/")
+        .then((details) => {
+          if (!live) return;
+          setTenant(details);
+          setTenantSaved(details);
+          setBudgetText(details.budget_max_minor ? String(Math.round(details.budget_max_minor / 100)) : "");
+        })
+        .catch(() => null);
+    }
+    if (isLandlord) {
+      void apiFetch<BusinessDetails>("/me/profile/landlord/")
+        .then((details) => {
+          if (!live) return;
+          setBusiness(details);
+          setBusinessSaved(details);
+        })
+        .catch(() => null);
+    }
+    return () => {
+      live = false;
+    };
+  }, [isLandlord, isTenant]);
 
   const avatarEndpoint = me?.profile?.avatar_url ?? null;
 
@@ -129,6 +224,14 @@ export default function ProfileScreen() {
     setSaved(false);
     set(value);
   };
+  const editTenant = <K extends keyof TenantDetails>(key: K, value: TenantDetails[K]) => {
+    setSaved(false);
+    setTenant((current) => (current ? { ...current, [key]: value } : current));
+  };
+  const editBusiness = <K extends keyof BusinessDetails>(key: K, value: BusinessDetails[K]) => {
+    setSaved(false);
+    setBusiness((current) => (current ? { ...current, [key]: value } : current));
+  };
 
   async function save() {
     setSaving(true);
@@ -136,15 +239,31 @@ export default function ProfileScreen() {
     setSaved(false);
 
     try {
-      await apiFetch("/me/", {
-        method: "PATCH",
-        body: {
-          first_name: firstName,
-          last_name: lastName,
-          preferred_name: preferredName,
-          data_saver: dataSaver,
-        },
-      });
+      const writes: Promise<unknown>[] = [
+        apiFetch("/me/", {
+          method: "PATCH",
+          body: {
+            first_name: firstName,
+            last_name: lastName,
+            preferred_name: preferredName,
+            data_saver: dataSaver,
+          },
+        }),
+      ];
+      if (bio !== (me?.profile?.bio ?? "")) {
+        writes.push(apiFetch("/me/profile/", { method: "PATCH", body: { bio } }));
+      }
+      const tenantChanges = changed(tenantSaved, tenant);
+      if (Object.keys(tenantChanges).length) {
+        writes.push(apiFetch("/me/profile/tenant/", { method: "PATCH", body: tenantChanges }));
+      }
+      const businessChanges = changed(businessSaved, business);
+      if (Object.keys(businessChanges).length) {
+        writes.push(apiFetch("/me/profile/landlord/", { method: "PATCH", body: businessChanges }));
+      }
+      await Promise.all(writes);
+      setTenantSaved(tenant);
+      setBusinessSaved(business);
 
       await refreshMe();
       setSaved(true);
@@ -255,32 +374,160 @@ export default function ProfileScreen() {
           />
 
           <View style={{ gap: space[2] }}>
+            <SectionTitle>Your name</SectionTitle>
             <GlassPanel>
-              <NameRow
+              <FieldRow
                 label="Preferred name"
                 value={preferredName}
                 onChangeText={edit(setPreferredName)}
                 placeholder="Kobby"
                 textContentType="nickname"
               />
-              <NameRow
+              <FieldRow
                 label="First name"
                 value={firstName}
                 onChangeText={edit(setFirstName)}
                 textContentType="givenName"
               />
-              <NameRow
+              <FieldRow
                 label="Surname"
                 value={lastName}
                 onChangeText={edit(setLastName)}
                 textContentType="familyName"
               />
             </GlassPanel>
-            {/* The one sentence on the page: it is about who can see you. */}
             <Type variant="caption" style={styles.footnote}>
               Landlords and agents see your preferred name.
             </Type>
           </View>
+
+          {/* How Rooomly reaches you. The number is how you sign in, so it is
+              shown and locked; the email is added or changed through a code. */}
+          <View style={{ gap: space[2] }}>
+            <SectionTitle>Contact</SectionTitle>
+            <GlassPanel>
+              <ReadRow label="Phone" value={me.phone_display} note="How you sign in" />
+              <ActionRow
+                label="Email"
+                value={me.email ?? undefined}
+                placeholder="Add an email"
+                accessibilityLabel={
+                  me.email
+                    ? `Email ${me.email}, ${me.is_email_verified ? "confirmed" : "not confirmed"}. Change or confirm.`
+                    : "Add an email address"
+                }
+                badge={
+                  me.email ? (
+                    me.is_email_verified ? (
+                      <StatusBadge tone="good" label="Confirmed" />
+                    ) : (
+                      <StatusBadge tone="waiting" label="Tap to confirm" />
+                    )
+                  ) : null
+                }
+                onPress={() => setEmailOpen(true)}
+              />
+            </GlassPanel>
+          </View>
+
+          <View style={{ gap: space[2] }}>
+            <SectionTitle>About you</SectionTitle>
+            <GlassPanel>
+              <ReadRow label="Date of birth" value={longDate(me.date_of_birth)} note="Set when you joined" />
+              <FieldRow
+                label="About"
+                value={bio}
+                onChangeText={edit(setBio)}
+                placeholder="A line or two for providers"
+                autoCapitalize="sentences"
+                multiline
+                maxLength={600}
+              />
+            </GlassPanel>
+          </View>
+
+          {isTenant && tenant ? (
+            <View style={{ gap: space[2] }}>
+              <SectionTitle>For your applications</SectionTitle>
+              <GlassPanel>
+                <FieldRow
+                  label="Occupation"
+                  value={tenant.occupation}
+                  onChangeText={(value) => editTenant("occupation", value)}
+                  placeholder="Nurse"
+                />
+                <FieldRow
+                  label="Employer"
+                  value={tenant.employer}
+                  onChangeText={(value) => editTenant("employer", value)}
+                  placeholder="Korle Bu"
+                />
+                <ChoiceRow
+                  label="Monthly income"
+                  value={tenant.income_band}
+                  options={INCOME_BANDS}
+                  onChange={(value) => editTenant("income_band", value)}
+                />
+                <FieldRow
+                  label="Rent budget"
+                  value={budgetText}
+                  onChangeText={(value) => {
+                    const digits = value.replace(/\D/g, "").slice(0, 7);
+                    setBudgetText(digits);
+                    editTenant("budget_max_minor", digits ? Number(digits) * 100 : null);
+                  }}
+                  placeholder="GH₵ a month"
+                  keyboardType="number-pad"
+                />
+                <FieldRow
+                  label="Move in from"
+                  value={tenant.move_in_from ?? ""}
+                  onChangeText={(value) => editTenant("move_in_from", formatDate(value) || null)}
+                  placeholder="2026-12-01"
+                  keyboardType="number-pad"
+                  maxLength={10}
+                />
+                <StepperRow
+                  label="Household"
+                  value={tenant.household_size}
+                  onChange={(value) => editTenant("household_size", value)}
+                />
+                <YesNoRow label="Pets" value={tenant.has_pets} onChange={(value) => editTenant("has_pets", value)} />
+                <YesNoRow label="Smoker" value={tenant.smoker} onChange={(value) => editTenant("smoker", value)} />
+              </GlassPanel>
+              <Type variant="caption" style={styles.footnote}>
+                Helps a provider read your application. Leave anything you would rather not say.
+              </Type>
+            </View>
+          ) : null}
+
+          {isLandlord && business ? (
+            <View style={{ gap: space[2] }}>
+              <SectionTitle>Your business</SectionTitle>
+              <GlassPanel>
+                <YesNoRow
+                  label="Registered company"
+                  value={business.is_company}
+                  onChange={(value) => editBusiness("is_company", Boolean(value))}
+                />
+                {business.is_company ? (
+                  <FieldRow
+                    label="Company name"
+                    value={business.company_name}
+                    onChangeText={(value) => editBusiness("company_name", value)}
+                  />
+                ) : null}
+                {business.is_company ? (
+                  <FieldRow
+                    label="Registration no."
+                    value={business.company_registration_number}
+                    onChangeText={(value) => editBusiness("company_registration_number", value)}
+                    autoCapitalize="characters"
+                  />
+                ) : null}
+              </GlassPanel>
+            </View>
+          ) : null}
 
           {error ? <Notice tone="error" title={error} /> : null}
 
@@ -293,6 +540,13 @@ export default function ProfileScreen() {
           />
         </ScrollView>
       </KeyboardAvoidingView>
+      <EmailSheet
+        visible={emailOpen}
+        onClose={() => setEmailOpen(false)}
+        current={me.email ?? null}
+        verified={Boolean(me.is_email_verified)}
+        onChanged={() => refreshMe()}
+      />
     </IndexGround>
   );
 }
@@ -448,65 +702,6 @@ function Initials({ initials, size }: { initials: string; size: number }) {
   );
 }
 
-/** One frosted panel, with a hairline between whatever it holds. */
-function GlassPanel({ children }: { children: React.ReactNode[] }) {
-  return (
-    <View style={[styles.panel, isAndroid ? null : styles.panelLift]}>
-      <View style={{ borderRadius: PANEL_RADIUS - 1, overflow: "hidden" }}>
-        {children.map((child, index) => (
-          <Fragment key={index}>
-            {index ? <View style={styles.rule} /> : null}
-            {child}
-          </Fragment>
-        ))}
-      </View>
-    </View>
-  );
-}
-
-/** A name, its label beside it rather than above, so three fit in a glance. */
-function NameRow({
-  label,
-  onFocus,
-  onBlur,
-  ...input
-}: TextInputProps & { label: string }) {
-  const density = useHomeDensity();
-  const [focused, setFocused] = useState(false);
-
-  return (
-    <View style={[styles.row, focused ? { backgroundColor: FOCUS } : null]}>
-      <Type
-        variant="caption"
-        style={[
-          styles.rowLabel,
-          { width: density.veryCompact ? 96 : density.compact ? 104 : 112, color: focused ? theme.color.kola["800"] : META },
-        ]}
-      >
-        {label}
-      </Type>
-      <TextInput
-        {...input}
-        accessibilityLabel={label}
-        autoCapitalize="words"
-        maxFontSizeMultiplier={maxFontSizeMultiplier}
-        placeholderTextColor={PLACEHOLDER}
-        selectionColor={KOLA}
-        cursorColor={KOLA}
-        onFocus={(event) => {
-          setFocused(true);
-          onFocus?.(event);
-        }}
-        onBlur={(event) => {
-          setFocused(false);
-          onBlur?.(event);
-        }}
-        style={[styles.input, { fontSize: density.compact ? 15 : 15.5 }]}
-      />
-    </View>
-  );
-}
-
 /**
  * The page's one action, in Rooomly's green. While it works it says so, and once
  * the save lands it says that too, until something is changed again.
@@ -611,46 +806,6 @@ const styles = StyleSheet.create({
     height: 3,
     borderRadius: 2,
     backgroundColor: alpha(INK, 0.35),
-  },
-  panel: {
-    borderRadius: PANEL_RADIUS,
-    backgroundColor: GLASS,
-    borderWidth: 1,
-    borderColor: GLASS_EDGE,
-  },
-  // Android draws elevation through a translucent fill as a smudge, so there the
-  // edge does it alone.
-  panelLift: {
-    shadowColor: DEEP,
-    shadowOpacity: 0.05,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 6 },
-  },
-  rule: {
-    height: StyleSheet.hairlineWidth,
-    marginLeft: 14,
-    backgroundColor: RULE,
-  },
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: space[3],
-    minHeight: 52,
-    paddingHorizontal: 14,
-  },
-  rowLabel: {
-    fontSize: 13,
-    lineHeight: 18,
-  },
-  // The row's tint says where you are typing, so the browser's own focus ring is
-  // not drawn over it in the web preview.
-  input: {
-    flex: 1,
-    minWidth: 0,
-    alignSelf: "stretch",
-    paddingVertical: space[3],
-    color: INK,
-    outlineWidth: 0,
   },
   footnote: {
     paddingHorizontal: space[1],

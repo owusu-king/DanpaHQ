@@ -18,15 +18,17 @@ import { Notice, Type } from "@/components/ui";
 import { isAccountExists } from "@/formErrors";
 import { asOnboardingIntent, pendingOnboardingIntent } from "@/onboardingIntent";
 import { phoneInputProps } from "@/platform";
+import { clearRegistrationDraft } from "@/registrationDraft";
 
 /**
- * Step one of creating an account. It has one job: get a phone number,
+ * Step two of creating an account. It has one job: get a phone number,
  * correctly, from someone who may be standing in the sun on a cracked screen.
  *
  * Decisions that matter here:
  *
- * - **One field.** No email, no password, no name. Everything else can wait
- *   until after we know how to reach them.
+ * - **One field.** The name and password were given on the step before and are
+ *   held in memory (`registrationDraft`); the code screen creates the account
+ *   with them once this number is proved.
  * - **The +233 is fixed and shown, not typed.** People type 0241234567; the
  *   prefix is display, and the server normalises either way.
  * - **We say what happens next before it happens.** The supporting line sets the
@@ -58,6 +60,9 @@ export default function PhoneScreen() {
   // server tells us this instead of sending a code, so the person finds out
   // here rather than after waiting for an SMS and typing six digits.
   const [accountExists, setAccountExists] = useState(false);
+
+  // The details are still held, so going back finds them as they were left.
+  const backToDetails = () => (router.canGoBack() ? router.back() : router.replace("/(auth)/start"));
 
   const digits = phone.replace(/\D/g, "");
   const looksComplete = digits.length >= 9;
@@ -114,12 +119,12 @@ export default function PhoneScreen() {
 
   return (
     <AuthScene
-      progress={{ step: 1, of: 3 }}
-      header={<AuthBack label="Back to the start" onPress={() => router.replace("/(auth)/start")} />}
+      progress={{ step: 2, of: 3 }}
+      header={<AuthBack label="Back to your details" onPress={backToDetails} />}
     >
       <AuthHeading
-        title="Create your account"
-        line="We'll text a six-digit code to confirm your number."
+        title="Confirm your number"
+        line="It is how you sign in and how we reach you. We'll text a six-digit code."
       />
 
       <AuthFields>
@@ -160,17 +165,19 @@ export default function PhoneScreen() {
           />
           <AuthAction
             label="Sign in instead"
-            onPress={() =>
+            onPress={() => {
+              // The details were for a new account; this number already has one.
+              clearRegistrationDraft();
               router.replace({
                 pathname: "/(auth)/sign-in",
                 params: { phone, workspace },
-              })
-            }
+              });
+            }}
           />
         </>
       ) : (
         <AuthAction
-          label="Continue"
+          label="Send code"
           busyLabel="Sending…"
           onPress={requestCode}
           busy={busy}

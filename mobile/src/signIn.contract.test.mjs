@@ -57,7 +57,7 @@ test("authentication stays on one focused screen", () => {
   assert.doesNotMatch(screen, /apiFetch|chooseWorkspace|resolveEntryRoute|isNotAProvider/);
 
   // The opening question hands over; it does not contain another sign-in.
-  assert.match(question, /pathname: "\/\(auth\)\/sign-in"/);
+  assert.match(question, /router\.push\("\/\(auth\)\/sign-in"\)/);
   assert.doesNotMatch(question, /useSignInFlow|AuthSheet|SignInSheet|secureTextEntry/);
 });
 
@@ -71,14 +71,18 @@ test("the sign-in flow keeps the existing authority and routing decisions", () =
 });
 
 test("the chosen workspace survives the handoff from the question", () => {
+  // Role first, then details, then the number (owner, 2026-10-07). The answer
+  // to the question is the account type, so it rides into the details step and
+  // is never asked again there.
   const body = code(start());
   assert.match(body, /rememberOnboardingIntent\(intent\)/);
   assert.match(body, /workspace: intent === "manage_property" \? "provider" : "tenant"/);
-  assert.match(body, /router\.push\(\{\s*pathname: "\/\(auth\)\/sign-in"/);
+  assert.match(body, /router\.push\(\{\s*pathname: "\/\(auth\)\/register"/);
+  assert.doesNotMatch(code(read("mobile/app/(auth)/register.tsx")), /<PickCard\b/);
 
   // Browsing is a way of using Rooomly, not an account to open: no workspace,
   // no sign-in, straight to the public listings.
-  assert.match(body, /if \(intent === "find_property"\) \{\s*router\.replace\("\/\(app\)\/\(tabs\)\/explore"\);/);
+  assert.match(body, /router\.replace\("\/\(app\)\/\(tabs\)\/explore"\)/);
 });
 
 test("Ghana is the default and a password can be checked", () => {
@@ -291,8 +295,10 @@ test("sign in is the only primary action", () => {
 test("recovery, registration and public browsing remain one tap away", () => {
   const body = code(signIn());
   assert.match(body, /\/\(auth\)\/forgot-password/);
-  assert.match(body, /pathname: "\/\(auth\)\/phone"/);
-  assert.match(body, /params: \{ workspace: workspace \?\? undefined \}/);
+  // Into the journey at the right step: the details when the question was
+  // answered on the way here, the question itself when it was not.
+  assert.match(body, /pathname: "\/\(auth\)\/register", params: \{ workspace \}/);
+  assert.match(body, /router\.push\("\/\(auth\)\/start"\)/);
   assert.match(body, /\(tabs\)\/explore/);
 });
 

@@ -17,6 +17,10 @@ import { apiFetch, ApiFailure, setAuthTokenProvider } from "@/api";
 import { forgetPhotoUrls } from "@/photo";
 import { contextBelongsToWorkspace } from "@/navigation";
 import { clearPendingOnboardingIntent } from "@/onboardingIntent";
+import { clearRegistrationDraft, finishAccountWelcome } from "@/registrationDraft";
+import { useRouter } from "expo-router";
+import { clearServiceDetails } from "@/serviceAccounts";
+import { clearPrivateDocuments } from "@/privateDocuments";
 // The shape a Portfolio context carries. Type-only, so this stays a one-way
 // dependency: the API module knows nothing about the session that reads it.
 import type { PortfolioAccess } from "@/organizations";
@@ -26,6 +30,7 @@ const REFRESH_KEY = "auth.refresh_token";
 const DEVICE_KEY = "device.fingerprint";
 const CONTEXT_KEY = "account.active_context";
 const ME_SNAPSHOT_KEY = "auth.me_snapshot";
+const VISITED_KEY = "installation.visited";
 
 /** Only these responses mean the refresh credential itself was refused.
  * Throttling, timeouts and unrelated client errors must never erase a session. */
@@ -98,6 +103,11 @@ export type Me = {
   preferred_name: string;
   phone_display: string;
   is_phone_verified: boolean;
+  /** On the account only once its code was confirmed — or given at sign-up, unconfirmed. */
+  email?: string | null;
+  is_email_verified?: boolean;
+  /** Set at registration; read-only afterwards. */
+  date_of_birth?: string | null;
   roles: string[];
   primary_role: string;
   data_saver: boolean;
@@ -172,7 +182,7 @@ export type ProviderReadiness = {
 
 type AuthState =
   | { status: "loading" }
-  | { status: "signed_out" }
+  | { status: "signed_out"; firstVisit?: boolean }
   | { status: "signed_in"; me: Me };
 
 type AuthContextValue = {
@@ -201,6 +211,7 @@ async function loadDeviceFingerprint(): Promise<string> {
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
   const [state, setState] = useState<AuthState>({ status: "loading" });
   const [deviceFingerprint, setDeviceFingerprint] = useState("");
   const [activeContext, setActiveContextState] = useState<string | null>(null);
@@ -208,18 +219,49 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const accessToken = useRef<string | null>(null);
   const expiresAt = useRef<number>(0);
   const refreshInFlight = useRef<Promise<string | null> | null>(null);
+  const generation = useRef(0);
+  const signedOut = useRef(false);
+  const persistence = useRef<Promise<void>>(Promise.resolve());
+  const persistSession = useCallback((entries: [string, string][]) => {
+    const started = generation.current;
+    const write = persistence.current.catch(() => undefined).then(async () => {
+      for (const [key, value] of entries) {
+        if (started !== generation.current) return;
+        await secure.set(key, value);
+      }
+    });
+    persistence.current = write;
+    return write;
+  }, []);
 
   const clearLocal = useCallback(async () => {
+    generation.current += 1;
+    signedOut.current = true;
     accessToken.current = null;
     expiresAt.current = 0;
+    setActiveContextState(null);
+    clearRegistrationDraft();
+    finishAccountWelcome();
+    forgetPhotoUrls();
+    // A filesystem problem must not keep session credentials on the device.
+    try { clearPrivateDocuments(); } catch { /* cleanup can retry on next logout */ }
+    setState({ status: "loading" });
+    // Wait for a secure write already in progress, then remove its result.
+    // A response from the previous session must never survive this cleanup.
+    await refreshInFlight.current?.catch(() => undefined);
+    await persistence.current.catch(() => undefined);
     await secure.clear(REFRESH_KEY);
     await secure.clear(ME_SNAPSHOT_KEY);
+    await secure.clear(CONTEXT_KEY);
+    await clearServiceDetails();
     await clearPendingOnboardingIntent();
     setState({ status: "signed_out" });
   }, []);
 
   const refreshAccessToken = useCallback(async (): Promise<string | null> => {
+    if (signedOut.current) return null;
     if (refreshInFlight.current) return refreshInFlight.current;
+    const started = generation.current;
 
     refreshInFlight.current = (async () => {
       try {
@@ -258,7 +300,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Persist the rotated credential before publishing the access token.
         // If secure storage fails, no request should proceed as though the
         // rotation were safely committed on the handset.
-        await secure.set(REFRESH_KEY, result.refresh_token);
+        if (started !== generation.current) return null;
+        await persistSession([[REFRESH_KEY, result.refresh_token]]);
+        if (started !== generation.current) return null;
         accessToken.current = result.access_token;
         expiresAt.current = Date.now() + result.expires_in * 1000;
         return result.access_token;
@@ -268,7 +312,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // that would not answer) leaves the stored token alone so the app
         // recovers when the connection or the device does.
         if (isRefreshRefusal(cause)) {
-          await clearLocal();
+          // Do not make clearLocal wait on the refresh that is calling it.
+          refreshInFlight.current = null;
+          if (started === generation.current) await clearLocal();
         }
         // Do not turn an unavailable refresh into "no token". The caller would
         // then send a protected request anonymously, receive a 401, and treat a
@@ -281,7 +327,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     })();
 
     return refreshInFlight.current;
-  }, [clearLocal]);
+  }, [clearLocal, persistSession]);
 
   const getToken = useCallback(async () => {
     // Refresh a minute early: a token that expires mid-request produces a
@@ -300,9 +346,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [getToken, refreshAccessToken]);
 
   const refreshMe = useCallback(async (preferredContext?: string) => {
+    const started = generation.current;
     try {
       const me = await apiFetch<Me>("/me/");
       const storedContext = await secure.get(CONTEXT_KEY);
+      if (started !== generation.current || signedOut.current) return;
       const available = validContextIds(me);
       const context = preferredContext && available.includes(preferredContext)
         ? preferredContext
@@ -310,10 +358,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           ? storedContext
           : me.default_context_id ?? me.default_context;
       setActiveContextState(context);
-      if (context) await secure.set(CONTEXT_KEY, context);
-      await secure.set(ME_SNAPSHOT_KEY, JSON.stringify(me));
+      await persistSession([
+        ...(context ? [[CONTEXT_KEY, context] as [string, string]] : []),
+        [ME_SNAPSHOT_KEY, JSON.stringify(me)],
+      ]);
+      if (started !== generation.current || signedOut.current) return;
       setState({ status: "signed_in", me });
     } catch (cause) {
+      if (started !== generation.current || signedOut.current) return;
       // 403 is an authorization decision, not proof that authentication ended.
       // A stale access-token 401 has already received one forced refresh in the
       // API client; only a remaining 401 is a session-level refusal here.
@@ -328,6 +380,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (snapshot) {
         const me = JSON.parse(snapshot) as Me;
         const storedContext = await secure.get(CONTEXT_KEY);
+        if (started !== generation.current || signedOut.current) return;
         setActiveContextState(
           storedContext && validContextIds(me).includes(storedContext)
             ? storedContext
@@ -336,15 +389,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setState({ status: "signed_in", me });
       }
     }
-  }, [clearLocal]);
+  }, [clearLocal, persistSession]);
 
   useEffect(() => {
     (async () => {
       setDeviceFingerprint(await loadDeviceFingerprint());
+      const visited = await secure.get(VISITED_KEY);
+      await secure.set(VISITED_KEY, "1");
+      const started = generation.current;
       try {
         const token = await refreshAccessToken();
+        if (started !== generation.current) return;
         if (!token) {
-          setState({ status: "signed_out" });
+          setState({ status: "signed_out", firstVisit: !visited });
           return;
         }
         await refreshMe();
@@ -355,6 +412,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // state.
         const refreshToken = await secure.get(REFRESH_KEY);
         const snapshot = await secure.get(ME_SNAPSHOT_KEY);
+        if (started !== generation.current) return;
         if (refreshToken && snapshot) {
           const me = JSON.parse(snapshot) as Me;
           const storedContext = await secure.get(CONTEXT_KEY);
@@ -372,10 +430,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [refreshAccessToken, refreshMe]);
 
   const signIn = useCallback<AuthContextValue["signIn"]>(async (tokens, preferredContext) => {
+    generation.current += 1;
+    signedOut.current = false;
     accessToken.current = tokens.access_token;
     expiresAt.current = Date.now() + (tokens.expires_in ?? 15 * 60) * 1000;
-    await secure.set(REFRESH_KEY, tokens.refresh_token);
-    await secure.set(ME_SNAPSHOT_KEY, JSON.stringify(tokens.user));
+    await persistSession([[REFRESH_KEY, tokens.refresh_token], [ME_SNAPSHOT_KEY, JSON.stringify(tokens.user)]]);
     const storedContext = await secure.get(CONTEXT_KEY);
     const available = validContextIds(tokens.user);
     const context = preferredContext && available.includes(preferredContext)
@@ -384,26 +443,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         ? storedContext
         : tokens.user.default_context_id ?? tokens.user.default_context;
     setActiveContextState(context);
-    if (context) await secure.set(CONTEXT_KEY, context);
+    if (context) await persistSession([[CONTEXT_KEY, context]]);
     setState({ status: "signed_in", me: tokens.user });
     return context;
-  }, []);
+  }, [persistSession]);
 
   const setActiveContext = useCallback(async (context: string) => {
     if (state.status !== "signed_in" || !validContextIds(state.me).includes(context)) {
       throw new Error("That context is not available to this account.");
     }
-    await secure.set(CONTEXT_KEY, context);
+    await persistSession([[CONTEXT_KEY, context]]);
     setActiveContextState(context);
-  }, [state]);
+  }, [state, persistSession]);
 
   const signOut = useCallback(async () => {
-    void apiFetch("/auth/sign-out/", { method: "POST" }).catch(() => undefined);
+    const token = accessToken.current;
+    if (token) void apiFetch("/auth/sign-out/", { method: "POST", token, anonymous: true }).catch(() => undefined);
     // A resolved photo URL outliving the session is a leak, and on a shared
     // handset the next person would load the last one's picture.
     forgetPhotoUrls();
     await clearLocal();
-  }, [clearLocal]);
+    // Only when something is pushed: from a tab with nothing above it there is
+    // no stack to pop, and a bare dismissAll reports POP_TO_TOP as unhandled.
+    if (router.canDismiss()) router.dismissAll();
+    router.replace("/(auth)/sign-in");
+  }, [clearLocal, router]);
 
   const value = useMemo(
     () => ({ state, signIn, signOut, refreshMe, deviceFingerprint, activeContext, setActiveContext }),

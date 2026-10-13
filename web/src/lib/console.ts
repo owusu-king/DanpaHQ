@@ -1910,16 +1910,27 @@ export type Notification = {
   target_id: string;
   read_at: string | null;
   is_read: boolean;
-  /** A reminder ("informational") is deleted once read; "activity" is kept,
-   *  the ten most recent. The server decides; the client only reads it. */
+  /** A reminder ("informational") is deleted once read; "activity" is retained in history. The server decides; the client only reads it. */
   record: "informational" | "activity";
   created_at: string;
 };
 
-export function listNotifications() {
-  return authedFetch<{ unread_count: number; results: Notification[] }>(
-    "/me/notifications/",
+export function listNotifications(cursor?: string) {
+  return authedFetch<{ unread_count: number; results: Notification[]; next_cursor?: string | null }>(
+    `/me/notifications/${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""}`,
   );
+}
+
+export async function listNotificationHistory() {
+  const first = await listNotifications();
+  const results = [...first.results];
+  let cursor = first.next_cursor;
+  while (cursor) {
+    const page = await listNotifications(cursor);
+    results.push(...page.results);
+    cursor = page.next_cursor;
+  }
+  return { ...first, results: [...new Map(results.map((item) => [item.id, item])).values()], next_cursor: null };
 }
 
 export function markNotificationsRead(ids?: string[]) {
@@ -2203,6 +2214,84 @@ export function setProfilePhoto(fileId: string | null) {
   return authedFetch<ProfileDetail>("/me/profile/", {
     method: "PATCH",
     body: JSON.stringify({ avatar_file_id: fileId }),
+  });
+}
+
+/** A few lines about yourself, shown to providers you apply to. */
+export function setProfileBio(bio: string) {
+  return authedFetch<ProfileDetail>("/me/profile/", {
+    method: "PATCH",
+    body: JSON.stringify({ bio }),
+  });
+}
+
+export type EmailVerificationStarted = {
+  verification_id: string;
+  email: string;
+  expires_in: number;
+  resend_in: number;
+};
+
+/**
+ * Send a six-digit code to an address — adding one, changing one, or confirming
+ * the one given at sign-up. Asking again for the same address is a resend. The
+ * address joins the account only when `confirmEmail` succeeds.
+ */
+export function startEmailVerification(email: string) {
+  return authedFetch<EmailVerificationStarted>("/me/email/", {
+    method: "POST",
+    body: JSON.stringify({ email }),
+  });
+}
+
+export function confirmEmail(verificationId: string, code: string) {
+  return authedFetch<unknown>("/me/email/verify/", {
+    method: "POST",
+    body: JSON.stringify({ verification_id: verificationId, code }),
+  });
+}
+
+export function removeEmail() {
+  return authedFetch<unknown>("/me/email/", { method: "DELETE" });
+}
+
+/** What a provider reads alongside an application. Every field is optional. */
+export type TenantDetails = {
+  occupation: string;
+  employer: string;
+  income_band: string;
+  household_size: number | null;
+  move_in_from: string | null;
+  budget_max_minor: number | null;
+  has_pets: boolean | null;
+  smoker: boolean | null;
+};
+
+export function getTenantDetails() {
+  return authedFetch<TenantDetails>("/me/profile/tenant/");
+}
+
+export function updateTenantDetails(changes: Partial<TenantDetails>) {
+  return authedFetch<TenantDetails>("/me/profile/tenant/", {
+    method: "PATCH",
+    body: JSON.stringify(changes),
+  });
+}
+
+export type BusinessDetails = {
+  is_company: boolean;
+  company_name: string;
+  company_registration_number: string;
+};
+
+export function getBusinessDetails() {
+  return authedFetch<BusinessDetails>("/me/profile/landlord/");
+}
+
+export function updateBusinessDetails(changes: Partial<BusinessDetails>) {
+  return authedFetch<BusinessDetails>("/me/profile/landlord/", {
+    method: "PATCH",
+    body: JSON.stringify(changes),
   });
 }
 

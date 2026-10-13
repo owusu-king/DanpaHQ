@@ -51,9 +51,11 @@ const cache = new Map<string, { url: string; expiresAt: number }>();
  * person's data being spent several times over for one picture.
  */
 const inFlight = new Map<string, Promise<string | null>>();
+let generation = 0;
 
 /** Cleared on sign-out: a cached photo URL outliving the session is a leak. */
 export function forgetPhotoUrls() {
+  generation += 1;
   cache.clear();
   inFlight.clear();
 }
@@ -74,13 +76,14 @@ export function resolvePhotoUrl(endpointPath: string | null): Promise<string | n
   const pending = inFlight.get(endpointPath);
   if (pending) return pending;
 
+  const started = generation;
   const request = (async () => {
     try {
       // `apiFetch` takes a path relative to the API root, and `avatar_url`
       // arrives already prefixed with it.
       const path = endpointPath.replace(/^\/api\/v1/, "");
       const resolved = await apiFetch<Resolved>(path);
-      if (!resolved?.url) return null;
+      if (!resolved?.url || started !== generation) return null;
 
       // Expire early. A URL that dies mid-fetch shows a broken image, and 30
       // seconds of slack is cheaper than that.
@@ -92,7 +95,7 @@ export function resolvePhotoUrl(endpointPath: string | null): Promise<string | n
     } finally {
       // Always cleared, including on failure, so a transient error does not
       // wedge the photo as permanently unresolvable.
-      inFlight.delete(endpointPath);
+      if (started === generation) inFlight.delete(endpointPath);
     }
   })();
 

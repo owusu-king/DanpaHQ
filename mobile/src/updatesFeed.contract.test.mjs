@@ -25,39 +25,32 @@ const screen = () => code(read("app/(app)/notifications.tsx"));
 
 test("not a log: what wants an answer first, then a timeline by day, with no filters and no pages", () => {
   const source = screen();
-  assert.match(source, /const nowWaiting = fresh\.filter\(needsYou\);/);
-  assert.match(source, /<GroupLabel count=\{waiting\.length\} tone=\{LATERITE\}>Wants an answer<\/GroupLabel>/);
-  assert.match(source, /<AnswerCards items=\{waiting\} gutter=\{density\.pagePadding\} onOpen=\{open\} \/>/);
-  assert.match(source, /timeline: byDay\(\[\.\.\.other, \.\.\.recent\]\.sort\(\(a, b\) => b\.created_at\.localeCompare\(a\.created_at\)\)\)/);
+  assert.match(source, /item.record === "informational" && !item.is_read/);
+  assert.match(source, /<GroupLabel count=\{waiting\.length\} tone=\{LATERITE\}>Alerts<\/GroupLabel>/);
+  assert.match(source, /<AnswerCards items=\{waiting\} gutter=\{density\.pagePadding\} onOpen=\{open\} onDismiss=\{acknowledge\} \/>/);
+  assert.match(source, /const timeline = byDay\(recent\)/);
   const days = between(source, "function byDay(", "function shortTime(");
   assert.match(days, /"today" \? "Today" : key === "yesterday" \? "Yesterday" : key === "earlier" \? "Earlier"/);
   assert.doesNotMatch(source, /PAGE_SIZE|MobilePagination|<BottomSheet|FilterButton|selectView|SummaryPanel|FigureGrid/);
   assert.doesNotMatch(source, />\s*Updates\s*</);
 });
 
-test("a reminder leaves once read; only the ten most recent activities stay", () => {
+test("alerts clear on acknowledgement while every activity remains reachable", () => {
   const source = screen();
-  // The server says which a record is; the app never guesses from the kind.
-  assert.match(read("src/notifications.ts"), /record: "informational" \| "activity";/);
-  assert.match(source, /const RECENT_KEPT = 10;/);
-  assert.match(source, /item\.record === "activity" && \(item\.is_read \|\| stale\(item\)\)\)\s*\.slice\(0, RECENT_KEPT\)/);
-  // Weeks-old unread activity is past, not new, and New is capped.
-  assert.match(source, /const STALE_DAYS = 14;/);
-  assert.match(source, /const other = fresh\.filter\(\(item\) => !needsYou\(item\)\)\.slice\(0, RECENT_KEPT\);/);
-
-  const open = between(source, "function open(item: Notification) {", "async function markAllRead(");
-  assert.match(open, /filter\(\(row\) => !\(row\.id === item\.id && row\.record === "informational"\)\)/);
-  assert.match(open, /void markRead\(\[item\.id\]\)\.catch\(\(\) => void load\(\)\);/);
-  assert.match(open, /router\.push\(destination\(item, isProvider\) as never\);/);
-
-  const all = between(source, "async function markAllRead(", "return (");
-  assert.match(all, /filter\(\(item\) => item\.record !== "informational"\)/);
+  assert.match(source, /const RECENT_SHOWN = 5;/);
+  assert.match(source, /activity.slice\(0, RECENT_SHOWN\)/);
+  assert.match(source, /activity.slice\(RECENT_SHOWN\)/);
+  assert.match(source, /item.record === "informational" && !item.is_read/);
+  assert.match(source, /onDismiss=\{acknowledge\}/);
+  assert.match(source, /void markRead\(\[item.id\]\)/);
+  assert.match(source, /router.push\(destination\(item, isProvider\) as never\)/);
+  assert.doesNotMatch(source, /const seen|RECENT_KEPT|STALE_DAYS/);
 });
 
 test("the briefing says what is new and marks everything read", () => {
   const source = screen();
   const briefing = between(source, "<Briefing", "{waiting.length ? (");
-  assert.match(briefing, /title=\{listedNew \? `\$\{listedNew\} new \$\{listedNew === 1 \? "update" : "updates"\}` : "You’re all caught up"\}/);
+  assert.match(briefing, /title=\{listedNew \? `\$\{listedNew\} new \$\{listedNew === 1 \? "update" : "updates"\}` : "Activity"\}/);
   assert.match(briefing, /trailing=\{unread > 0 \? \(\s*<Pressable\s+onPress=\{\(\) => void markAllRead\(\)\}\s+disabled=\{markingAll\}/);
   assert.match(briefing, /accessibilityLabel="Mark all updates as read"/);
   // On the narrowest phones Read all keeps its glyph and its name for a screen reader.
@@ -68,7 +61,7 @@ test("an answer card and a timeline event each say where it came from, what happ
   const source = screen();
   const card = between(source, "function AnswerCards(", "function TimelineRow(");
   assert.match(card, /\{notificationSource\(item\.kind\)\.toUpperCase\(\)\}/);
-  assert.match(card, /accessibilityLabel=\{`\$\{notificationSource\(item\.kind\)\}\. \$\{item\.title\}\. \$\{item\.body\}\. \$\{timeAgo\(item\.created_at\)\}\. Review\.`\}/);
+  assert.match(card, /accessibilityLabel=\{`Dismiss \$\{item.title\}`\}/);
   assert.match(card, />Review<\/Type>/);
   assert.match(card, /snapToInterval=\{cardWidth \+ space\[3\]\}/);
 
@@ -84,8 +77,8 @@ test("loading, all caught up and a failure each say the right thing", () => {
   const source = screen();
   assert.match(source, /\{items === null \? <UpdatesSkeleton \/> : null\}/);
   // Nothing at all: the bell, already crossed, so never struck twice.
-  assert.match(source, /<Empty\s+icon="notifications-off-outline"\s+crossed=\{false\}\s+title="You’re all caught up"/);
-  assert.match(source, /items !== null && !shown && !\(error && !items\.length\)/);
+  assert.match(source, /all caught up!/);
+  assert.match(source, /items !== null && !waiting\.length && !\(error && !items\.length\)/);
   // A failed refresh keeps what was on screen.
   const load = between(source, "const load = useCallback(", "useEffect(");
   assert.match(load, /setItems\(\(current\) => current \?\? \[\]\)/);
