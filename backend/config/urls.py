@@ -7,7 +7,13 @@ from apps.core.health import healthz, readyz
 
 def _superadmin_only(request):
     user = request.user
-    return bool(user and user.is_active and user.is_superuser)
+    return bool(
+        user
+        and user.is_active
+        and user.is_staff
+        and user.is_superuser
+        and user.is_email_verified
+    )
 
 
 # Django Admin is the Super Admin system. Even a previously issued non-super
