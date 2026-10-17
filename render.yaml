@@ -36,17 +36,11 @@ services:
         - render.yaml
     healthCheckPath: /healthz
     # Free plans have no pre-deploy step, so start-up does the work: migrate,
-    # seed reference data (both seeds create-or-update and are safe to repeat),
-    # start Celery with its scheduler in the background, then serve. One
-    # gunicorn worker with threads keeps everything inside 512 MB.
-
-    
-        dockerCommand: >-
-      /bin/sh -c 'python manage.py migrate --noinput &&
-      python manage.py seed_geo &&
-      python manage.py seed_amenities &&
-      (celery -A config worker -B -Q default,payments,notifications,media --concurrency=1 -l info --schedule /tmp/celerybeat-schedule &) &&
-      exec gunicorn config.wsgi:application --bind 0.0.0.0:${PORT:-10000} --workers 1 --threads 4 --timeout 60 --access-logfile -'
+    # seed, start Celery with its scheduler, then serve. The steps live in a
+    # script because Render runs this command without shell parsing: quotes in
+    # an inline `sh -c "…"` arrive literally and the line fails as "not found".
+    # Runs from /app, the image's working directory (backend/ in the repo).
+    dockerCommand: sh scripts/render-start.sh
     envVars:
       # Without this, manage.py and Celery quietly fall back to local settings.
       - key: DJANGO_SETTINGS_MODULE
