@@ -1,4 +1,4 @@
-# Rooomly — production deployment
+# Danpa HQ — production deployment
 
 What *this repository* needs to move from development into production. Not a
 Django tutorial: every item below was read out of the code, and every file path
@@ -12,14 +12,12 @@ state of the money domain.
 
 ## 0. The two things that block everything else
 
-**There is no SMS provider.** `apps/identity/providers.py` registers exactly
-three adapters — `console`, `memory`, `null` — and Rooomly is phone-first with
-OTP authentication (ADR 0004, ADR 0010). `console` prints one-time codes to the
-log; `null` discards them. **No real user can register or sign in in
-production until a real adapter is written.** An unknown `SMS_BACKEND` now
-raises `ImproperlyConfigured` at startup rather than silently falling back to
-printing codes, so a deploy that names a vendor Rooomly has not integrated stops
-instead of leaking credentials into logs.
+**SMS is fail-closed until configured.** `apps/identity/providers.py` includes an
+Arkesel v2 adapter, while production defaults to the `null` adapter so it never
+prints one-time codes to application logs. An operations administrator supplies
+the API key and approved sender ID, then explicitly selects Arkesel in
+`/management/configuration`. Unknown adapter names still raise
+`ImproperlyConfigured`.
 
 **There is no payment provider in production.** `PAYMENT_BACKEND` defaults to
 empty, `memory` is refused by `config/settings/production.py`, and a `sk_live_`
@@ -68,7 +66,7 @@ transaction (see §14), so the gunicorn timeout must stay above Paystack's
 | `UNIT_ACCESS_CODE_PEPPER` | unit access-code hashing |
 | `MANAGEMENT_CSRF_KEY` | Management portal CSRF, separate from consumer auth |
 | `STORAGE_SIGNING_KEY` | presigned URL signing |
-| `SMS_BACKEND` | see §0 |
+| `RUNTIME_CONFIG_ENCRYPTION_KEY` | encrypts Management-controlled secrets at rest; keep stable across deploys |
 
 Generate each secret independently. Reusing one value across two of these
 defeats the separation they exist for.
@@ -78,6 +76,7 @@ defeats the separation they exist for.
 | Variable | Default | Note |
 |---|---|---|
 | `DB_SSLMODE` | `require` | do not weaken |
+| `SMS_BACKEND` | `null` | bootstrap fallback; configure Arkesel from Management |
 | `FILE_SCAN_MODE` | `strict` | `permissive` is a development shortcut |
 | `PAYMENT_INTENT_TTL_MINUTES` | 30 | how long a checkout stays open |
 | `PAYMENT_MINIMUM_PART_MINOR` | 5000 (GHS 50) | floor under a part payment |
@@ -261,7 +260,7 @@ value, or a non-`https://` value, fails the build with a named error.
 **HOW**
 
 ```bash
-NEXT_PUBLIC_API_URL=https://api.rooomly.com/api/v1 \
+NEXT_PUBLIC_API_URL=https://api.danpahq.com/api/v1 \
 NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=<web key> \
 NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID=<map ID> \
 npm run build
@@ -287,12 +286,11 @@ loudly in QA instead of silently failing every request in the field.
 **HOW** — set it in the EAS build profile. There is no `eas.json` in the
 repository yet; creating one is part of the first mobile release.
 
-The same profile carries the map keys, `GOOGLE_MAPS_ANDROID_API_KEY` and
-`GOOGLE_MAPS_IOS_API_KEY`, as EAS environment variables with sensitive
-visibility (§9a). `mobile/app.config.js` writes them into the native projects,
-and JavaScript never receives them. A build without its platform's key ships
-Explore as a list. iOS draws Google's map only in a build: Expo Go on an iPhone
-draws Apple's.
+The same profile carries `GOOGLE_MAPS_ANDROID_API_KEY` as an EAS environment
+variable with sensitive visibility (§9a). `mobile/app.config.js` writes it into
+the Android project, and JavaScript never receives the key. An Android build
+without it ships Explore as a list. iOS uses Apple Maps in Expo Go and builds;
+it needs no Google Maps key.
 
 An app store release is not a rollback you can perform in minutes. Treat mobile
 as the slowest-moving surface and keep the API backward-compatible with the
@@ -302,17 +300,17 @@ oldest release in the field.
 
 ## 9a. Google Maps Platform — maps and places
 
-**WHAT** — a production Google Cloud project with billing, four API keys, a Map
+**WHAT** — a production Google Cloud project with billing, three API keys, a Map
 ID, a budget and quotas (ADR 0034).
 **WHERE** — `GOOGLE_MAPS_SERVER_API_KEY` in the API and worker environments;
 `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` and `NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID` at the web
-build (§8); `GOOGLE_MAPS_ANDROID_API_KEY` and `GOOGLE_MAPS_IOS_API_KEY` in the
-EAS build profile (§9).
-**WHY** — the web and the phone draw Google Maps, and place search asks Places
-API (New) through the API. Every request is billed to the project, and three of
-the four keys ship inside public artifacts where only their restrictions protect
-them. None of this blocks a release — without keys Explore is a list — but no key
-may go live unrestricted or without a budget.
+build (§8); `GOOGLE_MAPS_ANDROID_API_KEY` in the EAS build profile (§9).
+**WHY** — the web and Android draw Google Maps, iOS draws Apple Maps, and place
+search asks Places API (New) through the API. Google usage is metered against the
+project, and the web and Android keys ship inside public artifacts where only
+their restrictions protect them. Without a Google map key, Android Explore is a
+list; iOS still draws Apple Maps. No Google key may go live unrestricted or
+without a budget.
 **HOW**
 
 1. **Project.** Create a production project with billing enabled. Development
@@ -321,7 +319,7 @@ may go live unrestricted or without a budget.
    * **Places API (New)** — suggestions and place details. Not the legacy
      "Places API".
    * **Maps JavaScript API** — the web map.
-   * **Maps SDK for Android** and **Maps SDK for iOS** — the apps.
+   * **Maps SDK for Android** — the Android app. iOS uses Apple Maps.
 
    Leave the Geocoding API off; nothing calls it.
 3. **Keys.** In APIs & Services → Credentials, create one API key per surface,
@@ -331,13 +329,12 @@ may go live unrestricted or without a budget.
    | Key | Application restriction | API restriction |
    |---|---|---|
    | `GOOGLE_MAPS_SERVER_API_KEY` | IP addresses: the API's egress addresses | Places API (New) |
-   | `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` | Websites: `https://rooomly.com/*` and every other origin that serves the web app | Maps JavaScript API |
-   | `GOOGLE_MAPS_ANDROID_API_KEY` | Android apps: `com.rentalplatform.app`, with the SHA-1 of Play's app signing key and of the upload key | Maps SDK for Android |
-   | `GOOGLE_MAPS_IOS_API_KEY` | iOS apps: `gh.rentalplatform.app` | Maps SDK for iOS |
+   | `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` | Websites: `https://danpahq.com/*` and every other origin that serves the web app | Maps JavaScript API |
+   | `GOOGLE_MAPS_ANDROID_API_KEY` | Android apps: `com.danpahq.app`, with the SHA-1 of Play's app signing key and of the upload key | Maps SDK for Android |
 
    If the API has no fixed egress address, give it one (a NAT gateway): an
    unrestricted server key is the one that gets abused. The server key goes in
-   the secret manager (§11). The other three are build inputs, and they stay out
+   the secret manager (§11). The other two are build inputs, and they stay out
    of the repository all the same.
 4. **Map ID.** In Google Maps Platform → Map management, create a JavaScript Map
    ID and set `NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID`. The web's price markers are
@@ -360,7 +357,7 @@ may go live unrestricted or without a budget.
      shows no `…MapError`.
    * An Android build from Play's internal track draws the map. A blank map
      beneath the markers means a SHA-1 mismatch.
-   * An iOS TestFlight build draws Google's map.
+   * An iOS TestFlight build draws Apple Maps, including markers and satellite mode.
 
 **Storage.** Google's terms allow Place IDs to be stored and coordinates from
 Places to be kept for at most 30 days. The API stores neither today. Property
@@ -373,8 +370,8 @@ provider confirms on a pin (ADR 0034 §3).
 
 | Host | Serves |
 |---|---|
-| `api.rooomly.com` | Django/gunicorn |
-| `rooomly.com` (or `app.`) | Next.js |
+| `api.danpahq.com` | Django/gunicorn |
+| `danpahq.com` (or `app.`) | Next.js |
 | storage | S3/CDN endpoint for media |
 
 TLS terminates at the load balancer. The proxy **must** send
@@ -408,9 +405,9 @@ hashes and is effectively irreversible** — plan that one, do not react with it
 
 ## 12. Notifications
 
-**SMS** — see §0. Nothing to configure until an adapter exists. When one is
-written, register it in `_PROVIDERS` in `apps/identity/providers.py` and set
-`SMS_BACKEND` to its name.
+**SMS** — see §0. Configure the Arkesel API key, approved sender ID and sandbox
+switch in `/management/configuration`, then select Arkesel there. Environment
+variables with the same names remain the bootstrap fallback.
 
 **Email and push** — not integrated. `apps/notifications` writes in-app
 notifications and delivers through the outbox; there is no email or push
@@ -427,13 +424,14 @@ checklist and *nothing on it is done*. Summary of what production needs:
 | Variable | Note |
 |---|---|
 | `PAYMENT_BACKEND` | empty = no checkout offered anywhere. Set to `paystack` only after sandbox validation |
-| `PAYSTACK_SECRET_KEY` | `sk_test_` for sandbox, `sk_live_` for production |
-| `PAYSTACK_ALLOW_LIVE` | must be explicitly true before a `sk_live_` key does anything |
-| `PAYSTACK_PLATFORM_CHARGE_BPS` | the Rooomly platform share, in basis points. Mandatory; an intent fails closed without it |
+| `PAYSTACK_TEST_SECRET_KEY` / `PAYSTACK_TEST_PUBLIC_KEY` | the `sk_test_` and `pk_test_` sandbox credentials |
+| `PAYSTACK_LIVE_SECRET_KEY` / `PAYSTACK_LIVE_PUBLIC_KEY` | the `sk_live_` and `pk_live_` production credentials |
+| `PAYSTACK_ALLOW_LIVE` | false selects test credentials; true deliberately selects live credentials |
+| `PAYSTACK_PLATFORM_CHARGE_BPS` | the Danpa HQ platform share, in basis points. Mandatory; an intent fails closed without it |
 | `PAYSTACK_CALLBACK_URL` | the deployed web return route |
 | `PAYMENT_RECEIPT_EMAIL_DOMAIN` | Paystack requires an email; phone-first accounts get a routable per-account address on this domain |
 
-**Webhook** — register `https://api.rooomly.com/api/v1/webhooks/payments/paystack/`
+**Webhook** — register `https://api.danpahq.com/api/v1/webhooks/payments/paystack/`
 in the Paystack dashboard. It authenticates with HMAC-SHA512 over the raw body
 using the secret key; there is no separate webhook secret. The endpoint is
 IP-throttled at 120/min — if Paystack bursts above that it receives 429 and
@@ -637,10 +635,10 @@ yours to write.
     only.** The rental product is complete without a PSP: tenants and providers
     record and confirm cash, MoMo and bank payments and get receipts.
 16. Separately, and only after the whole *before accepting real money* list is
-    satisfied: set `PAYSTACK_SECRET_KEY` to the sandbox key with
+    satisfied: set `PAYSTACK_TEST_SECRET_KEY` and `PAYSTACK_TEST_PUBLIC_KEY` with
     `PAYMENT_BACKEND=paystack`, register the webhook, and complete the sandbox
     exercise.
-17. Install the live key, set `PAYSTACK_ALLOW_LIVE=true`, take **one real
+17. Install both live keys, set `PAYSTACK_ALLOW_LIVE=true`, take **one real
     payment of a small amount** on one Portfolio, and verify the whole chain:
     transaction → allocation → ledger → receipt → pending settlement → imported
     settlement.

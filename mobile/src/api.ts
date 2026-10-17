@@ -31,6 +31,11 @@ import { Platform } from "react-native";
  * and is talking plain HTTP while it fails, so a release with no configured API
  * refuses to start rather than shipping broken and insecure. That matches how
  * the backend treats a missing production secret.
+ *
+ * A local test build - a debug APK with a production bundle embedded, run on an
+ * emulator with no Metro - sets EXPO_PUBLIC_LOCAL_TEST_BUILD=1 when bundling so
+ * it may name a plain-HTTP local API. It still needs the URL set explicitly, and
+ * only a debug APK allows cleartext, so a store build never takes this path.
  */
 function resolveBaseUrl(): string {
   const configured =
@@ -44,7 +49,8 @@ function resolveBaseUrl(): string {
           "production API URL; it must never fall back to a development address.",
       );
     }
-    if (!configured.startsWith("https://")) {
+    const localTestBuild = process.env.EXPO_PUBLIC_LOCAL_TEST_BUILD === "1";
+    if (!configured.startsWith("https://") && !localTestBuild) {
       throw new Error(
         `EXPO_PUBLIC_API_URL must be https:// in a release build (got ${configured}).`,
       );

@@ -1,7 +1,7 @@
-# Rooomly UI/UX Design Architecture
+# Danpa HQ UI/UX Design Architecture
 
 **Document status:** Living design architecture\
-**Product:** Rooomly --- Ghana-first rental and property-management
+**Product:** Danpa HQ --- Ghana-first rental and property-management
 platform\
 **Purpose:** Durable source of truth for UI/UX refinement across web and
 mobile\
@@ -13,17 +13,17 @@ language\
 
 ## 1. Purpose
 
-This document defines the product-design architecture for Rooomly.
+This document defines the product-design architecture for Danpa HQ.
 
-Rooomly is an existing, functioning product. This UI/UX program does
+Danpa HQ is an existing, functioning product. This UI/UX program does
 **not** replace the domain architecture, lifecycle rules, permissions,
 verification system, tenancy model, lease model, or API contracts. Its
-purpose is to make the sophistication underneath Rooomly feel simple,
+purpose is to make the sophistication underneath Danpa HQ feel simple,
 coherent, trustworthy, and pleasant to use.
 
 The core objective is:
 
-> **Make Rooomly dramatically easier to understand and operate without
+> **Make Danpa HQ dramatically easier to understand and operate without
 > weakening the sophistication, safety, or business rules underneath.**
 
 This document must remain useful across development sessions. A new
@@ -44,7 +44,7 @@ on conversational history.
 
 ## 2. Product Design Vision
 
-Rooomly should feel like a world-class digital housing product designed
+Danpa HQ should feel like a world-class digital housing product designed
 specifically around Ghanaian rental realities.
 
 The experience should feel:
@@ -62,7 +62,7 @@ The experience should feel:
 -   financially credible;
 -   consistent without becoming repetitive.
 
-Rooomly must not look like a generic AI-generated SaaS dashboard.
+Danpa HQ must not look like a generic AI-generated SaaS dashboard.
 
 The interface should reduce cognitive effort. Users should spend their
 attention on finding homes, managing properties, handling tenants,
@@ -106,7 +106,7 @@ Do not expose all three levels simultaneously without a strong reason.
 
 ### 3.3 Backend complexity should not leak into the UI
 
-Rooomly may internally track several verification, publication,
+Danpa HQ may internally track several verification, publication,
 availability, moderation, tenancy, and authorization states. Preserve
 those distinctions in the domain.
 
@@ -247,7 +247,7 @@ Keep primary mobile navigation small enough to remain understandable.
 
 ## 6. Entity Hierarchy
 
-Rooomly should communicate relationships clearly:
+Danpa HQ should communicate relationships clearly:
 
 ``` text
 Portfolio
@@ -726,7 +726,7 @@ a reason to stall ordinary design progress.
 
 ------------------------------------------------------------------------
 
-## 21. Anti-Patterns --- Rooomly Must Not Become
+## 21. Anti-Patterns --- Danpa HQ Must Not Become
 
 Avoid:
 
@@ -772,7 +772,7 @@ Study principles such as:
 
 Do not copy another company's visual identity or reproduce its screens.
 
-Rooomly must develop its own recognizable Ghanaian housing identity.
+Danpa HQ must develop its own recognizable Ghanaian housing identity.
 
 ------------------------------------------------------------------------
 
@@ -993,7 +993,7 @@ pages are reserved for tasks that justify them.
 
 ### D-004 --- Cards and grids are allowed
 
-**Decision:** Rooomly does not prohibit cards or multi-column layouts.
+**Decision:** Danpa HQ does not prohibit cards or multi-column layouts.
 
 **Reason:** The anti-pattern is unnecessary cardification, not cards
 themselves. Visual entities such as Properties and Units can benefit
@@ -1016,7 +1016,7 @@ work and broader suites only when risk warrants them.
 
 ------------------------------------------------------------------------
 
-## 29. Definition of a Successful Rooomly Screen
+## 29. Definition of a Successful Danpa HQ Screen
 
 A successful screen allows a user to quickly answer:
 
@@ -1036,7 +1036,7 @@ restrained enough that content and actions remain dominant.
 
 # Final Product Design Principle
 
-Rooomly is not being redesigned to look fashionable.
+Danpa HQ is not being redesigned to look fashionable.
 
 It is being refined so that a sophisticated Ghanaian rental and
 property-management system feels **obvious, trustworthy, fast, and

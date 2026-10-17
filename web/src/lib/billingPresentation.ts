@@ -40,7 +40,7 @@ export function formatAmount(minor: number, currency: string): string {
 }
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-// Rooomly's calendar is Ghana's. Formatting the parts ourselves keeps "Sep"
+// Danpa HQ's calendar is Ghana's. Formatting the parts ourselves keeps "Sep"
 // from becoming "Sept" in one browser and "Sep" in the next.
 const DATE_PARTS = new Intl.DateTimeFormat("en-GB", {
   timeZone: "Africa/Accra",
@@ -422,7 +422,7 @@ function standingOfSubscription(billing: PortfolioBilling, catalogue: PlanCatalo
       const usual = planPrice(plan, subscription.billing_interval) ?? plan.monthly_price_minor;
       Object.assign(standing, {
         badge: { tone: "positive", label: "Active" },
-        line: `Included by Rooomly · usually ${formatPrice(usual, plan.currency)} / ${periodWord(subscription.billing_interval)}`,
+        line: `Included by Danpa HQ · usually ${formatPrice(usual, plan.currency)} / ${periodWord(subscription.billing_interval)}`,
       });
       break;
     }
@@ -504,7 +504,7 @@ export function historyLine(event: PortfolioBilling["history"][number], catalogu
       return `Kept ${from}`;
     case "override_applied":
     case "override_removed":
-      return "Limits adjusted by Rooomly";
+      return "Limits adjusted by Danpa HQ";
     default:
       return event.event_type_display;
   }

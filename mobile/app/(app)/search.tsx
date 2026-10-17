@@ -1,15 +1,17 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { BlurView } from "expo-blur";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { BottomTabBarHeightContext } from "expo-router/tabs";
-import { useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   ActivityIndicator,
   Animated,
   FlatList,
   Image,
   Keyboard,
+  Platform,
   Pressable,
   RefreshControl,
+  StyleSheet,
   View,
 
   type StyleProp,
@@ -48,7 +50,7 @@ import {
   type ListingSort,
   type SearchFilters,
 } from "@/listings";
-import { RooomlyMap, mapAvailable, type MapMarker, type MapMove } from "@/maps";
+import { DanpaHQMap, mapAvailable, type BaseMapStyle, type MapMarker, type MapMove } from "@/maps";
 import { compactRent, getListingsById, roundCoordinate, searchListingMap, type MapFeature } from "@/mapSearch";
 import { useReduceMotion } from "@/motion";
 import {
@@ -61,7 +63,7 @@ import {
   type PlaceKind,
   type PlaceSuggestion,
 } from "@/places";
-import { pressableFeedback, useFloatingTabBarClearance } from "@/platform";
+import { pressableFeedback, useFloatingTabBarClearance, useInTabs } from "@/platform";
 import { loadPropertyTypes, type PropertyTypeOption } from "@/propertyTypes";
 import { searchSales, searchSalesPage, type SaleCard as Sale, type SaleKind } from "@/sales";
 import { theme } from "@/theme";
@@ -78,7 +80,7 @@ import { theme } from "@/theme";
  * the same filters and the same box, built once (`listingQuery`).
  *
  * Where you are looking is the first question a Ghanaian tenant asks, so it
- * leads. Typing asks Rooomly's API for places (ADR 0034), and one search is one
+ * leads. Typing asks Danpa HQ's API for places (ADR 0034), and one search is one
  * Places session, spent by the place it chooses. Everything else — rent,
  * advance, type, bedrooms, furnishing and order — lives in the Filters sheet,
  * and the button carries the count of what is on.
@@ -110,6 +112,14 @@ const SORTS: readonly (readonly [ListingSort, string])[] = [
 
 type SearchArea = { name: string; bounds: GeoBounds; ref: string };
 type Selection = { key: string; ids: string[] };
+type MapFeedback = { message: string; tone: "danger" | "success" };
+type AreaSearchProgress = {
+  key: string;
+  waitRent: boolean;
+  waitSale: boolean;
+  rent: number | null;
+  sale: number | null;
+};
 /** What the List button keeps of the map's foot: its height and its margin. */
 const LIST_BUTTON_ROOM = 76;
 
@@ -129,6 +139,8 @@ const FALLBACK_MAP: MapConfig = {
   min_zoom: 6,
   max_zoom: 20,
 };
+/** How long the map waits for the server's settings before opening on its own. */
+const MAP_CONFIG_WAIT_MS = 1500;
 
 const KIND_ICON: Record<PlaceKind, keyof typeof Ionicons.glyphMap> = {
   area: "map-outline",
@@ -152,18 +164,9 @@ function grow(bounds: GeoBounds, by: number): GeoBounds {
   return { west: bounds.west - dx, south: bounds.south - dy, east: bounds.east + dx, north: bounds.north + dy };
 }
 
-/**
- * Whether the tenant has moved the map far enough from where the results were
- * shown for a search of it to mean something: a quarter of the view away, or
- * most of a zoom level in or out.
- */
-function movedMeaningfully(view: MapMove, anchor: MapMove): boolean {
-  const width = Math.max(anchor.bounds.east - anchor.bounds.west, 1e-9);
-  const height = Math.max(anchor.bounds.north - anchor.bounds.south, 1e-9);
-  const across = Math.abs(view.bounds.west + view.bounds.east - anchor.bounds.west - anchor.bounds.east) / 2 / width;
-  const along = Math.abs(view.bounds.south + view.bounds.north - anchor.bounds.south - anchor.bounds.north) / 2 / height;
-  return across > 0.25 || along > 0.25 || Math.abs(view.zoom - anchor.zoom) >= 0.8;
-}
+const boundsKey = (bounds: GeoBounds | null) => bounds
+  ? [bounds.west, bounds.south, bounds.east, bounds.north].join(":")
+  : null;
 
 /**
  * Rent or Buy — the first choice on Explore (owner, 2026-09-28).
@@ -178,7 +181,7 @@ export default function SearchScreen() {
   // Explore opens on everything; Rent and Buy are chosen (owner, 2026-09-29).
   const [side, setSide] = useState<ExploreMode>(mode === "buy" ? "buy" : mode === "rent" ? "rent" : "all");
   const insets = useSafeAreaInsets();
-  const inTabs = useContext(BottomTabBarHeightContext) !== undefined;
+  const inTabs = useInTabs();
   const barClearance = useFloatingTabBarClearance();
   // Inside the tabs the hero is the header, and carries Saved and profile.
   const actions = inTabs ? <ExploreHeaderActions /> : undefined;
@@ -226,7 +229,7 @@ function MapExplore({
   const insets = useSafeAreaInsets();
   // Inside the tabs the tab bar already keeps clear of the home indicator; a
   // pushed search has no bar, so its list keeps clear itself.
-  const inTabs = useContext(BottomTabBarHeightContext) !== undefined;
+  const inTabs = useInTabs();
   // On iOS the glass bar floats over the map, so whatever sits at the map's
   // foot rides above it.
   const barClearance = useFloatingTabBarClearance();
@@ -274,11 +277,13 @@ function MapExplore({
   const [features, setFeatures] = useState<MapFeature[]>([]);
   const [extent, setExtent] = useState<GeoBounds | null>(null);
   const [view, setView] = useState<MapMove | null>(null);
-  /** Where the map was when it last showed these results, before the tenant moved it. */
-  const [anchor, setAnchor] = useState<MapMove | null>(null);
   const [userMoved, setUserMoved] = useState(false);
-  const movedRef = useRef(false);
   const [fit, setFit] = useState<{ key: string; bounds: GeoBounds } | null>(null);
+  const [baseMap, setBaseMap] = useState<BaseMapStyle>("standard");
+  const [mapFeedback, setMapFeedback] = useState<MapFeedback | null>(null);
+  // A load that failed is said on the map too, not only inside the closed list.
+  const [dismissedError, setDismissedError] = useState("");
+  const areaSearchProgress = useRef<AreaSearchProgress | null>(null);
   const [selection, setSelection] = useState<Selection | null>(null);
   const [preview, setPreview] = useState<Listing[]>([]);
   const [previewIndex, setPreviewIndex] = useState(0);
@@ -290,6 +295,8 @@ function MapExplore({
 
   // Map or list. A build without a map is only ever the list.
   const [listOpen, setListOpen] = useState(!showMap);
+  // Google never drew the map on this phone. Said briefly on the map itself.
+  const [mapFailed, setMapFailed] = useState(false);
   const [screenHeight, setScreenHeight] = useState(0);
   const [controlsHeight, setControlsHeight] = useState(0);
   const [previewHeight, setPreviewHeight] = useState(0);
@@ -315,6 +322,7 @@ function MapExplore({
 
   // The box both the list and the markers search: one searched from the map, else the chosen place's.
   const box = bbox ?? area?.bounds ?? null;
+  const boxRequestKey = boundsKey(box);
   const filters = useMemo<SearchFilters>(() => ({
     q: area ? undefined : place.trim() || undefined,
     west: box?.west,
@@ -331,6 +339,27 @@ function MapExplore({
     sort,
   }), [place, area, box, propertyType, spaceType, bedrooms, rentMin, rentMax, advanceMax, furnished, sort]);
 
+  const recordAreaResult = useCallback((key: string | null, side: "rent" | "sale", count: number) => {
+    const progress = areaSearchProgress.current;
+    if (!key || !progress || progress.key !== key) return;
+    progress[side] = count;
+    const ready = (!progress.waitRent || progress.rent !== null)
+      && (!progress.waitSale || progress.sale !== null);
+    if (!ready) return;
+    areaSearchProgress.current = null;
+    if ((progress.rent ?? 0) + (progress.sale ?? 0) === 0) {
+      setMapFeedback({
+        message: "No properties found in this area. Move the map or adjust your filters.",
+        tone: "danger",
+      });
+    } else {
+      setMapFeedback({
+        message: "Properties found in this area. Tap a marker or open the list.",
+        tone: "success",
+      });
+    }
+  }, []);
+
   const load = useCallback(async () => {
     const id = ++requestId.current;
     setQuerying(true);
@@ -341,6 +370,7 @@ function MapExplore({
       setListings(page.results);
       setNext(page.next);
       setError("");
+      recordAreaResult(boxRequestKey, "rent", page.results.length);
     } catch (cause) {
       if (id !== requestId.current) return;
       // The last results stay: a failed request is not a search that found nothing.
@@ -350,7 +380,7 @@ function MapExplore({
     } finally {
       if (id === requestId.current) setQuerying(false);
     }
-  }, [filters]);
+  }, [boxRequestKey, filters, recordAreaResult]);
 
   useEffect(() => {
     const timer = setTimeout(() => { void load(); }, 250);
@@ -380,10 +410,11 @@ function MapExplore({
       if (id !== saleRequest.current) return;
       setSales(page.results);
       setNextSales(page.next);
+      recordAreaResult(boxRequestKey, "sale", page.results.length);
     } catch {
       if (id === saleRequest.current) setSales((current) => current ?? []);
     }
-  }, [saleFilters]);
+  }, [boxRequestKey, recordAreaResult, saleFilters]);
 
   useEffect(() => {
     if (!showSale) return;
@@ -400,9 +431,24 @@ function MapExplore({
     void loadPropertyTypes().then(setPropertyTypes).catch(() => setPropertyTypes([]));
   }, []);
 
+  // The map never waits long for its settings. It used to wait for this one
+  // request, and on a phone that could not reach the API — retried three times,
+  // twenty seconds each — Explore stood blank for over a minute with no word of
+  // why. Past a moment the built-in Accra view opens it; the real settings
+  // still arrive for everything after the first view.
   useEffect(() => {
     if (!showMap) return;
-    void getMapConfig().then(setConfig).catch(() => setConfig(FALLBACK_MAP));
+    let live = true;
+    const late = setTimeout(() => {
+      if (live) setConfig((current) => current ?? FALLBACK_MAP);
+    }, MAP_CONFIG_WAIT_MS);
+    void getMapConfig()
+      .then((value) => { if (live) setConfig(value); })
+      .catch(() => { if (live) setConfig((current) => current ?? FALLBACK_MAP); });
+    return () => {
+      live = false;
+      clearTimeout(late);
+    };
   }, [showMap]);
 
   // Places while somebody types. The first request opens a Places session, and
@@ -465,9 +511,7 @@ function MapExplore({
   // it, and what the map shows now is what the results describe.
   useEffect(() => {
     setSelection(null);
-    movedRef.current = false;
     setUserMoved(false);
-    setAnchor(viewRef.current);
   }, [filters]);
 
   // A chosen place: the map goes there, even when it is the place chosen last time.
@@ -548,7 +592,8 @@ function MapExplore({
   // What the screen covers of the map: the hero above, the List button below.
   const mapInsets = useMemo(() => ({
     top: controlsHeight,
-    right: 0,
+    // The right rail is part of the usable map chrome, not map content.
+    right: 76,
     bottom: LIST_BUTTON_ROOM + barClearance,
     left: 0,
   }), [barClearance, controlsHeight]);
@@ -602,7 +647,10 @@ function MapExplore({
     [rentMarkers, saleMarkers, showRent, showSale],
   );
 
-  const showSearchArea = Boolean(showMap && userMoved && view && anchor && movedMeaningfully(view, anchor));
+  // As soon as the native map reports its visible window it can be searched.
+  // Movement adds emphasis; it is no longer a hidden threshold that can leave
+  // the action permanently disabled on a particular provider.
+  const canSearchArea = Boolean(showMap && view && !querying);
   const previewListing = preview[Math.min(previewIndex, Math.max(preview.length - 1, 0))];
   const previewing = Boolean(showMap && selection && previewListing && !listOpen);
 
@@ -645,24 +693,42 @@ function MapExplore({
     viewRef.current = move;
     setView(move);
     if (move.byUser) {
-      movedRef.current = true;
+      areaSearchProgress.current = null;
+      setMapFeedback(null);
       setUserMoved(true);
-    } else if (!movedRef.current) {
-      // Until the tenant moves the map, wherever Rooomly puts it is what the results describe.
-      setAnchor(move);
     }
   }
 
   // Asked for, never automatic: moving the map is looking, not searching.
   function searchThisArea() {
     if (!view) return;
-    setBbox({
+    const nextBounds = {
       west: roundCoordinate(view.bounds.west),
       south: roundCoordinate(view.bounds.south),
       east: roundCoordinate(view.bounds.east),
       north: roundCoordinate(view.bounds.north),
-    });
+    };
+    areaSearchProgress.current = {
+      key: boundsKey(nextBounds)!,
+      waitRent: showRent,
+      waitSale: showSale,
+      rent: null,
+      sale: null,
+    };
+    setMapFeedback(null);
+    setBbox(nextBounds);
     setUserMoved(false);
+  }
+
+  function recenterResults() {
+    const fallback = config ? {
+      west: config.bounds[0], south: config.bounds[1], east: config.bounds[2], north: config.bounds[3],
+    } : null;
+    const target = bbox ?? area?.bounds ?? extent ?? fallback;
+    if (!target) return;
+    setUserMoved(false);
+    setSelection(null);
+    setFit({ key: `recenter:${Date.now()}`, bounds: target });
   }
 
   // Typing over a place, or over an area searched from the map, asks a new question.
@@ -747,20 +813,31 @@ function MapExplore({
     if (value && !allowed.some((space_) => space_.value === spaceType)) setSpaceType("");
   }
 
+  const mapBanner: MapFeedback | null = mapFeedback
+    ?? (error && error !== dismissedError ? { message: error, tone: "danger" } : null)
+    ?? (mapFailed ? { message: "Maps not loading", tone: "danger" } : null);
+  const dismissMapBanner = () => {
+    if (mapFeedback) setMapFeedback(null);
+    else if (error && error !== dismissedError) setDismissedError(error);
+    else setMapFailed(false);
+  };
+
   return (
     <View
       style={{ flex: 1, overflow: "hidden", backgroundColor: showMap ? theme.color.field["100"] : theme.color.field["50"] }}
       onLayout={(event) => setScreenHeight(event.nativeEvent.layout.height)}
     >
       {showMap && config ? (
-        <RooomlyMap
+        <DanpaHQMap
           initialView={config.default_view}
           fit={fit}
+          baseMap={baseMap}
           insets={mapInsets}
           markers={markers}
           onMove={moveMap}
           onMarkerPress={pressMarker}
           onBackgroundPress={pressBackground}
+          onUnavailable={() => setMapFailed(true)}
         />
       ) : null}
 
@@ -803,33 +880,109 @@ function MapExplore({
         />
       ) : null}
 
-      {showSearchArea && !listOpen ? (
-        // Just under the hero, over the map: never over the list.
+      {showMap && config && !listOpen ? (
+        // Three stable, thumb-sized controls. Their translucent circles echo the
+        // reference without copying its unrelated filters or navigation.
+        <View
+          accessibilityLabel="Map view controls"
+          style={{
+            position: "absolute",
+            top: controlsHeight + space[5],
+            right: space[3],
+            zIndex: 5,
+            borderRadius: 30,
+            ...(Platform.OS === "android" ? {} : FLOATING),
+          }}
+        >
+          <View
+            style={{
+              width: 58,
+              overflow: "hidden",
+              gap: 8,
+              padding: 6,
+              borderWidth: Platform.OS === "android" ? 0 : 1,
+              borderColor: Platform.OS === "android" ? "transparent" : "rgba(255,255,255,0.21)",
+              borderRadius: 30,
+              backgroundColor: Platform.OS === "android" ? "transparent" : "rgba(255,255,255,0.03)",
+            }}
+          >
+            {Platform.OS === "android" ? null : (
+              <>
+                <BlurView
+                  pointerEvents="none"
+                  tint="systemChromeMaterialLight"
+                  intensity={17}
+                  style={StyleSheet.absoluteFill}
+                />
+                <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: "rgba(255,255,255,0.02)" }]} />
+              </>
+            )}
+            <MapTool
+              label={baseMap === "hybrid" ? "Show standard map" : "Show satellite map"}
+              icon="layers-outline"
+              selected={baseMap === "hybrid"}
+              onPress={() => setBaseMap((current) => current === "hybrid" ? "standard" : "hybrid")}
+            />
+            <MapTool
+              label="Search this area"
+              icon="scan-outline"
+              emphasized={userMoved}
+              disabled={!canSearchArea}
+              onPress={searchThisArea}
+            />
+            <MapTool label="Recenter map on these results" icon="locate-outline" disabled={!config} onPress={recenterResults} />
+          </View>
+        </View>
+      ) : null}
+
+      {showMap && !listOpen && mapBanner ? (
         <View
           pointerEvents="box-none"
-          style={{ position: "absolute", left: 0, right: 0, top: controlsHeight + space[3], zIndex: 3, alignItems: "center" }}
+          style={{ position: "absolute", top: controlsHeight + space[5], left: space[3], right: 88, zIndex: 6 }}
         >
-          <Pressable
-            accessibilityRole="button"
-            onPress={searchThisArea}
-            {...pressableFeedback(theme.color.kola["50"])}
-            style={({ pressed }) => ({
-              minHeight: 44,
+          <View
+            accessible
+            accessibilityLiveRegion="polite"
+            accessibilityRole={mapBanner.tone === "danger" ? "alert" : undefined}
+            style={{
+              minHeight: 48,
               flexDirection: "row",
               alignItems: "center",
               gap: space[2],
-              paddingLeft: space[3],
-              paddingRight: space[4],
+              paddingHorizontal: space[3],
+              paddingVertical: space[2],
               borderWidth: 1,
-              borderColor: theme.color.kola["300"],
-              borderRadius: radius.pill,
-              backgroundColor: pressed ? theme.color.kola["50"] : theme.color.field["0"],
+              borderColor: mapBanner.tone === "danger" ? theme.color.laterite["600"] : theme.color.kola["300"],
+              borderRadius: radius.lg,
+              backgroundColor: mapBanner.tone === "danger" ? theme.color.laterite["100"] : theme.color.kola["50"],
               ...FLOATING,
-            })}
+            }}
           >
-            <Ionicons name="search" size={16} color={theme.color.kola["600"]} />
-            <Type variant="captionStrong" style={{ color: theme.color.kola["800"] }}>Search this area</Type>
-          </Pressable>
+            <Ionicons
+              name={mapBanner.tone === "danger" ? "alert-circle-outline" : "checkmark-circle-outline"}
+              size={19}
+              color={mapBanner.tone === "danger" ? theme.color.laterite["600"] : theme.color.kola["600"]}
+            />
+            <Type
+              variant="captionStrong"
+              style={{ flex: 1, color: mapBanner.tone === "danger" ? theme.color.laterite["600"] : theme.color.kola["800"] }}
+            >
+              {mapBanner.message}
+            </Type>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Dismiss map search message"
+              hitSlop={8}
+              onPress={dismissMapBanner}
+              {...pressableFeedback(theme.color.field["100"])}
+            >
+              <Ionicons
+                name="close"
+                size={18}
+                color={mapBanner.tone === "danger" ? theme.color.laterite["600"] : theme.color.kola["600"]}
+              />
+            </Pressable>
+          </View>
         </View>
       ) : null}
 
@@ -1063,8 +1216,68 @@ function MapExplore({
   );
 }
 
+function MapTool({
+  label,
+  icon,
+  selected,
+  emphasized = false,
+  disabled = false,
+  onPress,
+}: {
+  label: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  selected?: boolean;
+  emphasized?: boolean;
+  disabled?: boolean;
+  onPress: () => void;
+}) {
+  const iconColor = selected ? theme.color.field["0"] : theme.color.kola["800"];
+  return (
+    <View style={{ width: 46, height: 46, borderRadius: 23, opacity: disabled ? 0.72 : 1 }}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={label}
+        aria-pressed={selected}
+        aria-disabled={disabled}
+        disabled={disabled}
+        hitSlop={4}
+        onPress={onPress}
+        style={({ pressed }) => ({
+          width: 46,
+          height: 46,
+          overflow: "hidden",
+          alignItems: "center",
+          justifyContent: "center",
+          borderWidth: 1,
+          borderColor: selected || emphasized ? theme.color.kola["300"] : "rgba(255,255,255,0.92)",
+          borderRadius: 23,
+          backgroundColor: "rgba(255,255,255,0.90)",
+          transform: [{ scale: pressed ? 0.95 : 1 }],
+        })}
+      >
+        {Platform.OS === "android" ? null : (
+          <BlurView
+            pointerEvents="none"
+            tint="systemChromeMaterialLight"
+            intensity={44}
+            style={StyleSheet.absoluteFill}
+          />
+        )}
+        <View
+          pointerEvents="none"
+          style={[
+            StyleSheet.absoluteFill,
+            { backgroundColor: selected ? "rgba(18,80,59,0.92)" : emphasized ? "rgba(232,241,236,0.90)" : "transparent" },
+          ]}
+        />
+        <Ionicons name={icon} size={21} color={iconColor} />
+      </Pressable>
+    </View>
+  );
+}
+
 /**
- * The places a typed name might mean, from Rooomly's API. Google's carry its
+ * The places a typed name might mean, from Danpa HQ's API. Google's carry its
  * name beneath them: here they are shown with no Google map in sight.
  */
 function PlaceSuggestions({

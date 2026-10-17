@@ -1,7 +1,7 @@
-"""What Rooomly asks a Portfolio to pay, priced by the server.
+"""What Danpa HQ asks a Portfolio to pay, priced by the server.
 
 An invoice is the billing half of a subscription payment. It answers *why*
-Rooomly is charging this Portfolio — which plan, which billing cycle, what
+Danpa HQ is charging this Portfolio — which plan, which billing cycle, what
 credit — and the Payments Core answers *how the money moved*: a `PaymentIntent`
 settles it, and only a server-confirmed provider result marks it paid
 (ADR 0032 §10). Nothing on an invoice is taken from a browser.

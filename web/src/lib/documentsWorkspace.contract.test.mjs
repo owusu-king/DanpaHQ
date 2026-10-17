@@ -28,7 +28,7 @@ test("a provider's leases live in Documents, beside the contracts they are made 
   assert.match(page, /<LeasesView/);
 });
 
-test("contracts keep Rooomly's wording controlled and a Portfolio's own terms separate", () => {
+test("contracts keep Danpa HQ's wording controlled and a Portfolio's own terms separate", () => {
   const view = code(read("web/src/components/documents/ContractsView.tsx"));
   assert.match(view, /getPortfolioContracts\(organizationId\)/);
   // The standard clauses are read, never edited: no update call names them.

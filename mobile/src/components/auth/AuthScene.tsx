@@ -31,7 +31,7 @@ import { theme } from "@/theme";
  * What replaced it is a composition rather than a header:
  *
  * - **The colour is in the ground.** A warm dawn over the top half of the page —
- *   Rooomly's green let down into the ivory, a gold bloom off one corner and a
+ *   Danpa HQ's green let down into the ivory, a gold bloom off one corner and a
  *   deeper green off the other. It cannot be empty, it is the same on every
  *   screen in the flow, and the surfaces on top of it lift by tone alone.
  * - **The column is centred and bounded.** Auth is the one part of this product
@@ -48,7 +48,7 @@ import { theme } from "@/theme";
  *   the one act, then everything else as text.
  *
  * **Redesigned on the product's own look (owner, 2026-10-06).** The dawn read
- * as decoration rather than as Rooomly: every page past sign-in opens on the
+ * as decoration rather than as Danpa HQ: every page past sign-in opens on the
  * textured green chrome with a pale panel rising under it, and these did not.
  * So an auth screen is now built the way the Homes are — the green hero carries
  * the mark, the way back, the step marks and the heading in white, and the form
@@ -166,18 +166,18 @@ export function AuthScene({
 }
 
 /**
- * Rooomly, in white on the green, at the top of the hero. A mark, not a
+ * Danpa HQ, in white on the green, at the top of the hero. A mark, not a
  * heading — the heading is the next line — so it is set small and never scaled
  * by the reader's font size.
  */
 export function AuthMark() {
   return (
-    <View accessible accessibilityRole="header" accessibilityLabel="Rooomly" style={styles.mark}>
+    <View accessible accessibilityRole="header" accessibilityLabel="Danpa HQ" style={styles.mark}>
       <View style={styles.markDot}>
         <Ionicons name="home" size={14} color={KOLA} />
       </View>
       <Type variant="bodyStrong" allowFontScaling={false} style={styles.markWord}>
-        Rooomly
+        Danpa HQ
       </Type>
     </View>
   );

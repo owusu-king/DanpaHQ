@@ -126,9 +126,9 @@ test("a tenant record opens in context without surrendering its address", () => 
 
   // Ordinary clicks stay with the comparison list, while the real href remains
   // available for copied links, modified clicks and direct navigation. The
-  // open record is in the address too, as a provider's request is.
+  // open record is page state too, as a provider's request is.
   assert.match(webTenant(), /<ApplicationSheet/);
-  assert.match(webTenant(), /search\.get\("application"\)/);
+  assert.match(webTenant(), /useDeepLinkedModal\("application"\)/);
   assert.match(webTenant(), /event\.preventDefault\(\)/);
   assert.match(webTenant(), /href=\{`\/applications\/\$\{application\.id\}`/);
   assert.match(webRoute(), /<ApplicationRecord/);
@@ -181,7 +181,7 @@ test("the comparison happens in the list, which is why the record can leave it",
 
   // Nothing opens by default: the sheet is chosen only by an explicit row action.
   assert.doesNotMatch(webTenant(), /const suggested = visibleRows\[0\]/);
-  assert.match(webTenant(), /search\.get\("application"\) \?\? ""/);
+  assert.match(webTenant(), /useDeepLinkedModal\("application"\)/);
   assert.doesNotMatch(webTenant(), /data-open=/);
   assert.doesNotMatch(css, /\.applications-split/);
   assert.doesNotMatch(css, /\.application-detail-back/);

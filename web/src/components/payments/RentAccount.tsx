@@ -151,7 +151,7 @@ export function RentAccountDetail({
           onClose={() => setRecording(false)}
           icon="payments"
           title="Record external payment"
-          meta="Money received outside Rooomly."
+          meta="Money received outside Danpa HQ."
           size="sm"
           className="payment-sheet"
         >
@@ -227,7 +227,7 @@ export function RentAccountDetail({
                 </div>
                 <div>
                   <span className="ra-pay-state">{paymentStatus(payment)}</span>
-                  <span>{payment.source === "PLATFORM_PSP" ? "Processed through Rooomly" : "Paid externally · recorded through Rooomly"}</span>
+                  <span>{payment.source === "PLATFORM_PSP" ? "Processed through Danpa HQ" : "Paid externally · recorded through Danpa HQ"}</span>
                 </div>
                 {payment.reference || payment.evidence_file || payment.receipt_id || payment.dispute_reason ? (
                   <div className="ra-pay-extra">
@@ -345,7 +345,7 @@ function PaymentReview({
             title={decision === "confirm" ? "Confirm this payment?" : "You did not make this payment?"}
             body={
               decision === "confirm"
-                ? "This confirms the external payment and applies it to the linked obligation. Rooomly did not process the transfer."
+                ? "This confirms the external payment and applies it to the linked obligation. Danpa HQ did not process the transfer."
                 : "The record remains in history as disputed and will not settle your balance."
             }
           />

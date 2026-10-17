@@ -184,6 +184,9 @@ class SupportCase(BaseModel):
     related_lease_id = models.UUIDField(null=True, blank=True)
     resolution_note = models.TextField(blank=True, max_length=1000)
     resolved_at = models.DateTimeField(null=True, blank=True)
+    last_message_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    user_read_at = models.DateTimeField(null=True, blank=True)
+    management_read_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         db_table = "operations_support_case"
@@ -193,6 +196,72 @@ class SupportCase(BaseModel):
                 fields=["status", "priority", "-created_at"], name="operations_support_queue_idx"
             )
         ]
+
+
+class SupportMessageSender(models.TextChoices):
+    USER = "user", "Customer"
+    MANAGEMENT = "management", "Management"
+
+
+class SupportCaseMessage(BaseModel):
+    """A durable message in the customer's conversation with Management.
+
+    The display label is snapshotted so an account deletion or staff
+    deactivation does not make the history unreadable.
+    """
+
+    case = models.ForeignKey(SupportCase, on_delete=models.CASCADE, related_name="messages")
+    sender = models.CharField(max_length=16, choices=SupportMessageSender.choices)
+    author_user = models.ForeignKey(
+        "identity.User",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="support_messages",
+    )
+    author_management = models.ForeignKey(
+        ManagementUser,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="support_messages",
+    )
+    author_label = models.CharField(max_length=160)
+    body = models.TextField(max_length=2000)
+
+    class Meta:
+        db_table = "operations_support_case_message"
+        ordering = ("created_at",)
+        indexes: ClassVar[list[models.Index]] = [
+            models.Index(fields=["case", "created_at"], name="operations_support_msg_idx")
+        ]
+
+
+class ConfigurationValue(BaseModel):
+    """One Management-owned runtime override.
+
+    Only keys declared in ``operations.configuration`` may be stored. Secret
+    values are encrypted before they reach this field and are never returned by
+    the Management API.
+    """
+
+    key = models.CharField(max_length=80, unique=True)
+    value = models.TextField(blank=True)
+    is_secret = models.BooleanField(default=False)
+    updated_by = models.ForeignKey(
+        ManagementUser,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="configuration_changes",
+    )
+
+    class Meta:
+        db_table = "operations_configuration_value"
+        ordering = ("key",)
+
+    def __str__(self) -> str:
+        return self.key
 
 
 class DeletionStatus(models.TextChoices):

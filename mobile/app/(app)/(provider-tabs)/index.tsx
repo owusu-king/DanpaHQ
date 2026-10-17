@@ -49,6 +49,7 @@ import { useBlankOnPortfolioSwitch } from "@/portfolioScope";
 import { listEnquiries } from "@/sales";
 import { alpha } from "@/shell";
 import { theme } from "@/theme";
+import { ProviderTabFrame } from "@/components/nav/NativeTabFrame";
 
 /**
  * The provider's Home: what to do next, then how the Portfolio stands
@@ -69,7 +70,7 @@ import { theme } from "@/theme";
  *
  * What to do and in what order is decided in `dashboardWork.ts`.
  */
-export default function ProviderHomeScreen() {
+function ProviderHomeScreen() {
   // Behind every state — a first Property, the skeleton and the Portfolio
   // itself — so Home never changes colour as its figures arrive.
   return (
@@ -241,7 +242,7 @@ function ProviderHome() {
         <View style={[dash.card, { gap: space[3] }]}>
           <Type variant="title2" accessibilityRole="header" style={{ color: INK }}>Your Portfolio starts here</Type>
           <Type variant="caption" style={{ color: MUTED }}>
-            Add your first Property and Rooomly will help you organize its Units, tenants,
+            Add your first Property and Danpa HQ will help you organize its Units, tenants,
             agreements and rent.
           </Type>
           <Button label="Add first Property" onPress={() => router.push("/(app)/private-property" as never)} />
@@ -835,3 +836,12 @@ const styles = StyleSheet.create({
     color: MUTED,
   },
 });
+
+/** On iOS the tab sits in the native bar, which draws no header; see `ProviderTabFrame`. */
+export default function ProviderHomeTab() {
+  return (
+    <ProviderTabFrame tab="home">
+      <ProviderHomeScreen />
+    </ProviderTabFrame>
+  );
+}

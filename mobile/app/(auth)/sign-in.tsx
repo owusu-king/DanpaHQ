@@ -155,7 +155,7 @@ export default function SignInScreen() {
           onPress={() => router.push("/(auth)/forgot-password")}
         />
         <AuthAside>
-          <Type variant="caption">New to Rooomly?</Type>
+          <Type variant="caption">New to Danpa HQ?</Type>
           <TextLink
             label="Create an account"
             strong

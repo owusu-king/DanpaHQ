@@ -3,7 +3,6 @@
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { Icon } from "@/components/portal/icons";
 import { ListingCard } from "@/components/listings/ListingCard";
 import { isAborted } from "@/lib/api";
 import type { Listing } from "@/lib/console";
@@ -46,7 +45,7 @@ const ExploreMap = dynamic(() => import("./ExploreMap").then((module) => module.
   loading: () => <div className="explore-map-frame"><div className="explore-map-loading" aria-hidden="true" /></div>,
 });
 
-const VISITED_KEY = "rooomly:visited-listings";
+const VISITED_KEY = "danpahq:visited-listings";
 
 function useNarrow() {
   const [narrow, setNarrow] = useState(false);
@@ -315,7 +314,19 @@ export function ExploreMapView({
     onSearchArea(bounds);
   }
 
-  const showSearchArea = Boolean(userMoved && view && searched && outgrewSearch(view.bounds, searched));
+  function resetMapView() {
+    if (!areaTarget) return;
+    setSelection(null);
+    setUserMoved(false);
+    setSuppressedFit(null);
+    setZoomTo({
+      key: `reset:${Date.now()}`,
+      bounds: areaTarget.bounds,
+      maxZoom: areaTarget.maxZoom,
+    });
+  }
+
+  const showSearchArea = Boolean(userMoved && view && (!searched || outgrewSearch(view.bounds, searched)));
   const total = summary?.total ?? null;
   const areaName = query.bbox ? "in this map area" : area ? `in ${area.name.split(",")[0]}` : "across Ghana";
   const noneHere = total === 0 && !loading;
@@ -390,7 +401,7 @@ export function ExploreMapView({
             config={config}
             features={features}
             fit={fit}
-            padding={narrow ? { top: 64, right: 28, bottom: 96, left: 28 } : { top: 64, right: 64, bottom: 64, left: 64 }}
+            padding={narrow ? { top: 64, right: 76, bottom: 96, left: 28 } : { top: 64, right: 76, bottom: 64, left: 64 }}
             selection={selection}
             hoveredId={hoveredId}
             visited={visited}
@@ -408,6 +419,11 @@ export function ExploreMapView({
             onSelectCluster={selectCluster}
             onBackgroundClick={() => setSelection(null)}
             onFailure={() => setMapFailed(true)}
+            canSearchArea={showSearchArea}
+            searchingArea={querying}
+            canResetView={Boolean(areaTarget)}
+            onSearchArea={searchThisArea}
+            onResetView={resetMapView}
             salePins={salePins}
             onOpenSale={onOpenSale}
           />
@@ -424,12 +440,6 @@ export function ExploreMapView({
 
         <div className="explore-map-overlay-top">
           {loading ? <span className="explore-map-progress" aria-hidden="true" /> : null}
-          {showSearchArea && !mapFailed ? (
-            <button type="button" className="explore-search-area" onClick={searchThisArea}>
-              <Icon name="explore" />
-              <span>Search this area</span>
-            </button>
-          ) : null}
           {markersFailed ? (
             <button type="button" className="explore-map-retry" onClick={() => fetchMarkers(viewRef.current, true)}>
               Markers did not update. Retry

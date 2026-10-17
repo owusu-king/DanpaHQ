@@ -76,7 +76,7 @@ test("external payments are explicit, evidenced and tenant-confirmed on mobile",
   assert.match(record, /Direct mobile money/);
   assert.match(record, /uploadImage\(evidence, "payment_evidence"\)/);
   assert.match(detail, /I didn’t make this payment/);
-  assert.match(detail, /Paid externally · recorded through Rooomly/);
+  assert.match(detail, /Paid externally · recorded through Danpa HQ/);
   // A claim the landlord recorded is the tenant's to confirm or dispute, said on the row.
   assert.match(tenant, />To confirm<\/GroupLabel>/);
   assert.match(tenant, /<Act label="Confirm or dispute"/);

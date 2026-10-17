@@ -62,7 +62,7 @@ export function formatDate(value: string | null | undefined): string {
   // than three fractional digits.
   const date = new Date(value.replace(/(\.\d{3})\d+/, "$1"));
   if (Number.isNaN(date.getTime())) return "";
-  // Rooomly's calendar is Ghana's, and Ghana keeps GMT all year, so the UTC
+  // Danpa HQ's calendar is Ghana's, and Ghana keeps GMT all year, so the UTC
   // date is the Accra date — without asking the phone for time-zone data.
   return `${date.getUTCDate()} ${MONTHS[date.getUTCMonth()] ?? ""} ${date.getUTCFullYear()}`;
 }
@@ -431,7 +431,7 @@ function standingOfSubscription(billing: PortfolioBilling, catalogue: PlanCatalo
       const usual = planPrice(plan, subscription.billing_interval) ?? plan.monthly_price_minor;
       Object.assign(standing, {
         badge: { tone: "positive", label: "Active" },
-        line: `Included by Rooomly · usually ${formatPrice(usual, plan.currency)} / ${periodWord(subscription.billing_interval)}`,
+        line: `Included by Danpa HQ · usually ${formatPrice(usual, plan.currency)} / ${periodWord(subscription.billing_interval)}`,
       });
       break;
     }
@@ -531,7 +531,7 @@ export function historyLine(event: PortfolioBilling["history"][number], catalogu
       return `Kept ${from}`;
     case "override_applied":
     case "override_removed":
-      return "Limits adjusted by Rooomly";
+      return "Limits adjusted by Danpa HQ";
     default:
       return event.event_type_display;
   }

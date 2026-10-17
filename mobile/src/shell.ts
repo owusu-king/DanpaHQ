@@ -1,10 +1,10 @@
 /**
- * Rooomly's shell: its green, an ivory page, and paper surfaces.
+ * Danpa HQ's shell: its green, an ivory page, and paper surfaces.
  *
  * Header, page and tab bar once stood on one beige (`field-100`, the token for
  * quiet fills), which read as plain. A pass that followed the tokens' letter —
  * ink chrome and a gold accent — read as dark and brown instead, and the product
- * owner asked for Rooomly's green, used harmoniously. So:
+ * owner asked for Danpa HQ's green, used harmoniously. So:
  *
  * - **The chrome is kola** (`kola-600`): the band behind the status bar and every
  *   header, with titles and glyphs in white and header controls as translucent
@@ -30,7 +30,7 @@ export const alpha = (hex: string, opacity: number) => {
 };
 
 export const shell = {
-  /** The band behind the status bar and every header: Rooomly's green. */
+  /** The band behind the status bar and every header: Danpa HQ's green. */
   chrome: theme.color.kola["600"],
   /** A control on the chrome: a white well the green shows through. */
   chromeRaised: alpha(theme.color.field["0"], 0.14),
@@ -39,7 +39,7 @@ export const shell = {
   onChrome: theme.color.field["0"],
   /** Quieter type on the chrome. */
   onChromeMuted: alpha(theme.color.field["0"], 0.78),
-  /** The mark's three o's on the chrome. */
+  /** The mark's HQ on the chrome. */
   markOnChrome: theme.color.kola["50"],
   canvas: theme.color.field["50"],
   /** Where the two Homes stand: the chrome's green softened into the ivory. */
@@ -62,7 +62,7 @@ export const shell = {
 } as const;
 
 /**
- * React Navigation's own surfaces in Rooomly's palette.
+ * React Navigation's own surfaces in Danpa HQ's palette.
  *
  * Scenes, cards and anything else the navigators paint without being asked take
  * their colours from here, so a screen that sets no background stands on ivory

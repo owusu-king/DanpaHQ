@@ -394,7 +394,7 @@ class OfferSlotsSerializer(serializers.Serializer):
     def validate(self, attrs):
         if "viewing_fee_minor" in self.initial_data or "viewing_fee_note" in self.initial_data:
             raise serializers.ValidationError(
-                "Rooomly viewings are free. Viewing fees cannot be added."
+                "Danpa HQ viewings are free. Viewing fees cannot be added."
             )
         return attrs
 

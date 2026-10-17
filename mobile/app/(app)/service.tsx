@@ -348,7 +348,7 @@ function ServiceHistory({ purchases }: { purchases: RecentPurchase[] }) {
  * How the money will move, said before it moves.
  *
  * Here because the alternative is each new service quietly growing its own
- * checkout. Rooomly already has server-priced intents, one open intent per
+ * checkout. Danpa HQ already has server-priced intents, one open intent per
  * obligation, immutable provider transactions, allocation, a balanced ledger,
  * receipts and reconciliation. A second payment path beside that would have
  * none of it and would look, from a tenant's side, exactly the same.
@@ -360,7 +360,7 @@ function HowItWillWork({ service }: { service: Service }) {
       <Type variant="caption">
         {isPurchase(service)
           ? "You will see the price before you pay, pay through the same checkout and receipts your rent uses, and keep a record you can show later."
-          : "You will book through Rooomly and follow what happens next in one place."}
+          : "You will book through Danpa HQ and follow what happens next in one place."}
       </Type>
     </View>
   );

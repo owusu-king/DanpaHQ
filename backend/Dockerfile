@@ -30,7 +30,7 @@ ENV PYTHONUNBUFFERED=1 \
 # import. Map search runs on PostGIS (ADR 0033); without them the app cannot
 # start, so they belong to the runtime image rather than a dev extra.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      libpq5 curl gdal-bin && rm -rf /var/lib/apt/lists/* \
+      libpq5 curl gdal-bin fonts-dejavu-core && rm -rf /var/lib/apt/lists/* \
  && useradd --create-home --uid 10001 app
 
 COPY --from=builder /install /usr/local

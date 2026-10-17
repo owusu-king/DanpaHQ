@@ -19,7 +19,7 @@ def person(db):
 @pytest.fixture
 def manager(db):
     return ManagementUser.objects.create(
-        email="ops@rooomly.test", first_name="Ops", last_name="Lead", role="admin"
+        email="ops@danpahq.test", first_name="Ops", last_name="Lead", role="admin"
     )
 
 

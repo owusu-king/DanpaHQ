@@ -27,8 +27,8 @@ from .models import (
 )
 
 admin.site.login_form = AdminEmailAuthenticationForm
-admin.site.site_header = "Ghana Rental Super Admin"
-admin.site.site_title = "Ghana Rental Super Admin"
+admin.site.site_header = "Danpa HQ Super Admin"
+admin.site.site_title = "Danpa HQ Super Admin"
 admin.site.index_title = "System configuration and unrestricted administration"
 
 

@@ -11,7 +11,7 @@ const SHEEN_OPACITY = 0.46;
 const DEPTH_OPACITY = 0.05;
 
 /**
- * The ground both Homes are drawn on: Rooomly's green, let down into the ivory
+ * The ground both Homes are drawn on: Danpa HQ's green, let down into the ivory
  * until it is a tone rather than a colour.
  *
  * It replaced a warm stone, which under the kola header read as a second, duller

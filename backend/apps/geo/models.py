@@ -11,7 +11,7 @@ since 2019). Localities are seeded and extended by operations, never created ad
 hoc from user input - otherwise the same neighbourhood appears eleven times with
 eleven spellings and search stops working. An Address may instead retain a
 provider-resolved place when the controlled table does not yet cover that town;
-that does not silently promote third-party text into Rooomly reference data.
+that does not silently promote third-party text into Danpa HQ reference data.
 
 PostGIS arrived with map search (ADR 0033, superseding that part of ADR 0003):
 listings carry an approximate public point the map searches. What a tenant types

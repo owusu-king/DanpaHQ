@@ -8,12 +8,13 @@ import { radius } from "@/components/ui";
 import type { GeoBounds } from "@/places";
 import { theme } from "@/theme";
 
-import type { MapMarker, RooomlyMapProps } from "./types";
+import type { MapMarker, DanpaHQMapProps } from "./types";
 
 /**
- * Rooomly's map on a phone: react-native-maps drawing Google Maps (ADR 0034).
+ * Danpa HQ's map on a phone: react-native-maps drawing Apple Maps on iOS and
+ * Google Maps on Android (ADR 0034).
  *
- * The only file in the app that imports a map library. Markers are Rooomly's
+ * The only file in the app that imports a map library. Markers are Danpa HQ's
  * own faces — price pills, cluster discs and stacks in the product's colours —
  * sized by their own text, so they come out the same on every screen density
  * and font size.
@@ -24,15 +25,20 @@ import type { MapMarker, RooomlyMapProps } from "./types";
  * into a fixed 100×100-pixel square: a cropped pill on a dense screen. iOS draws
  * the live views as they are.
  *
- * Expo Go on an iPhone cannot load Google's SDK, so there the same component
- * draws Apple Maps: development still shows a working map, and every build
- * Rooomly ships draws Google's.
+ * iOS always uses Apple's default provider; Android uses Google's provider.
  */
 
 const inExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
-const PROVIDER = Platform.OS === "ios" && inExpoGo ? PROVIDER_DEFAULT : PROVIDER_GOOGLE;
+const PROVIDER = Platform.OS === "ios" ? PROVIDER_DEFAULT : PROVIDER_GOOGLE;
 /** Android places images of the faces; iOS places the faces themselves. */
 const DRAWS_IMAGES = Platform.OS === "android";
+
+/**
+ * How long Google gets to draw the map before Explore stops waiting for it. A
+ * phone with outdated Google Play services, or a key its build is not allowed,
+ * shows the logo over an empty map and never says why.
+ */
+const MAP_LOAD_WAIT_MS = 12_000;
 
 /** Room left around a fitted area, inside what the screen leaves uncovered. */
 const FIT_MARGIN = 32;
@@ -42,7 +48,7 @@ const MARKER_FONT_SCALE = 1.3;
 /** Line heights of marker text, before the system font size applies. */
 const LABEL_LINE = 16;
 const COUNT_LINE = 14;
-const CLUSTER_BORDER = 2;
+const CLUSTER_BORDER = 3;
 /** Room around a cluster's number, by how many rentals it holds. */
 const CLUSTER_ROOM = { small: 8, medium: 11, large: 14 } as const;
 
@@ -55,23 +61,23 @@ const FACE_CACHE_LIMIT = 400;
 /** Drawn faces, kept for the session: a label in a state is drawn once. */
 const faceImages = new Map<string, string>();
 
-const IDLE = { fill: theme.color.field["0"], edge: "rgba(33,26,21,0.22)", text: theme.color.ink["900"] };
+const IDLE = { fill: theme.color.field["0"], edge: theme.color.kola["300"], text: theme.color.kola["900"] };
 const VISITED = { fill: theme.color.field["100"], edge: "rgba(33,26,21,0.16)", text: theme.color.ink["500"] };
 const SELECTED = { fill: theme.color.kola["800"], edge: theme.color.kola["800"], text: theme.color.field["0"] };
 /** A property for sale: gold, so a price in the hundreds of thousands is never read as rent. */
-const SALE_IDLE = { fill: theme.color.gold["100"], edge: theme.color.gold["500"], text: theme.color.ink["900"] };
+const SALE_IDLE = { fill: theme.color.field["0"], edge: theme.color.gold["500"], text: theme.color.ink["900"] };
 const SALE_VISITED = { fill: theme.color.gold["50"], edge: theme.color.gold["300"], text: theme.color.ink["500"] };
 const SALE_SELECTED = { fill: theme.color.gold["600"], edge: theme.color.gold["600"], text: theme.color.field["0"] };
-/** Pills with a tail point at their place from below; discs sit on it. */
-const tailed = (kind: MapMarker["kind"]) => kind === "price" || kind === "sale";
+/** Every pill points at its place from below; only cluster discs sit on it. */
+const tailed = (kind: MapMarker["kind"]) => kind !== "cluster";
 
 type Face = { key: string; marker: MapMarker };
 
-/** Whether this build can draw a map: Expo Go always can; a build needs its platform's key. */
+/** Apple Maps needs no key; Android builds need their own Google Maps key. */
 export function mapAvailable(): boolean {
-  if (inExpoGo) return true;
-  const keys = Constants.expoConfig?.extra?.googleMaps as { android?: boolean; ios?: boolean } | undefined;
-  return Platform.OS === "ios" ? Boolean(keys?.ios) : Boolean(keys?.android);
+  if (Platform.OS === "ios" || inExpoGo) return true;
+  const keys = Constants.expoConfig?.extra?.googleMaps as { android?: boolean } | undefined;
+  return Boolean(keys?.android);
 }
 
 function regionFor(lat: number, lng: number, zoom: number): Region {
@@ -103,19 +109,33 @@ function remember(key: string, uri: string) {
   }
 }
 
-export function RooomlyMap({
+export function DanpaHQMap({
   initialView,
   fit,
+  baseMap,
   insets,
   markers,
   onMove,
   onMarkerPress,
   onBackgroundPress,
+  onUnavailable,
   style,
-}: RooomlyMapProps) {
+}: DanpaHQMapProps) {
   const map = useRef<MapView>(null);
   const [ready, setReady] = useState(false);
-  // A move is the tenant's unless Rooomly asked for it; the first settle is ours.
+  const drawn = useRef(false);
+  const unavailable = useRef(onUnavailable);
+  useEffect(() => { unavailable.current = onUnavailable; }, [onUnavailable]);
+
+  // Google says when it has drawn the map; silence means it never will.
+  useEffect(() => {
+    if (PROVIDER !== PROVIDER_GOOGLE) return;
+    const timer = setTimeout(() => {
+      if (!drawn.current) unavailable.current?.();
+    }, MAP_LOAD_WAIT_MS);
+    return () => clearTimeout(timer);
+  }, []);
+  // A move is the tenant's unless Danpa HQ asked for it; the first settle is ours.
   const ours = useRef(true);
   const size = useRef({ width: 0, height: 0 });
   const covering = useRef(insets);
@@ -129,6 +149,15 @@ export function RooomlyMap({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
+  // Bad coordinates must not make the native provider reject the whole marker pass.
+  const drawableMarkers = useMemo(() => markers.filter(({ position }) => (
+    Number.isFinite(position.lat)
+    && Number.isFinite(position.lng)
+    && position.lat >= -90
+    && position.lat <= 90
+    && position.lng >= -180
+    && position.lng <= 180
+  )), [markers]);
 
   useEffect(() => {
     covering.current = insets;
@@ -157,12 +186,12 @@ export function RooomlyMap({
   const undrawn = useMemo<Face[]>(() => {
     if (!DRAWS_IMAGES) return [];
     const needed = new Map<string, MapMarker>();
-    for (const marker of markers) {
+    for (const marker of drawableMarkers) {
       const key = faceKey(marker, fontScale);
       if (!images.has(key) && !needed.has(key)) needed.set(key, marker);
     }
     return [...needed].slice(0, DRAW_BATCH).map(([key, marker]) => ({ key, marker }));
-  }, [markers, fontScale, images]);
+  }, [drawableMarkers, fontScale, images]);
 
   /**
    * What the tenant can see: the map between the edges the screen covers,
@@ -192,6 +221,7 @@ export function RooomlyMap({
         ref={map}
         style={style ?? StyleSheet.absoluteFill}
         provider={PROVIDER}
+        mapType={baseMap}
         initialRegion={initialRegion}
         // What the screen covers: fits land in the rest, and the logo stays above the sheet.
         mapPadding={insets}
@@ -199,6 +229,7 @@ export function RooomlyMap({
           size.current = { width: event.nativeEvent.layout.width, height: event.nativeEvent.layout.height };
         }}
         onMapReady={() => setReady(true)}
+        onMapLoaded={() => { drawn.current = true; }}
         onRegionChangeComplete={(region, details) => {
           const byUser = details?.isGesture ?? !ours.current;
           ours.current = false;
@@ -222,7 +253,7 @@ export function RooomlyMap({
         showsPointsOfInterests={false}
         showsIndoors={false}
       >
-        {markers.map((marker) => {
+        {drawableMarkers.map((marker) => {
           if (!DRAWS_IMAGES) {
             return (
               <RentalMarker
@@ -236,10 +267,13 @@ export function RooomlyMap({
           // While a new state's face is being drawn, the marker keeps its plain one.
           const image = images.get(faceKey(marker, fontScale))
             ?? images.get(faceKey({ ...marker, selected: false, visited: false }, fontScale));
+          // Keep Android's native map light while the offscreen face is being
+          // captured. Mounting live markers alongside the studio can overwhelm
+          // the map renderer on older phones.
           if (!image) return null;
           return (
             <Marker
-              key={marker.key}
+              key={`${marker.key}:${marker.selected ? "selected" : marker.visited ? "visited" : "idle"}`}
               coordinate={{ latitude: marker.position.lat, longitude: marker.position.lng }}
               anchor={tailed(marker.kind) ? PRICE_ANCHOR : CENTER_ANCHOR}
               image={{ uri: image }}
@@ -316,23 +350,29 @@ function MarkerFace({ marker }: { marker: MapMarker }) {
   const palette = marker.kind === "sale"
     ? selected ? SALE_SELECTED : visited ? SALE_VISITED : SALE_IDLE
     : selected ? SELECTED : visited ? VISITED : IDLE;
+  const dot = selected
+    ? theme.color.field["0"]
+    : visited ? theme.color.ink["300"]
+      : marker.kind === "sale" ? theme.color.gold["500"] : theme.color.kola["600"];
   return (
     <View style={styles.frame} {...described}>
-      <View style={[styles.pill, marker.kind === "stack" && styles.stackPill, { backgroundColor: palette.fill, borderColor: palette.edge }]}>
-        {marker.kind === "stack" ? (
-          <View style={[styles.count, { minWidth: COUNT_LINE * scale + 4, backgroundColor: selected ? theme.color.field["0"] : theme.color.kola["600"] }]}>
-            <Text
-              maxFontSizeMultiplier={MARKER_FONT_SCALE}
-              numberOfLines={1}
-              style={[styles.countLabel, { color: selected ? theme.color.kola["800"] : theme.color.field["0"] }]}
-            >
-              {marker.count}
-            </Text>
-          </View>
-        ) : null}
-        <Text maxFontSizeMultiplier={MARKER_FONT_SCALE} numberOfLines={1} style={[styles.priceLabel, { color: palette.text }]}>
-          {marker.label}
-        </Text>
+      <View style={[styles.pillHalo, selected && styles.pillHaloSelected]}>
+        <View style={[styles.pill, marker.kind === "stack" && styles.stackPill, { backgroundColor: palette.fill, borderColor: palette.edge }]}>
+          {marker.kind === "stack" ? (
+            <View style={[styles.count, { minWidth: COUNT_LINE * scale + 4, backgroundColor: selected ? theme.color.field["0"] : theme.color.kola["600"] }]}>
+              <Text
+                maxFontSizeMultiplier={MARKER_FONT_SCALE}
+                numberOfLines={1}
+                style={[styles.countLabel, { color: selected ? theme.color.kola["800"] : theme.color.field["0"] }]}
+              >
+                {marker.count}
+              </Text>
+            </View>
+          ) : <View style={[styles.markerDot, { backgroundColor: dot }]} />}
+          <Text maxFontSizeMultiplier={MARKER_FONT_SCALE} numberOfLines={1} style={[styles.priceLabel, { color: palette.text }]}>
+            {marker.label}
+          </Text>
+        </View>
       </View>
       {tailed(marker.kind) ? (
         // The tail points at the place: an outline, then the fill a pixel inside it.
@@ -367,7 +407,9 @@ function FaceShot({ face, onDrawn }: { face: Face; onDrawn: (key: string, uri: s
   const started = useRef(false);
 
   function capture(attempt = 0) {
-    captureRef(frame, { format: "png", quality: 1, result: "data-uri" })
+    // `react-native-maps` accepts local marker images. A temporary file is one;
+    // a data URI is not, and can fall back to Google's red marker on Android.
+    captureRef(frame, { format: "png", quality: 1, result: "tmpfile" })
       .then((uri) => onDrawn(face.key, uri))
       // A face caught mid-mount gets another try on a later frame.
       .catch(() => {
@@ -397,16 +439,19 @@ const styles = StyleSheet.create({
   shot: { alignSelf: "flex-start" },
   // A pixel of room, so no antialiased edge is cut where the face meets its image.
   frame: { alignItems: "center", padding: 1 },
+  pillHalo: { padding: 2, borderRadius: radius.pill, backgroundColor: "rgba(255,255,255,0.78)" },
+  pillHaloSelected: { backgroundColor: "rgba(18,80,59,0.22)" },
   pill: {
     flexDirection: "row",
     alignItems: "center",
     gap: 5,
     paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderWidth: 1,
+    paddingVertical: 7,
+    borderWidth: 1.5,
     borderRadius: radius.pill,
   },
   stackPill: { paddingLeft: 4 },
+  markerDot: { width: 7, height: 7, borderRadius: 4 },
   priceLabel: {
     fontSize: 13,
     lineHeight: LABEL_LINE,
@@ -454,7 +499,7 @@ const styles = StyleSheet.create({
     borderLeftColor: "transparent",
     borderRightColor: "transparent",
   },
-  halo: { padding: 4, borderRadius: radius.pill, backgroundColor: "rgba(27,107,79,0.22)" },
+  halo: { padding: 4, borderRadius: radius.pill, backgroundColor: "rgba(27,107,79,0.18)" },
   haloSelected: { backgroundColor: "rgba(18,80,59,0.3)" },
   cluster: {
     alignItems: "center",

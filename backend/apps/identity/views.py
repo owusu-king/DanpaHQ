@@ -142,7 +142,7 @@ class VerifyChallengeView(APIView):
 #: Where a browser's refresh token lives. Scoped to the auth endpoints so it is
 #: not attached to every API request, which keeps its exposure to the two calls
 #: that actually need it.
-REFRESH_COOKIE = "grp_refresh"
+REFRESH_COOKIE = "danpahq_refresh"
 REFRESH_COOKIE_PATH = "/api/v1/auth/"
 
 
@@ -829,6 +829,10 @@ class DeviceViewSet(ViewSet):
 
     def block(self, request, pk=None):
         """Report the handset lost or stolen, and bar it until support lifts it."""
+        from apps.operations.configuration import value as configuration_value
+
+        if not configuration_value("STOLEN_DEVICE_REPORTING_ENABLED", True):
+            raise PermissionDenied("Lost or stolen device reporting is currently unavailable.")
         device = self._other_device(request, pk)
         revoked = services.block_device(
             device=device,
@@ -888,6 +892,8 @@ class SecurityStatusView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        from apps.operations.configuration import value as configuration_value
+
         session = require_live_session(request)
         assessment = services.assess_user_risk(request.user, device=session.device)
 
@@ -904,6 +910,9 @@ class SecurityStatusView(APIView):
                     user=request.user, blocked_at__isnull=True
                 ).count(),
                 "phone_verified": request.user.is_phone_verified,
+                "stolen_device_reporting_enabled": bool(
+                    configuration_value("STOLEN_DEVICE_REPORTING_ENABLED", True)
+                ),
             }
         )
 

@@ -79,7 +79,7 @@ class PayoutProvisioningStatus(models.TextChoices):
 
 
 class ProviderFeeBearer(models.TextChoices):
-    PLATFORM = "account", "Rooomly"
+    PLATFORM = "account", "Danpa HQ"
     SUBACCOUNT = "subaccount", "Provider"
 
 
@@ -93,7 +93,7 @@ class RefundStatus(models.TextChoices):
 
 
 class ReconciliationKind(models.TextChoices):
-    """Every way Rooomly's record and the provider's can disagree.
+    """Every way Danpa HQ's record and the provider's can disagree.
 
     Named for what is actually wrong rather than for severity, because the
     recovery differs per kind and a single "mismatch" bucket would need
@@ -102,15 +102,15 @@ class ReconciliationKind(models.TextChoices):
 
     PROVIDER_SUCCEEDED_INTERNAL_PENDING = (
         "provider_succeeded_internal_pending",
-        "Provider says paid, Rooomly says pending",
+        "Provider says paid, Danpa HQ says pending",
     )
     PROVIDER_SUCCEEDED_INTERNAL_FAILED = (
         "provider_succeeded_internal_failed",
-        "Provider says paid, Rooomly says failed",
+        "Provider says paid, Danpa HQ says failed",
     )
     INTERNAL_SUCCEEDED_PROVIDER_MISSING = (
         "internal_succeeded_provider_missing",
-        "Rooomly says paid, provider has no record",
+        "Danpa HQ says paid, provider has no record",
     )
     AMOUNT_MISMATCH = "amount_mismatch", "Amounts disagree"
     CURRENCY_MISMATCH = "currency_mismatch", "Currencies disagree"
@@ -128,7 +128,7 @@ class ReconciliationKind(models.TextChoices):
     )
     UNMATCHED_PROVIDER_EVENT = (
         "unmatched_provider_event",
-        "Authenticated provider evidence Rooomly could not apply",
+        "Authenticated provider evidence Danpa HQ could not apply",
     )
 
 
@@ -156,17 +156,17 @@ class WebhookStatus(models.TextChoices):
 class PaymentPurpose(models.TextChoices):
     """What an intent settles. The rail is shared; the business reason is not.
 
-    Rent and a Rooomly subscription move through one payment implementation —
+    Rent and a Danpa HQ subscription move through one payment implementation —
     the same provider adapter, webhook, attempt, transaction, ledger and receipt
     boundary — but they are different obligations with different owners: a
     `RentCharge` a tenant owes a Portfolio, and a `BillingInvoice` a Portfolio
-    owes Rooomly. Nothing about one may be inferred from the other, which is why
+    owes Danpa HQ. Nothing about one may be inferred from the other, which is why
     every branch in `services` asks this field rather than guessing from which
     foreign key happens to be set.
     """
 
     RENT_OBLIGATION = "rent_obligation", "Rent obligation"
-    SUBSCRIPTION_INVOICE = "subscription_invoice", "Rooomly subscription"
+    SUBSCRIPTION_INVOICE = "subscription_invoice", "Danpa HQ subscription"
 
 
 class PaymentIntent(BaseModel):
@@ -522,7 +522,7 @@ class PaymentAttempt(BaseModel):
     intents and no record that they had been trying to settle one charge.
 
     Kept separate from `PaymentTransaction` deliberately. A transaction is a
-    provider-side financial fact and is immutable; an attempt is Rooomly's own
+    provider-side financial fact and is immutable; an attempt is Danpa HQ's own
     record of a try, including the tries that produced no transaction at all —
     a timeout, or a person who closed the app at the PIN prompt. Those are the
     ones worth having, and they are exactly the ones a provider never tells us
@@ -600,7 +600,7 @@ class PaymentAllocation(BaseModel):
         on_delete=models.PROTECT,
         related_name="allocations",
     )
-    #: A Rooomly subscription invoice this money settled. Exactly one of this
+    #: A Danpa HQ subscription invoice this money settled. Exactly one of this
     #: and `obligation` is set, so "which debt did this money answer for" has
     #: one answer for every confirmed payment, rent or not.
     billing_invoice = models.ForeignKey(
@@ -660,7 +660,7 @@ class PayoutProfile(BaseModel):
 
     **Nothing here can move money on its own and nothing here is a credential.**
     The account is held as an opaque provider token plus a masked string for a
-    human to recognise. Rooomly never stores a PIN, an OTP, a CVV or a raw
+    human to recognise. Danpa HQ never stores a PIN, an OTP, a CVV or a raw
     account number. Paystack provisioning passes the account number through to
     the provider and persists only the returned references and masked display.
     """
@@ -718,7 +718,7 @@ class PayoutProvisioningOperation(BaseModel):
 
     Paystack does not document an idempotency key for subaccount creation. This
     row is therefore committed *before* the network call and its UUID is sent in
-    provider metadata. If the response is lost, Rooomly searches for that UUID;
+    provider metadata. If the response is lost, Danpa HQ searches for that UUID;
     it never repeats the create call and risks a duplicate subaccount.
 
     The request fingerprint is a keyed HMAC. A plain hash of a bank account
@@ -811,7 +811,7 @@ class Refund(BaseModel):
 
 
 class ReconciliationException(BaseModel):
-    """A disagreement between Rooomly and a provider that a person must settle.
+    """A disagreement between Danpa HQ and a provider that a person must settle.
 
     Deliberately a record rather than a repair. A sweep that silently corrected
     what it found would be a sweep that could silently corrupt: the whole reason

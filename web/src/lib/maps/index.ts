@@ -1,7 +1,7 @@
 /**
- * Maps, behind Rooomly's own interface (ADR 0034).
+ * Maps, behind Danpa HQ's own interface (ADR 0034).
  *
- * Components ask for a `RooomlyMap` and draw markers, areas and previews
+ * Components ask for a `DanpaHQMap` and draw markers, areas and previews
  * through it. Which company draws the map is decided here, and only `./google`
  * knows it is Google — another provider is another folder and a change to this
  * file, and nothing that renders Explore or a listing moves.
@@ -11,7 +11,7 @@ import { googleMapsConfigured, googleMapsSetupHint } from "./google/config";
 import { onGoogleMapsRefused } from "./google/loader";
 import { createGoogleMap } from "./google/map";
 import { createPreviewMap } from "./preview/map";
-import type { MapOptions, RooomlyMap } from "./types";
+import type { MapOptions, DanpaHQMap } from "./types";
 
 export * from "./types";
 
@@ -27,7 +27,7 @@ export function mapSetupHint(): string | null {
   return previewAvailable() ? null : googleMapsSetupHint();
 }
 
-export function createMap(container: HTMLElement, options: MapOptions): Promise<RooomlyMap> {
+export function createMap(container: HTMLElement, options: MapOptions): Promise<DanpaHQMap> {
   return previewAvailable() ? createPreviewMap(container, options) : createGoogleMap(container, options);
 }
 

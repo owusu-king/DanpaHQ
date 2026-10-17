@@ -1,4 +1,4 @@
-const DEVICE_KEY = "rooomly.device_fingerprint";
+const DEVICE_KEY = "danpahq.device_fingerprint";
 let memoryFingerprint = "";
 
 function newFingerprint() {

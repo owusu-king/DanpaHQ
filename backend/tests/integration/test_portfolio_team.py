@@ -118,7 +118,7 @@ class TestPersonalPortfolio:
     def test_a_first_property_finds_one_portfolio_even_if_approval_did_not_make_it(
         self, registered, sign_in_as, portfolio_address
     ):
-        """The repair path, for accounts approved before Rooomly provisioned.
+        """The repair path, for accounts approved before Danpa HQ provisioned.
 
         A Portfolio comes from provider approval now. The Property flows must
         not depend on that having already happened — so they ask for the same

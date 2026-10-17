@@ -19,9 +19,10 @@ import { listMyJoinRequests, listMyTenancies, type MyJoinRequest, type Tenancy }
 import { listMyViewings, type Viewing } from "@/viewings";
 import { chooseWorkspace } from "@/workspace";
 import { useFloatingTabBarClearance } from "@/platform";
+import { RenterTabFrame } from "@/components/nav/NativeTabFrame";
 
 /**
- * Home: the tenant's dashboard signed in, and what Rooomly is signed out.
+ * Home: the tenant's dashboard signed in, and what Danpa HQ is signed out.
  *
  * Both stand on the soft green ground now. It used to stop painting for the
  * signed-out screen, on the reasoning that a wall of listing cards on the
@@ -30,7 +31,7 @@ import { useFloatingTabBarClearance } from "@/platform";
  * every tab around it carried the green. Painting always is also one less thing
  * that changes at the moment somebody signs in.
  */
-export default function DiscoveryHomeScreen() {
+function DiscoveryHomeScreen() {
   return (
     <HomeGround>
       <DiscoveryHome />
@@ -261,5 +262,14 @@ function DiscoveryHome() {
         {workspaceError ? <Notice tone="error" title={workspaceError} /> : null}
       </View>
     </ScrollView>
+  );
+}
+
+/** On iOS the tab sits in the native bar, which draws no header; see `RenterTabFrame`. */
+export default function HomeTab() {
+  return (
+    <RenterTabFrame tab="home">
+      <DiscoveryHomeScreen />
+    </RenterTabFrame>
   );
 }

@@ -83,6 +83,31 @@ class SupportCreateSerializer(serializers.Serializer):
     related_lease_id = serializers.UUIDField(required=False, allow_null=True)
 
 
+class MySupportCreateSerializer(serializers.Serializer):
+    category = serializers.ChoiceField(choices=SupportCategory.choices)
+    summary = serializers.CharField(max_length=180)
+    message = serializers.CharField(max_length=2000)
+
+
+class SupportReplySerializer(serializers.Serializer):
+    message = serializers.CharField(max_length=2000)
+
+
+class ConfigurationUpdateSerializer(serializers.Serializer):
+    key = serializers.CharField(max_length=80)
+    value = serializers.JSONField(required=False)
+    clear = serializers.BooleanField(required=False, default=False)
+
+    def validate(self, attrs):
+        if not attrs.get("clear") and "value" not in attrs:
+            raise serializers.ValidationError({"value": "Supply a value or clear this override."})
+        return attrs
+
+
+class ConfigurationUpdatesSerializer(serializers.Serializer):
+    updates = ConfigurationUpdateSerializer(many=True, allow_empty=False)
+
+
 class ReconciliationDecisionSerializer(serializers.Serializer):
     status = serializers.ChoiceField(
         choices=[

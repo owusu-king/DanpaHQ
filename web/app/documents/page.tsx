@@ -8,13 +8,14 @@ import { LeasesView, type LeaseTotals } from "@/components/documents/LeasesView"
 import { Icon } from "@/components/portal/icons";
 import { PanelSkeleton, SegmentedControl, WorkspaceHead } from "@/components/workspace/Workspace";
 import { listOrganizations } from "@/lib/console";
+import { useDeepLinkedModal } from "@/lib/deepLinkedModal";
 import { LEASE_FILTERS, type LeaseFilter } from "@/lib/leaseMeaning";
 import { useSession } from "@/lib/session";
 
 /**
  * Documents: the agreements a Portfolio makes, and what they are made from.
  *
- * Two views under one address. **Contracts** is the controlled Rooomly
+ * Two views under one address. **Contracts** is the controlled Danpa HQ
  * agreement and the Portfolio's own terms templates; **Leases** is every
  * agreement granted, filtered by the stage the provider works in, each opening
  * over the page. It replaces the provider's Leases page — a lease is a
@@ -55,7 +56,8 @@ function Documents() {
   const view: View = search.get("view") === "leases" ? "leases" : "contracts";
   const stage: LeaseFilter = LEASE_FILTERS.find((value) => value === search.get("show")) ?? "all";
   const query = search.get("q") ?? "";
-  const openId = search.get("lease");
+  // `?lease=` from elsewhere opens that lease once.
+  const [openId, setOpenLease] = useDeepLinkedModal("lease");
 
   const provider = state.status === "signed_in"
     && state.me.capabilities.active_workspace === "provider"
@@ -124,7 +126,10 @@ function Documents() {
           { key: "contracts", label: "Contracts" },
           { key: "leases", label: "Leases", count: totals?.total },
         ]}
-        onChange={(next) => setParams({ view: next === "contracts" ? "" : next, show: "", q: "", lease: "" })}
+        onChange={(next) => {
+          setOpenLease("");
+          setParams({ view: next === "contracts" ? "" : next, show: "", q: "" });
+        }}
       />
 
       <div className="docs-view" key={view}>
@@ -135,7 +140,8 @@ function Documents() {
             organizationId={organizationId}
             stage={stage}
             query={query}
-            openId={openId}
+            openId={openId || null}
+            onOpenLease={setOpenLease}
             onParams={setParams}
             onTotals={onTotals}
           />

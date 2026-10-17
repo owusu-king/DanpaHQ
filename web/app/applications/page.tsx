@@ -11,6 +11,7 @@ import { Icon } from "@/components/portal/icons";
 import { DonutRing, type RingTone } from "@/components/workspace/DonutRing";
 import { NextUp, PanelSearch, PanelSkeleton, PanelState, SegmentedControl, WorkspaceHead } from "@/components/workspace/Workspace";
 import { ApiFailure } from "@/lib/api";
+import { useDeepLinkedModal } from "@/lib/deepLinkedModal";
 import {
   applicationBucket,
   applicationFilters,
@@ -96,9 +97,9 @@ function TenantApplications() {
   const filter: ApplicationFilter =
     applicationFilters.map((option) => option.id).find((id) => id === search.get("show")) ?? "all";
   const query = search.get("q") ?? "";
-  // A plain click reads the record in a sheet over the list, kept in the
-  // address; the row is still a link to `/applications/<id>`.
-  const openId = search.get("application") ?? "";
+  // A plain click reads the record in a sheet over the list; the row is still
+  // a link to `/applications/<id>`. `?application=` from elsewhere opens it once.
+  const [openId, setOpenId] = useDeepLinkedModal("application");
 
   // A reload keeps what is on screen: the sheet reading an application must not
   // lose it mid-withdrawal because the list blanked behind it.
@@ -200,7 +201,7 @@ function TenantApplications() {
   const initialCurrentLimit = Math.min(current.length, history.length ? 4 : 5);
   const initialHistoryLimit = Math.min(history.length, Math.max(0, 5 - initialCurrentLimit));
   const opened = openId ? applications?.find((application) => application.id === openId) ?? null : null;
-  const open = useCallback((applicationId: string) => setParams({ application: applicationId }), [setParams]);
+  const open = setOpenId;
 
   return (
     <div className="ws-page applications-workspace">
@@ -305,7 +306,7 @@ function TenantApplications() {
         application={opened}
         leases={leases}
         onChanged={load}
-        onClose={() => setParams({ application: "" })}
+        onClose={() => setOpenId("")}
       />
     </div>
   );
@@ -484,9 +485,9 @@ function ProviderApplications() {
   const stage: RequestFilter =
     REQUEST_FILTERS.find((value) => value === search.get("show")) ?? "action";
   const query = search.get("q") ?? "";
-  // A plain click reads the request in a sheet over the list, kept in the
-  // address; the row is still a link to `/applications/<id>`.
-  const openId = search.get("request") ?? "";
+  // A plain click reads the request in a sheet over the list; the row is still
+  // a link to `/applications/<id>`. `?request=` from a lease opens it once.
+  const [openId, setOpenId] = useDeepLinkedModal("request");
   const opened = openId ? items?.find((item) => requestRecordId(item) === openId) ?? null : null;
 
   useEffect(() => {
@@ -617,7 +618,7 @@ function ProviderApplications() {
         ) : visible.length ? (
           <ul className="requests-list">
             {visible.map((item, index) => (
-              <RequestRow key={item.key} item={item} order={index} onPeek={() => setParams({ request: requestRecordId(item) })} />
+              <RequestRow key={item.key} item={item} order={index} onPeek={() => setOpenId(requestRecordId(item))} />
             ))}
           </ul>
         ) : (
@@ -629,7 +630,7 @@ function ProviderApplications() {
         )}
       </section>
 
-      <RequestModal item={opened} portfolioName={portfolioName} onClose={() => setParams({ request: "" })} onChanged={reload} />
+      <RequestModal item={opened} portfolioName={portfolioName} onClose={() => setOpenId("")} onChanged={reload} />
     </div>
   );
 }

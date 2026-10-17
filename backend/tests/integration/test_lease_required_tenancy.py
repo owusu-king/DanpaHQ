@@ -1,4 +1,4 @@
-"""The lease is the only gateway into an active Rooomly tenancy."""
+"""The lease is the only gateway into an active Danpa HQ tenancy."""
 
 from datetime import date
 

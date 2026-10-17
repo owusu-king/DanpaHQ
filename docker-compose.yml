@@ -9,7 +9,7 @@
 # Shared by api, worker and beat - same image, same environment, same code mount.
 x-backend: &backend
   # One image name, so the three services share a single build.
-  image: grp-backend
+  image: danpahq-backend
   build:
     context: ./backend
     args:
@@ -98,7 +98,7 @@ services:
     healthcheck: {disable: true}
 
   web:
-    image: rooomly-web-dev
+    image: danpahq-web-dev
     build:
       context: ./web
       dockerfile: Dockerfile

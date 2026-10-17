@@ -76,9 +76,9 @@ test("both sides reach it, and a notification lands on the request", () => {
   assert.match(nav, /href: "\/maintenance", label: "Maintenance", icon: "wrench", hint: "Report a problem where you live"/);
   assert.match(nav, /"\/maintenance",\n/);
   assert.match(read("src/lib/notificationMeaning.ts"), /case "maintenance_request":\s*return `\/maintenance\?request=\$\{item\.target_id\}`;/);
-  // The address keeps the open request and a report in progress.
-  assert.match(page(), /search\.get\("request"\)/);
-  assert.match(page(), /search\.get\("report"\)/);
+  // The open request and a report in progress are page state; links open them once.
+  assert.match(page(), /useDeepLinkedModal\("request"\)/);
+  assert.match(page(), /useDeepLinkedModal\("report"\)/);
   // A provider reads their Portfolio's requests; a tenant their own.
   assert.match(page(), /listOrganizationMaintenance\(organizationId\)/);
   assert.match(page(), /listMyMaintenance\(\)/);

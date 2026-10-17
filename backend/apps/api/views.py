@@ -16,7 +16,7 @@ def meta(request):
     """
     return Response(
         {
-            "service": "ghana-rental-platform",
+            "service": "danpahq",
             "version": settings.APP_VERSION,
             "environment": settings.ENVIRONMENT,
             "api_version": "v1",

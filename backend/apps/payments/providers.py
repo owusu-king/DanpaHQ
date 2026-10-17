@@ -19,16 +19,17 @@ from django.conf import settings
 from django.utils.dateparse import parse_datetime
 
 from apps.core.exceptions import PermissionDenied, ProviderUnavailable, ValidationFailed
+from apps.operations.configuration import value as configuration_value
 
 
 class UnhandledProviderEvent(Exception):
-    """An authenticated callback about something Rooomly's payment flow ignores.
+    """An authenticated callback about something Danpa HQ's payment flow ignores.
 
     Distinct from `ValidationFailed`, which means *this should have been a
     payment and was malformed*. A PSP sends events for the whole account —
     transfers, disputes, customer identification, subscriptions — and answering
     those with a 4xx makes a provider retry them, then eventually suspend the
-    endpoint that Rooomly's actual payment confirmation depends on. They are
+    endpoint that Danpa HQ's actual payment confirmation depends on. They are
     acknowledged and recorded as ignored instead.
     """
 
@@ -64,7 +65,7 @@ class ProviderPaymentState:
     """What the provider says about a payment when *we* ask, not when they tell us.
 
     The difference matters. A webhook is the provider volunteering news; this is
-    Rooomly going to look. Every callback-based integration eventually meets the
+    Danpa HQ going to look. Every callback-based integration eventually meets the
     payment whose webhook never arrived — the worker was down, the network ate
     it, the provider retried three times into a 502 — and without a way to ask,
     that money is invisible until somebody complains.
@@ -149,7 +150,7 @@ class ProviderResolvedPayoutAccount:
 
 
 class PaymentProvider(ABC):
-    """The whole of what Rooomly asks a payment provider to do.
+    """The whole of what Danpa HQ asks a payment provider to do.
 
     Five operations, and vendor vocabulary stops here. A provider's own statuses,
     payload shapes and identifiers are translated into the types above before
@@ -216,7 +217,7 @@ class PaymentProvider(ABC):
     def find_payout_destination(
         self, *, provisioning_reference: str
     ) -> ProviderPayoutDestination | None:
-        """Find a prior create by Rooomly's provider-metadata reference.
+        """Find a prior create by Danpa HQ's provider-metadata reference.
 
         This is recovery, not ordinary lookup. Providers without a searchable
         creation reference must refuse so callers never turn an ambiguous create
@@ -390,7 +391,7 @@ _instance: PaymentProvider | None = None
 
 def get_payment_provider(name: str | None = None) -> PaymentProvider:
     global _instance
-    configured = str(getattr(settings, "PAYMENT_BACKEND", "")).strip().lower()
+    configured = str(configuration_value("PAYMENT_BACKEND", "")).strip().lower()
     if not configured:
         return UnconfiguredPaymentProvider()
     if name is not None and str(name).strip().lower() != configured:

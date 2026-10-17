@@ -14,7 +14,7 @@ import { WorkspaceHead } from "@/components/workspace/Workspace";
  * renders the same wizard, so the agreement never depends on which way in was
  * used — the same six stops, the same payload, the same backend rendering.
  *
- * **The provider supplies terms; Rooomly writes the agreement.** Standard
+ * **The provider supplies terms; Danpa HQ writes the agreement.** Standard
  * clauses belong to the versioned template and cannot be edited here. Custom
  * wording is a separate, clearly labelled section.
  *

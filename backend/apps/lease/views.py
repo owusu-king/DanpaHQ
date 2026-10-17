@@ -6,6 +6,8 @@ a tenant on one agreement and a landlord on another, which is normal here.
 
 from __future__ import annotations
 
+import hashlib
+
 from django.http import HttpResponse
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
@@ -220,7 +222,7 @@ class LeaseActionView(APIView):
 
 
 class LeaseDocumentView(APIView):
-    """The exact final PDF stored when the second party confirmed."""
+    """The stored final PDF, or a non-mutating print copy of its frozen snapshot."""
 
     permission_classes = [IsAuthenticated]
 
@@ -230,14 +232,21 @@ class LeaseDocumentView(APIView):
         agreement = getattr(lease, "agreement", None)
         if agreement is None or not agreement.final_pdf:
             raise NotFound("The final agreement document is not available yet.")
+        print_copy = request.query_params.get("disposition") == "print"
+        if print_copy:
+            from .pdf import render_final_pdf
+
+            document = render_final_pdf(agreement)
+        else:
+            document = bytes(agreement.final_pdf)
         # Downloaded by default; opened in place only when the client asks,
         # which is what "View" does and "Download" does not.
-        inline = request.query_params.get("disposition") == "inline"
+        inline = request.query_params.get("disposition") in {"inline", "print"}
         disposition = "inline" if inline else "attachment"
-        filename = f"rooomly-agreement-{agreement.reference_number or lease.id}.pdf"
-        response = HttpResponse(bytes(agreement.final_pdf), content_type="application/pdf")
+        filename = f"danpahq-agreement-{agreement.reference_number or lease.id}.pdf"
+        response = HttpResponse(document, content_type="application/pdf")
         response["Content-Disposition"] = f'{disposition}; filename="{filename}"'
-        response["ETag"] = f'"{agreement.final_pdf_hash}"'
+        response["ETag"] = f'"{hashlib.sha256(document).hexdigest()}"'
         response["X-Content-Type-Options"] = "nosniff"
         return response
 
@@ -245,7 +254,7 @@ class LeaseDocumentView(APIView):
 class OrganizationContractsView(APIView):
     """GET /organizations/<id>/contracts/ - what a Portfolio's agreements are made of.
 
-    Rooomly's controlled agreement (read-only: its clauses and version), the
+    Danpa HQ's controlled agreement (read-only: its clauses and version), the
     placeholders a provider may use, and the Portfolio's own terms templates.
     """
 

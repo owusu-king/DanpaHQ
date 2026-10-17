@@ -18,6 +18,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
+import { useAuthDialog } from "@/components/auth/AuthDialog";
 import { Button } from "@/components/Button";
 import { Notice } from "@/components/Notice";
 import { Icon } from "@/components/portal/icons";
@@ -33,6 +34,7 @@ const LocationMap = dynamic(
 export default function SalePage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
+  const { open: openAuth } = useAuthDialog();
   const { state } = useSession();
   const signedIn = state.status === "signed_in";
   const [sale, setSale] = useState<SaleDetail | null>(null);
@@ -83,7 +85,7 @@ export default function SalePage() {
 
   async function send() {
     if (!signedIn) {
-      router.push(`/sign-in?next=${encodeURIComponent(next)}` as never);
+      openAuth("sign-in", { next });
       return;
     }
     const body = message.trim();
@@ -244,7 +246,7 @@ export default function SalePage() {
               <Button
                 onClick={() => {
                   if (!signedIn) {
-                    router.push(`/sign-in?next=${encodeURIComponent(next)}` as never);
+                    openAuth("sign-in", { next });
                     return;
                   }
                   setWriting(true);

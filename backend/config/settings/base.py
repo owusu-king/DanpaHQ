@@ -146,7 +146,7 @@ MAP_DEFAULT_VIEW = {"lat": 5.6037, "lng": -0.187, "zoom": 11}
 # Location provider (ADR 0034). Suggestions and the chosen place's location are
 # looked up by the API on a client's behalf, so no client carries a key that can
 # call Places.
-#: "google" for Places API (New), or "localities" for Rooomly's own neighbourhoods.
+#: "google" for Places API (New), or "localities" for Danpa HQ's own neighbourhoods.
 #: "google" without a server key falls back to the localities.
 LOCATION_PROVIDER = env("LOCATION_PROVIDER", "google")
 #: Server-only key for Places API (New). In Google Cloud, restrict it to the API's
@@ -175,11 +175,14 @@ PAYMENT_INTENT_TTL_MINUTES = env("PAYMENT_INTENT_TTL_MINUTES", 30, cast=int)
 # Paystack. Absent by default: `PAYMENT_BACKEND` empty means no adapter, and no
 # client is offered a checkout that cannot move money.
 #
-# `PAYSTACK_ALLOW_LIVE` is a separate switch on purpose. A secret key is a string
-# somebody pastes into an environment and the difference between test and live is
-# four characters, so a live key does nothing until an operator has also said
-# live. See `apps/payments/paystack.py`.
+# `PAYSTACK_ALLOW_LIVE` selects between separately stored test and live credentials.
+# `PAYSTACK_SECRET_KEY` remains only as a compatibility fallback for deployments
+# configured before the credentials were separated. See `apps/payments/paystack.py`.
 PAYSTACK_SECRET_KEY = env("PAYSTACK_SECRET_KEY", "")
+PAYSTACK_TEST_SECRET_KEY = env("PAYSTACK_TEST_SECRET_KEY", "")
+PAYSTACK_TEST_PUBLIC_KEY = env("PAYSTACK_TEST_PUBLIC_KEY", "")
+PAYSTACK_LIVE_SECRET_KEY = env("PAYSTACK_LIVE_SECRET_KEY", "")
+PAYSTACK_LIVE_PUBLIC_KEY = env("PAYSTACK_LIVE_PUBLIC_KEY", "")
 PAYSTACK_ALLOW_LIVE = env("PAYSTACK_ALLOW_LIVE", False, cast=bool)
 PAYSTACK_CALLBACK_URL = env("PAYSTACK_CALLBACK_URL", "")
 # The commercial platform share remains explicit configuration. Basis points
@@ -191,7 +194,7 @@ PAYOUT_INSTITUTION_CACHE_SECONDS = env("PAYOUT_INSTITUTION_CACHE_SECONDS", 21600
 PAYOUT_ACCOUNT_RESOLUTION_CACHE_SECONDS = env(
     "PAYOUT_ACCOUNT_RESOLUTION_CACHE_SECONDS", 3600, cast=int
 )
-PAYMENT_RECEIPT_EMAIL_DOMAIN = env("PAYMENT_RECEIPT_EMAIL_DOMAIN", "receipts.rooomly.com")
+PAYMENT_RECEIPT_EMAIL_DOMAIN = env("PAYMENT_RECEIPT_EMAIL_DOMAIN", "receipts.danpahq.com")
 
 # Outgoing email: today, only the code that confirms an address on an account.
 # SMTP by default; a deployment sets EMAIL_HOST and credentials (or swaps the
@@ -203,7 +206,7 @@ EMAIL_HOST_USER = env("EMAIL_HOST_USER", "")
 EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", "")
 EMAIL_USE_TLS = env("EMAIL_USE_TLS", "true").lower() == "true"
 EMAIL_TIMEOUT = env("EMAIL_TIMEOUT", 10, cast=int)
-DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", "Rooomly <no-reply@rooomly.com>")
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", "Danpa HQ <no-reply@danpahq.com>")
 # The floor under a part payment, in pesewas. It exists because the receiving
 # Portfolio bears the processor's transaction fee, so unbounded micro-payments
 # are a cost transfer onto the person owed the money. Settling the entire
@@ -216,7 +219,7 @@ PAYMENT_RECONCILIATION_AGEING_HOURS = env("PAYMENT_RECONCILIATION_AGEING_HOURS",
 PAYMENT_RECONCILIATION_BREACH_HOURS = env("PAYMENT_RECONCILIATION_BREACH_HOURS", 24, cast=int)
 # Where a financial exception goes when it leaves the process. Slack, PagerDuty,
 # Opsgenie and every log platform accept an incoming webhook, so this binds to
-# whatever the deployment uses without Rooomly picking a vendor. Empty means the
+# whatever the deployment uses without Danpa HQ picking a vendor. Empty means the
 # structured log line is the only alert path, which is a decision to make
 # deliberately rather than by omission — see docs/runbook.md.
 PAYMENT_ALERT_WEBHOOK_URL = env("PAYMENT_ALERT_WEBHOOK_URL", "")
@@ -407,7 +410,7 @@ AUTHENTICATION_BACKENDS = ["apps.identity.admin_auth.AdminEmailBackend"]
 SILENCED_SYSTEM_CHECKS = ["drf_spectacular.W001", "drf_spectacular.W002"]
 
 SPECTACULAR_SETTINGS = {
-    "TITLE": "Ghana Rental Platform API",
+    "TITLE": "Danpa HQ API",
     "VERSION": APP_VERSION,
     "SERVE_INCLUDE_SCHEMA": False,
     "COMPONENT_SPLIT_REQUEST": True,
@@ -527,6 +530,19 @@ UNIT_ACCESS_CODE_TTL_DAYS = env("UNIT_ACCESS_CODE_TTL_DAYS", 30, cast=int)
 IDEMPOTENCY_TTL_HOURS = env("IDEMPOTENCY_TTL_HOURS", 24, cast=int)
 
 SMS_BACKEND = env("SMS_BACKEND", "console")
+SMS_TIMEOUT_SECONDS = env("SMS_TIMEOUT_SECONDS", 10, cast=int)
+ARKESEL_API_KEY = env("ARKESEL_API_KEY", "")
+ARKESEL_SENDER_ID = env("ARKESEL_SENDER_ID", "")
+ARKESEL_SANDBOX = env("ARKESEL_SANDBOX", False, cast=bool)
+
+# Operations can turn this high-impact device action off without requiring a
+# mobile release. The server also enforces the switch, so an older app cannot
+# keep calling the endpoint after it has been disabled.
+STOLEN_DEVICE_REPORTING_ENABLED = env("STOLEN_DEVICE_REPORTING_ENABLED", True, cast=bool)
+# Prefer a key independent from Django's session/signing key in production. The
+# fallback keeps local development bootstrappable.
+RUNTIME_CONFIG_ENCRYPTION_KEY = env("RUNTIME_CONFIG_ENCRYPTION_KEY", "")
+RUNTIME_CONFIGURATION_ENABLED = True
 
 # --- Locale -----------------------------------------------------------------
 LANGUAGE_CODE = "en-gb"

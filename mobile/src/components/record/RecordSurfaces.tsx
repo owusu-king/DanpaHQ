@@ -22,7 +22,7 @@ import { theme } from "@/theme";
 /**
  * The surfaces a record stands on.
  *
- * The index pages stand on Rooomly's green, where a frosted-glass panel lifts
+ * The index pages stand on Danpa HQ's green, where a frosted-glass panel lifts
  * off the ground. A record — one viewing, one agreement, one person's access —
  * stands on the warm ivory every pushed screen has always used, and there the
  * same glass is nothing: 72% white over `field-50` lifts by about one percent.

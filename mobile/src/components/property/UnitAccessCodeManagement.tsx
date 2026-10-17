@@ -95,7 +95,7 @@ export function UnitAccessCodeManagement({
   }
 
   function share() {
-    void Share.share({ message: `Rooomly space access code: ${issued}` });
+    void Share.share({ message: `Danpa HQ space access code: ${issued}` });
   }
 
   const notice = issuedNotice(accessCode);

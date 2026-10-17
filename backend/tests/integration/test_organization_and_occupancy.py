@@ -149,7 +149,7 @@ class TestOrganizationActivities:
         api = APIClient()
         sign_in_as(api, user=owner)
 
-        # What a Portfolio does is the owner's to say, on the Portfolio Rooomly
+        # What a Portfolio does is the owner's to say, on the Portfolio Danpa HQ
         # provisioned for them.
         response = api.patch(
             f"/api/v1/organizations/{portfolio.id}/",
@@ -837,13 +837,13 @@ class TestOrganizationAuthorization:
         }
         # Recording an off-platform payment is evidence, not collection. The
         # cash or the MoMo transfer already reached the provider outside
-        # Rooomly, so a Rooomly receiving account is deliberately irrelevant:
+        # Danpa HQ, so a Danpa HQ receiving account is deliberately irrelevant:
         # requiring one would make a landlord unable to acknowledge money they
         # have actually been paid. Property authority is still required.
         payment = rent_services.record_payment(lease=lease, user=tenant, data=payment_data)
         rent_services.confirm_payment(payment=payment, user=owner)
 
-        # Collecting rent *through Rooomly* is reported separately, and it no
+        # Collecting rent *through Danpa HQ* is reported separately, and it no
         # longer consults this person's `BANK_ACCOUNT` stamp at all: the money
         # routes to a Portfolio's provider-verified destination, so that is what
         # the readiness answers from. Revoking the personal stamp above is

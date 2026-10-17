@@ -21,6 +21,7 @@ from apps.core.exceptions import (
     ValidationFailed,
 )
 from apps.core.money import Money
+from apps.operations.configuration import value as configuration_value
 from apps.outbox.services import emit
 from apps.rent.models import (
     ChargeStatus,
@@ -87,7 +88,7 @@ def resolve_payable_amount(*, obligation: RentCharge, requested_minor: int | Non
     advance in cash gets it recorded — while digital checkout demanded the whole
     balance. The same two thirds was therefore recordable if it was handed over
     in a stairwell and refused if it went through the processor, which pushed
-    exactly the payments Rooomly most wants on-platform off it.
+    exactly the payments Danpa HQ most wants on-platform off it.
 
     The bounds are the ones the external rail already enforces: positive, and no
     more than is outstanding. Overpayment stays impossible.
@@ -245,7 +246,7 @@ def create_intent(
     `RentCharge` and then called Paystack inside it, with a twenty-second
     timeout. Every checkout pinned a database connection and a rent row for as
     long as the provider felt like taking, which is how a provider's bad
-    afternoon becomes Rooomly's — and it was the exact thing ADR 0027's own
+    afternoon becomes Danpa HQ's — and it was the exact thing ADR 0027's own
     Consequences section says these services must not do.
 
     So: reserve under a lock and commit; call the provider holding nothing;
@@ -564,7 +565,7 @@ def _routing_snapshot(*, provider, lease, amount_minor: int) -> dict:
     if not profile.token_reference or not profile.provider_account_id:
         raise Conflict("The provider settlement account is missing its Paystack references.")
 
-    raw_bps = str(getattr(settings, "PAYSTACK_PLATFORM_CHARGE_BPS", "")).strip()
+    raw_bps = str(configuration_value("PAYSTACK_PLATFORM_CHARGE_BPS", "")).strip()
     try:
         basis_points = int(raw_bps)
     except ValueError as exc:
@@ -574,7 +575,7 @@ def _routing_snapshot(*, provider, lease, amount_minor: int) -> dict:
     if basis_points < 0 or basis_points >= 10_000:
         raise ProviderUnavailable("Paystack platform charge must be between 0 and 9,999 bps.")
     # Product policy: the receiving property owner bears Paystack's transaction
-    # fee. Tenants pay exactly the authoritative obligation and Rooomly never
+    # fee. Tenants pay exactly the authoritative obligation and Danpa HQ never
     # adds an undisclosed checkout surcharge.
     bearer = ProviderFeeBearer.SUBACCOUNT
 
@@ -654,7 +655,7 @@ def retry_intent(*, intent: PaymentIntent, user) -> PaymentAttempt | None:
 
     **The provider is asked first.** "Try again" is pressed by somebody who
     believes the last try failed. Sometimes the provider took the money after
-    Rooomly last looked, or is still taking it, and a new try would then charge
+    Danpa HQ last looked, or is still taking it, and a new try would then charge
     them twice. A success is applied through the one boundary instead of being
     retried, and a payment the provider is still confirming refuses.
 
@@ -823,12 +824,12 @@ def provider_state_to_event(*, intent: PaymentIntent, state) -> VerifiedProvider
     """Translate one provider answer into the event the confirmation path takes.
 
     Deliberately shared by the tenant's return-from-checkout query and the
-    reconciliation sweep. Both are Rooomly *asking* the provider rather than
+    reconciliation sweep. Both are Danpa HQ *asking* the provider rather than
     being told, and neither may relax a single check the signed-webhook path
     applies — so they build the same value and hand it to the same function.
     """
     if state.status not in ("pending", "processing", "failed", "succeeded"):
-        raise ValidationFailed("The payment provider returned a state Rooomly cannot apply.")
+        raise ValidationFailed("The payment provider returned a state Danpa HQ cannot apply.")
     if state.status in ("failed", "succeeded") and not state.provider_transaction_id:
         raise ProviderUnavailable(
             "The payment provider returned a final state without a transaction reference."
@@ -943,7 +944,7 @@ def process_webhook(*, provider_name: str, raw_body: bytes, headers) -> PaymentI
 
     Returns ``None`` for an authenticated event this payment flow does not act
     on. That is acknowledged rather than refused: a provider retries a 4xx and
-    can eventually disable the endpoint Rooomly's payment confirmation depends
+    can eventually disable the endpoint Danpa HQ's payment confirmation depends
     on, so an account-wide event is recorded as ignored and answered 200.
     """
     payload_hash = hashlib.sha256(raw_body).hexdigest()
@@ -1398,7 +1399,7 @@ def _create_ledger(transaction_row: PaymentTransaction) -> None:
     intent = transaction_row.intent
     if intent.is_subscription:
         settled = f"subscription_invoice:{intent.billing_invoice_id}"
-        description = "Provider-confirmed Rooomly subscription payment"
+        description = "Provider-confirmed Danpa HQ subscription payment"
     else:
         settled = f"rent_obligation:{intent.obligation_id}"
         description = "Provider-confirmed rent obligation payment"
@@ -1525,7 +1526,7 @@ def _intent_event_payload(intent: PaymentIntent) -> dict:
 
 
 def create_invoice_intent(*, invoice, user, payment_method: str) -> PaymentIntent:
-    """Create — or resume — the payment for one Rooomly subscription invoice.
+    """Create — or resume — the payment for one Danpa HQ subscription invoice.
 
     The same three phases as `create_intent`, for the same reasons: reserve under
     a lock and commit, call the provider holding nothing, record its answer under
@@ -1713,7 +1714,7 @@ def release_invoice_intents(*, invoice_id) -> None:
 
 
 def allocate_to_invoice(*, transaction_row: PaymentTransaction, invoice, amount_minor: int):
-    """Record that confirmed money settled a Rooomly subscription invoice.
+    """Record that confirmed money settled a Danpa HQ subscription invoice.
 
     The same two invariants as `allocate`, refused rather than clamped: a
     transaction cannot allocate more than it carried, and an invoice cannot be
@@ -1736,7 +1737,7 @@ def allocate_to_invoice(*, transaction_row: PaymentTransaction, invoice, amount_
         transaction=transaction_row,
         billing_invoice=invoice,
         allocated_at=transaction_row.paid_at or timezone.now(),
-        note="Provider-confirmed Rooomly subscription payment",
+        note="Provider-confirmed Danpa HQ subscription payment",
     )
     allocation.amount_minor = amount_minor
     allocation.amount_currency = transaction_row.amount_currency
@@ -1759,13 +1760,13 @@ def allocate_to_invoice(*, transaction_row: PaymentTransaction, invoice, amount_
 def _settle_subscription_payment(
     *, intent: PaymentIntent, event, webhook, evidence_source: str, requested_by
 ) -> PaymentIntent:
-    """Post a confirmed Rooomly subscription payment.
+    """Post a confirmed Danpa HQ subscription payment.
 
     Runs inside `_process_verified_event`'s transaction, after every check the
     signed webhook, the provider query and the reconciliation sweep share. It
     writes what rent gets — an immutable transaction, an allocation, two ledger
     lines, a frozen receipt — against the invoice rather than a `RentCharge`,
-    and no settlement row: the money is Rooomly's, so there is no beneficiary
+    and no settlement row: the money is Danpa HQ's, so there is no beneficiary
     payout to track. The invoice and the plan move in this same transaction
     through `billing.invoice_service`, so a Portfolio is never on a plan it has
     not paid for, and never charged for a plan it did not get.

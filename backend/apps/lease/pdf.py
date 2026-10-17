@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import io
-from html import escape as _escape
 
 from django.utils import timezone
 from reportlab.lib import colors
@@ -12,6 +11,8 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
 from reportlab.platypus import PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+
+from apps.core.pdf_fonts import DOCUMENT_FONT, DOCUMENT_FONT_BOLD, pdf_escape
 
 
 def escape(value: str) -> str:
@@ -25,7 +26,7 @@ def escape(value: str) -> str:
     `quote=False` keeps the behaviour exactly as it was: an apostrophe in a
     clause stays an apostrophe rather than becoming an entity.
     """
-    return _escape(value, quote=False)
+    return pdf_escape(value)
 
 
 def render_final_pdf(agreement) -> bytes:
@@ -45,8 +46,8 @@ def render_final_pdf(agreement) -> bytes:
         leftMargin=19 * mm,
         topMargin=22 * mm,
         bottomMargin=20 * mm,
-        title=str(document.get("title", "Rooomly tenancy agreement")),
-        author="Rooomly",
+        title=str(document.get("title", "Danpa HQ tenancy agreement")),
+        author="Danpa HQ",
         subject=f"Agreement {reference}",
     )
     styles = getSampleStyleSheet()
@@ -55,9 +56,9 @@ def render_final_pdf(agreement) -> bytes:
     rule = colors.HexColor("#D7DFDB")
     kola = colors.HexColor("#176B50")
     title = ParagraphStyle(
-        "RooomlyTitle",
+        "DanpaHQTitle",
         parent=styles["Title"],
-        fontName="Helvetica-Bold",
+        fontName=DOCUMENT_FONT_BOLD,
         fontSize=22,
         leading=27,
         textColor=ink,
@@ -67,6 +68,7 @@ def render_final_pdf(agreement) -> bytes:
     reference_style = ParagraphStyle(
         "Reference",
         parent=styles["Normal"],
+        fontName=DOCUMENT_FONT,
         fontSize=9,
         leading=12,
         textColor=muted,
@@ -76,7 +78,7 @@ def render_final_pdf(agreement) -> bytes:
     heading = ParagraphStyle(
         "Clause",
         parent=styles["Heading2"],
-        fontName="Helvetica-Bold",
+        fontName=DOCUMENT_FONT_BOLD,
         fontSize=11,
         leading=15,
         textColor=kola,
@@ -86,6 +88,7 @@ def render_final_pdf(agreement) -> bytes:
     body = ParagraphStyle(
         "AgreementBody",
         parent=styles["BodyText"],
+        fontName=DOCUMENT_FONT,
         fontSize=9.5,
         leading=14,
         textColor=ink,
@@ -94,6 +97,7 @@ def render_final_pdf(agreement) -> bytes:
     small = ParagraphStyle(
         "Small",
         parent=styles["BodyText"],
+        fontName=DOCUMENT_FONT,
         fontSize=8,
         leading=11,
         textColor=muted,
@@ -101,7 +105,7 @@ def render_final_pdf(agreement) -> bytes:
 
     story = [
         Paragraph(
-            escape(str(document.get("title", "Rooomly Ghana Residential Tenancy Agreement"))),
+            escape(str(document.get("title", "Danpa HQ Ghana Residential Tenancy Agreement"))),
             title,
         ),
         Paragraph(
@@ -156,8 +160,8 @@ def render_final_pdf(agreement) -> bytes:
             [
                 ("BACKGROUND", (0, 0), (-1, 0), ink),
                 ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
+                ("FONTNAME", (0, 0), (-1, 0), DOCUMENT_FONT_BOLD),
+                ("FONTNAME", (0, 1), (-1, -1), DOCUMENT_FONT),
                 ("FONTSIZE", (0, 0), (-1, -1), 8),
                 ("LEADING", (0, 0), (-1, -1), 11),
                 ("GRID", (0, 0), (-1, -1), 0.35, rule),
@@ -181,8 +185,8 @@ def render_final_pdf(agreement) -> bytes:
         canvas.setStrokeColor(rule)
         canvas.line(19 * mm, 14 * mm, A4[0] - 19 * mm, 14 * mm)
         canvas.setFillColor(muted)
-        canvas.setFont("Helvetica", 7.5)
-        canvas.drawString(19 * mm, 9 * mm, f"Rooomly · {reference}")
+        canvas.setFont(DOCUMENT_FONT, 7.5)
+        canvas.drawString(19 * mm, 9 * mm, f"Danpa HQ · {reference}")
         canvas.drawRightString(A4[0] - 19 * mm, 9 * mm, f"Page {doc_instance.page}")
         canvas.restoreState()
 

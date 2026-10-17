@@ -401,7 +401,7 @@ export default function ProfileScreen() {
             </Type>
           </View>
 
-          {/* How Rooomly reaches you. The number is how you sign in, so it is
+          {/* How Danpa HQ reaches you. The number is how you sign in, so it is
               shown and locked; the email is added or changed through a code. */}
           <View style={{ gap: space[2] }}>
             <SectionTitle>Contact</SectionTitle>
@@ -679,7 +679,7 @@ function CompletenessRing({ size, value }: { size: number; value: number }) {
   );
 }
 
-/** The person's initials on Rooomly's green, deepening across the disc. */
+/** The person's initials on Danpa HQ's green, deepening across the disc. */
 function Initials({ initials, size }: { initials: string; size: number }) {
   const id = `initials${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
   return (
@@ -703,7 +703,7 @@ function Initials({ initials, size }: { initials: string; size: number }) {
 }
 
 /**
- * The page's one action, in Rooomly's green. While it works it says so, and once
+ * The page's one action, in Danpa HQ's green. While it works it says so, and once
  * the save lands it says that too, until something is changed again.
  */
 function SaveButton({

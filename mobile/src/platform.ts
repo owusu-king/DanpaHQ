@@ -11,7 +11,7 @@
  */
 
 import { BottomTabBarHeightContext } from "expo-router/tabs";
-import { useContext } from "react";
+import { createContext, useContext } from "react";
 import { Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -62,16 +62,39 @@ export function useSafeBottom(base: number) {
 }
 
 /**
- * How much of a tab screen the iOS glass tab bar covers, home indicator
+ * True on a page inside iOS's native tab bar (`NativeTabFrame` provides it).
+ *
+ * The native bar draws no JS tab context, so without this a tab page could not
+ * tell it was a tab page. Each native tab also has its own safe-area provider,
+ * measured inside the tab, so its bottom inset already includes the bar.
+ */
+export const NativeTabContext = createContext(false);
+
+/** Whether this page is a tab — JS tabs on Android, native tabs on iOS — not a pushed screen. */
+export function useInTabs() {
+  const jsTabs = useContext(BottomTabBarHeightContext) !== undefined;
+  const nativeTabs = useContext(NativeTabContext);
+  return jsTabs || nativeTabs;
+}
+
+/**
+ * How much of a tab screen a floating iOS tab bar covers, home indicator
  * included — zero on Android, whose bar sits in the layout below the page, and
  * on every pushed screen, which has no tab bar at all.
+ *
+ * Under the native bar it is the tab's own bottom inset, which UIKit already
+ * extends over the bar; under the custom glass bar, the height that bar reports.
  *
  * Use it for anything pinned to a tab screen's foot, so it rides above the
  * glass rather than under it.
  */
 export function useFloatingTabBarClearance() {
   const tabBarHeight = useContext(BottomTabBarHeightContext);
-  return isIOS && tabBarHeight ? tabBarHeight : 0;
+  const nativeTabs = useContext(NativeTabContext);
+  const insets = useSafeAreaInsets();
+  if (!isIOS) return 0;
+  if (nativeTabs) return insets.bottom;
+  return tabBarHeight ?? 0;
 }
 
 export const platformName = Platform.select({ android: "android", ios: "ios", default: "web" });

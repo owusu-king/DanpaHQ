@@ -96,7 +96,7 @@ export function notificationSource(kind: string): string {
   if (kind.startsWith("billing.")) return "Plan & billing";
   if (kind.startsWith("organization.")) return "Portfolio";
   if (kind.startsWith("maintenance.")) return "Maintenance";
-  return "Rooomly";
+  return "Danpa HQ";
 }
 
 export function notificationTone(item: { kind: string; is_read: boolean }): NotificationTone {

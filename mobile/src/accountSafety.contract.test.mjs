@@ -51,6 +51,8 @@ test("two device actions, kept apart, and neither takes a second press", () => {
   assert.match(source, /busy=\{removingDevice === device\.id\}\s*disabled=\{removingDevice !== null\}/);
   assert.match(row, /\{!device\.is_current \? \(/);
   assert.match(row, /label=\{busy \? "Working…" : "Sign out"\}/);
+  assert.match(source, /canReportStolen=\{Boolean\(status\?\.stolen_device_reporting_enabled\)\}/);
+  assert.match(row, /\{canReportStolen \? \(/);
   assert.match(row, /label="Lost or stolen"\s*hint="Blocks it from signing in\. Only support can undo this\."\s*tone="danger"/);
   assert.match(row, /end=\{device\.is_current \? <Type variant="label" style=\{styles\.current\}>THIS DEVICE<\/Type> : undefined\}/);
   assert.match(row, /Last used \{lastUsed\(device\.last_seen_at\)\}/);
@@ -70,9 +72,9 @@ test("two device actions, kept apart, and neither takes a second press", () => {
 
 test("what to watch for is a note, not a page of prose", () => {
   const source = security();
-  assert.match(source, /<Footnote>\s*Signing a device out ends its sessions; it can sign in again with a code sent to your\s*number\. Reporting it lost or stolen stops it signing in at all\.\s*<\/Footnote>/);
+  assert.match(source, /number\.\{status\?\.stolen_device_reporting_enabled \? " Reporting it lost or stolen stops it signing in at all\." : ""\}/);
   assert.match(source, /<GroupLabel>Keeping your account safe<\/GroupLabel>/);
-  assert.match(source, /<Type variant="bodyStrong" style=\{styles\.adviceTitle\}>Rooomly never asks for your code<\/Type>/);
+  assert.match(source, /<Type variant="bodyStrong" style=\{styles\.adviceTitle\}>Danpa HQ never asks for your code<\/Type>/);
   assert.match(source, /<Type variant="bodyStrong" style=\{styles\.adviceTitle\}>A number change pauses payouts<\/Type>/);
   assert.match(source, /<Pill label="Sign out" icon="log-out-outline" tone="quiet" onPress=\{signOut\} \/>/);
   assert.match(between(source, "function DevicesSkeleton(", "function lastUsed("), /accessibilityRole="progressbar" accessibilityLabel="Loading your devices"/);
@@ -85,7 +87,7 @@ test("each setting saves on its own, and a refusal puts the switch back", () => 
   assert.match(source, /setPreferences\(await updateNotificationPreferences\(\{ \[key\]: value \}\)\);/);
   assert.match(source, /setPreferences\(previous\);/);
   assert.match(source, /setError\(cause instanceof ApiFailure \? cause\.error\.message : "That setting did not save\."\);/);
-  assert.match(source, /<GroupLabel>What Rooomly may send<\/GroupLabel>/);
+  assert.match(source, /<GroupLabel>What Danpa HQ may send<\/GroupLabel>/);
   assert.match(source, /<Footnote>Decisions always appear in Updates\. These control what else is sent\.<\/Footnote>/);
   assert.match(source, /\{!preferences && !error \? <PreferencesSkeleton \/> : null\}/);
   assert.match(between(source, "function PreferencesSkeleton(", "const styles = StyleSheet.create("), /accessibilityRole="progressbar" accessibilityLabel="Loading your notification settings"/);

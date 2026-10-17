@@ -7,7 +7,7 @@ from celery.signals import setup_logging
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings.local")
 
-app = Celery("grp")
+app = Celery("danpahq")
 app.config_from_object("django.conf:settings", namespace="CELERY")
 app.autodiscover_tasks()
 

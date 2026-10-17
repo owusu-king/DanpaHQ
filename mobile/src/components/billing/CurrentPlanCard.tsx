@@ -52,7 +52,7 @@ export function CurrentPlanCard({
   const free = isFreePlan(plan);
   const interval = free ? "monthly" : (billing.subscription?.billing_interval ?? "monthly");
   const price = free ? 0 : (planPrice(plan, interval) ?? plan.monthly_price_minor);
-  // A plan Rooomly provides costs this Portfolio nothing, so that is what the
+  // A plan Danpa HQ provides costs this Portfolio nothing, so that is what the
   // price says. Its usual price is in the standing line, not in display type.
   const complimentary = Boolean(billing.subscription?.is_live && billing.subscription.funding === "complimentary");
   const action = standing.attention?.action ?? null;

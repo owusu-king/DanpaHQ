@@ -1,6 +1,6 @@
 """Google Places API (New): suggestions, and the place a tenant chooses.
 
-Called only by Rooomly's API, with a server key that never reaches a client
+Called only by Danpa HQ's API, with a server key that never reaches a client
 (ADR 0034). Three rules keep the bill to what the product uses:
 
 * **Ghana only.** Every autocomplete request names Ghana in `includedRegionCodes`.

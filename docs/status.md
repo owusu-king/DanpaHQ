@@ -158,7 +158,7 @@ gate. Web and mobile display the backend's explicit blocker.
 ## Occupied Unit protection boundary
 
 Repair batch FIX 3 is complete. `Occupancy` is the availability truth for both
-active Rooomly tenancies and `pending_lease` physical-occupancy context. An
+active Danpa HQ tenancies and `pending_lease` physical-occupancy context. An
 occupied Unit cannot be published, accept a viewing, public application or
 private join request, reopen verification, change checked characteristics, amenities,
 photographs or bed allocation, or be archived/deleted. Its private entrance
@@ -240,7 +240,7 @@ immediately below the lifecycle summary.
 
 ## Free viewings and verified attendance
 
-Physical Rooomly viewings no longer carry an active fee field or fee experience.
+Physical Danpa HQ viewings no longer carry an active fee field or fee experience.
 Legacy fee input is rejected at the API boundary. A tenant and provider first
 confirm a scheduled slot; near that time the tenant can display a locally
 rendered QR and matching six-digit fallback code from one short-lived server
@@ -311,7 +311,7 @@ premises records. Tenant and authorized provider access share one backend
 boundary; web supports view/download/print and mobile uses native view/save and
 print. The snapshot includes the factual particulars identified in Act 220
 s. 33, while stamping and electronic-form sufficiency remain explicitly subject
-to Ghana-qualified legal review rather than a Rooomly compliance claim.
+to Ghana-qualified legal review rather than a Danpa HQ compliance claim.
 
 Tenant checkout now exists behind a server-returned capability on the lease
 ledger. Web and mobile always expose `Pay rent` for an outstanding tenant
@@ -353,7 +353,7 @@ Lease activation remains acceptance-driven. Moving it behind initial payment is
 deferred until a licensed PSP, observed sandbox behavior, and a tokenized payout
 destination for organization-managed properties exist. This preserves the
 working tenancy flow rather than leaving accepted tenants waiting on a payment
-method Rooomly cannot yet offer. See ADR 0028.
+method Danpa HQ cannot yet offer. See ADR 0028.
 
 ### Payment integrity audit — 31 August 2026
 
@@ -371,7 +371,7 @@ their clients were already sending, and two stale tests that pre-dated this
 audit were corrected rather than left red.
 
 The reconciliation rule was narrowed deliberately: a genuine disagreement is
-still only ever recorded, but provider-confirmed success that Rooomly simply
+still only ever recorded, but provider-confirmed success that Danpa HQ simply
 never heard about is now ingested through the same validated boundary a signed
 webhook uses.
 
@@ -662,7 +662,7 @@ archived Unit eligible only after its parent is valid again.
 Repair batch FIX 2 is complete. Provider approval of an access-code tenancy
 request stops before tenancy. Providers can prepare a private-acquisition lease
 only from an approved request. Only acceptance of that immutable lease may
-activate the Rooomly Tenancy and Occupancy.
+activate the Danpa HQ Tenancy and Occupancy.
 
 The invariant is database-backed: `Tenancy.active/upcoming` requires
 `activation_lease`, while an active `Occupancy` requires both `lease` and
@@ -693,7 +693,7 @@ claim could get past, and a submission date shown for properties never sent.
 
 ## Provider plans and entitlements — 31 August 2026
 
-Rooomly now knows what a Portfolio is entitled to. Three plans exist — **FREE,
+Danpa HQ now knows what a Portfolio is entitled to. Three plans exist — **FREE,
 PRO, BUSINESS** — and nothing charges anybody yet, which is the point: the
 monetization brief's own implementation order puts *Portfolio → plan →
 entitlements → limits → upgrade-ready* before checkout, so that is the whole of
@@ -917,7 +917,7 @@ waits); automatic recurring charges, grace reminders and refunds.
 **What happened.** Upgrading against Paystack's test mode ended in *You're still
 on Free — the payment was not completed* on the web, and on mobile the checkout
 never opened, although Paystack took the payment. Seven test payments that day
-succeeded at Paystack; Rooomly recorded every one as failed, and nothing told
+succeeded at Paystack; Danpa HQ recorded every one as failed, and nothing told
 anybody.
 
 **Why.** The Paystack adapter mapped `abandoned` to `failed`. Paystack reports
@@ -933,7 +933,7 @@ held, which Paystack refuses (the 422s), and the client then priced the change
 again, inviting a second payment.
 
 **Fixed.**
-- `abandoned` maps to `pending`; Rooomly's intent window closes an unpaid
+- `abandoned` maps to `pending`; Danpa HQ's intent window closes an unpaid
   checkout.
 - A retry asks the provider first: a success is applied instead of retried, and
   a payment still being confirmed refuses (`payment_confirming`). The Paystack
@@ -952,7 +952,7 @@ still confirming) and `test_billing_checkout.py`, and by contract tests on both
 clients. Details in `docs/architecture/PAYSTACK_INTEGRATION.md`.
 
 **The test payments already taken** stay recorded as failed, and none of them
-upgraded the Portfolio. Rooomly cannot post them — their failure records hold the
+upgraded the Portfolio. Danpa HQ cannot post them — their failure records hold the
 same Paystack transaction ids. Once the Celery worker runs this code, the hourly
 reconciliation opens a `provider_succeeded_internal_failed` exception for each
 payment Paystack took within the last day; in test mode nothing needs refunding.
@@ -1086,7 +1086,7 @@ one icon in the workspace chrome and nothing else.
 Plan & billing keeps a Portfolio select of its own, and it moves that page only.
 It belongs to the billing work and was left alone.
 
-## One Portfolio per provider, provisioned by Rooomly — 12 September 2026
+## One Portfolio per provider, provisioned by Danpa HQ — 12 September 2026
 
 A Portfolio was something a provider set up, so an account could accumulate
 them — and two Portfolios one person owns is two of everything: two

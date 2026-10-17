@@ -1,4 +1,4 @@
-.rooomly-preview-map {
+.danpahq-preview-map {
   position: absolute;
   inset: 0;
   overflow: hidden;
@@ -7,12 +7,12 @@
   touch-action: none;
   user-select: none;
 }
-.rooomly-preview-map:active { cursor: grabbing; }
-.rooomly-preview-map.is-cooperative { touch-action: pan-y; }
-.rooomly-preview-tiles,
-.rooomly-preview-shapes,
-.rooomly-preview-markers { position: absolute; inset: 0; pointer-events: none; }
-.rooomly-preview-tile {
+.danpahq-preview-map:active { cursor: grabbing; }
+.danpahq-preview-map.is-cooperative { touch-action: pan-y; }
+.danpahq-preview-tiles,
+.danpahq-preview-shapes,
+.danpahq-preview-markers { position: absolute; inset: 0; pointer-events: none; }
+.danpahq-preview-tile {
   position: absolute;
   width: 256px;
   height: 256px;
@@ -20,24 +20,24 @@
   pointer-events: none;
   user-select: none;
 }
-.rooomly-preview-marker {
+.danpahq-preview-marker {
   position: absolute;
   width: max-content;
   pointer-events: auto;
   cursor: pointer;
 }
-.rooomly-preview-marker:focus-visible {
+.danpahq-preview-marker:focus-visible {
   outline: 2px solid #1b6b4f;
   outline-offset: 4px;
 }
-.rooomly-preview-area {
+.danpahq-preview-area {
   position: absolute;
   border-width: 2px;
   border-radius: 50%;
   translate: -50% -50%;
   pointer-events: none;
 }
-.rooomly-preview-controls {
+.danpahq-preview-controls {
   position: absolute;
   z-index: 5;
   right: 14px;
@@ -49,7 +49,7 @@
   background: #fff;
   box-shadow: 0 3px 12px rgb(33 26 21 / 12%);
 }
-.rooomly-preview-controls button {
+.danpahq-preview-controls button {
   width: 40px;
   height: 40px;
   padding: 0;
@@ -59,10 +59,10 @@
   font: 600 22px/1 sans-serif;
   cursor: pointer;
 }
-.rooomly-preview-controls button + button { border-top: 1px solid #e6e0d7; }
-.rooomly-preview-controls button:hover { background: #e8f1ec; }
-.rooomly-preview-controls button:focus-visible { outline: 2px solid #1b6b4f; outline-offset: -3px; }
-.rooomly-preview-attribution {
+.danpahq-preview-controls button + button { border-top: 1px solid #e6e0d7; }
+.danpahq-preview-controls button:hover { background: #e8f1ec; }
+.danpahq-preview-controls button:focus-visible { outline: 2px solid #1b6b4f; outline-offset: -3px; }
+.danpahq-preview-attribution {
   position: absolute;
   z-index: 5;
   right: 8px;
@@ -74,4 +74,4 @@
   font: 500 11px/1.3 sans-serif;
   text-decoration: none;
 }
-.rooomly-preview-attribution:hover { text-decoration: underline; }
+.danpahq-preview-attribution:hover { text-decoration: underline; }

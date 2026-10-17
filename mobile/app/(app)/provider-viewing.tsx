@@ -224,7 +224,7 @@ export default function ProviderViewingScreen() {
               {!viewing.confirmed_starts_at && viewing.actions.can_decline ? (
                 <Footnote>
                   Offer a time and {viewing.tenant_name.split(" ")[0]} confirms one — that becomes the appointment.
-                  Rooomly Viewings are free, and a tenant is never charged to attend.
+                  Danpa HQ Viewings are free, and a tenant is never charged to attend.
                 </Footnote>
               ) : null}
             </View>

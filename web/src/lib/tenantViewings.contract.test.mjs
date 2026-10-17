@@ -4,7 +4,7 @@
  * The same workspace, cards and record vocabulary as the provider's Viewings,
  * so both sides of one appointment look like one appointment: the date is a
  * card's face, the place its photograph, one lifecycle sentence its status.
- * The full record opens in the shared sheet, kept in the address, and remains
+ * The full record opens in the shared sheet, held in page state, and remains
  * at its durable `/viewings/<viewingId>` address.
  *
  * A viewing is the strongest case in the product for the record having an
@@ -48,16 +48,16 @@ const tenantRoute = () => {
   return source.slice(at);
 };
 
-test("a tenant's viewing opens over the schedule, kept in the address, and at its own", () => {
+test("a tenant's viewing opens over the schedule, held in page state, and at its own", () => {
   assert.ok(existsSync(resolve(root, "web/app/viewings/[viewingId]/page.tsx")));
   assert.match(tenantRoute(), /viewings\?\.find\(\(row\) => row\.id === viewingId\)/);
   assert.match(tenantRoute(), /<ViewingRecord/);
   assert.match(tenantRoute(), /mobileLabel: "Back to Viewings"/);
 
   const body = tenantHalf();
-  assert.match(body, /search\.get\("viewing"\)/);
+  assert.match(body, /useDeepLinkedModal\("viewing"\)/);
   assert.match(body, /<ViewingSheet viewing=\{opened\}/);
-  assert.match(body, /onClose=\{\(\) => setParams\(\{ viewing: "" \}\)\}/);
+  assert.match(body, /onClose=\{\(\) => setOpenId\(""\)\}/);
   assert.match(body, /href=\{`\/viewings\/\$\{viewing\.id\}` as never\}/);
   assert.match(body, /event\.preventDefault\(\);\s*onOpen\(viewing\.id\)/);
   assert.match(record(), /<ModalSheet/);

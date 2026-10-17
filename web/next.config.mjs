@@ -3,7 +3,7 @@ const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
   // Transpiled rather than pre-built so token changes are picked up in dev.
-  transpilePackages: ["@grp/design-tokens"],
+  transpilePackages: ["@danpahq/design-tokens"],
   typedRoutes: true,
 
   async rewrites() {

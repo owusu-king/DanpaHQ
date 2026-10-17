@@ -3,7 +3,7 @@
 **Status: adapter, subaccount split, and batch-settlement importer written and
 unit-tested. Not connected to Paystack. Disabled in every environment.**
 
-Paystack was selected as Rooomly's first PSP on 28 August 2026. This file records
+Paystack was selected as Danpa HQ's first PSP on 28 August 2026. This file records
 what the adapter does, what was verified against Paystack's published guidance,
 what is still assumed, and exactly what has to happen before real money moves.
 
@@ -18,19 +18,18 @@ Three independent things must all be true before a tenant sees a checkout:
 
 1. `PAYMENT_BACKEND=paystack` — otherwise the registry returns
    `UnconfiguredPaymentProvider`, which refuses every operation.
-2. `PAYSTACK_SECRET_KEY` set — otherwise the adapter raises
-   `ProviderUnavailable` before any row is written.
-3. `PAYSTACK_ALLOW_LIVE=true`, **but only for an `sk_live_` key.** A test key
-   works without it; a live key does nothing without it.
+2. The secret key for the selected mode is set: `PAYSTACK_TEST_SECRET_KEY` while
+   live mode is off, or `PAYSTACK_LIVE_SECRET_KEY` while it is on. Otherwise the
+   adapter raises `ProviderUnavailable` before any row is written.
+3. `PAYSTACK_ALLOW_LIVE=true` to select the live credentials. When it is false,
+   the adapter uses only the test credentials.
 4. `PAYSTACK_PLATFORM_CHARGE_BPS` set explicitly. Missing platform-share policy
    refuses checkout. Paystack's transaction fee is always borne by the provider
    subaccount.
 
-The third is the one that matters. A secret key is a string somebody pastes into
-an environment, and the difference between the test one and the live one is four
-characters. The guard is on the key rather than on one operation, so a live key
-cannot even authenticate a callback — a deployment nobody switched on cannot
-process real money through a redelivered webhook.
+The third is the one that matters. Both credential sets can be installed in
+advance, but a deployment nobody explicitly switched to live mode cannot select
+the live secret for API calls or callback authentication.
 
 There is a test for each of these.
 
@@ -53,7 +52,7 @@ There is a test for each of these.
 
 Paystack names the institution field differently across those two calls:
 account confirmation sends `bank_code`; subaccount creation sends
-`settlement_bank`. The adapter translates at that boundary so Rooomly's domain
+`settlement_bank`. The adapter translates at that boundary so Danpa HQ's domain
 continues to use one provider-neutral `bank_code` input.
 
 SHA-512 is worth repeating because most providers use SHA-256, and a check
@@ -68,7 +67,7 @@ test that a SHA-256 signature is rejected.
 `transaction/initialize`. The adapter retains both Paystack's hosted URL and
 its transaction `access_code`: web resumes that server-created transaction in
 Paystack Popup, while installed mobile clients can continue through the hosted
-URL. In both cases Paystack owns the payment form and Rooomly never receives a
+URL. In both cases Paystack owns the payment form and Danpa HQ never receives a
 mobile-money PIN, OTP or CVV. Popup success is navigation only; the authenticated
 webhook or a server-side verify query remains the authority for money movement.
 
@@ -84,7 +83,7 @@ anyway, the intent stays open and `reconciliation.sweep_open_intents` raises
 closed is safe here *because* reconciliation exists.
 
 **An unmapped status or channel is refused, never guessed.** Paystack adding a
-status Rooomly has not seen must not become a wrong balance by being mapped to
+status Danpa HQ has not seen must not become a wrong balance by being mapped to
 the nearest-looking value.
 
 **A timeout is not a failure.** `requests.Timeout` raises `ProviderUnavailable`
@@ -109,12 +108,12 @@ rent obligation; the owner subaccount bears Paystack's fee.
 ## Payout-destination provisioning
 
 Paystack's create-subaccount API does not publish an idempotency-key contract.
-Rooomly therefore does not treat a timed-out create as safe to retry:
+Danpa HQ therefore does not treat a timed-out create as safe to retry:
 
-1. The owner/admin request carries Rooomly's required `Idempotency-Key`.
+1. The owner/admin request carries Danpa HQ's required `Idempotency-Key`.
 2. A `PayoutProvisioningOperation` is committed before the external call.
 3. Its UUID is sent in the subaccount metadata as
-   `rooomly_provisioning_reference`.
+   `danpahq_provisioning_reference`.
 4. A definite validation rejection closes the operation as failed. A timeout or
    unavailable response leaves it `needs_reconciliation` and returns `202`.
 5. The scheduled worker lists Paystack subaccounts and recovers only an exact
@@ -136,7 +135,7 @@ network directory and remains subject to the sandbox checks below.
 
 1. **Telecel's channel code.** Vodafone Ghana became Telecel in 2023. Paystack's
    documented provider codes are `mtn | atl | vod`. Whether `vod` still applies,
-   or a `tel` code exists, was not confirmed. This only matters if Rooomly ever
+   or a `tel` code exists, was not confirmed. This only matters if Danpa HQ ever
    moves to the Charge API — hosted checkout picks the network itself — but it
    should be checked before that.
 2. **Which events Paystack actually sends for a failure.** `charge.success` is
@@ -162,7 +161,7 @@ Seen against the Ghana test sandbox during subscription checkout, and fixed:
   checkout within a second, before anybody could pay. The payments that
   followed succeeded at Paystack under the *same* transaction id, which the
   immutable failure record had already claimed, so none of them could be
-  posted. `abandoned` now maps to `pending`; Rooomly's own intent window
+  posted. `abandoned` now maps to `pending`; Danpa HQ's own intent window
   (`PAYMENT_INTENT_TTL_MINUTES`) is what ends an unpaid checkout.
 - **Paystack refuses a second initialize for a reference it already holds**
   ("Duplicate Transaction Reference"); it does not hand back the same
@@ -173,7 +172,7 @@ Seen against the Ghana test sandbox during subscription checkout, and fixed:
   Paystack is still confirming (`ongoing`, `queued`, `processing`) refuses with
   `payment_confirming`, so nobody is charged twice by pressing "Try again".
 - **Reconciliation asks about recent failures too.** Money Paystack took after
-  Rooomly recorded a failure is posted when it can be, and otherwise opened as
+  Danpa HQ recorded a failure is posted when it can be, and otherwise opened as
   `provider_succeeded_internal_failed` for a person.
 
 Still open: a reservation whose initialize *response* was lost cannot be resumed
@@ -202,7 +201,7 @@ advertised page with a defensive cap.
 
 The hourly worker imports successful batches before reconciliation. It marks a
 row settled only when the exact provider transaction id, amount, and currency
-match the immutable Rooomly transaction for that snapshotted subaccount. Any
+match the immutable Danpa HQ transaction for that snapshotted subaccount. Any
 disagreement opens an exception and leaves the settlement pending. Re-importing
 the same batch is idempotent.
 
@@ -216,9 +215,9 @@ payload shapes, mocking only the `requests` boundary. Twenty-three tests.
 
 This does not prove Paystack's Ghana sandbox behaves as documented — only an
 account can, and every item below that needs one is still open. It proves the
-half that is Rooomly's own: given a response of the shape Paystack documents,
+half that is Danpa HQ's own: given a response of the shape Paystack documents,
 this system does the right thing, and given a *wrong* one it refuses rather than
-guessing. A failure there is now a Rooomly bug rather than an integration
+guessing. A failure there is now a Danpa HQ bug rather than an integration
 surprise, and the sandbox exercise has a much shorter list to confirm.
 
 | Behaviour | Covered |
@@ -261,7 +260,7 @@ discovering; everything else still requires a Paystack account.
 ### Commercial and regulatory
 
 - [ ] Paystack Ghana business account created and verified.
-- [ ] Paystack confirms Rooomly's use of organization-owned subaccounts and
+- [ ] Paystack confirms Danpa HQ's use of organization-owned subaccounts and
       single-subaccount split payments for Ghana rent collection.
 - [ ] Fee structure confirmed; set `PAYSTACK_PLATFORM_CHARGE_BPS` deliberately.
       Confirm in sandbox that `bearer=subaccount` deducts Paystack's fee from
@@ -277,7 +276,7 @@ discovering; everything else still requires a Paystack account.
       (`https://<tenant-app>/payments/return`). Confirm the same HTTPS domain is
       associated with the iOS and Android app before relying on automatic
       mobile return; until then, mobile remains safe and refreshes when the
-      tenant manually returns to Rooomly.
+      tenant manually returns to Danpa HQ.
 - [ ] Webhook URL registered; confirm Paystack reaches
       `POST /api/v1/webhooks/payments/paystack/`.
 - [ ] One real sandbox payment on each channel: mobile money, card, bank.
@@ -316,7 +315,8 @@ discovering; everything else still requires a Paystack account.
 - [ ] Decide whether lease activation becomes payment-driven. ADR 0028 §8 keeps
       it acceptance-driven, and changing it needs a data migration for
       already-active agreements plus activation tests.
-- [ ] `PAYSTACK_ALLOW_LIVE=true` set deliberately, by a person, with the live key.
+- [ ] `PAYSTACK_ALLOW_LIVE=true` set deliberately, by a person, after the live
+      secret and public keys have been installed.
 - [ ] Reconciliation exceptions monitored. The application now escalates and
       delivers: an exception is posted to `PAYMENT_ALERT_WEBHOOK_URL` when
       opened, re-alerted while it stays unanswered, raised to `critical` past

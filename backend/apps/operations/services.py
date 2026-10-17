@@ -24,6 +24,10 @@ from .models import (
     ManagementUser,
     Priority,
     ReportSubject,
+    SupportCase,
+    SupportCaseMessage,
+    SupportCategory,
+    SupportMessageSender,
 )
 
 SESSION_HOURS = 12
@@ -194,6 +198,106 @@ def update_case(*, case, actor: ManagementUser, status: str, resolution_note: st
         metadata={"resolution_note": resolution_note.strip()},
     )
     return case
+
+
+def _support_body(body: str) -> str:
+    text = str(body or "").strip()
+    if not text:
+        raise ValidationFailed("Write a message.")
+    if len(text) > 2000:
+        raise ValidationFailed("Keep a message under 2,000 characters.")
+    return text
+
+
+def _post_support_message(
+    *, case: SupportCase, body: str, user=None, management_actor: ManagementUser | None = None
+) -> SupportCaseMessage:
+    if (user is None) == (management_actor is None):
+        raise ValueError("A support message needs exactly one author.")
+    now = timezone.now()
+    from_management = management_actor is not None
+    message = SupportCaseMessage.objects.create(
+        case=case,
+        sender=(SupportMessageSender.MANAGEMENT if from_management else SupportMessageSender.USER),
+        author_user=None if from_management else user,
+        author_management=management_actor,
+        author_label=management_actor.display_name if from_management else user.display_name,
+        body=_support_body(body),
+    )
+    case.last_message_at = now
+    if from_management:
+        case.management_read_at = now
+        case.assigned_to = management_actor
+    else:
+        case.user_read_at = now
+        if case.status in {CaseStatus.RESOLVED, CaseStatus.DISMISSED}:
+            case.status = CaseStatus.OPEN
+            case.resolved_at = None
+            case.resolution_note = ""
+    case.save(
+        update_fields=[
+            "status",
+            "assigned_to",
+            "resolution_note",
+            "resolved_at",
+            "last_message_at",
+            "user_read_at",
+            "management_read_at",
+            "updated_at",
+        ]
+    )
+    return message
+
+
+@transaction.atomic
+def create_support_case(
+    *, user, category: str, summary: str, message: str, priority: str = Priority.NORMAL
+) -> SupportCase:
+    if category not in SupportCategory.values:
+        raise ValidationFailed("Choose a valid support category.")
+    clean_summary = str(summary or "").strip()
+    if not clean_summary:
+        raise ValidationFailed("Summarise what you need help with.")
+    clean_message = _support_body(message)
+    case = SupportCase.objects.create(
+        user=user,
+        category=category,
+        summary=clean_summary[:180],
+        details=clean_message,
+        priority=priority,
+    )
+    _post_support_message(case=case, body=clean_message, user=user)
+    record(
+        action=AuditAction.CREATE,
+        aggregate_type="support_case",
+        aggregate_id=case.id,
+        actor=user,
+        metadata={"category": category},
+    )
+    return case
+
+
+@transaction.atomic
+def reply_to_support_case(
+    *, case: SupportCase, body: str, user=None, management_actor: ManagementUser | None = None
+) -> SupportCaseMessage:
+    message = _post_support_message(
+        case=case, body=body, user=user, management_actor=management_actor
+    )
+    record(
+        action=AuditAction.UPDATE,
+        aggregate_type="support_case",
+        aggregate_id=case.id,
+        actor=user,
+        management_actor=management_actor,
+        metadata={"message_id": str(message.id), "sender": message.sender},
+    )
+    return message
+
+
+def mark_support_case_read(*, case: SupportCase, by_management: bool) -> None:
+    field = "management_read_at" if by_management else "user_read_at"
+    SupportCase.objects.filter(id=case.id).update(**{field: timezone.now()})
 
 
 def assert_management_actor(user) -> ManagementUser:

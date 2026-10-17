@@ -97,7 +97,7 @@ export default function TeamPage() {
   const [loading, setLoading] = useState(true);
   const [canManageTeam, setCanManageTeam] = useState(false);
   // The Portfolio's own details, editable here because this is the only place
-  // they can be edited: Rooomly provisions the Portfolio and names it, and the
+  // they can be edited: Danpa HQ provisions the Portfolio and names it, and the
   // owner is the one who decides what it should actually be called.
   const [details, setDetails] = useState<{
     name: string;
@@ -234,7 +234,7 @@ export default function TeamPage() {
         </header>
         <Empty
           title="Your Portfolio is on its way"
-          body="Rooomly gives you your Portfolio when your provider verification is approved, and your Team lives inside it. Nothing to set up."
+          body="Danpa HQ gives you your Portfolio when your provider verification is approved, and your Team lives inside it. Nothing to set up."
           action={
             <div className="team-empty-actions">
               <Link href="/provider" className="button-link">See your verification status</Link>
@@ -279,7 +279,7 @@ export default function TeamPage() {
         <Notice
           tone="info"
           title="Verify your identity to change who may operate this Portfolio"
-          body="Inviting somebody, changing a role or assigning a Property decides who reaches your tenants and your money, so Rooomly confirms who you are first. You can still see the roster and end somebody's access."
+          body="Inviting somebody, changing a role or assigning a Property decides who reaches your tenants and your money, so Danpa HQ confirms who you are first. You can still see the roster and end somebody's access."
         />
       ) : null}
 
@@ -309,7 +309,7 @@ export default function TeamPage() {
 
       {canManageTeam && details && editingDetails ? (
         <Section title="Portfolio details">
-          {/* Rooomly names the Portfolio when it provisions it, which is why
+          {/* Danpa HQ names the Portfolio when it provisions it, which is why
               nobody is asked to invent one up front — and why this has to
               exist. The name here is the one tenants, agreements and receipts
               will carry. */}
@@ -850,7 +850,7 @@ function MemberDialog({
                 <Notice
                   tone="warning"
                   title={`Remove ${member.display_name}?`}
-                  body="Their access ends immediately and their Property assignments are released. They keep their own Rooomly account, and can be invited again."
+                  body="Their access ends immediately and their Property assignments are released. They keep their own Danpa HQ account, and can be invited again."
                 />
                 <div className="team-actions">
                   <Button

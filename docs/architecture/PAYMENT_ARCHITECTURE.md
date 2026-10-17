@@ -1,4 +1,4 @@
-# Rooomly Payment Architecture
+# Danpa HQ Payment Architecture
 
 ## Status
 
@@ -82,7 +82,7 @@ Two rules in this document are narrowed by that work, deliberately:
 
 - **§31.8 and the reconciliation principle.** "The sweep never repairs" still
   holds for every genuine disagreement. It no longer covers the case where
-  Rooomly holds *no* record and the provider is the sole authority on whether a
+  Danpa HQ holds *no* record and the provider is the sole authority on whether a
   payment happened: that evidence is now ingested through the same validated
   boundary a signed webhook uses.
 - **§11 LedgerEntry / PaymentAllocation.** Allocation records which obligation
@@ -102,7 +102,7 @@ The purpose of this document is to preserve the intended payment design before i
 
 # 1. Purpose
 
-Rooomly should not treat rent payment as a simple checkout button.
+Danpa HQ should not treat rent payment as a simple checkout button.
 
 Payments must be designed as a dedicated bounded context that can later support:
 
@@ -226,21 +226,21 @@ TENANT + LANDLORD NOTIFIED
 
 # 5. Do Not Hold Customer Funds Initially
 
-For the first production version, Rooomly should preferably **not independently custody tenant funds**.
+For the first production version, Danpa HQ should preferably **not independently custody tenant funds**.
 
 Recommended model:
 
 ```text
 Tenant
    ↓
-Rooomly Checkout / Payment UI
+Danpa HQ Checkout / Payment UI
    ↓
 Licensed Payment Service Provider
    ↓
 Landlord / Provider Settlement
 ```
 
-Rooomly should:
+Danpa HQ should:
 
 - Initiate the payment
 - Track its purpose
@@ -251,7 +251,7 @@ Rooomly should:
 - Track settlement status
 - Maintain audit trails
 
-Rooomly should **not** assume it can legally operate escrow, stored-value wallets, deposit custody, lending, or unrestricted money transfer services without the appropriate regulated structure.
+Danpa HQ should **not** assume it can legally operate escrow, stored-value wallets, deposit custody, lending, or unrestricted money transfer services without the appropriate regulated structure.
 
 Any true wallet, escrow, deposit holding, lending, or financial custody feature must undergo dedicated legal and regulatory review before implementation.
 
@@ -283,7 +283,7 @@ Support bank-transfer payment flows where the provider supports reliable reconci
 
 ## 6.4 External / Offline Payment
 
-Allow landlords to record payments received outside Rooomly.
+Allow landlords to record payments received outside Danpa HQ.
 
 Examples:
 
@@ -639,7 +639,7 @@ occurred_at
 metadata
 ```
 
-Future implementation should strongly consider double-entry accounting when Rooomly begins handling wallet balances, settlement balances, escrow, refunds, commissions, or other custodial financial flows.
+Future implementation should strongly consider double-entry accounting when Danpa HQ begins handling wallet balances, settlement balances, escrow, refunds, commissions, or other custodial financial flows.
 
 ---
 
@@ -681,14 +681,14 @@ REVERSED
 ## Receipt
 
 A receipt is generated only after processor-confirmed payment. At that boundary
-Rooomly stores both a versioned factual snapshot and the final rendered PDF;
+Danpa HQ stores both a versioned factual snapshot and the final rendered PDF;
 the PDF is not regenerated from mutable account, Property, Unit or template
 state later. This gives a 2026 payment the same reproducibility guarantee as a
-frozen agreement even if names, premises labels or Rooomly's renderer change.
+frozen agreement even if names, premises labels or Danpa HQ's renderer change.
 
 Include:
 
-- Rooomly receipt number
+- Danpa HQ receipt number
 - Provider transaction reference
 - Tenant
 - Landlord/provider
@@ -705,10 +705,10 @@ Include:
 - Payment status
 - Currency
 
-`rooomly.payment_receipt.v1` is the current snapshot schema. The PDF hash and
+`danpahq.payment_receipt.v1` is the current snapshot schema. The PDF hash and
 bytes are stored on the immutable Receipt record and served only through the
 same tenant/provider authorization boundary as the receipt metadata. Act 220
-s. 33 informed the factual fields, but Rooomly does not certify that an
+s. 33 informed the factual fields, but Danpa HQ does not certify that an
 electronic receipt satisfies every Ghanaian formality. Stamping and electronic
 sufficiency remain questions for Ghana-qualified counsel in
 `docs/legal/GHANA_RESIDENTIAL_LEASE_CLAUSE_REVIEW.md`.
@@ -736,12 +736,12 @@ Never overwrite the original successful payment to make it appear as though it n
 
 ## ReconciliationRecord
 
-Used to compare Rooomly's records with payment-provider records.
+Used to compare Danpa HQ's records with payment-provider records.
 
 The reconciliation process should detect:
 
-- Provider success but Rooomly pending
-- Rooomly success but provider missing
+- Provider success but Danpa HQ pending
+- Danpa HQ success but provider missing
 - Amount mismatch
 - Duplicate payment
 - Duplicate webhook
@@ -1239,7 +1239,7 @@ Future model:
 ```text
 Tenant
    ↓
-Rooomly
+Danpa HQ
    ↓
 Licensed Lending Partner
    ↓
@@ -1257,7 +1257,7 @@ Possible future products:
 - Salary-linked financing
 - Landlord improvement financing
 
-Rooomly should initially act as platform/integration infrastructure rather than assuming the role of lender without the necessary regulatory structure.
+Danpa HQ should initially act as platform/integration infrastructure rather than assuming the role of lender without the necessary regulatory structure.
 
 ---
 
@@ -1461,7 +1461,7 @@ The implementation must preserve these rules:
 11. Financial state-changing admin actions must be audited.
 12. Offline payments must be distinguishable from PSP-confirmed payments.
 13. Wallet/escrow/lending must not be introduced implicitly through ordinary rent collection.
-14. The payment domain must remain reusable by future Rooomly digital services.
+14. The payment domain must remain reusable by future Danpa HQ digital services.
 
 ---
 
@@ -1507,7 +1507,7 @@ Before implementing this payment architecture:
 11. Add tests with every phase.
 12. Update documentation as implementation decisions are finalized.
 
-The goal is to **build on top of the existing Rooomly architecture**, not start a parallel payment application.
+The goal is to **build on top of the existing Danpa HQ architecture**, not start a parallel payment application.
 
 ---
 
@@ -1556,4 +1556,4 @@ Payments Core ───├─ TV
                  └─ Rent Financing
 ```
 
-The Payments domain should become reusable infrastructure for the wider Rooomly ecosystem.
+The Payments domain should become reusable infrastructure for the wider Danpa HQ ecosystem.

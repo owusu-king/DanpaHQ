@@ -8,7 +8,7 @@
  * Keychain/Keystore.
  */
 
-const PREFIX = "rooomly.mobile.";
+const PREFIX = "danpahq.mobile.";
 const fallback = new Map<string, string>();
 
 function sessionStore(): Storage | null {

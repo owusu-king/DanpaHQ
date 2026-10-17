@@ -34,7 +34,7 @@ const body = Geist({
 });
 
 export const metadata: Metadata = {
-  title: "Ghana Rental — Verified rentals across Ghana",
+  title: "Danpa HQ — Verified rentals across Ghana",
   description: "Find verified rental properties from verified owners and authorized agents across Ghana.",
 };
 

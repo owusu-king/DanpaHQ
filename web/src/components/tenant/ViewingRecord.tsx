@@ -59,9 +59,9 @@ export function tenantViewingTone(viewing: MyViewing): TenantViewingTone {
 }
 
 /**
- * The record over the schedule. A plain click on a card opens it; the address
- * keeps it (`?viewing=`). The last viewing shown is held so the sheet can play
- * its exit after the address has let it go.
+ * The record over the schedule. A plain click on a card opens it, held in the
+ * page's state rather than the address. The last viewing shown is held so the
+ * sheet can play its exit after the page has let it go.
  */
 export function ViewingSheet({
   viewing,

@@ -15,8 +15,8 @@ type Size = "sm" | "md" | "lg";
  * rendering of an app rather than one, so the styling now lives in
  * foundation.css where the states can actually exist.
  *
- * `primary` is ink rather than a brand hue. It passes contrast on every surface
- * the product has, and it leaves the gold to mean something where it appears.
+ * `primary` uses the product's deep kola green. Secondary, quiet and destructive
+ * actions stay visually distinct so a screen still has one obvious next step.
  */
 export function Button({
   variant = "primary",

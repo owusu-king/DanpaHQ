@@ -1,7 +1,7 @@
-# Rooomly — A-to-Z Product Development Roadmap
+# Danpa HQ — A-to-Z Product Development Roadmap
 
 > **Document type:** Master implementation roadmap  
-> **Product:** Rooomly — Ghana Property Management & Rental Platform  
+> **Product:** Danpa HQ — Ghana Property Management & Rental Platform  
 > **Architecture:** Django/DRF modular monolith + PostgreSQL + Redis/Celery + Next.js + Expo/React Native  
 > **Purpose:** Define the complete phased path from the current rental foundation through payments, operations, trust, digital services, financial services, intelligence, scale, and long-term platform evolution.
 
@@ -355,7 +355,7 @@ Never overload one `status` field.
 
 ## Phase G — Marketplace, Search & Discovery
 
-**Goal:** Allow tenants to find legitimate rental inventory without making Rooomly merely another listing site.
+**Goal:** Allow tenants to find legitimate rental inventory without making Danpa HQ merely another listing site.
 
 ### Scope
 
@@ -429,7 +429,7 @@ Show:
 - Caretaker
 - Verified agent
 - Authorized representative
-- Future Rooomly Viewing Partner
+- Future Danpa HQ Viewing Partner
 
 ### Least privilege
 
@@ -762,7 +762,7 @@ Use authoritative server-side provider confirmation.
 
 ### Initial custody principle
 
-Rooomly should initially avoid independently holding customer funds unless the required legal/regulatory model is established.
+Danpa HQ should initially avoid independently holding customer funds unless the required legal/regulatory model is established.
 
 ---
 
@@ -875,7 +875,7 @@ Emergency path should be explicit.
 
 ## Phase S — Communication & Notifications
 
-**Goal:** Keep rental communication structured without turning Rooomly into an uncontrolled chat app.
+**Goal:** Keep rental communication structured without turning Danpa HQ into an uncontrolled chat app.
 
 ### Scope
 
@@ -973,7 +973,7 @@ Verified reviews
 - unauthorized fees
 - property information
 
-Rooomly should not claim to replace courts or regulators.
+Danpa HQ should not claim to replace courts or regulators.
 
 ---
 
@@ -1082,7 +1082,7 @@ Avoid fully automated irreversible enforcement initially.
 
 ## Phase X — Platform Administration & Operations
 
-**Goal:** Give Rooomly staff safe operational tools.
+**Goal:** Give Danpa HQ staff safe operational tools.
 
 ### Scope
 
@@ -1172,7 +1172,7 @@ Use a proper ledger.
 
 ## Phase Z — Digital Services Marketplace
 
-**Goal:** Make Rooomly useful beyond monthly rent while reusing the payment infrastructure.
+**Goal:** Make Danpa HQ useful beyond monthly rent while reusing the payment infrastructure.
 
 ### Airtime
 
@@ -1240,14 +1240,14 @@ Provider-specific logic must remain behind adapters.
 
 ## Phase AA — Rent Financing
 
-**Goal:** Address Ghana's upfront-rent burden without prematurely turning Rooomly into an unlicensed lender.
+**Goal:** Address Ghana's upfront-rent burden without prematurely turning Danpa HQ into an unlicensed lender.
 
 Potential model:
 
 ```text
 Tenant
    ↓
-Rooomly
+Danpa HQ
    ↓
 Licensed Financing Partner
    ↓
@@ -1304,7 +1304,7 @@ Potential products:
 - rent protection
 - maintenance-related cover
 
-Architecture should use insurer/provider integrations rather than assuming Rooomly is the insurer.
+Architecture should use insurer/provider integrations rather than assuming Danpa HQ is the insurer.
 
 ---
 
@@ -1484,7 +1484,7 @@ Each provider needs:
 
 ---
 
-## Phase AM — Rooomly Viewing Partner Network
+## Phase AM — Danpa HQ Viewing Partner Network
 
 For landlords who are remote or abroad.
 
@@ -1662,7 +1662,7 @@ Never claim legal compliance solely because technical controls exist.
 
 ## Phase AU — Subscription & Monetization
 
-Rooomly should remain useful before forcing payment.
+Danpa HQ should remain useful before forcing payment.
 
 Potential monetization:
 
@@ -2139,7 +2139,7 @@ Before marking a phase complete:
 When milestone packaging is required:
 
 ```text
-rooomly-phase-XX-name-vX.Y.Z.zip
+danpahq-phase-XX-name-vX.Y.Z.zip
 ```
 
 The package should contain the complete project at that point, not only changed files.
@@ -2188,13 +2188,13 @@ Never claim production readiness without evidence.
 22. UX, accessibility, security, performance and testing are part of every phase.
 23. Microservices are introduced only when justified.
 24. Ghana remains the primary product context until expansion is strategically justified.
-25. Rooomly must remain useful both as a **rental marketplace** and as a **property/rental management platform**.
+25. Danpa HQ must remain useful both as a **rental marketplace** and as a **property/rental management platform**.
 
 ---
 
 # North-Star Product Journey
 
-## Tenant sourced through Rooomly
+## Tenant sourced through Danpa HQ
 
 ```text
 Discover Unit
@@ -2258,7 +2258,7 @@ Ghana Digital Housing Infrastructure
 
 # Final Product Direction
 
-Rooomly is not merely:
+Danpa HQ is not merely:
 
 > a website where landlords post houses.
 

@@ -10,7 +10,7 @@ def expire_intents() -> int:
 
 @shared_task(name="payments.reconcile")
 def reconcile() -> dict:
-    """Compare Rooomly's financial record with the provider's.
+    """Compare Danpa HQ's financial record with the provider's.
 
     Scheduled rather than triggered, because the failure it exists to catch is
     precisely the one where nothing triggered: the callback that never arrived.

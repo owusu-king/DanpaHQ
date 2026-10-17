@@ -100,6 +100,10 @@ export function GlassTabBar({ state, descriptors, navigation }: BottomTabBarProp
   );
   const count = visible.length;
   const focusedPosition = visible.findIndex((entry) => entry.index === state.index);
+  // Maps can put dark ocean or busy satellite photography behind the glass.
+  // Give only that tab a quiet paper floor; ordinary pages keep the lighter,
+  // more transparent system material they already use.
+  const overMap = state.routes[state.index]?.name === "explore";
 
   // Sit just above the home indicator, as the system bars do; a phone without
   // one still gets a deliberate gap under the capsule.
@@ -214,6 +218,13 @@ export function GlassTabBar({ state, descriptors, navigation }: BottomTabBarProp
       onPanResponderTerminationRequest: () => false,
       onPanResponderGrant: (event) => {
         hovered.current = -1;
+        // A direct tap never crosses into a second tab, so give its initial
+        // selection the same tactile tick that a drag receives while crossing.
+        if (hapticsPolicy.onSelection) {
+          void import("expo-haptics")
+            .then((haptics) => haptics.selectionAsync())
+            .catch(() => null);
+        }
         if (live.current.reduceMotion) lift.setValue(1);
         else spring(lift, 1, LIFT_IN).start();
         moveTo(event.nativeEvent.pageX, false);
@@ -240,8 +251,8 @@ export function GlassTabBar({ state, descriptors, navigation }: BottomTabBarProp
 
   return (
     <View pointerEvents="box-none" style={[styles.dock, { bottom: dockLift }]}>
-      <View style={styles.capsule}>
-        <View style={styles.material}>
+      <View style={[styles.capsule, overMap ? styles.capsuleOverMap : null]}>
+        <View style={[styles.material, overMap ? styles.materialOverMap : null]}>
           {LIQUID_GLASS ? (
             <GlassView glassEffectStyle="regular" colorScheme="light" style={StyleSheet.absoluteFill} />
           ) : (
@@ -250,6 +261,7 @@ export function GlassTabBar({ state, descriptors, navigation }: BottomTabBarProp
               <View style={[StyleSheet.absoluteFill, styles.wash]} />
             </>
           )}
+          {overMap ? <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.mapGuard]} /> : null}
         </View>
 
         <View
@@ -291,6 +303,7 @@ export function GlassTabBar({ state, descriptors, navigation }: BottomTabBarProp
               cell={cell}
               centre={centre}
               lift={lift}
+              overMap={overMap}
               onAction={onAction(position)}
             />
           ))}
@@ -308,6 +321,7 @@ type GlassTabProps = {
   cell: number;
   centre: Animated.AnimatedMultiplication<number>;
   lift: Animated.Value;
+  overMap: boolean;
   onAction: (event: AccessibilityActionEvent) => void;
 };
 
@@ -315,7 +329,7 @@ type GlassTabProps = {
  * One destination. It has no press handler of its own — the bar's responder
  * owns every touch — but VoiceOver still activates it through `activate`.
  */
-function GlassTab({ entry, position, count, focused, cell, centre, lift, onAction }: GlassTabProps) {
+function GlassTab({ entry, position, count, focused, cell, centre, lift, overMap, onAction }: GlassTabProps) {
   const { options, route } = entry;
   const label =
     typeof options.tabBarLabel === "string"
@@ -343,6 +357,8 @@ function GlassTab({ entry, position, count, focused, cell, centre, lift, onActio
   );
 
   const badge = options.tabBarBadge;
+  const restingColor = overMap ? theme.color.kola["900"] : shell.resting;
+  const activeColor = overMap ? theme.color.kola["800"] : shell.active;
 
   return (
     <View
@@ -357,10 +373,10 @@ function GlassTab({ entry, position, count, focused, cell, centre, lift, onActio
     >
       <Animated.View style={[styles.iconStage, { transform: [{ scale: magnify }] }]}>
         <Animated.View pointerEvents="none" style={[styles.glyph, { opacity: far }]}>
-          {options.tabBarIcon?.({ focused: false, color: shell.resting, size: ICON_SIZE })}
+          {options.tabBarIcon?.({ focused: false, color: restingColor, size: ICON_SIZE })}
         </Animated.View>
         <Animated.View pointerEvents="none" style={[styles.glyph, { opacity: near }]}>
-          {options.tabBarIcon?.({ focused: true, color: shell.active, size: ICON_SIZE })}
+          {options.tabBarIcon?.({ focused: true, color: activeColor, size: ICON_SIZE })}
         </Animated.View>
         {badge !== undefined ? (
           <View style={styles.badge}>
@@ -372,10 +388,10 @@ function GlassTab({ entry, position, count, focused, cell, centre, lift, onActio
       </Animated.View>
 
       <View style={styles.labelStage}>
-        <Animated.Text numberOfLines={1} maxFontSizeMultiplier={1.2} style={[styles.label, styles.restingLabel, { opacity: far }]}>
+        <Animated.Text numberOfLines={1} maxFontSizeMultiplier={1.2} style={[styles.label, styles.restingLabel, overMap ? styles.restingLabelOverMap : null, { opacity: far }]}>
           {label}
         </Animated.Text>
-        <Animated.Text numberOfLines={1} maxFontSizeMultiplier={1.2} style={[styles.label, styles.activeLabel, { opacity: near }]}>
+        <Animated.Text numberOfLines={1} maxFontSizeMultiplier={1.2} style={[styles.label, styles.activeLabel, overMap ? styles.activeLabelOverMap : null, { opacity: near }]}>
           {label}
         </Animated.Text>
       </View>
@@ -402,6 +418,12 @@ const styles = StyleSheet.create({
     shadowRadius: 24,
     shadowOffset: { width: 0, height: 10 },
   },
+  // A crisper silhouette keeps the floating bar separate from aerial imagery.
+  capsuleOverMap: {
+    shadowOpacity: 0.28,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 7 },
+  },
   material: {
     ...StyleSheet.absoluteFill,
     borderRadius: radius.pill,
@@ -409,9 +431,18 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: alpha(theme.color.field["0"], 0.7),
   },
+  materialOverMap: {
+    borderWidth: 1,
+    borderColor: alpha(theme.color.field["0"], 0.92),
+  },
   // Pre-26 only: lifts the blur toward paper so busy content behind stays calm.
   wash: {
     backgroundColor: alpha(theme.color.field["0"], 0.42),
+  },
+  // Still translucent: the map remains perceptible, but can no longer tint the
+  // labels and glyphs until they disappear into ocean or satellite texture.
+  mapGuard: {
+    backgroundColor: alpha(theme.color.field["0"], 0.26),
   },
   row: {
     flex: 1,
@@ -468,6 +499,12 @@ const styles = StyleSheet.create({
   },
   restingLabel: { color: shell.resting, fontWeight: "500" },
   activeLabel: { position: "absolute", top: 0, right: 0, left: 0, color: shell.active, fontWeight: "600" },
+  restingLabelOverMap: {
+    color: theme.color.kola["900"],
+  },
+  activeLabelOverMap: {
+    color: theme.color.kola["800"],
+  },
   badge: {
     position: "absolute",
     top: -space[1],

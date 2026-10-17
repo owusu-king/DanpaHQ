@@ -142,7 +142,7 @@ export default function RoleScreen() {
       <AuthScene>
         <AuthHeading
           title="Finishing your setup…"
-          line="We are opening the experience you chose when you opened Rooomly."
+          line="We are opening the experience you chose when you opened Danpa HQ."
         />
         {error ? <Notice tone="error" title={error} /> : null}
         {error ? (

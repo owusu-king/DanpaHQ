@@ -919,7 +919,7 @@ def owned_portfolio(user) -> Organization | None:
 
 
 def provisioned_portfolio_identity(user) -> tuple[str, str]:
-    """What Rooomly calls the Portfolio it is about to provision.
+    """What Danpa HQ calls the Portfolio it is about to provision.
 
     A business provider's Portfolio is the business: it takes the company or
     agency name the account registered, because that is the name its tenants,
@@ -928,7 +928,7 @@ def provisioned_portfolio_identity(user) -> tuple[str, str]:
 
     Both are a starting point, not a decision. The owner renames it in
     Portfolio settings, which is the one Portfolio detail they may always
-    change — and it is why Rooomly never has to ask for a name up front.
+    change — and it is why Danpa HQ never has to ask for a name up front.
     """
     # A reverse one-to-one that does not exist raises an AttributeError
     # subclass, so the default here is reached rather than jumped over.
@@ -950,13 +950,13 @@ def provisioned_portfolio_identity(user) -> tuple[str, str]:
 
 @transaction.atomic
 def provision_provider_portfolio(*, user, actor=None) -> Organization:
-    """Every provider owns exactly one Portfolio, and Rooomly makes it.
+    """Every provider owns exactly one Portfolio, and Danpa HQ makes it.
 
     Called when provider access is approved, which is the moment somebody
     becomes a provider. Idempotent by necessity as well as by design: approval
     can be decided more than once over an account's life — a lapse, a re-check,
     a restored account — and this is also the repair path for the accounts
-    approved before Rooomly provisioned anything. Two calls, one Portfolio.
+    approved before Danpa HQ provisioned anything. Two calls, one Portfolio.
 
     The row lock is on the account, so two approvals arriving together resolve
     into the same Portfolio instead of racing to create a second one.
@@ -988,7 +988,7 @@ def provision_provider_portfolio(*, user, actor=None) -> Organization:
 def create_organization(*, user, data: dict, actor=None, provisioned: bool = False) -> Organization:
     """Write one Portfolio down. Deliberately not reachable from the API.
 
-    Rooomly decides when a Portfolio exists — `provision_provider_portfolio` is
+    Danpa HQ decides when a Portfolio exists — `provision_provider_portfolio` is
     the only caller in the product, and there is no endpoint behind which a
     normal user can reach this. A Portfolio used to be something somebody set
     up, which meant an account could accumulate them, and two Portfolios one
@@ -1009,7 +1009,7 @@ def create_organization(*, user, data: dict, actor=None, provisioned: bool = Fal
         raise ValidationFailed("Choose at least one valid property activity.")
     if owned_portfolio(user) is not None:
         raise Conflict(
-            "This account already has its Rooomly Portfolio. "
+            "This account already has its Danpa HQ Portfolio. "
             "Rename it in Portfolio settings, or join another Portfolio by invitation.",
             details={"reason": "portfolio_already_provisioned"},
         )
@@ -1043,7 +1043,7 @@ def create_organization(*, user, data: dict, actor=None, provisioned: bool = Fal
         metadata={
             "organization_type": organization_type,
             "activities": sorted(activities),
-            # Who decided this Portfolio should exist. Everything Rooomly
+            # Who decided this Portfolio should exist. Everything Danpa HQ
             # provisions says so, so an audit reader never has to infer it from
             # the absence of a form.
             "provisioned": provisioned,
@@ -1779,7 +1779,7 @@ def ensure_personal_organization(*, owner, actor=None, activity=None) -> Organiz
     Provisioning happens when provider access is approved, so by the time
     anybody adds a Property the Portfolio is already there and this returns it.
     It stays because a Property flow must not depend on that having happened —
-    accounts approved before Rooomly provisioned anything still exist, and this
+    accounts approved before Danpa HQ provisioned anything still exist, and this
     is where they get theirs.
 
     It no longer creates a *personal* Portfolio in particular. Matching only

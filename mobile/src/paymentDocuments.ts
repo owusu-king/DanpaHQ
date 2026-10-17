@@ -9,7 +9,7 @@ import { cachePrivateDocument } from "@/privateDocuments";
 /** The frozen PDF issued when the provider confirmed a payment, rent or subscription. */
 async function localReceipt(receiptId: string, reference: string): Promise<File> {
   const name = reference.replace(/[^a-zA-Z0-9-]/g, "-");
-  return cachePrivateDocument(`rooomly-receipt-${name}.pdf`, () =>
+  return cachePrivateDocument(`danpahq-receipt-${name}.pdf`, () =>
     apiFetchBytes(
       `/payments/receipts/${receiptId}/document.pdf?disposition=inline`,
     ),
@@ -21,7 +21,7 @@ async function shareFile(file: File) {
     throw new Error("Document sharing is not available.");
   }
   await Sharing.shareAsync(file.uri, {
-    dialogTitle: "Open or save Rooomly receipt",
+    dialogTitle: "Open or save Danpa HQ receipt",
     mimeType: "application/pdf",
     UTI: "com.adobe.pdf",
   });

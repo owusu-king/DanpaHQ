@@ -43,10 +43,9 @@ export function agreementTone(lease: { status: string }): AgreementTone {
 }
 
 /**
- * The record over the list. A plain click on a row opens it; the address keeps
- * it (`?agreement=`), so Back, a refresh or a copied link return to it. The
- * last agreement shown is held so the sheet can play its exit after the
- * address has let it go.
+ * The record over the list. A plain click on a row opens it, held in the
+ * page's state rather than the address. The last agreement shown is held so
+ * the sheet can play its exit after the page has let it go.
  */
 export function AgreementSheet({
   lease,
@@ -294,8 +293,8 @@ function AgreementDocumentSection({
   async function run(kind: "download" | "print") {
     setBusy(true); setError("");
     try {
-      const blob = await getLeaseDocument(lease.id);
-      if (kind === "download") downloadBlob(blob, `rooomly-agreement-${lease.agreement?.reference_number ?? lease.id}.pdf`);
+      const blob = await getLeaseDocument(lease.id, kind === "print");
+      if (kind === "download") downloadBlob(blob, `danpahq-agreement-${lease.agreement?.reference_number ?? lease.id}.pdf`);
       else await printPdf(blob);
     } catch (cause) {
       setError(cause instanceof ApiFailure ? cause.error.message : "The final document could not be opened.");

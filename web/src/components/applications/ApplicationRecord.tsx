@@ -44,10 +44,9 @@ export function applicationTone(application: MyApplication, leases: readonly Lea
 }
 
 /**
- * The record over the list. A plain click on a row opens it; the address keeps
- * it (`?application=`), so Back, a refresh or a copied link return to it. The
- * last application shown is held so the sheet can play its exit after the
- * address has let it go.
+ * The record over the list. A plain click on a row opens it, held in the
+ * page's state rather than the address. The last application shown is held so
+ * the sheet can play its exit after the page has let it go.
  */
 export function ApplicationSheet({
   application,

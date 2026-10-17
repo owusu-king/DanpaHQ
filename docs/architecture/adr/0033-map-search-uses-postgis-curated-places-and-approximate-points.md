@@ -9,7 +9,7 @@ superseded by ADR 0034 (Google Maps Platform)
 Tenants look for rentals by place — "East Legon", "Airport", "Adenta" — and
 compare them on a map. None of that could be built on what existed:
 
-* **The location field was text.** It suggested Rooomly localities by substring
+* **The location field was text.** It suggested Danpa HQ localities by substring
   and nothing else: no towns, regions or landmarks, no ranking, no geometry. A
   client given only a name has to guess where it is.
 * **Nothing had a position.** Not one locality or address carried coordinates,
@@ -47,7 +47,7 @@ Greater Accra"), aliases, a centre, a bounding box and an importance.
 `import_osm_places` builds it from an Overpass export: it merges a place mapped
 as both point and outline, takes a mapped outline's box or estimates one from the
 kind, reads each place against its region, district and nearest city, and links
-Rooomly's localities by name — giving a locality without coordinates its
+Danpa HQ's localities by name — giving a locality without coordinates its
 matched centre.
 
 The places table is derived from OpenStreetMap, so it carries the ODbL, and
@@ -97,7 +97,7 @@ separate public-read bucket, the only public bucket: basemap tiles are the same
 public geography for every visitor, and the upload bucket stays private and
 signed. Clients read `GET /map/config/` for the tile, font and attribution
 addresses, so moving the basemap to a CDN or another source is a setting.
-Rooomly's flavour of the style keeps the map quiet so markers carry the colour.
+Danpa HQ's flavour of the style keeps the map quiet so markers carry the colour.
 
 MapLibre 6 looks for its worker beside its own module, which webpack rewrites
 into a `file://` path. The web app serves the two worker modules from

@@ -23,3 +23,4 @@ STORAGE_BACKEND = "memory"
 FILE_SCAN_MODE = "permissive"
 PAYMENT_BACKEND = "memory"
 PAYMENT_TEST_WEBHOOK_SECRET = "test-payment-webhook-secret"  # nosec B105
+RUNTIME_CONFIGURATION_ENABLED = False

@@ -18,6 +18,7 @@ import { Icon, type IconName } from "@/components/portal/icons";
 import { useToast } from "@/components/toast/Toaster";
 import { PanelSearch, PanelSkeleton, PanelState, WorkspaceHead } from "@/components/workspace/Workspace";
 import { ApiFailure } from "@/lib/api";
+import { useDeepLinkedModal } from "@/lib/deepLinkedModal";
 import {
   getOrganizationPortfolio,
   listOrganizationProperties,
@@ -84,27 +85,18 @@ function PaymentsLoading() {
 
 function PaymentsWorkspace() {
   const { state } = useSession();
-  const router = useRouter();
-  const pathname = usePathname();
-  const search = useSearchParams();
-  // A receipt, from a link (the retired receipt page redirects here), read in
-  // its sheet over whichever side of Payments this is.
-  const receiptId = search.get("receipt");
+  // A receipt, from a link (the retired receipt page and the payment return
+  // send `?receipt=`), read in its sheet over whichever side of Payments this is.
+  const [receiptId, setReceiptId] = useDeepLinkedModal("receipt");
   if (state.status === "loading") return <PaymentsLoading />;
   if (state.status !== "signed_in") return null;
   // A Team member is in the provider experience without having declared a
   // provider journey of their own, so access is the question, not `exists`.
   const inProvider = state.me.capabilities.active_workspace === "provider"
     && (state.me.capabilities.provider.workspace_access || state.me.capabilities.provider.exists);
-  const closeReceipt = () => {
-    const next = new URLSearchParams(search.toString());
-    next.delete("receipt");
-    const query = next.toString();
-    router.replace((query ? `${pathname}?${query}` : pathname) as never, { scroll: false });
-  };
   return <>
     {inProvider ? <ProviderPaymentsContent /> : <TenantPaymentsWorkspace />}
-    <ReceiptModal receiptId={receiptId} onClose={closeReceipt} />
+    <ReceiptModal receiptId={receiptId || null} onClose={() => setReceiptId("")} />
   </>;
 }
 
@@ -137,14 +129,14 @@ function ProviderPaymentsContent() {
   const view: PaymentsView = VIEWS.find((value) => value === search.get("view")) ?? "balances";
   const balanceFilter: BalanceFilter = FILTERS.find((value) => value === search.get("show")) ?? "all";
   const query = search.get("q") ?? "";
-  // A plain click reads a payment record in a sheet over the list, kept in the
-  // address; the row is still a link to the tenant's rent account.
-  const openRecordId = search.get("record") ?? "";
+  // A plain click reads a payment record in a sheet over the list; the row is
+  // still a link to the tenant's rent account.
+  const [openRecordId, setOpenRecordId] = useDeepLinkedModal("record");
   // The same for a tenant's payments, by lease: Rent due opens it, and so do
-  // links from Tenants, Home and a tenancy's record.
-  const openDueId = search.get("due") ?? "";
-  // Arriving to record a payment for one tenant (from the Tenants sheet).
-  const payFor = search.get("payfor") ?? "";
+  // links from Tenants, Home and a tenancy's record (`?due=`, once).
+  const [openDueId, setOpenDueId] = useDeepLinkedModal("due");
+  // Arriving to record a payment for one tenant (`?payfor=`, from the Tenants sheet).
+  const [payFor, setPayFor] = useDeepLinkedModal("payfor");
   // Record payment, opened on a tenant from their balance rather than from the pick.
   const [recordFor, setRecordFor] = useState<ProviderTenant | null>(null);
 
@@ -201,11 +193,11 @@ function ProviderPaymentsContent() {
   useEffect(() => {
     if (!payFor || !summary) return;
     const tenant = summary.tenants.find((row) => row.lease_id === payFor);
-    setParams({ payfor: "" });
+    setPayFor("");
     if (!tenant) return;
     setRecordFor(tenant);
     setRecordingPayment(true);
-  }, [payFor, summary, setParams]);
+  }, [payFor, summary, setPayFor]);
   const openedRecord = openRecordId ? summary?.recent_payments.find((payment) => payment.id === openRecordId) ?? null : null;
   const visiblePayments = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase("en-GH");
@@ -335,7 +327,7 @@ function ProviderPaymentsContent() {
         </div>
         {visibleTenants.length ? <div className="payments-ledger">
           <LedgerHead columns={["Tenant", "Standing", "Next due", "Outstanding"]} />
-          <ul className="rent-list">{visibleTenants.map((tenant) => <RentBalanceRow key={tenant.occupancy_id} tenant={tenant} onPeek={() => setParams({ due: tenant.lease_id ?? "" })} />)}</ul>
+          <ul className="rent-list">{visibleTenants.map((tenant) => <RentBalanceRow key={tenant.occupancy_id} tenant={tenant} onPeek={() => setOpenDueId(tenant.lease_id ?? "")} />)}</ul>
         </div> : <PanelState icon="users" title={query ? "No matching balances" : "No balances in this view"} body={query ? "Try another tenant, Property or Unit." : "Choose another balance status."} action={query || balanceFilter !== "all" ? <Button variant="quiet" size="sm" onClick={() => setParams({ q: "", show: "" })}>Show all balances</Button> : undefined} />}
       </section> : null}
 
@@ -347,7 +339,7 @@ function ProviderPaymentsContent() {
         <p className="rent-section-intro">{summary.money.payment_records_awaiting_you > 0 ? "Records waiting on you come first, followed by the most recent activity. " : "The most recent records are shown here. "}Open one to see it in full and respond.</p>
         {visiblePayments.length ? <div className="payments-ledger">
           <LedgerHead columns={["Tenant", "Status", "Method and date", "Amount"]} />
-          <ul className="rent-list">{visiblePayments.map((payment) => <PaymentRecordRow key={payment.id} payment={payment} onPeek={() => setParams({ record: payment.id })} />)}</ul>
+          <ul className="rent-list">{visiblePayments.map((payment) => <PaymentRecordRow key={payment.id} payment={payment} onPeek={() => setOpenRecordId(payment.id)} />)}</ul>
         </div> : <PanelState icon="details" title={query ? "No matching records" : "No payment records yet"} body={query ? "Try another tenant, Property or payment method." : "Confirmed and tenant-recorded payments appear here."} />}
         {summary.verification.payments_ready < summary.verification.properties_total ? <p className="rent-readiness-note"><Icon name="info" /><span>Online rent collection is not ready for every Property. It needs identity, Property authority and a Portfolio settlement account the payment provider has verified. Recording money you were paid directly is unaffected.</span></p> : null}
       </section> : null}
@@ -356,13 +348,13 @@ function ProviderPaymentsContent() {
         <dl className="settlement-overview"><SettlementFigure label="Paid online" value={summary.money.online_paid_minor} /><SettlementFigure label="Awaiting settlement" value={summary.money.awaiting_settlement_minor} tone="waiting" /><SettlementFigure label="Settled to you" value={summary.money.settled_net_minor} tone="settled" /><SettlementFigure label="Fees deducted" value={summary.money.settled_fee_minor} /></dl>
         {summary.money.awaiting_settlement_minor > 0 || summary.money.settlement_attention_minor > 0 ? <div className="settlement-notices">
           {summary.money.awaiting_settlement_minor > 0 ? <Notice tone="info" title="Payout in progress" body={`${ghs(summary.money.awaiting_settlement_minor)} has been paid by tenants and is waiting for Paystack's settlement batch. Final fee and net appear only after confirmation.`} /> : null}
-          {summary.money.settlement_attention_minor > 0 ? <Notice tone="error" title="A payout needs review" body="Rooomly has not counted it as settled. The payment record remains intact while the settlement is reconciled." /> : null}
+          {summary.money.settlement_attention_minor > 0 ? <Notice tone="error" title="A payout needs review" body="Danpa HQ has not counted it as settled. The payment record remains intact while the settlement is reconciled." /> : null}
         </div> : null}
         <div className="ws-panel-head payments-panel-head is-inline">
           <PanelSearch label="Search payouts" placeholder="Search payouts" value={query} onChange={setQuery} />
           {canManagePayouts ? <div className="payout-manage"><Link className="ws-action" href={`/settings/settlement?organization=${organizationId}` as never}><Icon name="verification" />Manage settlement account</Link></div> : null}
         </div>
-        <p className="rent-section-intro">Property owners bear Paystack’s transaction fee. Each completed payout shows the final amount after that fee and Rooomly’s configured platform charge.</p>
+        <p className="rent-section-intro">Property owners bear Paystack’s transaction fee. Each completed payout shows the final amount after that fee and Danpa HQ’s configured platform charge.</p>
         {visibleSettlements.length ? <div className="payments-ledger">
           <LedgerHead columns={["Tenant", "Status", "Progress", "Amount"]} />
           <ul className="rent-list">{visibleSettlements.map((settlement) => <SettlementRow key={settlement.id} settlement={settlement} />)}</ul>
@@ -375,9 +367,9 @@ function ProviderPaymentsContent() {
           the record would close under the person who just confirmed it. */}
       <RentDueModal
         tenant={openedDue}
-        onClose={() => setParams({ due: "" })}
+        onClose={() => setOpenDueId("")}
       />
-      <PaymentRecordModal record={openedRecord} onClose={() => setParams({ record: "" })} onChanged={load} />
+      <PaymentRecordModal record={openedRecord} onClose={() => setOpenRecordId("")} onChanged={load} />
 
       <RecordPaymentDialog
         open={recordingPayment}
@@ -466,7 +458,7 @@ function PaymentRecordRow({ payment, onPeek }: { payment: RecentPayment; onPeek:
     </span>
     <span className={`rent-row-state is-${tone}`}><Icon name={icon} />{recentPaymentStatus(payment)}</span>
     <span className="rent-row-due is-inline">{payment.method_display}<small>{formatDate(payment.paid_on)}</small></span>
-    <span className="rent-row-amount">{formatMoney({ minor: payment.amount_minor, currency: payment.currency })}<small>{payment.source === "EXTERNAL" ? "External · recorded through Rooomly" : "Processed through Rooomly"}</small></span>
+    <span className="rent-row-amount">{formatMoney({ minor: payment.amount_minor, currency: payment.currency })}<small>{payment.source === "EXTERNAL" ? "External · recorded through Danpa HQ" : "Processed through Danpa HQ"}</small></span>
     <span className="rent-row-arrow" aria-hidden="true"><Chevron /></span>
   </Link></li>;
 }
@@ -508,7 +500,7 @@ function ExpensesSection({ expenses, onRecord }: { expenses: PropertyExpense[]; 
 }
 
 /**
- * Recording money a tenant paid outside Rooomly, from anywhere on this page.
+ * Recording money a tenant paid outside Danpa HQ, from anywhere on this page.
  *
  * Choose the tenant, then the same form and the same gate their rent account
  * uses: the ledger is read for that lease and its `record_payment` permission
@@ -551,7 +543,7 @@ function RecordPaymentDialog({ open, tenants, initialTenant = null, onClose, onD
     size="sm"
     icon="payments"
     title="Record payment"
-    meta={chosen ? "Money received outside Rooomly" : "Choose who paid you"}
+    meta={chosen ? "Money received outside Danpa HQ" : "Choose who paid you"}
     className="payment-sheet record-payment-sheet"
     titleId="record-payment-title"
   >{(close) => <>

@@ -168,7 +168,7 @@ class TestProviderConfirmation:
             ("credit", intent.amount_minor),
         ]
         receipt = Receipt.objects.get(transaction=transaction_row)
-        assert receipt.breakdown["schema_version"] == "rooomly.payment_receipt.v1"
+        assert receipt.breakdown["schema_version"] == "danpahq.payment_receipt.v1"
         assert receipt.breakdown["tenant"]["name"] == user.display_name
         assert receipt.breakdown["premises"]["property_title"] == "Osu Court"
         assert receipt.breakdown["premises"]["unit_label"] == "Flat 2"
@@ -445,7 +445,7 @@ class TestPaymentApi:
         receipt = Receipt.objects.get()
         mine = tenant_api.get(f"/api/v1/payments/receipts/{receipt.id}/")
         assert mine.status_code == 200
-        assert mine.data["snapshot"]["schema_version"] == "rooomly.payment_receipt.v1"
+        assert mine.data["snapshot"]["schema_version"] == "danpahq.payment_receipt.v1"
         assert mine.data["final_document_available"] is True
 
         document = tenant_api.get(
@@ -456,6 +456,16 @@ class TestPaymentApi:
         assert document["Content-Disposition"].startswith("inline;")
         assert document["ETag"] == f'"{receipt.final_pdf_hash}"'
         assert document["X-Content-Type-Options"] == "nosniff"
+        assert document.content == bytes(receipt.final_pdf)
+
+        print_copy = tenant_api.get(
+            f"/api/v1/payments/receipts/{receipt.id}/document.pdf?disposition=print"
+        )
+        assert print_copy.status_code == 200
+        assert b"DejaVu" in print_copy.content
+        assert b"ToUnicode" in print_copy.content
+        receipt.refresh_from_db()
+        assert print_copy.content != b""
         assert document.content == bytes(receipt.final_pdf)
 
         stranger = APIClient()

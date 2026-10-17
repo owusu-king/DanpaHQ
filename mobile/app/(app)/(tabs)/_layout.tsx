@@ -1,13 +1,61 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { Tabs } from "expo-router";
+import { NativeTabs } from "expo-router/unstable-native-tabs";
 
 import { MainTabBar } from "@/components/nav/MainTabBar";
+import { nativeTabHaptics } from "@/components/nav/NativeTabFrame";
 import { TabHeader } from "@/components/nav/TabHeader";
 import { HeaderSearchPill, TenantHeaderActions, TenantProfileButton } from "@/components/nav/TabHeaderControls";
+import { isIOS } from "@/platform";
 import { shell } from "@/shell";
+import { theme } from "@/theme";
 
 export default function RenterTabsLayout() {
+  return isIOS ? <RenterNativeTabs /> : <RenterJsTabs />;
+}
+
+/**
+ * iOS: Apple's own tab bar (owner, 2026-10-15) — the real Liquid Glass, its
+ * morphing selection, lens and haptics, as WhatsApp and the rest of the phone
+ * have it. The icons are SF Symbols, outline at rest and filled when chosen,
+ * in Danpa HQ's green.
+ *
+ * The native bar draws no header, so each tab route wraps its page in
+ * `RenterTabFrame`, which draws the same tool row the JS tabs do. Automatic
+ * scroll insets are off: every page already keeps clear of the bar through
+ * `useSafeBottom`, whose inset inside a native tab includes the bar, and the
+ * two together would leave the gap twice.
+ */
+function RenterNativeTabs() {
+  return (
+    <NativeTabs tintColor={theme.color.kola["600"]} screenListeners={nativeTabHaptics}>
+      <NativeTabs.Trigger name="index" disableAutomaticContentInsets contentStyle={{ backgroundColor: shell.dashboard }}>
+        <NativeTabs.Trigger.Icon sf={{ default: "house", selected: "house.fill" }} />
+        <NativeTabs.Trigger.Label>Home</NativeTabs.Trigger.Label>
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="explore" disableAutomaticContentInsets contentStyle={{ backgroundColor: shell.canvas }}>
+        <NativeTabs.Trigger.Icon sf={{ default: "globe.europe.africa", selected: "globe.europe.africa.fill" }} />
+        <NativeTabs.Trigger.Label>Explore</NativeTabs.Trigger.Label>
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="services" disableAutomaticContentInsets contentStyle={{ backgroundColor: shell.canvas }}>
+        <NativeTabs.Trigger.Icon sf={{ default: "square.grid.2x2", selected: "square.grid.2x2.fill" }} />
+        <NativeTabs.Trigger.Label>Services</NativeTabs.Trigger.Label>
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="payments" disableAutomaticContentInsets contentStyle={{ backgroundColor: shell.canvas }}>
+        <NativeTabs.Trigger.Icon sf={{ default: "wallet.bifold", selected: "wallet.bifold.fill" }} />
+        <NativeTabs.Trigger.Label>Payments</NativeTabs.Trigger.Label>
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="profile" disableAutomaticContentInsets contentStyle={{ backgroundColor: shell.canvas }}>
+        <NativeTabs.Trigger.Icon sf="list.bullet" />
+        <NativeTabs.Trigger.Label>Menu</NativeTabs.Trigger.Label>
+      </NativeTabs.Trigger>
+    </NativeTabs>
+  );
+}
+
+/** Android: the JS tabs and their shelf, unchanged. */
+function RenterJsTabs() {
   return (
     <Tabs
       tabBar={(props) => <MainTabBar {...props} />}

@@ -4,7 +4,7 @@
  * `NEXT_PUBLIC_*` values are inlined when the bundle is built, so a key added
  * later needs a rebuild — in development, a restart of the web container. This
  * is a browser key: restrict it by HTTP referrer and to the Maps JavaScript API.
- * Places requests go through Rooomly's API and never use it.
+ * Places requests go through Danpa HQ's API and never use it.
  */
 
 export const GOOGLE_MAPS_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? "";

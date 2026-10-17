@@ -291,7 +291,7 @@ function ProviderStandingContent() {
                 <Button type="submit" busy={busy} busyLabel="Sending…" disabled={!file}>
                   {file ? "Send for review" : "Choose a file to send"}
                 </Button>
-                <p className="auth-aside">Seen only by Rooomly&apos;s review team.</p>
+                <p className="auth-aside">Seen only by Danpa HQ&apos;s review team.</p>
               </form>
             </section>
           ) : (

@@ -26,7 +26,7 @@ type ReturnPoint = { id: string; y: number; at: number };
 
 /** Keeps the shell's badge honest the moment this page changes the count. */
 function announceUnread(count: number) {
-  window.dispatchEvent(new CustomEvent("rooomly:unread", { detail: count }));
+  window.dispatchEvent(new CustomEvent("danpahq:unread", { detail: count }));
 }
 
 /** Alerts clear when read; activity stays available in full. */

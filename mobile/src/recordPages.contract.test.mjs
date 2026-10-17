@@ -1,7 +1,7 @@
 /**
  * The record pages, and the warm ground they stand on.
  *
- * The index pages stand on Rooomly's green with frosted-glass panels. A record
+ * The index pages stand on Danpa HQ's green with frosted-glass panels. A record
  * — one viewing, one agreement, one tenancy, one request — is a pushed screen
  * on the warm ivory the app has always used there, and 72%-white glass over
  * `field-50` lifts by about one percent. So these pages get the same vocabulary

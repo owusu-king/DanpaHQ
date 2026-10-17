@@ -40,6 +40,7 @@ type SecurityStatus = {
   payouts_held: boolean;
   hold_remaining_hours: number;
   active_sessions: number;
+  stolen_device_reporting_enabled: boolean;
 };
 
 /**
@@ -163,6 +164,7 @@ export default function SecurityScreen() {
                   first={index === 0}
                   busy={removingDevice === device.id}
                   disabled={removingDevice !== null}
+                  canReportStolen={Boolean(status?.stolen_device_reporting_enabled)}
                   onSignOut={() => confirmSignOut(device)}
                   onBlock={() => confirmBlock(device)}
                 />
@@ -171,7 +173,7 @@ export default function SecurityScreen() {
           )}
           <Footnote>
             Signing a device out ends its sessions; it can sign in again with a code sent to your
-            number. Reporting it lost or stolen stops it signing in at all.
+            number.{status?.stolen_device_reporting_enabled ? " Reporting it lost or stolen stops it signing in at all." : ""}
           </Footnote>
         </View>
 
@@ -183,7 +185,7 @@ export default function SecurityScreen() {
                 <Ionicons name="lock-closed-outline" size={16} color={KOLA} />
               </View>
               <View style={rowStyles.rowBody}>
-                <Type variant="bodyStrong" style={styles.adviceTitle}>Rooomly never asks for your code</Type>
+                <Type variant="bodyStrong" style={styles.adviceTitle}>Danpa HQ never asks for your code</Type>
                 <Type variant="caption" style={rowStyles.rowSub}>
                   Anyone who calls or texts asking for it is trying to take your account.
                 </Type>
@@ -251,6 +253,7 @@ function DeviceRow({
   first,
   busy,
   disabled,
+  canReportStolen,
   onSignOut,
   onBlock,
 }: {
@@ -259,6 +262,7 @@ function DeviceRow({
   busy: boolean;
   /** While any device is being acted on, no other device's actions take a press. */
   disabled: boolean;
+  canReportStolen: boolean;
   onSignOut: () => void;
   onBlock: () => void;
 }) {
@@ -283,13 +287,15 @@ function DeviceRow({
               disabled={disabled}
               onPress={onSignOut}
             />
-            <DeviceAction
-              label="Lost or stolen"
-              hint="Blocks it from signing in. Only support can undo this."
-              tone="danger"
-              disabled={disabled}
-              onPress={onBlock}
-            />
+            {canReportStolen ? (
+              <DeviceAction
+                label="Lost or stolen"
+                hint="Blocks it from signing in. Only support can undo this."
+                tone="danger"
+                disabled={disabled}
+                onPress={onBlock}
+              />
+            ) : null}
           </View>
         ) : null}
       </View>

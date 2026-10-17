@@ -50,7 +50,7 @@ class StructuredTermsSerializer(serializers.Serializer):
         child=serializers.ChoiceField(choices=RESPONSIBILITIES), required=False, default=list
     )
     notice_channels = serializers.ListField(
-        child=serializers.ChoiceField(choices=["Rooomly", "email", "SMS", "written notice"]),
+        child=serializers.ChoiceField(choices=["Danpa HQ", "email", "SMS", "written notice"]),
         required=False,
         default=list,
     )

@@ -6,7 +6,7 @@ export type PaystackPopupCallbacks = {
   onError: (message: string) => void;
 };
 
-/** Resume a transaction initialized by Rooomly's backend inside Paystack's
+/** Resume a transaction initialized by Danpa HQ's backend inside Paystack's
  * official in-page checkout. The callback is navigation/status UX only; the
  * backend webhook/verification endpoint remains the payment authority. */
 export async function openPaystackPopup(

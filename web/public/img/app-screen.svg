@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 393 852" role="img" aria-label="The Ghana Rental app showing a verified listing" preserveAspectRatio="xMidYMin slice">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 393 852" role="img" aria-label="The Danpa HQ app showing a verified listing" preserveAspectRatio="xMidYMin slice">
   <defs>
     <linearGradient id="a-hero" x1="0" y1="0" x2="0.4" y2="1">
       <stop offset="0%" stop-color="#EAF3ED"/><stop offset="100%" stop-color="#D6E7DC"/>
@@ -22,8 +22,8 @@
 
   <!-- app bar -->
   <circle cx="34" cy="86" r="15" fill="#1B6B4F"/>
-  <text x="34" y="91" font-family="system-ui, sans-serif" font-size="10" font-weight="800" fill="#FFFFFF" text-anchor="middle">GR</text>
-  <text x="59" y="91" font-family="system-ui, sans-serif" font-size="15" font-weight="700" fill="#17251F">Ghana Rental</text>
+  <text x="34" y="91" font-family="system-ui, sans-serif" font-size="10" font-weight="800" fill="#FFFFFF" text-anchor="middle">DH</text>
+  <text x="59" y="91" font-family="system-ui, sans-serif" font-size="15" font-weight="700" fill="#17251F">Danpa HQ</text>
   <circle cx="359" cy="86" r="15" fill="#EFF4F0"/>
   <circle cx="359" cy="82" r="5" fill="#9BAAA1"/>
   <path d="M350 95a9 9 0 0 1 18 0Z" fill="#9BAAA1"/>

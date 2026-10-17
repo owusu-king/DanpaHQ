@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 
+import { AuthLink } from "@/components/auth/AuthDialog";
 import { useSession } from "@/lib/session";
 
 import { LoadingRows, PageHeader } from "./PageHeader";
@@ -62,16 +63,16 @@ export function PortalGate() {
     );
   }
 
-  // Signed out for real. `next` carries them back to the page they wanted.
-  const next = encodeURIComponent(pathname);
+  // Signed out for real. The dialog opens over this page, and `next` brings
+  // them back to it rather than to the dashboard.
   return (
     <div className="portal-gate">
       <h1>Sign in to continue</h1>
       <p>Your session has ended. Signing in again brings you straight back here.</p>
       <div className="portal-gate-actions">
-        <Link href={`/sign-in?next=${next}` as never} className="portal-gate-button">
+        <AuthLink view="sign-in" params={{ next: pathname }} className="portal-gate-button">
           Sign in
-        </Link>
+        </AuthLink>
         <Link href="/rentals" className="portal-gate-link">Browse rentals</Link>
       </div>
     </div>

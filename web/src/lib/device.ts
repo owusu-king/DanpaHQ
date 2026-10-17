@@ -2,7 +2,7 @@
  * Stable, non-secret identity for this browser installation.
  *
  * This is deliberately not a browser fingerprint. It is a random id created by
- * Rooomly and kept in this browser profile, just like the native app keeps its
+ * Danpa HQ and kept in this browser profile, just like the native app keeps its
  * installation id in secure storage. It may identify a device session; it can
  * neither authenticate the user nor reveal the refresh token.
  */
@@ -13,7 +13,7 @@ export type WebDeviceContext = {
   device_label: string;
 };
 
-const DEVICE_KEY = "rooomly.device_fingerprint";
+const DEVICE_KEY = "danpahq.device_fingerprint";
 let memoryFingerprint = "";
 
 function newFingerprint(): string {

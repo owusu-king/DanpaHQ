@@ -176,7 +176,7 @@ test("one search is one Places session, spent by the place it chooses", () => {
   // A recent place skips the provider, and keeps its coordinates thirty days at most.
   assert.match(places, /const RECENT_MAX_AGE_MS = 30 \* 24 \* 60 \* 60 \* 1000;/);
   assert.match(places, /choose: \(\) => commit\(place\),/);
-  // The client asks Rooomly, never a Places endpoint, and holds no Places key.
+  // The client asks Danpa HQ, never a Places endpoint, and holds no Places key.
   assert.match(lib, /`\/geo\/places\/suggest\/\?\$\{params\.toString\(\)\}`/);
   assert.match(lib, /`\/geo\/places\/resolve\/\?\$\{params\.toString\(\)\}`/);
   assert.doesNotMatch(lib + places, /places\.googleapis|X-Goog|GOOGLE_MAPS/);
@@ -193,6 +193,7 @@ test("a marker previews a rental; only the preview leaves the map", () => {
   // A marker with a click is named and keyboard-reachable; the provider decides how.
   assert.match(map, /title: describe\(feature\),\s*onClick: \(\) => \{/);
   assert.match(google, /gmpClickable: Boolean\(onClick\),/);
+  assert.match(google, /collisionBehavior: marker\.CollisionBehavior\.REQUIRED,/);
   assert.match(google, /pin\.addEventListener\("gmp-click", \(\) => onClick\(\)\);/);
   for (const state of ["is-selected", "is-hovered", "is-visited"]) {
     assert.match(map, new RegExp(`element\\.classList\\.toggle\\("${state}", `));
@@ -213,12 +214,36 @@ test("a marker previews a rental; only the preview leaves the map", () => {
 
 test("the map searches a new area only when asked", () => {
   const view = read("web/src/components/explore/ExploreMapView.tsx");
+  const map = read("web/src/components/explore/ExploreMap.tsx");
 
   assert.equal(view.match(/onSearchArea\(/g)?.length, 1);
   assert.match(between(view, "function searchThisArea() {", "\n  }"), /onSearchArea\(bounds\);/);
-  assert.match(view, /<button type="button" className="explore-search-area" onClick=\{searchThisArea\}>/);
+  assert.match(view, /onSearchArea=\{searchThisArea\}/);
+  assert.match(map, /aria-label="Search this map area"/);
+  assert.match(map, /disabled=\{!canSearchArea \|\| searchingArea\}/);
   // Offered only once the tenant has moved the map beyond what was searched.
-  assert.match(view, /const showSearchArea = Boolean\(userMoved && view && searched && outgrewSearch\(view\.bounds, searched\)\);/);
+  assert.match(view, /const showSearchArea = Boolean\(userMoved && view && \(!searched \|\| outgrewSearch\(view\.bounds, searched\)\)\);/);
+});
+
+test("the map's floating rail changes the view without obscuring the results", () => {
+  const map = read("web/src/components/explore/ExploreMap.tsx");
+  const view = read("web/src/components/explore/ExploreMapView.tsx");
+  const types = read("web/src/lib/maps/types.ts");
+  const google = read("web/src/lib/maps/google/map.ts");
+  const css = read("web/src/styles/explore-map.css");
+
+  assert.match(map, /role="toolbar" aria-label="Map view controls"/);
+  assert.equal(map.match(/className="explore-map-tool"/g)?.length, 3);
+  assert.match(map, /className=\{`explore-map-tool\$\{canSearchArea/);
+  for (const label of ["Satellite view", "Street View", "Search this area", "Recenter results"]) {
+    assert.match(map, new RegExp(label));
+  }
+  assert.match(types, /setBaseMap\(style: BaseMapStyle\): void;/);
+  assert.match(types, /setStreetView\(visible: boolean\): void;/);
+  assert.match(google, /maps\.MapTypeId\.HYBRID/);
+  assert.match(google, /panorama\.setVisible\(visible\);/);
+  assert.match(view, /padding=\{narrow \? \{ top: 64, right: 76,/);
+  assert.match(between(css, ".explore-map-tool {", "}"), /backdrop-filter: blur\(12px\)/);
 });
 
 test("a card's address opens that rental's location, drawn only as the backend publishes it", () => {
@@ -247,7 +272,7 @@ test("a card's address opens that rental's location, drawn only as the backend p
   }
 });
 
-test("Google stays behind Rooomly's map interface while development has a keyless preview", () => {
+test("Google stays behind Danpa HQ's map interface while development has a keyless preview", () => {
   // Only the provider's folder knows Google exists; everything else draws through `@/lib/maps`.
   for (const [path, text] of [...sources("web/src"), ...sources("web/app")]) {
     assert.doesNotMatch(text, /maplibre|pmtiles|protomaps/i, `${path} still mentions the old basemap`);
@@ -289,9 +314,9 @@ test("Google stays behind Rooomly's map interface while development has a keyles
   assert.match(config, /if \(process\.env\.NODE_ENV === "production" \|\| googleMapsConfigured\(\)\) return null;/);
   assert.match(read("web/src/components/explore/ExploreMapView.tsx"), /\{setupHint \? <span>\{setupHint\}<\/span> : null\}/);
   assert.match(read("web/src/components/listings/ListingLocationMap.tsx"), /const hint = state === "unavailable" \? mapSetupHint\(\) : null;/);
-  // Points of interest would open Google's own cards; on Rooomly a tap means a rental.
+  // Points of interest would open Google's own cards; on Danpa HQ a tap means a rental.
   assert.match(google, /clickableIcons: false,/);
-  // The browser key never meets Places: suggestions go through Rooomly's API.
+  // The browser key never meets Places: suggestions go through Danpa HQ's API.
   assert.doesNotMatch(loader + google, /importLibrary\("places"\)/);
 });
 
@@ -303,7 +328,7 @@ test("markers keep their own styling, and the map stays inside the page", () => 
   // The provider positions a wrapper around each marker; emphasis never replaces a transform.
   const markerRules = between(mapCss, ".explore-price-marker {", ".explore-cluster-marker {");
   assert.doesNotMatch(markerRules, /\btransform:/);
-  assert.match(between(mapCss, ".explore-price-marker.is-selected {", "}"), /scale: 1\.12;/);
+  assert.match(between(mapCss, ".explore-price-marker.is-selected {", "}"), /scale: 1\.1;/);
   assert.match(mapCss, /\.explore-price-marker\.is-visited \{/);
   assert.match(mapCss, /\.explore-price-marker:hover,\s*\.explore-price-marker\.is-hovered \{/);
 

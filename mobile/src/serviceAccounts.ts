@@ -24,7 +24,7 @@
 import { secure } from "@/secure";
 import { serviceById, type Service } from "@/serviceCatalogue";
 
-const STORE_KEY = "rooomly.service.details.v1";
+const STORE_KEY = "danpahq.service.details.v1";
 let generation = 0;
 let pendingWrite: Promise<void> = Promise.resolve();
 

@@ -245,7 +245,7 @@ export default function PayoutAccountScreen() {
             </View>
 
             {checking ? (
-              <Notice tone="info" title="Checking with Paystack" body="The first request may have completed. Rooomly is finding that exact setup before allowing another attempt." />
+              <Notice tone="info" title="Checking with Paystack" body="The first request may have completed. Danpa HQ is finding that exact setup before allowing another attempt." />
             ) : showSetup || state.profiles.length === 0 ? (
               <View style={styles.section}>
                 <GroupLabel>Add an account</GroupLabel>
@@ -312,7 +312,7 @@ export default function PayoutAccountScreen() {
                       keyboardType="number-pad"
                       autoComplete="off"
                       textContentType="none"
-                      hint="Used only to create the Paystack subaccount. Rooomly does not retain this number."
+                      hint="Used only to create the Paystack subaccount. Danpa HQ does not retain this number."
                     />
                   ) : null}
 

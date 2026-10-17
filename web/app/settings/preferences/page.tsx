@@ -16,7 +16,7 @@ import {
 import { fieldErrorsFrom } from "@/lib/formErrors";
 
 /**
- * Preferences: how Rooomly reaches you, and about what.
+ * Preferences: how Danpa HQ reaches you, and about what.
  *
  * Two cards. **Channels** — the app, texts, WhatsApp and push — each with the
  * number it uses where it has one. **Alerts** — the kinds of thing that may
@@ -80,7 +80,7 @@ export default function PreferencesSettingsPage() {
 
   if (!preferences) {
     return (
-      <SettingsCard title="Preferences" description="How Rooomly reaches you, and about what.">
+      <SettingsCard title="Preferences" description="How Danpa HQ reaches you, and about what.">
         {error ? (
           <div className="prefs-error">
             <Notice tone="error" title={error} />
@@ -102,7 +102,7 @@ export default function PreferencesSettingsPage() {
     <>
       {error ? <Notice tone="error" title={error} /> : null}
 
-      <SettingsCard title="Channels" description="Where Rooomly may reach you outside the app.">
+      <SettingsCard title="Channels" description="Where Danpa HQ may reach you outside the app.">
         <ul className="prefs-channels">
           <li className="prefs-channel is-fixed">
             <ChannelHead icon="updates" name="In the app" detail="Every update, in Updates. Always kept." />
@@ -166,7 +166,7 @@ export default function PreferencesSettingsPage() {
 
           <li className={`prefs-channel${preferences.push_enabled ? " is-on" : ""}`}>
             <label className="prefs-channel-row">
-              <ChannelHead icon="device" name="Push notifications" detail="On the Rooomly app, wherever you are signed in." />
+              <ChannelHead icon="device" name="Push notifications" detail="On the Danpa HQ app, wherever you are signed in." />
               <Switch label="Push notifications" checked={preferences.push_enabled} disabled={saving === "push_enabled"} onChange={(value) => void set("push_enabled", value)} />
             </label>
           </li>

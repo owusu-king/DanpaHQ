@@ -184,7 +184,7 @@ class CheckoutView(APIView):
 
 
 class CheckoutDetailView(APIView):
-    """What Rooomly currently knows about one subscription payment. No provider call."""
+    """What Danpa HQ currently knows about one subscription payment. No provider call."""
 
     permission_classes = [IsAuthenticated]
 

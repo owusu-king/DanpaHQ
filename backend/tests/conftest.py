@@ -140,7 +140,7 @@ def approve_provider_standing(user):
 
     It writes the approved row rather than taking an account through a review,
     so the consequences a reviewer's *decision* carries do not happen here —
-    the landlord role, and the Portfolio Rooomly provisions. A test that needs
+    the landlord role, and the Portfolio Danpa HQ provisions. A test that needs
     the Portfolio asks for it: ``organization.services.provision_provider_portfolio``
     is what the decision calls, and it is safe to call twice.
     """

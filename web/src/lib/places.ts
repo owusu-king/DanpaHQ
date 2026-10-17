@@ -1,7 +1,7 @@
 /**
  * Places: what somebody types into the location field, and where it is.
  *
- * Suggestions and the chosen place come from Rooomly's API, which asks the
+ * Suggestions and the chosen place come from Danpa HQ's API, which asks the
  * location provider on the client's behalf (ADR 0034) — no Places key is in this
  * bundle. A suggestion has no geometry. Choosing one resolves it, once, into a
  * centre and a box, and the search keeps that box in the address bar, so a
@@ -25,7 +25,7 @@ export type PlaceSuggestion = {
 };
 
 export type PlaceSuggestions = {
-  /** Who answered: the configured provider, or Rooomly's localities standing in. */
+  /** Who answered: the configured provider, or Danpa HQ's localities standing in. */
   provider: string;
   /** Whose attribution these suggestions must carry, if anyone's. */
   attribution: string | null;
@@ -42,7 +42,7 @@ export type ResolvedPlace = {
 };
 
 export type MapConfig = {
-  /** West, south, east, north: where Rooomly's maps may go. */
+  /** West, south, east, north: where Danpa HQ's maps may go. */
   bounds: [number, number, number, number];
   default_view: { lat: number; lng: number; zoom: number };
   min_zoom: number;

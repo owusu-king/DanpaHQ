@@ -1,7 +1,7 @@
 # Welcome journey — art direction
 
 Three illustrations. They are the first thing anybody sees, and they carry the
-whole argument that Rooomly is a rental *relationship* rather than a listings
+whole argument that Danpa HQ is a rental *relationship* rather than a listings
 app. Nothing else on those screens does any explaining.
 
 ## What to deliver
@@ -83,7 +83,7 @@ rest.
 
 ## Palette
 
-Use Rooomly's own colours. These are the tokens the rest of the app is built
+Use Danpa HQ's own colours. These are the tokens the rest of the app is built
 from, and art in a different palette will read as bought-in.
 
 | | | |

@@ -2,7 +2,7 @@
 
 Views ask `location_provider()` for suggestions and `provider_named()` to
 resolve a choice with the provider that suggested it. This package is the only
-place that knows a mapping company exists; everything it returns is Rooomly's
+place that knows a mapping company exists; everything it returns is Danpa HQ's
 own shape, naming the provider and its reference as plain text.
 """
 

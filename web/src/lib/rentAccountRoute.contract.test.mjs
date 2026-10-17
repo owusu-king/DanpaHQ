@@ -155,9 +155,9 @@ test("a payment record opens in a sheet over the list", () => {
   const body = code(list());
   const modal = code(read("web/src/components/payments/PaymentRecordModal.tsx"));
 
-  // A plain click reads the record over the list, kept in the address; the row
+  // A plain click reads the record over the list, held in page state; the row
   // is still the link to the rent account, for a new tab.
-  assert.match(body, /search\.get\("record"\)/);
+  assert.match(body, /useDeepLinkedModal\("record"\)/);
   assert.match(body, /<PaymentRecordModal record=\{openedRecord\}/);
   assert.match(body, /href=\{`\/payments\/\$\{payment\.lease_id\}` as never\}[\s\S]{0,300}event\.preventDefault\(\);\s*onPeek\(\)/);
   // Refreshed in place, so it does not close under the person who acted.
@@ -174,11 +174,11 @@ test("a payment record opens in a sheet over the list", () => {
   assert.match(modal, /href=\{`\/payments\/\$\{record\.lease_id\}` as never\}>\s*All their payments/);
   assert.doesNotMatch(modal, /\/payments\?due=/);
 
-  // The balance sheet does not repeat the page's Record payment: its foot is
-  // the latest receipt and the full account (owner, 2026-10-05).
+  // The balance sheet is only the current balance: no Record payment action,
+  // historical payments or receipt navigation is mixed into it.
   const due = code(read("web/src/components/payments/RentDueModal.tsx"));
   assert.doesNotMatch(due, /onRecord|Record payment/);
-  assert.match(due, /onViewReceipt\(latestReceipt\)\}><Icon name="details" \/>Receipt/);
+  assert.doesNotMatch(due, /dm-history|Payment history|ReceiptView|onViewReceipt|receipt_id/);
   assert.match(due, /href=\{`\/payments\/\$\{tenant\.lease_id\}` as never\}><Icon name="payments" \/>Full account/);
 });
 
@@ -189,7 +189,7 @@ test("a balance opens in a sheet, and a receipt is read before it is printed", (
   const record = code(read("web/src/components/payments/PaymentRecordModal.tsx"));
 
   // Rent due rows open the balance over the list; the row still links to the account.
-  assert.match(body, /search\.get\("due"\)/);
+  assert.match(body, /useDeepLinkedModal\("due"\)/);
   assert.match(body, /<RentDueModal/);
   assert.match(due, /getLeaseLedger\(tenant\.lease_id\)/);
   assert.match(due, /charge\.outstanding_minor > 0/);
@@ -202,9 +202,9 @@ test("a balance opens in a sheet, and a receipt is read before it is printed", (
   assert.match(record, /<ReceiptView/);
   assert.doesNotMatch(record, /<ReceiptModal/);
   assert.match(receipt, /getPaymentReceipt\(receiptId\)/);
-  // Print prints the receipt as shown, from a hidden frame on this page (no
-  // tab that never renders); Download saves the issued PDF. Print left, Download right.
-  assert.match(receipt, /printElement\(article\.current/);
+  // Print requests a Unicode-safe copy of the frozen snapshot; Download saves
+  // the exact issued PDF. Print stays left and Download right.
+  assert.match(receipt, /printPdf\(await getPaymentReceiptDocument\(receipt\.id, true\)\)/);
   assert.match(receipt, /downloadBlob\(await getPaymentReceiptDocument\(receipt\.id\)/);
   assert.match(receipt, /Print<\/Button>\s*<span className="rc-actions-spacer" \/>[\s\S]*?Download\s*<\/Button>/);
   assert.doesNotMatch(receipt, /\/payments\/receipts\//);
@@ -226,7 +226,7 @@ test("links to a tenancy or a tenant's payments open their sheets", () => {
   // Payments opens a tenant's sheet by lease, and can start recording for one.
   const body = code(list());
   assert.match(body, /tenant\.lease_id === openDueId/);
-  assert.match(body, /search\.get\("payfor"\)/);
-  // The sheet carries the payment history, not only what is owed.
-  assert.match(code(read("web/src/components/payments/RentDueModal.tsx")), /className="dm-history"/);
+  assert.match(body, /useDeepLinkedModal\("payfor"\)/);
+  // The sheet stays on the current balance; history remains in the full account.
+  assert.doesNotMatch(code(read("web/src/components/payments/RentDueModal.tsx")), /className="dm-history"/);
 });

@@ -9,16 +9,15 @@ shapes and identifiers are all mapped here so that `services` and
 
 Two decisions in here are security decisions rather than integration ones.
 
-**Rooomly never sees a PIN, an OTP or a card number.** Every method goes through
+**Danpa HQ never sees a PIN, an OTP or a card number.** Every method goes through
 `transaction/initialize`, which hands the payer to Paystack's own checkout. That
 is not the shortest integration — the Charge API can drive mobile money
 step-by-step from our own screens — but it is the one where a credential never
-touches Rooomly's infrastructure, and that is worth more than a screen.
+touches Danpa HQ's infrastructure, and that is worth more than a screen.
 
 **A live secret key does nothing unless somebody has said so out loud.** The
-adapter refuses `sk_live_` unless `PAYSTACK_ALLOW_LIVE` is explicitly true, so a
-key pasted into the wrong environment moves no money. Going live is a decision,
-not a configuration accident.
+adapter selects the live credential only when `PAYSTACK_ALLOW_LIVE` is explicitly
+true. Going live is a decision, not a configuration accident.
 
 Verified against Paystack's published integration guidance in August 2026.
 Anything not confirmed there is marked below rather than assumed.
@@ -37,6 +36,7 @@ from django.conf import settings
 from django.utils.dateparse import parse_datetime
 
 from apps.core.exceptions import PermissionDenied, ProviderUnavailable, ValidationFailed
+from apps.operations.configuration import value as configuration_value
 
 from .providers import (
     InitiationResult,
@@ -58,7 +58,7 @@ logger = logging.getLogger("payments.paystack")
 API_ROOT = "https://api.paystack.co"
 
 #: Outbound calls happen inside request and worker paths. A provider having a
-#: bad afternoon must not become Rooomly having one.
+#: bad afternoon must not become Danpa HQ having one.
 TIMEOUT_SECONDS = 20
 
 #: Paystack's channel names, in our vocabulary. `ussd` and `bank_transfer` are
@@ -85,7 +85,7 @@ METHOD_TO_CHANNELS = {
 #: in the checkout window right now. Read as `failed`, the status check that
 #: runs as checkout opens failed every payment before anybody could make it,
 #: and the money that arrived seconds later had nothing left to settle. It
-#: stays payable until Rooomly's own intent window closes, which is what ends
+#: stays payable until Danpa HQ's own intent window closes, which is what ends
 #: an unpaid checkout (`services.expire_due_intents`).
 STATUS_MAP = {
     "success": "succeeded",
@@ -101,7 +101,7 @@ STATUS_MAP = {
     "open": "pending",
 }
 
-#: The only Paystack events that describe the outcome of a Rooomly rent payment.
+#: The only Paystack events that describe the outcome of a Danpa HQ rent payment.
 #: Everything else on the account — transfers, disputes, customer identification,
 #: subscriptions — is acknowledged and recorded as ignored rather than refused,
 #: because a provider retries a 4xx and eventually disables the endpoint.
@@ -134,21 +134,31 @@ class PaystackPaymentProvider(PaymentProvider):
     # --- configuration -------------------------------------------------------
 
     def _secret_key(self) -> str:
-        """The secret key, with the live-mode guard applied.
+        """Select the test or live server key, with a legacy fallback.
 
-        The guard is the point. A key is a string somebody pastes into an
-        environment, and the difference between the test one and the live one is
-        four characters. Refusing `sk_live_` until an operator has separately
-        said "yes, live" means that mistake costs nothing.
+        Older deployments used one ``PAYSTACK_SECRET_KEY`` value. It remains a
+        fallback only when its prefix matches the explicitly selected mode.
         """
-        key = str(getattr(settings, "PAYSTACK_SECRET_KEY", "")).strip()
+        live = bool(configuration_value("PAYSTACK_ALLOW_LIVE", False))
+        selected_key = "PAYSTACK_LIVE_SECRET_KEY" if live else "PAYSTACK_TEST_SECRET_KEY"
+        expected_prefix = "sk_live_" if live else "sk_test_"
+        key = str(configuration_value(selected_key, "")).strip()
         if not key:
-            raise ProviderUnavailable("Paystack is not configured.")
-        if key.startswith("sk_live_") and not getattr(settings, "PAYSTACK_ALLOW_LIVE", False):
+            legacy_key = str(configuration_value("PAYSTACK_SECRET_KEY", "")).strip()
+            if legacy_key.startswith("sk_live_") and not live:
+                raise ProviderUnavailable(
+                    "A live Paystack key is present but live mode has not been enabled. "
+                    "No money was requested or moved."
+                )
+            if legacy_key.startswith(expected_prefix):
+                key = legacy_key
+        if not key:
+            mode = "live" if live else "test"
             raise ProviderUnavailable(
-                "A live Paystack key is present but live mode has not been enabled. "
-                "No money was requested or moved."
+                f"Paystack {mode} mode is selected but its secret key is not configured."
             )
+        if not key.startswith(expected_prefix):
+            raise ProviderUnavailable("The selected Paystack secret key does not match its mode.")
         return key
 
     def _headers(self) -> dict:
@@ -199,7 +209,7 @@ class PaystackPaymentProvider(PaymentProvider):
             )
             raise ProviderUnavailable("The payment provider is unavailable.")
         if response.status_code in (401, 403):
-            raise ProviderUnavailable("Rooomly's payment provider credentials were refused.")
+            raise ProviderUnavailable("Danpa HQ's payment provider credentials were refused.")
 
         try:
             body = response.json()
@@ -242,12 +252,12 @@ class PaystackPaymentProvider(PaymentProvider):
             return InitiationResult(provider_reference=held, status="pending", next_action=opened)
 
         if intent.amount_currency != "GHS":
-            raise ValidationFailed("Paystack settlement for Rooomly is configured for GHS only.")
+            raise ValidationFailed("Paystack settlement for Danpa HQ is configured for GHS only.")
 
         subscription = _is_subscription(intent)
         payload = {
             "email": _payer_email(intent),
-            # Already in pesewas. Rooomly's `amount_minor` and Paystack's
+            # Already in pesewas. Danpa HQ's `amount_minor` and Paystack's
             # subunit are the same number, which is why nothing converts here —
             # and why nothing should start.
             "amount": int(intent.amount_minor),
@@ -256,21 +266,21 @@ class PaystackPaymentProvider(PaymentProvider):
             "channels": METHOD_TO_CHANNELS.get(intent.payment_method, []),
             "metadata": (
                 {
-                    "rooomly_intent_id": str(intent.id),
-                    "rooomly_purpose": "subscription_invoice",
-                    "rooomly_billing_invoice_id": str(intent.billing_invoice_id),
+                    "danpahq_intent_id": str(intent.id),
+                    "danpahq_purpose": "subscription_invoice",
+                    "danpahq_billing_invoice_id": str(intent.billing_invoice_id),
                 }
                 if subscription
                 else {
-                    "rooomly_intent_id": str(intent.id),
-                    "rooomly_obligation_id": str(intent.obligation_id),
-                    "rooomly_lease_id": str(intent.lease_id),
+                    "danpahq_intent_id": str(intent.id),
+                    "danpahq_obligation_id": str(intent.obligation_id),
+                    "danpahq_lease_id": str(intent.lease_id),
                 }
             ),
         }
         if not subscription:
-            # Rent settles to the receiving Portfolio's subaccount. A Rooomly
-            # subscription does not: Rooomly is the merchant, so the whole
+            # Rent settles to the receiving Portfolio's subaccount. A Danpa HQ
+            # subscription does not: Danpa HQ is the merchant, so the whole
             # amount stays in the platform account with no split, no subaccount
             # and no transaction charge.
             subaccount = str(getattr(intent, "provider_subaccount_reference", "") or "").strip()
@@ -288,7 +298,7 @@ class PaystackPaymentProvider(PaymentProvider):
                     "bearer": bearer,
                 }
             )
-        callback = str(getattr(settings, "PAYSTACK_CALLBACK_URL", "")).strip()
+        callback = str(configuration_value("PAYSTACK_CALLBACK_URL", "")).strip()
         if callback:
             payload["callback_url"] = callback
 
@@ -308,7 +318,7 @@ class PaystackPaymentProvider(PaymentProvider):
             provider_reference=reference,
             status="pending",
             # Keep the hosted URL for mobile and resilience, while web uses the
-            # access code with Paystack Popup so the tenant remains on Rooomly.
+            # access code with Paystack Popup so the tenant remains on Danpa HQ.
             # It is intentionally the short-lived transaction access code, not
             # an authorization code and never a Paystack secret key.
             next_action={
@@ -360,7 +370,7 @@ class PaystackPaymentProvider(PaymentProvider):
             # reconciliation, which is where an unfamiliar financial state
             # belongs.
             raise ValidationFailed(
-                f"Paystack reported a state Rooomly does not map: {raw_status[:40]}"
+                f"Paystack reported a state Danpa HQ does not map: {raw_status[:40]}"
             )
         method = CHANNEL_TO_METHOD.get(channel.lower())
         if method is None:
@@ -473,11 +483,11 @@ class PaystackPaymentProvider(PaymentProvider):
         if provisioning_reference:
             metadata = json.dumps(
                 {
-                    "rooomly_provisioning_reference": provisioning_reference,
+                    "danpahq_provisioning_reference": provisioning_reference,
                     "custom_fields": [
                         {
-                            "display_name": "Rooomly provisioning reference",
-                            "variable_name": "rooomly_provisioning_reference",
+                            "display_name": "Danpa HQ provisioning reference",
+                            "variable_name": "danpahq_provisioning_reference",
                             "value": provisioning_reference,
                         }
                     ],
@@ -491,10 +501,10 @@ class PaystackPaymentProvider(PaymentProvider):
             # `settlement_bank`.
             "settlement_bank": bank_code,
             "account_number": account_number,
-            # Every Rooomly transaction supplies `transaction_charge`, so
+            # Every Danpa HQ transaction supplies `transaction_charge`, so
             # the subaccount default is deliberately neutral.
             "percentage_charge": 0,
-            "description": "Rooomly provider rent settlement",
+            "description": "Danpa HQ provider rent settlement",
         }
         if metadata is not None:
             payload["metadata"] = metadata
@@ -621,7 +631,7 @@ class PaystackPaymentProvider(PaymentProvider):
             status = SETTLEMENT_STATUS_MAP.get(raw_status)
             if status is None:
                 raise ValidationFailed(
-                    f"Paystack reported a settlement state Rooomly does not map: {raw_status[:40]}"
+                    f"Paystack reported a settlement state Danpa HQ does not map: {raw_status[:40]}"
                 )
             reference = str(row.get("id") or "")
             if not reference:
@@ -678,15 +688,15 @@ def _is_subscription(intent) -> bool:
 
 
 def _payer_email(intent) -> str:
-    """Paystack requires an email; Rooomly's accounts are phone-first.
+    """Paystack requires an email; Danpa HQ's accounts are phone-first.
 
     A payer who has given an email gets theirs, so their own receipt from
-    Paystack reaches them. Anybody else gets a routable address on Rooomly's
+    Paystack reaches them. Anybody else gets a routable address on Danpa HQ's
     domain rather than a shared placeholder, so a bounce or a dispute can still
     be traced — to one tenant for rent, and to one Portfolio for a subscription,
     because the Portfolio is what pays for a plan.
     """
-    domain = str(getattr(settings, "PAYMENT_RECEIPT_EMAIL_DOMAIN", "receipts.rooomly.com"))
+    domain = str(getattr(settings, "PAYMENT_RECEIPT_EMAIL_DOMAIN", "receipts.danpahq.com"))
     if _is_subscription(intent):
         account = intent.billing_invoice.billing_account
         email = (account.billing_email or getattr(intent.initiated_by, "email", "") or "").strip()
@@ -714,13 +724,13 @@ def _metadata_reference(value) -> str:
             return ""
     if not isinstance(metadata, dict):
         return ""
-    direct = str(metadata.get("rooomly_provisioning_reference") or "")
+    direct = str(metadata.get("danpahq_provisioning_reference") or "")
     if direct:
         return direct
     for field in metadata.get("custom_fields") or []:
         if not isinstance(field, dict):
             continue
-        if field.get("variable_name") == "rooomly_provisioning_reference":
+        if field.get("variable_name") == "danpahq_provisioning_reference":
             return str(field.get("value") or "")
     return ""
 

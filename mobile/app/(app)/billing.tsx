@@ -34,7 +34,7 @@ type Screen =
 type Feedback = { tone: "success" | "error"; title: string; body?: string };
 
 /**
- * Plan & billing on a phone: one Portfolio's plan, usage and payments to Rooomly.
+ * Plan & billing on a phone: one Portfolio's plan, usage and payments to Danpa HQ.
  *
  * Refined on review (2026-09-15). The plan leads, in one glass surface with its
  * usage; anything held above the plan's limits comes next, with the way back; how

@@ -121,7 +121,7 @@ test("Home is not Explore and does not promise what does not exist", () => {
     const body = rendered(source);
     // Discovery lives in Explore; Home links to it and lists nothing.
     assert.doesNotMatch(body, /ListingCard|searchListings|searchPublicListings/);
-    // Rooomly has no maintenance domain, so there is no maintenance card.
+    // Danpa HQ has no maintenance domain, so there is no maintenance card.
     assert.doesNotMatch(body, /[Mm]aintenance/);
   }
 });

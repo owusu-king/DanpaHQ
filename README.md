@@ -1,4 +1,4 @@
-# Ghana Rental Platform
+# Danpa HQ
 
 Digital infrastructure for renting in Ghana. Mobile-first, built for Android and
 iOS phones on metered connections, designed around the three failures that make
@@ -182,7 +182,7 @@ storage · Next.js 16 · React 19 · Expo 54 · React Native 0.81 · TypeScript 
 | Design tokens → web CSS + RN theme | **Implemented and verified** |
 | Docker, CI, linting, typing, security scanning | **Written, never executed** |
 
-**Not built, and not claimed:** admin MFA, any production SMS provider, Ghana Card/NIA
+**Not built, and not claimed:** admin MFA, Ghana Card/NIA
 provider integration or liveness checks, owner-confirmation SMS, SIM-swap data, a
 real virus scanner, push notifications, taking payments, wallet, and any free-form messaging between tenant and landlord. Database-level append-only enforcement is applied but
 inert until the app connects as a least-privilege role — see `docs/security.md`.

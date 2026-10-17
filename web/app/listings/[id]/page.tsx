@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
+import { useAuthDialog } from "@/components/auth/AuthDialog";
 import { Button } from "@/components/Button";
 import { Notice } from "@/components/Notice";
 import { Icon, type IconName } from "@/components/portal/icons";
@@ -47,6 +48,7 @@ import { STATE_LABEL, type TrustState } from "@/lib/trust";
 export default function PublicListingPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
+  const { open: openAuth } = useAuthDialog();
   const { state } = useSession();
   const [listing, setListing] = useState<ListingDetail | null>(null);
   const [related, setRelated] = useState<Awaited<ReturnType<typeof getRelatedListings>> | null>(null);
@@ -178,8 +180,9 @@ export default function PublicListingPage() {
     { what: "This space", state: space.verification.checked ? "verified" : "unverified" },
   ];
 
+  // Over this page, from state; signed in, the person comes back to it.
   function requireAccount(next: string) {
-    router.push(`/sign-in?workspace=tenant&next=${encodeURIComponent(next)}` as never);
+    openAuth("sign-in", { workspace: "tenant", next });
   }
 
   async function toggleSave() {
@@ -198,8 +201,8 @@ export default function PublicListingPage() {
     try {
       if (navigator.share) {
         await navigator.share({
-          title: listing?.headline ?? "Rooomly rental",
-          text: listing?.headline ?? "A rental on Rooomly",
+          title: listing?.headline ?? "Danpa HQ rental",
+          text: listing?.headline ?? "A rental on Danpa HQ",
           url,
         });
         setShareFeedback("shared");

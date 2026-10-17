@@ -110,9 +110,9 @@ class AddressListCreateView(APIView):
             if provider is None:
                 raise ProviderUnavailable(PLACES_UNAVAILABLE)
 
-            # A Rooomly fallback result already names a controlled Locality and
+            # A Danpa HQ fallback result already names a controlled Locality and
             # needs no geometry in order to become an Address.
-            if provider.name == "rooomly":
+            if provider.name == "danpahq":
                 try:
                     reference_id = uuid.UUID(place["reference"])
                 except ValueError:
@@ -142,7 +142,7 @@ class AddressListCreateView(APIView):
                     west <= resolved.center.lng <= east
                     and south <= resolved.center.lat <= north
                 ):
-                    raise NotFound("That location is outside Rooomly's coverage area.")
+                    raise NotFound("That location is outside Danpa HQ's coverage area.")
 
                 place_name = resolved.display_name
                 place_context = place.get("context", "")
@@ -189,7 +189,7 @@ class PlaceSuggestView(APIView):
     location provider on the client's behalf (ADR 0034): no client carries a
     Places-enabled key, every client is restricted to Ghana the same way, and one
     throttle stands between the open internet and the bill. A provider that fails
-    mid-search is replaced by Rooomly's localities for that request, and the
+    mid-search is replaced by Danpa HQ's localities for that request, and the
     response names who answered so the client shows the right attribution.
     """
 
@@ -278,7 +278,7 @@ class MapConfigView(APIView):
     """GET /map/config/ — what every map shares: where it may go and where it opens.
 
     Provider-neutral. Which library draws the map, and with which key, is each
-    client's own build configuration (ADR 0034); the part of the world Rooomly
+    client's own build configuration (ADR 0034); the part of the world Danpa HQ
     covers is decided once, here.
     """
 

@@ -167,9 +167,9 @@ test("a request opens in a sheet, and the agreement is prepared in the same shee
   const wizard = code(read("web/src/components/leases/LeaseWizard.tsx"));
   const entry = code(read("web/src/components/property/SpaceTenantAccess.tsx"));
 
-  // A plain click reads the request over the list, kept in the address; the
+  // A plain click reads the request over the list, held in page state; the
   // row is still a link, so a new tab lands on the request's own page.
-  assert.match(list, /search\.get\("request"\)/);
+  assert.match(list, /useDeepLinkedModal\("request"\)/);
   assert.match(list, /<RequestModal item=\{opened\}/);
   assert.match(list, /event\.preventDefault\(\);\s*onPeek\(\)/);
 

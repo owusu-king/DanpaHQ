@@ -76,7 +76,7 @@ test("adding one is a panel opened on request, and the number is never kept", ()
   assert.match(source, /label=\{method === "bank" \? "Find your bank" : "Find your network"\}/);
   assert.match(source, /accessibilityRole="radio"\s*aria-checked=\{bankCode === institution\.code\}/);
   assert.match(source, /accessibilityLabel=\{`Change \$\{method === "bank" \? "bank" : "network"\}, currently \$\{selectedInstitution\?\.name\}`\}/);
-  assert.match(source, /hint="Used only to create the Paystack subaccount\. Rooomly does not retain this number\."/);
+  assert.match(source, /hint="Used only to create the Paystack subaccount\. Danpa HQ does not retain this number\."/);
   assert.match(source, /setAccountNumber\(value\.replace\(\/\\s\/g, ""\)\); setResolved\(null\);/);
 
   // Confirm, then save: a bank account is named back before it is added.

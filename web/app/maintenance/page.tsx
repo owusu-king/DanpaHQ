@@ -12,8 +12,8 @@
  * new (including anything a tenant reopened), in progress, waiting for the
  * tenant, completed. The oldest new request is lifted above the list.
  *
- * A request opens in its sheet over the list, kept in the address
- * (`?request=`), so a notification, Back and a copied link all return to it.
+ * A request opens in its sheet over the list, held in page state. A
+ * notification links to `?request=<id>`, which opens that request once.
  */
 
 import Link from "next/link";
@@ -26,6 +26,7 @@ import { ReportSheet } from "@/components/maintenance/ReportSheet";
 import { useToast } from "@/components/toast/Toaster";
 import { NextUp, PanelSkeleton, PanelState, SegmentedControl, WorkspaceHead } from "@/components/workspace/Workspace";
 import { ApiFailure } from "@/lib/api";
+import { useDeepLinkedModal } from "@/lib/deepLinkedModal";
 import { listOrganizations } from "@/lib/console";
 import {
   listMyMaintenance,
@@ -68,7 +69,7 @@ function MaintenanceWorkspace() {
   return inProvider ? <ProviderMaintenance /> : <TenantMaintenance />;
 }
 
-/** The address is the state: which request is open, which stage is shown, a report in progress. */
+/** The stage shown lives in the address; which sheet is open does not. */
 function useParams() {
   const router = useRouter();
   const pathname = usePathname();
@@ -94,9 +95,9 @@ function TenantMaintenance() {
   const [tenancies, setTenancies] = useState<Tenancy[]>([]);
   const [error, setError] = useState("");
   const stage: TenantStage = search.get("show") === "completed" ? "completed" : "open";
-  const openId = search.get("request") ?? "";
-  // `?report=1`, or `?report=<tenancy id>` from a tenancy's own page.
-  const reporting = search.get("report") ?? "";
+  const [openId, setOpenId] = useDeepLinkedModal("request");
+  // "1", or a tenancy id: `?report=<tenancy id>` from a tenancy's own page.
+  const [reporting, setReporting] = useDeepLinkedModal("report");
 
   const load = useCallback(async () => {
     try {
@@ -131,7 +132,7 @@ function TenantMaintenance() {
           </>
         ) : "Report anything that needs fixing where you live."}
         actions={canReport ? (
-          <button type="button" className="ws-action is-primary" onClick={() => set({ report: "1" })}><Icon name="plus" />Report a problem</button>
+          <button type="button" className="ws-action is-primary" onClick={() => setReporting("1")}><Icon name="plus" />Report a problem</button>
         ) : null}
       />
 
@@ -144,8 +145,8 @@ function TenantMaintenance() {
           photoUrl={firstAsking.photo?.url}
           icon="wrench"
           more={asking.length > 1 ? { count: asking.length - 1, onShow: () => set({ show: "" }) } : undefined}
-          onOpen={() => set({ request: firstAsking.id })}
-          action={{ label: "Confirm", onClick: () => set({ request: firstAsking.id }) }}
+          onOpen={() => setOpenId(firstAsking.id)}
+          action={{ label: "Confirm", onClick: () => setOpenId(firstAsking.id) }}
         />
       ) : null}
 
@@ -171,25 +172,27 @@ function TenantMaintenance() {
             icon="wrench"
             title="Nothing reported"
             body={canReport ? "A leak, a fault, a broken lock — report it with a photo and your landlord is told at once." : "Once your tenancy is active you can report problems here."}
-            action={canReport ? <button type="button" className="ws-action is-primary" onClick={() => set({ report: "1" })}><Icon name="plus" />Report a problem</button> : null}
+            action={canReport ? <button type="button" className="ws-action is-primary" onClick={() => setReporting("1")}><Icon name="plus" />Report a problem</button> : null}
           />
         ) : !shown.length ? (
           <PanelState icon={stage === "open" ? "check" : "wrench"} title={stage === "open" ? "Nothing open" : "Nothing completed yet"} body={stage === "open" ? "Every request you made has been confirmed fixed." : "Requests you confirm as fixed are kept here."} />
         ) : (
-          <RequestRows rows={shown} side="tenant" onOpen={(id) => set({ request: id })} />
+          <RequestRows rows={shown} side="tenant" onOpen={(id) => setOpenId(id)} />
         )}
       </section>
 
-      <MaintenanceSheet requestId={openId || null} side="tenant" onClose={() => set({ request: "" })} onChanged={load} />
+      <MaintenanceSheet requestId={openId || null} side="tenant" onClose={() => setOpenId("")} onChanged={load} />
       <ReportSheet
         open={Boolean(reporting) && canReport}
         tenancies={tenancies}
         initialTenancyId={reporting === "1" ? undefined : reporting}
-        onClose={() => set({ report: "" })}
+        onClose={() => setReporting("")}
         onSent={async (created) => {
           await load();
           toast({ tone: "success", title: "Report sent", description: "Your landlord has been told. You can follow it here." });
-          set({ report: "", show: "", request: created.id });
+          setReporting("");
+          set({ show: "" });
+          setOpenId(created.id);
         }}
       />
     </div>
@@ -212,7 +215,7 @@ function ProviderMaintenance() {
   const [requests, setRequests] = useState<MaintenanceRequest[] | null>(null);
   const [error, setError] = useState("");
   const stage: ProviderStage = (["new", "working", "asking", "completed"] as const).find((value) => value === search.get("show")) ?? "new";
-  const openId = search.get("request") ?? "";
+  const [openId, setOpenId] = useDeepLinkedModal("request");
 
   useEffect(() => {
     let live = true;
@@ -273,8 +276,8 @@ function ProviderMaintenance() {
           photoUrl={firstWaiting.photo?.url}
           icon="wrench"
           more={waiting.length > 1 ? { count: waiting.length - 1, onShow: () => set({ show: "" }) } : undefined}
-          onOpen={() => set({ request: firstWaiting.id })}
-          action={{ label: "Open", onClick: () => set({ request: firstWaiting.id }) }}
+          onOpen={() => setOpenId(firstWaiting.id)}
+          action={{ label: "Open", onClick: () => setOpenId(firstWaiting.id) }}
         />
       ) : null}
 
@@ -306,11 +309,11 @@ function ProviderMaintenance() {
             body={{ new: "Every request has been started.", working: "Start a new request and it moves here.", asking: "Fixes you report wait here for the tenant to confirm.", completed: "Repairs tenants confirm are kept here." }[stage]}
           />
         ) : (
-          <RequestRows rows={shown} side="provider" onOpen={(id) => set({ request: id })} />
+          <RequestRows rows={shown} side="provider" onOpen={(id) => setOpenId(id)} />
         )}
       </section>
 
-      <MaintenanceSheet requestId={openId || null} side="provider" onClose={() => set({ request: "" })} onChanged={load} />
+      <MaintenanceSheet requestId={openId || null} side="provider" onClose={() => setOpenId("")} onChanged={load} />
     </div>
   );
 }

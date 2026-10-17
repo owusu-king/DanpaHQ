@@ -1,12 +1,12 @@
-# Rooomly Trust, Fraud Prevention & Safety Architecture
+# Danpa HQ Trust, Fraud Prevention & Safety Architecture
 
 ## Status
 
 **Planned / Core Platform Architecture**
 
-This document defines the fraud-prevention, trust, verification, investigation, and enforcement architecture for Rooomly.
+This document defines the fraud-prevention, trust, verification, investigation, and enforcement architecture for Danpa HQ.
 
-Rooomly is a **property management and rental SaaS platform** that supports:
+Danpa HQ is a **property management and rental SaaS platform** that supports:
 
 - Property owners
 - Landlords
@@ -26,7 +26,7 @@ Rooomly is a **property management and rental SaaS platform** that supports:
 - Reviews
 - Future digital financial services
 
-Because Rooomly facilitates relationships between people who may never have met before, trust cannot be treated as a simple `verified = true` field.
+Because Danpa HQ facilitates relationships between people who may never have met before, trust cannot be treated as a simple `verified = true` field.
 
 Trust & Safety must be a shared platform domain.
 
@@ -47,7 +47,7 @@ LEGITIMACY
 "Does this action appear genuine?"
         ↓
 EVIDENCE
-"Can Rooomly prove what happened later?"
+"Can Danpa HQ prove what happened later?"
 ```
 
 The system should:
@@ -152,7 +152,7 @@ Do not bury fraud logic independently inside each feature.
 # 4. High-Level Architecture
 
 ```text
-                           ROOOMLY
+                           DANPA HQ
                               │
         ┌─────────────────────┼──────────────────────┐
         │                     │                      │
@@ -189,7 +189,7 @@ Do not bury fraud logic independently inside each feature.
 
 # 5. Major Fraud Categories
 
-Rooomly should explicitly model fraud scenarios.
+Danpa HQ should explicitly model fraud scenarios.
 
 ## Identity Fraud
 
@@ -661,7 +661,7 @@ risk_state
 
 Compare uploaded images against:
 
-- Existing Rooomly properties
+- Existing Danpa HQ properties
 - Existing units
 - Previously removed fraudulent content
 
@@ -819,7 +819,7 @@ Tenant should see:
 ```text
 Ama Boateng
 
-✓ Rooomly Viewing Representative
+✓ Danpa HQ Viewing Representative
 
 Authorized:
 ✓ Conduct viewing
@@ -903,7 +903,7 @@ Platform Viewing Fee = FREE
 
 Representatives should not arbitrarily collect undocumented fees.
 
-If Rooomly ever supports paid viewing services:
+If Danpa HQ ever supports paid viewing services:
 
 - Fee created by platform
 - Amount displayed beforehand
@@ -1073,7 +1073,7 @@ Never overwrite history.
 Notify via existing trusted channels:
 
 ```text
-Your Rooomly payout destination was changed.
+Your Danpa HQ payout destination was changed.
 ```
 
 Include:
@@ -1852,7 +1852,7 @@ Example:
 ✓ Property authority verified
 ✓ Property reviewed
 ✓ Unit reviewed
-✓ Payment through Rooomly supported
+✓ Payment through Danpa HQ supported
 ✓ 6 verified tenancies
 
 Last property review:
@@ -1904,7 +1904,7 @@ Consider:
 
 Prominent message:
 
-> Never share your MoMo PIN, OTP, password, or account recovery code with another Rooomly user.
+> Never share your MoMo PIN, OTP, password, or account recovery code with another Danpa HQ user.
 
 ---
 
@@ -1914,7 +1914,7 @@ If users discuss external payment instructions, consider contextual warnings.
 
 Example:
 
-> Only payments confirmed through Rooomly appear as platform-verified payments.
+> Only payments confirmed through Danpa HQ appear as platform-verified payments.
 
 Do not automatically read or classify sensitive conversations without an explicit privacy and governance policy.
 
@@ -2461,7 +2461,7 @@ Before implementing fraud-prevention features:
 19. Update documentation after decisions change.
 20. Preserve backward compatibility unless an explicit migration is required.
 
-The goal is to **build fraud prevention into Rooomly's existing architecture**, not bolt on an isolated fraud application afterward.
+The goal is to **build fraud prevention into Danpa HQ's existing architecture**, not bolt on an isolated fraud application afterward.
 
 ---
 
@@ -2518,6 +2518,6 @@ Every domain event
      Audit Trail
 ```
 
-Rooomly should aim to become a platform where users do not have to blindly trust strangers.
+Danpa HQ should aim to become a platform where users do not have to blindly trust strangers.
 
 They should be able to trust the **verification, permissions, evidence, payment records, workflows, and audit history provided by the platform**.

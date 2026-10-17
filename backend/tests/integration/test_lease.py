@@ -132,7 +132,7 @@ CANONICAL_TERMS = {
             "respect_neighbours",
             "residential_use",
         ],
-        "notice_channels": ["Rooomly", "written notice"],
+        "notice_channels": ["Danpa HQ", "written notice"],
         "additional_terms": [{"title": "Courtyard", "body": "Keep the shared courtyard clear."}],
     },
 }
@@ -204,7 +204,7 @@ def _accepted(landlord, user, unit):
 class TestTheAgreementOutlivesItsTemplate:
     """The promise that decides whether the rest of this was worth building.
 
-    Rooomly's standard wording will change. An agreement accepted under the old
+    Danpa HQ's standard wording will change. An agreement accepted under the old
     wording must still reproduce the old wording — same sections, same hash,
     same PDF bytes — because that, and not whatever the template says today, is
     what the two parties actually agreed to.
@@ -223,7 +223,7 @@ class TestTheAgreementOutlivesItsTemplate:
         signed_hash = agreement.content_hash
         signed_pdf = bytes(agreement.final_pdf)
         signed_version = agreement.template_version
-        assert "Rooomly preserves the rendered agreement" in signed_text
+        assert "Danpa HQ preserves the rendered agreement" in signed_text
 
         # 2028 arrives and counsel rewrites the standard wording.
         LeaseTemplate.objects.filter(pk=lease.template_id).update(
@@ -259,9 +259,9 @@ class TestTheAgreementOutlivesItsTemplate:
 
         hollow = copy.copy(agreement)
         hollow.rendered_document = {**agreement.rendered_document, "sections": []}
-        assert len(reproduced) > len(
-            render_final_pdf(hollow)
-        ), "the PDF does not depend on the stored clauses"
+        assert len(reproduced) > len(render_final_pdf(hollow)), (
+            "the PDF does not depend on the stored clauses"
+        )
 
     def test_both_parties_can_fetch_the_document_afterwards(self, signed_in, landlord, user, unit):
         lease = _accepted(landlord, user, unit)
@@ -272,6 +272,23 @@ class TestTheAgreementOutlivesItsTemplate:
             assert response.status_code == 200, who
             assert response["Content-Type"] == "application/pdf"
             assert response.content.startswith(b"%PDF")
+
+    def test_print_copy_embeds_a_font_with_the_cedi_glyph_without_rewriting_the_final_pdf(
+        self, signed_in, landlord, user, unit
+    ):
+        lease = _accepted(landlord, user, unit)
+        agreement = lease.agreement
+        stored_pdf = bytes(agreement.final_pdf)
+        stored_hash = agreement.final_pdf_hash
+
+        response = signed_in(user).get(f"/api/v1/leases/{lease.id}/document.pdf?disposition=print")
+
+        assert response.status_code == 200
+        assert b"DejaVu" in response.content
+        assert b"ToUnicode" in response.content
+        agreement.refresh_from_db()
+        assert bytes(agreement.final_pdf) == stored_pdf
+        assert agreement.final_pdf_hash == stored_hash
 
     def test_a_stranger_cannot_fetch_the_document(self, signed_in, landlord, user, agent, unit):
         lease = _accepted(landlord, user, unit)

@@ -1,4 +1,4 @@
-"""Comparing Rooomly's financial record with the provider's, and disagreeing safely.
+"""Comparing Danpa HQ's financial record with the provider's, and disagreeing safely.
 
 Every callback-based integration eventually meets the payment whose webhook
 never arrived: the worker was down, the network ate it, the provider retried
@@ -74,7 +74,7 @@ ALERT_EVENT_BREACHED = "payment_reconciliation_exception_breached"
 #: that stalls is still a tenant's payment nobody has accounted for.
 ALERT_EVENT_STALLED = "payment_reconciliation_exception_stalled"
 
-#: How far back the open-intent sweep also asks about payments Rooomly recorded
+#: How far back the open-intent sweep also asks about payments Danpa HQ recorded
 #: as failed. A payer can still complete the provider transaction a failure was
 #: recorded against, and that money is invisible to a sweep of open intents.
 FAILED_INTENT_LOOKBACK = timedelta(hours=24)
@@ -329,7 +329,7 @@ def resolve_exception(
 
 
 def _disagreement_kind(intent: PaymentIntent, state) -> str | None:
-    """Which way, if any, the provider's record contradicts Rooomly's."""
+    """Which way, if any, the provider's record contradicts Danpa HQ's."""
     if state.amount_minor and state.amount_minor != intent.amount_minor:
         return ReconciliationKind.AMOUNT_MISMATCH
     if state.currency and state.currency != intent.amount_currency:
@@ -338,7 +338,7 @@ def _disagreement_kind(intent: PaymentIntent, state) -> str | None:
 
 
 def sweep_open_intents(*, limit: int = 200, min_age_seconds: int = 300) -> dict[str, int]:
-    """Find money the provider took that Rooomly never heard about, and post it.
+    """Find money the provider took that Danpa HQ never heard about, and post it.
 
     The important one. An intent sitting at `pending` after its window has
     closed is either abandoned — the ordinary case — or paid, with the callback
@@ -347,7 +347,7 @@ def sweep_open_intents(*, limit: int = 200, min_age_seconds: int = 300) -> dict[
     **A provider-confirmed success is ingested, not "repaired".** The
     distinction is the whole of this module's rule. Repairing means choosing
     between two records that disagree, which nothing here may do. This is the
-    other case: Rooomly holds *no* record, and the provider is the sole
+    other case: Danpa HQ holds *no* record, and the provider is the sole
     authority on whether a payment happened — so the sweep applies it through
     `services.apply_provider_state`, the identical amount/currency/method,
     transaction, allocation, ledger, receipt and audit boundary a signed webhook
@@ -358,14 +358,14 @@ def sweep_open_intents(*, limit: int = 200, min_age_seconds: int = 300) -> dict[
 
     **A recent failure is asked about too.** A payer can still complete the
     provider transaction a failure was recorded against, and a failure can be
-    recorded before they have finished. Money the provider took after Rooomly
+    recorded before they have finished. Money the provider took after Danpa HQ
     wrote "failed" is as real as money whose callback was lost, and a sweep of
     open intents never saw it. Failures from the last day are included.
 
     Anything the confirmation boundary refuses — a mismatched amount, an
     obligation that changed underneath, a transaction id already spent — opens
     an exception and stops, exactly as before: `provider_succeeded_internal_failed`
-    when Rooomly had recorded a failure, because applying or refunding that
+    when Danpa HQ had recorded a failure, because applying or refunding that
     money is a person's decision.
 
     ``min_age_seconds`` keeps the sweep off payments whose callback is merely in
@@ -443,11 +443,11 @@ def sweep_open_intents(*, limit: int = 200, min_age_seconds: int = 300) -> dict[
             continue
 
         detail = {
-            "rooomly_status": intent.status,
+            "danpahq_status": intent.status,
             "provider_status": state.status,
-            "rooomly_amount_minor": intent.amount_minor,
+            "danpahq_amount_minor": intent.amount_minor,
             "provider_amount_minor": state.amount_minor,
-            "rooomly_currency": intent.amount_currency,
+            "danpahq_currency": intent.amount_currency,
             "provider_currency": state.currency,
         }
         if refusal:
@@ -464,7 +464,7 @@ def sweep_open_intents(*, limit: int = 200, min_age_seconds: int = 300) -> dict[
 
 
 def sweep_unmatched_provider_events(*, limit: int = 200) -> int:
-    """Signed provider evidence that matched nothing Rooomly knows about.
+    """Signed provider evidence that matched nothing Danpa HQ knows about.
 
     The narrow window this catches is real: an intent whose row was rolled back
     after the provider had already accepted the checkout leaves a payment at the
@@ -543,7 +543,7 @@ def sweep_settlements(*, limit: int = 200) -> int:
                 settlement=settlement,
                 transaction_row=settlement.transaction,
                 detail={
-                    "rooomly_net_minor": settlement.net_amount_minor,
+                    "danpahq_net_minor": settlement.net_amount_minor,
                     "provider_net_minor": state.net_minor,
                     "provider_fee_minor": state.fee_minor,
                     "provider_status": state.status,
@@ -568,7 +568,7 @@ def sweep_unallocated_transactions(*, limit: int = 200) -> int:
     """Confirmed money that is not applied to anything.
 
     Purely internal — no provider call. A succeeded transaction with no
-    allocation means Rooomly holds a record of money whose purpose it cannot
+    allocation means Danpa HQ holds a record of money whose purpose it cannot
     state, which is precisely the condition allocation exists to prevent.
     """
     opened = 0

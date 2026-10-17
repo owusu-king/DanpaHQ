@@ -18,7 +18,7 @@ checkout required an intent to equal the whole outstanding balance. The same two
 thirds was therefore acceptable if it was handed over in a stairwell and refused
 if it went through the processor. That is not a conservative policy; it is a
 policy that depends on which door the money came through, and it pushes exactly
-the payments Rooomly most wants on-platform off it.
+the payments Danpa HQ most wants on-platform off it.
 
 **Collection readiness.** `PropertyCapability.PAYMENT_COLLECTION` was computed
 from a *person's* `BANK_ACCOUNT` trust stamp. The payment path resolved a
@@ -65,13 +65,13 @@ read it and cannot drift apart:
   in one query for a whole portfolio.
 
 `PropertyCapability.PAYMENT_COLLECTION` now means exactly one thing: *rent can
-be collected through Rooomly for this property*, which requires an available
+be collected through Danpa HQ for this property*, which requires an available
 payment rail and — where the rail settles to subaccounts — a Portfolio the
 member belongs to holding a verified, selected destination.
 
 Recording an off-platform payment is separated back out and follows
 `PropertyCapability.LEASES`, the authority the lease-ledger endpoint has always
-enforced. Cash already changed hands outside Rooomly; a provider with no payout
+enforced. Cash already changed hands outside Danpa HQ; a provider with no payout
 destination has not lost the ability to acknowledge money they were handed.
 
 ## Why this direction
@@ -82,7 +82,7 @@ were available and were rejected:
 
 - *Forbid external part payments too.* This would make the product refuse to
   record money a landlord has actually received. The record would still be true;
-  Rooomly would simply not hold it.
+  Danpa HQ would simply not hold it.
 - *Keep the personal bank stamp as the readiness authority.* It is about a
   person, and a Portfolio outlives whichever member is signed in. Money must not
   follow a team member out of the door, which is the reason `PayoutProfile` is

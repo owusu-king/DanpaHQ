@@ -141,7 +141,7 @@ export default function AgreementScreen() {
           <Fact label="Deposit" value={terms.depositMonths ? months(terms.depositMonths) : "None"} />
           <Fact label="Agency fee" value={terms.agencyFeeMonths ? months(terms.agencyFeeMonths) : "None"} />
         </RecordPanel>
-        <Footnote>Nothing is paid through Rooomly. This records what was agreed.</Footnote>
+        <Footnote>Nothing is paid through Danpa HQ. This records what was agreed.</Footnote>
       </View>
 
       <View style={styles.section}>

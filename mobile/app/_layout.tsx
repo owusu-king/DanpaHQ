@@ -1,3 +1,6 @@
+import Ionicons from "@expo/vector-icons/Ionicons";
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
+import { useFonts } from "expo-font";
 import { Stack, ThemeProvider, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
@@ -127,8 +130,15 @@ function Shell() {
   const segments = useSegments() as readonly string[];
   const router = useRouter();
 
+  // The tab bars' two icon fonts load behind the curtain. Explore's globe is
+  // the only MaterialCommunityIcons glyph, a large font loaded on first use, so
+  // on a slower phone its tab stood empty for a moment after the app opened. A
+  // font that fails to load must not hold the app closed.
+  const [iconsLoaded, iconsFailed] = useFonts({ ...Ionicons.font, ...MaterialCommunityIcons.font });
+  const iconsReady = iconsLoaded || Boolean(iconsFailed);
+
   const redirect = state.status === "loading" ? null : entryRedirect(state, activeContext, segments);
-  const settled = state.status !== "loading" && redirect === null;
+  const settled = state.status !== "loading" && redirect === null && iconsReady;
 
   useEffect(() => {
     if (redirect) router.replace(redirect as never);

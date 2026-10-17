@@ -180,11 +180,11 @@ test("a substantial tenant agreement opens in context and keeps its dedicated ad
 
   // A normal list click keeps comparison context, while the same immutable
   // record remains addressable for refresh, modified clicks and shared links.
-  // It opens in the shared sheet, and the open record is in the address.
+  // It opens in the shared sheet, and the open record is page state.
   assert.match(record, /export function AgreementSheet/);
   assert.match(record, /<ModalSheet/);
   assert.match(list, /<AgreementSheet/);
-  assert.match(list, /search\.get\("agreement"\)/);
+  assert.match(list, /useDeepLinkedModal\("agreement"\)/);
   assert.match(list, /event\.preventDefault\(\);\s*onOpen\(lease\)/);
   assert.match(list, /href=\{`\/leases\/\$\{lease\.id\}`/);
   assert.doesNotMatch(list, /tenant-agreements-split/);

@@ -646,7 +646,7 @@ class TestWebRefreshCookie:
         assert response.status_code == 201
         # Not in the body: script on the page must not be able to read it.
         assert "refresh_token" not in response.data
-        cookie = response.cookies.get("grp_refresh")
+        cookie = response.cookies.get("danpahq_refresh")
         assert cookie is not None
         assert cookie["httponly"]
         assert cookie["samesite"] == "Lax"
@@ -662,7 +662,7 @@ class TestWebRefreshCookie:
         """Mobile has the Keychain and the Keystore, which beat a cookie."""
         _, response = self._register_as("mobile", sms)
         assert response.data["refresh_token"]
-        assert "grp_refresh" not in response.cookies
+        assert "danpahq_refresh" not in response.cookies
 
     def test_refreshing_with_neither_a_cookie_nor_a_body_is_refused(self):
         from rest_framework.test import APIClient

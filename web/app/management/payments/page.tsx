@@ -40,7 +40,7 @@ type ReconciliationException = {
     amount_formatted: string;
   };
 };
-/** Rent names a tenant and a home; a Rooomly subscription names a Portfolio and a plan. */
+/** Rent names a tenant and a home; a Danpa HQ subscription names a Portfolio and a plan. */
 type PaymentSubject = {
   purpose: "" | "rent_obligation" | "subscription_invoice";
   tenant: string;
@@ -134,7 +134,7 @@ export default function PaymentOperationsPage() {
       <PageHeader
         eyebrow="Financial integrity"
         title="Payment operations"
-        description="Compare Rooomly’s immutable payment record with provider evidence. Closing an exception records a decision; it never rewrites money."
+        description="Compare Danpa HQ’s immutable payment record with provider evidence. Closing an exception records a decision; it never rewrites money."
       />
       <ResourceState loading={resource.loading} error={resource.error} />
       <Feedback error={feedback.error} success={feedback.success} />
@@ -242,8 +242,8 @@ export default function PaymentOperationsPage() {
               <td><strong>{item.tenant || item.portfolio}</strong><span className="management-subtext">{item.provider_transaction_id}</span></td>
               <td>{item.property || item.description}<span className="management-subtext">{item.unit}</span></td>
               <td><strong>{item.amount_formatted}</strong><span className="management-subtext">{item.payment_method.replaceAll("_", " ")} · {item.provider}</span></td>
-              {/* A subscription is Rooomly's own revenue: there is no beneficiary payout to settle. */}
-              <td>{item.purpose === "subscription_invoice" ? <span className="management-subtext">Rooomly revenue · no payout</span> : <><Status value={item.settlement?.status ?? "missing"} />{item.settlement?.organization ? <span className="management-subtext">{item.settlement.organization}</span> : null}</>}</td>
+              {/* A subscription is Danpa HQ's own revenue: there is no beneficiary payout to settle. */}
+              <td>{item.purpose === "subscription_invoice" ? <span className="management-subtext">Danpa HQ revenue · no payout</span> : <><Status value={item.settlement?.status ?? "missing"} />{item.settlement?.organization ? <span className="management-subtext">{item.settlement.organization}</span> : null}</>}</td>
               <td>{item.refunds.count ? `${item.refunds.count} recorded` : "None"}</td>
               <td>{formatDate(item.occurred_at)}</td>
             </tr>

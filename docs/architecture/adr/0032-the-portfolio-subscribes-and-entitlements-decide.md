@@ -4,7 +4,7 @@
 
 ## Problem
 
-Rooomly needs paid provider plans. The two ways this normally goes wrong are
+Danpa HQ needs paid provider plans. The two ways this normally goes wrong are
 both structural and both expensive to undo later.
 
 **Putting the plan on the user.** It reads naturally — a landlord upgrades — and
@@ -51,7 +51,7 @@ see "999999 properties" on a billing screen learns something false.
 override → entitled subscription's plan → Free.
 
 Falling back to **Free** rather than to "deny everything" is deliberate: a
-Portfolio with a missing billing row is a Rooomly bug, and the person on the
+Portfolio with a missing billing row is a Danpa HQ bug, and the person on the
 other end should lose the paid extras, never their tenants.
 
 ### 5. Domain modules import `billing.enforcement`, never a plan code
@@ -96,7 +96,7 @@ dispute is not a reason to withhold them.
 
 ### 10. Billing and Payments stay separate
 
-Billing answers *why Rooomly charges this Portfolio*. Payments Core answers *how
+Billing answers *why Danpa HQ charges this Portfolio*. Payments Core answers *how
 money moved*. When paid checkout lands it uses the existing provider-neutral
 architecture — a `BillingInvoice` priced by the server, settled by a
 `PaymentIntent` — and a second Paystack integration is not introduced. **A plan
@@ -131,7 +131,7 @@ with no way to be paid is a table shape guessed a phase early.
 
 ## Amendment — 11 September 2026: subscription checkout
 
-The boundary moved: a Portfolio can now pay Rooomly for a plan. Decision §10 is
+The boundary moved: a Portfolio can now pay Danpa HQ for a plan. Decision §10 is
 what it was built on, and it held — **a plan is activated only by a
 server-confirmed payment**, through the existing Payments Core, with no second
 Paystack integration.
@@ -139,7 +139,7 @@ Paystack integration.
 **`BillingInvoice` is the obligation.** Issued under a lock on the billing
 account, priced from the plan row for the chosen interval, less a credit for
 already-paid unused time on the current plan (integer microseconds and pesewas,
-rounded in Rooomly's favour by at most a pesewa). One open invoice per account
+rounded in Danpa HQ's favour by at most a pesewa). One open invoice per account
 at the database. An open invoice can start a payment for 60 minutes and is then
 repriced; paid and void invoices are final, refused by the model and by a
 PostgreSQL trigger.
@@ -152,9 +152,9 @@ intent per invoice. Confirmation stays in `payments._process_verified_event`, so
 the signed webhook, a provider query and the reconciliation sweep apply the same
 checks. A subscription success writes the immutable transaction, a
 `PaymentAllocation` to the invoice, two ledger lines against
-`subscription_invoice:{id}` and a frozen `rooomly.subscription_receipt.v1`
+`subscription_invoice:{id}` and a frozen `danpahq.subscription_receipt.v1`
 receipt, then calls `billing.invoice_service.settle` in the same transaction.
-There is no `Settlement` row: the money is Rooomly's, not a beneficiary's. Rent
+There is no `Settlement` row: the money is Danpa HQ's, not a beneficiary's. Rent
 and subscription outcomes emit different events, so no rent handler ever sees a
 subscription.
 

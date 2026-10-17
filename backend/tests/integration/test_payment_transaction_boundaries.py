@@ -178,7 +178,7 @@ class TestAnAmbiguousProviderResponseIsRecoverable:
         """A timeout is the case the old shape handled worst.
 
         It rolled the whole thing back, so the provider might hold a transaction
-        Rooomly had no record of at all. Now the reservation survives, and it is
+        Danpa HQ had no record of at all. Now the reservation survives, and it is
         the thing that makes the retry reach the same provider transaction.
         """
         _, charge = obligation

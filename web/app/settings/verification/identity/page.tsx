@@ -39,7 +39,7 @@ export default function IdentityVerificationPage() {
       <header className="verification-heading">
         <div>
           <h2 id="identity-verification-title">Identity verification</h2>
-          <p>Submit one clear document. This check carries across every Rooomly experience.</p>
+          <p>Submit one clear document. This check carries across every Danpa HQ experience.</p>
         </div>
       </header>
       {error ? <Notice tone="error" title={error} /> : null}

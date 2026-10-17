@@ -28,7 +28,7 @@
       "@/*": [
         "./src/*"
       ],
-      "@grp/design-tokens": [
+      "@danpahq/design-tokens": [
         "../packages/design-tokens/dist/theme.ts"
       ]
     }

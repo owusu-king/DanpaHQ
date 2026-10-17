@@ -25,9 +25,9 @@ canonical list of categories a provider may choose. Creating a valid Property
 also adds that activity to the Portfolio when it was not already recorded, so
 activities describe the work the Portfolio actually contains.
 
-## One Portfolio per provider, provisioned by Rooomly
+## One Portfolio per provider, provisioned by Danpa HQ
 
-**Every provider owns exactly one Rooomly Portfolio, and Rooomly makes it.**
+**Every provider owns exactly one Danpa HQ Portfolio, and Danpa HQ makes it.**
 Nobody creates a Portfolio — not a provider, not a tenant, not a client with a
 crafted request. Belonging to more than one Portfolio is normal and stays
 normal: every Portfolio beyond your own arrived as somebody's invitation.
@@ -91,7 +91,7 @@ Property assignments. Invitations are revocable and expire after seven days;
 pending, declined, revoked and expired invitations grant nothing and never
 appear as active contexts.
 
-Existing Rooomly users receive an in-app invitation. An unregistered phone
+Existing Danpa HQ users receive an in-app invitation. An unregistered phone
 receives a deduplicated SMS handoff through the configured provider. Acceptance
 still requires signing in or registering with that same verified phone and a
 valid secure invitation token.
@@ -112,7 +112,7 @@ before the rule existed. A Portfolio still cannot lose its last owner.
 
 ## Joining a Team is not becoming a provider
 
-A person invited into a Portfolio uses their ordinary Rooomly account. They may
+A person invited into a Portfolio uses their ordinary Danpa HQ account. They may
 be a tenant elsewhere on the platform, and they are never asked to register a
 second account or to open an independent provider verification of their own:
 

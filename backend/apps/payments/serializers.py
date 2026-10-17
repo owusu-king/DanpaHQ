@@ -123,7 +123,7 @@ class ReceiptSerializer(serializers.ModelSerializer):
         return bool(obj.final_pdf)
 
     def get_snapshot(self, obj) -> dict | None:
-        if obj.breakdown.get("schema_version") != "rooomly.payment_receipt.v1":
+        if obj.breakdown.get("schema_version") != "danpahq.payment_receipt.v1":
             return None
         return obj.breakdown
 

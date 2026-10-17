@@ -30,7 +30,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='paymentintent',
             name='provider_fee_bearer',
-            field=models.CharField(blank=True, choices=[('account', 'Rooomly'), ('subaccount', 'Provider')], max_length=16),
+            field=models.CharField(blank=True, choices=[('account', 'Danpa HQ'), ('subaccount', 'Provider')], max_length=16),
         ),
         migrations.AddField(
             model_name='paymentintent',

@@ -3,7 +3,7 @@
 Phase 2 ends with a tenant finding a room. This is what happens next, and it is
 where several specifically Ghanaian problems live:
 
-* **Free attendance.** Rooomly viewings are free. Scheduling must never become
+* **Free attendance.** Danpa HQ viewings are free. Scheduling must never become
   a payment or fee-collection surface.
 * **Wasted journeys.** A viewing that does not happen costs a tenant a fare and
   most of a day. Both no-shows are recorded against the request, so a pattern of

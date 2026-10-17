@@ -187,9 +187,9 @@ test("a tenant card is a portrait that opens its tenancy in a sheet", () => {
   assert.doesNotMatch(css, /\.tenant-card:hover[^{]*\{[^}]*transform: translateY/);
   assert.doesNotMatch(css, /\.tenant-card-avatar \{[^}]*position: absolute/);
 
-  // A plain click opens the sheet, kept in the address; the card still links
+  // A plain click opens the sheet, held in page state; the card still links
   // to the tenancy's own page for a new tab.
-  assert.match(tenants, /search\.get\("tenant"\)/);
+  assert.match(tenants, /useDeepLinkedModal\("tenant"\)/);
   assert.match(tenants, /href=\{href as never\}/);
   assert.match(tenants, /event\.preventDefault\(\);\s*onPeek\(\);/);
   assert.match(tenants, /<TenantModal tenant=\{openedTenant\}/);

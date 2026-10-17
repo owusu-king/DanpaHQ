@@ -21,6 +21,7 @@ const NAV = [
   { href: "/management/rentals", label: "Rental operations", capability: "view_rentals", icon: "leases" },
   { href: "/management/payments", label: "Payment operations", capability: "view_payments", icon: "payments" },
   { href: "/management/billing", label: "Billing", capability: "view_billing", icon: "payments" },
+  { href: "/management/configuration", label: "Configuration", capability: "view_configuration", icon: "filters" },
   { href: "/management/audit-logs", label: "Audit logs", capability: "view_audit_logs", icon: "audit" },
 ] as const satisfies ReadonlyArray<{
   href: string;
@@ -76,9 +77,9 @@ export function ManagementShell({ children }: { children: React.ReactNode }) {
       <aside className={`management-sidebar ${open ? "is-open" : ""}`}>
         <div className="management-brand">
           <div className="management-brand-identity">
-            <span className="management-brand-mark" aria-hidden="true">GR</span>
+            <span className="management-brand-mark" aria-hidden="true">DH</span>
             <div className="management-brand-copy">
-              <strong>Ghana Rental</strong>
+              <strong>Danpa HQ</strong>
               <span>Management Portal</span>
             </div>
           </div>

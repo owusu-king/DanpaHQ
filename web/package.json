@@ -1,5 +1,5 @@
 {
-  "name": "@grp/web",
+  "name": "@danpahq/web",
   "version": "0.1.0",
   "private": true,
   "//tailwind": "Keep tailwindcss and @tailwindcss/postcss on the same version. Tailwind 4 pulls its native scanner (@tailwindcss/oxide) in through a caret range, so pinning the JS to an old patch while oxide floats forward fails the build with 'Missing field negated on ScannerOptions.sources'.",

@@ -2,7 +2,7 @@
  * Tenant Agreements stays a compact index with one authoritative, readable
  * record behind every row — on the shared workspace, like Applications: the
  * head, the segmented stages, one panel, and the record in the shared sheet,
- * kept in the address. These contracts protect meaning and interaction, not a
+ * held in page state. These contracts protect meaning and interaction, not a
  * frozen screenshot.
  */
 import assert from "node:assert/strict";
@@ -42,14 +42,14 @@ function rule(sheet, selector) {
   return sheet.slice(at, sheet.indexOf("}", at));
 }
 
-test("a plain click opens the agreement over the list, kept in the address; the route remains", () => {
+test("a plain click opens the agreement over the list, held in page state; the route remains", () => {
   assert.ok(existsSync(resolve(root, "web/app/leases/[leaseId]/page.tsx")));
   assert.match(tenantRoute(), /<AgreementRecord/);
   assert.match(tenantRoute(), /<EntityPath/);
   assert.match(tenantRoute(), /mobileLabel: "Back to Agreements"/);
   const body = tenantHalf();
-  assert.match(body, /search\.get\("agreement"\)/);
-  assert.match(body, /setParams\(\{ agreement: lease\.id \}\)/);
+  assert.match(body, /useDeepLinkedModal\("agreement"\)/);
+  assert.match(body, /setOpenId\(lease\.id\)/);
   assert.match(body, /<AgreementSheet lease=\{opened\}/);
   assert.match(body, /event\.preventDefault\(\);\s*onOpen\(lease\)/);
   assert.match(body, /href=\{`\/leases\/\$\{lease\.id\}` as never\}/);

@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-stamp_file="node_modules/.rooomly-package-lock.sha256"
+stamp_file="node_modules/.danpahq-package-lock.sha256"
 lock_hash="$(sha256sum package-lock.json | awk '{print $1}')"
 installed_hash=""
 

@@ -660,7 +660,7 @@ class TestPayoutDestination:
     def test_credentials_are_refused_outright(self, landlord, portfolio):
         organization, _ = portfolio
         for secret in ("pin", "otp", "cvv", "account_number"):
-            with pytest.raises(ValidationFailed, match="never sent to Rooomly"):
+            with pytest.raises(ValidationFailed, match="never sent to Danpa HQ"):
                 payouts.set_payout_destination(
                     organization=organization,
                     user=landlord,
@@ -1509,7 +1509,7 @@ class TestReconciliation:
     ):
         """Money the provider took reaches the rent account without being asked.
 
-        The sweep does not *choose between* two records here — Rooomly has none,
+        The sweep does not *choose between* two records here — Danpa HQ has none,
         and the provider is the only authority on whether a payment happened. So
         it applies the provider's answer through exactly the boundary a signed
         webhook uses. Before this, a lost callback left rent uncredited until the
@@ -1811,7 +1811,7 @@ class TestReconciliation:
             kind=ReconciliationKind.AMOUNT_MISMATCH,
             provider="memory",
             provider_reference="ops-ref-1",
-            detail={"rooomly_amount_minor": 150000, "provider_amount_minor": 149900},
+            detail={"danpahq_amount_minor": 150000, "provider_amount_minor": 149900},
         )
 
         def signed_in(role, email):

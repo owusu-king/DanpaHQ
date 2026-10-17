@@ -662,7 +662,7 @@ remains for companies, hostel operators, professional managers and teams.
 
 Immediate membership creation has been removed from the public API. Owners and
 administrators create signed, seven-day, revocable phone-bound invitations;
-acceptance by the matching Rooomly account is the only path that activates a
+acceptance by the matching Danpa HQ account is the only path that activates a
 membership. Decline, revoke and expiry leave no authority. Scoped Property
 selections are staged on the invitation and become assignments only at
 acceptance. Role changes, member removal and assign/unassign operations preserve
@@ -749,10 +749,10 @@ clients route the record directly to the role-appropriate Payments workspace.
 
 ## Frozen payment receipts
 
-Processor confirmation now issues `rooomly.payment_receipt.v1`: an immutable
+Processor confirmation now issues `danpahq.payment_receipt.v1`: an immutable
 snapshot of the tenant, receiving provider/Portfolio, exact Property/Unit/Bed,
 address, furnished state, amount, covered obligation/period, method and
-processor evidence. Rooomly renders and stores the final PDF at the same moment,
+processor evidence. Danpa HQ renders and stores the final PDF at the same moment,
 including its SHA-256 hash, so later account or premises edits and future
 renderer changes cannot rewrite the receipt that was issued.
 

@@ -1,5 +1,5 @@
 {
-  "name": "@grp/mobile",
+  "name": "@danpahq/mobile",
   "version": "0.1.0",
   "private": true,
   "main": "expo-router/entry",

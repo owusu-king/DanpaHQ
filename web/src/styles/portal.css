@@ -108,7 +108,7 @@
 }
 
 .portal-brand-text { display: grid; line-height: 1.2; min-width: 0; }
-.portal-brand-text strong { font-size: 0.9375rem; font-weight: 600; }
+.portal-brand-text strong { font-size: 0.9375rem; font-weight: 600; white-space: nowrap; }
 .portal-brand-text span {
   color: var(--color-ink-500);
   font-size: 0.75rem;
@@ -1303,17 +1303,17 @@
 }
 
 .portal-gate-button {
-  min-height: var(--target-min);
+  min-height: 2.625rem;
   display: inline-flex;
   align-items: center;
-  padding: 0 var(--space-5);
+  padding: 0 var(--space-4);
   border: var(--border-hairline) solid var(--color-kola-600);
   border-radius: var(--radius-md);
   background: var(--color-kola-600);
   color: var(--color-field-0);
   font: inherit;
-  font-size: 0.9375rem;
-  font-weight: 600;
+  font-size: 0.875rem;
+  font-weight: 650;
   text-decoration: none;
   cursor: pointer;
 }

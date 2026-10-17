@@ -49,6 +49,7 @@ import {
 import { moneyWork, paymentStatus, thisMonth, type MoneyWork } from "@/paymentsWork";
 import { pressableFeedback, useSafeBottom } from "@/platform";
 import { theme } from "@/theme";
+import { ProviderTabFrame } from "@/components/nav/NativeTabFrame";
 
 /**
  * The Portfolio's money, read as work (owner, 2026-10-06).
@@ -86,7 +87,7 @@ type Entry =
 const RECENT_SHOWN = 5;
 const SEARCH_FROM = 9;
 
-export default function ProviderPaymentsScreen() {
+function ProviderPaymentsScreen() {
   const router = useRouter();
   const density = useHomeDensity();
   const pageBottom = useSafeBottom(space[12]);
@@ -440,7 +441,7 @@ function PaymentRow({ payment, onPress }: { payment: Payment; onPress: () => voi
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${payment.tenant_name}. ${amount}. ${paymentStatus(payment)}. ${payment.method_display}, ${shortDate(payment.paid_on)}. ${external ? "External, recorded through Rooomly" : "Processed through Rooomly"}. Open rent account.`}
+      accessibilityLabel={`${payment.tenant_name}. ${amount}. ${paymentStatus(payment)}. ${payment.method_display}, ${shortDate(payment.paid_on)}. ${external ? "External, recorded through Danpa HQ" : "Processed through Danpa HQ"}. Open rent account.`}
       onPress={onPress}
       {...pressableFeedback(PRESSED)}
       style={({ pressed }) => [rowStyles.row, pressed ? { backgroundColor: PRESSED } : null]}
@@ -573,3 +574,12 @@ const styles = StyleSheet.create({
     color: FAINT,
   },
 });
+
+/** On iOS the tab sits in the native bar, which draws no header; see `ProviderTabFrame`. */
+export default function ProviderPaymentsTab() {
+  return (
+    <ProviderTabFrame tab="payments">
+      <ProviderPaymentsScreen />
+    </ProviderTabFrame>
+  );
+}

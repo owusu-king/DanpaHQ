@@ -144,7 +144,7 @@ export default function ProviderTenancyPage() {
       />
 
       {needsAgreement ? (
-        <Callout tone="warning" icon="leases" title="This tenancy needs a Rooomly agreement">
+        <Callout tone="warning" icon="leases" title="This tenancy needs a Danpa HQ agreement">
           Prepare the agreement from the approved request before treating this as an active platform tenancy.
         </Callout>
       ) : null}

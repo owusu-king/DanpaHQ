@@ -9,7 +9,7 @@
  * prints this receipt; Download saves the PDF issued with it.
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { Button } from "@/components/Button";
 import { Notice } from "@/components/Notice";
@@ -17,7 +17,7 @@ import { Icon } from "@/components/portal/icons";
 import { ModalSheet } from "@/components/workspace/ModalSheet";
 import { ApiFailure } from "@/lib/api";
 import { getPaymentReceipt, getPaymentReceiptDocument, paymentMethodLabel, type PaymentReceipt } from "@/lib/payments";
-import { downloadBlob, printElement } from "@/lib/printDocument";
+import { downloadBlob, printPdf } from "@/lib/printDocument";
 
 export function ReceiptModal({ receiptId, onClose }: { receiptId: string | null; onClose: () => void }) {
   const [shown, setShown] = useState<string | null>(receiptId);
@@ -44,8 +44,7 @@ export function ReceiptModal({ receiptId, onClose }: { receiptId: string | null;
 export function ReceiptView({ receiptId }: { receiptId: string }) {
   const [receipt, setReceipt] = useState<PaymentReceipt | null>(null);
   const [error, setError] = useState("");
-  const [busy, setBusy] = useState<"download" | null>(null);
-  const article = useRef<HTMLElement>(null);
+  const [busy, setBusy] = useState<"download" | "print" | null>(null);
 
   useEffect(() => {
     let live = true;
@@ -55,10 +54,19 @@ export function ReceiptView({ receiptId }: { receiptId: string }) {
     return () => { live = false; };
   }, [receiptId]);
 
-  // Print is this receipt as shown — instant, and the same on every browser.
-  // Download is the issued PDF, the durable copy.
-  function print() {
-    if (article.current) printElement(article.current, `Receipt ${receipt?.receipt_number ?? ""}`);
+  // Print uses a Unicode-safe copy of the frozen snapshot. Download remains
+  // the exact PDF issued with the receipt.
+  async function print() {
+    if (!receipt) return;
+    setBusy("print");
+    setError("");
+    try {
+      await printPdf(await getPaymentReceiptDocument(receipt.id, true));
+    } catch (cause) {
+      setError(cause instanceof ApiFailure ? cause.error.message : "The receipt could not be printed.");
+    } finally {
+      setBusy(null);
+    }
   }
 
   async function download() {
@@ -66,7 +74,7 @@ export function ReceiptView({ receiptId }: { receiptId: string }) {
     setBusy("download");
     setError("");
     try {
-      downloadBlob(await getPaymentReceiptDocument(receipt.id), `rooomly-receipt-${receipt.receipt_number}.pdf`);
+      downloadBlob(await getPaymentReceiptDocument(receipt.id), `danpahq-receipt-${receipt.receipt_number}.pdf`);
     } catch (cause) {
       setError(cause instanceof ApiFailure ? cause.error.message : "The receipt document could not be downloaded.");
     } finally {
@@ -94,10 +102,10 @@ export function ReceiptView({ receiptId }: { receiptId: string }) {
 
   return (
     <div className="rc-wrap">
-      <article ref={article} className="rc" aria-label={`Receipt ${receipt.receipt_number}`}>
+      <article className="rc" aria-label={`Receipt ${receipt.receipt_number}`}>
         <header className="rc-head">
           <div className="rc-brand">
-            <strong>Rooomly</strong>
+            <strong>Danpa HQ</strong>
             <small>Payment receipt</small>
           </div>
           <div className="rc-number">
@@ -145,7 +153,7 @@ export function ReceiptView({ receiptId }: { receiptId: string }) {
         <dl className="rc-meta">
           <div><dt>Method</dt><dd>{snapshot?.payment.method_label ?? paymentMethodLabel(receipt.payment_method)}</dd></div>
           <div><dt>{external ? "Reference" : "Transaction"}</dt><dd data-mono={reference ? "" : undefined}>{reference || "—"}</dd></div>
-          <div><dt>Source</dt><dd>{snapshot?.payment.source_label ?? (external ? "Paid externally, recorded through Rooomly" : "Processed through Rooomly")}</dd></div>
+          <div><dt>Source</dt><dd>{snapshot?.payment.source_label ?? (external ? "Paid externally, recorded through Danpa HQ" : "Processed through Danpa HQ")}</dd></div>
           {snapshot?.evidence.label ? <div><dt>Evidence</dt><dd>{snapshot.evidence.label}</dd></div> : null}
         </dl>
 
@@ -155,7 +163,7 @@ export function ReceiptView({ receiptId }: { receiptId: string }) {
       {error ? <Notice tone="error" title={error} /> : null}
 
       <div className="rc-actions">
-        <Button variant="secondary" onClick={print}><Icon name="print" />Print</Button>
+        <Button variant="secondary" busy={busy === "print"} busyLabel="Preparing…" onClick={() => void print()}><Icon name="print" />Print</Button>
         <span className="rc-actions-spacer" />
         <Button
           busy={busy === "download"}

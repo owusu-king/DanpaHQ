@@ -110,6 +110,25 @@
   border-radius: calc(var(--radius-sm) + 4px);
   box-shadow: inset 0 1px 2px rgba(33, 26, 21, .07), inset 0 0 0 1px rgba(33, 26, 21, .04);
 }
+.inbox-new-ticket {
+  min-height: 2.5rem;
+  margin: var(--space-3) var(--space-4) 0;
+  padding: 0 var(--space-4);
+  border: 0;
+  border-radius: 999px;
+  background: var(--color-kola-600);
+  color: white;
+  font: 650 .8rem var(--font-body);
+  cursor: pointer;
+}
+.inbox-new-ticket:disabled { opacity: .5; cursor: wait; }
+.inbox-ticket-form { display: grid; gap: var(--space-4); overflow-y: auto; padding: var(--space-6); }
+.inbox-ticket-form label { display: grid; gap: var(--space-2); color: var(--color-ink-700); font-size: .8rem; font-weight: 650; }
+.inbox-ticket-form input,
+.inbox-ticket-form select,
+.inbox-ticket-form textarea { width: 100%; padding: .75rem; border: 1px solid var(--color-field-300); border-radius: .65rem; background: white; color: var(--color-ink-900); font: inherit; }
+.inbox-ticket-form textarea { min-height: 9rem; resize: vertical; }
+.inbox-ticket-form .inbox-new-ticket { width: fit-content; margin: 0; }
 
 .inbox-side {
   min-height: 1.875rem;

@@ -6,7 +6,7 @@
  * this product's palette instead of the stone default they ship with, and a
  * palette change never means editing component source.
  *
- * Values are the premium landing palette: near-black ink, warm paper, one
+ * Values are the premium landing palette: warm paper, deep kola green and a
  * restrained clay accent. Written in OKLCH because interpolating a hover or a
  * gradient in it stays perceptually even, where the same move in hex or HSL
  * drifts muddy through the middle.
@@ -24,9 +24,8 @@
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.17 0.014 165);
 
-  /* Primary is ink. It cannot fail contrast on any surface this product has,
-     and it leaves the accent free to actually accent. */
-  --primary: oklch(0.17 0.014 165);
+  /* Primary actions share the same deep kola green as the product workspace. */
+  --primary: oklch(0.45 0.105 162);
   --primary-foreground: oklch(0.99 0.006 150);
 
   --secondary: oklch(0.972 0.010 160);

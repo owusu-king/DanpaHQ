@@ -16,7 +16,6 @@
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
 
 import { Icon, type IconName } from "@/components/portal/icons";
-import { arrivedByHistory } from "@/lib/historyReturn";
 import { aimModalFrom, glideModalHeight, holdModalInWorkspace, isBackdropClick } from "@/lib/modalOrigin";
 
 const CLOSE_MS = 240;
@@ -66,9 +65,11 @@ export function ModalSheet({
   const closeRef = useRef(onClose);
   useEffect(() => { closeRef.current = onClose; }, [onClose]);
 
-  // The browser can also hand the whole page back from its back-forward cache,
-  // frozen as it was left — sheet and all, with no navigation for React to see.
-  // An open sheet restored that way closes, for the same reason as above.
+  // Modals live in page state, so Back to a page normally finds it remounted
+  // with every sheet shut. The browser can instead hand the whole page back
+  // from its back-forward cache, frozen as it was left — sheet and all, with no
+  // navigation for React to see. Back never returns to an open sheet, so one
+  // restored that way closes.
   useEffect(() => {
     if (!open) return;
     const restored = (event: PageTransitionEvent) => {
@@ -92,15 +93,6 @@ export function ModalSheet({
     // Placement and gliding are set up on every run, not only the one that
     // opens: a sheet mounted already open runs this twice in development, and
     // the second run would otherwise find it open and leave both torn down.
-    // Back to a page whose address still names this sheet: the person is
-    // retracing their steps, not asking for it again (lib/historyReturn). Close
-    // it through the page, which takes the parameter out of the address. The
-    // dialog was never shown, so nothing flashes.
-    if (arrivedByHistory()) {
-      if (dialog.open) dialog.close();
-      closeRef.current();
-      return;
-    }
     const release = holdModalInWorkspace(dialog);
     if (!dialog.open) {
       const invoker = document.activeElement;

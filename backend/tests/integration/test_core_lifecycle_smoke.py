@@ -1,4 +1,4 @@
-"""One executable contract for Rooomly's implemented rental lifecycle.
+"""One executable contract for Danpa HQ's implemented rental lifecycle.
 
 Domain tests explain individual rules; this smoke test proves those rules still
 connect without bypassing Property or Unit verification gates.

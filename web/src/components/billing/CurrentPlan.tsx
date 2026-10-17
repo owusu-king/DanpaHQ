@@ -45,7 +45,7 @@ export function CurrentPlan({
   const free = isFreePlan(plan);
   const interval = free ? "monthly" : (billing.subscription?.billing_interval ?? "monthly");
   const price = free ? 0 : (planPrice(plan, interval) ?? plan.monthly_price_minor);
-  // A plan Rooomly provides costs this Portfolio nothing, so that is what the
+  // A plan Danpa HQ provides costs this Portfolio nothing, so that is what the
   // price says. Its usual price is in the line underneath, not in display type.
   const complimentary = Boolean(billing.subscription?.is_live && billing.subscription.funding === "complimentary");
   const actionLeads = Boolean(standing.attention?.action && standing.attention.action.kind !== "keep");

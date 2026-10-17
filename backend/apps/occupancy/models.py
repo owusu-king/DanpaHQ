@@ -29,7 +29,7 @@ class DateRange(Func):
 
 class OccupancyStatus(models.TextChoices):
     #: Real-world possession recorded for follow-up. This blocks contradictory
-    #: allocation, but is not an active Rooomly tenancy until a lease activates.
+    #: allocation, but is not an active Danpa HQ tenancy until a lease activates.
     PENDING_LEASE = "pending_lease", "Lease required"
     ACTIVE = "active", "Active"
     ENDED = "ended", "Ended"

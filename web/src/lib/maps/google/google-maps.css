@@ -1,8 +1,15 @@
-/* Google's advanced markers wrap Rooomly's marker HTML in their own element,
+/* Google's advanced markers wrap Danpa HQ's marker HTML in their own element,
    and it is that element which takes keyboard focus. The ring is drawn on the
    marker inside it, in the product's focus colour, and names no Explore class. */
+.danpahq-map-marker {
+  position: relative;
+  display: grid;
+  width: max-content;
+  place-items: center;
+  isolation: isolate;
+}
 gmp-advanced-marker:focus { outline: none; }
-gmp-advanced-marker:focus-visible .rooomly-map-marker > * {
+gmp-advanced-marker:focus-visible .danpahq-map-marker > * {
   outline: var(--border-emphasis) solid var(--color-kola-600);
   outline-offset: 3px;
 }

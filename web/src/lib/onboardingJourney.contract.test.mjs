@@ -1,5 +1,5 @@
 /**
- * Web sign-up: Get Started → how will you use Rooomly → who you are → your
+ * Web sign-up: Get Started → how will you use Danpa HQ → who you are → your
  * number → in (owner, 2026-10-07).
  *
  * The journey was reordered on the client only. These pin what that must keep
@@ -15,20 +15,38 @@ import test from "node:test";
 const read = (path) => readFileSync(new URL(`../../${path}`, import.meta.url), "utf8").replaceAll("\r\n", "\n");
 const code = (source) => source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*/g, "");
 
-const register = () => code(read("app/register/page.tsx"));
+const register = () => code(read("src/components/auth/flows/RegisterFlow.tsx"));
 
 test("Get Started opens the question, and sign-up asks it first and once", () => {
   const door = code(read("src/components/landing/FrontDoor.tsx"));
-  assert.match(door, /<Link href=\{"\/register" as Route\} className="lp-door-action is-primary">\s*Get Started/);
+  assert.match(door, /<AuthLink view="register" className="lp-door-action is-primary">\s*Get Started/);
 
   const body = register();
   assert.match(body, /useState<Step>\(resuming \|\| preselected \? "details" : "role"\)/);
-  assert.match(body, /title: "How will you use Rooomly\?"/);
+  assert.match(body, /title: "How will you use Danpa HQ\?"/);
+  assert.match(body, /body: "Rent or find a place\."/);
+  assert.match(body, /body: "Own or manage property\."/);
+  assert.match(body, /className="auth-role-body">\{option\.body\}/);
+  assert.doesNotMatch(body, /auth-role-points|option\.points/);
   // The role is the account type: the details step never asks it again.
   assert.doesNotMatch(body, /What brings you here|<Select\b/);
   for (const label of ["First name", "Last name", "Date of birth", "Password", "Confirm password", "Email \\(optional\\)"]) {
     assert.match(body, new RegExp(`label="${label}"`), `${label} is missing`);
   }
+});
+
+test("closing sign in leaves a signed-out visitor at the front door", () => {
+  const redirect = code(read("src/components/EntryRedirect.tsx"));
+  assert.match(redirect, /state\.status === "signed_in"/);
+  assert.doesNotMatch(redirect, /installation\.visited|VISITED_KEY|"\/sign-in"/);
+
+  // Closing is a callback: the dialog shuts over the page it opened on.
+  const modal = code(read("src/components/auth/AuthModal.tsx"));
+  assert.match(modal, /onClose: \(\) => void;/);
+  assert.doesNotMatch(modal, /useRouter|router\.(back|replace|push)/);
+  // An old /sign-in address opens the dialog over the front door, signed out.
+  const dialog = code(read("src/components/auth/AuthDialog.tsx"));
+  assert.match(dialog, /open\(view === "welcome" \? "sign-in" : view, params\);\s*router\.replace\("\/"\);/);
 });
 
 test("nothing is created until the number is proved", () => {
@@ -46,7 +64,7 @@ test("nothing is created until the number is proved", () => {
 });
 
 test("the welcome is shown once, then never again", () => {
-  assert.match(register(), /markAccountJustCreated\(accountType, safeNext \?\? null\);[\s\S]{0,80}router\.replace\("\/welcome" as never\);/);
+  assert.match(register(), /markAccountJustCreated\(accountType, safeNext \?\? null\);[\s\S]{0,80}show\("welcome", \{ next: safeNext \}\);/);
   const lib = code(read("src/lib/registration.ts"));
   assert.match(lib, /^let justCreated: Arrival \| null = null;/m);
   // The tab may hold the flag across a full load, and nothing but the account
@@ -55,12 +73,12 @@ test("the welcome is shown once, then never again", () => {
   assert.match(lib, /window\.sessionStorage\.setItem\(KEY, JSON\.stringify\(justCreated\)\);/);
   assert.match(lib, /type Arrival = \{ type: AccountType; next: string \| null \};/);
 
-  const welcome = code(read("app/welcome/page.tsx"));
+  const welcome = code(read("src/components/auth/flows/WelcomeFlow.tsx"));
   // Read once and cleared at once, so this welcome is the only one.
   assert.match(welcome, /const found = accountJustCreated\(\);\s*finishAccountWelcome\(\);\s*setArrival\(found\);/);
   // Reached without the flag, it sends the person on rather than welcoming them.
-  assert.match(welcome, /if \(arrival === undefined \|\| arrival\) return;\s*if \(state\.status === "signed_in"\) router\.replace\(resolveWebEntry/);
-  assert.match(welcome, /finishAccountWelcome\(\);\s*router\.replace\(route as never\);/);
+  assert.match(welcome, /if \(arrival === undefined \|\| arrival\) return;\s*if \(state\.status === "signed_in"\) land\(resolveWebEntry/);
+  assert.match(welcome, /finishAccountWelcome\(\);\s*land\(route\);/);
   assert.match(welcome, /Verification is required/);
   assert.match(welcome, /leave\("\/provider\?send=1"\)/);
   assert.match(code(read("src/components/AppShell.tsx")), /"\/welcome"/);

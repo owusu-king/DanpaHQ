@@ -44,7 +44,7 @@ export type PaymentReceipt = {
 };
 
 export type ReceiptSnapshot = {
-  schema_version: "rooomly.payment_receipt.v1";
+  schema_version: "danpahq.payment_receipt.v1";
   receipt_number: string;
   issued_at: string;
   tenant: { account_id: string; name: string };
@@ -160,7 +160,7 @@ export function safeCheckoutUrl(checkout: ProviderCheckout): string | null {
   }
 }
 
-/** Paystack returns to the configured Rooomly web callback after checkout.
+/** Paystack returns to the configured Danpa HQ web callback after checkout.
  * Mobile intercepts that navigation inside its WebView and asks the API for the
  * real outcome; arriving at this URL is never treated as proof of payment. */
 export function isPaymentReturnUrl(value: string): boolean {

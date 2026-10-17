@@ -26,7 +26,7 @@ import {
 import { theme } from "@/theme";
 
 /**
- * What Rooomly may send, and how.
+ * What Danpa HQ may send, and how.
  *
  * These three preferences have existed in the backend the whole time and no
  * client exposed them, so an SMS that costs the user money could not be turned
@@ -80,7 +80,7 @@ export default function NotificationSettingsScreen() {
 
         {preferences ? (
           <View style={styles.section}>
-            <GroupLabel>What Rooomly may send</GroupLabel>
+            <GroupLabel>What Danpa HQ may send</GroupLabel>
             <Panel>
               <Toggle
                 icon="chatbubble-ellipses-outline"

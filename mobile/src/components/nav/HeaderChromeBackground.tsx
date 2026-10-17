@@ -11,7 +11,7 @@ const DOT_GAP = 6;
 const RINGS = 15;
 
 /**
- * Rooomly's mobile header material: flat brand green with a dotted texture.
+ * Danpa HQ's mobile header material: flat brand green with a dotted texture.
  *
  * Two bands of dotted contours sweep in from off-canvas, one low on the leading
  * side and one high on the trailing side, like a halftone print. The dots are a

@@ -70,10 +70,10 @@ test("a viewing opens at its own address", () => {
 
 test("a plain click reads the viewing in a sheet; the address still works", () => {
   // Deciding on a viewing should not cost the place in the agenda, so a plain
-  // click opens the same record over the list, kept in the address. The row is
+  // click opens the same record over the list, held in page state. The row is
   // still a link: a new tab, or a copied link, lands on the record's page.
   const body = providerHalf();
-  assert.match(body, /search\.get\("viewing"\)/);
+  assert.match(body, /useDeepLinkedModal\("viewing"\)/);
   assert.match(body, /<ViewingModal viewing=\{opened\}/);
   assert.match(body, /event\.metaKey \|\| event\.ctrlKey/);
   assert.match(body, /event\.preventDefault\(\);\s*onPeek\(viewing\)/);

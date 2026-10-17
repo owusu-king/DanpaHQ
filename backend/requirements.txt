@@ -28,6 +28,8 @@ reportlab==5.0.1
 # already, but declared because a payments integration must not depend on
 # another package's dependency tree deciding to drop it.
 requests==2.32.3
+# Runtime secrets entered in Management are encrypted before database storage.
+cryptography==44.0.0
 
 # Windows has no system zoneinfo database, so TIME_ZONE = "Africa/Accra" raises
 # ZoneInfoNotFoundError at startup without this. Harmless on Linux and macOS.

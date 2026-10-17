@@ -32,7 +32,7 @@ import { theme } from "@/theme";
  * touch gives no moment to see what was picked; here the choice settles — the
  * card fills, the tick lands — and Continue says where it leads.
  *
- * Browsing stays one line at the foot: it is a way of *using* Rooomly that asks
+ * Browsing stays one line at the foot: it is a way of *using* Danpa HQ that asks
  * for no account at all, not a third kind of person to be.
  */
 
@@ -103,7 +103,7 @@ export default function StartScreen() {
       <AuthMark />
 
       <AuthHeading
-        title={`How will you\nuse Rooomly?`}
+        title={`How will you\nuse Danpa HQ?`}
         line="Choose one to start. You can add the other side later."
       />
 

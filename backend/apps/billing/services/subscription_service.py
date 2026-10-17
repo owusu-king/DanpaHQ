@@ -107,7 +107,7 @@ def change_plan(
     """
     plan = Plan.objects.filter(code=plan_code).first()
     if plan is None or not plan.is_active:
-        raise ValidationFailed("Choose one of Rooomly's plans.")
+        raise ValidationFailed("Choose one of Danpa HQ's plans.")
 
     account = ensure_billing_account(organization=organization)
     subscription = (

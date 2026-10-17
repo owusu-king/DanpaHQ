@@ -3,13 +3,16 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
+import { Icon } from "@/components/portal/icons";
 import {
   createMap,
   onMapRefused,
+  type BaseMapStyle,
+  type MapCapabilities,
   type MapMarker,
   type MapMove,
   type MapPadding,
-  type RooomlyMap,
+  type DanpaHQMap,
 } from "@/lib/maps";
 import { compactRent, type MapClusterFeature, type MapFeature, type MapListingFeature } from "@/lib/mapSearch";
 import type { GeoBounds, MapConfig } from "@/lib/places";
@@ -22,7 +25,7 @@ import type { GeoBounds, MapConfig } from "@/lib/places";
  * the one search state stays with Explore and the map cannot drift from it. It
  * draws through `@/lib/maps` and never touches a mapping library itself.
  *
- * Markers are Rooomly's own HTML whose states are CSS classes; the map makes
+ * Markers are Danpa HQ's own HTML whose states are CSS classes; the map makes
  * each one keyboard-reachable and names it for a screen reader. The server caps
  * how many there are, which is what makes that affordable.
  */
@@ -38,6 +41,24 @@ const currency = new Intl.NumberFormat("en-GH", {
   currency: "GHS",
   maximumFractionDigits: 0,
 });
+
+const NO_MAP_CAPABILITIES: MapCapabilities = { satellite: false, streetView: false };
+
+function isValidPosition(lat: number, lng: number): boolean {
+  return Number.isFinite(lat) && Number.isFinite(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180;
+}
+
+function paintPrice(element: HTMLElement, label: string, sale = false) {
+  element.className = `explore-marker ${sale ? "explore-sale-marker" : "explore-price-marker"}`;
+  element.replaceChildren();
+  const dot = document.createElement("span");
+  dot.className = "explore-marker-dot";
+  dot.setAttribute("aria-hidden", "true");
+  const text = document.createElement("span");
+  text.className = "explore-marker-label";
+  text.textContent = label;
+  element.append(dot, text);
+}
 
 export function markerKey(feature: MapFeature): string {
   return feature.type === "listing" ? `listing:${feature.id}` : `cluster:${feature.key}`;
@@ -57,8 +78,7 @@ function describe(feature: MapFeature): string {
 
 function paint(element: HTMLElement, feature: MapFeature) {
   if (feature.type === "listing") {
-    element.className = "explore-marker explore-price-marker";
-    element.textContent = compactRent(feature.rent_minor, feature.rent_period);
+    paintPrice(element, compactRent(feature.rent_minor, feature.rent_period));
     return;
   }
   element.className = `explore-marker explore-cluster-marker${feature.stacked ? " is-stack" : ""}`;
@@ -97,6 +117,11 @@ export function ExploreMap({
   onSelectCluster,
   onBackgroundClick,
   onFailure,
+  canSearchArea,
+  searchingArea,
+  canResetView,
+  onSearchArea,
+  onResetView,
   salePins = [],
   onOpenSale,
 }: {
@@ -116,12 +141,17 @@ export function ExploreMap({
   onSelectCluster: (feature: MapClusterFeature) => void;
   onBackgroundClick: () => void;
   onFailure: () => void;
+  canSearchArea: boolean;
+  searchingArea: boolean;
+  canResetView: boolean;
+  onSearchArea: () => void;
+  onResetView: () => void;
   /** Sales over the same search, drawn as their own markers beside the rentals. */
   salePins?: SalePin[];
   onOpenSale?: (id: string) => void;
 }) {
   const container = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<RooomlyMap | null>(null);
+  const mapRef = useRef<DanpaHQMap | null>(null);
   const markers = useRef(new Map<string, { marker: MapMarker; element: HTMLElement; feature: MapFeature }>());
   const previewPin = useRef<MapMarker | null>(null);
   const saleMarkers = useRef(new Map<string, MapMarker>());
@@ -129,6 +159,9 @@ export function ExploreMap({
   // Counts maps made, so drawing follows a map that arrived after the features.
   const [mapped, setMapped] = useState(0);
   const [failed, setFailed] = useState(false);
+  const [capabilities, setCapabilities] = useState<MapCapabilities>(NO_MAP_CAPABILITIES);
+  const [baseMap, setBaseMap] = useState<BaseMapStyle>("roadmap");
+  const [streetView, setStreetView] = useState(false);
 
   // Callbacks change every render; the map's listeners are bound once and read
   // these. Refreshed after each render, never during it.
@@ -145,13 +178,14 @@ export function ExploreMap({
     for (const marker of saleMarkers.current.values()) marker.remove();
     saleMarkers.current.clear();
     for (const pin of salePins) {
+      if (!isValidPosition(pin.lat, pin.lng)) continue;
       const element = document.createElement("span");
-      element.className = "explore-marker explore-sale-marker";
-      element.textContent = pin.label;
+      paintPrice(element, pin.label, true);
       const marker = map.addMarker({
         position: { lat: pin.lat, lng: pin.lng },
         element,
         anchor: "bottom",
+        zIndex: 1,
         title: pin.title,
         onClick: () => latest.current.onOpenSale?.(pin.id),
       });
@@ -163,7 +197,7 @@ export function ExploreMap({
     const element = container.current;
     if (!element) return;
     let cancelled = false;
-    let created: RooomlyMap | null = null;
+    let created: DanpaHQMap | null = null;
     const unsubscribe: Array<() => void> = [];
     const fail = () => {
       if (cancelled) return;
@@ -187,7 +221,9 @@ export function ExploreMap({
         }
         created = map;
         mapRef.current = map;
+        setCapabilities(map.capabilities);
         unsubscribe.push(map.onMove((move) => latest.current.onMove(move)));
+        unsubscribe.push(map.onStreetViewChange(setStreetView));
         unsubscribe.push(map.onBackgroundClick(() => latest.current.onBackgroundClick()));
         setMapped((count) => count + 1);
       })
@@ -207,6 +243,7 @@ export function ExploreMap({
       previewPin.current = null;
       created?.destroy();
       mapRef.current = null;
+      setCapabilities(NO_MAP_CAPABILITIES);
     };
   }, [config]);
 
@@ -217,6 +254,7 @@ export function ExploreMap({
     const wanted = new Set<string>();
     for (const feature of features) {
       const key = markerKey(feature);
+      if (!isValidPosition(feature.lat, feature.lng)) continue;
       wanted.add(key);
       const existing = markers.current.get(key);
       if (existing) {
@@ -298,9 +336,59 @@ export function ExploreMap({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [previewAt?.lat, previewAt?.lng, mapped, previewNode]);
 
+  function toggleBaseMap() {
+    const next: BaseMapStyle = baseMap === "roadmap" ? "satellite" : "roadmap";
+    mapRef.current?.setBaseMap(next);
+    setBaseMap(next);
+  }
+
+  function toggleStreetView() {
+    const next = !streetView;
+    mapRef.current?.setStreetView(next);
+    setStreetView(next);
+  }
+
   return (
     <div className="explore-map-frame">
       <div ref={container} className="explore-map-canvas" role="region" aria-label="Map of rentals" />
+      {mapped && !failed ? (
+        <div className="explore-map-tools" role="toolbar" aria-label="Map view controls">
+          <button
+            type="button"
+            className="explore-map-tool"
+            aria-label={baseMap === "satellite" ? "Show standard map" : "Show satellite map"}
+            aria-pressed={baseMap === "satellite"}
+            data-label={baseMap === "satellite" ? "Standard map" : "Satellite view"}
+            disabled={!capabilities.satellite}
+            onClick={toggleBaseMap}
+          ><Icon name="map" /></button>
+          <button
+            type="button"
+            className="explore-map-tool"
+            aria-label={streetView ? "Close Street View" : "Open Street View at the map centre"}
+            aria-pressed={streetView}
+            data-label={streetView ? "Close Street View" : "Street View"}
+            disabled={!capabilities.streetView}
+            onClick={toggleStreetView}
+          ><Icon name="eye" /></button>
+          <button
+            type="button"
+            className={`explore-map-tool${canSearchArea ? " is-ready" : ""}${searchingArea ? " is-busy" : ""}`}
+            aria-label="Search this map area"
+            data-label={canSearchArea ? "Search this area" : "Move the map to search"}
+            disabled={!canSearchArea || searchingArea}
+            onClick={onSearchArea}
+          ><Icon name="explore" /></button>
+          <button
+            type="button"
+            className="explore-map-tool"
+            aria-label="Recenter map on these results"
+            data-label="Recenter results"
+            disabled={!canResetView}
+            onClick={onResetView}
+          ><Icon name="pin" /></button>
+        </div>
+      ) : null}
       {!mapped && !failed ? <div className="explore-map-loading" aria-hidden="true" /> : null}
       {failed ? (
         <div className="explore-map-failed" role="status">

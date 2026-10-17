@@ -167,7 +167,7 @@ class TestS3PresigningHost:
     def _backend(self, settings, *, internal, public):
         from apps.files.storage import S3StorageBackend
 
-        settings.AWS_STORAGE_BUCKET_NAME = "grp-test"
+        settings.AWS_STORAGE_BUCKET_NAME = "danpahq-test"
         settings.AWS_S3_ENDPOINT_URL = internal
         settings.AWS_S3_PUBLIC_ENDPOINT_URL = public
         settings.AWS_S3_REGION_NAME = "us-east-1"
@@ -190,7 +190,7 @@ class TestS3PresigningHost:
         # other host, which is exactly the 403 this replaces.
         rewritten = backend.client.generate_presigned_url(
             "get_object",
-            Params={"Bucket": "grp-test", "Key": "photos/room.jpg"},
+            Params={"Bucket": "danpahq-test", "Key": "photos/room.jpg"},
             ExpiresIn=300,
         )
         assert _signature(url) != _signature(rewritten)
@@ -263,7 +263,7 @@ class TestThePublicEndpointCanFollowTheRequest:
             # The Android emulator's address for the host machine.
             ("10.0.2.2:8000", "http://10.0.2.2:9000"),
             # A host with no port of its own still gets the storage port.
-            ("rooomly.test", "http://rooomly.test:9000"),
+            ("danpahq.test", "http://danpahq.test:9000"),
         ]:
             with use_context(client_host=host):
                 assert backend.public_endpoint() == expected

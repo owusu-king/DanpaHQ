@@ -19,6 +19,7 @@ import {
   type AgreementFilter,
 } from "@/lib/agreementMeaning";
 import { ApiFailure } from "@/lib/api";
+import { useDeepLinkedModal } from "@/lib/deepLinkedModal";
 import { type Lease } from "@/lib/console";
 import { useSession } from "@/lib/session";
 import { listMyLeases } from "@/lib/tenant";
@@ -71,9 +72,9 @@ function TenantLeases() {
   const filter: AgreementFilter =
     agreementFilters.map((option) => option.id).find((id) => id === search.get("show")) ?? "all";
   const query = search.get("q") ?? "";
-  // A plain click reads the agreement in a sheet over the list, kept in the
-  // address; the row is still a link to `/leases/<id>`.
-  const openId = search.get("agreement") ?? "";
+  // A plain click reads the agreement in a sheet over the list; the row is
+  // still a link to `/leases/<id>`. `?agreement=` from elsewhere opens it once.
+  const [openId, setOpenId] = useDeepLinkedModal("agreement");
 
   // A reload keeps what is on screen, so an accepted agreement updates in the
   // open sheet rather than the sheet losing it.
@@ -165,7 +166,7 @@ function TenantLeases() {
   const initialCurrentLimit = Math.min(current.length, history.length ? 4 : 5);
   const initialHistoryLimit = Math.min(history.length, Math.max(0, 5 - initialCurrentLimit));
   const opened = openId ? leases?.find((lease) => lease.id === openId) ?? null : null;
-  const open = useCallback((lease: Lease) => setParams({ agreement: lease.id }), [setParams]);
+  const open = useCallback((lease: Lease) => setOpenId(lease.id), [setOpenId]);
   const first = waiting[0] ? agreedTerms(waiting[0].lease) : null;
 
   return (
@@ -262,7 +263,7 @@ function TenantLeases() {
         )}
       </section>
 
-      <AgreementSheet lease={opened} onChanged={load} onClose={() => setParams({ agreement: "" })} />
+      <AgreementSheet lease={opened} onChanged={load} onClose={() => setOpenId("")} />
     </div>
   );
 }

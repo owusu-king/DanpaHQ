@@ -1,4 +1,4 @@
-"""The second half of Rooomly's chain, walked end to end over HTTP.
+"""The second half of Danpa HQ's chain, walked end to end over HTTP.
 
 `test_core_lifecycle_smoke` proves the rental contract from registration as far
 as a two-party rent record. Everything after that — processor-confirmed money,

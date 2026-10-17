@@ -4,7 +4,7 @@ Every outbound call is stubbed. What is under test is the translation layer —
 the part that decides what a Paystack status *means* — plus the two guards that
 exist to make a mistake cheap: the signature check and the live-key refusal.
 
-Nothing here proves Rooomly can take a payment. That takes Paystack's sandbox
+Nothing here proves Danpa HQ can take a payment. That takes Paystack's sandbox
 with real keys, and it is the next step rather than this one.
 """
 
@@ -61,7 +61,7 @@ class TestWebhookAuthenticity:
         assert event.provider_reference == "rmp_abc123"
         assert event.status == "succeeded"
         assert event.payment_method == "mobile_money"
-        # Paystack's subunit is the pesewa and Rooomly's `amount_minor` is the
+        # Paystack's subunit is the pesewa and Danpa HQ's `amount_minor` is the
         # pesewa. Nothing converts, and this is the assertion that keeps it so.
         assert event.amount_minor == 150000
         assert event.currency == "GHS"
@@ -189,7 +189,7 @@ class TestLiveModeGuard:
 
 
 class TestOutboundCalls:
-    """The request Rooomly sends, and what it makes of the answer."""
+    """The request Danpa HQ sends, and what it makes of the answer."""
 
     @pytest.fixture(autouse=True)
     def _test_key(self, settings):
@@ -398,7 +398,7 @@ class TestOutboundCalls:
         assert captured["json"]["settlement_bank"] == "040"
         assert "bank_code" not in captured["json"]
         metadata = json.loads(captured["json"]["metadata"])
-        assert metadata["rooomly_provisioning_reference"] == "019d-provisioning-operation"
+        assert metadata["danpahq_provisioning_reference"] == "019d-provisioning-operation"
         assert destination.token_reference == "ACCT_6uujpqtzmnufzkw"
         assert destination.provider_account_id == "1151727"
         assert destination.masked_account.endswith("6047")
@@ -419,7 +419,7 @@ class TestOutboundCalls:
                                 "id": 1151727,
                                 "subaccount_code": "ACCT_recovered",
                                 "metadata": json.dumps(
-                                    {"rooomly_provisioning_reference": "019d-operation"}
+                                    {"danpahq_provisioning_reference": "019d-operation"}
                                 ),
                             }
                         ],

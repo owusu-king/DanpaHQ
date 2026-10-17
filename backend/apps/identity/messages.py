@@ -103,13 +103,13 @@ def email_verification(code: str) -> tuple[str, str]:
     without opening the message.
     """
     return (
-        f"{code} is your Rooomly email code",
+        f"{code} is your Danpa HQ email code",
         (
             f"{code}\n\n"
-            "Enter this code in Rooomly to confirm this email address. "
+            "Enter this code in Danpa HQ to confirm this email address. "
             "It expires in 5 minutes.\n\n"
             "We will never ask you for this code. If you did not ask for it, "
             "ignore this email and nothing will change.\n\n"
-            "Rooomly"
+            "Danpa HQ"
         ),
     )

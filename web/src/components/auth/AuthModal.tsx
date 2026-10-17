@@ -10,6 +10,10 @@
  * product: the front door stays in view behind a quiet scrim, and closing the
  * dialog returns to it. The flows inside are unchanged; only their frame is.
  *
+ * Since 2026-10-16 the dialog opens over whichever page asked for it, from
+ * state (`AuthDialog`), and never changes the address: closing is a callback,
+ * not a navigation.
+ *
  * The frame is deliberately plain: a white surface with a hairline and a soft
  * shadow, the brand mark small at the top, a title in the page's own type at a
  * modest size, and the form. No gradient, no illustration, nothing that is
@@ -17,10 +21,7 @@
  */
 
 import { X } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, type ReactNode } from "react";
-
-import { FrontDoor } from "@/components/landing/FrontDoor";
 
 export function AuthModal({
   title,
@@ -29,7 +30,7 @@ export function AuthModal({
   progress,
   children,
   footer,
-  closeHref,
+  onClose,
 }: {
   title: string;
   description?: ReactNode;
@@ -40,28 +41,15 @@ export function AuthModal({
   children: ReactNode;
   /** The quiet row under the form: the other ways in and out. */
   footer?: ReactNode;
-  /**
-   * Where closing goes, when "back" would be wrong — the welcome, whose history
-   * is a sign-up that has already finished.
-   */
-  closeHref?: string;
+  /** Escape, the scrim and the close button all end here. */
+  onClose: () => void;
 }) {
-  const router = useRouter();
   const titleId = useId();
   const panel = useRef<HTMLDivElement>(null);
-
-  // Out is back where they came from on this site, else the front door.
-  function close() {
-    if (closeHref) {
-      router.replace(closeHref as never);
-      return;
-    }
-    const cameFromHere = typeof document !== "undefined"
-      && document.referrer.startsWith(window.location.origin)
-      && window.history.length > 1;
-    if (cameFromHere) router.back();
-    else router.push("/");
-  }
+  // The key handler is bound once; it reads the latest close through this.
+  const closeRef = useRef(onClose);
+  useEffect(() => { closeRef.current = onClose; }, [onClose]);
+  const close = () => closeRef.current();
 
   // Escape closes; the page behind does not scroll; focus starts in the form.
   useEffect(() => {
@@ -89,17 +77,12 @@ export function AuthModal({
       root.style.overflow = previous;
       document.removeEventListener("keydown", onKey);
     };
-    // Mount only: the dialog is the page.
+    // Mount only: one dialog, one set of listeners.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
     <>
-      {/* The page the dialog belongs to, shown and not usable. */}
-      <div className="auth-backdrop" aria-hidden="true" inert>
-        <FrontDoor />
-      </div>
-
       <div className="auth-layer">
         <div className="auth-scrim" onClick={close} aria-hidden="true" />
         <div
@@ -111,8 +94,8 @@ export function AuthModal({
         >
           <header className="auth-head">
             <div className="auth-brand">
-              <span className="auth-mark" aria-hidden="true">GR</span>
-              <span>Ghana Rental</span>
+              <span className="auth-mark" aria-hidden="true">DH</span>
+              <span>Danpa HQ</span>
             </div>
             <button type="button" className="auth-close" aria-label="Close" onClick={close}>
               <X aria-hidden="true" />
@@ -144,8 +127,8 @@ export function AuthSide({
   value,
   onChange,
 }: {
-  /** Null until chosen: an account that says nothing keeps the side it has. */
-  value: "tenant" | "provider" | null;
+  /** Tenant unless the visitor asked for, or picks, the other side (owner, 2026-10-16). */
+  value: "tenant" | "provider";
   onChange: (next: "tenant" | "provider") => void;
 }) {
   return (

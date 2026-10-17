@@ -224,13 +224,11 @@ function validContextIds(me: Me): string[] {
 /** Set while signed in, so a refresh on a shared page can hold its public
  *  layout back until the session answers (see the script in app/layout). */
 export const SESSION_HINT_KEY = "session.hint";
-export const VISITED_KEY = "installation.visited";
 
 function rememberSignedIn(signedIn: boolean) {
   try {
     if (signedIn) {
       window.localStorage.setItem(SESSION_HINT_KEY, "1");
-      window.localStorage.setItem(VISITED_KEY, "1");
     }
     else window.localStorage.removeItem(SESSION_HINT_KEY);
   } catch {
@@ -289,10 +287,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       finishAccountWelcome();
       setActiveContextState(null);
       try {
-        window.localStorage.setItem(VISITED_KEY, "1");
         window.localStorage.removeItem("account.active_context");
-        window.localStorage.removeItem("rooomly:recent-places:v2");
-        window.sessionStorage.removeItem("rooomly:visited-listings");
+        window.localStorage.removeItem("danpahq:recent-places:v2");
+        window.sessionStorage.removeItem("danpahq:visited-listings");
         window.sessionStorage.removeItem("rentals:return-scroll");
       } catch { /* Session credentials are already cleared in memory. */ }
       rememberSignedIn(false);

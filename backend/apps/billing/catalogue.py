@@ -120,7 +120,7 @@ ENTITLEMENTS: list[dict] = [
         "key": PRIORITY_SUPPORT,
         "name": "Priority support",
         "value_type": BOOLEAN,
-        "description": "Faster response from the Rooomly team.",
+        "description": "Faster response from the Danpa HQ team.",
     },
     {
         "key": API_ACCESS,

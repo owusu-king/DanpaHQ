@@ -76,6 +76,7 @@ export default function AppLayout() {
       <Stack.Screen name="sale/[id]" options={{ title: "For sale" }} />
       <Stack.Screen name="enquiries" options={{ title: "Enquiries" }} />
       <Stack.Screen name="enquiry/[id]" options={{ title: "Enquiry" }} />
+      <Stack.Screen name="support/[id]" options={{ title: "Support" }} />
       {/* Creating a property is its own journey, not a panel on the workspace —
           the same split the space flow already makes. `private-property` is its
           first step and this is steps two to six, so they share a title: from

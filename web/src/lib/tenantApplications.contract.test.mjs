@@ -5,7 +5,7 @@
  * and the record in the shared sheet. Property and unit identity lead each
  * row, `standing()` supplies the one human-readable status, current and past
  * records remain visible, and controls appear only when they are useful. A row
- * opens the record over the list, kept in the address, while retaining its
+ * opens the record over the list, held in page state, while retaining its
  * durable link for deep links and modified clicks.
  */
 
@@ -42,7 +42,7 @@ function rule(sheet, selector) {
   return sheet.slice(at, sheet.indexOf("}", at));
 }
 
-test("a tenant application opens over the list, kept in the address, and keeps its deep link", () => {
+test("a tenant application opens over the list, held in page state, and keeps its deep link", () => {
   assert.ok(existsSync(resolve(root, "web/app/applications/[requestId]/page.tsx")));
   assert.match(code(detail()), /applications\?\.find\(\(row\) => row\.id === requestId\)/);
   assert.match(code(detail()), /<ApplicationRecord/);
@@ -51,12 +51,12 @@ test("a tenant application opens over the list, kept in the address, and keeps i
   assert.doesNotMatch(body, /applications-split/);
   assert.doesNotMatch(css(), /\.applications-split/);
 
-  // The open record is part of the address, the way a provider's request is,
-  // so Back, a refresh or a copied link return to it.
-  assert.match(body, /search\.get\("application"\)/);
-  assert.match(body, /setParams\(\{ application: applicationId \}\)/);
+  // The open record is page state, the way a provider's request is; a link
+  // naming it (`?application=`) opens it once.
+  assert.match(body, /useDeepLinkedModal\("application"\)/);
+  assert.match(body, /const open = setOpenId;/);
   assert.match(body, /<ApplicationSheet/);
-  assert.match(body, /onClose=\{\(\) => setParams\(\{ application: "" \}\)\}/);
+  assert.match(body, /onClose=\{\(\) => setOpenId\(""\)\}/);
 
   // A plain click opens the sheet; any modified click is left to the link.
   assert.match(body, /event\.preventDefault\(\)/);

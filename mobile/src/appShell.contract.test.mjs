@@ -7,7 +7,7 @@
  * tenant's Home was the browsing page — and a path both workspaces answer opened
  * the provider's tab for anybody. And the app's colour went wrong twice: first
  * one flat beige under pages that titled themselves again, then ink chrome and a
- * gold accent that read as dark and brown. The shell is Rooomly's green now, over
+ * gold accent that read as dark and brown. The shell is Danpa HQ's green now, over
  * an ivory page and paper surfaces.
  */
 
@@ -35,7 +35,7 @@ test("nothing is drawn until the app knows who is looking and where they belong"
   // Decided while rendering, so the frame that would have shown the wrong screen
   // already knows it is the wrong one.
   assert.match(body, /const redirect = state\.status === "loading" \? null : entryRedirect\(state, activeContext, segments\);/);
-  assert.match(body, /const settled = state\.status !== "loading" && redirect === null;/);
+  assert.match(body, /const settled = state\.status !== "loading" && redirect === null && iconsReady;/);
   assert.match(body, /if \(redirect\) router\.replace\(redirect as never\);/);
 
   // One curtain over the navigator until then, and nothing behind it is read aloud.
@@ -101,20 +101,20 @@ test("the launch is three dots on the page's own ivory, and it lets go gently", 
   assert.doesNotMatch(read("app.json"), /"splash":/);
 
   // The wordmark itself stays — it is still both Homes' header title.
-  assert.match(code(read("src/components/shell/Wordmark.tsx")), /o: \{\s*color: shell\.markOnChrome,/);
+  assert.match(code(read("src/components/shell/Wordmark.tsx")), /accent: \{\s*color: shell\.markOnChrome,/);
 });
 
 test("green frames the page: kola above, ivory beneath, paper under the thumb", () => {
   const body = gate();
   const palette = code(read("src/shell.ts"));
 
-  // The navigators' own surfaces are Rooomly's, so a scene nobody painted is not
+  // The navigators' own surfaces are Danpa HQ's, so a scene nobody painted is not
   // React Navigation's default grey.
   assert.match(body, /<ThemeProvider value=\{navigationTheme\}>/);
   assert.match(palette, /background: shell\.canvas,/);
   assert.match(palette, /card: shell\.chrome,/);
 
-  // The chrome is Rooomly's green with white on it; the page is ivory and the
+  // The chrome is Danpa HQ's green with white on it; the page is ivory and the
   // surfaces on it are paper.
   assert.match(palette, /chrome: theme\.color\.kola\["600"\],/);
   assert.match(palette, /onChrome: theme\.color\.field\["0"\],/);

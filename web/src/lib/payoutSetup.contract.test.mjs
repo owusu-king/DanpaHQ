@@ -18,7 +18,7 @@ test("web payout setup is a permission-aware Portfolio setting", () => {
   assert.match(page, /current_user_role === "owner"/);
   assert.match(page, /current_user_role === "admin"/);
   assert.match(page, /state\?\.provisioning\?\.checking/);
-  assert.match(page, /Rooomly does not retain this number/);
+  assert.match(page, /Danpa HQ does not retain this number/);
   assert.match(page, /state\.profiles\.map/);
   assert.match(page, /Use this account/);
   assert.match(page, /Remove from future use/);

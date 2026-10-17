@@ -5,7 +5,7 @@ import { AlertTriangle, Check } from "lucide-react";
  *
  * Drawn the same on the welcome and on the provider's home, so the step that
  * was "next" a minute ago is recognisably the same step now: done (kola,
- * ticked), the one in hand (lagoon ring), waiting on Rooomly (gold, breathing),
+ * ticked), the one in hand (lagoon ring), waiting on Danpa HQ (gold, breathing),
  * needing attention (laterite), or still ahead.
  */
 export type TrackState = "done" | "next" | "waiting" | "attention" | "later";

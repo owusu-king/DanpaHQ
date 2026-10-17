@@ -32,7 +32,7 @@ type View =
   | { status: "ready"; organization: Organization; billing: PortfolioBilling; catalogue: PlanCatalogue };
 
 /**
- * Plan & billing: one Portfolio's plan, usage and payments to Rooomly.
+ * Plan & billing: one Portfolio's plan, usage and payments to Danpa HQ.
  *
  * Glance → understand → act. The plan, its price, how long it is paid for and
  * how much of it is in use lead the page; anything held above the plan's limits

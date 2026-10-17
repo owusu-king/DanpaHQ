@@ -17,12 +17,12 @@ import { theme } from "@/theme";
  * The values are local constants rather than tokens. `mobile/src/theme.ts` is
  * generated from `packages/design-tokens/tokens.json` with drift detection in
  * CI, and the same source compiles into the web stylesheet: promoting one
- * screen's palette into it would repaint both products. Where a Rooomly token
+ * screen's palette into it would repaint both products. Where a Danpa HQ token
  * already says the same thing, it is used, and the ground is derived from two.
  */
 
 /**
- * Rooomly's green let down into the warm ivory. `amount` is the share of
+ * Danpa HQ's green let down into the warm ivory. `amount` is the share of
  * `kola-600`: 0 is the ivory itself and 1 the header's own green.
  */
 export function softened(amount: number) {

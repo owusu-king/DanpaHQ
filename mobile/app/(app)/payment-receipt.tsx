@@ -155,7 +155,7 @@ export default function PaymentReceiptScreen() {
             <View style={{ borderTopWidth: 1, borderTopColor: theme.color.field["200"] }}>
               <ReceiptFact label="Issued" value={formatDateTime(receipt.issued_at)} />
               <ReceiptFact label="Method" value={paymentMethodLabel(receipt.payment_method)} />
-              <ReceiptFact label="Payment source" value={receipt.source === "EXTERNAL" ? "Paid externally and recorded through Rooomly" : "Processed through Rooomly"} />
+              <ReceiptFact label="Payment source" value={receipt.source === "EXTERNAL" ? "Paid externally and recorded through Danpa HQ" : "Processed through Danpa HQ"} />
               {receipt.source === "PLATFORM_PSP" ? <><ReceiptFact label="Processor" value={titleCase(receipt.provider)} /><ReceiptFact label="Transaction reference" value={receipt.provider_transaction_id} mono /></> : null}
             </View>
           )}

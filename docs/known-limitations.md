@@ -55,13 +55,13 @@ per Portfolio — is a commercial question the first live cohort will answer.
 ## Payment refunds are modeled but not operationally executable
 
 `payments.Refund` is an additive record and the provider adapter has a refund
-operation, but Rooomly does not expose a refund request or approval endpoint.
+operation, but Danpa HQ does not expose a refund request or approval endpoint.
 That is intentional. A completed refund must also reverse or offset the original
 allocation and restore the correct rent obligation balance without altering the
 immutable successful transaction or receipt. Those accounting and product rules
 have not yet been decided.
 
-Exposing the provider call first would allow money to leave while Rooomly still
+Exposing the provider call first would allow money to leave while Danpa HQ still
 described the rent as paid. The next refund slice must define full/partial refund
 allocation semantics, settlement effects, replacement receipt or credit-note
 evidence, permissions, failure recovery, and renewed collection behavior before
@@ -113,14 +113,13 @@ already there.
 
 ---
 
-## SMS provider — console only
+## SMS provider — one production integration
 
-No SMS gateway is integrated. `SMS_BACKEND=console` prints one-time codes
-to the API terminal window. In development that is useful; in production it
-would print credentials to a log. `production.py` requires `SMS_BACKEND` to
-be set, so a deploy without a real adapter fails to start rather than
-silently logging codes. The adapter interface (ADR 0009) is defined; no
-adapter is implemented.
+Arkesel SMS v2 is integrated and can be configured by an operations
+administrator. It is still the only production gateway, so provider redundancy
+and automatic failover do not exist. Development may use `console`; production
+defaults to `null` until Arkesel is explicitly enabled, preventing one-time
+codes from leaking into logs.
 
 ---
 
@@ -367,8 +366,8 @@ bandit, deploy checks, design tokens, web and mobile.
 
 ## The lease template is not approved for production use
 
-The Rooomly Ghana Residential Tenancy Agreement ships as
-`rooomly.gh.residential` version `2026.08-draft.1`, marked
+The Danpa HQ Ghana Residential Tenancy Agreement ships as
+`danpahq.gh.residential` version `2026.08-draft.1`, marked
 `requires_ghana_legal_review`. The lifecycle, rendering, evidence, PDF and both
 clients are complete and tested against it; **the wording is not.**
 
@@ -386,9 +385,9 @@ because they are product decisions, not wording:
 - **Advance rent.** Act 220 s. 25(5) distinguishes monthly and shorter tenancies
   from those exceeding six months. The current product rule applies one
   six-month threshold to monthly periods only, and warns rather than blocks.
-  Counsel must supply the full decision table and decide whether Rooomly refuses
+  Counsel must supply the full decision table and decide whether Danpa HQ refuses
   non-permitted terms outright.
-- **What acceptance is.** Rooomly records an acceptance with a hash, an account
+- **What acceptance is.** Danpa HQ records an acceptance with a hash, an account
   identity, a timestamp and request evidence. Until counsel says otherwise this
   is described as a *recorded acceptance* and never as a legal electronic
   signature.

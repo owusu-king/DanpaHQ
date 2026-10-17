@@ -2,7 +2,7 @@
  * The two screens that answer "what do I own, and what is in it".
  *
  * Properties and Units were the last provider surfaces left on the flat
- * background while Home, Tenants, Payments and Agreements stood on Rooomly's
+ * background while Home, Tenants, Payments and Agreements stood on Danpa HQ's
  * green with frosted panels. A list that reads as one product opening onto
  * screens that read as another is worse than neither.
  *

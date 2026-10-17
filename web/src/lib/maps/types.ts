@@ -1,5 +1,5 @@
 /**
- * Rooomly's map, in Rooomly's terms (ADR 0034).
+ * Danpa HQ's map, in Danpa HQ's terms (ADR 0034).
  *
  * Components draw through this interface — a map, markers made of our own
  * HTML, an area, and what the tenant does — and never through a mapping library.
@@ -11,6 +11,8 @@ import type { GeoBounds } from "@/lib/places";
 export type LatLng = { lat: number; lng: number };
 export type MapPadding = { top: number; right: number; bottom: number; left: number };
 export type MapMove = { bounds: GeoBounds; zoom: number; byUser: boolean };
+export type BaseMapStyle = "roadmap" | "satellite";
+export type MapCapabilities = { satellite: boolean; streetView: boolean };
 
 export type MapOptions = {
   center: LatLng;
@@ -25,7 +27,7 @@ export type MapOptions = {
 
 export type MarkerOptions = {
   position: LatLng;
-  /** The marker's own HTML, styled by Rooomly's CSS. */
+  /** The marker's own HTML, styled by Danpa HQ's CSS. */
   element: HTMLElement;
   /** Where the element sits on its point: by its bottom edge, or by its centre. */
   anchor: "bottom" | "center";
@@ -57,13 +59,18 @@ export interface MapShape {
   remove(): void;
 }
 
-export interface RooomlyMap {
+export interface DanpaHQMap {
+  readonly capabilities: MapCapabilities;
   fitBounds(bounds: GeoBounds, options: { padding: MapPadding; maxZoom?: number }): void;
   panBy(dx: number, dy: number): void;
+  setBaseMap(style: BaseMapStyle): void;
+  setStreetView(visible: boolean): void;
   addMarker(options: MarkerOptions): MapMarker;
   addArea(options: AreaOptions): MapShape;
   /** After each move settles: where the map is, and whether the tenant moved it. */
   onMove(listener: (move: MapMove) => void): () => void;
+  /** Street View can also be closed from the panorama's own chrome. */
+  onStreetViewChange(listener: (visible: boolean) => void): () => void;
   /** A tap on the map itself — not on a marker, nor anything drawn as one. */
   onBackgroundClick(listener: () => void): () => void;
   destroy(): void;

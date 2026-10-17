@@ -230,7 +230,7 @@ export default function ListingDetailScreen() {
     try {
       const url = Linking.createURL(`/listing/${id}`);
       await Share.share({
-        title: listing?.headline ?? "Rooomly rental",
+        title: listing?.headline ?? "Danpa HQ rental",
         message: listing
           ? `${listing.headline}\n${listing.rent_formatted} per month\n${url}`
           : url,

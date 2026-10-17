@@ -134,7 +134,7 @@ export type LeaseStructuredTerms = {
   occupants?: { name: string; relationship?: string }[];
   provider_responsibilities?: string[];
   tenant_responsibilities?: string[];
-  notice_channels?: ("Rooomly" | "email" | "SMS" | "written notice")[];
+  notice_channels?: ("Danpa HQ" | "email" | "SMS" | "written notice")[];
   additional_terms?: { title: string; body: string }[];
 };
 

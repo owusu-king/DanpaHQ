@@ -7,7 +7,7 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci \
     && sha256sum package-lock.json | awk '{print $1}' \
-       > node_modules/.rooomly-package-lock.sha256
+       > node_modules/.danpahq-package-lock.sha256
 
 COPY docker-entrypoint.sh ./docker-entrypoint.sh
 

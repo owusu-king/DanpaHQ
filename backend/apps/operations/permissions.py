@@ -27,6 +27,8 @@ class Capability(StrEnum):
     VIEW_BILLING = "view_billing"
     MANAGE_BILLING = "manage_billing"
     VIEW_AUDIT_LOGS = "view_audit_logs"
+    VIEW_CONFIGURATION = "view_configuration"
+    MANAGE_CONFIGURATION = "manage_configuration"
     MANAGE_PROFILE = "manage_profile"
 
 
@@ -57,6 +59,8 @@ ROLE_CAPABILITIES: dict[str, frozenset[Capability]] = {
             Capability.VIEW_PAYMENTS,
             Capability.RECONCILE_PAYMENTS,
             Capability.MANAGE_BILLING,
+            Capability.VIEW_CONFIGURATION,
+            Capability.MANAGE_CONFIGURATION,
         }
     ),
     ManagementRole.SUPPORT_ADMIN: frozenset(COMMON),

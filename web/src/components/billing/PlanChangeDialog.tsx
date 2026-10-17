@@ -213,7 +213,7 @@ function PlanChangeFlow({ start, organizationId, billing, catalogue, onClose, on
     void check(pendingId, true);
     const timer = window.setInterval(() => {
       ticks += 1;
-      // Rooomly's own record every few seconds; the provider itself less often.
+      // Danpa HQ's own record every few seconds; the provider itself less often.
       void check(pendingId, ticks % 5 === 0);
       if (ticks === 30) setSlow(true);
       if (ticks >= 120) window.clearInterval(timer);
@@ -320,7 +320,7 @@ function PlanChangeFlow({ start, organizationId, billing, catalogue, onClose, on
   async function checkNow(id: string) {
     setBusy("check");
     const next = await check(id, true);
-    setError(next ? "" : "We could not reach Rooomly. Check your connection and try again.");
+    setError(next ? "" : "We could not reach Danpa HQ. Check your connection and try again.");
     setBusy(null);
   }
 

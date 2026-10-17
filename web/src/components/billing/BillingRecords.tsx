@@ -20,7 +20,7 @@ import { getPaymentReceiptDocument, paymentMethodLabel } from "@/lib/payments";
 
 /**
  * The quieter half of the page: how the subscription is billed, what the
- * Portfolio has paid Rooomly, and how the plan got here.
+ * Portfolio has paid Danpa HQ, and how the plan got here.
  *
  * Plan, subscription, invoice and payment stay distinct. The subscription's
  * terms are a short list of facts; each payment row is an invoice and what
@@ -209,7 +209,7 @@ function ReceiptDownload({ receiptId, number }: { receiptId: string; number: str
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `rooomly-receipt-${number}.pdf`;
+      link.download = `danpahq-receipt-${number}.pdf`;
       document.body.append(link);
       link.click();
       link.remove();

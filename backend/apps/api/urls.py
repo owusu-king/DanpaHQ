@@ -799,6 +799,16 @@ urlpatterns = [
         operations_views.MyAccountDeletionView.as_view(),
         name="me-account-deletion",
     ),
+    path(
+        "me/support-cases/",
+        operations_views.MySupportCasesView.as_view(),
+        name="me-support-cases",
+    ),
+    path(
+        "me/support-cases/<uuid:pk>/",
+        operations_views.MySupportCaseDetailView.as_view(),
+        name="me-support-case-detail",
+    ),
     path("management/", include("apps.operations.urls")),
     *auth_patterns,
     *me_patterns,

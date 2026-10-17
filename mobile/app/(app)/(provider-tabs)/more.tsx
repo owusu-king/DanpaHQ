@@ -10,6 +10,7 @@ import { resolveEntryRoute } from "@/navigation";
 import { listNotifications } from "@/notifications";
 import { listMyPortfolioInvitations } from "@/organizations";
 import { chooseWorkspace } from "@/workspace";
+import { ProviderTabFrame } from "@/components/nav/NativeTabFrame";
 
 /**
  * Everything that is not a tab, laid out like WhatsApp's "You" tab (owner,
@@ -24,7 +25,7 @@ import { chooseWorkspace } from "@/workspace";
  * offered Units and Listings gets a menu of dead ends, which reads as the app
  * being broken rather than as a role doing its job.
  */
-export default function ProviderMoreScreen() {
+function ProviderMoreScreen() {
   const router = useRouter();
   const { activeContext, state, refreshMe, signOut } = useAuth();
   const photoUri = useProfilePhoto();
@@ -152,5 +153,14 @@ export default function ProviderMoreScreen() {
       sections={sections}
       notice={error ? <Notice tone="error" title={error} /> : null}
     />
+  );
+}
+
+/** On iOS the tab sits in the native bar, which draws no header; see `ProviderTabFrame`. */
+export default function ProviderMenuTab() {
+  return (
+    <ProviderTabFrame tab="menu">
+      <ProviderMoreScreen />
+    </ProviderTabFrame>
   );
 }

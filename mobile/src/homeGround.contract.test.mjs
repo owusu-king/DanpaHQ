@@ -3,7 +3,7 @@
  *
  * It was a warm stone, which under the kola header read as a second, duller
  * brand, with cream cards a shade of the same beige. The product owner asked for
- * a very soft, desaturated version of Rooomly's green — tonal, faintly glassy,
+ * a very soft, desaturated version of Danpa HQ's green — tonal, faintly glassy,
  * light enough to read on — with cards that lift by tone rather than by heavy
  * shadows or borders, and without turning the whole interface green.
  *
@@ -52,7 +52,7 @@ const amounts = (source) => Object.fromEntries(
 );
 const colour = (source, name) => source.match(new RegExp(`${name}: "([^"]+)"`))[1];
 
-test("the ground is Rooomly's green let down into the ivory: soft, desaturated, never raw", () => {
+test("the ground is Danpa HQ's green let down into the ivory: soft, desaturated, never raw", () => {
   const source = plinth();
 
   // Derived from the two tokens rather than typed in, so it follows the brand.
@@ -124,7 +124,7 @@ test("both Homes stand on it in every state, and every other tab keeps the ivory
   const tenant = code(read("app/(app)/(tabs)/index.tsx"));
 
   // The provider's first Property, skeleton and Portfolio are all inside one ground.
-  assert.match(provider, /export default function ProviderHomeScreen\(\) \{\s*return \(\s*<HomeGround>\s*<ProviderHome \/>\s*<\/HomeGround>/);
+  assert.match(provider, /function ProviderHomeScreen\(\) \{\s*return \(\s*<HomeGround>\s*<ProviderHome \/>\s*<\/HomeGround>/);
   // The tenant's Home stands on it in both states, exactly like the provider's.
   assert.match(tenant, /<HomeGround>\s*<DiscoveryHome \/>\s*<\/HomeGround>/);
   // And it lists nothing: Explore is the tab with the catalogue, the search

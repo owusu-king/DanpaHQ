@@ -1,8 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/Button";
 import { Avatar, Icon } from "@/components/portal/icons";
@@ -17,6 +16,7 @@ import {
   gridKeyNavigation,
 } from "@/components/workspace/Workspace";
 import { ApiFailure } from "@/lib/api";
+import { useDeepLinkedModal } from "@/lib/deepLinkedModal";
 import {
   getOrganizationPortfolio,
   listOrganizations,
@@ -57,12 +57,10 @@ export default function ProviderTenantsPage() {
 
 function ProviderTenants() {
   const { state, activeContext } = useSession();
-  const router = useRouter();
-  const pathname = usePathname();
-  const search = useSearchParams();
-  // A plain click reads the tenancy in a sheet over the cards, kept in the
-  // address; the card is still a link to `/tenants/<id>` for a new tab.
-  const openId = search.get("tenant") ?? "";
+  // A plain click reads the tenancy in a sheet over the cards; the card is
+  // still a link to `/tenants/<id>` for a new tab. `?tenant=` from Home or a
+  // rent account opens it once.
+  const [openId, setOpenTenant] = useDeepLinkedModal("tenant");
   const [organizations, setOrganizations] = useState<Organization[] | null>(null);
   const [organizationId, setOrganizationId] = useState("");
   const [portfolio, setPortfolio] = useState<OrganizationPortfolio | null>(null);
@@ -166,15 +164,6 @@ function ProviderTenants() {
   const pastTenants = useMemo(() => portfolio?.past_tenants ?? [], [portfolio]);
   const everyone = useMemo(() => [...tenants, ...pastTenants], [tenants, pastTenants]);
   const openedTenant = openId ? tenants.find((tenant) => tenancyKey(tenant) === openId) ?? null : null;
-
-  // `replace`, and only the one parameter: the view lives in the hash.
-  const setOpenTenant = useCallback((id: string) => {
-    const next = new URLSearchParams(search.toString());
-    if (id) next.set("tenant", id);
-    else next.delete("tenant");
-    const query = next.toString();
-    router.replace(`${pathname}${query ? `?${query}` : ""}${window.location.hash}` as never, { scroll: false });
-  }, [pathname, router, search]);
 
   const counts = useMemo(() => ({
     all: everyone.length,
@@ -344,7 +333,7 @@ function ProviderTenants() {
           <PanelState
             icon="properties"
             title="Add a Property first"
-            body="Tenant operations begin with a Unit. Add the first Property in your Rooomly Portfolio."
+            body="Tenant operations begin with a Unit. Add the first Property in your Danpa HQ Portfolio."
             action={<Link href="/properties/new" className="btn btn-secondary btn-sm">Add Property</Link>}
           />
         ) : null}

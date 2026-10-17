@@ -1,4 +1,4 @@
-"""Versioned Rooomly agreement releases.
+"""Versioned Danpa HQ agreement releases.
 
 The current release is intentionally marked as requiring Ghana-qualified legal
 review. It exists so the lifecycle, rendering, evidence and clients can be
@@ -12,7 +12,7 @@ from django.utils import timezone
 
 from .models import LeaseTemplate, TemplateReviewStatus
 
-CANONICAL_TEMPLATE_CODE = "rooomly.gh.residential"
+CANONICAL_TEMPLATE_CODE = "danpahq.gh.residential"
 CANONICAL_TEMPLATE_VERSION = "2026.08-draft.1"
 
 SOURCE_MANIFEST = [
@@ -48,7 +48,7 @@ CLAUSES = [
         "body": (
             "${provider_name} (the Provider) agrees to let ${premises} at ${address} to "
             "${tenant_name} (the Tenant) for residential use on the terms in this agreement. "
-            "The parties and premises are identified from Rooomly records current when the "
+            "The parties and premises are identified from Danpa HQ records current when the "
             "offer is sent."
         ),
     },
@@ -74,7 +74,7 @@ CLAUSES = [
         "id": "advance_and_receipts",
         "title": "4. Advance rent and receipts",
         "body": (
-            "The agreed advance is ${advance_months} month(s). Rooomly records the legal-policy "
+            "The agreed advance is ${advance_months} month(s). Danpa HQ records the legal-policy "
             "version considered when this offer was sent. A receipt for a rent payment should "
             "identify the premises, whether furnished, the amount, period covered and Tenant, "
             "together with any stamp required by law."
@@ -129,7 +129,7 @@ CLAUSES = [
         "id": "ending_and_possession",
         "title": "10. Ending the arrangement",
         "body": (
-            "Ending a Rooomly tenancy record does not itself recover possession or amount to an "
+            "Ending a Danpa HQ tenancy record does not itself recover possession or amount to an "
             "eviction. The parties must follow applicable Ghana law and any required notice or "
             "lawful process."
         ),
@@ -138,7 +138,7 @@ CLAUSES = [
         "id": "records_notices_disputes",
         "title": "11. Records, notices and disputes",
         "body": (
-            "Rooomly preserves the rendered agreement, its version and recorded acceptance "
+            "Danpa HQ preserves the rendered agreement, its version and recorded acceptance "
             "evidence. The permitted notice channels are ${notice_channels}. Nothing here "
             "removes a party's right to use the Rent Control Department, a competent court or "
             "another lawful process."
@@ -149,7 +149,7 @@ CLAUSES = [
         "title": "12. Amendments and additional terms",
         "body": (
             "Additional terms appear below and are identified as custom. They do not silently "
-            "rewrite Rooomly's standard clauses. A material change after an offer or acceptance "
+            "rewrite Danpa HQ's standard clauses. A material change after an offer or acceptance "
             "requires a new agreement version and renewed review and acceptance as appropriate."
         ),
     },
@@ -164,7 +164,7 @@ def canonical_template() -> LeaseTemplate:
         defaults={
             "jurisdiction": "GH",
             "agreement_type": "residential_tenancy",
-            "title": "Rooomly Ghana Residential Tenancy Agreement",
+            "title": "Danpa HQ Ghana Residential Tenancy Agreement",
             "review_status": TemplateReviewStatus.REQUIRES_REVIEW,
             "clauses": CLAUSES,
             "source_manifest": SOURCE_MANIFEST,

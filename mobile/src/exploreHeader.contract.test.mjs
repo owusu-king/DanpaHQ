@@ -21,8 +21,16 @@ const button = () => read("src/components/nav/HeaderCircleButton.tsx");
 
 test("the actions belong to the Explore tab, not to the screen behind it", () => {
   // Still one component in two places — the reason the scoping matters.
-  assert.match(read("app/(app)/(tabs)/explore.tsx"), /export \{ default \} from "\.\.\/search"/);
+  // The tab renders the same screen, framed for iOS's native tab bar.
+  const tab = read("app/(app)/(tabs)/explore.tsx");
+  assert.match(tab, /import SearchScreen from "\.\.\/search";/);
+  assert.match(tab, /<RenterTabFrame tab="explore">\s*<SearchScreen \/>/);
   assert.match(read("app/(app)/_layout.tsx"), /name="search"/);
+
+  // Inside the tabs means either kind of tabs: the native bar provides no JS
+  // tab context, so the check reads the native frame's context too.
+  assert.match(code(read("src/platform.ts")), /return jsTabs \|\| nativeTabs;/);
+  assert.match(code(read("src/components/nav/NativeTabFrame.tsx")), /<NativeTabContext\.Provider value>/);
 
   // Explore draws its own top now — one green hero holding the title, these
   // actions, Rent or Buy, the search and the filters (owner, 2026-09-29) — so

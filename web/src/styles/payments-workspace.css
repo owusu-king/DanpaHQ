@@ -91,7 +91,7 @@
 .payment-status-page { justify-items: start; }
 .payment-status-mark { display: grid; width: 48px; height: 48px; place-items: center; border: 1px solid var(--color-kola-600); border-radius: 50%; color: var(--color-kola-600); font-size: 1.5rem; }
 .payment-status-amount { margin: 0; }
-.payment-link-button, .payment-secondary-link { display: inline-flex; min-height: var(--target-min); align-items: center; padding: 0 var(--space-5); border-radius: var(--radius-md); font-weight: 600; text-decoration: none; }
+.payment-link-button, .payment-secondary-link { display: inline-flex; min-height: 2.625rem; align-items: center; padding: 0 var(--space-4); border-radius: var(--radius-md); font-size: .875rem; font-weight: 650; text-decoration: none; }
 .payment-link-button { color: var(--color-field-0); background: var(--color-kola-600); }
 .payment-secondary-link { color: var(--color-ink-900); border: var(--border-hairline) solid var(--color-field-300); }
 .payment-receipt { padding: var(--space-8); background: var(--color-field-0); border: var(--border-hairline) solid var(--color-field-200); box-shadow: var(--shadow-surface); }

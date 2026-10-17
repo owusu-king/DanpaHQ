@@ -2,6 +2,7 @@
 
 import { usePathname } from "next/navigation";
 
+import { AuthDialogProvider } from "@/components/auth/AuthDialog";
 import { SiteNav } from "@/components/SiteNav";
 import { ToastProvider } from "@/components/toast/Toaster";
 import { PortalShell } from "@/components/portal/PortalShell";
@@ -33,7 +34,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <SessionProvider>
       <ToastProvider>
-        <ConsumerChrome pathname={pathname}>{children}</ConsumerChrome>
+        {/* Above the chrome, so the dialog survives the move from an old auth
+            address to the front door, and from any page to the dashboard. */}
+        <AuthDialogProvider>
+          <ConsumerChrome pathname={pathname}>{children}</ConsumerChrome>
+        </AuthDialogProvider>
       </ToastProvider>
     </SessionProvider>
   );

@@ -1,7 +1,7 @@
 """Where a Portfolio's settled rent is sent, and who may change it.
 
 The most dangerous write in the product. Everything else in payments moves
-money *towards* Rooomly's records; this decides where it leaves to. An attacker
+money *towards* Danpa HQ's records; this decides where it leaves to. An attacker
 who can change a payout destination does not need to break anything else.
 
 Three properties, therefore, and none of them optional:
@@ -17,7 +17,7 @@ Three properties, therefore, and none of them optional:
   audit log, with the destination recorded as its masked form so the log is
   useful without becoming a second copy of the account number.
 
-**Nothing stored here is a credential.** Rooomly holds an opaque provider token
+**Nothing stored here is a credential.** Danpa HQ holds an opaque provider token
 and a masked string. PINs, OTPs and card credentials are always refused. The
 dedicated Paystack provisioning function receives a bank account number only
 long enough to create the subaccount; it never stores or logs the raw value.
@@ -113,7 +113,7 @@ def _reject_credentials(data: dict) -> None:
             # Deliberately does not echo the value, or the key's contents, into
             # the message or the log.
             raise ValidationFailed(
-                "Account credentials are never sent to Rooomly. "
+                "Account credentials are never sent to Danpa HQ. "
                 "Complete the destination with your payment provider instead."
             )
 
@@ -146,11 +146,11 @@ def payout_destination_state(
 
 
 def refresh_payout_verification(*, organization, user, profile_id=None) -> PayoutProfile:
-    """Pull the provider's current subaccount decision into Rooomly.
+    """Pull the provider's current subaccount decision into Danpa HQ.
 
     A client can ask for the check, but cannot supply or decide the result. The
     only fact that moves this profile to verified is the PSP's authenticated
-    response for the exact immutable subaccount reference Rooomly stored.
+    response for the exact immutable subaccount reference Danpa HQ stored.
     """
     assert_may_manage_payouts(organization=organization, user=user)
     profiles = PayoutProfile.objects.filter(organization=organization).exclude(
@@ -671,7 +671,7 @@ def provision_paystack_subaccount(
 
     A bank account number is sensitive personal data, but it is not an account
     credential such as a PIN or OTP. It is sent directly to Paystack, never
-    written to Rooomly's database or audit log, and only the returned ACCT code,
+    written to Danpa HQ's database or audit log, and only the returned ACCT code,
     numeric id and masked display value survive this call.
     """
     assert_may_manage_payouts(organization=organization, user=user)
@@ -760,7 +760,7 @@ def mark_payout_verified(
     """Record the provider's confirmation that the destination is real.
 
     Called from an adapter or an operations task, never from a client request.
-    Rooomly does not get to decide that an account it has never contacted is
+    Danpa HQ does not get to decide that an account it has never contacted is
     verified.
     """
     if profile is not None:
@@ -962,7 +962,7 @@ def ready_payout_organization_ids(*, user, provider_name: str) -> set[str]:
 
 
 def collection_rail() -> tuple[object | None, str]:
-    """The configured rail, or why rent cannot be collected through Rooomly.
+    """The configured rail, or why rent cannot be collected through Danpa HQ.
 
     Returns ``(provider, "")`` when checkout could honestly be offered by some
     Portfolio, or ``(None, reason_token)`` when no rail exists at all. Deciding

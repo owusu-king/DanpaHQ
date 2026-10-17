@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+
 from django.http import HttpResponse
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
@@ -94,7 +96,7 @@ class ReceiptDetailView(APIView):
 
 
 class ReceiptDocumentView(APIView):
-    """The exact PDF frozen when the processor-confirmed receipt was issued."""
+    """The stored receipt PDF, or a non-mutating copy prepared for printing."""
 
     permission_classes = [IsAuthenticated]
 
@@ -102,12 +104,19 @@ class ReceiptDocumentView(APIView):
         receipt = services.get_receipt_or_404(pk, user=request.user)
         if not receipt.final_pdf:
             raise NotFound("The final receipt document is not available.")
-        inline = request.query_params.get("disposition") == "inline"
+        print_copy = request.query_params.get("disposition") == "print"
+        if print_copy:
+            from .receipts import render_pdf
+
+            document = render_pdf(receipt.breakdown)
+        else:
+            document = bytes(receipt.final_pdf)
+        inline = request.query_params.get("disposition") in {"inline", "print"}
         disposition = "inline" if inline else "attachment"
-        filename = f"rooomly-receipt-{receipt.receipt_number}.pdf"
-        response = HttpResponse(bytes(receipt.final_pdf), content_type="application/pdf")
+        filename = f"danpahq-receipt-{receipt.receipt_number}.pdf"
+        response = HttpResponse(document, content_type="application/pdf")
         response["Content-Disposition"] = f'{disposition}; filename="{filename}"'
-        response["ETag"] = f'"{receipt.final_pdf_hash}"'
+        response["ETag"] = f'"{hashlib.sha256(document).hexdigest()}"'
         response["X-Content-Type-Options"] = "nosniff"
         return response
 
@@ -124,7 +133,7 @@ class PaymentWebhookView(APIView):
             headers=request.headers,
         )
         if intent is None:
-            # Authenticated but not about a Rooomly payment. Acknowledged so the
+            # Authenticated but not about a Danpa HQ payment. Acknowledged so the
             # provider stops retrying it; recorded so it is still evidence.
             return Response({"received": True, "ignored": True})
         return Response({"received": True, "intent_status": intent.status})

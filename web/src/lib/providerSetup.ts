@@ -38,7 +38,7 @@ export function propertyNextStep({
       label: "Create property",
       href: "/properties/new",
       reason:
-        "Rooomly files it into your Portfolio — the one your account was given when it was approved. You can rename it or add a Team later.",
+        "Danpa HQ files it into your Portfolio — the one your account was given when it was approved. You can rename it or add a Team later.",
     };
   }
 

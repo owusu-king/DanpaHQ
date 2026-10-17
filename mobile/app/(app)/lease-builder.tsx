@@ -18,11 +18,11 @@ import { theme } from "@/theme";
 /**
  * Preparing a tenancy agreement, on a phone.
  *
- * This is the highest-trust thing a provider does in Rooomly, and the screen it
+ * This is the highest-trust thing a provider does in Danpa HQ, and the screen it
  * replaced was a modal with a rent box and one free-text field that sent the
  * offer the moment it was submitted. The difference is not decoration:
  *
- * **The provider supplies terms; Rooomly writes the agreement.** Nobody drafts
+ * **The provider supplies terms; Danpa HQ writes the agreement.** Nobody drafts
  * a tenancy agreement here. The seven stops below collect structured values and
  * the backend renders them into the versioned Ghana template. That is what
  * makes the standard clauses controlled rather than editable, and it is why
@@ -124,7 +124,7 @@ export default function LeaseBuilderScreen() {
         .map((name) => ({ name })),
       provider_responsibilities: form.providerResponsibilities,
       tenant_responsibilities: form.tenantResponsibilities,
-      notice_channels: ["Rooomly", "written notice"],
+      notice_channels: ["Danpa HQ", "written notice"],
       additional_terms:
         form.customTitle.trim() && form.customBody.trim()
           ? [{ title: form.customTitle.trim(), body: form.customBody.trim() }]
@@ -263,7 +263,7 @@ export default function LeaseBuilderScreen() {
       {step === 0 ? (
         <Known
           title="Parties are already known"
-          body="The provider comes from your current Rooomly account. The tenant comes from the accepted request. Both identities are copied into the frozen agreement."
+          body="The provider comes from your current Danpa HQ account. The tenant comes from the accepted request. Both identities are copied into the frozen agreement."
         />
       ) : null}
       {step === 1 ? (
@@ -355,7 +355,7 @@ export default function LeaseBuilderScreen() {
           <View style={{ height: 1, backgroundColor: theme.color.field["300"] }} />
           <Type variant="bodyStrong">Additional custom term</Type>
           <Type variant="caption">
-            Provider-supplied wording is labelled separately from Rooomly standard clauses.
+            Provider-supplied wording is labelled separately from Danpa HQ standard clauses.
           </Type>
           <Field
             label="Term title"

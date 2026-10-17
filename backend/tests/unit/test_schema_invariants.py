@@ -276,7 +276,7 @@ def test_a_live_paystack_key_needs_a_second_deliberate_switch():
     adapter = Path(__file__).resolve().parents[2] / "apps/payments/paystack.py"
     source = adapter.read_text(encoding="utf-8")
     assert 'key.startswith("sk_live_")' in source
-    assert 'getattr(settings, "PAYSTACK_ALLOW_LIVE", False)' in source
+    assert 'configuration_value("PAYSTACK_ALLOW_LIVE", False)' in source
     # Defaults off, in the one place the default is set.
     base = Path(__file__).resolve().parents[2] / "config/settings/base.py"
     assert 'PAYSTACK_ALLOW_LIVE = env("PAYSTACK_ALLOW_LIVE", False, cast=bool)' in base.read_text(

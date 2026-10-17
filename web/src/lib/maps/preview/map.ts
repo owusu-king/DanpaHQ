@@ -9,7 +9,7 @@ import type {
   MapOptions,
   MapShape,
   MarkerOptions,
-  RooomlyMap,
+  DanpaHQMap,
 } from "../types";
 
 const TILE = 256;
@@ -49,21 +49,21 @@ function pointInside(point: LatLng, bounds: GeoBounds): LatLng {
  * Keyless development basemap. It uses only tiles currently visible to a human,
  * relies on normal browser HTTP caching, and never preloads zoom levels.
  * Production chooses Google instead; this adapter is not a payout or API key
- * workaround and does not change Rooomly's authoritative map search.
+ * workaround and does not change Danpa HQ's authoritative map search.
  */
-export async function createPreviewMap(container: HTMLElement, options: MapOptions): Promise<RooomlyMap> {
+export async function createPreviewMap(container: HTMLElement, options: MapOptions): Promise<DanpaHQMap> {
   const root = document.createElement("div");
-  root.className = `rooomly-preview-map${options.gestures === "cooperative" ? " is-cooperative" : ""}`;
+  root.className = `danpahq-preview-map${options.gestures === "cooperative" ? " is-cooperative" : ""}`;
   const tiles = document.createElement("div");
-  tiles.className = "rooomly-preview-tiles";
+  tiles.className = "danpahq-preview-tiles";
   const shapesLayer = document.createElement("div");
-  shapesLayer.className = "rooomly-preview-shapes";
+  shapesLayer.className = "danpahq-preview-shapes";
   const markerLayer = document.createElement("div");
-  markerLayer.className = "rooomly-preview-markers";
+  markerLayer.className = "danpahq-preview-markers";
   const controls = document.createElement("div");
-  controls.className = "rooomly-preview-controls";
+  controls.className = "danpahq-preview-controls";
   const attribution = document.createElement("a");
-  attribution.className = "rooomly-preview-attribution";
+  attribution.className = "danpahq-preview-attribution";
   attribution.href = "https://www.openstreetmap.org/copyright";
   attribution.target = "_blank";
   attribution.rel = "noopener noreferrer";
@@ -123,7 +123,7 @@ export async function createPreviewMap(container: HTMLElement, options: MapOptio
           image.draggable = false;
           image.decoding = "async";
           image.src = `${TILE_URL}/${key}.png`;
-          image.className = "rooomly-preview-tile";
+          image.className = "danpahq-preview-tile";
           tileNodes.set(key, image);
           tiles.append(image);
         }
@@ -173,7 +173,7 @@ export async function createPreviewMap(container: HTMLElement, options: MapOptio
 
   let drag: { x: number; y: number; startX: number; startY: number; moved: boolean } | null = null;
   root.addEventListener("pointerdown", (event) => {
-    if (event.button !== 0 || (event.target as Element).closest(".rooomly-preview-marker, .rooomly-preview-controls, .rooomly-preview-attribution")) return;
+    if (event.button !== 0 || (event.target as Element).closest(".danpahq-preview-marker, .danpahq-preview-controls, .danpahq-preview-attribution")) return;
     if (options.gestures === "cooperative" && event.pointerType === "touch" && !event.isPrimary) return;
     drag = { x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, moved: false };
     root.setPointerCapture(event.pointerId);
@@ -207,6 +207,7 @@ export async function createPreviewMap(container: HTMLElement, options: MapOptio
   requestAnimationFrame(() => { render(); emitMove(false); });
 
   return {
+    capabilities: { satellite: false, streetView: false },
     fitBounds(bounds, { padding, maxZoom }) {
       const { width, height } = size();
       if (!width || !height) return;
@@ -232,9 +233,11 @@ export async function createPreviewMap(container: HTMLElement, options: MapOptio
       render();
       emitMove(false);
     },
+    setBaseMap() {},
+    setStreetView() {},
     addMarker({ position, element, anchor, zIndex, title, onClick }: MarkerOptions): MapMarker {
       const wrapper = document.createElement("div");
-      wrapper.className = "rooomly-preview-marker";
+      wrapper.className = "danpahq-preview-marker";
       wrapper.style.zIndex = String(zIndex ?? 1);
       if (title) wrapper.title = title;
       if (onClick) {
@@ -261,7 +264,7 @@ export async function createPreviewMap(container: HTMLElement, options: MapOptio
     },
     addArea({ center: point, radiusMeters, color, fillOpacity, dashed }: AreaOptions): MapShape {
       const node = document.createElement("div");
-      node.className = "rooomly-preview-area";
+      node.className = "danpahq-preview-area";
       node.style.borderColor = color;
       node.style.borderStyle = dashed ? "dashed" : "solid";
       node.style.backgroundColor = color;
@@ -273,6 +276,7 @@ export async function createPreviewMap(container: HTMLElement, options: MapOptio
       return { remove() { shapeNodes.delete(record); node.remove(); } };
     },
     onMove(listener) { moveListeners.add(listener); return () => { moveListeners.delete(listener); }; },
+    onStreetViewChange() { return () => {}; },
     onBackgroundClick(listener) { clickListeners.add(listener); return () => { clickListeners.delete(listener); }; },
     destroy() {
       destroyed = true;

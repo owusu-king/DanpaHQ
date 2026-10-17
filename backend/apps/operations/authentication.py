@@ -15,8 +15,8 @@ from apps.core.crypto import hash_secret, hash_token
 
 from .models import ManagementSession
 
-SESSION_COOKIE = "grp_management_session"
-CSRF_COOKIE = "grp_management_csrf"
+SESSION_COOKIE = "danpahq_management_session"
+CSRF_COOKIE = "danpahq_management_csrf"
 CSRF_HEADER = "X-Management-CSRF"
 UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 

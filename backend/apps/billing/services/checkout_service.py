@@ -155,7 +155,7 @@ def quote(*, organization, plan_code: str, interval: str, now=None) -> Quote:
     current = subscription.plan if subscription is not None else Plan.objects.get(code="FREE")
     plan = Plan.objects.filter(code=str(plan_code or "").strip().upper(), is_active=True).first()
     if plan is None or (not plan.is_public and plan.id != current.id):
-        raise ValidationFailed("Choose one of Rooomly's plans.")
+        raise ValidationFailed("Choose one of Danpa HQ's plans.")
 
     common = {
         "plan": plan,
@@ -421,7 +421,7 @@ def refresh_checkout(*, organization, user, intent_id):
     if intent.status in OPEN_INTENT_STATUSES and intent.provider_reference:
         # A provider that cannot answer right now is not a payment decision. The
         # signed webhook and the reconciliation sweep both still will; the payer
-        # sees the state Rooomly already holds rather than an error about
+        # sees the state Danpa HQ already holds rather than an error about
         # somebody else's outage.
         with contextlib.suppress(ProviderUnavailable):
             payment_services.refresh_intent_from_provider(intent=intent, user=user)

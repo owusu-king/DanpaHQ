@@ -26,7 +26,7 @@ test("mobile checkout is a dedicated journey with a server-authoritative return"
   assert.match(status, /PaystackCheckoutModal/);
   assert.match(modal, /from "react-native-webview"/);
   assert.match(modal, /isPaymentReturnUrl/);
-  assert.match(modal, /Rooomly confirms the result with Paystack/i);
+  assert.match(modal, /Danpa HQ confirms the result with Paystack/i);
   assert.match(api, /hostname\.endsWith\("\.paystack\.com"\)/);
   assert.match(api, /pathname\.replace\(\/\\\/\$\//);
 });

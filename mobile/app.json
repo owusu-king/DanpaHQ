@@ -1,14 +1,14 @@
 {
   "expo": {
-    "name": "Ghana Rental Platform",
-    "slug": "ghana-rental-platform",
+    "name": "Danpa HQ",
+    "slug": "danpahq",
     "version": "0.1.0",
     "orientation": "portrait",
-    "scheme": "grp",
+    "scheme": "danpahq",
     "userInterfaceStyle": "light",
     "backgroundColor": "#FAF8F5",
     "android": {
-      "package": "com.rentalplatform.app",
+      "package": "com.danpahq.app",
       "versionCode": 1,
       "adaptiveIcon": {
         "backgroundColor": "#0B5D4E"
@@ -26,7 +26,7 @@
       "softwareKeyboardLayoutMode": "pan"
     },
     "ios": {
-      "bundleIdentifier": "gh.rentalplatform.app",
+      "bundleIdentifier": "com.danpahq.app",
       "supportsTablet": false,
       "infoPlist": {
         "NSCameraUsageDescription": "Take photos of a property or a document you are submitting.",
@@ -44,7 +44,12 @@
         "expo-splash-screen",
         {
           "resizeMode": "contain",
-          "backgroundColor": "#FAF8F5"
+          "backgroundColor": "#FAF8F5",
+          "android": {
+            "drawable": {
+              "icon": "./assets/splashscreen_logo.xml"
+            }
+          }
         }
       ],
       "expo-sharing",
@@ -52,7 +57,7 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Allow Rooomly to scan a tenant's temporary viewing check-in QR code.",
+          "cameraPermission": "Allow Danpa HQ to scan a tenant's temporary viewing check-in QR code.",
           "recordAudioAndroid": false
         }
       ],

@@ -3,12 +3,12 @@ import { Platform } from "react-native";
 
 let generation = 0;
 
-/** Only Rooomly's temporary private PDFs; user-exported copies are untouched. */
+/** Only Danpa HQ's temporary private PDFs; user-exported copies are untouched. */
 export function clearPrivateDocuments() {
   generation += 1;
   if (Platform.OS === "web") return;
   for (const entry of new Directory(Paths.cache).list()) {
-    if (entry instanceof File && /^rooomly-(agreement|receipt)-.*\.pdf$/.test(entry.name)) {
+    if (entry instanceof File && /^danpahq-(agreement|receipt)-.*\.pdf$/.test(entry.name)) {
       entry.delete();
     }
   }

@@ -260,14 +260,14 @@ def property_capabilities(*, prop, user, cache: dict | None = None) -> dict[str,
         property_missing.append("property_authority")
     verified_property = not property_missing
 
-    # Whether rent can actually be *collected through Rooomly* for this
+    # Whether rent can actually be *collected through Danpa HQ* for this
     # property. This used to read a person's `BANK_ACCOUNT` trust stamp while
     # the payment path resolved a Portfolio's provider-verified destination, so
     # the two could disagree in either direction: a provider told payments were
     # not ready while checkout worked, or told they were ready while an intent
     # would fail closed. The payment module now owns the single answer and this
     # asks it. Recording an *off-platform* payment is deliberately not gated on
-    # any of this — that money already changed hands outside Rooomly, and
+    # any of this — that money already changed hands outside Danpa HQ, and
     # `PropertyCapability.LEASES` is its authority.
     payment_missing = [*property_missing]
     if verified_property:

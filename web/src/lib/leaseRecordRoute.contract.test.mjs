@@ -125,12 +125,12 @@ test("the three counts say only what a status proves", () => {
 });
 
 test("leaving an agreement and coming back lands where you left", () => {
-  // The view, stage, search and open lease are all in the address.
+  // The view, stage and search are in the address; the open lease is page state.
   const body = code(page());
   assert.match(body, /useSearchParams\(\)/);
   assert.match(body, /search\.get\("show"\)/);
   assert.match(body, /search\.get\("q"\)/);
-  assert.match(body, /search\.get\("lease"\)/);
+  assert.match(body, /useDeepLinkedModal\("lease"\)/);
   assert.match(body, /LEASE_FILTERS\.find\(/);
   assert.match(body, /<Suspense/);
   // An old /leases address keeps its stage and search on the way across.

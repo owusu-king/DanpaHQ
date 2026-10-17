@@ -130,7 +130,7 @@ function RecordBody({ record, onChanged, onViewReceipt }: { record: RecentPaymen
         <span className="pr-hero-mark" aria-hidden="true"><Icon name="payments" /></span>
         <span className="pr-amount">{amount}</span>
         <span className={`pr-state is-${tone}`}><Icon name={iconOf(tone)} />{status}</span>
-        <span className="pr-hero-note">{processed ? "Processed through Rooomly" : "Paid directly · recorded on Rooomly"}</span>
+        <span className="pr-hero-note">{processed ? "Processed through Danpa HQ" : "Paid directly · recorded on Danpa HQ"}</span>
       </section>
 
       <section className="pr-who" aria-label="Paid by">
@@ -204,7 +204,7 @@ function RecordBody({ record, onChanged, onViewReceipt }: { record: RecentPaymen
           <p className="pr-decide-title">{decision === "confirm" ? (recordedByTenant ? "Confirm you received this?" : "Confirm this payment?") : "Dispute this record?"}</p>
           <p className="pr-decide-body">
             {decision === "confirm"
-              ? "It settles the linked charge. Rooomly did not move this money."
+              ? "It settles the linked charge. Danpa HQ did not move this money."
               : "It stays in history as disputed and settles nothing."}
           </p>
           {decision === "dispute" ? (
@@ -239,8 +239,7 @@ function RecordBody({ record, onChanged, onViewReceipt }: { record: RecentPaymen
           <Button variant="secondary" onClick={() => onViewReceipt(payment.receipt_id!)}><Icon name="details" />View receipt</Button>
         ) : null}
         <span className="pr-actions-spacer" />
-        {/* No close first: leaving the page takes the sheet with it, and a close
-            would reset the address after the link had started to navigate. */}
+        {/* No close first: leaving the page takes the sheet with it. */}
         {/* The tenant's payments, on their own page — not another sheet. */}
         <Link className="pr-account-link" href={`/payments/${record.lease_id}` as never}>
           All their payments<Icon name="share" />

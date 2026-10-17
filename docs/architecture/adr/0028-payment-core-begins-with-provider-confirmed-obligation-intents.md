@@ -43,7 +43,7 @@ exists would strand accepted tenants and break the completed rental lifecycle.
 ## Why
 
 This establishes the irreversible financial integrity boundary without
-pretending Rooomly can move or settle money today. It reuses the obligations and
+pretending Danpa HQ can move or settle money today. It reuses the obligations and
 permission systems that already work, preserves the current rental lifecycle,
 and leaves one explicit seam for a licensed PSP rather than embedding a vendor
 SDK in rent or lease services.
@@ -96,7 +96,7 @@ prompt — which are exactly the ones a provider never reports.
 replace this with the selected PSP's verified, tokenized beneficiary
 contract."**
 
-`PayoutProfile` is that contract's Rooomly-side shape: one per organization, an
+`PayoutProfile` is that contract's Danpa HQ-side shape: one per organization, an
 opaque provider token plus a masked display string, owner/admin only, every
 change audited with the masked value and never the token. It is not yet wired
 into settlement — `assert_can_receive_settlement` exists and nothing calls it —
@@ -106,7 +106,7 @@ because settlement still moves no money.
 acceptance-driven, and no fee model is encoded.
 
 Reconciliation was added as a first-class capability rather than a later
-concern: an hourly sweep that compares Rooomly's record with the provider's and
+concern: an hourly sweep that compares Danpa HQ's record with the provider's and
 **opens an exception rather than repairing anything.** The reason to compare two
 ledgers is that you do not know which is wrong, so a sweep that corrected what
 it found could corrupt what it found.
@@ -123,7 +123,7 @@ One amendment to the reconciliation principle stated above. "**Opens an
 exception rather than repairing anything**" was written for the case it
 describes — two ledgers that disagree, where you do not know which is wrong. It
 was also being applied to a case that is not a disagreement at all: a lost
-callback, where Rooomly holds no record and the provider is the only authority
+callback, where Danpa HQ holds no record and the provider is the only authority
 on whether the payment happened. In that state the sweep recorded an exception
 and stopped, and because the exception queue is deliberately unable to move
 money, a tenant who had genuinely paid stayed uncredited unless they personally

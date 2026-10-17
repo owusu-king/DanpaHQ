@@ -1,4 +1,4 @@
-"""Rooomly's own neighbourhoods as places: the provider that needs no key.
+"""Danpa HQ's own neighbourhoods as places: the provider that needs no key.
 
 Used when no external provider is configured — development without a key, a
 test run — and for a request whose configured provider has just failed. It knows
@@ -27,7 +27,7 @@ def _context(locality: Locality) -> str:
 
 
 class LocalityProvider:
-    name = "rooomly"
+    name = "danpahq"
     attribution: str | None = None
 
     def suggest(

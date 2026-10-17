@@ -35,7 +35,7 @@ const RESTING = shell.resting;
  * The app's primary wayfinding surface.
  *
  * A paper shelf under a hairline, each destination a glyph over its name, all in
- * Rooomly's green. The tab you are on is drawn three ways at once — a pale kola
+ * Danpa HQ's green. The tab you are on is drawn three ways at once — a pale kola
  * indicator widens behind its glyph, the outline fills in deep kola, and its name
  * turns bold — so the state never rests on colour alone. The other tabs are
  * outlines in a muted kola, which keeps the whole bar green rather than brown

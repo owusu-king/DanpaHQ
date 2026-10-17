@@ -11,7 +11,7 @@ import { theme } from "@/theme";
  *
  * Drawn the same on the welcome and on the provider's Home, so the step that
  * was "next" a minute ago is recognisably the same step now. A stop is done
- * (kola, ticked), the one in hand (lagoon ring), waiting on Rooomly (gold,
+ * (kola, ticked), the one in hand (lagoon ring), waiting on Danpa HQ (gold,
  * breathing — the review is in somebody else's hands), needing attention
  * (laterite), or still ahead (grey).
  */

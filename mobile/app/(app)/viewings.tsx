@@ -294,7 +294,7 @@ const styles = StyleSheet.create({
   when: { fontSize: 15.5, lineHeight: 21, color: INK },
   headline: { fontSize: 14, lineHeight: 19, color: INK },
   line: { marginTop: 2, fontSize: 12.5, lineHeight: 17 },
-  // The next visit: Rooomly's deepest green, as the host's Up next card is.
+  // The next visit: Danpa HQ's deepest green, as the host's Up next card is.
   next: { overflow: "hidden", borderRadius: 22, backgroundColor: theme.color.kola["800"] },
   cover: { height: 140, alignItems: "center", justifyContent: "center", backgroundColor: alpha(WHITE, 0.06) },
   coverImage: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0 },

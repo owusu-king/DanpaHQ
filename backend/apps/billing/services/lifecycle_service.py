@@ -1,6 +1,6 @@
 """What happens to a paid subscription when its period ends.
 
-Rooomly subscriptions are prepaid. A Portfolio pays for a month or a year —
+Danpa HQ subscriptions are prepaid. A Portfolio pays for a month or a year —
 mobile money has no card on file to charge again — and when that period ends one
 of three things is true:
 

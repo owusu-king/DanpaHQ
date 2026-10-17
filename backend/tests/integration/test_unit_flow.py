@@ -1515,7 +1515,7 @@ class TestOccupiedSpaceRestrictions:
     def occupy(*, unit, tenant, provider):
         from apps.occupancy.models import Occupancy
 
-        # Physical occupancy context is intentionally valid before Rooomly has
+        # Physical occupancy context is intentionally valid before Danpa HQ has
         # a lease (FIX 2). It is not an active platform tenancy, but it still
         # makes the real space occupied and must close contradictory actions.
         return Occupancy.objects.create(

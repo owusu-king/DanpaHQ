@@ -1,7 +1,6 @@
-import type { Route } from "next";
-import Link from "next/link";
 import { ArrowRight, BadgeCheck, Receipt, ShieldCheck } from "lucide-react";
 
+import { AuthLink } from "@/components/auth/AuthDialog";
 import { Reveal } from "@/components/motion/Reveal";
 
 const CHECKS = [
@@ -12,13 +11,14 @@ const CHECKS = [
 
 /**
  * The front door itself (owner, 2026-09-29): a headline, a line of reassurance,
- * and one way in. Get Started asks how somebody will use Rooomly — tenant or
+ * and one way in. Get Started asks how somebody will use Danpa HQ — tenant or
  * provider — as the first step of sign-up (owner, 2026-10-07); Sign in is for
  * those who have answered it already.
  *
- * Its own component because it is also what the sign-in modal opens over: the
- * modal belongs to this page rather than replacing it with a screen of its own.
- * The side chosen inside sign-up becomes the account type.
+ * Both open the auth dialog over this page, in place (owner, 2026-10-16). Its
+ * own component because an old auth address (`/sign-in` from an email) also
+ * shows it behind the dialog. The side chosen inside sign-up becomes the
+ * account type.
  */
 export function FrontDoor() {
   return (
@@ -47,15 +47,15 @@ export function FrontDoor() {
 
         <Reveal delay={0.15}>
           <div className="lp-door-actions">
-            {/* Get Started opens the question "How will you use Rooomly?" (owner,
+            {/* Get Started opens the question "How will you use Danpa HQ?" (owner,
                 2026-10-07); the answer rides into sign-up as the account type. */}
-            <Link href={"/register" as Route} className="lp-door-action is-primary">
+            <AuthLink view="register" className="lp-door-action is-primary">
               Get Started
               <ArrowRight aria-hidden="true" className="lp-door-arrow" />
-            </Link>
-            <Link href={"/sign-in" as Route} className="lp-door-action">
+            </AuthLink>
+            <AuthLink view="sign-in" className="lp-door-action">
               Sign in
-            </Link>
+            </AuthLink>
           </div>
         </Reveal>
 

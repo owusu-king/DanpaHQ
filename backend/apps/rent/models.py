@@ -88,8 +88,8 @@ class PaymentVerificationSource(models.TextChoices):
 
 
 class PaymentSource(models.TextChoices):
-    PLATFORM_PSP = "PLATFORM_PSP", "Processed through Rooomly"
-    EXTERNAL = "EXTERNAL", "Paid externally and recorded through Rooomly"
+    PLATFORM_PSP = "PLATFORM_PSP", "Processed through Danpa HQ"
+    EXTERNAL = "EXTERNAL", "Paid externally and recorded through Danpa HQ"
 
 
 class PaymentEvidence(models.TextChoices):
@@ -100,7 +100,7 @@ class PaymentEvidence(models.TextChoices):
     PSP_CONFIRMED = "PSP_CONFIRMED", "Confirmed by payment provider"
     COUNTERPARTY_CONFIRMED = "COUNTERPARTY_CONFIRMED", "Confirmed by counterparty"
     DISPUTED = "DISPUTED", "Disputed"
-    ADMIN_VERIFIED = "ADMIN_VERIFIED", "Verified by Rooomly administration"
+    ADMIN_VERIFIED = "ADMIN_VERIFIED", "Verified by Danpa HQ administration"
 
 
 class ObligationAdjustmentKind(models.TextChoices):

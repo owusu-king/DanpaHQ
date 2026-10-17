@@ -53,11 +53,12 @@ ACCESS_TOKEN_KEY = env("ACCESS_TOKEN_KEY", required=True)
 NATIONAL_ID_PEPPER = env("NATIONAL_ID_PEPPER", required=True)
 UNIT_ACCESS_CODE_PEPPER = env("UNIT_ACCESS_CODE_PEPPER", required=True)
 MANAGEMENT_CSRF_KEY = env("MANAGEMENT_CSRF_KEY", required=True)
+RUNTIME_CONFIG_ENCRYPTION_KEY = env("RUNTIME_CONFIG_ENCRYPTION_KEY", required=True)
 
-# No SMS provider is integrated yet. Starting production with the console backend
-# would silently print one-time codes to the logs, so this must be set to a real
-# adapter before launch.
-SMS_BACKEND = env("SMS_BACKEND", required=True)
+# Start fail-closed until an operations administrator selects and configures the
+# Arkesel adapter in Management. Never default production to the console adapter,
+# because it writes one-time codes to application logs.
+SMS_BACKEND = env("SMS_BACKEND", "null")
 STORAGE_BACKEND = env("STORAGE_BACKEND", "s3")
 STORAGE_SIGNING_KEY = env("STORAGE_SIGNING_KEY", required=True)
 FILE_SCAN_MODE = env("FILE_SCAN_MODE", "strict")

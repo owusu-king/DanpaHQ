@@ -103,7 +103,7 @@ export function Shake({ signal, children }: { signal: unknown; children: ReactNo
 }
 
 /**
- * One of the two answers to "How will you use Rooomly?".
+ * One of the two answers to "How will you use Danpa HQ?".
  *
  * A compact row (owner, 2026-10-13): the tall cards with their bullet lists
  * made a two-way choice feel heavy. A tile, a name, one line, and a tick at the

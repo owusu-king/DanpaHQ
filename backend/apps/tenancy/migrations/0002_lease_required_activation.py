@@ -26,7 +26,7 @@ def repair_legacy_active_rows(apps, schema_editor):
             ).update(lease_id=lease.id)
         else:
             # Preserve historical/real-world context, but stop calling it an
-            # active Rooomly tenancy until the parties accept an agreement.
+            # active Danpa HQ tenancy until the parties accept an agreement.
             tenancy.status = "pending_lease"
             tenancy.save(update_fields=["status"])
             Occupancy.objects.filter(

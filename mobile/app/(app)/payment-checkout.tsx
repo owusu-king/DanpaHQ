@@ -121,7 +121,7 @@ export default function PaymentCheckoutScreen() {
             <Type variant="caption">Any payment processing fee is paid by the property owner.</Type>
           </Surface>
           {existing ? <Button label="Continue payment" onPress={() => openCheckout(existing)} /> : ledger.digital_payment.available ? <Button label="Continue securely" busy={busy} busyLabel="Starting checkout…" onPress={() => void start()} /> : null}
-          <Type variant="caption">Rooomly confirms payment with the processor. Returning to the app alone never marks rent as paid.</Type>
+          <Type variant="caption">Danpa HQ confirms payment with the processor. Returning to the app alone never marks rent as paid.</Type>
         </>
       ) : null}
       {!loading && ledger && !charge ? <Notice tone="error" title="This charge is no longer available." /> : null}

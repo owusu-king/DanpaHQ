@@ -1,4 +1,4 @@
-/* Property management establishes Rooomly's operational detail language.
+/* Property management establishes Danpa HQ's operational detail language.
    Identity, state and action align first; repeated records use ledger rows;
    history and configuration disclose only when asked for. */
 
@@ -66,17 +66,17 @@
 }
 
 .button-link {
-  min-height: var(--target-min);
+  min-height: 2.625rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0 var(--space-5);
+  padding: 0 var(--space-4);
   border: var(--border-hairline) solid var(--color-kola-600);
   border-radius: var(--radius-md);
   background: var(--color-kola-600);
   color: var(--color-field-0);
-  font-size: 0.9375rem;
-  font-weight: 600;
+  font-size: 0.875rem;
+  font-weight: 650;
   text-decoration: none;
   transition: background var(--motion-duration-fast) var(--motion-easing-standard);
 }

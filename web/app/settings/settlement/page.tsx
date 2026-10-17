@@ -202,14 +202,14 @@ function PayoutAccountContent() {
       </section>
       {state.profiles.length > 0 && !state.active_profile ? <Notice tone="warning" title="Choose an account for new payments" body="Online rent payments remain unavailable until a verified account is selected." /> : null}
       {statusNote ? <Notice tone="info" title="Settlement account updated" body={statusNote} /> : null}
-      {checking ? <Notice tone="info" title="Checking with Paystack" body="The first request may have completed. Rooomly is finding that exact setup before allowing another attempt." /> : null}
+      {checking ? <Notice tone="info" title="Checking with Paystack" body="The first request may have completed. Danpa HQ is finding that exact setup before allowing another attempt." /> : null}
       {!checking && (showSetup || state.profiles.length === 0) ? <section className="payout-setup" aria-labelledby="payout-setup-title">
         <h3 id="payout-setup-title" className="settings-subhead">Add a receiving account</h3>
         <div className="payout-methods" role="group" aria-label="Settlement account type">
           {(["bank", "mobile_money"] as const).map((value) => <button key={value} type="button" aria-pressed={method === value} onClick={() => { setMethod(value); setAccountNumber(""); setResolved(null); }}>{value === "bank" ? "Bank account" : "Mobile Money"}</button>)}
         </div>
         <Select label={method === "bank" ? "Bank" : "Network"} value={bankCode} onChange={(value) => { setBankCode(value); setResolved(null); }} options={institutionOptions} />
-        <Field label={method === "bank" ? "Account number" : "Mobile Money number"} value={accountNumber} onChange={(event) => { setAccountNumber(event.target.value.replace(/\s/g, "")); setResolved(null); }} inputMode="numeric" autoComplete="off" hint="Used only to create the Paystack subaccount. Rooomly does not retain this number." />
+        <Field label={method === "bank" ? "Account number" : "Mobile Money number"} value={accountNumber} onChange={(event) => { setAccountNumber(event.target.value.replace(/\s/g, "")); setResolved(null); }} inputMode="numeric" autoComplete="off" hint="Used only to create the Paystack subaccount. Danpa HQ does not retain this number." />
         {method === "bank" && !resolved ? <Button variant="secondary" busy={busy === "resolve"} disabled={!bankCode || !accountNumber.trim()} onClick={() => void confirmAccount()}>Confirm account</Button> : null}
         {resolved ? <div className="payout-confirmed"><span aria-hidden="true">✓</span><div><strong>{resolved.account_name}</strong><p>{selectedInstitution?.name} · {resolved.masked_account}</p></div></div> : null}
         {(method === "mobile_money" || resolved) ? <div className="payout-save"><Button busy={busy === "save"} disabled={!bankCode || !accountNumber.trim()} onClick={() => void saveAccount()}>Add receiving account</Button><p className="type-caption">Property owners bear Paystack’s transaction fee. Adding or switching an account does not redirect payments already in progress.</p></div> : null}

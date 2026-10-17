@@ -114,8 +114,8 @@ export function issuedNotice(code: AccessCodeLike): { title: string; body: strin
   return {
     title: "Copy this now — it is shown once",
     body: code.expires_at
-      ? `Rooomly does not store the readable value. It expires ${onDay(code.expires_at)}.`
-      : "Rooomly does not store the readable value.",
+      ? `Danpa HQ does not store the readable value. It expires ${onDay(code.expires_at)}.`
+      : "Danpa HQ does not store the readable value.",
   };
 }
 

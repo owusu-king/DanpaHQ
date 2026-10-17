@@ -1,4 +1,4 @@
-# Rooomly Viewing & Tenant Invitation Architecture
+# Danpa HQ Viewing & Tenant Invitation Architecture
 
 > **Historical document — direct tenant invitations were retired by ADR 0029.**
 > The only active private acquisition path is verified Unit access code →
@@ -9,7 +9,7 @@
 
 ## Current implementation note — secure physical viewing attendance
 
-Physical Rooomly viewings are free. There is no active fee field, provider
+Physical Danpa HQ viewings are free. There is no active fee field, provider
 disclosure, payment step or fee notification in the model, API, web or mobile
 experience. A confirmed viewing releases exact directions to its authorized
 participants and opens one short-lived check-in session near the appointment:
@@ -48,7 +48,7 @@ it never creates a Tenancy.
 
 **Implemented core with future extensions identified below**
 
-This document defines how Rooomly should handle:
+This document defines how Danpa HQ should handle:
 
 - Public tenant discovery
 - Private tenant invitations
@@ -64,7 +64,7 @@ This document defines how Rooomly should handle:
 
 The goal is to avoid assuming that landlords already know their future tenants.
 
-Rooomly must support both:
+Danpa HQ must support both:
 
 1. **Rental discovery**
 2. **Rental management**
@@ -75,7 +75,7 @@ Rooomly must support both:
 
 A verified unit can enter different tenant-acquisition paths.
 
-Rooomly must not assume every landlord already has a tenant.
+Danpa HQ must not assume every landlord already has a tenant.
 
 A landlord may:
 
@@ -168,7 +168,7 @@ Use this when:
 
 - The landlord already knows the prospective tenant.
 - The tenant was referred privately.
-- The landlord found the tenant outside Rooomly.
+- The landlord found the tenant outside Danpa HQ.
 - The unit should not appear in marketplace search.
 
 Flow:
@@ -216,7 +216,7 @@ Useful for:
 Example:
 
 ```text
-rooomly.com/u/ABC123
+danpahq.com/u/ABC123
 ```
 
 Anyone with permission to access the link may view the listing according to configured privacy rules.
@@ -244,14 +244,14 @@ Tenant Reviews Imported Tenancy Data
       ↓
 Confirm / Dispute
       ↓
-Existing Tenancy Managed in Rooomly
+Existing Tenancy Managed in Danpa HQ
 ```
 
 ---
 
 # 4. Three Tenant Acquisition Paths
 
-Rooomly should explicitly support three separate paths.
+Danpa HQ should explicitly support three separate paths.
 
 ```text
                          VERIFIED UNIT
@@ -466,7 +466,7 @@ The landlord may enter:
 - Deposit information
 - Existing agreement details
 
-However, Rooomly should distinguish:
+However, Danpa HQ should distinguish:
 
 ```text
 LANDLORD_REPORTED
@@ -487,7 +487,7 @@ After a unit is verified, show:
 
 ### Publish Publicly
 
-Find a tenant through Rooomly.
+Find a tenant through Danpa HQ.
 
 ### Invite a Tenant
 
@@ -527,7 +527,7 @@ PHYSICAL VIEWING
 DECISION
 ```
 
-A tenant should not have to physically travel before Rooomly provides enough information to decide whether the property is worth seeing.
+A tenant should not have to physically travel before Danpa HQ provides enough information to decide whether the property is worth seeing.
 
 ---
 
@@ -544,7 +544,7 @@ PHYSICAL
 Future:
 
 ```text
-ROOOMLY_VERIFIED_TOUR
+DANPAHQ_VERIFIED_TOUR
 360_TOUR
 ```
 
@@ -702,7 +702,7 @@ PROPERTY_MANAGER
 CARETAKER
 VERIFIED_AGENT
 AUTHORIZED_REPRESENTATIVE
-ROOOMLY_VIEWING_PARTNER
+DANPAHQ_VIEWING_PARTNER
 ```
 
 Example:
@@ -844,7 +844,7 @@ APPROVED_TENANT_ONLY
 PRIVATE
 ```
 
-After physical viewing confirmation, Rooomly may reveal:
+After physical viewing confirmation, Danpa HQ may reveal:
 
 - Exact address
 - GPS pin
@@ -857,13 +857,13 @@ depending on landlord settings and platform policy.
 
 # 22. Viewing Fee Policy
 
-Rooomly viewings are free:
+Danpa HQ viewings are free:
 
 ```text
 Viewing Fee = Free
 ```
 
-Tenants must not pay Rooomly, a provider, landlord, agent or representative
+Tenants must not pay Danpa HQ, a provider, landlord, agent or representative
 simply to attend. Direct API attempts to add legacy fee fields are rejected.
 
 ---
@@ -977,12 +977,12 @@ Do not build custom video infrastructure in the earliest version unless clearly 
 
 ---
 
-# 27. Rooomly Viewing Partners
+# 27. Danpa HQ Viewing Partners
 
 Future service:
 
 ```text
-Rooomly Viewing Partner
+Danpa HQ Viewing Partner
 ```
 
 Used when:
@@ -1414,7 +1414,7 @@ Implement:
 Future:
 
 - QR check-in
-- Rooomly Viewing Partners
+- Danpa HQ Viewing Partners
 - Waitlists
 - Automated scheduling
 - 360 tours
@@ -1439,14 +1439,14 @@ The following rules should be treated as architectural constraints.
 10. Unit verification, availability, listing, and tenancy status must remain separate concepts.
 11. One unit must not accidentally enter conflicting active tenancy workflows.
 12. Public listing must not be required for private tenant management.
-13. Rooomly must remain useful to landlords even when tenants are sourced outside Rooomly.
+13. Danpa HQ must remain useful to landlords even when tenants are sourced outside Danpa HQ.
 14. Acquisition flows must converge into one shared tenancy/lease architecture rather than creating separate tenancy systems.
 
 ---
 
 # 40. Product Philosophy
 
-Rooomly is two products working together:
+Danpa HQ is two products working together:
 
 ## Rental Discovery
 
@@ -1472,7 +1472,7 @@ Private Unit
 → Maintenance
 ```
 
-The landlord should receive value from Rooomly whether or not Rooomly originally found the tenant.
+The landlord should receive value from Danpa HQ whether or not Danpa HQ originally found the tenant.
 
 ---
 

@@ -1,4 +1,4 @@
-"""A Portfolio paying Rooomly for its plan, through the Payments Core.
+"""A Portfolio paying Danpa HQ for its plan, through the Payments Core.
 
 What is held here, in the order a person meets it:
 
@@ -286,12 +286,12 @@ class TestCheckout:
             ("credit", f"subscription_invoice:{invoice.id}"),
         ]
         receipt = Receipt.objects.get(transaction=transaction_row)
-        assert receipt.breakdown["schema_version"] == "rooomly.subscription_receipt.v1"
+        assert receipt.breakdown["schema_version"] == "danpahq.subscription_receipt.v1"
         assert receipt.breakdown["portfolio"]["name"] == "Osu Properties"
         assert receipt.breakdown["invoice"]["plan_name"] == "Pro"
         assert bytes(receipt.final_pdf).startswith(b"%PDF")
 
-        # Rooomly's own revenue: no beneficiary payout, and nothing in rent.
+        # Danpa HQ's own revenue: no beneficiary payout, and nothing in rent.
         assert not Settlement.objects.filter(transaction=transaction_row).exists()
         assert not RentPayment.objects.exists()
         assert BillingEvent.objects.filter(
@@ -482,7 +482,7 @@ class TestCheckout:
         assert outcome["recovered"] == 1
         assert live(portfolio).plan.code == "PRO"
 
-    def test_money_taken_after_rooomly_recorded_a_failure_is_found(self, portfolio, landlord):
+    def test_money_taken_after_danpahq_recorded_a_failure_is_found(self, portfolio, landlord):
         intent = start(portfolio, landlord, plan="PRO")
         confirm(intent, status="failed", event_id="evt-declined")
 

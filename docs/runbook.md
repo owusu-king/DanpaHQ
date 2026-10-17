@@ -3,7 +3,7 @@
 ## First run
 
 ```bash
-git clone <repo> && cd ghana-rental-platform
+git clone <repo> && cd danpahq
 cp .env.example .env
 docker compose up
 ```
@@ -61,7 +61,7 @@ drift, which is what CI runs).
 
 Maps and place search run on Google Maps Platform (ADR 0034), and every key is
 optional. Without keys Explore is a list, a listing's Location section says its
-map is not available, and place suggestions come from Rooomly's localities that
+map is not available, and place suggestions come from Danpa HQ's localities that
 have a centre. `seed_geo` seeds names without centres, so a fresh database
 suggests nothing until centres exist.
 
@@ -86,7 +86,7 @@ Check the API reaches Google:
 curl "http://localhost:8000/api/v1/geo/places/suggest/?q=osu&session=5b1f0c9e-3d2a-4b7c-9e8f-1a2b3c4d5e6f"
 ```
 
-`"provider": "google"` means it does. `"rooomly"` means Google was not asked or
+`"provider": "google"` means it does. `"danpahq"` means Google was not asked or
 did not answer. With no key in the container nothing is logged: the localities
 answer by design. Otherwise the API log shows `place_suggestions_fell_back`
 beside `location_provider_refused`, which carries Google's status, or
@@ -100,20 +100,27 @@ origin to the key's website restrictions), `ApiNotActivatedMapError` (enable the
 Maps JavaScript API), `BillingNotEnabledMapError` or `InvalidKeyMapError`. A map
 that draws but shows no price markers has an invalid Map ID.
 
-**The phone.** Expo Go needs no keys. On Android it draws Google Maps with Expo
-Go's own key; on an iPhone it draws Apple Maps, because Expo Go cannot load
-Google's iOS SDK. A development or release build reads its keys when its native
-project is generated, from the environment or `mobile/.env`:
+**The phone.** Expo Go on Android uses Expo's own Google Maps key. Its SDK 57
+Android client has been reported to show only the Google logo and a blank map
+because that bundled key expired; the app's JavaScript and keys cannot repair
+the Expo Go binary. On an iPhone, Expo Go draws Apple Maps. Use an Android
+development build with a working `GOOGLE_MAPS_ANDROID_API_KEY` to test tiles.
+`mobile/app.config.js` supplies the key to the `react-native-maps` config plugin
+when the native project is generated. For local builds it reads the environment,
+`mobile/.env`, or the repository-root `.env`:
 
 ```bash
-GOOGLE_MAPS_ANDROID_API_KEY=... GOOGLE_MAPS_IOS_API_KEY=... npx expo run:android
+cd mobile
+npx expo run:android --device
 ```
 
-A build without its platform's key shows Explore as a list. An Android build
+A build without the Android key shows Explore as a list; iOS uses Apple Maps
+without a Google key. Rebuild and reinstall the Android app after adding or
+changing the key: Expo Go cannot use it. An Android build
 that draws a blank map beneath its markers has a key whose restriction does not
 match the build's package name and SHA-1 fingerprint, and `adb logcat` reports
 an authorization failure. After `react-native-maps` or `app.config.js` changes,
-restart Metro with `npx expo start -c`.
+rebuild the native app and restart Metro with `npx expo start -c`.
 
 **Listing positions.** `refresh_listing_locations` recomputes every listing's
 approximate public point (ADR 0033 §3). Run it after property coordinates or
@@ -239,7 +246,7 @@ stop it and split it: add nullable → backfill in a job → enforce.
 
 ## Payment reconciliation: who is on call, and for what
 
-A reconciliation exception means Rooomly's financial record and the payment
+A reconciliation exception means Danpa HQ's financial record and the payment
 provider's do not agree, or that authenticated provider evidence could not be
 applied. **Somebody's rent is in question until it is closed.** The queue is
 deliberately unable to move money, so it does nothing at all unless a person
@@ -301,12 +308,12 @@ What each kind means and what actually fixes it:
 | Kind | What happened | What to do |
 |---|---|---|
 | `provider_succeeded_internal_pending` | The sweep found a provider-confirmed payment it could **not** post | Read `detail.confirmation_refused`. This is the reason the automatic recovery was refused; it is usually an obligation that changed underneath the payment |
-| `provider_succeeded_internal_failed` | The provider took money for a payment Rooomly had recorded as failed, and the sweep could **not** post it | Read `detail.confirmation_refused`. Usually a payer told the payment failed who then replaced the checkout or paid again. Decide with the payer whether it is applied or refunded at the provider — nothing in Rooomly moves it |
-| `amount_mismatch` / `currency_mismatch` | Rooomly and the provider disagree about the figure | Never "correct" Rooomly to match. Establish which is right with the provider first |
-| `settlement_amount_mismatch` | A payout batch paid a figure Rooomly did not expect | Compare against the provider's settlement report; fees are the usual cause |
+| `provider_succeeded_internal_failed` | The provider took money for a payment Danpa HQ had recorded as failed, and the sweep could **not** post it | Read `detail.confirmation_refused`. Usually a payer told the payment failed who then replaced the checkout or paid again. Decide with the payer whether it is applied or refunded at the provider — nothing in Danpa HQ moves it |
+| `amount_mismatch` / `currency_mismatch` | Danpa HQ and the provider disagree about the figure | Never "correct" Danpa HQ to match. Establish which is right with the provider first |
+| `settlement_amount_mismatch` | A payout batch paid a figure Danpa HQ did not expect | Compare against the provider's settlement report; fees are the usual cause |
 | `reversal` | The provider reversed a confirmed payment | Treat as a chargeback: the obligation is unpaid again, and that needs a product decision, not an edit |
 | `unallocated_transaction` | Confirmed money whose purpose is not recorded | Find the intent's obligation; this is a code defect, not an operations one — escalate to engineering |
-| `unmatched_provider_event` | A signed callback matched nothing, or could not be applied | Read `detail.error_message`. If a payment exists at the provider with no Rooomly intent, it must be refunded at the provider — Rooomly has no record to credit |
+| `unmatched_provider_event` | A signed callback matched nothing, or could not be applied | Read `detail.error_message`. If a payment exists at the provider with no Danpa HQ intent, it must be refunded at the provider — Danpa HQ has no record to credit |
 | `duplicate_provider_transaction` | One provider transaction seen twice | Usually a genuine double payment by the tenant; needs a refund decision |
 
 ### What resolving does and does not do

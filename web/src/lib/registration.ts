@@ -21,7 +21,7 @@ export type AccountType = "tenant" | "provider";
 
 type Arrival = { type: AccountType; next: string | null };
 
-const KEY = "rooomly.account_just_created";
+const KEY = "danpahq.account_just_created";
 
 let justCreated: Arrival | null = null;
 

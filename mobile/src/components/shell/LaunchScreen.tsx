@@ -11,7 +11,7 @@ import { theme } from "@/theme";
 const PATIENCE_MS = 8000;
 
 /**
- * What stands in front of Rooomly while it works out who is looking.
+ * What stands in front of Danpa HQ while it works out who is looking.
  *
  * Three dots on the ground the app itself opens onto, and nothing else.
  *
@@ -68,7 +68,7 @@ export function LaunchScreen() {
     <View
       accessible
       accessibilityRole="progressbar"
-      accessibilityLabel={slow ? "Opening Rooomly. Still connecting." : "Opening Rooomly"}
+      accessibilityLabel={slow ? "Opening Danpa HQ. Still connecting." : "Opening Danpa HQ"}
       style={styles.ground}
     >
       <View style={styles.dots}>

@@ -1,4 +1,4 @@
-"""Limits on place lookups, which Rooomly pays a provider for."""
+"""Limits on place lookups, which Danpa HQ pays a provider for."""
 
 from __future__ import annotations
 

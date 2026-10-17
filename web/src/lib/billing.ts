@@ -1,5 +1,5 @@
 /**
- * Plan & billing: what a Portfolio is on, what it may do, and how it pays Rooomly.
+ * Plan & billing: what a Portfolio is on, what it may do, and how it pays Danpa HQ.
  *
  * Two reads describe the page. The catalogue is public and carries every plan's
  * price, limits and lead capabilities, and the name of every entitlement, so no
@@ -274,7 +274,7 @@ export function startSubscriptionCheckout(
   });
 }
 
-/** What Rooomly already knows. No provider call. */
+/** What Danpa HQ already knows. No provider call. */
 export function getSubscriptionCheckout(organizationId: string, checkoutId: string) {
   return authedFetch<SubscriptionCheckout>(`${billingPath(organizationId)}/checkout/${checkoutId}/`, {
     cache: "no-store",

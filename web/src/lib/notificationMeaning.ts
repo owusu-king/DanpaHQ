@@ -107,7 +107,7 @@ export function notificationSource(kind: string): string {
   if (kind.startsWith("billing.")) return "Plan & billing";
   if (kind.startsWith("organization.")) return "Portfolio";
   if (kind.startsWith("maintenance.")) return "Maintenance";
-  return "Rooomly";
+  return "Danpa HQ";
 }
 
 /** Meaning comes from the event; action remains the honest unread proxy above. */

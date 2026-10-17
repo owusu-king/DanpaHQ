@@ -39,7 +39,7 @@ test("the tab you are on grows a pale kola indicator, fills in deep kola and tur
   assert.match(source, /tabBarIcon\?\.\(\{ focused: false, color: RESTING, size: ICON_SIZE \}\)/);
   assert.match(source, /tabBarIcon\?\.\(\{ focused: true, color: ACTIVE, size: ICON_SIZE \}\)/);
 
-  // Rooomly's green throughout: deep kola for the tab you are on and a muted kola
+  // Danpa HQ's green throughout: deep kola for the tab you are on and a muted kola
   // for the rest — never gold, and never a brown grey.
   assert.match(source, /const ACTIVE = shell\.active;/);
   assert.match(source, /const RESTING = shell\.resting;/);
@@ -186,13 +186,26 @@ test("iOS floats a glass capsule over the page, and every tab clears it", () => 
   assert.match(glass, /const LIQUID_GLASS = isLiquidGlassAvailable\(\);/);
   assert.match(glass, /<GlassView glassEffectStyle="regular"/);
   assert.match(glass, /<BlurView tint="systemChromeMaterialLight"/);
+  assert.match(glass, /onPanResponderGrant:[\s\S]*haptics\.selectionAsync\(\)/);
+  // Explore can place dark ocean or satellite imagery underneath. Its glass
+  // gets a restrained contrast floor and stronger edge without changing the
+  // bar on ordinary pages.
+  assert.match(glass, /const overMap = state\.routes\[state\.index\]\?\.name === "explore";/);
+  assert.match(glass, /overMap \? <View pointerEvents="none" style=\{\[StyleSheet\.absoluteFill, styles\.mapGuard\]\} \/> : null/);
+  assert.match(glass, /mapGuard:\s*\{\s*backgroundColor: alpha\(theme\.color\.field\["0"\], 0\.26\)/);
+  assert.match(glass, /overMap \? styles\.capsuleOverMap : null/);
+  // The material alone is not enough over dark ocean: map icons use solid
+  // brand ink, without changing their shape or placing a tile behind each one.
+  assert.match(glass, /const restingColor = overMap \? theme\.color\.kola\["900"\] : shell\.resting;/);
+  assert.match(glass, /overMap \? styles\.restingLabelOverMap : null/);
+  assert.doesNotMatch(glass, /iconStageOverMap|textShadowColor/);
 
   // Out of the layout flow, so it reports what it covers…
   assert.match(glass, /position: "absolute"/);
   assert.match(glass, /reportHeight\?\.\(CAPSULE_HEIGHT \+ dockLift\)/);
   // …and the pages read it back, on iOS only.
   const platform = code(read("src/platform.ts"));
-  assert.match(platform, /return isIOS && tabBarHeight \? tabBarHeight : 0;/);
+  assert.match(platform, /if \(!isIOS\) return 0;\s*if \(nativeTabs\) return insets\.bottom;\s*return tabBarHeight \?\? 0;/);
   assert.match(platform, /if \(floatingBar > 0\) return base \+ floatingBar;/);
   assert.match(code(read("src/components/home/HomeHero.tsx")), /paddingBottom: space\[12\] \+ barClearance/);
 
@@ -221,4 +234,46 @@ test("iOS floats a glass capsule over the page, and every tab clears it", () => 
   // on an iPhone 17 Pro Max (2026-10-13). The bar stays on React Native's own
   // Animated and PanResponder.
   assert.doesNotMatch(glass, /react-native-reanimated|react-native-gesture-handler|react-native-worklets/);
+});
+
+test("iOS renter tabs are Apple's own bar, and every tab page draws its own header", () => {
+  const layout = code(renter);
+  // iOS takes the native bar; Android keeps the JS tabs and their shelf.
+  assert.match(layout, /return isIOS \? <RenterNativeTabs \/> : <RenterJsTabs \/>;/);
+  assert.match(layout, /from "expo-router\/unstable-native-tabs"/);
+  for (const name of ["index", "explore", "services", "payments", "profile"]) {
+    assert.match(layout, new RegExp(`<NativeTabs\.Trigger name="${name}" disableAutomaticContentInsets`), `${name} is missing`);
+  }
+  // Outline at rest, filled when chosen, in Danpa HQ's green.
+  assert.match(layout, /sf=\{\{ default: "house", selected: "house\.fill" \}\}/);
+  assert.match(layout, /<NativeTabs tintColor=\{theme\.color\.kola\["600"\]\} screenListeners=\{nativeTabHaptics\}>/);
+
+  // The native bar draws no header, so each route frames its page.
+  for (const [file, tab] of [["index", "home"], ["explore", "explore"], ["services", "services"], ["payments", "payments"], ["profile", "menu"]]) {
+    assert.match(read(`app/(app)/(tabs)/${file}.tsx`), new RegExp(`<RenterTabFrame tab="${tab}">`), `${file} is not framed`);
+  }
+  const frame = code(read("src/components/nav/NativeTabFrame.tsx"));
+  // Nothing at all off iOS, so Android's navigator header is not doubled.
+  assert.match(frame, /if \(!isIOS\) return <>\{children\}<\/>;/);
+  assert.match(frame, /<TabHeaderRow/);
+  assert.match(code(read("src/components/nav/TabHeader.tsx")), /return <TabHeaderRow left=\{left\} middle=\{middle\} right=\{right\} continues=\{continues\} \/>;/);
+});
+
+test("iOS provider tabs are Apple's own bar too, with add hidden, and both bars tick", () => {
+  const layout = code(provider);
+  assert.match(layout, /return isIOS \? <ProviderNativeTabs \/> : <ProviderJsTabs \/>;/);
+  for (const name of ["index", "properties", "tenants", "payments", "more"]) {
+    assert.match(layout, new RegExp(`<NativeTabs\.Trigger name="${name}" disableAutomaticContentInsets`), `${name} is missing`);
+  }
+  assert.match(layout, /<NativeTabs\.Trigger name="add" hidden \/>/);
+  assert.match(layout, /screenListeners=\{nativeTabHaptics\}/);
+  for (const [file, tab] of [["index", "home"], ["properties", "properties"], ["tenants", "tenants"], ["payments", "payments"], ["more", "menu"], ["add", "add"]]) {
+    assert.match(read(`app/(app)/(provider-tabs)/${file}.tsx`), new RegExp(`<ProviderTabFrame tab="${tab}">`), `${file} is not framed`);
+  }
+
+  // Apple's bar plays no haptic of its own; ours ticks on every press it allows,
+  // and a build without the module never throws on a tap.
+  const frame = code(read("src/components/nav/NativeTabFrame.tsx"));
+  assert.match(frame, /if \(!hapticsPolicy\.onSelection \|\| event\.data\?\.isPrevented\) return;/);
+  assert.match(frame, /import\("expo-haptics"\)[\s\S]{0,120}\.catch\(\(\) => null\)/);
 });

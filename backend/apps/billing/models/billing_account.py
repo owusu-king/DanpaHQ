@@ -1,4 +1,4 @@
-"""Who Rooomly bills, and the state of that relationship.
+"""Who Danpa HQ bills, and the state of that relationship.
 
 **The Portfolio is the subscriber, never the User.** An individual landlord's
 personal Portfolio can hold Pro; a property company can hold Business; several

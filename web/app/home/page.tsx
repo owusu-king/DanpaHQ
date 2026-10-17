@@ -113,7 +113,7 @@ export default function HomePage() {
  * Each home is a card that stands on its own.
  *
  * Not here: listings. Explore is a tab away and this is not a discovery
- * surface. Not here either: maintenance, because Rooomly has no maintenance
+ * surface. Not here either: maintenance, because Danpa HQ has no maintenance
  * domain yet and a card saying "No open issue" would be a promise.
  */
 function TenantHome({ me }: { me: Me }) {
@@ -864,7 +864,7 @@ type AgendaItem = {
  * needs a decision, the conversations waiting, the Properties themselves).
  *
  * Everything shown is something the backend owns and dated; nothing here is a
- * projection. Maintenance is absent because Rooomly has no maintenance domain
+ * projection. Maintenance is absent because Danpa HQ has no maintenance domain
  * yet, and a panel reading "No open issue" would be a promise.
  */
 function ProviderHome({ me, activeContext }: { me: Me; activeContext: string | null }) {
@@ -1057,7 +1057,7 @@ function ProviderHome({ me, activeContext }: { me: Me; activeContext: string | n
             <>
               <h2>Your Portfolio starts here</h2>
               <p className="type-body">
-                Add your first Property and Rooomly will help you organize its Units, tenants,
+                Add your first Property and Danpa HQ will help you organize its Units, tenants,
                 agreements and rent.
               </p>
               {canAddProperty ? (

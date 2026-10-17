@@ -532,33 +532,3 @@
 .ec-option:focus-visible { outline: 2px solid var(--color-kola-600); outline-offset: -2px; }
 .ec-option[aria-selected="true"] { color: var(--color-kola-800); font-weight: 600; background: var(--color-kola-50); }
 .ec-option .portal-icon { width: 15px; height: 15px; color: var(--color-kola-600); }
-
-/* Sales on the map: the rent marker's shape, gold-edged, so they read apart. */
-.explore-sale-marker {
-  position: relative;
-  display: inline-flex;
-  height: 30px;
-  align-items: center;
-  gap: 6px;
-  padding: 0 11px 0 9px;
-  color: var(--color-ink-900);
-  font-size: .8125rem;
-  font-weight: 750;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-  background: #fff;
-  border: 1.5px solid var(--color-gold-500);
-  border-radius: var(--radius-pill);
-  box-shadow: 0 2px 6px rgb(22 17 14 / 20%);
-}
-.explore-sale-marker::before {
-  content: "For sale";
-  padding: 1px 6px;
-  color: #fff;
-  font-size: .625rem;
-  font-weight: 700;
-  letter-spacing: .02em;
-  background: var(--color-gold-600, var(--color-gold-500));
-  border-radius: 999px;
-}
-.explore-sale-marker:hover { background: color-mix(in srgb, var(--color-gold-500) 10%, white); }

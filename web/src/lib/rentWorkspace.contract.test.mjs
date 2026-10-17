@@ -93,7 +93,7 @@ test("external payments are explicit, evidenced and tenant-confirmed on web", ()
   assert.match(account, /Direct bank transfer/);
   assert.match(account, /uploadFile\(evidenceFile, "payment_evidence"\)/);
   assert.match(account, /I didn’t make this payment/);
-  assert.match(account, /Paid externally · recorded through Rooomly/);
+  assert.match(account, /Paid externally · recorded through Danpa HQ/);
   assert.match(tenant, /Confirm an external payment/);
   assert.match(tenant, /receiptId: payment\.receipt_id/);
   assert.match(receipt, /const external = receipt\.source === "EXTERNAL"/);

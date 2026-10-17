@@ -185,8 +185,8 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
       const count = (event as CustomEvent<number>).detail;
       if (typeof count === "number") setUnread(count);
     };
-    window.addEventListener("rooomly:unread", onUnread);
-    return () => { cancelled = true; clearInterval(timer); window.removeEventListener("rooomly:unread", onUnread); };
+    window.addEventListener("danpahq:unread", onUnread);
+    return () => { cancelled = true; clearInterval(timer); window.removeEventListener("danpahq:unread", onUnread); };
   }, [state.status]);
 
   if (state.status !== "signed_in") {
@@ -293,7 +293,7 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
                 aria-haspopup="dialog"
                 aria-expanded={inbox.open}
                 aria-label={enquiryWaiting ? "Enquiries, a conversation is waiting" : "Enquiries"}
-                onClick={() => openEnquiries({ side: enquiries.as })}
+                onClick={() => openEnquiries()}
               >
                 <Icon name="headset" />
                 <span className="portal-header-support-label" aria-hidden="true">Enquiries</span>
@@ -370,13 +370,13 @@ const RULE: React.CSSProperties = { height: 2, borderRadius: 1, background: "cur
 
 function PortalBrand({ me, collapsed }: { me: Me; collapsed: boolean }) {
   return (
-    <Link href="/home" className="portal-brand" aria-label="Ghana Rental — home">
-      <span className="portal-brand-mark" aria-hidden="true">GR</span>
+    <Link href="/home" className="portal-brand" aria-label="Danpa HQ — home">
+      <span className="portal-brand-mark" aria-hidden="true">DH</span>
       <span className="portal-brand-text">
-        <strong>Ghana Rental</strong>
+        <strong>Danpa HQ</strong>
         <span>{workspaceLabel(me)}</span>
       </span>
-      {collapsed ? <span className="sr-only">Ghana Rental — home</span> : null}
+      {collapsed ? <span className="sr-only">Danpa HQ — home</span> : null}
     </Link>
   );
 }

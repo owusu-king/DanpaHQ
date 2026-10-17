@@ -44,7 +44,7 @@ def main() -> int:
     parser.add_argument("version", nargs="?", default="0.3.0")
     args = parser.parse_args()
 
-    name = f"ghana-rental-platform-phase-{args.phase}-v{args.version}"
+    name = f"danpahq-phase-{args.phase}-v{args.version}"
     out_dir = ROOT / "dist"
     out_dir.mkdir(exist_ok=True)
     archive = out_dir / f"{name}.zip"

@@ -9,10 +9,10 @@ with HTTP mocked only at the `requests` boundary.
 **What this can and cannot prove.** It cannot prove Paystack's Ghana sandbox
 behaves as documented; only an account can, and every item in
 `PAYSTACK_INTEGRATION.md` that needs one is still open. What it proves is the
-half that is Rooomly's own: that given a response of the shape Paystack
+half that is Danpa HQ's own: that given a response of the shape Paystack
 documents, this system does the right thing — and, more usefully, that given a
 *wrong* one it refuses rather than guessing. The sandbox exercise then has a
-much shorter list to confirm, and a failing test here is a Rooomly bug rather
+much shorter list to confirm, and a failing test here is a Danpa HQ bug rather
 than an integration surprise.
 
 Every test names the go-live checklist item it covers.
@@ -63,7 +63,7 @@ PAYSTACK_SETTINGS = {
     "PAYMENT_BACKEND": "paystack",
     "PAYSTACK_SECRET_KEY": TEST_KEY,
     "PAYSTACK_PLATFORM_CHARGE_BPS": "300",
-    "PAYSTACK_CALLBACK_URL": "https://app.rooomly.test/payments/return",
+    "PAYSTACK_CALLBACK_URL": "https://app.danpahq.test/payments/return",
 }
 
 
@@ -482,7 +482,7 @@ class TestWrongEvidence:
         live.transactions[row["reference"]] = row
         body, headers = signed(charge_event(row))
         # `NotFound`: signed, verified at the provider, and matching no intent
-        # Rooomly ever created — which is the shape an orphaned charge takes.
+        # Danpa HQ ever created — which is the shape an orphaned charge takes.
         with pytest.raises(NotFound):
             payment_services.process_webhook(
                 provider_name="paystack", raw_body=body, headers=headers
@@ -848,7 +848,7 @@ class TestSettlementImport:
         settlement.refresh_from_db()
         assert settlement.status == SettlementStatus.SETTLED
         assert settlement.gross_amount_minor == charge.amount_minor
-        # The Portfolio bears Paystack's fee *and* the Rooomly platform charge.
+        # The Portfolio bears Paystack's fee *and* the Danpa HQ platform charge.
         assert settlement.fee_amount_minor == 4500 + provider_fee
         assert settlement.net_amount_minor == charge.amount_minor - 4500 - provider_fee
         assert settlement.settled_at is not None
@@ -889,7 +889,7 @@ class TestReconciliationRecovery:
         intent = payment_services.create_intent(
             obligation=charge, user=user, payment_method="mobile_money"
         )
-        # Paystack took the money. No webhook ever reached Rooomly.
+        # Paystack took the money. No webhook ever reached Danpa HQ.
         live.charge(intent.provider_reference, amount=charge.amount_minor)
 
         result = reconciliation.sweep_open_intents(min_age_seconds=0)

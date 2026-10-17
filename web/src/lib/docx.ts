@@ -9,7 +9,7 @@
  * No library: the zip directory is read directly and the one entry inflated
  * with the browser's `DecompressionStream`. Placeholders written the way other
  * tools write them — `{{tenant_name}}` or a Word merge field's `«tenant_name»` —
- * become Rooomly's `${tenant_name}` when the name is one Rooomly can fill.
+ * become Danpa HQ's `${tenant_name}` when the name is one Danpa HQ can fill.
  */
 
 const EOCD = 0x06054b50;

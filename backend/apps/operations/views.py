@@ -31,14 +31,17 @@ from .models import CaseStatus, ManagementReport, SupportCase
 from .permissions import Capability, HasManagementCapability
 from .serializers import (
     CaseUpdateSerializer,
+    ConfigurationUpdatesSerializer,
     DecisionSerializer,
     DeviceRestoreSerializer,
     LoginSerializer,
     ModerationSerializer,
+    MySupportCreateSerializer,
     PasswordChangeSerializer,
     ReconciliationDecisionSerializer,
     ReportCreateSerializer,
     SupportCreateSerializer,
+    SupportReplySerializer,
     UserStatusSerializer,
 )
 
@@ -946,6 +949,8 @@ class ReportDetailView(ManagementAPIView):
 
 
 def _support_row(item):
+    messages = list(item.messages.all())
+    latest = messages[-1] if messages else None
     return {
         "id": str(item.id),
         "user_id": str(item.user_id or ""),
@@ -962,14 +967,48 @@ def _support_row(item):
         "resolution_note": item.resolution_note,
         "created_at": _iso(item.created_at),
         "resolved_at": _iso(item.resolved_at),
+        "last_message": latest.body[:140] if latest else item.details[:140],
+        "last_message_at": _iso(item.last_message_at or item.created_at),
+        "unread": bool(
+            item.last_message_at
+            and (
+                item.management_read_at is None
+                or item.management_read_at < item.last_message_at
+            )
+            and latest
+            and latest.sender == "user"
+        ),
     }
+
+
+def _support_message_row(message, *, audience: str):
+    return {
+        "id": str(message.id),
+        "body": message.body,
+        "mine": message.sender == audience,
+        "author_name": message.author_label,
+        "sender": message.sender,
+        "created_at": _iso(message.created_at),
+    }
+
+
+def _support_detail(item, *, audience: str):
+    row = _support_row(item)
+    row["messages"] = [
+        _support_message_row(message, audience=audience) for message in item.messages.all()
+    ]
+    if not row["messages"] and item.details:
+        row["legacy_message"] = item.details
+    return row
 
 
 class SupportCasesView(ManagementAPIView):
     required_capability = Capability.VIEW_SUPPORT
 
     def get(self, request):
-        rows = SupportCase.objects.select_related("user", "assigned_to")
+        rows = SupportCase.objects.select_related("user", "assigned_to").prefetch_related(
+            "messages"
+        )
         state = request.query_params.get("status", "").strip()
         if state:
             rows = rows.filter(status=state)
@@ -996,11 +1035,28 @@ class SupportCasesView(ManagementAPIView):
             management_actor=request.user,
             metadata={"user_id": str(item.user_id or "")},
         )
+        if item.details.strip():
+            services.reply_to_support_case(
+                case=item, body=item.details, management_actor=request.user
+            )
         return Response(_support_row(item), status=status.HTTP_201_CREATED)
 
 
 class SupportCaseDetailView(ManagementAPIView):
     required_capability = Capability.MANAGE_SUPPORT
+
+    def get(self, request, pk):
+        item = (
+            SupportCase.objects.select_related("user", "assigned_to")
+            .prefetch_related("messages")
+            .filter(id=pk)
+            .first()
+        )
+        if item is None:
+            raise NotFound("We could not find that support case.")
+        services.mark_support_case_read(case=item, by_management=True)
+        item.management_read_at = timezone.now()
+        return Response(_support_detail(item, audience="management"))
 
     def patch(self, request, pk):
         item = SupportCase.objects.select_related("user", "assigned_to").filter(id=pk).first()
@@ -1010,6 +1066,120 @@ class SupportCaseDetailView(ManagementAPIView):
         payload.is_valid(raise_exception=True)
         services.update_case(case=item, actor=request.user, **payload.validated_data)
         return Response(_support_row(item))
+
+
+class SupportCaseMessageView(ManagementAPIView):
+    required_capability = Capability.MANAGE_SUPPORT
+
+    def post(self, request, pk):
+        item = SupportCase.objects.filter(id=pk).first()
+        if item is None:
+            raise NotFound("We could not find that support case.")
+        payload = SupportReplySerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+        services.reply_to_support_case(
+            case=item,
+            body=payload.validated_data["message"],
+            management_actor=request.user,
+        )
+        item = (
+            SupportCase.objects.select_related("user", "assigned_to")
+            .prefetch_related("messages")
+            .get(id=pk)
+        )
+        return Response(
+            _support_detail(item, audience="management"), status=status.HTTP_201_CREATED
+        )
+
+
+class ConfigurationView(ManagementAPIView):
+    required_capability = Capability.MANAGE_CONFIGURATION
+
+    def get(self, request):
+        from .configuration import payload
+
+        return Response(payload())
+
+    def patch(self, request):
+        from .configuration import apply_updates
+
+        payload = ConfigurationUpdatesSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+        return Response(
+            apply_updates(updates=payload.validated_data["updates"], actor=request.user)
+        )
+
+
+class MySupportCasesView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        rows = (
+            SupportCase.objects.filter(user=request.user)
+            .select_related("assigned_to")
+            .prefetch_related("messages")
+            .order_by("-last_message_at", "-created_at")[:100]
+        )
+        result = []
+        for item in rows:
+            row = _support_row(item)
+            latest = list(item.messages.all())[-1:] or [None]
+            row["unread"] = bool(
+                item.last_message_at
+                and (item.user_read_at is None or item.user_read_at < item.last_message_at)
+                and latest[0]
+                and latest[0].sender == "management"
+            )
+            # Consumer responses never expose internal assignment or notes.
+            for key in ("user_id", "user", "user_phone", "assigned_to", "resolution_note"):
+                row.pop(key, None)
+            result.append(row)
+        return Response(result)
+
+    def post(self, request):
+        payload = MySupportCreateSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+        item = services.create_support_case(user=request.user, **payload.validated_data)
+        item = SupportCase.objects.prefetch_related("messages").get(id=item.id)
+        return Response(
+            _support_detail(item, audience="user"), status=status.HTTP_201_CREATED
+        )
+
+
+class MySupportCaseDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def _case(self, request, pk):
+        item = (
+            SupportCase.objects.filter(id=pk, user=request.user)
+            .prefetch_related("messages")
+            .first()
+        )
+        if item is None:
+            raise NotFound("We could not find that support conversation.")
+        return item
+
+    def get(self, request, pk):
+        item = self._case(request, pk)
+        services.mark_support_case_read(case=item, by_management=False)
+        item.user_read_at = timezone.now()
+        detail = _support_detail(item, audience="user")
+        for key in ("user_id", "user", "user_phone", "assigned_to", "resolution_note"):
+            detail.pop(key, None)
+        return Response(detail)
+
+    def post(self, request, pk):
+        item = self._case(request, pk)
+        payload = SupportReplySerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+        services.reply_to_support_case(
+            case=item, body=payload.validated_data["message"], user=request.user
+        )
+        item = SupportCase.objects.prefetch_related("messages").get(id=item.id)
+        detail = _support_detail(item, audience="user")
+        for key in ("user_id", "user", "user_phone", "assigned_to", "resolution_note"):
+            detail.pop(key, None)
+        return Response(detail, status=status.HTTP_201_CREATED)
 
 
 class RentalsView(ManagementAPIView):

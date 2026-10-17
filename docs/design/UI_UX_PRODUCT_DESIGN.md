@@ -1,4 +1,4 @@
-# Rooomly UI/UX Product Design
+# Danpa HQ UI/UX Product Design
 
 **Status:** Active source of truth  
 **Established:** 2026-08-24  
@@ -8,12 +8,12 @@
 
 ## Purpose
 
-This document governs Rooomly's deliberate, product-wide UI/UX refinement. It
+This document governs Danpa HQ's deliberate, product-wide UI/UX refinement. It
 exists so design work can continue coherently across sessions without relying on
 conversation history.
 
 It is not a proposal to replace the existing product, design system, domain
-architecture or frontend foundations. Rooomly already has working permissions,
+architecture or frontend foundations. Danpa HQ already has working permissions,
 verification, state machines, APIs, audit history, Next.js and Expo clients. The
 program composes those capabilities into experiences that are easier to
 understand and operate.
@@ -32,13 +32,13 @@ complete. Live backend rules remain authoritative.
 
 ## 1. Product Design Vision
 
-Rooomly should make Ghanaian renting and property operations feel clear,
+Danpa HQ should make Ghanaian renting and property operations feel clear,
 credible and manageable. A provider should spend attention on properties,
-spaces, tenants, agreements and rent—not on decoding Rooomly. A tenant should
+spaces, tenants, agreements and rent—not on decoding Danpa HQ. A tenant should
 spend attention on finding and securing a suitable home—not on learning a
 workflow engine.
 
-A great Rooomly screen feels obvious without being simplistic:
+A great Danpa HQ screen feels obvious without being simplistic:
 
 - The page's purpose is evident before the user reads the whole page.
 - The most important current information is visually dominant.
@@ -50,13 +50,13 @@ A great Rooomly screen feels obvious without being simplistic:
 - Web feels efficient and capable; mobile feels native, focused and lightweight.
 - Both platforms speak one product language without forcing identical layouts.
 
-Rooomly's recognizable identity remains **Daylight & Ledger**: daylight-readable,
+Danpa HQ's recognizable identity remains **Daylight & Ledger**: daylight-readable,
 structured like a ledger, grounded in Ghanaian context, and credible enough to
 keep as a record.
 
 ## 2. UX Problems Being Solved
 
-Rooomly has accumulated valuable functionality faster than it has accumulated
+Danpa HQ has accumulated valuable functionality faster than it has accumulated
 composition. The refinement program addresses:
 
 - pages that become long vertical stacks of unrelated sections;
@@ -374,7 +374,7 @@ while “Verification details” exposes the evidence and lifecycle distinctions
 
 ### 10.1 Low reading density — a permanent rule
 
-Rooomly must not feel like reading software. The target is **glance → understand
+Danpa HQ must not feel like reading software. The target is **glance → understand
 → act**, not read → read more → understand the system → find the action.
 
 Treat every visible word as having a cost. Before keeping any subtitle,
@@ -419,7 +419,7 @@ a fact, allowing only the money qualifiers and the empty-state invitation.
 ### 10.2 Operational intelligence — Glance → Understand → Act
 
 An operational surface may use richer visual language when the visual answers a
-real question faster than prose or a flat row. Rooomly is not required to look
+real question faster than prose or a flat row. Danpa HQ is not required to look
 like a paper record everywhere; Daylight & Ledger is a foundation for credible
 operational intelligence, not a ban on visual meaning.
 
@@ -461,7 +461,7 @@ Act       → Where do I resolve or continue it?
   trend from current totals, recent-record samples or client-side inference.
 - Interactive charts expose the same period values to pointer and keyboard:
   restrained crosshair, active point, precise tooltip and textual totals. A
-  chart-library default is not a finished Rooomly visualization.
+  chart-library default is not a finished Danpa HQ visualization.
 - Every visual has a textual equivalent for accessibility, and color is always
   reinforced by label, icon, value or position.
 
@@ -589,7 +589,7 @@ Portfolio context → centred Portfolio search → Updates → Account
 - Keep rings and gauges compact enough to share a phone row with the statement
   they explain; the number and its plain-language meaning remain visible without
   interaction.
-- The shell is Rooomly green. The band behind the status bar and every header,
+- The shell is Danpa HQ green. The band behind the status bar and every header,
   tab or pushed, is kola (`kola-600`), with titles and the way back in white and
   header controls as translucent white wells; the create action is a solid white
   disc with a kola glyph. Pages stand on warm ivory (`field-50`); cards, sheets,
@@ -618,7 +618,7 @@ Portfolio context → centred Portfolio search → Updates → Account
   hairline.
 - A page's name is said once, by its header. The body opens with content or one
   line of context, never an eyebrow and a title repeating the header. A page
-  that names itself — Home's greeting — carries Rooomly's wordmark in the header
+  that names itself — Home's greeting — carries Danpa HQ's wordmark in the header
   instead of a second title. On the provider side Portfolio scope remains in the
   labelled switcher; never stack the Portfolio name above the page title. Tab
   titles use a compact bold scale (20px normally, 18px at 360px and below), a
@@ -647,7 +647,7 @@ Portfolio context → centred Portfolio search → Updates → Account
   pair up two to a line under the full-width rent range. Explore's phone sheet
   opens 588pt tall on a 390×844 screen; the web panel is 640×403px in a 1280×860
   window, and a one-column sheet 611px tall at 390px, with nothing to scroll.
-- A launch, a sign-in and a sign-out show Rooomly's name on the green chrome until
+- A launch, a sign-in and a sign-out show Danpa HQ's name on the green chrome until
   authentication, role and route are all resolved. Never a spinner, and never
   the signed-out or another workspace's version of a screen first.
 
@@ -749,7 +749,7 @@ billing, and a management console section at `/management/billing`.
 **Redesigned with subscription checkout — 11 September 2026.** The page
 answers seven questions without study, in this order: what plan, what it costs,
 how long it is paid for, how much of it is in use, what it includes, how to
-change it, and what has been paid to Rooomly. Glance → Understand → Act.
+change it, and what has been paid to Danpa HQ. Glance → Understand → Act.
 
 **One plan surface, two zones, one attention strip.** The plan's name, tagline,
 price and a single standing line lead; the three live meters sit beside them on
@@ -763,9 +763,9 @@ never scattered into KPI cards.
 **Standing is derived once, from server state.** `billingPresentation.standingOf`
 turns the subscription into one badge, one line and at most one strip, so the
 header, a notice and a section never repeat each other. Free has no badge and
-says *No billing required*. An administrative grant says *Included by Rooomly ·
+says *No billing required*. An administrative grant says *Included by Danpa HQ ·
 no charge*. A paid plan says *Paid until {date}* — never "Renews", because
-Rooomly subscriptions are prepaid and nothing is charged automatically. Grace is
+Danpa HQ subscriptions are prepaid and nothing is charged automatically. Grace is
 *Renewal due* (warning); past due is critical and says the lower limits apply,
 that anything above them is restricted — never removed — and that renewing lets
 it be reactivated; a scheduled downgrade or cancellation is neutral, says records
@@ -820,7 +820,7 @@ any credit for unused paid time, the amount due today, the period it covers and
 the payment method — all from `GET billing/quote/`. *Pay {amount}* opens a
 server-priced checkout; the modal steps out of the top layer so the provider's
 own window is usable, and comes back to a *Confirming payment* step that polls
-Rooomly's record and periodically asks the provider. The provider's success
+Danpa HQ's record and periodically asks the provider. The provider's success
 callback only triggers that check. Succeeded, failed, expired and pending are
 distinct steps, a failed payment says *You're still on {plan}*, and the page
 re-reads billing from the server after every outcome.
@@ -1107,7 +1107,7 @@ Every redesigned journey must explicitly cover:
 - Return users to the most useful context, not automatically to an arbitrary
   dashboard.
 
-## 20. Things Rooomly Must Never Do
+## 20. Things Danpa HQ Must Never Do
 
 - Never change backend authority, permissions or lifecycle rules for visual
   convenience.
@@ -1663,7 +1663,7 @@ upcoming visits and history rather than exposing only “Viewing requests.”
 browser-native modal focus containment, Escape/backdrop dismissal and opener focus
 return. Complete row labels do not rely on color. Native rows and tabs expose
 roles and selected state; state dots always have text. Copy describes the next
-task instead of repeating raw lifecycle labels. Rooomly's free-Viewing rule and
+task instead of repeating raw lifecycle labels. Danpa HQ's free-Viewing rule and
 symmetric attendance-dispute language remain intact.
 
 **Focused validation:** Local-only API-backed fixtures covered requested,
@@ -1947,7 +1947,7 @@ and empty state; and no truncated text at 320. No native device was used.
 
 **Why this journey exists:** Rent is the area a provider opens to answer three
 questions: who owes money, what has actually been paid, and what does someone
-need me to decide. Rooomly does not move money, so the product's whole value
+need me to decide. Danpa HQ does not move money, so the product's whole value
 here is an honest, mutually agreed record.
 
 **Handover note:** The bulk of this area — the web `/payments` workspace, the
@@ -1995,7 +1995,7 @@ disputes and verification source; and the link back to the tenancy.
 three money facts it states — confirmed received, outstanding, overdue — are the
 only aggregates the backend can defend, and none of them is called revenue,
 settled, collected or a balance held. Recording surfaces say plainly that
-Rooomly does not collect or transfer money and that the other party must confirm
+Danpa HQ does not collect or transfer money and that the other party must confirm
 before a balance changes. A claim is never allowed to look like a receipt.
 Waiving is presented as forgiving an obligation, explicitly not as a payment.
 `pending_payment_records` is preserved in the payload — it is still true, and
@@ -4037,7 +4037,7 @@ which are shortcuts *past* the page rather than part of it, and nothing else.
 decorative one — power is `harmattan` because the palette's amber already means
 energy across the product, water is `lagoon` because it is the only blue,
 screens are `laterite`, the network is `kola` because connectivity is what
-Rooomly itself runs on, and labour services are `ink` and read quieter on
+Danpa HQ itself runs on, and labour services are `ink` and read quieter on
 purpose. A thumb finds Electricity before it reads the word. `ServiceGlyph`
 resolves every tone from the palette, so a new one cannot be typed in as a hex
 value.
@@ -4096,7 +4096,7 @@ keep yet.
 
 **Prepared for the Payments Core, not for its own checkout.** The failure mode
 this page is built against is each new service growing a payment path of its
-own. Rooomly already has server-priced intents, one open intent per obligation,
+own. Danpa HQ already has server-priced intents, one open intent per obligation,
 immutable provider transactions, allocation, a balanced ledger, receipts and
 reconciliation; a second path beside that would have none of it and would look,
 from a tenant's side, exactly the same.
@@ -4156,7 +4156,7 @@ grid of tiles" above.
   answers the objection that tiles cost scrolling.
 - **Referrals joins Home as `later`.** Nothing in `backend/apps` refers anybody
   yet (Rewards & Referrals is a roadmap phase), so it is named and is not a
-  control: no route and nothing to save. Its tone is `kola`, the network Rooomly
+  control: no route and nothing to save. Its tone is `kola`, the network Danpa HQ
   runs on.
 - The saved-numbers strip keeps each nickname, the one word that says which meter
   it is, and runs edge to edge.
@@ -4328,7 +4328,7 @@ choices and three counted rows.
   same need without a hidden "current" home. Nothing is ever merged: two
   overdue homes produce two attention lines, each naming its place, never one
   total.
-- **No maintenance card.** Rooomly has no maintenance domain — there is no
+- **No maintenance card.** Danpa HQ has no maintenance domain — there is no
   `apps/maintenance`, no model, no endpoint. A card reading "No open issue"
   would be a promise the product cannot keep. When the capability exists, the
   slot beside Agreement on the home card is where it goes, and `comingUp()`
@@ -4341,7 +4341,7 @@ choices and three counted rows.
   own state.
 - **Rent is a summary, never a ledger.** One line per home: what is owed next
   and when. History stays in the tenancy record. Nothing is presented as though
-  Rooomly processed a payment.
+  Danpa HQ processed a payment.
 
 **Backend:** two read-only additions, no new authority and no new behaviour.
 
@@ -4489,7 +4489,7 @@ happened last month still carried its cancel button.
 | Reschedule / Cancel / Withdraw on every row | MOVE ON DEMAND — to the record, and only those the backend permits |
 | PageHeader description ("Times you have arranged to see a place.") | REMOVE — the page says it |
 | "The landlord offers times, you pick one, and only then do you exchange numbers." | REMOVE — standing instructions explaining how viewings work are furniture |
-| "Rooomly viewings are free" | KEEP on the provider side, where the fee temptation is |
+| "Danpa HQ viewings are free" | KEEP on the provider side, where the fee temptation is |
 
 **Problems solved:**
 
@@ -5200,7 +5200,7 @@ entry. Architecture in ADR 0033, and ADR 0034 for what replaced them.
 
 **Problems solved:**
 
-- **The location field was a text box.** It suggested Rooomly localities by
+- **The location field was a text box.** It suggested Danpa HQ localities by
   substring, with no towns, landmarks or regions and no geometry. It now searches
   8,227 curated places imported from OpenStreetMap — regions to villages, plus
   airports, universities, malls, stadiums and hospitals. Each suggestion is a
@@ -5252,7 +5252,7 @@ entry. Architecture in ADR 0033, and ADR 0034 for what replaced them.
   chip then sits in the controls both views share — on the list page as well as
   in the map's bar. It is where, not a filter, so Clear all leaves it; the chip
   is its one way back to the whole place.
-- **The basemap is quiet so the markers can be loud.** Rooomly's flavour of the
+- **The basemap is quiet so the markers can be loud.** Danpa HQ's flavour of the
   Protomaps style uses field neutrals for ground, kola parkland, a lagoon wash
   for water and ink-scale labels. It has no point-of-interest icons: the listings
   are the points of interest.
@@ -5302,14 +5302,14 @@ the web, Android and iPhone. Architecture in ADR 0034.
 **Problems solved:**
 
 - **Place search knew only what an import knew.** The field now asks Places API
-  (New), limited to Ghana, through Rooomly's API, so the streets, estates and
+  (New), limited to Ghana, through Danpa HQ's API, so the streets, estates and
   businesses a tenant names can be found. Each suggestion shows its kind in
   colour: lagoon for areas, gold for landmarks, kola for addresses. Google's
   suggestions carry "Google Maps" beneath them, as Google requires when they
   appear without its map. Typing through to a choice is one Places session.
 - **The map was a self-hosted OpenStreetMap basemap** that someone had to
   extract, publish and serve from a public bucket. The web now draws Google
-  Maps, and the price pills, clusters and stacks stay Rooomly's own markers. A
+  Maps, and the price pills, clusters and stacks stay Danpa HQ's own markers. A
   listing's Location section draws its approximate area on the same map.
 - **The phone had no map.** Explore on the phone is now map-first. The search
   box and quick filters sit over the map, and the rentals rise in a sheet: a
@@ -5318,17 +5318,17 @@ the web, Android and iPhone. Architecture in ADR 0034.
   rentals, and a cluster zooms in. When the list fills the screen, a kola "Show
   map" pill floats over it.
 - **A shared link had to look its place up again.** The address bar now holds
-  the area itself — `?area_name=Adabraka,+Accra+Metropolitan&area=-0.22639,5.54896,-0.19939,5.57596&area_ref=rooomly:<id>&view=map`
+  the area itself — `?area_name=Adabraka,+Accra+Metropolitan&area=-0.22639,5.54896,-0.19939,5.57596&area_ref=danpahq:<id>&view=map`
   — so a reload or a shared link asks nobody.
 
 **Important decisions:**
 
-- **Google stays behind Rooomly's interfaces.** One folder per layer knows it:
+- **Google stays behind Danpa HQ's interfaces.** One folder per layer knows it:
   the API's location providers, the web's `lib/maps/google` and the phone's
-  `RooomlyMap.native.tsx`. No Property, Unit or Listing field names Google.
+  `DanpaHQMap.native.tsx`. No Property, Unit or Listing field names Google.
 - **No key is a working screen, not a broken one.** Without keys the web says
   the map is not available and keeps every rental in the list, the phone shows
-  Explore as its list, and suggestions come from Rooomly's localities.
+  Explore as its list, and suggestions come from Danpa HQ's localities.
 - **The preview never shows rent without the advance.** On the phone the advance
   sits in a gold chip under the price, because the lump sum on day one decides
   whether a tenant can take a place.
@@ -5339,7 +5339,7 @@ the web, Android and iPhone. Architecture in ADR 0034.
   sheet until it fills the screen, and only then does the list scroll. For a
   screen reader the handle is adjustable: swipe up or down to show more or less.
 - **Expo Go on an iPhone draws Apple Maps.** Google's iOS SDK cannot load there;
-  every build Rooomly ships draws Google's.
+  every build Danpa HQ ships draws Google's.
 
 **Verified:**
 
@@ -5481,8 +5481,8 @@ iPhone.
   only moved afterwards. A tenant's Home drew its signed-out browsing page, a tab
   drew its sign-in prompt, and `/` said "Loading your account…" under a native
   header titled "index". The gate now decides while rendering. Until the session
-  is known and the route is the one it calls for, Rooomly's name stands over
-  everything: the three o's rising in turn in kola, on the canvas, above a short
+  is known and the route is the one it calls for, Danpa HQ's name stands over
+  everything: the mark's accent letters rising in turn in kola, on the canvas, above a short
   gold rule. Redirects behind it do not animate and the screen behind it is
   hidden from screen readers; it lifts over 220ms once the right screen has had
   140ms to draw, and after eight seconds it says it is still connecting.
@@ -5493,7 +5493,7 @@ iPhone.
   is shown rather than the welcome journey.
 - **The app looked framed by a white shell.** Tab screens set no background and
   fell through to React Navigation's default cool grey under near-white headers
-  and a white tab bar with a shadow. A Rooomly navigation theme now paints every
+  and a white tab bar with a shadow. A Danpa HQ navigation theme now paints every
   navigator surface. Pages stand on canvas (`field-100`) and the two Homes on
   stone; each tab declares its ground once, and its header — the strip behind
   the status bar included — and the tab bar take it from there. The bar's
@@ -5614,7 +5614,7 @@ iPhone.
 **Problems solved:**
 
 - **The ink shell read as dark and brown.** The product owner turned down the
-  ink headers and the gold active tab and asked for Rooomly's green, used
+  ink headers and the gold active tab and asked for Danpa HQ's green, used
   harmoniously. The band behind the status bar and every header is now
   `kola-600`, with white titles, translucent white header wells and a white
   create disc; the launch curtain, the splash and the wordmark share the green.
@@ -5935,7 +5935,7 @@ fill; each card is the whole target with one accessibility label. Occupancy is a
 ratio of the two figures beside it, so it is the one card that leads nowhere.
 
 **Correction — mobile Home was doing Payments' job.** The Rent card carried
-three figures, an all-time qualifier and a statement about how Rooomly handles
+three figures, an all-time qualifier and a statement about how Danpa HQ handles
 money — the largest thing on the dashboard, and most of it not actionable. Home
 now shows Outstanding and Overdue, the two figures that change what a provider
 does today, and links to Payments for the rest.
@@ -6112,7 +6112,7 @@ preview does not draw, so replacing and removing a photo remain device checks.
 ### Provider Home — signal inventory (2026-08-24)
 
 Taken before designing the control center, so the dashboard is built from what
-Rooomly can calculate rather than from dashboard conventions.
+Danpa HQ can calculate rather than from dashboard conventions.
 
 **Portfolio-scoped and truthful** — `GET /organizations/{id}/portfolio/`:
 
@@ -6146,7 +6146,7 @@ Also available: per-Property `verification.review_state`, `unit_count`,
   month-end balances.
 - **Revenue or wallet balance.** Confirmed payments and provider settlements are
   now real records, but neither is a claim about accounting revenue or a stored
-  Rooomly balance.
+  Danpa HQ balance.
 - **Maintenance.** `counts.maintenance_alerts` is always null — not enabled.
 - **Vacant but unlisted.** Publication is per Unit and the Portfolio payload
   carries no per-Unit publication state; computing it needs a Unit fetch per
@@ -6783,7 +6783,7 @@ was not. It is the failure mode to watch for in this codebase.
 ### Journey: The mobile welcome experience (2026-08-27)
 
 The first thing anybody sees, once per installation. Its job is to say what
-Rooomly *is* before somebody decides for themselves — which, for an app with an
+Danpa HQ *is* before somebody decides for themselves — which, for an app with an
 Explore tab, is otherwise "a place to find apartments".
 
 **One street, seen three ways.** Not three slides about three features: a
@@ -6797,7 +6797,7 @@ between the buildings *is* the proposition — one relationship, not three recor
 | 1 | Property. Renting. Connected. |
 | 2 | Your home, in one place. |
 | 3 | Manage property without the chaos. |
-| 4 | How will you use Rooomly? |
+| 4 | How will you use Danpa HQ? |
 
 **Discovery is a capability, not the pitch.** It appears once, quietly, under the
 role question — "Just looking? Browse homes first" — and is never one of the two
@@ -6820,7 +6820,7 @@ a screenshot, a twitchy one reads as a GIF.
 
 `useReduceMotion` stops **both** the loop and the parallax, not just the loop.
 
-**Progress is Rooomly's own**, not `● ○ ○`: the same filling checkpoints property
+**Progress is Danpa HQ's own**, not `● ○ ○`: the same filling checkpoints property
 setup uses, tracking the swipe rather than snapping at the end of it. The fill
 slides under a clip rather than scaling — React Native scales from the centre,
 which would grow each segment outward from its middle.
@@ -6890,7 +6890,7 @@ with the focus ring; every password field in the app can use it.
 welcome scene at header height with none of its machinery — static, no pager, no
 parallax, no loop. *(Superseded in part by "The artwork, rebuilt as a pipeline"
 below: it drew its own rooftops when this was written. It now shows a band of
-the journey's opening scene, so the two can never drift apart.)* Without it, Rooomly's own illustration
+the journey's opening scene, so the two can never drift apart.)* Without it, Danpa HQ's own illustration
 would appear exactly once per installation and never again.
 
 The number now advances to the password, the password submits, and one reading
@@ -7048,11 +7048,11 @@ drafted *and sent* the offer in a single act. What was frozen afterwards was a
 bag of structured values, not a contract; there was no wording, no document, no
 version, and nothing either party could print, keep or produce in a dispute.
 
-**Rooomly writes the agreement; the provider supplies terms.** A versioned
+**Danpa HQ writes the agreement; the provider supplies terms.** A versioned
 `LeaseTemplate` holds the standard clauses with `${placeholders}`; the builder
 collects structured values; the backend renders the two into a complete
 document. That split is the point — a provider configures what goes *into* a
-clause and can add clearly-labelled custom terms, but cannot rewrite Rooomly's
+clause and can add clearly-labelled custom terms, but cannot rewrite Danpa HQ's
 wording, and every lease records the template code and version it was made
 under.
 
@@ -7064,7 +7064,7 @@ the tenant's acceptance no longer activates a tenancy on its own; the provider
 sees what was accepted and confirms it, and only then is the PDF frozen.
 
 **The architectural decision that mattered most: the rendered document is
-stored, not just the fields.** Rooomly's wording will change. A lease accepted
+stored, not just the fields.** Danpa HQ's wording will change. A lease accepted
 under the 2026 template must still reproduce the 2026 agreement — same sections,
 same hash, same PDF bytes. `TestTheAgreementOutlivesItsTemplate` rewrites the
 template out from under an accepted lease and asserts nothing about it moves.
@@ -7554,7 +7554,7 @@ stood.
 - **Verification became progress, not a checklist.** How far the checks have got
   leads as a ring — kola only when every one is done, harmattan while any is
   outstanding — and the ring names the one check somebody can actually act on,
-  never one that is merely waiting on Rooomly. The checks then read as two
+  never one that is merely waiting on Danpa HQ. The checks then read as two
   groups, the person's own and the Portfolio's, and a verified row carries a tick
   rather than its original glyph. The settlement account is read as a check in
   every state it can be in, including the one where somebody else owns it.
@@ -7653,7 +7653,7 @@ web. No native device was used.
 provider, redesigned onto one warm record language. Device review on a Samsung
 handset still wanted for the edge-to-edge fix below.
 
-**Why this journey exists:** The index pages had been recomposed onto Rooomly's
+**Why this journey exists:** The index pages had been recomposed onto Danpa HQ's
 green with frosted glass, and tapping a row still opened the old screen: a
 display heading, a column of bordered sections, and every act the page could
 perform stacked as a full-width button at the bottom. A list that reads as one

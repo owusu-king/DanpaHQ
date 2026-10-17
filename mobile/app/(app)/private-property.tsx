@@ -231,7 +231,7 @@ export default function PrivatePropertyScreen() {
             />
           ) : null}
           {organizations.length === 0 ? (
-            <Notice tone="info" title="This goes into your Rooomly Portfolio" />
+            <Notice tone="info" title="This goes into your Danpa HQ Portfolio" />
           ) : null}
           <PurposeChoice
             value={purpose}

@@ -1,4 +1,5 @@
 import type { BottomTabHeaderProps } from "expo-router/tabs";
+import type { ReactNode } from "react";
 import { StyleSheet, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -15,7 +16,7 @@ const NARROW_ROW_HEIGHT = isAndroid ? 48 : 54;
 const NARROW_WIDTH = 360;
 
 /**
- * The top of every tab: a tool row on Rooomly's textured green.
+ * The top of every tab: a tool row on Danpa HQ's textured green.
  *
  * It does not name the page. The tab bar already says where you are, and the
  * page opens with what it is for, so a title here was a third copy. The row is
@@ -35,13 +36,6 @@ export function TabHeader({
   options,
   route,
 }: BottomTabHeaderProps) {
-  const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
-  const narrow = width <= NARROW_WIDTH;
-  // Android is edge-to-edge. A few older/smaller devices report a zero safe
-  // inset during navigator layout even though the native status bar is still
-  // occupying space. Its measured height is the floor, never extra padding.
-  const topInset = safeHeaderTop(insets.top);
   const tintColor = shell.onChrome;
   const middle = typeof options.headerTitle === "function"
     ? options.headerTitle({ children: options.title ?? route.name, tintColor })
@@ -51,6 +45,34 @@ export function TabHeader({
   // A Home hero carries the green on down, so the header draws no edge and only
   // its upper band: the hero draws the lower one, and the two read as one piece.
   const continues = options.headerShadowVisible === false;
+
+  return <TabHeaderRow left={left} middle={middle} right={right} continues={continues} />;
+}
+
+/**
+ * The row itself, from its three slots.
+ *
+ * Split from `TabHeader` so the iOS native tabs — which draw no header of their
+ * own — can put the same row at the top of each page (`NativeTabFrame`).
+ */
+export function TabHeaderRow({
+  left,
+  middle,
+  right,
+  continues = false,
+}: {
+  left?: ReactNode;
+  middle?: ReactNode;
+  right?: ReactNode;
+  continues?: boolean;
+}) {
+  const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const narrow = width <= NARROW_WIDTH;
+  // Android is edge-to-edge. A few older/smaller devices report a zero safe
+  // inset during navigator layout even though the native status bar is still
+  // occupying space. Its measured height is the floor, never extra padding.
+  const topInset = safeHeaderTop(insets.top);
 
   if (!middle && !left && !right) {
     // A breath under the status bar, so a page does not start against the clock.

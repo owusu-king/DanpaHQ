@@ -30,7 +30,7 @@ type Props = {
  * Paystack's hosted checkout runs as a top-level page inside an app-owned sheet.
  * The sheet never decides that money was received: its only success signal closes
  * checkout and lets the Payments API verify the intent server-side. Rent and a
- * Rooomly subscription share it, because they share the Payments Core.
+ * Danpa HQ subscription share it, because they share the Payments Core.
  */
 export function PaystackCheckoutModal({ intent, onClose, onCheckoutReturn, settles = "your rent" }: Props) {
   const checkoutUrl = intent ? safeCheckoutUrl(intent) : null;
@@ -90,7 +90,7 @@ export function PaystackCheckoutModal({ intent, onClose, onCheckoutReturn, settl
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Close secure payment"
-            accessibilityHint="Returns to Rooomly to check the payment status"
+            accessibilityHint="Returns to Danpa HQ to check the payment status"
             hitSlop={8}
             onPress={onClose}
             {...pressableFeedback(theme.color.ink["700"])}
@@ -162,7 +162,7 @@ export function PaystackCheckoutModal({ intent, onClose, onCheckoutReturn, settl
         <View style={styles.footer}>
           <Ionicons name="shield-checkmark-outline" size={16} color={theme.color.ink["500"]} />
           <Type variant="caption" style={styles.footerCopy}>
-            Rooomly confirms the result with Paystack before updating {settles}.
+            Danpa HQ confirms the result with Paystack before updating {settles}.
           </Type>
         </View>
       </SafeAreaView>

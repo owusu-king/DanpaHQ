@@ -86,7 +86,7 @@ const KIND_ICON: Record<string, IconName> = {
 };
 
 /**
- * What Rooomly has confirmed, and what still needs you.
+ * What Danpa HQ has confirmed, and what still needs you.
  *
  * A status overview; the work itself continues on focused, resumable screens.
  *
@@ -171,7 +171,7 @@ export default function VerificationScreen() {
       key: "provider",
       icon: "shield-checkmark-outline",
       title: "Provider verification",
-      detail: "Your approval to operate property services on Rooomly.",
+      detail: "Your approval to operate property services on Danpa HQ.",
       state: providerTrustState(me.capabilities.provider.verification_status),
       statusLabel: providerStatusLabel(me.capabilities.provider.verification_status),
       actionLabel: "View",
@@ -209,7 +209,7 @@ export default function VerificationScreen() {
                     ? "Nothing is waiting. We will tell you if a check ever expires."
                     : waiting
                       ? `${waiting.title} · ${waiting.statusLabel ?? stateLabel(waiting.state)}`
-                      : "Rooomly confirms each of these once."}
+                      : "Danpa HQ confirms each of these once."}
                 </Type>
               </View>
             </View>

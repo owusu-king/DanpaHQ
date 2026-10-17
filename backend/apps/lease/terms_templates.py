@@ -1,6 +1,6 @@
 """A Portfolio's reusable additional-terms wording.
 
-Rooomly's standard clauses are controlled (see ``templates``): a provider sets
+Danpa HQ's standard clauses are controlled (see ``templates``): a provider sets
 the values that go into them and never their text. What a provider *does* write
 is the custom section of an agreement, and they tend to write the same thing
 for every home - the gate hours, the borehole, the generator. A terms template
@@ -41,7 +41,7 @@ PLACEHOLDERS: list[tuple[str, str, str]] = [
     ("deposit_months", "Deposit (months)", "1"),
     ("utilities", "Utilities", "Electricity: Tenant pays; Water: Tenant pays"),
     ("occupants", "Occupants", "the Tenant only"),
-    ("notice_channels", "Notice channels", "Rooomly, written notice"),
+    ("notice_channels", "Notice channels", "Danpa HQ, written notice"),
 ]
 
 PLACEHOLDER_NAMES = frozenset(name for name, _, _ in PLACEHOLDERS)
@@ -108,7 +108,7 @@ def _clean(data: dict, *, partial: bool) -> dict:
         if unknown:
             listed = ", ".join(f"${{{name}}}" for name in unknown)
             verb = "is not a placeholder" if len(unknown) == 1 else "are not placeholders"
-            raise ValidationFailed(f"{listed} {verb} Rooomly can fill. Choose from the list.")
+            raise ValidationFailed(f"{listed} {verb} Danpa HQ can fill. Choose from the list.")
         cleaned["body"] = body
     if "is_default" in data:
         cleaned["is_default"] = bool(data["is_default"])

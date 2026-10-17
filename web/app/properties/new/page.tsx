@@ -235,7 +235,7 @@ function NewPropertyContent() {
               {organizations.length === 0 ? (
                 <Notice
                   tone="info"
-                  title="This goes into your Rooomly Portfolio"
+                  title="This goes into your Danpa HQ Portfolio"
                 />
               ) : null}
 

@@ -77,6 +77,12 @@ urlpatterns = [
         views.SupportCaseDetailView.as_view(),
         name="management-support-detail",
     ),
+    path(
+        "support/<uuid:pk>/messages/",
+        views.SupportCaseMessageView.as_view(),
+        name="management-support-message",
+    ),
+    path("configuration/", views.ConfigurationView.as_view(), name="management-configuration"),
     path("rentals/", views.RentalsView.as_view(), name="management-rentals"),
     path("payments/", views.PaymentOperationsView.as_view(), name="management-payments"),
     path(

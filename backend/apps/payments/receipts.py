@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import io
 from datetime import UTC, date, datetime
-from decimal import Decimal
-from html import escape
 
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
@@ -19,16 +17,20 @@ from reportlab.platypus import (
     TableStyle,
 )
 
-SNAPSHOT_VERSION = "rooomly.payment_receipt.v1"
+from apps.core.money import Money
+from apps.core.pdf_fonts import DOCUMENT_FONT, DOCUMENT_FONT_BOLD
+from apps.core.pdf_fonts import pdf_escape as escape
+
+SNAPSHOT_VERSION = "danpahq.payment_receipt.v1"
 #: A different document, not a variant of the rent one: it records what a
-#: Portfolio paid Rooomly for its plan, and names no tenant, premises or lease.
-SUBSCRIPTION_SNAPSHOT_VERSION = "rooomly.subscription_receipt.v1"
+#: Portfolio paid Danpa HQ for its plan, and names no tenant, premises or lease.
+SUBSCRIPTION_SNAPSHOT_VERSION = "danpahq.subscription_receipt.v1"
 STAMP_NOTICE = (
-    "Any stamping requirement has not been assessed by Rooomly. This document records a "
+    "Any stamping requirement has not been assessed by Danpa HQ. This document records a "
     "processor-confirmed payment and is not a certification of legal compliance."
 )
 SUBSCRIPTION_NOTICE = (
-    "This receipt records a processor-confirmed payment to Rooomly for a Portfolio "
+    "This receipt records a processor-confirmed payment to Danpa HQ for a Portfolio "
     "subscription. It is not a rent receipt."
 )
 
@@ -36,7 +38,7 @@ SUBSCRIPTION_NOTICE = (
 def build_subscription_snapshot(
     *, transaction_row, invoice, receipt_number: str, issued_at
 ) -> dict:
-    """Freeze what a Portfolio paid Rooomly for, from the settled invoice."""
+    """Freeze what a Portfolio paid Danpa HQ for, from the settled invoice."""
 
     intent = transaction_row.intent
     account = invoice.billing_account
@@ -77,7 +79,7 @@ def build_subscription_snapshot(
             "method_label": transaction_row.get_payment_method_display(),
             "paid_at": (transaction_row.paid_at or issued_at).isoformat(),
             "source": "PLATFORM_PSP",
-            "source_label": "Processed through Rooomly",
+            "source_label": "Processed through Danpa HQ",
         },
         "processor": {
             "name": transaction_row.provider,
@@ -158,7 +160,7 @@ def build_snapshot(*, transaction_row, obligation, receipt_number: str, issued_a
             "method_label": transaction_row.get_payment_method_display(),
             "paid_at": (transaction_row.paid_at or issued_at).isoformat(),
             "source": "PLATFORM_PSP",
-            "source_label": "Processed through Rooomly",
+            "source_label": "Processed through Danpa HQ",
         },
         "processor": {
             "name": transaction_row.provider,
@@ -240,7 +242,7 @@ def build_external_snapshot(*, payment, receipt_number: str, issued_at) -> dict:
             "method_label": payment.get_method_display(),
             "paid_at": payment.paid_on.isoformat(),
             "source": "EXTERNAL",
-            "source_label": "Paid externally and recorded through Rooomly",
+            "source_label": "Paid externally and recorded through Danpa HQ",
             "reference": payment.reference,
             "note": payment.note,
         },
@@ -260,7 +262,7 @@ def build_external_snapshot(*, payment, receipt_number: str, issued_at) -> dict:
             "status": "not_assessed",
             "notice": (
                 "This receipt records an external payment confirmed by both parties through "
-                "Rooomly. Rooomly did not process or independently verify the transfer."
+                "Danpa HQ. Danpa HQ did not process or independently verify the transfer."
             ),
         },
     }
@@ -270,7 +272,7 @@ def render_pdf(snapshot: dict) -> bytes:
     """Render from the stored snapshot only; no mutable domain record is read."""
 
     buffer = io.BytesIO()
-    receipt_number = str(snapshot.get("receipt_number", "Rooomly receipt"))
+    receipt_number = str(snapshot.get("receipt_number", "Danpa HQ receipt"))
     is_subscription = snapshot.get("schema_version") == SUBSCRIPTION_SNAPSHOT_VERSION
     doc = SimpleDocTemplate(
         buffer,
@@ -279,8 +281,8 @@ def render_pdf(snapshot: dict) -> bytes:
         leftMargin=20 * mm,
         topMargin=20 * mm,
         bottomMargin=18 * mm,
-        title=f"Rooomly receipt {receipt_number}",
-        author="Rooomly",
+        title=f"Danpa HQ receipt {receipt_number}",
+        author="Danpa HQ",
         subject="Subscription payment receipt" if is_subscription else "Rental payment receipt",
     )
     styles = getSampleStyleSheet()
@@ -291,7 +293,7 @@ def render_pdf(snapshot: dict) -> bytes:
     title_style = ParagraphStyle(
         "ReceiptTitle",
         parent=styles["Title"],
-        fontName="Helvetica-Bold",
+        fontName=DOCUMENT_FONT_BOLD,
         fontSize=22,
         leading=27,
         textColor=ink,
@@ -300,7 +302,7 @@ def render_pdf(snapshot: dict) -> bytes:
     amount_style = ParagraphStyle(
         "ReceiptAmount",
         parent=styles["Heading1"],
-        fontName="Helvetica-Bold",
+        fontName=DOCUMENT_FONT_BOLD,
         fontSize=24,
         leading=29,
         textColor=kola,
@@ -310,6 +312,7 @@ def render_pdf(snapshot: dict) -> bytes:
     body = ParagraphStyle(
         "ReceiptBody",
         parent=styles["BodyText"],
+        fontName=DOCUMENT_FONT,
         fontSize=9,
         leading=13,
         textColor=ink,
@@ -322,8 +325,7 @@ def render_pdf(snapshot: dict) -> bytes:
         textColor=muted,
     )
     payment = snapshot.get("payment", {})
-    amount = Decimal(int(payment.get("amount_minor", 0))) / Decimal(100)
-    amount_label = f"{payment.get('currency', 'GHS')} {amount:,.2f}"
+    amount_label = str(Money(int(payment.get("amount_minor", 0)), payment.get("currency", "GHS")))
     premises = snapshot.get("premises", {})
     obligation = snapshot.get("obligation", {})
     provider = snapshot.get("provider", {})
@@ -334,8 +336,7 @@ def render_pdf(snapshot: dict) -> bytes:
     period = "Not applicable"
     if obligation.get("period_start") and obligation.get("period_end"):
         period = (
-            f"{_date_label(obligation['period_start'])} to "
-            f"{_date_label(obligation['period_end'])}"
+            f"{_date_label(obligation['period_start'])} to {_date_label(obligation['period_end'])}"
         )
     home = f"{premises.get('property_title', '')} · {premises.get('unit_label', '')}"
     if premises.get("bed_label"):
@@ -397,7 +398,7 @@ def render_pdf(snapshot: dict) -> bytes:
         )
     )
     story = [
-        Paragraph("Rooomly payment receipt", title_style),
+        Paragraph("Danpa HQ payment receipt", title_style),
         Paragraph(f"Receipt {escape(receipt_number, quote=False)}", small),
         Paragraph(amount_label, amount_style),
         table,
@@ -410,8 +411,8 @@ def render_pdf(snapshot: dict) -> bytes:
         canvas.setStrokeColor(rule)
         canvas.line(20 * mm, 13 * mm, A4[0] - 20 * mm, 13 * mm)
         canvas.setFillColor(muted)
-        canvas.setFont("Helvetica", 7.5)
-        canvas.drawString(20 * mm, 8 * mm, f"Rooomly · {receipt_number}")
+        canvas.setFont(DOCUMENT_FONT, 7.5)
+        canvas.drawString(20 * mm, 8 * mm, f"Danpa HQ · {receipt_number}")
         canvas.drawRightString(A4[0] - 20 * mm, 8 * mm, f"Page {doc_instance.page}")
         canvas.restoreState()
 
@@ -445,12 +446,12 @@ def _render_subscription_pdf(
     ]
     if int(invoice.get("credit_minor") or 0) > 0:
         currency = invoice.get("currency", "GHS")
-        list_price = Decimal(int(invoice.get("list_price_minor", 0))) / Decimal(100)
-        credit = Decimal(int(invoice.get("credit_minor", 0))) / Decimal(100)
+        list_price = str(Money(int(invoice.get("list_price_minor", 0)), currency))
+        credit = str(Money(-int(invoice.get("credit_minor", 0)), currency))
         rows.extend(
             [
-                [cell("Plan price", small), cell(f"{currency} {list_price:,.2f}")],
-                [cell("Unused time credited", small), cell(f"-{currency} {credit:,.2f}")],
+                [cell("Plan price", small), cell(list_price)],
+                [cell("Unused time credited", small), cell(credit)],
             ]
         )
     rows.extend(
@@ -476,7 +477,7 @@ def _render_subscription_pdf(
         )
     )
     story = [
-        Paragraph("Rooomly subscription receipt", styles["title"]),
+        Paragraph("Danpa HQ subscription receipt", styles["title"]),
         Paragraph(f"Receipt {escape(receipt_number, quote=False)}", small),
         Paragraph(amount_label, styles["amount"]),
         table,
@@ -489,8 +490,8 @@ def _render_subscription_pdf(
         canvas.setStrokeColor(rule)
         canvas.line(20 * mm, 13 * mm, A4[0] - 20 * mm, 13 * mm)
         canvas.setFillColor(muted)
-        canvas.setFont("Helvetica", 7.5)
-        canvas.drawString(20 * mm, 8 * mm, f"Rooomly · {receipt_number}")
+        canvas.setFont(DOCUMENT_FONT, 7.5)
+        canvas.drawString(20 * mm, 8 * mm, f"Danpa HQ · {receipt_number}")
         canvas.drawRightString(A4[0] - 20 * mm, 8 * mm, f"Page {doc_instance.page}")
         canvas.restoreState()
 

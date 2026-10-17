@@ -91,16 +91,16 @@ def _import_item(
     problems = {}
     if item.amount_minor != transaction_row.amount_minor:
         problems["amount_minor"] = {
-            "rooomly": transaction_row.amount_minor,
+            "danpahq": transaction_row.amount_minor,
             "provider": item.amount_minor,
         }
     if currency != transaction_row.amount_currency:
         problems["currency"] = {
-            "rooomly": transaction_row.amount_currency,
+            "danpahq": transaction_row.amount_currency,
             "provider": currency,
         }
     if batch.settled_at is None:
-        problems["settled_at"] = {"rooomly": None, "provider": None}
+        problems["settled_at"] = {"danpahq": None, "provider": None}
 
     provider_fee = (
         item.provider_fee_minor if intent.provider_fee_bearer == ProviderFeeBearer.SUBACCOUNT else 0

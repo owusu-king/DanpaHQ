@@ -215,7 +215,7 @@ def assert_payment_capability_if_provider(lease, user) -> None:
     """Tenants may answer claims; external recording needs property authority.
 
     A payout destination is intentionally irrelevant. Cash or a direct bank/MoMo
-    transfer already reached the provider outside Rooomly, so requiring Paystack
+    transfer already reached the provider outside Danpa HQ, so requiring Paystack
     setup would conflate evidence recording with platform collection.
     """
     if str(lease.tenant_id) == str(user.id):

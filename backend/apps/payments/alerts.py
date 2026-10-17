@@ -7,7 +7,7 @@ its logs; this is the part that leaves the process.
 **What this is, and is not.** It is one outbound POST to a URL an operator
 configures — Slack, PagerDuty, Opsgenie and every log platform accept an
 incoming webhook, so this binds to whatever the deployment actually uses without
-Rooomly choosing a vendor. It is not a replacement for the structured log line,
+Danpa HQ choosing a vendor. It is not a replacement for the structured log line,
 which stays as the record, and it is not a replacement for external liveness
 monitoring: this runs *on* the Celery worker, so a worker that is down cannot
 tell anyone it is down. That gap is named in the deployment guide.
@@ -70,7 +70,7 @@ def build_payload(
     return {
         "event": event,
         "severity": severity,
-        "service": "rooomly-payments",
+        "service": "danpahq-payments",
         "owner": alert_owner(),
         "exception_id": exception_id,
         "kind": kind,

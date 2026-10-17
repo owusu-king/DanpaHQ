@@ -24,7 +24,7 @@ import { paymentMethodLabel } from "@/payments";
 
 /**
  * The quieter half of the screen: how the subscription is billed, what the
- * Portfolio has paid Rooomly, and how the plan got here.
+ * Portfolio has paid Danpa HQ, and how the plan got here.
  *
  * Plan, subscription, invoice and payment stay distinct. The terms are a short
  * list of facts; each payment is an invoice and what happened to its payment;

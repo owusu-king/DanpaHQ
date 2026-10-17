@@ -227,7 +227,7 @@ export function TenantPaymentsWorkspace() {
           <LedgerHead columns={["Rent item", "Standing", "Due", "Amount"]} />
           <ul className="rent-list">{dueRows.map((row, index) => <DueRowItem key={row.charge.id} row={row} order={index} />)}</ul>
         </div> : <PanelState icon="check" title="You’re paid up" body="New rent items appear here with what they are for and when they are due." />}
-        {dueRows.some((row) => !row.account.ledger.digital_payment.available && !row.intent) ? <p className="rent-readiness-note"><Icon name="info" /><span>Choose Pay rent to review the amount and current payment availability. Rooomly will explain anything this home still needs before checkout can begin.</span></p> : null}
+        {dueRows.some((row) => !row.account.ledger.digital_payment.available && !row.intent) ? <p className="rent-readiness-note"><Icon name="info" /><span>Choose Pay rent to review the amount and current payment availability. Danpa HQ will explain anything this home still needs before checkout can begin.</span></p> : null}
       </section> : null}
 
       {view === "history" ? <section id="tenant-payment-history" role="tabpanel" aria-labelledby="tenant-payment-history-tab" className="ws-panel payments-panel">
@@ -295,7 +295,7 @@ function HistoryRowItem({ row, order, onReceipt }: { row: HistoryRow; order: num
     </span>
     <span className={`rent-row-state is-${tone}`}><Icon name={tone === "confirmed" ? "check" : tone === "disputed" || tone === "review" ? "warning" : "clock"} />{paymentStatus(payment)}</span>
     <span className="rent-row-due is-inline">{payment.method_display}<small>{formatDate(payment.paid_on)}</small></span>
-    <span className="rent-row-amount">{payment.amount_formatted}<small>{payment.source === "EXTERNAL" ? "Paid externally" : "Through Rooomly"}</small></span>
+    <span className="rent-row-amount">{payment.amount_formatted}<small>{payment.source === "EXTERNAL" ? "Paid externally" : "Through Danpa HQ"}</small></span>
     <span className="rent-row-arrow" aria-hidden="true"><Chevron /></span>
   </>;
   return <li data-tone={tone} style={{ "--rent-order": Math.min(order, 12) } as React.CSSProperties}>

@@ -282,8 +282,8 @@ lease to occupancy. Ending the lease also ends the linked occupancy.
 
 A provider recording or confirming an **off-platform** payment requires Property
 `leases` authority and nothing more. It deliberately does **not** require a
-Rooomly receiving account: cash or a direct bank/MoMo transfer has already
-reached the provider outside Rooomly, and refusing to let them acknowledge money
+Danpa HQ receiving account: cash or a direct bank/MoMo transfer has already
+reached the provider outside Danpa HQ, and refusing to let them acknowledge money
 they were actually paid would push the record off the platform entirely.
 Tenant-authored payment claims need only that the tenant is a party to the
 lease. The separate `payment_collection` capability, which does turn on a
@@ -582,7 +582,7 @@ history.
   authorized property managers.
 - `POST /payments/intents/:id/refresh/` requires `Idempotency-Key` and is the
   browser/app return contract. The client supplies no amount, status or
-  transaction data: Rooomly queries the intent's provider reference and runs
+  transaction data: Danpa HQ queries the intent's provider reference and runs
   the result through the same locked validation and posting path as a webhook.
 - `POST /payments/intents/:id/retry/` requires `Idempotency-Key`. It may reopen
   only a failed or expired tenant-owned intent and records a distinct attempt;
@@ -601,7 +601,7 @@ history.
   Money destination as a new record and requires `Idempotency-Key`. It returns `201` for the
   first completed request, `200` for a completed replay, or `202` when a
   provider response is ambiguous and reconciliation is required. The account
-  number is write-only and is not retained by Rooomly.
+  number is write-only and is not retained by Danpa HQ.
 - `POST /organizations/:id/payout-destinations/:profile_id/refresh/` asks the
   PSP for the verification state of that exact saved destination.
 - `POST /organizations/:id/payout-destinations/:profile_id/activate/` selects a

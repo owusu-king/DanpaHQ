@@ -36,6 +36,7 @@ import {
 import { pressableFeedback, useSafeBottom } from "@/platform";
 import { useBlankOnPortfolioSwitch } from "@/portfolioScope";
 import { theme } from "@/theme";
+import { ProviderTabFrame } from "@/components/nav/NativeTabFrame";
 
 /**
  * Every Property in the Portfolio.
@@ -87,7 +88,7 @@ function stageOf(property: ManagedProperty): Exclude<PropertyFilter, "all"> {
   return tone === "good" ? "verified" : tone === "waiting" ? "review" : tone === "attention" ? "attention" : "setup";
 }
 
-export default function ProviderPropertiesScreen() {
+function ProviderPropertiesScreen() {
   const router = useRouter();
   const density = useHomeDensity();
   const pageBottom = useSafeBottom(space[12]);
@@ -596,3 +597,12 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
 });
+
+/** On iOS the tab sits in the native bar, which draws no header; see `ProviderTabFrame`. */
+export default function PropertiesTab() {
+  return (
+    <ProviderTabFrame tab="properties">
+      <ProviderPropertiesScreen />
+    </ProviderTabFrame>
+  );
+}

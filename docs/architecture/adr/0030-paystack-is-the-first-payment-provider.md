@@ -5,7 +5,7 @@
 
 ## Decision
 
-Paystack is Rooomly's first payment service provider. An adapter now exists at
+Paystack is Danpa HQ's first payment service provider. An adapter now exists at
 `apps/payments/paystack.py` implementing the five-operation
 `PaymentProvider` contract.
 
@@ -26,9 +26,9 @@ shapes and identifiers are translated inside that file. `services` and
 second provider — or a replacement — a new file rather than a migration.
 
 **Hosted checkout rather than the Charge API.** Every method goes through
-`transaction/initialize`. The Charge API would let Rooomly drive the mobile-money
+`transaction/initialize`. The Charge API would let Danpa HQ drive the mobile-money
 PIN and OTP from its own screens; that is a nicer flow and one where a credential
-passes through Rooomly's infrastructure. Never *receiving* a PIN is stronger than
+passes through Danpa HQ's infrastructure. Never *receiving* a PIN is stronger than
 not storing one, and the architecture's security section is worth more than a
 screen.
 
@@ -36,7 +36,7 @@ screen.
 `client_reference` returns the same Paystack transaction rather than charging
 twice. `retry_intent` depends on this.
 
-**An unmapped status is refused, not guessed.** A status Rooomly has not seen
+**An unmapped status is refused, not guessed.** A status Danpa HQ has not seen
 goes to reconciliation. Mapping it to the nearest-looking value is how a
 provider's new state silently becomes a wrong balance.
 
@@ -56,7 +56,7 @@ makes that mistake cost nothing rather than cost a tenant's rent.
 
 ## Amendment: organization subaccounts and batch settlement import
 
-Rooomly uses one Paystack subaccount per receiving Portfolio and initializes a
+Danpa HQ uses one Paystack subaccount per receiving Portfolio and initializes a
 single-subaccount split payment. The Portfolio—not the human team member—is the
 beneficiary. The intent snapshots its Portfolio, payout profile, subaccount code
 and numeric id, flat platform charge, and Paystack fee bearer before checkout.
@@ -69,7 +69,7 @@ tenant is never surcharged above the authoritative obligation.
 
 Paystack subaccounts are provisioned through an owner/admin-only domain service.
 The raw bank account number is transient; it is sent to Paystack and never stored
-or logged by Rooomly. Only provider references and masked display data remain.
+or logged by Danpa HQ. Only provider references and masked display data remain.
 A public mutation endpoint is deferred until retries can deduplicate against
 Paystack after a lost response; database-only HTTP idempotency is insufficient
 for an external subaccount-creation side effect.
@@ -101,7 +101,7 @@ signature is rejected — Paystack uses SHA-512), status and channel translation
 the live-mode guard, amount handling in pesewas, channel restriction, timeout
 semantics, subaccount provisioning, split payloads, batch pagination, exact
 transaction matching and idempotent import. Every outbound call is stubbed;
-none of it proves Rooomly can take a payment, and it is not meant to.
+none of it proves Danpa HQ can take a payment, and it is not meant to.
 
 `docs/architecture/PAYSTACK_INTEGRATION.md` carries the go-live checklist,
 what was verified against Paystack's published guidance, and what is still

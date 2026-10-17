@@ -19,7 +19,7 @@ import { theme } from "@/theme";
  *
  * Shown once, by the route gate, right after `/me/registration/` succeeds — a
  * relaunch never brings it back. It answers the four things somebody should
- * always know: where they are (in, with an account), what Rooomly needs next,
+ * always know: where they are (in, with an account), what Danpa HQ needs next,
  * why, and what happens after.
  *
  * A tenant needs nothing more, so it is one line and one act. A provider needs
@@ -51,7 +51,7 @@ export default function WelcomeScreen() {
       <AuthScene>
         <AuthMark />
         <AuthHeading
-          title={name ? `Welcome, ${name}` : "Welcome to Rooomly"}
+          title={name ? `Welcome, ${name}` : "Welcome to Danpa HQ"}
           line="Your provider account is created."
         />
 

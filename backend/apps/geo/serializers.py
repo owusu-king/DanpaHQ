@@ -86,7 +86,7 @@ class AddressSerializer(serializers.ModelSerializer):
 
 
 class AddressPlaceSerializer(serializers.Serializer):
-    """A town/neighbourhood chosen from Rooomly's provider-backed search."""
+    """A town/neighbourhood chosen from Danpa HQ's provider-backed search."""
 
     provider = serializers.ChoiceField(choices=list(PROVIDER_NAMES))
     reference = serializers.RegexField(r"^[A-Za-z0-9_-]{1,300}$", max_length=300)

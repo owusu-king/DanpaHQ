@@ -257,7 +257,7 @@ export default function TeamMemberScreen() {
         <View style={styles.sheetBody}>
           <RecordPanel>
             <Fact first label="Loses" value={accessLabel(member)} tone="alert" />
-            <Fact label="Keeps" value="Their own Rooomly account" />
+            <Fact label="Keeps" value="Their own Danpa HQ account" />
           </RecordPanel>
           <Footnote>
             Their access to {organizationName || "this Portfolio"} ends immediately and their Property

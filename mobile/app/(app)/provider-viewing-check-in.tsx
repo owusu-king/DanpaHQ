@@ -42,7 +42,7 @@ export default function ProviderViewingCheckInScreen() {
     <ScrollView contentContainerStyle={{ padding: space[5], paddingBottom: pageBottom, gap: space[4] }}>
       <View style={{ gap: space[1] }}>
         <Type variant="display2">Check in tenant</Type>
-        <Type variant="body">Scan the temporary QR shown on the tenant&apos;s Rooomly screen.</Type>
+        <Type variant="body">Scan the temporary QR shown on the tenant&apos;s Danpa HQ screen.</Type>
       </View>
 
       {manual ? (

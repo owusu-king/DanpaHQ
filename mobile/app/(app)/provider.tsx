@@ -248,7 +248,7 @@ export default function ProviderStandingScreen() {
                     <Ionicons name="business" size={13} color={LAGOON} />
                   </View>
                   <Type variant="bodyStrong" allowFontScaling={false} style={styles.markWord}>
-                    Rooomly Provider
+                    Danpa HQ Provider
                   </Type>
                 </View>
               )}
@@ -402,7 +402,7 @@ export default function ProviderStandingScreen() {
                         disabled={!asset}
                       />
                       <Type variant="caption" style={styles.centerMuted}>
-                        {"Seen only by Rooomly's review team."}
+                        {"Seen only by Danpa HQ's review team."}
                       </Type>
                     </View>
                   </Rise>

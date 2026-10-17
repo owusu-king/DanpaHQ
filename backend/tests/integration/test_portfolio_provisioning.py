@@ -1,4 +1,4 @@
-"""One Portfolio per provider, and Rooomly is the one who makes it.
+"""One Portfolio per provider, and Danpa HQ is the one who makes it.
 
 A Portfolio used to be something a provider set up for themselves, which meant
 an account could accumulate them — and two Portfolios one person owns is two of
@@ -88,7 +88,7 @@ def lapse_provider_standing(user):
     """Let the approved check run out, the way a real provider's does.
 
     A second decision on one account is not a hypothetical: provider standing
-    expires, and the person is reviewed again. Rooomly must not hand them a
+    expires, and the person is reviewed again. Danpa HQ must not hand them a
     second Portfolio for having been approved twice.
     """
     from apps.trust.models import SubjectType, Verification, VerificationKind
@@ -319,7 +319,7 @@ class TestNobodyCreatesAPortfolio:
         applicant = registered("0207770022", first_name="Kofi", account_type="provider")
         approve_as_provider(applicant, storage, staff)
 
-        with pytest.raises(Conflict, match="already has its Rooomly Portfolio"):
+        with pytest.raises(Conflict, match="already has its Danpa HQ Portfolio"):
             organization_services.create_organization(
                 user=applicant,
                 data={
@@ -332,7 +332,7 @@ class TestNobodyCreatesAPortfolio:
         assert len(owned_portfolios(applicant)) == 1
 
 
-class TestTheOwnerEditsWhatRooomlyProvisioned:
+class TestTheOwnerEditsWhatDanpaHQProvisioned:
     def test_the_owner_renames_and_retypes_their_portfolio(
         self, registered, sign_in_as, storage, staff
     ):

@@ -5,7 +5,7 @@
 
 ## Decision
 
-Rooomly has one active private tenant-acquisition lifecycle:
+Danpa HQ has one active private tenant-acquisition lifecycle:
 
 `Verified Unit → access code → private Unit review → tenancy request → provider
 decision → lease offer → tenant acceptance → tenancy/occupancy`.

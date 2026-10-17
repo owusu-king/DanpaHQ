@@ -24,8 +24,8 @@ const PENDING: SubscriptionCheckout["status"][] = ["created", "pending", "proces
  * One subscription payment, followed to its end.
  *
  * The provider's secure checkout opens over this screen. Closing it, or the
- * checkout returning to Rooomly, only prompts a server check: this screen never
- * decides that a payment succeeded. It asks Rooomly every few seconds and the
+ * checkout returning to Danpa HQ, only prompts a server check: this screen never
+ * decides that a payment succeeded. It asks Danpa HQ every few seconds and the
  * provider itself less often, and the plan changes when the server says so.
  */
 export default function BillingPaymentScreen() {
@@ -61,7 +61,7 @@ export default function BillingPaymentScreen() {
         // A missed poll is not news: the next one tries again. A check somebody
         // asked for, or a first read with nothing else to show, is.
         if (manual || !known.current) {
-          setError(cause instanceof ApiFailure ? cause.error.message : "We could not reach Rooomly. Check your connection and try again.");
+          setError(cause instanceof ApiFailure ? cause.error.message : "We could not reach Danpa HQ. Check your connection and try again.");
         }
         return null;
       }
@@ -82,7 +82,7 @@ export default function BillingPaymentScreen() {
     let ticks = 0;
     const timer = setInterval(() => {
       ticks += 1;
-      // Rooomly's own record every few seconds; the provider itself less often.
+      // Danpa HQ's own record every few seconds; the provider itself less often.
       void check(ticks % 5 === 0);
       if (ticks === 30) setSlow(true);
       if (ticks >= 120) clearInterval(timer);

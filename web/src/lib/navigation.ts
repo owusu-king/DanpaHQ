@@ -16,6 +16,10 @@ import type { Me, Workspace } from "./session";
  * session — matched here and silently overrode the provider destination the
  * backend had just returned. A context now has to belong to the workspace the
  * person is actually in before it may speak.
+ *
+ * Discovery never speaks at all (owner, 2026-10-16). Browsing is a place to go
+ * from the dashboard, not where an arrival lands: a remembered "discovery" sent
+ * tenants to Explore after signing in, when they belong on their dashboard.
  */
 export function resolveWebEntry(me: Me, activeContext?: string | null): string {
   if (me.account_status !== "active") return "/restricted";
@@ -24,6 +28,7 @@ export function resolveWebEntry(me: Me, activeContext?: string | null): string {
   const detailed = me.contexts.find((context) => context.id === activeContext);
   if (
     detailed
+    && detailed.type !== "discovery"
     && contextBelongsToWorkspace(detailed.id, me.capabilities.active_workspace)
     && isReachable(me, detailed.web_route)
   ) {

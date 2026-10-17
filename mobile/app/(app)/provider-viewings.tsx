@@ -502,7 +502,7 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: RULE,
   },
-  // Up next: the one dark surface on the page, Rooomly's deepest green.
+  // Up next: the one dark surface on the page, Danpa HQ's deepest green.
   next: {
     gap: space[3],
     padding: space[4],

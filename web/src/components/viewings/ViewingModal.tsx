@@ -7,7 +7,7 @@
  * times, confirm, check in, cancel, report attendance — is made here without
  * leaving the list. The page owns the list; `onChanged` reloads it, and the
  * sheet reads the fresh viewing back from it. The last viewing shown is held
- * so the sheet can play its exit after the address has let it go.
+ * so the sheet can play its exit after the page has let it go.
  */
 
 import { useState } from "react";

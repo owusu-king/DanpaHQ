@@ -80,7 +80,7 @@ def on_organization_invitation_created(event) -> None:
                 to=invitation.invitee_phone,
                 body=(
                     f"{invitation.invited_by.display_name} invited you to join "
-                    f"{invitation.organization.name} on Rooomly as "
+                    f"{invitation.organization.name} on Danpa HQ as "
                     f"{invitation.get_role_display()}. Sign in or register with this number, "
                     "then open Portfolio invitations."
                 ),
@@ -144,7 +144,7 @@ def on_organization_invitation_accepted(event) -> None:
 def on_property_invitation_accepted(event) -> None:
     """Tell the provider when a private acquisition is ready for a lease.
 
-    Both prospective and already-occupying people still need a Rooomly lease.
+    Both prospective and already-occupying people still need a Danpa HQ lease.
     Acceptance therefore always leaves the provider with an offer to prepare.
     """
     from apps.occupancy.models import PropertyInvitation
@@ -203,7 +203,7 @@ def on_slots_offered(event) -> None:
         title="Times offered for a viewing",
         body=(
             f"{viewing.listing.headline} in {_where(viewing.listing)}. "
-            "Pick a time that works. Rooomly viewings are free."
+            "Pick a time that works. Danpa HQ viewings are free."
         ),
         dedupe_key=_key(event, viewing.tenant_id),
         target_type="viewing",
@@ -956,9 +956,9 @@ def on_payment_failed(event) -> None:
     )
 
 
-# --- Rooomly subscription payments --------------------------------------------
+# --- Danpa HQ subscription payments --------------------------------------------
 #
-# Separate events from rent on purpose. A Portfolio paying Rooomly for its plan
+# Separate events from rent on purpose. A Portfolio paying Danpa HQ for its plan
 # has no tenant, lease or landlord, and the person told is the owner or
 # administrator who started the payment.
 

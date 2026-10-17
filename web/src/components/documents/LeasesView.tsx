@@ -42,14 +42,16 @@ export function LeasesView({
   stage,
   query,
   openId,
+  onOpenLease,
   onParams,
   onTotals,
 }: {
   organizationId: string | null;
   stage: LeaseFilter;
   query: string;
-  /** The lease open in the modal, from the address. */
+  /** The lease open in the modal, held by the page. */
   openId: string | null;
+  onOpenLease: (leaseId: string) => void;
   onParams: (changes: Record<string, string>) => void;
   onTotals: (totals: LeaseTotals | null) => void;
 }) {
@@ -143,7 +145,7 @@ export function LeasesView({
         ) : !loading ? (
           <ul className="docs-lease-rows">
             {visible.map((lease, index) => (
-              <LeaseRow key={lease.id} lease={lease} order={index} onOpen={() => onParams({ lease: lease.id })} />
+              <LeaseRow key={lease.id} lease={lease} order={index} onOpen={() => onOpenLease(lease.id)} />
             ))}
           </ul>
         ) : null}
@@ -152,7 +154,7 @@ export function LeasesView({
       <LeaseModal
         leaseId={openId}
         initial={openLease}
-        onClose={() => onParams({ lease: "" })}
+        onClose={() => onOpenLease("")}
         onChanged={load}
       />
     </>

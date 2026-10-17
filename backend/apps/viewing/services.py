@@ -187,7 +187,7 @@ def offer_slots(
     user,
     slots: list[dict],
 ) -> ViewingRequest:
-    """Offer free viewing times. Rooomly has no viewing-fee concept."""
+    """Offer free viewing times. Danpa HQ has no viewing-fee concept."""
     assert_host(request, user)
     from apps.billing import enforcement as billing
 
@@ -1082,7 +1082,7 @@ def record_tenant_follow_up(
         tenancy_request = create_join_request_from_viewing(
             user=user,
             viewing=request,
-            message="Requested after a checked-in Rooomly viewing.",
+            message="Requested after a checked-in Danpa HQ viewing.",
         )
         result["tenancy_request_id"] = str(tenancy_request.id)
     elif action == ViewingFollowUp.SAVE:

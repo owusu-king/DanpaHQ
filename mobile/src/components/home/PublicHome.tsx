@@ -19,7 +19,7 @@ import { theme } from "@/theme";
  * "listings live in Explore, which is a tab" — and applied to everyone except
  * the one audience who had not yet been given a reason to care.
  *
- * So this says what Rooomly is and hands over. Three claims, because a renter
+ * So this says what Danpa HQ is and hands over. Three claims, because a renter
  * in Ghana has been burned by a listings site before and "verified" is the word
  * that has to be backed up; then one act, which is to go and look.
  *

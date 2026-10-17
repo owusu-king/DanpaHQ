@@ -10,7 +10,7 @@ believed was already impossible:
 - a provider event about something else entirely was answered with a 4xx, which
   a provider retries and eventually responds to by disabling the endpoint the
   real payments arrive on;
-- authenticated provider evidence Rooomly could not match to anything was
+- authenticated provider evidence Danpa HQ could not match to anything was
   recorded in a table nothing ever read;
 - an outbox event whose worker died stayed claimed for ever, which for a rent
   schedule means a live tenancy that owes nothing at all;
@@ -189,7 +189,7 @@ class TestFinancialRecordsAreAppendOnlyAtTheEngine:
 
 
 class TestProviderEvidenceMustBeComplete:
-    """A success Rooomly cannot fully record must fail closed, not half-post."""
+    """A success Danpa HQ cannot fully record must fail closed, not half-post."""
 
     def test_a_confirmation_without_a_completion_time_is_refused(self, landlord, user, obligation):
         _, charge = obligation
@@ -258,7 +258,7 @@ class TestProviderEvidenceMustBeComplete:
 
 
 class TestUnrelatedProviderEventsAreAcknowledged:
-    """A PSP sends events for the whole account, not only for Rooomly rent."""
+    """A PSP sends events for the whole account, not only for Danpa HQ rent."""
 
     @override_settings(PAYSTACK_SECRET_KEY=PAYSTACK_KEY, PAYMENT_BACKEND="paystack")
     @pytest.mark.parametrize(
@@ -294,7 +294,7 @@ class TestUnmatchedProviderEvidenceIsSurfaced:
         """The only trace of an orphaned provider charge is the callback itself.
 
         An intent whose row was rolled back after the provider had accepted the
-        checkout cannot be found by any sweep over Rooomly's intents, because
+        checkout cannot be found by any sweep over Danpa HQ's intents, because
         there is no intent. The refused callback survives in `ProviderWebhook`,
         and until now nothing ever looked at that table.
         """
@@ -388,7 +388,7 @@ class TestTheTwoRailsAgreeOnPartPayment:
     a tenant who brings two thirds of the advance gets it recorded. Digital
     checkout demanded the whole balance. The same two thirds was therefore
     acceptable if handed over in a stairwell and refused if it went through the
-    processor, which pushed exactly the payments Rooomly most wants on-platform
+    processor, which pushed exactly the payments Danpa HQ most wants on-platform
     off it. One rule now, enforced on the server for both.
     """
 
@@ -712,7 +712,7 @@ class TestTheExceptionQueueHasAnOwner:
             detected_at=timezone.now() - timedelta(hours=30)
         )
         operator = ManagementUser.objects.create(
-            email="ops-alerts@rooomly.test",
+            email="ops-alerts@danpahq.test",
             first_name="Ops",
             last_name="Admin",
             role=ManagementRole.OPERATIONS_ADMIN,
@@ -761,7 +761,7 @@ class TestExceptionsReachSomebodyOutsideTheQueue:
     tenant's business made public.
     """
 
-    ENDPOINT = "https://alerts.rooomly.test/hook"
+    ENDPOINT = "https://alerts.danpahq.test/hook"
 
     def _open_one(self, **overrides):
         payload = {
@@ -840,7 +840,7 @@ class TestExceptionsReachSomebodyOutsideTheQueue:
                 provider_reference=intent.provider_reference,
                 intent=intent,
                 detail={
-                    "rooomly_amount_minor": intent.amount_minor,
+                    "danpahq_amount_minor": intent.amount_minor,
                     "provider_amount_minor": 1,
                 },
             )
@@ -895,7 +895,7 @@ class TestExceptionsReachSomebodyOutsideTheQueue:
         assert _counts(reconciliation.alert_open_exceptions()) == (1, 0, 0)
 
         operator = ManagementUser.objects.create(
-            email="ack@rooomly.test",
+            email="ack@danpahq.test",
             first_name="Ops",
             last_name="Admin",
             role=ManagementRole.OPERATIONS_ADMIN,
@@ -920,7 +920,7 @@ class TestExceptionsReachSomebodyOutsideTheQueue:
 
         row = self._open_one()
         operator = ManagementUser.objects.create(
-            email="stall@rooomly.test",
+            email="stall@danpahq.test",
             first_name="Ops",
             last_name="Admin",
             role=ManagementRole.OPERATIONS_ADMIN,

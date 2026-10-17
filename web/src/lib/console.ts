@@ -2068,7 +2068,7 @@ export type LeaseStructuredTerms = {
   occupants?: { name: string; relationship?: string }[];
   provider_responsibilities?: string[];
   tenant_responsibilities?: string[];
-  notice_channels?: ("Rooomly" | "email" | "SMS" | "written notice")[];
+  notice_channels?: ("Danpa HQ" | "email" | "SMS" | "written notice")[];
   additional_terms?: { title: string; body: string }[];
 };
 
@@ -2141,8 +2141,8 @@ export function updateLease(id: string, input: Partial<{
   });
 }
 
-export function getLeaseDocument(id: string) {
-  return authedBlob(`/leases/${id}/document.pdf?disposition=inline`);
+export function getLeaseDocument(id: string, forPrint = false) {
+  return authedBlob(`/leases/${id}/document.pdf?disposition=${forPrint ? "print" : "inline"}`);
 }
 
 // --- provider standing -------------------------------------------------------
@@ -2309,7 +2309,7 @@ export type NotificationPreferences = {
   alerts: Record<string, boolean>;
   account_phone: string;
   alert_topics: AlertTopic[];
-  /** False until Rooomly's WhatsApp channel is connected. */
+  /** False until Danpa HQ's WhatsApp channel is connected. */
   whatsapp_available: boolean;
 };
 
@@ -2427,6 +2427,6 @@ export function attachVerificationEvidence(
   });
 }
 
-/* Billing — plans, a Portfolio's subscription and its payments to Rooomly —
+/* Billing — plans, a Portfolio's subscription and its payments to Danpa HQ —
    lives in `@/lib/billing`. It is a different business concept from the rent
    and Portfolio operations in this file, and it has one client, not two. */

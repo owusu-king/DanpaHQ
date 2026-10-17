@@ -149,7 +149,7 @@ test("a mobile first Property files into the Portfolio the account already has",
   assert.match(property, /createPersonalPortfolioProperty/);
   // The Portfolio is not created here. It was provisioned when this account's
   // provider access was approved, and the form says where the Property goes.
-  assert.match(property, /This goes into your Rooomly Portfolio/);
+  assert.match(property, /This goes into your Danpa HQ Portfolio/);
   assert.doesNotMatch(property, /Portfolio starts here/);
   assert.doesNotMatch(property, /propertyTypes\s*\.filter/);
   assert.match(properties, /label="Add Property"/);
@@ -161,7 +161,7 @@ test("a mobile first Property files into the Portfolio the account already has",
 });
 
 test("nothing in the mobile app creates a Portfolio", () => {
-  // Every provider owns exactly one Portfolio and Rooomly provisions it when
+  // Every provider owns exactly one Portfolio and Danpa HQ provisions it when
   // provider access is approved. There is no setup screen, no API wrapper to
   // call one, and no control that offers it — the owner renames what they were
   // given, and joins anything else by invitation.
@@ -427,7 +427,7 @@ test("Home rows carry a destination, not an explanation", () => {
   // The money qualifiers keep two figures from being false. The empty state is
   // an invitation to a provider with nothing yet, which the Home brief asked
   // for by name. Everything else must earn its place in under 40 characters.
-  const allowed = ["Agreed by both sides, all time", "Rooomly records rent."];
+  const allowed = ["Agreed by both sides, all time", "Danpa HQ records rent."];
   const isMoneyOrWelcome = (text) =>
     allowed.some((phrase) => text.startsWith(phrase))
     || text.startsWith("Add your first Property");

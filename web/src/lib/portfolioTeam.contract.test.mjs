@@ -237,7 +237,7 @@ test("an individual web provider creates a first Property without setup detour",
   assert.match(property, /createPersonalPortfolioProperty/);
   // The Property is filed into the Portfolio the account already has, and the
   // form says so. It no longer promises to create one, because approval did.
-  assert.match(property, /This goes into your Rooomly Portfolio/);
+  assert.match(property, /This goes into your Danpa HQ Portfolio/);
   assert.doesNotMatch(property, /will be created/);
   assert.doesNotMatch(property, /propertyTypes\.filter/);
   assert.match(next, /href: "\/properties\/new"/);
@@ -383,7 +383,7 @@ test("provider Payments is first-class navigation and an actionable destination"
 });
 
 test("nothing in the web console creates a Portfolio", () => {
-  // Every provider owns exactly one Portfolio and Rooomly provisions it when
+  // Every provider owns exactly one Portfolio and Danpa HQ provisions it when
   // provider access is approved. There is no setup route, no API wrapper to
   // call one, and no control that offers it — the owner renames what they were
   // given, and joins anything else by invitation.
@@ -426,7 +426,7 @@ test("web Property and Unit pages keep one operational hierarchy", () => {
   assert.match(unit, /<UnitPrivateAccess/);
   assert.match(unit, /Tenancy requests and tenancies/);
   assert.equal((unit.match(/View public listing/g) ?? []).length, 1);
-  assert.match(unit, /Rooomly will not accept new requests while someone lives here/);
+  assert.match(unit, /Danpa HQ will not accept new requests while someone lives here/);
   assert.match(lifecycle, /With our review team/);
   assert.match(lifecycle, /This returns the submission to you/);
   assert.match(lifecycle, /reviewState === "changes_required"[\s\S]*"What to update"/);

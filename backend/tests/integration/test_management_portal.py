@@ -57,7 +57,7 @@ def test_management_login_uses_email_password_and_an_isolated_cookie():
 
     assert response.status_code == 200
     assert response.data["user"]["role"] == "operations_admin"
-    cookie = response.cookies["grp_management_session"]
+    cookie = response.cookies["danpahq_management_session"]
     assert cookie["httponly"]
     assert cookie["samesite"] == "Strict"
     assert AuditLog.objects.filter(action=AuditAction.LOGIN, management_actor_id=user.id).exists()
@@ -133,7 +133,7 @@ def test_management_sign_in_refuses_when_its_limiter_cannot_count(monkeypatch):
     assert response.data["error"]["code"] == "provider_unavailable"
     assert response.data["error"]["details"]["reason"] == "rate_limit_unavailable"
     # Nobody was signed in on the way past the limiter.
-    assert "grp_management_session" not in response.cookies
+    assert "danpahq_management_session" not in response.cookies
     assert not AuditLog.objects.filter(action=AuditAction.LOGIN).exists()
 
 

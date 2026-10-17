@@ -12,6 +12,7 @@ import { Countdown, SoonChip, countsDown, useNow } from "@/components/viewings/C
 import { ViewingModal } from "@/components/viewings/ViewingModal";
 import { NextUp, PanelSearch, PanelSkeleton, PanelState, SegmentedControl, WorkspaceHead, gridKeyNavigation } from "@/components/workspace/Workspace";
 import { ApiFailure } from "@/lib/api";
+import { useDeepLinkedModal } from "@/lib/deepLinkedModal";
 import {
   bySoonest,
   matchesViewingFilter,
@@ -85,9 +86,9 @@ function TenantViewings() {
   const filter: ViewingFilter =
     viewingFilters.map((option) => option.id).find((id) => id === search.get("show")) ?? "all";
   const query = search.get("q") ?? "";
-  // A plain click reads the viewing in a sheet over the schedule, kept in the
-  // address; the card is still a link to `/viewings/<id>`.
-  const openId = search.get("viewing") ?? "";
+  // A plain click reads the viewing in a sheet over the schedule; the card is
+  // still a link to `/viewings/<id>`. `?viewing=` from elsewhere opens it once.
+  const [openId, setOpenId] = useDeepLinkedModal("viewing");
 
   // A reload keeps what is on screen, so a confirmed time updates in the open
   // sheet instead of the sheet losing its viewing.
@@ -169,7 +170,7 @@ function TenantViewings() {
   const showFilter = new Set(rows.map((row) => row.state.group)).size > 1 || filter !== "all";
   const selectedLabel = viewingFilters.find((option) => option.id === filter)?.label ?? "Viewings";
   const opened = openId ? viewings?.find((viewing) => viewing.id === openId) ?? null : null;
-  const open = useCallback((viewingId: string) => setParams({ viewing: viewingId }), [setParams]);
+  const open = setOpenId;
 
   const firstAction = rows.find((row) => row.state.group === "action") ?? null;
   // The next visit actually booked: the one a countdown is for.
@@ -276,7 +277,7 @@ function TenantViewings() {
         )}
       </section>
 
-      <ViewingSheet viewing={opened} onChanged={load} onClose={() => setParams({ viewing: "" })} />
+      <ViewingSheet viewing={opened} onChanged={load} onClose={() => setOpenId("")} />
     </div>
   );
 }
@@ -504,9 +505,9 @@ function ViewingCard({
  * An agenda, because a viewing is an appointment: what needs an answer first,
  * then the days ahead, each day read down by time the way a diary is. A row is
  * a link to the viewing's own address; a plain click opens the same record in
- * a sheet over the agenda (`?viewing=`), so a decision does not cost the place
- * in the list. A modified click still opens the page. Nothing is opened for
- * anyone on arrival.
+ * a sheet over the agenda, so a decision does not cost the place in the list.
+ * A modified click still opens the page. Nothing is opened for anyone on
+ * arrival.
  *
  * The counts moved into the one line under the title. Tiles above the stages
  * said the same kind of number twice and pushed the work below the fold.
@@ -530,7 +531,7 @@ function ProviderViewings() {
   const view: ProviderViewingFilter =
     PROVIDER_VIEWING_FILTERS.find((value) => value === search.get("show")) ?? "action";
   const query = search.get("q") ?? "";
-  const openId = search.get("viewing") ?? "";
+  const [openId, setOpenId] = useDeepLinkedModal("viewing");
 
   const load = useCallback(async () => {
     try {
@@ -735,7 +736,7 @@ function ProviderViewings() {
                       order={index}
                       returned={returnedTo === viewing.id}
                       onOpen={remember}
-                      onPeek={(item) => setParams({ viewing: item.id })}
+                      onPeek={(item) => setOpenId(item.id)}
                     />
                   ))}
                 </ul>
@@ -745,7 +746,7 @@ function ProviderViewings() {
         ) : null}
       </section>
 
-      <ViewingModal viewing={opened} onClose={() => setParams({ viewing: "" })} onChanged={load} />
+      <ViewingModal viewing={opened} onClose={() => setOpenId("")} onChanged={load} />
     </div>
   );
 }

@@ -21,21 +21,20 @@
    stretch the box beside it. */
 .auth-panel .auth-row { align-items: start; }
 
-/* --- two doors: larger than a list row, because the journey is built on this --- */
+/* --- two compact doors: clear choices without making the first step tower --- */
 
-.auth-roles { display: grid; gap: var(--space-3); }
+.auth-roles { display: grid; gap: var(--space-2); }
 .auth-role {
   --hue: var(--color-kola-600);
   --wash: var(--color-kola-50);
   position: relative;
-  display: grid;
-  gap: 4px;
-  padding: var(--space-4);
+  display: block;
+  padding: 8px 10px;
   color: var(--color-ink-900);
   text-align: left;
   background: var(--color-field-0);
   border: 1.5px solid var(--color-field-200);
-  border-radius: 16px;
+  border-radius: 14px;
   box-shadow: 0 1px 2px rgb(22 17 14 / 5%);
   cursor: pointer;
   transition: border-color .18s, background-color .22s, box-shadow .18s, transform .14s;
@@ -45,25 +44,27 @@
 .auth-role:active { transform: scale(.99); }
 .auth-role:focus-visible { outline: 2px solid var(--hue); outline-offset: 2px; }
 .auth-role[aria-checked="true"] { background: var(--wash); border-color: var(--hue); }
-.auth-role strong { margin-top: var(--space-2); font: 700 1.0625rem/1.3 var(--font-display); letter-spacing: -.01em; }
+.auth-role strong { min-width: 0; overflow: hidden; font: 700 .9375rem/1.3 var(--font-display); letter-spacing: -.01em; text-overflow: ellipsis; white-space: nowrap; }
 .auth-role[aria-checked="true"] strong { color: var(--hue); }
-.auth-role-top { display: flex; align-items: flex-start; justify-content: space-between; }
+.auth-role-top { display: grid; grid-template-columns: 32px minmax(0, 1fr) 20px; align-items: center; gap: 10px; }
+.auth-role-copy { display: grid; min-width: 0; gap: 1px; }
+.auth-role-body { overflow: hidden; color: var(--color-ink-500); font-size: .75rem; line-height: 1.3; text-overflow: ellipsis; white-space: nowrap; }
 .auth-role-tile {
   display: grid;
-  width: 44px;
-  height: 44px;
+  width: 32px;
+  height: 32px;
   place-items: center;
   color: var(--hue);
   background: var(--wash);
-  border-radius: 13px;
+  border-radius: 11px;
   transition: background-color .22s, color .22s;
 }
 .auth-role[aria-checked="true"] .auth-role-tile { color: var(--color-field-0); background: var(--hue); }
-.auth-role-tile svg { width: 22px; height: 22px; }
+.auth-role-tile svg { width: 18px; height: 18px; }
 .auth-role-tick {
   display: grid;
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
   place-items: center;
   color: transparent;
   border: 1.5px solid var(--color-field-300);
@@ -72,20 +73,6 @@
 }
 .auth-role-tick svg { width: 13px; height: 13px; stroke-width: 3; }
 .auth-role[aria-checked="true"] .auth-role-tick { color: var(--color-field-0); background: var(--hue); border-color: var(--hue); transform: scale(1.08); }
-.auth-role-body { color: var(--color-ink-700); font-size: .875rem; line-height: 1.45; }
-.auth-role-points { display: grid; gap: 2px; margin: var(--space-2) 0 0; padding: 0; list-style: none; }
-.auth-role-points li { position: relative; padding-left: 14px; color: var(--color-ink-500); font-size: .8125rem; }
-.auth-role-points li::before {
-  position: absolute;
-  top: .55em;
-  left: 0;
-  width: 5px;
-  height: 5px;
-  background: var(--hue);
-  border-radius: 50%;
-  content: "";
-}
-
 /* --- which account this is, said once, with a way to change it ---------------- */
 
 .auth-account {

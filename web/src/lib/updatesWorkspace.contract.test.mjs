@@ -82,8 +82,8 @@ test("the shell badge follows the page, and Back returns to the same place", () 
   const page = read("web/app/updates/page.tsx");
   const shell = read("web/src/components/portal/PortalShell.tsx");
 
-  assert.match(page, /new CustomEvent\("rooomly:unread"/);
-  assert.match(shell, /addEventListener\("rooomly:unread"/);
+  assert.match(page, /new CustomEvent\("danpahq:unread"/);
+  assert.match(shell, /addEventListener\("danpahq:unread"/);
   assert.match(page, /sessionStorage\.setItem\(RETURN_KEY/);
   assert.match(page, /Try again/);
 });

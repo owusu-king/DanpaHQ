@@ -295,7 +295,7 @@ function WhatIsNext({
       <section className="pd-next" data-tone="occupied">
         <span className="pd-next-kicker">Currently occupied</span>
         <h2>Someone lives here</h2>
-        <p>Rooomly will not accept new requests while someone lives here.</p>
+        <p>Danpa HQ will not accept new requests while someone lives here.</p>
         <Link href={"/tenants" as never} className="ws-action">Manage in Tenants →</Link>
       </section>
     );

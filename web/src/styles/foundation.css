@@ -47,17 +47,17 @@
 
 .btn {
   position: relative;
-  min-height: var(--target-min);
-  padding: 0 var(--space-5);
+  min-height: 2.625rem;
+  padding: 0 var(--space-4);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: var(--space-2);
   border: var(--border-hairline) solid transparent;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   font-family: var(--font-body);
-  font-size: 0.9375rem;
-  font-weight: 600;
+  font-size: 0.875rem;
+  font-weight: 650;
   letter-spacing: -0.005em;
   line-height: 1;
   white-space: nowrap;
@@ -81,20 +81,29 @@
 .btn[aria-busy="true"] { cursor: wait; }
 
 .btn-primary {
-  background: var(--color-ink-900);
-  border-color: var(--color-ink-900);
+  background: var(--color-kola-600);
+  border-color: var(--color-kola-600);
   color: var(--color-field-0);
+  box-shadow:
+    0 1px 2px color-mix(in srgb, var(--color-kola-900) 18%, transparent),
+    inset 0 1px 0 rgb(255 255 255 / 14%);
 }
 
-/* Primary is ink rather than a hue: it cannot fail contrast on any surface the
-   product has, and it leaves the gold free to mean something when it appears. */
+/* Kola is the product action colour. A darker hover adds depth without making
+   the control grow or shift around the content beside it. */
 .btn-primary:not(:disabled):hover {
-  background: var(--color-ink-800);
-  border-color: var(--color-ink-800);
-  box-shadow: var(--shadow-lifted);
+  background: var(--color-kola-800);
+  border-color: var(--color-kola-800);
+  box-shadow:
+    0 6px 16px -9px color-mix(in srgb, var(--color-kola-900) 70%, transparent),
+    inset 0 1px 0 rgb(255 255 255 / 12%);
 }
 
-.btn-primary:not(:disabled):active { box-shadow: none; }
+.btn-primary:not(:disabled):active {
+  background: var(--color-kola-900);
+  border-color: var(--color-kola-900);
+  box-shadow: none;
+}
 
 .btn-secondary {
   background: var(--color-field-0);
@@ -162,8 +171,8 @@
   border-color: rgb(255 255 255 / 44%);
 }
 
-.btn-sm { min-height: 2.25rem; padding-inline: var(--space-3); font-size: 0.875rem; }
-.btn-lg { min-height: 3.5rem; padding-inline: var(--space-8); font-size: 1rem; }
+.btn-sm { min-height: 2.125rem; padding-inline: var(--space-3); font-size: 0.8125rem; }
+.btn-lg { min-height: 3rem; padding-inline: var(--space-6); font-size: 0.9375rem; }
 .btn-block { width: 100%; }
 
 /* --- focus --------------------------------------------------------------- */

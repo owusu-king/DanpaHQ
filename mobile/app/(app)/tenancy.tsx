@@ -151,7 +151,7 @@ export default function TenancyScreen() {
               wide
               first
               label="Not sent yet"
-              value="Your provider must send an agreement and you must accept it before Rooomly can activate this tenancy."
+              value="Your provider must send an agreement and you must accept it before Danpa HQ can activate this tenancy."
             />
           </RecordPanel>
         </View>
@@ -180,7 +180,7 @@ export default function TenancyScreen() {
         </View>
       ) : null}
 
-      <Footnote>Rooomly records what was agreed and what has been paid. Rent is never collected here.</Footnote>
+      <Footnote>Danpa HQ records what was agreed and what has been paid. Rent is never collected here.</Footnote>
     </ScrollView>
   );
 }

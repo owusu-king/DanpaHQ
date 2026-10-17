@@ -1,8 +1,8 @@
 """What every location provider answers with (ADR 0034).
 
-Rooomly never keeps a mapping company's shape. A suggestion and a resolved place
+Danpa HQ never keeps a mapping company's shape. A suggestion and a resolved place
 carry the provider's name and the provider's own reference as plain strings,
-beside what Rooomly means by a place: a name to show, a kind, a centre and a box
+beside what Danpa HQ means by a place: a name to show, a kind, a centre and a box
 a map can fit. Nothing outside this package knows which company answered, so
 replacing one is a change here and nowhere that stores or searches.
 """
@@ -88,7 +88,7 @@ class ResolvedPlace:
 
 
 class LocationProvider(Protocol):
-    #: Sent to clients as `provider`: "google", "rooomly".
+    #: Sent to clients as `provider`: "google", "danpahq".
     name: str
     #: Whose attribution a client must show beside these results, if anyone's.
     attribution: str | None

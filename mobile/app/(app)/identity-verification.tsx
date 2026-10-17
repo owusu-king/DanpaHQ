@@ -84,7 +84,7 @@ export default function IdentityVerificationScreen() {
         <Type variant="label">IDENTITY</Type>
         <Type variant="display2" accessibilityRole="header">Identity verification</Type>
         <Type variant="body" style={{ color: theme.color.ink["500"] }}>
-          Submit one clear document. This check carries across every Rooomly experience.
+          Submit one clear document. This check carries across every Danpa HQ experience.
         </Type>
       </View>
 

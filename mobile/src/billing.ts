@@ -1,5 +1,5 @@
 /**
- * Plan & billing: what a Portfolio is on, what it may do, and how it pays Rooomly.
+ * Plan & billing: what a Portfolio is on, what it may do, and how it pays Danpa HQ.
  *
  * The same reads and the same server-priced checkout as the web client in
  * `web/src/lib/billing.ts`. The catalogue is public and carries every plan's
@@ -266,7 +266,7 @@ export function startSubscriptionCheckout(
   });
 }
 
-/** What Rooomly already knows. No provider call. */
+/** What Danpa HQ already knows. No provider call. */
 export function getSubscriptionCheckout(organizationId: string, checkoutId: string) {
   return apiFetch<SubscriptionCheckout>(`${billingPath(organizationId)}/checkout/${checkoutId}/`);
 }

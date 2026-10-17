@@ -38,6 +38,7 @@ import {
 } from "@/serviceCatalogue";
 import { alpha } from "@/shell";
 import { theme } from "@/theme";
+import { RenterTabFrame } from "@/components/nav/NativeTabFrame";
 
 /**
  * Services: what a household buys, beside the rent.
@@ -77,7 +78,7 @@ const GROUPS: { title: string; categories: ServiceCategory[] }[] = [
 /** The space between catalogue cards. */
 const TILE_GAP = 12;
 
-export default function ServicesScreen() {
+function ServicesScreen() {
   const router = useRouter();
   const { state } = useAuth();
   const [saved, setSaved] = useState<SavedDetail[]>([]);
@@ -605,3 +606,12 @@ const styles = StyleSheet.create({
     borderTopColor: alpha(DEEP, 0.1),
   },
 });
+
+/** On iOS the tab sits in the native bar, which draws no header; see `RenterTabFrame`. */
+export default function ServicesTab() {
+  return (
+    <RenterTabFrame tab="services">
+      <ServicesScreen />
+    </RenterTabFrame>
+  );
+}

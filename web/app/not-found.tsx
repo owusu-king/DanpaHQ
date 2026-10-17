@@ -1,7 +1,7 @@
-import type { Route } from "next";
 import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
 
+import { AuthLink } from "@/components/auth/AuthDialog";
 import { Reveal } from "@/components/motion/Reveal";
 import { Button } from "@/components/ui/button";
 
@@ -69,13 +69,14 @@ export default function NotFound() {
                 Start a search
               </Link>
               {" "}or{" "}
-              <Link
-                href={"/sign-in?workspace=provider" as Route}
+              <AuthLink
+                view="sign-in"
+                params={{ workspace: "provider" }}
                 className="inline-flex items-center gap-0.5 font-medium text-foreground underline-offset-4 transition-colors hover:underline"
               >
                 list a property
                 <ArrowUpRight className="size-3.5 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
-              </Link>
+              </AuthLink>
               .
             </p>
           </Reveal>

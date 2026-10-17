@@ -381,8 +381,8 @@ function PaymentDetail({ payment, onReceipt }: { payment: RentPayment; onReceipt
       </RecordPanel>
       <Footnote>
         {payment.source === "EXTERNAL"
-          ? "Paid externally · recorded through Rooomly"
-          : "Processed through Rooomly"}
+          ? "Paid externally · recorded through Danpa HQ"
+          : "Processed through Danpa HQ"}
       </Footnote>
       {payment.dispute_reason ? <Quote>{payment.dispute_reason}</Quote> : null}
       {error ? <Notice tone="error" title={error} /> : null}
@@ -464,7 +464,7 @@ function ReviewPayment({ payment, onDone }: { payment: RentPayment; onDone: () =
       ) : step === "confirm" ? (
         <>
           <Type variant="caption" style={styles.note}>
-            This applies the payment to {payment.obligation_label}. Rooomly did not process the
+            This applies the payment to {payment.obligation_label}. Danpa HQ did not process the
             transfer — it is recording that you agree the money arrived.
           </Type>
           <Pill

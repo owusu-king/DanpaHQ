@@ -66,14 +66,14 @@ export default function PaymentCheckoutPage() {
   async function continueIntent(intent: PaymentIntent) {
     setBusy(true);
     setError("");
-    const returnToRooomly = () => {
+    const returnToDanpaHQ = () => {
       router.push(`/payments/return?intent=${encodeURIComponent(intent.id)}` as never);
     };
     const accessCode = paystackAccessCode(intent);
     if (accessCode) {
       try {
         await openPaystackPopup(intent, {
-          onSuccess: returnToRooomly,
+          onSuccess: returnToDanpaHQ,
           onCancel: () => setBusy(false),
           onError: (message) => {
             setError(message);
@@ -96,7 +96,7 @@ export default function PaymentCheckoutPage() {
       return;
     }
     setBusy(false);
-    returnToRooomly();
+    returnToDanpaHQ();
   }
 
   async function start() {
@@ -165,7 +165,7 @@ export default function PaymentCheckoutPage() {
               Continue securely
             </Button>
           ) : null}
-          <p className="payment-trust-note type-caption">Rooomly confirms payment with the processor. A browser return alone never marks rent as paid.</p>
+          <p className="payment-trust-note type-caption">Danpa HQ confirms payment with the processor. A browser return alone never marks rent as paid.</p>
         </>
       ) : null}
       {!loading && ledger && !charge ? <Notice tone="error" title="This charge is no longer available." /> : null}

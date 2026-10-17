@@ -10,6 +10,7 @@ import { Notice } from "@/components/ui";
 import { resolveEntryRoute } from "@/navigation";
 import { listMyPortfolioInvitations } from "@/organizations";
 import { chooseWorkspace } from "@/workspace";
+import { RenterTabFrame } from "@/components/nav/NativeTabFrame";
 
 /**
  * The tenant's More, laid out like WhatsApp's "You" tab (owner, 2026-10-06):
@@ -24,7 +25,7 @@ import { chooseWorkspace } from "@/workspace";
  * once a separate Settings screen listing most of these a second time; it is
  * gone, and stays gone.
  */
-export default function ProfileTab() {
+function ProfileTab() {
   const router = useRouter();
   const { state, refreshMe, signOut } = useAuth();
   const photoUri = useProfilePhoto();
@@ -140,5 +141,14 @@ export default function ProfileTab() {
       // A switch that fails says so beside the switch.
       notice={error ? <Notice tone="error" title={error} /> : null}
     />
+  );
+}
+
+/** On iOS the tab sits in the native bar, which draws no header; see `RenterTabFrame`. */
+export default function MenuTab() {
+  return (
+    <RenterTabFrame tab="menu">
+      <ProfileTab />
+    </RenterTabFrame>
   );
 }

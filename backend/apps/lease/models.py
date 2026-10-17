@@ -88,7 +88,7 @@ class AgreementHashScope(models.TextChoices):
 
 
 class LeaseTemplate(BaseModel):
-    """One immutable release of Rooomly's controlled agreement language.
+    """One immutable release of Danpa HQ's controlled agreement language.
 
     Configuration is additive: changing a clause means creating a new version,
     never editing a version an offer may already name. The complete rendered
@@ -547,7 +547,7 @@ class LeaseAcceptance(BaseModel):
 class TermsTemplate(BaseModel):
     """A Portfolio's reusable wording for an agreement's additional terms.
 
-    Rooomly's standard clauses stay controlled: a template never touches them.
+    Danpa HQ's standard clauses stay controlled: a template never touches them.
     It only pre-fills the clearly labelled custom section of an agreement being
     prepared, where the provider's own wording already lives. Placeholders in
     the body are filled from the same agreement facts the standard clauses use,

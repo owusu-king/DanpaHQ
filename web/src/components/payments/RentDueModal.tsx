@@ -6,10 +6,9 @@
  *
  * The row says how much and how late; this is what makes up that figure — each
  * open charge with its due date, how much of it is paid, and how late it is —
- * with the last payment that came in and, where one was issued, its receipt.
- * Below that, their payment history, each with its standing and receipt.
- * Recording money is the page's own action, so it is not repeated here; the
- * foot holds the latest receipt and the tenant's full account.
+ * with no past-payment history mixed into the current balance. Recording money
+ * and reviewing earlier payments belong to the full account, so the foot links
+ * there and nowhere else.
  *
  * The charges are the lease's ledger, the same one the rent account reads; the
  * sheet derives nothing the server did not return.
@@ -20,15 +19,13 @@ import { useEffect, useState } from "react";
 
 import { Button } from "@/components/Button";
 import { Notice } from "@/components/Notice";
-import { ReceiptView } from "@/components/payments/ReceiptModal";
-import { ModalViews, useModalViews } from "@/components/workspace/ModalViews";
 import { Icon } from "@/components/portal/icons";
 import { ModalSheet } from "@/components/workspace/ModalSheet";
 import { ApiFailure } from "@/lib/api";
 import type { ProviderTenant } from "@/lib/console";
 import { formatMoney } from "@/lib/money";
-import { formatDate, paymentStatus, rentStatus } from "@/lib/rentDisplay";
-import { getLeaseLedger, type LeaseLedger, type RentCharge, type RentPayment } from "@/lib/tenant";
+import { formatDate, rentStatus } from "@/lib/rentDisplay";
+import { getLeaseLedger, type LeaseLedger, type RentCharge } from "@/lib/tenant";
 
 export function RentDueModal({
   tenant,
@@ -38,14 +35,11 @@ export function RentDueModal({
   onClose: () => void;
 }) {
   const [shown, setShown] = useState<ProviderTenant | null>(tenant);
-  // A receipt opens in this sheet, with Back, not as a dialog over it.
-  const nav = useModalViews<{ kind: "receipt"; id: string }>(Boolean(tenant), tenant?.occupancy_id);
   // Held while closing, so the sheet plays its exit with what it showed.
   if (tenant && tenant !== shown) setShown(tenant);
   const current = tenant ?? shown;
   if (!current) return null;
   const home = paymentsHome(current);
-  const receipt = nav.top;
 
   return (
     <ModalSheet
@@ -53,18 +47,12 @@ export function RentDueModal({
       onClose={onClose}
       size="sm"
       icon="payments"
-      title={receipt ? "Receipt" : "Payments"}
-      meta={receipt ? `${current.name} · ${current.property_title}` : home}
-      className={receipt ? "receipt-sheet" : "due-sheet"}
+      title="Payments"
+      meta={home}
+      className="due-sheet"
       closeLabel="Close payments"
-      onBack={nav.depth ? nav.back : undefined}
-      backLabel="Back to payments"
-      viewKey={receipt ? `receipt-${receipt.id}` : "payments"}
     >
-      <ModalViews depth={nav.depth} direction={nav.direction}>
-        <PaymentsView key={current.occupancy_id} tenant={current} home={home} onViewReceipt={(id) => nav.push({ kind: "receipt", id })} />
-        {nav.views.map((view) => <ReceiptView key={view.id} receiptId={view.id} />)}
-      </ModalViews>
+      <PaymentsView key={current.occupancy_id} tenant={current} home={home} />
     </ModalSheet>
   );
 }
@@ -77,11 +65,9 @@ export function paymentsHome(tenant: ProviderTenant) {
 export function PaymentsView({
   tenant,
   home,
-  onViewReceipt,
 }: {
   tenant: ProviderTenant;
   home: string;
-  onViewReceipt: (receiptId: string) => void;
 }) {
   const [ledger, setLedger] = useState<LeaseLedger | null>(null);
   const [error, setError] = useState("");
@@ -101,9 +87,6 @@ export function PaymentsView({
   const open = (ledger?.charges ?? [])
     .filter((charge) => charge.outstanding_minor > 0)
     .sort((a, b) => a.due_on.localeCompare(b.due_on));
-  const history = [...(ledger?.payments ?? [])].sort((a, b) => b.paid_on.localeCompare(a.paid_on));
-  // The newest payment that was issued a receipt; history is newest first.
-  const latestReceipt = history.find((payment) => payment.receipt_id)?.receipt_id ?? null;
 
   return (
     <div className="dm">
@@ -145,34 +128,8 @@ export function PaymentsView({
         </section>
       )}
 
-      {ledger && history.length ? (
-        <section className="dm-history" aria-label="Payment history">
-          <header><strong>Payment history</strong><span>{history.length}</span></header>
-          <ul>
-            {history.map((payment) => (
-              <li key={payment.id} className="dm-pay" data-tone={toneOf(payment)}>
-                <span className="dm-pay-mark" aria-hidden="true"><Icon name={payment.source === "PLATFORM_PSP" ? "payments" : "details"} /></span>
-                <span className="dm-pay-copy">
-                  <strong>{money(payment.amount_minor)}</strong>
-                  <small>{formatDate(payment.paid_on)} · {payment.obligation_label} · {payment.method_display}</small>
-                </span>
-                <span className="dm-pay-side">
-                  <span className="dm-pay-state">{paymentStatus(payment)}</span>
-                  {payment.receipt_id ? (
-                    <button type="button" className="dm-receipt" onClick={() => onViewReceipt(payment.receipt_id!)}>Receipt</button>
-                  ) : null}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
-
       {tenant.lease_id ? (
         <div className="dm-actions">
-          {latestReceipt ? (
-            <Button variant="secondary" onClick={() => onViewReceipt(latestReceipt)}><Icon name="details" />Receipt</Button>
-          ) : null}
           <span className="dm-actions-spacer" />
           {/* The full account keeps what a sheet does not: adjustments, waivers
               and a closed tenancy's summary. No close first: leaving the page
@@ -208,10 +165,4 @@ function ChargeLine({ charge, money }: { charge: RentCharge; money: (minor: numb
 
 function initialsOf(name: string) {
   return name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase() ?? "").join("") || "?";
-}
-
-function toneOf(payment: RentPayment) {
-  if (payment.evidence === "PSP_CONFIRMED" || payment.status === "confirmed") return "confirmed";
-  if (payment.status === "disputed") return "disputed";
-  return payment.awaiting_you ? "review" : "waiting";
 }

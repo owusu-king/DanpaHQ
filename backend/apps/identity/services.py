@@ -1634,7 +1634,7 @@ def apply_provider_decision(
     something a client can ask for.
 
     Approval is also the moment somebody becomes a provider, and a provider is
-    somebody with a Portfolio — so Rooomly provisions it here. It is the only
+    somebody with a Portfolio — so Danpa HQ provisions it here. It is the only
     place in the product where a Portfolio comes into existence: a workspace
     that is furnished when its owner first walks into it, rather than a setup
     form standing between them and the work they came to do.

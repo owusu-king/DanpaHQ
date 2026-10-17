@@ -4,7 +4,7 @@
  * Contracts: what a Portfolio's agreements are made of.
  *
  * Two layers, kept visibly apart because they are apart in law and in the
- * code. Rooomly's agreement is controlled wording — a manager reads its
+ * code. Danpa HQ's agreement is controlled wording — a manager reads its
  * clauses here and fills its facts when preparing an agreement, but never
  * edits it. The Portfolio's own **terms templates** are what a manager does
  * write: reusable additional terms, typed here or imported from Word, with
@@ -174,7 +174,7 @@ export function ContractsView({
             closeLabel="Close clauses"
           >
             <p className="docs-clauses-note">
-              Rooomly writes these clauses and keeps them the same for every Portfolio. The <mark className="docs-ph">highlighted</mark> parts are the facts you set when you prepare an agreement.
+              Danpa HQ writes these clauses and keeps them the same for every Portfolio. The <mark className="docs-ph">highlighted</mark> parts are the facts you set when you prepare an agreement.
             </p>
             <ol className="docs-clauses">
               {data.agreement.clauses.map((clause) => (
@@ -242,7 +242,7 @@ function AgreementCard({ agreement, onRead }: { agreement: PortfolioContracts["a
     <section className="docs-agreement" aria-labelledby="docs-agreement-title">
       <span className="docs-paper" aria-hidden="true"><i /><i /><i /><i /><i /></span>
       <div className="docs-agreement-copy">
-        <p className="docs-eyebrow">Rooomly agreement · controlled wording</p>
+        <p className="docs-eyebrow">Danpa HQ agreement · controlled wording</p>
         <h2 id="docs-agreement-title">{agreement.title}</h2>
         <p className="docs-agreement-meta">
           Version {agreement.version}
@@ -314,7 +314,7 @@ function Wording({ text, placeholders, examples = false }: { text: string; place
     parts.push(
       known
         ? <mark key={at} className="docs-ph" title={`\${${known.name}}`}>{examples ? known.example : known.label}</mark>
-        : <mark key={at} className="docs-ph is-unknown" title="Rooomly can’t fill this">{match[0]}</mark>,
+        : <mark key={at} className="docs-ph is-unknown" title="Danpa HQ can’t fill this">{match[0]}</mark>,
     );
     last = at + match[0].length;
   }
@@ -423,7 +423,7 @@ function TemplateEditor({
       className="docs-editor"
       footer={(close) => (
         <>
-          <span className="doc-modal-foot-note">Rooomly’s standard clauses are never changed.</span>
+          <span className="doc-modal-foot-note">Danpa HQ’s standard clauses are never changed.</span>
           <button type="button" className="ws-action" onClick={close}>Cancel</button>
           <button type="button" className="ws-action is-primary" disabled={!ready || busy} onClick={() => void save()}>
             {busy ? "Saving…" : template ? "Save changes" : "Save template"}
@@ -492,7 +492,7 @@ function TemplateEditor({
 
       <div className="docs-editor-status">
         {unknown.length ? (
-          <span className="is-error" role="alert">{unknown.map((key) => `\${${key}}`).join(", ")} {unknown.length === 1 ? "isn’t a placeholder" : "aren’t placeholders"} Rooomly can fill.</span>
+          <span className="is-error" role="alert">{unknown.map((key) => `\${${key}}`).join(", ")} {unknown.length === 1 ? "isn’t a placeholder" : "aren’t placeholders"} Danpa HQ can fill.</span>
         ) : imported ? (
           <span>Imported from {imported}. Formatting isn’t kept; check the wording.</span>
         ) : <span />}

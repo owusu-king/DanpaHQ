@@ -1,4 +1,4 @@
-# Rooomly — system integrity status
+# Danpa HQ — system integrity status
 
 **Checkpoint: 31 August 2026.** Written to be picked up by somebody who was not
 here. It records what is true of the code, not what was planned.
@@ -162,7 +162,7 @@ post-tenancy balances, Portfolio-scoped payout authority, and audit coverage.
 
 | Item | Why |
 |---|---|
-| `ghana-rental-platform-phase-02-property-v0.3.0/` | Orphaned release-archive residue; a single stale lockfile from a past phase |
+| `danpahq-phase-02-property-v0.3.0/` | Orphaned release-archive residue; a single stale lockfile from a past phase |
 | `needsfix.md` | Tracked, empty |
 | `web/tsconfig.tsbuildinfo` | Build artifact, already in `.gitignore` but committed before the rule existed |
 | `.claude/settings.local.json` | Per-machine tool state carrying absolute paths; `settings.json` stays tracked |
@@ -170,7 +170,7 @@ post-tenancy balances, Portfolio-scoped payout authority, and audit coverage.
 | `factory-boy`, `freezegun`, `pytest-xdist` | Unused dev dependencies |
 | `.lease-check` CSS rules | Dead after the shadowed control was removed |
 
-`.gitignore` gained `.claude/settings.local.json` and `ghana-rental-platform-phase-*/`.
+`.gitignore` gained `.claude/settings.local.json` and `danpahq-phase-*/`.
 
 **Intentionally retained:**
 
@@ -201,7 +201,7 @@ with checkout exposure.
 
 | # | Blocker | Severity | Where |
 |---|---|---|---|
-| 1 | **No SMS provider exists.** Only `console`, `memory`, `null`. Rooomly is phone-first with OTP auth, so no real user can register or sign in | **Blocks first user** | `apps/identity/providers.py` |
+| 1 | **No SMS provider exists.** Only `console`, `memory`, `null`. Danpa HQ is phone-first with OTP auth, so no real user can register or sign in | **Blocks first user** | `apps/identity/providers.py` |
 | 2 | **mypy: 282 errors in 60 files.** CI stops before the tests, security scan and deploy check | P2 | backend |
 | 3 | **No error monitoring.** No Sentry or equivalent; a 500 exists only in an unwatched log line | P2 | deployment |
 | 4 | **No email or push transport.** `apps/notifications` writes in-app records only | P2 | `apps/notifications` |
@@ -317,7 +317,7 @@ alone rather than "fixed" mid-flight.
 ### 13.3 Billing bounded context
 
 `apps/billing` is a new bounded context, separate from `apps/payments` on
-purpose: billing answers *why Rooomly charges this Portfolio*, Payments Core
+purpose: billing answers *why Danpa HQ charges this Portfolio*, Payments Core
 answers *how money moved*. 30 new tests, including a real two-connection
 concurrency test proving two simultaneous creates cannot both take the last
 slot.

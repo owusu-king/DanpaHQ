@@ -68,13 +68,13 @@ export function LeaseRecord({
     }
   }
 
-  // The agreement's frozen PDF: printed from a hidden frame on this page, saved
-  // through a link, or shown in a tab once it has arrived (lib/printDocument).
+  // Downloads keep the agreement's frozen PDF. Printing requests a transient
+  // copy so older agreements also receive the Unicode-capable document font.
   async function documentAction(kind: "download" | "print") {
     setBusy(true); setError("");
     try {
-      const blob = await getLeaseDocument(lease.id);
-      const filename = `rooomly-agreement-${lease.agreement?.reference_number ?? lease.id}.pdf`;
+      const blob = await getLeaseDocument(lease.id, kind === "print");
+      const filename = `danpahq-agreement-${lease.agreement?.reference_number ?? lease.id}.pdf`;
       if (kind === "download") downloadBlob(blob, filename);
       else await printPdf(blob);
     } catch (cause) {

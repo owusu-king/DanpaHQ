@@ -546,7 +546,7 @@ function WhatIsNext({
       <RecordPanel style={{ gap: space[3], padding: space[4] }}>
         <StandingLine tone="good" line="Someone lives here" />
         <Type variant="caption" style={{ color: theme.color.ink["700"] }}>
-          Rooomly takes no new requests for it while it is let. The tenancy, its rent and its end are managed from Tenants.
+          Danpa HQ takes no new requests for it while it is let. The tenancy, its rent and its end are managed from Tenants.
         </Type>
         <View style={{ flexDirection: "row" }}>
           <Pill label="Open Tenants" icon="people-outline" onPress={() => router.push({ pathname: "/(app)/(provider-tabs)/tenants", params: { unitId: unit.id, scopeLabel: `${unit.label} · ${unit.property.title}` } } as never)} />

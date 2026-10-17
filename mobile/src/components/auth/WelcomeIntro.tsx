@@ -22,20 +22,22 @@ const MEASURE = 420;
 
 /** How long one breath of the mark takes, in and out. Slow on purpose. */
 const BREATH_MS = 3200;
-/** How long the o's rest between hums. */
+/** How long the accent letters rest between hums. */
 const HUM_REST_MS = 2400;
+/** The part of the name set in kola, one letter per hum. */
+const ACCENT = ["H", "Q"] as const;
 
 /**
- * The first page of a fresh install: Rooomly saying hello.
+ * The first page of a fresh install: Danpa HQ saying hello.
  *
- * It picks up exactly where the launch curtain leaves off. The curtain is three
- * kola dots on ivory; this is the same ivory, and those three dots are now the
- * three o's of the name, still taking turns, only slower — the app has finished
- * waiting and is humming. No green hero, no header, no form: a mark, a name,
+ * It picks up exactly where the launch curtain leaves off. The curtain is kola
+ * dots taking turns on ivory; this is the same ivory, and that beat now lives in
+ * the kola HQ of the name, the letters still taking turns, only slower — the app
+ * has finished waiting and is humming. No green hero, no header, no form: a mark, a name,
  * one line of welcome, and the one thing to do.
  *
  * Arriving, everything settles into place top to bottom, the mark first. Once
- * it has, the mark breathes and the o's hum; the button catches the light
+ * it has, the mark breathes and the HQ hums; the button catches the light
  * once, to say it is ready. All of it holds still under Reduce Motion.
  */
 export function WelcomeIntro({
@@ -55,7 +57,7 @@ export function WelcomeIntro({
     [0, 1, 2, 3, 4].map(() => new Animated.Value(0)) as [Animated.Value, Animated.Value, Animated.Value, Animated.Value, Animated.Value],
   ).current;
   const breath = useRef(new Animated.Value(0)).current;
-  const hums = useRef([0, 1, 2].map(() => new Animated.Value(0))).current;
+  const hums = useRef(ACCENT.map(() => new Animated.Value(0))).current;
   const sheen = useRef(new Animated.Value(0)).current;
   const drift = useRef(new Animated.Value(0)).current;
 
@@ -80,7 +82,7 @@ export function WelcomeIntro({
       ]),
     );
 
-    // The launch curtain's beat, slowed down: the same three, in turn.
+    // The launch curtain's beat, slowed down: the accent letters, in turn.
     const hum = Animated.loop(
       Animated.sequence([
         Animated.stagger(
@@ -180,25 +182,25 @@ export function WelcomeIntro({
             </View>
           </Animated.View>
 
-          <Animated.View style={[styles.wordmark, rise(nameIn, 10)]} accessible accessibilityRole="header" accessibilityLabel="Rooomly">
-            <Text allowFontScaling={false} style={styles.letters}>R</Text>
+          <Animated.View style={[styles.wordmark, rise(nameIn, 10)]} accessible accessibilityRole="header" accessibilityLabel="Danpa HQ">
+            {/* The H and Q move on their own, so the word space before them is a margin. */}
+            <Text allowFontScaling={false} style={[styles.letters, styles.wordSpace]}>Danpa</Text>
             {hums.map((hum, index) => (
               <Animated.Text
-                key={index}
+                key={ACCENT[index]}
                 allowFontScaling={false}
                 style={[
                   styles.letters,
-                  styles.o,
+                  styles.accent,
                   {
                     opacity: hum.interpolate({ inputRange: [0, 1], outputRange: [0.7, 1] }),
                     transform: [{ translateY: hum.interpolate({ inputRange: [0, 1], outputRange: [0, -3] }) }],
                   },
                 ]}
               >
-                o
+                {ACCENT[index]}
               </Animated.Text>
             ))}
-            <Text allowFontScaling={false} style={styles.letters}>mly</Text>
           </Animated.View>
 
           <Animated.View style={[styles.words, rise(wordsIn)]}>
@@ -341,8 +343,12 @@ const styles = StyleSheet.create({
     letterSpacing: -0.5,
     color: INK,
   },
-  o: {
+  accent: {
     color: KOLA,
+  },
+  // About a word space at 22pt.
+  wordSpace: {
+    marginRight: 6,
   },
   words: {
     alignItems: "center",

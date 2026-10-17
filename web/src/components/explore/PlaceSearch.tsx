@@ -17,7 +17,7 @@ import {
 /**
  * The location field: type a name, choose a place.
  *
- * Suggestions come from Rooomly's API, which asks the location provider on the
+ * Suggestions come from Danpa HQ's API, which asks the location provider on the
  * field's behalf (ADR 0034), and each keystroke withdraws the request before
  * it. One search is one Places session: the token is made with the first
  * request, carried by every one after it, and spent by resolving the choice —
@@ -30,7 +30,7 @@ import {
 const KIND_ICON: Record<PlaceKind, IconName> = { area: "map", landmark: "landmark", address: "pin" };
 const KIND_LABEL: Record<PlaceKind, string> = { area: "Area", landmark: "Place", address: "Address" };
 
-const RECENT_KEY = "rooomly:recent-places:v2";
+const RECENT_KEY = "danpahq:recent-places:v2";
 const RECENT_LIMIT = 5;
 /** A recent place holds a provider's coordinates, which may be kept for thirty days at most. */
 const RECENT_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;

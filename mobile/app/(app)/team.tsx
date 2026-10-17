@@ -109,7 +109,7 @@ export default function TeamScreen() {
   const pageBottom = useSafeBottom(space[12]);
   const { activeContext, state, refreshMe } = useAuth();
   const [organization, setOrganization] = useState<Organization | null>(null);
-  // The Portfolio's own details. Rooomly provisions the Portfolio and names it,
+  // The Portfolio's own details. Danpa HQ provisions the Portfolio and names it,
   // so this is where an owner makes it the name their tenants will see.
   const [details, setDetails] = useState<Details | null>(null);
   const [savingDetails, setSavingDetails] = useState(false);
@@ -337,7 +337,7 @@ export default function TeamScreen() {
               icon="business-outline"
               hero
               title="Your Portfolio is on its way"
-              hint="Rooomly gives you your Portfolio when your provider verification is approved, and your Team lives inside it. Nothing to set up."
+              hint="Danpa HQ gives you your Portfolio when your provider verification is approved, and your Team lives inside it. Nothing to set up."
               action={<View style={styles.emptyAction}><QuietAction icon="shield-checkmark-outline" label="See your verification" onPress={() => router.push("/(app)/provider" as never)} /></View>}
             />
           ) : query.trim() ? (

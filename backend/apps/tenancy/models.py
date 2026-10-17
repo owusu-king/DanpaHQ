@@ -46,7 +46,7 @@ _py_property = property
 
 class TenancyStatus(models.TextChoices):
     #: A real-world or approved relationship recorded for follow-up, but not an
-    #: active Rooomly tenancy until an accepted lease activates it.
+    #: active Danpa HQ tenancy until an accepted lease activates it.
     PENDING_LEASE = "pending_lease", "Lease required"
     #: Agreed, but the start date has not arrived.
     UPCOMING = "upcoming", "Not started yet"

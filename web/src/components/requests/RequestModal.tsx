@@ -9,7 +9,7 @@
  * height by the shared glide), and "Back to request" narrows it again. The page
  * owns the list; `onChanged` reloads it and the sheet reads the fresh request
  * back. The last request shown is held so the sheet can play its exit after the
- * address has let it go.
+ * page has let it go.
  */
 
 import { useState } from "react";

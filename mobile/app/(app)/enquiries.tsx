@@ -38,6 +38,7 @@ import {
   rowStyles,
 } from "@/components/portfolio/PortfolioList";
 import { PillSwitch } from "@/components/sales/PillSwitch";
+import { SupportInbox } from "@/components/support/SupportInbox";
 import { Briefing, Calm, Empty, Face, Fold } from "@/components/work/WorkParts";
 import { Notice, Type, radius, space } from "@/components/ui";
 import { pressableFeedback, useSafeBottom } from "@/platform";
@@ -45,6 +46,7 @@ import { listEnquiries, type Enquiry } from "@/sales";
 import { theme } from "@/theme";
 
 type Side = "buyer" | "seller";
+type InboxMode = "support" | "property";
 
 export default function EnquiriesScreen() {
   const router = useRouter();
@@ -56,6 +58,7 @@ export default function EnquiriesScreen() {
   // Selling needs property, and only a provider account holds any.
   const canSell = signedIn && state.me.capabilities.provider.workspace_access;
   const provider = canSell && state.me.capabilities.active_workspace === "provider";
+  const [mode, setMode] = useState<InboxMode>("support");
   const [chosen, setSide] = useState<Side>(as === "seller" || as === "buyer" ? as : provider ? "seller" : "buyer");
   const side: Side = canSell ? chosen : "buyer";
   const [rows, setRows] = useState<Enquiry[] | null>(null);
@@ -64,7 +67,7 @@ export default function EnquiriesScreen() {
   const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
-    if (!signedIn) return;
+    if (!signedIn || mode === "support") return;
     try {
       setRows(await listEnquiries(side));
       setError("");
@@ -72,7 +75,7 @@ export default function EnquiriesScreen() {
       setRows([]);
       setError(cause instanceof ApiFailure ? cause.error.message : "Could not load enquiries.");
     }
-  }, [side, signedIn]);
+  }, [mode, side, signedIn]);
 
   useEffect(() => {
     setRows(null);
@@ -100,6 +103,17 @@ export default function EnquiriesScreen() {
     );
   }
 
+  if (mode === "support") {
+    return (
+      <IndexGround>
+        <ScrollView contentContainerStyle={{ paddingHorizontal: density.pagePadding, paddingTop: density.compact ? space[4] : space[5], paddingBottom: pageBottom, gap: space[5] }}>
+          <PillSwitch label="Inbox" value={mode} options={[{ value: "support", label: "Support" }, { value: "property", label: "Properties" }]} onChange={setMode} />
+          <SupportInbox />
+        </ScrollView>
+      </IndexGround>
+    );
+  }
+
   const openRow = (row: Enquiry) => router.push({ pathname: "/(app)/enquiry/[id]", params: { id: row.id } });
   const live = lanes.fresh.length + lanes.open.length;
 
@@ -109,6 +123,7 @@ export default function EnquiriesScreen() {
         contentContainerStyle={{ paddingHorizontal: density.pagePadding, paddingTop: density.compact ? space[4] : space[5], paddingBottom: pageBottom, gap: space[5] }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await load(); setRefreshing(false); }} tintColor={KOLA} />}
       >
+        <PillSwitch label="Inbox" value={mode} options={[{ value: "support", label: "Support" }, { value: "property", label: "Properties" }]} onChange={setMode} />
         {canSell ? (
           <PillSwitch
             label="Which side"

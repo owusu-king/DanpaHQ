@@ -141,7 +141,7 @@ a tenancy that has been agreed from one that has begun.
 An active or upcoming tenancy now carries `activation_lease`, the accepted
 agreement that first opened the relationship. A database check rejects either
 state without that link. `pending_lease` is context only: it preserves a
-historical or real-world arrangement that still needs a Rooomly agreement, but
+historical or real-world arrangement that still needs a Danpa HQ agreement, but
 does not grant an active platform tenancy.
 
 ### 5. Executed lease terms and acceptance evidence  ✅ *fixed in P7 and P5 repair*
@@ -219,7 +219,7 @@ list and the portal renders all of them.
 16. A space's photographs are the evidence its check was decided on — the same
     files, uploaded once
 17. A space inherits where it is from its property and copies none of it
-18. Every active or upcoming Rooomly Tenancy has an accepted activation Lease;
+18. Every active or upcoming Danpa HQ Tenancy has an accepted activation Lease;
     acquisition approval alone never activates Tenancy or Occupancy
 19. Provider tenant management is a permission-scoped projection of existing
     Occupancy, Tenancy, Lease and Rent records. It never creates a parallel

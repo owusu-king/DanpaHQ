@@ -42,6 +42,7 @@ import { getPortfolioSummary, listOrganizations, type PortfolioSummary } from "@
 import { pressableFeedback, useSafeBottom } from "@/platform";
 import { ENDING_DAYS, endsIn, laneOf, monthlyRent, startsIn, tenantWork, termShare, type Tenant, type TenantLane, type TenantWork } from "@/tenantWork";
 import { theme } from "@/theme";
+import { ProviderTabFrame } from "@/components/nav/NativeTabFrame";
 
 /**
  * The Portfolio's tenancies, read as the people in its homes (owner, 2026-10-06).
@@ -86,7 +87,7 @@ const LANE: Record<TenantLane, { ink: string; wash: string }> = {
   settled: { ink: KOLA_DEEP, wash: theme.color.kola["50"] },
 };
 
-export default function ProviderTenantsScreen() {
+function ProviderTenantsScreen() {
   const router = useRouter();
   const density = useHomeDensity();
   const pageBottom = useSafeBottom(space[12]);
@@ -589,3 +590,12 @@ const styles = StyleSheet.create({
   skeletonRow: { flexDirection: "row", gap: space[3], padding: 14 },
   skeletonLines: { flex: 1, justifyContent: "center", gap: space[2] },
 });
+
+/** On iOS the tab sits in the native bar, which draws no header; see `ProviderTabFrame`. */
+export default function TenantsTab() {
+  return (
+    <ProviderTabFrame tab="tenants">
+      <ProviderTenantsScreen />
+    </ProviderTabFrame>
+  );
+}

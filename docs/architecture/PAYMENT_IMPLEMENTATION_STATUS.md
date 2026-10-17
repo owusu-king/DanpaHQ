@@ -101,7 +101,7 @@ Every path below was traced end to end through the code for this checkpoint.
 `rent.record_payment` has always accepted part of an outstanding charge. Digital
 checkout demanded the whole balance. The same two thirds of an advance was
 therefore recordable if it was handed over in a stairwell and refused if it went
-through the processor — which pushed exactly the payments Rooomly most wants
+through the processor — which pushed exactly the payments Danpa HQ most wants
 on-platform off it, and made the product's own rule depend on which door the
 money came through.
 
@@ -293,10 +293,10 @@ Vendor vocabulary stops at `apps/payments/paystack.py`. `services` and
 - Required: `initiate`, `verify_webhook`. Everything else raises
   `ProviderUnavailable` by default so a partially integrated provider is usable
   for the flows it does support.
-- Rooomly never sees a PIN, an OTP, a CVV or a card number. All methods go
+- Danpa HQ never sees a PIN, an OTP, a CVV or a card number. All methods go
   through Paystack's hosted checkout.
 - A raw bank/MoMo account number is passed straight through to Paystack during
-  subaccount provisioning and never written to Rooomly's database or audit log.
+  subaccount provisioning and never written to Danpa HQ's database or audit log.
   Only the `ACCT_` code, the numeric id, a masked display string and the
   provider's verification state survive.
 - Subaccount creation has no documented Paystack idempotency key, so
@@ -305,7 +305,7 @@ Vendor vocabulary stops at `apps/payments/paystack.py`. `services` and
   metadata lookup, never by a blind second create.
 - The tenant pays the authoritative obligation with no surcharge. Paystack's
   transaction fee is borne by the provider subaccount (`bearer=subaccount`).
-  That is product policy, hard-coded. The Rooomly platform share stays explicit
+  That is product policy, hard-coded. The Danpa HQ platform share stays explicit
   basis-point configuration (`PAYSTACK_PLATFORM_CHARGE_BPS`) and is frozen per
   intent as a flat `transaction_charge`.
 - The destination an intent routes to and the readiness a provider is shown on
@@ -322,8 +322,8 @@ Vendor vocabulary stops at `apps/payments/paystack.py`. `services` and
 The rule is the whole point: **whoever records a payment cannot confirm it.**
 
 - Either party may record. A provider additionally needs Property `leases`
-  authority — and deliberately **not** a Rooomly receiving account, because the
-  cash or transfer already reached them outside Rooomly. The separate
+  authority — and deliberately **not** a Danpa HQ receiving account, because the
+  cash or transfer already reached them outside Danpa HQ. The separate
   `payment_collection` capability, which does turn on a verified receiving
   account, describes platform collection.
 - A claim moves no balance. Only a counterparty confirmation does.
@@ -391,7 +391,7 @@ Every item was a confirmed defect reproduced against the code first.
    never repairs" still holds for every genuine disagreement: an amount or
    currency mismatch, a settlement that paid the wrong figure, a reversal, money
    with no allocation. Those still only ever open an exception. What changed is
-   the case that was never a disagreement — Rooomly holds *no* record and the
+   the case that was never a disagreement — Danpa HQ holds *no* record and the
    provider is the sole authority on whether a payment happened. Anything the
    confirmation boundary refuses still opens an exception, now carrying the
    refusal reason. A `min_age_seconds` (default 300) keeps the sweep off
@@ -470,7 +470,7 @@ Every item was a confirmed defect reproduced against the code first.
     Two questions had also been collapsed into that one flag, and are now
     separated: **recording an off-platform payment follows `leases`** — the same
     authority the lease-ledger endpoint has always enforced — because cash
-    already changed hands outside Rooomly, and a provider with no payout
+    already changed hands outside Danpa HQ, and a provider with no payout
     destination has not lost the ability to acknowledge money they were handed.
     The portfolio summary's `can_record_payment` read collection readiness and
     now reads `leases`. Client copy that described the removed receiving-account

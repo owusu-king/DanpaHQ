@@ -2,13 +2,13 @@
 
 Three promises are pinned here (ADR 0034).
 
-* **Rooomly calls the provider; clients never do.** The server key stays on the
+* **Danpa HQ calls the provider; clients never do.** The server key stays on the
   server, and every suggestion request is restricted to Ghana.
 * **One session per search, Essentials fields only.** The session token a client
   sends reaches Google with each suggestion request and with the details request
   that closes the session, and details ask for nothing billed above Essentials.
 * **No key, or a failing provider, is not a dead field.** Suggestions fall back to
-  Rooomly's localities and say which provider answered; resolving a choice the
+  Danpa HQ's localities and say which provider answered; resolving a choice the
   provider made cannot be faked from the fallback.
 """
 
@@ -186,7 +186,7 @@ class TestGoogleSuggestions:
         response = api.get("/api/v1/geo/places/suggest/?q=lookup osu")
 
         assert response.status_code == 200
-        assert response.data["provider"] == "rooomly"
+        assert response.data["provider"] == "danpahq"
         assert response.data["attribution"] is None
         assert [row["name"] for row in response.data["suggestions"]] == ["Lookup Osu"]
 
@@ -195,7 +195,7 @@ class TestGoogleSuggestions:
             FakeResponse(403, {"error": {"code": 403, "status": "PERMISSION_DENIED"}})
         )
         response = api.get("/api/v1/geo/places/suggest/?q=lookup osu")
-        assert response.data["provider"] == "rooomly"
+        assert response.data["provider"] == "danpahq"
 
 
 class TestGoogleResolve:
@@ -242,12 +242,12 @@ class TestWithoutAKey:
     def test_suggestions_come_from_localities_and_nobody_is_called(self, api, no_key, osu):
         response = api.get("/api/v1/geo/places/suggest/?q=oxford street")
         assert response.status_code == 200
-        assert response.data["provider"] == "rooomly"
+        assert response.data["provider"] == "danpahq"
         assert response.data["attribution"] is None
         assert response.data["suggestions"][0]["reference"] == str(osu.id)
 
     def test_a_locality_resolves_to_a_box_around_its_centre(self, api, no_key, osu):
-        place = api.get(f"/api/v1/geo/places/resolve/?provider=rooomly&reference={osu.id}").data
+        place = api.get(f"/api/v1/geo/places/resolve/?provider=danpahq&reference={osu.id}").data
         assert place["center"] == {"lat": 5.556, "lng": -0.182}
         assert place["bounds"]["west"] < -0.182 < place["bounds"]["east"]
         assert place["bounds"]["south"] < 5.556 < place["bounds"]["north"]
@@ -325,5 +325,5 @@ class TestPropertyLocationLookup:
         assert response.status_code == 404
         assert (
             response.data["error"]["message"]
-            == "That location is outside Rooomly's coverage area."
+            == "That location is outside Danpa HQ's coverage area."
         )

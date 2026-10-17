@@ -96,7 +96,7 @@ export default function PaymentStatusScreen() {
           <Type variant="display2">{intent.amount_formatted}</Type>
           <Button label="Check again" busy={checking} onPress={() => void check()} />
           {checkoutUrl ? <Button label="Continue secure checkout" variant="secondary" onPress={() => setCheckoutIntent(intent)} /> : null}
-          <Type variant="caption">Secure checkout opens inside Rooomly. This screen asks the processor for the result before updating your rent.</Type>
+          <Type variant="caption">Secure checkout opens inside Danpa HQ. This screen asks the processor for the result before updating your rent.</Type>
         </>
       ) : unsuccessful ? (
         <>

@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { ArrowRight, Menu, Search } from "lucide-react";
 import { useEffect, useState } from "react";
 
+import { AuthLink } from "@/components/auth/AuthDialog";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -117,9 +118,9 @@ export function SiteNav() {
             aria-hidden="true"
             className="grid size-8 place-items-center rounded-lg bg-brand font-display text-[0.6875rem] font-extrabold text-brand-foreground"
           >
-            GR
+            DH
           </span>
-          Ghana Rental
+          <span className="whitespace-nowrap">Danpa HQ</span>
         </Link>
 
         {/* Both things this bar offers sit together on the right, where the eye
@@ -152,11 +153,11 @@ export function SiteNav() {
           ) : (
             <>
               <Button asChild size="lg" className="hidden rounded-full bg-brand px-6 text-brand-foreground hover:bg-brand/90 sm:inline-flex">
-                {/* Get started asks how you will use Rooomly (owner, 2026-10-07). */}
-                <Link href="/register">
+                {/* Get started asks how you will use Danpa HQ (owner, 2026-10-07). */}
+                <AuthLink view="register">
                   Get started
                   <ArrowRight className="size-4" />
-                </Link>
+                </AuthLink>
               </Button>
             </>
           )}
@@ -174,7 +175,7 @@ export function SiteNav() {
             <SheetContent side="right" className="w-[19rem] gap-0">
               <SheetHeader>
                 <SheetTitle className="font-display text-lg font-extrabold tracking-[-0.03em]">
-                  Ghana Rental
+                  Danpa HQ
                 </SheetTitle>
               </SheetHeader>
               <nav aria-label="Primary" className="grid gap-1 px-4">
@@ -199,7 +200,7 @@ export function SiteNav() {
                 ) : (
                   <SheetClose asChild>
                     <Button asChild size="lg">
-                      <Link href="/register">Get started</Link>
+                      <AuthLink view="register">Get started</AuthLink>
                     </Button>
                   </SheetClose>
                 )}

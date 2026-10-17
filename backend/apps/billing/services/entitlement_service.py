@@ -1,6 +1,6 @@
 """The one place the application asks what a Portfolio may do.
 
-Every feature check in Rooomly goes through `can`, `limit` or
+Every feature check in Danpa HQ goes through `can`, `limit` or
 `assert_within_limit`. Nothing anywhere compares a plan code — the whole reason
 this module exists is that `if portfolio.plan == "PRO"` scattered through a
 codebase makes packaging impossible to change and impossible to audit, and it
@@ -14,7 +14,7 @@ is wrong the moment an override, a grace period or a fourth plan appears.
 3. the `FREE` plan, when a Portfolio has no live subscription at all.
 
 Falling back to Free rather than to "deny everything" matters: a Portfolio whose
-billing row is missing is a Rooomly bug, and the person on the other end should
+billing row is missing is a Danpa HQ bug, and the person on the other end should
 lose the paid extras, never their tenants.
 """
 

@@ -1,5 +1,5 @@
 {
-  "name": "GRP Backend",
+  "name": "Danpa HQ Backend",
   "dockerComposeFile": "../docker-compose.yml",
   "service": "dev",
   "workspaceFolder": "/app",

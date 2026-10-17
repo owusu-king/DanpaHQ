@@ -188,7 +188,7 @@ export function LeaseWizard({
     occupants: form.occupants.map((name) => ({ name })),
     provider_responsibilities: form.providerResponsibilities,
     tenant_responsibilities: form.tenantResponsibilities,
-    notice_channels: ["Rooomly", "written notice"],
+    notice_channels: ["Danpa HQ", "written notice"],
     additional_terms:
       form.customTitle.trim() && form.customBody.trim()
         ? [{ title: form.customTitle.trim(), body: form.customBody.trim() }]
@@ -360,7 +360,7 @@ export function LeaseWizard({
             );
           })}
         </ol>
-        <p className="lw-rail-foot"><Icon name="shield" />Standard clauses come from Rooomly&apos;s template</p>
+        <p className="lw-rail-foot"><Icon name="shield" />Standard clauses come from Danpa HQ&apos;s template</p>
       </nav>
 
       <section className="lw-stage" aria-labelledby="lw-step-title">

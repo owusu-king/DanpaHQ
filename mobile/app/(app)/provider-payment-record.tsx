@@ -36,7 +36,7 @@ const METHODS: [RentPayment["method"], string][] = [
 ];
 
 /**
- * Recording money that arrived outside Rooomly.
+ * Recording money that arrived outside Danpa HQ.
  *
  * Not a collection screen and not a receipt: it creates a claim the tenant must
  * confirm before the balance moves. That is the whole reason it says so twice —
@@ -132,7 +132,7 @@ export default function ProviderPaymentRecordScreen() {
         <View style={styles.caution}>
           <Ionicons name="alert-circle-outline" size={17} color={TONE.waiting.ink} />
           <Type variant="caption" style={styles.cautionText}>
-            This does not collect money. Use it only after money reached you outside Rooomly — the
+            This does not collect money. Use it only after money reached you outside Danpa HQ — the
             tenant must confirm it before the rent balance changes.
           </Type>
         </View>

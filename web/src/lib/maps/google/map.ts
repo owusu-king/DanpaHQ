@@ -10,7 +10,7 @@ import type {
   MapOptions,
   MapShape,
   MarkerOptions,
-  RooomlyMap,
+  DanpaHQMap,
 } from "../types";
 import { GOOGLE_MAPS_MAP_ID } from "./config";
 import { loadGoogleMaps } from "./loader";
@@ -33,13 +33,13 @@ function ring(center: LatLng, radiusMeters: number, steps = 72): google.maps.Lat
 }
 
 /**
- * A `RooomlyMap` drawn by the Maps JavaScript API.
+ * A `DanpaHQMap` drawn by the Maps JavaScript API.
  *
- * Markers are advanced markers holding Rooomly's own HTML in a wrapper, so the
+ * Markers are advanced markers holding Danpa HQ's own HTML in a wrapper, so the
  * product's CSS styles them and Google positions them. A marker given a click
  * is `gmpClickable`: focusable, operable from the keyboard, named by its title.
  */
-export async function createGoogleMap(container: HTMLElement, options: MapOptions): Promise<RooomlyMap> {
+export async function createGoogleMap(container: HTMLElement, options: MapOptions): Promise<DanpaHQMap> {
   const { maps, marker, core } = await loadGoogleMaps();
   const map = new maps.Map(container, {
     center: options.center,
@@ -49,14 +49,21 @@ export async function createGoogleMap(container: HTMLElement, options: MapOption
     mapId: GOOGLE_MAPS_MAP_ID,
     restriction: { latLngBounds: literal(options.limits), strictBounds: false },
     gestureHandling: options.gestures,
-    // Points of interest open Google's own cards; on Rooomly a tap means a rental.
+    // Points of interest open Google's own cards; on Danpa HQ a tap means a rental.
     clickableIcons: false,
     disableDefaultUI: true,
     zoomControl: true,
     zoomControlOptions: { position: core.ControlPosition.RIGHT_BOTTOM },
   });
+  const panorama = map.getStreetView();
+  panorama.setOptions({
+    addressControl: false,
+    fullscreenControl: false,
+    motionTracking: false,
+    panControl: false,
+  });
 
-  // A move is the tenant's unless Rooomly asked for it. Rooomly's own camera
+  // A move is the tenant's unless Danpa HQ asked for it. Danpa HQ's own camera
   // changes mark themselves, and a mark no change consumed within a moment — a
   // fit that moved nothing — expires, so the next drag is not taken for ours.
   let ours = true;
@@ -73,6 +80,7 @@ export async function createGoogleMap(container: HTMLElement, options: MapOption
 
   const moveListeners = new Set<(move: MapMove) => void>();
   const clickListeners = new Set<() => void>();
+  const streetViewListeners = new Set<(visible: boolean) => void>();
   const bindings: google.maps.MapsEventListener[] = [
     map.addListener("bounds_changed", () => {
       changed = true;
@@ -96,18 +104,23 @@ export async function createGoogleMap(container: HTMLElement, options: MapOption
       if (target instanceof Element && target.closest("gmp-advanced-marker")) return;
       for (const listener of clickListeners) listener();
     }),
+    panorama.addListener("visible_changed", () => {
+      for (const listener of streetViewListeners) listener(panorama.getVisible());
+    }),
   ];
 
   const addMarker = ({ position, element, anchor, zIndex, title, onClick }: MarkerOptions): MapMarker => {
-    // Anchored by a wrapper rather than the element, whose own CSS stays Rooomly's.
+    // Anchored by a wrapper rather than the element, whose own CSS stays Danpa HQ's.
     const wrapper = document.createElement("div");
-    wrapper.className = "rooomly-map-marker";
-    if (anchor === "center") wrapper.style.transform = "translateY(50%)";
+    wrapper.className = "danpahq-map-marker";
     wrapper.append(element);
     const pin = new marker.AdvancedMarkerElement({
       map,
       position,
       content: wrapper,
+      anchorLeft: "-50%",
+      anchorTop: anchor === "bottom" ? "-100%" : "-50%",
+      collisionBehavior: marker.CollisionBehavior.REQUIRED,
       zIndex: zIndex ?? null,
       gmpClickable: Boolean(onClick),
       ...(title ? { title } : {}),
@@ -162,6 +175,7 @@ export async function createGoogleMap(container: HTMLElement, options: MapOption
   };
 
   return {
+    capabilities: { satellite: true, streetView: true },
     fitBounds: (bounds, { padding, maxZoom }) => {
       expectOurMove();
       map.fitBounds(literal(bounds), padding);
@@ -176,12 +190,29 @@ export async function createGoogleMap(container: HTMLElement, options: MapOption
       expectOurMove();
       map.panBy(dx, dy);
     },
+    setBaseMap: (style) => {
+      map.setMapTypeId(style === "satellite" ? maps.MapTypeId.HYBRID : maps.MapTypeId.ROADMAP);
+    },
+    setStreetView: (visible) => {
+      if (visible) {
+        const center = map.getCenter();
+        if (center) panorama.setPosition(center);
+        panorama.setPov({ heading: 0, pitch: 0 });
+      }
+      panorama.setVisible(visible);
+    },
     addMarker,
     addArea,
     onMove: (listener) => {
       moveListeners.add(listener);
       return () => {
         moveListeners.delete(listener);
+      };
+    },
+    onStreetViewChange: (listener) => {
+      streetViewListeners.add(listener);
+      return () => {
+        streetViewListeners.delete(listener);
       };
     },
     onBackgroundClick: (listener) => {
@@ -195,7 +226,10 @@ export async function createGoogleMap(container: HTMLElement, options: MapOption
       for (const binding of bindings) binding.remove();
       moveListeners.clear();
       clickListeners.clear();
+      streetViewListeners.clear();
+      panorama.setVisible(false);
       core.event.clearInstanceListeners(map);
+      core.event.clearInstanceListeners(panorama);
     },
   };
 }

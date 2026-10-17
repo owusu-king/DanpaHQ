@@ -40,7 +40,7 @@ export type ServiceCategory = "utilities" | "entertainment" | "connectivity" | "
  * Semantic, not decorative: power is `harmattan` because the palette's amber
  * already means energy and caution across the product, water is `lagoon`
  * because it is the only blue, screens are `laterite`, and the network is
- * `kola` because connectivity is the thing Rooomly itself runs on — as are
+ * `kola` because connectivity is the thing Danpa HQ itself runs on — as are
  * referrals, which grow it. `ink` is for services that are labour rather than a
  * utility, and deliberately reads as quieter.
  */
@@ -254,7 +254,7 @@ export const SERVICES: Service[] = [
     category: "home",
     status: "later",
     tone: "kola",
-    promise: "Invite a tenant or landlord you know to Rooomly, and see where each invitation stands.",
+    promise: "Invite a tenant or landlord you know to Danpa HQ, and see where each invitation stands.",
   },
 ];
 
@@ -284,7 +284,7 @@ export function purchasableServices(): Service[] {
  * How every one of these will take money: through the existing Payments Core.
  *
  * Stated here rather than left implicit, because the failure mode is each new
- * service growing its own checkout. Rooomly already has server-priced intents,
+ * service growing its own checkout. Danpa HQ already has server-priced intents,
  * one open intent per obligation, immutable provider transactions, allocation,
  * a balanced ledger, receipts and reconciliation — and a second payment path
  * beside it would have none of that while looking, from a tenant's side,

@@ -274,7 +274,7 @@ function ending_(invitation: PortfolioInvitation): { tone: "info" | "warning" | 
 const REQUIREMENTS: Record<string, { title: string; body: string; action: string }> = {
   identity: {
     title: "Verify your identity to accept administrator access",
-    body: "An administrator decides who may operate the business and what it owes, so Rooomly confirms who you are before the role becomes yours. Your invitation stays open while you do it.",
+    body: "An administrator decides who may operate the business and what it owes, so Danpa HQ confirms who you are before the role becomes yours. Your invitation stays open while you do it.",
     action: "Verify identity",
   },
 };

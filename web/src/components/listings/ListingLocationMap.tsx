@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { createMap, mapSetupHint, mapsConfigured, onMapRefused, type RooomlyMap } from "@/lib/maps";
+import { createMap, mapSetupHint, mapsConfigured, onMapRefused, type DanpaHQMap } from "@/lib/maps";
 import { getMapConfig } from "@/lib/places";
 
 /** The box around a circle of `radius` metres, for the map to fit. */
@@ -41,7 +41,7 @@ export function ListingLocationMap({
   useEffect(() => {
     const element = container.current;
     if (!element || !mapsConfigured()) return;
-    let map: RooomlyMap | null = null;
+    let map: DanpaHQMap | null = null;
     let cancelled = false;
     const fail = () => {
       if (!cancelled) setState("failed");

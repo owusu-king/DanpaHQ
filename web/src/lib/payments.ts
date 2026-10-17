@@ -45,7 +45,7 @@ export type PaymentReceipt = {
 };
 
 export type ReceiptSnapshot = {
-  schema_version: "rooomly.payment_receipt.v1";
+  schema_version: "danpahq.payment_receipt.v1";
   receipt_number: string;
   issued_at: string;
   tenant: { account_id: string; name: string };
@@ -146,8 +146,8 @@ export function getPaymentReceipt(id: string) {
   return authedFetch<PaymentReceipt>(`/payments/receipts/${id}/`);
 }
 
-export function getPaymentReceiptDocument(id: string) {
-  return authedBlob(`/payments/receipts/${id}/document.pdf?disposition=inline`);
+export function getPaymentReceiptDocument(id: string, forPrint = false) {
+  return authedBlob(`/payments/receipts/${id}/document.pdf?disposition=${forPrint ? "print" : "inline"}`);
 }
 
 /** What the checkout helpers read from any server-created payment attempt —
@@ -155,7 +155,7 @@ export function getPaymentReceiptDocument(id: string) {
  * one redirect guard serve both, so there is one payment client, not two. */
 export type ProviderCheckout = Pick<PaymentIntent, "provider" | "next_action">;
 
-/** Only the PSP-hosted origin may receive a tenant from Rooomly. The URL is
+/** Only the PSP-hosted origin may receive a tenant from Danpa HQ. The URL is
  * server-created, but this second boundary prevents a compromised payload from
  * turning checkout into an open redirect. */
 export function safeCheckoutUrl(intent: ProviderCheckout): string | null {

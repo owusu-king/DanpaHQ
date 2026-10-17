@@ -80,7 +80,7 @@ test("the chosen workspace survives the handoff from the question", () => {
   assert.match(body, /router\.push\(\{\s*pathname: "\/\(auth\)\/register"/);
   assert.doesNotMatch(code(read("mobile/app/(auth)/register.tsx")), /<PickCard\b/);
 
-  // Browsing is a way of using Rooomly, not an account to open: no workspace,
+  // Browsing is a way of using Danpa HQ, not an account to open: no workspace,
   // no sign-in, straight to the public listings.
   assert.match(body, /router\.replace\("\/\(app\)\/\(tabs\)\/explore"\)/);
 });
@@ -320,7 +320,7 @@ test("the identity is the product's own green hero, not a dawn", () => {
   assert.doesNotMatch(screen, /AuthCrest|OPENING_SCENE/);
 
   // Redesigned (owner, 2026-10-06): the dawn read as decoration rather than as
-  // Rooomly. The screens open on the chrome's textured green, as every page past
+  // Danpa HQ. The screens open on the chrome's textured green, as every page past
   // sign-in does, with the Homes' pale panel rising over its foot.
   const body = code(scene());
   assert.doesNotMatch(body, /auth-sky|auth-warm|auth-deep/);

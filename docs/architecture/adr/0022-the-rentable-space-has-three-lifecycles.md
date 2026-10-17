@@ -94,7 +94,7 @@ already in front of people can still be flagged or suspended.
 
 ### Occupancy protects the Unit somebody relies on
 
-`Occupancy` is the availability truth for both an active Rooomly tenancy and
+`Occupancy` is the availability truth for both an active Danpa HQ tenancy and
 physical occupancy recorded as `pending_lease`. Once either exists, the Unit is
 not merely absent from discovery: checked characteristics, amenities,
 photographs, verification re-check and bed allocation are protected until the

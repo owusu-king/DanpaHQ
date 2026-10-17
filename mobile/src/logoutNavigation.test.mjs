@@ -68,7 +68,7 @@ function authHarness() {
     "@/photo": { forgetPhotoUrls() {} }, "@/navigation": navigation,
     "@/onboardingIntent": { clearPendingOnboardingIntent: async () => {} },
     "@/registrationDraft": { clearRegistrationDraft() {}, finishAccountWelcome() {} },
-    "@/serviceAccounts": { clearServiceDetails: async () => store.delete("rooomly.service.details.v1") },
+    "@/serviceAccounts": { clearServiceDetails: async () => store.delete("danpahq.service.details.v1") },
     "@/privateDocuments": { clearPrivateDocuments() {} },
   });
   return { api: auth.AuthProvider({ children: null }), store, states, routes,
@@ -81,7 +81,7 @@ test("logout clears credentials and cached account data, then login retains pend
   const user = me("provider", true);
   const tokens = { access_token: "access", refresh_token: "refresh", user };
   await h.api.signIn(tokens);
-  h.store.set("rooomly.service.details.v1", "private meter");
+  h.store.set("danpahq.service.details.v1", "private meter");
   await h.api.signOut();
   assert.equal(h.store.size, 0);
   assert.equal(h.states.at(-1).status, "signed_out");

@@ -1,7 +1,7 @@
 /**
  * Places for the phone's location field (ADR 0034).
  *
- * Suggestions and the chosen place are asked of Rooomly's API, which asks the
+ * Suggestions and the chosen place are asked of Danpa HQ's API, which asks the
  * location provider on the app's behalf; the app holds no Places key. One search
  * is one Places session: its token is made with the first suggestion request,
  * carried by every one after it, and spent by resolving the choice.
@@ -42,7 +42,7 @@ export type ResolvedPlace = {
 };
 
 export type MapConfig = {
-  /** West, south, east, north: where Rooomly's maps may go. */
+  /** West, south, east, north: where Danpa HQ's maps may go. */
   bounds: [number, number, number, number];
   default_view: { lat: number; lng: number; zoom: number };
   min_zoom: number;
