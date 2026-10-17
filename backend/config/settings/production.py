@@ -9,16 +9,34 @@ from .base import env
 
 DEBUG = False
 SECRET_KEY = env("DJANGO_SECRET_KEY", required=True)
-ALLOWED_HOSTS = env("ALLOWED_HOSTS", required=True, cast=list)
+
+# Render names the service's own public host (`<name>.onrender.com`) in
+# RENDER_EXTERNAL_HOSTNAME. It is trusted without being repeated by hand; any
+# custom domain still has to be listed. With neither, the deploy stops here.
+_RENDER_HOST = env("RENDER_EXTERNAL_HOSTNAME", "")
+ALLOWED_HOSTS = [host for host in env("ALLOWED_HOSTS", "", cast=list) if host]
+if _RENDER_HOST and _RENDER_HOST not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append(_RENDER_HOST)
+if not ALLOWED_HOSTS:
+    raise ImproperlyConfigured("Set ALLOWED_HOSTS (or deploy on Render, which names the host).")
 
 SECURE_SSL_REDIRECT = True
+# The platform's health probe speaks plain HTTP inside the network; a redirect
+# to HTTPS would read as an unhealthy deploy. Nothing else is exempt.
+SECURE_REDIRECT_EXEMPT = [r"^healthz$", r"^api/v1/healthz/$"]
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 SECURE_HSTS_SECONDS = 31_536_000
 SECURE_HSTS_INCLUDE_SUBDOMAINS = True
 SECURE_HSTS_PRELOAD = True
 SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_SECURE = True
-CSRF_TRUSTED_ORIGINS = env("CSRF_TRUSTED_ORIGINS", required=True, cast=list)
+CSRF_TRUSTED_ORIGINS = [origin for origin in env("CSRF_TRUSTED_ORIGINS", "", cast=list) if origin]
+if _RENDER_HOST and f"https://{_RENDER_HOST}" not in CSRF_TRUSTED_ORIGINS:
+    CSRF_TRUSTED_ORIGINS.append(f"https://{_RENDER_HOST}")
+if not CSRF_TRUSTED_ORIGINS:
+    raise ImproperlyConfigured(
+        "Set CSRF_TRUSTED_ORIGINS (or deploy on Render, which names the host)."
+    )
 # `base` defaults this to http://localhost:3000 so development works with no
 # configuration. In production that default is a browser origin allowed to make
 # credentialed cross-origin calls to the API, so it must be stated deliberately

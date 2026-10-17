@@ -1,0 +1,126 @@
+# Render Blueprint: the Danpa HQ API on Render's free plan.
+#
+#   Render dashboard → New → Blueprint → pick this repository.
+#
+# What it creates:
+#   danpahq-api    Docker web service (backend/Dockerfile). Runs the API, and
+#                  Celery's worker and scheduler in the same container, because
+#                  the free plan has no background workers.
+#   danpahq-redis  Key Value (Redis) for Celery, reachable only inside Render.
+#
+# What it does not create (see docs/deployment/RENDER_SUPABASE.md):
+#   the database   Supabase (PostGIS), connected through its Session pooler.
+#   file storage   Cloudflare R2 (S3-compatible).
+#   the web app    Netlify.
+#
+# Values marked `sync: false` are asked for once, when the Blueprint is first
+# applied, and are never stored in this file. Secrets marked `generateValue`
+# are created by Render.
+
+services:
+  - type: web
+    name: danpahq-api
+    runtime: docker
+    plan: free
+    # Render's closest region to Ghana. Create the Supabase project in
+    # Frankfurt (eu-central-1) too, so every query stays in one city.
+    region: frankfurt
+    # rootDir limits auto-deploys to changes under backend/. The Docker paths
+    # below are read from the repository root, not from rootDir.
+    rootDir: backend
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    healthCheckPath: /healthz
+    # Free plans have no pre-deploy step, so start-up does the work: migrate,
+    # seed reference data (both seeds create-or-update and are safe to repeat),
+    # start Celery with its scheduler in the background, then serve. One
+    # gunicorn worker with threads keeps everything inside 512 MB.
+    dockerCommand: >-
+      sh -c "python manage.py migrate --noinput
+      && python manage.py seed_geo
+      && python manage.py seed_amenities
+      && (celery -A config worker -B -Q default,payments,notifications,media --concurrency=1 -l info --schedule /tmp/celerybeat-schedule &)
+      && exec gunicorn config.wsgi:application --bind 0.0.0.0:${PORT:-10000} --workers 1 --threads 4 --timeout 60 --access-logfile -"
+    envVars:
+      # Without this, manage.py and Celery quietly fall back to local settings.
+      - key: DJANGO_SETTINGS_MODULE
+        value: config.settings.production
+
+      # Render's own *.onrender.com host is trusted automatically through
+      # RENDER_EXTERNAL_HOSTNAME (config/settings/production.py). When you add
+      # a custom domain, set ALLOWED_HOSTS and CSRF_TRUSTED_ORIGINS for it.
+      #
+      # The web app's address on Netlify, e.g. https://danpahq.netlify.app
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false
+
+      # --- Supabase (Session pooler, IPv4) ---------------------------------
+      # Project → Connect → Session pooler. Not the direct connection: that
+      # host is IPv6-only and Render cannot reach it.
+      - key: POSTGRES_HOST
+        sync: false          # aws-0-eu-central-1.pooler.supabase.com
+      - key: POSTGRES_PORT
+        value: "5432"
+      - key: POSTGRES_DB
+        value: postgres
+      - key: POSTGRES_USER
+        sync: false          # postgres.<project-ref>
+      - key: POSTGRES_PASSWORD
+        sync: false
+      - key: DB_SSLMODE
+        value: require
+
+      # --- Redis for Celery ------------------------------------------------
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: danpahq-redis
+          property: connectionString
+
+      # --- Cloudflare R2 -----------------------------------------------------
+      - key: S3_ENDPOINT_URL
+        sync: false          # https://<account-id>.r2.cloudflarestorage.com
+      - key: S3_BUCKET
+        value: danpahq-media
+      - key: S3_REGION
+        value: auto
+      - key: S3_ACCESS_KEY
+        sync: false
+      - key: S3_SECRET_KEY
+        sync: false
+      # No virus scanner is integrated yet. "strict" would hold every upload
+      # pending forever; "permissive" releases it after the file-type checks.
+      # Fine for testing; not for real tenants' identity documents.
+      - key: FILE_SCAN_MODE
+        value: permissive
+
+      # --- Google -------------------------------------------------------------
+      - key: GOOGLE_MAPS_SERVER_API_KEY
+        sync: false
+
+      # --- Secrets: each its own random value, made by Render ---------------
+      - key: DJANGO_SECRET_KEY
+        generateValue: true
+      - key: OTP_PEPPER
+        generateValue: true
+      - key: ACCESS_TOKEN_KEY
+        generateValue: true
+      - key: NATIONAL_ID_PEPPER
+        generateValue: true
+      - key: UNIT_ACCESS_CODE_PEPPER
+        generateValue: true
+      - key: MANAGEMENT_CSRF_KEY
+        generateValue: true
+      - key: RUNTIME_CONFIG_ENCRYPTION_KEY
+        generateValue: true
+      - key: STORAGE_SIGNING_KEY
+        generateValue: true
+
+  - type: keyvalue
+    name: danpahq-redis
+    plan: free
+    region: frankfurt
+    # Celery's queue must not be evicted to make room.
+    maxmemoryPolicy: noeviction
+    # Empty list: no access from outside Render at all.
+    ipAllowList: []
