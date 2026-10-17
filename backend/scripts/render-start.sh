@@ -14,16 +14,18 @@
 
 set -e
 
+
+
 python manage.py migrate --noinput
 python manage.py seed_geo
 python manage.py seed_amenities
+python manage.py collectstatic --noinput
 
 celery -A config worker -B \
   -Q default,payments,notifications,media \
   --concurrency=1 -l info \
   --schedule /tmp/celerybeat-schedule &
 
-# One worker with threads keeps the API, Celery and the scheduler inside 512 MB.
 exec gunicorn config.wsgi:application \
   --bind "0.0.0.0:${PORT:-10000}" \
   --workers 1 --threads 4 --timeout 60 \
