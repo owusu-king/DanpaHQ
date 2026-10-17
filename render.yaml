@@ -39,12 +39,14 @@ services:
     # seed reference data (both seeds create-or-update and are safe to repeat),
     # start Celery with its scheduler in the background, then serve. One
     # gunicorn worker with threads keeps everything inside 512 MB.
-    dockerCommand: >-
-      sh -c "python manage.py migrate --noinput
-      && python manage.py seed_geo
-      && python manage.py seed_amenities
-      && (celery -A config worker -B -Q default,payments,notifications,media --concurrency=1 -l info --schedule /tmp/celerybeat-schedule &)
-      && exec gunicorn config.wsgi:application --bind 0.0.0.0:${PORT:-10000} --workers 1 --threads 4 --timeout 60 --access-logfile -"
+
+    
+        dockerCommand: >-
+      /bin/sh -c 'python manage.py migrate --noinput &&
+      python manage.py seed_geo &&
+      python manage.py seed_amenities &&
+      (celery -A config worker -B -Q default,payments,notifications,media --concurrency=1 -l info --schedule /tmp/celerybeat-schedule &) &&
+      exec gunicorn config.wsgi:application --bind 0.0.0.0:${PORT:-10000} --workers 1 --threads 4 --timeout 60 --access-logfile -'
     envVars:
       # Without this, manage.py and Celery quietly fall back to local settings.
       - key: DJANGO_SETTINGS_MODULE
