@@ -25,21 +25,25 @@ import os
 from django.contrib.auth import get_user_model
 
 User = get_user_model()
-username = os.environ["DJANGO_SUPERUSER_USERNAME"]
+phone = os.environ["DJANGO_SUPERUSER_PHONE"]
 email = os.environ["DJANGO_SUPERUSER_EMAIL"]
 password = os.environ["DJANGO_SUPERUSER_PASSWORD"]
 
-user, created = User.objects.get_or_create(
-    username=username,
-    defaults={"email": email},
-)
-if created:
-    user.set_password(password)
-    user.is_staff = True
-    user.is_superuser = True
-    user.save()
-elif not user.is_superuser:
-    raise RuntimeError("The requested username already exists but is not a superuser.")
+user = User.objects.filter(phone=phone).first()
+
+if user is None:
+    User.objects.create_superuser(
+        phone=phone,
+        email=email,
+        password=password,
+    )
+    print("Admin superuser created.")
+elif user.is_superuser:
+    print("Admin superuser already exists.")
+else:
+    raise RuntimeError(
+        "This phone number already belongs to a non-superuser account."
+    )
 '
 
 celery -A config worker -B \
