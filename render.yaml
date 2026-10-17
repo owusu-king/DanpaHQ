@@ -25,12 +25,15 @@ services:
     # Render's closest region to Ghana. Create the Supabase project in
     # Frankfurt (eu-central-1) too, so every query stays in one city.
     region: frankfurt
-    # rootDir limits auto-deploys to changes under backend/, and Render resolves
-    # the Docker paths below inside it: "./Dockerfile" is backend/Dockerfile.
-    # (Writing "./backend/..." here makes Render look in backend/backend.)
-    rootDir: backend
-    dockerfilePath: ./Dockerfile
-    dockerContext: .
+    # No rootDir: combining rootDir with Docker paths made Render build from
+    # backend/backend. With paths written from the repository root there is
+    # nothing to combine. buildFilter keeps auto-deploys to backend changes.
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    buildFilter:
+      paths:
+        - backend/**
+        - render.yaml
     healthCheckPath: /healthz
     # Free plans have no pre-deploy step, so start-up does the work: migrate,
     # seed reference data (both seeds create-or-update and are safe to repeat),
