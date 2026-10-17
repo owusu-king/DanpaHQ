@@ -20,6 +20,27 @@ python manage.py migrate --noinput
 python manage.py seed_geo
 python manage.py seed_amenities
 python manage.py collectstatic --noinput
+python manage.py shell -c '
+import os
+from django.contrib.auth import get_user_model
+
+User = get_user_model()
+username = os.environ["DJANGO_SUPERUSER_USERNAME"]
+email = os.environ["DJANGO_SUPERUSER_EMAIL"]
+password = os.environ["DJANGO_SUPERUSER_PASSWORD"]
+
+user, created = User.objects.get_or_create(
+    username=username,
+    defaults={"email": email},
+)
+if created:
+    user.set_password(password)
+    user.is_staff = True
+    user.is_superuser = True
+    user.save()
+elif not user.is_superuser:
+    raise RuntimeError("The requested username already exists but is not a superuser.")
+'
 
 celery -A config worker -B \
   -Q default,payments,notifications,media \
@@ -30,3 +51,5 @@ exec gunicorn config.wsgi:application \
   --bind "0.0.0.0:${PORT:-10000}" \
   --workers 1 --threads 4 --timeout 60 \
   --access-logfile -
+
+
