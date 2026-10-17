@@ -39,12 +39,12 @@ const FAILED_INTENT = new Set(["failed", "expired", "cancelled"]);
 /** Where a due row goes: checkout for it, or the attempt already under way. */
 function payHref(row: DueRow) {
   return row.intent
-    ? `/payments/return?intent=${encodeURIComponent(row.intent.id)}`
-    : `/payments/checkout?lease=${encodeURIComponent(row.account.tenancy.lease!.id)}&obligation=${encodeURIComponent(row.charge.id)}`;
+    ? `/record/payment-return?intent=${encodeURIComponent(row.intent.id)}`
+    : `/record/payment-checkout?lease=${encodeURIComponent(row.account.tenancy.lease!.id)}&obligation=${encodeURIComponent(row.charge.id)}`;
 }
 
 function accountHref(account: Account) {
-  return `/payments/${account.tenancy.lease!.id}?mode=tenant`;
+  return `/record/payment?leaseId=${account.tenancy.lease!.id}&mode=tenant`;
 }
 
 export function TenantPaymentsWorkspace() {

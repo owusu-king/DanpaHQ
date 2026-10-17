@@ -13,7 +13,7 @@ test("no Portfolio means the first Property creates a personal one", () => {
   const step = propertyNextStep({ canCreateProperty: true, hasWorkspace: false });
 
   assert.equal(step.label, "Create property");
-  assert.equal(step.href, "/properties/new");
+  assert.equal(step.href, "/record/property-new");
 });
 
 test("with a workspace, the step is the property itself", () => {
@@ -22,7 +22,7 @@ test("with a workspace, the step is the property itself", () => {
   });
 
   assert.equal(step.label, "Create property");
-  assert.equal(step.href, "/properties/new?organization=org-1");
+  assert.equal(step.href, "/record/property-new?organization=org-1");
 });
 
 test("an unapproved provider is sent to the review, whatever else is true", () => {
@@ -40,10 +40,10 @@ test("the organization id is url-encoded", () => {
     canCreateProperty: true, hasWorkspace: true, organizationId: "a b&c",
   });
 
-  assert.equal(step.href, "/properties/new?organization=a%20b%26c");
+  assert.equal(step.href, "/record/property-new?organization=a%20b%26c");
 });
 
 test("a workspace with no id still reaches the form", () => {
   const step = propertyNextStep({ canCreateProperty: true, hasWorkspace: true });
-  assert.equal(step.href, "/properties/new");
+  assert.equal(step.href, "/record/property-new");
 });

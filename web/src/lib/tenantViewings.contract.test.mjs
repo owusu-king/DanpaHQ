@@ -26,7 +26,7 @@ const read = (relative) => readFileSync(resolve(root, relative), "utf8").replace
 const code = (source) => source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*/g, "");
 
 const list = () => read("web/app/viewings/page.tsx");
-const route = () => read("web/app/viewings/[viewingId]/page.tsx");
+const route = () => read("web/app/record/viewing/page.tsx");
 const record = () => code(read("web/src/components/tenant/ViewingRecord.tsx"));
 const countdown = () => code(read("web/src/components/viewings/Countdown.tsx"));
 const css = () => read("web/src/styles/viewings-tenant.css");
@@ -49,7 +49,7 @@ const tenantRoute = () => {
 };
 
 test("a tenant's viewing opens over the schedule, held in page state, and at its own", () => {
-  assert.ok(existsSync(resolve(root, "web/app/viewings/[viewingId]/page.tsx")));
+  assert.ok(existsSync(resolve(root, "web/app/record/viewing/page.tsx")));
   assert.match(tenantRoute(), /viewings\?\.find\(\(row\) => row\.id === viewingId\)/);
   assert.match(tenantRoute(), /<ViewingRecord/);
   assert.match(tenantRoute(), /mobileLabel: "Back to Viewings"/);
@@ -58,7 +58,7 @@ test("a tenant's viewing opens over the schedule, held in page state, and at its
   assert.match(body, /useDeepLinkedModal\("viewing"\)/);
   assert.match(body, /<ViewingSheet viewing=\{opened\}/);
   assert.match(body, /onClose=\{\(\) => setOpenId\(""\)\}/);
-  assert.match(body, /href=\{`\/viewings\/\$\{viewing\.id\}` as never\}/);
+  assert.match(body, /href=\{`\/record\/viewing\?viewingId=\$\{viewing\.id\}` as never\}/);
   assert.match(body, /event\.preventDefault\(\);\s*onOpen\(viewing\.id\)/);
   assert.match(record(), /<ModalSheet/);
   assert.match(record(), /className="host-viewing-sheet tenant-viewing-sheet"/);
@@ -139,7 +139,7 @@ test("the collection stays calm and discloses more on request", () => {
 test("a reminder still points straight at one appointment", () => {
   const body = tenantHalf();
   assert.match(body, /window\.location\.hash\.startsWith\("#viewing-"\)/);
-  assert.match(body, /router\.replace\(`\/viewings\/\$\{window\.location\.hash\.slice\("#viewing-"\.length\)\}`/);
+  assert.match(body, /router\.replace\(`\/record\/viewing\?viewingId=\$\{window\.location\.hash\.slice\("#viewing-"\.length\)\}`/);
 });
 
 test("the card is a link, and nothing inside it pretends to be a button", () => {

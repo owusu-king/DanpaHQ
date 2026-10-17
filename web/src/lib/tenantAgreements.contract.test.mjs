@@ -15,7 +15,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const read = (relative) => readFileSync(resolve(root, relative), "utf8").replaceAll("\r\n", "\n");
 const code = (source) => source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*/g, "");
 const list = () => read("web/app/leases/page.tsx");
-const route = () => read("web/app/leases/[leaseId]/page.tsx");
+const route = () => read("web/app/record/lease/page.tsx");
 const record = () => read("web/src/components/tenant/AgreementRecord.tsx");
 const css = () => read("web/src/styles/agreements-workspace.css");
 
@@ -43,7 +43,7 @@ function rule(sheet, selector) {
 }
 
 test("a plain click opens the agreement over the list, held in page state; the route remains", () => {
-  assert.ok(existsSync(resolve(root, "web/app/leases/[leaseId]/page.tsx")));
+  assert.ok(existsSync(resolve(root, "web/app/record/lease/page.tsx")));
   assert.match(tenantRoute(), /<AgreementRecord/);
   assert.match(tenantRoute(), /<EntityPath/);
   assert.match(tenantRoute(), /mobileLabel: "Back to Agreements"/);
@@ -52,7 +52,7 @@ test("a plain click opens the agreement over the list, held in page state; the r
   assert.match(body, /setOpenId\(lease\.id\)/);
   assert.match(body, /<AgreementSheet lease=\{opened\}/);
   assert.match(body, /event\.preventDefault\(\);\s*onOpen\(lease\)/);
-  assert.match(body, /href=\{`\/leases\/\$\{lease\.id\}` as never\}/);
+  assert.match(body, /href=\{`\/record\/lease\?leaseId=\$\{lease\.id\}` as never\}/);
   assert.doesNotMatch(body, /tenant-agreements-split/);
   // The sheet is the shared one, so it behaves exactly like every other modal.
   assert.match(code(record()), /<ModalSheet/);

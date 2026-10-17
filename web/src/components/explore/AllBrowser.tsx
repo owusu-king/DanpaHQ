@@ -272,7 +272,7 @@ export function AllBrowser() {
             onClearFilters={() => update({ propertyType: "", bedrooms: "" })}
             hasFilters={filterCount > 0}
             sales={sales}
-            onOpenSale={(id) => router.push(`/sales/${id}` as never)}
+            onOpenSale={(id) => router.push(`/record/sale?id=${id}` as never)}
           />
         ) : (
           <section aria-live="polite" aria-busy={items === null || querying}>

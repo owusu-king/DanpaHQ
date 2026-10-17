@@ -378,7 +378,7 @@ function TenantHome({ me }: { me: Me }) {
               <ul className="home-rows tenant-homes">
                 {rankHomes(homes).map((tenancy) => (
                   <li key={tenancy.id}>
-                    <Link href={`/tenancies/${tenancy.id}` as never} className="home-row">
+                    <Link href={`/record/tenancy?id=${tenancy.id}` as never} className="home-row">
                       <span className="tenant-home-thumb" aria-hidden="true">
                         {tenancy.photo_url ? (
                           /* Short-lived signed URLs from the files service. */
@@ -1216,7 +1216,7 @@ function agendaOf(viewings: Viewing[], tenants: ProviderTenant[]): AgendaItem[] 
       title: `Viewing with ${viewing.tenant_name}`,
       where: [viewing.property_title, viewing.unit_label].filter(Boolean).join(" · ") || viewing.listing_headline,
       detail: at.toLocaleTimeString("en-GH", { hour: "numeric", minute: "2-digit" }),
-      href: `/viewings/${viewing.id}`,
+      href: `/record/viewing?viewingId=${viewing.id}`,
     });
   }
   for (const tenant of tenants) {
@@ -1364,7 +1364,7 @@ function PropertyHighlight({ property, others }: { property: Property; others: P
 
   return (
     <section className="home-property-card" aria-labelledby="home-property-title">
-      <Link href={`/properties/${property.id}` as never} className="home-property-media" aria-label={`Open ${property.title}`}>
+      <Link href={`/record/property?id=${property.id}` as never} className="home-property-media" aria-label={`Open ${property.title}`}>
         {property.cover_url ? (
           // The Property serializer returns a ready-to-display signed photo URL.
           // eslint-disable-next-line @next/next/no-img-element
@@ -1391,7 +1391,7 @@ function PropertyHighlight({ property, others }: { property: Property; others: P
             const share = row.unit_count ? Math.round((row.occupied_unit_count / row.unit_count) * 100) : 0;
             return (
               <li key={row.id}>
-                <Link href={`/properties/${row.id}` as never}>
+                <Link href={`/record/property?id=${row.id}` as never}>
                   <span className="home-property-mini" aria-hidden="true">{initialsOf(row.title)}</span>
                   <span className="home-property-mini-copy">
                     <strong>{row.title}</strong>
@@ -1589,7 +1589,7 @@ function RecentActivity({
         amount: null,
         icon: "leases" as const,
         kind: "other" as const,
-        href: `/leases/${lease.id}`,
+        href: `/record/lease?leaseId=${lease.id}`,
       })),
     ...(portfolio?.recent_activity ?? []).map((row) => ({
       id: `activity-${row.id}`,

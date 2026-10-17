@@ -107,6 +107,7 @@ services:
     # Linux volume. The entrypoint only reinstalls when package-lock.json changes.
     command: ["sh", "/app/docker-entrypoint.sh"]
     environment:
+      # NEXT_PUBLIC_API_URL: http://localhost:8000/api/v1
       NEXT_PUBLIC_API_URL: http://localhost:8000/api/v1
       # The browser map key and map ID, from .env. Empty means Explore keeps its
       # list and says the map is not available here (docs/runbook.md, Maps).

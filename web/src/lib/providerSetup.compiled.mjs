@@ -15,7 +15,7 @@ export function propertyNextStep({ canCreateProperty, hasWorkspace, organization
   if (!hasWorkspace) {
     return {
       label: "Create property",
-      href: "/properties/new",
+      href: "/record/property-new",
       reason:
         "Your personal Portfolio will be created automatically with this first Property. You can rename it or add a Team later.",
     };
@@ -24,8 +24,8 @@ export function propertyNextStep({ canCreateProperty, hasWorkspace, organization
   return {
     label: "Create property",
     href: organizationId
-      ? `/properties/new?organization=${encodeURIComponent(organizationId)}`
-      : "/properties/new",
+      ? `/record/property-new?organization=${encodeURIComponent(organizationId)}`
+      : "/record/property-new",
     reason:
       "Six steps — the property, its details, its documents, its photographs and "
       + "what the compound has. Nothing is sent to anybody until you ask for it.",

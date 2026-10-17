@@ -15,7 +15,7 @@ import { saleFacts, type SaleCard as Sale } from "@/lib/sales";
  */
 export function SaleCard({ sale }: { sale: Sale }) {
   const where = [sale.locality_name, sale.district_name].filter(Boolean).join(", ");
-  const href = `/sales/${sale.id}` as never;
+  const href = `/record/sale?id=${sale.id}` as never;
   const facts = saleFacts(sale);
 
   return (

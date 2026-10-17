@@ -40,8 +40,8 @@ test("the next thing to pay leads, and is never one already being paid", () => {
 
 test("a due row goes to checkout, or to the attempt already under way", () => {
   const body = tenant();
-  assert.match(body, /`\/payments\/return\?intent=\$\{encodeURIComponent\(row\.intent\.id\)\}`/);
-  assert.match(body, /`\/payments\/checkout\?lease=\$\{encodeURIComponent\(row\.account\.tenancy\.lease!\.id\)\}&obligation=\$\{encodeURIComponent\(row\.charge\.id\)\}`/);
+  assert.match(body, /`\/record\/payment-return\?intent=\$\{encodeURIComponent\(row\.intent\.id\)\}`/);
+  assert.match(body, /`\/record\/payment-checkout\?lease=\$\{encodeURIComponent\(row\.account\.tenancy\.lease!\.id\)\}&obligation=\$\{encodeURIComponent\(row\.charge\.id\)\}`/);
   assert.match(body, /className="rent-row is-payable" href=\{payHref\(row\) as never\}/);
   assert.match(body, /\{intent \? "Check status" : "Pay rent"\}/);
 });
@@ -51,7 +51,7 @@ test("the view is in the address, and every home's account stays reachable", () 
   assert.match(body, /search\.get\("view"\)/);
   assert.match(body, /router\.replace\(/);
   assert.match(body, />Rent accounts<\/PaymentTab>/);
-  assert.match(body, /`\/payments\/\$\{account\.tenancy\.lease!\.id\}\?mode=tenant`/);
+  assert.match(body, /`\/record\/payment\?leaseId=\$\{account\.tenancy\.lease!\.id\}&mode=tenant`/);
 });
 
 test("every state is designed inside the panel", () => {

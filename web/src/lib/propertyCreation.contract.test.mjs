@@ -21,7 +21,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const read = (relative) => readFileSync(resolve(root, relative), "utf8");
 const code = (source) => source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*/g, "");
 
-const webStep = () => read("web/app/properties/new/page.tsx");
+const webStep = () => read("web/app/record/property-new/page.tsx");
 const mobileStep = () => read("mobile/app/(app)/private-property.tsx");
 const webChoice = () => read("web/src/components/property/PropertyTypeChoice.tsx");
 const mobileChoice = () => read("mobile/src/components/property/PropertyTypeChoice.tsx");
@@ -73,7 +73,7 @@ test("creating a property is not submitting it for verification", () => {
   // Two different acts, and the flow used to end in a button that could be
   // read as either.
   for (const source of [
-    read("web/app/properties/[id]/setup/page.tsx"),
+    read("web/app/record/property-setup/page.tsx"),
     read("mobile/app/(app)/property-setup.tsx"),
   ]) {
     assert.match(source, /"Create property"/);
@@ -86,7 +86,7 @@ test("creating a property is not submitting it for verification", () => {
 test("mobile creation keeps the compact journey without the desktop step block", () => {
   const first = code(read("mobile/app/(app)/private-property.tsx"));
   const setup = code(read("mobile/app/(app)/property-setup.tsx"));
-  const webSetup = code(read("web/app/properties/[id]/setup/page.tsx"));
+  const webSetup = code(read("web/app/record/property-setup/page.tsx"));
 
   for (const source of [first, setup]) {
     assert.match(source, /<SetupProgress/);
@@ -101,11 +101,11 @@ test("mobile creation keeps the compact journey without the desktop step block",
   assert.match(journey, /onSelect && \(canSelect \? canSelect\(checkpoint\) : true\) \? \(\s*<button/);
   assert.match(journey, /aria-current=\{checkpoint\.state === "current" \? "step" : undefined\}/);
   // Unit creation jumps too, once the Unit exists to hold the later steps.
-  assert.match(read("web/app/properties/[id]/spaces/new/page.tsx"), /canSelect=\{\(checkpoint\) => canJump \|\| checkpoint\.key === "details"\}/);
+  assert.match(read("web/app/record/space-new/page.tsx"), /canSelect=\{\(checkpoint\) => canJump \|\| checkpoint\.key === "details"\}/);
 });
 
 test("the review shows the property, not a progress table", () => {
-  const webReview = read("web/app/properties/[id]/setup/page.tsx");
+  const webReview = read("web/app/record/property-setup/page.tsx");
   const mobileReview = read("mobile/app/(app)/property-setup.tsx");
 
   // It listed step names against their status — "Photos: 2 of 5 added". The
@@ -145,7 +145,7 @@ test("the review shows the property, not a progress table", () => {
 test("only what is still owed is listed, and only when something is", () => {
   // Six rows reading "Done" is not a review; it is the checklist again.
   for (const source of [
-    read("web/app/properties/[id]/setup/page.tsx"),
+    read("web/app/record/property-setup/page.tsx"),
     read("mobile/app/(app)/property-setup.tsx"),
   ]) {
     assert.match(code(source), /outstanding\.length \? \(/);
@@ -177,8 +177,8 @@ test("a step explains itself in a heading, not in a paragraph", () => {
   // green while step one — the screen that forms the first impression — still
   // carried 86 words across a header, a summary, a hint and a notice body.
   const files = [
-    "web/app/properties/new/page.tsx",
-    "web/app/properties/[id]/setup/page.tsx",
+    "web/app/record/property-new/page.tsx",
+    "web/app/record/property-setup/page.tsx",
     "mobile/app/(app)/private-property.tsx",
     "mobile/app/(app)/property-setup.tsx",
   ];
@@ -204,7 +204,7 @@ test("a step explains itself in a heading, not in a paragraph", () => {
   }
 
   // The steps are named, not described.
-  const setup = read("web/app/properties/[id]/setup/page.tsx");
+  const setup = read("web/app/record/property-setup/page.tsx");
   for (const title of [
     "The property",
     "Property details",
@@ -225,7 +225,7 @@ test("a step explains itself in a heading, not in a paragraph", () => {
 });
 
 test("nothing says the same thing twice on one screen", () => {
-  const web = read("web/app/properties/[id]/setup/page.tsx");
+  const web = read("web/app/record/property-setup/page.tsx");
   const mobile = read("mobile/app/(app)/property-setup.tsx");
 
   // "Nothing has been sent to anybody" was on the page header, on a notice
@@ -340,7 +340,7 @@ test("phones show nearby checkpoint context without squeezing the whole journey"
 });
 
 test("Property and Unit creation speak the same checkpoint language", () => {
-  const webUnit = read("web/app/properties/[id]/spaces/new/page.tsx");
+  const webUnit = read("web/app/record/space-new/page.tsx");
   const mobileUnit = read("mobile/app/(app)/space-new.tsx");
 
   for (const source of [webUnit, mobileUnit]) {

@@ -40,7 +40,7 @@ test("provider agreement details use the frozen record and deliberate actions", 
   // One or two actions per state (owner, 2026-10-05). Ended opens the closing
   // account only; active ends the tenancy (in red) or downloads; the document
   // offers Print alone; and nothing links off to the Unit or Properties.
-  assert.match(record, /lease\.status === "ended" \? \(\s*<Link className="btn btn-secondary" href=\{`\/payments\/\$\{lease\.id\}` as never\}>\s*Open closing account/);
+  assert.match(record, /lease\.status === "ended" \? \(\s*<Link className="btn btn-secondary" href=\{`\/record\/payment\?leaseId=\$\{lease\.id\}` as never\}>\s*Open closing account/);
   assert.match(record, /<Button variant="destructive" disabled=\{busy\} onClick=\{\(\) => setConfirmation\("end"\)\}>\s*End tenancy/);
   assert.match(record, /documentAction\("download"\)\}>\s*Download/);
   assert.doesNotMatch(record, /View PDF|Open Unit|Open Properties/);
@@ -57,8 +57,8 @@ test("provider agreement details use the frozen record and deliberate actions", 
   assert.doesNotMatch(page, /ProviderLeaseDialog|showModal\(\)/);
   assert.doesNotMatch(record, /<dialog/);
   assert.match(read("web/src/components/leases/LeaseModal.tsx"), /<LeaseRecord lease=\{lease\}/);
-  assert.match(read("web/app/leases/[leaseId]/page.tsx"), /<LeaseRecord/);
-  assert.match(page, /href=\{`\/leases\/\$\{lease\.id\}`/);
+  assert.match(read("web/app/record/lease/page.tsx"), /<LeaseRecord/);
+  assert.match(page, /href=\{`\/record\/lease\?leaseId=\$\{lease\.id\}`/);
 
   assert.match(css, /min-height: 48px/);
 });

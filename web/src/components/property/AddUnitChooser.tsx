@@ -28,7 +28,7 @@ export function AddUnitButton({ className, children }: { className: string; chil
     const eligible = await choices.load();
     // One eligible Property is not a choice. Go straight to the flow.
     if (eligible.length === 1) {
-      router.push(`/properties/${eligible[0]!.id}/spaces/new` as never);
+      router.push(`/record/space-new?propertyId=${eligible[0]!.id}` as never);
       return;
     }
     setOpen(true);
@@ -125,7 +125,7 @@ export function PropertyChoices({ choices }: { choices: Choices }) {
         <ul className="unit-property-list">
           {eligible.map((property) => (
             <li key={property.id}>
-              <Link href={`/properties/${property.id}/spaces/new` as never} className="unit-property-row">
+              <Link href={`/record/space-new?propertyId=${property.id}` as never} className="unit-property-row">
                 <span>
                   <strong className="type-body-strong">{property.title}</strong>
                   <br />

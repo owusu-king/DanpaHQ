@@ -184,7 +184,7 @@ export function RentAccountDetail({
                 canWriteOff={ledger.financial_summary.is_post_tenancy && ledger.permissions.write_off}
                 payHref={
                   tenantMode && charge.outstanding_minor > 0
-                    ? `/payments/checkout?lease=${encodeURIComponent(leaseId)}&obligation=${encodeURIComponent(charge.id)}`
+                    ? `/record/payment-checkout?lease=${encodeURIComponent(leaseId)}&obligation=${encodeURIComponent(charge.id)}`
                     : null
                 }
                 onChanged={onChanged}

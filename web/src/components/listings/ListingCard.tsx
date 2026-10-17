@@ -52,8 +52,8 @@ export function ListingCard({
   const facts = essentialFacts(listing);
   const verified = listing.trust_stamps.identity.state === "verified"
     && listing.trust_stamps.property.state === "verified";
-  const href = `/listings/${listing.id}` as never;
-  const locationHref = `/listings/${listing.id}#location` as never;
+  const href = `/record/listing?id=${listing.id}` as never;
+  const locationHref = `/record/listing?id=${listing.id}#location` as never;
 
   function showPhoto(index: number) {
     if (!photos.length) return;

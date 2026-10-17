@@ -102,7 +102,7 @@ function PreviewBody({
     typeof listing.bedrooms === "number" && listing.bedrooms > 0 ? `${listing.bedrooms}-bed` : null,
     listing.space_type ? spaceLabel(listing.space_type) : null,
   ].filter(Boolean).join(" ");
-  const href = `/listings/${listing.id}` as never;
+  const href = `/record/listing?id=${listing.id}` as never;
 
   return (
     <div className="explore-preview-body">

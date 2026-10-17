@@ -21,7 +21,7 @@ test("provider Payments is a scalable rent workspace, not a summary dashboard", 
   // The account itself moved to its own route when it stopped being a modal.
   // The ledger and the receiving gate went with it; the workspace's job is to
   // find the right row and hand over the id.
-  assert.match(read("web/app/payments/[leaseId]/page.tsx"), /getLeaseLedger/);
+  assert.match(read("web/app/record/payment/page.tsx"), /getLeaseLedger/);
   assert.match(read("web/src/components/payments/RentAccount.tsx"), /ledger\.permissions\.record_payment/);
 });
 

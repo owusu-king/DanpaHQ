@@ -16,7 +16,7 @@
  * clauses cannot be edited here; custom wording stays a labelled section.
  *
  * It opens inside the request's modal (the same sheet, widened), inside its own
- * sheet from a full-page request, and on `/leases/new` for a direct link.
+ * sheet from a full-page request, and on `/record/lease-new` for a direct link.
  */
 
 import Link from "next/link";

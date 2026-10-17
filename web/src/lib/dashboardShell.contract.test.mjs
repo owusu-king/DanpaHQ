@@ -127,8 +127,8 @@ test("mobile removes a deleted device row instead of redrawing its action", () =
 test("provider tenant acquisition separates request decisions from active tenant work", () => {
   const tenants = read("web/app/tenants/page.tsx");
   const requests = read("web/app/applications/page.tsx");
-  const property = read("web/app/properties/[id]/page.tsx");
-  const unit = read("web/app/properties/[id]/spaces/[spaceId]/page.tsx");
+  const property = read("web/app/record/property/page.tsx");
+  const unit = read("web/app/record/space/page.tsx");
 
   assert.match(tenants, /portfolio\.tenant_access/);
   assert.match(tenants, /<SpaceTenantAccess/);

@@ -83,5 +83,5 @@ test("both sides reach it, and a notification lands on the request", () => {
   assert.match(page(), /listOrganizationMaintenance\(organizationId\)/);
   assert.match(page(), /listMyMaintenance\(\)/);
   // A tenant reports from their home's own page too, already on it.
-  assert.match(read("app/tenancies/[id]/page.tsx"), /href=\{`\/maintenance\?report=\$\{tenancy\.id\}` as never\}/);
+  assert.match(read("app/record/tenancy/page.tsx"), /href=\{`\/maintenance\?report=\$\{tenancy\.id\}` as never\}/);
 });

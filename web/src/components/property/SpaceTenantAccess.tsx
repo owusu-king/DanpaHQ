@@ -55,10 +55,10 @@ export function SpaceTenantAccess({
 /**
  * The way into preparing an agreement for an accepted request.
  *
- * It used to navigate to `/leases/new`, which took the provider away from the
+ * It used to navigate to `/record/lease-new`, which took the provider away from the
  * request they had just accepted. The wizard opens in place now: handed to the
  * modal the request is already in (`onOpen`), or in a sheet of its own when the
- * request is on its own page. `/leases/new` still works for a direct link.
+ * request is on its own page. `/record/lease-new` still works for a direct link.
  */
 export function LeasePreparationForm({
   unitId,

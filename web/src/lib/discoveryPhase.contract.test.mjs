@@ -11,7 +11,7 @@ function read(relative) {
 }
 
 test("web discovery exposes distinct viewing and application follow-up actions", () => {
-  const listing = read("web/app/listings/[id]/page.tsx");
+  const listing = read("web/app/record/listing/page.tsx");
   assert.match(listing, /listMyViewings/);
   // Once an action has happened the page says so rather than offering it again.
   assert.match(listing, /Viewing requested — open it/);
@@ -108,7 +108,7 @@ test("provider clients do not expose direct tenant invitations", () => {
 
 test("provider space screens render occupied restrictions from backend actions", () => {
   const sources = [
-    read("web/app/properties/[id]/spaces/[spaceId]/page.tsx"),
+    read("web/app/record/space/page.tsx"),
     read("mobile/app/(app)/space.tsx"),
   ];
 
@@ -124,7 +124,7 @@ test("provider space screens render occupied restrictions from backend actions",
 
 test("public listing screens use the combined Unit and Property gallery", () => {
   const sources = [
-    read("web/app/listings/[id]/page.tsx"),
+    read("web/app/record/listing/page.tsx"),
     read("mobile/app/(app)/listing/[id].tsx"),
   ];
 
@@ -140,7 +140,7 @@ test("public listing screens use the combined Unit and Property gallery", () => 
 
 test("provider tenants is a portfolio route over tenancy, lease and rent data", () => {
   const tenants = read("web/app/tenants/page.tsx");
-  const tenancy = read("web/app/tenants/[tenancyId]/page.tsx");
+  const tenancy = read("web/app/record/tenant/page.tsx");
   const navigation = read("web/src/lib/portalNav.ts");
 
   assert.match(navigation, /href: "\/tenants", label: "Tenants"/);
@@ -156,7 +156,7 @@ test("provider tenants is a portfolio route over tenancy, lease and rent data", 
   assert.doesNotMatch(tenants, /label: "Needs attention"|label: "Paid up"/);
   assert.match(tenants, /portfolio\?\.past_tenants/);
   assert.match(tenancy, /portfolio\.past_tenants/);
-  assert.match(tenancy, /properties\/\$\{tenant\.property_id\}\/spaces\/\$\{tenant\.unit_id\}/);
+  assert.match(tenancy, /record\/space\?propertyId=\$\{tenant\.property_id\}&spaceId=\$\{tenant\.unit_id\}/);
   // A lease is a document: a manager reading a tenant opens it over the
   // tenancy, in a modal, rather than leaving for another page.
   assert.match(tenancy, /<LeaseModal/);
@@ -199,9 +199,9 @@ test("a tenant card is a portrait that opens its tenancy in a sheet", () => {
   // Nothing nests — no agreement or payments view inside it, no modal over it.
   assert.doesNotMatch(modal, /tm-hero/);
   assert.doesNotMatch(modal, /useModalViews|<AgreementView|<PaymentsView|<LeaseModal|<ReceiptView/);
-  assert.match(modal, /href=\{`\/payments\/\$\{tenant\.lease_id\}` as never\}>\s*<Icon name="payments" \/>View payments/);
-  assert.match(modal, /href=\{`\/tenants\/\$\{id\}` as never\}>\s*<Icon name="users" \/>Open the tenancy page/);
+  assert.match(modal, /href=\{`\/record\/payment\?leaseId=\$\{tenant\.lease_id\}` as never\}>\s*<Icon name="payments" \/>View payments/);
+  assert.match(modal, /href=\{`\/record\/tenant\?tenancyId=\$\{id\}` as never\}>\s*<Icon name="users" \/>Open the tenancy page/);
   const actions = modal.slice(modal.indexOf('className="tm-actions"'));
   assert.equal((actions.match(/<Link className=/g) ?? []).length, 2, "the tenancy sheet has exactly two actions");
-  assert.match(modal, /href=\{`\/properties\/\$\{tenant\.property_id\}\/spaces\/\$\{tenant\.unit_id\}` as never\}/);
+  assert.match(modal, /href=\{`\/record\/space\?propertyId=\$\{tenant\.property_id\}&spaceId=\$\{tenant\.unit_id\}` as never\}/);
 });

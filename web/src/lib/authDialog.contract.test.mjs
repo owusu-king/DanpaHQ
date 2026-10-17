@@ -33,8 +33,8 @@ test("pressing Sign in opens the dialog in place, without a navigation", () => {
     assert.doesNotMatch(source, /href=\{?["`]\/(sign-in|register)/, `${path} still links to an auth page`);
   }
   // A listing's save and apply, and a sale's enquiry, ask from over the page.
-  assert.match(code(read("app/listings/[id]/page.tsx")), /openAuth\("sign-in", \{ workspace: "tenant", next \}\);/);
-  assert.doesNotMatch(code(read("app/sales/[id]/page.tsx")), /router\.push\(`\/sign-in/);
+  assert.match(code(read("app/record/listing/page.tsx")), /openAuth\("sign-in", \{ workspace: "tenant", next \}\);/);
+  assert.doesNotMatch(code(read("app/record/sale/page.tsx")), /router\.push\(`\/sign-in/);
 
   // Inside the dialog, the flows switch views instead of linking to pages.
   for (const flow of ["SignInFlow", "RegisterFlow", "ForgotPasswordFlow", "WelcomeFlow"]) {

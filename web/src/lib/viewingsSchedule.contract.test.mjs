@@ -133,15 +133,15 @@ test("a substantial tenant viewing has a stable modal and a durable route", () =
 
   assert.match(webRecord(), /className="vr viewing-detail tenant-vr"/);
   assert.doesNotMatch(webRecord(), /<aside/);
-  assert.match(read("web/app/viewings/[viewingId]/page.tsx"), /<ViewingRecord/);
+  assert.match(read("web/app/record/viewing/page.tsx"), /<ViewingRecord/);
 
   // The provider's half took the other option in this test's title: a dedicated
   // screen. A split pane always opened somebody's appointment whether or not it
   // was asked for, and a workflow that runs across a day had no address.
   assert.doesNotMatch(webListPage(), /ProviderViewingDialog/);
   assert.doesNotMatch(webListPage(), /provider-viewings-split/);
-  assert.match(webListPage(), /href=\{`\/viewings\/\$\{viewing\.id\}`/);
-  const providerRoute = read("web/app/viewings/[viewingId]/page.tsx");
+  assert.match(webListPage(), /href=\{`\/record\/viewing\?viewingId=\$\{viewing\.id\}`/);
+  const providerRoute = read("web/app/record/viewing/page.tsx");
   assert.match(providerRoute, /<ProviderViewingRecord/);
   assert.doesNotMatch(rendered(providerRoute), /<dialog/);
   assert.doesNotMatch(providerRoute, /showModal\(\)/);

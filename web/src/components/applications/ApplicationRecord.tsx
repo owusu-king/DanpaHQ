@@ -124,7 +124,7 @@ export function ApplicationRecord({
   const short = Math.max(0, asked - offered);
   const property = application.property_title || application.listing_headline;
   const place = [application.unit_label, application.space_type_label, application.locality_name].filter(Boolean).join(" · ");
-  const agreementHref = (state.leaseId ? `/leases/${state.leaseId}` : "/leases") as never;
+  const agreementHref = (state.leaseId ? `/record/lease?leaseId=${state.leaseId}` : "/leases") as never;
 
   async function withdraw() {
     setBusy(true);
@@ -157,7 +157,7 @@ export function ApplicationRecord({
             {place ? <small>{place}</small> : null}
             {application.rent_formatted ? <span className="ap-rent">{application.rent_formatted}<small> / month</small></span> : null}
           </span>
-          <Link className="rq-place-link" href={`/listings/${application.listing_id}`} aria-label="View listing" title="View listing">
+          <Link className="rq-place-link" href={`/record/listing?id=${application.listing_id}` as never} aria-label="View listing" title="View listing">
             <Icon name="share" />
           </Link>
         </div>

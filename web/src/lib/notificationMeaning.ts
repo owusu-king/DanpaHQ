@@ -142,7 +142,7 @@ export function destination(item: { target_type: string; target_id: string }): s
     case "viewing":
       return "/viewings";
     case "sale_enquiry":
-      return `/enquiries/${item.target_id}`;
+      return `/record/enquiry?id=${item.target_id}`;
     case "application":
     case "property_join_request":
       return "/applications";
@@ -151,7 +151,7 @@ export function destination(item: { target_type: string; target_id: string }): s
     case "payment":
       return "/payments";
     case "property":
-      return `/properties/${item.target_id}`;
+      return `/record/property?id=${item.target_id}`;
     case "organization":
       return "/settings/team";
     case "portfolio_invitation":

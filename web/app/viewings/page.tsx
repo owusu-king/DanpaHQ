@@ -113,7 +113,7 @@ function TenantViewings() {
   // Reminders sent before viewings had addresses still point at one appointment.
   useEffect(() => {
     if (!window.location.hash.startsWith("#viewing-")) return;
-    router.replace(`/viewings/${window.location.hash.slice("#viewing-".length)}` as never);
+    router.replace(`/record/viewing?viewingId=${window.location.hash.slice("#viewing-".length)}` as never);
   }, [router]);
 
   // `replace`, so filtering does not build a history trail somebody has to walk
@@ -433,7 +433,7 @@ function ViewingCard({
   return (
     <li className="viewing-item" data-past={state.group === "past" || undefined} style={{ "--viewing-order": Math.min(order, 12) } as React.CSSProperties}>
       <Link
-        href={`/viewings/${viewing.id}` as never}
+        href={`/record/viewing?viewingId=${viewing.id}` as never}
         className="viewing-row tenant-viewing-row"
         data-when={dayWhen}
         data-tone={tone}
@@ -867,7 +867,7 @@ function ProviderViewingCard({
       style={{ "--viewing-order": Math.min(order, 12) } as React.CSSProperties}
     >
       <Link
-        href={`/viewings/${viewing.id}` as never}
+        href={`/record/viewing?viewingId=${viewing.id}` as never}
         className="viewing-row"
         data-viewing-id={viewing.id}
         data-when={when}

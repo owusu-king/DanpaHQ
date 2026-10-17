@@ -1,38 +1,11 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  output: "export",
   reactStrictMode: true,
   poweredByHeader: false,
   // Transpiled rather than pre-built so token changes are picked up in dev.
   transpilePackages: ["@danpahq/design-tokens"],
   typedRoutes: true,
-
-  async rewrites() {
-    return [
-      {
-        source: "/api/:path*",
-        destination: "http://localhost:8000/api/:path*",
-      },
-    ];
-  },
-  
-  async headers() {
-    return [
-      {
-        source: "/:path*",
-        headers: [
-          { key: "X-Content-Type-Options", value: "nosniff" },
-          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-          { key: "X-Frame-Options", value: "DENY" },
-          {
-            key: "Permissions-Policy",
-            // Camera and microphone for this site only: a tenant records a
-            // repair clip in the page (maintenance). Never for embedded frames.
-            value: "camera=(self), microphone=(self), geolocation=(self)",
-          },
-        ],
-      },
-    ];
-  },
 };
 
 

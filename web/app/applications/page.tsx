@@ -226,7 +226,7 @@ function TenantApplications() {
           icon="leases"
           more={{ count: ready.length - 1, onShow: () => chooseFilter("action") }}
           onOpen={() => open(ready[0]!.application.id)}
-          action={{ label: "Review agreement", href: ready[0]!.standing.leaseId ? `/leases/${ready[0]!.standing.leaseId}` : "/leases" }}
+          action={{ label: "Review agreement", href: ready[0]!.standing.leaseId ? `/record/lease?leaseId=${ready[0]!.standing.leaseId}` : "/leases" }}
         />
       ) : null}
 
@@ -417,7 +417,7 @@ function ApplicationRow({
   return (
     <li style={{ "--application-order": Math.min(order, 12) } as React.CSSProperties}>
       <Link
-        href={`/applications/${application.id}` as never}
+        href={`/record/application?requestId=${application.id}` as never}
         className={`application-row is-${bucket}`}
         data-tone={tone}
         aria-haspopup="dialog"
@@ -677,7 +677,7 @@ function RequestRow({ item, order, onPeek }: { item: RequestItem; order: number;
   return (
     <li style={{ "--request-order": Math.min(order, 12) } as React.CSSProperties}>
       <Link
-        href={`/applications/${requestRecordId(item)}` as never}
+        href={`/record/application?requestId=${requestRecordId(item)}` as never}
         className="request-row"
         aria-haspopup="dialog"
         onClick={(event) => {

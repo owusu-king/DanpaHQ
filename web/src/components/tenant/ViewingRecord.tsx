@@ -197,7 +197,7 @@ export function ViewingRecord({ viewing, onChanged }: { viewing: MyViewing; onCh
             <strong>{property}</strong>
             {context ? <small>{context}</small> : null}
           </span>
-          <Link className="rq-place-link" href={`/listings/${viewing.listing_id}`} aria-label="View listing" title="View listing">
+          <Link className="rq-place-link" href={`/record/listing?id=${viewing.listing_id}` as never} aria-label="View listing" title="View listing">
             <Icon name="share" />
           </Link>
         </div>

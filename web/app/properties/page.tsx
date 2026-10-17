@@ -480,7 +480,7 @@ function PropertyCard({
     >
       <div className="property-card" data-tone={status.tone} data-purpose={property.purpose}>
         <Link
-          href={`/properties/${property.id}` as never}
+          href={`/record/property?id=${property.id}` as never}
           className="property-card-link"
           data-property-id={property.id}
           onClick={() => onOpen(property)}
@@ -525,12 +525,12 @@ function PropertyCard({
             </svg>
           </span>
           {canAddUnit ? (
-            <Link href={`/properties/${property.id}/spaces/new` as never} className="property-card-action">
+            <Link href={`/record/space-new?propertyId=${property.id}` as never} className="property-card-action">
               <PlusGlyph />Add Unit
             </Link>
           ) : null}
           {canEdit ? (
-            <Link href={`/properties/${property.id}/setup` as never} className="property-card-action">
+            <Link href={`/record/property-setup?propertyId=${property.id}` as never} className="property-card-action">
               Edit details
             </Link>
           ) : null}

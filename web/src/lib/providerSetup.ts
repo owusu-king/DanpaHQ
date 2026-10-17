@@ -36,7 +36,7 @@ export function propertyNextStep({
   if (!hasWorkspace) {
     return {
       label: "Create property",
-      href: "/properties/new",
+      href: "/record/property-new",
       reason:
         "Danpa HQ files it into your Portfolio — the one your account was given when it was approved. You can rename it or add a Team later.",
     };
@@ -45,8 +45,8 @@ export function propertyNextStep({
   return {
     label: "Create property",
     href: organizationId
-      ? `/properties/new?organization=${encodeURIComponent(organizationId)}`
-      : "/properties/new",
+      ? `/record/property-new?organization=${encodeURIComponent(organizationId)}`
+      : "/record/property-new",
     reason:
       "Six steps — the property, its details, its documents, its photographs and "
       + "what the compound has. Nothing is sent to anybody until you ask for it.",

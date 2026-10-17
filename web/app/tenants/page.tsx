@@ -334,7 +334,7 @@ function ProviderTenants() {
             icon="properties"
             title="Add a Property first"
             body="Tenant operations begin with a Unit. Add the first Property in your Danpa HQ Portfolio."
-            action={<Link href="/properties/new" className="btn btn-secondary btn-sm">Add Property</Link>}
+            action={<Link href={"/record/property-new" as never} className="btn btn-secondary btn-sm">Add Property</Link>}
           />
         ) : null}
 
@@ -424,7 +424,7 @@ function TenantCard({
   onPeek: () => void;
 }) {
   const id = tenant.tenancy_id ?? tenant.occupancy_id;
-  const href = `/tenants/${id}`;
+  const href = `/record/tenant?tenancyId=${id}`;
   const state = tenancyState(tenant);
   const home = tenantHome(tenant);
   return (
@@ -553,7 +553,7 @@ function TenantAccessSection({ spaces, onChanged }: { spaces: ProviderTenantAcce
                 <p className="tenants-access-property">{space.property_title}</p>
                 <h3>{space.unit_label}</h3>
               </div>
-              <Link href={`/properties/${space.property_id}/spaces/${space.unit_id}` as never} className="tenants-access-link">View</Link>
+              <Link href={`/record/space?propertyId=${space.property_id}&spaceId=${space.unit_id}` as never} className="tenants-access-link">View</Link>
             </header>
             <div className="tenants-access-code">
               <SpaceTenantAccess unitId={space.unit_id} accessCode={space.access_code} conditionState={space.condition_state} availabilityState={space.availability.state} onAccessCodeChanged={onChanged} />

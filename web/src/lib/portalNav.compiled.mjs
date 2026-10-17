@@ -93,6 +93,30 @@ export function enquiriesEntry(me, access) {
 }
 
 export function activeHref(sections, pathname) {
+  const recordOwner = {
+    "/record/application": "/applications",
+    "/record/apply": "/applications",
+    "/record/lease": "/leases",
+    "/record/lease-new": "/leases",
+    "/record/payment": "/payments",
+    "/record/payment-checkout": "/payments",
+    "/record/payment-return": "/payments",
+    "/record/payout-account": "/payments",
+    "/record/receipt": "/payments",
+    "/record/property": "/properties",
+    "/record/property-new": "/properties",
+    "/record/property-setup": "/properties",
+    "/record/property-spaces": "/properties",
+    "/record/property-verify": "/properties",
+    "/record/space": "/properties",
+    "/record/space-listing": "/properties",
+    "/record/space-new": "/properties",
+    "/record/tenant": "/tenants",
+    "/record/tenancy": "/home",
+    "/record/viewing": "/viewings",
+  };
+  pathname = recordOwner[pathname] ?? pathname;
+  if (pathname.startsWith("/tenancies/")) pathname = "/home";
   let best = null;
   for (const section of sections) {
     for (const item of section.items) {
@@ -129,6 +153,27 @@ const PORTAL_PREFIXES = [
   "/review",
   "/onboarding",
   "/choose-role",
+  "/record/application",
+  "/record/apply",
+  "/record/enquiry",
+  "/record/lease",
+  "/record/lease-new",
+  "/record/payment",
+  "/record/payment-checkout",
+  "/record/payment-return",
+  "/record/payout-account",
+  "/record/receipt",
+  "/record/property",
+  "/record/property-new",
+  "/record/property-setup",
+  "/record/property-spaces",
+  "/record/property-verify",
+  "/record/space",
+  "/record/space-listing",
+  "/record/space-new",
+  "/record/tenancy",
+  "/record/tenant",
+  "/record/viewing",
 ];
 
 export function isPortalRoute(pathname) {
@@ -143,5 +188,7 @@ export function isSharedListingRoute(pathname) {
     || pathname.startsWith("/rentals/")
     || pathname.startsWith("/listings/")
     || pathname.startsWith("/sales/")
+    || pathname === "/record/listing"
+    || pathname === "/record/sale"
   );
 }

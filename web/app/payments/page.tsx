@@ -417,7 +417,7 @@ function RentBalanceRow({ tenant, onPeek }: { tenant: ProviderTenant; onPeek: ()
   // has been scheduled against it yet.
   return <li data-tone={tenant.rent.status}>{tenant.lease_id
     ? <Link
-      href={`/payments/${tenant.lease_id}` as never}
+      href={`/record/payment?leaseId=${tenant.lease_id}` as never}
       className="rent-row"
       aria-haspopup="dialog"
       onClick={(event) => {
@@ -442,7 +442,7 @@ function recordTone(payment: RecentPayment): { tone: "review" | "confirmed" | "w
 function PaymentRecordRow({ payment, onPeek }: { payment: RecentPayment; onPeek: () => void }) {
   const { tone, icon } = recordTone(payment);
   return <li data-tone={tone}><Link
-    href={`/payments/${payment.lease_id}` as never}
+    href={`/record/payment?leaseId=${payment.lease_id}` as never}
     className="rent-row payment-record-row"
     aria-haspopup="dialog"
     onClick={(event) => {

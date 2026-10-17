@@ -24,16 +24,16 @@ const read = (relative) => readFileSync(resolve(root, relative), "utf8");
 const code = (source) => source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*/g, "");
 
 const list = () => read("web/app/payments/page.tsx");
-const detail = () => read("web/app/payments/[leaseId]/page.tsx");
+const detail = () => read("web/app/record/payment/page.tsx");
 const account = () => read("web/src/components/payments/RentAccount.tsx");
 
 test("the rent account has an address of its own", () => {
   assert.ok(
-    existsSync(resolve(root, "web/app/payments/[leaseId]/page.tsx")),
+    existsSync(resolve(root, "web/app/record/payment/page.tsx")),
     "the rent account needs a route",
   );
   // The lease id, because the ledger itself is the lease's — `/leases/<id>/charges/`.
-  assert.match(code(detail()), /useParams<\{ leaseId: string \}>\(\)/);
+  assert.match(code(detail()), /const leaseId = search\.get\("leaseId"\)/);
   assert.match(code(detail()), /getLeaseLedger\(leaseId\)/);
 });
 
@@ -50,8 +50,8 @@ test("the list opens it by navigating, not by covering itself", () => {
   assert.match(body, /<ModalSheet/);
 
   // Both lists that carry a lease id link to the same place.
-  assert.match(body, /href=\{`\/payments\/\$\{tenant\.lease_id\}` as never\}/);
-  assert.match(body, /href=\{`\/payments\/\$\{payment\.lease_id\}` as never\}/);
+  assert.match(body, /href=\{`\/record\/payment\?leaseId=\$\{tenant\.lease_id\}` as never\}/);
+  assert.match(body, /href=\{`\/record\/payment\?leaseId=\$\{payment\.lease_id\}` as never\}/);
 
   // A row that goes somewhere is a link, so it can be opened in a new tab and
   // is announced as navigation rather than as a button that does something.
@@ -159,7 +159,7 @@ test("a payment record opens in a sheet over the list", () => {
   // is still the link to the rent account, for a new tab.
   assert.match(body, /useDeepLinkedModal\("record"\)/);
   assert.match(body, /<PaymentRecordModal record=\{openedRecord\}/);
-  assert.match(body, /href=\{`\/payments\/\$\{payment\.lease_id\}` as never\}[\s\S]{0,300}event\.preventDefault\(\);\s*onPeek\(\)/);
+  assert.match(body, /href=\{`\/record\/payment\?leaseId=\$\{payment\.lease_id\}` as never\}[\s\S]{0,300}event\.preventDefault\(\);\s*onPeek\(\)/);
   // Refreshed in place, so it does not close under the person who acted.
   assert.match(body, /onChanged=\{load\}/);
 
@@ -171,7 +171,7 @@ test("a payment record opens in a sheet over the list", () => {
   assert.match(modal, /disabled=\{decision === "dispute" && !reason\.trim\(\)\}/);
   assert.match(modal, /getPaymentEvidenceDownload\(file\.id\)/);
   // "All their payments" leaves for the tenant's payment page, not a sheet.
-  assert.match(modal, /href=\{`\/payments\/\$\{record\.lease_id\}` as never\}>\s*All their payments/);
+  assert.match(modal, /href=\{`\/record\/payment\?leaseId=\$\{record\.lease_id\}` as never\}>\s*All their payments/);
   assert.doesNotMatch(modal, /\/payments\?due=/);
 
   // The balance sheet is only the current balance: no Record payment action,
@@ -179,7 +179,7 @@ test("a payment record opens in a sheet over the list", () => {
   const due = code(read("web/src/components/payments/RentDueModal.tsx"));
   assert.doesNotMatch(due, /onRecord|Record payment/);
   assert.doesNotMatch(due, /dm-history|Payment history|ReceiptView|onViewReceipt|receipt_id/);
-  assert.match(due, /href=\{`\/payments\/\$\{tenant\.lease_id\}` as never\}><Icon name="payments" \/>Full account/);
+  assert.match(due, /href=\{`\/record\/payment\?leaseId=\$\{tenant\.lease_id\}` as never\}><Icon name="payments" \/>Full account/);
 });
 
 test("a balance opens in a sheet, and a receipt is read before it is printed", () => {
@@ -207,7 +207,7 @@ test("a balance opens in a sheet, and a receipt is read before it is printed", (
   assert.match(receipt, /printPdf\(await getPaymentReceiptDocument\(receipt\.id, true\)\)/);
   assert.match(receipt, /downloadBlob\(await getPaymentReceiptDocument\(receipt\.id\)/);
   assert.match(receipt, /Print<\/Button>\s*<span className="rc-actions-spacer" \/>[\s\S]*?Download\s*<\/Button>/);
-  assert.doesNotMatch(receipt, /\/payments\/receipts\//);
+  assert.doesNotMatch(receipt, /\/record\/receipt\?receiptId=/);
 
   // Links out of a sheet navigate without closing it first: the close reset
   // the address after the link had started, and the page stayed.
@@ -219,8 +219,8 @@ test("links to a tenancy or a tenant's payments open their sheets", () => {
   const home = code(read("web/app/home/page.tsx"));
   assert.match(home, /`\/tenants\?tenant=\$\{tenant\.tenancy_id \?\? tenant\.occupancy_id\}`/);
   assert.match(home, /`\/payments\?view=records&record=\$\{row\.id\}`/);
-  assert.doesNotMatch(home, /`\/tenants\/\$\{/);
-  assert.doesNotMatch(home, /href: `\/payments\/\$\{/);
+  assert.doesNotMatch(home, /`\/record\/tenant\?tenancyId=\$\{/);
+  assert.doesNotMatch(home, /href: `\/record\/payment\?leaseId=\$\{/);
   assert.match(code(read("web/src/components/payments/RentAccount.tsx")), /`\/tenants\?tenant=\$\{tenant\.tenancy_id\}`/);
 
   // Payments opens a tenant's sheet by lease, and can start recording for one.

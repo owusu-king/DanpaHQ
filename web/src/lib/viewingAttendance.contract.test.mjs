@@ -48,7 +48,7 @@ test("provider web Viewings is a scalable queue with contextual detail", () => {
   // The queue links to the record; a plain click reads it in the shared
   // sheet (ViewingModal), never a page-local dialog.
   assert.match(page, /<SegmentedControl[\s\S]{0,200}label="Viewing status"/);
-  assert.match(page, /href=\{`\/viewings\/\$\{viewing\.id\}`/);
+  assert.match(page, /href=\{`\/record\/viewing\?viewingId=\$\{viewing\.id\}`/);
   assert.match(providerRecord, /export function ProviderViewingRecord/);
   assert.doesNotMatch(page, /ProviderViewingDialog/);
   assert.doesNotMatch(page, /dialog\.showModal\(\)/);

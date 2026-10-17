@@ -166,7 +166,7 @@ function LeaseRow({ lease, order, onOpen }: { lease: Lease; order: number; onOpe
   return (
     <li style={{ "--docs-order": Math.min(order, 12) } as React.CSSProperties}>
       <Link
-        href={`/leases/${lease.id}` as never}
+        href={`/record/lease?leaseId=${lease.id}` as never}
         className="docs-lease-row"
         aria-haspopup="dialog"
         onClick={(event) => {

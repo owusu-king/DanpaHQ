@@ -364,7 +364,7 @@ export function EnquiriesInbox({
                 </div>
                 {thread ? (
                   <Link
-                    href={(thread.role === "seller" ? `/properties/${thread.sale.property_id}` : `/sales/${thread.sale.id}`) as never}
+                    href={(thread.role === "seller" ? `/record/property?id=${thread.sale.property_id}` : `/record/sale?id=${thread.sale.id}`) as never}
                     className="inbox-property-link"
                     onClick={requestClose}
                   >

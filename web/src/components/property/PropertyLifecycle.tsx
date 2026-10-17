@@ -145,8 +145,8 @@ function CompactLifecycle({
           <p>{property.verification.decision_note || "Update the requested information before sending this Property again."}</p>
         </div>
         <div className="attention-band-actions">
-          {edit?.allowed ? <Link href={`/properties/${property.id}/setup` as never} className="button-link">Update property</Link> : null}
-          {submit?.allowed ? <Link href={`/properties/${property.id}/verify` as never} className="button-link secondary">Resubmit</Link> : null}
+          {edit?.allowed ? <Link href={`/record/property-setup?propertyId=${property.id}` as never} className="button-link">Update property</Link> : null}
+          {submit?.allowed ? <Link href={`/record/property-verify?id=${property.id}` as never} className="button-link secondary">Resubmit</Link> : null}
         </div>
       </div>
     );
@@ -160,8 +160,8 @@ function CompactLifecycle({
           <p>{reviewState === "withdrawn" ? "Your information is still saved. Review it, then submit again when ready." : "Verify the Property before its Units can be advertised or shared with prospective tenants."}</p>
         </div>
         <div className="attention-band-actions">
-          {submit?.allowed ? <Link href={`/properties/${property.id}/verify` as never} className="button-link">Submit for verification</Link> : null}
-          {edit?.allowed ? <Link href={`/properties/${property.id}/setup` as never} className="button-link secondary">Edit</Link> : null}
+          {submit?.allowed ? <Link href={`/record/property-verify?id=${property.id}` as never} className="button-link">Submit for verification</Link> : null}
+          {edit?.allowed ? <Link href={`/record/property-setup?propertyId=${property.id}` as never} className="button-link secondary">Edit</Link> : null}
         </div>
       </div>
     );
@@ -176,7 +176,7 @@ function CompactLifecycle({
         <p>{complete} of {required.length} required steps complete. Everything is saved as you go.</p>
       </div>
       <div className="attention-band-actions">
-        {edit?.allowed ? <Link href={`/properties/${property.id}/setup` as never} className="button-link">Continue setup</Link> : null}
+        {edit?.allowed ? <Link href={`/record/property-setup?propertyId=${property.id}` as never} className="button-link">Continue setup</Link> : null}
       </div>
     </div>
   );
@@ -421,7 +421,7 @@ function StillCreating({
       </Framed>
 
       <Actions>
-        <Link href={`/properties/${property.id}/setup` as never}>
+        <Link href={`/record/property-setup?propertyId=${property.id}` as never}>
           <Button>
             {begun ? `Continue with ${next.title.toLowerCase()}` : "Start setting up"}
           </Button>
@@ -461,12 +461,12 @@ function Created({ property }: { property: Property }) {
 
       <Actions>
         {submit?.allowed ? (
-          <Link href={`/properties/${property.id}/verify` as never}>
+          <Link href={`/record/property-verify?id=${property.id}` as never}>
             <Button>Submit for verification</Button>
           </Link>
         ) : null}
         {edit?.allowed ? (
-          <Link href={`/properties/${property.id}/setup` as never}>
+          <Link href={`/record/property-setup?propertyId=${property.id}` as never}>
             <Button variant="secondary">Edit property</Button>
           </Link>
         ) : null}
@@ -650,11 +650,11 @@ function NeedsAttention({
       ) : null}
 
       <Actions>
-        <Link href={`/properties/${property.id}/setup` as never}>
+        <Link href={`/record/property-setup?propertyId=${property.id}` as never}>
           <Button>Update property</Button>
         </Link>
         {submit?.allowed ? (
-          <Link href={`/properties/${property.id}/verify` as never}>
+          <Link href={`/record/property-verify?id=${property.id}` as never}>
             <Button variant="secondary">Resubmit for verification</Button>
           </Link>
         ) : null}
@@ -784,7 +784,7 @@ function Verified({ property }: { property: Property }) {
       </div>
 
       <Actions>
-        <Link href={`/properties/${property.id}/spaces/new` as never}>
+        <Link href={`/record/space-new?propertyId=${property.id}` as never}>
           <Button>Add Unit</Button>
         </Link>
         <Button variant="quiet" onClick={() => setShowing((open) => !open)}>

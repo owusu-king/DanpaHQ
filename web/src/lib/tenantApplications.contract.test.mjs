@@ -22,7 +22,7 @@ const read = (relative) => readFileSync(resolve(root, relative), "utf8").replace
 const code = (source) => source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*/g, "");
 
 const list = () => read("web/app/applications/page.tsx");
-const detail = () => read("web/app/applications/[requestId]/page.tsx");
+const detail = () => read("web/app/record/application/page.tsx");
 const record = () => read("web/src/components/applications/ApplicationRecord.tsx");
 const css = () => read("web/src/styles/applications-workspace.css");
 
@@ -43,7 +43,7 @@ function rule(sheet, selector) {
 }
 
 test("a tenant application opens over the list, held in page state, and keeps its deep link", () => {
-  assert.ok(existsSync(resolve(root, "web/app/applications/[requestId]/page.tsx")));
+  assert.ok(existsSync(resolve(root, "web/app/record/application/page.tsx")));
   assert.match(code(detail()), /applications\?\.find\(\(row\) => row\.id === requestId\)/);
   assert.match(code(detail()), /<ApplicationRecord/);
 
@@ -61,7 +61,7 @@ test("a tenant application opens over the list, held in page state, and keeps it
   // A plain click opens the sheet; any modified click is left to the link.
   assert.match(body, /event\.preventDefault\(\)/);
   assert.match(body, /event\.metaKey \|\| event\.ctrlKey/);
-  assert.match(body, /href=\{`\/applications\/\$\{application\.id\}` as never\}/);
+  assert.match(body, /href=\{`\/record\/application\?requestId=\$\{application\.id\}` as never\}/);
   assert.match(body, /aria-haspopup="dialog"/);
   assert.match(rule(css(), ".application-row"), /text-decoration: none/);
 
@@ -168,7 +168,7 @@ test("actionable applications lead without inventing lifecycle meaning", () => {
   // view only, and goes straight to the agreement.
   assert.match(body, /const ready = rows\.filter\(\(row\) => row\.bucket === "action"\)/);
   assert.match(body, /unfilteredView && ready\.length \? \(\s*<NextUp/);
-  assert.match(body, /`\/leases\/\$\{ready\[0\]!\.standing\.leaseId\}`/);
+  assert.match(body, /`\/record\/lease\?leaseId=\$\{ready\[0\]!\.standing\.leaseId\}`/);
 
   // The colour is read from the meaning module, never decided beside it.
   const tone = code(record()).slice(code(record()).indexOf("export function applicationTone"));

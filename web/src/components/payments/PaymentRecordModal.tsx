@@ -241,7 +241,7 @@ function RecordBody({ record, onChanged, onViewReceipt }: { record: RecentPaymen
         <span className="pr-actions-spacer" />
         {/* No close first: leaving the page takes the sheet with it. */}
         {/* The tenant's payments, on their own page — not another sheet. */}
-        <Link className="pr-account-link" href={`/payments/${record.lease_id}` as never}>
+        <Link className="pr-account-link" href={`/record/payment?leaseId=${record.lease_id}` as never}>
           All their payments<Icon name="share" />
         </Link>
       </div>

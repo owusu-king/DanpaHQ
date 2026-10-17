@@ -48,7 +48,7 @@ export type VerificationProgress = {
 export type Subject = "property" | "unit";
 
 function base(subject: Subject, id: string): string {
-  return subject === "property" ? `/properties/${id}` : `/units/${id}`;
+  return subject === "property" ? `/record/property?id=${id}` : `/units/${id}`;
 }
 
 export function getVerification(subject: Subject, id: string) {

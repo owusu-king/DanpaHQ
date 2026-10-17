@@ -47,7 +47,7 @@ test("a link from elsewhere opens its modal once, then leaves the address clean"
 
   // The links that rely on it still name their record.
   assert.match(read("src/lib/notificationMeaning.ts"), /`\/maintenance\?request=\$\{item\.target_id\}`/);
-  assert.match(read("app/payments/receipts/[receiptId]/page.tsx"), /redirect\(`\/payments\?receipt=/);
+  assert.match(read("app/record/receipt/page.tsx"), /router\.replace\([\s\S]*`\/payments\?receipt=/);
   assert.match(read("app/home/page.tsx"), /`\/tenants\?tenant=/);
 });
 

@@ -189,7 +189,7 @@ test("the Provider Properties page is one Portfolio at a time", () => {
   // Adding a Property files it into the Portfolio being operated. Defaulting to
   // whichever Portfolio came back first is the same mixing, one step later:
   // the house lands in a roster its provider was not looking at.
-  const form = code(read("web/app/properties/new/page.tsx"));
+  const form = code(read("web/app/record/property-new/page.tsx"));
   assert.match(form, /rows\.find\(\(row\) => row\.id === preferred\)\?\.id \|\| rows\[0\]\?\.id/);
   assert.match(form, /\}, \[activeContext\]\);/);
 });
@@ -229,7 +229,7 @@ test("every provider list is about the Portfolio on screen", () => {
 });
 
 test("an individual web provider creates a first Property without setup detour", () => {
-  const property = read("web/app/properties/new/page.tsx");
+  const property = read("web/app/record/property-new/page.tsx");
   const next = read("web/src/lib/providerSetup.ts");
   const home = read("web/app/home/page.tsx");
   const tenants = read("web/app/tenants/page.tsx");
@@ -240,7 +240,7 @@ test("an individual web provider creates a first Property without setup detour",
   assert.match(property, /This goes into your Danpa HQ Portfolio/);
   assert.doesNotMatch(property, /will be created/);
   assert.doesNotMatch(property, /propertyTypes\.filter/);
-  assert.match(next, /href: "\/properties\/new"/);
+  assert.match(next, /href: "\/record\/property-new"/);
   assert.doesNotMatch(next, /label: "Create workspace"/);
   assert.doesNotMatch(home, /Set up your workspace first/);
   assert.doesNotMatch(tenants, /organization\/setup/);
@@ -378,8 +378,8 @@ test("provider Payments is first-class navigation and an actionable destination"
   // The rent account is reachable from here, but it is no longer *here*: it
   // stopped being a dialog over this page and became `/payments/<leaseId>`.
   // What matters to this contract is that a row still opens one.
-  assert.match(payments, /href=\{`\/payments\/\$\{tenant\.lease_id\}`/);
-  assert.match(read("web/app/payments/[leaseId]/page.tsx"), /getLeaseLedger/);
+  assert.match(payments, /href=\{`\/record\/payment\?leaseId=\$\{tenant\.lease_id\}`/);
+  assert.match(read("web/app/record/payment/page.tsx"), /getLeaseLedger/);
 });
 
 test("nothing in the web console creates a Portfolio", () => {
@@ -394,7 +394,7 @@ test("nothing in the web console creates a Portfolio", () => {
     "web/src/components/portal/PortfolioMenu.tsx",
     "web/app/settings/team/page.tsx",
     "web/app/choose-role/page.tsx",
-    "web/app/properties/new/page.tsx",
+    "web/app/record/property-new/page.tsx",
     "web/app/home/page.tsx",
     "web/app/tenants/page.tsx",
   ]) {
@@ -407,8 +407,8 @@ test("nothing in the web console creates a Portfolio", () => {
 });
 
 test("web Property and Unit pages keep one operational hierarchy", () => {
-  const property = read("web/app/properties/[id]/page.tsx");
-  const unit = read("web/app/properties/[id]/spaces/[spaceId]/page.tsx");
+  const property = read("web/app/record/property/page.tsx");
+  const unit = read("web/app/record/space/page.tsx");
   const lifecycle = read("web/src/components/property/PropertyLifecycle.tsx");
   const patterns = read("web/src/components/property/WorkspacePatterns.tsx");
   const workspaceCss = read("web/src/styles/property-workspace.css");

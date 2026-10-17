@@ -298,7 +298,7 @@ export function LeaseRecord({
               </>
             ) : null}
             {lease.status === "ended" ? (
-              <Link className="btn btn-secondary" href={`/payments/${lease.id}` as never}>
+              <Link className="btn btn-secondary" href={`/record/payment?leaseId=${lease.id}` as never}>
                 Open closing account
               </Link>
             ) : null}

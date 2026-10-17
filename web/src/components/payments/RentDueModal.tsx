@@ -134,7 +134,7 @@ export function PaymentsView({
           {/* The full account keeps what a sheet does not: adjustments, waivers
               and a closed tenancy's summary. No close first: leaving the page
               takes the sheet with it. */}
-          <Link className="btn btn-primary" href={`/payments/${tenant.lease_id}` as never}><Icon name="payments" />Full account</Link>
+          <Link className="btn btn-primary" href={`/record/payment?leaseId=${tenant.lease_id}` as never}><Icon name="payments" />Full account</Link>
         </div>
       ) : null}
     </div>

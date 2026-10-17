@@ -43,7 +43,7 @@ const redirect = () => {
   assert.notEqual(at, -1, "ProviderLeases is gone");
   return source.slice(at);
 };
-const detail = () => read("web/app/leases/[leaseId]/page.tsx");
+const detail = () => read("web/app/record/lease/page.tsx");
 const record = () => read("web/src/components/leases/LeaseRecord.tsx");
 const meaning = () => read("web/src/lib/leaseMeaning.ts");
 const css = () => read("web/src/styles/documents-workspace.css");
@@ -55,8 +55,8 @@ function rule(sheet, selector) {
 }
 
 test("an agreement opens at its own address", () => {
-  assert.ok(existsSync(resolve(root, "web/app/leases/[leaseId]/page.tsx")), "needs a route");
-  assert.match(code(detail()), /useParams<\{ leaseId: string \}>\(\)/);
+  assert.ok(existsSync(resolve(root, "web/app/record/lease/page.tsx")), "needs a route");
+  assert.match(code(detail()), /useSearchParams\(\)\.get\("leaseId"\)/);
   assert.match(code(detail()), /leases\?\.find\(\(row\) => row\.id === leaseId\)/);
 
   // The split pane and the record that lived in it are gone from the list.
@@ -67,7 +67,7 @@ test("an agreement opens at its own address", () => {
 
   // Rows are links to the record. A plain press opens it over the page; a new
   // tab or a copied address still reaches the record page.
-  assert.match(body, /href=\{`\/leases\/\$\{lease\.id\}` as never\}/);
+  assert.match(body, /href=\{`\/record\/lease\?leaseId=\$\{lease\.id\}` as never\}/);
   assert.match(body, /event\.metaKey \|\| event\.ctrlKey \|\| event\.shiftKey/);
   assert.match(body, /<LeaseModal/);
   assert.match(rule(css(), ".docs-lease-row"), /text-decoration: none/);

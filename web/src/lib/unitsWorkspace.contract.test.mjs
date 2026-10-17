@@ -120,7 +120,7 @@ test("global creation chooses a Property, then reuses the flow that exists", () 
   const create = read("web/src/components/property/AddUnitChooser.tsx");
   const page = read("web/app/units/new/page.tsx");
   const units = read("web/app/units/page.tsx");
-  const property = read("web/app/properties/[id]/page.tsx");
+  const property = read("web/app/record/property/page.tsx");
   assert.match(create, /<ModalSheet/);
   assert.match(units, /<AddUnitButton/);
   assert.doesNotMatch(units, /href=\{"\/units\/new"/);
@@ -128,8 +128,8 @@ test("global creation chooses a Property, then reuses the flow that exists", () 
 
   // No second creation workflow — this hands over to the same route Property →
   // Add Unit uses, which is why that path skips this screen entirely.
-  assert.match(create, /\/properties\/\$\{property\.id\}\/spaces\/new/);
-  assert.match(property, /\/spaces\/new/);
+  assert.match(create, /\/record\/space-new\?propertyId=\$\{property\.id\}/);
+  assert.match(property, /\/record\/space-new\?propertyId=\$\{property\.id\}/);
   assert.doesNotMatch(create, /createUnit/);
 
   // Only Properties the person may actually add to, and one choice is no choice.
@@ -138,8 +138,8 @@ test("global creation chooses a Property, then reuses the flow that exists", () 
 });
 
 test("Unit creation can be left safely and resumed with amenity photo evidence", () => {
-  const create = read("web/app/properties/[id]/spaces/new/page.tsx");
-  const detail = read("web/app/properties/[id]/spaces/[spaceId]/page.tsx");
+  const create = read("web/app/record/space-new/page.tsx");
+  const detail = read("web/app/record/space/page.tsx");
   const amenities = read("web/src/components/property/SpaceAmenities.tsx");
   const photos = read("web/src/components/property/SpacePhotos.tsx");
   const policy = read("backend/apps/trust/evidence_policy.py");
@@ -160,26 +160,26 @@ test("Unit creation can be left safely and resumed with amenity photo evidence",
 test("Units is a destination beside Properties, and both open the same Unit", () => {
   const nav = read("web/src/lib/portalNav.ts");
   const units = read("web/app/units/page.tsx");
-  const property = read("web/app/properties/[id]/page.tsx");
+  const property = read("web/app/record/property/page.tsx");
 
   assert.match(nav, /href: "\/units", label: "Units"/);
   // Property detail keeps its Units; the two are complementary, not a move.
-  assert.match(property, /spaces\//);
-  assert.match(units, /\/properties\/\$\{unit\.property_id\}\/spaces\/\$\{unit\.id\}/);
+  assert.match(property, /\/record\/space\?propertyId=\$\{propertyId\}&spaceId=\$\{unit\.id\}/);
+  assert.match(units, /\/record\/space\?propertyId=\$\{unit\.property_id\}&spaceId=\$\{unit\.id\}/);
 });
 
 test("the nested spaces segment is an explicit route boundary", () => {
-  const boundary = read("web/app/properties/[id]/spaces/page.tsx");
+  const boundary = read("web/app/record/property-spaces/page.tsx");
 
-  // Next's development matcher must discover the segment before resolving its
-  // `new` and `[spaceId]` children. The segment itself has no competing index;
-  // a bare visit returns to the Property that owns those Units.
-  assert.match(boundary, /params: Promise<\{ id: string \}>/);
-  assert.match(boundary, /redirect\(`\/properties\/\$\{id\}`\)/);
+  // Static export carries the former nested index as a query-driven client
+  // redirect, so a bare legacy visit still returns to its Property.
+  assert.match(boundary, /useSearchParams\(\)\.get\("propertyId"\)/);
+  assert.match(boundary, /router\.replace\(/);
+  assert.match(boundary, /`\/record\/property\?id=\$\{encodeURIComponent\(propertyId\)\}`/);
 });
 
 test("Unit detail exposes the backend-owned archive or delete decision", () => {
-  const page = read("web/app/properties/[id]/spaces/[spaceId]/page.tsx");
+  const page = read("web/app/record/space/page.tsx");
   const actions = read("web/src/components/property/UnitLifecycleActions.tsx");
   const api = read("web/src/lib/console.ts");
 
@@ -194,7 +194,7 @@ test("Unit detail exposes the backend-owned archive or delete decision", () => {
 
 test("a Property is recognized by its picture, and its Units are browsed five across", () => {
   const list = read("web/app/properties/page.tsx");
-  const detail = read("web/app/properties/[id]/page.tsx");
+  const detail = read("web/app/record/property/page.tsx");
   const css = read("web/src/styles/property-workspace.css");
   const serializer = read("backend/apps/property/serializers.py");
 

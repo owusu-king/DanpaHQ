@@ -99,11 +99,11 @@ function TenantLeases() {
   // Preserve old pane-era deep links by resolving them to the durable record.
   useEffect(() => {
     if (window.location.hash.startsWith("#agreement-")) {
-      router.replace(`/leases/${window.location.hash.slice("#agreement-".length)}` as never);
+      router.replace(`/record/lease?leaseId=${window.location.hash.slice("#agreement-".length)}` as never);
       return;
     }
     const requested = search.get("open");
-    if (requested) router.replace(`/leases/${requested}` as never);
+    if (requested) router.replace(`/record/lease?leaseId=${requested}` as never);
   }, [router, search]);
 
   // `replace`, so filtering does not build a history trail somebody has to walk
@@ -379,7 +379,7 @@ function AgreementRow({
   return (
     <li style={{ "--agreement-order": Math.min(order, 12) } as React.CSSProperties}>
       <Link
-        href={`/leases/${lease.id}` as never}
+        href={`/record/lease?leaseId=${lease.id}` as never}
         className={`agreement-row is-${state.stage}`}
         data-tone={tone}
         aria-haspopup="dialog"

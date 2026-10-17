@@ -420,7 +420,7 @@ function UnitCard({
     >
       <Link
         href={
-          `/properties/${unit.property_id}/spaces/${unit.id}` as never
+          `/record/space?propertyId=${unit.property_id}&spaceId=${unit.id}` as never
         }
         className="unit-card"
         data-unit-id={unit.id}

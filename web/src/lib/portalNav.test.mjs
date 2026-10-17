@@ -125,7 +125,7 @@ test("the active item is the longest match, not the first", () => {
   }));
 
   assert.equal(activeHref(sections, "/properties"), "/properties");
-  assert.equal(activeHref(sections, "/properties/new"), "/properties");
+  assert.equal(activeHref(sections, "/record/property-new"), "/properties");
   assert.equal(activeHref(sections, "/tenants"), "/tenants");
   assert.equal(activeHref(sections, "/home"), "/home");
   assert.equal(activeHref(sections, "/nowhere"), null);

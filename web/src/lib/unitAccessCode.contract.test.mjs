@@ -8,7 +8,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const read = (relative) => readFileSync(resolve(root, relative), "utf8");
 
 const meaning = () => read("web/src/lib/accessCodeMeaning.ts");
-const webUnit = () => read("web/app/properties/[id]/spaces/[spaceId]/page.tsx");
+const webUnit = () => read("web/app/record/space/page.tsx");
 const webCard = () => read("web/src/components/property/UnitPrivateAccess.tsx");
 const webTenants = () => read("web/src/components/property/SpaceTenantAccess.tsx");
 const mobileUnit = () => read("mobile/app/(app)/space.tsx");

@@ -143,8 +143,8 @@ export function RequestRecord({
             title={application ? "View listing" : "View Unit"}
             href={
               (item.kind === "application"
-                ? `/listings/${application!.listing_id}`
-                : `/properties/${request!.property_id}/spaces/${request!.unit_id}`) as never
+                ? `/record/listing?id=${application!.listing_id}`
+                : `/record/space?propertyId=${request!.property_id}&spaceId=${request!.unit_id}`) as never
             }
           >
             <Icon name="share" />

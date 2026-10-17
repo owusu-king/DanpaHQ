@@ -25,7 +25,7 @@ const read = (relative) => readFileSync(resolve(root, relative), "utf8").replace
 const code = (source) => source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*/g, "");
 
 const list = () => read("web/app/viewings/page.tsx");
-const detail = () => read("web/app/viewings/[viewingId]/page.tsx");
+const detail = () => read("web/app/record/viewing/page.tsx");
 const record = () => read("web/src/components/viewings/ProviderViewingRecord.tsx");
 const meaning = () => read("web/src/lib/providerViewings.ts");
 const css = () => read("web/src/styles/viewings-workspace.css");
@@ -52,8 +52,8 @@ function rule(sheet, selector) {
 }
 
 test("a viewing opens at its own address", () => {
-  assert.ok(existsSync(resolve(root, "web/app/viewings/[viewingId]/page.tsx")), "needs a route");
-  assert.match(code(detail()), /useParams<\{ viewingId: string \}>\(\)/);
+  assert.ok(existsSync(resolve(root, "web/app/record/viewing/page.tsx")), "needs a route");
+  assert.match(code(detail()), /useSearchParams\(\)\.get\("viewingId"\)/);
   assert.match(code(detail()), /viewings\?\.find\(\(row\) => row\.id === viewingId\)/);
   assert.match(code(detail()), /<ProviderViewingRecord/);
 
@@ -63,7 +63,7 @@ test("a viewing opens at its own address", () => {
   assert.doesNotMatch(css(), /\.provider-viewings-split/);
   assert.doesNotMatch(css(), /\.provider-viewing-record/);
 
-  assert.match(body, /href=\{`\/viewings\/\$\{viewing\.id\}` as never\}/);
+  assert.match(body, /href=\{`\/record\/viewing\?viewingId=\$\{viewing\.id\}` as never\}/);
   assert.doesNotMatch(body, /<button type="button" className="viewing-row"/);
   assert.match(rule(css(), ".viewing-row"), /text-decoration: none/);
 });

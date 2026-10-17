@@ -46,14 +46,14 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
   // from anywhere that calls `openEnquiries()` (a notification, a sale page).
   const [inbox, setInbox] = useState<{ open: boolean; request: EnquiriesRequest }>({ open: false, request: {} });
 
-  // `/enquiries` and `/enquiries/<id>` are still addresses (notifications and
+  // `/enquiries` and `/record/enquiry?id=…` are still addresses (notifications and
   // sale pages link to them), but not pages: arriving at one opens the inbox at
   // what it names and returns to the page the person was on, or Home.
   const router = useRouter();
   const lastPage = useRef<string | null>(null);
   const signedIn = state.status === "signed_in";
   useEffect(() => {
-    const inEnquiries = pathname === "/enquiries" || pathname.startsWith("/enquiries/");
+    const inEnquiries = pathname === "/enquiries" || pathname === "/record/enquiry";
     if (!inEnquiries) {
       lastPage.current = `${pathname}${window.location.search}`;
       return;
@@ -61,8 +61,9 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
     // Wait for the session: the shell is rebuilt when it arrives, and an inbox
     // opened before then would be opened in a tree that no longer exists.
     if (!signedIn) return;
-    const id = pathname.split("/")[2] || undefined;
-    const asked = new URLSearchParams(window.location.search).get("as");
+    const search = new URLSearchParams(window.location.search);
+    const id = search.get("id") || undefined;
+    const asked = search.get("as");
     const side = asked === "seller" || asked === "buyer" ? asked : undefined;
     setInbox({ open: true, request: { id, side } });
     router.replace((lastPage.current ?? "/home") as never, { scroll: false });

@@ -251,9 +251,9 @@ test("a card's address opens that rental's location, drawn only as the backend p
   const location = read("web/src/components/listings/ListingLocation.tsx");
   const locationMap = read("web/src/components/listings/ListingLocationMap.tsx");
   const map = read("web/src/components/explore/ExploreMap.tsx");
-  const detail = read("web/app/listings/[id]/page.tsx");
+  const detail = read("web/app/record/listing/page.tsx");
 
-  assert.match(card, /const locationHref = `\/listings\/\$\{listing\.id\}#location` as never;/);
+  assert.match(card, /const locationHref = `\/record\/listing\?id=\$\{listing\.id\}#location` as never;/);
   assert.match(between(card, 'className="listing-card-where"', "</p>"), /href=\{locationHref\}/);
   // A real section identifier, reached again once the client-rendered page exists.
   assert.match(location, /id="location"/);

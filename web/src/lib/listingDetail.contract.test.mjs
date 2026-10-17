@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const read = (relative) => readFileSync(resolve(root, relative), "utf8");
 
-const web = () => read("web/app/listings/[id]/page.tsx");
+const web = () => read("web/app/record/listing/page.tsx");
 const mobile = () => read("mobile/app/(app)/listing/[id].tsx");
 
 test("photographs lead, and say where they came from", () => {
@@ -78,7 +78,7 @@ test("applying leads, and a viewing request is asked for rather than sent", () =
   const applyAt = code.indexOf("Apply to rent");
   const viewingAt = code.indexOf("Request a viewing");
   assert.ok(applyAt > 0 && applyAt < viewingAt, "Apply to rent must come first");
-  assert.match(source, /<Button\s*\n\s*onClick=\{\(\) => \{[\s\S]{0,200}\/apply\//);
+  assert.match(source, /<Button\s*\n\s*onClick=\{\(\) => \{[\s\S]{0,200}\/record\/apply\?id=/);
 
   // The request reaches a real person and cannot be taken back. The guard is
   // the *call site*: there must be exactly one, and it must be the confirm.

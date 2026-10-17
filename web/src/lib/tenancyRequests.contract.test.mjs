@@ -22,7 +22,7 @@ const read = (relative) => readFileSync(resolve(root, relative), "utf8");
 const code = (source) => source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*/g, "");
 
 const list = () => read("web/app/applications/page.tsx");
-const detail = () => read("web/app/applications/[requestId]/page.tsx");
+const detail = () => read("web/app/record/application/page.tsx");
 const record = () => read("web/src/components/requests/RequestRecord.tsx");
 const meaning = () => read("web/src/lib/tenancyRequests.ts");
 const css = () => read("web/src/styles/tenancy-requests-workspace.css");
@@ -37,10 +37,10 @@ function rule(sheet, selector) {
 
 test("a request opens at its own address, not in a layer", () => {
   assert.ok(
-    existsSync(resolve(root, "web/app/applications/[requestId]/page.tsx")),
+    existsSync(resolve(root, "web/app/record/application/page.tsx")),
     "a request needs a route",
   );
-  assert.match(code(detail()), /useParams<\{ requestId: string \}>\(\)/);
+  assert.match(code(detail()), /useSearchParams\(\)\.get\("requestId"\)/);
   assert.match(code(detail()), /requestRecordId\(row\) === requestId/);
 
   // The dialog and everything that drove it are gone.
@@ -51,7 +51,7 @@ test("a request opens at its own address, not in a layer", () => {
   assert.doesNotMatch(css(), /\.request-dialog/);
 
   // Rows are links, so a request can be opened in a new tab or sent to somebody.
-  assert.match(body, /href=\{`\/applications\/\$\{requestRecordId\(item\)\}` as never\}/);
+  assert.match(body, /href=\{`\/record\/application\?requestId=\$\{requestRecordId\(item\)\}` as never\}/);
   assert.doesNotMatch(body, /<button type="button" className="request-row"/);
   assert.match(rule(css(), ".request-row"), /text-decoration: none/);
 });

@@ -14,7 +14,7 @@ test("web payout setup is a permission-aware Portfolio setting", () => {
   // Settings › Settlement account; the old Payments address redirects there.
   assert.match(workspace, /settings\/settlement\?organization=/);
   assert.match(read("web/app/settings/layout.tsx"), /href="\/settings\/settlement"/);
-  assert.match(read("web/app/payments/payout-account/page.tsx"), /redirect\(/);
+  assert.match(read("web/app/record/payout-account/page.tsx"), /router\.replace\(/);
   assert.match(page, /current_user_role === "owner"/);
   assert.match(page, /current_user_role === "admin"/);
   assert.match(page, /state\?\.provisioning\?\.checking/);

@@ -121,12 +121,12 @@ function TenancyBody({ tenant }: { tenant: ProviderTenant }) {
       <ul className="tm-links" aria-label="Home">
         <li>
           {/* No close first: leaving the page takes the sheet with it. */}
-          <Link className="tm-link" href={`/properties/${tenant.property_id}/spaces/${tenant.unit_id}` as never}>
+          <Link className="tm-link" href={`/record/space?propertyId=${tenant.property_id}&spaceId=${tenant.unit_id}` as never}>
             <LinkBody icon="units" label={home} detail="Unit" />
           </Link>
         </li>
         <li>
-          <Link className="tm-link" href={`/properties/${tenant.property_id}` as never}>
+          <Link className="tm-link" href={`/record/property?id=${tenant.property_id}` as never}>
             <LinkBody icon="properties" label={tenant.property_title} detail="Property" />
           </Link>
         </li>
@@ -136,11 +136,11 @@ function TenancyBody({ tenant }: { tenant: ProviderTenant }) {
           page takes the sheet with it. */}
       <div className="tm-actions">
         {tenant.lease_id ? (
-          <Link className="btn btn-primary" href={`/payments/${tenant.lease_id}` as never}>
+          <Link className="btn btn-primary" href={`/record/payment?leaseId=${tenant.lease_id}` as never}>
             <Icon name="payments" />View payments
           </Link>
         ) : null}
-        <Link className={`btn ${tenant.lease_id ? "btn-secondary" : "btn-primary"}`} href={`/tenants/${id}` as never}>
+        <Link className={`btn ${tenant.lease_id ? "btn-secondary" : "btn-primary"}`} href={`/record/tenant?tenancyId=${id}` as never}>
           <Icon name="users" />Open the tenancy page
         </Link>
       </div>

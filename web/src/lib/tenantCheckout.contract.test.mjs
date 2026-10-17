@@ -9,14 +9,14 @@ const read = (relative) => readFileSync(resolve(root, relative), "utf8");
 
 test("tenant checkout is a resumable route and never trusts browser payment facts", () => {
   const account = read("web/src/components/payments/RentAccount.tsx");
-  const checkout = read("web/app/payments/checkout/page.tsx");
-  const returned = read("web/app/payments/return/page.tsx");
+  const checkout = read("web/app/record/payment-checkout/page.tsx");
+  const returned = read("web/app/record/payment-return/page.tsx");
   const api = read("web/src/lib/payments.ts");
   const popup = read("web/src/lib/paystackPopup.ts");
   const adapter = read("backend/apps/payments/paystack.py");
 
   assert.match(account, /digital_payment\.available/);
-  assert.match(account, /\/payments\/checkout\?lease=/);
+  assert.match(account, /\/record\/payment-checkout\?lease=/);
   assert.match(checkout, /createPaymentIntent\(obligationId, method\)/);
   assert.match(checkout, /processing fee is paid by the property owner/i);
   assert.match(returned, /refreshPaymentIntent\(current\.id\)/);
@@ -33,10 +33,10 @@ test("tenant checkout is a resumable route and never trusts browser payment fact
 });
 
 test("confirmed web payments lead to the durable receipt", () => {
-  const returned = read("web/app/payments/return/page.tsx");
+  const returned = read("web/app/record/payment-return/page.tsx");
   // The receipt is a sheet now; its old address redirects to it.
   const receipt = read("web/src/components/payments/ReceiptModal.tsx");
-  assert.match(read("web/app/payments/receipts/[receiptId]/page.tsx"), /redirect\(`\/payments\?receipt=/);
+  assert.match(read("web/app/record/receipt/page.tsx"), /router\.replace\([\s\S]*`\/payments\?receipt=/);
   assert.match(returned, /`\/payments\?receipt=\$\{intent\.receipt_id\}`/);
   const paymentsApi = read("web/src/lib/payments.ts");
   assert.match(returned, /intent\.receipt_id/);

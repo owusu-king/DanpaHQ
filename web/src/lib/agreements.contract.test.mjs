@@ -186,7 +186,7 @@ test("a substantial tenant agreement opens in context and keeps its dedicated ad
   assert.match(list, /<AgreementSheet/);
   assert.match(list, /useDeepLinkedModal\("agreement"\)/);
   assert.match(list, /event\.preventDefault\(\);\s*onOpen\(lease\)/);
-  assert.match(list, /href=\{`\/leases\/\$\{lease\.id\}`/);
+  assert.match(list, /href=\{`\/record\/lease\?leaseId=\$\{lease\.id\}`/);
   assert.doesNotMatch(list, /tenant-agreements-split/);
 
   // The sheet scrolls as one reading surface; the decision bar stays pinned
@@ -196,7 +196,7 @@ test("a substantial tenant agreement opens in context and keeps its dedicated ad
   assert.match(record, /<Icon name="download" \/>Download/);
   assert.match(record, /<Icon name="print" \/>Print/);
 
-  const agreementRoute = read("web/app/leases/[leaseId]/page.tsx");
+  const agreementRoute = read("web/app/record/lease/page.tsx");
   assert.match(agreementRoute, /<AgreementRecord/);
   assert.match(agreementRoute, /<LeaseRecord/);
   assert.doesNotMatch(list, /ProviderLeaseDialog/);

@@ -11,7 +11,7 @@ const web = () => read("web/app/applications/page.tsx");
 // The tenant reads the record in context from the list, while `/applications/<id>` remains
 // the durable deep link. Both presentations reuse the same record component.
 const webRecord = () => read("web/src/components/applications/ApplicationRecord.tsx");
-const webRoute = () => read("web/app/applications/[requestId]/page.tsx");
+const webRoute = () => read("web/app/record/application/page.tsx");
 /** The tenant half of the page, which also holds the provider's list. */
 const webTenant = () => {
   const page = web();
@@ -130,7 +130,7 @@ test("a tenant record opens in context without surrendering its address", () => 
   assert.match(webTenant(), /<ApplicationSheet/);
   assert.match(webTenant(), /useDeepLinkedModal\("application"\)/);
   assert.match(webTenant(), /event\.preventDefault\(\)/);
-  assert.match(webTenant(), /href=\{`\/applications\/\$\{application\.id\}`/);
+  assert.match(webTenant(), /href=\{`\/record\/application\?requestId=\$\{application\.id\}`/);
   assert.match(webRoute(), /<ApplicationRecord/);
 
   // The shared sheet: native dialog semantics, placed over the page, grown from
@@ -249,7 +249,7 @@ test("the agreement link opens the agreement, not the list of them", () => {
   // application already knows which agreement it became.
   // The agreement has an address of its own now, so the link names it rather
   // than asking the list to open something.
-  assert.match(webRecord(), /`\/leases\/\$\{state\.leaseId\}`/);
+  assert.match(webRecord(), /`\/record\/lease\?leaseId=\$\{state\.leaseId\}`/);
   assert.match(
     read("mobile/app/(app)/application/[id].tsx"),
     /pathname: "\/\(app\)\/agreement\/\[id\]"/,
@@ -262,7 +262,7 @@ test("the agreement link opens the agreement, not the list of them", () => {
   // open, which is a dead deep link dressed as a working one.
   const leases = read("web/app/leases/page.tsx");
   assert.match(leases, /search\.get\("open"\)/);
-  assert.match(leases, /router\.replace\(`\/leases\/\$\{requested\}`/);
+  assert.match(leases, /router\.replace\(`\/record\/lease\?leaseId=\$\{requested\}`/);
   // `useSearchParams` suspends, so the page that reads it needs a boundary.
   assert.match(leases, /<Suspense fallback=/);
 });

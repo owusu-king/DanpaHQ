@@ -143,7 +143,7 @@ test("restricted resources come back only through the server, where it says ther
   assert.match(client(), /\/resource-access\/reactivate\//);
   // A restricted property stops offering what the API would refuse.
   assert.match(
-    code(read("web/app/properties/[id]/page.tsx")),
+    code(read("web/app/record/property/page.tsx")),
     /const canAddUnit = \(property\.capabilities\.private_inventory\?\.allowed \?\? false\) && !restricted;/,
   );
 });
