@@ -32,7 +32,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <SessionProvider>
+    <SessionProvider requireSession={isPortalRoute(pathname)}>
       <ToastProvider>
         {/* Above the chrome, so the dialog survives the move from an old auth
             address to the front door, and from any page to the dashboard. */}

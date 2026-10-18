@@ -13,8 +13,14 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import { apiFetch, ApiFailure } from "./api";
-import { authedFetch, clearAccessToken, endSession } from "./auth";
+import { apiFetch } from "./api";
+import {
+  authedFetch,
+  clearAccessToken,
+  endSession,
+  isSessionRefusal,
+  SESSION_INVALID_EVENT,
+} from "./auth";
 import { finishAccountWelcome } from "./registration";
 import { forgetPhotoUrls } from "./photo";
 import { contextBelongsToWorkspace } from "./navigation";
@@ -179,11 +185,12 @@ const SessionContext = createContext<SessionValue | null>(null);
 /**
  * Did the server refuse us, or could we simply not reach it?
  *
- * Only the first is a logout. A 4xx is an answer; anything else — a timeout, a
- * dropped connection, a 502 from a restarting service — is the absence of one.
+ * Only the backend's explicit authentication contracts are a logout. A
+ * malformed request, timeout, dropped connection or 502 says the session was
+ * not confirmed; none of those proves that it ended.
  */
 export function isRefusal(cause: unknown): boolean {
-  return cause instanceof ApiFailure && cause.status >= 400 && cause.status < 500;
+  return isSessionRefusal(cause);
 }
 
 /**
@@ -225,6 +232,15 @@ function validContextIds(me: Me): string[] {
  *  layout back until the session answers (see the script in app/layout). */
 export const SESSION_HINT_KEY = "session.hint";
 
+/**
+ * Public pages do not probe an absent HttpOnly cookie. A prior successful
+ * session leaves a non-secret hint so public chrome can still restore it;
+ * protected routes always make one attempt because authentication is required.
+ */
+export function shouldRestoreSession(requireSession: boolean, hint: string | null): boolean {
+  return requireSession || hint === "1";
+}
+
 function rememberSignedIn(signedIn: boolean) {
   try {
     if (signedIn) {
@@ -237,7 +253,13 @@ function rememberSignedIn(signedIn: boolean) {
   if (!signedIn) document.documentElement.removeAttribute("data-session-hint");
 }
 
-export function SessionProvider({ children }: { children: React.ReactNode }) {
+export function SessionProvider({
+  children,
+  requireSession = false,
+}: {
+  children: React.ReactNode;
+  requireSession?: boolean;
+}) {
   const router = useRouter();
   const [state, setState] = useState<SessionState>({ status: "loading" });
   const [activeContext, setActiveContextState] = useState<string | null>(null);
@@ -274,8 +296,26 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   }, [state]);
 
   useEffect(() => {
+    const invalidated = () => {
+      generation.current += 1;
+      clearAccessToken();
+      setActiveContextState(null);
+      rememberSignedIn(false);
+      setState({ status: "signed_out" });
+    };
+    window.addEventListener(SESSION_INVALID_EVENT, invalidated);
+    return () => window.removeEventListener(SESSION_INVALID_EVENT, invalidated);
+  }, []);
+
+  useEffect(() => {
+    let hint: string | null = null;
+    try { hint = window.localStorage.getItem(SESSION_HINT_KEY); } catch { /* storage is optional */ }
+    if (!shouldRestoreSession(requireSession, hint)) {
+      setState({ status: "signed_out" });
+      return;
+    }
     void refresh();
-  }, [refresh]);
+  }, [refresh, requireSession]);
 
   const signOut = useCallback(async () => {
       generation.current += 1;

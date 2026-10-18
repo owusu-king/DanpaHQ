@@ -22,6 +22,11 @@ let generation = 0;
 let loggedOut = false;
 const LOGOUT_KEY = "session.logged_out";
 
+/** Lets the session provider react when a later token rotation proves the
+ * session has ended. The access-token module has no React dependency, and the
+ * provider remains the one place that owns visible authentication state. */
+export const SESSION_INVALID_EVENT = "danpahq:session-invalid";
+
 function sessionEnded(): boolean {
   try { return loggedOut || window.localStorage.getItem(LOGOUT_KEY) === "1"; }
   catch { return loggedOut; }
@@ -29,6 +34,34 @@ function sessionEnded(): boolean {
 
 function endedError() {
   return new ApiFailure({ code: "signed_out", message: "Sign in to continue.", details: {}, requestId: "" }, 401);
+}
+
+/**
+ * The API responses that specifically mean the consumer session cannot be
+ * restored.
+ *
+ * This is deliberately narrower than "any 4xx". In particular, the refresh
+ * endpoint's no-cookie contract is `422 validation_failed` with no field
+ * errors, while a malformed device payload is the same status and code with
+ * `details.fields`. The latter is a client defect and must remain diagnosable.
+ */
+export function isSessionRefusal(cause: unknown): boolean {
+  if (!(cause instanceof ApiFailure)) return false;
+  const code = cause.error.code;
+  if (cause.status === 401) {
+    return ["signed_out", "not_authenticated", "authentication_failed"].includes(code);
+  }
+  if (cause.status === 403) return code === "permission_denied";
+  return cause.status === 422
+    && code === "validation_failed"
+    && Object.keys(cause.error.details).length === 0;
+}
+
+function invalidateSession() {
+  loggedOut = true;
+  try { window.localStorage.setItem(LOGOUT_KEY, "1"); } catch { /* memory still protects this tab */ }
+  clearAccessToken();
+  window.dispatchEvent(new Event(SESSION_INVALID_EVENT));
 }
 
 /** Explicit logout survives an offline reload even if the HttpOnly cookie remains. */
@@ -89,10 +122,10 @@ async function refresh(): Promise<string> {
       return result.access_token;
     } catch (cause) {
       // Refused: the refresh token is spent, revoked or absent. That is a real
-      // sign-out and the memory copy goes with it. Unreachable is not, and the
-      // token is left alone so a later attempt can still use it.
-      if (started === generation && cause instanceof ApiFailure && [400, 401, 403, 422].includes(cause.status)) {
-        clearAccessToken();
+      // sign-out and the memory copy goes with it. Unreachable, malformed and
+      // unexpected responses are not, and remain available to their caller.
+      if (started === generation && isSessionRefusal(cause)) {
+        invalidateSession();
       }
       throw cause;
     } finally {
@@ -152,10 +185,12 @@ export async function authedFetch<T>(path: string, init: ApiRequestInit = {}): P
     if (!(cause instanceof ApiFailure) || cause.status !== 401) throw cause;
     try {
       return await send(await forceRefresh());
-    } catch {
-      // The rotation failed too. The original 401 is the honest thing to
-      // report: the request was refused, and re-credentialing did not help.
-      throw cause;
+    } catch (refreshCause) {
+      // If rotation itself says the session ended, the original 401 remains the
+      // clearest result. A network failure, server fault or malformed refresh
+      // request is different information and must not be hidden behind it.
+      if (isSessionRefusal(refreshCause)) throw cause;
+      throw refreshCause;
     }
   }
 }

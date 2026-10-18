@@ -669,3 +669,17 @@ class TestWebRefreshCookie:
 
         response = APIClient().post("/api/v1/auth/refresh/", {}, format="json", HTTP_X_CLIENT="web")
         assert response.status_code == 422
+        assert response.data["error"]["code"] == "validation_failed"
+        assert response.data["error"]["message"] == "Sign in again."
+        assert response.data["error"]["details"] == {}
+
+    def test_a_browser_with_an_invalid_refresh_cookie_is_refused_as_an_ended_session(self):
+        from rest_framework.test import APIClient
+
+        client = APIClient()
+        client.cookies["danpahq_refresh"] = "not-a-real-refresh-token"
+        response = client.post("/api/v1/auth/refresh/", {}, format="json", HTTP_X_CLIENT="web")
+
+        assert response.status_code == 403
+        assert response.data["error"]["code"] == "permission_denied"
+        assert response.data["error"]["message"] == "Your session has ended. Sign in again."
