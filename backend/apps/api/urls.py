@@ -39,6 +39,7 @@ app_name = "api"
 
 auth_patterns = [
     path("auth/sign-in/", identity_views.PasswordSignInView.as_view(), name="auth-sign-in"),
+    path("auth/google/", identity_views.GoogleSignInView.as_view(), name="auth-google"),
     path("auth/challenge/", identity_views.StartChallengeView.as_view(), name="auth-challenge"),
     path("auth/verify/", identity_views.VerifyChallengeView.as_view(), name="auth-verify"),
     path(
@@ -69,6 +70,13 @@ me_patterns = [
         name="me-registration",
     ),
     path("me/password/", identity_views.ChangePasswordView.as_view(), name="me-password"),
+    path("me/google/", identity_views.GoogleLinkView.as_view(), name="me-google"),
+    path("me/phone/", identity_views.PhoneVerificationView.as_view(), name="me-phone"),
+    path(
+        "me/phone/verify/",
+        identity_views.ConfirmPhoneVerificationView.as_view(),
+        name="me-phone-verify",
+    ),
     path("me/email/", identity_views.EmailView.as_view(), name="me-email"),
     path("me/email/verify/", identity_views.VerifyEmailView.as_view(), name="me-email-verify"),
     path("me/workspace/", identity_views.WorkspaceView.as_view(), name="me-workspace"),

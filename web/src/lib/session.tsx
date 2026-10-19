@@ -84,7 +84,7 @@ export type Me = {
    * was how the portal rail came to render an empty line.
    */
   phone: string | null;
-  /** The national form, `024 123 4567`. This is the one to display. */
+  /** The national form, or an empty string until a Google user adds a phone. */
   phone_display: string;
   /** Optional at registration, so absent for plenty of real accounts. */
   email: string | null;
@@ -99,6 +99,8 @@ export type Me = {
   roles: string[];
   primary_role: string | null;
   is_phone_verified: boolean;
+  authentication_methods: Array<"phone" | "google">;
+  google_linked: boolean;
   account_status: "active" | "restricted" | "deactivated";
   authentication_state: "authenticated";
   phone_verification_state: "verified" | "unverified";

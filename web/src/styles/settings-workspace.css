@@ -198,6 +198,11 @@
 .settings-card-action { flex: 0 0 auto; }
 .settings-card-body { display: grid; gap: var(--space-4); min-width: 0; padding: var(--space-5) var(--space-6) var(--space-6); }
 
+.security-identity-form { display: grid; gap: var(--space-4); }
+.security-identity-form > p,
+.security-identity-state { margin: 0; color: var(--color-ink-600); font-size: .875rem; line-height: 1.55; }
+.security-identity-state strong { color: var(--color-ink-900); }
+
 .settings-mono { font-family: var(--font-mono); font-size: .75rem; }
 
 /* The older panels (Team) still use a section; it reads as the same card. */

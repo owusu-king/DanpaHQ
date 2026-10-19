@@ -101,6 +101,15 @@ class PasswordSignInSerializer(DeviceContextSerializer):
     password = serializers.CharField(trim_whitespace=False)
 
 
+class GoogleSignInSerializer(DeviceContextSerializer):
+    credential = serializers.CharField(trim_whitespace=False, max_length=10_000)
+    account_type = serializers.ChoiceField(choices=AccountType.choices)
+
+
+class GoogleCredentialSerializer(serializers.Serializer):
+    credential = serializers.CharField(trim_whitespace=False, max_length=10_000)
+
+
 class CompleteRegistrationSerializer(DeviceContextSerializer):
     """Shape only. Every judgement about the *content* belongs to the service.
 
@@ -121,6 +130,7 @@ class CompleteRegistrationSerializer(DeviceContextSerializer):
     #: From /auth/verify. Absent when an already-signed-in unfinished account is
     #: completing itself, which is the pre-ticket path.
     registration_ticket = serializers.CharField(required=False, allow_blank=True)
+    google_registration_ticket = serializers.CharField(required=False, allow_blank=True)
     account_type = serializers.ChoiceField(
         choices=AccountType.choices, required=False, allow_blank=True
     )
@@ -156,6 +166,22 @@ class CompletePasswordResetSerializer(DeviceContextSerializer):
 class ChangePasswordSerializer(serializers.Serializer):
     current_password = serializers.CharField(trim_whitespace=False)
     new_password = serializers.CharField(trim_whitespace=False)
+
+
+class StartPhoneVerificationSerializer(serializers.Serializer):
+    phone = PhoneField()
+    device_fingerprint = serializers.CharField(required=False, allow_blank=True, max_length=128)
+
+
+class ConfirmPhoneVerificationSerializer(serializers.Serializer):
+    challenge_id = serializers.UUIDField()
+    code = serializers.CharField(min_length=4, max_length=10, trim_whitespace=True)
+
+    def validate_code(self, value: str) -> str:
+        cleaned = "".join(ch for ch in value if ch.isdigit())
+        if not cleaned:
+            raise serializers.ValidationError("Enter the code from the message.")
+        return cleaned
 
 
 class ProviderVerificationDocumentSerializer(serializers.Serializer):
@@ -354,6 +380,8 @@ class MeSerializer(serializers.ModelSerializer):
     default_context_id = serializers.SerializerMethodField()
     capabilities = serializers.SerializerMethodField()
     registration_state = serializers.CharField(read_only=True)
+    authentication_methods = serializers.SerializerMethodField()
+    google_linked = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -380,6 +408,8 @@ class MeSerializer(serializers.ModelSerializer):
             "authentication_state",
             "phone_verification_state",
             "registration_state",
+            "authentication_methods",
+            "google_linked",
             "capabilities",
             "onboarding_state",
             "available_contexts",
@@ -409,7 +439,18 @@ class MeSerializer(serializers.ModelSerializer):
         return self._capabilities
 
     def get_phone_display(self, obj) -> str:
-        return format_national(obj.phone)
+        return format_national(obj.phone) if obj.phone else ""
+
+    def get_authentication_methods(self, obj) -> list[str]:
+        methods = []
+        if obj.has_usable_password() and obj.phone:
+            methods.append("phone")
+        if obj.external_identities.filter(provider="google").exists():
+            methods.append("google")
+        return methods
+
+    def get_google_linked(self, obj) -> bool:
+        return obj.external_identities.filter(provider="google").exists()
 
     def get_roles(self, obj) -> list[str]:
         return sorted(obj.roles)

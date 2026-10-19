@@ -51,7 +51,12 @@ export default function ProfileSettingsPage() {
         <PhotoSection name={me.display_name} photoUrl={me.profile?.avatar_url ?? null} onSaved={refresh} />
       </SettingsCard>
 
-      <SettingsCard title="Your details" description={<><span className="settings-mono">{me.phone_display}</span> · the number you sign in with</>}>
+      <SettingsCard
+        title="Your details"
+        description={me.phone_display
+          ? <><span className="settings-mono">{me.phone_display}</span> · your verified phone</>
+          : "Your profile details. You can add a verified phone from Security settings."}
+      >
         <ProfileSection
           initial={{
             first_name: me.first_name,

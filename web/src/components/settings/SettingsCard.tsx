@@ -11,15 +11,17 @@ export function SettingsCard({
   action,
   children,
   className,
+  id,
 }: {
   title: string;
   description?: ReactNode;
   action?: ReactNode;
   children: ReactNode;
   className?: string;
+  id?: string;
 }) {
   return (
-    <section className={`settings-card${className ? ` ${className}` : ""}`}>
+    <section id={id} className={`settings-card${className ? ` ${className}` : ""}`}>
       <header className="settings-card-head">
         <div>
           <h2>{title}</h2>

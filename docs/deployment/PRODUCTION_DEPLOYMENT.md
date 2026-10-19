@@ -87,6 +87,7 @@ defeats the separation they exist for.
 | `LOG_LEVEL` | `INFO` | |
 | `LOCATION_PROVIDER` | `google` | `localities` never asks Google; `google` without a key answers from the localities (§9a) |
 | `GOOGLE_MAPS_SERVER_API_KEY` | empty | Places API (New); server-only and IP-restricted (§9a) |
+| `GOOGLE_OAUTH_CLIENT_ID` | empty | Google Identity Services Web client ID; required to enable Google authentication and used as the server-verified ID-token audience (§8a) |
 | `GOOGLE_PLACES_REGION_CODES` | `gh` | countries suggestions may come from, comma-separated |
 | `GOOGLE_PLACES_LANGUAGE` | `en` | language of suggestions and addresses |
 | `GOOGLE_PLACES_TIMEOUT_SECONDS` | 4 | per Google call; suggestions fall back to the localities past it |
@@ -261,6 +262,7 @@ value, or a non-`https://` value, fails the build with a named error.
 
 ```bash
 NEXT_PUBLIC_API_URL=https://api.danpahq.com/api/v1 \
+NEXT_PUBLIC_GOOGLE_CLIENT_ID=<OAuth Web client ID> \
 NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=<web key> \
 NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID=<map ID> \
 npm run build
@@ -271,6 +273,38 @@ Add that origin to the API's `CORS_ALLOWED_ORIGINS` and `CSRF_TRUSTED_ORIGINS`.
 The two map values are build inputs as well (§9a). A build with the key but no
 Map ID has no map, rather than one without its price markers; a build with
 neither still works, as a list.
+
+### 8a. Google authentication setup
+
+Google sign-in is additive: phone/password registration and recovery remain in
+place. To enable it:
+
+1. In Google Cloud, configure the OAuth consent screen and create an OAuth 2.0
+   client with application type **Web application**.
+2. Add the exact deployed web origins under **Authorized JavaScript origins**
+   (scheme and host only), plus `http://localhost:3000` for local development.
+   This implementation uses the JavaScript popup callback, so it does not need
+   an OAuth redirect URI.
+3. Put that same client ID in `GOOGLE_OAUTH_CLIENT_ID` on the API and
+   `NEXT_PUBLIC_GOOGLE_CLIENT_ID` in the web build environment. It is a public
+   identifier, not a client secret; never add a Google client secret to the web.
+4. Rebuild the web app after changing `NEXT_PUBLIC_GOOGLE_CLIENT_ID`. Next.js
+   inlines `NEXT_PUBLIC_*` values at build time.
+5. Keep the static web header
+   `Cross-Origin-Opener-Policy: same-origin-allow-popups`; it lets the GIS popup
+   communicate back when FedCM is unavailable. If a Content Security Policy is
+   added later, allow Google's documented `gsi/client`, `gsi/` frame/connect,
+   and `gsi/style` endpoints rather than disabling CSP.
+6. Run migration `identity.0010_google_identity_and_optional_phone` during the
+   normal release migration step before enabling the web button. It is additive
+   except for making `identity_user.phone` nullable; review and back up the
+   production database as for every schema release.
+
+The API verifies every Google ID token's signature, issuer, expiry, and audience
+with Google's maintained Python library. The stored login key is Google's
+verified `sub`; email is never used to merge accounts. A Google email matching
+an existing account stops and tells the user to sign in with that account's
+phone/password before linking Google from Settings → Security.
 
 ---
 
@@ -549,7 +583,7 @@ yours to write.
 8. `CORS_ALLOWED_ORIGINS` and `CSRF_TRUSTED_ORIGINS` set to the real web origin
    (§1, §8).
 9. Celery worker on all four queues, and **exactly one** beat (§4, §5).
-10. Web built with `NEXT_PUBLIC_API_URL` (§8).
+10. Web built with `NEXT_PUBLIC_API_URL` and `NEXT_PUBLIC_GOOGLE_CLIENT_ID` (§8).
 11. Django superuser created, then the first Operations Admin created through
     Django admin → Management users (§18 step 12).
 12. Automated backups with a **rehearsed** restore (§15).
@@ -618,7 +652,8 @@ yours to write.
 8. Deploy the Celery worker (all four queues). Deploy beat with
    **`replicas: 1`**. Confirm `outbox.dispatch_pending` is running — everything
    downstream of a domain event depends on it.
-9. Build and deploy the web app with `NEXT_PUBLIC_API_URL` and, if maps are on,
+9. Build and deploy the web app with `NEXT_PUBLIC_API_URL` and
+   `NEXT_PUBLIC_GOOGLE_CLIENT_ID`; if maps are on, also set
    `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` and `NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID`.
    Confirm sign-in reaches the API and CORS/CSRF are correct.
 10. Configure the SMS adapter and send one real code to a real handset. **Do not

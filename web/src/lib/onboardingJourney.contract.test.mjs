@@ -1,11 +1,12 @@
 /**
  * Web sign-up: Get Started → how will you use Danpa HQ → who you are → your
- * number → in (owner, 2026-10-07).
+ * sign-in method → verified credential → in (owner, 2026-10-18).
  *
  * The journey was reordered on the client only. These pin what that must keep
- * true: the role is asked once, first; nothing is created until the number is
- * proved; the welcome is seen once; a new provider is told verification comes
- * first; and an email reaches the account only through its code.
+ * true: the role is asked once, first; nothing is created until either the
+ * phone number or Google identity is proved; the welcome is seen once; a new
+ * provider is told verification comes first; and an email reaches a phone
+ * account only through its code.
  */
 
 import assert from "node:assert/strict";
@@ -22,7 +23,7 @@ test("Get Started opens the question, and sign-up asks it first and once", () =>
   assert.match(door, /<AuthLink view="register" className="lp-door-action is-primary">\s*Get Started/);
 
   const body = register();
-  assert.match(body, /useState<Step>\(resuming \|\| preselected \? "details" : "role"\)/);
+  assert.match(body, /resuming \|\| googleArrival \? "details" : preselected \? "method" : "role"/);
   assert.match(body, /title: "How will you use Danpa HQ\?"/);
   assert.match(body, /body: "Rent or find a place\."/);
   assert.match(body, /body: "Own or manage property\."/);
@@ -30,9 +31,10 @@ test("Get Started opens the question, and sign-up asks it first and once", () =>
   assert.doesNotMatch(body, /auth-role-points|option\.points/);
   // The role is the account type: the details step never asks it again.
   assert.doesNotMatch(body, /What brings you here|<Select\b/);
-  for (const label of ["First name", "Last name", "Date of birth", "Password", "Confirm password", "Email \\(optional\\)"]) {
+  for (const label of ["First name", "Last name", "Date of birth", "Password", "Confirm password"]) {
     assert.match(body, new RegExp(`label="${label}"`), `${label} is missing`);
   }
+  assert.match(body, /label=\{method === "google" \? "Email" : "Email \(optional\)"\}/);
 });
 
 test("closing sign in leaves a signed-out visitor at the front door", () => {
@@ -49,14 +51,18 @@ test("closing sign in leaves a signed-out visitor at the front door", () => {
   assert.match(dialog, /open\(view === "welcome" \? "sign-in" : view, params\);\s*router\.replace\("\/"\);/);
 });
 
-test("nothing is created until the number is proved", () => {
+test("nothing is created until a phone or Google identity is proved", () => {
   const body = register();
-  // Details continue to the phone; only a held proof (or a resumed account) creates.
+  // Details continue to the phone; only a held phone/Google proof (or a resumed account) creates.
   assert.match(body, /if \(createsHere\) \{\s*void createAccount\(ticket\);\s*return;\s*\}\s*go\("phone"\);/);
-  assert.match(body, /const createsHere = Boolean\(ticket\) \|\| resuming;/);
+  assert.match(body, /const createsHere = Boolean\(ticket \|\| googleTicket\) \|\| resuming;/);
   // The ticket from /auth/verify is spent at once on the held details.
   assert.match(body, /if \(result\.registration_ticket\) \{\s*setTicket\(result\.registration_ticket\);[\s\S]{0,60}await createAccount\(result\.registration_ticket\);/);
   assert.match(body, /registration_ticket: proof \|\| undefined,/);
+  // Google returns an opaque, role-bound registration ticket; the client never decodes its ID token.
+  assert.match(body, /if \(result\.registration_required && result\.google_registration_ticket && result\.profile\)/);
+  assert.match(body, /google_registration_ticket: googleTicket \|\| undefined,/);
+  assert.doesNotMatch(body, /atob|jwtDecode|parseJwt/);
   // A refusal returns to the details with the reason, keeping the proof.
   assert.match(body, /setErrors\(fields\);[\s\S]{0,200}setStep\("details"\);/);
   // The password is never written anywhere but component state.

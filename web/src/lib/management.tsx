@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 
 import { API_BASE_URL } from "@/lib/apiBase";
 
@@ -30,11 +30,13 @@ export class ManagementFailure extends Error {
 
 const BASE_URL = API_BASE_URL;
 const RETRYABLE_STATUS = new Set([408, 429, 500, 502, 503, 504]);
+const DEFAULT_TIMEOUT_MS = 30_000;
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 type ManagementRequestInit = RequestInit & {
   idempotencyKey?: string;
   maxAttempts?: number;
+  timeoutMs?: number;
 };
 
 /** A fresh key, held stable across this management mutation's retries. */
@@ -54,16 +56,33 @@ export async function managementFetch<T>(
   path: string,
   init: ManagementRequestInit = {},
 ): Promise<T> {
-  const { idempotencyKey, maxAttempts = 1, ...requestInit } = init;
+  const {
+    idempotencyKey,
+    maxAttempts = 1,
+    timeoutMs = DEFAULT_TIMEOUT_MS,
+    ...requestInit
+  } = init;
   const method = (requestInit.method ?? "GET").toUpperCase();
   const unsafe = !["GET", "HEAD", "OPTIONS"].includes(method);
   const requestId = crypto.randomUUID();
   let lastFailure: ManagementFailure | null = null;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const controller = new AbortController();
+    const upstreamSignal = requestInit.signal;
+    let timedOut = false;
+    const forwardAbort = () => controller.abort(upstreamSignal?.reason);
+    if (upstreamSignal?.aborted) forwardAbort();
+    else upstreamSignal?.addEventListener("abort", forwardAbort, { once: true });
+    const timeout = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, Math.max(1, timeoutMs));
+
     try {
       const response = await fetch(`${BASE_URL}/management${path}`, {
         ...requestInit,
+        signal: controller.signal,
         credentials: "include",
         headers: {
           "Content-Type": "application/json",
@@ -93,13 +112,28 @@ export async function managementFetch<T>(
       if (cause instanceof ManagementFailure && !RETRYABLE_STATUS.has(cause.status)) {
         throw cause;
       }
-      if (!(cause instanceof ManagementFailure)) {
+      if (timedOut) {
+        lastFailure = new ManagementFailure(
+          "Management is taking too long to respond. Try again.",
+          0,
+          "request_timeout",
+        );
+      } else if (controller.signal.aborted) {
+        lastFailure = new ManagementFailure(
+          "The Management request was cancelled.",
+          0,
+          "request_cancelled",
+        );
+      } else if (!(cause instanceof ManagementFailure)) {
         lastFailure = new ManagementFailure(
           "Could not reach Management. Check your connection and try again.",
           0,
           "network_error",
         );
       }
+    } finally {
+      clearTimeout(timeout);
+      upstreamSignal?.removeEventListener("abort", forwardAbort);
     }
 
     if (attempt < maxAttempts) await sleep(2 ** attempt * 400);
@@ -125,12 +159,23 @@ const ManagementContext = createContext<Context | null>(null);
 
 export function ManagementProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<State>({ status: "loading" });
+  // The login form is deliberately available while session restoration runs.
+  // A revision keeps that older probe from overwriting a newer login/logout.
+  const authRevision = useRef(0);
 
   const refresh = useCallback(async () => {
+    const revision = ++authRevision.current;
     try {
-      const response = await managementFetch<{ user: ManagementUser }>("/auth/session/");
-      setState({ status: "signed_in", user: response.user });
+      const response = await managementFetch<{ user: ManagementUser }>("/auth/session/", {
+        // A sleeping API must not hold the sign-in screen hostage. The probe
+        // still wakes it; the explicit login request gets a longer window.
+        timeoutMs: 15_000,
+      });
+      if (authRevision.current === revision) {
+        setState({ status: "signed_in", user: response.user });
+      }
     } catch (error) {
+      if (authRevision.current !== revision) return;
       if (error instanceof ManagementFailure && [401, 403].includes(error.status)) {
         setState({ status: "signed_out" });
         return;
@@ -148,19 +193,29 @@ export function ManagementProvider({ children }: { children: React.ReactNode }) 
       state,
       refresh,
       login: async (email, password) => {
-        const response = await managementFetch<{ user: ManagementUser }>("/auth/login/", {
-          method: "POST",
-          body: JSON.stringify({ email, password }),
-        });
-        setState({ status: "signed_in", user: response.user });
-        return response.user;
+        const revision = ++authRevision.current;
+        try {
+          const response = await managementFetch<{ user: ManagementUser }>("/auth/login/", {
+            method: "POST",
+            body: JSON.stringify({ email, password }),
+            timeoutMs: 60_000,
+          });
+          if (authRevision.current === revision) {
+            setState({ status: "signed_in", user: response.user });
+          }
+          return response.user;
+        } catch (error) {
+          if (authRevision.current === revision) setState({ status: "signed_out" });
+          throw error;
+        }
       },
       logout: async () => {
+        const revision = ++authRevision.current;
         try {
           await managementFetch("/auth/session/", { method: "DELETE" });
         } finally {
           window.sessionStorage.removeItem("management.csrf");
-          setState({ status: "signed_out" });
+          if (authRevision.current === revision) setState({ status: "signed_out" });
         }
       },
       can: (capability) =>

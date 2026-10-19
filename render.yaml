@@ -95,6 +95,8 @@ services:
         value: permissive
 
       # --- Google -------------------------------------------------------------
+      - key: GOOGLE_OAUTH_CLIENT_ID
+        sync: false
       - key: GOOGLE_MAPS_SERVER_API_KEY
         sync: false
 

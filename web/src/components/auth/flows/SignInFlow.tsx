@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import { AuthModal, AuthSide } from "@/components/auth/AuthModal";
+import { GoogleIdentityButton } from "@/components/auth/GoogleIdentityButton";
 import { authHref, type AuthFlowProps } from "@/components/auth/authTypes";
 import { Button } from "@/components/Button";
 import { Field } from "@/components/Field";
@@ -16,11 +17,12 @@ import { safeInternalPath } from "@/lib/safeRedirect";
 import { chooseWorkspace, useSession, type Me } from "@/lib/session";
 
 /**
- * Sign in: a phone number and a password.
+ * Sign in with either a linked Google subject or the existing phone/password
+ * credential. Both paths enter the same server-owned session pipeline.
  *
- * The number says which account; the password says who is signing in. Those
- * used to be the same thing — an SMS code was the whole credential — which made
- * whoever held the SIM the owner of the account.
+ * On the phone path, the number says which account and the password says who
+ * is signing in. On the Google path, the browser forwards Google's opaque ID
+ * token and only the API verifies it and resolves the stored subject.
  *
  * The side starts on Tenant (owner, 2026-10-16); "I own or manage property"
  * arrives as provider, and the switch changes it. Telling the backend the side
@@ -48,6 +50,22 @@ export function SignInFlow({ params, go, close, land }: AuthFlowProps) {
   // a fact to state, with somewhere to go.
   const [notAProvider, setNotAProvider] = useState(false);
 
+  async function enterWorkspace(initial: Me) {
+    let me = initial;
+    try {
+      me = await chooseWorkspace(workspace);
+    } catch (cause) {
+      if (isNotAProvider(cause)) {
+        await refresh();
+        setNotAProvider(true);
+        return;
+      }
+      throw cause;
+    }
+    await refresh();
+    land(safeNext ?? resolveWebEntry(me));
+  }
+
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     setBusy(true);
@@ -66,30 +84,49 @@ export function SignInFlow({ params, go, close, land }: AuthFlowProps) {
         }),
       });
       setAccessToken(result.access_token, result.expires_in);
-
-      // Tell the backend which experience they asked for, then let it say where
-      // that lands. The client never decides this.
-      let me = result.user;
-      try {
-        me = await chooseWorkspace(workspace);
-      } catch (cause) {
-        if (isNotAProvider(cause)) {
-          // The sign-in itself succeeded, so the session stands. Only the
-          // requested experience is refused.
-          await refresh();
-          setNotAProvider(true);
-          return;
-        }
-        throw cause;
-      }
-      await refresh();
-      // Only same-origin paths are honoured — a `next` of "https://…" would
-      // make this an open redirect, and the value can come from an address.
-      land(safeNext ?? resolveWebEntry(me));
+      await enterWorkspace(result.user);
     } catch (cause) {
       setError(
         cause instanceof ApiFailure ? cause.error.message : "Could not sign you in.",
       );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function submitGoogle(credential: string) {
+    setSideChosen(true);
+    setBusy(true);
+    setError("");
+    try {
+      const result = await apiFetch<{
+        registration_required?: boolean;
+        google_registration_ticket?: string;
+        profile?: { first_name: string; last_name: string; email: string };
+        access_token?: string;
+        expires_in?: number;
+        user?: Me;
+      }>("/auth/google/", {
+        method: "POST",
+        body: JSON.stringify({ credential, account_type: workspace, ...getWebDeviceContext() }),
+      });
+
+      if (result.registration_required && result.google_registration_ticket && result.profile) {
+        go("register", {
+          workspace,
+          next: safeNext,
+          googleRegistration: {
+            ticket: result.google_registration_ticket,
+            profile: result.profile,
+          },
+        });
+        return;
+      }
+      if (!result.access_token || !result.user) throw new Error("Incomplete Google response");
+      setAccessToken(result.access_token, result.expires_in ?? 0);
+      await enterWorkspace(result.user);
+    } catch (cause) {
+      setError(cause instanceof ApiFailure ? cause.error.message : "Could not sign you in with Google.");
     } finally {
       setBusy(false);
     }
@@ -125,7 +162,7 @@ export function SignInFlow({ params, go, close, land }: AuthFlowProps) {
   return (
     <AuthModal
       title="Sign in"
-      description="Use the mobile number on your account and your password."
+      description="Choose the side you want, then continue with Google or your phone."
       onClose={close}
       footer={(
         <>
@@ -149,6 +186,9 @@ export function SignInFlow({ params, go, close, land }: AuthFlowProps) {
           setSideChosen(true);
         }}
       />
+
+      <GoogleIdentityButton onCredential={submitGoogle} text="signin_with" busy={busy} />
+      <div className="auth-divider"><span>or use your phone</span></div>
 
       <form onSubmit={submit} className="auth-form">
         <Field

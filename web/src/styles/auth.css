@@ -12,6 +12,11 @@
   user-select: none;
 }
 
+/* Auth links are real links for new tabs and no-script fallbacks. On touch
+   browsers this also tells Safari there is no double-tap gesture to wait for,
+   so the normal click reaches the in-place dialog without the legacy delay. */
+.auth-trigger { touch-action: manipulation; }
+
 .auth-layer {
   position: fixed;
   z-index: 100;
@@ -20,6 +25,7 @@
   place-items: center;
   padding: var(--space-6) var(--space-4);
   overflow-y: auto;
+  overscroll-behavior: contain;
 }
 .auth-scrim {
   position: fixed;
@@ -43,6 +49,7 @@
     0 24px 48px -12px rgb(22 17 14 / 28%);
   animation: auth-rise .22s cubic-bezier(.2, .7, .2, 1);
 }
+.auth-panel:focus { outline: none; }
 
 .auth-head {
   display: flex;
@@ -124,6 +131,15 @@
 }
 .auth-content { display: grid; gap: var(--space-4); margin-top: var(--space-5); }
 .auth-form { display: grid; gap: var(--space-4); }
+
+.auth-google { position: relative; display: grid; justify-items: center; gap: var(--space-2); width: 100%; }
+.auth-google.is-busy { pointer-events: none; opacity: .68; }
+.auth-google-button { display: grid; justify-content: center; width: 100%; min-height: 44px; overflow: hidden; }
+.auth-google-status,
+.auth-google-unavailable { margin: 0; color: var(--color-ink-500); font-size: .75rem; line-height: 1.45; text-align: center; }
+.auth-divider { display: flex; align-items: center; gap: var(--space-3); color: var(--color-ink-400); font-size: .6875rem; letter-spacing: .04em; text-transform: uppercase; }
+.auth-divider::before,
+.auth-divider::after { height: 1px; flex: 1; background: color-mix(in srgb, var(--color-ink-400) 25%, transparent); content: ""; }
 
 /* Fields, a little tighter and quieter than a page's. */
 .auth-panel .field { gap: 6px; }
@@ -217,11 +233,29 @@
   .auth-scrim, .auth-panel { animation: none; }
 }
 
-/* A phone: the dialog rises from the bottom edge, as the site's sheets do. */
+/* A phone keeps the same centred-dialog hierarchy as a wide screen. Safe-area
+   padding keeps the card clear of rounded corners and the home indicator, and
+   the panel itself scrolls on very short screens instead of being pinned to an
+   edge or clipped behind the software keyboard. */
 @media (max-width: 30rem) {
-  .auth-layer { align-items: end; padding: 0; }
-  .auth-panel { width: 100%; border-radius: 16px 16px 0 0; }
-  .auth-foot { border-radius: 0; padding-bottom: max(var(--space-4), env(safe-area-inset-bottom)); }
+  .auth-layer {
+    align-items: center;
+    padding:
+      max(var(--space-3), env(safe-area-inset-top))
+      max(var(--space-3), env(safe-area-inset-right))
+      max(var(--space-3), env(safe-area-inset-bottom))
+      max(var(--space-3), env(safe-area-inset-left));
+  }
+  .auth-scrim { background: rgb(22 17 14 / 44%); backdrop-filter: none; }
+  .auth-panel {
+    width: min(100%, 26.5rem);
+    max-height: 100%;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    border-radius: 14px;
+  }
+  .auth-foot { border-radius: 0 0 14px 14px; }
   .auth-body { padding: var(--space-4) var(--space-5) var(--space-5); }
   .auth-head { padding-left: var(--space-5); }
   .auth-progress { margin-inline: var(--space-5); }

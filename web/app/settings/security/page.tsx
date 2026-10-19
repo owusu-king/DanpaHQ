@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { PasswordSection } from "@/components/account/AccountSections";
+import { GoogleLinkSection, PhoneVerificationSection } from "@/components/account/IdentitySecurity";
 import { Button } from "@/components/Button";
 import { Notice } from "@/components/Notice";
 import { Icon } from "@/components/portal/icons";
@@ -12,6 +13,7 @@ import { useToast } from "@/components/toast/Toaster";
 import { ModalSheet } from "@/components/workspace/ModalSheet";
 import { ApiFailure } from "@/lib/api";
 import { authedFetch } from "@/lib/auth";
+import { useSession } from "@/lib/session";
 import {
   endSignedInDevice,
   getAccountDeletion,
@@ -34,6 +36,7 @@ import {
  */
 export default function SecuritySettingsPage() {
   const router = useRouter();
+  const { state } = useSession();
   const { toast } = useToast();
   const [devices, setDevices] = useState<SignedInDevice[] | null>(null);
   const [ending, setEnding] = useState<string | null>(null);
@@ -69,8 +72,25 @@ export default function SecuritySettingsPage() {
 
   return (
     <>
-      <SettingsCard title="Password" description="At least 8 characters, not all digits, and not your own number.">
-        <PasswordSection />
+      {state.status === "signed_in" && state.me.authentication_methods.includes("phone") ? (
+        <SettingsCard title="Password" description="At least 8 characters, not all digits, and not your own number.">
+          <PasswordSection />
+        </SettingsCard>
+      ) : null}
+
+      <SettingsCard
+        id="phone-verification"
+        title="Phone verification"
+        description="Optional for Google sign-up; required only when a feature needs a proved phone."
+      >
+        <PhoneVerificationSection />
+      </SettingsCard>
+
+      <SettingsCard
+        title="Sign in with Google"
+        description="Link Google to this account without changing its data, roles, or phone sign-in."
+      >
+        <GoogleLinkSection />
       </SettingsCard>
 
       <SettingsCard

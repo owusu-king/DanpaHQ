@@ -62,10 +62,16 @@ export function ManagementShell({ children }: { children: React.ReactNode }) {
     if (state.status === "signed_in" && loginPage) router.replace("/management" as never);
   }, [loginPage, router, state.status]);
 
+  // The session probe is an enhancement on the login route, not a gate. In
+  // production the API may be waking from sleep or unavailable; keeping the
+  // form behind that request leaves an operator with no way to sign in.
+  if (loginPage && state.status !== "signed_in") return children;
   if (state.status === "loading") {
     return <div className="management-loading">Securing Management Portal…</div>;
   }
-  if (loginPage || state.status === "signed_out") return children;
+  if (loginPage || state.status === "signed_out") {
+    return <div className="management-loading">Opening Management sign in…</div>;
+  }
 
   const visible = NAV.filter((item) => can(item.capability));
   const isCollapsed = collapsed === true;

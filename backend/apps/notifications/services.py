@@ -197,9 +197,12 @@ def _try_sms(notification: Notification) -> None:
     try:
         from apps.identity.providers import get_sms_provider
 
+        destination = preference.sms_number or notification.user.phone
+        if not destination:
+            return
         provider = get_sms_provider()
         result = provider.send(
-            to=preference.sms_number or notification.user.phone,
+            to=destination,
             body=f"{notification.title}. {notification.body}",
             reference=str(notification.id),
         )

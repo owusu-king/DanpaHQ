@@ -101,16 +101,20 @@ def normalise_ghana_msisdn(raw: str, *, mobile_only: bool = True) -> str:
     return f"+{GHANA_COUNTRY_CODE}{nsn}"
 
 
-def format_national(e164: str) -> str:
+def format_national(e164: str | None) -> str:
     """``+233241234567`` -> ``024 123 4567`` for display."""
+    if not e164:
+        return ""
     nsn = e164.removeprefix(f"+{GHANA_COUNTRY_CODE}")
     if len(nsn) != _NSN_LENGTH or not nsn.isdigit():
         return e164
     return f"0{nsn[:2]} {nsn[2:5]} {nsn[5:]}"
 
 
-def mask(e164: str) -> str:
+def mask(e164: str | None) -> str:
     """``+233241234567`` -> ``024 *** 4567`` for logs, receipts and support UIs."""
+    if not e164:
+        return ""
     nsn = e164.removeprefix(f"+{GHANA_COUNTRY_CODE}")
     if len(nsn) != _NSN_LENGTH or not nsn.isdigit():
         return "***"

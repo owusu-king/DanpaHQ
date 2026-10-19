@@ -8,11 +8,11 @@ const require = createRequire(import.meta.url);
 const ts = require("typescript");
 const source = readFileSync(new URL("./management.tsx", import.meta.url), "utf8");
 
-function harness() {
+function harness(fetchImplementation) {
   const exports = {};
   const requests = [];
   const storage = new Map();
-  const fetch = async (url, init) => {
+  const successfulFetch = async (url, init) => {
     requests.push({ url, init });
     return {
       ok: true,
@@ -23,6 +23,7 @@ function harness() {
       }),
     };
   };
+  const fetch = fetchImplementation ?? successfulFetch;
   vm.runInNewContext(
     ts.transpileModule(source, {
       compilerOptions: {
@@ -33,6 +34,8 @@ function harness() {
     {
       exports,
       fetch,
+      AbortController,
+      clearTimeout,
       crypto: { randomUUID: () => "request-id" },
       setTimeout,
       window: {
@@ -65,7 +68,41 @@ test("management session restoration keeps its isolated credentialed endpoint", 
 });
 
 test("management reload initialization does not use consumer refresh", () => {
-  assert.match(source, /managementFetch<\{ user: ManagementUser \}>\("\/auth\/session\/"\)/);
+  assert.match(source, /managementFetch<\{ user: ManagementUser \}>\(\s*"\/auth\/session\/"/);
   assert.match(source, /useEffect\(\(\) => \{\s*void refresh\(\);\s*\}, \[refresh\]\)/);
   assert.doesNotMatch(source, /\/auth\/refresh\//);
+});
+
+test("a stalled management request fails with a bounded timeout", async () => {
+  const h = harness((_url, init) => new Promise((_resolve, reject) => {
+    init.signal.addEventListener("abort", () => {
+      const error = new Error("aborted");
+      error.name = "AbortError";
+      reject(error);
+    }, { once: true });
+  }));
+
+  await assert.rejects(
+    h.api.managementFetch("/auth/session/", { timeoutMs: 5 }),
+    (error) => error.code === "request_timeout",
+  );
+});
+
+test("the login screen renders before session restoration completes", () => {
+  const shell = readFileSync(
+    new URL("../components/management/ManagementShell.tsx", import.meta.url),
+    "utf8",
+  );
+  const loginGate = shell.indexOf('if (loginPage && state.status !== "signed_in") return children;');
+  const loadingGate = shell.indexOf('if (state.status === "loading")');
+
+  assert.notEqual(loginGate, -1);
+  assert.ok(loginGate < loadingGate);
+});
+
+test("an older session probe cannot overwrite a newer login", () => {
+  assert.match(source, /const authRevision = useRef\(0\);/);
+  assert.match(source, /const revision = \+\+authRevision\.current;/);
+  assert.match(source, /if \(authRevision\.current === revision\) \{\s*setState\(\{ status: "signed_in"/);
+  assert.match(source, /if \(authRevision\.current !== revision\) return;/);
 });

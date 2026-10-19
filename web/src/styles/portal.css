@@ -1335,3 +1335,23 @@
   color: var(--color-harmattan-600);
   font-size: 0.8125rem;
 }
+
+.portal-phone-reminder {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  color: var(--color-ink-800);
+  background: color-mix(in srgb, var(--color-lagoon-50) 74%, var(--color-field-0));
+  border: 1px solid color-mix(in srgb, var(--color-lagoon-600) 18%, transparent);
+  border-radius: var(--radius-lg);
+}
+.portal-phone-reminder > span { display: grid; gap: 2px; }
+.portal-phone-reminder strong { font-size: .8125rem; }
+.portal-phone-reminder small { color: var(--color-ink-600); font-size: .75rem; line-height: 1.4; }
+.portal-phone-reminder a { flex: 0 0 auto; color: var(--color-lagoon-700); font-size: .8125rem; font-weight: 700; }
+
+@media (max-width: 560px) {
+  .portal-phone-reminder { align-items: flex-start; flex-direction: column; }
+}

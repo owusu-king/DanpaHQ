@@ -99,10 +99,15 @@ class IncomeBand(models.TextChoices):
 class UserManager(BaseUserManager):
     use_in_migrations = True
 
-    def create_user(self, phone: str, password: str | None = None, **extra):
-        if not phone:
-            raise ValueError("A phone number is required.")
-        phone = normalise_ghana_msisdn(phone)
+    def create_user(self, phone: str | None = None, password: str | None = None, **extra):
+        """Create a consumer account.
+
+        Phone-first accounts still pass and prove a number before reaching
+        here. Federated accounts deliberately do not manufacture one: their
+        Google identity is the credential, and a number can be added and
+        verified later through the OTP flow.
+        """
+        phone = normalise_ghana_msisdn(phone) if phone else None
         user = self.model(phone=phone, **extra)
         if password:
             user.set_password(password)
@@ -130,7 +135,10 @@ class UserManager(BaseUserManager):
 class User(AbstractBaseUser, PermissionsMixin):
     id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
 
-    phone = PhoneNumberField(unique=True)
+    # Nullable only for federated accounts. PostgreSQL's unique constraint
+    # still prevents two users from claiming the same real number while
+    # allowing several NULLs.
+    phone = PhoneNumberField(unique=True, null=True, blank=True)
     email = models.EmailField(blank=True, null=True, unique=True)
 
     first_name = models.CharField(max_length=80, blank=True)
@@ -179,6 +187,15 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     class Meta:
         db_table = "identity_user"
+        constraints = [
+            models.CheckConstraint(
+                condition=(
+                    models.Q(phone__isnull=False)
+                    | models.Q(is_phone_verified=False, phone_verified_at__isnull=True)
+                ),
+                name="identity_verified_phone_requires_number",
+            )
+        ]
         indexes = [
             models.Index(fields=["-created_at"], name="user_created_idx"),
             # No index on email: unique=True already builds one, and a second
@@ -195,7 +212,9 @@ class User(AbstractBaseUser, PermissionsMixin):
         return (
             self.preferred_name
             or " ".join(p for p in (self.first_name, self.last_name) if p)
-            or format_national(self.phone)
+            or (format_national(self.phone) if self.phone else "")
+            or self.email
+            or "Danpa HQ member"
         )
 
     @property
@@ -222,6 +241,8 @@ class User(AbstractBaseUser, PermissionsMixin):
         return self.role_assignments.filter(role=role, revoked_at__isnull=True).exists()
 
     def mark_phone_verified(self) -> None:
+        if not self.phone:
+            raise ValueError("A phone number must be present before it can be verified.")
         self.is_phone_verified = True
         self.phone_verified_at = timezone.now()
         self.save(update_fields=["is_phone_verified", "phone_verified_at", "updated_at"])
@@ -230,25 +251,63 @@ class User(AbstractBaseUser, PermissionsMixin):
     def registration_state(self) -> str:
         """How far through account creation this person is.
 
-        Registration is finished when we know the number is theirs, what they
-        came here to be, what to call them, and they hold a credential they can
-        sign back in with. Until all four are true the account exists but cannot
-        act, which is what stops a half-finished sign-up from being a usable
-        identity.
+        Registration is finished when we know what they came here to be, what
+        to call them, and they hold a credential they can sign back in with.
+        Phone accounts prove their number and set a password; federated
+        accounts hold a verified external identity and may add a phone later.
         """
-        if not self.is_phone_verified:
+        has_federated_identity = self.external_identities.exists()
+        if self.phone and not self.is_phone_verified and not has_federated_identity:
             return "phone_required"
         if not self.account_type:
             return "account_type_required"
         if not (self.first_name.strip() and self.last_name.strip()):
             return "profile_required"
-        if not self.has_usable_password():
+        if not self.has_usable_password() and not has_federated_identity:
             return "password_required"
         return "complete"
 
     @property
     def is_registration_complete(self) -> bool:
         return self.registration_state == "complete"
+
+
+class ExternalIdentityProvider(models.TextChoices):
+    GOOGLE = "google", "Google"
+
+
+class ExternalIdentity(models.Model):
+    """A verified identity issued by an external provider.
+
+    ``subject`` is Google's stable ``sub`` claim. Email is retained only as an
+    audit-friendly snapshot and is never used as the login key or as authority
+    to merge two Danpa HQ accounts.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="external_identities")
+    provider = models.CharField(max_length=24, choices=ExternalIdentityProvider.choices)
+    subject = models.CharField(max_length=255)
+    email = models.EmailField(blank=True)
+    email_verified = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    last_authenticated_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "identity_external_identity"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["provider", "subject"], name="identity_unique_provider_subject"
+            ),
+            models.UniqueConstraint(
+                fields=["user", "provider"], name="identity_one_provider_identity_per_user"
+            ),
+        ]
+        indexes = [models.Index(fields=["user", "provider"], name="external_user_provider_idx")]
+
+    def __str__(self) -> str:
+        return f"{self.provider}:{self.user_id}"
 
 
 class UserRole(models.Model):

@@ -40,3 +40,13 @@ class OtpVerifyThrottle(CacheAwareRateThrottle):
 
     def get_cache_key(self, request, view):
         return self.cache_format % {"scope": self.scope, "ident": self.get_ident(request)}
+
+
+class GoogleAuthThrottle(CacheAwareRateThrottle):
+    """Bound public-key verification work and repeated session creation by IP."""
+
+    scope = "google_auth"
+    fail_open = False
+
+    def get_cache_key(self, request, view):
+        return self.cache_format % {"scope": self.scope, "ident": self.get_ident(request)}

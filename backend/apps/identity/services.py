@@ -55,6 +55,8 @@ from .models import (
     ChallengeStatus,
     Device,
     DevicePlatform,
+    ExternalIdentity,
+    ExternalIdentityProvider,
     Profile,
     Role,
     Session,
@@ -120,6 +122,22 @@ class NotAProvider(DomainError):
     message = (
         "This account is not registered as a property provider. "
         "Provider accounts are created at sign-up."
+    )
+
+
+class GoogleLinkRequired(DomainError):
+    """The verified Google email belongs to a separate existing account.
+
+    The Google token proves control of an inbox, not ownership of the Danpa HQ
+    account that happens to contain it. The existing account must authenticate
+    first and deliberately link this Google identity from Settings.
+    """
+
+    code = "GOOGLE_LINK_REQUIRED"
+    status_code = 409
+    message = (
+        "An account already uses this email. Sign in to that account with its "
+        "phone number, then link Google in Security settings."
     )
 
 
@@ -378,6 +396,210 @@ def open_registration_ticket(ticket: str) -> tuple[str, str]:
 
 
 @transaction.atomic
+def authenticate_with_google(
+    *,
+    claims,
+    account_type: str,
+    device_fingerprint: str = "",
+    platform: str = DevicePlatform.WEB,
+    device_label: str = "",
+    app_version: str = "",
+    os_version: str = "",
+    ip_address: str | None = None,
+    user_agent: str = "",
+) -> dict:
+    """Return a normal session for a linked subject, or a registration ticket.
+
+    Email is consulted only to stop an accidental duplicate. It never selects
+    or merges an account; only the provider/subject pair is a login identity.
+    """
+    from .google_identity import (
+        GOOGLE_REGISTRATION_TICKET_TTL_SECONDS,
+        issue_google_registration_ticket,
+    )
+    from .models import AccountType
+
+    if account_type not in AccountType.values:
+        raise ValidationFailed(
+            "Choose whether you are a tenant or a property provider.",
+            details={"fields": {"account_type": ["Choose an account type."]}},
+        )
+
+    identity = (
+        ExternalIdentity.objects.select_for_update()
+        .select_related("user")
+        .filter(provider=ExternalIdentityProvider.GOOGLE, subject=claims.subject)
+        .first()
+    )
+    if identity is not None:
+        user = identity.user
+        if not user.is_active:
+            raise PermissionDenied(
+                "This account is closed. Contact support if you think that is wrong."
+            )
+        if user.is_staff:
+            raise PermissionDenied("Administrative accounts must use the operations sign-in.")
+        if not user.is_registration_complete:
+            raise PermissionDenied("This account was never finished. Contact support.")
+
+        identity.email = claims.email
+        identity.email_verified = True
+        identity.last_authenticated_at = timezone.now()
+        identity.save(
+            update_fields=["email", "email_verified", "last_authenticated_at", "updated_at"]
+        )
+        return _establish_session(
+            user=user,
+            created=False,
+            device_fingerprint=device_fingerprint,
+            platform=platform,
+            device_label=device_label,
+            app_version=app_version,
+            os_version=os_version,
+            ip_address=ip_address,
+            user_agent=user_agent,
+            audit_metadata={"method": "google"},
+        )
+
+    if User.objects.filter(email__iexact=claims.email).exists():
+        raise GoogleLinkRequired()
+
+    return {
+        "registration_required": True,
+        "google_registration_ticket": issue_google_registration_ticket(
+            claims, account_type=account_type
+        ),
+        "expires_in": GOOGLE_REGISTRATION_TICKET_TTL_SECONDS,
+        "profile": {
+            "first_name": claims.first_name,
+            "last_name": claims.last_name,
+            "email": claims.email,
+        },
+    }
+
+
+@transaction.atomic
+def link_google_identity(*, user, claims) -> ExternalIdentity:
+    """Attach a verified Google subject to the authenticated account."""
+    linked = (
+        ExternalIdentity.objects.select_for_update()
+        .filter(provider=ExternalIdentityProvider.GOOGLE, subject=claims.subject)
+        .first()
+    )
+    if linked is not None:
+        if linked.user_id != user.id:
+            raise Conflict("That Google account is already linked to another account.")
+        linked.last_authenticated_at = timezone.now()
+        linked.email = claims.email
+        linked.email_verified = True
+        linked.save(
+            update_fields=["email", "email_verified", "last_authenticated_at", "updated_at"]
+        )
+        return linked
+
+    current = (
+        ExternalIdentity.objects.select_for_update()
+        .filter(user=user, provider=ExternalIdentityProvider.GOOGLE)
+        .first()
+    )
+    if current is not None:
+        raise Conflict("This account already has a different Google account linked.")
+
+    email_owner = User.objects.filter(email__iexact=claims.email).exclude(pk=user.pk).first()
+    if email_owner is not None:
+        raise Conflict(
+            "That Google email belongs to another account. Sign in to that account to link it."
+        )
+
+    identity = ExternalIdentity.objects.create(
+        user=user,
+        provider=ExternalIdentityProvider.GOOGLE,
+        subject=claims.subject,
+        email=claims.email,
+        email_verified=True,
+        last_authenticated_at=timezone.now(),
+    )
+    record(
+        action=AuditAction.UPDATE,
+        aggregate_type="user",
+        aggregate_id=user.id,
+        actor=user,
+        metadata={"google_identity_linked": True},
+    )
+    return identity
+
+
+def start_phone_verification(
+    *, user, raw_phone: str, ip_address: str | None = None, device_fingerprint: str = ""
+) -> AuthChallenge:
+    """Send the existing OTP to add the first phone to a federated account."""
+    phone = normalise_ghana_msisdn(raw_phone)
+    if user.phone and user.is_phone_verified:
+        raise Conflict("This account already has a verified phone number.")
+    if User.objects.filter(phone=phone).exclude(pk=user.pk).exists():
+        raise Conflict("That phone number is already used by another account.")
+
+    other_live = (
+        AuthChallenge.objects.filter(
+            phone=phone,
+            purpose=ChallengePurpose.CHANGE_PHONE,
+            status=ChallengeStatus.PENDING,
+        )
+        .exclude(user=user)
+        .exists()
+    )
+    if other_live:
+        raise Conflict("That number is already being verified. Try again shortly.")
+
+    return start_challenge(
+        raw_phone=phone,
+        purpose=ChallengePurpose.CHANGE_PHONE,
+        ip_address=ip_address,
+        device_fingerprint=device_fingerprint,
+        user=user,
+    )
+
+
+def confirm_phone_verification(*, user, challenge_id, code: str, ip_address: str | None = None):
+    """Attach a proved number without turning the OTP into a login credential."""
+    challenge = verify_challenge(
+        challenge_id=challenge_id,
+        code=code,
+        ip_address=ip_address,
+    )
+    if challenge.purpose != ChallengePurpose.CHANGE_PHONE or challenge.user_id != user.id:
+        raise PermissionDenied("That code does not belong to this account.")
+
+    with transaction.atomic():
+        locked = User.objects.select_for_update().get(pk=user.pk)
+        if locked.phone and locked.is_phone_verified:
+            raise Conflict("This account already has a verified phone number.")
+        if User.objects.filter(phone=challenge.phone).exclude(pk=locked.pk).exists():
+            raise Conflict("That phone number is already used by another account.")
+
+        before = locked.phone
+        locked.phone = challenge.phone
+        locked.is_phone_verified = True
+        locked.phone_verified_at = timezone.now()
+        locked.save(
+            update_fields=["phone", "is_phone_verified", "phone_verified_at", "updated_at"]
+        )
+
+        from apps.trust.services import record_phone_verification
+
+        record_phone_verification(locked, challenge_id=str(challenge.id))
+        record(
+            action=AuditAction.UPDATE,
+            aggregate_type="user",
+            aggregate_id=locked.id,
+            actor=locked,
+            changes={"phone": [bool(before), True], "is_phone_verified": [False, True]},
+            metadata={"phone_added": before is None},
+        )
+    return locked
+
+
+@transaction.atomic
 def complete_sign_in(
     *,
     challenge: AuthChallenge,
@@ -523,9 +745,10 @@ def _establish_session(
     if device_is_new and not created:
         # Only warn on a new device for an existing account: telling a brand-new
         # user their brand-new phone is unrecognised is noise.
-        get_sms_provider().send(
-            to=user.phone, body=messages.new_device_alert(device.label or platform)
-        )
+        if user.phone:
+            get_sms_provider().send(
+                to=user.phone, body=messages.new_device_alert(device.label or platform)
+            )
         emit(
             DomainEvent(
                 "identity.new_device_signed_in.v1",
@@ -938,6 +1161,8 @@ def require_step_up(*, user, action: str, ip_address: str | None = None) -> Auth
     Re-entering a code proves the person holding this session still holds the
     number now. That is exactly what a borrowed unlocked phone does not.
     """
+    if not user.phone or not user.is_phone_verified:
+        raise PermissionDenied("Add and verify a phone number before confirming this action.")
     return start_challenge(
         raw_phone=user.phone,
         purpose=ChallengePurpose.STEP_UP,
@@ -1230,7 +1455,9 @@ def _validate_date_of_birth(value):
 
 
 @transaction.atomic
-def complete_registration(*, user=None, ticket: str = "", data: dict) -> User:
+def complete_registration(
+    *, user=None, ticket: str = "", google_ticket: str = "", data: dict
+) -> User:
     """Create the account: what they came to be, who they are, a credential.
 
     Separate from onboarding on purpose. Onboarding is a product journey someone
@@ -1249,31 +1476,47 @@ def complete_registration(*, user=None, ticket: str = "", data: dict) -> User:
 
     created_now = False
     challenge_id = ""
+    google_registration: dict[str, str] | None = None
 
     if user is None:
-        if not ticket:
-            raise PermissionDenied("Confirm your phone number first.")
-        phone, challenge_id = open_registration_ticket(ticket)
-        existing = User.objects.filter(phone=phone).first()
-        if existing is not None:
-            # Someone finished registering on this number between the ticket
-            # being cut and it being spent. Two tabs, usually.
-            if existing.is_registration_complete:
-                raise AccountExists()
-            user = existing
-        else:
-            # The profile comes from the get_or_create further down, which every
-            # path already goes through.
-            user = User.objects.create_user(
-                phone=phone,
-                is_phone_verified=True,
-                phone_verified_at=timezone.now(),
-            )
+        if google_ticket:
+            from .google_identity import open_google_registration_ticket
+
+            google_registration = open_google_registration_ticket(google_ticket)
+            if ExternalIdentity.objects.filter(
+                provider=ExternalIdentityProvider.GOOGLE,
+                subject=google_registration["subject"],
+            ).exists():
+                raise Conflict("That Google account is already registered. Sign in instead.")
+            if User.objects.filter(email__iexact=google_registration["email"]).exists():
+                raise GoogleLinkRequired()
+            user = User.objects.create_user(phone=None)
             created_now = True
+        else:
+            if not ticket:
+                raise PermissionDenied("Confirm your phone number or Google account first.")
+            phone, challenge_id = open_registration_ticket(ticket)
+            existing = User.objects.filter(phone=phone).first()
+            if existing is not None:
+                # Someone finished registering on this number between the ticket
+                # being cut and it being spent. Two tabs, usually.
+                if existing.is_registration_complete:
+                    raise AccountExists()
+                user = existing
+            else:
+                # The profile comes from the get_or_create further down, which every
+                # path already goes through.
+                user = User.objects.create_user(
+                    phone=phone,
+                    is_phone_verified=True,
+                    phone_verified_at=timezone.now(),
+                )
+                created_now = True
 
     if user.is_registration_complete:
         raise Conflict("This account is already set up.")
-    if not user.is_phone_verified:
+    is_google_registration = google_registration is not None
+    if not is_google_registration and not user.is_phone_verified:
         raise PermissionDenied("Confirm your phone number first.")
 
     # Every problem is collected before anything is raised. A form that reports
@@ -1281,7 +1524,9 @@ def complete_registration(*, user=None, ticket: str = "", data: dict) -> User:
     # which on a slow connection is how a sign-up gets abandoned.
     errors: dict[str, list[str]] = {}
 
-    account_type = data.get("account_type")
+    account_type = (
+        google_registration["account_type"] if google_registration else data.get("account_type")
+    )
     if account_type not in AccountType.values:
         errors["account_type"] = ["Choose whether you are a tenant or a property provider."]
 
@@ -1298,13 +1543,14 @@ def complete_registration(*, user=None, ticket: str = "", data: dict) -> User:
         errors["date_of_birth"] = [date_problem]
 
     email = str(data.get("email") or "").strip().lower()
-    if email and User.objects.filter(email=email).exclude(pk=user.pk).exists():
+    if email and User.objects.filter(email__iexact=email).exclude(pk=user.pk).exists():
         errors["email"] = ["That email address is already in use."]
 
     password = str(data.get("password") or "")
-    password_problems = password_messages(password, user=user)
-    if password_problems:
-        errors["password"] = password_problems
+    if not is_google_registration:
+        password_problems = password_messages(password, user=user)
+        if password_problems:
+            errors["password"] = password_problems
 
     if errors:
         raise ValidationFailed("Some of the details need fixing.", details={"fields": errors})
@@ -1315,25 +1561,42 @@ def complete_registration(*, user=None, ticket: str = "", data: dict) -> User:
     user.preferred_name = str(data.get("preferred_name", "")).strip()
     user.date_of_birth = date_of_birth
     user.email = email or None
-    user.set_password(password)
-    user.save(
-        update_fields=[
-            "account_type",
-            "first_name",
-            "last_name",
-            "preferred_name",
-            "date_of_birth",
-            "email",
-            "password",
-            "updated_at",
-        ]
-    )
+    update_fields = [
+        "account_type",
+        "first_name",
+        "last_name",
+        "preferred_name",
+        "date_of_birth",
+        "email",
+        "password",
+        "updated_at",
+    ]
+    if google_registration:
+        # The Google assertion verifies only the address it carried. If the
+        # person edits it here, the replacement follows the normal email-code
+        # flow later. Phone registrations keep any pre-existing verification
+        # state when an older unfinished account is resumed.
+        user.is_email_verified = bool(email and email == google_registration["email"])
+        update_fields.append("is_email_verified")
+    if not is_google_registration:
+        user.set_password(password)
+    user.save(update_fields=update_fields)
     Profile.objects.get_or_create(user=user)
+
+    if google_registration:
+        ExternalIdentity.objects.create(
+            user=user,
+            provider=ExternalIdentityProvider.GOOGLE,
+            subject=google_registration["subject"],
+            email=google_registration["email"],
+            email_verified=True,
+            last_authenticated_at=timezone.now(),
+        )
 
     # The dated, evidenced record of the number being proved, which used to be
     # written at the OTP step. It belongs to an account, so it waits until there
     # is one.
-    if created_now:
+    if created_now and user.phone:
         record_phone_verification(user, challenge_id=challenge_id)
 
     # Tenant capability is the one that costs nobody anything to hold: everything
@@ -1349,7 +1612,11 @@ def complete_registration(*, user=None, ticket: str = "", data: dict) -> User:
         aggregate_type="user",
         aggregate_id=user.id,
         actor=user,
-        metadata={"registration_completed": True, "account_type": account_type},
+        metadata={
+            "registration_completed": True,
+            "account_type": account_type,
+            "method": "google" if google_registration else "phone",
+        },
     )
     emit(
         DomainEvent(

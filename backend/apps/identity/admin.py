@@ -18,6 +18,7 @@ from .models import (
     AgentProfile,
     AuthChallenge,
     Device,
+    ExternalIdentity,
     LandlordProfile,
     Profile,
     Session,
@@ -47,6 +48,17 @@ class ProfileInline(admin.StackedInline):
     readonly_fields = ("national_id_last4",)
 
 
+class ExternalIdentityInline(admin.TabularInline):
+    model = ExternalIdentity
+    extra = 0
+    can_delete = False
+    fields = ("provider", "email", "email_verified", "created_at", "last_authenticated_at")
+    readonly_fields = fields
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
     ordering = ("-created_at",)
@@ -61,7 +73,7 @@ class UserAdmin(BaseUserAdmin):
     list_filter = ("is_active", "is_staff", "is_phone_verified", "created_at")
     search_fields = ("phone", "email", "first_name", "last_name", "preferred_name")
     readonly_fields = ("created_at", "updated_at", "last_login", "phone_verified_at")
-    inlines = [UserRoleInline, ProfileInline]
+    inlines = [UserRoleInline, ProfileInline, ExternalIdentityInline]
 
     fieldsets = (
         (None, {"fields": ("phone", "email", "password")}),

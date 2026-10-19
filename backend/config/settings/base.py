@@ -377,6 +377,7 @@ REST_FRAMEWORK = {
         "user": "600/min",
         "otp": "5/hour",
         "otp_verify": "30/hour",
+        "google_auth": "30/min",
         "payment": "20/min",
         "payment_webhook": "120/min",
         "access_code_user": "10/min",
@@ -524,6 +525,10 @@ FILE_SCAN_MODE = env("FILE_SCAN_MODE", "strict")
 # break sessions, signed cookies and password reset links.
 OTP_PEPPER = env("OTP_PEPPER", SECRET_KEY)
 ACCESS_TOKEN_KEY = env("ACCESS_TOKEN_KEY", SECRET_KEY)
+# OAuth client identifiers are public identifiers, not secrets. The backend
+# still owns this copy because it is the audience every Google ID token must
+# match; an empty value keeps the feature fail-closed until configured.
+GOOGLE_OAUTH_CLIENT_ID = env("GOOGLE_OAUTH_CLIENT_ID", "")
 NATIONAL_ID_PEPPER = env("NATIONAL_ID_PEPPER", SECRET_KEY)
 UNIT_ACCESS_CODE_PEPPER = env("UNIT_ACCESS_CODE_PEPPER", SECRET_KEY)
 UNIT_ACCESS_CODE_TTL_DAYS = env("UNIT_ACCESS_CODE_TTL_DAYS", 30, cast=int)

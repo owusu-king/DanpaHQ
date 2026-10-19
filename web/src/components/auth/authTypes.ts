@@ -9,6 +9,11 @@ export type AuthParams = {
   next?: string | null;
   /** A number already typed elsewhere, so it is not typed twice. */
   phone?: string;
+  /** In-memory only. Never added to authHref or an address bar. */
+  googleRegistration?: {
+    ticket: string;
+    profile: { first_name: string; last_name: string; email: string };
+  };
 };
 
 export type AuthFlowProps = {

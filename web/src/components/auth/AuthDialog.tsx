@@ -109,6 +109,7 @@ export function AuthLink({
   view,
   params,
   onClick,
+  className,
   children,
   ...rest
 }: {
@@ -121,6 +122,7 @@ export function AuthLink({
     <a
       {...rest}
       href={authHref(view, params)}
+      className={className ? `auth-trigger ${className}` : "auth-trigger"}
       onClick={(event) => {
         onClick?.(event);
         if (event.defaultPrevented || event.button !== 0) return;

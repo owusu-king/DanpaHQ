@@ -51,13 +51,16 @@ export function AuthModal({
   useEffect(() => { closeRef.current = onClose; }, [onClose]);
   const close = () => closeRef.current();
 
-  // Escape closes; the page behind does not scroll; focus starts in the form.
+  // Escape closes; the page behind does not scroll. A fine pointer starts in
+  // the form. On a touch-first device, focus the dialog itself so iOS can paint
+  // it without also having to raise and lay out the software keyboard.
   useEffect(() => {
     const root = document.documentElement;
     const previous = root.style.overflow;
     root.style.overflow = "hidden";
     const first = panel.current?.querySelector<HTMLElement>("input, select, textarea");
-    first?.focus({ preventScroll: true });
+    const touchFirst = window.matchMedia("(pointer: coarse)").matches;
+    (touchFirst ? panel.current : first)?.focus({ preventScroll: true });
     function onKey(event: KeyboardEvent) {
       if (event.key === "Escape" && !event.defaultPrevented) close();
       // Tab stays inside the dialog.
@@ -90,6 +93,7 @@ export function AuthModal({
           role="dialog"
           aria-modal="true"
           aria-labelledby={titleId}
+          tabIndex={-1}
           className="auth-panel"
         >
           <header className="auth-head">

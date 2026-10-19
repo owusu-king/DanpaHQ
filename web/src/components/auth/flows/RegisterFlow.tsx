@@ -4,6 +4,7 @@ import { ArrowLeft, Building2, Check, Home } from "lucide-react";
 import { useState } from "react";
 
 import { AuthModal } from "@/components/auth/AuthModal";
+import { GoogleIdentityButton } from "@/components/auth/GoogleIdentityButton";
 import { authHref, type AuthFlowProps, type AuthParams } from "@/components/auth/authTypes";
 import { Button } from "@/components/Button";
 import { Field } from "@/components/Field";
@@ -19,19 +20,19 @@ import {
 } from "@/lib/formErrors";
 import { markAccountJustCreated, type AccountType } from "@/lib/registration";
 import { safeInternalPath } from "@/lib/safeRedirect";
+import { resolveWebEntry } from "@/lib/navigation";
 import { chooseWorkspace, useSession, type Me } from "@/lib/session";
 
 /**
- * Creating an account: Get Started → how will you use Danpa HQ → who you are →
- * your number → in (owner, 2026-10-07).
+ * Creating an account: Get Started → how will you use Danpa HQ → sign-in
+ * method → who you are → verified credential → in (owner, 2026-10-18).
  *
  * The role is asked first and only once — it is the account type, so the
- * details step never asks it again. Name, date of birth and a password come
- * next and are held here, in this component, while the number is proved. The
- * backend rule is unchanged: proving the number returns a signed ticket and
- * creates nothing, and the account exists only once `/me/registration/` is
- * called with that ticket — which happens the moment the code is right.
- * Closing the dialog anywhere before then leaves nothing behind.
+ * details step never asks it again. Phone sign-up holds the entered details in
+ * this component until the number is proved; Google sign-up holds only the
+ * server-issued, role-bound registration ticket. Neither proof creates an
+ * account by itself: the account exists only after `/me/registration/` accepts
+ * the appropriate ticket. Closing the dialog before then leaves nothing behind.
  *
  * It is one view of the auth dialog, opened over whatever page asked for it;
  * the address never changes. The account made, the welcome follows in the
@@ -44,7 +45,8 @@ import { chooseWorkspace, useSession, type Me } from "@/lib/session";
  */
 const MIN_PASSWORD_LENGTH = 8;
 
-type Step = "role" | "details" | "phone" | "code";
+type Step = "role" | "method" | "details" | "phone" | "code";
+type AuthMethod = "phone" | "google";
 
 const SIDES: Record<AccountType, {
   title: string;
@@ -72,16 +74,22 @@ export function RegisterFlow({ params, go: show, close, land }: AuthFlowProps) {
   // finishes itself from the details step.
   const resuming = state.status === "signed_in" && state.me.registration_state !== "complete";
 
-  const [step, setStep] = useState<Step>(resuming || preselected ? "details" : "role");
+  const googleArrival = params.googleRegistration;
+  const [step, setStep] = useState<Step>(
+    resuming || googleArrival ? "details" : preselected ? "method" : "role",
+  );
+  const [method, setMethod] = useState<AuthMethod | null>(
+    googleArrival ? "google" : resuming ? "phone" : null,
+  );
   const [chosenType, setAccountType] = useState<AccountType | null>(preselected);
   // A resumed account already has a type on file; it is the default until changed.
   const accountType: AccountType | null = chosenType
     ?? (resuming && state.status === "signed_in" ? state.me.capabilities.account_type ?? "tenant" : null);
 
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
+  const [firstName, setFirstName] = useState(googleArrival?.profile.first_name ?? "");
+  const [lastName, setLastName] = useState(googleArrival?.profile.last_name ?? "");
   const [dateOfBirth, setDateOfBirth] = useState("");
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(googleArrival?.profile.email ?? "");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
 
@@ -92,6 +100,7 @@ export function RegisterFlow({ params, go: show, close, land }: AuthFlowProps) {
   const [code, setCode] = useState("");
   // Proof the number was confirmed: once held, the details create the account.
   const [ticket, setTicket] = useState("");
+  const [googleTicket, setGoogleTicket] = useState(googleArrival?.ticket ?? "");
 
   const [busy, setBusy] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -101,7 +110,7 @@ export function RegisterFlow({ params, go: show, close, land }: AuthFlowProps) {
   // Bumped on each refused press, so the form nudges.
   const [refusals, setRefusals] = useState(0);
 
-  const createsHere = Boolean(ticket) || resuming;
+  const createsHere = Boolean(ticket || googleTicket) || resuming;
 
   function signInParams(phoneNumber = ""): AuthParams {
     return { phone: phoneNumber || undefined, workspace: accountType ?? undefined, next: safeNext };
@@ -142,13 +151,15 @@ export function RegisterFlow({ params, go: show, close, land }: AuthFlowProps) {
     if (!firstName.trim()) found.first_name = "Enter your first name.";
     if (!lastName.trim()) found.last_name = "Enter your last name.";
     if (!dateOfBirth) found.date_of_birth = "Enter your date of birth.";
-    if (!password) {
-      found.password = "Choose a password.";
-    } else if (password.length < MIN_PASSWORD_LENGTH) {
-      found.password = `Use at least ${MIN_PASSWORD_LENGTH} characters.`;
-    }
-    if (password && confirm !== password) {
-      found.confirm_password = confirm ? "The two passwords do not match." : "Type the password again.";
+    if (method !== "google") {
+      if (!password) {
+        found.password = "Choose a password.";
+      } else if (password.length < MIN_PASSWORD_LENGTH) {
+        found.password = `Use at least ${MIN_PASSWORD_LENGTH} characters.`;
+      }
+      if (password && confirm !== password) {
+        found.confirm_password = confirm ? "The two passwords do not match." : "Type the password again.";
+      }
     }
     return found;
   }
@@ -163,15 +174,16 @@ export function RegisterFlow({ params, go: show, close, land }: AuthFlowProps) {
     try {
       const body = JSON.stringify({
         registration_ticket: proof || undefined,
+        google_registration_ticket: googleTicket || undefined,
         account_type: accountType,
         first_name: firstName.trim(),
         last_name: lastName.trim(),
         date_of_birth: dateOfBirth,
         email: email.trim() || null,
-        password,
+        password: method === "google" ? undefined : password,
         ...getWebDeviceContext(),
       });
-      const created = proof
+      const created = proof || googleTicket
         ? await apiFetch<{ access_token?: string; expires_in?: number; user?: Me }>(
             "/me/registration/",
             { method: "POST", body },
@@ -200,6 +212,44 @@ export function RegisterFlow({ params, go: show, close, land }: AuthFlowProps) {
     }
   }
 
+  async function continueWithGoogle(credential: string) {
+    if (!accountType) return;
+    setMethod("google");
+    setBusy(true);
+    setError("");
+    try {
+      const result = await apiFetch<{
+        registration_required?: boolean;
+        google_registration_ticket?: string;
+        profile?: { first_name: string; last_name: string; email: string };
+        access_token?: string;
+        expires_in?: number;
+        user?: Me;
+      }>("/auth/google/", {
+        method: "POST",
+        body: JSON.stringify({ credential, account_type: accountType, ...getWebDeviceContext() }),
+      });
+      if (result.registration_required && result.google_registration_ticket && result.profile) {
+        setGoogleTicket(result.google_registration_ticket);
+        setFirstName(result.profile.first_name);
+        setLastName(result.profile.last_name);
+        setEmail(result.profile.email);
+        go("details");
+        return;
+      }
+      if (!result.access_token || !result.user) throw new Error("Incomplete Google response");
+      setAccessToken(result.access_token, result.expires_in ?? 0);
+      let me = result.user;
+      me = await chooseWorkspace(accountType).catch(() => me);
+      await refresh();
+      land(safeNext ?? resolveWebEntry(me));
+    } catch (cause) {
+      setError(cause instanceof ApiFailure ? cause.error.message : "Could not continue with Google.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function submitDetails(event: React.FormEvent) {
     event.preventDefault();
     const problems = localProblems();
@@ -213,7 +263,7 @@ export function RegisterFlow({ params, go: show, close, land }: AuthFlowProps) {
       void createAccount(ticket);
       return;
     }
-    // Nothing is created yet: on to the number.
+    // Nothing is created yet: a phone registration still has to prove its number.
     go("phone");
   }
 
@@ -281,7 +331,7 @@ export function RegisterFlow({ params, go: show, close, land }: AuthFlowProps) {
     }
   }
 
-  const stepNumber = step === "details" ? 1 : step === "phone" ? 2 : 3;
+  const stepNumber = step === "method" ? 1 : step === "details" ? 2 : step === "phone" ? 3 : 4;
   const side = accountType ? SIDES[accountType] : null;
 
   const heading = {
@@ -289,8 +339,14 @@ export function RegisterFlow({ params, go: show, close, land }: AuthFlowProps) {
       title: "How will you use Danpa HQ?",
       description: "Choose one to start. You can add the other side later.",
     },
-    details: createsHere
-      ? { title: "Almost there", description: "Your number is confirmed. Check the details below to finish." }
+    method: {
+      title: "How would you like to continue?",
+      description: "Use Google, or keep using Danpa HQ with your phone number.",
+    },
+    details: googleTicket
+      ? { title: "Complete your profile", description: "Google filled what it could. Check it and add the missing details." }
+      : createsHere
+        ? { title: "Almost there", description: "Your number is confirmed. Check the details below to finish." }
       : { title: "Tell us about you", description: "Just the essentials. Everything else can wait for your profile." },
     phone: {
       title: "Confirm your number",
@@ -305,8 +361,8 @@ export function RegisterFlow({ params, go: show, close, land }: AuthFlowProps) {
   return (
     <AuthModal
       // Back on the details with a proved number is the last step, not the first.
-      eyebrow={step === "role" ? "Get started" : step === "details" && createsHere ? "Last step" : `Step ${stepNumber} of 3`}
-      progress={step === "role" ? undefined : step === "details" && createsHere ? 1 : stepNumber / 3}
+      eyebrow={step === "role" ? "Get started" : step === "details" && createsHere ? "Last step" : `Step ${stepNumber} of 4`}
+      progress={step === "role" ? undefined : step === "details" && createsHere ? 1 : stepNumber / 4}
       title={heading.title}
       description={heading.description}
       onClose={close}
@@ -324,7 +380,7 @@ export function RegisterFlow({ params, go: show, close, land }: AuthFlowProps) {
             className="auth-form"
             onSubmit={(event) => {
               event.preventDefault();
-              if (accountType) go("details");
+              if (accountType) go("method");
             }}
           >
             <div className="auth-roles" role="radiogroup" aria-label="How you will use Danpa HQ">
@@ -371,6 +427,39 @@ export function RegisterFlow({ params, go: show, close, land }: AuthFlowProps) {
           </form>
         ) : null}
 
+        {step === "method" ? (
+          <div className="auth-form">
+            <button type="button" className="auth-back" onClick={() => go("role")}>
+              <ArrowLeft aria-hidden="true" /> Account type
+            </button>
+            {side && accountType ? (
+              <div className={`auth-account is-${accountType}`}>
+                <span className="auth-account-tile" aria-hidden="true"><side.Icon /></span>
+                <span className="auth-account-text">
+                  <small>Continuing as</small>
+                  <strong>{side.title}</strong>
+                </span>
+                <button type="button" className="auth-account-change" onClick={() => go("role")}>Change</button>
+              </div>
+            ) : null}
+            <GoogleIdentityButton onCredential={continueWithGoogle} text="signup_with" busy={busy} />
+            <div className="auth-divider"><span>or</span></div>
+            <Button
+              type="button"
+              variant="secondary"
+              className="auth-submit"
+              onClick={() => {
+                setMethod("phone");
+                go("details");
+              }}
+            >
+              Continue with phone
+            </Button>
+            {error ? <Notice tone="error" title={error} /> : null}
+            <p className="auth-aside">Google accounts can add and verify a phone later from Security settings.</p>
+          </div>
+        ) : null}
+
         {step === "details" ? (
           <form onSubmit={submitDetails} className="auth-form" noValidate>
             {side && accountType ? (
@@ -384,13 +473,17 @@ export function RegisterFlow({ params, go: show, close, land }: AuthFlowProps) {
                   type="button"
                   className="auth-account-change"
                   onClick={() => {
-                    // Before the number is proved, the question is one step back.
-                    // After, going back would lose the proof, so it switches here.
-                    if (createsHere) setAccountType(accountType === "provider" ? "tenant" : "provider");
-                    else go("role");
+                    // A Google registration ticket is bound to the role chosen
+                    // before Google opened. Changing it deliberately discards
+                    // that proof and asks the user to authenticate again.
+                    if (googleTicket) {
+                      setGoogleTicket("");
+                      setMethod(null);
+                    }
+                    go("role");
                   }}
                 >
-                  {createsHere ? `Switch to ${accountType === "provider" ? "tenant" : "provider"}` : "Change"}
+                  Change
                 </button>
               </div>
             ) : null}
@@ -422,40 +515,46 @@ export function RegisterFlow({ params, go: show, close, land }: AuthFlowProps) {
                   autoComplete="bday"
                   hint="Tenancy agreements need an adult on them."
                 />
-                <div className="auth-row">
-                  <Field
-                    label="Password"
-                    type="password"
-                    value={password}
-                    onChange={edit(["password", "confirm_password"], setPassword)}
-                    error={errors.password}
-                    autoComplete="new-password"
-                  />
-                  <Field
-                    label="Confirm password"
-                    type="password"
-                    value={confirm}
-                    onChange={edit(["confirm_password"], setConfirm)}
-                    error={errors.confirm_password}
-                    autoComplete="new-password"
-                  />
-                </div>
-                <ul className="auth-checks" aria-live="polite">
-                  <li className={password.length >= MIN_PASSWORD_LENGTH ? "is-met" : undefined}>
-                    <Check aria-hidden="true" />{MIN_PASSWORD_LENGTH}+ characters
-                  </li>
-                  <li className={confirm && confirm === password ? "is-met" : undefined}>
-                    <Check aria-hidden="true" />Passwords match
-                  </li>
-                </ul>
+                {method !== "google" ? (
+                  <>
+                    <div className="auth-row">
+                      <Field
+                        label="Password"
+                        type="password"
+                        value={password}
+                        onChange={edit(["password", "confirm_password"], setPassword)}
+                        error={errors.password}
+                        autoComplete="new-password"
+                      />
+                      <Field
+                        label="Confirm password"
+                        type="password"
+                        value={confirm}
+                        onChange={edit(["confirm_password"], setConfirm)}
+                        error={errors.confirm_password}
+                        autoComplete="new-password"
+                      />
+                    </div>
+                    <ul className="auth-checks" aria-live="polite">
+                      <li className={password.length >= MIN_PASSWORD_LENGTH ? "is-met" : undefined}>
+                        <Check aria-hidden="true" />{MIN_PASSWORD_LENGTH}+ characters
+                      </li>
+                      <li className={confirm && confirm === password ? "is-met" : undefined}>
+                        <Check aria-hidden="true" />Passwords match
+                      </li>
+                    </ul>
+                  </>
+                ) : null}
                 <Field
-                  label="Email (optional)"
+                  label={method === "google" ? "Email" : "Email (optional)"}
                   type="email"
                   value={email}
                   onChange={edit(["email"], setEmail)}
                   error={errors.email}
                   autoComplete="email"
-                  hint="For receipts and account recovery. You can add it later."
+                  hint={method === "google"
+                    ? "From Google. You can edit it; a changed address will need verification later."
+                    : "For receipts and account recovery. You can add it later."}
                 />
               </div>
             </div>
@@ -471,7 +570,7 @@ export function RegisterFlow({ params, go: show, close, land }: AuthFlowProps) {
             <Button type="submit" className="auth-submit" busy={busy} busyLabel="Creating your account…">
               {createsHere ? "Create account" : "Continue"}
             </Button>
-            {!createsHere ? (
+            {!createsHere && method !== "google" ? (
               <p className="auth-aside">Next, we confirm your phone number. Nothing is created until then.</p>
             ) : null}
           </form>

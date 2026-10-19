@@ -43,6 +43,21 @@ test("pressing Sign in opens the dialog in place, without a navigation", () => {
   }
 });
 
+test("auth opens promptly as a centred dialog on touch devices", () => {
+  const dialog = code(read("src/components/auth/AuthDialog.tsx"));
+  const modal = code(read("src/components/auth/AuthModal.tsx"));
+  const styles = code(read("src/styles/auth.css"));
+
+  assert.match(dialog, /className=\{className \? `auth-trigger \$\{className\}` : "auth-trigger"\}/);
+  assert.match(styles, /\.auth-trigger\s*\{\s*touch-action:\s*manipulation;/);
+  assert.match(styles, /@media \(max-width: 30rem\)[\s\S]*?\.auth-layer\s*\{[\s\S]*?align-items:\s*center;/);
+  assert.doesNotMatch(styles, /@media \(max-width: 30rem\)[\s\S]*?\.auth-layer\s*\{[^}]*align-items:\s*end;/);
+  assert.match(styles, /env\(safe-area-inset-top\)/);
+  assert.match(styles, /\.auth-panel\s*\{[\s\S]*?max-height:\s*100%;[\s\S]*?overflow-y:\s*auto;/);
+  assert.match(modal, /window\.matchMedia\("\(pointer: coarse\)"\)\.matches/);
+  assert.match(modal, /tabIndex=\{-1\}/);
+});
+
 test("the old auth addresses open the dialog once, from outside", () => {
   for (const view of ["sign-in", "register", "forgot-password", "welcome"]) {
     assert.match(code(read(`app/${view}/page.tsx`)), new RegExp(`<AuthEntry view="${view}" />`));

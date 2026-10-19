@@ -38,8 +38,11 @@ from .serializers import (
     ChooseWorkspaceSerializer,
     CompletePasswordResetSerializer,
     CompleteRegistrationSerializer,
+    ConfirmPhoneVerificationSerializer,
     DeviceContextSerializer,
     DeviceSerializer,
+    GoogleCredentialSerializer,
+    GoogleSignInSerializer,
     LandlordProfileSerializer,
     MeSerializer,
     PasswordSignInSerializer,
@@ -47,13 +50,14 @@ from .serializers import (
     SessionSerializer,
     StartChallengeSerializer,
     StartPasswordResetSerializer,
+    StartPhoneVerificationSerializer,
     StartProviderVerificationSerializer,
     TenantProfileSerializer,
     VerifyChallengeSerializer,
     VerifyPasswordResetSerializer,
 )
 from .services import REFRESH_TOKEN_TTL_DAYS
-from .throttling import OtpVerifyThrottle, PhoneNumberThrottle
+from .throttling import GoogleAuthThrottle, OtpVerifyThrottle, PhoneNumberThrottle
 
 
 class StartChallengeView(APIView):
@@ -274,6 +278,47 @@ class PasswordSignInView(APIView):
         )
 
 
+class GoogleSignInView(APIView):
+    """POST /auth/google — verify GIS on the server, then sign in or continue registration."""
+
+    permission_classes = [AllowAny]
+    throttle_classes = [GoogleAuthThrottle]
+
+    def post(self, request):
+        payload = GoogleSignInSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+        data = payload.validated_data
+        ctx = get_context()
+
+        from .google_identity import verify_google_credential
+
+        claims = verify_google_credential(data["credential"])
+        result = services.authenticate_with_google(
+            claims=claims,
+            account_type=data["account_type"],
+            device_fingerprint=data.get("device_fingerprint", ""),
+            platform=data["platform"],
+            device_label=data.get("device_label", ""),
+            app_version=data.get("app_version", ""),
+            os_version=data.get("os_version", ""),
+            ip_address=ctx.ip_address,
+            user_agent=ctx.user_agent,
+        )
+        if result.get("registration_required"):
+            return Response(result)
+
+        return _token_response(
+            request,
+            {
+                "access_token": result["access_token"],
+                "refresh_token": result["refresh_token"],
+                "expires_in": result["expires_in"],
+                "is_new_account": False,
+                "user": MeSerializer(result["user"]).data,
+            },
+        )
+
+
 class StartPasswordResetView(APIView):
     """POST /auth/password-reset — send a recovery code.
 
@@ -412,7 +457,7 @@ class WorkspaceView(APIView):
     not a cancellation, a conversion, or a second account.
     """
 
-    permission_classes = [IsAuthenticated, IsPhoneVerified, IsRegistrationComplete]
+    permission_classes = [IsAuthenticated, IsRegistrationComplete]
 
     def get(self, request):
         capabilities = services.account_capabilities(request.user)
@@ -448,15 +493,17 @@ class CompleteRegistrationView(APIView):
         payload.is_valid(raise_exception=True)
         data = payload.validated_data
         ticket = data.pop("registration_ticket", "")
+        google_ticket = data.pop("google_registration_ticket", "")
         ctx = get_context()
 
         signed_in = getattr(request.user, "is_authenticated", False)
-        if not signed_in and not ticket:
-            raise PermissionDenied("Confirm your phone number before creating an account.")
+        if not signed_in and not ticket and not google_ticket:
+            raise PermissionDenied("Confirm your phone number or Google account first.")
 
         user = services.complete_registration(
             user=request.user if signed_in else None,
             ticket=ticket,
+            google_ticket=google_ticket,
             data=data,
         )
 
@@ -476,7 +523,9 @@ class CompleteRegistrationView(APIView):
             os_version=data.get("os_version", ""),
             ip_address=ctx.ip_address,
             user_agent=ctx.user_agent,
-            audit_metadata={"method": "registration"},
+            audit_metadata={
+                "method": "google_registration" if google_ticket else "registration"
+            },
         )
         return _token_response(
             request,
@@ -488,6 +537,77 @@ class CompleteRegistrationView(APIView):
             },
             status_code=status.HTTP_201_CREATED,
         )
+
+
+class GoogleLinkView(APIView):
+    """POST /me/google — link one verified Google subject to this live session."""
+
+    permission_classes = [IsAuthenticated, IsRegistrationComplete]
+    throttle_classes = [GoogleAuthThrottle]
+
+    def post(self, request):
+        require_live_session(request)
+        payload = GoogleCredentialSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+
+        from .google_identity import verify_google_credential
+
+        claims = verify_google_credential(payload.validated_data["credential"])
+        services.link_google_identity(user=request.user, claims=claims)
+        return Response(MeSerializer(request.user).data)
+
+
+class PhoneVerificationView(APIView):
+    """POST /me/phone — send an OTP to add a phone to a federated account."""
+
+    permission_classes = [IsAuthenticated, IsRegistrationComplete]
+    throttle_classes = [PhoneNumberThrottle]
+
+    def post(self, request):
+        require_live_session(request)
+        payload = StartPhoneVerificationSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+        ctx = get_context()
+        challenge = services.start_phone_verification(
+            user=request.user,
+            raw_phone=payload.validated_data["phone"],
+            ip_address=ctx.ip_address,
+            device_fingerprint=payload.validated_data.get("device_fingerprint", ""),
+        )
+        from apps.core.phone import format_national
+
+        return Response(
+            ChallengeIssuedSerializer(
+                {
+                    "challenge_id": challenge.id,
+                    "phone_display": format_national(challenge.phone),
+                    "expires_in": CODE_TTL_SECONDS,
+                    "resend_in": resend_delay(challenge.send_count),
+                    "attempts_allowed": MAX_VERIFY_ATTEMPTS,
+                }
+            ).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class ConfirmPhoneVerificationView(APIView):
+    """POST /me/phone/verify — attach the number; never create a session."""
+
+    permission_classes = [IsAuthenticated, IsRegistrationComplete]
+    throttle_classes = [OtpVerifyThrottle]
+
+    def post(self, request):
+        require_live_session(request)
+        payload = ConfirmPhoneVerificationSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+        ctx = get_context()
+        user = services.confirm_phone_verification(
+            user=request.user,
+            challenge_id=payload.validated_data["challenge_id"],
+            code=payload.validated_data["code"],
+            ip_address=ctx.ip_address,
+        )
+        return Response(MeSerializer(user).data)
 
 
 class ProviderVerificationView(APIView):
