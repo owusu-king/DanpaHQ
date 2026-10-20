@@ -263,6 +263,7 @@ export function ArtisanProfileScreen() {
             disabled={switching !== null}
           />
         ))}
+        <Row icon="create-outline" label="Edit profile" onPress={() => router.push("/(app)/artisan-profile-edit" as never)} />
         <Row icon="document-text-outline" label="Your artisan application" onPress={() => router.push("/(app)/artisan-application" as never)} />
         <Row icon="notifications-outline" label="Updates" onPress={() => router.push("/(app)/notifications" as never)} />
         <Row icon="key-outline" label="Security" onPress={() => router.push("/(app)/security" as never)} />

@@ -8,8 +8,9 @@ import { listNotifications } from "@/lib/console";
 import { listEnquiries } from "@/lib/sales";
 import { useSession, type Me } from "@/lib/session";
 import { useGlide } from "@/lib/useGlide";
-import { activeHref, enquiriesEntry, portalSections, type PortalSection } from "@/lib/portalNav";
+import { activeHref, artisansEntry, enquiriesEntry, portalSections, type PortalSection } from "@/lib/portalNav";
 
+import { ArtisansSheet, OPEN_ARTISANS, openArtisans, type ArtisansRequest } from "@/components/artisan/ArtisansSheet";
 import { EnquiriesInbox, OPEN_ENQUIRIES, openEnquiries, type EnquiriesRequest } from "@/components/enquiries/EnquiriesInbox";
 
 import { AccountMenu } from "./AccountMenu";
@@ -45,6 +46,8 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
   // The enquiries inbox opens over whatever page is showing, from Enquiries or
   // from anywhere that calls `openEnquiries()` (a notification, a sale page).
   const [inbox, setInbox] = useState<{ open: boolean; request: EnquiriesRequest }>({ open: false, request: {} });
+  // Artisans opens the same way: from its button, or `openArtisans()` anywhere.
+  const [artisans, setArtisans] = useState<{ open: boolean; request: ArtisansRequest }>({ open: false, request: {} });
 
   // `/enquiries` and `/record/enquiry?id=…` are still addresses (notifications and
   // sale pages link to them), but not pages: arriving at one opens the inbox at
@@ -75,6 +78,14 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
     };
     window.addEventListener(OPEN_ENQUIRIES, onOpen);
     return () => window.removeEventListener(OPEN_ENQUIRIES, onOpen);
+  }, []);
+
+  useEffect(() => {
+    const onOpen = (event: Event) => {
+      setArtisans({ open: true, request: (event as CustomEvent<ArtisansRequest>).detail ?? {} });
+    };
+    window.addEventListener(OPEN_ARTISANS, onOpen);
+    return () => window.removeEventListener(OPEN_ARTISANS, onOpen);
   }, []);
 
   // `null` until the stored preference is read. Rendering expanded and then
@@ -289,6 +300,19 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
           </div>
 
           <div className="portal-header-actions">
+            {artisansEntry(me) ? (
+              <button
+                type="button"
+                className="portal-header-support"
+                aria-haspopup="dialog"
+                aria-expanded={artisans.open}
+                aria-label="Artisans"
+                onClick={() => openArtisans()}
+              >
+                <Icon name="hammer" />
+                <span className="portal-header-support-label" aria-hidden="true">Artisans</span>
+              </button>
+            ) : null}
             {enquiries ? (
               <button
                 type="button"
@@ -321,6 +345,13 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
           screen cannot show the Portfolio somebody has just left while the next
           one loads. Page state is about that Portfolio, and it goes with it.
         */}
+        {artisansEntry(me) ? (
+          <ArtisansSheet
+            open={artisans.open}
+            request={artisans.request}
+            onClose={() => setArtisans((current) => ({ ...current, open: false }))}
+          />
+        ) : null}
         <EnquiriesInbox
           open={inbox.open}
           request={inbox.request}

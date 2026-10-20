@@ -234,12 +234,14 @@ test("changing experience and signing out are the last card, and still say what 
 
   assert.match(tab, /\.\.\.\(me\.capabilities\.available_workspaces\.includes\("provider"\)\s*\? \[\{ key: "switch", icon: "swap-horizontal-outline" as const, label: "Switch to managing property", busy: switching === "provider", busyLabel: "Switching…", onPress: \(\) => void switchTo\("provider"\) \}\]/);
   assert.match(more, /\{ key: "switch", icon: "swap-horizontal-outline", label: "Switch to renting", busy: switching === "tenant", busyLabel: "Switching…", onPress: \(\) => void switchTo\("tenant"\) \}/);
-  // Artisan work sits beside the other crossings in both: a switch once the
-  // backend opens it, the application until then. Never a switch on request.
+  // Artisan work sits beside the other crossings in both, and only once the
+  // backend opens it (owner, 2026-10-20). Becoming an artisan is never a Menu
+  // row: Find Artisans is, and the way to apply lives inside it.
   for (const screen of [tab, more]) {
     assert.match(screen, /available_workspaces\.includes\("artisan"\)/);
-    assert.match(screen, /artisanMenuLabel\(me\.capabilities\.artisan\.status, true\), busy: switching === "artisan", busyLabel: "Switching…", onPress: \(\) => void switchTo\("artisan"\)/);
-    assert.match(screen, /artisanMenuLabel\(me\.capabilities\.artisan\.status, false\), onPress: go\("\/\(app\)\/artisan-application"\)/);
+    assert.match(screen, /label: "Switch to artisan work", busy: switching === "artisan", busyLabel: "Switching…", onPress: \(\) => void switchTo\("artisan"\)/);
+    assert.match(screen, /\{ key: "artisans", icon: "hammer-outline", label: "Find Artisans", onPress: go\("\/\(app\)\/artisans"\) \}/);
+    assert.doesNotMatch(screen, /artisan-application|Become an artisan/);
   }
   for (const screen of [tab, more]) {
     assert.match(screen, /key: "leave",\s*items: \[[\s\S]*key: "switch"[\s\S]*\{ key: "sign-out", icon: "log-out-outline", label: "Sign out", danger: true, busy: leaving, busyLabel: "Signing out…", onPress: \(\) => void leave\(\) \}/);

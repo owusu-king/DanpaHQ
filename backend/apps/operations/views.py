@@ -32,6 +32,7 @@ from .permissions import Capability, HasManagementCapability
 from .serializers import (
     ArtisanSuspensionSerializer,
     CaseUpdateSerializer,
+    CertificateDecisionSerializer,
     ConfigurationUpdatesSerializer,
     DecisionSerializer,
     DeviceRestoreSerializer,
@@ -399,6 +400,64 @@ class ArtisanSuspensionView(ManagementAPIView):
         else:
             artisan_services.reinstate(user_id=pk, management_actor=request.user)
         return Response(artisan_services.management_row_for(user_id=pk))
+
+
+class ArtisanCertificatesView(ManagementAPIView):
+    """Certificates artisans added that nobody has checked yet, oldest first."""
+
+    required_capability = Capability.VIEW_VERIFICATIONS
+
+    def get(self, request):
+        from apps.artisan.services import certificates_to_check
+
+        return Response(certificates_to_check(limit=_bounded_limit(request)))
+
+
+class ArtisanCertificateFileView(ManagementAPIView):
+    """A short-lived link to one certificate file, for the person checking it."""
+
+    required_capability = Capability.VIEW_VERIFICATIONS
+
+    def get(self, request, pk):
+        from apps.artisan.services import certificate_file
+        from apps.files.storage import get_storage
+
+        certificate = certificate_file(pk)
+        url = (
+            get_storage()
+            .presign_download(
+                key=certificate.file.storage_key,
+                expires_in=180,
+                filename=certificate.file.original_filename,
+            )
+            .url
+        )
+        record(
+            action=AuditAction.VIEW,
+            aggregate_type="artisan_certificate",
+            aggregate_id=certificate.id,
+            management_actor=request.user,
+        )
+        return Response({"url": url})
+
+
+class ArtisanCertificateDecisionView(ManagementAPIView):
+    """POST /management/artisan-certificates/<id>/decision/ — verified, or not accepted."""
+
+    required_capability = Capability.DECIDE_VERIFICATIONS
+
+    def post(self, request, pk):
+        from apps.artisan.services import decide_certificate
+
+        payload = CertificateDecisionSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+        certificate = decide_certificate(
+            certificate_id=pk,
+            management_actor=request.user,
+            verified=payload.validated_data["verified"],
+            note=payload.validated_data.get("note", ""),
+        )
+        return Response({"id": str(certificate.id), "status": certificate.status})
 
 
 class ProvidersView(ManagementAPIView):

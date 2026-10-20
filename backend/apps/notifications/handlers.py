@@ -1281,3 +1281,36 @@ def on_artisan_reinstated(event) -> None:
         target_type="artisan_application",
         target_id=event.aggregate_id,
     )
+
+
+@subscribe("artisan.certificate_decided.v1")
+def on_artisan_certificate_decided(event) -> None:
+    person = _artisan_person(event)
+    if person is None:
+        return
+    from apps.artisan.models import ArtisanCertificate
+
+    certificate = ArtisanCertificate.objects.filter(id=event.aggregate_id).first()
+    if certificate is None:
+        return
+    trade = certificate.get_trade_display()
+    if event.payload.get("verified"):
+        notify(
+            user=person,
+            kind="artisan.certificate_verified",
+            title=f"Your {trade.lower()} certificate is verified",
+            body="Customers now see it as verified, with today's date, until it expires.",
+            dedupe_key=_key(event, person.id),
+            target_type="artisan_certificate",
+            target_id=certificate.id,
+        )
+        return
+    notify(
+        user=person,
+        kind="artisan.certificate_declined",
+        title=f"Your {trade.lower()} certificate was not accepted",
+        body=certificate.decision_note or "Open your profile to see why.",
+        dedupe_key=_key(event, person.id),
+        target_type="artisan_certificate",
+        target_id=certificate.id,
+    )

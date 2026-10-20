@@ -2,7 +2,6 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useState } from "react";
 
 import { ApiFailure } from "@/api";
-import { artisanMenuLabel } from "@/artisan";
 import { useAuth, type Workspace } from "@/auth";
 import { AuthPrompt } from "@/components/AuthPrompt";
 import { Identity, YouPage, type YouSection } from "@/components/account/YouParts";
@@ -101,6 +100,8 @@ function ProfileTab() {
         { key: "agreements", icon: "document-outline", label: "Agreements", onPress: go("/(app)/leases") },
         // The record of where you have lived, and the links you share it by.
         { key: "passport", icon: "id-card-outline", label: "Housing Passport", onPress: go("/(app)/passport") },
+        // Skilled help for the home: the artisan network, as a sheet.
+        { key: "artisans", icon: "hammer-outline", label: "Find Artisans", onPress: go("/(app)/artisans") },
         // Properties you asked to buy: the conversations a sale starts.
         { key: "enquiries", icon: "chatbubbles-outline", label: "Enquiries", onPress: go("/(app)/enquiries") },
       ],
@@ -121,11 +122,11 @@ function ProfileTab() {
         ...(me.capabilities.available_workspaces.includes("provider")
           ? [{ key: "switch", icon: "swap-horizontal-outline" as const, label: "Switch to managing property", busy: switching === "provider", busyLabel: "Switching…", onPress: () => void switchTo("provider") }]
           : []),
-        // Artisan work: a switch once approved, the application until then.
-        // Applying moves nobody — this row only leads to the form.
-        artisanOpen
-          ? { key: "artisan", icon: "hammer-outline", label: artisanMenuLabel(me.capabilities.artisan.status, true), busy: switching === "artisan", busyLabel: "Switching…", onPress: () => void switchTo("artisan") }
-          : { key: "artisan", icon: "hammer-outline", label: artisanMenuLabel(me.capabilities.artisan.status, false), onPress: go("/(app)/artisan-application") },
+        // The way into artisan work, once there is one. Becoming an artisan is
+        // never offered here: it is a quiet link inside Find Artisans.
+        ...(artisanOpen
+          ? [{ key: "artisan", icon: "hammer-outline" as const, label: "Switch to artisan work", busy: switching === "artisan", busyLabel: "Switching…", onPress: () => void switchTo("artisan") }]
+          : []),
         { key: "sign-out", icon: "log-out-outline", label: "Sign out", danger: true, busy: leaving, busyLabel: "Signing out…", onPress: () => void leave() },
       ],
     },

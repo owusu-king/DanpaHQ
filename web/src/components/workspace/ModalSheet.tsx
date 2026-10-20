@@ -34,6 +34,7 @@ export function ModalSheet({
   onBack,
   backLabel = "Back",
   viewKey,
+  headerAction,
   children,
   footer,
 }: {
@@ -54,6 +55,8 @@ export function ModalSheet({
   backLabel?: string;
   /** Changes with the view, so the header's words cross-fade rather than swap. */
   viewKey?: string;
+  /** A quiet link beside the close button — a way somewhere related, never the main act. */
+  headerAction?: ReactNode;
   children: ReactNode | ((close: () => void) => ReactNode);
   footer?: (close: () => void) => ReactNode;
 }) {
@@ -137,6 +140,7 @@ export function ModalSheet({
             <h2 id={labelId}>{title}</h2>
             {meta ? <p>{meta}</p> : null}
           </div>
+          {headerAction ? <div className="doc-modal-head-action">{headerAction}</div> : null}
           <button type="button" className="doc-modal-close" aria-label={closeLabel} onClick={requestClose}><Icon name="close" /></button>
         </header>
         <div className="doc-modal-body" aria-busy={bodyBusy || undefined}>

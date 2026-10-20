@@ -53,3 +53,29 @@ third experience.
   on this in later phases; none of them adds a status to maintenance.
 - A notification topic, "Artisan work", lets a person mute these alerts;
   decisions on the application are important and also go by SMS.
+
+## Phase 2: profiles, certificates and Discover (20 October 2026)
+
+- **Discover** (`GET /artisans/`) lists approved, unsuspended artisans other than
+  the person asking, filtered by trade and district, with a Certified filter.
+  The one ordering rule is stated: artisans with a current verified certificate
+  (in the chosen trade, when one is chosen) come first.
+- **Electrical** lists only artisans with a current verified electrical
+  certificate unless the request opts in (`show_uncertified`), and reports how
+  many it held back so the choice is informed. A certificate in another trade
+  says nothing about wiring.
+- **A listing or profile** carries facts only — ID checked, certificates and
+  their status, jobs completed here, reviews — and never a phone number, an
+  address or a certificate's file. Customers reach an artisan by inviting a
+  quote (Phase 3), which Danpa HQ records.
+- **Certificates** are checked by Management (`DECIDE_VERIFICATIONS`): verified
+  with the date, or not accepted with a note the artisan reads. A declined
+  certificate is never shown publicly. Describing a certificate differently
+  clears its check. Status is computed, so expiry needs no sweep.
+- **Profile editing** (`PUT /me/artisan/profile/`) is for approved artisans,
+  suspended included, and starts no new review; a suspended artisan is not
+  listed, so nobody sees an edit until they are reinstated.
+- **One entry point**: web's top bar opens an Artisans sheet (Find, Requests,
+  Records) over the current page, from a button or `openArtisans()`; mobile
+  opens the same as a modal from the Services tile (tenants) and More
+  (providers). Requests and Records fill in with Phases 3–5.

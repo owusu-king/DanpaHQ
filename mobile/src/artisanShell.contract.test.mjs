@@ -78,10 +78,37 @@ test("the application never switches anybody, and only an open experience offers
   assert.equal((screen.match(/chooseWorkspace\(/g) ?? []).length, 1);
   assert.match(screen, /const open = status === "approved" \|\| status === "suspended";/);
   assert.match(screen, /\{open && !inside \? \(\s*<AuthAction label="Switch to artisan work"/);
-  // An ID is asked for only when Danpa HQ holds none; certificates are optional.
-  assert.match(screen, /const needsId = !application\.identity_on_file;/);
-  assert.match(screen, /title="Certificates \(optional\)"/);
+  assert.match(screen, /<ArtisanApplicationForm\s/);
+
+  const form = code(read("src/components/artisan/ArtisanApplicationForm.tsx"));
+  // An ID is asked for only when applying and Danpa HQ holds none; certificates are optional.
+  assert.match(form, /const needsId = mode === "apply" && !application\.identity_on_file;/);
+  assert.match(form, /title="Certificates \(optional\)"/);
+  // Editing saves the profile; it never re-applies.
+  assert.match(form, /mode === "edit"\s*\? await updateArtisanProfile\(fields\)\s*: await applyAsArtisan\(\{ \.\.\.fields, identity_documents: identity \}\)/);
   // Payment wording: a connector, not a guarantor.
-  assert.match(screen, /Customers pay you directly; Danpa HQ does not hold or move the money\./);
+  assert.match(form, /Customers pay you directly; Danpa HQ does not hold or move the money\./);
+  for (const source of [screen, form]) assert.doesNotMatch(source, /Trusted|Guaranteed|Payment protected/);
+});
+
+test("tenants reach Artisans from Services and providers from More, as a sheet", () => {
+  const stack = code(read("app/(app)/_layout.tsx"));
+  assert.match(stack, /<Stack\.Screen name="artisans" options=\{\{ title: "Artisans", presentation: "modal", headerLeft: closeHeaderLeft \}\} \/>/);
+  assert.match(code(read("app/(app)/(provider-tabs)/more.tsx")), /\{ key: "artisans", icon: "hammer-outline", label: "Find Artisans", onPress: go\("\/\(app\)\/artisans"\) \}/);
+  // Becoming one is a quiet header link inside it, gone once approved.
+  const sheet = code(read("app/(app)/artisans.tsx"));
+  assert.match(sheet, /const becomeLabel = !artisan \|\| artisan\.workspace_access\s*\? null/);
+  assert.match(sheet, /onPress=\{\(\) => router\.push\("\/\(app\)\/artisan-application" as never\)\}/);
+  // Inside it, three tabs — never new tabs in the bar.
+  const screen = code(read("app/(app)/artisans.tsx"));
+  assert.match(screen, /\{ key: "find", label: "Find" \},\s*\{ key: "requests", label: "Requests" \},\s*\{ key: "records", label: "Records" \},/);
+});
+
+test("electrical work shows only certified electricians until the person asks for the rest", () => {
+  const screen = code(read("app/(app)/artisans.tsx"));
+  assert.match(screen, /Wiring work needs a certified professional/);
+  assert.match(screen, /discoverArtisans\(\{ trade, district, certified, showUncertified \}\)/);
+  assert.match(screen, /onPress=\{\(\) => setShowUncertified\(true\)\}/);
+  assert.match(screen, /if \(seenTrade !== trade\) \{\s*setSeenTrade\(trade\);\s*setShowUncertified\(false\);/);
   assert.doesNotMatch(screen, /Trusted|Guaranteed|Payment protected/);
 });

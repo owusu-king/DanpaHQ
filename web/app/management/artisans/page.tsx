@@ -20,6 +20,17 @@ type ArtisanRow = {
   suspended_reason: string;
 };
 
+type CertificateRow = {
+  id: string;
+  user_id: string;
+  artisan: string;
+  trade: string;
+  issuing_body: string;
+  expires_on: string | null;
+  status: string;
+  added_at: string;
+};
+
 const FILTERS = [
   { value: "", label: "All" },
   { value: "pending", label: "Pending" },
@@ -65,11 +76,85 @@ export default function ArtisansPage() {
   }
 
   const rows = resource.data ?? [];
+  const certificates = useResource<CertificateRow[]>("/artisan-certificates/");
+  const [declining, setDeclining] = useState<CertificateRow | null>(null);
+  const [declineNote, setDeclineNote] = useState("");
+
+  async function viewCertificate(row: CertificateRow) {
+    setError("");
+    try {
+      const { url } = await managementFetch<{ url: string }>(`/artisan-certificates/${row.id}/file/`);
+      window.open(url, "_blank", "noopener");
+    } catch (cause) {
+      setError(cause instanceof ManagementFailure ? cause.message : "Could not open this certificate.");
+    }
+  }
+
+  async function decideCertificate(row: CertificateRow, verified: boolean, note = "") {
+    setError("");
+    setMessage("");
+    try {
+      await managementFetch(`/artisan-certificates/${row.id}/decision/`, {
+        method: "POST",
+        body: JSON.stringify({ verified, note }),
+      });
+      setMessage(verified ? `${row.trade} certificate verified for ${row.artisan}.` : "Certificate not accepted. The artisan has been told why.");
+      setDeclining(null);
+      setDeclineNote("");
+      await certificates.reload();
+    } catch (cause) {
+      setError(cause instanceof ManagementFailure ? cause.message : "Could not record this decision.");
+    }
+  }
 
   return (
     <>
       <PageHeader eyebrow="Artisan network" title="Artisans" description="Every artisan application and where it stands. Decide applications in the verification queue; suspend or reinstate approved artisans here." />
       <Feedback error={error || resource.error} success={message} />
+      <Panel title="Certificates to check" meta={`${certificates.data?.length ?? 0} waiting`}>
+        {certificates.data?.length ? (
+          <DataTable label="Certificates waiting to be checked">
+            <thead><tr><th>Artisan</th><th>Certificate</th><th>Expires</th><th>Added</th><th>Action</th></tr></thead>
+            <tbody>{certificates.data.map((row) => (
+              <tr key={row.id}>
+                <td><strong>{row.artisan}</strong></td>
+                <td>{row.trade}<span className="management-subtext">{row.issuing_body}</span></td>
+                <td>{row.expires_on ? formatDate(row.expires_on) : "Does not expire"}</td>
+                <td>{formatDate(row.added_at)}</td>
+                <td>
+                  <div className="management-actions">
+                    <button className="management-button" onClick={() => void viewCertificate(row)}>View</button>
+                    {can("decide_verifications") ? (
+                      <>
+                        <button className="management-button primary" onClick={() => void decideCertificate(row, true)}>Verify</button>
+                        <button className="management-button danger" onClick={() => { setDeclining(row); setDeclineNote(""); }}>Not accepted</button>
+                      </>
+                    ) : null}
+                  </div>
+                </td>
+              </tr>
+            ))}</tbody>
+          </DataTable>
+        ) : certificates.loading ? null : (
+          <Empty message="No certificates are waiting to be checked." />
+        )}
+      </Panel>
+      {declining ? (
+        <Panel title={`Not accepting ${declining.artisan}'s ${declining.trade.toLowerCase()} certificate`}>
+          <div className="management-form">
+            <label>
+              Reason the artisan will read
+              <textarea value={declineNote} onChange={(event) => setDeclineNote(event.target.value)} placeholder="Say what was wrong and what they can send instead." />
+            </label>
+            <div className="management-form-actions">
+              <button className="management-button danger" disabled={!declineNote.trim()} onClick={() => void decideCertificate(declining, false, declineNote)}>
+                Record not accepted
+              </button>
+              <button className="management-button" onClick={() => setDeclining(null)}>Cancel</button>
+            </div>
+          </div>
+        </Panel>
+      ) : null}
       <div className="management-form-actions" role="group" aria-label="Filter by status">
         {FILTERS.map((option) => (
           <button

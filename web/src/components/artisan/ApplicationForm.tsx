@@ -1,6 +1,6 @@
 "use client";
 
-import { BookOpen, Car, CreditCard, FileBadge, ImagePlus, MapPin, Plus, Wallet, X } from "lucide-react";
+import { BookOpen, Car, CreditCard, FileBadge, ImagePlus, MapPin, Plus, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/Button";
@@ -11,7 +11,10 @@ import {
   MAX_DISTRICTS,
   MAX_WORK_PHOTOS,
   MIN_WORK_PHOTOS,
+  CERTIFICATE_LABEL,
   applyAsArtisan,
+  updateArtisanProfile,
+  type ArtisanCertificate,
   listDistricts,
   type ArtisanApplication,
   type District,
@@ -39,6 +42,9 @@ const ID_TYPES = [
 type Photo = { key: string; fileId?: string; file?: File; url: string | null };
 type Certificate = {
   key: string;
+  /** Where Management's check stands, for a certificate already on file. */
+  status?: ArtisanCertificate["status"];
+  note?: string;
   fileId?: string;
   file?: File;
   fileName: string;
@@ -53,9 +59,12 @@ const nextKey = () => `k${++sequence}`;
 export function ApplicationForm({
   application,
   onSent,
+  mode = "apply",
 }: {
   application: ArtisanApplication;
   onSent: (next: ArtisanApplication) => void;
+  /** `edit`: an approved artisan keeping their profile current — no ID, no new review. */
+  mode?: "apply" | "edit";
 }) {
   const profile = application.profile;
   const [trades, setTrades] = useState<string[]>(profile?.trades.map((trade) => trade.value) ?? []);
@@ -73,6 +82,8 @@ export function ApplicationForm({
       key: nextKey(),
       fileId: certificate.file_id,
       fileName: `${certificate.trade_label} certificate`,
+      status: certificate.status,
+      note: certificate.decision_note ?? "",
       trade: certificate.trade,
       issuingBody: certificate.issuing_body,
       expiresOn: certificate.expires_on ?? "",
@@ -98,7 +109,7 @@ export function ApplicationForm({
     setPhotos((current) => current.filter((row) => row.key !== photo.key));
   }
 
-  const needsId = !application.identity_on_file;
+  const needsId = mode === "apply" && !application.identity_on_file;
   const missing = {
     trades: trades.length === 0,
     districts: districts.length === 0,
@@ -165,15 +176,17 @@ export function ApplicationForm({
           expires_on: row.expiresOn || null,
         });
       }
-      setBusy("Sending your application…");
-      const next = await applyAsArtisan({
+      const fields = {
         trades,
         district_ids: districts.map((district) => district.id),
         bio: bio.trim(),
         portfolio_file_ids: portfolio,
-        identity_documents: identity,
         certificates: certificateRows,
-      });
+      };
+      setBusy(mode === "edit" ? "Saving your profile…" : "Sending your application…");
+      const next = mode === "edit"
+        ? await updateArtisanProfile(fields)
+        : await applyAsArtisan({ ...fields, identity_documents: identity });
       onSent(next);
     } catch (cause) {
       setError(
@@ -197,7 +210,7 @@ export function ApplicationForm({
           <span className="art-step-number" aria-hidden="true">1</span>
           <div>
             <h2 id="art-trades">What you do</h2>
-            <p>Choose every trade you take work in.</p>
+            <p>Pick every trade you take on.</p>
           </div>
         </header>
         <div className="art-chips" role="group" aria-label="Trades">
@@ -221,7 +234,7 @@ export function ApplicationForm({
           <span className="art-step-number" aria-hidden="true">2</span>
           <div>
             <h2 id="art-area">Where you work</h2>
-            <p>The districts you will travel to. Customers see the area you cover, never your address.</p>
+            <p>Customers see the area, never your address.</p>
           </div>
         </header>
         <DistrictPicker selected={districts} onChange={setDistricts} />
@@ -233,10 +246,7 @@ export function ApplicationForm({
           <span className="art-step-number" aria-hidden="true">3</span>
           <div>
             <h2 id="art-work">Your work</h2>
-            <p>
-              Up to {MAX_WORK_PHOTOS} photos of jobs you have finished, and a few words about how you
-              work. Photos are optimised on your device before they upload.
-            </p>
+            <p>Up to {MAX_WORK_PHOTOS} photos of finished jobs.</p>
           </div>
         </header>
         <div className="art-photos">
@@ -281,7 +291,7 @@ export function ApplicationForm({
             rows={3}
             maxLength={600}
             value={bio}
-            placeholder="How long you have done this, the kind of jobs you take on, and anything a customer should know."
+            placeholder="Experience, the jobs you take on, anything a customer should know."
             onChange={(event) => setBio(event.target.value)}
           />
         </div>
@@ -293,7 +303,7 @@ export function ApplicationForm({
             <span className="art-step-number" aria-hidden="true">4</span>
             <div>
               <h2 id="art-id">Your ID</h2>
-              <p>A clear photo of a current government ID. Only Danpa HQ&apos;s review team sees it.</p>
+              <p>Ghana Card, passport or driver&apos;s licence. Only our review team sees it.</p>
             </div>
           </header>
           <div className="pv-types" role="radiogroup" aria-label="Document type">
@@ -326,11 +336,11 @@ export function ApplicationForm({
           </label>
           {attempted && missing.id ? <p className="art-missing" role="alert">Add a photo of your ID.</p> : null}
         </section>
-      ) : (
+      ) : mode === "edit" ? null : (
         <Notice
           tone="success"
           title="Your ID is already on file"
-          body="Danpa HQ checked your identity before, so there is nothing to upload here."
+          body="Nothing to upload here."
         />
       )}
 
@@ -339,10 +349,7 @@ export function ApplicationForm({
           <span className="art-step-number is-optional" aria-hidden="true">+</span>
           <div>
             <h2 id="art-certificates">Certificates <span className="art-optional">optional</span></h2>
-            <p>
-              Any trade certificate you hold. It shows as “Certificate provided” until our team checks
-              it, then as verified with the date.
-            </p>
+            <p>Shown as provided until we check it, then verified with the date.</p>
           </div>
         </header>
         {certificates.map((row, index) => (
@@ -350,6 +357,9 @@ export function ApplicationForm({
             <div className="art-certificate-file">
               <FileBadge aria-hidden="true" />
               <span>{row.fileName}</span>
+              {row.status ? (
+                <span className={`art-cert-status is-${row.status}`}>{CERTIFICATE_LABEL[row.status]}</span>
+              ) : null}
               <button
                 type="button"
                 className="art-certificate-remove"
@@ -359,6 +369,9 @@ export function ApplicationForm({
                 <X aria-hidden="true" />
               </button>
             </div>
+            {row.status === "declined" && row.note ? (
+              <p className="art-certificate-note">Not accepted: {row.note} Remove it, or add a current certificate.</p>
+            ) : null}
             <div className="art-certificate-fields">
               <label className="art-select">
                 <span className="type-caption field-label">Trade</span>
@@ -420,17 +433,9 @@ export function ApplicationForm({
         ) : null}
       </section>
 
-      <aside className="art-terms">
-        <Wallet aria-hidden="true" />
-        <p>
-          Danpa HQ connects you with customers and keeps a record of each job. Customers pay you
-          directly; Danpa HQ does not hold or move the money.
-        </p>
-      </aside>
-
       <div className="art-submit">
         <Button type="submit" busy={Boolean(busy)} busyLabel={busy || "Sending…"}>
-          Send application
+          {mode === "edit" ? "Save profile" : "Send application"}
         </Button>
         {attempted && !ready ? <span className="art-missing">Some parts above still need you.</span> : null}
       </div>
@@ -442,7 +447,21 @@ export function ApplicationForm({
  * Districts, found by typing. All of them load once — the government's list is
  * a few hundred short rows, smaller than one of the photographs on this page.
  */
-function DistrictPicker({ selected, onChange }: { selected: District[]; onChange: (next: District[]) => void }) {
+export function DistrictPicker({
+  selected,
+  onChange,
+  max = MAX_DISTRICTS,
+  label = "Add a district",
+  chosenLabel = "Districts you work in",
+  placeholder = "Type a district, for example Ayawaso or Kumasi",
+}: {
+  selected: District[];
+  onChange: (next: District[]) => void;
+  max?: number;
+  label?: string;
+  chosenLabel?: string;
+  placeholder?: string;
+}) {
   const [all, setAll] = useState<District[] | null>(null);
   const [query, setQuery] = useState("");
   const [failed, setFailed] = useState(false);
@@ -461,12 +480,12 @@ function DistrictPicker({ selected, onChange }: { selected: District[]; onChange
       .slice(0, 8);
   }, [all, query, selected]);
 
-  const full = selected.length >= MAX_DISTRICTS;
+  const full = selected.length >= max;
 
   return (
     <div className="art-districts">
       {selected.length ? (
-        <ul className="art-chosen" aria-label="Districts you work in">
+        <ul className="art-chosen" aria-label={chosenLabel}>
           {selected.map((district) => (
             <li key={district.id}>
               <MapPin aria-hidden="true" />
@@ -485,10 +504,10 @@ function DistrictPicker({ selected, onChange }: { selected: District[]; onChange
       {failed ? <Notice tone="error" title="Could not load the list of districts. Reload the page to try again." /> : null}
       {!full ? (
         <Field
-          label="Add a district"
+          label={label}
           value={query}
-          placeholder="Type a district, for example Ayawaso or Kumasi"
-          hint={`Up to ${MAX_DISTRICTS}`}
+          placeholder={placeholder}
+          hint={max > 1 ? `Up to ${max}` : undefined}
           onChange={(event) => setQuery(event.target.value)}
         />
       ) : null}

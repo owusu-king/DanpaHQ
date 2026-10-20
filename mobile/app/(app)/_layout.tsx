@@ -28,6 +28,10 @@ export default function AppLayout() {
       {/* Applying to work as an artisan, from any experience. It draws its own
           amber hero, as the provider screen draws its green one. */}
       <Stack.Screen name="artisan-application" options={{ title: "Artisan application", headerShown: false }} />
+      {/* The artisan network for tenants and providers: a sheet over the screen
+          that asked for it, with Find, Requests and Records inside. */}
+      <Stack.Screen name="artisans" options={{ title: "Artisans", presentation: "modal", headerLeft: closeHeaderLeft }} />
+      <Stack.Screen name="artisan-profile-edit" options={{ title: "Edit profile" }} />
       <Stack.Screen name="search" options={{ title: "Find a place" }} />
       <Stack.Screen name="saved" options={{ title: "Saved places" }} />
       <Stack.Screen name="notifications" options={{ title: "Updates" }} />

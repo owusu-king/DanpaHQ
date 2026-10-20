@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import {
   activeHref,
+  artisansEntry,
   enquiriesEntry,
   isPortalRoute,
   isSharedListingRoute,
@@ -249,4 +250,17 @@ test("an applicant is not given the artisan experience by asking for it", () => 
 
   assert.ok(!hrefs(me).some((href) => href.startsWith("/artisan")));
   assert.ok(hrefs(me).includes("/rentals"));
+});
+
+test("tenants and approved providers can open Artisans; artisans and providers in review cannot", () => {
+  assert.equal(artisansEntry(account()), true);
+  assert.equal(artisansEntry(account({ workspace: "provider", exists: true, workspaceAccess: true })), true);
+  assert.equal(artisansEntry(account({ workspace: "provider", exists: true, workspaceAccess: false })), false);
+  assert.equal(
+    artisansEntry(account({
+      workspace: "artisan",
+      artisan: { status: "approved", workspace_access: true, can_quote: true },
+    })),
+    false,
+  );
 });

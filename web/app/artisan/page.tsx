@@ -1,14 +1,14 @@
 "use client";
 
-import { AlertCircle, CircleCheck, Hammer, PauseCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 import { ApplicationForm } from "@/components/artisan/ApplicationForm";
 import { ArtisanFacts } from "@/components/artisan/ArtisanFacts";
 import { VerificationTrack, type TrackStop } from "@/components/auth/VerificationTrack";
-import { Button } from "@/components/Button";
 import { Notice } from "@/components/Notice";
+import { Icon } from "@/components/portal/icons";
+import { PanelSkeleton, WorkspaceHead } from "@/components/workspace/Workspace";
 import { ApiFailure } from "@/lib/api";
 import {
   ARTISAN_STATUS_LOOK,
@@ -22,33 +22,28 @@ import { chooseWorkspace, useSession, type ArtisanStatus } from "@/lib/session";
 /**
  * Becoming an artisan — the application, and where it stands.
  *
- * Reached from the account menu in whichever experience somebody is in, and it
- * leaves them there: nothing on this page switches experience except the one
- * button an approved artisan presses themselves. Every state is read from the
- * backend; the page never decides for itself that the experience is open.
+ * Reached from the Artisans sheet's quiet "Become an artisan?" link, never
+ * pushed from a menu. It leaves people in the experience they were in: the only
+ * switch is the button an approved artisan presses themselves. The page is the
+ * shared workspace column — the form in the main column, where it stands and
+ * how it works in the aside — and every state is read from the backend.
  */
 function stops(status: ArtisanStatus): TrackStop[] {
   const sent = status !== "not_started";
   const refused = ["needs_more_info", "rejected", "revoked"].includes(status);
   const open = status === "approved" || status === "suspended";
   return [
-    {
-      state: refused ? "attention" : sent ? "done" : "next",
-      label: refused ? "Update your application" : "Apply",
-      detail: refused ? "Read the note from the review" : "Trades, area and photos of your work",
-    },
-    {
-      state: open ? "done" : status === "pending" ? "waiting" : "later",
-      label: status === "pending" ? "Under review" : "We review it",
-      detail: status === "pending" ? "We will let you know the outcome" : "Your account carries on as it is meanwhile",
-    },
-    {
-      state: open ? "done" : "later",
-      label: "The artisan experience opens",
-      detail: "Quote requests, jobs and your profile, in their own place",
-    },
+    { state: refused ? "attention" : sent ? "done" : "next", label: refused ? "Update and resend" : "Apply" },
+    { state: open ? "done" : status === "pending" ? "waiting" : "later", label: status === "pending" ? "Under review" : "Review" },
+    { state: open ? "done" : "later", label: "Artisan experience opens" },
   ];
 }
+
+const HOW = [
+  { icon: "receipt", text: "Customers invite you to quote. You see the area and the job." },
+  { icon: "lock", text: "The address and a contact open once your quote is approved." },
+  { icon: "wrench", text: "Finish, add photos, and the job joins your record." },
+] as const;
 
 export default function ArtisanApplicationPage() {
   const router = useRouter();
@@ -84,78 +79,46 @@ export default function ArtisanApplicationPage() {
 
   const status = application?.status ?? "not_started";
   const look = ARTISAN_STATUS_LOOK[status];
-  const PillIcon = status === "approved" ? CircleCheck : status === "suspended" ? PauseCircle : status === "pending" ? null : status === "not_started" ? Hammer : AlertCircle;
+  const open = status === "approved" || status === "suspended";
+  const inside = state.status === "signed_in" && state.me.capabilities.active_workspace === "artisan";
 
   return (
-    <div className="pv art">
-      <header className="pv-hero art-hero">
-        {application ? (
-          <span className={`pv-pill ${look.tone}`}>
-            {PillIcon ? <PillIcon aria-hidden="true" /> : <span className="pv-pulse" aria-hidden="true" />}
-            {look.pill}
-          </span>
+    <div className="ws-page art-apply">
+      <WorkspaceHead
+        icon="hammer"
+        title={application ? look.title : "Become an artisan"}
+        summary={application ? (
+          <>
+            <span className={`art-status ${look.tone}`}>{look.pill}</span>
+            <span className="ws-summary-sep" aria-hidden="true">·</span>
+            {look.line}
+          </>
         ) : null}
-        <h1>{application ? look.title : "Work as an artisan"}</h1>
-        <p>{application ? look.line : "Checking where your application stands…"}</p>
-        <span className="art-hero-mark" aria-hidden="true"><Hammer /></span>
-      </header>
+        actions={open && !inside ? (
+          <button type="button" className="ws-action is-primary" onClick={() => void enter()} disabled={switching}>
+            <Icon name="hammer" />
+            {switching ? "Opening…" : "Switch to artisan experience"}
+          </button>
+        ) : null}
+      />
 
       {error ? <Notice tone="error" title={error} /> : null}
 
-      {application ? (
-        <>
-          <div className="pv-grid art-grid">
-            <section className="pv-card" aria-labelledby="art-where">
-              <h2 id="art-where">Where you are</h2>
-              {justSent && status === "pending" ? (
-                <div className="pv-sent" role="status">
-                  <div className="auth-success" aria-hidden="true">
-                    <span className="auth-success-ring" />
-                    <span className="auth-success-disc"><CircleCheck /></span>
-                  </div>
-                  <strong>Application sent</strong>
-                  <small>It is with our team. Your account carries on exactly as it was meanwhile.</small>
-                </div>
-              ) : null}
-              {application.decision_note ? (
-                <Notice
-                  tone={status === "needs_more_info" ? "warning" : "error"}
-                  title="From the review"
-                  body={application.decision_note}
-                />
-              ) : null}
-              {status === "suspended" && application.suspended_reason ? (
-                <Notice tone="warning" title="Why your account is suspended" body={application.suspended_reason} />
-              ) : null}
-              <VerificationTrack stops={stops(status)} />
-              {(application.status === "approved" || application.status === "suspended")
-                && !(state.status === "signed_in" && state.me.capabilities.active_workspace === "artisan") ? (
-                <Button onClick={() => void enter()} busy={switching} busyLabel="Opening…">
-                  Switch to artisan experience
-                </Button>
-              ) : null}
-            </section>
+      <div className="art-apply-layout">
+        <div className="art-apply-main">
+          {justSent && status === "pending" ? (
+            <Notice tone="success" title="Application sent" body="We'll let you know the outcome. Your account carries on as it was." />
+          ) : null}
+          {application?.decision_note ? (
+            <Notice tone={status === "needs_more_info" ? "warning" : "error"} title="From the review" body={application.decision_note} />
+          ) : null}
+          {status === "suspended" && application?.suspended_reason ? (
+            <Notice tone="warning" title="Why your account is suspended" body={application.suspended_reason} />
+          ) : null}
 
-            <section className="pv-card art-how" aria-labelledby="art-how">
-              <h2 id="art-how">How it works</h2>
-              <ol className="art-how-list">
-                <li>
-                  <strong>Tenants and property providers invite you to quote</strong>
-                  <span>You see the area and what needs doing. The exact address and a contact open only once your quote is approved.</span>
-                </li>
-                <li>
-                  <strong>You send a price and what it covers</strong>
-                  <span>If the job turns out bigger, you send a revised quote and wait for it to be approved first.</span>
-                </li>
-                <li>
-                  <strong>The work is recorded</strong>
-                  <span>Photos when you finish, the customer confirms, and the job joins your record on Danpa HQ.</span>
-                </li>
-              </ol>
-            </section>
-          </div>
-
-          {canSendApplication(status) ? (
+          {!application && !error ? (
+            <PanelSkeleton rows={4} />
+          ) : application && canSendApplication(status) ? (
             <ApplicationForm
               application={application}
               onSent={(next) => {
@@ -165,14 +128,36 @@ export default function ArtisanApplicationPage() {
                 window.scrollTo({ top: 0, behavior: "smooth" });
               }}
             />
-          ) : application.profile ? (
-            <section className="pv-card" aria-labelledby="art-sent">
+          ) : application?.profile ? (
+            <section className="ws-panel art-apply-sent" aria-labelledby="art-sent">
               <h2 id="art-sent">What you sent</h2>
               <ArtisanFacts profile={application.profile} />
             </section>
           ) : null}
-        </>
-      ) : null}
+        </div>
+
+        <aside className="art-apply-aside" aria-label="About your application">
+          <section className="art-aside-card">
+            <h2>Where you are</h2>
+            <VerificationTrack stops={stops(status)} />
+          </section>
+          <section className="art-aside-card">
+            <h2>How it works</h2>
+            <ul className="art-aside-list">
+              {HOW.map((step) => (
+                <li key={step.icon}>
+                  <span className="art-aside-icon" aria-hidden="true"><Icon name={step.icon} /></span>
+                  {step.text}
+                </li>
+              ))}
+            </ul>
+          </section>
+          <section className="art-aside-card is-warm">
+            <h2>Payments</h2>
+            <p>Customers pay you directly. Danpa HQ keeps the record and never holds the money.</p>
+          </section>
+        </aside>
+      </div>
     </div>
   );
 }

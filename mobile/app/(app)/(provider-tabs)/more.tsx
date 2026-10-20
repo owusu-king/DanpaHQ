@@ -2,7 +2,6 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useState } from "react";
 
 import { ApiFailure } from "@/api";
-import { artisanMenuLabel } from "@/artisan";
 import { useAuth, type Workspace } from "@/auth";
 import { Identity, YouPage, type YouItem, type YouSection } from "@/components/account/YouParts";
 import { useProfilePhoto } from "@/components/nav/TabHeaderControls";
@@ -104,6 +103,8 @@ function ProviderMoreScreen() {
         ...only(operates, { key: "requests", icon: "document-text-outline", label: "Tenancy requests", onPress: go("/(app)/provider-applications") }),
         ...only(operates || finances, { key: "leases", icon: "reader-outline", label: "Leases", onPress: go("/(app)/leases") }),
         ...only(operates, { key: "maintenance", icon: "construct-outline", label: "Maintenance", onPress: go("/(app)/maintenance") }),
+        // Finding and hiring tradespeople, with or without a repair behind it.
+        { key: "artisans", icon: "hammer-outline", label: "Find Artisans", onPress: go("/(app)/artisans") },
         // Buyers asking about what this Portfolio is selling (owner, 2026-09-29).
         ...only(operates, { key: "enquiries", icon: "chatbubbles-outline", label: "Buyer enquiries", onPress: go("/(app)/enquiries") }),
         { key: "updates", icon: "notifications-outline", label: "Updates", count: unread, onPress: go("/(app)/notifications") },
@@ -131,12 +132,9 @@ function ProviderMoreScreen() {
       items: [
         // A change of view, not of account. Switching back is one tap from the tenant's More.
         { key: "switch", icon: "swap-horizontal-outline", label: "Switch to renting", busy: switching === "tenant", busyLabel: "Switching…", onPress: () => void switchTo("tenant") },
-        // Artisan work: a switch once approved, the application until then.
-        ...(me
-          ? [me.capabilities.available_workspaces.includes("artisan")
-            ? { key: "artisan", icon: "hammer-outline" as const, label: artisanMenuLabel(me.capabilities.artisan.status, true), busy: switching === "artisan", busyLabel: "Switching…", onPress: () => void switchTo("artisan") }
-            : { key: "artisan", icon: "hammer-outline" as const, label: artisanMenuLabel(me.capabilities.artisan.status, false), onPress: go("/(app)/artisan-application") }]
-          : []),
+        // The way into artisan work, once there is one. Becoming an artisan is
+        // never offered here: it is a quiet link inside Find Artisans.
+        ...only(Boolean(me?.capabilities.available_workspaces.includes("artisan")), { key: "artisan", icon: "hammer-outline", label: "Switch to artisan work", busy: switching === "artisan", busyLabel: "Switching…", onPress: () => void switchTo("artisan") }),
         { key: "sign-out", icon: "log-out-outline", label: "Sign out", danger: true, busy: leaving, busyLabel: "Signing out…", onPress: () => void leave() },
       ],
     },

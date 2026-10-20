@@ -205,3 +205,19 @@ button.tenancy-link { width: 100%; font: inherit; text-align: left; background: 
   .doc-modal-back,
   .doc-modal-views > .doc-modal-view:not([hidden]) { animation: none !important; }
 }
+
+/* A quiet link beside the close button: somewhere related, never the main act. */
+.doc-modal-head-action { flex: 0 0 auto; }
+.doc-modal-head-action a,
+.doc-modal-head-action button {
+  padding: 6px 4px;
+  color: var(--color-kola-600);
+  font-size: .875rem;
+  font-weight: 600;
+  white-space: nowrap;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+.doc-modal-head-action a:hover,
+.doc-modal-head-action button:hover { text-decoration: underline; }

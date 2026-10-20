@@ -213,6 +213,112 @@ def _has_current_identity(user) -> bool:
     return current_for(SubjectType.USER, user.id, VerificationKind.IDENTITY) is not None
 
 
+def _portfolio(*, user, file_ids) -> list[StoredFile]:
+    ids = list(dict.fromkeys(str(value) for value in (file_ids or [])))
+    if not MIN_PORTFOLIO_PHOTOS <= len(ids) <= MAX_PORTFOLIO_PHOTOS:
+        raise ValidationFailed(
+            f"Add between {MIN_PORTFOLIO_PHOTOS} and {MAX_PORTFOLIO_PHOTOS} photos of your work."
+        )
+    return [
+        _ready_file(
+            user=user,
+            file_id=file_id,
+            purpose=FilePurpose.ARTISAN_WORK_PHOTO,
+            what="a photo of your work",
+        )
+        for file_id in ids
+    ]
+
+
+def _write_profile(profile, *, trades, bio, districts, portfolio, certificate_rows) -> None:
+    """Make the profile say what was just sent.
+
+    Photographs are replaced outright. A certificate is kept by its file, so a
+    check Management already made survives an unrelated edit — but describing
+    the certificate differently undoes the check, because the check vouched for
+    it as it was described then.
+    """
+    profile.trades = trades
+    profile.bio = (bio or "").strip()[:600]
+    profile.save(update_fields=["trades", "bio", "updated_at"])
+    profile.districts.set(districts)
+
+    # What an earlier review saw survives on that review's evidence, which these
+    # rows never were.
+    profile.portfolio.all().delete()
+    ArtisanPortfolioPhoto.objects.bulk_create(
+        ArtisanPortfolioPhoto(profile=profile, file=file, position=index)
+        for index, file in enumerate(portfolio)
+    )
+    kept = {str(row["file"].id) for row in certificate_rows}
+    profile.certificates.exclude(file_id__in=kept).delete()
+    existing = {str(row.file_id): row for row in profile.certificates.all()}
+    for row in certificate_rows:
+        certificate = existing.get(str(row["file"].id))
+        if certificate is None:
+            ArtisanCertificate.objects.create(profile=profile, **row)
+            continue
+        changed = (
+            certificate.trade != row["trade"]
+            or certificate.issuing_body != row["issuing_body"]
+            or certificate.expires_on != row["expires_on"]
+        )
+        if changed:
+            certificate.trade = row["trade"]
+            certificate.issuing_body = row["issuing_body"]
+            certificate.expires_on = row["expires_on"]
+            certificate.verified_at = None
+            certificate.verified_by_management_id = None
+            certificate.declined_at = None
+            certificate.decision_note = ""
+            certificate.save()
+
+
+@transaction.atomic
+def update_profile(
+    *, user, trades, district_ids, bio="", portfolio_file_ids=None, certificates=None
+):
+    """An approved artisan keeps their profile current.
+
+    No new review: approval was about the person, and what they show customers
+    is theirs to keep up to date. A new certificate still reads "Certificate
+    provided" until Management checks it. Allowed while suspended — a suspended
+    artisan is hidden from Discover, so nobody sees the change until they are
+    reinstated, and their records are theirs to tidy.
+    """
+    profile = profile_for(user)
+    verification = artisan_verification(user)
+    if profile is None or verification is None or not verification.is_current:
+        raise PermissionDenied("This needs an approved artisan account.")
+
+    trades = _clean_trades(trades)
+    districts = _districts(district_ids)
+    portfolio = _portfolio(user=user, file_ids=portfolio_file_ids)
+    certificate_rows = _certificates(user=user, rows=certificates)
+    profile = ArtisanProfile.objects.select_for_update().get(id=profile.id)
+    _write_profile(
+        profile,
+        trades=trades,
+        bio=bio,
+        districts=districts,
+        portfolio=portfolio,
+        certificate_rows=certificate_rows,
+    )
+    record(
+        action=AuditAction.UPDATE,
+        aggregate_type="artisan_profile",
+        aggregate_id=profile.id,
+        actor=user,
+        metadata={
+            "trades": trades,
+            "districts": len(districts),
+            "portfolio": len(portfolio),
+            "certificates": len(certificate_rows),
+        },
+    )
+    return profile
+
+
 @transaction.atomic
 def apply(
     *,
@@ -258,20 +364,7 @@ def apply(
 
     trades = _clean_trades(trades)
     districts = _districts(district_ids)
-    portfolio_ids = list(dict.fromkeys(str(value) for value in (portfolio_file_ids or [])))
-    if not MIN_PORTFOLIO_PHOTOS <= len(portfolio_ids) <= MAX_PORTFOLIO_PHOTOS:
-        raise ValidationFailed(
-            f"Add between {MIN_PORTFOLIO_PHOTOS} and {MAX_PORTFOLIO_PHOTOS} photos of your work."
-        )
-    portfolio = [
-        _ready_file(
-            user=user,
-            file_id=file_id,
-            purpose=FilePurpose.ARTISAN_WORK_PHOTO,
-            what="a photo of your work",
-        )
-        for file_id in portfolio_ids
-    ]
+    portfolio = _portfolio(user=user, file_ids=portfolio_file_ids)
     documents = _identity_documents(user=user, rows=identity_documents)
     if not _has_current_identity(user) and not any(
         evidence_type in _PHOTO_ID_TYPES for evidence_type, _ in documents
@@ -280,39 +373,14 @@ def apply(
     certificate_rows = _certificates(user=user, rows=certificates)
 
     profile, created = ArtisanProfile.objects.get_or_create(user=user)
-    profile.trades = trades
-    profile.bio = (bio or "").strip()[:600]
-    profile.save(update_fields=["trades", "bio", "updated_at"])
-    profile.districts.set(districts)
-
-    # The profile shows what was sent this time. What an earlier review saw
-    # survives on that review's evidence, which these rows never were.
-    profile.portfolio.all().delete()
-    ArtisanPortfolioPhoto.objects.bulk_create(
-        ArtisanPortfolioPhoto(profile=profile, file=file, position=index)
-        for index, file in enumerate(portfolio)
+    _write_profile(
+        profile,
+        trades=trades,
+        bio=bio,
+        districts=districts,
+        portfolio=portfolio,
+        certificate_rows=certificate_rows,
     )
-    kept = {str(row["file"].id) for row in certificate_rows}
-    profile.certificates.exclude(file_id__in=kept).delete()
-    existing = {str(row.file_id): row for row in profile.certificates.all()}
-    for row in certificate_rows:
-        certificate = existing.get(str(row["file"].id))
-        if certificate is None:
-            ArtisanCertificate.objects.create(profile=profile, **row)
-            continue
-        changed = (
-            certificate.trade != row["trade"]
-            or certificate.issuing_body != row["issuing_body"]
-            or certificate.expires_on != row["expires_on"]
-        )
-        if changed:
-            # A check vouched for the certificate as it was described then.
-            certificate.trade = row["trade"]
-            certificate.issuing_body = row["issuing_body"]
-            certificate.expires_on = row["expires_on"]
-            certificate.verified_at = None
-            certificate.verified_by_management_id = None
-            certificate.save()
 
     if latest is not None and latest.status == VerificationStatus.NEEDS_MORE:
         verification = latest
@@ -484,6 +552,99 @@ def reinstate(*, user_id, management_actor) -> ArtisanProfile:
         )
     )
     return profile
+
+
+# --- certificates ---------------------------------------------------------------------
+
+
+@transaction.atomic
+def decide_certificate(
+    *, certificate_id, management_actor, verified: bool, note: str = ""
+) -> ArtisanCertificate:
+    """Management checks one certificate: verified with the date, or not accepted.
+
+    A decision is final for the certificate as described. Describing it
+    differently later (another trade, another issuer, another expiry) clears
+    the decision and it waits to be checked again.
+    """
+    certificate = (
+        ArtisanCertificate.objects.select_for_update()
+        .select_related("profile")
+        .filter(id=certificate_id)
+        .first()
+    )
+    if certificate is None:
+        raise NotFound("We could not find that certificate.")
+    if certificate.verified_at is not None or certificate.declined_at is not None:
+        raise Conflict("This certificate has already been checked.")
+    note = (note or "").strip()
+    if not verified and not note:
+        raise ValidationFailed("Say why, and what the artisan should do next. They will see it.")
+
+    now = timezone.now()
+    if verified:
+        certificate.verified_at = now
+        certificate.verified_by_management_id = getattr(management_actor, "id", None)
+    else:
+        certificate.declined_at = now
+    certificate.decision_note = note[:300]
+    certificate.save(
+        update_fields=[
+            "verified_at",
+            "verified_by_management_id",
+            "declined_at",
+            "decision_note",
+            "updated_at",
+        ]
+    )
+    record(
+        action=AuditAction.VERIFICATION_DECISION,
+        aggregate_type="artisan_certificate",
+        aggregate_id=certificate.id,
+        management_actor=management_actor,
+        changes={"status": ["provided", certificate.status]},
+        metadata={"trade": certificate.trade, "issuing_body": certificate.issuing_body},
+    )
+    emit(
+        DomainEvent(
+            "artisan.certificate_decided.v1",
+            "artisan_certificate",
+            str(certificate.id),
+            {"user_id": str(certificate.profile.user_id), "verified": verified},
+        )
+    )
+    return certificate
+
+
+def certificates_to_check(*, limit: int = 50) -> list[dict]:
+    """Certificates nobody has checked yet, oldest first, whoever added them."""
+    rows = (
+        ArtisanCertificate.objects.filter(verified_at__isnull=True, declined_at__isnull=True)
+        .select_related("profile__user")
+        .order_by("created_at")[:limit]
+    )
+    return [
+        {
+            "id": str(row.id),
+            "user_id": str(row.profile.user_id),
+            "artisan": row.profile.user.display_name,
+            "trade": row.get_trade_display(),
+            "issuing_body": row.issuing_body,
+            "expires_on": row.expires_on.isoformat() if row.expires_on else None,
+            "status": row.status,
+            "added_at": row.created_at.isoformat(),
+        }
+        for row in rows
+    ]
+
+
+def certificate_file(certificate_id):
+    certificate = (
+        ArtisanCertificate.objects.select_related("file").filter(id=certificate_id).first()
+    )
+    if certificate is None or certificate.file is None or not certificate.file.is_usable:
+        raise NotFound("That certificate is not available.")
+    return certificate
 
 
 # --- what Management sees -----------------------------------------------------------

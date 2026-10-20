@@ -181,6 +181,19 @@ export function enquiriesEntry(
 }
 
 /**
+ * The Artisans button in the top bar: the one way into the artisan network for
+ * somebody who rents or manages property. Not offered inside the artisan
+ * experience (that is where the work arrives, not where it is found) or to a
+ * provider still in review, whose workspace has nothing to hire for yet.
+ */
+export function artisansEntry(me: Me): boolean {
+  const workspace = me.capabilities.active_workspace;
+  if (workspace === "artisan") return false;
+  if (workspace === "provider") return me.capabilities.provider.workspace_access;
+  return true;
+}
+
+/**
  * Updates only. Account is deliberately absent: the avatar at the foot of the
  * rail is the one account control, and listing it here as well would be the
  * second competing menu the shell is meant to avoid.

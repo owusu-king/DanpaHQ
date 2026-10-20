@@ -706,6 +706,13 @@ rent_patterns = [
     path("me/rental-history/", rent_views.RentalHistoryView.as_view(), name="me-rental-history"),
     # Artisans (apps.artisan)
     path("me/artisan/", artisan_views.MyArtisanView.as_view(), name="me-artisan"),
+    path(
+        "me/artisan/profile/",
+        artisan_views.MyArtisanProfileView.as_view(),
+        name="me-artisan-profile",
+    ),
+    path("artisans/", artisan_views.DiscoverView.as_view(), name="artisan-discover"),
+    path("artisans/<uuid:pk>/", artisan_views.ArtisanProfileView.as_view(), name="artisan-profile"),
     # Maintenance (apps.maintenance)
     path("me/maintenance/", maintenance_views.MyMaintenanceView.as_view(), name="me-maintenance"),
     path(

@@ -4,6 +4,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 
+import { ApplicationForm } from "@/components/artisan/ApplicationForm";
 import { ArtisanFacts } from "@/components/artisan/ArtisanFacts";
 import { Notice } from "@/components/Notice";
 import { Icon } from "@/components/portal/icons";
@@ -31,7 +32,7 @@ function useArtisanApplication() {
       .catch((cause) => { if (live) setError(cause instanceof ApiFailure ? cause.error.message : "Could not load your artisan profile."); });
     return () => { live = false; };
   }, []);
-  return { application, error };
+  return { application, error, setApplication };
 }
 
 /** Pages behind the artisan experience render only inside it. */
@@ -172,15 +173,41 @@ export function ArtisanJobsPage() {
 }
 
 export function ArtisanProfilePage() {
-  const { application, error } = useArtisanApplication();
+  const { application, error, setApplication } = useArtisanApplication();
+  const [editing, setEditing] = useState(false);
+  const [saved, setSaved] = useState(false);
   return (
     <ArtisanOnly>
       {(me) => (
         <div className="ws-page">
-          <WorkspaceHead icon="hammer" title="My Profile" summary="What customers will see about you: facts, not ratings." />
+          <WorkspaceHead
+            icon="hammer"
+            title="My Profile"
+            summary="What customers will see about you: facts, not ratings."
+            actions={application?.profile && !editing ? (
+              <button type="button" className="ws-action is-primary" onClick={() => { setEditing(true); setSaved(false); }}>
+                <Icon name="pencil" />
+                Edit profile
+              </button>
+            ) : editing ? (
+              <button type="button" className="ws-action" onClick={() => setEditing(false)}>Cancel</button>
+            ) : null}
+          />
           <SuspendedNotice me={me} />
           {error ? <Notice tone="error" title={error} /> : null}
-          {application ? (
+          {saved ? <Notice tone="success" title="Profile saved" body="Customers see the change now. New certificates show as provided until our team checks them." /> : null}
+          {application && editing ? (
+            <ApplicationForm
+              application={application}
+              mode="edit"
+              onSent={(next) => {
+                setApplication(next);
+                setEditing(false);
+                setSaved(true);
+                window.scrollTo({ top: 0 });
+              }}
+            />
+          ) : application ? (
             <>
               <ul className="art-profile-facts" aria-label="On record">
                 <li>

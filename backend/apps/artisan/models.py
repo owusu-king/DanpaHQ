@@ -109,6 +109,9 @@ class CertificateStatus(models.TextChoices):
     PROVIDED = "provided", "Certificate provided"
     VERIFIED = "verified", "Verified"
     EXPIRED = "expired", "Expired"
+    #: Management looked and could not accept it. Never shown to customers;
+    #: the artisan reads why.
+    DECLINED = "declined", "Not accepted"
 
 
 class ArtisanCertificate(BaseModel):
@@ -127,16 +130,28 @@ class ArtisanCertificate(BaseModel):
     expires_on = models.DateField(null=True, blank=True)
     verified_at = models.DateTimeField(null=True, blank=True)
     verified_by_management_id = models.UUIDField(null=True, blank=True)
+    declined_at = models.DateTimeField(null=True, blank=True)
+    #: Shown to the artisan, so it says what to do next.
+    decision_note = models.CharField(max_length=300, blank=True)
 
     class Meta:
         db_table = "artisan_certificate"
         ordering = ("created_at",)
+        indexes = [
+            models.Index(
+                fields=["created_at"],
+                name="artisan_cert_unchecked_idx",
+                condition=models.Q(verified_at__isnull=True, declined_at__isnull=True),
+            ),
+        ]
 
     def __str__(self) -> str:
         return f"{self.get_trade_display()} certificate from {self.issuing_body}"
 
     @property
     def status(self) -> str:
+        if self.declined_at is not None:
+            return CertificateStatus.DECLINED
         if self.expires_on is not None and self.expires_on < timezone.localdate():
             return CertificateStatus.EXPIRED
         if self.verified_at is not None:

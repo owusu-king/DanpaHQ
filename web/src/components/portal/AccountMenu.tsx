@@ -162,7 +162,6 @@ export function AccountMenu({
               Settings
             </Link>
             <WorkspaceCrossing me={me} onDone={() => close(false)} />
-            <ArtisanEntry me={me} onDone={() => close(false)} />
           </div>
 
           <div className="portal-menu-group">
@@ -246,27 +245,6 @@ function WorkspaceCrossing({ me, onDone }: { me: Me; onDone: () => void }) {
         </button>
       ))}
     </>
-  );
-}
-
-/**
- * Where somebody asks to work as an artisan, from whichever experience they are
- * in — and where they follow the application afterwards. Gone once approved:
- * from then on the crossing above is the way in.
- */
-function ArtisanEntry({ me, onDone }: { me: Me; onDone: () => void }) {
-  const artisan = me.capabilities.artisan;
-  if (artisan.workspace_access || me.capabilities.active_workspace === "artisan") return null;
-  return (
-    <Link
-      href={"/artisan" as never}
-      className="portal-menu-item"
-      role="menuitem"
-      data-menu-item
-      onClick={onDone}
-    >
-      {artisan.status === "not_started" ? "Become an artisan" : "Your artisan application"}
-    </Link>
   );
 }
 

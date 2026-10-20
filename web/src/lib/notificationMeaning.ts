@@ -70,6 +70,7 @@ const SUCCESS = new Set([
   "maintenance.completed",
   "artisan.approved",
   "artisan.reinstated",
+  "artisan.certificate_verified",
 ]);
 
 const WARNING = new Set([
@@ -80,6 +81,7 @@ const WARNING = new Set([
   "rent.payment_due_soon",
   "rent.payment_due_now",
   "artisan.rejected",
+  "artisan.certificate_declined",
 ]);
 
 const CRITICAL = new Set([
@@ -166,6 +168,8 @@ export function destination(item: { target_type: string; target_id: string }): s
       return "/settings/billing";
     case "maintenance_request":
       return `/maintenance?request=${item.target_id}`;
+    case "artisan_certificate":
+      return "/artisan/profile";
     case "artisan_application":
       return "/artisan";
     default:

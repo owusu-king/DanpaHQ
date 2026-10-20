@@ -27,6 +27,21 @@ urlpatterns = [
         views.ArtisanSuspensionView.as_view(),
         name="management-artisan-suspension",
     ),
+    path(
+        "artisan-certificates/",
+        views.ArtisanCertificatesView.as_view(),
+        name="management-artisan-certificates",
+    ),
+    path(
+        "artisan-certificates/<uuid:pk>/file/",
+        views.ArtisanCertificateFileView.as_view(),
+        name="management-artisan-certificate-file",
+    ),
+    path(
+        "artisan-certificates/<uuid:pk>/decision/",
+        views.ArtisanCertificateDecisionView.as_view(),
+        name="management-artisan-certificate-decision",
+    ),
     path("verifications/", views.VerificationQueueView.as_view(), name="management-verifications"),
     path(
         "verifications/<uuid:pk>/claim/",

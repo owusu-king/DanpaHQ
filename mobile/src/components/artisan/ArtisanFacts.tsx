@@ -1,7 +1,7 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Image, StyleSheet, View } from "react-native";
 
-import { CERTIFICATE_LABEL, type ArtisanProfile } from "@/artisan";
+import { CERTIFICATE_LABEL, type ArtisanCertificate, type TradeOption } from "@/artisan";
 import { Type, space } from "@/components/ui";
 import { alpha } from "@/shell";
 import { theme } from "@/theme";
@@ -22,7 +22,16 @@ function shortDate(value: string): string {
  * their work and each certificate with its status. No score, no ranking — the
  * reader decides what the facts mean. Mirrors web's `ArtisanFacts`.
  */
-export function ArtisanFacts({ profile }: { profile: ArtisanProfile }) {
+/** What the facts need: an artisan's own profile and a public one both have it. */
+export type FactsProfile = {
+  trades: TradeOption[];
+  districts: { id: string; name: string }[];
+  bio: string;
+  portfolio: { id: string; url: string | null }[];
+  certificates: Pick<ArtisanCertificate, "id" | "trade_label" | "issuing_body" | "expires_on" | "status">[];
+};
+
+export function ArtisanFacts({ profile }: { profile: FactsProfile }) {
   return (
     <View style={styles.facts}>
       <Fact label="Trades">
@@ -98,6 +107,7 @@ const CERT_TONE = {
   provided: { backgroundColor: theme.color.lagoon["100"], color: theme.color.lagoon["600"] },
   verified: { backgroundColor: KOLA_WASH, color: KOLA },
   expired: { backgroundColor: theme.color.field["100"], color: theme.color.ink["500"] },
+  declined: { backgroundColor: theme.color.laterite["100"], color: theme.color.laterite["600"] },
 } as const;
 
 function Fact({ label, children }: { label: string; children: React.ReactNode }) {

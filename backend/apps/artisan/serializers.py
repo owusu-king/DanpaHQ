@@ -26,6 +26,21 @@ class CertificateInputSerializer(serializers.Serializer):
     expires_on = serializers.DateField(required=False, allow_null=True)
 
 
+class UpdateProfileSerializer(serializers.Serializer):
+    trades = serializers.ListField(child=serializers.ChoiceField(choices=Trade.choices))
+    district_ids = serializers.ListField(child=serializers.UUIDField())
+    bio = serializers.CharField(required=False, allow_blank=True, max_length=600)
+    portfolio_file_ids = serializers.ListField(child=serializers.UUIDField())
+    certificates = CertificateInputSerializer(many=True, required=False)
+
+
+class DiscoverQuerySerializer(serializers.Serializer):
+    trade = serializers.ChoiceField(choices=Trade.choices, required=False)
+    district = serializers.UUIDField(required=False)
+    certified = serializers.BooleanField(required=False, default=False)
+    show_uncertified = serializers.BooleanField(required=False, default=False)
+
+
 class ApplySerializer(serializers.Serializer):
     trades = serializers.ListField(child=serializers.ChoiceField(choices=Trade.choices))
     district_ids = serializers.ListField(child=serializers.UUIDField())
@@ -35,7 +50,7 @@ class ApplySerializer(serializers.Serializer):
     certificates = CertificateInputSerializer(many=True, required=False)
 
 
-def _inline(file) -> str | None:
+def inline_photo_url(file) -> str | None:
     if file is None or not file.is_usable or file.purpose != FilePurpose.ARTISAN_WORK_PHOTO:
         return None
     from apps.files.storage import get_storage
@@ -99,7 +114,11 @@ def my_application(user) -> dict:
             ],
             "bio": profile.bio,
             "portfolio": [
-                {"id": str(photo.id), "file_id": str(photo.file_id), "url": _inline(photo.file)}
+                {
+                    "id": str(photo.id),
+                    "file_id": str(photo.file_id),
+                    "url": inline_photo_url(photo.file),
+                }
                 for photo in profile.portfolio.all()
             ],
             "certificates": [
@@ -112,6 +131,7 @@ def my_application(user) -> dict:
                     "expires_on": certificate.expires_on,
                     "status": certificate.status,
                     "verified_at": certificate.verified_at,
+                    "decision_note": certificate.decision_note,
                 }
                 for certificate in profile.certificates.all()
             ],

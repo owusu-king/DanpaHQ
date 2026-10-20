@@ -336,14 +336,17 @@ test("a card is in its service's colour when it opens, and drained when it does 
   assert.match(screen, /frame=\{\[styles\.lift, \{ width, borderRadius: shape\.borderRadius \}\]\}/);
 });
 
-test("Find an Artisan is visible in Home but has no live action yet", () => {
+test("Find an Artisan opens the Artisans sheet, and asks for no account number", () => {
+  // Open since the artisan network's Discover (2026-10-20): it takes no money —
+  // customers pay artisans directly — so it needs no biller and no identifier.
   const source = catalogue();
   const entry = source.match(/\{\s*id: "artisan",[\s\S]*?\n  \},/)?.[0];
   assert.ok(entry);
   assert.match(entry, /label: "Find an Artisan"/);
   assert.match(entry, /category: "home"/);
-  assert.match(entry, /status: "later"/);
-  assert.doesNotMatch(entry, /route:|identifier:/);
+  assert.match(entry, /status: "available"/);
+  assert.match(entry, /route: "\/\(app\)\/artisans"/);
+  assert.doesNotMatch(entry, /identifier:/);
 });
 
 test("the words on the page read on the paper they stand on", () => {

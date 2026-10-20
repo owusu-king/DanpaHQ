@@ -49,6 +49,18 @@ class ArtisanSuspensionSerializer(serializers.Serializer):
         return attrs
 
 
+class CertificateDecisionSerializer(serializers.Serializer):
+    verified = serializers.BooleanField()
+    note = serializers.CharField(required=False, allow_blank=True, max_length=300)
+
+    def validate(self, attrs):
+        if not attrs["verified"] and not attrs.get("note", "").strip():
+            raise serializers.ValidationError(
+                {"note": "Say why, and what the artisan should do next. They will see it."}
+            )
+        return attrs
+
+
 class UserStatusSerializer(serializers.Serializer):
     active = serializers.BooleanField()
     reason = serializers.CharField(required=False, allow_blank=True, max_length=300)

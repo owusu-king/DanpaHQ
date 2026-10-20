@@ -61,6 +61,7 @@ const SUCCESS = new Set([
   "maintenance.completed",
   "artisan.approved",
   "artisan.reinstated",
+  "artisan.certificate_verified",
 ]);
 
 const WARNING = new Set([
@@ -71,6 +72,7 @@ const WARNING = new Set([
   "rent.payment_due_soon",
   "rent.payment_due_now",
   "artisan.rejected",
+  "artisan.certificate_declined",
 ]);
 
 const CRITICAL = new Set([
@@ -158,6 +160,8 @@ export function destination(
       return { pathname: "/(app)/billing" };
     case "maintenance_request":
       return { pathname: "/(app)/maintenance-request", params: { id: item.target_id } };
+    case "artisan_certificate":
+      return { pathname: "/(app)/(artisan-tabs)/artisan-profile" };
     case "artisan_application":
       return { pathname: "/(app)/artisan-application" };
     default:

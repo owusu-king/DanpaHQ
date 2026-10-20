@@ -229,9 +229,12 @@ export const SERVICES: Service[] = [
     summary: "Find skilled help for your home",
     icon: "hammer-outline",
     category: "home",
-    status: "later",
+    // Open: finding an artisan takes no money — customers pay artisans
+    // directly — so it needs no biller, only its own screen (apps.artisan).
+    status: "available",
     tone: "harmattan",
     promise: "Find an artisan for repairs and improvements around your home.",
+    route: "/(app)/artisans",
   },
   {
     id: "passport",
