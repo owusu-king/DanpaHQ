@@ -18,12 +18,13 @@ SUBMITTED ──provider starts──▶ IN_PROGRESS ──provider reports fixe
 waiting to be started. Nothing is ever deleted; every move is a
 ``MaintenanceEvent``.
 
-### What deliberately is not here
+### Artisans
 
-Vendors, assignment, estimates and costs. When they arrive, assignment is one
-more ``MaintenanceEvent`` kind and one nullable foreign key on the request; the
-statuses above do not change, because "a plumber has it" is still in progress
-from the tenant's side.
+An artisan is assigned *to* a request — nullable foreign keys and an
+``ASSIGNED`` event — and the statuses above do not change, because "a plumber
+has it" is still in progress from the tenant's side. Invitations and quotes
+live in ``apps.artisan``; the price on record is the approved quote, and extra
+cost arrives only as a revised quote the payer approves (``REVISION_APPROVED``).
 """
 
 from __future__ import annotations
@@ -126,6 +127,21 @@ class MaintenanceRequest(BaseModel):
     reopened_at = models.DateTimeField(null=True, blank=True)
     reopen_count = models.PositiveSmallIntegerField(default=0)
 
+    #: Set when the payer approves an artisan's quote. Null for repairs the
+    #: provider handles themselves, which is every request made before artisans.
+    assigned_artisan = models.ForeignKey(
+        "artisan.ArtisanProfile",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="assigned_maintenance",
+    )
+    #: The quote on record: the approved original, or its latest approved revision.
+    assigned_quote = models.ForeignKey(
+        "artisan.Quote", null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    assigned_at = models.DateTimeField(null=True, blank=True)
+
     class Meta:
         db_table = "maintenance_request"
         ordering = ("-status_changed_at",)
@@ -163,6 +179,8 @@ class MaintenanceEventKind(models.TextChoices):
     FIXED_REPORTED = "fixed_reported", "Reported fixed"
     CONFIRMED = "confirmed", "Confirmed fixed"
     REOPENED = "reopened", "Reopened"
+    ASSIGNED = "assigned", "Artisan assigned"
+    REVISION_APPROVED = "revision_approved", "Revised quote approved"
 
 
 class MaintenanceEvent(BaseModel):

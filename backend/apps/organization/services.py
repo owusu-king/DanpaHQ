@@ -337,6 +337,32 @@ def _organization_property_memberships(*, prop, user) -> QuerySet:
     ).distinct()
 
 
+def may_approve_spending(*, prop, user) -> bool:
+    """Whether this person may commit the owner's money on this property.
+
+    Deliberately narrower than ``can_manage_property``. Running a repair is
+    operational, and staff, agents and listing managers may do it; agreeing to
+    pay an artisan is the payer's decision (owner, 2026-10-20): the owner, a
+    Portfolio owner or administrator, or the Property Manager assigned to this
+    property. Platform staff never — operating Danpa HQ is not owning a house.
+    """
+    if user is None or not getattr(user, "is_authenticated", False):
+        return False
+    if str(prop.owner_id) == str(user.id):
+        return True
+    owners = prop.relationships.filter(user=user, ended_at__isnull=True, relationship_type="owner")
+    if owners.exists():
+        return True
+    memberships = _organization_property_memberships(prop=prop, user=user)
+    if memberships.filter(role__in=FULL_ORGANIZATION_ROLES).exists():
+        return True
+    return PropertyAssignment.objects.filter(
+        membership__in=memberships.filter(role=MembershipRole.PROPERTY_MANAGER),
+        property=prop,
+        ended_at__isnull=True,
+    ).exists()
+
+
 def can_access_property(*, prop, user) -> bool:
     if user.is_staff:
         return True

@@ -28,6 +28,10 @@ const WANTS_A_REPLY = new Set([
   "maintenance.awaiting_confirmation",
   "maintenance.reopened",
   "artisan.needs_info",
+  "artisan.quote_invited",
+  "artisan.suggested",
+  "artisan.quote_submitted",
+  "artisan.revision_submitted",
 ]);
 
 export function wantsAReply(kind: string): boolean {
@@ -62,6 +66,8 @@ const SUCCESS = new Set([
   "artisan.approved",
   "artisan.reinstated",
   "artisan.certificate_verified",
+  "artisan.quote_approved",
+  "maintenance.assigned",
 ]);
 
 const WARNING = new Set([
@@ -73,6 +79,7 @@ const WARNING = new Set([
   "rent.payment_due_now",
   "artisan.rejected",
   "artisan.certificate_declined",
+  "artisan.quote_declined",
 ]);
 
 const CRITICAL = new Set([
@@ -160,6 +167,8 @@ export function destination(
       return { pathname: "/(app)/billing" };
     case "maintenance_request":
       return { pathname: "/(app)/maintenance-request", params: { id: item.target_id } };
+    case "artisan_invitation":
+      return { pathname: "/(app)/artisan-job", params: { id: item.target_id } };
     case "artisan_certificate":
       return { pathname: "/(app)/(artisan-tabs)/artisan-profile" };
     case "artisan_application":

@@ -31,6 +31,7 @@ import {
   type MaintenanceRequest,
 } from "@/lib/maintenance";
 import { onDate } from "@/lib/time";
+import { MaintenanceArtisans } from "@/components/artisan/MaintenanceArtisans";
 
 type Side = "tenant" | "provider";
 
@@ -183,6 +184,8 @@ export function MaintenanceRecord({
         <small>{side === "tenant" ? "What you reported" : `${request.tenant.name} reported`}</small>
         {request.description}
       </blockquote>
+
+      <MaintenanceArtisans request={request} side={side} onChanged={onChanged} />
 
       {request.events.length > 1 ? (
         <section className="mt-history" aria-label="History">

@@ -187,3 +187,198 @@ export const CERTIFICATE_LABEL: Record<ArtisanCertificate["status"], string> = {
   expired: "Expired",
   declined: "Not accepted",
 };
+
+// --- quotes on maintenance requests ----------------------------------------------
+
+export type QuoteStatus = "submitted" | "approved" | "declined" | "withdrawn" | "superseded";
+
+export type Material = { item: string; quantity: string; cost_minor: number | null };
+
+export type QuoteView = {
+  id: string;
+  status: QuoteStatus;
+  status_display: string;
+  price_minor: number;
+  price_display: string;
+  scope: string;
+  materials: Material[];
+  /** Set on a revised quote: the quote whose price it would replace. */
+  revises: string | null;
+  reason: string;
+  decision_note: string;
+  created_at: string;
+  decided_at: string | null;
+};
+
+export type ArtisanBrief = { id: string; name: string; trades: TradeOption[]; cover_url: string | null };
+
+export type InvitationState = "suggested" | "invited" | "quoted" | "declined" | "closed" | "assigned";
+
+/** The artisan block of a maintenance request, as this reader may see it. */
+export type ArtisanWork = {
+  assigned: null | {
+    artisan: ArtisanBrief;
+    assigned_at: string | null;
+    /** Null for the tenant: the price is the payer's business. */
+    price_on_record: QuoteView | null;
+  };
+  invitations: {
+    id: string;
+    state: InvitationState;
+    artisan: ArtisanBrief;
+    suggested_by_tenant: boolean;
+    quotes: QuoteView[];
+  }[];
+  permissions: { invite: boolean; approve: boolean; suggest: boolean };
+  max_open_invitations: number;
+};
+
+/** One request as an artisan reads it. `job` exists only once their quote was approved. */
+export type ArtisanInvitation = {
+  id: string;
+  state: InvitationState;
+  invited_at: string | null;
+  request: {
+    id: string;
+    category: string;
+    category_display: string;
+    description: string;
+    photo: { url: string } | null;
+    reported_at: string;
+    status: string;
+    status_display: string;
+    area: { locality: string; district: string; region: string };
+  };
+  quotes: QuoteView[];
+  unlocked: boolean;
+  job?: {
+    address: { line: string; street: string; house_number: string; digital_address: string; landmark: string };
+    place: { property_title: string; unit_label: string };
+    contact: { name: string; phone: string; role: string };
+    approved_by: string;
+    approved_at: string | null;
+    price_on_record: QuoteView | null;
+    history: { kind: string; kind_display: string; note: string; at: string }[];
+  };
+};
+
+export type CustomerWorkItem = ArtisanWork & {
+  request: { id: string; category_display: string; status: string; status_display: string; place: string };
+};
+
+export type QuoteInput = { price_minor: number; scope: string; materials: Material[] };
+
+/** Fired after an invitation or suggestion, so an open maintenance sheet refreshes. */
+export const ARTISAN_WORK_CHANGED = "danpahq:artisan-work-changed";
+
+export function inviteArtisan(requestId: string, artisanId: string) {
+  return authedFetch<ArtisanWork>(`/maintenance/${requestId}/artisan-invitations/`, {
+    method: "POST",
+    body: JSON.stringify({ artisan_id: artisanId }),
+    ...idempotentMutation(),
+  });
+}
+
+export function suggestArtisan(requestId: string, artisanId: string) {
+  return authedFetch<ArtisanWork>(`/maintenance/${requestId}/artisan-suggestions/`, {
+    method: "POST",
+    body: JSON.stringify({ artisan_id: artisanId }),
+    ...idempotentMutation(),
+  });
+}
+
+export function approveQuote(quoteId: string) {
+  return authedFetch<ArtisanWork>(`/artisan-quotes/${quoteId}/approve/`, {
+    method: "POST",
+    body: JSON.stringify({}),
+    ...idempotentMutation(),
+  });
+}
+
+export function declineQuote(quoteId: string, note = "") {
+  return authedFetch<ArtisanWork>(`/artisan-quotes/${quoteId}/decline/`, {
+    method: "POST",
+    body: JSON.stringify({ note }),
+    ...idempotentMutation(),
+  });
+}
+
+export function getArtisanWork() {
+  return authedFetch<{ requests: CustomerWorkItem[]; records: CustomerWorkItem[] }>("/artisan-work/");
+}
+
+export function listMyInvitations() {
+  return authedFetch<ArtisanInvitation[]>("/me/artisan/invitations/");
+}
+
+export function listMyJobs() {
+  return authedFetch<ArtisanInvitation[]>("/me/artisan/jobs/");
+}
+
+export function getMyInvitation(id: string) {
+  return authedFetch<ArtisanInvitation>(`/me/artisan/invitations/${id}/`);
+}
+
+export function declineInvitation(id: string) {
+  return authedFetch<ArtisanInvitation>(`/me/artisan/invitations/${id}/decline/`, {
+    method: "POST",
+    body: JSON.stringify({}),
+    ...idempotentMutation(),
+  });
+}
+
+export function submitQuote(invitationId: string, input: QuoteInput) {
+  return authedFetch<ArtisanInvitation>(`/me/artisan/invitations/${invitationId}/quotes/`, {
+    method: "POST",
+    body: JSON.stringify(input),
+    ...idempotentMutation(),
+  });
+}
+
+export function withdrawQuote(quoteId: string) {
+  return authedFetch<ArtisanInvitation>(`/artisan-quotes/${quoteId}/withdraw/`, {
+    method: "POST",
+    body: JSON.stringify({}),
+    ...idempotentMutation(),
+  });
+}
+
+export function submitRevision(requestId: string, input: QuoteInput & { reason: string }) {
+  return authedFetch<ArtisanInvitation>(`/maintenance/${requestId}/revisions/`, {
+    method: "POST",
+    body: JSON.stringify(input),
+    ...idempotentMutation(),
+  });
+}
+
+/** Which trade a maintenance category usually needs, to start Find in the right place. */
+export const TRADE_FOR_CATEGORY: Record<string, string> = {
+  plumbing: "plumbing",
+  electrical: "electrical",
+  water: "plumbing",
+  appliance: "appliance_repair",
+  structure: "masonry",
+  security: "locksmith",
+  pests: "pest_control",
+};
+
+/** How a state reads, the same everywhere. */
+export const INVITATION_STATE_LABEL: Record<InvitationState, string> = {
+  suggested: "Suggested by the tenant",
+  invited: "Asked to quote",
+  quoted: "Quote waiting",
+  declined: "Declined",
+  closed: "Another artisan chosen",
+  assigned: "Doing the work",
+};
+
+/** Said wherever a payer approves a price. Advice, not a rule Danpa HQ enforces. */
+export const PAYMENT_TIP = "Pay after the work is confirmed done, or a small deposit at most.";
+
+/** "450.00" → 45000, or null when it is not a price. */
+export function toMinor(text: string): number | null {
+  const cleaned = text.replace(/[^0-9.]/g, "");
+  if (!cleaned) return null;
+  const value = Math.round(Number(cleaned) * 100);
+  return Number.isFinite(value) && value > 0 ? value : null;
+}

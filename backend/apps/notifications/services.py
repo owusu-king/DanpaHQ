@@ -48,6 +48,10 @@ IMPORTANT_KINDS = {
     "artisan.rejected",
     "artisan.needs_info",
     "artisan.suspended",
+    # Work arriving, and work confirmed: an artisan may not have the app open.
+    "artisan.quote_invited",
+    "artisan.quote_approved",
+    "maintenance.assigned",
 }
 
 #: The alerts a person can choose between, in the order they are offered.

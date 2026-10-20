@@ -137,3 +137,27 @@ def my_application(user) -> dict:
             ],
         },
     }
+
+
+class MaterialSerializer(serializers.Serializer):
+    item = serializers.CharField(max_length=120)
+    quantity = serializers.CharField(max_length=40, required=False, allow_blank=True)
+    cost_minor = serializers.IntegerField(required=False, allow_null=True, min_value=0)
+
+
+class QuoteInputSerializer(serializers.Serializer):
+    price_minor = serializers.IntegerField(min_value=1)
+    scope = serializers.CharField(max_length=1000)
+    materials = MaterialSerializer(many=True, required=False)
+
+
+class RevisionInputSerializer(QuoteInputSerializer):
+    reason = serializers.CharField(max_length=500)
+
+
+class ArtisanChoiceSerializer(serializers.Serializer):
+    artisan_id = serializers.UUIDField()
+
+
+class QuoteDecisionSerializer(serializers.Serializer):
+    note = serializers.CharField(max_length=300, required=False, allow_blank=True, default="")

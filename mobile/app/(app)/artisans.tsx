@@ -5,17 +5,17 @@ import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, View } fro
 
 import { ApiFailure } from "@/api";
 import {
-  CERTIFICATE_LABEL,
   TRADES,
   discoverArtisans,
-  getArtisan,
+  getArtisanWork,
   type ArtisanCard,
+  type CustomerWorkItem,
   type DiscoverResult,
   type District,
-  type PublicArtisan,
 } from "@/artisan";
 import { useAuth } from "@/auth";
 import { DistrictPicker } from "@/components/artisan/ArtisanApplicationForm";
+import { Facts } from "@/components/artisan/ArtisanChips";
 import { ToggleField } from "@/components/filters/FilterFields";
 import { Chip, Notice, Type, space } from "@/components/ui";
 import { Empty } from "@/components/work/WorkParts";
@@ -24,14 +24,15 @@ import { alpha, shell } from "@/shell";
 import { theme } from "@/theme";
 
 /**
- * Artisans: the one way into the artisan network for somebody who rents or
- * manages property. Mirrors web's Artisans sheet, and opens as a sheet over
- * whatever screen asked for it — the Services tile, the provider's More.
+ * Find Artisans: the one way into the artisan network for somebody who rents
+ * or manages property. A page of its own, pushed from Menu, More, the Services
+ * tile or a repair (owner, 2026-10-20) — never a sheet hanging over another.
  *
- * Three tabs inside it, not three new tabs in the bar. **Find** browses
- * approved artisans by trade and area; a profile opens in place, so Back
- * returns to the results where they were. **Requests** and **Records** hold
- * the quotes and jobs later phases add, and say so until then.
+ * Three tabs on the page, not new tabs in the bar. **Find** browses approved
+ * artisans by trade and area, and each profile is its own pushed page.
+ * **Requests** holds the quotes asked for and waiting; **Records** the work
+ * under way and done. Opened from a repair, profiles offer to invite (or, for
+ * a tenant, suggest) for it.
  *
  * Danpa HQ connects people and keeps the record. Nothing here calls an artisan
  * trusted or guaranteed, and nothing shows a phone number or an address.
@@ -55,10 +56,9 @@ const TABS: { key: Tab; label: string }[] = [
 
 export default function ArtisansScreen() {
   const navigation = useNavigation();
-  const params = useLocalSearchParams<{ tab?: string; trade?: string }>();
+  const params = useLocalSearchParams<{ tab?: string; trade?: string; request?: string; mode?: string; label?: string }>();
   const pageBottom = useSafeBottom(space[10]);
   const [tab, setTab] = useState<Tab>(params.tab === "requests" || params.tab === "records" ? params.tab : "find");
-  const [open, setOpen] = useState<string | null>(null);
 
   // Becoming an artisan is offered here and only here — a quiet link in the
   // header, never a prompt. Once approved, Menu carries the switch instead.
@@ -71,8 +71,8 @@ export default function ArtisansScreen() {
 
   useLayoutEffect(() => {
     navigation.setOptions({
-      title: open ? "Artisan" : "Artisans",
-      headerRight: becomeLabel && !open
+      title: "Find Artisans",
+      headerRight: becomeLabel && !params.request
         ? () => (
           <Pressable
             onPress={() => router.push("/(app)/artisan-application" as never)}
@@ -85,7 +85,14 @@ export default function ArtisansScreen() {
         )
         : undefined,
     });
-  }, [navigation, open, becomeLabel, router]);
+  }, [navigation, becomeLabel, router, params.request]);
+
+  function open(id: string) {
+    router.push({
+      pathname: "/(app)/artisan-view",
+      params: { id, ...(params.request ? { request: params.request, mode: params.mode ?? "invite", label: params.label ?? "" } : {}) },
+    } as never);
+  }
 
   return (
     <ScrollView
@@ -95,49 +102,34 @@ export default function ArtisansScreen() {
       showsVerticalScrollIndicator={false}
     >
       <View style={styles.column}>
-        {open ? (
-          <>
-            <Pressable
-              onPress={() => setOpen(null)}
-              accessibilityRole="button"
-              hitSlop={8}
-              style={styles.backRow}
-            >
-              <Ionicons name="chevron-back" size={18} color={KOLA} />
-              <Type variant="captionStrong" style={{ color: KOLA }}>All artisans</Type>
-            </Pressable>
-            <Profile id={open} />
-          </>
+        {params.request ? (
+          <View style={styles.forRequest}>
+            <Type variant="caption" style={{ color: theme.color.ink["700"] }}>
+              {params.mode === "suggest" ? "Suggesting an artisan for " : "Inviting artisans to quote for "}
+              <Type variant="captionStrong">{params.label}</Type>. Open a profile to {params.mode === "suggest" ? "suggest them." : "invite them."}
+            </Type>
+          </View>
+        ) : null}
+        <View style={styles.tabs} accessibilityRole="tablist">
+          {TABS.map((option) => {
+            const on = tab === option.key;
+            return (
+              <Pressable
+                key={option.key}
+                onPress={() => setTab(option.key)}
+                accessibilityRole="tab"
+                aria-selected={on}
+                style={[styles.tab, on ? styles.tabOn : null]}
+              >
+                <Type variant="captionStrong" style={{ color: on ? WHITE : theme.color.ink["700"] }}>{option.label}</Type>
+              </Pressable>
+            );
+          })}
+        </View>
+        {tab === "find" ? (
+          <Find initialTrade={typeof params.trade === "string" ? params.trade : ""} onOpen={open} />
         ) : (
-          <>
-            <View style={styles.tabs} accessibilityRole="tablist">
-              {TABS.map((option) => {
-                const on = tab === option.key;
-                return (
-                  <Pressable
-                    key={option.key}
-                    onPress={() => setTab(option.key)}
-                    accessibilityRole="tab"
-                    aria-selected={on}
-                    style={[styles.tab, on ? styles.tabOn : null]}
-                  >
-                    <Type variant="captionStrong" style={{ color: on ? WHITE : theme.color.ink["700"] }}>{option.label}</Type>
-                  </Pressable>
-                );
-              })}
-            </View>
-            {tab === "find" ? (
-              <Find initialTrade={typeof params.trade === "string" ? params.trade : ""} onOpen={setOpen} />
-            ) : tab === "requests" ? (
-              <View style={styles.card}>
-                <Empty ground={WHITE} icon="document-text-outline" title="No quote requests yet" hint="Quotes you ask for and receive appear here, with any waiting for your approval." />
-              </View>
-            ) : (
-              <View style={styles.card}>
-                <Empty ground={WHITE} icon="construct-outline" title="No artisan jobs yet" hint="Ongoing and completed work stays here, with its photos, costs and reviews." />
-              </View>
-            )}
-          </>
+          <Work tab={tab} />
         )}
       </View>
     </ScrollView>
@@ -278,108 +270,6 @@ function Row({ artisan, onOpen }: { artisan: ArtisanCard; onOpen: () => void }) 
   );
 }
 
-/** The facts a listing states, in the same order everywhere. Never a score. */
-function Facts({ artisan }: { artisan: ArtisanCard }) {
-  return (
-    <View style={styles.facts}>
-      {artisan.id_checked ? <Fact icon="shield-checkmark-outline" tone={{ ink: theme.color.kola["800"], wash: theme.color.kola["50"] }} text="ID checked" /> : null}
-      {artisan.certified_trades.map((trade) => (
-        <Fact key={trade} icon="ribbon-outline" tone={{ ink: LAGOON, wash: theme.color.lagoon["100"] }} text={`${trade} certificate verified`} />
-      ))}
-      <Fact icon="construct-outline" text={`${artisan.jobs_completed} job${artisan.jobs_completed === 1 ? "" : "s"} on Danpa HQ`} />
-      <Fact icon="star-outline" text={artisan.reviews_count ? `${artisan.reviews_count} reviews` : "No reviews yet"} />
-    </View>
-  );
-}
-
-function Fact({ icon, text, tone }: { icon: keyof typeof Ionicons.glyphMap; text: string; tone?: { ink: string; wash: string } }) {
-  const ink = tone?.ink ?? theme.color.ink["700"];
-  return (
-    <View style={[styles.fact, { backgroundColor: tone?.wash ?? theme.color.field["100"] }]}>
-      <Ionicons name={icon} size={12} color={ink} />
-      <Type variant="caption" style={{ color: ink, fontSize: 12, lineHeight: 16 }}>{text}</Type>
-    </View>
-  );
-}
-
-function shortDate(value: string): string {
-  const iso = value.length === 10 ? `${value}T12:00:00` : value;
-  return new Date(iso).toLocaleDateString("en-GH", { day: "numeric", month: "short", year: "numeric" });
-}
-
-function Profile({ id }: { id: string }) {
-  const [artisan, setArtisan] = useState<PublicArtisan | null>(null);
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    let live = true;
-    getArtisan(id)
-      .then((next) => { if (live) setArtisan(next); })
-      .catch((cause) => { if (live) setError(cause instanceof ApiFailure ? cause.error.message : "Could not open this artisan."); });
-    return () => { live = false; };
-  }, [id]);
-
-  if (error) return <Notice tone="error" title={error} />;
-  if (!artisan) return <ActivityIndicator color={AMBER} style={{ paddingVertical: space[8] }} />;
-
-  return (
-    <View style={{ gap: space[4] }}>
-      <View style={styles.card}>
-        <Type variant="title1" accessibilityRole="header">{artisan.name}</Type>
-        <Type variant="body" style={{ color: theme.color.ink["700"] }}>{artisan.trades.map((trade) => trade.label).join(" · ")}</Type>
-        <View style={styles.area}>
-          <Ionicons name="location-outline" size={14} color={MUTED} />
-          <Type variant="caption" style={{ color: MUTED, flexShrink: 1 }}>Works in {artisan.districts.map((district) => district.name).join(", ")}</Type>
-        </View>
-        <Facts artisan={artisan} />
-      </View>
-
-      {artisan.portfolio.some((photo) => photo.url) ? (
-        <View style={styles.gallery} accessibilityLabel="Their work">
-          {artisan.portfolio.map((photo, index) =>
-            photo.url ? <Image key={photo.id} source={{ uri: photo.url }} style={styles.photo} accessibilityLabel={`Work photo ${index + 1}`} /> : null,
-          )}
-        </View>
-      ) : null}
-
-      <View style={styles.card}>
-        {artisan.bio ? (
-          <View style={{ gap: space[1] }}>
-            <Type variant="caption" style={{ color: MUTED }}>About</Type>
-            <Type variant="body">{artisan.bio}</Type>
-          </View>
-        ) : null}
-        <View style={{ gap: space[2] }}>
-          <Type variant="caption" style={{ color: MUTED }}>Certificates</Type>
-          {artisan.certificates.length ? artisan.certificates.map((certificate) => (
-            <View key={certificate.id} style={styles.cert}>
-              <View style={{ flex: 1, gap: 1 }}>
-                <Type variant="captionStrong">{certificate.trade_label}</Type>
-                <Type variant="caption" style={{ color: MUTED }}>
-                  {certificate.issuing_body}
-                  {certificate.expires_on ? ` · expires ${shortDate(certificate.expires_on)}` : ""}
-                </Type>
-              </View>
-              <Type variant="captionStrong" style={{ color: certificate.status === "verified" ? theme.color.kola["800"] : certificate.status === "expired" ? MUTED : LAGOON, fontSize: 12 }}>
-                {CERTIFICATE_LABEL[certificate.status]}
-                {certificate.status === "verified" && certificate.verified_at ? ` ${shortDate(certificate.verified_at)}` : ""}
-              </Type>
-            </View>
-          )) : <Type variant="caption" style={{ color: MUTED }}>None shown. Certificates are optional.</Type>}
-        </View>
-        <View style={{ gap: space[1] }}>
-          <Type variant="caption" style={{ color: MUTED }}>Reviews</Type>
-          <Type variant="caption" style={{ color: MUTED }}>No reviews yet. Reviews come from customers after a confirmed job.</Type>
-        </View>
-      </View>
-
-      <Type variant="caption" style={styles.foot}>
-        On Danpa HQ since {shortDate(artisan.member_since)}. Danpa HQ checks identity and certificates and keeps a record of each job; it does not guarantee anybody&apos;s work.
-      </Type>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   ground: { flex: 1, backgroundColor: theme.color.field["50"] },
   page: { paddingTop: space[4], paddingHorizontal: space[4] },
@@ -434,9 +324,70 @@ const styles = StyleSheet.create({
   area: { flexDirection: "row", alignItems: "center", gap: 4 },
   facts: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 4 },
   fact: { flexDirection: "row", alignItems: "center", gap: 4, paddingVertical: 3, paddingHorizontal: space[2], borderRadius: 999 },
-  backRow: { flexDirection: "row", alignItems: "center", gap: 2, alignSelf: "flex-start", paddingVertical: space[1] },
+  forRequest: { padding: space[3], borderRadius: 14, backgroundColor: AMBER_WASH },
+  workRow: { flexDirection: "row", alignItems: "center", gap: space[3], padding: space[3], borderRadius: 18, borderWidth: 1, borderColor: alpha(DEEP, 0.08), backgroundColor: WHITE },
+  workIcon: { width: 36, height: 36, borderRadius: 11, alignItems: "center", justifyContent: "center", backgroundColor: theme.color.kola["50"] },
   gallery: { flexDirection: "row", flexWrap: "wrap", gap: space[2] },
   photo: { width: 104, height: 104, borderRadius: 14, backgroundColor: theme.color.field["100"] },
   cert: { flexDirection: "row", alignItems: "center", gap: space[3], padding: space[3], borderRadius: 14, backgroundColor: alpha(DEEP, 0.03) },
   foot: { color: MUTED, textAlign: "center", paddingHorizontal: space[2] },
 });
+
+/** Requests and Records: quotes asked for and waiting, and the work under way or done. */
+function Work({ tab }: { tab: "requests" | "records" }) {
+  const router = useRouter();
+  const [work, setWork] = useState<{ requests: CustomerWorkItem[]; records: CustomerWorkItem[] } | null>(null);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let live = true;
+    getArtisanWork()
+      .then((next) => { if (live) setWork(next); })
+      .catch((cause) => { if (live) setError(cause instanceof ApiFailure ? cause.error.message : "Could not load artisan work."); });
+    return () => { live = false; };
+  }, []);
+
+  if (error) return <Notice tone="error" title={error} />;
+  if (!work) return <ActivityIndicator color={AMBER} style={{ paddingVertical: space[8] }} />;
+  const rows = tab === "requests" ? work.requests : work.records;
+  if (!rows.length) {
+    return (
+      <View style={styles.card}>
+        {tab === "requests" ? (
+          <Empty ground={WHITE} icon="document-text-outline" title="No quote requests yet" hint="Quotes you ask for and receive appear here, with any waiting for your approval." />
+        ) : (
+          <Empty ground={WHITE} icon="construct-outline" title="No artisan jobs yet" hint="Work under way and finished stays here, with its photos and costs." />
+        )}
+      </View>
+    );
+  }
+  return (
+    <View style={{ gap: space[3] }}>
+      {rows.map((item) => {
+        const waiting = item.invitations.flatMap((row) => row.quotes).filter((quote) => quote.status === "submitted").length;
+        const who = item.assigned?.artisan.name ?? item.invitations.map((row) => row.artisan.name).join(", ");
+        return (
+          <Pressable
+            key={item.request.id}
+            onPress={() => router.push({ pathname: "/(app)/maintenance-request", params: { id: item.request.id } } as never)}
+            accessibilityRole="button"
+            {...pressableFeedback(alpha(DEEP, 0.04))}
+            style={styles.workRow}
+          >
+            <View style={styles.workIcon}><Ionicons name="construct-outline" size={18} color={KOLA} /></View>
+            <View style={{ flex: 1, gap: 1 }}>
+              <Type variant="bodyStrong" numberOfLines={1}>{item.request.category_display}</Type>
+              <Type variant="caption" numberOfLines={1} style={{ color: MUTED }}>{item.request.place}</Type>
+              <Type variant="caption" numberOfLines={1} style={{ color: MUTED }}>{who}</Type>
+            </View>
+            <View style={{ alignItems: "flex-end", gap: 2 }}>
+              {waiting ? <Type variant="captionStrong" style={{ color: LAGOON }}>{waiting} waiting</Type> : null}
+              {item.assigned?.price_on_record ? <Type variant="captionStrong">{item.assigned.price_on_record.price_display}</Type> : null}
+              <Type variant="caption" style={{ color: MUTED, fontSize: 12 }}>{item.request.status_display}</Type>
+            </View>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}

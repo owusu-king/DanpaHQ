@@ -28,6 +28,7 @@ from django.contrib.postgres.fields import ArrayField
 from django.db import models
 from django.utils import timezone
 
+from apps.core.fields import MoneyField
 from apps.core.models import BaseModel
 
 
@@ -157,3 +158,101 @@ class ArtisanCertificate(BaseModel):
         if self.verified_at is not None:
             return CertificateStatus.VERIFIED
         return CertificateStatus.PROVIDED
+
+
+# --- quotes ------------------------------------------------------------------------
+#
+# An artisan job is not a record of its own. It is an assignment on an existing
+# maintenance request, which stays the single source of truth for status,
+# photographs and history. What lives here is only what maintenance has no
+# place for: who was asked to quote, and what each quote said.
+
+
+class QuoteInvitation(BaseModel):
+    """One artisan asked to quote for one maintenance request.
+
+    A tenant may *suggest* an artisan (``suggested_by``, no ``invited_at``); it
+    becomes an invitation only when somebody who runs the property sends it.
+    Until then the artisan is told nothing.
+    """
+
+    maintenance_request = models.ForeignKey(
+        "maintenance.MaintenanceRequest",
+        on_delete=models.PROTECT,
+        related_name="quote_invitations",
+    )
+    artisan = models.ForeignKey(
+        ArtisanProfile, on_delete=models.PROTECT, related_name="quote_invitations"
+    )
+    suggested_by = models.ForeignKey(
+        "identity.User", null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    invited_by = models.ForeignKey(
+        "identity.User", null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    invited_at = models.DateTimeField(null=True, blank=True)
+    declined_at = models.DateTimeField(null=True, blank=True)
+    #: Another artisan was chosen, or the request no longer needs one.
+    closed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "artisan_quote_invitation"
+        ordering = ("-created_at",)
+        constraints = [
+            models.UniqueConstraint(
+                fields=["maintenance_request", "artisan"], name="artisan_one_invitation_per_request"
+            ),
+        ]
+
+    @property
+    def is_open(self) -> bool:
+        return self.invited_at is not None and self.declined_at is None and self.closed_at is None
+
+
+class QuoteStatus(models.TextChoices):
+    SUBMITTED = "submitted", "Waiting for approval"
+    APPROVED = "approved", "Approved"
+    DECLINED = "declined", "Declined"
+    WITHDRAWN = "withdrawn", "Withdrawn"
+    #: A revision was approved after it, so it is no longer the price on record.
+    SUPERSEDED = "superseded", "Replaced by a revised quote"
+
+
+class Quote(BaseModel):
+    """A price, what it covers, and optionally the materials it includes.
+
+    Extra cost is never an edit. It is a new quote that ``revises`` the one on
+    record, and nothing about it counts until the payer approves it.
+    """
+
+    invitation = models.ForeignKey(QuoteInvitation, on_delete=models.PROTECT, related_name="quotes")
+    price = MoneyField()
+    scope = models.TextField(max_length=1000)
+    #: ``[{"item": str, "quantity": str, "cost_minor": int | None}]``, all optional.
+    materials = models.JSONField(default=list, blank=True)
+    revises = models.ForeignKey(
+        "self", null=True, blank=True, on_delete=models.PROTECT, related_name="revisions"
+    )
+    #: Why a revision was needed — what the artisan found.
+    reason = models.CharField(max_length=500, blank=True)
+    status = models.CharField(
+        max_length=16, choices=QuoteStatus.choices, default=QuoteStatus.SUBMITTED
+    )
+    decided_by = models.ForeignKey(
+        "identity.User", null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    decided_at = models.DateTimeField(null=True, blank=True)
+    decision_note = models.CharField(max_length=300, blank=True)
+
+    class Meta:
+        db_table = "artisan_quote"
+        ordering = ("created_at",)
+        constraints = [
+            # One price waiting at a time per invitation: a second is a revision
+            # of an approved one, never a rival to a pending one.
+            models.UniqueConstraint(
+                fields=["invitation"],
+                condition=models.Q(status="submitted"),
+                name="artisan_one_pending_quote",
+            ),
+        ]

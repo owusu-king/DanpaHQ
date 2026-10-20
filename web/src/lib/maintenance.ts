@@ -9,6 +9,7 @@
  */
 
 import { idempotentMutation } from "./api";
+import type { ArtisanWork } from "./artisan";
 import { authedFetch } from "./auth";
 
 export type MaintenanceStatus =
@@ -32,7 +33,7 @@ export type MaintenanceMedia = { id: string; url: string; content_type: string }
 
 export type MaintenanceEvent = {
   id: string;
-  kind: "submitted" | "started" | "fixed_reported" | "confirmed" | "reopened";
+  kind: "submitted" | "started" | "fixed_reported" | "confirmed" | "reopened" | "assigned" | "revision_approved";
   kind_display: string;
   to_status: MaintenanceStatus;
   note: string;
@@ -70,6 +71,8 @@ export type MaintenanceRequest = {
   events: MaintenanceEvent[];
   /** Present on the detail and after an action. */
   permissions?: { start: boolean; report_fixed: boolean; confirm: boolean; reopen: boolean };
+  /** Invitations, quotes and the assignment, as this reader may see them. On the detail only. */
+  artisans?: ArtisanWork;
 };
 
 /** The longest clip a request may carry, as the backend enforces it. */

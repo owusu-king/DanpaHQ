@@ -2,15 +2,22 @@
 
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { ApplicationForm } from "@/components/artisan/ApplicationForm";
 import { ArtisanFacts } from "@/components/artisan/ArtisanFacts";
+import { WorkList } from "@/components/artisan/ArtisanWork";
 import { Notice } from "@/components/Notice";
 import { Icon } from "@/components/portal/icons";
 import { PanelSkeleton, PanelState, WorkspaceHead } from "@/components/workspace/Workspace";
 import { ApiFailure } from "@/lib/api";
-import { getMyArtisanApplication, type ArtisanApplication } from "@/lib/artisan";
+import {
+  getMyArtisanApplication,
+  listMyInvitations,
+  listMyJobs,
+  type ArtisanApplication,
+  type ArtisanInvitation,
+} from "@/lib/artisan";
 import { useSession, type Me } from "@/lib/session";
 
 /**
@@ -71,6 +78,10 @@ export function ArtisanHome({ me }: { me: Me }) {
   const { application, error } = useArtisanApplication();
   const firstName = me.display_name.split(/\s+/)[0] ?? me.display_name;
   const profile = application?.profile;
+  const { rows: invitations } = useWork(listMyInvitations);
+  const { rows: jobs } = useWork(listMyJobs);
+  const newInvites = invitations?.filter((row) => row.state === "invited") ?? [];
+  const activeJobs = jobs?.filter((row) => row.request.status !== "completed") ?? [];
 
   return (
     <div className="ws-page art-home">
@@ -95,11 +106,11 @@ export function ArtisanHome({ me }: { me: Me }) {
             <h2 id="art-home-invites">New quote invitations</h2>
             <Link href={"/artisan/requests" as never}>Requests</Link>
           </header>
-          <PanelState
-            icon="receipt"
-            title="No invitations yet"
-            body="When a tenant or property provider asks you to quote, it appears here with the area and what needs doing."
-          />
+          {invitations === null ? <PanelSkeleton rows={2} /> : newInvites.length ? (
+            <HomeCount count={newInvites.length} label={newInvites.length === 1 ? "invitation waiting for your quote" : "invitations waiting for your quote"} href="/artisan/requests" />
+          ) : (
+            <PanelState icon="receipt" title="No invitations yet" body="When a tenant or property provider asks you to quote, it appears here." />
+          )}
         </section>
 
         <section className="ws-panel art-home-panel" aria-labelledby="art-home-jobs">
@@ -108,11 +119,11 @@ export function ArtisanHome({ me }: { me: Me }) {
             <h2 id="art-home-jobs">Active jobs</h2>
             <Link href={"/artisan/jobs" as never}>Jobs</Link>
           </header>
-          <PanelState
-            icon="wrench"
-            title="No active jobs"
-            body="A job starts here once a customer approves your quote."
-          />
+          {jobs === null ? <PanelSkeleton rows={2} /> : activeJobs.length ? (
+            <HomeCount count={activeJobs.length} label={activeJobs.length === 1 ? "job under way" : "jobs under way"} href="/artisan/jobs" />
+          ) : (
+            <PanelState icon="wrench" title="No active jobs" body="A job starts here once a customer approves your quote." />
+          )}
         </section>
       </div>
 
@@ -133,19 +144,23 @@ export function ArtisanHome({ me }: { me: Me }) {
 }
 
 export function ArtisanRequestsPage() {
+  const { rows, reload } = useWork(listMyInvitations);
+  const waiting = rows?.filter((row) => row.state === "invited").length ?? 0;
   return (
     <ArtisanOnly>
       {(me) => (
         <div className="ws-page">
-          <WorkspaceHead icon="receipt" title="Requests" summary="Quote invitations, and the quotes you send in reply." />
+          <WorkspaceHead
+            icon="receipt"
+            title="Requests"
+            summary={rows === null ? null : waiting ? <><strong>{waiting} waiting for your quote</strong></> : "Quote invitations, and the quotes you send in reply."}
+          />
           <SuspendedNotice me={me} />
-          <section className="ws-panel" aria-label="Quote invitations">
-            <PanelState
-              icon="receipt"
-              title="No quote invitations yet"
-              body="A tenant or property provider invites you to quote. You see the area and what needs doing; the exact address and a contact open only after your quote is approved."
-            />
-          </section>
+          <WorkList
+            rows={rows}
+            onChanged={reload}
+            empty={{ icon: "receipt", title: "No quote invitations yet", body: "You see the area and the problem. The address opens only if your quote is approved." }}
+          />
         </div>
       )}
     </ArtisanOnly>
@@ -153,22 +168,44 @@ export function ArtisanRequestsPage() {
 }
 
 export function ArtisanJobsPage() {
+  const { rows, reload } = useWork(listMyJobs);
   return (
     <ArtisanOnly>
       {(me) => (
         <div className="ws-page">
-          <WorkspaceHead icon="wrench" title="Jobs" summary="Work a customer approved, its photos and its history." />
+          <WorkspaceHead icon="wrench" title="Jobs" summary="Work a customer approved, with the address, contact and history." />
           <SuspendedNotice me={me} />
-          <section className="ws-panel" aria-label="Jobs">
-            <PanelState
-              icon="wrench"
-              title="No jobs yet"
-              body="A job appears here once a customer approves your quote. Its photos, cost and history stay here after it is finished."
-            />
-          </section>
+          <WorkList
+            rows={rows}
+            onChanged={reload}
+            empty={{ icon: "wrench", title: "No jobs yet", body: "A job appears here once a customer approves your quote." }}
+          />
         </div>
       )}
     </ArtisanOnly>
+  );
+}
+
+function useWork(load: () => Promise<ArtisanInvitation[]>) {
+  const [rows, setRows] = useState<ArtisanInvitation[] | null>(null);
+  const reload = useCallback(async () => {
+    try {
+      setRows(await load());
+    } catch {
+      setRows((current) => current ?? []);
+    }
+  }, [load]);
+  useEffect(() => { void reload(); }, [reload]);
+  return { rows, reload };
+}
+
+function HomeCount({ count, label, href }: { count: number; label: string; href: string }) {
+  return (
+    <Link href={href as never} className="art-home-count">
+      <strong>{count}</strong>
+      <span>{label}</span>
+      <Icon name="chevron-down" />
+    </Link>
   );
 }
 

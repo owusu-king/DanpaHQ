@@ -91,9 +91,15 @@ test("the application never switches anybody, and only an open experience offers
   for (const source of [screen, form]) assert.doesNotMatch(source, /Trusted|Guaranteed|Payment protected/);
 });
 
-test("tenants reach Artisans from Services and providers from More, as a sheet", () => {
+test("Find Artisans and every profile are pushed pages, never a sheet (owner, 2026-10-20)", () => {
   const stack = code(read("app/(app)/_layout.tsx"));
-  assert.match(stack, /<Stack\.Screen name="artisans" options=\{\{ title: "Artisans", presentation: "modal", headerLeft: closeHeaderLeft \}\} \/>/);
+  assert.match(stack, /<Stack\.Screen name="artisans" options=\{\{ title: "Find Artisans" \}\} \/>/);
+  assert.match(stack, /<Stack\.Screen name="artisan-view" options=\{\{ title: "Artisan" \}\} \/>/);
+  assert.doesNotMatch(stack, /name="artisans"[^>]*presentation/);
+  // A profile is its own page, not a view swapped in place.
+  const find = code(read("app/(app)/artisans.tsx"));
+  assert.match(find, /pathname: "\/\(app\)\/artisan-view"/);
+  assert.doesNotMatch(find, /function Profile\(|setOpen\(/);
   assert.match(code(read("app/(app)/(provider-tabs)/more.tsx")), /\{ key: "artisans", icon: "hammer-outline", label: "Find Artisans", onPress: go\("\/\(app\)\/artisans"\) \}/);
   // Becoming one is a quiet header link inside it, gone once approved.
   const sheet = code(read("app/(app)/artisans.tsx"));
@@ -111,4 +117,21 @@ test("electrical work shows only certified electricians until the person asks fo
   assert.match(screen, /onPress=\{\(\) => setShowUncertified\(true\)\}/);
   assert.match(screen, /if \(seenTrade !== trade\) \{\s*setSeenTrade\(trade\);\s*setShowUncertified\(false\);/);
   assert.doesNotMatch(screen, /Trusted|Guaranteed|Payment protected/);
+});
+
+test("on a repair, only the payer approves, it asks once more, and the tenant never sees the price", () => {
+  const section = code(read("src/components/artisan/MaintenanceArtisans.tsx"));
+  assert.match(section, /<Pill label="Approve" onPress=\{onAsk\} \/>/);
+  assert.match(section, /<Pill label=\{`Approve \$\{quote\.price_display\}`\} busy=\{busy\} busyLabel="Approving…" onPress=\{\(\) => onDecide\(true\)\} \/>/);
+  assert.match(section, /\{PAYMENT_TIP\}/);
+  assert.match(section, /work\.permissions\.approve/);
+  // Quotes are drawn only for the provider side; the tenant's block has none.
+  assert.match(section, /\{quote && side === "provider" \? \(/);
+});
+
+test("an artisan's job page opens the address only once the backend unlocks it", () => {
+  const job = code(read("app/(app)/artisan-job.tsx"));
+  assert.match(job, /const job = row\.unlocked \? row\.job : undefined;/);
+  assert.match(job, /The address and a contact open here if your quote is approved\./);
+  assert.match(job, /Linking\.openURL\(`tel:\$\{job\.contact\.phone/);
 });

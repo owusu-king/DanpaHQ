@@ -713,6 +713,66 @@ rent_patterns = [
     ),
     path("artisans/", artisan_views.DiscoverView.as_view(), name="artisan-discover"),
     path("artisans/<uuid:pk>/", artisan_views.ArtisanProfileView.as_view(), name="artisan-profile"),
+    path(
+        "artisan-work/",
+        artisan_views.CustomerWorkView.as_view(),
+        name="artisan-work",
+    ),
+    path(
+        "me/artisan/invitations/",
+        artisan_views.MyInvitationsView.as_view(),
+        name="me-artisan-invitations",
+    ),
+    path(
+        "me/artisan/invitations/<uuid:pk>/",
+        artisan_views.MyInvitationView.as_view(),
+        name="me-artisan-invitation",
+    ),
+    path(
+        "me/artisan/invitations/<uuid:pk>/decline/",
+        artisan_views.DeclineInvitationView.as_view(),
+        name="me-artisan-invitation-decline",
+    ),
+    path(
+        "me/artisan/invitations/<uuid:pk>/quotes/",
+        artisan_views.SubmitQuoteView.as_view(),
+        name="me-artisan-quote",
+    ),
+    path(
+        "me/artisan/jobs/",
+        artisan_views.MyJobsView.as_view(),
+        name="me-artisan-jobs",
+    ),
+    path(
+        "artisan-quotes/<uuid:pk>/withdraw/",
+        artisan_views.WithdrawQuoteView.as_view(),
+        name="artisan-quote-withdraw",
+    ),
+    path(
+        "artisan-quotes/<uuid:pk>/approve/",
+        artisan_views.ApproveQuoteView.as_view(),
+        name="artisan-quote-approve",
+    ),
+    path(
+        "artisan-quotes/<uuid:pk>/decline/",
+        artisan_views.DeclineQuoteView.as_view(),
+        name="artisan-quote-decline",
+    ),
+    path(
+        "maintenance/<uuid:pk>/artisan-invitations/",
+        artisan_views.InviteView.as_view(),
+        name="maintenance-artisan-invite",
+    ),
+    path(
+        "maintenance/<uuid:pk>/artisan-suggestions/",
+        artisan_views.SuggestView.as_view(),
+        name="maintenance-artisan-suggest",
+    ),
+    path(
+        "maintenance/<uuid:pk>/revisions/",
+        artisan_views.RevisionView.as_view(),
+        name="maintenance-artisan-revision",
+    ),
     # Maintenance (apps.maintenance)
     path("me/maintenance/", maintenance_views.MyMaintenanceView.as_view(), name="me-maintenance"),
     path(

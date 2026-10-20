@@ -25,10 +25,15 @@ import { ModalViews, useModalViews } from "@/components/workspace/ModalViews";
 import { PanelSkeleton, PanelState, SegmentedControl } from "@/components/workspace/Workspace";
 import { ApiFailure } from "@/lib/api";
 import {
+  ARTISAN_WORK_CHANGED,
   CERTIFICATE_LABEL,
   TRADES,
   discoverArtisans,
   getArtisan,
+  getArtisanWork,
+  inviteArtisan,
+  suggestArtisan,
+  type CustomerWorkItem,
   type ArtisanCard,
   type DiscoverResult,
   type District,
@@ -38,7 +43,9 @@ import { useSession } from "@/lib/session";
 import { onDate } from "@/lib/time";
 
 export type ArtisansTab = "find" | "requests" | "records";
-export type ArtisansRequest = { tab?: ArtisansTab; trade?: string };
+/** Opened from a maintenance request: profiles offer to invite (or suggest) for it. */
+export type ArtisansForRequest = { id: string; mode: "invite" | "suggest"; label: string };
+export type ArtisansRequest = { tab?: ArtisansTab; trade?: string; forRequest?: ArtisansForRequest };
 
 export const OPEN_ARTISANS = "danpahq:open-artisans";
 
@@ -101,23 +108,20 @@ export function ArtisansSheet({
               { key: "records", label: "Records" },
             ]}
           />
+          {request.forRequest ? (
+            <p className="art-for-request">
+              {request.forRequest.mode === "invite" ? "Inviting artisans to quote for" : "Suggesting an artisan for"}{" "}
+              <strong>{request.forRequest.label}</strong>. Open a profile to{" "}
+              {request.forRequest.mode === "invite" ? "invite them." : "suggest them to your landlord."}
+            </p>
+          ) : null}
           {tab === "find" ? (
             <Find initialTrade={request.trade} onOpen={(id) => nav.push({ kind: "profile", id })} />
-          ) : tab === "requests" ? (
-            <PanelState
-              icon="receipt"
-              title="No quote requests yet"
-              body="Quotes you ask for and receive appear here, with any waiting for your approval."
-            />
           ) : (
-            <PanelState
-              icon="wrench"
-              title="No artisan jobs yet"
-              body="Ongoing and completed work stays here, with its photos, costs and reviews."
-            />
+            <Work tab={tab} onClose={onClose} />
           )}
         </div>
-        {top ? <Profile id={top.id} /> : null}
+        {top ? <Profile id={top.id} forRequest={request.forRequest} /> : null}
       </ModalViews>
     </ModalSheet>
   );
@@ -278,7 +282,7 @@ function Facts({ artisan }: { artisan: ArtisanCard }) {
   );
 }
 
-function Profile({ id }: { id: string }) {
+function Profile({ id, forRequest }: { id: string; forRequest?: ArtisansForRequest }) {
   const [artisan, setArtisan] = useState<PublicArtisan | null>(null);
   const [error, setError] = useState("");
 
@@ -303,6 +307,7 @@ function Profile({ id }: { id: string }) {
           Works in {artisan.districts.map((district) => district.name).join(", ")}
         </p>
         <Facts artisan={artisan} />
+        {forRequest && !artisan.is_you ? <AskAction artisanId={artisan.id} name={artisan.name} forRequest={forRequest} /> : null}
       </header>
 
       {artisan.portfolio.length ? (
@@ -359,5 +364,99 @@ function Profile({ id }: { id: string }) {
         record of each job; it does not guarantee anybody&apos;s work.
       </p>
     </article>
+  );
+}
+
+/**
+ * Invite (or, for a tenant, suggest) this artisan for the request the sheet was
+ * opened from. Inviting tells the artisan the area and the problem, never the
+ * address; a suggestion tells only the people who run the property.
+ */
+function AskAction({ artisanId, name, forRequest }: { artisanId: string; name: string; forRequest: ArtisansForRequest }) {
+  const [state, setState] = useState<"idle" | "busy" | "done">("idle");
+  const [error, setError] = useState("");
+  const invite = forRequest.mode === "invite";
+
+  async function ask() {
+    setState("busy");
+    setError("");
+    try {
+      if (invite) await inviteArtisan(forRequest.id, artisanId);
+      else await suggestArtisan(forRequest.id, artisanId);
+      setState("done");
+      window.dispatchEvent(new CustomEvent(ARTISAN_WORK_CHANGED, { detail: { requestId: forRequest.id } }));
+    } catch (cause) {
+      setState("idle");
+      setError(cause instanceof ApiFailure ? cause.error.message : "That did not go through. Try again.");
+    }
+  }
+
+  if (state === "done") {
+    return (
+      <p className="art-asked" role="status">
+        {invite
+          ? `${name} has been asked to quote. They see the area and the problem, not the address.`
+          : `Suggested. Your landlord decides whether to ask ${name} to quote.`}
+      </p>
+    );
+  }
+  return (
+    <div className="art-ask">
+      <button type="button" className="ws-action is-primary" disabled={state === "busy"} onClick={() => void ask()}>
+        {state === "busy" ? "Sending…" : invite ? "Invite to quote" : "Suggest to your landlord"}
+      </button>
+      {error ? <span className="art-missing" role="alert">{error}</span> : null}
+    </div>
+  );
+}
+
+/** Requests and Records: quotes asked for and waiting, and the work under way or done. */
+function Work({ tab, onClose }: { tab: "requests" | "records"; onClose: () => void }) {
+  const [work, setWork] = useState<{ requests: CustomerWorkItem[]; records: CustomerWorkItem[] } | null>(null);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let live = true;
+    getArtisanWork()
+      .then((next) => { if (live) setWork(next); })
+      .catch((cause) => { if (live) setError(cause instanceof ApiFailure ? cause.error.message : "Could not load artisan work."); });
+    return () => { live = false; };
+  }, []);
+
+  if (error) return <PanelState tone="error" icon="warning" title={error} />;
+  if (!work) return <PanelSkeleton rows={3} />;
+  const rows = tab === "requests" ? work.requests : work.records;
+  if (!rows.length) {
+    return tab === "requests" ? (
+      <PanelState icon="receipt" title="No quote requests yet" body="Quotes you ask for and receive appear here, with any waiting for your approval." />
+    ) : (
+      <PanelState icon="wrench" title="No artisan jobs yet" body="Work under way and finished stays here, with its photos and costs." />
+    );
+  }
+  return (
+    <ul className="art-work" aria-label={tab === "requests" ? "Quote requests" : "Artisan jobs"}>
+      {rows.map((item) => {
+        const waiting = item.invitations.flatMap((row) => row.quotes).filter((quote) => quote.status === "submitted").length;
+        const who = item.assigned?.artisan.name
+          ?? item.invitations.map((row) => row.artisan.name).join(", ");
+        return (
+          <li key={item.request.id}>
+            <Link href={`/maintenance?request=${item.request.id}` as never} className="art-work-row" onClick={onClose}>
+              <span className="art-work-icon" aria-hidden="true"><Wrench /></span>
+              <span className="art-work-body">
+                <strong>{item.request.category_display}</strong>
+                <small>{item.request.place}</small>
+                <small>{who}</small>
+              </span>
+              <span className="art-work-side">
+                {waiting ? <span className="art-cert-status is-provided">{waiting} quote{waiting === 1 ? "" : "s"} waiting</span> : null}
+                {item.assigned?.price_on_record ? <strong>{item.assigned.price_on_record.price_display}</strong> : null}
+                <small>{item.request.status_display}</small>
+              </span>
+            </Link>
+          </li>
+        );
+      })}
+    </ul>
   );
 }

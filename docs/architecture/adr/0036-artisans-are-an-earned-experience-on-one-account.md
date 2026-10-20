@@ -77,5 +77,36 @@ third experience.
   listed, so nobody sees an edit until they are reinstated.
 - **One entry point**: web's top bar opens an Artisans sheet (Find, Requests,
   Records) over the current page, from a button or `openArtisans()`; mobile
-  opens the same as a modal from the Services tile (tenants) and More
-  (providers). Requests and Records fill in with Phases 3–5.
+  reaches the same from the Services tile (tenants) and More (providers) — a
+  modal at first, pushed pages since Phase 3. Requests and Records fill in with
+  Phases 3–5.
+
+## Phase 3: quotes, revisions and assignment on maintenance (20 October 2026)
+
+- **No parallel record.** `QuoteInvitation` and `Quote` hold only who was asked
+  and what each quote said. The maintenance request stays the record: approving
+  a quote sets two nullable fields on it (`assigned_artisan`, `assigned_quote`)
+  and writes an `ASSIGNED` event naming the approver, the artisan and the price.
+  Work waiting to start moves to in progress; no status was added.
+- **Who may act.** Anyone who runs the property invites up to three artisans;
+  a tenant may suggest one, which the landlord sends on or not. Only the payer
+  approves (`organization.services.may_approve_spending`: owner, Portfolio
+  owner or administrator, assigned Property Manager) — narrower than who runs
+  the repair, and never platform staff. A suspended artisan cannot quote, and a
+  quote sent before a suspension cannot be approved after it.
+- **Extra cost is a revised quote.** Only the assigned artisan sends one, with a
+  reason; it changes nothing until the payer approves it, when it becomes the
+  price on record (`REVISION_APPROVED` event) and the previous one is marked
+  superseded. A declined revision leaves the price on record.
+- **The privacy unlock** (`artisan.work`). An invited artisan reads the problem,
+  its photograph and the area (locality, district, region). The address, the
+  unit, the tenant's name and phone, the approver and the history open only on
+  the request they were assigned to. The tenant reads who is doing the work and
+  never the price.
+- **Advice, not escrow.** Wherever a payer approves a price the app says: pay
+  after the work is confirmed done, or a small deposit at most. Approval asks
+  once more before it commits.
+- **Migrations** add two tables and three nullable columns on
+  `maintenance_request`; existing requests are untouched.
+- **Mobile** Find Artisans is a pushed page and each profile its own page
+  (owner, 2026-10-20), reached from Menu, More, Services and a repair.

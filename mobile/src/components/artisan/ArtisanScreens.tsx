@@ -1,10 +1,17 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useState, type ReactNode } from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, View } from "react-native";
 
 import { ApiFailure } from "@/api";
-import { getMyArtisanApplication, type ArtisanApplication } from "@/artisan";
+import {
+  INVITATION_STATE_LABEL,
+  getMyArtisanApplication,
+  listMyInvitations,
+  listMyJobs,
+  type ArtisanApplication,
+  type ArtisanInvitation,
+} from "@/artisan";
 import { useAuth, type Me, type Workspace } from "@/auth";
 import { ArtisanFacts } from "@/components/artisan/ArtisanFacts";
 import { Notice, Type, space } from "@/components/ui";
@@ -107,6 +114,10 @@ export function ArtisanHomeScreen() {
   const { application, error } = useArtisanApplication();
   const profile = application?.profile;
   const firstName = me?.display_name.split(/\s+/)[0] ?? "";
+  const invitations = useWork(listMyInvitations);
+  const jobs = useWork(listMyJobs);
+  const newInvites = invitations?.filter((row) => row.state === "invited").length ?? 0;
+  const activeJobs = jobs?.filter((row) => row.request.status !== "completed").length ?? 0;
 
   return (
     <Page>
@@ -134,7 +145,11 @@ export function ArtisanHomeScreen() {
         title="New quote invitations"
         link={{ label: "Requests", onPress: () => router.navigate("/(app)/(artisan-tabs)/artisan-requests" as never) }}
       >
-        <Empty compact ground={WHITE} icon="document-text-outline" title="No invitations yet" hint="When a tenant or property provider asks you to quote, it appears here with the area and what needs doing." />
+        {invitations === null ? <ActivityIndicator color={AMBER} /> : newInvites ? (
+          <Count count={newInvites} label={newInvites === 1 ? "invitation waiting for your quote" : "invitations waiting for your quote"} />
+        ) : (
+          <Empty compact ground={WHITE} icon="document-text-outline" title="No invitations yet" hint="When a tenant or property provider asks you to quote, it appears here." />
+        )}
       </Card>
 
       <Card
@@ -143,7 +158,11 @@ export function ArtisanHomeScreen() {
         title="Active jobs"
         link={{ label: "Jobs", onPress: () => router.navigate("/(app)/(artisan-tabs)/artisan-jobs" as never) }}
       >
-        <Empty compact ground={WHITE} icon="construct-outline" title="No active jobs" hint="A job starts here once a customer approves your quote." />
+        {jobs === null ? <ActivityIndicator color={KOLA} /> : activeJobs ? (
+          <Count count={activeJobs} label={activeJobs === 1 ? "job under way" : "jobs under way"} />
+        ) : (
+          <Empty compact ground={WHITE} icon="construct-outline" title="No active jobs" hint="A job starts here once a customer approves your quote." />
+        )}
       </Card>
 
       <Card
@@ -160,37 +179,115 @@ export function ArtisanHomeScreen() {
 
 export function ArtisanRequestsScreen() {
   const me = useMe();
+  const rows = useWork(listMyInvitations);
+  const waiting = rows?.filter((row) => row.state === "invited").length ?? 0;
   return (
     <Page>
-      <Briefing title="Quote invitations" parts={[{ text: "and the quotes you send in reply", tone: theme.color.ink["500"] }]} />
+      <Briefing
+        title="Quote invitations"
+        parts={waiting ? [{ text: `${waiting} waiting for your quote`, tone: AMBER, strong: true }] : [{ text: "and the quotes you send in reply", tone: theme.color.ink["500"] }]}
+      />
       <SuspendedNotice me={me} />
-      <View style={styles.card}>
-        <Empty
-          ground={WHITE}
-          icon="document-text-outline"
-          title="No quote invitations yet"
-          hint="A tenant or property provider invites you to quote. You see the area and what needs doing; the exact address and a contact open only after your quote is approved."
-        />
-      </View>
+      <WorkRows
+        rows={rows}
+        empty={{ icon: "document-text-outline", title: "No quote invitations yet", hint: "You see the area and the problem. The address opens only if your quote is approved." }}
+      />
     </Page>
   );
 }
 
 export function ArtisanJobsScreen() {
   const me = useMe();
+  const rows = useWork(listMyJobs);
   return (
     <Page>
-      <Briefing title="Jobs" parts={[{ text: "work a customer approved, its photos and history", tone: theme.color.ink["500"] }]} />
+      <Briefing title="Jobs" parts={[{ text: "work a customer approved, with the address and contact", tone: theme.color.ink["500"] }]} />
       <SuspendedNotice me={me} />
-      <View style={styles.card}>
-        <Empty
-          ground={WHITE}
-          icon="construct-outline"
-          title="No jobs yet"
-          hint="A job appears here once a customer approves your quote. Its photos, cost and history stay here after it is finished."
-        />
-      </View>
+      <WorkRows
+        rows={rows}
+        empty={{ icon: "construct-outline", title: "No jobs yet", hint: "A job appears here once a customer approves your quote." }}
+      />
     </Page>
+  );
+}
+
+/** Invitations or jobs, reloaded each time the tab comes back into view. */
+function useWork(load: () => Promise<ArtisanInvitation[]>) {
+  const [rows, setRows] = useState<ArtisanInvitation[] | null>(null);
+  useFocusEffect(
+    useCallback(() => {
+      let live = true;
+      load()
+        .then((next) => { if (live) setRows(next); })
+        .catch(() => { if (live) setRows((current) => current ?? []); });
+      return () => { live = false; };
+    }, [load]),
+  );
+  return rows;
+}
+
+const STATE_INK: Record<string, { ink: string; wash: string }> = {
+  invited: { ink: AMBER, wash: AMBER_WASH },
+  quoted: { ink: LAGOON, wash: theme.color.lagoon["100"] },
+  assigned: { ink: theme.color.kola["800"], wash: theme.color.kola["50"] },
+};
+
+function WorkRows({
+  rows,
+  empty,
+}: {
+  rows: ArtisanInvitation[] | null;
+  empty: { icon: keyof typeof Ionicons.glyphMap; title: string; hint: string };
+}) {
+  const router = useRouter();
+  if (rows === null) return <ActivityIndicator color={AMBER} style={{ paddingVertical: space[8] }} />;
+  if (!rows.length) {
+    return (
+      <View style={styles.card}>
+        <Empty ground={WHITE} icon={empty.icon} title={empty.title} hint={empty.hint} />
+      </View>
+    );
+  }
+  return (
+    <View style={{ gap: space[3] }}>
+      {rows.map((row) => {
+        const tone = STATE_INK[row.state] ?? { ink: theme.color.ink["500"], wash: theme.color.field["100"] };
+        const price = row.job?.price_on_record ?? row.quotes.find((quote) => quote.status === "submitted");
+        return (
+          <Pressable
+            key={row.id}
+            onPress={() => router.push({ pathname: "/(app)/artisan-job", params: { id: row.id } } as never)}
+            accessibilityRole="button"
+            accessibilityLabel={`${row.request.category_display}, ${INVITATION_STATE_LABEL[row.state]}`}
+            {...pressableFeedback(alpha(DEEP, 0.04))}
+            style={styles.workRow}
+          >
+            <View style={styles.workThumb}>
+              {row.request.photo ? <Image source={{ uri: row.request.photo.url }} style={StyleSheet.absoluteFill} /> : <Ionicons name="construct-outline" size={20} color={KOLA} />}
+            </View>
+            <View style={{ flex: 1, gap: 2 }}>
+              <Type variant="bodyStrong" numberOfLines={1}>{row.request.category_display}</Type>
+              <Type variant="caption" numberOfLines={1} style={{ color: theme.color.ink["500"] }}>
+                {row.unlocked && row.job ? row.job.address.line : [row.request.area.locality, row.request.area.district].filter(Boolean).join(", ")}
+              </Type>
+              <View style={[styles.statePill, { backgroundColor: tone.wash }]}>
+                <Type variant="captionStrong" style={{ color: tone.ink, fontSize: 12 }}>{INVITATION_STATE_LABEL[row.state]}</Type>
+              </View>
+            </View>
+            {price ? <Type variant="bodyStrong">{price.price_display}</Type> : null}
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+function Count({ count, label }: { count: number; label: string }) {
+  return (
+    <View style={styles.count}>
+      <Type variant="display2" style={{ color: AMBER }}>{String(count)}</Type>
+      <Type variant="body" style={{ flex: 1, color: theme.color.ink["700"] }}>{label}</Type>
+    </View>
   );
 }
 
@@ -357,6 +454,10 @@ const styles = StyleSheet.create({
     backgroundColor: WHITE,
   },
   row: { flexDirection: "row", alignItems: "center", gap: space[3], minHeight: 48 },
+  workRow: { flexDirection: "row", alignItems: "center", gap: space[3], padding: space[3], borderRadius: 18, borderWidth: 1, borderColor: alpha(DEEP, 0.08), backgroundColor: WHITE },
+  workThumb: { width: 56, height: 56, borderRadius: 14, overflow: "hidden", alignItems: "center", justifyContent: "center", backgroundColor: theme.color.kola["50"] },
+  statePill: { alignSelf: "flex-start", marginTop: 2, paddingVertical: 2, paddingHorizontal: space[2], borderRadius: 999 },
+  count: { flexDirection: "row", alignItems: "center", gap: space[3], padding: space[3], borderRadius: 14, backgroundColor: theme.color.field["50"] },
   footnote: { textAlign: "center", color: theme.color.ink["500"], paddingHorizontal: space[4] },
 });
 

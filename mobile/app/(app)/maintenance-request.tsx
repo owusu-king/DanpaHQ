@@ -5,6 +5,7 @@ import { Image, Linking, Pressable, ScrollView, StyleSheet, View } from "react-n
 
 import { ApiFailure } from "@/api";
 import { useAuth } from "@/auth";
+import { MaintenanceArtisans } from "@/components/artisan/MaintenanceArtisans";
 import { ClipPlayer, STAGE, Tracker, dateLabel } from "@/components/maintenance/MaintenanceParts";
 import { EntityHeader, LoadingRows, StatusLine, type StatusTone } from "@/components/property/WorkspacePatterns";
 import { ActionBar, Fact, GroupLabel, Pill, QuietAct, Quote, RecordPanel } from "@/components/record/RecordSurfaces";
@@ -150,6 +151,8 @@ export default function MaintenanceRequestScreen() {
           <GroupLabel>{side === "tenant" ? "What you reported" : `${request.tenant.name.split(" ")[0]} reported`}</GroupLabel>
           <Quote>{request.description}</Quote>
         </View>
+
+        <MaintenanceArtisans request={request} side={side} onChanged={load} />
 
         {request.events.length > 1 ? (
           <View style={styles.section}>

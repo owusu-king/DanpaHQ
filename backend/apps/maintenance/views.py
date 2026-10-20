@@ -85,8 +85,16 @@ class MaintenanceDetailView(APIView):
                 # What this reader may do now, so neither client re-derives the
                 # rules (and gets them wrong).
                 "permissions": _permissions(found, request.user),
+                "artisans": _artisans(found, request.user),
             }
         )
+
+
+def _artisans(found, user) -> dict:
+    """Invitations, quotes and the assignment, as this reader may see them."""
+    from apps.artisan.work import work_for
+
+    return work_for(found, user)
 
 
 def _permissions(found, user) -> dict:
@@ -119,6 +127,7 @@ class _ActionView(APIView):
             {
                 **MaintenanceRequestSerializer(fresh).data,
                 "permissions": _permissions(fresh, request.user),
+                "artisans": _artisans(fresh, request.user),
             }
         )
 

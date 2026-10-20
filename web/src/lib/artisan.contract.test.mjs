@@ -70,3 +70,21 @@ test("becoming an artisan is a quiet link in the Artisans sheet, never a menu it
   assert.match(sheet, /const becomeLabel = !artisan \|\| artisan\.workspace_access\s*\? null/);
   assert.match(sheet, /headerAction=\{becomeLabel && !top \? \(\s*<Link href=\{"\/artisan" as never\} onClick=\{onClose\}>\{becomeLabel\}<\/Link>/);
 });
+
+test("approving a price asks once more, and always says how to pay safely", () => {
+  const section = code(read("web/src/components/artisan/MaintenanceArtisans.tsx"));
+  // The first press asks; only the confirming press approves.
+  assert.match(section, /onClick=\{onAsk\}>Approve<\/button>/);
+  assert.match(section, /onClick=\{\(\) => onDecide\(true\)\}>\s*\{busy \? "Approving…" : `Approve \$\{quote\.price_display\}`\}/);
+  assert.match(section, /<p className="mt-quote-tip">\{PAYMENT_TIP\}<\/p>/);
+  assert.match(code(read("web/src/lib/artisan.ts")), /PAYMENT_TIP = "Pay after the work is confirmed done, or a small deposit at most\."/);
+  // What a reader may do comes from the backend, never worked out here.
+  assert.match(section, /work\.permissions\.approve/);
+  assert.match(section, /work\.permissions\.invite/);
+});
+
+test("an artisan sees the address only once the backend unlocks it", () => {
+  const work = code(read("web/src/components/artisan/ArtisanWork.tsx"));
+  assert.match(work, /const job = row\.unlocked \? row\.job : undefined;/);
+  assert.match(work, /The address and a contact open here if your quote is approved\./);
+});

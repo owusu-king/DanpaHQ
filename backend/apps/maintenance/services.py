@@ -334,3 +334,79 @@ def reopen(*, request: MaintenanceRequest, user, reason: str) -> MaintenanceRequ
         note=reason,
         stamp={"reopened_at": None, "reopen_count": request.reopen_count + 1},
     )
+
+
+# --- artisans -------------------------------------------------------------------
+#
+# Called by `apps.artisan` once a payer approves a quote. Status stays this
+# module's: an assignment is one more event, and work waiting to start moves to
+# in progress the way it would if the provider had started it themselves.
+
+
+def assign_artisan(
+    *, request: MaintenanceRequest, quote, approver, note: str
+) -> MaintenanceRequest:
+    """Put an approved quote's artisan on the request. The caller holds the lock."""
+    now = timezone.now()
+    stamp = {
+        "assigned_artisan": quote.invitation.artisan,
+        "assigned_quote": quote,
+        "assigned_at": now,
+    }
+    if request.status in WAITING_ON_PROVIDER:
+        return _move(
+            request=request,
+            user=approver,
+            to=MaintenanceStatus.IN_PROGRESS,
+            kind=MaintenanceEventKind.ASSIGNED,
+            note=note,
+            stamp={**stamp, "started_at": None},
+        )
+    return _record_without_moving(
+        request=request, user=approver, kind=MaintenanceEventKind.ASSIGNED, note=note, fields=stamp
+    )
+
+
+def record_revision(
+    *, request: MaintenanceRequest, quote, approver, note: str
+) -> MaintenanceRequest:
+    """An approved revised quote becomes the price on record. Status is unchanged."""
+    return _record_without_moving(
+        request=request,
+        user=approver,
+        kind=MaintenanceEventKind.REVISION_APPROVED,
+        note=note,
+        fields={"assigned_quote": quote},
+    )
+
+
+def _record_without_moving(
+    *, request: MaintenanceRequest, user, kind: str, note: str, fields: dict
+) -> MaintenanceRequest:
+    for field, value in fields.items():
+        setattr(request, field, value)
+    request.save(update_fields=[*fields.keys(), "updated_at"])
+    MaintenanceEvent.objects.create(
+        request=request,
+        kind=kind,
+        actor=user,
+        from_status=request.status,
+        to_status=request.status,
+        note=note[:500],
+    )
+    record(
+        action=AuditAction.UPDATE,
+        aggregate_type="maintenance_request",
+        aggregate_id=request.id,
+        actor=user,
+        metadata={"event": kind, "note": note[:200]},
+    )
+    emit(
+        DomainEvent(
+            f"maintenance.{kind}.v1",
+            "maintenance_request",
+            str(request.id),
+            {"from": request.status, "to": request.status},
+        )
+    )
+    return request

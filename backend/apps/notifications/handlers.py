@@ -1314,3 +1314,174 @@ def on_artisan_certificate_decided(event) -> None:
         target_type="artisan_certificate",
         target_id=certificate.id,
     )
+
+
+# --- quotes on maintenance requests ----------------------------------------------
+
+
+def _invitation(invitation_id):
+    from apps.artisan.models import QuoteInvitation
+
+    return (
+        QuoteInvitation.objects.select_related(
+            "artisan__user",
+            "maintenance_request__property__address__locality__district",
+            "maintenance_request__tenant",
+            "maintenance_request__unit",
+            "maintenance_request__tenancy__activation_lease__landlord",
+            "maintenance_request__property__owner",
+            "maintenance_request__property__managed_by",
+        )
+        .filter(id=invitation_id)
+        .first()
+    )
+
+
+def _quote_row(quote_id):
+    from apps.artisan.models import Quote
+
+    return Quote.objects.select_related("invitation").filter(id=quote_id).first()
+
+
+def _price(quote) -> str:
+    from apps.core.money import Money
+
+    return Money(quote.price_minor).format()
+
+
+@subscribe("artisan.quote_invited.v1")
+def on_quote_invited(event) -> None:
+    invitation = _invitation(event.aggregate_id)
+    if invitation is None:
+        return
+    request = invitation.maintenance_request
+    # The area only. The address waits for an approved quote.
+    area = request.property.address.locality_label or request.property.address.district_label
+    notify(
+        user=invitation.artisan.user,
+        kind="artisan.quote_invited",
+        title=f"New quote request: {request.get_category_display()}",
+        body=f"Somebody in {area} would like a quote. Open it to see the job and send your price.",
+        dedupe_key=_key(event, invitation.artisan.user_id),
+        target_type="artisan_invitation",
+        target_id=invitation.id,
+    )
+
+
+@subscribe("artisan.suggested.v1")
+def on_artisan_suggested(event) -> None:
+    invitation = _invitation(event.aggregate_id)
+    if invitation is None:
+        return
+    request = invitation.maintenance_request
+    for provider in _maintenance_providers(request):
+        notify(
+            user=provider,
+            kind="artisan.suggested",
+            title="Your tenant suggested an artisan",
+            body=(
+                f"{request.tenant.display_name} suggested {invitation.artisan.user.display_name} "
+                f"for the {request.get_category_display().lower()} repair in "
+                f"{_maintenance_where(request)}. Invite them to quote if you agree."
+            ),
+            dedupe_key=_key(event, provider.id),
+            target_type="maintenance_request",
+            target_id=request.id,
+        )
+
+
+@subscribe("artisan.quote_submitted.v1")
+def on_quote_submitted(event) -> None:
+    quote = _quote_row(event.aggregate_id)
+    if quote is None:
+        return
+    invitation = _invitation(quote.invitation_id)
+    request = invitation.maintenance_request
+    revision = event.payload.get("revision")
+    # Two kinds, each stated whole: the clients classify kinds by reading them here.
+    if revision:  # noqa: SIM108 — each kind must read `kind = "..."` for the client mirror test
+        kind = "artisan.revision_submitted"
+    else:
+        kind = "artisan.quote_submitted"
+    for provider in _maintenance_providers(request):
+        notify(
+            user=provider,
+            kind=kind,
+            title=(
+                f"Revised quote: {_price(quote)}" if revision else f"New quote: {_price(quote)}"
+            ),
+            body=(
+                f"{invitation.artisan.user.display_name} "
+                + ("asks for a revised price" if revision else "sent a quote")
+                + f" for {_maintenance_where(request)}. Nothing changes until you approve it."
+            ),
+            dedupe_key=_key(event, provider.id),
+            target_type="maintenance_request",
+            target_id=request.id,
+        )
+
+
+@subscribe("artisan.quote_approved.v1")
+@subscribe("artisan.revision_approved.v1")
+def on_quote_approved(event) -> None:
+    quote = _quote_row(event.aggregate_id)
+    if quote is None:
+        return
+    invitation = _invitation(quote.invitation_id)
+    revision = event.name == "artisan.revision_approved.v1"
+    notify(
+        user=invitation.artisan.user,
+        kind="artisan.quote_approved",
+        title="Your revised price was approved" if revision else "Your quote was approved",
+        body=(
+            f"{_price(quote)} is now the price on record."
+            if revision
+            else "The job is yours. The address and a contact are now on the job."
+        ),
+        dedupe_key=_key(event, invitation.artisan.user_id),
+        target_type="artisan_invitation",
+        target_id=invitation.id,
+    )
+
+
+@subscribe("artisan.quote_declined.v1")
+def on_quote_declined(event) -> None:
+    quote = _quote_row(event.aggregate_id)
+    if quote is None:
+        return
+    invitation = _invitation(quote.invitation_id)
+    notify(
+        user=invitation.artisan.user,
+        kind="artisan.quote_declined",
+        title=(
+            "Your revised price was not approved"
+            if event.payload.get("revision")
+            else "Your quote was not chosen"
+        ),
+        body=quote.decision_note or "Open the request to see where it stands.",
+        dedupe_key=_key(event, invitation.artisan.user_id),
+        target_type="artisan_invitation",
+        target_id=invitation.id,
+    )
+
+
+@subscribe("maintenance.assigned.v1")
+def on_maintenance_assigned(event) -> None:
+    request = _maintenance(event.aggregate_id)
+    if request is None or request.assigned_artisan_id is None:
+        return
+    from apps.artisan.models import ArtisanProfile
+
+    artisan = ArtisanProfile.objects.select_related("user").get(id=request.assigned_artisan_id)
+    notify(
+        user=request.tenant,
+        kind="maintenance.assigned",
+        title="An artisan is on your repair",
+        body=(
+            f"{artisan.user.display_name} will fix the {request.get_category_display().lower()} "
+            f"problem in {_maintenance_where(request)} and may call you to arrange a time."
+        ),
+        dedupe_key=_key(event, request.tenant_id),
+        target_type="maintenance_request",
+        target_id=request.id,
+    )
