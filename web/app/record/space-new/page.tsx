@@ -61,6 +61,7 @@ export default function NewSpacePage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
+    if (!propertyId) return;
     getProperty(propertyId)
       .then(setProperty)
       .catch((cause) =>
@@ -94,6 +95,15 @@ export default function NewSpacePage() {
     if (!space) return;
     setSpace(await getUnit(space.id));
   }, [space]);
+
+  if (!propertyId) {
+    return (
+      <main style={SHELL}>
+        <Notice tone="info" title="Choose a property first" body="Open a property before adding a Unit to it." />
+        <p><Link href="/properties" className="type-caption" style={{ color: "var(--color-kola-600)" }}>← All properties</Link></p>
+      </main>
+    );
+  }
 
   if (error && !property) {
     return (

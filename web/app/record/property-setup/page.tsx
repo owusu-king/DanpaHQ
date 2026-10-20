@@ -107,6 +107,7 @@ export default function PropertySetupPage() {
   const [error, setError] = useState("");
 
   const load = useCallback(async () => {
+    if (!propertyId) return;
     try {
       const [prop, progress, amenityState] = await Promise.all([
         getProperty(propertyId),
@@ -177,6 +178,15 @@ export default function PropertySetupPage() {
     const asked = steps.some((row) => row.key === requested) ? (requested as StepKey) : null;
     setStep(asked ?? (resumeAt(steps) as StepKey));
   }, [steps, requested]);
+
+  if (!propertyId) {
+    return (
+      <main style={SHELL}>
+        <Notice tone="info" title="Choose a property first" body="Open a property from your Portfolio before editing its setup." />
+        <p style={{ marginTop: "var(--space-4)" }}><Link href="/properties" className="type-caption" style={LINK}>← All properties</Link></p>
+      </main>
+    );
+  }
 
   if (error && !property) {
     return (

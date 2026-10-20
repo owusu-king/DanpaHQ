@@ -50,6 +50,7 @@ export default function VerifyPropertyPage() {
   const [sent, setSent] = useState(false);
 
   const load = useCallback(async () => {
+    if (!id) return;
     try {
       const [prop, progress, amenityState] = await Promise.all([
         getProperty(id),
@@ -72,6 +73,15 @@ export default function VerifyPropertyPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  if (!id) {
+    return (
+      <main style={SHELL}>
+        <Notice tone="info" title="Choose a property first" body="Open a property from your Portfolio before submitting it for verification." />
+        <p style={{ marginTop: "var(--space-4)" }}><Link href="/properties">All properties</Link></p>
+      </main>
+    );
+  }
 
   if (error && !property) {
     return (

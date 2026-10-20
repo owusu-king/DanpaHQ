@@ -73,7 +73,7 @@ Constraints worth naming:
 Append-only, hash-chained. `previous_hash` links to the prior entry for the same
 aggregate; `entry_hash` covers the row's content. `apps.audit.services.record`
 serialises writers per aggregate with `SELECT ... FOR UPDATE` so the chain cannot
-fork. `ops/sql/audit_append_only.sql` removes UPDATE and DELETE from the
+fork. `backend/apps/core/sql/audit_append_only.sql` removes UPDATE and DELETE from the
 application role.
 
 This is tamper *evidence*, not tamper proofing. Anyone with owner rights could

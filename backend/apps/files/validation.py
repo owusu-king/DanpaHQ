@@ -26,6 +26,7 @@ from dataclasses import dataclass
 __all__ = [
     "LIMITS",
     "FileValidationError",
+    "effective_max_bytes",
     "sniff_content_type",
     "validate_declared_upload",
     "validate_uploaded_bytes",
@@ -99,6 +100,18 @@ LIMITS: dict[str, PurposeLimits] = {
         human="a photo or PDF up to 8MB",
     ),
 }
+
+
+def effective_max_bytes(purpose: str) -> int:
+    """The smaller of the product limit and the configured scanner's limit."""
+    from django.conf import settings
+
+    allowed = LIMITS[purpose].max_bytes
+    if getattr(settings, "FILE_SCAN_MODE", "strict") == "cloudmersive":
+        from .scanner import CLOUDMERSIVE_MAX_BYTES
+
+        return min(allowed, CLOUDMERSIVE_MAX_BYTES)
+    return allowed
 
 #: Magic-number signatures. ``(offset, bytes, content_type)``.
 _SIGNATURES: list[tuple[int, bytes, str]] = [

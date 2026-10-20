@@ -10,6 +10,7 @@
 
 import { apiFetch, idempotentMutation } from "./api";
 import { authedBlob, authedFetch } from "./auth";
+import { preparePhotoUpload } from "./preparePhotoUpload";
 import type { SpaceQuestions } from "./propertyTypes";
 
 // --- geography ---------------------------------------------------------------
@@ -1555,13 +1556,14 @@ export type StoredFile = {
  * verifies what actually arrived.
  */
 export async function uploadFile(file: File, purpose: string): Promise<StoredFile> {
+  const prepared = await preparePhotoUpload(file, purpose);
   const reservation = await authedFetch<Presigned>("/files/uploads/", {
     method: "POST",
     body: JSON.stringify({
       purpose,
-      filename: file.name,
-      content_type: file.type || "application/octet-stream",
-      size_bytes: file.size,
+      filename: prepared.name,
+      content_type: prepared.type || "application/octet-stream",
+      size_bytes: prepared.size,
     }),
   });
 
@@ -1571,12 +1573,12 @@ export async function uploadFile(file: File, purpose: string): Promise<StoredFil
   for (const [key, value] of Object.entries(reservation.fields ?? {})) {
     body.append(key, value);
   }
-  body.append("file", file);
+  body.append("file", prepared);
 
   const upload = await fetch(reservation.url, {
     method: reservation.method || "POST",
-    body: reservation.method === "PUT" ? file : body,
-    headers: reservation.method === "PUT" ? { "Content-Type": file.type } : undefined,
+    body: reservation.method === "PUT" ? prepared : body,
+    headers: reservation.method === "PUT" ? { "Content-Type": prepared.type } : undefined,
   });
 
   if (!upload.ok) {

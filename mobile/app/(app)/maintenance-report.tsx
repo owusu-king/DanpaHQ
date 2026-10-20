@@ -24,7 +24,7 @@ type Clip = {
 };
 
 /** The server's cap on a video upload (`apps.files.validation`). */
-const MAX_VIDEO_BYTES = 30 * 1024 * 1024;
+const MAX_VIDEO_BYTES = 3_500_000;
 
 /**
  * Reporting a problem: which home, what kind, what is wrong, one photograph, and
@@ -99,7 +99,7 @@ export default function MaintenanceReportScreen() {
     const asset = !result.canceled ? result.assets[0] : null;
     if (!asset) return;
     if ((asset.fileSize ?? 0) > MAX_VIDEO_BYTES) {
-      setError(`That video is ${Math.round((asset.fileSize ?? 0) / 1048576)}MB; the limit is 30MB. Record a short clip instead.`);
+      setError(`That video is too large for the pilot's 3.5 MB security-scan limit. Record a shorter clip instead.`);
       return;
     }
     const durationMs = Math.round(asset.duration ?? 0);

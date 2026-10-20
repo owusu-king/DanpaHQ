@@ -1,5 +1,9 @@
 # Danpa HQ — production deployment
 
+Start with [the current release-readiness decision](RELEASE_READINESS.md).
+This architecture guide describes the target production topology, not proof
+that the Render Free pilot Blueprint meets every gate.
+
 What *this repository* needs to move from development into production. Not a
 Django tutorial: every item below was read out of the code, and every file path
 and setting name is real.
@@ -36,7 +40,7 @@ Everything else in this document is ordinary work. Those two are the gates.
 **WHY** — `production.py` fails to start rather than starting insecurely: it
 requires every secret explicitly, forces `DEBUG=False`, SSL redirect, HSTS for a
 year with preload, secure session and CSRF cookies, and `DB_SSLMODE=require`.
-**HOW** — the image already runs the right process:
+**HOW** — the Dockerfile's default process is:
 
 ```
 gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 3 --timeout 60 --access-logfile -
@@ -46,6 +50,11 @@ gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 3 --timeout 60 --
 runtime layer, runs as non-root uid 10001, and carries a `HEALTHCHECK` against
 `/healthz`. Build production images **without** `INSTALL_DEV=true`; the compose
 file sets it and production must not.
+
+The Render Free Blueprint overrides this command with
+`backend/scripts/render-start.sh`: one Gunicorn worker plus a Celery worker and
+beat in the same container. That is a pilot resource compromise, not the
+separate-process production architecture described in §4–5.
 
 Three workers is a starting point, not a measurement. `--timeout 60` matters:
 checkout and status-refresh requests make a Paystack call inside the request
@@ -67,6 +76,7 @@ transaction (see §14), so the gunicorn timeout must stay above Paystack's
 | `MANAGEMENT_CSRF_KEY` | Management portal CSRF, separate from consumer auth |
 | `STORAGE_SIGNING_KEY` | presigned URL signing |
 | `RUNTIME_CONFIG_ENCRYPTION_KEY` | encrypts Management-controlled secrets at rest; keep stable across deploys |
+| `RESEND_API_KEY` | required when using the Blueprint's default HTTPS email backend; verify the sending domain first |
 
 Generate each secret independently. Reusing one value across two of these
 defeats the separation they exist for.
@@ -77,7 +87,8 @@ defeats the separation they exist for.
 |---|---|---|
 | `DB_SSLMODE` | `require` | do not weaken |
 | `SMS_BACKEND` | `null` | bootstrap fallback; configure Arkesel from Management |
-| `FILE_SCAN_MODE` | `strict` | `permissive` is a development shortcut |
+| `FILE_SCAN_MODE` | `strict` | `cloudmersive` enables a configured scanner; `permissive` is forbidden |
+| `CLOUDMERSIVE_API_KEY` | empty | required with `FILE_SCAN_MODE=cloudmersive`; application cap is 3,500,000 bytes, and provider quota must be confirmed |
 | `PAYMENT_INTENT_TTL_MINUTES` | 30 | how long a checkout stays open |
 | `PAYMENT_MINIMUM_PART_MINOR` | 5000 (GHS 50) | floor under a part payment |
 | `PAYMENT_RECONCILIATION_AGEING_HOURS` | 4 | when an open exception starts alerting |
@@ -124,7 +135,7 @@ crashed the test process intermittently.
 python manage.py harden_database
 ```
 
-This applies `ops/sql/audit_append_only.sql`: RLS forced on `audit_log`, INSERT
+This applies `backend/apps/core/sql/audit_append_only.sql`: RLS forced on `audit_log`, INSERT
 and SELECT policies only, `UPDATE`/`DELETE`/`TRUNCATE` revoked from the
 application role. The application role must therefore **not** be the owner —
 create a separate least-privilege role for the app and keep the owner for
@@ -546,19 +557,15 @@ restore that drops them silently removes the protection.
 
 ## 16. CI/CD
 
-`.github/workflows/ci.yml` runs, per push: ruff lint **and format check**, mypy,
-missing-migration check, the full pytest suite with coverage, bandit,
-`pip-audit --strict`, `check --deploy --fail-level WARNING` against production
-settings, module-boundary and schema-invariant tests, design-token freshness,
-web typecheck/lint/tests/build, and mobile typecheck/lint/tests.
-
-**One known-red gate: `mypy apps config` reports 282 errors across 60 files.**
-Because Lint and Type check run before Tests, the backend job currently stops
-early, which means the security scan and the deploy check have not been gating
-anything. The formatting half of that was fixed in this pass; the type errors
-are real technical debt and are listed in `SYSTEM_INTEGRITY_STATUS.md`. Until
-they are cleared, treat CI as advisory and run the suite manually before a
-deploy.
+There is currently **no** `.github/workflows/ci.yml` in this repository.
+Do not interpret a green hosting build as passing application tests. Before a
+deploy, run backend pytest and security checks, web typecheck/lint/tests/build,
+and mobile typecheck/lint/tests. The web suite passed locally on 19 October
+2026, but mobile lint still emits warnings and a native release build was not
+verified. A CI workflow should be added; until then, follow the exact commands
+and record the manual results in [RELEASE_READINESS.md](RELEASE_READINESS.md)
+for each candidate commit. Dependency audits are point-in-time checks, not a
+permanent clearance.
 
 Deployment itself is not automated in this repository — there is no deploy
 workflow, no Terraform, no Kubernetes manifests, no `eas.json`. Those are
@@ -588,7 +595,11 @@ yours to write.
     Django admin → Management users (§18 step 12).
 12. Automated backups with a **rehearsed** restore (§15).
 13. Error monitoring (§14).
-14. If maps are switched on: all four Google Maps Platform keys restricted, a
+14. Approved identity-document privacy notice and third-party scanning terms;
+    production scanner tested with clean, infected and provider-failure cases.
+15. A native Android/iOS build tested on devices if mobile access is offered;
+    this is especially important after adding image manipulation.
+16. If maps are switched on: all four Google Maps Platform keys restricted, a
     Map ID, a billing budget with alerts, and quotas (§9a). Without keys Explore
     is a list, a working product, so maps can wait; unrestricted keys cannot.
 
@@ -655,7 +666,8 @@ yours to write.
 9. Build and deploy the web app with `NEXT_PUBLIC_API_URL` and
    `NEXT_PUBLIC_GOOGLE_CLIENT_ID`; if maps are on, also set
    `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` and `NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID`.
-   Confirm sign-in reaches the API and CORS/CSRF are correct.
+   Confirm sign-in reaches the API and CORS/CSRF are correct. The web build
+   fetches Google Fonts, so build infrastructure needs outbound network access.
 10. Configure the SMS adapter and send one real code to a real handset. **Do not
     proceed past this step without it** (§0).
 11. Point log shipping at the platform; bind the alert events from §14; connect

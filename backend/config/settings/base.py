@@ -206,6 +206,7 @@ EMAIL_HOST_USER = env("EMAIL_HOST_USER", "")
 EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", "")
 EMAIL_USE_TLS = env("EMAIL_USE_TLS", "true").lower() == "true"
 EMAIL_TIMEOUT = env("EMAIL_TIMEOUT", 10, cast=int)
+RESEND_API_KEY = env("RESEND_API_KEY", "")
 DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", "Danpa HQ <no-reply@danpahq.com>")
 # The floor under a part payment, in pesewas. It exists because the receiving
 # Portfolio bears the processor's transaction fee, so unbounded micro-payments
@@ -395,6 +396,9 @@ REST_FRAMEWORK = {
 # DRF does not use this backend; it continues to use the bearer-token class
 # above. The admin login form accepts only an email-verified staff principal.
 AUTHENTICATION_BACKENDS = ["apps.identity.admin_auth.AdminEmailBackend"]
+# An unguessable path keeps scanners off the admin password form; the attempt
+# cap in `admin_auth` is the control, this only cuts the noise.
+ADMIN_URL = (env("ADMIN_URL", "admin/").strip("/") or "admin") + "/"
 
 # `check --deploy --fail-level WARNING` exists to catch security
 # misconfiguration before a release. drf-spectacular's completeness notices are
@@ -473,26 +477,6 @@ DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
-# --- File storage ---------------------------------------------------------------
-# Which backend holds uploaded files.
-# "s3"    — S3-compatible object storage (MinIO locally, S3/R2 in production).
-#            Bytes go directly from the client to storage; Django only issues
-#            and verifies presigned URLs. Default.
-# "local" — Filesystem under LOCAL_STORAGE_ROOT. No external dependency.
-#            Bytes go through a Django view that checks a signed URL.
-#            Choose this on Windows if you prefer not to run MinIO.
-# "memory"— Test fixture only; never set this in dev or production.
-STORAGE_BACKEND = env("STORAGE_BACKEND", "s3")
-LOCAL_STORAGE_ROOT = BASE_DIR / "media"
-LOCAL_STORAGE_BASE_URL = env("LOCAL_STORAGE_BASE_URL", "http://localhost:8000/storage")
-STORAGE_SIGNING_KEY = env("STORAGE_SIGNING_KEY", SECRET_KEY)
-
-# Scanner mode for uploaded files.
-# "strict"     — files stay unusable until a real scanner reports. Production.
-# "permissive" — releases files without scanning and logs loudly. Development.
-FILE_SCAN_MODE = env("FILE_SCAN_MODE", "permissive")
-
-
 # --- Storage backend ---------------------------------------------------------
 # "s3"    — S3-compatible object storage (MinIO locally, real S3 in production).
 #            Default. The same code runs locally and in production.
@@ -512,12 +496,11 @@ LOCAL_STORAGE_BASE_URL = env("LOCAL_STORAGE_BASE_URL", "http://localhost:8000/ap
 # important, because leaking a dev file is less bad than making setup harder.
 STORAGE_SIGNING_KEY = env("STORAGE_SIGNING_KEY", None)
 
-# "strict"    — files stay unusable until a real scanner marks them. The correct
-#               production setting: a deploy without a scanner visibly fails to
-#               release files rather than silently letting them through.
-# "permissive"— releases after magic-byte validation, with a loud log warning.
-#               For local development and CI, where ClamAV is not running.
+# "strict" — refuse new uploads until an approved scanner is configured.
+# "cloudmersive" — scan through the Cloudmersive API (3.5 MB file limit).
+# "permissive" — development-only bypass after magic-byte validation.
 FILE_SCAN_MODE = env("FILE_SCAN_MODE", "strict")
+CLOUDMERSIVE_API_KEY = env("CLOUDMERSIVE_API_KEY", "")
 
 # --- Authentication secrets -------------------------------------------------
 # Separate from SECRET_KEY so they can be rotated independently: rotating the

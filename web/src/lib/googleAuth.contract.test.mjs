@@ -14,6 +14,10 @@ test("GIS uses the maintained remote client and sends the opaque credential to t
   assert.match(button, /https:\/\/accounts\.google\.com\/gsi\/client/);
   assert.match(button, /NEXT_PUBLIC_GOOGLE_CLIENT_ID/);
   assert.doesNotMatch(button, /atob|decodeJwt|split\(["']\.["']\)/);
+  assert.match(button, /googleRenderKey/);
+  assert.match(button, /childElementCount > 0/);
+  assert.match(button, /busyRef\.current/);
+  assert.match(button, /auth-google-placeholder/);
   assert.match(signIn, /\/auth\/google\//);
   assert.match(register, /google_registration_ticket/);
 });

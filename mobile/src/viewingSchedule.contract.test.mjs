@@ -40,7 +40,9 @@ test("what waits on the tenant comes before the schedule, with its step on the r
   assert.match(source, /yours: rows\.filter\(\(row\) => row\.state\.group === "action"\),/);
   assert.match(source, /<GroupLabel count=\{lanes\.yours\.length\} tone=\{LATERITE\}>Needs you<\/GroupLabel>/);
   const row = between(source, "function VisitRow(", "function ScheduleSkeleton(");
-  assert.match(row, /\{state\.callToAction && !past \? \(\s*<Acts>\s*<Act label=\{state\.callToAction\}/);
+  assert.match(row, /\{state\.callToAction && !past \? \(\s*<View style=\{styles\.rowAct\}>/);
+  assert.match(row, /state\.callToAction \?\? "Open viewing"/);
+  assert.doesNotMatch(row, /<Act\b|accessibilityRole="button"/);
   // A visit with a time is green; one still waiting for a time is harmattan.
   assert.match(row, /viewing\.confirmed_starts_at \? KOLA_DEEP : HARMATTAN/);
   assert.match(source, />Coming up</);

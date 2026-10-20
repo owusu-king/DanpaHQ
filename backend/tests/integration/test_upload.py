@@ -118,6 +118,7 @@ class TestCompleteUpload:
             content_type="image/jpeg",
             size_bytes=1_000_000,
         )
+        upload_key = stored.storage_key
         _write_jpeg(memory_storage, stored.storage_key)
         completed = services.complete_upload(user=user, file_id=stored.id)
         # The scan runs after completion and is what releases the file, so the
@@ -130,6 +131,10 @@ class TestCompleteUpload:
         assert completed.content_type == "image/jpeg"
         assert completed.checksum_sha256  # 64-char hex
         assert completed.size_bytes > 0
+        assert completed.storage_key == f"{upload_key}.ready"
+        clean_bytes = memory_storage.read(key=completed.storage_key)
+        memory_storage.write(key=upload_key, data=b"malicious late overwrite")
+        assert memory_storage.read(key=completed.storage_key) == clean_bytes
 
     def test_complete_is_idempotent(self, user, memory_storage):
         """A client that retries after a network failure must get the same answer."""

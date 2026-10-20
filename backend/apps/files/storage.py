@@ -36,6 +36,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import shutil
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
@@ -136,6 +137,10 @@ class StorageBackend(ABC):
         """Remove an object. Used by retention jobs and failed-upload cleanup."""
 
     @abstractmethod
+    def copy(self, *, source_key: str, target_key: str) -> None:
+        """Copy bytes to a server-only key never issued in an upload presign."""
+
+    @abstractmethod
     def exists(self, *, key: str) -> bool: ...
 
 
@@ -202,7 +207,7 @@ class LocalStorageBackend(StorageBackend):
         """
         candidate = (self.root / key).resolve()
         root = self.root.resolve()
-        if not str(candidate).startswith(str(root)):
+        if not candidate.is_relative_to(root):
             raise StorageError("Refusing to resolve a key outside the storage root.")
         return candidate
 
@@ -265,6 +270,17 @@ class LocalStorageBackend(StorageBackend):
     def delete(self, *, key):
         path = self.path_for(key)
         path.unlink(missing_ok=True)
+
+    def copy(self, *, source_key, target_key):
+        source = self.path_for(source_key)
+        target = self.path_for(target_key)
+        if not source.is_file():
+            raise ObjectNotFound(source_key)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            shutil.copyfile(source, target)
+        except OSError as exc:
+            raise StorageError("Could not seal uploaded object") from exc
 
     def exists(self, *, key):
         return self.path_for(key).is_file()
@@ -447,6 +463,16 @@ class S3StorageBackend(StorageBackend):
         except Exception as exc:
             raise StorageError(f"Could not delete {key}: {exc}") from exc
 
+    def copy(self, *, source_key, target_key):
+        try:
+            self.client.copy_object(
+                Bucket=self.bucket,
+                Key=target_key,
+                CopySource={"Bucket": self.bucket, "Key": source_key},
+            )
+        except Exception as exc:
+            raise StorageError("Could not seal uploaded object") from exc
+
     def exists(self, *, key):
         try:
             self.stat(key=key)
@@ -496,6 +522,11 @@ class MemoryStorageBackend(StorageBackend):
 
     def delete(self, *, key):
         self.objects.pop(key, None)
+
+    def copy(self, *, source_key, target_key):
+        if source_key not in self.objects:
+            raise ObjectNotFound(source_key)
+        self.objects[target_key] = self.objects[source_key]
 
     def exists(self, *, key):
         return key in self.objects

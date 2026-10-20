@@ -53,5 +53,5 @@ test("confirmed web payments lead to the durable receipt", () => {
   for (const file of ["web/src/components/leases/LeaseRecord.tsx", "web/src/components/tenant/AgreementRecord.tsx", "web/src/components/payments/ReceiptModal.tsx"]) {
     assert.doesNotMatch(read(file), /pendingWindow|addEventListener\("load", \(\) => pending/, `${file} still prints through a pending tab`);
   }
-  assert.match(paymentsApi, /document\.pdf\?disposition=inline/);
+  assert.match(paymentsApi, /document\.pdf\?disposition=\$\{forPrint \? "print" : "inline"\}/);
 });

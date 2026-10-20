@@ -86,6 +86,9 @@ export default function IdentityVerificationScreen() {
         <Type variant="body" style={{ color: theme.color.ink["500"] }}>
           Submit one clear document. This check carries across every Danpa HQ experience.
         </Type>
+        <Type variant="caption" style={{ color: theme.color.ink["500"] }}>
+          Large photos are optimized on your device when possible. The 3.5 MB file is scanned by Cloudmersive in North America before review.
+        </Type>
       </View>
 
       {identity === undefined && !error ? (

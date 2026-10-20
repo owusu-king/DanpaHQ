@@ -151,9 +151,13 @@ test("the card is a link, and nothing inside it pretends to be a button", () => 
   assert.match(body, /state\.callToAction \?\? "View details"/);
   assert.match(
     read("mobile/app/(app)/viewings.tsx"),
-    /state\.callToAction \?\? "View details"/,
+    /state\.callToAction \?\? "Open viewing"/,
     "the phone reads it this way too",
   );
+  const phoneRow = read("mobile/app/(app)/viewings.tsx").split("function VisitRow(")[1].split("function ScheduleSkeleton(")[0];
+  assert.match(phoneRow, /accessibilityRole="link"/);
+  assert.match(phoneRow, /<View style=\{styles\.rowAct\}>/);
+  assert.doesNotMatch(phoneRow, /<Act\b|accessibilityRole="button"/);
 });
 
 test("what a viewing means is still decided by the mirrored module", () => {

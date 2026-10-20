@@ -8,8 +8,9 @@ detail:
    returns a short-lived presigned URL. Nothing is trusted yet.
 2. **Upload** — the client sends bytes straight to storage. Django never handles
    them, so a slow phone upload does not occupy a worker.
-3. **Complete** (`complete_upload`) — the server reads the object back, checks
-   what it *actually* is, checksums it, and only then moves it to `ready`.
+3. **Complete** (`complete_upload`) — the server checks the object's real type
+   and checksum, then queues a malware scan. Only a clean verdict moves a
+   checksum-verified copy at a server-only key to `ready`.
 
 Step 3 is why the client's claims in step 1 do not matter much. Someone can
 presign for a 2MB JPEG and push something else; the file will not become usable.
@@ -21,6 +22,7 @@ import hashlib
 import logging
 from datetime import timedelta
 
+from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 
@@ -36,6 +38,7 @@ from .storage import ObjectNotFound, StorageError, get_storage
 from .validation import (
     HEADER_BYTES,
     FileValidationError,
+    effective_max_bytes,
     validate_declared_upload,
     validate_uploaded_bytes,
 )
@@ -105,11 +108,24 @@ def reserve_upload(
         raise PermissionDenied("Sign in to upload a file.")
 
     try:
-        limits = validate_declared_upload(
+        validate_declared_upload(
             purpose=purpose, content_type=content_type, size_bytes=size_bytes
         )
     except FileValidationError as exc:
         raise ValidationFailed(str(exc)) from exc
+
+    scan_mode = getattr(settings, "FILE_SCAN_MODE", "strict")
+    if scan_mode == "strict":
+        raise Conflict("Uploads are temporarily unavailable while security scanning is configured.")
+    if scan_mode == "cloudmersive":
+        from .scanner import CLOUDMERSIVE_MAX_BYTES
+
+        if not getattr(settings, "CLOUDMERSIVE_API_KEY", ""):
+            raise Conflict(
+                "Uploads are temporarily unavailable while security scanning is configured."
+            )
+        if size_bytes > CLOUDMERSIVE_MAX_BYTES:
+            raise ValidationFailed("This upload must be smaller than 3.5 MB for security scanning.")
 
     normalised_type = content_type.split(";")[0].strip().lower()
     key = build_key(purpose=purpose, owner_id=str(user.id), content_type=normalised_type)
@@ -119,7 +135,7 @@ def reserve_upload(
         presigned = storage.presign_upload(
             key=key,
             content_type=normalised_type,
-            max_bytes=limits.max_bytes,
+            max_bytes=effective_max_bytes(purpose),
             expires_in=UPLOAD_WINDOW_MINUTES * 60,
         )
     except StorageError as exc:
@@ -239,6 +255,11 @@ def _complete_upload(*, user, file_id) -> StoredFile:
             actual_size=actual_size,
             declared_content_type=stored.declared_content_type,
         )
+        if getattr(settings, "FILE_SCAN_MODE", "strict") == "cloudmersive":
+            from .scanner import CLOUDMERSIVE_MAX_BYTES
+
+            if actual_size > CLOUDMERSIVE_MAX_BYTES:
+                raise FileValidationError("This upload exceeds the scanner's 3.5 MB limit.")
     except FileValidationError as exc:
         # Signal the rejection rather than raising here: this function runs
         # inside a transaction, and raising would roll back the rejected status
@@ -283,8 +304,7 @@ def _complete_upload(*, user, file_id) -> StoredFile:
         )
     )
 
-    # Scanning is asynchronous in production. Until a scanner is wired up the
-    # policy is explicit rather than implied - see mark_scanned().
+    # Scanning is asynchronous; no file is usable before a clean verdict.
     from .tasks import scan_file
 
     transaction.on_commit(lambda: scan_file.delay(str(stored.id)))
@@ -297,10 +317,30 @@ def mark_scanned(*, file_id, clean: bool, detail: str = "") -> StoredFile:
     stored = StoredFile.objects.select_for_update().filter(id=file_id).first()
     if stored is None:
         raise NotFound("We could not find that upload.")
+    if stored.upload_status == UploadStatus.READY and stored.scan_status == ScanStatus.CLEAN:
+        return stored
+    if stored.upload_status != UploadStatus.UPLOADED:
+        raise Conflict("That upload is not ready to scan.")
 
     stored.scan_status = ScanStatus.CLEAN if clean else ScanStatus.INFECTED
     stored.scanned_at = timezone.now()
     if clean:
+        # The original presigned POST can still be reused until it expires.
+        # Publish a server-only key, verify the copy matches the scanned bytes,
+        # and make *that* the downloadable object. Late writes to the upload
+        # key can no longer replace a clean file with unscanned content.
+        storage = get_storage()
+        original_key = stored.storage_key
+        sealed_key = f"{original_key}.ready"
+        storage.copy(source_key=original_key, target_key=sealed_key)
+        sealed = storage.read(key=sealed_key)
+        if (
+            len(sealed) != stored.size_bytes
+            or hashlib.sha256(sealed).hexdigest() != stored.checksum_sha256
+        ):
+            storage.delete(key=sealed_key)
+            raise StorageError("Uploaded object changed before it could be sealed")
+        stored.storage_key = sealed_key
         stored.upload_status = UploadStatus.READY
     else:
         stored.upload_status = UploadStatus.REJECTED
@@ -318,9 +358,20 @@ def mark_scanned(*, file_id, clean: bool, detail: str = "") -> StoredFile:
             "scanned_at",
             "upload_status",
             "rejection_reason",
+            "storage_key",
             "updated_at",
         ]
     )
+    if clean:
+        def discard_upload_key():
+            try:
+                storage.delete(key=original_key)
+            except StorageError:
+                logger.warning(
+                    "could not remove upload key", extra={"event": "upload_cleanup_failed"}
+                )
+
+        transaction.on_commit(discard_upload_key)
     emit(
         DomainEvent(
             "files.scan_completed.v1",

@@ -19,10 +19,15 @@ export default function NewUnitListingPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
+    if (!spaceId) return;
     getUnit(spaceId)
       .then(setUnit)
       .catch((cause) => setError(cause instanceof ApiFailure ? cause.error.message : "Could not load this Unit."));
   }, [spaceId]);
+
+  if (!propertyId || !spaceId) {
+    return <Notice tone="info" title="Choose a Unit first" body="Open a Unit from a property before creating its public listing." />;
+  }
 
   if (error) return <Notice tone="error" title={error} body="Return to the Unit and try again." />;
   if (!unit) return <LoadingRows rows={5} />;

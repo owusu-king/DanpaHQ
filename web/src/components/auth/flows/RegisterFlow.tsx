@@ -59,7 +59,7 @@ const SIDES: Record<AccountType, {
     Icon: Home,
   },
   provider: {
-    title: "Provider",
+    title: "Property manager",
     body: "Own or manage property.",
     Icon: Building2,
   },

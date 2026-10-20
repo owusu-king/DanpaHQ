@@ -195,9 +195,10 @@ def erase_account(user) -> None:
     # number for whoever holds it next. Written in SQL because the field
     # normalises every value it prepares — even through `update()` — and would
     # refuse anything that is not a real number, which is the point here.
+    # Table name comes from trusted model metadata; values are bound parameters.
     with connection.cursor() as cursor:
         cursor.execute(
-            f"UPDATE {User._meta.db_table} SET phone = %s WHERE id = %s",  # noqa: S608
+            f"UPDATE {User._meta.db_table} SET phone = %s WHERE id = %s",  # noqa: S608 # nosec B608
             [f"x{user.id.hex[-15:]}", user.id],
         )
 

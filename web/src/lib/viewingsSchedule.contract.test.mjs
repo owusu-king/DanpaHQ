@@ -56,27 +56,24 @@ test("a row is a place and a time", () => {
   }
 });
 
-test("the schedule opens on every viewing and history is filter-driven", () => {
+test("the schedule opens on every viewing and history stays reachable", () => {
   const meaning = read("web/src/lib/viewingMeaning.ts");
   assert.match(meaning, /export type ViewingFilter = "all" \| ViewingGroup/);
   for (const label of ["All", "Upcoming", "Needs you", "Past"]) {
     assert.match(meaning, new RegExp(`label: "${label}"`));
   }
 
-  // The phone still writes its section headings; web renders the same labels
-  // from `viewingFilters`, so they are in the module rather than the page.
+  // Web retains its address-backed filters. Mobile now shows lifecycle lanes
+  // directly and folds the past beneath them.
   assert.match(tenantWebList(), /viewingFilters\.map/);
   for (const source of [mobileList()]) {
-    const upcoming = source.indexOf("Upcoming");
+    const upcoming = source.indexOf("Coming up");
     const needs = source.indexOf("Needs you");
-    assert.notEqual(upcoming, -1, "Upcoming is missing");
     assert.notEqual(needs, -1, "Needs you is missing");
-    assert.ok(upcoming < needs, "Upcoming must come before Needs you");
-    assert.match(source, /useState<ViewingFilter>\("all"\)/);
-    assert.match(source, /viewingFilters\.map/);
-    assert.match(source, /visibleSections\.map/);
-    assert.doesNotMatch(source, /Past viewings \(/);
-    assert.doesNotMatch(source, /showPast/);
+    assert.notEqual(upcoming, -1, "Coming up is missing");
+    assert.ok(needs < upcoming, "Needs you must come before the schedule");
+    assert.match(source, /<Fold[\s\S]*title="Past"[\s\S]*count=\{lanes\.past\.length\}/);
+    assert.match(source, /pastOpen \? \(/);
   }
 });
 

@@ -8,10 +8,8 @@ pytest-django==4.9.0
 pytest-cov==6.0.0
 
 ruff==0.8.4
-# django-stubs 5.1.1 pins mypy to >=1.12,<1.14 through its compatible-mypy
-# extra, so mypy 1.14 cannot be installed alongside it.
 mypy==1.13.0
-django-stubs==5.1.1
+django-stubs==5.2.9
 djangorestframework-stubs==3.15.2
 
 bandit==1.8.0

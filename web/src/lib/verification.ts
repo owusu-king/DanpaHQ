@@ -48,7 +48,10 @@ export type VerificationProgress = {
 export type Subject = "property" | "unit";
 
 function base(subject: Subject, id: string): string {
-  return subject === "property" ? `/record/property?id=${id}` : `/units/${id}`;
+  // These are API paths, not console routes. Using the UI address here made a
+  // property request look like `/record/property?id=<id>/verification/`, so
+  // every property record failed while the equivalent Unit flow worked.
+  return subject === "property" ? `/properties/${id}` : `/units/${id}`;
 }
 
 export function getVerification(subject: Subject, id: string) {

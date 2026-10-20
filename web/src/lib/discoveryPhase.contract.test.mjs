@@ -28,9 +28,9 @@ test("mobile provider can act on viewing requests and applications", () => {
   const viewing = read("mobile/app/(app)/provider-viewing.tsx");
   assert.match(viewings, /listReceivedViewings/);
   assert.match(viewings, /<FlatList/);
-  assert.match(viewings, /label="Needs action"/);
-  assert.match(viewings, /label="Upcoming"/);
-  assert.match(viewings, /label="History"/);
+  assert.match(viewings, /title: "Your move"/);
+  assert.match(viewings, /work\.scheduled/);
+  assert.match(viewings, /key: "fold"[^\n]*work\.past\.length/);
   assert.match(viewing, /offerViewingSlots/);
   assert.match(viewing, /recordProviderViewingOutcome/);
 
@@ -118,7 +118,7 @@ test("provider space screens render occupied restrictions from backend actions",
     assert.match(source, /permitted_actions\.edit_operational/);
     assert.match(source, /permitted_actions\.add_bed/);
     assert.match(source, /publish\?\.allowed/);
-    assert.match(source, /Currently occupied/);
+    assert.match(source, /Someone lives here/);
   }
 });
 

@@ -638,7 +638,7 @@ export function RecordPaymentForm({
           accept="image/jpeg,image/png,application/pdf"
           onChange={(event) => setEvidenceFile(event.target.files?.[0] ?? null)}
         />
-        <span>{evidenceFile ? evidenceFile.name : "Screenshot or PDF, up to 8MB"}</span>
+        <span>{evidenceFile ? evidenceFile.name : "Screenshot or PDF, up to 3.5 MB during the pilot"}</span>
       </label>
       <Field
         label="Note (optional)"

@@ -4,10 +4,17 @@ import pytest
 
 from apps.files.validation import (
     FileValidationError,
+    effective_max_bytes,
     sniff_content_type,
     validate_declared_upload,
     validate_uploaded_bytes,
 )
+
+
+def test_scanner_cap_is_advertised_for_every_purpose(settings):
+    settings.FILE_SCAN_MODE = "cloudmersive"
+    assert effective_max_bytes("identity_document") == 3_500_000
+    assert effective_max_bytes("maintenance_video") == 3_500_000
 
 
 class TestSniffContentType:

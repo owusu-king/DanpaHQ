@@ -26,6 +26,7 @@ test("Get Started opens the question, and sign-up asks it first and once", () =>
   assert.match(body, /resuming \|\| googleArrival \? "details" : preselected \? "method" : "role"/);
   assert.match(body, /title: "How will you use Danpa HQ\?"/);
   assert.match(body, /body: "Rent or find a place\."/);
+  assert.match(body, /title: "Property manager"/);
   assert.match(body, /body: "Own or manage property\."/);
   assert.match(body, /className="auth-role-body">\{option\.body\}/);
   assert.doesNotMatch(body, /auth-role-points|option\.points/);

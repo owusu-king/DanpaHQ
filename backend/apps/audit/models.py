@@ -102,7 +102,7 @@ class AuditLog(BaseModel):
         Deliberately computable *before* the row is inserted. ``created_at`` is
         not in the material because the database assigns it, and needing it
         would force an UPDATE after the INSERT - the one operation the
-        append-only rules in ``ops/sql/audit_append_only.sql`` forbid. The id is
+        append-only rules in ``apps/core/sql/audit_append_only.sql`` forbid. The id is
         a UUIDv7, so the creation time is already inside the hashed material.
         """
         values = {

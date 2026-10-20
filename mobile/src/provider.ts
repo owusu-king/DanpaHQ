@@ -1,4 +1,5 @@
 import type { ImagePickerAsset } from "expo-image-picker";
+import { preparePhotoUpload } from "@/photoUpload";
 
 import { apiFetch, idempotentMutation } from "@/api";
 import type { ProviderReadiness } from "@/auth";
@@ -45,26 +46,25 @@ export async function uploadImage(
   // Android camera's MP4; the server sniffs the bytes either way.
   const video = asset.type === "video" || purpose === "maintenance_video";
   const mime = asset.mimeType ?? (video ? (asset.uri.toLowerCase().endsWith(".mov") ? "video/quicktime" : "video/mp4") : "image/jpeg");
-  const extension = { "video/quicktime": "mov", "video/mp4": "mp4", "video/webm": "webm", "image/png": "png" }[mime] ?? "jpg";
+  const extension = { "video/quicktime": "mov", "video/mp4": "mp4", "video/webm": "webm", "image/png": "png", "image/webp": "webp", "image/heic": "heic" }[mime] ?? "jpg";
   const filename = asset.fileName ?? `${purpose}-${Date.now()}.${extension}`;
-  const blob = await (await fetch(asset.uri)).blob();
-  const size = asset.fileSize ?? blob.size;
+  const prepared = await preparePhotoUpload(asset, mime, filename, purpose);
   const reservation = await apiFetch<Reservation>("/files/uploads/", {
     method: "POST",
-    body: { purpose, filename, content_type: mime, size_bytes: size },
+    body: { purpose, filename: prepared.filename, content_type: prepared.mime, size_bytes: prepared.blob.size },
   });
 
   let response: Response;
   if (reservation.method === "PUT") {
     response = await fetch(reservation.url, {
       method: "PUT",
-      headers: { "Content-Type": mime },
-      body: blob,
+      headers: { "Content-Type": prepared.mime },
+      body: prepared.blob,
     });
   } else {
     const form = new FormData();
     for (const [key, value] of Object.entries(reservation.fields ?? {})) form.append(key, value);
-    form.append("file", { uri: asset.uri, name: filename, type: mime } as unknown as Blob);
+    form.append("file", { uri: prepared.uri, name: prepared.filename, type: prepared.mime } as unknown as Blob);
     response = await fetch(reservation.url, { method: "POST", body: form });
   }
   if (!response.ok) throw new Error("Storage refused the document upload.");

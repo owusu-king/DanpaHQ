@@ -48,7 +48,7 @@ test("a clip is optional, recorded to five seconds, and a longer one is trimmed"
   assert.match(trimmer(), /onPanResponderTerminationRequest: \(\) => false/);
   assert.match(trimmer(), /accessibilityRole="adjustable"/);
   // Over the server's cap is refused on the phone, before any upload starts.
-  assert.match(source, /const MAX_VIDEO_BYTES = 30 \* 1024 \* 1024;/);
+  assert.match(source, /const MAX_VIDEO_BYTES = 3_500_000;/);
 });
 
 test("a windowed clip plays only its five seconds", () => {

@@ -178,6 +178,8 @@ def map_features(
 
     cell = 360.0 * CELL_PIXELS / (256 * (2**zoom))
     matched_sql, matched_params = qs.order_by().values("id").query.sql_with_params()
+    # The only interpolated fragment is ORM-generated SQL with its separate
+    # parameter tuple; the window/cell inputs remain bound query parameters.
     sql = f"""
         WITH matched AS ({matched_sql})
         SELECT

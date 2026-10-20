@@ -22,7 +22,7 @@ import {
   Thumb,
   rowStyles,
 } from "@/components/portfolio/PortfolioList";
-import { Act, Acts, Calm, Empty, Fold } from "@/components/work/WorkParts";
+import { Calm, Empty, Fold } from "@/components/work/WorkParts";
 import { Type, Notice, radius, space } from "@/components/ui";
 import { pressableFeedback, useSafeBottom } from "@/platform";
 import { alpha } from "@/shell";
@@ -179,7 +179,7 @@ function NextVisit({ row, onPress }: { row: Row; onPress: () => void }) {
   return (
     <Pressable
       accessibilityRole="link"
-      accessibilityLabel={`Next viewing: ${viewing.listing_headline}. ${placeOf(viewing)}. ${when ?? ""}, ${until}. ${state.line}.`}
+      accessibilityLabel={`Next viewing: ${viewing.listing_headline}. ${placeOf(viewing)}. ${when ?? ""}, ${until}. ${state.line}. ${state.callToAction ?? "Open viewing"}.`}
       onPress={onPress}
       {...pressableFeedback(theme.color.kola["900"])}
       style={({ pressed }) => [styles.next, pressed ? { backgroundColor: theme.color.kola["900"] } : null]}
@@ -222,7 +222,7 @@ function VisitRow({ row, first, onPress }: { row: Row; first: boolean; onPress: 
   return (
     <Pressable
       accessibilityRole="link"
-      accessibilityLabel={`${viewing.listing_headline}. ${placeOf(viewing)}. ${when ?? state.line}. ${state.line}.`}
+      accessibilityLabel={`${viewing.listing_headline}. ${placeOf(viewing)}. ${when ?? state.line}. ${state.line}. ${state.callToAction ?? "Open viewing"}.`}
       onPress={onPress}
       {...pressableFeedback(PRESSED)}
       style={({ pressed }) => [rowStyles.row, first ? null : styles.ruled, pressed ? { backgroundColor: PRESSED } : null]}
@@ -234,9 +234,10 @@ function VisitRow({ row, first, onPress }: { row: Row; first: boolean; onPress: 
         <Type variant="caption" numberOfLines={1} style={rowStyles.rowSub}>{placeOf(viewing) || "Ghana"}</Type>
         <Type variant="captionStrong" numberOfLines={2} style={[styles.line, { color: tone }]}>{state.line}</Type>
         {state.callToAction && !past ? (
-          <Acts>
-            <Act label={state.callToAction} icon="arrow-forward" primary={state.group === "action"} onPress={onPress} />
-          </Acts>
+          <View style={styles.rowAct}>
+            <Ionicons name="arrow-forward" size={14} color={KOLA_DEEP} />
+            <Type variant="captionStrong" style={{ color: KOLA_DEEP }}>{state.callToAction}</Type>
+          </View>
         ) : null}
       </View>
     </Pressable>
@@ -294,6 +295,7 @@ const styles = StyleSheet.create({
   when: { fontSize: 15.5, lineHeight: 21, color: INK },
   headline: { fontSize: 14, lineHeight: 19, color: INK },
   line: { marginTop: 2, fontSize: 12.5, lineHeight: 17 },
+  rowAct: { flexDirection: "row", alignItems: "center", gap: space[1], marginTop: space[2] },
   // The next visit: Danpa HQ's deepest green, as the host's Up next card is.
   next: { overflow: "hidden", borderRadius: 22, backgroundColor: theme.color.kola["800"] },
   cover: { height: 140, alignItems: "center", justifyContent: "center", backgroundColor: alpha(WHITE, 0.06) },

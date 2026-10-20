@@ -19,12 +19,12 @@ the point of the document.
 | Idempotency for unsafe requests | `apps/idempotency` |
 | Rate limit budgets defined, including a 5/hour OTP bucket | `DEFAULT_THROTTLE_RATES` |
 | Non-root container, no build toolchain in the runtime image | `backend/Dockerfile` |
-| Dependency and static analysis in CI | `pip-audit`, `bandit`, `ruff`, `npm audit` |
+| Dependency and static analysis tools available locally | `pip-audit`, `bandit`, `ruff`, `npm audit`; no CI workflow is configured yet |
 
 ## Designed, not built
 
 - **Database-level append-only audit is applied but not enforced.**
-  `ops/sql/audit_append_only.sql` enables and forces row-level security on
+  `backend/apps/core/sql/audit_append_only.sql` enables and forces row-level security on
   `audit_log` with INSERT and SELECT policies only, so UPDATE and DELETE have no
   policy and are refused. That is correct — but the application connects as
   `grp`, the database owner, which is a superuser and therefore bypasses RLS
@@ -40,20 +40,22 @@ the point of the document.
   real control: it is tamper *evidence*, not tamper *prevention*, and
   `verify_chain` detects any edit to a recorded field.
 
-- **No SMS provider is integrated.** The interface, a console adapter and an
-  in-memory adapter exist. `SMS_BACKEND` is required in production precisely so
-  a deploy cannot silently start printing one-time codes to the logs.
+- **SMS delivery is not automatically ready.** Arkesel is integrated, but
+  production defaults to the null adapter until an administrator configures and
+  live-tests it. The console adapter is development-only.
 - **No SIM-swap data source.** Ghanaian operators expose SIM-change dates through
   aggregator APIs. `hours_since_sim_change_reported` is typed, documented and
   always `None` today; the rules degrade to signals we can see ourselves. It is
   not guessed at.
-- **No document scanning or liveness check.** Identity verification is human
-  review of an uploaded image. Forgery detection, face matching against the card,
-  and NIA lookup are all unbuilt, and the product must not imply otherwise.
-- **No virus scanner.** The signed-upload flow shipped in Phase 2 and magic-byte
-  validation rejects executables, archives and scripts, but nothing scans for
-  malware. `FILE_SCAN_MODE=strict` holds files unusable until a scanner reports;
-  `permissive` releases them with a loud log line and is development-only.
+- **No document authenticity or liveness check.** Malware scanning is not the
+  same as identity verification. A human reviews the uploaded image; forgery
+  detection, face matching and NIA lookup are unbuilt.
+- **Virus scanning requires deployment configuration.** The signed-upload flow
+  rejects disallowed file signatures. `FILE_SCAN_MODE=cloudmersive` uses a real
+  malware scan when an API key is configured; `strict` refuses new uploads, and
+  production rejects the development-only `permissive` bypass. The free scanner
+  accepts files up to 3.5 MB and sends their bytes to a third party; review its
+  data-processing terms before using it for identity documents.
 - Object-level permissions beyond "this is mine" — a landlord seeing only their
   own properties needs Phase 2 objects to attach to.
 - Webhook signature verification and replay windows — Phase 5.

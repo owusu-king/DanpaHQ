@@ -90,8 +90,8 @@ test("provider archive is reachable under account settings on web and mobile", (
   assert.match(webArchive, /Cannot restore yet/);
 
   // A provider reaches it from More. A tenant has no Archive to reach.
-  assert.match(mobileMore, /label="Archive"/);
-  assert.match(mobileMore, /\/\(app\)\/archive"/);
+  assert.match(mobileMore, /label: "Archive"/);
+  assert.match(mobileMore, /go\("\/\(app\)\/archive"\)/);
   assert.match(mobileArchive, /listMyArchive/);
   assert.match(mobileArchive, /restoreProperty/);
   assert.match(mobileArchive, /restoreSpace/);

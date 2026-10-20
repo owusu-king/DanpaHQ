@@ -150,28 +150,18 @@ test("a missing count never costs somebody their rent summary", () => {
 });
 
 test("the schedule and the history are drawn as opposites", () => {
-  // They were both plain two-line rows in identical type, which is why they
-  // read as one long list with a heading in the middle of it.
-  const coming = read("mobile/src/components/home/ComingUp.tsx");
-  const activity = read("mobile/src/components/home/RentalActivity.tsx");
-
-  // Coming Up is dated: a left rail with a date and a connecting rule.
-  assert.match(coming, /COMING UP/);
-  assert.match(coming, /function whenLabel/);
-  assert.match(coming, /index < entries\.length - 1/);
-
-  // Recent activity is past tense: a relative time trailing each line.
-  assert.match(activity, /title="Recent activity"/);
-  assert.match(activity, /timeAgo\(item\.created_at\)/);
-  assert.doesNotMatch(code(activity), /whenLabel|Tomorrow/);
-
-  // Future and past never share a source.
-  assert.match(code(read("mobile/src/components/home/TenantHome.tsx")), /<ComingUp entries=\{upcoming\}/);
-  assert.match(code(read("mobile/src/components/home/TenantHome.tsx")), /<RentalActivity items=\{recentActivity\}/);
+  const home = code(mobileHome());
+  // The schedule uses dated rows; past events are a separate, short feed.
+  assert.match(home, /<Section title="Coming up"/);
+  assert.match(home, /upcoming\.map\(\(entry\) => <UpcomingRow/);
+  assert.match(home, /<DayTile at=\{at\}/);
+  assert.match(home, /<Section title="Recent activity"/);
+  assert.match(home, /history\.map\(\(row\) => <ActivityItem/);
+  assert.match(home, /when: timeAgo\(item\.created_at\)/);
 });
 
 test("the history is rental history, and costs nothing extra", () => {
-  const activity = read("mobile/src/components/home/RentalActivity.tsx");
+  const activity = mobileHome();
   // Provider-side and account noise must never appear on a tenant's home.
   assert.match(activity, /TENANT_HISTORY = \/\^\(lease\|application\|viewing\|payment\|tenancy_request\)/);
   assert.doesNotMatch(code(activity), /organization\./);
@@ -192,18 +182,18 @@ test("rent leads the Overview, and its parts are never lost", () => {
   // The display-size amount used to be a `RentBlock` inside every home card.
   // With the homes drawn as rows in one card, that lead moved to the account's
   // own figure: the total, on the one surface that speaks for the account.
-  const moneyAt = home.indexOf("accessibilityLabel={`${owed.formatted} owed in total`}");
+  const moneyAt = home.indexOf("accessibilityLabel={`${owed.formatted} owed in total.");
   assert.ok(moneyAt > 0, "the Overview's money block is missing");
-  const money = home.slice(moneyAt, home.indexOf("<Register", moneyAt));
+  const money = home.slice(moneyAt, home.indexOf("<StatCells>", moneyAt));
   assert.ok(money.length > 200, "failed to isolate the Overview's money block");
-  assert.match(money, /OWED IN TOTAL/);
-  assert.match(money, /fontSize: density\.compact \? 28 : 32/);
+  assert.match(money, /Owed in total/);
+  assert.match(money, /<Type variant="display2"[^>]*style=\{\[styles\.owed/);
   // The label turns brick the moment anything is outstanding; the figure stays
   // ink, because colouring the amount made the number look like the warning.
-  assert.match(money, /color: owed\.minor \? ph\.brick : ph\.ink38/);
-  assert.match(money, /letterSpacing: -0\.6, color: ph\.ink \}/);
+  assert.match(money, /color: owed\.overdue \? TONE\.danger\.ink : MUTED/);
+  assert.match(money, /\{owed\.formatted\}/);
   // State is said in words as well as colour, in the surface's own badge.
-  for (const word of ["Rent overdue", "Rent scheduled", "Nothing due"]) {
+  for (const word of ["Overdue", "Scheduled", "All paid"]) {
     assert.match(home, new RegExp(`text: "${word}"`));
   }
 
@@ -228,10 +218,10 @@ test("the ambiguous plus is gone, and joining is not", () => {
   // has a home, so removing it outright would have removed the ability to join
   // a second tenancy.
   assert.match(home, /function JoinAnother/);
-  assert.match(home, /<JoinAnother onJoin=\{onJoin\} \/>/);
+  assert.match(home, /<JoinAnother key="join" onJoin=\{onJoin\} \/>/);
   assert.match(home, /onJoin/);
   const profile = read("mobile/app/(app)/(tabs)/profile.tsx");
-  assert.doesNotMatch(profile, /tenant-setup/, "still no other way in from Profile");
+  assert.match(profile, /Join your home with a code[\s\S]*\/\(app\)\/tenant-setup/);
 });
 
 test("both clients drop the standalone Rental activity section", () => {
@@ -245,7 +235,7 @@ test("both clients drop the standalone Rental activity section", () => {
   // without a tenancy they answer "what is happening with the places I asked
   // about", and dropping them would make a submitted application invisible.
   assert.match(code(webHome()), /<h2>In progress<\/h2>/);
-  assert.match(code(mobileHome()), /<Group heading="In progress">/);
+  assert.match(code(mobileHome()), /<Section title="In progress">/);
   for (const source of [code(webHome()), code(mobileHome())]) {
     assert.match(source, /function NoTenancy\(/);
   }
@@ -362,12 +352,12 @@ test("a tenant with homes goes straight from the tenancy cards to joining anothe
 
   const mobile = code(mobileHome());
   const homesAt = mobile.indexOf('title={tenancies.length > 1 ? "My homes"');
-  const scheduleAt = mobile.indexOf("<ComingUp entries=");
+  const scheduleAt = mobile.indexOf('<Section title="Coming up"');
   assert.ok(homesAt > 0 && scheduleAt > homesAt, "failed to isolate the mobile homes card");
   const mobileHomes = mobile.slice(homesAt, scheduleAt);
   assert.ok(mobileHomes.length > 200, "the mobile homes card is suspiciously short");
   assert.doesNotMatch(mobileHomes, /application[s]? out|Access request waiting on/);
-  assert.match(mobileHomes, /<JoinAnother onJoin=\{onJoin\} \/>/);
+  assert.match(mobileHomes, /<JoinAnother key="join" onJoin=\{onJoin\} \/>/);
 
   // Without a tenancy, active requests remain useful lifecycle context rather
   // than duplicated clutter beneath cards for homes the tenant already has: on
@@ -381,5 +371,5 @@ test("a tenant with homes goes straight from the tenancy cards to joining anothe
   // Bounded to the rendered lower row: `NoTenancy` below it offers Explore
   // to somebody with no home, which is the whole point of that state.
   assert.doesNotMatch(web.slice(lowerAt, afterHome), /Explore rentals/);
-  assert.match(mobile, /function Activity\(/);
+  assert.match(mobile, /const history: ActivityRow\[\] = recentActivity/);
 });

@@ -129,7 +129,6 @@ test("a modal navigates to a deeper view instead of stacking another modal", () 
   // No sheet that opens a deeper view mounts a second modal to do it.
   for (const file of [
     "web/src/components/payments/PaymentRecordModal.tsx",
-    "web/src/components/payments/RentDueModal.tsx",
     "web/src/components/requests/RequestModal.tsx",
   ]) {
     const body = code(read(file));
@@ -137,4 +136,8 @@ test("a modal navigates to a deeper view instead of stacking another modal", () 
     assert.equal((body.match(/<ModalSheet\b/g) ?? []).length, 1, `${file} mounts more than one sheet`);
     assert.doesNotMatch(body, /<(ReceiptModal|LeaseModal|RentDueModal)\b/, `${file} stacks a modal`);
   }
+  // RentDue is now one ledger view, not a sheet with a deeper view.
+  const due = code(read("web/src/components/payments/RentDueModal.tsx"));
+  assert.equal((due.match(/<ModalSheet\b/g) ?? []).length, 1);
+  assert.doesNotMatch(due, /<(ReceiptModal|LeaseModal)\b/);
 });

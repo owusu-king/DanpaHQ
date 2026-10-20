@@ -80,8 +80,8 @@ export function AuthModal({
       root.style.overflow = previous;
       document.removeEventListener("keydown", onKey);
     };
-    // Mount only: one dialog, one set of listeners.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Mount only: one dialog, one set of listeners. `close` reads the current
+    // callback through closeRef, so the listener never needs to be rebound.
   }, []);
 
   return (

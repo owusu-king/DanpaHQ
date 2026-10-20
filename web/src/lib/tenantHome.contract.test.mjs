@@ -83,30 +83,29 @@ test("a total is offered, and its parts are never lost", () => {
   // both dashboards were drawn in one language — and the question "what do I
   // owe" is asked on a phone more often than anywhere else.
   assert.match(mobileHome(), /My homes/);
-  assert.match(mobileHome(), /\.map\(\(tenancy\) => \(?\s*<HomeCard/);
+  assert.match(mobileHome(), /ranked\.map\(\(tenancy\) => \(\s*<HomeRow/);
   assert.match(mobileHome(), /function totalOwed\(/);
   assert.match(mobileHome(), /minor \+= rent\.outstanding_minor/);
   assert.doesNotMatch(mobileHome(), /parseAmount|amount_formatted\.replace/);
   // Every home still carries its own outstanding figure beside its own name.
-  assert.match(mobileHome(), /rent\?\.outstanding_minor \? rent\.outstanding_formatted/);
+  assert.match(mobileHome(), /const amount = rent\?\.outstanding_minor \? rent\.outstanding_formatted : null/);
   assert.match(read("mobile/src/tenancy.ts"), /outstanding_minor: number/);
 });
 
 test("attention is ranked, and says plainly when there is nothing", () => {
-  // The ranked list from the shared module is what drives the panel on both
-  // clients; mobile passes it to a panel of its own rather than branching in
-  // place, so the length test moved inside with it.
+  // The ranked list from the shared module drives both screens. Mobile gives
+  // the lead action and the remaining moves to the shared dashboard component.
   assert.match(tenantWeb(), /needs\.length \?/);
-  assert.match(mobileHome(), /<AttentionPanel signals=\{needs\}/);
-  assert.match(mobileHome(), /signals\.length \?/);
+  assert.match(mobileHome(), /<NextMoves/);
+  assert.match(mobileHome(), /moves=\{needs\.map/);
 
   // Both clients keep the panel in place and give it an all-clear reading, the
   // same as the provider's. It was previously hidden when empty on both; a
   // panel that vanishes leaves a hole and a reader wondering whether it failed
   // to load, and "nothing is waiting on you" is worth saying out loud.
   for (const source of [tenantWeb(), mobileHome()]) {
-    assert.match(source, /Needs attention/);
-    assert.match(source, /Nothing is waiting on you\./);
+    assert.match(source, /Needs attention|Your next move/);
+    assert.match(source, /Nothing is waiting on you\.?/);
   }
   assert.match(tenantWeb(), /home-all-clear/);
   // Ranked, late money first: it is the only item whose cost grows.
@@ -138,7 +137,7 @@ test("joining a home is reachable whatever state the account is in", () => {
   // paths still offer it: `JoinAnother` once there are homes, and the
   // access-code half of the empty state before there are.
   assert.match(mobileHome(), /accessibilityLabel="Join another home"/);
-  assert.match(mobileHome(), /<JoinAnother onJoin=\{onJoin\} \/>/);
+  assert.match(mobileHome(), /<JoinAnother key="join" onJoin=\{onJoin\} \/>/);
   assert.match(mobileHome(), /function NoTenancy\(/);
   assert.match(mobileHome(), /Have an access code\?/);
 });

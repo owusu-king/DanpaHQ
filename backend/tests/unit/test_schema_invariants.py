@@ -55,8 +55,23 @@ class TestUniquenessRules:
     def test_phone_numbers_are_unique(self):
         """Without this one human can hold two accounts and rental history
         stops meaning anything."""
-        source = _text_of(_class("identity", "User"))
-        assert "phone = PhoneNumberField(unique=True)" in source
+        user = _class("identity", "User")
+        phone = next(
+            node.value
+            for node in user.body
+            if isinstance(node, ast.Assign)
+            and any(
+                isinstance(target, ast.Name) and target.id == "phone" for target in node.targets
+            )
+        )
+        assert isinstance(phone, ast.Call)
+        assert isinstance(phone.func, ast.Name) and phone.func.id == "PhoneNumberField"
+        assert any(
+            keyword.arg == "unique"
+            and isinstance(keyword.value, ast.Constant)
+            and keyword.value.value is True
+            for keyword in phone.keywords
+        )
 
     def test_a_role_cannot_be_held_twice_while_active(self):
         source = _text_of(_class("identity", "UserRole"))

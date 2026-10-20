@@ -11,7 +11,7 @@ const webList = () => read("web/app/leases/page.tsx");
 const webReview = () => read("web/src/components/tenant/AgreementRecord.tsx");
 const webRecord = () => read("web/src/components/tenant/AgreementRecord.tsx");
 const webListPage = () => read("web/app/leases/page.tsx");
-const mobileList = () => read("mobile/app/(app)/leases.tsx");
+const mobileTenant = () => read("mobile/src/components/agreements/TenantAgreements.tsx");
 const mobileReview = () => read("mobile/app/(app)/agreement/[id].tsx");
 
 /** Source with comments removed, so quoted history is not read as behaviour. */
@@ -38,7 +38,7 @@ function at(source, needle, what) {
 // its tenant half now ends at the tenant's own date helper.
 const tenantList = () => ({
   web: tenantHalf(webList(), "function TenantLeases()", "function ProviderLeases()"),
-  mobile: tenantHalf(mobileList(), "function TenantLeasesScreen()", "function shortDate("),
+  mobile: mobileTenant(),
 });
 
 test("what an agreement means is decided once, for both clients", () => {
@@ -97,36 +97,18 @@ test("a row offers one action, not the whole agreement", () => {
   assert.match(mobile, /months\(terms\.termMonths\)/);
 });
 
-test("agreement history is filter-driven, previewed rather than unfolded", () => {
-  // The phone still keeps its filter in state; web moved it to the address so
-  // returning from a record lands on the same filter.
-  assert.match(tenantList().mobile, /useState<AgreementFilter>\("all"\)/);
+test("agreement history stays reachable through web filters and the mobile fold", () => {
+  // Web preserves its filter in the address; the phone now shows lifecycle
+  // lanes directly and folds the past beneath them.
   assert.match(tenantList().web, /search\.get\("show"\)/);
-  for (const source of [tenantList().web, tenantList().mobile]) {
-    assert.match(source, /agreementFilters\.map/);
-    assert.doesNotMatch(source, /Past agreements \(/);
-  }
+  assert.match(tenantList().web, /agreementFilters\.map/);
   assert.doesNotMatch(tenantList().web, /<details className="agreements-past"/);
-  // Still not a disclosure on either client: the way to the rest of history is
-  // the filter both readers already have, so there is one way to be in it.
-  assert.doesNotMatch(tenantList().mobile, /showPast|aria-expanded=/);
-
-  // On the phone the whole list stacks its stages, so the closed one gives two
-  // and says how many there are — history grows forever and is the group
-  // nobody opened the page for. Filtering to it shows all of them. Both
-  // readers' screens live in the one file, so this reads all of it.
-  const phone = mobileList();
-  assert.match(phone, /const HISTORY_SHOWN = 2;/);
-  assert.match(phone, /stage === "past" && filter === "all" && group\.length > HISTORY_SHOWN/);
-  assert.match(phone, /stage === "history" && view === "all" && group\.length > HISTORY_SHOWN/);
-  assert.match(phone, /<ViewAll count=\{section\.total\} noun="past agreements" onPress=\{\(\) => setFilter\("past"\)\}/);
-  assert.match(phone, /<ViewAll count=\{section\.total\} noun="in history" onPress=\{\(\) => setView\("history"\)\}/);
-  // The group's count is the whole stage, so the fold never hides the number.
-  assert.match(phone, /<GroupLabel count=\{section\.total\}/);
-  assert.doesNotMatch(phone, /<GroupLabel count=\{section\.data\.length\}/);
-  // And the last row before the fold does not round off, or the panel would
-  // close above the way out of it.
-  assert.match(phone, /last=\{section\.data\.length === section\.total && index === section\.data\.length - 1\}/);
+  const phone = tenantList().mobile;
+  assert.match(phone, /const \[pastOpen, setPastOpen\] = useState\(false\)/);
+  assert.match(phone, /<Fold title="Past"[^>]*count=\{lanes\.past\.length\} open=\{pastOpen\}/);
+  assert.match(phone, /pastOpen \? <View[^>]*><Rows rows=\{lanes\.past\}/);
+  assert.match(phone, /<Section title="Needs your decision"/);
+  assert.match(phone, /<Section title="Being finalised"/);
 
   const meaning = read("web/src/lib/agreementMeaning.ts");
   assert.match(meaning, /export type AgreementFilter = "all" \| AgreementStage/);
@@ -147,7 +129,7 @@ test("the frozen snapshot is what is shown", () => {
   // bytes produced the hash both parties accepted. The snapshot wins, and both
   // clients get there the same way instead of falling back field by field.
   for (const source of [tenantList().web, tenantList().mobile, webReview(), mobileReview()]) {
-    assert.match(source, /agreedTerms\(lease\)/);
+    assert.match(source, /agreedTerms\((?:lease|row\.lease)\)/);
     assert.doesNotMatch(rendered(source), /terms\?\.money/);
     assert.doesNotMatch(rendered(source), /lease\.agreement\?\.terms\./);
   }

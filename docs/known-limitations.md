@@ -69,23 +69,17 @@ adding an operations action.
 
 ---
 
-## Identity verification — no file upload before Phase 2
+## Identity verification — human review and provider sign-off
 
-**Carried in from Phase 1, now resolved in Phase 2.**
+The reserve → upload → complete lifecycle and human review are implemented.
+Production rejects `FILE_SCAN_MODE=permissive`; the Cloudmersive adapter keeps
+files held unless it receives an explicit clean verdict. Development can still
+use the permissive setting for synthetic files. Before accepting real Ghana
+Card images, the operator must verify the scanner account, processing terms,
+privacy notice, file-size limit, and live clean/infected/error behavior.
 
-The file upload endpoint, the presigned-URL flow and the three-step lifecycle
-(reserve → upload → complete) are implemented. Identity verification can now
-be completed end-to-end: a user starts a check, uploads a Ghana Card photo,
-and the file becomes evidence. The magic-byte validation runs on the server
-after upload; there is no ClamAV or cloud AV integration, so the scan gate
-is set to `FILE_SCAN_MODE=permissive` in development.
-
-What remains:
-- No liveness check, no face match against the card, no NIA API lookup. A
-  reviewer sees the uploaded image and makes a human decision. The product
-  must not imply more.
-- The file is released from its scan hold without a real scanner. This is
-  honest in the configuration (`FILE_SCAN_MODE`) and in the code comments.
+There is no liveness check, face match or NIA API lookup. A reviewer makes the
+decision; the product must not imply stronger automated identity assurance.
 
 ---
 
@@ -134,14 +128,14 @@ documentation mark it as unpopulated rather than guessing at a value.
 
 ---
 
-## Virus scanning — magic-byte validation only
+## Virus scanning — provider configuration required
 
-Uploaded files pass magic-byte validation (executables, archives, scripts and
-HTML are rejected regardless of the declared content type). They do not pass
-a real virus scanner. `FILE_SCAN_MODE=permissive` releases files after the
-magic-byte check; `FILE_SCAN_MODE=strict` holds them until a scanner marks
-them, which currently means they would never be released. The interface for a
-scanner result (`mark_scanned()`) exists.
+Uploaded files pass magic-byte validation. Production refuses the permissive
+bypass and rejects new uploads in `FILE_SCAN_MODE=strict`. The optional
+`cloudmersive` mode scans via a third-party API, releases only an explicit clean
+verdict, and caps uploads at 3.5 MB on its free tier. It is not a substitute for
+identity-document authenticity or liveness checks. Provider processing terms
+and the file-size limit must be accepted before enabling it for real users.
 
 ---
 
@@ -153,8 +147,9 @@ specific failure modes that were reported. The remaining Windows notes — and
 the `--pool=solo` Celery flag you need if you run the backend on the host
 instead — are in `docs/windows.md`.
 
-No automated CI runs on Windows. The GitHub Actions workflow uses Ubuntu. A
-Windows-specific workflow is a future item.
+No automated CI workflow exists in this repository yet. The local Docker
+tests have been run on Windows, but a repeatable Windows CI gate is still a
+future item.
 
 
 ---
@@ -297,72 +292,41 @@ Fixing it means a `serializer_class` or an `@extend_schema` per view. That is
 worth doing before anyone generates a client from this schema, and it is a piece
 of work in its own right rather than something to fold into a feature.
 
-## Dependencies carry known advisories
+## Dependency advisories need continuous review
 
-`pip-audit --strict` reports 27 across four packages, most of them against
-**Django 5.1.5**. Clearing them needs Django 5.2.16 or later — a minor-version
-bump of the framework, with its own regression surface across the suite, and so
-a deliberate piece of work rather than a side effect of one. `pip`, `pytest` and
-`sqlparse` also have fixes available.
+On 19 October 2026 the pinned backend runtime and web production dependency
+audits reported zero known advisories after patch upgrades. The web build-tool
+graph still has 5 high advisories through the Next ESLint tooling and an
+unpatched `braces` dependency; do not run npm's proposed breaking downgrade.
+The mobile
+production-graph audit still reported **30** (12 moderate, 18 high), mostly
+through Expo/Metro and React Native tooling; no critical finding remained
+after safe transitive updates. An npm audit graph is not the same as a shipped
+native binary: each remaining advisory needs exposure triage, an
+Expo-compatible update or an owned exception before mobile release. Rerun the
+audits for every candidate; database findings change over time. See
+`docs/deployment/RELEASE_READINESS.md`.
 
-## The type checker has never actually run
+## Backend type checking has a substantial backlog
 
-`mypy apps config` stops on a path-resolution error — `apps/` has no
-`__init__.py`, so `apps/core/context.py` resolves as both `core.context` and
-`apps.core.context` and mypy refuses to continue. It has therefore checked
-nothing since the step was written.
+`mypy apps config` now runs with the patched Django/stubs dependencies. On
+19 October 2026 it checked 291 source files and reported **382 errors in 78
+files**. These include missing third-party stubs, model-manager annotations,
+nullable values and mismatched IDs; they are not all equivalent risk. Do not
+call backend typing green or hide the errors with a blanket ignore. Triage by
+domain, add precise stubs/annotations, and make a narrow clean subset a gate
+while the full backlog is reduced. Runtime tests are not a substitute.
 
-Adding `explicit_package_bases = true` makes it run, and it then reports **154
-errors across 40 files**. Those are the real state of the annotations, and
-working through them is a piece of work in its own right — the config change on
-its own would only swap a meaningless failure for an informative one.
+## CI is not yet a release gate
 
-Deliberately left as-is rather than changed to expose a list nobody has budgeted
-for. `apps.core.money` is the one module already type-checked strictly, and it
-passes.
-
-## Which CI steps are red, checked rather than assumed
-
-Verified 28 August 2026 by running each step the way `ci.yml` runs it. The
-previous version of this section claimed everything but `pip-audit` and `mypy`
-passed. That was wrong in both directions, and worth recording as a lesson: a
-list of green steps written from memory is not evidence.
-
-**Red, and each a scheduled piece of work:**
-
-- `pip-audit --strict` — dependency advisories, above. Currently `pip` and
-  `pytest` in the toolchain, not runtime dependencies.
-- `mypy` — the section above; it has never actually run.
-- `ruff format --check .` — **29 files**, all from work currently in flight.
-  Mechanical to clear (`ruff format .`), deliberately not done in a change that
-  was about something else, because a 29-file reformat buries the diff it
-  travels with.
-
-**Was red, silently, and is now fixed:**
-
-- **Django deployment checks.** `production.py` marks ten settings
-  `required=True`; the workflow supplied seven. The step had been dying on
-  `ImproperlyConfigured` before checking anything since `UNIT_ACCESS_CODE_PEPPER`
-  was introduced — a failure that looked like a failing check but was a missing
-  variable. `MANAGEMENT_CSRF_KEY` and `STORAGE_SIGNING_KEY` were missing too.
-  Any setting production requires has to be listed in that step.
-- **`bandit`.** One High-confidence B406 on `apps/lease/pdf.py` importing
-  `xml.sax.saxutils.escape`. The blacklist is about the `xml.sax` *parser*
-  being unsafe on untrusted input; nothing in that file parses anything, and
-  `html.escape(..., quote=False)` is identical for the three characters that
-  matter. Replaced rather than suppressed.
-- **Module boundaries.** Two module-level cross-domain model imports, both now
-  function-scoped: `occupancy/tenancy_views.py` reading `LeaseStatus`, and
-  `application/serializers.py` reading `IncomeBand`.
-
-  The second needed more than moving a line. `IncomeBand.choices` was evaluated
-  in a serializer's class body, which runs at import time, so the choices are
-  now bound in `__init__` instead. The existing test only proved an *invalid*
-  band was rejected — which an empty choice list also does — so a test that a
-  valid one is accepted went in beside it.
-
-**Green:** lint, migrations, tests (1159), boundaries, schema invariants,
-bandit, deploy checks, design tokens, web and mobile.
+There is no `.github/workflows/ci.yml` in this repository. Previous statements
+about a running workflow were incorrect. Local checks on 19 October 2026
+covered 1,733 backend tests, 444 web tests, 342 mobile tests, backend Ruff,
+web typecheck/lint/build and mobile typecheck. Mobile lint exited successfully
+but emitted 230 warnings. The backend mypy backlog below remains. The full
+command/evidence matrix and external gates are in
+`docs/deployment/RELEASE_READINESS.md`; neither a green host build nor a stale
+local result should be treated as CI sign-off.
 
 ## The lease template is not approved for production use
 

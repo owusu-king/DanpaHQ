@@ -9,33 +9,25 @@ from django.conf import settings
 from django.utils import timezone
 
 from .models import ScanStatus, StoredFile, UploadStatus
+from .scanner import ScanError, scan_with_cloudmersive
+from .storage import StorageError
 
 logger = logging.getLogger("files")
 
 
-@shared_task(name="media.scan_file")
-def scan_file(file_id: str) -> dict:
+@shared_task(bind=True, name="media.scan_file", max_retries=3)
+def scan_file(self, file_id: str) -> dict:
     """Scan an uploaded file for malware.
 
-    **No scanner is integrated.** What happens instead is governed by
-    ``FILE_SCAN_MODE`` and is deliberately explicit rather than a silent pass:
-
-    * ``strict`` (the production default) — files stay ``pending`` and therefore
-      unusable until a real scanner marks them. A deploy without a scanner
-      configured will visibly fail to release files, which is the correct
-      behaviour: better a stuck upload than an unscanned document served as
-      trusted.
-    * ``permissive`` (development) — releases the file and logs loudly, so local
-      work is possible without standing up ClamAV.
-
-    Magic-byte validation in ``services.complete_upload`` has already rejected
-    executables, archives and scripts. That is a meaningful control but it is not
-    virus scanning, and this docstring exists so nobody mistakes one for the
-    other.
+    A provider failure never releases the file. The development-only permissive
+    mode is explicit; production rejects that setting at startup.
     """
     from .services import mark_scanned
 
     mode = getattr(settings, "FILE_SCAN_MODE", "strict")
+    stored = StoredFile.objects.filter(id=file_id).first()
+    if stored is None or stored.upload_status != UploadStatus.UPLOADED:
+        return {"scanned": False, "released": False, "mode": mode}
 
     if mode == "permissive":
         logger.warning(
@@ -44,6 +36,20 @@ def scan_file(file_id: str) -> dict:
         )
         mark_scanned(file_id=file_id, clean=True)
         return {"scanned": False, "released": True, "mode": mode}
+
+    if mode == "cloudmersive":
+        try:
+            clean = scan_with_cloudmersive(stored)
+            mark_scanned(file_id=file_id, clean=clean)
+        except (ScanError, StorageError) as exc:
+            logger.warning("malware scan unavailable", extra={"event": "file_scan_failed"})
+            if self.request.retries < self.max_retries:
+                raise self.retry(exc=exc, countdown=60 * (2**self.request.retries)) from exc
+            StoredFile.objects.filter(id=file_id, upload_status=UploadStatus.UPLOADED).update(
+                scan_status=ScanStatus.FAILED, updated_at=timezone.now()
+            )
+            return {"scanned": False, "released": False, "mode": mode}
+        return {"scanned": True, "released": clean, "mode": mode}
 
     logger.info(
         "file awaiting a real scanner; it stays unusable until one reports",

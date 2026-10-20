@@ -195,7 +195,7 @@ export default function NotificationsScreen() {
 
             {older.length ? (
               <View style={[styles.block, { paddingHorizontal: density.pagePadding }]}>
-                <Pressable accessibilityRole="button" accessibilityState={{ expanded: showOlder }}
+                <Pressable accessibilityRole="button" aria-expanded={showOlder}
                   accessibilityLabel="Older activity" onPress={() => setShowOlder((value) => !value)} style={styles.olderToggle}>
                   <Type variant="bodyStrong" style={{ color: KOLA_DEEP }}>Older · {older.length}</Type>
                   <Ionicons name={showOlder ? "chevron-up" : "chevron-down"} size={18} color={KOLA} />

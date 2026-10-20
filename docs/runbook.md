@@ -1,5 +1,8 @@
 # Runbook
 
+For release decisions, use [deployment sign-off](deployment/RELEASE_READINESS.md).
+The commands below are for local development unless a section says otherwise.
+
 ## First run
 
 ```bash
@@ -25,7 +28,7 @@ Next.js directly.
 Mobile:
 
 ```bash
-cd mobile && npm install && npx expo start
+cd mobile && npm ci && npx expo start
 ```
 
 The API URL is resolved per platform: `10.0.2.2:8000` on an Android emulator,
@@ -42,7 +45,7 @@ EXPO_PUBLIC_API_URL=http://192.168.1.42:8000/api/v1 npx expo start
 docker compose exec api pytest                     # backend suite
 docker compose exec api pytest tests/unit -q       # fast, no database
 docker compose exec api ruff check .               # lint
-docker compose exec api mypy apps config           # type check
+docker compose exec api mypy apps config           # known type-check backlog; not a green gate
 docker compose exec api python manage.py makemigrations
 docker compose exec api python manage.py migrate
 docker compose exec api python manage.py createsuperuser
@@ -55,7 +58,8 @@ docker compose down -v                             # destroy local data
 
 Design tokens are built with Node on the host, since the generated files are
 committed: `node packages/design-tokens/build.mjs` (add `--check` to fail on
-drift, which is what CI runs).
+drift). There is no repository CI workflow yet; run the release checklist
+manually for each candidate.
 
 ## Maps and places
 

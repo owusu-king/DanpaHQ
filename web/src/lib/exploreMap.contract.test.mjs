@@ -276,7 +276,8 @@ test("Google stays behind Danpa HQ's map interface while development has a keyle
   // Only the provider's folder knows Google exists; everything else draws through `@/lib/maps`.
   for (const [path, text] of [...sources("web/src"), ...sources("web/app")]) {
     assert.doesNotMatch(text, /maplibre|pmtiles|protomaps/i, `${path} still mentions the old basemap`);
-    if (path.startsWith("web/src/lib/maps/google/")) continue;
+    // OAuth's Google button is unrelated to the map provider boundary.
+    if (path.startsWith("web/src/lib/maps/google/") || path === "web/src/components/auth/GoogleIdentityButton.tsx") continue;
     assert.doesNotMatch(
       text,
       /@googlemaps\/|google\.maps\b|gmp-advanced-marker|NEXT_PUBLIC_GOOGLE/,

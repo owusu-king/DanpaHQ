@@ -55,6 +55,12 @@ function resolveBaseUrl(): string {
         `EXPO_PUBLIC_API_URL must be https:// in a release build (got ${configured}).`,
       );
     }
+    const url = new URL(configured);
+    if (url.pathname !== "/api/v1" || url.search || url.hash || url.username || url.password) {
+      throw new Error(
+        "EXPO_PUBLIC_API_URL must be the API v1 base URL, ending in /api/v1.",
+      );
+    }
     return configured;
   }
 

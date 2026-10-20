@@ -54,7 +54,7 @@ test("acceptance is not the end of the story, so the lease is read too", () => {
 
 test("a row is a photograph, a Property and Unit, and one status line", () => {
   const webRow = body(web(), "ApplicationRow");
-  const mobileRow = body(list(), "Row");
+  const mobileRow = body(list(), "ApplicationRow");
 
   for (const row of [webRow, mobileRow]) {
     assert.match(row, /photo_url/);
@@ -77,7 +77,7 @@ test("a row is a photograph, a Property and Unit, and one status line", () => {
   }
 });
 
-test("application history is filter-driven and visible by default", () => {
+test("application history stays reachable through web filters and the mobile fold", () => {
   const meaning = read("web/src/lib/applicationMeaning.ts");
 
   // The buckets are lifecycle meaning, not labels independently invented in
@@ -88,14 +88,13 @@ test("application history is filter-driven and visible by default", () => {
     assert.match(meaning, new RegExp(`label: "${label}"`));
   }
 
-  // The phone still keeps its filter in state; web moved it to the address so
-  // returning from a record lands on the same filter.
-  assert.match(list(), /useState<ApplicationFilter>\("all"\)/);
+  // Web keeps its filter in the address; mobile now groups live stages and
+  // folds the past, with the count visible before expansion.
   assert.match(webTenant(), /search\.get\("show"\)/);
-  for (const source of [webTenant(), list()]) {
-    assert.match(source, /applicationFilters\.map/);
-    assert.doesNotMatch(source, /Past applications \(/);
-  }
+  assert.match(webTenant(), /applicationFilters\.map/);
+  assert.match(list(), /const \[pastOpen, setPastOpen\] = useState\(false\)/);
+  assert.match(list(), /<Fold title="Past"[^>]*count=\{lanes\.past\.length\} open=\{pastOpen\}/);
+  assert.match(list(), /pastOpen \? \(/);
 
   // History is neither a web disclosure nor a mobile expand/collapse button.
   assert.doesNotMatch(webTenant(), /<details className="applications-past"/);

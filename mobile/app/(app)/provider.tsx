@@ -331,6 +331,9 @@ export default function ProviderStandingScreen() {
                         <Type variant="caption" style={styles.muted}>
                           A clear photo of a current government ID. It confirms who you are, once, for every property you manage.
                         </Type>
+                        <Type variant="caption" style={styles.muted}>
+                          Large photos are optimized on your device when possible. The 3.5 MB file is scanned by Cloudmersive in North America before review.
+                        </Type>
                       </View>
 
                       <View style={styles.types} accessibilityRole="radiogroup">
@@ -402,7 +405,7 @@ export default function ProviderStandingScreen() {
                         disabled={!asset}
                       />
                       <Type variant="caption" style={styles.centerMuted}>
-                        {"Seen only by Danpa HQ's review team."}
+                        {"After malware screening, only Danpa HQ's review team can view the document."}
                       </Type>
                     </View>
                   </Rise>

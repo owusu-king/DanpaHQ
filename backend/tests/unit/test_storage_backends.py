@@ -58,6 +58,13 @@ class TestBackendContract:
             backend.delete(key=key)
             assert not backend.exists(key=key)
 
+    def test_copy_seals_without_reusing_the_upload_key(self):
+        for backend in self._backends():
+            backend.write(key="test/upload.jpg", data=b"safe")
+            backend.copy(source_key="test/upload.jpg", target_key="test/upload.jpg.ready")
+            backend.write(key="test/upload.jpg", data=b"changed")
+            assert backend.read(key="test/upload.jpg.ready") == b"safe"
+
     def test_partial_read(self):
         for backend in self._backends():
             key = "test/partial.jpg"

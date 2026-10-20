@@ -4,10 +4,15 @@ Everything here fails to start rather than starting insecurely. A missing secret
 should stop a deploy, not produce a running service with a default key.
 """
 
+from django.core.exceptions import ImproperlyConfigured
+
 from .base import *
 from .base import env
 
 DEBUG = False
+# The settings module, not an optional hosting environment variable, defines
+# the runtime classification surfaced by /readyz and operational logs.
+ENVIRONMENT = "production"
 SECRET_KEY = env("DJANGO_SECRET_KEY", required=True)
 
 # Render names the service's own public host (`<name>.onrender.com`) in
@@ -59,9 +64,7 @@ RUNTIME_CONFIG_ENCRYPTION_KEY = env("RUNTIME_CONFIG_ENCRYPTION_KEY", required=Tr
 # Arkesel adapter in Management. Never default production to the console adapter,
 # because it writes one-time codes to application logs.
 SMS_BACKEND = env("SMS_BACKEND", "null")
-STORAGE_BACKEND = env("STORAGE_BACKEND", "s3")
 STORAGE_SIGNING_KEY = env("STORAGE_SIGNING_KEY", required=True)
-FILE_SCAN_MODE = env("FILE_SCAN_MODE", "strict")
 LEASE_TEMPLATE_REQUIRE_APPROVAL = True
 
 # An empty backend keeps checkout unavailable. The deterministic memory adapter
@@ -70,10 +73,32 @@ PAYMENT_BACKEND = env("PAYMENT_BACKEND", "")
 if PAYMENT_BACKEND == "memory":
     raise ImproperlyConfigured("PAYMENT_BACKEND=memory is forbidden in production")
 
-# Production storage: always S3, always strict scanning.
+# Production storage is private S3. Scanning may be held closed until a real
+# provider is configured; the development bypass is never allowed here.
 STORAGE_BACKEND = "s3"
 FILE_SCAN_MODE = env("FILE_SCAN_MODE", "strict")
-# A separate signing key for presigned local-backend URLs. Only needed if
-# STORAGE_BACKEND=local ever reaches production (unlikely but possible for
-# a private deployment without object storage).
-STORAGE_SIGNING_KEY = env("STORAGE_SIGNING_KEY", required=True)
+if FILE_SCAN_MODE not in {"strict", "cloudmersive"}:
+    raise ImproperlyConfigured(
+        "Production FILE_SCAN_MODE must be strict or cloudmersive; permissive is unsafe."
+    )
+CLOUDMERSIVE_API_KEY = env("CLOUDMERSIVE_API_KEY", "")
+if FILE_SCAN_MODE == "cloudmersive" and not CLOUDMERSIVE_API_KEY:
+    raise ImproperlyConfigured("Set CLOUDMERSIVE_API_KEY to enable Cloudmersive scanning.")
+
+# Render Free blocks SMTP egress. Use a transactional HTTPS provider instead.
+EMAIL_BACKEND = env("EMAIL_BACKEND", "apps.identity.email_backend.ResendEmailBackend")
+RESEND_API_KEY = env("RESEND_API_KEY", "")
+if EMAIL_BACKEND in {
+    "django.core.mail.backends.console.EmailBackend",
+    "django.core.mail.backends.dummy.EmailBackend",
+    "django.core.mail.backends.locmem.EmailBackend",
+    "django.core.mail.backends.filebased.EmailBackend",
+}:
+    raise ImproperlyConfigured("Production email must use a real delivery backend.")
+if EMAIL_BACKEND == "apps.identity.email_backend.ResendEmailBackend" and not RESEND_API_KEY:
+    raise ImproperlyConfigured("Set RESEND_API_KEY to enable production email delivery.")
+if EMAIL_BACKEND == "django.core.mail.backends.smtp.EmailBackend" and EMAIL_HOST in {
+    "localhost",
+    "127.0.0.1",
+}:
+    raise ImproperlyConfigured("Set a real EMAIL_HOST for production SMTP.")

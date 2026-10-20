@@ -168,7 +168,7 @@ storage · Next.js 16 · React 19 · Expo 54 · React Native 0.81 · TypeScript 
 | Verifications with evidence, decider, date, expiry, supersession | **Implemented and tested** |
 | Separate operations email/password session and review queue | **Implemented and tested**; production MFA pending |
 | Step-up auth and the 72-hour SIM-swap hold | **Implemented and tested** |
-| Mobile account, provider onboarding, trust, listing and tenant screens (Android + iOS) | **Implemented; type/lint and both production bundles pass**, not run on a device |
+| Mobile account, provider onboarding, trust, listing and tenant screens (Android + iOS) | **Implemented; local tests/typecheck pass**, native release builds and device QA still required |
 | Landlord console: property, units, listing, photo upload, publish/withdraw | **Implemented and driven end to end** |
 | Tenant search, listing detail, shortlist and viewings on mobile | **Implemented**, not yet run on a device |
 | Viewing requests: ask, offer times, declare fee, confirm, record outcome | **Implemented, 25 cases passing, driven end to end** |
@@ -180,16 +180,19 @@ storage · Next.js 16 · React 19 · Expo 54 · React Native 0.81 · TypeScript 
 | Web public landing/catalogue, unified phone continuation, account and provider workspace | **Implemented, built and rendering** |
 | Append-only audit, transactional outbox, idempotency table | **Implemented** in Phase 0 |
 | Design tokens → web CSS + RN theme | **Implemented and verified** |
-| Docker, CI, linting, typing, security scanning | **Written, never executed** |
+| Docker, linting, typing, security scanning | **Local release checks run**; no CI workflow or deployment sign-off yet |
 
-**Not built, and not claimed:** admin MFA, Ghana Card/NIA
-provider integration or liveness checks, owner-confirmation SMS, SIM-swap data, a
-real virus scanner, push notifications, taking payments, wallet, and any free-form messaging between tenant and landlord. Database-level append-only enforcement is applied but
-inert until the app connects as a least-privilege role — see `docs/security.md`.
+**Not built, and not claimed:** admin MFA, Ghana Card/NIA provider integration
+or liveness checks, carrier SIM-swap data, push transport, wallet, and free-form
+tenant–landlord messaging. Cloudmersive malware scanning exists but requires
+live provider configuration; payment integrations must remain off until their
+separate launch gates pass. Database-level append-only enforcement is applied
+but inert until the app connects as a least-privilege role — see
+`docs/security.md`.
 
-Migrations are generated and applied, and the database-backed suite runs: **586
-tests passing**. The loop from listing a room to attending a viewing has been
-driven end to end against the running stack.
+The local backend suite passed **1,733 tests** on 19 October 2026. That is not
+evidence the same revision is live. See the [release-readiness decision](docs/deployment/RELEASE_READINESS.md)
+before opening the deployment to real users.
 
 ## Documentation
 
@@ -219,6 +222,9 @@ Start with the first two.
 - `docs/runbook.md` — running it, and what to do when it breaks
 - `docs/known-limitations.md` — what is knowingly unsolved
 - `docs/windows.md` — setup troubleshooting, and running without Docker
+- `docs/deployment/RELEASE_READINESS.md` — current go/no-go decision and release gates
+- `docs/deployment/RENDER_SUPABASE.md` — pilot hosting setup
+- `docs/deployment/PRODUCTION_DEPLOYMENT.md` — target production architecture
 - `CONTRIBUTING.md` — the rules that are not negotiable
 
 ## Licence

@@ -189,7 +189,7 @@ export function PhotoSection({
         </span>
         <div className="settings-photo-copy">
           <strong>{photoUrl ? "Current photo" : "No photo yet"}</strong>
-          <small>JPEG, PNG or WebP, up to 5MB.</small>
+          <small>JPEG, PNG or WebP. Large photos are optimized on your device for the 3.5 MB pilot limit.</small>
           <div className="settings-photo-actions">
             <label className={`settings-upload${busy ? " is-busy" : ""}`}>
               {busy ? "Working…" : photoUrl ? "Change photo" : "Upload a photo"}
@@ -526,6 +526,9 @@ export function IdentitySection({
           onChange={(event) => setFile(event.target.files?.[0] ?? null)}
         />
       </label>
+      <p className="type-caption" style={{ margin: 0 }}>
+        Large photos are optimized on your device when possible; PDFs must be under 3.5 MB. Cloudmersive scans the file in North America before review.
+      </p>
 
       {error ? <Notice tone="error" title={error} /> : null}
       {sent ? <Notice tone="success" title="Sent for review" /> : null}

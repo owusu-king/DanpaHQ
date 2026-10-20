@@ -5,12 +5,19 @@ from unittest.mock import patch
 
 import pytest
 from django.contrib.auth import authenticate
+from django.core.cache import cache
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.identity import services
-from apps.identity.admin_auth import ADMIN_EMAIL_MAX_LENGTH, AdminEmailAuthenticationForm
+from apps.identity.admin_auth import (
+    ADMIN_EMAIL_MAX_LENGTH,
+    ADMIN_LOGIN_MAX_PER_ADDRESS,
+    ADMIN_LOGIN_MAX_PER_EMAIL,
+    AdminEmailAuthenticationForm,
+    AdminEmailBackend,
+)
 from apps.identity.models import Session, User
 from tests.conftest import TEST_PASSWORD
 
@@ -207,6 +214,60 @@ def test_legacy_operations_review_api_is_removed():
     client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
 
     assert client.get("/api/v1/trust/review/queue/").status_code == 404
+
+
+def test_admin_login_stops_checking_passwords_after_ten_attempts_on_one_email(client):
+    make_staff(superuser=True)
+    for _ in range(ADMIN_LOGIN_MAX_PER_EMAIL):
+        client.post(
+            reverse("admin:login"),
+            {"username": "reviewer@example.com", "password": "not-the-password"},
+        )
+
+    with patch.object(AdminEmailBackend, "authenticate") as checked:
+        response = client.post(
+            reverse("admin:login"),
+            {"username": "reviewer@example.com", "password": ADMIN_PASSWORD},
+        )
+
+    checked.assert_not_called()
+    assert response.status_code == 200
+    assert "_auth_user_id" not in client.session
+    assert b"Too many sign-in attempts" in response.content
+
+
+def test_admin_login_caps_one_address_across_many_emails(client):
+    make_staff(superuser=True)
+    for index in range(ADMIN_LOGIN_MAX_PER_ADDRESS):
+        client.post(
+            reverse("admin:login"),
+            {"username": f"guess{index}@example.com", "password": "not-the-password"},
+        )
+
+    response = client.post(
+        reverse("admin:login"),
+        {"username": "reviewer@example.com", "password": ADMIN_PASSWORD},
+    )
+
+    assert "_auth_user_id" not in client.session
+    assert b"Too many sign-in attempts" in response.content
+
+
+def test_admin_login_refuses_when_the_attempt_counter_cannot_count(client, monkeypatch):
+    make_staff(superuser=True)
+
+    def unreachable(*args, **kwargs):
+        raise OSError("cache unreachable")
+
+    monkeypatch.setattr(cache, "add", unreachable)
+    response = client.post(
+        reverse("admin:login"),
+        {"username": "reviewer@example.com", "password": ADMIN_PASSWORD},
+    )
+
+    assert response.status_code == 200
+    assert "_auth_user_id" not in client.session
+    assert b"Sign-in is unavailable right now" in response.content
 
 
 def test_non_super_staff_cannot_create_a_django_admin_session():

@@ -8,6 +8,7 @@
  *
  * Local builds also accept the key from the repository-root .env file.
  */
+/* global __dirname */
 const { readFileSync } = require("node:fs");
 const { resolve } = require("node:path");
 const { parseEnv } = require("node:util");

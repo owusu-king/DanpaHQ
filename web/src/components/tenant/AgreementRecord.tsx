@@ -195,7 +195,7 @@ export function AgreementRecord({
         <p className="rq-decision-note"><Icon name="chat" /><span><small>Recorded reason</small>{lease.decline_reason}</span></p>
       ) : null}
 
-      {lease.status === "active" && charges.length ? <RentSoFar charges={charges} /> : null}
+      {lease.status === "active" && charges.length ? <RentSchedule charges={charges} /> : null}
 
       <AgreementDocumentSection lease={lease} rendered={rendered} terms={terms} reading={state.decisionOpen} />
 
@@ -493,27 +493,46 @@ function Decision({
  * Rent when Rent exists; removing it now would leave a tenant with no way to
  * see their charges at all.
  */
-function RentSoFar({ charges }: { charges: RentCharge[] }) {
+function RentSchedule({ charges }: { charges: RentCharge[] }) {
+  const [expanded, setExpanded] = useState(false);
+  const previewCount = 4;
+  const visible = expanded ? charges : charges.slice(0, previewCount);
+  const remaining = Math.max(0, charges.length - previewCount);
+  const today = new Date().toISOString().slice(0, 10);
+
   return (
     <section className="ag-charges-block">
-      <h3>Rent so far</h3>
+      <h3>Rent schedule</h3>
       <ul className="agreement-charges">
-        {charges.map((charge) => {
+        {visible.map((charge) => {
           const outstanding = charge.outstanding_minor > 0;
+          const upcoming = outstanding && !charge.is_overdue && charge.due_on > today;
+          const state = !outstanding ? "paid" : charge.is_overdue ? "overdue" : upcoming ? "scheduled" : "due";
           return (
-            <li key={charge.id} data-state={outstanding ? (charge.is_overdue ? "overdue" : "due") : "paid"}>
+            <li key={charge.id} data-state={state}>
               <span>
                 <strong>{charge.kind_display}</strong>
                 <em>Due {onDate(charge.due_on)}</em>
               </span>
               <span>
                 {outstanding ? charge.outstanding_formatted ?? charge.amount_formatted : charge.amount_formatted}
-                <em>{outstanding ? (charge.is_overdue ? "Overdue" : "Outstanding") : "Paid"}</em>
+                <em>{!outstanding ? "Paid" : charge.is_overdue ? "Overdue" : upcoming ? "Scheduled" : "Outstanding"}</em>
               </span>
             </li>
           );
         })}
       </ul>
+      {remaining ? (
+        <button
+          type="button"
+          className="agreement-charges-more"
+          aria-expanded={expanded}
+          onClick={() => setExpanded((current) => !current)}
+        >
+          {expanded ? "Show fewer payments" : `Show ${remaining} later payment${remaining === 1 ? "" : "s"}`}
+          <Icon name="chevron-down" />
+        </button>
+      ) : null}
     </section>
   );
 }

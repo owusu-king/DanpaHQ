@@ -17,10 +17,16 @@ set -e
 
 
 python manage.py migrate --noinput
+python manage.py harden_database
 python manage.py seed_geo
 python manage.py seed_amenities
 python manage.py collectstatic --noinput
-python manage.py shell -c '
+if [ -n "${DJANGO_SUPERUSER_PHONE:-}" ] || [ -n "${DJANGO_SUPERUSER_EMAIL:-}" ] || [ -n "${DJANGO_SUPERUSER_PASSWORD:-}" ]; then
+  if [ -z "${DJANGO_SUPERUSER_PHONE:-}" ] || [ -z "${DJANGO_SUPERUSER_EMAIL:-}" ] || [ -z "${DJANGO_SUPERUSER_PASSWORD:-}" ]; then
+    echo "Set all three DJANGO_SUPERUSER_* values, or none of them." >&2
+    exit 1
+  fi
+  python manage.py shell -c '
 import os
 from django.contrib.auth import get_user_model
 
@@ -45,6 +51,7 @@ else:
         "This phone number already belongs to a non-superuser account."
     )
 '
+fi
 
 celery -A config worker -B \
   -Q default,payments,notifications,media \

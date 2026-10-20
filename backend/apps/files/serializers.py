@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from rest_framework import serializers
 
-from .models import FilePurpose, StoredFile
-from .validation import LIMITS
+from .models import FilePurpose, ScanStatus, StoredFile
+from .validation import LIMITS, effective_max_bytes
 
 
 class ReserveUploadSerializer(serializers.Serializer):
@@ -71,6 +71,11 @@ class StoredFileSerializer(serializers.ModelSerializer):
 
     def get_status_message(self, obj) -> str:
         """One line, written for the person waiting on the upload."""
+        if obj.scan_status == ScanStatus.FAILED:
+            return (
+                "Security scanning is unavailable. This file was not released; "
+                "please try again later."
+            )
         return {
             "awaiting_upload": "Waiting for the file.",
             "uploaded": "Checking the file. This usually takes a few seconds.",
@@ -91,9 +96,15 @@ class UploadLimitsSerializer(serializers.Serializer):
     def payload() -> dict:
         return {
             purpose: {
-                "max_bytes": limits.max_bytes,
+                "max_bytes": effective_max_bytes(purpose),
                 "content_types": sorted(limits.content_types),
-                "description": limits.human,
+                "description": (
+                    limits.human.replace(
+                        f"up to {limits.max_bytes // (1024 * 1024)}MB", "up to 3.5 MB"
+                    )
+                    if effective_max_bytes(purpose) < limits.max_bytes
+                    else limits.human
+                ),
             }
             for purpose, limits in LIMITS.items()
         }

@@ -441,9 +441,18 @@ class TestApi:
 
     def test_full_history_pages_without_crossing_accounts(self, api, user, landlord):
         # Same kind and target must remain distinct historical events.
-        notes = [Notification(user=user, kind="viewing.confirmed", title=f"Event {i}",
-                              body="History", target_type="viewing", target_id="same", dedupe_key=f"history:{i}")
-                 for i in range(115)]
+        notes = [
+            Notification(
+                user=user,
+                kind="viewing.confirmed",
+                title=f"Event {i}",
+                body="History",
+                target_type="viewing",
+                target_id="same",
+                dedupe_key=f"history:{i}",
+            )
+            for i in range(115)
+        ]
         Notification.objects.bulk_create(notes)
         _note(landlord, "viewing.confirmed", "private-other")
         mark_read(user=user)
@@ -460,7 +469,11 @@ class TestApi:
         alert = _note(user, "lease.expiring", "dismiss-me")
         event = _note(user, "lease.offered", "keep-event")
         other = _note(landlord, "lease.expiring", "keep-private")
-        response = api.post("/api/v1/me/notifications/read/", {"ids": [str(alert.id), str(other.id)]}, format="json")
+        response = api.post(
+            "/api/v1/me/notifications/read/",
+            {"ids": [str(alert.id), str(other.id)]},
+            format="json",
+        )
         assert response.status_code == 200
         assert not Notification.objects.filter(id=alert.id).exists()
         assert Notification.objects.filter(id=event.id).exists()

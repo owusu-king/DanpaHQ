@@ -229,6 +229,7 @@ function ProviderStandingContent() {
             <section className="pv-card" ref={evidence} aria-labelledby="pv-send" style={{ scrollMarginTop: "6rem" }}>
               <h2 id="pv-send">Send one ID document</h2>
               <p>A clear photo or scan of a current government ID. It confirms who you are, once, for every property you manage.</p>
+              <p>Large photos are optimized on your device when possible; PDFs must be under 3.5 MB. Cloudmersive scans files in North America before review.</p>
               <form onSubmit={submit} style={{ display: "grid", gap: "var(--space-4)" }}>
                 <div className="pv-types" role="radiogroup" aria-label="Document type">
                   {DOCUMENT_TYPES.map(({ value, label, Icon }) => (
@@ -291,7 +292,7 @@ function ProviderStandingContent() {
                 <Button type="submit" busy={busy} busyLabel="Sending…" disabled={!file}>
                   {file ? "Send for review" : "Choose a file to send"}
                 </Button>
-                <p className="auth-aside">Seen only by Danpa HQ&apos;s review team.</p>
+                <p className="auth-aside">After malware screening, only Danpa HQ&apos;s review team can view the document.</p>
               </form>
             </section>
           ) : (

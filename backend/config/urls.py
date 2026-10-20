@@ -21,7 +21,7 @@ def _superadmin_only(request):
 admin.site.has_permission = _superadmin_only
 
 urlpatterns = [
-    path(settings.ADMIN_URL if hasattr(settings, "ADMIN_URL") else "admin/", admin.site.urls),
+    path(settings.ADMIN_URL, admin.site.urls),
     path("api/v1/", include("apps.api.urls", namespace="v1")),
     # Unversioned so orchestrators never need to know the API version.
     path("healthz", healthz, name="healthz"),

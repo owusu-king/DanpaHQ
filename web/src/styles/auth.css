@@ -132,10 +132,37 @@
 .auth-content { display: grid; gap: var(--space-4); margin-top: var(--space-5); }
 .auth-form { display: grid; gap: var(--space-4); }
 
-.auth-google { position: relative; display: grid; justify-items: center; gap: var(--space-2); width: 100%; }
+.auth-google { position: relative; display: grid; width: 100%; min-height: 44px; place-items: center; }
 .auth-google.is-busy { pointer-events: none; opacity: .68; }
-.auth-google-button { display: grid; justify-content: center; width: 100%; min-height: 44px; overflow: hidden; }
-.auth-google-status,
+.auth-google-button-shell { position: relative; display: grid; width: 100%; height: 44px; place-items: center; }
+.auth-google-button { display: grid; width: 100%; min-height: 44px; place-items: center; overflow: hidden; }
+.auth-google-button iframe { display: block; }
+.auth-google-placeholder {
+  position: absolute;
+  inset: 2px max(0px, calc((100% - 400px) / 2));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  color: var(--color-ink-500);
+  font-size: .8125rem;
+  font-weight: 600;
+  background: var(--color-field-0);
+  border: var(--border-hairline) solid var(--color-field-300);
+  border-radius: 4px;
+  pointer-events: none;
+  transition: opacity .14s ease-out, visibility 0s linear .14s;
+}
+.auth-google-placeholder-mark {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--color-field-300);
+  border-top-color: var(--color-kola-600);
+  border-radius: 50%;
+  animation: auth-spin .8s linear infinite;
+}
+.auth-google.is-ready .auth-google-placeholder { visibility: hidden; opacity: 0; }
+.auth-google.is-unavailable { padding-inline: var(--space-3); }
 .auth-google-unavailable { margin: 0; color: var(--color-ink-500); font-size: .75rem; line-height: 1.45; text-align: center; }
 .auth-divider { display: flex; align-items: center; gap: var(--space-3); color: var(--color-ink-400); font-size: .6875rem; letter-spacing: .04em; text-transform: uppercase; }
 .auth-divider::before,
@@ -229,8 +256,10 @@
 
 @keyframes auth-fade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes auth-rise { from { opacity: 0; transform: translateY(8px) scale(.99); } to { opacity: 1; transform: none; } }
+@keyframes auth-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) {
-  .auth-scrim, .auth-panel { animation: none; }
+  .auth-scrim, .auth-panel, .auth-google-placeholder-mark { animation: none; }
+  .auth-google-placeholder { transition: none; }
 }
 
 /* A phone keeps the same centred-dialog hierarchy as a wide screen. Safe-area

@@ -41,6 +41,7 @@ export default function PropertyDetailPage() {
   const [error, setError] = useState("");
 
   const load = useCallback(async () => {
+    if (!id) return;
     try {
       const [prop, unitList, progress, amenityState] = await Promise.all([
         getProperty(id),
@@ -65,6 +66,15 @@ export default function PropertyDetailPage() {
   }, [id, router]);
 
   useEffect(() => { void load(); }, [load]);
+
+  if (!id) {
+    return (
+      <div className="ws-page pd-page">
+        <EntityPath items={[{ label: "Properties", href: "/properties" }, { label: "Choose a property" }]} />
+        <Notice tone="info" title="Choose a property first" body="Open a property from your Portfolio to see its record." />
+      </div>
+    );
+  }
 
   if (error && !property) {
     return (

@@ -62,15 +62,31 @@ export function GoogleIdentityButton({
 }) {
   const host = useRef<HTMLDivElement>(null);
   const receiver = useRef(onCredential);
+  const busyRef = useRef(busy);
+  const [deliver] = useState(() => (credential: string) => {
+    if (!busyRef.current) void receiver.current(credential);
+  });
+  const [ready, setReady] = useState(false);
   const [scriptFailed, setScriptFailed] = useState(false);
   useEffect(() => { receiver.current = onCredential; }, [onCredential]);
+  useEffect(() => { busyRef.current = busy; }, [busy]);
 
   const render = useCallback(() => {
     if (!host.current || !window.google || !CLIENT_ID) return;
     initializeGoogle();
-    activeReceiver = (credential) => {
-      if (!busy) void receiver.current(credential);
-    };
+    activeReceiver = deliver;
+
+    // Next Script's onReady and the mount effect can arrive together. React
+    // Strict Mode also runs the effect twice in development. GIS creates an
+    // iframe, so clearing and recreating it in either case is a visible flash.
+    // Keep the first healthy render and only rebuild when the button's actual
+    // presentation changes.
+    const renderKey = `${CLIENT_ID}:${text}`;
+    if (host.current.dataset.googleRenderKey === renderKey && host.current.childElementCount > 0) {
+      setReady(true);
+      return;
+    }
+
     host.current.replaceChildren();
     window.google.accounts.id.renderButton(host.current, {
       type: "standard",
@@ -81,23 +97,33 @@ export function GoogleIdentityButton({
       logo_alignment: "left",
       width: Math.min(400, Math.max(240, Math.round(host.current.clientWidth || 320))),
     });
-  }, [busy, text]);
+    host.current.dataset.googleRenderKey = renderKey;
+    setReady(true);
+  }, [deliver, text]);
 
   useEffect(() => {
+    activeReceiver = deliver;
     render();
-    return () => { activeReceiver = null; };
-  }, [render]);
+    return () => {
+      if (activeReceiver === deliver) activeReceiver = null;
+    };
+  }, [deliver, render]);
 
   if (!CLIENT_ID || scriptFailed) {
     return (
-      <p className="auth-google-unavailable" role="status">
-        Google sign-in is unavailable right now. Continue with your phone.
-      </p>
+      <div className="auth-google is-unavailable">
+        <p className="auth-google-unavailable" role="status">
+          Google sign-in is unavailable right now. Continue with your phone.
+        </p>
+      </div>
     );
   }
 
   return (
-    <div className={`auth-google${busy ? " is-busy" : ""}`} aria-busy={busy || undefined}>
+    <div
+      className={`auth-google${ready ? " is-ready" : ""}${busy ? " is-busy" : ""}`}
+      aria-busy={busy || undefined}
+    >
       <Script
         id="google-identity-services"
         src="https://accounts.google.com/gsi/client"
@@ -105,8 +131,16 @@ export function GoogleIdentityButton({
         onReady={render}
         onError={() => setScriptFailed(true)}
       />
-      <div ref={host} className="auth-google-button" />
-      {busy ? <span className="auth-google-status">Checking your Google account…</span> : null}
+      <div className="auth-google-button-shell">
+        <div ref={host} className="auth-google-button" />
+        <div className="auth-google-placeholder" aria-hidden="true">
+          <span className="auth-google-placeholder-mark" />
+          <span>Loading secure sign-in…</span>
+        </div>
+      </div>
+      <span className="sr-only" role="status" aria-live="polite">
+        {busy ? "Checking your Google account…" : ""}
+      </span>
     </div>
   );
 }

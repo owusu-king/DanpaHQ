@@ -8,13 +8,14 @@ cannot quietly rewrite history.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from django.conf import settings
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 from django.db import connection
 
-SQL_DIR = Path(settings.BASE_DIR).parent / "ops" / "sql"
+SQL_DIR = Path(settings.BASE_DIR) / "apps" / "core" / "sql"
 
 
 class Command(BaseCommand):
@@ -28,10 +29,11 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         sql_path = SQL_DIR / "audit_append_only.sql"
         if not sql_path.exists():
-            self.stderr.write(f"Missing {sql_path}")
-            return
+            raise CommandError(f"Missing database hardening SQL: {sql_path}")
 
         app_role = options["app_role"]
+        if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", app_role):
+            raise CommandError("--app-role must be a simple PostgreSQL role identifier")
         statements = sql_path.read_text().replace("{{APP_ROLE}}", app_role)
         with connection.cursor() as cursor:
             cursor.execute(statements)

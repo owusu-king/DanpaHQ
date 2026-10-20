@@ -15,8 +15,7 @@ x-backend: &backend
     args:
       INSTALL_DEV: "true"   # pytest, ruff and mypy in the local image
   env_file: [.env]
-  # harden_database reads ops/sql, which lives outside the build context.
-  volumes: ["./backend:/app", "./ops:/ops:ro"]
+  volumes: ["./backend:/app"]
   depends_on:
     db: {condition: service_healthy}
     redis: {condition: service_healthy}

@@ -32,7 +32,7 @@ from .serializers import (
     UploadLimitsSerializer,
 )
 from .storage import LocalStorageBackend, get_storage
-from .validation import LIMITS
+from .validation import effective_max_bytes
 
 
 class UploadLimitsView(APIView):
@@ -83,7 +83,7 @@ class ReserveUploadView(APIView):
                 "headers": presigned.headers,
                 "fields": presigned.fields,
                 "expires_in": presigned.expires_in,
-                "max_bytes": LIMITS[data["purpose"]].max_bytes,
+                "max_bytes": effective_max_bytes(data["purpose"]),
             }
         ).data
         return Response(body, status=status.HTTP_201_CREATED)

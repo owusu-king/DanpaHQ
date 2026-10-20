@@ -1,7 +1,6 @@
 import { ArrowRight, BadgeCheck, Receipt, ShieldCheck } from "lucide-react";
 
 import { AuthLink } from "@/components/auth/AuthDialog";
-import { Reveal } from "@/components/motion/Reveal";
 
 const CHECKS = [
   { icon: ShieldCheck, text: "Owners and agents verified" },
@@ -28,47 +27,37 @@ export function FrontDoor() {
       <span aria-hidden="true" className="lp-wash" />
 
       <section className="lp-door-stage" aria-labelledby="lp-door-title">
-        <Reveal y={12}>
-          <p className="lp-door-eyebrow">Verified across Ghana</p>
-        </Reveal>
+        <p className="lp-door-eyebrow">Verified across Ghana</p>
 
-        <Reveal delay={0.05}>
-          <h1 id="lp-door-title" className="lp-door-title">
-            Homes you can trust.
-            <span> Property you can manage.</span>
-          </h1>
-        </Reveal>
+        <h1 id="lp-door-title" className="lp-door-title">
+          Homes you can trust.
+          <span> Property you can manage.</span>
+        </h1>
 
-        <Reveal delay={0.1}>
-          <p className="lp-door-lead">
-            Rent or buy from verified owners, or run your properties, tenants and rent in one place.
-          </p>
-        </Reveal>
+        <p className="lp-door-lead">
+          Rent or buy from verified owners, or run your properties, tenants and rent in one place.
+        </p>
 
-        <Reveal delay={0.15}>
-          <div className="lp-door-actions">
-            {/* Get Started opens the question "How will you use Danpa HQ?" (owner,
-                2026-10-07); the answer rides into sign-up as the account type. */}
-            <AuthLink view="register" className="lp-door-action is-primary">
-              Get Started
-              <ArrowRight aria-hidden="true" className="lp-door-arrow" />
-            </AuthLink>
-            <AuthLink view="sign-in" className="lp-door-action">
-              Sign in
-            </AuthLink>
-          </div>
-        </Reveal>
+        <div className="lp-door-actions">
+          {/* Get Started opens the question "How will you use Danpa HQ?" (owner,
+              2026-10-07); the answer rides into sign-up as the account type. */}
+          <AuthLink view="register" className="lp-door-action is-primary">
+            Get Started
+            <ArrowRight aria-hidden="true" className="lp-door-arrow" />
+          </AuthLink>
+          <AuthLink view="sign-in" className="lp-door-action">
+            Sign in
+          </AuthLink>
+        </div>
 
-        <Reveal delay={0.2}>
-          <ul className="lp-door-checks" aria-label="What is checked">
-            {CHECKS.map(({ icon: Icon, text }) => (
-              <li key={text}>
-                <Icon aria-hidden="true" />
-                {text}
-              </li>
-            ))}
-          </ul>
-        </Reveal>
+        <ul className="lp-door-checks" aria-label="What is checked">
+          {CHECKS.map(({ icon: Icon, text }) => (
+            <li key={text}>
+              <Icon aria-hidden="true" />
+              {text}
+            </li>
+          ))}
+        </ul>
       </section>
     </div>
   );

@@ -13,7 +13,14 @@ from django.contrib.auth.forms import AuthenticationForm
 from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
 
+from apps.core.context import get_context
+from apps.core.exceptions import ProviderUnavailable
+from apps.core.throttling import count_attempt
+
 ADMIN_EMAIL_MAX_LENGTH = 254
+ADMIN_LOGIN_WINDOW_SECONDS = 15 * 60
+ADMIN_LOGIN_MAX_PER_ADDRESS = 20
+ADMIN_LOGIN_MAX_PER_EMAIL = 10
 
 
 def _normalise_admin_email(value: str | None) -> str | None:
@@ -92,6 +99,31 @@ class AdminEmailAuthenticationForm(AuthenticationForm):
         # this separate admin boundary accepts an RFC-sized email address.
         self.fields["username"].max_length = ADMIN_EMAIL_MAX_LENGTH
         self.fields["username"].widget.attrs["maxlength"] = ADMIN_EMAIL_MAX_LENGTH
+
+    def clean(self):
+        # Django admin is a public password form for the most privileged
+        # accounts, so it gets the same cap as Management sign-in: counted per
+        # address and per email before any password is checked, so a cap that
+        # has closed costs an attacker the guess. An uncountable cache refuses.
+        address = get_context().ip_address or "unknown"
+        email = _normalise_admin_email(self.data.get("username")) or "invalid"
+        window = ADMIN_LOGIN_WINDOW_SECONDS
+        try:
+            by_address = count_attempt(
+                f"admin-login:ip:{address}", window=window, scope="admin_login"
+            )
+            by_email = count_attempt(
+                f"admin-login:email:{email}", window=window, scope="admin_login"
+            )
+        except ProviderUnavailable as exc:
+            raise ValidationError(
+                "Sign-in is unavailable right now. Try again shortly.", code="unavailable"
+            ) from exc
+        if by_address > ADMIN_LOGIN_MAX_PER_ADDRESS or by_email > ADMIN_LOGIN_MAX_PER_EMAIL:
+            raise ValidationError(
+                "Too many sign-in attempts. Try again later.", code="rate_limited"
+            )
+        return super().clean()
 
     def confirm_login_allowed(self, user):
         super().confirm_login_allowed(user)

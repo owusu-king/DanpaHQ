@@ -1,8 +1,8 @@
 # Backend runtime dependencies.
 #   pip install -r requirements.txt
 
-Django==5.1.5
-djangorestframework==3.15.2
+Django==5.2.18
+djangorestframework==3.18.3
 django-cors-headers==4.6.0
 django-filter==24.3
 drf-spectacular==0.28.0
@@ -27,12 +27,12 @@ reportlab==5.0.1
 # Outbound HTTP to the payment provider. Present transitively through boto3
 # already, but declared because a payments integration must not depend on
 # another package's dependency tree deciding to drop it.
-requests==2.32.3
+requests==2.34.2
 # Google Identity Services ID-token verification (signature, issuer, audience,
 # and expiry). Kept server-side; the browser receives no secret.
 google-auth==2.62.0
 # Runtime secrets entered in Management are encrypted before database storage.
-cryptography==44.0.0
+cryptography==50.0.2
 
 # Windows has no system zoneinfo database, so TIME_ZONE = "Africa/Accra" raises
 # ZoneInfoNotFoundError at startup without this. Harmless on Linux and macOS.

@@ -5,7 +5,7 @@
   "//tailwind": "Keep tailwindcss and @tailwindcss/postcss on the same version. Tailwind 4 pulls its native scanner (@tailwindcss/oxide) in through a caret range, so pinning the JS to an old patch while oxide floats forward fails the build with 'Missing field negated on ScannerOptions.sources'.",
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint app src",
     "typecheck": "tsc --noEmit",
@@ -19,7 +19,7 @@
     "cn": "^0.2.5",
     "lucide-react": "^1.41.0",
     "motion": "^13.2.0",
-    "next": "16.3.1",
+    "next": "16.4.2",
     "radix-ui": "^1.6.7",
     "react": "19.2.4",
     "react-dom": "19.2.4",
@@ -34,8 +34,11 @@
     "@types/react": "19.0.2",
     "@types/react-dom": "19.0.2",
     "eslint": "9.39.5",
-    "eslint-config-next": "16.3.1",
+    "eslint-config-next": "16.4.2",
     "tailwindcss": "4.3.3",
     "typescript": "5.7.2"
+  },
+  "overrides": {
+    "source-map-js": "1.2.2"
   }
 }
