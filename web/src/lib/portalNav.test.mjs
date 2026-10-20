@@ -21,6 +21,7 @@ function account({
   exists = false,
   workspaceAccess = false,
   available = ["discovery", "tenant"],
+  artisan = { status: "not_started", workspace_access: false, can_quote: false },
 } = {}) {
   return {
     capabilities: {
@@ -28,6 +29,7 @@ function account({
       available_workspaces: available,
       provider: { exists, workspace_access: workspaceAccess },
       tenant: { workspace_access: true },
+      artisan,
     },
   };
 }
@@ -213,4 +215,38 @@ test("enquiries are reached from the top bar, on the same terms the rail offered
   );
   // …and a provider still in review has nothing to answer yet.
   assert.equal(enquiriesEntry(account({ workspace: "provider", exists: true, workspaceAccess: false })), null);
+});
+
+test("an approved artisan is offered four places and nothing about tenants or properties", () => {
+  const me = account({
+    workspace: "artisan",
+    available: ["discovery", "tenant", "artisan"],
+    artisan: { status: "approved", workspace_access: true, can_quote: true },
+  });
+
+  assert.deepEqual(hrefs(me), ["/home", "/artisan/requests", "/artisan/jobs", "/artisan/profile"]);
+  assert.equal(enquiriesEntry(me), null);
+  assert.equal(isPortalRoute("/artisan/jobs"), true);
+});
+
+test("a suspended artisan keeps their four places, to read their records", () => {
+  const me = account({
+    workspace: "artisan",
+    available: ["discovery", "tenant", "artisan"],
+    artisan: { status: "suspended", workspace_access: true, can_quote: false },
+  });
+
+  assert.equal(hrefs(me).length, 4);
+});
+
+test("an applicant is not given the artisan experience by asking for it", () => {
+  // A stale or forged workspace with no access falls back to the tenant rail,
+  // and nothing artisan is offered.
+  const me = account({
+    workspace: "artisan",
+    artisan: { status: "pending", workspace_access: false, can_quote: false },
+  });
+
+  assert.ok(!hrefs(me).some((href) => href.startsWith("/artisan")));
+  assert.ok(hrefs(me).includes("/rentals"));
 });

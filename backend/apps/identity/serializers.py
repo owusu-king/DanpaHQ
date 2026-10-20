@@ -205,7 +205,7 @@ class VerifyEmailSerializer(serializers.Serializer):
 
 
 class ChooseWorkspaceSerializer(serializers.Serializer):
-    workspace = serializers.ChoiceField(choices=["discovery", "tenant", "provider"])
+    workspace = serializers.ChoiceField(choices=["discovery", "tenant", "provider", "artisan"])
 
 
 class RefreshSerializer(serializers.Serializer):
@@ -610,6 +610,11 @@ class MeSerializer(serializers.ModelSerializer):
                 # the form; after, it is where their review stands. Neither is
                 # the tenant experience, and neither is an empty workspace.
                 return {"mobile": "/(app)/provider", "web": "/provider"}
+
+        if workspace == "artisan" and capabilities["artisan"]["workspace_access"]:
+            # Web shares /home, which reads the workspace; mobile has its own
+            # four tabs, because an artisan has no properties and no rent.
+            return {"mobile": "/(app)/(artisan-tabs)", "web": "/home"}
 
         if workspace == "tenant" and capabilities["tenant"]["workspace_access"]:
             # A tenant with no occupancy still belongs here. Joining a property

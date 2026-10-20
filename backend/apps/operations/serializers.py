@@ -37,6 +37,18 @@ class ModerationSerializer(serializers.Serializer):
         return attrs
 
 
+class ArtisanSuspensionSerializer(serializers.Serializer):
+    suspended = serializers.BooleanField()
+    reason = serializers.CharField(required=False, allow_blank=True, max_length=300)
+
+    def validate(self, attrs):
+        if attrs["suspended"] and not attrs.get("reason", "").strip():
+            raise serializers.ValidationError(
+                {"reason": "Say why, and what the artisan should do next. They will see it."}
+            )
+        return attrs
+
+
 class UserStatusSerializer(serializers.Serializer):
     active = serializers.BooleanField()
     reason = serializers.CharField(required=False, allow_blank=True, max_length=300)

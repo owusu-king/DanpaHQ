@@ -1175,3 +1175,109 @@ def on_maintenance_reopened(event) -> None:
             target_type="maintenance_request",
             target_id=request.id,
         )
+
+
+# --- artisans ----------------------------------------------------------------------
+
+
+def _artisan_applicant(verification_id):
+    """The person an artisan decision is about, or None for any other check."""
+    from apps.identity.models import User
+    from apps.trust.models import Verification, VerificationKind
+
+    verification = Verification.objects.filter(
+        id=verification_id, kind=VerificationKind.ARTISAN, subject_type="user"
+    ).first()
+    if verification is None:
+        return None, None
+    return verification, User.objects.filter(id=verification.subject_id).first()
+
+
+@subscribe("trust.verification_decided.v1")
+def on_artisan_application_decided(event) -> None:
+    verification, person = _artisan_applicant(event.aggregate_id)
+    if person is None:
+        return
+    if event.payload.get("approved"):
+        notify(
+            user=person,
+            kind="artisan.approved",
+            title="You are approved as an artisan",
+            body=(
+                "Switch to the artisan experience from your account menu to see quote "
+                "requests. Everything else on your account is unchanged."
+            ),
+            dedupe_key=_key(event, person.id),
+            target_type="artisan_application",
+            target_id=verification.id,
+        )
+        return
+    notify(
+        user=person,
+        kind="artisan.rejected",
+        title="Your artisan application was not approved",
+        body=verification.decision_note or "Open your application to see why.",
+        dedupe_key=_key(event, person.id),
+        target_type="artisan_application",
+        target_id=verification.id,
+    )
+
+
+@subscribe("trust.verification_needs_info.v1")
+def on_artisan_application_needs_info(event) -> None:
+    verification, person = _artisan_applicant(event.aggregate_id)
+    if person is None:
+        return
+    notify(
+        user=person,
+        kind="artisan.needs_info",
+        title="Your artisan application needs something more",
+        body=verification.decision_note or "Open your application to see what is needed.",
+        dedupe_key=_key(event, person.id),
+        target_type="artisan_application",
+        target_id=verification.id,
+    )
+
+
+def _artisan_person(event):
+    from apps.identity.models import User
+
+    return User.objects.filter(id=event.payload.get("user_id")).first()
+
+
+@subscribe("artisan.suspended.v1")
+def on_artisan_suspended(event) -> None:
+    person = _artisan_person(event)
+    if person is None:
+        return
+    from apps.artisan.models import ArtisanProfile
+
+    profile = ArtisanProfile.objects.filter(id=event.aggregate_id).first()
+    notify(
+        user=person,
+        kind="artisan.suspended",
+        title="Your artisan account is suspended",
+        body=(
+            f"{profile.suspended_reason if profile else ''} You cannot send new quotes or "
+            "take on new jobs for now. Your existing jobs and records are unchanged."
+        ).strip(),
+        dedupe_key=_key(event, person.id),
+        target_type="artisan_application",
+        target_id=event.aggregate_id,
+    )
+
+
+@subscribe("artisan.reinstated.v1")
+def on_artisan_reinstated(event) -> None:
+    person = _artisan_person(event)
+    if person is None:
+        return
+    notify(
+        user=person,
+        kind="artisan.reinstated",
+        title="Your artisan account is active again",
+        body="You can send quotes and take on new jobs again.",
+        dedupe_key=_key(event, person.id),
+        target_type="artisan_application",
+        target_id=event.aggregate_id,
+    )

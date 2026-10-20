@@ -2,7 +2,8 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useState } from "react";
 
 import { ApiFailure } from "@/api";
-import { useAuth } from "@/auth";
+import { artisanMenuLabel } from "@/artisan";
+import { useAuth, type Workspace } from "@/auth";
 import { Identity, YouPage, type YouItem, type YouSection } from "@/components/account/YouParts";
 import { useProfilePhoto } from "@/components/nav/TabHeaderControls";
 import { Notice } from "@/components/ui";
@@ -29,7 +30,7 @@ function ProviderMoreScreen() {
   const router = useRouter();
   const { activeContext, state, refreshMe, signOut } = useAuth();
   const photoUri = useProfilePhoto();
-  const [switching, setSwitching] = useState(false);
+  const [switching, setSwitching] = useState<Workspace | null>(null);
   const [leaving, setLeaving] = useState(false);
   const [error, setError] = useState("");
   const [unread, setUnread] = useState(0);
@@ -65,17 +66,17 @@ function ProviderMoreScreen() {
    * `active_workspace` on provider, so the entry route kept pointing back here
    * and the gate bounced the person straight round.
    */
-  async function switchToTenant() {
-    setSwitching(true);
+  async function switchTo(workspace: Workspace) {
+    setSwitching(workspace);
     setError("");
     try {
-      const next = await chooseWorkspace("tenant");
+      const next = await chooseWorkspace(workspace);
       await refreshMe();
       router.replace(resolveEntryRoute(next) as never);
     } catch (cause) {
       setError(cause instanceof ApiFailure ? cause.error.message : "Could not switch.");
     } finally {
-      setSwitching(false);
+      setSwitching(null);
     }
   }
 
@@ -129,7 +130,13 @@ function ProviderMoreScreen() {
       key: "leave",
       items: [
         // A change of view, not of account. Switching back is one tap from the tenant's More.
-        { key: "switch", icon: "swap-horizontal-outline", label: "Switch to renting", busy: switching, busyLabel: "Switching…", onPress: () => void switchToTenant() },
+        { key: "switch", icon: "swap-horizontal-outline", label: "Switch to renting", busy: switching === "tenant", busyLabel: "Switching…", onPress: () => void switchTo("tenant") },
+        // Artisan work: a switch once approved, the application until then.
+        ...(me
+          ? [me.capabilities.available_workspaces.includes("artisan")
+            ? { key: "artisan", icon: "hammer-outline" as const, label: artisanMenuLabel(me.capabilities.artisan.status, true), busy: switching === "artisan", busyLabel: "Switching…", onPress: () => void switchTo("artisan") }
+            : { key: "artisan", icon: "hammer-outline" as const, label: artisanMenuLabel(me.capabilities.artisan.status, false), onPress: go("/(app)/artisan-application") }]
+          : []),
         { key: "sign-out", icon: "log-out-outline", label: "Sign out", danger: true, busy: leaving, busyLabel: "Signing out…", onPress: () => void leave() },
       ],
     },

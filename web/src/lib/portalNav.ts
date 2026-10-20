@@ -52,6 +52,22 @@ export function portalSections(
     me.capabilities.active_workspace === "provider"
     && (provider.workspace_access || provider.exists);
 
+  // The artisan experience: four places and no others. An artisan sees the work
+  // they were invited to or given, never a tenant, property or request beyond it.
+  // Updates stays in the top bar for them, as for everyone.
+  if (me.capabilities.active_workspace === "artisan" && me.capabilities.artisan.workspace_access) {
+    return [
+      {
+        items: [
+          { href: "/home", label: "Home", icon: "home", hint: "Invitations, jobs and what needs you" },
+          { href: "/artisan/requests", label: "Requests", icon: "receipt", hint: "Quote invitations and your quotes" },
+          { href: "/artisan/jobs", label: "Jobs", icon: "wrench", hint: "Accepted work and its history" },
+          { href: "/artisan/profile", label: "My Profile", icon: "hammer", hint: "Trades, area, work photos and certificates" },
+        ],
+      },
+    ];
+  }
+
   if (inProvider && !provider.workspace_access) {
     return [
       { items: [{ href: "/home", label: "Home", icon: "home" }] },
@@ -155,6 +171,7 @@ export function enquiriesEntry(
   const inProvider =
     me.capabilities.active_workspace === "provider"
     && (provider.workspace_access || provider.exists);
+  if (me.capabilities.active_workspace === "artisan") return null;
   if (inProvider && !provider.workspace_access) return null;
   if (inProvider) {
     const operates = access ? access.can.operate_properties : true;
@@ -250,6 +267,7 @@ const PORTAL_PREFIXES = [
   "/passport",
   "/viewings",
   "/maintenance",
+  "/artisan",
   "/enquiries",
   "/documents",
   "/organization",

@@ -24,6 +24,10 @@ export default function AppLayout() {
     >
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="(provider-tabs)" options={{ headerShown: false }} />
+      <Stack.Screen name="(artisan-tabs)" options={{ headerShown: false }} />
+      {/* Applying to work as an artisan, from any experience. It draws its own
+          amber hero, as the provider screen draws its green one. */}
+      <Stack.Screen name="artisan-application" options={{ title: "Artisan application", headerShown: false }} />
       <Stack.Screen name="search" options={{ title: "Find a place" }} />
       <Stack.Screen name="saved" options={{ title: "Saved places" }} />
       <Stack.Screen name="notifications" options={{ title: "Updates" }} />

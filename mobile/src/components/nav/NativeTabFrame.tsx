@@ -3,6 +3,7 @@ import { useWindowDimensions, View } from "react-native";
 
 import { TabHeaderRow } from "@/components/nav/TabHeader";
 import {
+  ArtisanHeaderActions,
   HeaderSearchPill,
   ProviderHeaderActions,
   TenantHeaderActions,
@@ -117,6 +118,23 @@ export function ProviderTabFrame({ tab, children }: { tab: ProviderTab; children
 
   return (
     <NativeTabFrame header={header} ground={tab === "home" ? shell.dashboard : shell.canvas}>
+      {children}
+    </NativeTabFrame>
+  );
+}
+
+type ArtisanTab = "home" | "requests" | "jobs" | "profile";
+
+/**
+ * The artisan tabs: the bell on every tab, and nothing else in the row — no
+ * Portfolio, no search for homes. Home's header runs on into its hero.
+ */
+export function ArtisanTabFrame({ tab, children }: { tab: ArtisanTab; children: ReactNode }) {
+  return (
+    <NativeTabFrame
+      header={<TabHeaderRow right={<ArtisanHeaderActions />} continues={tab === "home"} />}
+      ground={tab === "home" ? shell.dashboard : shell.canvas}
+    >
       {children}
     </NativeTabFrame>
   );

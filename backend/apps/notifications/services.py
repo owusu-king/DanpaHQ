@@ -43,6 +43,11 @@ IMPORTANT_KINDS = {
     # The tenant is asked to act; the provider is told their fix did not hold.
     "maintenance.awaiting_confirmation",
     "maintenance.reopened",
+    # Decisions on whether somebody may work as an artisan at all.
+    "artisan.approved",
+    "artisan.rejected",
+    "artisan.needs_info",
+    "artisan.suspended",
 }
 
 #: The alerts a person can choose between, in the order they are offered.
@@ -97,6 +102,12 @@ ALERT_TOPICS: list[dict] = [
         "label": "Maintenance",
         "description": "Repairs reported, started, fixed, confirmed or reopened.",
         "prefixes": ("maintenance.",),
+    },
+    {
+        "key": "artisans",
+        "label": "Artisan work",
+        "description": "Your artisan application, and changes to your artisan account.",
+        "prefixes": ("artisan.",),
     },
     {
         "key": "viewings",

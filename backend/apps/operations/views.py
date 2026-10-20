@@ -30,6 +30,7 @@ from .authentication import (
 from .models import CaseStatus, ManagementReport, SupportCase
 from .permissions import Capability, HasManagementCapability
 from .serializers import (
+    ArtisanSuspensionSerializer,
     CaseUpdateSerializer,
     ConfigurationUpdatesSerializer,
     DecisionSerializer,
@@ -357,6 +358,47 @@ class UserDeviceRestoreView(ManagementAPIView):
             reason=payload.validated_data["reason"].strip(),
         )
         return Response({"id": str(device.id), "state": "removed"})
+
+
+class ArtisansView(ManagementAPIView):
+    """Every artisan application and where it stands.
+
+    Deciding an application happens in the verification queue, beside provider
+    standing; this is the list Management suspends and reinstates from.
+    """
+
+    required_capability = Capability.VIEW_USERS
+
+    def get(self, request):
+        from apps.artisan.services import management_rows
+
+        state = request.query_params.get("status", "").strip()
+        return Response(management_rows(status=state, limit=_bounded_limit(request)))
+
+
+class ArtisanSuspensionView(ManagementAPIView):
+    """POST /management/artisans/<user id>/suspension/ — pause or reinstate.
+
+    Suspending needs a reason the artisan will read. It stops new quotes and new
+    assignments at once and keeps every existing record.
+    """
+
+    required_capability = Capability.MANAGE_USERS
+
+    def post(self, request, pk):
+        from apps.artisan import services as artisan_services
+
+        payload = ArtisanSuspensionSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+        if payload.validated_data["suspended"]:
+            artisan_services.suspend(
+                user_id=pk,
+                management_actor=request.user,
+                reason=payload.validated_data.get("reason", ""),
+            )
+        else:
+            artisan_services.reinstate(user_id=pk, management_actor=request.user)
+        return Response(artisan_services.management_row_for(user_id=pk))
 
 
 class ProvidersView(ManagementAPIView):

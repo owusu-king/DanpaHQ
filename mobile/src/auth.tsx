@@ -47,7 +47,20 @@ export type TrustEntry = {
   method: string;
 };
 
-export type Workspace = "discovery" | "tenant" | "provider";
+export type Workspace = "discovery" | "tenant" | "provider" | "artisan";
+
+/**
+ * Where an artisan application stands. `suspended` is an approved artisan
+ * Management has paused: their experience stays open, new work does not.
+ */
+export type ArtisanStatus =
+  | "not_started"
+  | "pending"
+  | "needs_more_info"
+  | "approved"
+  | "suspended"
+  | "rejected"
+  | "revoked";
 
 export type ProviderVerificationStatus =
   | "not_started"
@@ -93,6 +106,12 @@ export type Capabilities = {
     can_create_property: boolean;
   };
   tenant: { workspace_access: boolean };
+  /**
+   * The artisan side. Applying never moves anybody: the experience appears in
+   * `available_workspaces` only once `workspace_access` is true, and only
+   * `can_quote` says whether new work may start.
+   */
+  artisan: { status: ArtisanStatus; workspace_access: boolean; can_quote: boolean };
 };
 
 export type Me = {

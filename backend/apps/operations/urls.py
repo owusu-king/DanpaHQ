@@ -21,6 +21,12 @@ urlpatterns = [
         name="management-user-device-restore",
     ),
     path("providers/", views.ProvidersView.as_view(), name="management-providers"),
+    path("artisans/", views.ArtisansView.as_view(), name="management-artisans"),
+    path(
+        "artisans/<uuid:pk>/suspension/",
+        views.ArtisanSuspensionView.as_view(),
+        name="management-artisan-suspension",
+    ),
     path("verifications/", views.VerificationQueueView.as_view(), name="management-verifications"),
     path(
         "verifications/<uuid:pk>/claim/",

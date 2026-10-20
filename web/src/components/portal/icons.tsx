@@ -79,6 +79,7 @@ export type IconName =
   | "water"
   | "power"
   | "wrench"
+  | "hammer"
   | "video"
   | "passport"
   | "link"
@@ -445,6 +446,13 @@ const PATHS: Record<IconName, React.ReactNode> = {
   // Maintenance: a spanner, drawn in the same weight as the rest of the rail.
   wrench: (
     <path d="M12.6 3.2a4 4 0 0 0-4.9 5.2L3.4 12.7a1.6 1.6 0 0 0 0 2.3l1.6 1.6a1.6 1.6 0 0 0 2.3 0l4.3-4.3a4 4 0 0 0 5.2-4.9l-2.3 2.3-2.2-.5-.5-2.2Z" />
+  ),
+  // Artisan work: a claw hammer, beside the spanner it is often confused with.
+  hammer: (
+    <>
+      <path d="M8.75 6.75 4 11.5a1.5 1.5 0 0 0 0 2.1l.4.4a1.5 1.5 0 0 0 2.1 0l4.75-4.75" />
+      <path d="M7.25 5.25 9.5 3a2.5 2.5 0 0 1 3.5 0l.75.75-1.25 1.25 3.5 3.5-2.25 2.25-3.5-3.5-1.25 1.25Z" />
+    </>
   ),
   video: (
     <>

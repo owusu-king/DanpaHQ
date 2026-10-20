@@ -215,7 +215,9 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
   const current = activeHref(sections, pathname);
   const currentLabel = sections
     .flatMap((section) => section.items)
-    .find((item) => item.href === current)?.label ?? "Portal";
+    .find((item) => item.href === current)?.label
+    // Reached from the account menu rather than the rail, so no item names it.
+    ?? (pathname === "/artisan" ? "Artisan application" : "Portal");
   const isProviderSpace = me.capabilities.active_workspace === "provider"
     && me.capabilities.provider.workspace_access;
   const enquiries = enquiriesEntry(me, portfolio?.access ?? null);
@@ -394,6 +396,9 @@ function PortalBrand({ me, collapsed }: { me: Me; collapsed: boolean }) {
 function workspaceLabel(me: Me): string {
   if (me.capabilities.active_workspace === "provider") {
     return me.capabilities.provider.workspace_access ? "Provider" : "Provider · in review";
+  }
+  if (me.capabilities.active_workspace === "artisan" && me.capabilities.artisan.workspace_access) {
+    return "Artisan";
   }
   return "Renting";
 }

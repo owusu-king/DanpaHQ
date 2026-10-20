@@ -162,6 +162,7 @@ export function AccountMenu({
               Settings
             </Link>
             <WorkspaceCrossing me={me} onDone={() => close(false)} />
+            <ArtisanEntry me={me} onDone={() => close(false)} />
           </div>
 
           <div className="portal-menu-group">
@@ -181,6 +182,9 @@ export function AccountMenu({
  * line is most meant to describe.
  */
 function roleLabel(me: Me, activeContext: string | null): string {
+  if (me.capabilities.active_workspace === "artisan") {
+    return me.capabilities.artisan.can_quote ? "Artisan" : "Artisan · suspended";
+  }
   if (me.capabilities.active_workspace === "provider") {
     if (!me.capabilities.provider.workspace_access) return "Provider · in review";
     return me.contexts.find((context) => context.id === activeContext)?.label ?? "Provider";
@@ -188,50 +192,81 @@ function roleLabel(me: Me, activeContext: string | null): string {
   return "Tenant";
 }
 
+const CROSSING_LABEL: Record<Exclude<Workspace, "discovery">, string> = {
+  tenant: "Switch to renting",
+  provider: "Switch to provider experience",
+  artisan: "Switch to artisan experience",
+};
+
 /**
- * The way across, for the rare account holding both capabilities.
+ * The way across, for an account holding more than one capability.
  *
  * It lives in this menu rather than in the rail because it is a property of the
  * account, not a destination — and because a bordered block in the rail had
- * nowhere to go once the rail could collapse to 68px.
+ * nowhere to go once the rail could collapse to 68px. One row per experience
+ * the backend says is open, so an approved artisan who also rents and lets
+ * sees both ways out of whichever they are in.
  */
 function WorkspaceCrossing({ me, onDone }: { me: Me; onDone: () => void }) {
   const router = useRouter();
   const { refresh } = useSession();
-  const [switching, setSwitching] = useState(false);
+  const [switching, setSwitching] = useState<Workspace | null>(null);
 
-  const other = me.capabilities.available_workspaces.find(
-    (workspace) => workspace !== me.capabilities.active_workspace && workspace !== "discovery",
+  const others = me.capabilities.available_workspaces.filter(
+    (workspace): workspace is Exclude<Workspace, "discovery"> =>
+      workspace !== me.capabilities.active_workspace && workspace !== "discovery",
   );
-  if (!other) return null;
+  if (others.length === 0) return null;
 
   async function cross(workspace: Workspace) {
-    setSwitching(true);
+    setSwitching(workspace);
     try {
       const next = await chooseWorkspace(workspace);
       await refresh();
       onDone();
       router.push(resolveWebEntry(next) as never);
     } finally {
-      setSwitching(false);
+      setSwitching(null);
     }
   }
 
   return (
-    <button
-      type="button"
+    <>
+      {others.map((workspace) => (
+        <button
+          key={workspace}
+          type="button"
+          className="portal-menu-item"
+          role="menuitem"
+          data-menu-item
+          disabled={switching !== null}
+          onClick={() => void cross(workspace)}
+        >
+          {switching === workspace ? "Switching…" : CROSSING_LABEL[workspace]}
+        </button>
+      ))}
+    </>
+  );
+}
+
+/**
+ * Where somebody asks to work as an artisan, from whichever experience they are
+ * in — and where they follow the application afterwards. Gone once approved:
+ * from then on the crossing above is the way in.
+ */
+function ArtisanEntry({ me, onDone }: { me: Me; onDone: () => void }) {
+  const artisan = me.capabilities.artisan;
+  if (artisan.workspace_access || me.capabilities.active_workspace === "artisan") return null;
+  return (
+    <Link
+      href={"/artisan" as never}
       className="portal-menu-item"
       role="menuitem"
       data-menu-item
-      disabled={switching}
-      onClick={() => void cross(other)}
+      onClick={onDone}
     >
-      {switching
-        ? "Switching…"
-        : other === "provider"
-          ? "Switch to provider experience"
-          : "Switch to renting"}
-    </button>
+      {artisan.status === "not_started" ? "Become an artisan" : "Your artisan application"}
+    </Link>
   );
 }
 

@@ -36,6 +36,9 @@ DOMAIN = {
     # Reads every housing record and owns none of them; only its own share
     # grants and correction requests.
     "passport",
+    # Tradespeople: their own profile and application. Approval is a trust
+    # verification, read through trust services rather than its models.
+    "artisan",
 } | PROPERTY_ACCESS
 EDGE = {"api"}
 

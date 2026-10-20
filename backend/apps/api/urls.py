@@ -8,6 +8,7 @@ long time, and the API has to keep answering it.
 from django.urls import include, path
 
 from apps.application import views as application_views
+from apps.artisan import views as artisan_views
 from apps.billing.api import views as billing_views
 from apps.core.health import healthz, readyz
 from apps.files import urls as files_urls
@@ -703,6 +704,8 @@ rent_patterns = [
         name="rent-charge-write-off",
     ),
     path("me/rental-history/", rent_views.RentalHistoryView.as_view(), name="me-rental-history"),
+    # Artisans (apps.artisan)
+    path("me/artisan/", artisan_views.MyArtisanView.as_view(), name="me-artisan"),
     # Maintenance (apps.maintenance)
     path("me/maintenance/", maintenance_views.MyMaintenanceView.as_view(), name="me-maintenance"),
     path(

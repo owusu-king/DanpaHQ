@@ -31,6 +31,8 @@ class FilePurpose(models.TextChoices):
     MAINTENANCE_PHOTO = "maintenance_photo", "Maintenance photo"
     MAINTENANCE_VIDEO = "maintenance_video", "Maintenance video"
     AVATAR = "avatar", "Profile photo"
+    ARTISAN_WORK_PHOTO = "artisan_work_photo", "Artisan portfolio photo"
+    ARTISAN_CERTIFICATE = "artisan_certificate", "Artisan certificate"
     OTHER = "other", "Other"
 
 

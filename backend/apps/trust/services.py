@@ -44,6 +44,8 @@ PRIORITY_BY_KIND = {
     # A person waiting on this cannot use the product they signed up for at all,
     # so it outranks the per-property checks that only block one building.
     VerificationKind.PROVIDER: 5,
+    # Waiting blocks nobody's home or money, only the applicant's new work.
+    VerificationKind.ARTISAN: 30,
     VerificationKind.IDENTITY: 40,
     VerificationKind.SELFIE_MATCH: 40,
     VerificationKind.ADDRESS: 60,
@@ -237,16 +239,34 @@ def attach_evidence(
         notes=notes,
     )
     if verification.status == VerificationStatus.NEEDS_MORE:
-        verification.status = VerificationStatus.PENDING
-        verification.decision_note = ""
-        verification.save(update_fields=["status", "decision_note", "updated_at"])
-        ReviewQueueEntry.objects.filter(verification=verification).update(
-            claimed_by=None,
-            claimed_by_management_id=None,
-            claimed_at=None,
-            claim_expires_at=None,
-        )
+        _return_to_queue(verification)
     return evidence
+
+
+@transaction.atomic
+def resubmit(verification: Verification) -> Verification:
+    """Answer "more information needed" without a new document.
+
+    Attaching evidence already does this. An answer can also be a correction to
+    what the applicant told us — the wrong trade, the wrong area — which arrives
+    through the subject's own domain and leaves nothing to attach.
+    """
+    if verification.status != VerificationStatus.NEEDS_MORE:
+        raise Conflict("This check is not waiting for more information.")
+    _return_to_queue(verification)
+    return verification
+
+
+def _return_to_queue(verification: Verification) -> None:
+    verification.status = VerificationStatus.PENDING
+    verification.decision_note = ""
+    verification.save(update_fields=["status", "decision_note", "updated_at"])
+    ReviewQueueEntry.objects.filter(verification=verification).update(
+        claimed_by=None,
+        claimed_by_management_id=None,
+        claimed_at=None,
+        claim_expires_at=None,
+    )
 
 
 @transaction.atomic
@@ -361,6 +381,22 @@ def decide(
         apply_provider_decision(
             verification=verification,
             approved=approved,
+            decided_by=decided_by,
+            management_actor=management_actor,
+        )
+
+    # Approving an artisan also answers who they are, when they sent their ID
+    # with the application. Nothing else follows: the experience is read live
+    # from this row, so there is no role to keep in step.
+    if (
+        verification.subject_type == SubjectType.USER
+        and verification.kind == VerificationKind.ARTISAN
+        and approved
+    ):
+        from apps.artisan.services import apply_artisan_approval
+
+        apply_artisan_approval(
+            verification=verification,
             decided_by=decided_by,
             management_actor=management_actor,
         )

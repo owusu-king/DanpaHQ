@@ -26,6 +26,7 @@ import {
   type Viewing,
 } from "@/lib/console";
 import { propertyNextStep } from "@/lib/providerSetup";
+import { ArtisanHome } from "@/components/artisan/ArtisanWorkspace";
 import { formatMoney } from "@/lib/money";
 import { listEnquiries, type Enquiry } from "@/lib/sales";
 import { useSession, type Me } from "@/lib/session";
@@ -88,6 +89,12 @@ export default function HomePage() {
   const inProvider =
     me.capabilities.active_workspace === "provider"
     && (me.capabilities.provider.workspace_access || me.capabilities.provider.exists);
+
+  // The artisan experience has its own Home: invitations, jobs and their own
+  // profile — never a tenant or property view.
+  if (me.capabilities.active_workspace === "artisan" && me.capabilities.artisan.workspace_access) {
+    return <ArtisanHome me={me} />;
+  }
 
   return inProvider ? <ProviderHome me={me} activeContext={activeContext} /> : <TenantHome me={me} />;
 }

@@ -18,6 +18,7 @@ Both are fixed by keying on the capability payload (ADR 0020).
 | tenant workspace | `(app)/(tabs)` | `/home` |
 | provider, not approved | `(app)/provider` | `/provider` |
 | provider, approved | `(app)/(provider-tabs)` | `/home` |
+| artisan, approved (or suspended) and chosen | `(app)/(artisan-tabs)` | `/home` |
 
 Web lands on `/home` for every open workspace. The portal's home is role-aware,
 so the destination is the same question for both roles — what is going on, and

@@ -53,5 +53,6 @@ export function contextBelongsToWorkspace(
 /** A context route is only offered if the workspace behind it is actually open. */
 function isReachable(me: Me, route: string): boolean {
   if (route === "/(app)/(provider-tabs)") return me.capabilities.provider.workspace_access;
+  if (route === "/(app)/(artisan-tabs)") return me.capabilities.artisan.workspace_access;
   return true;
 }

@@ -2,7 +2,8 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useState } from "react";
 
 import { ApiFailure } from "@/api";
-import { useAuth } from "@/auth";
+import { artisanMenuLabel } from "@/artisan";
+import { useAuth, type Workspace } from "@/auth";
 import { AuthPrompt } from "@/components/AuthPrompt";
 import { Identity, YouPage, type YouSection } from "@/components/account/YouParts";
 import { useProfilePhoto } from "@/components/nav/TabHeaderControls";
@@ -29,7 +30,7 @@ function ProfileTab() {
   const router = useRouter();
   const { state, refreshMe, signOut } = useAuth();
   const photoUri = useProfilePhoto();
-  const [switching, setSwitching] = useState(false);
+  const [switching, setSwitching] = useState<Workspace | null>(null);
   const [leaving, setLeaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -58,18 +59,19 @@ function ProfileTab() {
   const me = state.me;
   const go = (path: string) => () => router.push(path as never);
   const unfinished = (me.profile?.completeness ?? 0) < 100;
+  const artisanOpen = me.capabilities.available_workspaces.includes("artisan");
 
-  async function switchToProvider() {
-    setSwitching(true);
+  async function switchTo(workspace: Workspace) {
+    setSwitching(workspace);
     setError("");
     try {
-      const next = await chooseWorkspace("provider");
+      const next = await chooseWorkspace(workspace);
       await refreshMe();
       router.replace(resolveEntryRoute(next) as never);
     } catch (cause) {
       setError(cause instanceof ApiFailure ? cause.error.message : "Could not switch.");
     } finally {
-      setSwitching(false);
+      setSwitching(null);
     }
   }
 
@@ -117,8 +119,13 @@ function ProfileTab() {
         // Offered only to an account that actually holds provider capability.
         // A change of view, not of account.
         ...(me.capabilities.available_workspaces.includes("provider")
-          ? [{ key: "switch", icon: "swap-horizontal-outline" as const, label: "Switch to managing property", busy: switching, busyLabel: "Switching…", onPress: () => void switchToProvider() }]
+          ? [{ key: "switch", icon: "swap-horizontal-outline" as const, label: "Switch to managing property", busy: switching === "provider", busyLabel: "Switching…", onPress: () => void switchTo("provider") }]
           : []),
+        // Artisan work: a switch once approved, the application until then.
+        // Applying moves nobody — this row only leads to the form.
+        artisanOpen
+          ? { key: "artisan", icon: "hammer-outline", label: artisanMenuLabel(me.capabilities.artisan.status, true), busy: switching === "artisan", busyLabel: "Switching…", onPress: () => void switchTo("artisan") }
+          : { key: "artisan", icon: "hammer-outline", label: artisanMenuLabel(me.capabilities.artisan.status, false), onPress: go("/(app)/artisan-application") },
         { key: "sign-out", icon: "log-out-outline", label: "Sign out", danger: true, busy: leaving, busyLabel: "Signing out…", onPress: () => void leave() },
       ],
     },

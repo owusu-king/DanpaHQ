@@ -18,6 +18,7 @@ import {
   uploadFile,
 } from "@/lib/console";
 import { fieldErrorsFrom, summaryErrorFrom, type FieldErrors } from "@/lib/formErrors";
+import { ARTISAN_STATUS_LOOK } from "@/lib/artisan";
 import type { Capabilities } from "@/lib/session";
 
 const MIN_PASSWORD_LENGTH = 8;
@@ -83,10 +84,14 @@ export function AccountStanding({
             discovery: "Browsing",
             tenant: "Tenant",
             provider: "Provider",
+            artisan: "Artisan",
           }[capabilities.active_workspace]
         }
       />
       <Row label="Provider verification" value={providerLine} />
+      {capabilities.artisan.status !== "not_started" ? (
+        <Row label="Artisan application" value={ARTISAN_STATUS_LOOK[capabilities.artisan.status].pill} />
+      ) : null}
 
       {provider.exists && !provider.can_create_property ? (
         <Notice

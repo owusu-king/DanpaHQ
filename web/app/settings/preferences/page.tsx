@@ -37,6 +37,7 @@ const ALERT_ICONS: Record<string, IconName> = {
   requests: "applications",
   viewings: "viewings",
   enquiries: "chat",
+  artisans: "hammer",
   account: "users",
 };
 

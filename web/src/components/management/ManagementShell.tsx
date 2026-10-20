@@ -13,6 +13,7 @@ const NAV = [
   { href: "/management/verifications", label: "Verification queue", capability: "view_verifications", icon: "verification" },
   { href: "/management/users", label: "Users", capability: "view_users", icon: "users" },
   { href: "/management/providers", label: "Landlords & agents", capability: "view_properties", icon: "account" },
+  { href: "/management/artisans", label: "Artisans", capability: "view_users", icon: "hammer" },
   { href: "/management/properties", label: "Properties", capability: "view_properties", icon: "properties" },
   { href: "/management/listings", label: "Listings", capability: "view_properties", icon: "listings" },
   { href: "/management/reports", label: "Reports", capability: "view_reports", icon: "reports" },

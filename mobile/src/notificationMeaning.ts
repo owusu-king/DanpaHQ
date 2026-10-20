@@ -27,6 +27,7 @@ const WANTS_A_REPLY = new Set([
   "maintenance.submitted",
   "maintenance.awaiting_confirmation",
   "maintenance.reopened",
+  "artisan.needs_info",
 ]);
 
 export function wantsAReply(kind: string): boolean {
@@ -58,6 +59,8 @@ const SUCCESS = new Set([
   "billing.subscription_payment_succeeded",
   "organization.invitation_accepted",
   "maintenance.completed",
+  "artisan.approved",
+  "artisan.reinstated",
 ]);
 
 const WARNING = new Set([
@@ -67,6 +70,7 @@ const WARNING = new Set([
   "lease.declined",
   "rent.payment_due_soon",
   "rent.payment_due_now",
+  "artisan.rejected",
 ]);
 
 const CRITICAL = new Set([
@@ -74,6 +78,7 @@ const CRITICAL = new Set([
   "rent.payment_overdue",
   "rent.external_payment_disputed",
   "billing.subscription_payment_failed",
+  "artisan.suspended",
 ]);
 
 export function notificationCategory(kind: string): NotificationCategory {
@@ -96,6 +101,7 @@ export function notificationSource(kind: string): string {
   if (kind.startsWith("billing.")) return "Plan & billing";
   if (kind.startsWith("organization.")) return "Portfolio";
   if (kind.startsWith("maintenance.")) return "Maintenance";
+  if (kind.startsWith("artisan.")) return "Artisan work";
   return "Danpa HQ";
 }
 
@@ -152,6 +158,8 @@ export function destination(
       return { pathname: "/(app)/billing" };
     case "maintenance_request":
       return { pathname: "/(app)/maintenance-request", params: { id: item.target_id } };
+    case "artisan_application":
+      return { pathname: "/(app)/artisan-application" };
     default:
       // Whichever side the person is on. There is no standalone home route on
       // mobile: the tab groups are the home for each workspace.

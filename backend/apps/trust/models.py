@@ -71,6 +71,10 @@ class VerificationKind(models.TextChoices):
     #: corrects — a provider is approved once and then claims properties, each
     #: of which is reviewed separately under PROPERTY_AUTHORITY.
     PROVIDER = "provider", "Approved to operate as a property provider"
+    #: The same shape for tradespeople: may this account quote for and take on
+    #: jobs at all. Approval opens the artisan experience and nothing else; it
+    #: says nothing about the quality of anybody's work (`apps.artisan`).
+    ARTISAN = "artisan", "Approved to work as an artisan"
 
 
 class VerificationStatus(models.TextChoices):
@@ -121,6 +125,9 @@ VALIDITY_DAYS: dict[str, int | None] = {
     # never told about. It ends by revocation, which is a decision someone makes
     # and has to record a reason for.
     VerificationKind.PROVIDER: None,
+    # For the same reason as a provider: an artisan midway through a job must
+    # not lose access on an anniversary. It ends by suspension or revocation.
+    VerificationKind.ARTISAN: None,
 }
 
 
@@ -307,6 +314,13 @@ class EvidenceType(models.TextChoices):
     #: The surveyed plan of the plot, signed by a licensed surveyor. What land
     #: disputes here turn on, so land for sale is never verified without it.
     SITE_PLAN = "site_plan", "Site plan"
+
+    # --- an artisan application ------------------------------------------------
+    #
+    # Copied onto the review so the decision can be re-read against exactly what
+    # the applicant showed, even after they change their public profile.
+    ARTISAN_WORK_PHOTO = "artisan_work_photo", "Example of their work"
+    TRADE_CERTIFICATE = "trade_certificate", "Trade certificate"
 
 
 class VerificationEvidence(BaseModel):

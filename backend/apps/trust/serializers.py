@@ -184,7 +184,15 @@ class ReviewerVerificationSerializer(VerificationSerializer):
             .exclude(id=obj.id)
             .exclude(status=VerificationStatus.SUPERSEDED)
         )
+        # An artisan application is decided on what they do as much as who they
+        # are, so the reviewer reads the trades and area beside the account.
+        application = {}
+        if obj.kind == VerificationKind.ARTISAN:
+            from apps.artisan.services import review_context
+
+            application = review_context(user.id) or {}
         return {
+            **application,
             "name": user.display_name,
             "phone": mask(user.phone),
             "phone_verified": user.is_phone_verified,

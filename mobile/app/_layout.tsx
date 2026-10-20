@@ -74,6 +74,7 @@ function entryRedirect(
     || (segments.length === 1 && segments[0] === "index");
   const inPublicDiscovery = group === "(app)" && (screen === "(tabs)" || screen === "listing");
   const inProviderTabs = group === "(app)" && screen === "(provider-tabs)";
+  const inArtisanTabs = group === "(app)" && screen === "(artisan-tabs)";
   // The renter's tab at the same address, for an address both workspaces answer.
   const renterTwin = inProviderTabs && SHARED_TABS.includes(tab) ? `/(app)/(tabs)/${tab}` : null;
 
@@ -107,6 +108,12 @@ function entryRedirect(
   const mayOperate = capabilities.provider.workspace_access && capabilities.active_workspace === "provider";
   if (inProviderTabs && !mayOperate && !destination.startsWith("/(app)/(provider-tabs)")) {
     return renterTwin ?? destination;
+  }
+  // The same for the artisan tabs, which only an approved artisan who chose
+  // that experience is ever shown. Asking for them is not having them.
+  const mayWork = capabilities.artisan.workspace_access && capabilities.active_workspace === "artisan";
+  if (inArtisanTabs && !mayWork && !destination.startsWith("/(app)/(artisan-tabs)")) {
+    return destination;
   }
   return null;
 }

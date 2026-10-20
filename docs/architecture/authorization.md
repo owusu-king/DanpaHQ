@@ -58,13 +58,16 @@ than deriving access from `account_type` or a role name:
 | --- | --- |
 | `account_type` | what the person chose at registration; seeds the initial workspace, never a grant |
 | `registration_state` | how far through account creation they are |
-| `active_workspace` | which experience they are currently in: `discovery`, `tenant` or `provider` |
+| `active_workspace` | which experience they are currently in: `discovery`, `tenant`, `provider` or `artisan` |
 | `available_workspaces` | which experiences they may enter, derived from the capabilities below |
 | `provider.exists` | they have declared as a provider or started a provider verification. A Team member has not, and never needs to |
 | `provider.verification_status` | `not_started`, `pending`, `needs_more_info`, `approved`, `rejected`, `revoked`, `expired`; `null` for somebody who only belongs to a Portfolio |
 | `provider.workspace_access` | an approved provider verification is current, **or** an active Portfolio membership exists. This — not `exists` — is what decides whether the provider experience opens |
 | `provider.private_inventory_access` | may build private buildings and units while a review is outstanding |
 | `tenant.workspace_access` | holds the tenant capability |
+| `artisan.status` | `not_started`, `pending`, `needs_more_info`, `approved`, `suspended`, `rejected`, `revoked` — read from the `ARTISAN` trust verification, with `suspended` an approved artisan Management has paused |
+| `artisan.workspace_access` | approved, suspended included: the artisan experience opens so its records stay readable |
+| `artisan.can_quote` | approved and not suspended. Every action that starts new work checks `artisan.services.require_working_artisan` live |
 
 Provider standing and property authority are independent, so one account can
 legitimately read: provider approved, property A approved, property B pending,

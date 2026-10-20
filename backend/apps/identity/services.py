@@ -125,6 +125,15 @@ class NotAProvider(DomainError):
     )
 
 
+class NotAnArtisan(DomainError):
+    """Raised when somebody without an approved artisan application asks for the
+    artisan experience. Applying happens from the experience they are in."""
+
+    code = "NOT_AN_ARTISAN"
+    status_code = 403
+    message = "The artisan experience opens once your artisan application is approved."
+
+
 class GoogleLinkRequired(DomainError):
     """The verified Google email belongs to a separate existing account.
 
@@ -1910,7 +1919,7 @@ def apply_provider_decision(
     if user is None:
         return
     if approved:
-        _record_identity_from_provider_review(
+        record_identity_from_review(
             user=user,
             verification=verification,
             decided_by=decided_by,
@@ -1930,10 +1939,21 @@ def apply_provider_decision(
         )
 
 
-def _record_identity_from_provider_review(
-    *, user, verification, decided_by, management_actor=None
+def record_identity_from_review(
+    *,
+    user,
+    verification,
+    decided_by,
+    management_actor=None,
+    evidence_types: set[str] | None = None,
+    reviewed_for: str = "provider verification",
 ) -> None:
     """Write down that approving a provider also established who they are.
+
+    An artisan approval asks the same of the same document, so it calls this
+    too, naming which evidence was the ID (``evidence_types``) — an artisan
+    review also carries photographs of their work, which establish nothing
+    about who took them.
 
     A reviewer who approves a provider has just examined their government ID, so
     the identity question is answered — but only a record says so, and the rest
@@ -1986,10 +2006,13 @@ def _record_identity_from_provider_review(
         decided_by_management_id=getattr(management_actor, "id", None),
         decided_at=timezone.now(),
         expires_at=timezone.now() + timedelta(days=days) if days else None,
-        decision_note="Established from the government ID reviewed for provider verification.",
-        internal_note=f"Derived from provider verification {verification.id}.",
+        decision_note=f"Established from the government ID reviewed for {reviewed_for}.",
+        internal_note=f"Derived from {reviewed_for} {verification.id}.",
     )
-    for evidence in verification.evidence.all():
+    evidence_rows = verification.evidence.all()
+    if evidence_types is not None:
+        evidence_rows = evidence_rows.filter(evidence_type__in=evidence_types)
+    for evidence in evidence_rows:
         VerificationEvidence.objects.create(
             verification=identity,
             evidence_type=evidence.evidence_type,
@@ -1997,16 +2020,20 @@ def _record_identity_from_provider_review(
             reference=evidence.reference,
             checksum_at_attach=evidence.checksum_at_attach,
             collected_by=evidence.collected_by,
-            notes="Copied from the provider verification it was submitted with.",
+            notes=f"Copied from the {reviewed_for} it was submitted with.",
         )
 
 
-#: The three experiences a person can be *in*, as distinct from anything they
-#: are allowed to do. Discovery needs no account at all; the other two need a
+#: The experiences a person can be *in*, as distinct from anything they are
+#: allowed to do. Discovery needs no account at all; the others need a
 #: capability, which is a separate question answered below.
 WORKSPACE_DISCOVERY = "discovery"
 WORKSPACE_TENANT = "tenant"
 WORKSPACE_PROVIDER = "provider"
+#: Opens only on an approved artisan application, and asking for it before then
+#: is refused rather than routed to onboarding: applying is something done from
+#: the experience a person already has (`apps.artisan`).
+WORKSPACE_ARTISAN = "artisan"
 
 #: Which experience each stated journey corresponds to. The welcome screen picks
 #: a journey; this is the only thing that picking one does.
@@ -2014,6 +2041,7 @@ WORKSPACE_BY_INTENT = {
     "find_property": WORKSPACE_DISCOVERY,
     "current_tenant": WORKSPACE_TENANT,
     "manage_property": WORKSPACE_PROVIDER,
+    "artisan_work": WORKSPACE_ARTISAN,
 }
 
 
@@ -2109,11 +2137,17 @@ def account_capabilities(user) -> dict:
     # the question they actually have, which is "where is my review".
     approved_to_operate = approved is not None
 
+    from apps.artisan.services import artisan_capabilities
+
+    artisan = artisan_capabilities(user)
+
     available = [WORKSPACE_DISCOVERY]
     if tenant_access:
         available.append(WORKSPACE_TENANT)
     if provider_exists or team_access:
         available.append(WORKSPACE_PROVIDER)
+    if artisan["workspace_access"]:
+        available.append(WORKSPACE_ARTISAN)
 
     return {
         "account_type": user.account_type or None,
@@ -2139,6 +2173,11 @@ def account_capabilities(user) -> dict:
         "tenant": {
             "workspace_access": tenant_access,
         },
+        # Applying never moves anybody: the block reports where an application
+        # stands, and the experience appears in `available_workspaces` only on
+        # approval. Suspension keeps the experience open (their records are
+        # still theirs to read) and closes `can_quote`.
+        "artisan": artisan,
     }
 
 
@@ -2159,14 +2198,24 @@ def active_workspace(user) -> str:
         # The one thing that overrides the stated choice: a provider workspace
         # nobody can enter. Somebody whose Team membership ended keeps the
         # choice they made while they had one, and reporting it would leave them
-        # standing in a workspace that is no longer theirs.
-        if chosen != WORKSPACE_PROVIDER or _may_enter_provider(user):
+        # standing in a workspace that is no longer theirs. An artisan whose
+        # approval was withdrawn is in the same position.
+        closed = (chosen == WORKSPACE_PROVIDER and not _may_enter_provider(user)) or (
+            chosen == WORKSPACE_ARTISAN and not _may_enter_artisan(user)
+        )
+        if not closed:
             return chosen
     if user.account_type == AccountType.PROVIDER:
         return WORKSPACE_PROVIDER
     if user.has_role(Role.TENANT):
         return WORKSPACE_TENANT
     return WORKSPACE_DISCOVERY
+
+
+def _may_enter_artisan(user) -> bool:
+    from apps.artisan.services import artisan_capabilities
+
+    return artisan_capabilities(user)["workspace_access"]
 
 
 def ensure_tenant_capability(user):
@@ -2222,6 +2271,9 @@ def choose_workspace(*, user, workspace: str):
         WORKSPACE_TENANT: Intent.CURRENT_TENANT,
         WORKSPACE_PROVIDER: Intent.MANAGE_PROPERTY,
     }
+    if workspace == WORKSPACE_ARTISAN:
+        return _choose_artisan_workspace(user)
+
     intent = intent_by_workspace.get(workspace)
     if intent is None:
         raise ValidationFailed("Choose the discovery, tenant or provider experience.")
@@ -2245,5 +2297,39 @@ def choose_workspace(*, user, workspace: str):
         aggregate_id=user.id,
         actor=user,
         metadata={"workspace_selected": workspace},
+    )
+    return account_capabilities(user)
+
+
+def _choose_artisan_workspace(user):
+    """Enter the artisan experience, which only an approved application opens.
+
+    Kept apart from `select_onboarding_intent` on purpose: that function is
+    also the onboarding endpoint, and being an artisan is not something anybody
+    can declare at onboarding. Only the primary intent moves; nothing is
+    granted, and the tenant and provider sides are left exactly as they were.
+    """
+    from .models import Intent, UserIntent
+
+    if not user.is_registration_complete:
+        raise PermissionDenied("Finish setting up your account first.")
+    if not _may_enter_artisan(user):
+        raise NotAnArtisan()
+
+    UserIntent.objects.filter(user=user, is_primary=True).exclude(
+        intent=Intent.ARTISAN_WORK
+    ).update(is_primary=False)
+    selection, _ = UserIntent.objects.get_or_create(
+        user=user, intent=Intent.ARTISAN_WORK, defaults={"is_primary": True}
+    )
+    selection.is_primary = True
+    selection.last_selected_at = timezone.now()
+    selection.save(update_fields=["is_primary", "last_selected_at"])
+    record(
+        action=AuditAction.UPDATE,
+        aggregate_type="user",
+        aggregate_id=user.id,
+        actor=user,
+        metadata={"workspace_selected": WORKSPACE_ARTISAN},
     )
     return account_capabilities(user)

@@ -232,8 +232,15 @@ test("changing experience and signing out are the last card, and still say what 
   const tab = code(read(TENANT));
   const more = code(read(PROVIDER));
 
-  assert.match(tab, /\.\.\.\(me\.capabilities\.available_workspaces\.includes\("provider"\)\s*\? \[\{ key: "switch", icon: "swap-horizontal-outline" as const, label: "Switch to managing property", busy: switching, busyLabel: "Switching…", onPress: \(\) => void switchToProvider\(\) \}\]/);
-  assert.match(more, /\{ key: "switch", icon: "swap-horizontal-outline", label: "Switch to renting", busy: switching, busyLabel: "Switching…", onPress: \(\) => void switchToTenant\(\) \}/);
+  assert.match(tab, /\.\.\.\(me\.capabilities\.available_workspaces\.includes\("provider"\)\s*\? \[\{ key: "switch", icon: "swap-horizontal-outline" as const, label: "Switch to managing property", busy: switching === "provider", busyLabel: "Switching…", onPress: \(\) => void switchTo\("provider"\) \}\]/);
+  assert.match(more, /\{ key: "switch", icon: "swap-horizontal-outline", label: "Switch to renting", busy: switching === "tenant", busyLabel: "Switching…", onPress: \(\) => void switchTo\("tenant"\) \}/);
+  // Artisan work sits beside the other crossings in both: a switch once the
+  // backend opens it, the application until then. Never a switch on request.
+  for (const screen of [tab, more]) {
+    assert.match(screen, /available_workspaces\.includes\("artisan"\)/);
+    assert.match(screen, /artisanMenuLabel\(me\.capabilities\.artisan\.status, true\), busy: switching === "artisan", busyLabel: "Switching…", onPress: \(\) => void switchTo\("artisan"\)/);
+    assert.match(screen, /artisanMenuLabel\(me\.capabilities\.artisan\.status, false\), onPress: go\("\/\(app\)\/artisan-application"\)/);
+  }
   for (const screen of [tab, more]) {
     assert.match(screen, /key: "leave",\s*items: \[[\s\S]*key: "switch"[\s\S]*\{ key: "sign-out", icon: "log-out-outline", label: "Sign out", danger: true, busy: leaving, busyLabel: "Signing out…", onPress: \(\) => void leave\(\) \}/);
     assert.match(screen, /await signOut\(\);\s*router\.replace\("\/\(auth\)\/sign-in"\);/);

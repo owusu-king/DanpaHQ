@@ -165,6 +165,18 @@ export function ProviderHeaderActions() {
   );
 }
 
+/**
+ * The artisan's trailing tool: the bell, and nothing to create. Their work
+ * arrives by invitation, so there is no "add" for them to start.
+ */
+export function ArtisanHeaderActions() {
+  return (
+    <HeaderActions>
+      <UpdatesBell />
+    </HeaderActions>
+  );
+}
+
 const styles = StyleSheet.create({
   avatar: {
     width: AVATAR,

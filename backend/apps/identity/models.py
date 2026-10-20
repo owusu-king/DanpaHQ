@@ -59,6 +59,9 @@ class Intent(models.TextChoices):
     FIND_PROPERTY = "find_property", "Find a property"
     CURRENT_TENANT = "current_tenant", "I am already a tenant"
     MANAGE_PROPERTY = "manage_property", "I own or manage property"
+    #: Never chosen at onboarding: only `choose_workspace` records it, and only
+    #: for an approved artisan (`apps.artisan`).
+    ARTISAN_WORK = "artisan_work", "I work as an artisan"
 
 
 class ChallengePurpose(models.TextChoices):
