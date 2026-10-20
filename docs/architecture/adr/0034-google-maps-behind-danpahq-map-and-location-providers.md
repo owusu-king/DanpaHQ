@@ -156,7 +156,7 @@ approximate public point and the one filtered search of ADR 0033 stay.
 
 * **Three keys and a Map ID to operate** — server, web and Android, each
   restricted to its surface and its one API — plus a billing budget and quotas.
-  `docs/deployment/PRODUCTION_DEPLOYMENT.md` §9a has the setup, and
+  `docs/deployment/DEPLOY.md` §1 has the keys, and
   `docs/runbook.md` the local steps.
 * **Cost now follows use.** Google bills suggestions and resolves under its
   session rules, and web map loads per load. The throttle bounds one client; the

@@ -163,7 +163,7 @@ def get_sms_provider() -> SmsProvider:
         if provider is None:
             raise ImproperlyConfigured(
                 f"Unknown SMS_BACKEND {backend!r}. Choose one of: {', '.join(_PROVIDERS)}. "
-                "See docs/deployment/PRODUCTION_DEPLOYMENT.md."
+                "See docs/deployment/DEPLOY.md."
             )
         _instance = provider()
     return _instance

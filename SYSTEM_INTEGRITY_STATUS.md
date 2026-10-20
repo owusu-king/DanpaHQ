@@ -6,7 +6,7 @@ here. It records what is true of the code, not what was planned.
 Companion documents, each authoritative for its own scope:
 
 - `docs/architecture/PAYMENT_IMPLEMENTATION_STATUS.md` — the money domain
-- `docs/deployment/PRODUCTION_DEPLOYMENT.md` — what production needs
+- `docs/deployment/DEPLOY.md` — what production needs
 - `docs/runbook.md` — day-to-day operation and payment on-call
 - `docs/known-limitations.md` — what was considered and left undone
 

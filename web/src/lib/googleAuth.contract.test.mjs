@@ -17,7 +17,11 @@ test("GIS uses the maintained remote client and sends the opaque credential to t
   assert.match(button, /googleRenderKey/);
   assert.match(button, /childElementCount > 0/);
   assert.match(button, /busyRef\.current/);
-  assert.match(button, /auth-google-placeholder/);
+  // One face drawn by us, never swapped; Google's button sits transparent over it.
+  assert.match(button, /className="auth-google-face"/);
+  assert.match(button, /<div ref=\{host\} className="auth-google-button" \/>/);
+  assert.match(button, /new ResizeObserver\(\(\) => render\(\)\)/);
+  assert.doesNotMatch(button, /Loading secure sign-in/);
   assert.match(signIn, /\/auth\/google\//);
   assert.match(register, /google_registration_ticket/);
 });

@@ -70,7 +70,7 @@ have a centre. `seed_geo` seeds names without centres, so a fresh database
 suggests nothing until centres exist.
 
 **Keys, locally.** Use keys from a development Google Cloud project, never
-production's (`docs/deployment/PRODUCTION_DEPLOYMENT.md` §9a has the setup).
+production's (`docs/deployment/DEPLOY.md` §1 has the keys).
 Put them in the root `.env`, then recreate the containers that read them:
 Compose reads `.env` when it creates a container, and Next inlines
 `NEXT_PUBLIC_*` values when it compiles.
@@ -298,7 +298,7 @@ as `..._stalled`. Only a person resolves an exception.
 
 **One thing this cannot do.** Alerting runs on the Celery worker, so a worker
 that is down cannot tell you it is down. That needs external liveness
-monitoring — see `docs/deployment/PRODUCTION_DEPLOYMENT.md` §14.
+monitoring — see `docs/deployment/DEPLOY.md`.
 
 ### Triage
 

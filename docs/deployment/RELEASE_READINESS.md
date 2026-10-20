@@ -127,7 +127,7 @@ not waived by a green unit suite.
    single-container layout sleeps and has no independent background-worker
    availability; it is a pilot topology, not an always-on production one.
 8. Run the role-based end-to-end smoke test in
-   [PRODUCTION_DEPLOYMENT.md](PRODUCTION_DEPLOYMENT.md#19-production-smoke-tests)
+   [DEPLOY.md](DEPLOY.md#6-check-after-every-deploy-5-minutes)
    on the live candidate. Check an unrelated account cannot read another
    account's documents or agreement.
 9. Obtain legal/privacy approval for the identity-document notice, deletion

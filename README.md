@@ -223,8 +223,7 @@ Start with the first two.
 - `docs/known-limitations.md` — what is knowingly unsolved
 - `docs/windows.md` — setup troubleshooting, and running without Docker
 - `docs/deployment/RELEASE_READINESS.md` — current go/no-go decision and release gates
-- `docs/deployment/RENDER_SUPABASE.md` — pilot hosting setup
-- `docs/deployment/PRODUCTION_DEPLOYMENT.md` — target production architecture
+- `docs/deployment/DEPLOY.md` — how to deploy web, API and mobile
 - `CONTRIBUTING.md` — the rules that are not negotiable
 
 ## Licence

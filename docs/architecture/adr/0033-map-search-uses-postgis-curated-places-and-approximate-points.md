@@ -117,7 +117,7 @@ rather than clearing them.
 
 * The dev stack needs the PostGIS image and a GIS-capable API image; production
   needs the two extensions, the map bucket (or CDN) and its CORS rule for range
-  requests. `docs/deployment/PRODUCTION_DEPLOYMENT.md` lists them.
+  requests. `docs/deployment/DEPLOY.md` lists them.
 * Places and tiles are data to refresh, not code: re-running the import updates
   places in place (slugs are stable), and a newer extract replaces the archive.
   `docs/runbook.md` has the commands.

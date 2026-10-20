@@ -8,10 +8,10 @@
 #                  the free plan has no background workers.
 #   danpahq-redis  Key Value (Redis) for Celery, reachable only inside Render.
 #
-# What it does not create (see docs/deployment/RENDER_SUPABASE.md):
+# What it does not create (see docs/deployment/DEPLOY.md):
 #   the database   Supabase (PostGIS), connected through its Session pooler.
 #   file storage   Cloudflare R2 (S3-compatible).
-#   the web app    Netlify.
+#   the web app    Cloudflare Pages.
 #
 # Values marked `sync: false` are asked for once, when the Blueprint is first
 # applied, and are never stored in this file. Secrets marked `generateValue`
@@ -56,7 +56,7 @@ services:
       # RENDER_EXTERNAL_HOSTNAME (config/settings/production.py). When you add
       # a custom domain, set ALLOWED_HOSTS and CSRF_TRUSTED_ORIGINS for it.
       #
-      # The web app's address on Netlify, e.g. https://danpahq.netlify.app
+      # The web app's address on Cloudflare Pages.
       - key: CORS_ALLOWED_ORIGINS
         value: https://app.oskec.com
 

@@ -14,7 +14,7 @@ celery==5.4.0
 # No django-celery-beat: the schedule is code (`CELERY_BEAT_SCHEDULE`), not
 # database rows, and nothing registers its app or DatabaseScheduler. Beat runs
 # with the default file-backed scheduler, which means exactly one beat replica
-# — see docs/deployment/PRODUCTION_DEPLOYMENT.md.
+# — see docs/deployment/DEPLOY.md.
 
 django-storages[s3]==1.14.4
 boto3==1.35.80
