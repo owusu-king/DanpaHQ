@@ -75,7 +75,13 @@ export function portalSections(me, portfolioName, access) {
         { href: "/maintenance", label: "Maintenance", icon: "wrench", hint: "Report a problem where you live" },
       ],
     },
-    ACCOUNT_SECTION,
+    {
+      ...ACCOUNT_SECTION,
+      items: [
+        { href: "/passport", label: "Passport", icon: "passport", hint: "Your verified housing record" },
+        ...ACCOUNT_SECTION.items,
+      ],
+    },
   ];
 }
 
@@ -144,6 +150,7 @@ const PORTAL_PREFIXES = [
   "/tenants",
   "/portfolio-invitations",
   "/updates",
+  "/passport",
   "/viewings",
   "/maintenance",
   "/enquiries",

@@ -22,6 +22,7 @@ from apps.occupancy import tenancy_views
 from apps.occupancy import views as occupancy_views
 from apps.operations import views as operations_views
 from apps.organization import views as organization_views
+from apps.passport import views as passport_views
 from apps.payments import views as payment_views
 from apps.property import lifecycle_views
 from apps.property import type_views as property_type_views
@@ -781,6 +782,37 @@ payment_patterns = [
 ]
 
 
+passport_patterns = [
+    path("me/passport/", passport_views.MyPassportView.as_view(), name="me-passport"),
+    path(
+        "me/passport/preview/",
+        passport_views.PassportPreviewView.as_view(),
+        name="me-passport-preview",
+    ),
+    path(
+        "me/passport/shares/",
+        passport_views.PassportSharesView.as_view(),
+        name="me-passport-shares",
+    ),
+    path(
+        "me/passport/shares/<uuid:pk>/revoke/",
+        passport_views.PassportShareRevokeView.as_view(),
+        name="me-passport-share-revoke",
+    ),
+    path(
+        "me/passport/corrections/",
+        passport_views.PassportCorrectionsView.as_view(),
+        name="me-passport-corrections",
+    ),
+    # Public. The token travels in the body, never the path.
+    path(
+        "passport-shares/open/",
+        passport_views.SharedPassportView.as_view(),
+        name="passport-share-open",
+    ),
+]
+
+
 trust_patterns = [
     # What to provide, and why. Read by the verification screens so the
     # interface and the backend cannot hold different opinions about it.
@@ -821,6 +853,7 @@ urlpatterns = [
     *auth_patterns,
     *me_patterns,
     *trust_patterns,
+    *passport_patterns,
     *notification_patterns,
     *geo_patterns,
     *property_patterns,

@@ -33,6 +33,9 @@ DOMAIN = {
     # another domain's models to find out, and no domain may import its
     # models to check a plan. `billing.enforcement` is the whole seam.
     "billing",
+    # Reads every housing record and owns none of them; only its own share
+    # grants and correction requests.
+    "passport",
 } | PROPERTY_ACCESS
 EDGE = {"api"}
 

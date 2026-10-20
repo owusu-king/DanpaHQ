@@ -57,6 +57,10 @@ OTP_PEPPER = env("OTP_PEPPER", required=True)
 ACCESS_TOKEN_KEY = env("ACCESS_TOKEN_KEY", required=True)
 NATIONAL_ID_PEPPER = env("NATIONAL_ID_PEPPER", required=True)
 UNIT_ACCESS_CODE_PEPPER = env("UNIT_ACCESS_CODE_PEPPER", required=True)
+# Set by the blueprint for new services. An existing Render service keeps the
+# variables it was created with, so this falls back to the (required) Django
+# key rather than refusing to boot; set it in the dashboard to separate them.
+PASSPORT_SHARE_PEPPER = env("PASSPORT_SHARE_PEPPER", SECRET_KEY)
 MANAGEMENT_CSRF_KEY = env("MANAGEMENT_CSRF_KEY", required=True)
 RUNTIME_CONFIG_ENCRYPTION_KEY = env("RUNTIME_CONFIG_ENCRYPTION_KEY", required=True)
 

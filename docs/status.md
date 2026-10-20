@@ -26,6 +26,18 @@ each one actually got, and is the first thing to read before planning work.
 | 8 — Financial services | Not started | |
 | 9 — AI & housing intelligence | Not started | |
 
+## Housing Passport (web): built, awaiting owner testing
+
+A tenant's verified housing history at `/passport` (rail: You → Passport), read
+live from tenancies, accepted agreements, the rent ledger and identity checks —
+nothing is copied or scored (ADR 0035). Tenants can share chosen parts through
+a read-only link (`/shared-passport#<token>`, 1/7/30 days), preview exactly what
+the recipient sees, copy or withdraw links, and report a wrong record, which
+goes to Management's Support queue and shows as disputed until reviewed.
+Backend: `apps.passport`, 30 integration tests. Mobile is not built yet.
+Inspections and landlord references are not recorded anywhere yet, and the
+passport says so.
+
 ## What was rebuilt after Phase 4
 
 Phase 1 shipped OTP-only sign-in, self-grantable roles, and onboarding fused

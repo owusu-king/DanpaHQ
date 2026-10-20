@@ -79,7 +79,10 @@ export type IconName =
   | "water"
   | "power"
   | "wrench"
-  | "video";
+  | "video"
+  | "passport"
+  | "link"
+  | "copy";
 
 const PATHS: Record<IconName, React.ReactNode> = {
   home: <path d="M3.5 8.5 10 3l6.5 5.5V16a1 1 0 0 1-1 1h-3v-5h-5v5h-3a1 1 0 0 1-1-1Z" />,
@@ -441,6 +444,26 @@ const PATHS: Record<IconName, React.ReactNode> = {
     <>
       <rect x="3.25" y="3.75" width="13.5" height="3.5" rx="1" />
       <path d="M4.5 7.25v8a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-8M8.25 10.5h3.5" />
+    </>
+  ),
+  /* A booklet with a home on its cover: the Housing Passport. */
+  passport: (
+    <>
+      <rect x="4.25" y="2.75" width="11.5" height="14.5" rx="1.5" />
+      <path d="M7.25 9.5 10 7.25l2.75 2.25v2.75h-5.5Z" />
+      <path d="M7.5 14.25h5" />
+    </>
+  ),
+  link: (
+    <>
+      <path d="M8.5 11.5a3 3 0 0 0 4.25 0l2.5-2.5a3 3 0 0 0-4.25-4.25L10 5.75" />
+      <path d="M11.5 8.5a3 3 0 0 0-4.25 0l-2.5 2.5a3 3 0 0 0 4.25 4.25l1-1" />
+    </>
+  ),
+  copy: (
+    <>
+      <rect x="7.25" y="7.25" width="9" height="9" rx="1.5" />
+      <path d="M12.75 7.25V5.25a1.5 1.5 0 0 0-1.5-1.5h-6a1.5 1.5 0 0 0-1.5 1.5v6a1.5 1.5 0 0 0 1.5 1.5h2" />
     </>
   ),
 };

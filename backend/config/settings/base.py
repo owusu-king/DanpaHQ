@@ -82,6 +82,7 @@ LOCAL_APPS = [
     "apps.payments",
     "apps.billing",
     "apps.operations",
+    "apps.passport",
     "apps.api",
 ]
 
@@ -385,6 +386,8 @@ REST_FRAMEWORK = {
         "access_code_ip": "30/min",
         "viewing_checkin_user": "12/min",
         "viewing_checkin_ip": "30/min",
+        # Opening Housing Passport share links, per address.
+        "passport_view_ip": "60/min",
         # Suggestions and resolves together. A cost control: generous, because
         # a phone network puts many tenants behind one address.
         "places": "240/min",
@@ -515,6 +518,9 @@ GOOGLE_OAUTH_CLIENT_ID = env("GOOGLE_OAUTH_CLIENT_ID", "")
 NATIONAL_ID_PEPPER = env("NATIONAL_ID_PEPPER", SECRET_KEY)
 UNIT_ACCESS_CODE_PEPPER = env("UNIT_ACCESS_CODE_PEPPER", SECRET_KEY)
 UNIT_ACCESS_CODE_TTL_DAYS = env("UNIT_ACCESS_CODE_TTL_DAYS", 30, cast=int)
+# Derives Housing Passport share-link tokens from their stored salts; see
+# `apps.passport.tokens`. Rotating it invalidates every live share link.
+PASSPORT_SHARE_PEPPER = env("PASSPORT_SHARE_PEPPER", SECRET_KEY)
 IDEMPOTENCY_TTL_HOURS = env("IDEMPOTENCY_TTL_HOURS", 24, cast=int)
 
 SMS_BACKEND = env("SMS_BACKEND", "console")

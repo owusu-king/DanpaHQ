@@ -45,7 +45,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 }
 
 /** Screens that carry their own full-page layout and want no header at all. */
-const BARE = ["/sign-in", "/register", "/welcome", "/forgot-password", "/restricted"];
+const BARE = ["/sign-in", "/register", "/welcome", "/forgot-password", "/restricted", "/shared-passport"];
 
 function ConsumerChrome({
   pathname,

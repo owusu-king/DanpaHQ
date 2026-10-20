@@ -128,6 +128,8 @@ services:
         generateValue: true
       - key: UNIT_ACCESS_CODE_PEPPER
         generateValue: true
+      - key: PASSPORT_SHARE_PEPPER
+        generateValue: true
       - key: MANAGEMENT_CSRF_KEY
         generateValue: true
       - key: RUNTIME_CONFIG_ENCRYPTION_KEY

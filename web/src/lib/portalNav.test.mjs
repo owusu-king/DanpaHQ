@@ -39,10 +39,20 @@ test("a tenant is offered their rental journey, and no provider operations", () 
 
   assert.deepEqual(links, [
     "/home", "/rentals", "/saved", "/applications", "/leases", "/payments", "/viewings",
-    "/maintenance", "/updates",
+    "/maintenance", "/passport", "/updates",
   ]);
   assert.ok(!links.includes("/properties"));
   assert.ok(!links.includes("/provider"));
+});
+
+test("the Housing Passport is the tenant's own, and its shared view is not portal", () => {
+  // The passport belongs to the person, beside Updates; a provider operating a
+  // Portfolio is not offered one in their rail.
+  assert.ok(hrefs(account()).includes("/passport"));
+  assert.ok(!hrefs(account({ workspace: "provider", exists: true, workspaceAccess: true })).includes("/passport"));
+  assert.equal(isPortalRoute("/passport"), true);
+  // A recipient opens a link without an account; it must never demand a session.
+  assert.equal(isPortalRoute("/shared-passport"), false);
 });
 
 test("an approved provider is offered the portfolio, and no tenant shortlist", () => {

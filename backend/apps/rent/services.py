@@ -775,6 +775,65 @@ def close_schedule(*, lease, through=None, reason: str) -> int:
     return closed
 
 
+def payment_record(*, lease_ids, today=None) -> dict:
+    """What the rent ledger can say about a set of leases, and on whose word.
+
+    Read by the Housing Passport for one tenancy's leases. Every count is a
+    count of something both parties (or a payment provider) stand behind, a
+    claim still waiting for the other side, or a disagreement - never a blend.
+    A tenancy with nothing recorded returns zeros, which the caller must treat
+    as an absence of records rather than as a poor record.
+
+    Overdue is a charge past its due date with money still outstanding. Waived,
+    written-off and cancelled charges are decisions, not debts, and are left out.
+    """
+    today = today or timezone.localdate()
+    ids = list(lease_ids)
+    payments = RentPayment.objects.filter(lease_id__in=ids)
+    confirmed = list(payments.filter(status=PaymentStatus.CONFIRMED).order_by("paid_on"))
+
+    on_time = late = 0
+    charges = (
+        RentCharge.objects.filter(lease_id__in=ids)
+        .exclude(status__in=[ChargeStatus.WAIVED, ChargeStatus.WRITTEN_OFF, ChargeStatus.CANCELLED])
+        .prefetch_related("adjustments", "payments")
+    )
+    overdue = 0
+    for charge in charges:
+        if charge.status == ChargeStatus.PAID:
+            settled = [
+                row for row in charge.payments.all() if row.status == PaymentStatus.CONFIRMED
+            ]
+            last = max(settled, key=lambda row: row.paid_on, default=None)
+            if last and last.paid_on <= charge.due_on:
+                on_time += 1
+            elif last:
+                late += 1
+        elif (
+            charge.status in {ChargeStatus.DUE, ChargeStatus.PART_PAID}
+            and charge.due_on < today
+            and charge.outstanding_minor > 0
+        ):
+            overdue += 1
+
+    return {
+        "confirmed_count": len(confirmed),
+        "confirmed_total_minor": sum(row.amount_minor or 0 for row in confirmed),
+        # Of the confirmed payments, those a payment provider confirmed
+        # server-side rather than the other party confirming by hand.
+        "provider_confirmed_count": sum(
+            1 for row in confirmed if row.verification_source == PaymentVerificationSource.PSP
+        ),
+        "awaiting_confirmation_count": payments.filter(status=PaymentStatus.CLAIMED).count(),
+        "disputed_count": payments.filter(status=PaymentStatus.DISPUTED).count(),
+        "charges_on_time": on_time,
+        "charges_late": late,
+        "charges_overdue": overdue,
+        "first_paid_on": confirmed[0].paid_on if confirmed else None,
+        "last_paid_on": confirmed[-1].paid_on if confirmed else None,
+    }
+
+
 def rental_history(*, user) -> dict:
     """A tenant's record, in a form they can show a future landlord.
 

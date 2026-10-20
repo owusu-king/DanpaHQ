@@ -300,6 +300,23 @@ def mark_support_case_read(*, case: SupportCase, by_management: bool) -> None:
     SupportCase.objects.filter(id=case.id).update(**{field: timezone.now()})
 
 
+def support_case_states(*, user, case_ids) -> dict[str, dict]:
+    """Where each of this person's cases stands, for a domain that opened them.
+
+    Scoped to the owner so a caller holding a stray id learns nothing. Only the
+    state and the dates leave; notes and assignment stay in operations.
+    """
+    rows = SupportCase.objects.filter(user=user, id__in=[i for i in case_ids if i])
+    return {
+        str(row.id): {
+            "status": row.status,
+            "resolved_at": row.resolved_at,
+            "updated_at": row.updated_at,
+        }
+        for row in rows
+    }
+
+
 def assert_management_actor(user) -> ManagementUser:
     if not isinstance(user, ManagementUser):
         raise PermissionDenied("A Management account is required.")

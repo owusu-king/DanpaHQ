@@ -125,7 +125,15 @@ export function portalSections(
         { href: "/maintenance", label: "Maintenance", icon: "wrench", hint: "Report a problem where you live" },
       ],
     },
-    ACCOUNT_SECTION,
+    // The tenant's own record, beside Updates: it belongs to the person, not
+    // to any one rental, and it is what they take to the next landlord.
+    {
+      ...ACCOUNT_SECTION,
+      items: [
+        { href: "/passport", label: "Passport", icon: "passport", hint: "Your verified housing record" },
+        ...ACCOUNT_SECTION.items,
+      ],
+    },
   ];
 }
 
@@ -239,6 +247,7 @@ const PORTAL_PREFIXES = [
   // matcher is exact-or-slash so nothing else covers the hyphenated route.
   "/portfolio-invitations",
   "/updates",
+  "/passport",
   "/viewings",
   "/maintenance",
   "/enquiries",
