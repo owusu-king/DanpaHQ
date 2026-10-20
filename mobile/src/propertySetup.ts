@@ -34,6 +34,8 @@ export type PropertySetupInput = {
   /** `unknown` until somebody says. Both default to it on a new property. */
   waterSource: string;
   powerMeterType: string;
+  /** `unknown` until somebody says, like the two above. */
+  compoundType?: string;
   /** `verification.authority.state` — `draft` until a document is recorded. */
   documentState: string;
   /** Null while the condition review has not been read yet. */
@@ -54,7 +56,12 @@ export function describePropertySetup(input: PropertySetupInput): SetupStep[] {
   // not asked of it. Every other property is described exactly as before.
   const selling = input.purpose === "sale";
   const land = selling && input.propertyType === "land";
-  const details = land || (input.waterSource !== "unknown" && input.powerMeterType !== "unknown");
+  // All three facts, compound included: "not stated" is where each starts.
+  const details =
+    land ||
+    (input.waterSource !== "unknown" &&
+      input.powerMeterType !== "unknown" &&
+      (input.compoundType ?? "") !== "unknown");
   const documented = Boolean(input.documentState) && input.documentState !== "draft";
   const sentAlready =
     input.documentState === "submitted" || input.documentState === "under_review";
@@ -79,7 +86,7 @@ export function describePropertySetup(input: PropertySetupInput): SetupStep[] {
     steps.push({
       key: "details",
       title: "Property details",
-      summary: "Water, power and the kind of compound.",
+      summary: "Water, power and the compound.",
       status: details ? "done" : "todo",
       detail: details
         ? [input.waterSource, input.powerMeterType]
@@ -97,49 +104,26 @@ export function describePropertySetup(input: PropertySetupInput): SetupStep[] {
       detail: saleMissing ? `${saleMissing} still needed` : undefined,
     });
   }
-  steps.push(
-    {
-      key: "documents",
-      title: "Documents",
-      summary: selling
-        ? "What shows this property is yours to sell, and its title."
-        : "What shows this property is yours to let.",
-      status: documented ? "done" : "todo",
-      detail: documented
-        ? sentAlready
-          ? "With our team"
-          : input.documentState === "verified"
-            ? "Confirmed as yours"
-            : "Added"
-        : undefined,
-    },
-    {
-      key: "photos",
-      title: "Photos",
-      summary: land
-        ? "The plot, its boundary and the road to it."
-        : selling
-          ? "The building, inside and out."
-          : "Views of the building and what is around it.",
-      status:
-        outstanding === null
-          ? "todo"
-          : photographed
-            ? "done"
-            : provided > 0
-              ? "started"
-              : "todo",
-      detail:
-        input.photos && outstanding !== null && outstanding > 0
-          ? `${provided} of ${input.photos.requiredTotal} added`
-          : undefined,
-    },
-  );
+  steps.push({
+    key: "documents",
+    title: "Documents",
+    summary: selling
+      ? "What shows this property is yours to sell, and its title."
+      : "What shows this property is yours to let.",
+    status: documented ? "done" : "todo",
+    detail: documented
+      ? sentAlready
+        ? "With our team"
+        : input.documentState === "verified"
+          ? "Confirmed as yours"
+          : "Added"
+      : undefined,
+  });
   if (!land) {
     steps.push({
       key: "amenities",
       title: "What the compound has",
-      summary: "Shared by everything inside — a borehole, a guard, parking.",
+      summary: "Shared by everything inside — a guard, parking, a pool.",
       status: input.amenityCount === null ? "todo" : "done",
       detail:
         input.amenityCount === null
@@ -149,6 +133,27 @@ export function describePropertySetup(input: PropertySetupInput): SetupStep[] {
             : "None selected",
     });
   }
+  steps.push({
+    key: "photos",
+    title: "Photos",
+    summary: land
+      ? "The plot, its boundary and the road to it."
+      : selling
+        ? "The building, inside and out."
+        : "The front, the wider area, and what the compound has.",
+    status:
+      outstanding === null
+        ? "todo"
+        : photographed
+          ? "done"
+          : provided > 0
+            ? "started"
+            : "todo",
+    detail:
+      input.photos && outstanding !== null && outstanding > 0
+        ? `${provided} of ${input.photos.requiredTotal} added`
+        : undefined,
+  });
   steps.push({
     key: "review",
     title: "Review",
@@ -182,6 +187,7 @@ export function toSetupInput(
     title: string;
     water_source: string;
     power_meter_type: string;
+    compound_type?: string;
     verification?: { authority?: { state?: string } };
     purpose?: string;
     property_type?: string;
@@ -200,6 +206,7 @@ export function toSetupInput(
     name: property.title,
     waterSource: property.water_source,
     powerMeterType: property.power_meter_type,
+    compoundType: property.compound_type,
     documentState: property.verification?.authority?.state ?? "draft",
     photos: photos
       ? {

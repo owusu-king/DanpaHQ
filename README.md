@@ -190,7 +190,7 @@ separate launch gates pass. Database-level append-only enforcement is applied
 but inert until the app connects as a least-privilege role — see
 `docs/security.md`.
 
-The local backend suite passed **1,733 tests** on 19 October 2026. That is not
+The local backend suite passed **1,734 tests** on 19 October 2026. That is not
 evidence the same revision is live. See the [release-readiness decision](docs/deployment/RELEASE_READINESS.md)
 before opening the deployment to real users.
 

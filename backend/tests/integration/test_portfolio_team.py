@@ -223,14 +223,14 @@ class TestProviderPropertyEntryJourneys:
         continued = api.patch(
             f"/api/v1/properties/{created.data['id']}/",
             {
-                "water_source": "borehole",
+                "water_source": "borehole_pump",
                 "power_meter_type": "prepaid",
-                "compound_type": "mixed_use",
+                "compound_type": "fenced",
             },
             format="json",
         )
         assert continued.status_code == 200, continued.data
-        assert continued.data["water_source"] == "borehole"
+        assert continued.data["water_source"] == "borehole_pump"
 
     def test_existing_residential_portfolio_can_add_any_canonical_property_type(
         self, registered, sign_in_as, portfolio_address

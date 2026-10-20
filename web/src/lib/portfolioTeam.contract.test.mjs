@@ -189,7 +189,7 @@ test("the Provider Properties page is one Portfolio at a time", () => {
   // Adding a Property files it into the Portfolio being operated. Defaulting to
   // whichever Portfolio came back first is the same mixing, one step later:
   // the house lands in a roster its provider was not looking at.
-  const form = code(read("web/app/record/property-new/page.tsx"));
+  const form = code(read("web/src/components/property/PropertyWizard.tsx"));
   assert.match(form, /rows\.find\(\(row\) => row\.id === preferred\)\?\.id \|\| rows\[0\]\?\.id/);
   assert.match(form, /\}, \[activeContext\]\);/);
 });
@@ -229,7 +229,7 @@ test("every provider list is about the Portfolio on screen", () => {
 });
 
 test("an individual web provider creates a first Property without setup detour", () => {
-  const property = read("web/app/record/property-new/page.tsx");
+  const property = read("web/src/components/property/PropertyWizard.tsx");
   const next = read("web/src/lib/providerSetup.ts");
   const home = read("web/app/home/page.tsx");
   const tenants = read("web/app/tenants/page.tsx");

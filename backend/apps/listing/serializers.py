@@ -422,7 +422,6 @@ class ListingDetailSerializer(ListingSerializer):
             "floor_level": unit.floor_level,
             "floor_area_sqm": str(unit.floor_area_sqm) if unit.floor_area_sqm else None,
             "wing": unit.wing,
-            "building": unit.building.name if unit.building_id else "",
             "is_furnished": unit.is_furnished,
             "has_private_bathroom": unit.has_private_bathroom,
             "has_private_toilet": unit.has_private_toilet,
@@ -494,8 +493,6 @@ class ListingDetailSerializer(ListingSerializer):
                 "power_meter_label": prop.get_power_meter_type_display(),
                 "compound_type": prop.compound_type,
                 "compound_label": prop.get_compound_type_display(),
-                "has_security": prop.has_security,
-                "is_gated": prop.is_gated,
             },
             "condition_state": state_of(prop),
             "authority": trust_summary(SubjectType.PROPERTY, prop.id)[

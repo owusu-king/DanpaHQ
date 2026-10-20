@@ -138,19 +138,21 @@ test("global creation chooses a Property, then reuses the flow that exists", () 
 });
 
 test("Unit creation can be left safely and resumed with amenity photo evidence", () => {
-  const create = read("web/app/record/space-new/page.tsx");
+  const route = read("web/app/record/space-new/page.tsx");
+  const create = read("web/src/components/property/UnitWizard.tsx");
   const detail = read("web/app/record/space/page.tsx");
   const amenities = read("web/src/components/property/SpaceAmenities.tsx");
   const photos = read("web/src/components/property/SpacePhotos.tsx");
   const policy = read("backend/apps/trust/evidence_policy.py");
 
-  assert.match(create, /resumeUnitId/);
-  assert.match(create, /Save for later/);
-  assert.match(create, /saveForLaterLabel="Save for later"/);
+  // A half-finished Unit reopens where it was left, and every step can be left.
+  assert.match(route, /unitId=\{search\.get\("unitId"\)\}/);
+  assert.match(create, /getUnit\(initialUnit\)/);
+  assert.match(create, />Finish later</);
   assert.match(detail, /Continue setup/);
   assert.match(detail, /unitId=\$\{space\.id\}/);
 
-  assert.match(amenities, /amenity photo/);
+  assert.match(amenities, /a photo of each comes next/);
   assert.match(photos, /every selected amenity/);
   assert.match(policy, /def amenity_slots/);
   assert.match(policy, /key=f"amenity\.\{row\.amenity_id\}"/);

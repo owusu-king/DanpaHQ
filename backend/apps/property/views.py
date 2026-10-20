@@ -10,12 +10,11 @@ from apps.idempotency.services import idempotent_mutation
 from apps.identity.permissions import HasRole, IsPhoneVerified
 
 from . import access_codes, services, spaces
-from .models import AmenityScope, Building, PropertyProviderApplication, Unit
+from .models import AmenityScope, PropertyProviderApplication, Unit
 from .serializers import (
     AmenityOptionSerializer,
     AttachUnitPhotoSerializer,
     BedSerializer,
-    BuildingSerializer,
     PropertyAmenitySerializer,
     PropertyMediaSerializer,
     PropertySerializer,
@@ -503,21 +502,6 @@ class PropertyMediaView(APIView):
             PropertyMediaSerializer(media, context={"request": request}).data,
             status=status.HTTP_201_CREATED,
         )
-
-
-class BuildingListCreateView(APIView):
-    permission_classes = [IsAuthenticated, IsPhoneVerified]
-
-    def get(self, request, property_pk):
-        prop = services.get_property_or_404(property_pk, request.user)
-        services.assert_can_manage(prop, request.user)
-        rows = Building.objects.filter(property=prop, is_active=True)
-        return Response(BuildingSerializer(rows, many=True).data)
-
-    def post(self, request, property_pk):
-        prop = services.get_property_or_404(property_pk, request.user)
-        building = services.add_building(prop=prop, user=request.user, data=request.data)
-        return Response(BuildingSerializer(building).data, status=status.HTTP_201_CREATED)
 
 
 class BedListCreateView(APIView):

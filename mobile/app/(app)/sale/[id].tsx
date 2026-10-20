@@ -228,11 +228,6 @@ export default function SaleScreen() {
                 <Feature first icon="water-outline" label="Water" value={sale.features.water_source_label} />
                 <Feature icon="flash-outline" label="Power" value={sale.features.power_meter_label} />
                 <Feature icon="business-outline" label="Compound" value={sale.features.compound_label} />
-                <Feature
-                  icon="shield-outline"
-                  label="Security"
-                  value={sale.features.has_security ? "On site" : sale.features.is_gated ? "Gated" : "None stated"}
-                />
                 {sale.amenities.length ? (
                   <View style={styles.tags}>
                     {sale.amenities.map((row) => (

@@ -25,6 +25,7 @@ from rest_framework.views import APIView
 from .models import (
     LETTING_TYPES,
     SALE_TYPES,
+    UNANSWERED_FACT,
     CompoundType,
     PowerMeterType,
     PropertyType,
@@ -41,7 +42,10 @@ SALE_LABELS = {
 
 
 def _options(choices) -> list[dict]:
-    return [{"value": value, "label": label} for value, label in choices]
+    # "Not stated" is where a fact starts, never an answer somebody picks.
+    return [
+        {"value": value, "label": label} for value, label in choices if value != UNANSWERED_FACT
+    ]
 
 
 class PropertyTypeOptionsView(APIView):

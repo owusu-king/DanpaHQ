@@ -65,7 +65,9 @@ export function CountStepper({
         >
           −
         </button>
-        <output aria-live="polite">{format ? format(value) : value}</output>
+        <output aria-live="polite" data-word={format && Number.isNaN(Number(format(value))) ? "" : undefined}>
+          {format ? format(value) : value}
+        </output>
         <button
           type="button"
           aria-label={`More: ${label}`}

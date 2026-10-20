@@ -16,9 +16,11 @@ test("property condition evidence calls the property API rather than a console r
 test("record flows do not request malformed API paths when their route id is absent", () => {
   for (const [file, guard] of [
     ["web/app/record/property/page.tsx", /if \(!id\) return;/],
-    ["web/app/record/property-setup/page.tsx", /if \(!propertyId\) return;/],
+    // The setup and new-Unit routes render the wizards, which fetch only with an id.
+    ["web/src/components/property/PropertyWizard.tsx", /if \(!initialId\) return;/],
+    ["web/src/components/property/UnitWizard.tsx", /if \(!initialUnit\) return;/],
     ["web/app/record/property-verify/page.tsx", /if \(!id\) return;/],
-    ["web/app/record/space-new/page.tsx", /if \(!propertyId\) return;/],
+    ["web/app/record/space-new/page.tsx", /if \(!propertyId\) \{/],
     ["web/app/record/space-listing/page.tsx", /if \(!spaceId\) return;/],
   ]) assert.match(read(file), guard, `${file} fetches without a route id`);
 });

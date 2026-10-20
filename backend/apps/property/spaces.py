@@ -59,7 +59,6 @@ EDITABLE_FIELDS = frozenset(
     {
         "label",
         "description",
-        "building_id",
         "bedrooms",
         "bathrooms",
         "floor_area_sqm",
@@ -93,7 +92,7 @@ def get_space_or_404(pk, user) -> Unit:
     """
     unit = (
         Unit.objects.filter(pk=pk)
-        .select_related("property__address__locality__district__region", "building")
+        .select_related("property__address__locality__district__region")
         .first()
     )
     if unit is None:
@@ -167,7 +166,6 @@ def update_space(*, unit: Unit, user, data: dict) -> Unit:
     path uses, so a plot cannot acquire two bathrooms by a second request that
     skipped the form.
     """
-    from .models import Building
     from .space_rules import assert_asked, assert_interior_is_coherent
 
     unit = Unit.objects.select_for_update().select_related("property").get(id=unit.id)
@@ -184,16 +182,6 @@ def update_space(*, unit: Unit, user, data: dict) -> Unit:
         else can_edit_operational_space(actor=user, target=unit)
     )
     enforce(decision)
-    if "building_id" in payload:
-        building_id = payload["building_id"] or None
-        if (
-            building_id
-            and not Building.objects.filter(
-                id=building_id, property=unit.property, is_active=True
-            ).exists()
-        ):
-            raise ValidationFailed("Choose an active building in this property.")
-        payload["building_id"] = building_id
 
     if not payload:
         raise ValidationFailed("Change at least one detail.")

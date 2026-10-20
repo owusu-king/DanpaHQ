@@ -251,7 +251,7 @@ class TestAStandaloneProperty:
             organization=portfolio, activity="sales"
         ).exists()
 
-    def test_it_takes_no_units_and_no_buildings(self, api, seller, portfolio, address):
+    def test_it_takes_no_units(self, api, seller, portfolio, address):
         from apps.property import services as property_services
 
         prop = _property(_create(api, seller, portfolio, address, kind="residential"))
@@ -262,8 +262,6 @@ class TestAStandaloneProperty:
                 user=seller,
                 data={"label": "Flat 1", "space_type": "apartment", "bedrooms": 2, "bathrooms": 1},
             )
-        with pytest.raises(ValidationFailed, match="sold whole"):
-            property_services.add_building(prop=prop, user=seller, data={"name": "Block A"})
 
     def test_each_purpose_chooses_from_its_own_categories(self, api, seller, portfolio, address):
         api.force_authenticate(user=seller)

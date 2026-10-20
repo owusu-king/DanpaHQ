@@ -1364,7 +1364,7 @@ class TestASpaceWaitsForItsProperty:
         gate from repeating it.
         """
         prop, _ = unclaimed
-        _fill(prop, landlord, ["property.front", "property.side", "property.surroundings"])
+        _fill(prop, landlord, ["property.front", "property.surroundings"])
 
         review = condition.submit_for_review(subject=prop, actor=landlord)
 

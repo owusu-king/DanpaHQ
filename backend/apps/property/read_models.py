@@ -36,7 +36,7 @@ def property_list_queryset(queryset, *, user):
     )
     from apps.organization.services import FULL_ORGANIZATION_ROLES
 
-    from .models import Bed, Building, PropertyAmenity, PropertyRelationship, Unit
+    from .models import Bed, PropertyAmenity, PropertyRelationship, Unit
 
     def related_count(rows, group, field="pk", *, distinct=False):
         counted = (
@@ -52,7 +52,6 @@ def property_list_queryset(queryset, *, user):
         )
 
     active_units = Unit.objects.filter(property_id=OuterRef("pk"), is_active=True)
-    active_buildings = Building.objects.filter(property_id=OuterRef("pk"), is_active=True)
     active_beds = Bed.objects.filter(unit__property_id=OuterRef("pk"), is_active=True)
     live_occupancies = Occupancy.objects.filter(property_id=OuterRef("pk"), ended_at__isnull=True)
     occupied_units = live_occupancies.filter(status__in=["pending_lease", "active"])
@@ -140,7 +139,6 @@ def property_list_queryset(queryset, *, user):
         .annotate(
             _property_list_can_manage=can_manage,
             _property_list_unit_count=related_count(active_units, "property_id"),
-            _property_list_building_count=related_count(active_buildings, "property_id"),
             _property_list_bed_count=related_count(active_beds, "unit__property_id"),
             _property_list_occupied_unit_count=related_count(
                 occupied_units, "property_id", "unit_id", distinct=True

@@ -100,9 +100,10 @@
 .step-link:disabled { color: var(--color-ink-300); cursor: default; }
 
 /* Small counts, side by side: bedrooms, bathrooms, floor. */
-.count-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr)); gap: var(--space-3); }
+.count-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(10.5rem, 1fr)); gap: var(--space-3); }
 .count-stepper {
   display: grid;
+  min-width: 0;
   gap: var(--space-2);
   padding: var(--space-3);
   background: var(--color-field-0);
@@ -113,9 +114,10 @@
 .count-stepper-control { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
 .count-stepper-control button {
   display: grid;
+  flex: none;
   place-items: center;
-  width: 2.25rem;
-  height: 2.25rem;
+  width: 2.125rem;
+  height: 2.125rem;
   color: var(--color-kola-700, var(--color-kola-600));
   font-size: 1.125rem;
   font-weight: 600;
@@ -127,7 +129,11 @@
 .count-stepper-control button:hover:not(:disabled) { background: color-mix(in srgb, var(--color-kola-600) 16%, var(--color-kola-50)); }
 .count-stepper-control button:disabled { color: var(--color-ink-300); background: var(--color-field-100); cursor: default; }
 .count-stepper-control button:focus-visible, .yes-no button:focus-visible { outline: 2px solid var(--color-kola-600); outline-offset: 2px; }
-.count-stepper-control output { color: var(--color-ink-900); font-family: var(--font-display); font-size: 1.25rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+/* The value takes what the two buttons leave and never pushes them out: a
+   word such as "Ground" is set smaller than a number, and clips rather than
+   overflows in the narrowest column. */
+.count-stepper-control output { flex: 1; min-width: 0; overflow: hidden; color: var(--color-ink-900); font-family: var(--font-display); font-size: 1.25rem; font-weight: 600; font-variant-numeric: tabular-nums; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
+.count-stepper-control output[data-word] { font-size: 1rem; }
 .yes-no { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 3px; background: var(--color-field-100); border-radius: 999px; }
 .yes-no button {
   height: 2rem;

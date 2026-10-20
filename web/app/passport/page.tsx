@@ -6,11 +6,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { openEnquiries } from "@/components/enquiries/EnquiriesInbox";
 import { CorrectionSheet, type CorrectionTarget } from "@/components/passport/CorrectionSheet";
 import {
+  HousingRecord,
   IdentitySection,
   NotRecorded,
   PassportCover,
   StatusLegend,
-  TenancyRecord,
   Timeline,
 } from "@/components/passport/PassportDocument";
 import { SharedLinks } from "@/components/passport/SharedLinks";
@@ -164,23 +164,12 @@ function Passport() {
               ) : null}
             </div>
 
-            <section className="passport-section passport-area-record" aria-labelledby="passport-record">
-              <header className="passport-section-head">
-                <h3 id="passport-record">Housing record</h3>
-                {passport.tenancies.length ? <span className="passport-section-count">{passport.tenancies.length}</span> : null}
-              </header>
-              {passport.tenancies.length ? (
-                <div className="passport-tenancies">
-                  {passport.tenancies.map((tenancy, index) => (
-                    <TenancyRecord
-                      key={tenancy.id}
-                      tenancy={tenancy}
-                      order={index}
-                      action={<RecordAction tenancy={tenancy} corrections={passport.corrections} onReport={setReporting} />}
-                    />
-                  ))}
-                </div>
-              ) : (
+            {/* Homes now in full; past homes as a ledger that opens in place. */}
+            <HousingRecord
+              className="passport-area-record"
+              tenancies={passport.tenancies}
+              actionFor={(tenancy) => <RecordAction tenancy={tenancy} corrections={passport.corrections} onReport={setReporting} />}
+              empty={(
                 <PanelState
                   icon="home"
                   title="No tenancies on Danpa HQ yet"
@@ -188,7 +177,7 @@ function Passport() {
                   action={<Link href="/rentals" className="ws-action is-primary"><Icon name="explore" />Explore rentals</Link>}
                 />
               )}
-            </section>
+            />
 
             {passport.identity ? (
               <div className="passport-area-identity">

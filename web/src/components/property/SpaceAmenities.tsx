@@ -1,12 +1,17 @@
 "use client";
 
 /**
- * What a space has, as a checklist the backend decides the shape of.
+ * What a space has, as one compact grid of drawn tiles.
  *
  * The options come from the API filtered by scope and by this space's type, so
  * a hostel bed is never offered a porch and a shop is never offered a wardrobe.
  * Building that filter here would mean a second copy of a rule the backend
  * already enforces, drifting from it at its own pace.
+ *
+ * One grid, ordered by category, rather than a heading per category (owner,
+ * 2026-10-20: the checkboxes were "thrown around"). Seven property amenities in
+ * six categories made six headings over one or two boxes each; as tiles they
+ * read at a glance, each with its own glyph, and a chosen one turns kola.
  *
  * Saved as a whole set rather than one tick at a time: the screen *is* the set,
  * and an add-and-remove pair can half-land when a phone drops signal between
@@ -16,10 +21,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/Button";
-import { CheckChip } from "@/components/Check";
 import { Notice } from "@/components/Notice";
 import { StepActions } from "@/components/creation/StepActions";
+import { Icon } from "@/components/portal/icons";
 import { ApiFailure } from "@/lib/api";
+import { amenityGlyph } from "@/lib/creationGlyphs";
 import {
   getPropertyAmenities,
   getUnitAmenities,
@@ -39,6 +45,7 @@ export function SpaceAmenities({
   onSavedForLater,
   autoSave = false,
   onBack,
+  submitRef,
 }: {
   scope: Scope;
   /** The unit id, or the property id when `scope` is "property". */
@@ -51,9 +58,13 @@ export function SpaceAmenities({
   autoSave?: boolean;
   /** In a creation step: the save is the step's one button; back and later are links. */
   onBack?: () => void;
+  /** Filled with this grid's save, so a wizard's one footer button can run it.
+   *  Resolves true once the set is stored. Hides this grid's own buttons. */
+  submitRef?: { current: (() => Promise<boolean>) | null };
 }) {
   const [options, setOptions] = useState<AmenityOption[]>([]);
   const [chosen, setChosen] = useState<Set<string>>(new Set());
+  const [loaded, setLoaded] = useState(false);
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
@@ -64,6 +75,7 @@ export function SpaceAmenities({
         scope === "unit" ? await getUnitAmenities(id) : await getPropertyAmenities(id);
       setOptions(data.options);
       setChosen(new Set(data.chosen.map((row) => row.id)));
+      setLoaded(true);
       setError("");
     } catch (cause) {
       setError(
@@ -76,16 +88,16 @@ export function SpaceAmenities({
     void load();
   }, [load]);
 
-  // Grouped so a long list reads as a few short ones. The categories come from
-  // the backend, so a new one appears here without a change.
-  const groups = useMemo(() => {
-    const byCategory = new Map<string, AmenityOption[]>();
-    for (const option of options) {
-      const key = option.category || "other";
-      byCategory.set(key, [...(byCategory.get(key) ?? []), option]);
-    }
-    return [...byCategory.entries()].sort(([a], [b]) => a.localeCompare(b));
-  }, [options]);
+  // Ordered by category so related things sit together, without a heading
+  // over each pair. The categories come from the backend.
+  const ordered = useMemo(
+    () =>
+      [...options].sort(
+        (a, b) =>
+          (a.category || "other").localeCompare(b.category || "other") || a.name.localeCompare(b.name),
+      ),
+    [options],
+  );
 
   function toggle(amenityId: string) {
     setSaved(false);
@@ -97,24 +109,35 @@ export function SpaceAmenities({
     });
   }
 
-  const save = useCallback(async (after?: (names: string[]) => void | Promise<void>) => {
-    setBusy(true);
-    setError("");
-    try {
-      const ids = [...chosen];
-      if (scope === "unit") await setUnitAmenities(id, ids);
-      else await setPropertyAmenities(id, ids);
-      setSaved(true);
-      const names = options.filter((option) => chosen.has(option.id)).map((option) => option.name);
-      await after?.(names);
-    } catch (cause) {
-      setError(cause instanceof ApiFailure ? cause.error.message : "That did not save.");
-    } finally {
-      setBusy(false);
-    }
-  }, [chosen, id, options, scope]);
+  const save = useCallback(
+    async (after?: (names: string[]) => void | Promise<void>): Promise<boolean> => {
+      setBusy(true);
+      setError("");
+      try {
+        const ids = [...chosen];
+        if (scope === "unit") await setUnitAmenities(id, ids);
+        else await setPropertyAmenities(id, ids);
+        setSaved(true);
+        const names = options.filter((option) => chosen.has(option.id)).map((option) => option.name);
+        await after?.(names);
+        return true;
+      } catch (cause) {
+        setError(cause instanceof ApiFailure ? cause.error.message : "That did not save.");
+        return false;
+      } finally {
+        setBusy(false);
+      }
+    },
+    [chosen, id, options, scope],
+  );
 
-  if (!options.length) {
+  // Written in an effect, never during render: the ref must hold the closure
+  // from the latest render, and render is reserved for pure work.
+  useEffect(() => {
+    if (submitRef) submitRef.current = () => save(onSaved);
+  });
+
+  if (!loaded) {
     return (
       <p className="type-caption" style={{ margin: 0 }}>
         {error || "Loading what this kind of space can have…"}
@@ -123,45 +146,46 @@ export function SpaceAmenities({
   }
 
   return (
-    <div style={{ display: "grid", gap: "var(--space-5)" }}>
-      {groups.map(([category, rows]) => (
-        <fieldset key={category} style={{ border: "none", margin: 0, padding: 0 }}>
-          <legend
-            className="type-label"
-            style={{ color: "var(--color-ink-500)", textTransform: "uppercase", padding: 0 }}
-          >
-            {category}
-          </legend>
-          <div
-            style={{
-              marginTop: "var(--space-3)",
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(13rem, 1fr))",
-              gap: "var(--space-2)",
-            }}
-          >
-            {rows.map((option) => (
-              <CheckChip
-                key={option.id}
-                label={option.name}
-                checked={chosen.has(option.id)}
-                onChange={() => toggle(option.id)}
-              />
-            ))}
-          </div>
-        </fieldset>
-      ))}
+    <div className="cw-amenities-wrap">
+      {options.length ? (
+        <div
+          className="cw-amenities"
+          role="group"
+          aria-label={scope === "unit" ? "This Unit's amenities" : "Shared amenities"}
+        >
+          {ordered.map((option) => (
+            <button
+              key={option.id}
+              type="button"
+              className="cw-amenity"
+              aria-pressed={chosen.has(option.id)}
+              onClick={() => toggle(option.id)}
+            >
+              <span className="cw-amenity-mark" aria-hidden="true">
+                <Icon name={amenityGlyph(option.name, option.category)} />
+              </span>
+              <span className="cw-amenity-name">{option.name}</span>
+              <span className="cw-amenity-tick" aria-hidden="true">
+                <Icon name="check" />
+              </span>
+            </button>
+          ))}
+        </div>
+      ) : (
+        <p className="type-caption" style={{ margin: 0 }}>
+          Nothing to choose for this kind of space.
+        </p>
+      )}
+
+      <p className="cw-amenities-count" aria-live="polite">
+        {chosen.size
+          ? `${chosen.size} chosen${scope === "unit" ? " · a photo of each comes next" : ""}`
+          : "None chosen. That is an answer too."}
+      </p>
 
       {error ? <Notice tone="error" title={error} /> : null}
 
-      {scope === "unit" && chosen.size ? (
-        <Notice
-          tone="info"
-          title={`${chosen.size} amenity photo${chosen.size === 1 ? "" : "s"} needed next`}
-        />
-      ) : null}
-
-      {autoSave ? null : onBack ? (
+      {submitRef || autoSave ? null : onBack ? (
         <StepActions
           primary={
             <Button onClick={() => void save(onSaved)} busy={busy} busyLabel="Saving…">

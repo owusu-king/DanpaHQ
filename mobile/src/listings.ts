@@ -211,7 +211,6 @@ export type ListingDetail = Listing & {
     floor_level: number | null;
     floor_area_sqm: string | null;
     wing: string;
-    building: string;
     is_furnished: boolean;
     has_private_bathroom: boolean;
     has_private_toilet: boolean;
@@ -245,8 +244,6 @@ export type ListingDetail = Listing & {
       power_meter_label: string;
       compound_type: string;
       compound_label: string;
-      has_security: boolean;
-      is_gated: boolean;
     };
     condition_state: string;
     authority: { state: "verified" | "pending" | "unverified" | "expired" };

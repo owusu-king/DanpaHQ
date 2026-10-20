@@ -97,9 +97,12 @@ test("a Property is its Units, with reference material one tap away", () => {
   assert.match(source, /accessibilityLabel=\{`\$\{occupied\} of \$\{units\.length\} Units let`\}/);
   assert.match(source, /<PropertyFact label="Units"/);
   assert.match(source, /<GroupLabel>About this Property<\/GroupLabel>/);
-  for (const row of ["Property information", "Shared amenities", "Buildings and blocks", "Verification details"]) {
+  for (const row of ["Property information", "Shared amenities", "Verification details"]) {
     assert.match(source, new RegExp(`label="${row}"`), `${row} is not a row`);
   }
+  // A Property is its Units; there is no block level between them (owner,
+  // 2026-10-20). The block lives in a Unit's own `wing`.
+  assert.doesNotMatch(source, /Buildings and blocks|listBuildings|label="Blocks"/);
   // The one creative act is pinned where a thumb is, not inline in the header.
   assert.match(source, /<ActionBar>\s*<Pill label="Add Unit"/);
 });

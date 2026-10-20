@@ -240,9 +240,9 @@ def test_provider_to_tenant_core_lifecycle(sms, lifecycle_storage):
             "title": "Lifecycle Court",
             "property_type": "residential",
             "address_id": address.data["id"],
-            "water_source": "borehole",
+            "water_source": "borehole_pump",
             "power_meter_type": "prepaid",
-            "compound_type": "self_compound",
+            "compound_type": "open",
         },
         format="json",
     )

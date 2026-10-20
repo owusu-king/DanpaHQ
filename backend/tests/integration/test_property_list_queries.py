@@ -61,7 +61,6 @@ def _add_property(*, index, landlord, portfolio, address, amenity):
     )
     from apps.property.models import (
         Bed,
-        Building,
         Property,
         PropertyAmenity,
         PropertyRelationship,
@@ -109,10 +108,8 @@ def _add_property(*, index, landlord, portfolio, address, amenity):
         authority_verified_at=timezone.now(),
     )
     PropertyAmenity.objects.create(property=prop, amenity=amenity)
-    building = Building.objects.create(property=prop, name=f"Block {index}")
     unit = Unit.objects.create(
         property=prop,
-        building=building,
         label=f"Room {index}",
         space_type="room",
         bedrooms=1,

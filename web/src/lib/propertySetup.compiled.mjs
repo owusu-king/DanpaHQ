@@ -8,7 +8,12 @@ export function describePropertySetup(input) {
   // not asked of it. Every other property is described exactly as before.
   const selling = input.purpose === "sale";
   const land = selling && input.propertyType === "land";
-  const details = land || (input.waterSource !== "unknown" && input.powerMeterType !== "unknown");
+  // All three facts, compound included: "not stated" is where each starts.
+  const details =
+    land ||
+    (input.waterSource !== "unknown" &&
+      input.powerMeterType !== "unknown" &&
+      (input.compoundType ?? "") !== "unknown");
   const documented = Boolean(input.documentState) && input.documentState !== "draft";
   const sentAlready =
     input.documentState === "submitted" || input.documentState === "under_review";
@@ -33,7 +38,7 @@ export function describePropertySetup(input) {
     steps.push({
       key: "details",
       title: "Property details",
-      summary: "Water, power and the kind of compound.",
+      summary: "Water, power and the compound.",
       status: details ? "done" : "todo",
       detail: details
         ? [input.waterSource, input.powerMeterType]
@@ -51,49 +56,26 @@ export function describePropertySetup(input) {
       detail: saleMissing ? `${saleMissing} still needed` : undefined,
     });
   }
-  steps.push(
-    {
-      key: "documents",
-      title: "Documents",
-      summary: selling
-        ? "What shows this property is yours to sell, and its title."
-        : "What shows this property is yours to let.",
-      status: documented ? "done" : "todo",
-      detail: documented
-        ? sentAlready
-          ? "With our team"
-          : input.documentState === "verified"
-            ? "Confirmed as yours"
-            : "Added"
-        : undefined,
-    },
-    {
-      key: "photos",
-      title: "Photos",
-      summary: land
-        ? "The plot, its boundary and the road to it."
-        : selling
-          ? "The building, inside and out."
-          : "Views of the building and what is around it.",
-      status:
-        outstanding === null
-          ? "todo"
-          : photographed
-            ? "done"
-            : provided > 0
-              ? "started"
-              : "todo",
-      detail:
-        input.photos && outstanding !== null && outstanding > 0
-          ? `${provided} of ${input.photos.requiredTotal} added`
-          : undefined,
-    },
-  );
+  steps.push({
+    key: "documents",
+    title: "Documents",
+    summary: selling
+      ? "What shows this property is yours to sell, and its title."
+      : "What shows this property is yours to let.",
+    status: documented ? "done" : "todo",
+    detail: documented
+      ? sentAlready
+        ? "With our team"
+        : input.documentState === "verified"
+          ? "Confirmed as yours"
+          : "Added"
+      : undefined,
+  });
   if (!land) {
     steps.push({
       key: "amenities",
       title: "What the compound has",
-      summary: "Shared by everything inside — a borehole, a guard, parking.",
+      summary: "Shared by everything inside — a guard, parking, a pool.",
       status: input.amenityCount === null ? "todo" : "done",
       detail:
         input.amenityCount === null
@@ -103,6 +85,27 @@ export function describePropertySetup(input) {
             : "None selected",
     });
   }
+  steps.push({
+    key: "photos",
+    title: "Photos",
+    summary: land
+      ? "The plot, its boundary and the road to it."
+      : selling
+        ? "The building, inside and out."
+        : "The front, the wider area, and what the compound has.",
+    status:
+      outstanding === null
+        ? "todo"
+        : photographed
+          ? "done"
+          : provided > 0
+            ? "started"
+            : "todo",
+    detail:
+      input.photos && outstanding !== null && outstanding > 0
+        ? `${provided} of ${input.photos.requiredTotal} added`
+        : undefined,
+  });
   steps.push({
     key: "review",
     title: "Review",

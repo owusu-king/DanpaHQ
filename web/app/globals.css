@@ -16,6 +16,7 @@
 @import "../src/styles/viewings-workspace.css";
 @import "../src/styles/tenancy-requests-workspace.css";
 @import "../src/styles/request-sheet.css";
+@import "../src/styles/creation-wizard.css";
 @import "../src/styles/leases-workspace.css";
 @import "../src/styles/team-workspace.css";
 @import "../src/styles/settings-workspace.css";

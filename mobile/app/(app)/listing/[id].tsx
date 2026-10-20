@@ -422,11 +422,6 @@ export default function ListingDetailScreen() {
               <Feature icon="water-outline" label="Water" value={place.features.water_source_label} />
               <Feature icon="flash-outline" label="Power" value={place.features.power_meter_label} />
               <Feature icon="business-outline" label="Compound" value={place.features.compound_label} />
-              <Feature
-                icon="shield-outline"
-                label="Security"
-                value={place.features.has_security ? "On site" : place.features.is_gated ? "Gated" : "None stated"}
-              />
               {place.amenities.length ? (
                 <View style={[styles.tags, styles.propertyTags]}>
                   {place.amenities.map((row) => <Tag key={row.id} label={row.name} />)}

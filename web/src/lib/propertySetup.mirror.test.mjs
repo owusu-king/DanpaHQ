@@ -81,14 +81,15 @@ test("both files still declare the same steps", { skip: !mobile || !web }, () =>
 
   assert.deepEqual(keys(mobile), keys(web));
   // `sale` is declared for properties sold whole (owner, 2026-09-28); letting
-  // never reaches it, and land skips `details` and `amenities`.
+  // never reaches it, and land skips `details` and `amenities`. Amenities come
+  // before Photos because each one offers a view of itself (owner, 2026-10-20).
   assert.deepEqual(keys(web), [
     "basics",
     "details",
     "sale",
     "documents",
-    "photos",
     "amenities",
+    "photos",
     "review",
   ]);
 });

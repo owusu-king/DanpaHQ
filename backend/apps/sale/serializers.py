@@ -214,8 +214,6 @@ class SaleDetailSerializer(SaleCardSerializer):
             "power_meter_label": prop.get_power_meter_type_display(),
             "compound_type": prop.compound_type,
             "compound_label": prop.get_compound_type_display(),
-            "has_security": prop.has_security,
-            "is_gated": prop.is_gated,
         }
 
     def get_amenities(self, obj) -> list:

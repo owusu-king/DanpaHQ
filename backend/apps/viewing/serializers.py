@@ -243,7 +243,6 @@ class ViewingRequestSerializer(serializers.ModelSerializer):
             "latitude": str(address.latitude) if address.latitude is not None else None,
             "longitude": str(address.longitude) if address.longitude is not None else None,
             "entrance_note": unit.entrance_note,
-            "building": unit.building.name if unit.building_id else "",
             "wing": unit.wing,
         }
 

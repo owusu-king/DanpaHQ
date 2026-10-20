@@ -309,7 +309,7 @@ class TestTheActionsEachStateOffers:
         photographs = next(
             blocker for blocker in submit["blockers"] if blocker["kind"] == "evidence_missing"
         )
-        assert "of 3 photographs" in photographs["message"]
+        assert "of 2 photographs" in photographs["message"]
 
     def test_a_rejected_claim_waits_for_a_replacement_document(self, factory, landlord):
         from apps.property.services import record_property_claim
@@ -351,7 +351,7 @@ class TestHidingIsNotEnforcing:
 
         response = api.patch(
             f"/api/v1/properties/{prop.id}/",
-            {"water_source": "borehole"},
+            {"water_source": "borehole_pump"},
             format="json",
         )
 
@@ -387,12 +387,11 @@ class TestHidingIsNotEnforcing:
         was = prop.title
 
         for field, value in (
-            ("water_source", "borehole"),
+            ("water_source", "borehole_pump"),
             ("power_meter_type", "postpaid"),
-            ("compound_type", "estate"),
+            ("compound_type", "walled_gated"),
             ("title", "Renamed after approval"),
             ("notes", "Gate code changed."),
-            ("has_security", True),
         ):
             refused = api.patch(f"/api/v1/properties/{prop.id}/", {field: value}, format="json")
             assert refused.status_code == 409, f"{field} should be fixed once verified"
@@ -476,7 +475,7 @@ class TestTheWithdrawalLoop:
         # Editable again, which is the point of taking it back.
         edited = api.patch(
             f"/api/v1/properties/{prop.id}/",
-            {"water_source": "borehole"},
+            {"water_source": "borehole_pump"},
             format="json",
         )
         assert edited.status_code == 200

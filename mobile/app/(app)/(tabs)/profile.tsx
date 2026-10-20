@@ -97,6 +97,8 @@ function ProfileTab() {
         { key: "applications", icon: "document-text-outline", label: "Applications", onPress: go("/(app)/applications") },
         { key: "viewings", icon: "calendar-outline", label: "Viewings", onPress: go("/(app)/viewings") },
         { key: "agreements", icon: "document-outline", label: "Agreements", onPress: go("/(app)/leases") },
+        // The record of where you have lived, and the links you share it by.
+        { key: "passport", icon: "id-card-outline", label: "Housing Passport", onPress: go("/(app)/passport") },
         // Properties you asked to buy: the conversations a sale starts.
         { key: "enquiries", icon: "chatbubbles-outline", label: "Enquiries", onPress: go("/(app)/enquiries") },
       ],

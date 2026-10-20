@@ -77,8 +77,6 @@ export type SaleDetail = SaleCard & {
     water_source_label: string;
     power_meter_label: string;
     compound_label: string;
-    has_security: boolean;
-    is_gated: boolean;
   } | null;
   amenities: { id: string; name: string; category: string }[];
   /** The reader's own conversation about this property, when signed in and started. */

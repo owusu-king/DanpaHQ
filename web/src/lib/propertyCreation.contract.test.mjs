@@ -22,20 +22,24 @@ const read = (relative) => readFileSync(resolve(root, relative), "utf8");
 const code = (source) => source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*/g, "");
 
 const webStep = () => read("web/app/record/property-new/page.tsx");
+// Since 2026-10-20 web creation is one modal wizard; the routes render it.
+const wizard = () => read("web/src/components/property/PropertyWizard.tsx");
+const unitWizard = () => read("web/src/components/property/UnitWizard.tsx");
+const shell = () => read("web/src/components/creation/WizardShell.tsx");
 const mobileStep = () => read("mobile/app/(app)/private-property.tsx");
+// Mobile creation is one modal wizard too (2026-10-20), the twin of the web one.
+const mobileWizard = () => read("mobile/src/components/property/PropertyWizard.tsx");
+const mobileUnitWizard = () => read("mobile/src/components/property/UnitWizard.tsx");
 const webChoice = () => read("web/src/components/property/PropertyTypeChoice.tsx");
 const mobileChoice = () => read("mobile/src/components/property/PropertyTypeChoice.tsx");
 
 test("the kind of property is one compact choice on each platform", () => {
-  // A dropdown on both (owner, 2026-10-05 — "it needs to be a dropdown for
-  // selection"); the tiles were rows of cards for a three-way choice. On a
-  // phone it is the bottom-sheet Select every other question uses.
-  assert.match(code(webStep()), /<PropertyTypeChoice/);
-  assert.match(webChoice(), /<Select/);
-  assert.doesNotMatch(webChoice(), /type-choice-grid/);
-  assert.match(code(mobileStep()), /<PropertyTypeChoice/);
-  assert.match(mobileChoice(), /<Select\s+label="Property type"/);
-  assert.match(read("mobile/src/components/property/PurposeChoice.tsx"), /<Select\s+label="Purpose"/);
+  // Web: drawn tiles in the wizard, one per category the API serves (owner,
+  // 2026-10-20: a powerful, concise modal). Mobile keeps its Select sheet.
+  assert.match(code(wizard()), /<ChoiceTiles\s+label="What kind\?"/);
+  assert.match(code(wizard()), /options=\{types\.map\(\(row\) => \(\{/);
+  assert.match(code(mobileWizard()), /<ChoiceTiles\s+label="What kind\?"/);
+  assert.match(code(mobileWizard()), /options=\{types\.map\(\(row\) => \(\{/);
 
   // Still the backend's three, and both clients' options are the API's own
   // list rather than a copy of it.
@@ -43,8 +47,8 @@ test("the kind of property is one compact choice on each platform", () => {
   for (const value of ["residential", "commercial", "hostel"]) {
     assert.match(model, new RegExp(`"${value}"`));
   }
-  assert.match(webChoice(), /types\.map\(\(type\) => \[type\.value, type\.label\]/);
-  assert.match(mobileChoice(), /types\.map\(\(type\) => \(\{/);
+  assert.match(code(wizard()), /vocabulary\?\.sale_types \?\? \[\]\) : \(vocabulary\?\.property_types \?\? \[\]\)/);
+  assert.match(code(mobileWizard()), /vocabulary\?\.sale_types \?\? \[\]\) : \(vocabulary\?\.property_types \?\? \[\]\)/);
 });
 
 test("each choice says what it buys, from the API rather than from copy", () => {
@@ -72,85 +76,67 @@ test("choosing looks chosen, and moves nothing", () => {
 test("creating a property is not submitting it for verification", () => {
   // Two different acts, and the flow used to end in a button that could be
   // read as either.
-  for (const source of [
-    read("web/app/record/property-setup/page.tsx"),
-    read("mobile/app/(app)/property-setup.tsx"),
-  ]) {
-    assert.match(source, /"Create property"/);
-  }
-  // And step one continues rather than finishing: the record is written there
-  // only because documents and photographs need something to attach to.
+  assert.match(code(wizard()), /settled \? "Done" : "Create property"/);
+  assert.match(code(mobileWizard()), /settled \? "Done" : "Create property"/);
+  assert.doesNotMatch(code(mobileWizard()), /submitForReview|submitPropertyForVerification/);
+  // The wizard's last step finishes; nothing in it asks for a review.
+  assert.doesNotMatch(code(wizard()), /submitForReview|submitPropertyForVerification/);
   assert.doesNotMatch(code(webStep()), /Create private property/);
 });
 
 test("mobile creation keeps the compact journey without the desktop step block", () => {
-  const first = code(read("mobile/app/(app)/private-property.tsx"));
-  const setup = code(read("mobile/app/(app)/property-setup.tsx"));
-  const webSetup = code(read("web/app/record/property-setup/page.tsx"));
-
-  for (const source of [first, setup]) {
-    assert.match(source, /<SetupProgress/);
-    assert.doesNotMatch(source, /<SetupSteps/);
-  }
-  // Web too, now: the tracker's icons move between sections (owner, 2026-10-05:
-  // "omit the little side nav and allow jumping … via the tracking icons").
-  assert.doesNotMatch(webSetup, /<SetupSteps/);
-  assert.doesNotMatch(code(webStep()), /<SetupSteps/);
-  assert.match(webSetup, /<SetupProgress steps=\{steps\} current=\{active\.key\} onSelect=\{\(key\) => setStep\(key as StepKey\)\} \/>/);
-  const journey = read("web/src/components/creation/CheckpointJourney.tsx");
-  assert.match(journey, /onSelect && \(canSelect \? canSelect\(checkpoint\) : true\) \? \(\s*<button/);
-  assert.match(journey, /aria-current=\{checkpoint\.state === "current" \? "step" : undefined\}/);
-  // Unit creation jumps too, once the Unit exists to hold the later steps.
-  assert.match(read("web/app/record/space-new/page.tsx"), /canSelect=\{\(checkpoint\) => canJump \|\| checkpoint\.key === "details"\}/);
+  // Mobile: the same modal wizard behind every way in, a strip of steps on top.
+  assert.match(code(read("mobile/app/(app)/private-property.tsx")), /<PropertyWizard/);
+  assert.match(code(read("mobile/app/(app)/property-setup.tsx")), /<PropertyWizard/);
+  assert.match(code(read("mobile/app/(app)/space-new.tsx")), /<UnitWizard/);
+  assert.match(code(mobileWizard()), /<WizardFrame/);
+  assert.doesNotMatch(code(mobileWizard()), /<SetupSteps/);
+  // Web is one wizard behind every way in: the sheet and the three routes.
+  assert.match(code(webStep()), /<PropertyWizard/);
+  assert.match(code(read("web/app/record/property-setup/page.tsx")), /<PropertyWizard\s+propertyId=\{propertyId\}/);
+  assert.match(code(read("web/app/record/space-new/page.tsx")), /<UnitWizard/);
+  assert.match(code(wizard()), /<WizardShell/);
+  // The rail jumps between steps once the record exists to hold them.
+  assert.match(code(wizard()), /reachable: Boolean\(id\) && !busy \? true : key === "basics"/);
+  assert.match(shell(), /aria-current=\{item\.key === step\.key \? "step" : undefined\}/);
 });
 
 test("the review shows the property, not a progress table", () => {
-  const webReview = read("web/app/record/property-setup/page.tsx");
-  const mobileReview = read("mobile/app/(app)/property-setup.tsx");
+  const mobileReview = code(mobileWizard()).slice(code(mobileWizard()).indexOf("function ReviewStep"));
+  assert.match(mobileReview, /<ReviewLine/);
+  assert.match(mobileReview, /property\.water_source_label/);
+  assert.match(mobileReview, /onEdit=\{\(\) => onGo\("amenities"\)\}/);
+  assert.match(mobileReview, /onEdit=\{\(\) => onGo\("photos"\)\}/);
 
-  // It listed step names against their status — "Photos: 2 of 5 added". The
-  // last thing somebody saw before creating a building they had just
-  // photographed was a checklist of their own progress.
-  for (const source of [webReview, mobileReview]) {
-    assert.match(source, /<PropertySummary property=\{property\} onEdit=\{onGoTo\} \/>/);
-    assert.doesNotMatch(code(source), /Not done yet/);
-  }
+  // Web: one line per thing — its glyph, what was said, and the way back to the
+  // step that owns it — rather than step names against their status.
+  const review = code(wizard()).slice(code(wizard()).indexOf("function ReviewStep"));
+  assert.match(review, /<ReviewLine/);
+  assert.match(review, /property\.water_source_label/);
+  assert.match(review, /amenities\?\.length \? amenities\.map\(\(row\) => row\.name\)/);
+  assert.match(review, /onEdit=\{\(\) => onGo\("details"\)\}/);
+  assert.match(review, /onEdit=\{\(\) => onGo\("amenities"\)\}/);
+  assert.match(review, /onEdit=\{\(\) => onGo\("photos"\)\}/);
 
-  // The photograph they took is the first thing on it. Asserted on the *render*
-  // rather than a mention: `cover_url` appears twice in each file, so checking
-  // that the name occurs passed happily with the image switched off.
-  const webSummary = read("web/src/components/property/PropertySummary.tsx");
   const mobileSummary = read("mobile/src/components/property/PropertySummary.tsx");
-  assert.match(webSummary, /<img src=\{property\.cover_url\}/);
   assert.match(mobileSummary, /source=\{\{ uri: property\.cover_url \}\}/);
-  assert.match(webSummary, /\{property\.cover_url \? \(/);
-  assert.match(mobileSummary, /\{property\.cover_url \? \(/);
+  assert.match(mobileSummary, /onEdit\("amenities"\)/);
 
-  for (const summary of [webSummary, mobileSummary]) {
-    assert.match(summary, /property\.title/);
-    assert.match(summary, /property\.amenities/);
-    assert.match(summary, /water_source/);
-    // Edit sits beside the group it changes, not at the end of the page.
-    assert.match(summary, /onEdit\("details"\)/);
-    assert.match(summary, /onEdit\("amenities"\)/);
-  }
-
-  // And the API actually serves what the summary reads.
+  // And the API actually serves what the review reads.
   const serializer = read("backend/apps/property/serializers.py");
-  assert.match(serializer, /"cover_url",/);
+  assert.match(serializer, /"water_source_label",/);
   assert.match(serializer, /"amenities",/);
   assert.match(read("mobile/src/provider.ts"), /amenities: SpaceAmenity\[\];/);
 });
 
 test("only what is still owed is listed, and only when something is", () => {
   // Six rows reading "Done" is not a review; it is the checklist again.
-  for (const source of [
-    read("web/app/record/property-setup/page.tsx"),
-    read("mobile/app/(app)/property-setup.tsx"),
-  ]) {
+  for (const source of [wizard(), mobileWizard()]) {
     assert.match(code(source), /outstanding\.length \? \(/);
     assert.match(code(source), /outstanding\.map\(/);
   }
+  // A line still owed says so in colour, not in another list.
+  assert.match(code(wizard()), /tone=\{owed\.has\("photos"\) \? "todo" : undefined\}/);
 });
 
 test("a step row says its state, never a description of itself", () => {
@@ -166,31 +152,24 @@ test("a step row says its state, never a description of itself", () => {
 });
 
 test("a step explains itself in a heading, not in a paragraph", () => {
-  // §10.1: treat every visible word as having a cost. The flow carried a 29-word
-  // page header, a notice the review already made, and step summaries of up to
-  // 42 words — "Setting a property up here does not record you as holding it —
-  // anyone could type an address. A document does, once our team has read it…"
-  // over a step already titled Documents.
-  //
-  // **Every file in the flow, and every way of writing prose.** The first
-  // version of this test read one file and quoted only attributes, so it went
-  // green while step one — the screen that forms the first impression — still
-  // carried 86 words across a header, a summary, a hint and a notice body.
+  // §10.1: treat every visible word as having a cost. Every file in the flow,
+  // and every way of writing prose.
   const files = [
     "web/app/record/property-new/page.tsx",
     "web/app/record/property-setup/page.tsx",
+    "web/src/components/property/PropertyWizard.tsx",
+    "web/src/components/property/UnitWizard.tsx",
     "mobile/app/(app)/private-property.tsx",
     "mobile/app/(app)/property-setup.tsx",
+    "mobile/src/components/property/PropertyWizard.tsx",
+    "mobile/src/components/property/UnitWizard.tsx",
   ];
 
   const prose = (source) => {
     const body = source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*/g, "");
     return [
       ...body.matchAll(/(?:summary|body|hint|placeholder)="([^"]{25,})"/g),
-      // Text between tags, which is how mobile writes captions and how the web
-      // page headers are written.
       ...body.matchAll(/>\s*\n?\s*([A-Z][a-z][^<>{}]{28,})\s*\n?\s*</g),
-      // Ternary branches rendered into the page.
       ...body.matchAll(/[?:]\s*"([A-Z][^"]{28,})"/g),
     ].map((match) => match[1].split(/\s+/).filter(Boolean).join(" "));
   };
@@ -203,44 +182,34 @@ test("a step explains itself in a heading, not in a paragraph", () => {
     }
   }
 
-  // The steps are named, not described.
-  const setup = read("web/app/record/property-setup/page.tsx");
-  for (const title of [
-    "The property",
-    "Property details",
-    "Documents",
-    "Photos",
-    "Shared amenities",
-    "Review",
+  // The steps are named, not described — and each keeps its own glyph.
+  for (const [key, label, icon] of [
+    ["basics", "The property", "home"],
+    ["details", "Details", "details"],
+    ["documents", "Documents", "leases"],
+    ["amenities", "Amenities", "amenities"],
+    ["photos", "Photos", "photos"],
+    ["review", "Review", "eye"],
   ]) {
-    assert.match(setup, new RegExp(`title="${title}"`));
+    assert.match(wizard(), new RegExp(`${key}: \\{ label: "${label}", hint: "[^"]+", icon: "${icon}" \\}`));
   }
-  assert.doesNotMatch(setup, /title="What the compound has"/);
-  assert.doesNotMatch(setup, /title="Photos of the building"/);
+  assert.doesNotMatch(wizard(), /label: "What the compound has"/);
 
-  // A summary is optional, so a step that needs no line does not get one.
   const panel = read("web/src/components/property/SetupSteps.tsx");
   assert.match(panel, /summary\?: string;/);
-  assert.match(panel, /\{summary \? \(/);
 });
 
 test("nothing says the same thing twice on one screen", () => {
-  const web = read("web/app/record/property-setup/page.tsx");
-  const mobile = read("mobile/app/(app)/property-setup.tsx");
+  // Mobile says it once, on Review, in the same words as the web.
+  const mobile = code(mobileWizard());
+  assert.match(mobile.slice(mobile.indexOf("function ReviewStep")), /Creating it sends nothing/);
+  assert.doesNotMatch(mobile.slice(0, mobile.indexOf("function ReviewStep")), /sends nothing|sent to anybody/);
 
-  // "Nothing has been sent to anybody" was on the page header, on a notice
-  // above the steps, and in the review panel.
-  for (const source of [web, mobile]) {
-    assert.equal(
-      (source.match(/sent to anybody/g) ?? []).length,
-      1,
-      "the reassurance belongs in one place",
-    );
-  }
-  // And the notice that duplicated the review is gone from both.
-  for (const source of [web, mobile]) {
-    assert.doesNotMatch(source, /Finish creating it, and you can decide about verification/);
-  }
+  // Web: the rail's foot says it stays private; the review says creating sends
+  // nothing. Neither repeats the other.
+  const web = code(wizard());
+  assert.equal((web.match(/Private until you send it for checking/g) ?? []).length, 1);
+  assert.doesNotMatch(web.slice(web.indexOf("function ReviewStep")), /until you send it for checking/);
 });
 
 const webPanel = () => read("web/src/components/property/VerificationPanel.tsx");
@@ -340,13 +309,14 @@ test("phones show nearby checkpoint context without squeezing the whole journey"
 });
 
 test("Property and Unit creation speak the same checkpoint language", () => {
-  const webUnit = read("web/app/record/space-new/page.tsx");
-  const mobileUnit = read("mobile/app/(app)/space-new.tsx");
-
-  for (const source of [webUnit, mobileUnit]) {
-    assert.match(source, /<CheckpointJourney/);
-    assert.match(source, /BUILDING UNIT/);
-    assert.doesNotMatch(code(source), /STEP \{n\} OF 4/);
+  // Web: both wizards walk the same frame, so a Unit is added the way a
+  // Property is created.
+  for (const source of [wizard(), unitWizard()]) {
+    assert.match(code(source), /<WizardShell/);
+    assert.match(code(source), /lease-wizard-sheet is-wizard creation-sheet/);
+  }
+  for (const source of [mobileWizard(), mobileUnitWizard()]) {
+    assert.match(code(source), /<WizardFrame/);
   }
 
   // Required completion semantics remain separate from visual position.
@@ -354,4 +324,13 @@ test("Property and Unit creation speak the same checkpoint language", () => {
     assert.match(steps, /!step\.optional && !step\.terminal/);
     assert.match(steps, /const complete = required\.length > 0 && done === required\.length/);
   }
+});
+
+test("a finished step keeps its glyph and turns green, never a bare tick", () => {
+  const source = code(shell());
+  assert.match(source, /<span className="lw-rail-mark" aria-hidden="true">\s*<Icon name=\{item\.icon\} \/>/);
+  assert.doesNotMatch(source, /<Icon name="check" \/>/);
+  const css = read("web/src/styles/creation-wizard.css");
+  const done = css.slice(css.indexOf('.lw.is-iconic .lw-rail-step[data-state="done"] .lw-rail-mark {'));
+  assert.match(done.slice(0, done.indexOf("}")), /background: var\(--color-kola-600\)/);
 });

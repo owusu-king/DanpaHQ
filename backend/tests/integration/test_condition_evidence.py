@@ -179,15 +179,15 @@ class TestTheGate:
 
         # "Incomplete" tells somebody nothing they can act on.
         message = str(raised.value)
-        assert "side" in message.lower()
-        assert "area" in message.lower() or "surrounding" in message.lower()
+        assert "wider area" in message.lower()
+        assert "front" not in message.lower()
 
     def test_a_complete_submission_reaches_a_reviewer(self, owned, landlord):
         from apps.trust import condition
         from apps.trust.models import ReviewQueueEntry
 
         prop, _ = owned
-        _fill(prop, landlord, ["property.front", "property.side", "property.surroundings"])
+        _fill(prop, landlord, ["property.front", "property.surroundings"])
 
         review = condition.submit_for_review(subject=prop, actor=landlord)
 
@@ -209,7 +209,7 @@ class TestTheGate:
         from apps.trust import condition
 
         prop, _ = owned
-        _fill(prop, landlord, ["property.front", "property.side", "property.surroundings"])
+        _fill(prop, landlord, ["property.front", "property.surroundings"])
         condition.submit_for_review(subject=prop, actor=landlord)
 
         with pytest.raises(Conflict):
@@ -232,28 +232,28 @@ class TestTheGate:
 
 
 class TestWhatIsAskedFor:
-    def test_a_property_is_asked_for_three_named_views(self, owned, landlord):
+    def test_a_property_is_asked_for_two_named_views(self, owned, landlord):
         from apps.trust import condition
 
         prop, _ = owned
         state = condition.progress(subject=prop, user=landlord)
 
         keys = {slot["key"] for slot in state["slots"]}
-        assert {"property.front", "property.side", "property.surroundings"} <= keys
-        assert state["required_outstanding"] == 3
+        assert {"property.front", "property.surroundings"} <= keys
+        assert state["required_outstanding"] == 2
         assert state["can_submit"] is False
 
     def test_progress_says_which_are_provided(self, owned, landlord):
         from apps.trust import condition
 
         prop, _ = owned
-        _fill(prop, landlord, ["property.side"])
+        _fill(prop, landlord, ["property.surroundings"])
 
         state = condition.progress(subject=prop, user=landlord)
         provided = {slot["key"] for slot in state["slots"] if slot["provided"]}
 
-        assert provided == {"property.side"}
-        assert state["required_outstanding"] == 2
+        assert provided == {"property.surroundings"}
+        assert state["required_outstanding"] == 1
 
     def test_a_space_is_asked_about_what_it_declares(self, owned, landlord):
         """Feature evidence follows the record, not a hardcoded list."""
@@ -349,10 +349,10 @@ class TestOverHttp:
 
         state = api.get(f"/api/v1/properties/{prop.id}/verification/")
         assert state.status_code == 200
-        assert state.data["required_outstanding"] == 3
+        assert state.data["required_outstanding"] == 2
         assert state.data["can_submit"] is False
 
-        for key in ("property.front", "property.side", "property.surroundings"):
+        for key in ("property.front", "property.surroundings"):
             added = api.post(
                 f"/api/v1/properties/{prop.id}/verification/evidence/",
                 {"slot_key": key, "file_id": str(_photo(landlord).id)},
@@ -389,9 +389,9 @@ class TestOverHttp:
         response = api.post(f"/api/v1/properties/{prop.id}/verification/", {}, format="json")
 
         # 409 rather than 422: this is the policy layer refusing on state, and
-        # the refusal carries the count so the page can say which two are left.
+        # the refusal carries the count so the page can say which one is left.
         assert response.status_code == 409
-        assert "2 of 3 photographs" in response.data["error"]["message"]
+        assert "1 of 2 photographs" in response.data["error"]["message"]
 
     def test_recording_the_document_asks_nobody_to_read_it(self, api, sign_in_as, owned, landlord):
         """The Documents step of creation files nothing.
@@ -469,7 +469,7 @@ class TestAPhotographCanBeCorrected:
         assert front["provided"] is True
         # One slot, one photograph — the new one, not both.
         assert front["file_id"] == str(second.id)
-        assert after.data["required_outstanding"] == 2
+        assert after.data["required_outstanding"] == 1
 
     def test_a_slot_says_what_is_in_it(self, api, sign_in_as, owned, landlord):
         """Enough to show it back and enough to take it down.
@@ -515,7 +515,7 @@ class TestAPhotographCanBeCorrected:
         assert front["provided"] is False
         assert front["file_id"] is None
         # And it counts as outstanding again, so it cannot be submitted without.
-        assert removed.data["required_outstanding"] == 3
+        assert removed.data["required_outstanding"] == 2
         assert removed.data["can_submit"] is False
 
     def test_neither_is_possible_once_a_reviewer_holds_it(self, api, sign_in_as, owned, landlord):
@@ -523,7 +523,7 @@ class TestAPhotographCanBeCorrected:
         prop, _ = owned
         sign_in_as(api, user=landlord)
         _record_claim(api, prop, landlord)
-        for key in ("property.front", "property.side", "property.surroundings"):
+        for key in ("property.front", "property.surroundings"):
             api.post(
                 f"/api/v1/properties/{prop.id}/verification/evidence/",
                 {"slot_key": key, "file_id": str(_photo(landlord).id)},
@@ -613,22 +613,26 @@ class TestTheVocabularyIsServed:
         sign_in_as(api, user=user)
 
         rows = api.get("/api/v1/property-types/").data["property_types"]
-        asks = {
-            (row["value"], s["value"]): s["asks"] for row in rows for s in row["space_types"]
-        }
+        asks = {(row["value"], s["value"]): s["asks"] for row in rows for s in row["space_types"]}
 
         assert asks[("residential", "apartment")] == {
-            "bedrooms": True, "bathrooms": "count", "floor": True,
+            "bedrooms": True,
+            "bathrooms": "count",
+            "floor": True,
         }
         assert asks[("residential", "house")]["floor"] is False
         assert asks[("residential", "studio")]["bedrooms"] is False
         assert asks[("commercial", "shop")] == {
-            "bedrooms": False, "bathrooms": "yes_no", "floor": True,
+            "bedrooms": False,
+            "bathrooms": "yes_no",
+            "floor": True,
         }
         assert asks[("commercial", "warehouse")]["floor"] is False
         assert asks[("hostel", "room")]["bedrooms"] is False
         assert asks[("hostel", "bed_space")] == {
-            "bedrooms": False, "bathrooms": "none", "floor": False,
+            "bedrooms": False,
+            "bathrooms": "none",
+            "floor": False,
         }
 
 
@@ -846,33 +850,21 @@ class TestBedsAreHostelOnly:
             )
 
 
-class TestWaterIsShownWhenItIsAQuestion:
-    def test_a_borehole_must_be_photographed(self, landlord, db):
+class TestWaterIsAnsweredInWords:
+    """Owner, 2026-10-20: the details say how water arrives; no view is asked."""
+
+    def test_no_water_source_is_photographed(self, db):
         from apps.trust import evidence_policy
 
         class _Prop:
             id = "x"
-            compound_type = "self_compound"
-            water_source = "borehole"
-            power_meter_type = "estate"
-
-        slots = {slot.key: slot for slot in evidence_policy.property_requirements(_Prop())}
-
-        assert "property.water" in slots
-        assert slots["property.water"].required is True
-
-    def test_estate_mains_is_never_asked_about(self, db):
-        from apps.trust import evidence_policy
-
-        class _Prop:
-            id = "x"
-            compound_type = "self_compound"
-            water_source = "estate"
-            power_meter_type = "estate"
+            compound_type = "open"
+            water_source = "well"
+            power_meter_type = "prepaid"
 
         keys = {slot.key for slot in evidence_policy.property_requirements(_Prop())}
 
-        assert "property.water" not in keys
+        assert keys == {"property.front", "property.surroundings"}
 
 
 class TestARefusalSaysWhatHappened:
@@ -976,14 +968,14 @@ class TestAClaimantCanGetTheirOwnPropertyChecked:
 
         state = condition.progress(subject=prop, user=landlord)
 
-        assert state["required_outstanding"] == 3
+        assert state["required_outstanding"] == 2
 
     def test_the_claimant_can_submit_it(self, claimed, landlord):
         from apps.trust import condition
         from apps.trust.models import ReviewQueueEntry
 
         prop, _ = claimed
-        _fill(prop, landlord, ["property.front", "property.side", "property.surroundings"])
+        _fill(prop, landlord, ["property.front", "property.surroundings"])
 
         review = condition.submit_for_review(subject=prop, actor=landlord)
 
@@ -1037,7 +1029,7 @@ class TestAnApprovedCheckStaysApproved:
         from apps.trust import condition
 
         prop, _ = owned
-        self._approve(prop, landlord, ["property.front", "property.side", "property.surroundings"])
+        self._approve(prop, landlord, ["property.front", "property.surroundings"])
 
         state = condition.progress(subject=prop, user=landlord)
 
@@ -1050,7 +1042,7 @@ class TestAnApprovedCheckStaysApproved:
         from apps.trust import condition
 
         prop, _ = owned
-        self._approve(prop, landlord, ["property.front", "property.side", "property.surroundings"])
+        self._approve(prop, landlord, ["property.front", "property.surroundings"])
 
         state = condition.progress(subject=prop, user=landlord)
 
@@ -1061,7 +1053,7 @@ class TestAnApprovedCheckStaysApproved:
         from apps.trust import condition
 
         prop, _ = owned
-        self._approve(prop, landlord, ["property.front", "property.side", "property.surroundings"])
+        self._approve(prop, landlord, ["property.front", "property.surroundings"])
 
         assert condition.state_of(prop) == "approved"
 
@@ -1069,7 +1061,7 @@ class TestAnApprovedCheckStaysApproved:
         from apps.trust import condition
 
         prop, _ = owned
-        _fill(prop, landlord, ["property.front", "property.side", "property.surroundings"])
+        _fill(prop, landlord, ["property.front", "property.surroundings"])
         condition.submit_for_review(subject=prop, actor=landlord)
 
         assert condition.state_of(prop) == "pending"

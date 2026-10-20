@@ -153,8 +153,10 @@ export type Property = {
   water_source: string;
   power_meter_type: string;
   compound_type: string;
-  has_security: boolean;
-  is_gated: boolean;
+  /** The three facts in words, from the server's own vocabulary. */
+  water_source_label: string;
+  power_meter_label: string;
+  compound_label: string;
   notes: string;
   amenities_confirmed_at: string | null;
   /** The one photograph a row shows. The Property's own if it has one, else a
@@ -280,7 +282,6 @@ export type PermittedAction = {
 export type Unit = {
   id: string;
   property_id: string;
-  building_id: string | null;
   label: string;
   space_type: string;
   space_type_label: string;
@@ -472,15 +473,6 @@ export function withdrawSpaceSubmission(unitId: string, reason: string) {
   });
 }
 
-export type Building = {
-  id: string;
-  property_id: string;
-  name: string;
-  code: string;
-  sort_order: number;
-  is_active: boolean;
-};
-
 export type Bed = {
   id: string;
   unit_id: string;
@@ -508,8 +500,6 @@ export function updateProperty(
     water_source: string;
     power_meter_type: string;
     compound_type: string;
-    has_security: boolean;
-    is_gated: boolean;
     notes: string;
   }>,
 ) {
@@ -531,14 +521,14 @@ export function listPortfolioUnits(organizationId: string) {
 }
 
 export function createUnit(propertyId: string, input: {
-  building_id?: string;
   label: string;
+  /** The block or wing, where the Property names one. */
+  wing?: string;
   space_type: string;
   bedrooms: number;
   bathrooms: number;
   description?: string;
   floor_level?: number | null;
-  wing?: string;
   entrance_note?: string;
   is_furnished?: boolean;
 }) {
@@ -622,7 +612,6 @@ export function updateUnit(
   input: Partial<{
     label: string;
     description: string;
-    building_id: string | null;
     bedrooms: number;
     bathrooms: number;
     floor_level: number | null;
@@ -708,17 +697,6 @@ export function withdrawListing(listingId: string, reason: string) {
   return apiFetch<Listing>(`/listings/${listingId}/withdraw/`, {
     method: "POST",
     body: { reason },
-  });
-}
-
-export function listBuildings(propertyId: string) {
-  return apiFetch<Building[]>(`/properties/${propertyId}/buildings/`);
-}
-
-export function createBuilding(propertyId: string, input: { name: string; code?: string }) {
-  return apiFetch<Building>(`/properties/${propertyId}/buildings/`, {
-    method: "POST",
-    body: input,
   });
 }
 

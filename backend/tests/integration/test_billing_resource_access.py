@@ -475,7 +475,7 @@ class TestNothingNewStarts:
         with pytest.raises(ResourceRestricted):
             access_codes.rotate(unit=unit, actor=landlord)
 
-    def test_no_new_unit_building_or_bed(self, landlord, portfolio, restricted):
+    def test_no_new_unit_or_bed(self, landlord, portfolio, restricted):
         kept, prop, unit = restricted
         _to_free(portfolio, landlord, keep_active=_keep(kept))
 
@@ -483,8 +483,6 @@ class TestNothingNewStarts:
             property_services.add_unit(
                 prop=prop, user=landlord, data={"label": "New", "space_type": "apartment"}
             )
-        with pytest.raises(ResourceRestricted):
-            property_services.add_building(prop=prop, user=landlord, data={"name": "Block B"})
         with pytest.raises(ResourceRestricted):
             property_services.add_bed(unit=unit, user=landlord, data={"label": "Bed 1"})
 

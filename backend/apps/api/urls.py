@@ -219,11 +219,6 @@ property_patterns = [
         name="property-units",
     ),
     path(
-        "properties/<uuid:property_pk>/buildings/",
-        property_views.BuildingListCreateView.as_view(),
-        name="property-buildings",
-    ),
-    path(
         "units/<uuid:unit_pk>/beds/", property_views.BedListCreateView.as_view(), name="unit-beds"
     ),
     path(

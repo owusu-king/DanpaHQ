@@ -543,7 +543,7 @@ def test_one_property_sent_once_is_one_thing_to_decide(
         files=[photo("property_document")],
         queue=False,
     )
-    for key in ("property.front", "property.side", "property.surroundings"):
+    for key in ("property.front", "property.surroundings"):
         condition.attach(subject=prop, actor=landlord, slot_key=key, file=photo("property_photo"))
     property_services.submit_property_for_verification(prop=prop, user=landlord)
 
@@ -557,8 +557,8 @@ def test_one_property_sent_once_is_one_thing_to_decide(
     assert kinds == {"property_authority", "property_condition"}
     assert group["label"] == "Grouped Court"
     assert group["submission_id"]
-    # All four files are reachable from the one record.
-    assert sum(len(item["verification"]["evidence"]) for item in group["items"]) == 4
+    # All three files are reachable from the one record.
+    assert sum(len(item["verification"]["evidence"]) for item in group["items"]) == 3
 
     # The package transaction cannot leave the photographs approved when the
     # authority decision fails its identity precondition.

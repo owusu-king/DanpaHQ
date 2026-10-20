@@ -7,6 +7,8 @@ import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, use
 import { Button } from "@/components/Button";
 import { Notice } from "@/components/Notice";
 import { Icon } from "@/components/portal/icons";
+import { PropertyWizardModal } from "@/components/property/PropertyWizard";
+import { UnitWizardModal } from "@/components/property/UnitWizard";
 import { StatusLine, propertyStatus } from "@/components/property/WorkspacePatterns";
 import { useToast } from "@/components/toast/Toaster";
 import {
@@ -25,6 +27,7 @@ import {
   type Property,
 } from "@/lib/console";
 import { propertyNextStep } from "@/lib/providerSetup";
+import { inPlace } from "@/lib/inPlace";
 import { useSession } from "@/lib/session";
 
 /** Where someone was when they opened a Property, so Back lands them there. */
@@ -101,6 +104,11 @@ function PropertiesContent() {
   const [purpose, setPurpose] = useState<Purpose>("any");
   const [sort, setSort] = useState<Sort>("name");
   const [returnedTo, setReturnedTo] = useState<string | null>(null);
+  // Creating opens in place (owner, 2026-10-20): a sheet over this page, held
+  // in page state like every other modal here.
+  const [sheet, setSheet] = useState<
+    { kind: "property"; propertyId?: string } | { kind: "unit"; propertyId: string } | null
+  >(null);
   const pendingReturn = useRef<ReturnPoint | null>(null);
 
   // The Portfolio this page is about, taken from the shared session context —
@@ -254,6 +262,10 @@ function PropertiesContent() {
 
   const count = properties?.length ?? 0;
   const failed = Boolean(error) && !count;
+  // Only the create form opens in place; anything else the next step points at
+  // (an identity check, say) is a page of its own.
+  const createInPlace = next.href.startsWith("/record/property-new");
+  const openCreate = createInPlace ? inPlace(() => setSheet({ kind: "property" })) : undefined;
   const searching = Boolean(query.trim());
   const narrowed = searching || stage !== "all" || purpose !== "any";
   // Cards (and the first "Add a Property" card) sit on the washed canvas; the
@@ -282,7 +294,7 @@ function PropertiesContent() {
           </>
         ) : `Buildings and rentable spaces in ${activeOrganization?.name ?? "this Portfolio"}.`}
         actions={!loading && canCreateProperty && count ? (
-          <Link href={next.href as never} className="ws-action"><PlusGlyph />Add Property</Link>
+          <Link href={next.href as never} className="ws-action" onClick={openCreate}><PlusGlyph />Add Property</Link>
         ) : null}
       />
 
@@ -378,7 +390,7 @@ function PropertiesContent() {
                 <p>{next.reason}</p>
               </div>
               <ul className="property-grid">
-                <li className="property-card-item"><AddPropertyCard href={next.href} /></li>
+                <li className="property-card-item"><AddPropertyCard href={next.href} onClick={openCreate} /></li>
               </ul>
             </div>
           )
@@ -403,17 +415,32 @@ function PropertiesContent() {
                   order={index}
                   returned={returnedTo === property.id}
                   onOpen={remember}
+                  onAddUnit={() => setSheet({ kind: "unit", propertyId: property.id })}
+                  onEdit={() => setSheet({ kind: "property", propertyId: property.id })}
                 />
               ))}
               {canCreateProperty && !narrowed ? (
                 <li className="property-card-item" style={{ "--property-order": Math.min(visible.length, 12) } as React.CSSProperties}>
-                  <AddPropertyCard href={next.href} />
+                  <AddPropertyCard href={next.href} onClick={openCreate} />
                 </li>
               ) : null}
             </ul>
           </div>
         ) : null}
       </section>
+
+      <PropertyWizardModal
+        open={sheet?.kind === "property"}
+        propertyId={sheet?.kind === "property" ? (sheet.propertyId ?? null) : null}
+        onClose={() => { setSheet(null); void load(); }}
+        onFinished={() => toast({ tone: "success", title: "Property created", description: "It is private until you send it for checking." })}
+      />
+      <UnitWizardModal
+        open={sheet?.kind === "unit"}
+        propertyId={sheet?.kind === "unit" ? sheet.propertyId : ""}
+        onClose={() => { setSheet(null); void load(); }}
+        onFinished={(unit) => toast({ tone: "success", title: `${unit.label || "Unit"} saved`, description: unit.verification.state_label })}
+      />
     </div>
   );
 }
@@ -437,11 +464,15 @@ function PropertyCard({
   order,
   returned,
   onOpen,
+  onAddUnit,
+  onEdit,
 }: {
   property: Property;
   order: number;
   returned: boolean;
   onOpen: (property: Property) => void;
+  onAddUnit: () => void;
+  onEdit: () => void;
 }) {
   const status = propertyStatus(property);
   const location = property.address
@@ -505,7 +536,6 @@ function PropertyCard({
             <>
               <li data-dot="kola"><strong>{property.occupied_unit_count}/{property.unit_count}</strong> Units occupied</li>
               <li data-dot="lagoon"><strong>{property.vacant_unit_count}</strong> available</li>
-              {property.building_count > 1 ? <li data-dot="ink"><strong>{property.building_count}</strong> buildings</li> : null}
             </>
           ) : (
             <li data-dot="ink">No Units added</li>
@@ -525,12 +555,12 @@ function PropertyCard({
             </svg>
           </span>
           {canAddUnit ? (
-            <Link href={`/record/space-new?propertyId=${property.id}` as never} className="property-card-action">
+            <Link href={`/record/space-new?propertyId=${property.id}` as never} className="property-card-action" onClick={inPlace(onAddUnit)}>
               <PlusGlyph />Add Unit
             </Link>
           ) : null}
           {canEdit ? (
-            <Link href={`/record/property-setup?propertyId=${property.id}` as never} className="property-card-action">
+            <Link href={`/record/property-setup?propertyId=${property.id}` as never} className="property-card-action" onClick={inPlace(onEdit)}>
               Edit details
             </Link>
           ) : null}
@@ -551,9 +581,15 @@ function PropertyCard({
  * The way to add a Property is a card of its own, drawn as the ghost of the
  * Property it will become. Reaching for it fills the ghost in.
  */
-function AddPropertyCard({ href }: { href: string }) {
+function AddPropertyCard({
+  href,
+  onClick,
+}: {
+  href: string;
+  onClick?: (event: React.MouseEvent<HTMLAnchorElement>) => void;
+}) {
   return (
-    <Link href={href as never} className="property-add">
+    <Link href={href as never} className="property-add" onClick={onClick}>
       <span className="property-add-ghost" aria-hidden="true">
         <span className="property-add-ghost-line is-title" />
         <span className="property-add-ghost-line" />

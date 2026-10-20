@@ -9,6 +9,7 @@
  */
 
 import { apiFetch } from "@/lib/api";
+import { authedFetch } from "@/lib/auth";
 
 export type PassportStatus =
   | "verified"
@@ -141,21 +142,21 @@ export type ShareLifetime = (typeof SHARE_LIFETIMES)[number]["days"];
 
 // --- API --------------------------------------------------------------------------
 
-export const getMyPassport = () => apiFetch<MyPassport>("/me/passport/");
+export const getMyPassport = () => authedFetch<MyPassport>("/me/passport/");
 
 export const previewPassport = (scope: PassportScope) =>
-  apiFetch<PassportView>("/me/passport/preview/", { method: "POST", body: JSON.stringify(scope) });
+  authedFetch<PassportView>("/me/passport/preview/", { method: "POST", body: JSON.stringify(scope) });
 
-export const listPassportShares = () => apiFetch<PassportShare[]>("/me/passport/shares/");
+export const listPassportShares = () => authedFetch<PassportShare[]>("/me/passport/shares/");
 
 export const createPassportShare = (input: PassportScope & { recipient_label: string; expires_in_days: ShareLifetime }) =>
-  apiFetch<PassportShare>("/me/passport/shares/", { method: "POST", body: JSON.stringify(input) });
+  authedFetch<PassportShare>("/me/passport/shares/", { method: "POST", body: JSON.stringify(input) });
 
 export const revokePassportShare = (id: string) =>
-  apiFetch<PassportShare>(`/me/passport/shares/${id}/revoke/`, { method: "POST" });
+  authedFetch<PassportShare>(`/me/passport/shares/${id}/revoke/`, { method: "POST" });
 
 export const requestPassportCorrection = (input: { record_type: CorrectionRecordType; record_id: string; reason: string }) =>
-  apiFetch<PassportCorrection>("/me/passport/corrections/", { method: "POST", body: JSON.stringify(input) });
+  authedFetch<PassportCorrection>("/me/passport/corrections/", { method: "POST", body: JSON.stringify(input) });
 
 /** The recipient's read. The token goes in the body, never a URL. */
 export const openSharedPassport = (token: string) =>

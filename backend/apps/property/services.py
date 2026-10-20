@@ -14,7 +14,6 @@ from apps.outbox.services import emit
 
 from .models import (
     Bed,
-    Building,
     Property,
     PropertyMedia,
     PropertyProviderApplication,
@@ -135,7 +134,7 @@ def resolve_purpose(data: dict) -> str:
 
 
 def assert_is_for_letting(prop: Property) -> None:
-    """A property for sale is sold whole: it has no Units, buildings or beds."""
+    """A property for sale is sold whole: it has no Units or beds."""
     if prop.is_for_sale:
         raise ValidationFailed(
             "This property is for sale, and is sold whole. It does not take Units."
@@ -876,9 +875,7 @@ def create_property(*, user, data: dict) -> Property:
         address_id=address_id,
         water_source=data.get("water_source", "unknown"),
         power_meter_type=data.get("power_meter_type", "unknown"),
-        compound_type=data.get("compound_type", "self_compound"),
-        has_security=data.get("has_security", False),
-        is_gated=data.get("is_gated", False),
+        compound_type=data.get("compound_type", "unknown"),
         notes=data.get("notes", ""),
     )
     PropertyRelationship.objects.create(
@@ -1024,9 +1021,7 @@ def create_private_property(*, user, organization, data: dict) -> Property:
         address_id=address_id,
         water_source=data.get("water_source", "unknown"),
         power_meter_type=data.get("power_meter_type", "unknown"),
-        compound_type=data.get("compound_type", "self_compound"),
-        has_security=data.get("has_security", False),
-        is_gated=data.get("is_gated", False),
+        compound_type=data.get("compound_type", "unknown"),
         notes=data.get("notes", ""),
     )
     relationship_type = (
@@ -1126,7 +1121,7 @@ def create_personal_property(*, user, data: dict) -> Property:
 CHECKED_DETAILS = frozenset({"property_type", "water_source", "power_meter_type", "compound_type"})
 
 #: Labels and notes. They change nothing a reviewer looked at.
-FREE_DETAILS = frozenset({"title", "has_security", "is_gated", "notes"})
+FREE_DETAILS = frozenset({"title", "notes"})
 
 
 @transaction.atomic
@@ -1218,13 +1213,6 @@ def add_unit(*, prop: Property, user, data: dict) -> Unit:
         # restricted above the plan's allowance.
         billing.assert_can_add_unit(organization=portfolio, prop=prop)
 
-    building_id = data.get("building_id")
-    if (
-        building_id
-        and not Building.objects.filter(id=building_id, property=prop, is_active=True).exists()
-    ):
-        raise ValidationFailed("Choose an active building in this property.")
-
     space_type = data.get("space_type") or ""
     if not space_type:
         raise ValidationFailed("Choose what is being let here.")
@@ -1242,8 +1230,13 @@ def add_unit(*, prop: Property, user, data: dict) -> Unit:
 
     unit = Unit.objects.create(
         property=prop,
-        building_id=building_id,
         label=data.get("label", ""),
+        # Both clients have always sent these three, and creation dropped them:
+        # the description and the directions written in the form were gone by
+        # the time the Unit was opened. Bounded the way the model bounds them.
+        description=str(data.get("description") or "").strip()[:1500],
+        wing=str(data.get("wing") or "").strip()[:40],
+        entrance_note=str(data.get("entrance_note") or "").strip()[:200],
         space_type=space_type,
         bedrooms=bedrooms,
         bathrooms=bathrooms,
@@ -1267,32 +1260,6 @@ def add_unit(*, prop: Property, user, data: dict) -> Unit:
         },
     )
     return unit
-
-
-@transaction.atomic
-def add_building(*, prop: Property, user, data: dict) -> Building:
-    from apps.billing import enforcement as billing
-
-    assert_can_manage(prop, user)
-    assert_is_for_letting(prop)
-    billing.assert_open_for_new_activity(prop=prop, action="add_building")
-    name = str(data.get("name", "")).strip()
-    if not name:
-        raise ValidationFailed("Give the building or block a name.")
-    building = Building.objects.create(
-        property=prop,
-        name=name,
-        code=str(data.get("code", "")).strip(),
-        sort_order=int(data.get("sort_order", 0)),
-    )
-    record(
-        action=AuditAction.CREATE,
-        aggregate_type="building",
-        aggregate_id=building.id,
-        actor=user,
-        metadata={"property_id": str(prop.id)},
-    )
-    return building
 
 
 @transaction.atomic

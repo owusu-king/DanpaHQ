@@ -21,7 +21,7 @@ import {
   type RecordTone,
 } from "@/components/record/RecordSurfaces";
 import { BottomSheet } from "@/components/sheet/BottomSheet";
-import { Button, Field, Notice, Type, space } from "@/components/ui";
+import { Button, Notice, Type, space } from "@/components/ui";
 import { PropertyLifecycle, PropertyMore, PropertyRemoval, propertyRemoval } from "@/components/property/PropertyLifecycle";
 import { propertyStatus } from "@/components/property/WorkspacePatterns";
 import { SaleDetailsForm } from "@/components/property/SaleDetailsForm";
@@ -30,12 +30,9 @@ import { UNIT_COLUMNS, UNIT_TILE_GAP, UnitTile } from "@/components/property/Uni
 import { useSafeBottom } from "@/platform";
 import { describePropertySetup, toSetupInput } from "@/propertySetup";
 import {
-  createBuilding,
   getProperty,
   getPropertyAmenities,
-  listBuildings,
   listUnits,
-  type Building,
   type Property,
   type SpaceAmenity,
   type Unit,
@@ -44,7 +41,7 @@ import { getSellerSale, type SellerSale } from "@/sales";
 import { theme } from "@/theme";
 import { getVerification, type VerificationProgress } from "@/verification";
 
-type Sheet = "information" | "amenities" | "buildings" | "more" | "danger" | "sale";
+type Sheet = "information" | "amenities" | "more" | "danger" | "sale";
 
 /**
  * One Property: what is inside it, and how much of it is let.
@@ -54,7 +51,7 @@ type Sheet = "information" | "amenities" | "buildings" | "more" | "danger" | "sa
  * else in the app does and which hid half the record behind a control people
  * do not expect to find there. The Property *is* its Units, so they are the
  * page; everything that is reference rather than work — the address and
- * services, the shared amenities, the blocks, the verification trail — opens
+ * services, the shared amenities, the verification trail — opens
  * from a row instead of competing with them.
  */
 export default function ProviderPropertyScreen() {
@@ -69,12 +66,10 @@ export default function ProviderPropertyScreen() {
   const router = useRouter();
   const [property, setProperty] = useState<Property | null>(null);
   const [units, setUnits] = useState<Unit[]>([]);
-  const [buildings, setBuildings] = useState<Building[]>([]);
   const [photos, setPhotos] = useState<VerificationProgress | null>(null);
   const [amenities, setAmenities] = useState<SpaceAmenity[] | null>(null);
   const [sale, setSale] = useState<SellerSale | null>(null);
   const [error, setError] = useState("");
-  const [addingBuilding, setAddingBuilding] = useState(false);
   const [sheet, setSheet] = useState<Sheet | null>(null);
 
   const load = useCallback(async () => {
@@ -83,10 +78,9 @@ export default function ProviderPropertyScreen() {
       // Each space carries its own check state, publication state, amenities and
       // primary photo, so the screen never fetches every listing and every bed to
       // describe a card. The last two are what say where setup has got to.
-      const [prop, unitRows, buildingRows, progress, amenityState] = await Promise.all([
+      const [prop, unitRows, progress, amenityState] = await Promise.all([
         getProperty(propertyId),
         listUnits(propertyId),
-        listBuildings(propertyId),
         getVerification("property", propertyId),
         getPropertyAmenities(propertyId),
       ]);
@@ -94,7 +88,6 @@ export default function ProviderPropertyScreen() {
       setSale(prop.purpose === "sale" ? await getSellerSale(propertyId) : null);
       setProperty(prop);
       setUnits(prop.purpose === "sale" ? [] : unitRows);
-      setBuildings(buildingRows);
       setPhotos(progress);
       setAmenities(amenityState.chosen);
       setError("");
@@ -222,8 +215,6 @@ export default function ProviderPropertyScreen() {
                   <>
                     <View style={styles.factRule} />
                     <PropertyFact label="Units" value={units.length ? `${occupied}/${units.length} let` : "None yet"} />
-                    <View style={styles.factRule} />
-                    <PropertyFact label="Blocks" value={buildings.length ? String(buildings.length) : "One"} />
                   </>
                 )}
               </View>
@@ -256,7 +247,7 @@ export default function ProviderPropertyScreen() {
                   first
                   icon="document-text-outline"
                   label="Property information"
-                  detail={land ? "Address and landmark" : "Address, water, power and security"}
+                  detail={land ? "Address and landmark" : "Address, water, power and compound"}
                   onPress={() => setSheet("information")}
                 />
                 {land ? null : <LinkRow
@@ -264,12 +255,6 @@ export default function ProviderPropertyScreen() {
                   label="Shared amenities"
                   detail={amenities === null ? "Loading…" : amenities.length ? amenities.map((row) => row.name).join(" · ") : "None recorded"}
                   onPress={() => setSheet("amenities")}
-                />}
-                {selling ? null : <LinkRow
-                  icon="layers-outline"
-                  label="Buildings and blocks"
-                  detail={buildings.length ? buildings.map((row) => row.name).join(" · ") : "No separate blocks"}
-                  onPress={() => setSheet("buildings")}
                 />}
                 <LinkRow
                   icon="shield-checkmark-outline"
@@ -333,7 +318,7 @@ export default function ProviderPropertyScreen() {
 
       <BottomSheet
         visible={sheet !== null}
-        onClose={() => { setSheet(null); setAddingBuilding(false); }}
+        onClose={() => setSheet(null)}
         title={sheetTitle(sheet)}
         closeLabel="Close"
       >
@@ -346,10 +331,9 @@ export default function ProviderPropertyScreen() {
               {property.address.landmark ? <Fact wide label="Landmark" value={property.address.landmark} /> : null}
               {land ? null : (
                 <>
-                  <Fact label="Water" value={valueLabel(property.water_source)} />
-                  <Fact label="Power meter" value={valueLabel(property.power_meter_type)} />
-                  <Fact label="Compound" value={valueLabel(property.compound_type)} />
-                  <Fact label="Security" value={property.has_security ? "Recorded" : "Not recorded"} />
+                  <Fact label="Water" value={property.water_source_label} />
+                  <Fact label="Power meter" value={property.power_meter_label} />
+                  <Fact label="Compound" value={property.compound_label} />
                 </>
               )}
             </RecordPanel>
@@ -381,21 +365,6 @@ export default function ProviderPropertyScreen() {
                 onPress={() => { setSheet(null); router.push({ pathname: "/(app)/property-setup", params: { propertyId: property.id, step: "amenities" } }); }}
               />
             ) : null}
-          </View>
-        ) : sheet === "buildings" ? (
-          <View style={styles.sheetBody}>
-            <RecordPanel>
-              {buildings.length ? buildings.map((building, index) => (
-                <Fact key={building.id} first={index === 0} label={building.name} value={building.code || "No code"} />
-              )) : (
-                <Fact wide first label="No separate blocks" value="A block is a building within the Property, when it has more than one." />
-              )}
-            </RecordPanel>
-            {addingBuilding ? (
-              <BuildingForm property={property} onDone={async () => { setAddingBuilding(false); await load(); }} />
-            ) : (
-              <Button label="Add building or block" variant="secondary" onPress={() => setAddingBuilding(true)} />
-            )}
           </View>
         ) : sheet === "more" ? (
           <View style={styles.sheetBody}>
@@ -433,7 +402,6 @@ function PropertyFact({ label, value, wide = false }: { label: string; value: st
 function sheetTitle(sheet: Sheet | null) {
   if (sheet === "information") return "Property information";
   if (sheet === "amenities") return "Shared amenities";
-  if (sheet === "buildings") return "Buildings and blocks";
   if (sheet === "more") return "Verification details";
   if (sheet === "danger") return "Archive or delete";
   if (sheet === "sale") return "Price and description";
@@ -454,26 +422,6 @@ function propertyTypeLabel(value: string): string {
     land: "Land",
   };
   return labels[value] ?? valueLabel(value);
-}
-
-function BuildingForm({ property, onDone }: { property: Property; onDone: () => Promise<void> }) {
-  const [name, setName] = useState("");
-  const [code, setCode] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  return (
-    <View style={{ gap: space[3] }}>
-      <Field label="Building or block name" value={name} onChangeText={setName} />
-      <Field label="Code (optional)" value={code} onChangeText={setCode} />
-      {error ? <Notice tone="error" title={error} /> : null}
-      <Button label="Save building" busy={busy} disabled={!name.trim()} onPress={async () => {
-        setBusy(true); setError("");
-        try { await createBuilding(property.id, { name: name.trim(), code: code.trim() }); await onDone(); }
-        catch (cause) { setError(cause instanceof ApiFailure ? cause.error.message : "Could not save the building."); }
-        finally { setBusy(false); }
-      }} />
-    </View>
-  );
 }
 
 /** Shaped like the Property, so nothing jumps when it arrives. */

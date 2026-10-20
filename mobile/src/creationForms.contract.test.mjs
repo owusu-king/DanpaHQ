@@ -1,14 +1,16 @@
 /**
  * The forms that bring a Property and a Unit into being.
  *
- * These were the last screens written as plain stacks: a display heading, a
- * paragraph under it, a flat column of fields each carrying a sentence of hint,
- * and two to four full-width buttons at the end of the scroll. More words than
- * inputs, and no colour anywhere — which on this product reads as unfinished.
+ * Since 2026-10-20 both are one modal wizard each (owner: "in a modal, like
+ * agreement creation, but this time very simple and easy, concise, powerful"),
+ * the twins of the web wizards. The routes are kept and render them, so every
+ * link into creation still lands.
  *
- * What is pinned here is the shape a creation form takes: work grouped and
- * named, an example inside the box rather than in a line beneath it, and one
- * act pinned where a thumb is with anything quieter beside it.
+ * What is pinned here is the shape a creation step takes: a strip of steps that
+ * keep their glyphs and turn green when done, answers drawn as tiles rather
+ * than hidden in sheets or thrown about as chips, an example inside the box
+ * rather than in a line beneath it, and one act pinned where a thumb is with
+ * the way back quiet beside it.
  */
 
 import assert from "node:assert/strict";
@@ -17,127 +19,101 @@ import test from "node:test";
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 
-const FORMS = {
-  "property creation": "app/(app)/private-property.tsx",
-  "property setup": "app/(app)/property-setup.tsx",
-  "Unit creation": "app/(app)/space-new.tsx",
+const WIZARDS = {
+  property: "src/components/property/PropertyWizard.tsx",
+  unit: "src/components/property/UnitWizard.tsx",
 };
+const frame = () => read("src/components/creation/WizardFrame.tsx");
 
-test("a creation form groups its work and names each group", () => {
-  for (const [name, path] of Object.entries(FORMS)) {
-    const source = read(path);
-    assert.match(source, /<GroupLabel>/, `${name} is an ungrouped stack of fields`);
-    assert.doesNotMatch(source, /variant="display2"/, `${name} still shouts its heading`);
-    assert.doesNotMatch(source, /<Surface/, `${name} still uses the old card`);
+test("every way into creation opens the wizard, as a modal", () => {
+  assert.match(read("app/(app)/private-property.tsx"), /<PropertyWizard\b/);
+  assert.match(read("app/(app)/property-setup.tsx"), /<PropertyWizard\s+propertyId=\{propertyId\}/);
+  assert.match(read("app/(app)/space-new.tsx"), /<UnitWizard\b/);
+  const layout = read("app/(app)/_layout.tsx");
+  for (const name of ["private-property", "property-setup", "space-new"]) {
+    assert.match(
+      layout,
+      new RegExp(`name="${name}" options=\\{\\{[^}]*presentation: "modal", headerLeft: closeHeaderLeft`),
+      `${name} is not a modal`,
+    );
   }
-  // The two halves of an address-bearing record, said once each.
-  assert.match(read(FORMS["property creation"]), /<GroupLabel>What it is<\/GroupLabel>/);
-  assert.match(read(FORMS["property creation"]), /<GroupLabel>Where it is<\/GroupLabel>/);
-  // Short names for the Unit's two groups (owner, 2026-10-05: "what is being
-  // let here?" was unnecessary text).
-  assert.match(read(FORMS["Unit creation"]), /<GroupLabel>The Unit<\/GroupLabel>/);
-  assert.match(read(FORMS["Unit creation"]), /<GroupLabel>Finding it<\/GroupLabel>/);
+  for (const path of Object.values(WIZARDS)) {
+    assert.match(read(path), /<WizardFrame\b/);
+    assert.doesNotMatch(read(path), /variant="display2"/);
+    assert.doesNotMatch(read(path), /<Surface/);
+  }
+});
+
+test("a finished step keeps its glyph and turns green, never a bare tick", () => {
+  const source = frame();
+  assert.match(source, /<Ionicons\s+name=\{item\.icon\}/);
+  assert.match(source, /color=\{state === "done" \? PAPER : state === "current" \? KOLA_DEEP : MUTED\}/);
+  assert.match(source, /markDone: \{ borderColor: KOLA, backgroundColor: KOLA \}/);
+  // The strip is the way back to any step the record can hold.
+  assert.match(source, /disabled=\{!item\.reachable\}/);
+  assert.match(source, /onPress=\{\(\) => onGo\(item\.key\)\}/);
 });
 
 test("an example belongs in the box, not in a line beneath it", () => {
-  // Every field carried a `hint`, which is a second line of type under an
-  // empty box. Where the hint was an example it is now the placeholder.
-  for (const [name, path] of Object.entries(FORMS)) {
-    const source = read(path);
-    assert.doesNotMatch(source, /\bhint="/, `${name} still explains its fields underneath them`);
+  for (const path of Object.values(WIZARDS)) {
+    assert.doesNotMatch(read(path), /\bhint="/, `${path} still explains its fields underneath them`);
   }
-  assert.match(read(FORMS["property creation"]), /placeholder="Adom Heights"/);
-  assert.match(read(FORMS["property creation"]), /placeholder="GA-492-1234"/);
-  assert.match(read(FORMS["Unit creation"]), /placeholder="e\.g\. Flat A, Room 3"/);
-  // Counts are steppers now, so the floor reads "Ground" rather than asking for 0.
-  assert.match(read(FORMS["Unit creation"]), /value === 0 \? "Ground"/);
+  assert.match(read(WIZARDS.property), /"Adom Court"/);
+  assert.match(read(WIZARDS.property), /placeholder="GA-492-1234"/);
+  assert.match(read(WIZARDS.unit), /placeholder="e\.g\. Flat A, Room 3"/);
+  // Counts are steppers, so the floor reads "Ground" rather than asking for 0.
+  assert.match(read(WIZARDS.unit), /value === 0 \? "Ground"/);
 });
 
-test("one act is pinned where a thumb is, and the rest are quiet", () => {
-  for (const [name, path] of Object.entries(FORMS)) {
+test("one act is pinned where a thumb is, and the way back is quiet", () => {
+  assert.match(frame(), /<ActionBar>\{footer\}<\/ActionBar>/);
+  for (const path of Object.values(WIZARDS)) {
     const source = read(path);
-    const bars = (source.match(/<ActionBar>/g) ?? []).length;
-    const pills = (source.match(/<Pill\b/g) ?? []).length;
-    assert.ok(bars > 0, `${name} leaves its act at the end of a scroll`);
-    // One bar per act, so a step added later cannot quietly drop its own act
-    // loose into the scroll while the others stay pinned.
-    assert.equal(pills, bars, `${name} has ${pills} acts in ${bars} bars`);
-    // Stacked full-width buttons are what the bar replaced.
-    assert.doesNotMatch(source, /<Button\s+label=/, `${name} still stacks slabs`);
+    assert.match(source, /footer=\{/);
+    assert.match(source, /<QuietAct label="Back" icon="chevron-back"/);
+    assert.match(source, /<QuietAct label="Cancel"/);
+    assert.doesNotMatch(source, /<Button\s+label=/, `${path} still stacks slabs`);
   }
-  // Save-for-later and Back never compete with the act they sit beside.
-  assert.match(read(FORMS["Unit creation"]), /<QuietAct label="Save for later"/);
-  assert.match(read(FORMS["Unit creation"]), /<QuietAct label="Back" icon="chevron-back"/);
-  assert.match(read(FORMS["property setup"]), /<QuietAct\s+label="Save and finish later"/);
+  // A Documents step with nothing chosen says it skips, rather than "Save".
+  assert.match(read(WIZARDS.property), /"Skip for now"/);
 });
 
 test("two short answers share a line rather than taking one each", () => {
-  // Bedrooms and bathrooms share a line. Wing is gone (owner, 2026-10-05) and
-  // floor is asked alone, only where a floor means something.
-  const source = read(FORMS["Unit creation"]);
-  assert.match(source, /pair: \{\n    flexDirection: "row",/);
-  assert.equal((source.match(/<View style=\{styles\.pair\}>/g) ?? []).length, 1);
-  assert.doesNotMatch(source, /label="Wing"/);
+  const source = read(WIZARDS.unit);
+  assert.match(source, /counts: \{ flexDirection: "row", flexWrap: "wrap"/);
+  assert.equal((source.match(/<View style=\{styles\.counts\}>/g) ?? []).length, 1);
 });
 
-test("a set of answers is a field that opens, not chips thrown on the page", () => {
-  const select = read("src/components/form/Select.tsx");
-
-  // `Choice` wraps its options as chips, which is right for two short words
-  // and wrong for five uneven ones. A `Select` wears the same frame a `Field`
-  // does, so a form of questions looks like a form.
-  assert.match(select, /export function Select/);
-  assert.match(select, /<BottomSheet/);
-  assert.match(select, /accessibilityRole="radio"/);
-  assert.match(select, /aria-expanded=\{open\}/);
-  assert.match(select, /name="chevron-down"/);
-  // An option may say what it means underneath itself, which a chip cannot.
-  assert.match(select, /detail\?: string;/);
-
-  // Every question with more than a handful of answers now uses it.
-  assert.match(read(FORMS["property setup"]), /<Select label="Water"/);
-  assert.match(read(FORMS["property setup"]), /<Select label="Electricity"/);
-  assert.match(read(FORMS["property setup"]), /<Select label="Compound"/);
-  assert.match(read(FORMS["Unit creation"]), /<Select\n          label="Unit type"/);
-  assert.match(read("src/components/property/AuthorityClaim.tsx"), /<Select\n        label="Your relationship to this property"/);
-  for (const [name, path] of Object.entries(FORMS)) {
-    assert.doesNotMatch(read(path), /<Choice\b/, `${name} still throws chips across the page`);
+test("a set of answers is drawn, not hidden in a sheet or thrown about as chips", () => {
+  const property = read(WIZARDS.property);
+  for (const label of ["Water source", "Power meter", "Compound"]) {
+    assert.match(property, new RegExp(`<ChoiceTiles label="${label}"`));
   }
+  assert.match(property, /<ChoiceTiles\s+label="What kind\?"/);
+  assert.match(read(WIZARDS.unit), /<ChoiceTiles\s+label="What is being let\?"/);
+  // A chosen tile's glyph turns white on kola — never grey on green.
+  assert.match(frame(), /color=\{on \? PAPER : theme\.color\.ink\["700"\]\}/);
+  assert.match(frame(), /choiceMarkOn: \{ backgroundColor: KOLA \}/);
+  for (const path of Object.values(WIZARDS)) {
+    assert.doesNotMatch(read(path), /<Choice\b/, `${path} still throws chips across the page`);
+  }
+
+  // A long list that genuinely needs one still opens a Select.
+  const select = read("src/components/form/Select.tsx");
+  assert.match(select, /<BottomSheet/);
+  assert.match(select, /aria-expanded=\{open\}/);
+  assert.match(read("src/components/property/AuthorityClaim.tsx"), /<Select\n        label="Your relationship to this property"/);
 });
 
-test("the journey is the way back to a step already done", () => {
-  const journey = read("src/components/creation/CheckpointJourney.tsx");
-
-  // It was a picture of where you are. The only way to a finished step was to
-  // leave the flow and come back into it.
-  assert.match(journey, /onGoTo\?: \(key: string\) => void;/);
-  assert.match(journey, /const interactive = Boolean\(onGoTo\);/);
-  assert.match(journey, /checkpoint\.state !== "current" && \(skipAhead \|\| checkpoint\.state !== "upcoming"\)/);
-  // A progressbar that collapses its children cannot hold buttons.
-  assert.match(journey, /accessible=\{!interactive\}/);
-  assert.match(journey, /accessibilityElementsHidden=\{!interactive\}/);
-  assert.match(journey, /`Go to \$\{checkpoint\.label\}`/);
-
-  // The word under a checkpoint is not the glyph inside its disc. A completed
-  // one fills with kola and draws a white tick on it; the same white on the
-  // ivory page left the label unreadable — a button nobody could see.
-  assert.match(journey, /color: palette\.label,/);
-  assert.match(journey, /label: theme\.color\.kola\["800"\],/);
-  assert.doesNotMatch(journey, /color: checkpoint\.state === "current" \? theme\.color\.ink\["900"\] : palette\.ink,/);
-
-  // Property setup may be done in any order, so it can jump ahead; Unit
-  // creation cannot, because each step writes to the record before it made.
-  assert.match(read("src/components/property/SetupSteps.tsx"), /onGoTo=\{onGoTo\}\n      skipAhead/);
-  // `shown`, not `step`: a step this property lacks (details, for land on sale)
-  // falls back rather than drawing its form.
-  assert.match(read(FORMS["property setup"]), /<SetupProgress steps=\{steps\} current=\{shown\} onGoTo=/);
-  assert.match(read(FORMS["Unit creation"]), /onGoTo=\{\(key\) => \{/);
-  assert.doesNotMatch(read(FORMS["Unit creation"]), /skipAhead/);
+test("amenities are one compact grid, each with its own glyph", () => {
+  const source = read("src/components/property/SpaceAmenities.tsx");
+  assert.match(source, /name=\{amenityGlyph\(option\.name, option\.category\)\}/);
+  assert.match(source, /width: "31\.5%"/);
+  assert.doesNotMatch(source, /<Chip\b/);
+  assert.doesNotMatch(source, /category\.toUpperCase\(\)/, "a heading over each pair is what it replaced");
 });
 
 test("every act in the creation flow is drawn the same way", () => {
-  // These four were missed when the pages around them were done, so a step
-  // could open onto a designed form and a stale grey button under it.
   for (const path of [
     "src/components/property/AuthorityClaim.tsx",
     "src/components/property/SpaceAmenities.tsx",
@@ -146,6 +122,8 @@ test("every act in the creation flow is drawn the same way", () => {
   ]) {
     assert.doesNotMatch(read(path), /<Button\b/, `${path} still uses the old button`);
   }
+  // Used on their own they keep their pinned act; inside the wizard the
+  // wizard's one button runs them instead.
   for (const path of [
     "src/components/property/AuthorityClaim.tsx",
     "src/components/property/SpaceAmenities.tsx",
@@ -153,29 +131,18 @@ test("every act in the creation flow is drawn the same way", () => {
   ]) {
     assert.match(read(path), /<ActionBar>/, `${path} has no pinned act`);
   }
+  assert.match(read("src/components/property/SpaceAmenities.tsx"), /\{submitRef \? null : \(\s*<ActionBar>/);
 
-  // A photo slot's controls belong to the slot. One bar per photograph would
-  // be a page of things all asking to be pressed, so they are words instead.
   const photos = read("src/components/property/SpacePhotos.tsx");
   assert.doesNotMatch(photos, /<ActionBar>/, "a slot must not pin its own bar");
   assert.match(photos, /<QuietAct\n                  label="Make it first"/);
-  assert.match(photos, /<Pill\n                label="Add photo"/);
-
-  // And a step whose sub-panel already carries the act does not add a second
-  // bar under it: moving on from Documents is a quiet word.
-  const setup = read(FORMS["property setup"]);
-  assert.match(setup, /<QuietAct label="Continue" icon="arrow-forward" onPress=\{onDone\} \/>/);
-  // The document is a thing you attach, so it reads as a row that holds one.
   const claim = read("src/components/property/AuthorityClaim.tsx");
   assert.match(claim, /label=\{document \? \(document\.fileName \|\| "Document attached"\) : "Attach the document"\}/);
-  assert.match(claim, /icon=\{document \? "checkmark-circle" : "document-attach-outline"\}/);
 });
 
 test("choosing where a Property is reads as a list of places", () => {
-  // The suggestions were bare bordered rows under the field, indistinguishable
-  // from the next input. They are a panel, and the chosen one is marked.
-  const source = read(FORMS["property creation"]);
-  assert.match(source, /<RecordPanel>\s*\{placeSuggestions\.map/);
+  const source = read(WIZARDS.property);
+  assert.match(source, /<View style=\{styles\.places\}>\s*\{suggestions\.map/);
   assert.match(source, /name="location-outline"/);
-  assert.match(source, /suffix=\{selectedPlace \? <Ionicons name="checkmark-circle"/);
+  assert.match(source, /suffix=\{place \? <Ionicons name="checkmark-circle"/);
 });

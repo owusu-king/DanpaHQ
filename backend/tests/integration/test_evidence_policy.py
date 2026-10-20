@@ -163,25 +163,17 @@ class TestSpaceRequirementsVaryWithTheSpace:
 
 
 class TestPropertyRequirements:
-    def test_every_property_shows_three_named_views(self, landlord):
-        """Front, side and surroundings, each asked for by name.
+    def test_a_property_is_asked_for_two_named_views(self, landlord):
+        """The front and the wider area — the only two ever required.
 
-        "Photos of the outside" is how a property gets verified from one
-        flattering angle: a reviewer cannot tell whether three files are three
-        sides or the same wall three times, and a provider cannot tell what is
-        still outstanding.
+        Owner, 2026-10-20: everything else a property shows comes from what the
+        provider said the compound has, so nothing is asked of a compound with
+        nothing to show.
         """
         slots = evidence_policy.property_requirements(_property(landlord))
-        keys = _keys(slots)
 
-        assert "property.front" in keys
-        assert "property.side" in keys
-        assert "property.surroundings" in keys
-        assert all(
-            slot.required
-            for slot in slots
-            if slot.key in {"property.front", "property.side", "property.surroundings"}
-        )
+        assert _keys(slots) == ["property.front", "property.surroundings"]
+        assert all(slot.required for slot in slots)
 
     def test_evidence_gathered_before_the_slots_were_named_still_counts(self, landlord):
         """An `exterior` photo already on file satisfies the front view.
@@ -195,41 +187,33 @@ class TestPropertyRequirements:
         assert "exterior" in front.accepts
         assert evidence_policy.missing_required(["exterior"], [front]) == []
 
-    def test_a_compound_is_asked_for_only_when_declared(self, landlord):
-        plain = _property(landlord, compound_type="self_compound")
-        shared = _property(landlord, compound_type="family_compound")
+    def test_each_shared_amenity_offers_one_optional_view(self, landlord):
+        from apps.property.models import Amenity, PropertyAmenity
 
-        assert "property.compound" not in _keys(evidence_policy.property_requirements(plain))
-        assert "property.compound" in _keys(evidence_policy.property_requirements(shared))
+        prop = _property(landlord, water_source="borehole_pump", compound_type="walled_gated")
+        pool = Amenity.objects.create(name="Pool (test)", category="recreation", scope="property")
+        gone = Amenity.objects.create(
+            name="Retired (test)", category="other", scope="property", is_active=False
+        )
+        PropertyAmenity.objects.create(property=prop, amenity=pool)
+        PropertyAmenity.objects.create(property=prop, amenity=gone)
 
-    def test_utility_evidence_follows_the_declared_arrangement(self, landlord):
-        borehole = _property(landlord, water_source="borehole", power_meter_type="prepaid")
+        slots = {slot.key: slot for slot in evidence_policy.property_requirements(prop)}
 
-        keys = _keys(evidence_policy.property_requirements(borehole))
+        assert set(slots) == {"property.front", "property.surroundings", f"amenity.{pool.id}"}
+        assert slots[f"amenity.{pool.id}"].required is False
+        assert slots[f"amenity.{pool.id}"].label == "Pool (test)"
 
-        assert "property.water" in keys
-        assert "property.power" in keys
+    def test_the_details_no_longer_add_photographs(self, landlord):
+        """Water, power and the compound are answered in words, not views."""
+        prop = _property(
+            landlord, water_source="well", power_meter_type="prepaid", compound_type="open"
+        )
 
-    def test_water_must_be_shown_when_the_arrangement_is_a_question(self, landlord):
-        """Reversed deliberately: water now blocks, and power still does not.
-
-        These were both optional on the reasoning that they inform a tenant
-        rather than deciding whether a review can start. Water does not fit that
-        — a borehole, sachet delivery or no fixed source is a daily fact of
-        living somewhere, and finding out which after moving in is finding out
-        too late. A property on estate mains is never asked at all.
-        """
-        slots = {
-            slot.key: slot
-            for slot in evidence_policy.property_requirements(
-                _property(landlord, water_source="borehole", power_meter_type="prepaid")
-            )
-        }
-
-        assert slots["property.water"].required is True
-        # The meter still informs rather than blocks: who pays for what is
-        # settled in the agreement, not by a photograph.
-        assert slots["property.power"].required is False
+        assert _keys(evidence_policy.property_requirements(prop)) == [
+            "property.front",
+            "property.surroundings",
+        ]
 
 
 class TestAuthority:
@@ -262,16 +246,12 @@ class TestMissingRequired:
         ]
         assert evidence_policy.missing_required(["interior_overview"], slots) == []
 
-    def test_a_property_still_counts_its_three_views_separately(self, landlord):
-        """The property review is unchanged. Only the space one was reduced."""
+    def test_a_property_counts_its_two_views_separately(self, landlord):
         slots = evidence_policy.property_requirements(_property(landlord))
 
         outstanding = evidence_policy.missing_required(["property_front"], slots)
 
-        assert {slot.key for slot in outstanding} == {
-            "property.side",
-            "property.surroundings",
-        }
+        assert {slot.key for slot in outstanding} == {"property.surroundings"}
 
     def test_optional_slots_are_never_missing(self, landlord):
         unit = _unit(_property(landlord), space_type="shop")

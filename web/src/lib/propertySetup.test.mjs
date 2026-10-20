@@ -31,7 +31,9 @@ test("a new property has everything to do", () => {
 
   assert.deepEqual(
     steps.map((step) => step.key),
-    ["basics", "details", "documents", "photos", "amenities", "review"],
+    // Amenities before Photos (owner, 2026-10-20): each shared amenity offers
+    // a photograph of itself, so the album follows what the compound has.
+    ["basics", "details", "documents", "amenities", "photos", "review"],
   );
   // Except the first, which is done the moment the record exists — you cannot
   // have a property without a name, a kind and an address.
@@ -186,8 +188,15 @@ test("resuming lands on the first thing outstanding", () => {
         documentState: "submitted",
       }),
     ),
-    "photos",
+    "amenities",
   );
+});
+
+test("the compound is the third fact, and \"not stated\" is not an answer", () => {
+  const answered = { ...fresh, waterSource: "gwl_mains", powerMeterType: "prepaid" };
+
+  assert.equal(byKey(describePropertySetup({ ...answered, compoundType: "unknown" })).details.status, "todo");
+  assert.equal(byKey(describePropertySetup({ ...answered, compoundType: "fenced" })).details.status, "done");
 });
 
 test("nothing is lost between visits, because nothing is held here", () => {
@@ -210,7 +219,7 @@ test("a property for sale adds its sale details and land skips what it does not 
   const house = describePropertySetup({ ...fresh, purpose: "sale", propertyType: "residential", saleMissing: 3 });
   assert.deepEqual(
     house.map((step) => step.key),
-    ["basics", "details", "sale", "documents", "photos", "amenities", "review"],
+    ["basics", "details", "sale", "documents", "amenities", "photos", "review"],
   );
   assert.equal(byKey(house).sale.status, "todo");
   assert.equal(byKey(house).sale.detail, "3 still needed");

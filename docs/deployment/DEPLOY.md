@@ -1,5 +1,10 @@
 # Deploy Danpa HQ
 
+This is the **mechanical deployment procedure**, not a go-live certificate.
+Before opening a release to real users, complete the
+[release-readiness sign-off](RELEASE_READINESS.md) for the exact commit being
+deployed. The current decision there is **NO-GO** for unrestricted users.
+
 | Part | Host | How it deploys |
 |---|---|---|
 | Web — `app.oskec.com` | Cloudflare Pages | Automatically on push to `main` |

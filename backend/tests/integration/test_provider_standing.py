@@ -456,8 +456,8 @@ class TestPropertyCreationNeedsApproval:
         assert "reviewed" in response.data["error"]["message"]
 
 
-class TestBuildingsAndUnitsArePropertyScoped:
-    """Buildings and units exist only inside a property someone owns."""
+class TestUnitsArePropertyScoped:
+    """Units exist only inside a property someone owns, with nothing in between."""
 
     def _approved_property(self, registered, storage, staff, address, phone):
         from apps.organization import services as organization_services
@@ -480,12 +480,11 @@ class TestBuildingsAndUnitsArePropertyScoped:
         )
         return owner, prop
 
-    def test_the_owner_may_add_a_building_and_a_unit(self, registered, storage, staff, address):
+    def test_the_owner_may_add_a_unit(self, registered, storage, staff, address):
         from apps.property import services as property_services
 
         owner, prop = self._approved_property(registered, storage, staff, address, "0206661004")
 
-        building = property_services.add_building(prop=prop, user=owner, data={"name": "Block A"})
         unit = property_services.add_unit(
             prop=prop,
             user=owner,
@@ -493,13 +492,18 @@ class TestBuildingsAndUnitsArePropertyScoped:
                 "label": "A1",
                 "space_type": "apartment",
                 "bedrooms": 1,
-                "building_id": str(building.id),
+                "description": "  Bright corner flat.  ",
+                "wing": "Block A",
+                "entrance_note": "Blue door, top of the stairs",
             },
         )
 
-        assert building.property_id == prop.id
         assert unit.property_id == prop.id
-        assert str(unit.building_id) == str(building.id)
+        # What the form said is what the Unit keeps — creation used to drop it.
+        unit.refresh_from_db()
+        assert unit.description == "Bright corner flat."
+        assert unit.wing == "Block A"
+        assert unit.entrance_note == "Blue door, top of the stairs"
 
     def test_a_stranger_cannot_build_on_someone_else_s_property(
         self, registered, storage, staff, address
@@ -510,39 +514,21 @@ class TestBuildingsAndUnitsArePropertyScoped:
         stranger = registered("0206661006", account_type="provider")
 
         with pytest.raises(PermissionDenied):
-            property_services.add_building(prop=prop, user=stranger, data={"name": "Not Yours"})
-        with pytest.raises(PermissionDenied):
             property_services.add_unit(
                 prop=prop,
                 user=stranger,
                 data={"label": "Nope", "space_type": "apartment", "bedrooms": 1},
             )
 
-    def test_a_unit_cannot_borrow_a_building_from_another_property(
-        self, registered, storage, staff, address
-    ):
-        """The hierarchy holds: a unit's building must be in its own property."""
-        from apps.core.exceptions import ValidationFailed
-        from apps.property import services as property_services
+    def test_there_is_no_building_level_left(self, registered, storage, staff, address):
+        """Blocks were removed (owner, 2026-10-20): no endpoint, no column."""
+        from rest_framework.test import APIClient
 
-        owner_a, property_a = self._approved_property(
-            registered, storage, staff, address, "0206661007"
-        )
-        _, property_b = self._approved_property(registered, storage, staff, address, "0206661008")
-        foreign = property_services.add_building(
-            prop=property_b,
-            user=property_b.created_by,
-            data={"name": "Elsewhere"},
-        )
+        from apps.property.models import Unit
 
-        with pytest.raises(ValidationFailed, match="active building in this property"):
-            property_services.add_unit(
-                prop=property_a,
-                user=owner_a,
-                data={
-                    "label": "X1",
-                    "space_type": "apartment",
-                    "bedrooms": 1,
-                    "building_id": str(foreign.id),
-                },
-            )
+        owner, prop = self._approved_property(registered, storage, staff, address, "0206661007")
+        client = APIClient()
+        client.force_authenticate(user=owner)
+
+        assert client.get(f"/api/v1/properties/{prop.id}/buildings/").status_code == 404
+        assert "building" not in {field.name for field in Unit._meta.get_fields()}

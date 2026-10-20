@@ -61,15 +61,13 @@ def address(db):
 def live_listing(landlord, address):
     """A published listing, the way Phase 2 makes one."""
     from apps.listing.models import Listing, ListingStatus
-    from apps.property.models import Building, Property, Unit
+    from apps.property.models import Property, Unit
 
     prop = Property.objects.create(
         owner=landlord, address=address, title="Osu block", property_type="apartment"
     )
-    building = Building.objects.create(property=prop, name="Annex")
     unit = Unit.objects.create(
         property=prop,
-        building=building,
         label="Flat A",
         bedrooms=1,
         bathrooms=1,
@@ -767,7 +765,6 @@ class TestApi:
             "latitude": "5.556020",
             "longitude": "-0.182740",
             "entrance_note": "Use the blue gate beside the pharmacy.",
-            "building": "Annex",
             "wing": "East wing",
         }
 

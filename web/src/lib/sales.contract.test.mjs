@@ -30,12 +30,14 @@ test("a sale takes no Units", () => {
 });
 
 test("the setup journey walks the steps this property has, not a fixed list", () => {
-  const setup = code(read("web/app/record/property-setup/page.tsx"));
-  assert.match(setup, /const keys = steps\.map\(\(row\) => row\.key\);/);
-  assert.match(setup, /<StepFooter\s+steps=\{keys\}/);
-  // Every hand-off goes through `after`, so land skips details and amenities.
-  assert.doesNotMatch(setup, /setStep\("(documents|photos|amenities)"\)/);
+  const setup = code(read("web/src/components/property/PropertyWizard.tsx"));
+  assert.match(setup, /const keys = setup\.map\(\(row\) => row\.key as StepKey\);/);
+  // Moving on reads the property's own steps, so land skips details and amenities.
+  assert.match(setup, /const next = keys\[at \+ 1\];/);
+  assert.doesNotMatch(setup, /go\("(documents|photos|amenities)"\)/);
   assert.match(setup, /toSetupInput\([\s\S]*?sale \? sale\.missing\.length : null,/);
+  // Before the record exists the outline already follows the chosen purpose and kind.
+  assert.match(setup, /purpose: draftPurpose,\s*propertyType: draftType,/);
 });
 
 test("a sale's title and land's site plan go up typed, beside the relationship document", () => {

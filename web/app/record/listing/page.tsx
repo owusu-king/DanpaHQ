@@ -154,12 +154,10 @@ export default function PublicListingPage() {
     Boolean(name) && all.findIndex((other) => other?.toLowerCase() === name!.toLowerCase()) === index,
   );
 
-  const security = place.features.has_security ? "On site" : place.features.is_gated ? "Gated" : "None stated";
   const utilities: Array<{ kind: string; icon: IconName; label: string; value: string; quiet?: boolean }> = [
     { kind: "water", icon: "water", label: "Water", value: place.features.water_source_label },
     { kind: "power", icon: "power", label: "Power", value: place.features.power_meter_label },
     { kind: "compound", icon: "home", label: "Compound", value: place.features.compound_label },
-    { kind: "security", icon: "shield", label: "Security", value: security, quiet: security === "None stated" },
   ];
 
   // What it costs to move in, line by line. The backend's total is the sum of

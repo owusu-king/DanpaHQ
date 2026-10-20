@@ -13,7 +13,7 @@
  * hidden, so the seller can see what was checked.
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { Button } from "@/components/Button";
 import { CheckChip } from "@/components/Check";
@@ -36,11 +36,16 @@ export function SaleDetailsForm({
   sale,
   onSaved,
   saveLabel = "Save sale details",
+  submitRef,
 }: {
   propertyId: string;
   sale: SellerSale;
   onSaved: (next: SellerSale) => Promise<void> | void;
   saveLabel?: string;
+  /** Filled with this form's save, so a wizard's one footer button can run it.
+   *  Resolves with the saved sale, or null when it did not save. Hides the
+   *  form's own button. */
+  submitRef?: { current: (() => Promise<SellerSale | null>) | null };
 }) {
   const open = new Set(sale.editable_fields);
   const locked = (field: string) => !open.has(field);
@@ -65,7 +70,7 @@ export function SaleDetailsForm({
 
   const nothingOpen = open.size === 0;
 
-  async function save() {
+  async function save(): Promise<SellerSale | null> {
     setBusy(true);
     setError("");
     const input: SaleInput = {};
@@ -74,7 +79,7 @@ export function SaleDetailsForm({
       if (!Number.isFinite(cedis) || cedis <= 0) {
         setError("Give the asking price as a number of cedis.");
         setBusy(false);
-        return;
+        return null;
       }
       input.price_minor = Math.round(cedis * 100);
     }
@@ -101,16 +106,23 @@ export function SaleDetailsForm({
     try {
       const next = await updateSale(propertyId, input);
       await onSaved(next);
+      return next;
     } catch (cause) {
       setError(
         cause instanceof ApiFailure
           ? cause.error.message
           : "Could not save: check your connection and try again.",
       );
+      return null;
     } finally {
       setBusy(false);
     }
   }
+
+  // Written in an effect, never during render, so the ref holds the latest save.
+  useEffect(() => {
+    if (submitRef) submitRef.current = save;
+  });
 
   return (
     <div className="sale-form">
@@ -283,9 +295,9 @@ export function SaleDetailsForm({
 
       {error ? <Notice tone="error" title={error} /> : null}
 
-      {nothingOpen ? null : (
+      {nothingOpen || submitRef ? null : (
         <div>
-          <Button onClick={save} busy={busy} busyLabel="Saving…">
+          <Button onClick={() => void save()} busy={busy} busyLabel="Saving…">
             {saveLabel}
           </Button>
         </div>

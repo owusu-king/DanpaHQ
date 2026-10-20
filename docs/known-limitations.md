@@ -321,7 +321,7 @@ while the full backlog is reduced. Runtime tests are not a substitute.
 
 There is no `.github/workflows/ci.yml` in this repository. Previous statements
 about a running workflow were incorrect. Local checks on 19 October 2026
-covered 1,733 backend tests, 444 web tests, 342 mobile tests, backend Ruff,
+covered 1,734 backend tests, 444 web tests, 342 mobile tests, backend Ruff,
 web typecheck/lint/build and mobile typecheck. Mobile lint exited successfully
 but emitted 230 warnings. The backend mypy backlog below remains. The full
 command/evidence matrix and external gates are in

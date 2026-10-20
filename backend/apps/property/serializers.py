@@ -3,7 +3,6 @@ from rest_framework import serializers
 from .models import (
     Amenity,
     Bed,
-    Building,
     Property,
     PropertyAmenity,
     PropertyMedia,
@@ -254,7 +253,6 @@ class UnitSerializer(serializers.ModelSerializer):
             "id",
             "property_id",
             "property_title",
-            "building_id",
             "label",
             "space_type",
             "space_type_label",
@@ -437,7 +435,6 @@ class UpdateUnitSerializer(serializers.Serializer):
 
     label = serializers.CharField(max_length=40, required=False, allow_blank=True)
     description = serializers.CharField(max_length=1500, required=False, allow_blank=True)
-    building_id = serializers.UUIDField(required=False, allow_null=True)
     bedrooms = serializers.IntegerField(min_value=0, max_value=20, required=False)
     bathrooms = serializers.IntegerField(min_value=0, max_value=10, required=False)
     floor_area_sqm = serializers.DecimalField(
@@ -529,7 +526,6 @@ class PropertyListSerializer(serializers.ListSerializer):
 class PropertySerializer(serializers.ModelSerializer):
     owner_display = serializers.SerializerMethodField()
     unit_count = serializers.SerializerMethodField()
-    building_count = serializers.SerializerMethodField()
     bed_count = serializers.SerializerMethodField()
     occupied_unit_count = serializers.SerializerMethodField()
     vacant_unit_count = serializers.SerializerMethodField()
@@ -559,6 +555,10 @@ class PropertySerializer(serializers.ModelSerializer):
     cover_url = serializers.SerializerMethodField()
     #: For a property for sale, where its sale stands; `None` for letting.
     sale = serializers.SerializerMethodField()
+    #: The three facts in words, so no client keeps its own copy of the labels.
+    water_source_label = serializers.CharField(source="get_water_source_display", read_only=True)
+    power_meter_label = serializers.CharField(source="get_power_meter_type_display", read_only=True)
+    compound_label = serializers.CharField(source="get_compound_type_display", read_only=True)
 
     class Meta:
         model = Property
@@ -574,16 +574,16 @@ class PropertySerializer(serializers.ModelSerializer):
             "created_by",
             "address",
             "water_source",
+            "water_source_label",
             "power_meter_type",
+            "power_meter_label",
             "compound_type",
-            "has_security",
-            "is_gated",
+            "compound_label",
             "notes",
             "amenities_confirmed_at",
             "amenities",
             "cover_url",
             "unit_count",
-            "building_count",
             "bed_count",
             "occupied_unit_count",
             "vacant_unit_count",
@@ -728,12 +728,6 @@ class PropertySerializer(serializers.ModelSerializer):
         if prepared is not None:
             return prepared
         return obj.units.filter(is_active=True).count()
-
-    def get_building_count(self, obj) -> int:
-        prepared = getattr(obj, "_property_list_building_count", None)
-        if prepared is not None:
-            return prepared
-        return obj.buildings.filter(is_active=True).count()
 
     def get_bed_count(self, obj) -> int:
         if obj.property_type != PropertyType.HOSTEL:
@@ -897,13 +891,6 @@ class ProviderEvidenceSerializer(serializers.Serializer):
     evidence_types = serializers.DictField(
         child=serializers.CharField(max_length=40), required=False, default=dict
     )
-
-
-class BuildingSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Building
-        fields = ["id", "property_id", "name", "code", "sort_order", "is_active", "created_at"]
-        read_only_fields = ["id", "property_id", "created_at"]
 
 
 class BedSerializer(serializers.ModelSerializer):

@@ -206,9 +206,7 @@ export default function ViewingScreen() {
                   {directions.digital_address ? (
                     <Fact label="GhanaPost GPS" value={directions.digital_address} />
                   ) : null}
-                  {[directions.building, directions.wing].filter(Boolean).length ? (
-                    <Fact label="Building" value={[directions.building, directions.wing].filter(Boolean).join(" · ")} />
-                  ) : null}
+                  {directions.wing ? <Fact label="Block or wing" value={directions.wing} /> : null}
                   {directions.entrance_note ? <Fact wide label="Entrance" value={directions.entrance_note} /> : null}
                   {directions.latitude && directions.longitude ? (
                     <LinkRow

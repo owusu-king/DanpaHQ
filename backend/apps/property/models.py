@@ -16,12 +16,17 @@ entangled with what they are currently renting out, and a tenant who found a
 property through one listing can find its record even after the listing closes.
 
 Ghana-specific fields that earn their place here (not on a global template):
-* ``water_source`` — borehole, estate supply, dam/tanker delivery, sachet.
-  Matters to a tenant's monthly cost and planning.
+* ``water_source`` — a borehole with a pump to a polytank, GWL mains straight to
+  the tap, a hand-dug well, or none. Matters to a tenant's monthly cost and
+  planning.
 * ``power_meter_type`` — prepaid vs postpaid changes the household economics
-  materially; some compounds share one meter across multiple units.
-* ``compound_type`` — a self-compound (the building stands alone) versus a
-  family compound versus an estate matters for privacy and for context.
+  materially.
+* ``compound_type`` — walled and gated, fenced without a gate, or open. Says
+  how the grounds are closed off, which is the security question a tenant asks.
+
+A property is the address and the Units inside it; there is no level between
+the two. Blocks were tried as a `Building` row and removed (owner,
+2026-10-20): a Unit's `wing` already names the block where one is named.
 * ``advance_months`` — up to two-year advance is common and is the most
   consequential constraint on whether a tenant can actually rent at all.
 """
@@ -84,28 +89,32 @@ LETTING_TYPES = frozenset({PropertyType.RESIDENTIAL, PropertyType.COMMERCIAL, Pr
 SALE_TYPES = frozenset({PropertyType.RESIDENTIAL, PropertyType.COMMERCIAL, PropertyType.LAND})
 
 
+#: The value every one of the three facts below starts at: not answered yet.
+#: Stored, never offered — `UNANSWERED_FACT` is filtered out of the vocabulary,
+#: so a provider picks a real answer and setup can tell "not yet" from one.
+UNANSWERED_FACT = "unknown"
+
+
 class WaterSource(models.TextChoices):
-    ESTATE = "estate", "Estate / pipe-borne"
-    BOREHOLE = "borehole", "Borehole"
-    SACHET = "sachet", "Sachet / tanker"
-    NONE = "none", "No fixed water source"
-    UNKNOWN = "unknown", "Not known"
+    BOREHOLE_PUMP = "borehole_pump", "Borehole with automated pump (Polytank)"
+    GWL_MAINS = "gwl_mains", "GWL mains only (direct to tap)"
+    WELL = "well", "Hand-dug well / manual well"
+    NONE = "none", "No water source"
+    UNKNOWN = UNANSWERED_FACT, "Not stated"
 
 
 class PowerMeterType(models.TextChoices):
     PREPAID = "prepaid", "Prepaid (credit meter)"
     POSTPAID = "postpaid", "Postpaid (ECG bill)"
-    SHARED = "shared", "Shared compound meter"
-    GENERATOR = "generator", "Generator only"
     NONE = "none", "No electricity"
-    UNKNOWN = "unknown", "Not known"
+    UNKNOWN = UNANSWERED_FACT, "Not stated"
 
 
 class CompoundType(models.TextChoices):
-    SELF = "self_compound", "Self-compound"
-    FAMILY = "family_compound", "Family compound"
-    ESTATE = "estate", "Estate / gated community"
-    MIXED = "mixed_use", "Mixed use"
+    WALLED_GATED = "walled_gated", "Walled and gated"
+    FENCED = "fenced", "Fenced (no gate)"
+    OPEN = "open", "Open compound"
+    UNKNOWN = UNANSWERED_FACT, "Not stated"
 
 
 class RentableSpaceType(models.TextChoices):
@@ -200,10 +209,8 @@ class Property(SoftDeleteModel):
         max_length=16, choices=PowerMeterType.choices, default=PowerMeterType.UNKNOWN
     )
     compound_type = models.CharField(
-        max_length=20, choices=CompoundType.choices, default=CompoundType.SELF
+        max_length=20, choices=CompoundType.choices, default=CompoundType.UNKNOWN
     )
-    has_security = models.BooleanField(default=False)
-    is_gated = models.BooleanField(default=False)
 
     notes = models.TextField(blank=True, max_length=1000)
     amenities_confirmed_at = models.DateTimeField(
@@ -408,13 +415,6 @@ class Unit(BaseModel):
     """
 
     property = models.ForeignKey(Property, on_delete=models.CASCADE, related_name="units")
-    building = models.ForeignKey(
-        "property.Building",
-        null=True,
-        blank=True,
-        on_delete=models.SET_NULL,
-        related_name="units",
-    )
 
     label = models.CharField(
         max_length=40,
@@ -488,7 +488,7 @@ class Unit(BaseModel):
     wing = models.CharField(
         max_length=40,
         blank=True,
-        help_text="Wing or side of the building, where one is named. Blocks are `building`.",
+        help_text="Wing, block or side of the building, where one is named.",
     )
     entrance_note = models.CharField(
         max_length=200,
@@ -515,28 +515,6 @@ class Unit(BaseModel):
     def __str__(self) -> str:
         label = self.label or f"Unit {self.id}"
         return f"{label} at {self.property}"
-
-
-class Building(BaseModel):
-    """Optional physical subdivision: block, tower, house or hostel building."""
-
-    property = models.ForeignKey(Property, on_delete=models.CASCADE, related_name="buildings")
-    name = models.CharField(max_length=80)
-    code = models.CharField(max_length=24, blank=True)
-    sort_order = models.PositiveSmallIntegerField(default=0)
-    is_active = models.BooleanField(default=True)
-
-    class Meta:
-        db_table = "property_building"
-        ordering = ("property", "sort_order", "name")
-        constraints = [
-            models.UniqueConstraint(
-                fields=["property", "name"], name="property_unique_building_name"
-            )
-        ]
-
-    def __str__(self) -> str:
-        return f"{self.name} at {self.property}"
 
 
 class Bed(BaseModel):

@@ -28,7 +28,6 @@ export type ViewingDirections = {
   latitude: string | null;
   longitude: string | null;
   entrance_note: string;
-  building: string;
   wing: string;
 };
 

@@ -109,15 +109,14 @@ class TestTheVocabularyTheFormNeeds:
         assert response.status_code == 200
         assert {"water_sources", "power_meter_types", "compound_types"} <= set(response.data)
 
-    def test_every_value_the_policy_reads_is_offered(self, api):
-        """The two that decide extra photographs must both be reachable."""
+    def test_the_owner_s_answers_are_offered_and_nothing_else(self, api):
+        """Owner, 2026-10-20: exactly these answers, and never "not stated"."""
         data = api.get("/api/v1/property-types/").data
-        water = {row["value"] for row in data["water_sources"]}
-        compound = {row["value"] for row in data["compound_types"]}
+        values = {key: [row["value"] for row in data[key]] for key in data if key.endswith("s")}
 
-        # `evidence_policy.property_requirements` adds a slot for each of these.
-        assert {"borehole", "sachet", "none"} <= water
-        assert {"family_compound", "estate", "mixed_use"} <= compound
+        assert values["water_sources"] == ["borehole_pump", "gwl_mains", "well", "none"]
+        assert values["power_meter_types"] == ["prepaid", "postpaid", "none"]
+        assert values["compound_types"] == ["walled_gated", "fenced", "open"]
 
     def test_each_option_carries_a_label(self, api):
         data = api.get("/api/v1/property-types/").data
@@ -139,11 +138,9 @@ class TestDescribingTheProperty:
         saved = api.patch(
             f"/api/v1/properties/{draft.id}/",
             {
-                "water_source": "borehole",
+                "water_source": "borehole_pump",
                 "power_meter_type": "prepaid",
-                "compound_type": "family_compound",
-                "has_security": True,
-                "is_gated": True,
+                "compound_type": "walled_gated",
             },
             format="json",
         )
@@ -151,31 +148,33 @@ class TestDescribingTheProperty:
 
         # Read back on a fresh request — which is all "come back later" is.
         again = api.get(f"/api/v1/properties/{draft.id}/").data
-        assert again["water_source"] == "borehole"
+        assert again["water_source"] == "borehole_pump"
         assert again["power_meter_type"] == "prepaid"
-        assert again["compound_type"] == "family_compound"
-        assert again["has_security"] is True
+        assert again["compound_type"] == "walled_gated"
+        # Said in words by the server, so no client keeps a copy of the labels.
+        assert again["water_source_label"] == "Borehole with automated pump (Polytank)"
+        assert again["compound_label"] == "Walled and gated"
+        assert "has_security" not in again
 
-    def test_describing_it_changes_what_it_must_photograph(self, draft, landlord):
-        """Why details comes before photos, and not the other way round."""
-        from apps.property.models import Property
+    def test_amenities_decide_what_else_it_may_photograph(self, draft, landlord):
+        """Why amenities come before photos: each one offers a view of itself."""
+        from django.core.management import call_command
+
+        from apps.property import spaces
+        from apps.property.models import Amenity
 
         before = {slot.key for slot in evidence_policy.property_requirements(draft)}
-        assert before == {"property.front", "property.side", "property.surroundings"}
+        assert before == {"property.front", "property.surroundings"}
 
-        Property.objects.filter(id=draft.id).update(
-            water_source="borehole", power_meter_type="prepaid", compound_type="family_compound"
-        )
-        draft.refresh_from_db()
+        call_command("seed_amenities", verbosity=0)
+        pool = Amenity.objects.get(name="Swimming pool")
+        spaces.set_property_amenities(prop=draft, user=landlord, amenity_ids=[pool.id])
 
         after = {slot.key for slot in evidence_policy.property_requirements(draft)}
-
-        assert "property.water" in after, "a borehole is a thing a tenant should see"
-        assert "property.compound" in after, "shared grounds are part of the deal"
-        assert "property.power" in after
-        # And the answer the checklist screen reads moves with it.
+        assert after == before | {f"amenity.{pool.id}"}
+        # Offered, never owed: the two views are still all that is required.
         state = condition.progress(subject=draft, user=landlord)
-        assert state["required_total"] == 5
+        assert state["required_total"] == 2
 
     def test_a_stranger_cannot_describe_somebody_elses_property(
         self, draft, registered, api, sign_in_as
@@ -186,12 +185,14 @@ class TestDescribingTheProperty:
         stranger = registered("0209695001")
 
         with pytest.raises(PermissionDenied):
-            services.update_property(prop=draft, user=stranger, data={"water_source": "borehole"})
+            services.update_property(
+                prop=draft, user=stranger, data={"water_source": "borehole_pump"}
+            )
 
         sign_in_as(api, user=stranger)
         assert api.patch(
             f"/api/v1/properties/{draft.id}/",
-            {"water_source": "borehole"},
+            {"water_source": "borehole_pump"},
             format="json",
         ).status_code in (403, 404)
 
@@ -200,7 +201,7 @@ class TestDescribingTheProperty:
         from apps.audit.models import AuditLog
         from apps.property import services
 
-        services.update_property(prop=draft, user=landlord, data={"water_source": "borehole"})
+        services.update_property(prop=draft, user=landlord, data={"water_source": "borehole_pump"})
 
         entry = (
             AuditLog.objects.filter(aggregate_type="property", aggregate_id=str(draft.id))
@@ -219,7 +220,7 @@ class TestLeavingAndComingBack:
         sign_in_as(api, user=landlord)
         api.patch(
             f"/api/v1/properties/{draft.id}/",
-            {"water_source": "borehole", "power_meter_type": "prepaid"},
+            {"water_source": "borehole_pump", "power_meter_type": "prepaid"},
             format="json",
         )
         condition.attach(
@@ -233,18 +234,18 @@ class TestLeavingAndComingBack:
         prop = returning.get(f"/api/v1/properties/{draft.id}/").data
         photos = returning.get(f"/api/v1/properties/{draft.id}/verification/").data
 
-        assert prop["water_source"] == "borehole"
-        assert photos["required_outstanding"] == 3
+        assert prop["water_source"] == "borehole_pump"
+        assert photos["required_outstanding"] == 1
         assert [slot["key"] for slot in photos["slots"] if slot["provided"]] == ["property.front"]
 
     def test_photographs_accumulate_across_visits(self, draft, landlord):
         """The reason the checklist is a checklist: it takes several sittings."""
-        for key in ("property.front", "property.side"):
+        for key in ("property.front", "property.surroundings"):
             condition.attach(subject=draft, actor=landlord, slot_key=key, file=_photo(landlord))
             state = condition.progress(subject=draft, user=landlord)
             assert state["submitted"] is False, "nothing goes to a reviewer early"
 
-        assert condition.progress(subject=draft, user=landlord)["required_outstanding"] == 1
+        assert condition.progress(subject=draft, user=landlord)["required_outstanding"] == 0
 
     def test_amenities_persist_without_being_part_of_the_review(self, draft, landlord):
         from django.core.management import call_command
@@ -259,8 +260,8 @@ class TestLeavingAndComingBack:
 
         rows = draft.property_amenities.filter(removed_at__isnull=True)
         assert [row.amenity.name for row in rows] == ["Security guard"]
-        # And they are not evidence: the checklist is unchanged by them.
-        assert condition.progress(subject=draft, user=landlord)["required_total"] == 3
+        # And they owe no evidence: the required checklist is unchanged by them.
+        assert condition.progress(subject=draft, user=landlord)["required_total"] == 2
 
 
 def _verify_identity(user):
@@ -301,7 +302,7 @@ class TestSendingItForReview:
             condition.submit_for_review(subject=draft, actor=landlord)
 
         # Names what is missing rather than reporting incompleteness.
-        assert "side" in str(raised.value).lower()
+        assert "wider area" in str(raised.value).lower()
 
     def test_the_whole_journey(self, draft, landlord, api, sign_in_as):
         """Describe → document → photograph → **create**, then send. Over HTTP.
@@ -318,7 +319,7 @@ class TestSendingItForReview:
 
         described = api.patch(
             f"/api/v1/properties/{draft.id}/",
-            {"water_source": "estate", "power_meter_type": "postpaid"},
+            {"water_source": "gwl_mains", "power_meter_type": "postpaid"},
             format="json",
         )
         assert described.status_code == 200
@@ -360,7 +361,7 @@ class TestSendingItForReview:
         """Draft work is never blocked by a review in progress, in both directions."""
         from apps.property import services
 
-        for key in ("property.front", "property.side", "property.surroundings"):
+        for key in ("property.front", "property.surroundings"):
             condition.attach(subject=draft, actor=landlord, slot_key=key, file=_photo(landlord))
         condition.submit_for_review(subject=draft, actor=landlord)
 

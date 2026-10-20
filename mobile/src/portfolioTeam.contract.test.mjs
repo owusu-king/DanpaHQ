@@ -142,7 +142,9 @@ test("mobile provider lists are about the Portfolio on screen", () => {
 });
 
 test("a mobile first Property files into the Portfolio the account already has", () => {
-  const property = read("mobile/app/(app)/private-property.tsx");
+  // The route renders the wizard; the wizard files the Property.
+  assert.match(read("mobile/app/(app)/private-property.tsx"), /<PropertyWizard\b/);
+  const property = read("mobile/src/components/property/PropertyWizard.tsx");
   const properties = read("mobile/app/(app)/(provider-tabs)/properties.tsx");
   const providerHome = read("mobile/app/(app)/(provider-tabs)/index.tsx");
 
@@ -206,7 +208,6 @@ test("mobile Property and Unit screens mirror the operational hierarchy", () => 
   assert.match(property, /<BottomSheet/);
   assert.match(property, /label="Property information"/);
   assert.match(property, /label="Shared amenities"/);
-  assert.match(property, /label="Buildings and blocks"/);
   assert.match(property, /Edit Property information/);
   assert.doesNotMatch(property, /units\.map/);
   // Was `function UnitRow` here. The row became a shared tile so that a

@@ -61,9 +61,9 @@ def landlord_with_property(landlord, address, approve_provider, approve_space):
         address=address,
         title="East Legon block",
         property_type=PropertyType.RESIDENTIAL,
-        water_source=WaterSource.ESTATE,
+        water_source=WaterSource.GWL_MAINS,
         power_meter_type=PowerMeterType.PREPAID,
-        compound_type=CompoundType.SELF,
+        compound_type=CompoundType.WALLED_GATED,
     )
     unit = Unit.objects.create(
         property=prop,

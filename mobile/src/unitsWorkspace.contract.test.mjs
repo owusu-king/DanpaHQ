@@ -130,17 +130,20 @@ test("mobile creation chooses a Property, then reuses space-new", () => {
 });
 
 test("mobile Unit creation saves and resumes the same draft journey", () => {
-  const create = read("mobile/app/(app)/space-new.tsx");
+  const route = read("mobile/app/(app)/space-new.tsx");
+  const create = read("mobile/src/components/property/UnitWizard.tsx");
   const detail = read("mobile/app/(app)/space.tsx");
   const amenities = read("mobile/src/components/property/SpaceAmenities.tsx");
   const photos = read("mobile/src/components/property/SpacePhotos.tsx");
 
-  assert.match(create, /resumeUnitId/);
-  assert.match(create, /label="Save for later"/);
-  assert.match(create, /saveForLaterLabel="Save for later"/);
+  // A saved Unit reopens where it was left…
+  assert.match(route, /unitId=\{unitId \|\| null\}/);
+  assert.match(create, /getUnit\(initialUnit\)/);
+  // …and leaving is the modal's own close: every finished step is already saved.
+  assert.match(read("mobile/app/(app)/_layout.tsx"), /name="space-new" options=\{\{[^}]*headerLeft: closeHeaderLeft/);
   assert.match(detail, /label="Continue setup"/);
   assert.match(detail, /pathname: "\/\(app\)\/space-new"/);
-  assert.match(amenities, /amenity photo/);
+  assert.match(amenities, /a photo of each comes next/);
   assert.match(photos, /every selected amenity/);
 });
 

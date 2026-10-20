@@ -33,14 +33,9 @@ RESIDENTIAL_INTERIORS = [
 #: name, category, scope, space types (empty = all), mirrored Unit flag
 AMENITIES: list[tuple[str, str, str, list[str], str]] = [
     # --- the property: facts about the compound ------------------------------
-    ("Generator", AmenityCategory.POWER, AmenityScope.PROPERTY, [], ""),
-    ("Water storage tank", AmenityCategory.WATER, AmenityScope.PROPERTY, [], ""),
-    ("Borehole water", AmenityCategory.WATER, AmenityScope.PROPERTY, [], ""),
     ("Security guard", AmenityCategory.SECURITY, AmenityScope.PROPERTY, [], ""),
     ("CCTV", AmenityCategory.SECURITY, AmenityScope.PROPERTY, [], ""),
-    ("Walled and gated", AmenityCategory.SECURITY, AmenityScope.PROPERTY, [], ""),
     ("Parking space", AmenityCategory.PARKING, AmenityScope.PROPERTY, [], ""),
-    ("Garden / compound", AmenityCategory.OUTDOOR, AmenityScope.PROPERTY, [], ""),
     ("Swimming pool", AmenityCategory.RECREATION, AmenityScope.PROPERTY, [], ""),
     ("Gym", AmenityCategory.RECREATION, AmenityScope.PROPERTY, [], ""),
     ("Laundry room", AmenityCategory.LAUNDRY, AmenityScope.PROPERTY, [], ""),
@@ -137,6 +132,14 @@ AMENITIES: list[tuple[str, str, str, list[str], str]] = [
 RETIRED: dict[str, str] = {
     "Modern kitchen": "Kitchen",
     "En-suite bathroom": "Private bathroom",
+    # Answered by the property's details now (owner, 2026-10-20): water by the
+    # water source, the wall and gate by the compound. Asking twice is how the
+    # two answers come to disagree.
+    "Generator": "",
+    "Water storage tank": "Water source",
+    "Borehole water": "Water source",
+    "Walled and gated": "Compound",
+    "Garden / compound": "Compound",
 }
 
 

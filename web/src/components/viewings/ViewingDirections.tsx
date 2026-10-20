@@ -17,13 +17,11 @@ export type ReleasedDirections = {
   latitude: string | null;
   longitude: string | null;
   entrance_note: string | null;
-  building: string;
   wing: string;
 };
 
 export function ViewingDirections({ directions }: { directions: ReleasedDirections }) {
   const address = [directions.house_number, directions.street].filter(Boolean).join(" ");
-  const withinProperty = [directions.building, directions.wing].filter(Boolean).join(" · ");
   const mapUrl =
     directions.latitude && directions.longitude
       ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${directions.latitude},${directions.longitude}`)}`
@@ -36,7 +34,7 @@ export function ViewingDirections({ directions }: { directions: ReleasedDirectio
       {directions.digital_address ? (
         <p className="type-caption">GhanaPost GPS: {directions.digital_address}</p>
       ) : null}
-      {withinProperty ? <p className="type-caption">{withinProperty}</p> : null}
+      {directions.wing ? <p className="type-caption">{directions.wing}</p> : null}
       {directions.entrance_note ? <p className="type-caption">{directions.entrance_note}</p> : null}
       {mapUrl ? (
         <p>

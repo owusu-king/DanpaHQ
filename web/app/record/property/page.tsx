@@ -8,6 +8,8 @@ import { Notice } from "@/components/Notice";
 import { Empty, LoadingRows } from "@/components/portal/PageHeader";
 import { Icon, type IconName } from "@/components/portal/icons";
 import { PropertyLifecycle, PropertyMore } from "@/components/property/PropertyLifecycle";
+import { PropertyWizardModal } from "@/components/property/PropertyWizard";
+import { UnitWizardModal } from "@/components/property/UnitWizard";
 import { SalePanel } from "@/components/property/SalePanel";
 import {
   EntityPath,
@@ -25,6 +27,7 @@ import {
   type SpaceAmenity,
   type Unit,
 } from "@/lib/console";
+import { inPlace } from "@/lib/inPlace";
 import { describePropertySetup, toSetupInput } from "@/lib/propertySetup";
 import { getSellerSale, type SellerSale } from "@/lib/sales";
 import { getVerification, type VerificationProgress } from "@/lib/verification";
@@ -39,6 +42,8 @@ export default function PropertyDetailPage() {
   const [amenities, setAmenities] = useState<SpaceAmenity[] | null>(null);
   const [sale, setSale] = useState<SellerSale | null>(null);
   const [error, setError] = useState("");
+  // Setup and Add Unit open over this page (owner, 2026-10-20), held in state.
+  const [sheet, setSheet] = useState<{ kind: "property"; step?: string } | { kind: "unit" } | null>(null);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -140,7 +145,7 @@ export default function PropertyDetailPage() {
             {fullAddress}
           </>
         )}
-        actions={primary ? <Link href={primary.href as never} className="ws-action is-primary"><Icon name="plus" />{primary.label}</Link> : undefined}
+        actions={primary ? <Link href={primary.href as never} className="ws-action is-primary" onClick={inPlace(() => setSheet({ kind: "unit" }))}><Icon name="plus" />{primary.label}</Link> : undefined}
       />
 
       {error ? <Notice tone="error" title={error} body="Some information may be out of date. Try again." /> : null}
@@ -167,7 +172,7 @@ export default function PropertyDetailPage() {
         <div className="pd-panel-head">
           <h2 id="units-heading" className="pd-panel-title">Units <span>{units.length}</span></h2>
           {canAddUnit && primary?.label !== "Add Unit" ? (
-            <Link href={`/record/space-new?propertyId=${property.id}` as never} className="ws-action">Add Unit</Link>
+            <Link href={`/record/space-new?propertyId=${property.id}` as never} className="ws-action" onClick={inPlace(() => setSheet({ kind: "unit" }))}>Add Unit</Link>
           ) : null}
         </div>
 
@@ -195,7 +200,7 @@ export default function PropertyDetailPage() {
       <section className="pd-panel" aria-labelledby="about-property-heading">
         <div className="pd-panel-head">
           <h2 id="about-property-heading" className="pd-panel-title">About this Property</h2>
-          {edit?.allowed ? <Link href={`/record/property-setup?propertyId=${property.id}` as never} className="ws-action"><Icon name="pencil" />Edit</Link> : null}
+          {edit?.allowed ? <Link href={`/record/property-setup?propertyId=${property.id}` as never} className="ws-action" onClick={inPlace(() => setSheet({ kind: "property" }))}><Icon name="pencil" />Edit</Link> : null}
         </div>
         <dl className="pd-facts is-compact">
           <Fact icon="properties" label="Type" value={propertyTypeLabel(property.property_type)} />
@@ -204,10 +209,9 @@ export default function PropertyDetailPage() {
           {address?.landmark ? <Fact icon="landmark" label="Landmark" value={address.landmark} /> : null}
           {land ? null : (
             <>
-              <Fact icon="water" label="Water" value={valueLabel(property.water_source)} />
-              <Fact icon="power" label="Power meter" value={valueLabel(property.power_meter_type)} />
-              <Fact icon="home" label="Compound" value={valueLabel(property.compound_type)} />
-              <Fact icon="shield" label="Security" value={property.has_security ? "On site" : "Not recorded"} />
+              <Fact icon="water" label="Water" value={property.water_source_label} />
+              <Fact icon="power" label="Power meter" value={property.power_meter_label} />
+              <Fact icon="home" label="Compound" value={property.compound_label} />
             </>
           )}
         </dl>
@@ -217,12 +221,26 @@ export default function PropertyDetailPage() {
             {amenities === null ? <LoadingRows rows={1} /> : amenities.length ? (
               <ul className="pd-chips">{amenities.map((amenity) => <li key={amenity.id}>{amenity.name}</li>)}</ul>
             ) : <span className="pd-note">None recorded.</span>}
-            {edit?.allowed ? <Link href={`/record/property-setup?propertyId=${property.id}&step=amenities` as never} className="pd-edit">Edit</Link> : null}
+            {edit?.allowed ? <Link href={`/record/property-setup?propertyId=${property.id}&step=amenities` as never} className="pd-edit" onClick={inPlace(() => setSheet({ kind: "property", step: "amenities" }))}>Edit</Link> : null}
           </div>
         )}
       </section>
 
       <PropertyMore property={property} />
+
+      <PropertyWizardModal
+        open={sheet?.kind === "property"}
+        propertyId={property.id}
+        startAt={sheet?.kind === "property" ? (sheet.step ?? null) : null}
+        onClose={() => { setSheet(null); void load(); }}
+        onFinished={() => undefined}
+      />
+      <UnitWizardModal
+        open={sheet?.kind === "unit"}
+        propertyId={property.id}
+        onClose={() => { setSheet(null); void load(); }}
+        onFinished={() => undefined}
+      />
     </div>
   );
 }

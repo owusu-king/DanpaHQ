@@ -6,7 +6,7 @@ that Render, Supabase, R2, Google, Resend, Cloudmersive, SMS, backups, and the
 mobile binaries are configured correctly. Do not label a release "production
 certified" until the owner records the evidence below for the **deployed commit**.
 
-## Current decision — 19 October 2026
+## Current decision — 20 October 2026
 
 **NO-GO for unrestricted real users or real money.** The repository's code
 checks are substantially green, but the live-service, data-protection,
@@ -15,10 +15,12 @@ pilot with synthetic data may proceed after its operators accept the free-tier
 availability limits. These results are from a local working tree, not evidence
 that the same revision is live at `app.oskec.com` or `api.oskec.com`.
 
-None of this review's fixes are live yet: they sit uncommitted on the `touches`
-branch on top of `f3fd796`. Production keeps running the older code, including
-the uncapped admin login and the patched dependency advisories, until this tree
-is committed, merged and deployed.
+The readiness fixes from 19 October were committed as `2bdf000` and merged to
+`main` in `18b4f03`; this does **not** confirm that the hosts deployed that
+commit. The current checkout is a later `passport` branch (`3234702`) with
+additional uncommitted changes. The measurements below belong to the earlier
+reviewed code, not a sign-off for this newer candidate. Repeat the gates after
+the Passport work is complete and before deploying it.
 
 | Gate | Local evidence | Release status |
 | --- | --- | --- |
@@ -37,7 +39,7 @@ is committed, merged and deployed.
 | Mobile lint | Exit 0 with 230 warnings: 187 `react-hooks/refs`, 38 `set-state-in-effect`, 1 memoization, 4 unused variables. React Compiler is not enabled; the hooks warnings are advisory compiler rules hitting deliberate patterns (Animated values held in refs, latest-callback refs, render-time resets) and no defect was found on review | Triaged; not a release blocker |
 | Mobile dependency audit | After safe lockfile updates, 30 advisories remain (12 moderate, 18 high), largely in Expo/Metro build tooling; no critical advisory remains | Needs triage before binary release |
 | Android/iOS native builds and device tests | Not run; `expo-image-manipulator` was added since the previous native build | Not verified |
-| Live domains | `app.oskec.com`, API `/healthz` and `/readyz` returned HTTP 200 on 19 October (the API took over 60 s to wake from Render Free sleep on one probe). `/readyz` still says `environment: local`, but the API sends 1-year HSTS with preload, so production settings are active: the deployed commit reads `ENVIRONMENT` from an env var Render never set. The uncommitted `production.py` pins it | Explained; clears once this tree is committed and deployed |
+| Live domains | `app.oskec.com`, API `/healthz` and `/readyz` returned HTTP 200 on 19 October (the API took over 60 s to wake from Render Free sleep on one probe). `/readyz` said `environment: local` while sending production-like security headers. The source fix now pins that marker, but the live commit was not established. On 20 October, two `/readyz` requests timed out at 20 and 45 seconds, and `/healthz` timed out at 20 seconds; none returned bytes | Failed availability check; investigate Render before launch |
 | Live Google OAuth/Resend/Cloudmersive/R2/SMS flows | Need real credentials and controlled test accounts | Not verified |
 | Database least privilege, RLS and append-only triggers | Current free-tier Blueprint uses one database credential for migration and serving | Not satisfied by Blueprint |
 | Backups and restore | No recorded successful restore rehearsal | Not verified |

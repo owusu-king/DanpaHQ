@@ -75,12 +75,13 @@ export type Property = {
   water_source: string;
   power_meter_type: string;
   compound_type: string;
-  has_security: boolean;
-  is_gated: boolean;
+  /** The three facts in words, from the server's own vocabulary. */
+  water_source_label: string;
+  power_meter_label: string;
+  compound_label: string;
   notes: string;
   amenities_confirmed_at: string | null;
   unit_count: number;
-  building_count: number;
   bed_count: number;
   occupied_unit_count: number;
   vacant_unit_count: number;
@@ -273,27 +274,6 @@ export function withdrawSpaceSubmission(unitId: string, reason: string) {
   });
 }
 
-/** An optional physical subdivision: a block, a tower, a hostel building. */
-export type Building = {
-  id: string;
-  property_id: string;
-  name: string;
-  code: string;
-  sort_order: number;
-  is_active: boolean;
-};
-
-export function listBuildings(propertyId: string) {
-  return authedFetch<Building[]>(`/properties/${propertyId}/buildings/`);
-}
-
-export function createBuilding(propertyId: string, input: { name: string; code?: string }) {
-  return authedFetch<Building>(`/properties/${propertyId}/buildings/`, {
-    method: "POST",
-    body: JSON.stringify(input),
-  });
-}
-
 export type ProviderApplication = {
   id: string;
   organization_id: string | null;
@@ -450,7 +430,6 @@ export type PermittedAction = {
 export type Unit = {
   id: string;
   property_id: string;
-  building_id: string | null;
   label: string;
   space_type: string;
   space_type_label: string;
@@ -583,8 +562,6 @@ export function updateProperty(
     water_source: string;
     power_meter_type: string;
     compound_type: string;
-    has_security: boolean;
-    is_gated: boolean;
     notes: string;
   }>,
 ) {
@@ -634,7 +611,6 @@ export function createUnit(
     bedrooms: number;
     bathrooms: number;
     description?: string;
-    building_id?: string;
     floor_level?: number | null;
     wing?: string;
     entrance_note?: string;
@@ -730,7 +706,6 @@ export function updateUnit(
   input: Partial<{
     label: string;
     description: string;
-    building_id: string | null;
     space_type: string;
     bedrooms: number;
     bathrooms: number;
@@ -1632,7 +1607,6 @@ export type ViewingDirections = {
   latitude: string | null;
   longitude: string | null;
   entrance_note: string;
-  building: string;
   wing: string;
 };
 

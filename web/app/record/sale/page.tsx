@@ -169,7 +169,6 @@ export default function SalePage() {
                 <div><dt>Water</dt><dd>{sale.features.water_source_label}</dd></div>
                 <div><dt>Power</dt><dd>{sale.features.power_meter_label}</dd></div>
                 <div><dt>Compound</dt><dd>{sale.features.compound_label}</dd></div>
-                <div><dt>Security</dt><dd>{sale.features.has_security ? "On site" : sale.features.is_gated ? "Gated" : "None stated"}</dd></div>
               </dl>
               {sale.amenities.length ? (
                 <ul className="listing-tags" style={{ marginTop: "var(--space-3)" }}>

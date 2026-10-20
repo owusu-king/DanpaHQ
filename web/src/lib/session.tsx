@@ -13,7 +13,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import { apiFetch } from "./api";
 import {
   authedFetch,
   clearAccessToken,
@@ -359,7 +358,7 @@ export function useSession(): SessionValue {
 
 /** After the sign-in screen gets a token, tell the rest of the app. */
 export async function loadMe(): Promise<Me> {
-  return apiFetch<Me>("/me/");
+  return authedFetch<Me>("/me/");
 }
 
 /**

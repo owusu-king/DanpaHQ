@@ -183,20 +183,19 @@ export default function VerifyPropertyPage() {
           ) : null}
           <Row
             term="Water"
-            value={property.water_source.replace(/_/g, " ")}
+            value={property.water_source_label}
             to={`/record/property-setup?propertyId=${id}&step=details`}
           />
           <Row
             term="Electricity"
-            value={property.power_meter_type.replace(/_/g, " ")}
+            value={property.power_meter_label}
             to={`/record/property-setup?propertyId=${id}&step=details`}
           />
           <Row
             term="Compound"
-            value={property.compound_type.replace(/_/g, " ")}
+            value={property.compound_label}
             to={`/record/property-setup?propertyId=${id}&step=details`}
           />
-          <Row term="Security" value={securityLine(property)} />
           {property.notes ? <Row term="Notes" value={property.notes} /> : null}
         </dl>
       </section>
@@ -283,14 +282,6 @@ export default function VerifyPropertyPage() {
       </div>
     </main>
   );
-}
-
-function securityLine(property: Property): string {
-  const marks = [
-    property.has_security ? "someone on the gate" : "",
-    property.is_gated ? "walled and gated" : "",
-  ].filter(Boolean);
-  return marks.length ? marks.join(", ") : "None recorded";
 }
 
 function Row({ term, value, to }: { term: string; value: string; to?: string }) {

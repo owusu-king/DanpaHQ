@@ -53,7 +53,10 @@ from .models import EvidenceType
 #: joins the authority review, and each kind of sale property is photographed
 #: for what a buyer is buying — see `sale_title_slots` and
 #: `sale_property_requirements`. Letting is unchanged.
-POLICY_VERSION = "2026.09.1"
+#: `2026.10.1` asks a property to let for two views only — the front and the
+#: wider area — and offers one optional view per shared amenity in place of
+#: the side, compound, water and meter views (owner, 2026-10-20).
+POLICY_VERSION = "2026.10.1"
 
 
 @dataclass(frozen=True)
@@ -193,18 +196,17 @@ def property_requirements(prop) -> list[EvidenceSlot]:
 
     Asked once for the property, not once per space inside it.
 
-    Three views, each named. Asking for "photos of the outside" is how a
-    property gets verified from one flattering angle: a reviewer cannot tell
-    whether the three files are three sides or the same wall three times, and
-    the provider cannot tell what is still outstanding. Named slots make both
-    answerable.
+    Two views are required, each named: the front, and the wider area around
+    it. Everything else is offered by what the provider said the compound has —
+    one optional, named view per shared amenity — so a pool is shown as a pool
+    and nothing is asked about a compound that has none (owner, 2026-10-20).
 
     A property for sale is shown for what a buyer is buying — see
     `sale_property_requirements`.
     """
     if _is_sale(prop):
         return sale_property_requirements(prop)
-    slots = [
+    return [
         EvidenceSlot(
             key="property.front",
             evidence_type=EvidenceType.PROPERTY_FRONT,
@@ -213,12 +215,6 @@ def property_requirements(prop) -> list[EvidenceSlot]:
             # Evidence gathered before these slots were named is still good
             # evidence. Accepted in place of the front view, never asked for.
             accepts=(EvidenceType.PROPERTY_FRONT, EvidenceType.EXTERIOR),
-        ),
-        EvidenceSlot(
-            key="property.side",
-            evidence_type=EvidenceType.PROPERTY_SIDE,
-            label="The property from the side",
-            why="A second angle of the building.",
         ),
         EvidenceSlot(
             key="property.surroundings",
@@ -230,48 +226,37 @@ def property_requirements(prop) -> list[EvidenceSlot]:
                 EvidenceType.LOCATION_CONTEXT,
             ),
         ),
+        *property_amenity_slots(prop),
     ]
 
-    if getattr(prop, "compound_type", "") in {"family_compound", "estate", "mixed_use"}:
-        slots.append(
-            EvidenceSlot(
-                key="property.compound",
-                evidence_type=EvidenceType.COMPOUND,
-                label="The compound",
-                why="The shared grounds.",
-            )
-        )
 
-    # Utilities are the commonest source of a later argument, so they are shown
-    # rather than described where the arrangement is shared or metered.
-    if getattr(prop, "water_source", "") in {"borehole", "sachet", "none"}:
-        slots.append(
-            EvidenceSlot(
-                key="property.water",
-                evidence_type=EvidenceType.WATER_SOURCE_VIEW,
-                label="The water source",
-                why="Where the water comes from.",
-                # Required, not optional. These three values are the arrangements
-                # where water is a real question — a borehole, sachet delivery, or
-                # none at all — and a tenant who discovers which one it is after
-                # moving in has discovered it too late. A property on estate mains
-                # is never asked.
-                required=True,
-            )
-        )
+def property_amenity_slots(prop) -> list[EvidenceSlot]:
+    """One optional view for every shared amenity the compound has.
 
-    if getattr(prop, "power_meter_type", "") in {"prepaid", "shared", "generator"}:
-        slots.append(
-            EvidenceSlot(
-                key="property.power",
-                evidence_type=EvidenceType.POWER_METER_VIEW,
-                label="The electricity meter",
-                why="Shows who pays for power.",
-                required=False,
-            )
+    Optional, unlike a Unit's amenity slots: the property is established by its
+    two required views, and these only let a provider show what they claimed.
+    Keyed by the amenity's id for the same reason the Unit's are.
+    """
+    prepared = getattr(prop, "_property_list_amenities", None)
+    if prepared is None:
+        manager = getattr(prop, "property_amenities", None)
+        if manager is None:
+            return []
+        prepared = manager.filter(removed_at__isnull=True).select_related("amenity")
+    rows = sorted(
+        (row for row in prepared if row.removed_at is None and row.amenity.is_active),
+        key=lambda row: (row.amenity.category, row.amenity.name),
+    )
+    return [
+        EvidenceSlot(
+            key=f"amenity.{row.amenity_id}",
+            evidence_type=EvidenceType.COMPOUND,
+            label=row.amenity.name,
+            why=f"Show the {row.amenity.name.lower()}.",
+            required=False,
         )
-
-    return slots
+        for row in rows
+    ]
 
 
 def sale_property_requirements(prop) -> list[EvidenceSlot]:

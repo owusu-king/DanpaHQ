@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useId, useMemo, useState, type ReactNode } from "react";
 
 import { Icon, type IconName } from "@/components/portal/icons";
 import {
@@ -191,19 +191,23 @@ export function TenancyRecord({
   tenancy,
   order = 0,
   action,
+  headless = false,
 }: {
   tenancy: PassportTenancy;
   order?: number;
   action?: ReactNode;
+  /** Inside a ledger row that already names the place: the details only. */
+  headless?: boolean;
 }) {
   const where = placeLine(tenancy);
   return (
     <article
-      className={`passport-tenancy is-${tenancy.status}`}
+      className={`passport-tenancy is-${tenancy.status}${headless ? " is-headless" : ""}`}
       style={{ "--passport-order": order } as React.CSSProperties}
-      aria-labelledby={`tenancy-${tenancy.id}`}
+      aria-labelledby={headless ? undefined : `tenancy-${tenancy.id}`}
+      aria-label={headless ? `${tenancy.place.title} details` : undefined}
     >
-      <header className="passport-tenancy-head">
+      {headless ? null : <header className="passport-tenancy-head">
         <span className="passport-place-mark" aria-hidden="true"><Icon name="home" /></span>
         <div className="passport-tenancy-title">
           <h4 id={`tenancy-${tenancy.id}`}>
@@ -213,7 +217,7 @@ export function TenancyRecord({
           <p>{[tenancy.place.space_type, where].filter(Boolean).join(" · ")}</p>
         </div>
         <span className={`passport-standing is-${tenancy.status}`}>{tenancyStanding(tenancy)}</span>
-      </header>
+      </header>}
 
       <ReviewNote review={tenancy.review} />
 
@@ -258,6 +262,175 @@ export function TenancyRecord({
       {tenancy.payments ? <PaymentRecord payments={tenancy.payments} /> : null}
       {action ? <footer className="passport-tenancy-foot">{action}</footer> : null}
     </article>
+  );
+}
+
+/** How many past homes show before "Show all". */
+const PAST_PREVIEW = 5;
+
+/**
+ * The housing record as an overview rather than a pile (owner, 2026-10-20:
+ * "every history and record is dumped"). Thirteen tenancies drawn as thirteen
+ * full cards made a 7,000px page nobody reads.
+ *
+ * So the homes that matter now — current, upcoming, awaiting an agreement —
+ * stay in full, and past homes are a ledger: one row each with where, when,
+ * what it cost and how the rent went, opening in place to the same details the
+ * card shows. The first five show; the rest are one press away.
+ */
+export function HousingRecord({
+  tenancies,
+  actionFor,
+  empty,
+  className,
+}: {
+  tenancies: PassportTenancy[];
+  /** The owner's per-record action, e.g. Report a problem. */
+  actionFor?: (tenancy: PassportTenancy) => ReactNode;
+  /** Drawn when there is no tenancy at all. */
+  empty?: ReactNode;
+  className?: string;
+}) {
+  const now = tenancies.filter((row) => row.status !== "ended");
+  const past = useMemo(
+    () =>
+      tenancies
+        .filter((row) => row.status === "ended")
+        .sort((a, b) => (b.ended_on ?? "").localeCompare(a.ended_on ?? "")),
+    [tenancies],
+  );
+  const [showAll, setShowAll] = useState(false);
+  const [open, setOpen] = useState<string | null>(null);
+  const shown = showAll ? past : past.slice(0, PAST_PREVIEW);
+  const pastMonths = past.reduce((sum, row) => sum + (row.months || 0), 0);
+
+  return (
+    <section className={`passport-section${className ? ` ${className}` : ""}`} aria-labelledby="passport-record">
+      <header className="passport-section-head">
+        <h3 id="passport-record">Housing record</h3>
+        {tenancies.length ? <span className="passport-section-count">{tenancies.length}</span> : null}
+      </header>
+
+      {!tenancies.length ? empty ?? null : null}
+
+      {now.length ? (
+        <div className="passport-tenancies">
+          {now.map((tenancy, index) => (
+            <TenancyRecord key={tenancy.id} tenancy={tenancy} order={index} action={actionFor?.(tenancy)} />
+          ))}
+        </div>
+      ) : null}
+
+      {past.length ? (
+        <div className="passport-ledger-wrap">
+          <div className="passport-ledger-head">
+            <h4>Past homes <span>{past.length}</span></h4>
+            {pastMonths ? <p>{duration(pastMonths)} in all</p> : null}
+          </div>
+          <ul className="passport-ledger">
+            {shown.map((tenancy) => (
+              <LedgerRow
+                key={tenancy.id}
+                tenancy={tenancy}
+                open={open === tenancy.id}
+                onToggle={() => setOpen((current) => (current === tenancy.id ? null : tenancy.id))}
+                action={actionFor?.(tenancy)}
+              />
+            ))}
+          </ul>
+          {past.length > PAST_PREVIEW ? (
+            <button
+              type="button"
+              className="passport-more"
+              aria-expanded={showAll}
+              onClick={() => {
+                setShowAll((current) => !current);
+                if (showAll && open && !past.slice(0, PAST_PREVIEW).some((row) => row.id === open)) setOpen(null);
+              }}
+            >
+              {showAll ? "Show fewer" : `Show all ${past.length} past homes`}
+              <Icon name="chevron-down" />
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+/** One past home on one line, opening in place to its full record. */
+function LedgerRow({
+  tenancy,
+  open,
+  onToggle,
+  action,
+}: {
+  tenancy: PassportTenancy;
+  open: boolean;
+  onToggle: () => void;
+  action?: ReactNode;
+}) {
+  const detailId = useId();
+  const reviewed = Boolean(tenancy.review || tenancy.payments?.review);
+  return (
+    <li className={`passport-ledger-item${open ? " is-open" : ""}`}>
+      <button type="button" className="passport-ledger-row" aria-expanded={open} aria-controls={detailId} onClick={onToggle}>
+        <span className="passport-ledger-mark" aria-hidden="true"><Icon name="home" /></span>
+        <span className="passport-ledger-place">
+          <strong>
+            {tenancy.place.title}
+            {tenancy.place.space ? <span> · {tenancy.place.space}</span> : null}
+          </strong>
+          <small>{[tenancy.place.space_type, placeLine(tenancy)].filter(Boolean).join(" · ")}</small>
+        </span>
+        {/* When, and under it how long and for how much: one column, so the
+            period is never cut to make room for the rent beside it. */}
+        <span className="passport-ledger-when">
+          <strong>{tenancyPeriod(tenancy)}</strong>
+          <small>
+            {[
+              tenancy.months ? duration(tenancy.months) : "",
+              tenancy.rent ? `${tenancy.rent.formatted}/${tenancy.rent.period === "monthly" ? "mo" : tenancy.rent.period.replace(/ly$/, "")}` : "",
+            ].filter(Boolean).join(" · ")}
+          </small>
+        </span>
+        <PaymentsGlance payments={tenancy.payments} reviewed={reviewed} />
+        <span className="passport-ledger-chevron" aria-hidden="true"><Icon name="chevron-down" /></span>
+      </button>
+      {open ? (
+        <div id={detailId} className="passport-ledger-detail">
+          <TenancyRecord tenancy={tenancy} action={action} headless />
+        </div>
+      ) : null}
+    </li>
+  );
+}
+
+/** How the rent went at one home, at a glance: a short bar and a count. */
+function PaymentsGlance({ payments, reviewed }: { payments: PassportPayments | null; reviewed: boolean }) {
+  if (reviewed) {
+    return <span className="passport-glance is-review"><Icon name="warning" />Under review</span>;
+  }
+  if (!payments || payments.status === "none") {
+    return <span className="passport-glance is-none">No rent recorded</span>;
+  }
+  const settled = payments.on_time + payments.late + payments.overdue;
+  if (!settled) {
+    return <span className="passport-glance">{payments.confirmed} confirmed</span>;
+  }
+  return (
+    <span
+      className="passport-glance"
+      role="img"
+      aria-label={`${payments.on_time} of ${settled} rent payments on time${payments.late ? `, ${payments.late} late` : ""}${payments.overdue ? `, ${payments.overdue} overdue` : ""}`}
+    >
+      <span className="passport-glance-bar" aria-hidden="true">
+        {payments.on_time ? <span className="is-on-time" style={{ flexGrow: payments.on_time }} /> : null}
+        {payments.late ? <span className="is-late" style={{ flexGrow: payments.late }} /> : null}
+        {payments.overdue ? <span className="is-overdue" style={{ flexGrow: payments.overdue }} /> : null}
+      </span>
+      <span aria-hidden="true"><strong>{payments.on_time}/{settled}</strong> on time</span>
+    </span>
   );
 }
 
@@ -329,22 +502,88 @@ const TIMELINE_GLYPH: Record<TimelineEvent["kind"], IconName> = {
   ended: "archive",
 };
 
+/** How many events the timeline shows before "Show all". */
+const TIMELINE_PREVIEW = 6;
+
+const TIMELINE_FILTERS: { key: string; label: string; kinds: TimelineEvent["kind"][] }[] = [
+  { key: "all", label: "All", kinds: [] },
+  { key: "homes", label: "Moves", kinds: ["moved_in", "upcoming", "ended"] },
+  { key: "agreements", label: "Agreements", kinds: ["agreement"] },
+  { key: "identity", label: "Account", kinds: ["identity", "joined"] },
+];
+
+/**
+ * What happened, newest first, under the month it happened in.
+ *
+ * Thirty-nine events in one column was the other half of the pile. The latest
+ * six show; the whole history opens in place, and can be narrowed to moves,
+ * agreements or the account itself.
+ */
 export function Timeline({ events }: { events: TimelineEvent[] }) {
+  const [expanded, setExpanded] = useState(false);
+  const [filter, setFilter] = useState("all");
+  const kinds = TIMELINE_FILTERS.find((row) => row.key === filter)?.kinds ?? [];
+  const matching = expanded && kinds.length ? events.filter((event) => kinds.includes(event.kind)) : events;
+  const shown = expanded ? matching : events.slice(0, TIMELINE_PREVIEW);
+
+  const months: { label: string; rows: TimelineEvent[] }[] = [];
+  for (const event of shown) {
+    const label = monthYear(event.on);
+    const last = months.at(-1);
+    if (last && last.label === label) last.rows.push(event);
+    else months.push({ label, rows: [event] });
+  }
+
   return (
     <section className="passport-section passport-timeline-section" aria-labelledby="passport-timeline">
-      <header className="passport-section-head"><h3 id="passport-timeline">Timeline</h3></header>
-      <ol className="passport-timeline">
-        {events.map((event, index) => (
-          <li key={`${event.kind}-${event.on}-${index}`} className={`is-${event.kind}`}>
-            <span className="passport-timeline-dot" aria-hidden="true"><Icon name={TIMELINE_GLYPH[event.kind]} /></span>
-            <span className="passport-timeline-text">
-              <strong>{event.title}</strong>
-              {event.detail ? <span>{event.detail}</span> : null}
-            </span>
-            <time dateTime={event.on}>{dayMonthYear(event.on)}</time>
-          </li>
-        ))}
-      </ol>
+      <header className="passport-section-head">
+        <h3 id="passport-timeline">Timeline</h3>
+        <span className="passport-section-count">{events.length}</span>
+      </header>
+
+      {expanded ? (
+        <div className="passport-filter" role="radiogroup" aria-label="Show">
+          {TIMELINE_FILTERS.map((row) => (
+            <button key={row.key} type="button" role="radio" aria-checked={filter === row.key} onClick={() => setFilter(row.key)}>
+              {row.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+
+      {months.map((month) => (
+        <div key={month.label} className="passport-month">
+          <h4 className="passport-month-label">{month.label}</h4>
+          <ol className="passport-timeline">
+            {month.rows.map((event, index) => (
+              <li key={`${event.kind}-${event.on}-${index}`} className={`is-${event.kind}`}>
+                <span className="passport-timeline-dot" aria-hidden="true"><Icon name={TIMELINE_GLYPH[event.kind]} /></span>
+                <span className="passport-timeline-text">
+                  <strong>{event.title}</strong>
+                  {event.detail ? <span>{event.detail}</span> : null}
+                </span>
+                <time dateTime={event.on}>{dayMonthYear(event.on)}</time>
+              </li>
+            ))}
+          </ol>
+        </div>
+      ))}
+      {expanded && !shown.length ? <p className="passport-fineprint">Nothing of that kind yet.</p> : null}
+
+      {events.length > TIMELINE_PREVIEW ? (
+        <button
+          type="button"
+          className="passport-more"
+          aria-expanded={expanded}
+          onClick={() => {
+            setExpanded((current) => !current);
+            setFilter("all");
+          }}
+        >
+          {expanded ? "Show the latest only" : `Show full timeline · ${events.length} events`}
+          <Icon name="chevron-down" />
+        </button>
+      ) : null}
     </section>
   );
 }
@@ -393,17 +632,7 @@ export function PassportDocument({
   return (
     <div className="passport-document">
       <PassportCover view={view} audience={audience} footer={coverFooter} />
-      {view.tenancies.length ? (
-        <section className="passport-section" aria-labelledby="passport-record">
-          <header className="passport-section-head">
-            <h3 id="passport-record">Housing record</h3>
-            <span className="passport-section-count">{view.tenancies.length}</span>
-          </header>
-          <div className="passport-tenancies">
-            {view.tenancies.map((tenancy, index) => <TenancyRecord key={tenancy.id} tenancy={tenancy} order={index} />)}
-          </div>
-        </section>
-      ) : null}
+      {view.tenancies.length ? <HousingRecord tenancies={view.tenancies} /> : null}
       {view.identity ? <IdentitySection identity={view.identity} /> : null}
       {view.timeline.length > 1 ? <Timeline events={view.timeline} /> : null}
       <StatusLegend />
