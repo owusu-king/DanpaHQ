@@ -169,6 +169,8 @@ export function destination(
       return { pathname: "/(app)/maintenance-request", params: { id: item.target_id } };
     case "artisan_invitation":
       return { pathname: "/(app)/artisan-job", params: { id: item.target_id } };
+    case "artisan_direct_job":
+      return { pathname: "/(app)/direct-job", params: { id: item.target_id } };
     case "artisan_certificate":
       return { pathname: "/(app)/(artisan-tabs)/artisan-profile" };
     case "artisan_application":

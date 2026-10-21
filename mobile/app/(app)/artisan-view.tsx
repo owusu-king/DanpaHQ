@@ -8,8 +8,10 @@ import {
   CERTIFICATE_LABEL,
   getArtisan,
   inviteArtisan,
+  inviteToDirectJob,
   suggestArtisan,
   type PublicArtisan,
+  type WorkKind,
 } from "@/artisan";
 import { Facts, shortDate } from "@/components/artisan/ArtisanChips";
 import { Pill } from "@/components/record/RecordSurfaces";
@@ -22,10 +24,11 @@ import { theme } from "@/theme";
  * One artisan, as a customer reads them: a page of its own, pushed from Find
  * Artisans (owner, 2026-10-20), never a view inside a sheet.
  *
- * Opened from a repair (`request`, `mode`), it also offers the one act that
- * repair allows this reader: invite to quote, or — for a tenant — suggest to
- * the landlord. Inviting tells the artisan the area and the problem, never the
- * address; a suggestion tells only the people who run the property.
+ * Opened from a repair or a posted job (`request`, `kind`, `mode`), it also
+ * offers the one act that allows this reader: invite to quote, or — for a
+ * tenant on a repair — suggest to the landlord. Inviting tells the artisan the
+ * area and the job, never the address; a suggestion tells only the people who
+ * run the property.
  */
 
 const AMBER = theme.color.harmattan["600"];
@@ -35,7 +38,7 @@ const DEEP = theme.color.kola["900"];
 const MUTED = theme.color.ink["500"];
 
 export default function ArtisanViewScreen() {
-  const params = useLocalSearchParams<{ id: string; request?: string; mode?: string; label?: string }>();
+  const params = useLocalSearchParams<{ id: string; request?: string; kind?: string; mode?: string; label?: string }>();
   const pageBottom = useSafeBottom(space[10]);
   return (
     <ScrollView style={styles.ground} contentContainerStyle={[styles.page, { paddingBottom: pageBottom }]} showsVerticalScrollIndicator={false}>
@@ -43,7 +46,12 @@ export default function ArtisanViewScreen() {
         <Profile
           id={params.id}
           forRequest={params.request && (params.mode === "invite" || params.mode === "suggest")
-            ? { id: params.request, mode: params.mode, label: params.label ?? "" }
+            ? {
+              id: params.request,
+              kind: params.kind === "direct_job" ? "direct_job" : "maintenance",
+              mode: params.mode,
+              label: params.label ?? "",
+            }
             : undefined}
         />
       </View>
@@ -51,7 +59,7 @@ export default function ArtisanViewScreen() {
   );
 }
 
-type ForRequest = { id: string; mode: "invite" | "suggest"; label: string };
+type ForRequest = { id: string; kind: WorkKind; mode: "invite" | "suggest"; label: string };
 
 function Profile({ id, forRequest }: { id: string; forRequest?: ForRequest }) {
   const [artisan, setArtisan] = useState<PublicArtisan | null>(null);
@@ -136,7 +144,8 @@ function AskAction({ artisanId, name, forRequest }: { artisanId: string; name: s
     setState("busy");
     setError("");
     try {
-      if (invite) await inviteArtisan(forRequest.id, artisanId);
+      if (forRequest.kind === "direct_job") await inviteToDirectJob(forRequest.id, artisanId);
+      else if (invite) await inviteArtisan(forRequest.id, artisanId);
       else await suggestArtisan(forRequest.id, artisanId);
       setState("done");
     } catch (cause) {
@@ -150,7 +159,7 @@ function AskAction({ artisanId, name, forRequest }: { artisanId: string; name: s
       <View style={styles.asked}>
         <Type variant="caption" style={{ color: theme.color.kola["800"] }}>
           {invite
-            ? `${name} has been asked to quote. They see the area and the problem, not the address.`
+            ? `${name} has been asked to quote. They see the area and the job, not the address.`
             : `Suggested. Your landlord decides whether to ask ${name} to quote.`}
         </Type>
       </View>

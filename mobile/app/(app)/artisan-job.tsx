@@ -58,7 +58,7 @@ export default function ArtisanJobScreen() {
   useFocusEffect(useCallback(() => { void load(); }, [load]));
 
   useLayoutEffect(() => {
-    navigation.setOptions({ title: row ? row.request.category_display : "Job" });
+    navigation.setOptions({ title: row ? row.request.title : "Job" });
   }, [navigation, row]);
 
   async function act(run: () => Promise<ArtisanInvitation>, message: string) {
@@ -98,7 +98,7 @@ export default function ArtisanJobScreen() {
 
         {job ? (
           <RecordPanel style={styles.unlocked}>
-            <Line icon="location-outline" title={job.address.line} detail={[job.place.unit_label, job.address.digital_address, job.address.landmark].filter(Boolean).join(" · ")} />
+            <Line icon="location-outline" title={job.address.line} detail={[job.place?.unit_label, job.address.digital_address, job.address.landmark].filter(Boolean).join(" · ")} />
             <View style={styles.contact}>
               <Line icon="person-outline" title={job.contact.name} detail={job.contact.role} />
               {job.contact.phone ? (
@@ -135,7 +135,7 @@ export default function ArtisanJobScreen() {
         ) : null}
         <View style={{ gap: space[2] }}>
           <GroupLabel>
-            {`${[row.request.area.locality, row.request.area.district].filter(Boolean).join(", ")} · reported ${shortDate(row.request.reported_at)}`}
+            {`${[row.request.area.locality, row.request.area.district].filter(Boolean).join(", ")} · ${row.request.kind === "direct_job" ? `${row.request.category_display}, posted` : "reported"} ${shortDate(row.request.reported_at)}`}
           </GroupLabel>
           <Quote>{row.request.description}</Quote>
         </View>
@@ -170,7 +170,7 @@ export default function ArtisanJobScreen() {
             title="Found more work? Ask for a revised price"
             withReason
             busy={busy}
-            onSubmit={(input) => act(() => submitRevision(row.request.id, input), "Revised price sent. Nothing changes until it is approved.")}
+            onSubmit={(input) => act(() => submitRevision(row.request.kind, row.request.id, input), "Revised price sent. Nothing changes until it is approved.")}
           />
         ) : null}
 

@@ -251,7 +251,17 @@ export type QuoteView = {
 
 export type ArtisanBrief = { id: string; name: string; trades: TradeOption[]; cover_url: string | null };
 
-export type InvitationState = "suggested" | "invited" | "quoted" | "declined" | "closed" | "assigned";
+export type InvitationState =
+  | "suggested"
+  | "invited"
+  | "quoted"
+  | "declined"
+  | "closed"
+  | "assigned"
+  | "cancelled";
+
+/** What a quote is for: a repair on a rented home, or a job somebody posted for themselves. */
+export type WorkKind = "maintenance" | "direct_job";
 
 /** The artisan block of a maintenance request, as this reader may see it. */
 export type ArtisanWork = {
@@ -268,7 +278,7 @@ export type ArtisanWork = {
     suggested_by_tenant: boolean;
     quotes: QuoteView[];
   }[];
-  permissions: { invite: boolean; approve: boolean; suggest: boolean };
+  permissions: { invite: boolean; approve: boolean; suggest: boolean; cancel?: boolean };
   max_open_invitations: number;
 };
 
@@ -278,9 +288,13 @@ export type ArtisanInvitation = {
   state: InvitationState;
   invited_at: string | null;
   request: {
+    kind: WorkKind;
     id: string;
+    /** The trade, on a direct job. */
     category: string;
     category_display: string;
+    /** The category on a repair; what the customer called it on a direct job. */
+    title: string;
     description: string;
     photo: { url: string } | null;
     reported_at: string;
@@ -292,7 +306,8 @@ export type ArtisanInvitation = {
   unlocked: boolean;
   job?: {
     address: { line: string; street: string; house_number: string; digital_address: string; landmark: string };
-    place: { property_title: string; unit_label: string };
+    /** Null on a direct job: there is no property. */
+    place: { property_title: string; unit_label: string } | null;
     contact: { name: string; phone: string; role: string };
     approved_by: string;
     approved_at: string | null;
@@ -302,7 +317,15 @@ export type ArtisanInvitation = {
 };
 
 export type CustomerWorkItem = ArtisanWork & {
-  request: { id: string; category_display: string; status: string; status_display: string; place: string };
+  request: {
+    kind: WorkKind;
+    id: string;
+    category_display: string;
+    title: string;
+    status: string;
+    status_display: string;
+    place: string;
+  };
 };
 
 export type QuoteInput = { price_minor: number; scope: string; materials: Material[] };
@@ -363,8 +386,9 @@ export function withdrawQuote(quoteId: string) {
   return apiFetch<ArtisanInvitation>(`/artisan-quotes/${quoteId}/withdraw/`, { method: "POST", body: {}, ...idempotentMutation() });
 }
 
-export function submitRevision(requestId: string, input: QuoteInput & { reason: string }) {
-  return apiFetch<ArtisanInvitation>(`/maintenance/${requestId}/revisions/`, {
+export function submitRevision(kind: WorkKind, id: string, input: QuoteInput & { reason: string }) {
+  const path = kind === "direct_job" ? `/direct-jobs/${id}/revisions/` : `/maintenance/${id}/revisions/`;
+  return apiFetch<ArtisanInvitation>(path, {
     method: "POST",
     body: input,
     ...idempotentMutation(),
@@ -389,6 +413,7 @@ export const INVITATION_STATE_LABEL: Record<InvitationState, string> = {
   declined: "Declined",
   closed: "Another artisan chosen",
   assigned: "Doing the work",
+  cancelled: "Cancelled",
 };
 
 /** Said wherever a payer approves a price. Advice, not a rule Danpa HQ enforces. */
@@ -400,4 +425,56 @@ export function toMinor(text: string): number | null {
   if (!cleaned) return null;
   const value = Math.round(Number(cleaned) * 100);
   return Number.isFinite(value) && value > 0 ? value : null;
+}
+
+// --- direct jobs ----------------------------------------------------------------------
+
+/** A job somebody posted for themselves, as they — its payer — read it. */
+export type DirectJob = ArtisanWork & {
+  job: {
+    kind: "direct_job";
+    id: string;
+    trade: string;
+    trade_display: string;
+    title: string;
+    description: string;
+    photo: { url: string } | null;
+    status: "open" | "assigned" | "cancelled";
+    status_display: string;
+    area: { locality: string; district: string; region: string };
+    address: { line: string; house_number: string; street: string; landmark: string };
+    created_at: string;
+    cancelled_at: string | null;
+  };
+};
+
+export type DirectJobInput = {
+  trade: string;
+  title: string;
+  description: string;
+  locality_id: string;
+  photo_file_id?: string | null;
+  house_number?: string;
+  street?: string;
+  landmark?: string;
+};
+
+export function postDirectJob(input: DirectJobInput) {
+  return apiFetch<DirectJob>("/me/direct-jobs/", { method: "POST", body: input, ...idempotentMutation() });
+}
+
+export function getDirectJob(id: string) {
+  return apiFetch<DirectJob>(`/me/direct-jobs/${id}/`);
+}
+
+export function inviteToDirectJob(jobId: string, artisanId: string) {
+  return apiFetch<DirectJob>(`/me/direct-jobs/${jobId}/invitations/`, {
+    method: "POST",
+    body: { artisan_id: artisanId },
+    ...idempotentMutation(),
+  });
+}
+
+export function cancelDirectJob(jobId: string) {
+  return apiFetch<DirectJob>(`/me/direct-jobs/${jobId}/cancel/`, { method: "POST", body: {}, ...idempotentMutation() });
 }

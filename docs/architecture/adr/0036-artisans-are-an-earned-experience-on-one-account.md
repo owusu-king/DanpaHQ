@@ -110,3 +110,31 @@ third experience.
   `maintenance_request`; existing requests are untouched.
 - **Mobile** Find Artisans is a pushed page and each profile its own page
   (owner, 2026-10-20), reached from Menu, More, Services and a repair.
+
+## Phase 4: direct jobs (20 October 2026)
+
+- **Work with no property behind it.** A tenant or provider posts a `DirectJob`
+  (trade, title, details, optional photo, area and address) to hire an artisan
+  for themselves. It never touches maintenance, which stays the record for
+  repairs on a rented home that the provider pays for. Whoever posts the job is
+  its payer: only they invite (up to three), approve, decline or cancel, and
+  anybody else reads a 404.
+- **One set of quote rules.** `QuoteInvitation` points at exactly one subject, a
+  maintenance request or a direct job (a check constraint). `artisan.quotes`
+  is written once against that subject, so invitations, quotes, revisions,
+  suspension and "only the payer approves" hold the same for both. A direct job
+  has a status of its own (open, artisan chosen, cancelled) because there is no
+  maintenance record to carry it.
+- **The same privacy unlock.** An invited artisan reads the job, its photo and
+  the area (locality, district, region). The address, the landmark and the
+  customer's name and phone open only to the artisan whose price was approved,
+  and close again if the job is cancelled. History is read from the quotes.
+- **Cancelling** declines any waiting quote, closes every invitation and tells
+  the chosen artisan, if there is one.
+- **Where it lives.** Web: Post a job in the Artisans sheet's Requests, the job
+  as a deeper view, and asking an artisan one view further; a quote
+  notification opens the job in the sheet over Updates. Mobile: Post a job and
+  the job are pushed pages from Find Artisans. Neither is offered in a menu.
+- **Migrations** add one table, make `maintenance_request` on
+  `artisan_quote_invitation` nullable, and add a file purpose; existing rows
+  keep their repair.

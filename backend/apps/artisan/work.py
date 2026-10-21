@@ -1,29 +1,34 @@
 """What each party reads about artisan work. Privacy is decided here.
 
-Three readers, three views of the same request:
+Three readers, three views of the same repair or direct job:
 
-* **An invited artisan** reads the kind of problem, what the tenant wrote, the
-  photograph and the area (locality, district, region). Never the address,
-  the tenant's name or a phone number.
+* **An invited artisan** reads what needs doing, the photograph and the area
+  (locality, district, region). Never the address, a name or a phone number.
 * **The assigned artisan** — and only once the payer approved their quote —
-  also reads the address, the unit, the contact on site (the tenant, with a
-  phone number), who approved them, and the request's history.
-* **The people who run or pay for the property** read every invitation and
-  quote. **The tenant** reads who is doing the repair, and never the price —
-  the payer's money is the payer's business.
+  also reads the address, the contact (on a repair, the tenant on site; on a
+  direct job, the customer who posted it), who approved them, and the history.
+* **The people who run or pay** read every invitation and quote. **The
+  tenant** on a repair reads who is doing it, and never the price — the
+  payer's money is the payer's business.
 """
 
 from __future__ import annotations
 
-from apps.core.money import Money
+from django.db.models import Q
 
-from .models import Quote, QuoteInvitation, QuoteStatus
-from .quotes import MAX_OPEN_INVITATIONS, _pays, _runs
+from apps.core.money import Money
+from apps.files.models import FilePurpose
+
+from .models import DirectJob, DirectJobStatus, Quote, QuoteInvitation, QuoteStatus, Trade
+from .quotes import MAX_OPEN_INVITATIONS, _Subject
 from .serializers import inline_photo_url
 
 
 def _media(file) -> dict | None:
-    """The request's own photograph, signed for an invited artisan to see."""
+    """The photograph of what needs doing, signed for an invited artisan to see."""
+    if file is not None and file.purpose == FilePurpose.ARTISAN_JOB_PHOTO:
+        url = inline_photo_url(file, purpose=FilePurpose.ARTISAN_JOB_PHOTO)
+        return {"id": str(file.id), "url": url, "content_type": file.content_type} if url else None
     from apps.maintenance.serializers import _media as maintenance_media
 
     return maintenance_media(file)
@@ -55,12 +60,27 @@ def _area(request) -> dict:
     }
 
 
-def _invitation_state(invitation: QuoteInvitation, request) -> str:
-    if request.assigned_artisan_id == invitation.artisan_id:
+def _job_area(job: DirectJob) -> dict:
+    locality = job.locality
+    return {
+        "locality": locality.name,
+        "district": locality.district.name,
+        "region": locality.district.region.name,
+    }
+
+
+def _trade_label(trade: str) -> str:
+    return dict(Trade.choices).get(trade, trade)
+
+
+def _invitation_state(invitation: QuoteInvitation, subject) -> str:
+    if isinstance(subject, DirectJob) and subject.status == DirectJobStatus.CANCELLED:
+        return "cancelled"
+    if subject.assigned_artisan_id == invitation.artisan_id:
         return "assigned"
     if invitation.declined_at:
         return "declined"
-    if invitation.closed_at or request.assigned_artisan_id:
+    if invitation.closed_at or subject.assigned_artisan_id:
         return "closed"
     if invitation.invited_at is None:
         return "suggested"
@@ -73,7 +93,9 @@ def _invitation_state(invitation: QuoteInvitation, request) -> str:
 
 
 def artisan_view(invitation: QuoteInvitation) -> dict:
-    """One request as an artisan reads it. Unlocked only on their own assignment."""
+    """One repair or job as an artisan reads it. Unlocked only on their own assignment."""
+    if invitation.direct_job_id:
+        return _artisan_job_view(invitation)
     request = invitation.maintenance_request
     state = _invitation_state(invitation, request)
     unlocked = state == "assigned"
@@ -82,9 +104,11 @@ def artisan_view(invitation: QuoteInvitation) -> dict:
         "state": state,
         "invited_at": invitation.invited_at,
         "request": {
+            "kind": "maintenance",
             "id": str(request.id),
             "category": request.category,
             "category_display": request.get_category_display(),
+            "title": request.get_category_display(),
             "description": request.description,
             "photo": _media(request.photo),
             "reported_at": request.created_at,
@@ -134,6 +158,83 @@ def artisan_view(invitation: QuoteInvitation) -> dict:
     return view
 
 
+def _job_history(job: DirectJob) -> list[dict]:
+    """A direct job keeps no event log of its own; its quotes are its history."""
+    rows = [{"kind": "posted", "kind_display": "Posted", "note": "", "at": job.created_at}]
+    for quote in Quote.objects.filter(
+        invitation__direct_job=job,
+        status__in=[
+            QuoteStatus.APPROVED,
+            QuoteStatus.SUPERSEDED,
+        ],
+    ).order_by("decided_at"):
+        rows.append(
+            {
+                "kind": "revision_approved" if quote.revises_id else "assigned",
+                "kind_display": "Revised price approved" if quote.revises_id else "Artisan chosen",
+                "note": Money(quote.price_minor).format(),
+                "at": quote.decided_at,
+            }
+        )
+    if job.cancelled_at:
+        rows.append(
+            {"kind": "cancelled", "kind_display": "Cancelled", "note": "", "at": job.cancelled_at}
+        )
+    return rows
+
+
+def _artisan_job_view(invitation: QuoteInvitation) -> dict:
+    job = invitation.direct_job
+    state = _invitation_state(invitation, job)
+    unlocked = state == "assigned"
+    view = {
+        "id": str(invitation.id),
+        "state": state,
+        "invited_at": invitation.invited_at,
+        "request": {
+            "kind": "direct_job",
+            "id": str(job.id),
+            "category": job.trade,
+            "category_display": _trade_label(job.trade),
+            "title": job.title,
+            "description": job.description,
+            "photo": _media(job.photo),
+            "reported_at": job.created_at,
+            "status": job.status,
+            "status_display": job.get_status_display(),
+            "area": _job_area(job),
+        },
+        "quotes": [_quote(quote) for quote in invitation.quotes.all()],
+        "unlocked": unlocked,
+    }
+    if not unlocked:
+        return view
+
+    from apps.core.phone import format_national
+
+    approved = job.assigned_quote
+    view["job"] = {
+        "address": {
+            "line": job.address_line,
+            "street": job.street,
+            "house_number": job.house_number,
+            "digital_address": "",
+            "landmark": job.landmark,
+        },
+        "place": None,
+        "contact": {
+            "name": job.owner.display_name,
+            "phone": format_national(job.owner.phone) if job.owner.phone else "",
+            "role": "Customer",
+        },
+        "approved_by": job.owner.display_name,
+        "approved_at": approved.decided_at if approved else None,
+        "price_on_record": _quote(approved) if approved else None,
+        "history": _job_history(job),
+    }
+    return view
+
+
 def _artisan_rows(user, *, assigned: bool):
     rows = (
         QuoteInvitation.objects.filter(artisan__user=user, invited_at__isnull=False)
@@ -143,13 +244,20 @@ def _artisan_rows(user, *, assigned: bool):
             "maintenance_request__unit",
             "maintenance_request__photo",
             "maintenance_request__assigned_quote__decided_by",
+            "direct_job__owner",
+            "direct_job__photo",
+            "direct_job__locality__district__region",
+            "direct_job__assigned_quote",
         )
         .prefetch_related("quotes", "maintenance_request__events")
         .order_by("-invited_at")
     )
+    held = Q(maintenance_request__assigned_artisan__user=user) | Q(
+        direct_job__assigned_artisan__user=user
+    )
     if assigned:
-        return rows.filter(maintenance_request__assigned_artisan__user=user)
-    return rows.exclude(maintenance_request__assigned_artisan__user=user)
+        return rows.filter(held)
+    return rows.exclude(id__in=QuoteInvitation.objects.filter(held).values("id"))
 
 
 def my_invitations(user) -> list[dict]:
@@ -180,30 +288,39 @@ def _artisan_card(profile) -> dict:
     return {
         "id": str(profile.id),
         "name": profile.user.display_name,
-        "trades": [{"value": trade, "label": label} for trade, label in _labels(profile.trades)],
+        "trades": [{"value": trade, "label": _trade_label(trade)} for trade in profile.trades],
         "cover_url": inline_photo_url(photos[0].file) if photos else None,
     }
 
 
-def _labels(trades):
-    from .models import Trade
-
-    names = dict(Trade.choices)
-    return [(trade, names.get(trade, trade)) for trade in trades]
-
-
-def work_for(request, user) -> dict:
-    """The artisan block of a maintenance request, for whoever is reading it."""
-    runs = _runs(request, user)
-    pays = _pays(request, user)
-    tenant = str(request.tenant_id) == str(user.id)
-    invitations = list(
-        QuoteInvitation.objects.filter(maintenance_request=request)
+def _invitations(**link) -> list[QuoteInvitation]:
+    return list(
+        QuoteInvitation.objects.filter(**link)
         .select_related("artisan__user")
         .prefetch_related("quotes", "artisan__portfolio__file")
         .order_by("created_at")
     )
-    assigned = request.assigned_artisan
+
+
+def _assigned_block(subject, *, priced: bool) -> dict | None:
+    if subject.assigned_artisan is None:
+        return None
+    return {
+        "artisan": _artisan_card(subject.assigned_artisan),
+        "assigned_at": subject.assigned_at,
+        "price_on_record": _quote(subject.assigned_quote)
+        if priced and subject.assigned_quote_id
+        else None,
+    }
+
+
+def work_for(request, user) -> dict:
+    """The artisan block of a maintenance request, for whoever is reading it."""
+    subject = _Subject("maintenance", request)
+    runs = subject.may_invite(user)
+    pays = subject.may_pay(user)
+    tenant = str(request.tenant_id) == str(user.id)
+    invitations = _invitations(maintenance_request=request)
     open_now = request.is_open and not request.assigned_artisan_id
     open_invitations = sum(1 for row in invitations if row.is_open)
 
@@ -234,15 +351,7 @@ def work_for(request, user) -> dict:
         ]
 
     return {
-        "assigned": None
-        if assigned is None
-        else {
-            "artisan": _artisan_card(assigned),
-            "assigned_at": request.assigned_at,
-            "price_on_record": _quote(request.assigned_quote)
-            if (runs or pays) and request.assigned_quote_id
-            else None,
-        },
+        "assigned": _assigned_block(request, priced=runs or pays),
         "invitations": rows,
         "permissions": {
             "invite": runs and open_now and open_invitations < MAX_OPEN_INVITATIONS,
@@ -253,40 +362,107 @@ def work_for(request, user) -> dict:
     }
 
 
+def job_for_owner(job: DirectJob) -> dict:
+    """A direct job as the person who posted it — and pays for it — reads it."""
+    invitations = _invitations(direct_job=job)
+    open_now = job.status == DirectJobStatus.OPEN and not job.assigned_artisan_id
+    open_invitations = sum(1 for row in invitations if row.is_open)
+    return {
+        "job": {
+            "kind": "direct_job",
+            "id": str(job.id),
+            "trade": job.trade,
+            "trade_display": _trade_label(job.trade),
+            "title": job.title,
+            "description": job.description,
+            "photo": _media(job.photo),
+            "status": job.status,
+            "status_display": job.get_status_display(),
+            "area": _job_area(job),
+            "address": {
+                "line": job.address_line,
+                "house_number": job.house_number,
+                "street": job.street,
+                "landmark": job.landmark,
+            },
+            "created_at": job.created_at,
+            "cancelled_at": job.cancelled_at,
+        },
+        "assigned": _assigned_block(job, priced=True),
+        "invitations": [
+            {
+                "id": str(row.id),
+                "state": _invitation_state(row, job),
+                "artisan": _artisan_card(row.artisan),
+                "suggested_by_tenant": False,
+                "quotes": [_quote(quote) for quote in row.quotes.all()],
+            }
+            for row in invitations
+        ],
+        "permissions": {
+            "invite": open_now and open_invitations < MAX_OPEN_INVITATIONS,
+            "approve": job.status != DirectJobStatus.CANCELLED,
+            "suggest": False,
+            "cancel": job.status != DirectJobStatus.CANCELLED,
+        },
+        "max_open_invitations": MAX_OPEN_INVITATIONS,
+    }
+
+
 def customer_overview(user) -> dict:
     """Artisans' sheet: Requests (quotes asked for and waiting) and Records (jobs).
 
-    A provider reads the requests on properties they run; a tenant reads their
-    own requests, without prices.
+    A provider reads the repairs on properties they run; a tenant reads their
+    own, without prices. Both read the direct jobs they posted themselves —
+    open ones under Requests even before anybody is asked, so they can ask.
     """
     from apps.maintenance.models import MaintenanceRequest
     from apps.organization.services import properties_for_user
 
+    from .jobs import own_jobs
+
     rows = (
         MaintenanceRequest.objects.filter(quote_invitations__isnull=False)
-        .filter(_customer_scope(user, properties_for_user))
+        .filter(Q(tenant=user) | Q(property__in=properties_for_user(user)))
         .select_related("property", "unit", "assigned_artisan__user", "assigned_quote")
         .distinct()
         .order_by("-status_changed_at")[:100]
     )
     requests, records = [], []
     for request in rows:
-        block = work_for(request, user)
         summary = {
             "request": {
+                "kind": "maintenance",
                 "id": str(request.id),
                 "category_display": request.get_category_display(),
+                "title": request.get_category_display(),
                 "status": request.status,
                 "status_display": request.get_status_display(),
                 "place": f"{request.unit.label} · {request.property.title}",
             },
-            **block,
+            "at": request.status_changed_at,
+            **work_for(request, user),
         }
         (records if request.assigned_artisan_id else requests).append(summary)
+
+    for job in own_jobs(user).exclude(status=DirectJobStatus.CANCELLED)[:100]:
+        block = job_for_owner(job)
+        summary = {
+            "request": {
+                "kind": "direct_job",
+                "id": str(job.id),
+                "category_display": _trade_label(job.trade),
+                "title": job.title,
+                "status": job.status,
+                "status_display": job.get_status_display(),
+                "place": job.locality.name,
+            },
+            "at": job.assigned_at or job.created_at,
+            **{key: block[key] for key in ("assigned", "invitations", "permissions")},
+            "max_open_invitations": MAX_OPEN_INVITATIONS,
+        }
+        (records if job.assigned_artisan_id else requests).append(summary)
+
+    requests.sort(key=lambda row: row["at"], reverse=True)
+    records.sort(key=lambda row: row["at"], reverse=True)
     return {"requests": requests, "records": records}
-
-
-def _customer_scope(user, properties_for_user):
-    from django.db.models import Q
-
-    return Q(tenant=user) | Q(property__in=properties_for_user(user))

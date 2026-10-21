@@ -35,6 +35,8 @@ export default function AppLayout() {
       <Stack.Screen name="artisan-view" options={{ title: "Artisan" }} />
       {/* An artisan's own invitation or job, from Requests or Jobs. */}
       <Stack.Screen name="artisan-job" options={{ title: "Job" }} />
+      <Stack.Screen name="direct-job" options={{ title: "Your job" }} />
+      <Stack.Screen name="direct-job-new" options={{ title: "Post a job" }} />
       <Stack.Screen name="artisan-profile-edit" options={{ title: "Edit profile" }} />
       <Stack.Screen name="search" options={{ title: "Find a place" }} />
       <Stack.Screen name="saved" options={{ title: "Saved places" }} />

@@ -16,10 +16,11 @@ from rest_framework.views import APIView
 from apps.idempotency.services import idempotent_mutation
 from apps.identity.permissions import IsPhoneVerified, IsRegistrationComplete
 
-from . import discover, quotes, services, work
+from . import discover, jobs, quotes, services, work
 from .serializers import (
     ApplySerializer,
     ArtisanChoiceSerializer,
+    DirectJobInputSerializer,
     DiscoverQuerySerializer,
     QuoteDecisionSerializer,
     QuoteInputSerializer,
@@ -102,6 +103,13 @@ def _work(request_id, user) -> dict:
     from apps.maintenance.services import get_visible
 
     return work.work_for(get_visible(request_id=request_id, user=user), user)
+
+
+def _after_decision(quote, user) -> dict:
+    """What the payer reads once they answered: the repair's block, or their job."""
+    if quote.invitation.direct_job_id:
+        return work.job_for_owner(jobs.own_job(user=user, job_id=quote.invitation.direct_job_id))
+    return _work(quote.invitation.maintenance_request_id, user)
 
 
 class InviteView(APIView):
@@ -213,7 +221,7 @@ class ApproveQuoteView(APIView):
     @idempotent_mutation(resource_type="artisan_quote")
     def post(self, request, pk):
         quote = quotes.approve_quote(user=request.user, quote_id=pk)
-        return Response(_work(quote.invitation.maintenance_request_id, request.user))
+        return Response(_after_decision(quote, request.user))
 
 
 class DeclineQuoteView(APIView):
@@ -226,7 +234,80 @@ class DeclineQuoteView(APIView):
         quote = quotes.decline_quote(
             user=request.user, quote_id=pk, note=payload.validated_data["note"]
         )
-        return Response(_work(quote.invitation.maintenance_request_id, request.user))
+        return Response(_after_decision(quote, request.user))
+
+
+class MyDirectJobsView(APIView):
+    """GET/POST /me/direct-jobs/ — work this person hires an artisan for themselves."""
+
+    permission_classes = [IsAuthenticated, IsRegistrationComplete]
+
+    def get_permissions(self):
+        if self.request.method == "POST":
+            return [IsAuthenticated(), IsPhoneVerified(), IsRegistrationComplete()]
+        return super().get_permissions()
+
+    def get(self, request):
+        return Response([work.job_for_owner(job) for job in jobs.own_jobs(request.user)[:100]])
+
+    @idempotent_mutation(resource_type="artisan_direct_job")
+    def post(self, request):
+        payload = DirectJobInputSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+        job = jobs.create_job(user=request.user, **payload.validated_data)
+        return Response(
+            work.job_for_owner(jobs.own_job(user=request.user, job_id=job.id)),
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class MyDirectJobView(APIView):
+    permission_classes = [IsAuthenticated, IsRegistrationComplete]
+
+    def get(self, request, pk):
+        return Response(work.job_for_owner(jobs.own_job(user=request.user, job_id=pk)))
+
+
+class DirectJobInviteView(APIView):
+    """POST /me/direct-jobs/<id>/invitations/ — the owner asks an artisan to quote."""
+
+    permission_classes = [IsAuthenticated, IsRegistrationComplete]
+
+    @idempotent_mutation(resource_type="quote_invitation")
+    def post(self, request, pk):
+        payload = ArtisanChoiceSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+        quotes.invite_to_job(
+            user=request.user, job_id=pk, artisan_id=payload.validated_data["artisan_id"]
+        )
+        return Response(
+            work.job_for_owner(jobs.own_job(user=request.user, job_id=pk)),
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class CancelDirectJobView(APIView):
+    permission_classes = [IsAuthenticated, IsRegistrationComplete]
+
+    @idempotent_mutation(resource_type="artisan_direct_job")
+    def post(self, request, pk):
+        jobs.cancel_job(user=request.user, job_id=pk)
+        return Response(work.job_for_owner(jobs.own_job(user=request.user, job_id=pk)))
+
+
+class DirectJobRevisionView(APIView):
+    """POST /direct-jobs/<id>/revisions/ — the assigned artisan asks for more."""
+
+    permission_classes = [IsAuthenticated, IsRegistrationComplete]
+
+    @idempotent_mutation(resource_type="artisan_quote")
+    def post(self, request, pk):
+        payload = RevisionInputSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+        quote = quotes.submit_job_revision(user=request.user, job_id=pk, **payload.validated_data)
+        return Response(
+            work.my_invitation(request.user, quote.invitation_id), status=status.HTTP_201_CREATED
+        )
 
 
 class CustomerWorkView(APIView):

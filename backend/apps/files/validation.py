@@ -99,6 +99,11 @@ LIMITS: dict[str, PurposeLimits] = {
         content_types=frozenset({"image/jpeg", "image/png", "image/webp", "image/heic"}),
         human="a photo up to 12MB",
     ),
+    "artisan_job_photo": PurposeLimits(
+        max_bytes=12 * MB,
+        content_types=frozenset({"image/jpeg", "image/png", "image/webp", "image/heic"}),
+        human="a photo up to 12MB",
+    ),
     "artisan_certificate": PurposeLimits(
         max_bytes=8 * MB,
         content_types=frozenset({"image/jpeg", "image/png", "image/heic", "application/pdf"}),

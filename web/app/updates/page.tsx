@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition } from "react";
 
+import { openArtisans } from "@/components/artisan/ArtisansSheet";
 import { Button } from "@/components/Button";
 import { Icon, type IconName } from "@/components/portal/icons";
 import { useToast } from "@/components/toast/Toaster";
@@ -106,6 +107,13 @@ export default function UpdatesPage() {
   }, [items]);
 
   function open(item: Notification) {
+    // A posted job lives in the Artisans sheet, which opens over this page:
+    // there is no page to go to, and nothing to come back from.
+    if (item.target_type === "artisan_direct_job") {
+      if (!item.is_read) acknowledge(item);
+      openArtisans({ job: item.target_id });
+      return;
+    }
     try {
       const point: ReturnPoint = { id: item.id, y: window.scrollY, at: Date.now() };
       window.sessionStorage.setItem(RETURN_KEY, JSON.stringify(point));

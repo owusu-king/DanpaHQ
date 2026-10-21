@@ -11,6 +11,7 @@ import {
   approveQuote,
   declineQuote,
   type ArtisanBrief,
+  type ArtisanWork,
   type QuoteView,
 } from "@/artisan";
 import { GroupLabel, Pill, RecordPanel } from "@/components/record/RecordSurfaces";
@@ -47,12 +48,43 @@ export function MaintenanceArtisans({
   onChanged: () => Promise<void>;
 }) {
   const router = useRouter();
-  const [confirming, setConfirming] = useState<string | null>(null);
-  const [busy, setBusy] = useState<string | null>(null);
-  const [error, setError] = useState("");
   const work = request.artisans;
   if (!work) return null;
   if (!work.assigned && !work.invitations.length && !work.permissions.invite && !work.permissions.suggest) return null;
+
+  function find(mode: "invite" | "suggest") {
+    router.push({
+      pathname: "/(app)/artisans",
+      params: {
+        request: request.id,
+        mode,
+        label: request.category_display,
+        trade: TRADE_FOR_CATEGORY[request.category] ?? "",
+      },
+    } as never);
+  }
+
+  return <WorkArtisans work={work} side={side} onChanged={onChanged} onFind={find} />;
+}
+
+/**
+ * Who was asked, what they quoted, who is doing the work: the same section on
+ * a repair and on a posted job. What it offers comes from `work.permissions`.
+ */
+export function WorkArtisans({
+  work,
+  side,
+  onChanged,
+  onFind,
+}: {
+  work: ArtisanWork;
+  side: "tenant" | "provider";
+  onChanged: () => Promise<void>;
+  onFind: (mode: "invite" | "suggest") => void;
+}) {
+  const [confirming, setConfirming] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState("");
 
   async function decide(quote: QuoteView, approve: boolean) {
     setBusy(quote.id);
@@ -67,18 +99,6 @@ export function MaintenanceArtisans({
     } finally {
       setBusy(null);
     }
-  }
-
-  function find(mode: "invite" | "suggest") {
-    router.push({
-      pathname: "/(app)/artisans",
-      params: {
-        request: request.id,
-        mode,
-        label: request.category_display,
-        trade: TRADE_FOR_CATEGORY[request.category] ?? "",
-      },
-    } as never);
   }
 
   const pendingRevision = work.invitations
@@ -150,10 +170,10 @@ export function MaintenanceArtisans({
           tone="quiet"
           icon="hammer-outline"
           label={work.invitations.some((row) => row.state !== "suggested") ? "Invite another artisan" : "Find an artisan"}
-          onPress={() => find("invite")}
+          onPress={() => onFind("invite")}
         />
       ) : work.permissions.suggest ? (
-        <Pill tone="quiet" icon="hammer-outline" label="Suggest an artisan" onPress={() => find("suggest")} />
+        <Pill tone="quiet" icon="hammer-outline" label="Suggest an artisan" onPress={() => onFind("suggest")} />
       ) : null}
 
       {side === "provider" && !work.permissions.approve && work.invitations.some((row) => row.quotes.some((quote) => quote.status === "submitted")) ? (
@@ -165,7 +185,7 @@ export function MaintenanceArtisans({
   );
 }
 
-function Brief({ artisan }: { artisan: ArtisanBrief }) {
+export function Brief({ artisan }: { artisan: ArtisanBrief }) {
   return (
     <View style={styles.brief}>
       <View style={styles.face}>
@@ -179,7 +199,7 @@ function Brief({ artisan }: { artisan: ArtisanBrief }) {
   );
 }
 
-function Chip({ text, ink, wash }: { text: string; ink: string; wash: string }) {
+export function Chip({ text, ink, wash }: { text: string; ink: string; wash: string }) {
   return (
     <View style={[styles.chip, { backgroundColor: wash }]}>
       <Type variant="captionStrong" style={{ color: ink, fontSize: 12 }}>{text}</Type>
@@ -187,7 +207,7 @@ function Chip({ text, ink, wash }: { text: string; ink: string; wash: string }) 
   );
 }
 
-function QuoteCard({
+export function QuoteCard({
   quote,
   title,
   canDecide,

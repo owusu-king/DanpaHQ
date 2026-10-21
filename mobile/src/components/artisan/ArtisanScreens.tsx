@@ -258,7 +258,7 @@ function WorkRows({
             key={row.id}
             onPress={() => router.push({ pathname: "/(app)/artisan-job", params: { id: row.id } } as never)}
             accessibilityRole="button"
-            accessibilityLabel={`${row.request.category_display}, ${INVITATION_STATE_LABEL[row.state]}`}
+            accessibilityLabel={`${row.request.title}, ${INVITATION_STATE_LABEL[row.state]}`}
             {...pressableFeedback(alpha(DEEP, 0.04))}
             style={styles.workRow}
           >
@@ -266,7 +266,7 @@ function WorkRows({
               {row.request.photo ? <Image source={{ uri: row.request.photo.url }} style={StyleSheet.absoluteFill} /> : <Ionicons name="construct-outline" size={20} color={KOLA} />}
             </View>
             <View style={{ flex: 1, gap: 2 }}>
-              <Type variant="bodyStrong" numberOfLines={1}>{row.request.category_display}</Type>
+              <Type variant="bodyStrong" numberOfLines={1}>{row.request.title}</Type>
               <Type variant="caption" numberOfLines={1} style={{ color: theme.color.ink["500"] }}>
                 {row.unlocked && row.job ? row.job.address.line : [row.request.area.locality, row.request.area.district].filter(Boolean).join(", ")}
               </Type>

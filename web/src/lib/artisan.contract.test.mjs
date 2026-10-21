@@ -88,3 +88,38 @@ test("an artisan sees the address only once the backend unlocks it", () => {
   assert.match(work, /const job = row\.unlocked \? row\.job : undefined;/);
   assert.match(work, /The address and a contact open here if your quote is approved\./);
 });
+
+test("a posted job is decided with the same quote card, so it asks once and shows the tip", () => {
+  const jobs = code(read("web/src/components/artisan/DirectJobs.tsx"));
+  // Not a second copy of the approval flow: the card that asks once more and shows PAYMENT_TIP.
+  assert.match(jobs, /import \{ Brief, QuoteCard \} from "@\/components\/artisan\/MaintenanceArtisans";/);
+  assert.match(jobs, /<QuoteCard[\s\S]*?canDecide=\{permissions\.approve/);
+  assert.doesNotMatch(jobs, /PAYMENT_TIP/);
+  // What the owner may do is the backend's call.
+  assert.match(jobs, /permissions\.invite \?/);
+  assert.match(jobs, /permissions\.cancel \?/);
+});
+
+test("Post a job lives in the Artisans sheet's Requests, never in a menu", () => {
+  const sheet = code(read("web/src/components/artisan/ArtisansSheet.tsx"));
+  assert.match(sheet, /<Plus aria-hidden="true" \/> Post a job/);
+  assert.match(sheet, /onPost=\{\(\) => nav\.push\(\{ kind: "post" \}\)\}/);
+  for (const path of ["web/src/components/portal/AccountMenu.tsx", "web/src/lib/portalNav.ts"]) {
+    assert.doesNotMatch(code(read(path)), /Post a job/, `${path} offers Post a job`);
+  }
+});
+
+test("asking for a posted job goes to the job's own endpoint, and a revision follows its kind", () => {
+  const sheet = code(read("web/src/components/artisan/ArtisansSheet.tsx"));
+  assert.match(sheet, /if \(forRequest\.kind === "direct_job"\) await inviteToDirectJob\(forRequest\.id, artisanId\);/);
+  const lib = code(read("web/src/lib/artisan.ts"));
+  assert.match(lib, /kind === "direct_job" \? `\/direct-jobs\/\$\{id\}\/revisions\/` : `\/maintenance\/\$\{id\}\/revisions\/`/);
+  assert.match(code(read("web/src/components/artisan/ArtisanWork.tsx")), /submitRevision\(row\.request\.kind, row\.request\.id, input\)/);
+});
+
+test("a job notification opens the job in the Artisans sheet, over Updates", () => {
+  const updates = code(read("web/app/updates/page.tsx"));
+  assert.match(updates, /if \(item\.target_type === "artisan_direct_job"\) \{[\s\S]*?openArtisans\(\{ job: item\.target_id \}\);\s*return;/);
+  assert.match(code(read("web/src/components/artisan/ArtisansSheet.tsx")), /useModalViews<View>\(open, request, request\.job \? \[\{ kind: "job", id: request\.job \}\] : undefined\)/);
+  assert.match(read("backend/apps/notifications/handlers.py"), /"artisan_direct_job", job\.id/);
+});

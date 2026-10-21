@@ -6,18 +6,21 @@
  *
  * Three sections. **Find** browses approved artisans by trade and area, with a
  * Certified filter; a profile opens as a deeper view, so Back returns to the
- * results where they were. **Requests** and **Records** hold the quotes and
- * jobs that later phases add; until then they say so plainly.
+ * results where they were. **Requests** holds quotes asked for — on repairs,
+ * and on jobs somebody posted for themselves (Post a job) — and **Records**
+ * the work an artisan was chosen for. A posted job opens here as a deeper
+ * view, and asking an artisan to quote for it goes one view further.
  *
  * Danpa HQ connects people and keeps the record. Nothing here calls an artisan
  * trusted or guaranteed, and nothing shows a phone number or an address.
  */
 
-import { FileBadge, Hammer, MapPin, ShieldCheck, Star, Wrench } from "lucide-react";
+import { ClipboardList, FileBadge, Hammer, MapPin, Plus, ShieldCheck, Star, Wrench } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { DistrictPicker } from "@/components/artisan/ApplicationForm";
+import { DirectJobView, PostJob } from "@/components/artisan/DirectJobs";
 import { Switch } from "@/components/Check";
 import { Notice } from "@/components/Notice";
 import { ModalSheet } from "@/components/workspace/ModalSheet";
@@ -32,20 +35,34 @@ import {
   getArtisan,
   getArtisanWork,
   inviteArtisan,
+  inviteToDirectJob,
   suggestArtisan,
   type CustomerWorkItem,
   type ArtisanCard,
   type DiscoverResult,
   type District,
   type PublicArtisan,
+  type WorkKind,
 } from "@/lib/artisan";
 import { useSession } from "@/lib/session";
 import { onDate } from "@/lib/time";
 
 export type ArtisansTab = "find" | "requests" | "records";
-/** Opened from a maintenance request: profiles offer to invite (or suggest) for it. */
-export type ArtisansForRequest = { id: string; mode: "invite" | "suggest"; label: string };
-export type ArtisansRequest = { tab?: ArtisansTab; trade?: string; forRequest?: ArtisansForRequest };
+/** Opened for a repair or a posted job: profiles offer to invite (or suggest) for it. */
+export type ArtisansForRequest = {
+  id: string;
+  mode: "invite" | "suggest";
+  label: string;
+  /** A repair unless said otherwise. */
+  kind?: WorkKind;
+};
+export type ArtisansRequest = {
+  tab?: ArtisansTab;
+  trade?: string;
+  forRequest?: ArtisansForRequest;
+  /** Open on this posted job, over Requests. */
+  job?: string;
+};
 
 export const OPEN_ARTISANS = "danpahq:open-artisans";
 
@@ -54,7 +71,18 @@ export function openArtisans(request: ArtisansRequest = {}) {
   window.dispatchEvent(new CustomEvent<ArtisansRequest>(OPEN_ARTISANS, { detail: request }));
 }
 
-type View = { kind: "profile"; id: string };
+type View =
+  | { kind: "profile"; id: string; forRequest?: ArtisansForRequest }
+  | { kind: "post" }
+  | { kind: "job"; id: string }
+  | { kind: "find"; trade: string; forRequest: ArtisansForRequest };
+
+const VIEW_TITLE: Record<View["kind"], string> = {
+  profile: "Artisan",
+  post: "Post a job",
+  job: "Your job",
+  find: "Find an artisan",
+};
 
 export function ArtisansSheet({
   open,
@@ -65,7 +93,7 @@ export function ArtisansSheet({
   request: ArtisansRequest;
   onClose: () => void;
 }) {
-  const nav = useModalViews<View>(open, request);
+  const nav = useModalViews<View>(open, request, request.job ? [{ kind: "job", id: request.job }] : undefined);
   const { state } = useSession();
   const artisan = state.status === "signed_in" ? state.me.capabilities.artisan : null;
   // Becoming one is offered here and only here — a quiet link, never a prompt.
@@ -73,11 +101,12 @@ export function ArtisansSheet({
   const becomeLabel = !artisan || artisan.workspace_access
     ? null
     : artisan.status === "not_started" ? "Become an artisan?" : "Your artisan application";
-  const [tab, setTab] = useState<ArtisansTab>(request.tab ?? "find");
+  const startTab = request.tab ?? (request.job ? "requests" : "find");
+  const [tab, setTab] = useState<ArtisansTab>(startTab);
   const [seenRequest, setSeenRequest] = useState(request);
   if (seenRequest !== request) {
     setSeenRequest(request);
-    setTab(request.tab ?? "find");
+    setTab(startTab);
   }
 
   const top = nav.top;
@@ -86,9 +115,9 @@ export function ArtisansSheet({
       open={open}
       onClose={onClose}
       icon="hammer"
-      title={top ? "Artisan" : "Artisans"}
+      title={top ? VIEW_TITLE[top.kind] : "Artisans"}
       meta={top ? undefined : "Skilled help for your home, from approved artisans"}
-      viewKey={top ? `profile:${top.id}` : "root"}
+      viewKey={top ? `${top.kind}:${nav.depth}` : "root"}
       onBack={nav.depth ? nav.back : undefined}
       backLabel="Back to artisans"
       className="art-sheet"
@@ -108,22 +137,75 @@ export function ArtisansSheet({
               { key: "records", label: "Records" },
             ]}
           />
-          {request.forRequest ? (
-            <p className="art-for-request">
-              {request.forRequest.mode === "invite" ? "Inviting artisans to quote for" : "Suggesting an artisan for"}{" "}
-              <strong>{request.forRequest.label}</strong>. Open a profile to{" "}
-              {request.forRequest.mode === "invite" ? "invite them." : "suggest them to your landlord."}
-            </p>
-          ) : null}
+          {request.forRequest ? <ForRequest forRequest={request.forRequest} /> : null}
           {tab === "find" ? (
-            <Find initialTrade={request.trade} onOpen={(id) => nav.push({ kind: "profile", id })} />
+            <Find
+              initialTrade={request.trade}
+              onOpen={(id) => nav.push({ kind: "profile", id, forRequest: request.forRequest })}
+            />
           ) : (
-            <Work tab={tab} onClose={onClose} />
+            <Work
+              tab={tab}
+              onClose={onClose}
+              onPost={() => nav.push({ kind: "post" })}
+              onOpenJob={(id) => nav.push({ kind: "job", id })}
+            />
           )}
         </div>
-        {top ? <Profile id={top.id} forRequest={request.forRequest} /> : null}
+        {nav.views.map((view, index) => {
+          switch (view.kind) {
+            case "profile":
+              return <Profile key={index} id={view.id} forRequest={view.forRequest} />;
+            case "post":
+              return (
+                <PostJob
+                  key={index}
+                  onPosted={(posted) => {
+                    // The form gives way to the job it made: Back from the job
+                    // returns to the list, not to a form already sent.
+                    nav.back();
+                    nav.push({ kind: "job", id: posted.job.id });
+                  }}
+                />
+              );
+            case "job":
+              return (
+                <DirectJobView
+                  key={index}
+                  id={view.id}
+                  onFind={(job) =>
+                    nav.push({
+                      kind: "find",
+                      trade: job.job.trade,
+                      forRequest: { id: job.job.id, kind: "direct_job", mode: "invite", label: job.job.title },
+                    })
+                  }
+                />
+              );
+            case "find":
+              return (
+                <div key={index} className="art-sheet-root">
+                  <ForRequest forRequest={view.forRequest} />
+                  <Find
+                    initialTrade={view.trade}
+                    onOpen={(id) => nav.push({ kind: "profile", id, forRequest: view.forRequest })}
+                  />
+                </div>
+              );
+          }
+        })}
       </ModalViews>
     </ModalSheet>
+  );
+}
+
+function ForRequest({ forRequest }: { forRequest: ArtisansForRequest }) {
+  const invite = forRequest.mode === "invite";
+  return (
+    <p className="art-for-request">
+      {invite ? "Asking artisans to quote for" : "Suggesting an artisan for"} <strong>{forRequest.label}</strong>.
+      Open a profile to {invite ? "ask them." : "suggest them to your landlord."}
+    </p>
   );
 }
 
@@ -381,7 +463,8 @@ function AskAction({ artisanId, name, forRequest }: { artisanId: string; name: s
     setState("busy");
     setError("");
     try {
-      if (invite) await inviteArtisan(forRequest.id, artisanId);
+      if (forRequest.kind === "direct_job") await inviteToDirectJob(forRequest.id, artisanId);
+      else if (invite) await inviteArtisan(forRequest.id, artisanId);
       else await suggestArtisan(forRequest.id, artisanId);
       setState("done");
       window.dispatchEvent(new CustomEvent(ARTISAN_WORK_CHANGED, { detail: { requestId: forRequest.id } }));
@@ -395,7 +478,7 @@ function AskAction({ artisanId, name, forRequest }: { artisanId: string; name: s
     return (
       <p className="art-asked" role="status">
         {invite
-          ? `${name} has been asked to quote. They see the area and the problem, not the address.`
+          ? `${name} has been asked to quote. They see the area and the job, not the address.`
           : `Suggested. Your landlord decides whether to ask ${name} to quote.`}
       </p>
     );
@@ -410,42 +493,74 @@ function AskAction({ artisanId, name, forRequest }: { artisanId: string; name: s
   );
 }
 
-/** Requests and Records: quotes asked for and waiting, and the work under way or done. */
-function Work({ tab, onClose }: { tab: "requests" | "records"; onClose: () => void }) {
+/**
+ * Requests and Records: quotes asked for and waiting, and the work under way
+ * or done. A repair opens on its maintenance page; a posted job opens here.
+ */
+function Work({
+  tab,
+  onClose,
+  onPost,
+  onOpenJob,
+}: {
+  tab: "requests" | "records";
+  onClose: () => void;
+  onPost: () => void;
+  onOpenJob: (id: string) => void;
+}) {
   const [work, setWork] = useState<{ requests: CustomerWorkItem[]; records: CustomerWorkItem[] } | null>(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
     let live = true;
-    getArtisanWork()
-      .then((next) => { if (live) setWork(next); })
-      .catch((cause) => { if (live) setError(cause instanceof ApiFailure ? cause.error.message : "Could not load artisan work."); });
-    return () => { live = false; };
+    const load = () =>
+      getArtisanWork()
+        .then((next) => { if (live) setWork(next); })
+        .catch((cause) => { if (live) setError(cause instanceof ApiFailure ? cause.error.message : "Could not load artisan work."); });
+    void load();
+    // A job posted, asked about or decided in a deeper view lands here on the way back.
+    window.addEventListener(ARTISAN_WORK_CHANGED, load);
+    return () => { live = false; window.removeEventListener(ARTISAN_WORK_CHANGED, load); };
   }, []);
+
+  const post = (
+    <button type="button" className="ws-action is-primary art-post-button" onClick={onPost}>
+      <Plus aria-hidden="true" /> Post a job
+    </button>
+  );
 
   if (error) return <PanelState tone="error" icon="warning" title={error} />;
   if (!work) return <PanelSkeleton rows={3} />;
   const rows = tab === "requests" ? work.requests : work.records;
   if (!rows.length) {
     return tab === "requests" ? (
-      <PanelState icon="receipt" title="No quote requests yet" body="Quotes you ask for and receive appear here, with any waiting for your approval." />
+      <PanelState
+        icon="receipt"
+        title="No quote requests yet"
+        body="Post a job for work at home, or invite an artisan from a repair."
+        action={post}
+      />
     ) : (
-      <PanelState icon="wrench" title="No artisan jobs yet" body="Work under way and finished stays here, with its photos and costs." />
+      <PanelState icon="wrench" title="No artisan jobs yet" body="Work an artisan was chosen for stays here, with its price." />
     );
   }
   return (
-    <ul className="art-work" aria-label={tab === "requests" ? "Quote requests" : "Artisan jobs"}>
-      {rows.map((item) => {
-        const waiting = item.invitations.flatMap((row) => row.quotes).filter((quote) => quote.status === "submitted").length;
-        const who = item.assigned?.artisan.name
-          ?? item.invitations.map((row) => row.artisan.name).join(", ");
-        return (
-          <li key={item.request.id}>
-            <Link href={`/maintenance?request=${item.request.id}` as never} className="art-work-row" onClick={onClose}>
-              <span className="art-work-icon" aria-hidden="true"><Wrench /></span>
+    <>
+      {tab === "requests" ? <div className="art-work-head">{post}</div> : null}
+      <ul className="art-work" aria-label={tab === "requests" ? "Quote requests" : "Artisan jobs"}>
+        {rows.map((item) => {
+          const waiting = item.invitations.flatMap((row) => row.quotes).filter((quote) => quote.status === "submitted").length;
+          const who = item.assigned?.artisan.name
+            ?? (item.invitations.map((row) => row.artisan.name).join(", ") || "Nobody asked yet");
+          const direct = item.request.kind === "direct_job";
+          const body = (
+            <>
+              <span className={`art-work-icon${direct ? " is-direct" : ""}`} aria-hidden="true">
+                {direct ? <ClipboardList /> : <Wrench />}
+              </span>
               <span className="art-work-body">
-                <strong>{item.request.category_display}</strong>
-                <small>{item.request.place}</small>
+                <strong>{item.request.title}</strong>
+                <small>{direct ? `${item.request.category_display} · ${item.request.place}` : item.request.place}</small>
                 <small>{who}</small>
               </span>
               <span className="art-work-side">
@@ -453,10 +568,21 @@ function Work({ tab, onClose }: { tab: "requests" | "records"; onClose: () => vo
                 {item.assigned?.price_on_record ? <strong>{item.assigned.price_on_record.price_display}</strong> : null}
                 <small>{item.request.status_display}</small>
               </span>
-            </Link>
-          </li>
-        );
-      })}
-    </ul>
+            </>
+          );
+          return (
+            <li key={`${item.request.kind}:${item.request.id}`}>
+              {direct ? (
+                <button type="button" className="art-work-row" onClick={() => onOpenJob(item.request.id)}>{body}</button>
+              ) : (
+                <Link href={`/maintenance?request=${item.request.id}` as never} className="art-work-row" onClick={onClose}>
+                  {body}
+                </Link>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </>
   );
 }

@@ -21,7 +21,8 @@ import { Children, useEffect, useLayoutEffect, useRef, useState, type ReactNode 
 
 export type ViewDirection = "none" | "forward" | "back";
 
-export function useModalViews<V>(open: boolean, recordKey: unknown) {
+/** `initial` is the trail an opening starts on — a link that names a deeper view. */
+export function useModalViews<V>(open: boolean, recordKey: unknown, initial?: V[]) {
   const [views, setViews] = useState<V[]>([]);
   const [direction, setDirection] = useState<ViewDirection>("none");
   const [seen, setSeen] = useState({ open, recordKey });
@@ -31,7 +32,7 @@ export function useModalViews<V>(open: boolean, recordKey: unknown) {
   if (seen.open !== open || (open && seen.recordKey !== recordKey)) {
     setSeen({ open, recordKey });
     if (open) {
-      setViews([]);
+      setViews(initial ?? []);
       setDirection("none");
     }
   }

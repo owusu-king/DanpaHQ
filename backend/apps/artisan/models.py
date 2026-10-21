@@ -176,8 +176,19 @@ class QuoteInvitation(BaseModel):
     Until then the artisan is told nothing.
     """
 
+    #: Exactly one of these two is set: a repair on a rented home, or a job a
+    #: tenant or provider posted for themselves (``DirectJob``).
     maintenance_request = models.ForeignKey(
         "maintenance.MaintenanceRequest",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="quote_invitations",
+    )
+    direct_job = models.ForeignKey(
+        "DirectJob",
+        null=True,
+        blank=True,
         on_delete=models.PROTECT,
         related_name="quote_invitations",
     )
@@ -201,6 +212,16 @@ class QuoteInvitation(BaseModel):
         constraints = [
             models.UniqueConstraint(
                 fields=["maintenance_request", "artisan"], name="artisan_one_invitation_per_request"
+            ),
+            models.UniqueConstraint(
+                fields=["direct_job", "artisan"], name="artisan_one_invitation_per_direct_job"
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(maintenance_request__isnull=False, direct_job__isnull=True)
+                    | models.Q(maintenance_request__isnull=True, direct_job__isnull=False)
+                ),
+                name="artisan_invitation_has_one_subject",
             ),
         ]
 
@@ -256,3 +277,67 @@ class Quote(BaseModel):
                 name="artisan_one_pending_quote",
             ),
         ]
+
+
+# --- direct jobs ---------------------------------------------------------------------
+
+
+class DirectJobStatus(models.TextChoices):
+    OPEN = "open", "Looking for an artisan"
+    ASSIGNED = "assigned", "Artisan chosen"
+    CANCELLED = "cancelled", "Cancelled"
+
+
+class DirectJob(BaseModel):
+    """Work somebody hires an artisan for themselves: no property, no repair.
+
+    Assembling a wardrobe, painting a room, fixing a gate at home. A tenant or a
+    provider posts it and is its payer: they choose who quotes, approve the price
+    and later confirm the work. It never touches maintenance, which is the record
+    for repairs on a rented home that the provider pays for.
+
+    Like a repair, an invited artisan reads the job and the area, and the address
+    and a contact open only once their quote is approved.
+    """
+
+    owner = models.ForeignKey("identity.User", on_delete=models.PROTECT, related_name="direct_jobs")
+    trade = models.CharField(max_length=24, choices=Trade.choices)
+    title = models.CharField(max_length=120)
+    description = models.TextField(max_length=2000)
+    photo = models.ForeignKey(
+        "files.StoredFile", null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    #: The area an invited artisan reads. The rest of the address waits.
+    locality = models.ForeignKey("geo.Locality", on_delete=models.PROTECT, related_name="+")
+    house_number = models.CharField(max_length=32, blank=True)
+    street = models.CharField(max_length=160, blank=True)
+    landmark = models.CharField(max_length=200, blank=True)
+
+    status = models.CharField(
+        max_length=16, choices=DirectJobStatus.choices, default=DirectJobStatus.OPEN
+    )
+    assigned_artisan = models.ForeignKey(
+        ArtisanProfile, null=True, blank=True, on_delete=models.PROTECT, related_name="direct_jobs"
+    )
+    assigned_quote = models.ForeignKey(
+        Quote, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    assigned_at = models.DateTimeField(null=True, blank=True)
+    cancelled_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "artisan_direct_job"
+        ordering = ("-created_at",)
+        indexes = [models.Index(fields=["owner", "-created_at"], name="artisan_job_owner_idx")]
+
+    def __str__(self) -> str:
+        return f"{self.title} ({self.status})"
+
+    @property
+    def is_open(self) -> bool:
+        return self.status != DirectJobStatus.CANCELLED
+
+    @property
+    def address_line(self) -> str:
+        parts = [self.house_number, self.street, self.locality.name if self.locality_id else ""]
+        return ", ".join(part for part in parts if part)

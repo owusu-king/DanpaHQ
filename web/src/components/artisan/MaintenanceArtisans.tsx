@@ -180,7 +180,7 @@ export function MaintenanceArtisans({
   );
 }
 
-function Brief({ artisan }: { artisan: ArtisanBrief }) {
+export function Brief({ artisan }: { artisan: ArtisanBrief }) {
   return (
     <span className="mt-artisan-who">
       <span className="mt-artisan-face" aria-hidden="true">
@@ -199,7 +199,7 @@ function Brief({ artisan }: { artisan: ArtisanBrief }) {
   );
 }
 
-function QuoteCard({
+export function QuoteCard({
   quote,
   title,
   canDecide,

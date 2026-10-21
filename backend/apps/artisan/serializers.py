@@ -50,8 +50,8 @@ class ApplySerializer(serializers.Serializer):
     certificates = CertificateInputSerializer(many=True, required=False)
 
 
-def inline_photo_url(file) -> str | None:
-    if file is None or not file.is_usable or file.purpose != FilePurpose.ARTISAN_WORK_PHOTO:
+def inline_photo_url(file, *, purpose: str = FilePurpose.ARTISAN_WORK_PHOTO) -> str | None:
+    if file is None or not file.is_usable or file.purpose != purpose:
         return None
     from apps.files.storage import get_storage
 
@@ -161,3 +161,14 @@ class ArtisanChoiceSerializer(serializers.Serializer):
 
 class QuoteDecisionSerializer(serializers.Serializer):
     note = serializers.CharField(max_length=300, required=False, allow_blank=True, default="")
+
+
+class DirectJobInputSerializer(serializers.Serializer):
+    trade = serializers.CharField(max_length=24)
+    title = serializers.CharField(max_length=120)
+    description = serializers.CharField(max_length=2000)
+    locality_id = serializers.UUIDField()
+    photo_file_id = serializers.UUIDField(required=False, allow_null=True)
+    house_number = serializers.CharField(max_length=32, required=False, allow_blank=True)
+    street = serializers.CharField(max_length=160, required=False, allow_blank=True)
+    landmark = serializers.CharField(max_length=200, required=False, allow_blank=True)

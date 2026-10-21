@@ -1316,7 +1316,7 @@ def on_artisan_certificate_decided(event) -> None:
     )
 
 
-# --- quotes on maintenance requests ----------------------------------------------
+# --- quotes on repairs and direct jobs ---------------------------------------------
 
 
 def _invitation(invitation_id):
@@ -1331,6 +1331,8 @@ def _invitation(invitation_id):
             "maintenance_request__tenancy__activation_lease__landlord",
             "maintenance_request__property__owner",
             "maintenance_request__property__managed_by",
+            "direct_job__owner",
+            "direct_job__locality__district",
         )
         .filter(id=invitation_id)
         .first()
@@ -1354,13 +1356,18 @@ def on_quote_invited(event) -> None:
     invitation = _invitation(event.aggregate_id)
     if invitation is None:
         return
-    request = invitation.maintenance_request
     # The area only. The address waits for an approved quote.
-    area = request.property.address.locality_label or request.property.address.district_label
+    if invitation.direct_job_id:
+        job = invitation.direct_job
+        area, what = job.locality.name, job.get_trade_display()
+    else:
+        request = invitation.maintenance_request
+        area = request.property.address.locality_label or request.property.address.district_label
+        what = request.get_category_display()
     notify(
         user=invitation.artisan.user,
         kind="artisan.quote_invited",
-        title=f"New quote request: {request.get_category_display()}",
+        title=f"New quote request: {what}",
         body=f"Somebody in {area} would like a quote. Open it to see the job and send your price.",
         dedupe_key=_key(event, invitation.artisan.user_id),
         target_type="artisan_invitation",
@@ -1396,14 +1403,22 @@ def on_quote_submitted(event) -> None:
     if quote is None:
         return
     invitation = _invitation(quote.invitation_id)
-    request = invitation.maintenance_request
     revision = event.payload.get("revision")
     # Two kinds, each stated whole: the clients classify kinds by reading them here.
     if revision:  # noqa: SIM108 — each kind must read `kind = "..."` for the client mirror test
         kind = "artisan.revision_submitted"
     else:
         kind = "artisan.quote_submitted"
-    for provider in _maintenance_providers(request):
+    # A direct job has one payer, who posted it; a repair, whoever runs the property.
+    if invitation.direct_job_id:
+        job = invitation.direct_job
+        payers, where = [job.owner], f"“{job.title}”"
+        target_type, target_id = "artisan_direct_job", job.id
+    else:
+        request = invitation.maintenance_request
+        payers, where = _maintenance_providers(request), _maintenance_where(request)
+        target_type, target_id = "maintenance_request", request.id
+    for provider in payers:
         notify(
             user=provider,
             kind=kind,
@@ -1413,11 +1428,11 @@ def on_quote_submitted(event) -> None:
             body=(
                 f"{invitation.artisan.user.display_name} "
                 + ("asks for a revised price" if revision else "sent a quote")
-                + f" for {_maintenance_where(request)}. Nothing changes until you approve it."
+                + f" for {where}. Nothing changes until you approve it."
             ),
             dedupe_key=_key(event, provider.id),
-            target_type="maintenance_request",
-            target_id=request.id,
+            target_type=target_type,
+            target_id=target_id,
         )
 
 
@@ -1462,6 +1477,29 @@ def on_quote_declined(event) -> None:
         dedupe_key=_key(event, invitation.artisan.user_id),
         target_type="artisan_invitation",
         target_id=invitation.id,
+    )
+
+
+@subscribe("artisan.job_cancelled.v1")
+def on_direct_job_cancelled(event) -> None:
+    from apps.artisan.models import DirectJob
+
+    job = DirectJob.objects.select_related("owner").filter(id=event.aggregate_id).first()
+    if job is None:
+        return
+    from apps.identity.models import User
+
+    artisan = User.objects.filter(id=event.payload.get("user_id")).first()
+    if artisan is None:
+        return
+    notify(
+        user=artisan,
+        kind="artisan.job_cancelled",
+        title="A job was cancelled",
+        body=f"{job.owner.display_name} cancelled “{job.title}”. You do not need to go.",
+        dedupe_key=_key(event, artisan.id),
+        target_type="artisan_invitation",
+        target_id=event.payload.get("invitation_id"),
     )
 
 

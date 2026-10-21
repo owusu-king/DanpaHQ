@@ -42,6 +42,7 @@ const STATE_TONE: Record<string, string> = {
   declined: "is-muted",
   closed: "is-muted",
   suggested: "is-muted",
+  cancelled: "is-muted",
 };
 
 /** A list of invitations or jobs, and the sheet that opens one. */
@@ -78,7 +79,7 @@ export function WorkList({
                       )}
                     </span>
                     <span className="art-row-body">
-                      <strong>{row.request.category_display}</strong>
+                      <strong>{row.request.title}</strong>
                       <span className="art-result-area">
                         <MapPin aria-hidden="true" />
                         {row.unlocked && row.job ? row.job.address.line : [row.request.area.locality, row.request.area.district].filter(Boolean).join(", ")}
@@ -132,7 +133,7 @@ function InvitationSheet({ id, onClose, onChanged }: { id: string; onClose: () =
       open={Boolean(id)}
       onClose={onClose}
       icon={shown?.unlocked ? "wrench" : "receipt"}
-      title={shown ? shown.request.category_display : "Request"}
+      title={shown ? shown.request.title : "Request"}
       meta={shown ? INVITATION_STATE_LABEL[shown.state] : error ? undefined : "Opening…"}
       className="art-job-sheet"
       bodyBusy={!shown && !error}
@@ -177,7 +178,7 @@ function Invitation({ row, onChanged }: { row: ArtisanInvitation; onChanged: (ne
             <span>
               <strong>{job.address.line}</strong>
               <small>
-                {[job.place.unit_label, job.address.digital_address, job.address.landmark].filter(Boolean).join(" · ")}
+                {[job.place?.unit_label, job.address.digital_address, job.address.landmark].filter(Boolean).join(" · ")}
               </small>
             </span>
           </div>
@@ -203,11 +204,11 @@ function Invitation({ row, onChanged }: { row: ArtisanInvitation; onChanged: (ne
 
       {row.request.photo ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img className="art-job-photo" src={row.request.photo.url} alt={`Photo of the problem: ${row.request.category_display}`} />
+        <img className="art-job-photo" src={row.request.photo.url} alt={`Photo: ${row.request.title}`} />
       ) : null}
       <blockquote className="rq-message">
         <small>
-          {row.request.area.locality}{row.request.area.district ? `, ${row.request.area.district}` : ""} · reported {onDate(row.request.reported_at)}
+          {row.request.area.locality}{row.request.area.district ? `, ${row.request.area.district}` : ""} · {row.request.kind === "direct_job" ? `${row.request.category_display}, posted` : "reported"} {onDate(row.request.reported_at)}
         </small>
         {row.request.description}
       </blockquote>
@@ -251,7 +252,7 @@ function Invitation({ row, onChanged }: { row: ArtisanInvitation; onChanged: (ne
             title="Revised quote"
             withReason
             busy={busy}
-            onSubmit={(input) => act(() => submitRevision(row.request.id, input), "Revised price sent")}
+            onSubmit={(input) => act(() => submitRevision(row.request.kind, row.request.id, input), "Revised price sent")}
           />
         </details>
       ) : null}

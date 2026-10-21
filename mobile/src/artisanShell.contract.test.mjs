@@ -135,3 +135,27 @@ test("an artisan's job page opens the address only once the backend unlocks it",
   assert.match(job, /The address and a contact open here if your quote is approved\./);
   assert.match(job, /Linking\.openURL\(`tel:\$\{job\.contact\.phone/);
 });
+
+test("Post a job and each posted job are pushed pages, reached only from Find Artisans", () => {
+  const layout = code(read("app/(app)/_layout.tsx"));
+  assert.match(layout, /<Stack\.Screen name="direct-job" options=\{\{ title: "Your job" \}\} \/>/);
+  assert.match(layout, /<Stack\.Screen name="direct-job-new" options=\{\{ title: "Post a job" \}\} \/>/);
+  const find = code(read("app/(app)/artisans.tsx"));
+  assert.match(find, /label="Post a job" onPress=\{\(\) => router\.push\("\/\(app\)\/direct-job-new" as never\)\}/);
+  // Posting gives way to the job: Back returns to Find Artisans, not a sent form.
+  assert.match(code(read("app/(app)/direct-job-new.tsx")), /router\.replace\(\{ pathname: "\/\(app\)\/direct-job", params: \{ id: posted\.job\.id \} \}/);
+  for (const path of ["app/(app)/(tabs)/profile.tsx", "app/(app)/(provider-tabs)/more.tsx"]) {
+    assert.doesNotMatch(code(read(path)), /Post a job/, `${path} offers Post a job`);
+  }
+});
+
+test("a posted job is decided with the repair's quote card, and asking goes to the job's endpoint", () => {
+  const page = code(read("app/(app)/direct-job.tsx"));
+  assert.match(page, /<WorkArtisans work=\{job\} side="provider" onChanged=\{load\} onFind=\{find\} \/>/);
+  assert.match(page, /params: \{ request: about\.id, kind: "direct_job", mode: "invite"/);
+  assert.match(page, /job\.permissions\.cancel \?/);
+  const profile = code(read("app/(app)/artisan-view.tsx"));
+  assert.match(profile, /if \(forRequest\.kind === "direct_job"\) await inviteToDirectJob\(forRequest\.id, artisanId\);/);
+  assert.match(code(read("app/(app)/artisan-job.tsx")), /submitRevision\(row\.request\.kind, row\.request\.id, input\)/);
+  assert.match(code(read("src/notificationMeaning.ts")), /case "artisan_direct_job":\s*return \{ pathname: "\/\(app\)\/direct-job", params: \{ id: item\.target_id \} \};/);
+});

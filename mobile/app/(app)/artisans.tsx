@@ -1,6 +1,6 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { useLocalSearchParams, useNavigation, useRouter } from "expo-router";
-import { useEffect, useLayoutEffect, useState } from "react";
+import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from "expo-router";
+import { useCallback, useEffect, useLayoutEffect, useState } from "react";
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, View } from "react-native";
 
 import { ApiFailure } from "@/api";
@@ -17,6 +17,7 @@ import { useAuth } from "@/auth";
 import { DistrictPicker } from "@/components/artisan/ArtisanApplicationForm";
 import { Facts } from "@/components/artisan/ArtisanChips";
 import { ToggleField } from "@/components/filters/FilterFields";
+import { Pill } from "@/components/record/RecordSurfaces";
 import { Chip, Notice, Type, space } from "@/components/ui";
 import { Empty } from "@/components/work/WorkParts";
 import { pressableFeedback, useSafeBottom } from "@/platform";
@@ -30,9 +31,10 @@ import { theme } from "@/theme";
  *
  * Three tabs on the page, not new tabs in the bar. **Find** browses approved
  * artisans by trade and area, and each profile is its own pushed page.
- * **Requests** holds the quotes asked for and waiting; **Records** the work
- * under way and done. Opened from a repair, profiles offer to invite (or, for
- * a tenant, suggest) for it.
+ * **Requests** holds the quotes asked for and waiting — on repairs, and on jobs
+ * somebody posted for themselves (Post a job) — and **Records** the work an
+ * artisan was chosen for. Opened from a repair or a posted job, profiles offer
+ * to invite (or, for a tenant, suggest) for it.
  *
  * Danpa HQ connects people and keeps the record. Nothing here calls an artisan
  * trusted or guaranteed, and nothing shows a phone number or an address.
@@ -56,7 +58,14 @@ const TABS: { key: Tab; label: string }[] = [
 
 export default function ArtisansScreen() {
   const navigation = useNavigation();
-  const params = useLocalSearchParams<{ tab?: string; trade?: string; request?: string; mode?: string; label?: string }>();
+  const params = useLocalSearchParams<{
+    tab?: string;
+    trade?: string;
+    request?: string;
+    kind?: string;
+    mode?: string;
+    label?: string;
+  }>();
   const pageBottom = useSafeBottom(space[10]);
   const [tab, setTab] = useState<Tab>(params.tab === "requests" || params.tab === "records" ? params.tab : "find");
 
@@ -90,7 +99,12 @@ export default function ArtisansScreen() {
   function open(id: string) {
     router.push({
       pathname: "/(app)/artisan-view",
-      params: { id, ...(params.request ? { request: params.request, mode: params.mode ?? "invite", label: params.label ?? "" } : {}) },
+      params: {
+        id,
+        ...(params.request
+          ? { request: params.request, kind: params.kind ?? "maintenance", mode: params.mode ?? "invite", label: params.label ?? "" }
+          : {}),
+      },
     } as never);
   }
 
@@ -105,8 +119,8 @@ export default function ArtisansScreen() {
         {params.request ? (
           <View style={styles.forRequest}>
             <Type variant="caption" style={{ color: theme.color.ink["700"] }}>
-              {params.mode === "suggest" ? "Suggesting an artisan for " : "Inviting artisans to quote for "}
-              <Type variant="captionStrong">{params.label}</Type>. Open a profile to {params.mode === "suggest" ? "suggest them." : "invite them."}
+              {params.mode === "suggest" ? "Suggesting an artisan for " : "Asking artisans to quote for "}
+              <Type variant="captionStrong">{params.label}</Type>. Open a profile to {params.mode === "suggest" ? "suggest them." : "ask them."}
             </Type>
           </View>
         ) : null}
@@ -327,57 +341,82 @@ const styles = StyleSheet.create({
   forRequest: { padding: space[3], borderRadius: 14, backgroundColor: AMBER_WASH },
   workRow: { flexDirection: "row", alignItems: "center", gap: space[3], padding: space[3], borderRadius: 18, borderWidth: 1, borderColor: alpha(DEEP, 0.08), backgroundColor: WHITE },
   workIcon: { width: 36, height: 36, borderRadius: 11, alignItems: "center", justifyContent: "center", backgroundColor: theme.color.kola["50"] },
+  workIconDirect: { backgroundColor: theme.color.lagoon["100"] },
   gallery: { flexDirection: "row", flexWrap: "wrap", gap: space[2] },
   photo: { width: 104, height: 104, borderRadius: 14, backgroundColor: theme.color.field["100"] },
   cert: { flexDirection: "row", alignItems: "center", gap: space[3], padding: space[3], borderRadius: 14, backgroundColor: alpha(DEEP, 0.03) },
   foot: { color: MUTED, textAlign: "center", paddingHorizontal: space[2] },
 });
 
-/** Requests and Records: quotes asked for and waiting, and the work under way or done. */
+/**
+ * Requests and Records: quotes asked for and waiting, and the work under way or
+ * done. A repair opens its maintenance page; a posted job its own page.
+ */
 function Work({ tab }: { tab: "requests" | "records" }) {
   const router = useRouter();
   const [work, setWork] = useState<{ requests: CustomerWorkItem[]; records: CustomerWorkItem[] } | null>(null);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    let live = true;
-    getArtisanWork()
-      .then((next) => { if (live) setWork(next); })
-      .catch((cause) => { if (live) setError(cause instanceof ApiFailure ? cause.error.message : "Could not load artisan work."); });
-    return () => { live = false; };
-  }, []);
+  // Read again on every return: a job posted, asked about or decided on a
+  // deeper page lands here on the way back.
+  useFocusEffect(
+    useCallback(() => {
+      let live = true;
+      getArtisanWork()
+        .then((next) => { if (live) { setWork(next); setError(""); } })
+        .catch((cause) => { if (live) setError(cause instanceof ApiFailure ? cause.error.message : "Could not load artisan work."); });
+      return () => { live = false; };
+    }, []),
+  );
+
+  const post = <Pill icon="add" label="Post a job" onPress={() => router.push("/(app)/direct-job-new" as never)} />;
 
   if (error) return <Notice tone="error" title={error} />;
   if (!work) return <ActivityIndicator color={AMBER} style={{ paddingVertical: space[8] }} />;
   const rows = tab === "requests" ? work.requests : work.records;
   if (!rows.length) {
     return (
-      <View style={styles.card}>
-        {tab === "requests" ? (
-          <Empty ground={WHITE} icon="document-text-outline" title="No quote requests yet" hint="Quotes you ask for and receive appear here, with any waiting for your approval." />
-        ) : (
-          <Empty ground={WHITE} icon="construct-outline" title="No artisan jobs yet" hint="Work under way and finished stays here, with its photos and costs." />
-        )}
+      <View style={{ gap: space[3] }}>
+        <View style={styles.card}>
+          {tab === "requests" ? (
+            <Empty ground={WHITE} icon="document-text-outline" title="No quote requests yet" hint="Post a job for work at home, or invite an artisan from a repair." />
+          ) : (
+            <Empty ground={WHITE} icon="construct-outline" title="No artisan jobs yet" hint="Work an artisan was chosen for stays here, with its price." />
+          )}
+        </View>
+        {tab === "requests" ? post : null}
       </View>
     );
   }
   return (
     <View style={{ gap: space[3] }}>
+      {tab === "requests" ? post : null}
       {rows.map((item) => {
         const waiting = item.invitations.flatMap((row) => row.quotes).filter((quote) => quote.status === "submitted").length;
-        const who = item.assigned?.artisan.name ?? item.invitations.map((row) => row.artisan.name).join(", ");
+        const who = item.assigned?.artisan.name ?? (item.invitations.map((row) => row.artisan.name).join(", ") || "Nobody asked yet");
+        const direct = item.request.kind === "direct_job";
         return (
           <Pressable
-            key={item.request.id}
-            onPress={() => router.push({ pathname: "/(app)/maintenance-request", params: { id: item.request.id } } as never)}
+            key={`${item.request.kind}:${item.request.id}`}
+            onPress={() =>
+              router.push(
+                (direct
+                  ? { pathname: "/(app)/direct-job", params: { id: item.request.id } }
+                  : { pathname: "/(app)/maintenance-request", params: { id: item.request.id } }) as never,
+              )
+            }
             accessibilityRole="button"
             {...pressableFeedback(alpha(DEEP, 0.04))}
             style={styles.workRow}
           >
-            <View style={styles.workIcon}><Ionicons name="construct-outline" size={18} color={KOLA} /></View>
+            <View style={[styles.workIcon, direct ? styles.workIconDirect : null]}>
+              <Ionicons name={direct ? "clipboard-outline" : "construct-outline"} size={18} color={direct ? LAGOON : KOLA} />
+            </View>
             <View style={{ flex: 1, gap: 1 }}>
-              <Type variant="bodyStrong" numberOfLines={1}>{item.request.category_display}</Type>
-              <Type variant="caption" numberOfLines={1} style={{ color: MUTED }}>{item.request.place}</Type>
+              <Type variant="bodyStrong" numberOfLines={1}>{item.request.title}</Type>
+              <Type variant="caption" numberOfLines={1} style={{ color: MUTED }}>
+                {direct ? `${item.request.category_display} · ${item.request.place}` : item.request.place}
+              </Type>
               <Type variant="caption" numberOfLines={1} style={{ color: MUTED }}>{who}</Type>
             </View>
             <View style={{ alignItems: "flex-end", gap: 2 }}>

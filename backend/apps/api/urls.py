@@ -759,6 +759,31 @@ rent_patterns = [
         name="artisan-quote-decline",
     ),
     path(
+        "me/direct-jobs/",
+        artisan_views.MyDirectJobsView.as_view(),
+        name="me-direct-jobs",
+    ),
+    path(
+        "me/direct-jobs/<uuid:pk>/",
+        artisan_views.MyDirectJobView.as_view(),
+        name="me-direct-job",
+    ),
+    path(
+        "me/direct-jobs/<uuid:pk>/invitations/",
+        artisan_views.DirectJobInviteView.as_view(),
+        name="me-direct-job-invite",
+    ),
+    path(
+        "me/direct-jobs/<uuid:pk>/cancel/",
+        artisan_views.CancelDirectJobView.as_view(),
+        name="me-direct-job-cancel",
+    ),
+    path(
+        "direct-jobs/<uuid:pk>/revisions/",
+        artisan_views.DirectJobRevisionView.as_view(),
+        name="direct-job-revision",
+    ),
+    path(
         "maintenance/<uuid:pk>/artisan-invitations/",
         artisan_views.InviteView.as_view(),
         name="maintenance-artisan-invite",
