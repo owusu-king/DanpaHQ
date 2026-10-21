@@ -40,6 +40,7 @@ const WANTS_A_REPLY = new Set([
   "artisan.suggested",
   "artisan.quote_submitted",
   "artisan.revision_submitted",
+  "artisan.work_reported",
 ]);
 
 export function wantsAReply(kind: string): boolean {
@@ -77,6 +78,9 @@ const SUCCESS = new Set([
   "artisan.certificate_verified",
   "artisan.quote_approved",
   "maintenance.assigned",
+  "artisan.work_confirmed",
+  "artisan.paid_recorded",
+  "artisan.reviewed",
 ]);
 
 const WARNING = new Set([
@@ -89,6 +93,7 @@ const WARNING = new Set([
   "artisan.rejected",
   "artisan.certificate_declined",
   "artisan.quote_declined",
+  "artisan.work_reopened",
 ]);
 
 const CRITICAL = new Set([
@@ -181,6 +186,10 @@ export function destination(item: { target_type: string; target_id: string }): s
       return "/artisan/profile";
     case "artisan_application":
       return "/artisan";
+    case "artisan_direct_job":
+      // A posted job lives in the Artisans sheet: Updates opens it there before
+      // it would route. Anywhere else, Home is where that sheet opens from.
+      return "/home";
     default:
       return "/home";
   }

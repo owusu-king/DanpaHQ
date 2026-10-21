@@ -35,6 +35,8 @@ const MUTED = theme.color.ink["500"];
 const STATUS_LOOK: Record<DirectJob["job"]["status"], { ink: string; wash: string }> = {
   open: { ink: AMBER, wash: AMBER_WASH },
   assigned: { ink: KOLA, wash: KOLA_WASH },
+  done_reported: { ink: LAGOON, wash: LAGOON_WASH },
+  completed: { ink: KOLA, wash: KOLA_WASH },
   cancelled: { ink: MUTED, wash: theme.color.field["100"] },
 };
 
@@ -129,7 +131,7 @@ export default function DirectJobScreen() {
           </View>
         ) : null}
 
-        <WorkArtisans work={job} side="provider" onChanged={load} onFind={find} />
+        <WorkArtisans work={job} side="provider" onChanged={load} onFind={find} directJobId={about.id} />
         {!job.assigned && !job.invitations.length && about.status === "open" ? (
           <Type variant="caption" style={{ color: MUTED }}>
             Ask up to {job.max_open_invitations} artisans to quote. They see the job and the area.

@@ -257,14 +257,14 @@ export function ArtisanProfilePage() {
                 <li>
                   <span className="art-profile-fact-icon is-harmattan" aria-hidden="true"><Icon name="wrench" /></span>
                   <span>
-                    <strong>0 jobs</strong>
+                    <strong>{plural(application.profile?.jobs_completed ?? 0, "job")}</strong>
                     <small>Completed on Danpa HQ</small>
                   </span>
                 </li>
                 <li>
                   <span className="art-profile-fact-icon is-lagoon" aria-hidden="true"><Icon name="star" /></span>
                   <span>
-                    <strong>No reviews yet</strong>
+                    <strong>{application.profile?.reviews_count ? plural(application.profile.reviews_count, "review") : "No reviews yet"}</strong>
                     <small>From customers after a confirmed job</small>
                   </span>
                 </li>
@@ -282,4 +282,8 @@ export function ArtisanProfilePage() {
       )}
     </ArtisanOnly>
   );
+}
+
+function plural(count: number, noun: string) {
+  return `${count} ${noun}${count === 1 ? "" : "s"}`;
 }

@@ -43,7 +43,10 @@ export async function uploadImage(
     | "maintenance_video"
     | "artisan_work_photo"
     | "artisan_certificate"
-    | "artisan_job_photo",
+    | "artisan_job_photo"
+    | "artisan_done_photo"
+    | "artisan_receipt"
+    | "report_evidence",
 ) {
   // A video picked without a declared type is an iPhone's QuickTime or an
   // Android camera's MP4; the server sniffs the bytes either way.

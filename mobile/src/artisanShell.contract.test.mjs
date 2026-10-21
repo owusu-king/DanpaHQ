@@ -151,11 +151,40 @@ test("Post a job and each posted job are pushed pages, reached only from Find Ar
 
 test("a posted job is decided with the repair's quote card, and asking goes to the job's endpoint", () => {
   const page = code(read("app/(app)/direct-job.tsx"));
-  assert.match(page, /<WorkArtisans work=\{job\} side="provider" onChanged=\{load\} onFind=\{find\} \/>/);
+  assert.match(page, /<WorkArtisans work=\{job\} side="provider" onChanged=\{load\} onFind=\{find\} directJobId=\{about\.id\} \/>/);
   assert.match(page, /params: \{ request: about\.id, kind: "direct_job", mode: "invite"/);
   assert.match(page, /job\.permissions\.cancel \?/);
   const profile = code(read("app/(app)/artisan-view.tsx"));
   assert.match(profile, /if \(forRequest\.kind === "direct_job"\) await inviteToDirectJob\(forRequest\.id, artisanId\);/);
   assert.match(code(read("app/(app)/artisan-job.tsx")), /submitRevision\(row\.request\.kind, row\.request\.id, input\)/);
   assert.match(code(read("src/notificationMeaning.ts")), /case "artisan_direct_job":\s*return \{ pathname: "\/\(app\)\/direct-job", params: \{ id: item\.target_id \} \};/);
+});
+
+test("Report a problem offers exactly the backend's categories, in its order and words", () => {
+  const backend = read("../backend/apps/artisan/reports.py");
+  const lib = code(read("src/artisan.ts"));
+  for (const name of ["ABOUT_ARTISAN", "ABOUT_CUSTOMER"]) {
+    const start = backend.indexOf(`${name} = {`);
+    const block = backend.slice(start, backend.indexOf("}", start));
+    const server = [...block.matchAll(/"([a-z_]+)": "([^"]+)"/g)].map((match) => `${match[1]}=${match[2]}`);
+    const listStart = lib.indexOf(`export const ${name}`);
+    const list = lib.slice(listStart, lib.indexOf("];", listStart));
+    const client = [...list.matchAll(/value: "([a-z_]+)", label: "([^"]+)"/g)].map((match) => `${match[1]}=${match[2]}`);
+    assert.ok(server.length >= 4, `no ${name} parsed`);
+    assert.deepEqual(client, server, name);
+  }
+});
+
+test("the finish shows on repairs, posted jobs and the artisan's job; payment says nothing moves", () => {
+  const finish = code(read("src/components/artisan/WorkFinish.tsx"));
+  assert.match(finish, /<Type variant="caption" style=\{\{ color: theme\.color\.ink\["700"\] \}\}>\{PAID_NOTE\}<\/Type>/);
+  assert.match(finish, /label="Record payment" onPress=\{\(\) => setAsking\(true\)\}/);
+  assert.doesNotMatch(finish, /rating|stars?\b|score/i);
+  const shared = code(read("src/components/artisan/MaintenanceArtisans.tsx"));
+  assert.match(shared, /<WorkFinish[\s\S]*?canConfirm=\{Boolean\(work\.permissions\.confirm\)\}/);
+  assert.match(code(read("app/(app)/direct-job.tsx")), /directJobId=\{about\.id\}/);
+  const own = code(read("app/(app)/artisan-job.tsx"));
+  assert.match(own, /row\.permissions\?\.report_done && !pending \? \(\s*<WorkDoneForm/);
+  assert.match(own, /<ProblemReport target=\{\{ kind: "job", invitationId: row\.id \}\} side="artisan" \/>/);
+  assert.match(code(read("app/(app)/artisan-view.tsx")), /artisan\.is_you \? null : <ProblemReport target=\{\{ kind: "artisan", artisanId: artisan\.id \}\} \/>/);
 });

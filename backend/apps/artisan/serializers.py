@@ -71,6 +71,12 @@ def trade_options() -> list[dict]:
     return [{"value": value, "label": label} for value, label in Trade.choices]
 
 
+def _counts(profile) -> tuple[int, int]:
+    from .discover import _record_counts
+
+    return _record_counts([profile.id])[str(profile.id)]
+
+
 def my_application(user) -> dict:
     """Where the application stands, and the profile it describes.
 
@@ -113,6 +119,9 @@ def my_application(user) -> dict:
                 for district in profile.districts.all()
             ],
             "bio": profile.bio,
+            # Counted the same way Discover counts them for customers.
+            "jobs_completed": _counts(profile)[0],
+            "reviews_count": _counts(profile)[1],
             "portfolio": [
                 {
                     "id": str(photo.id),
@@ -172,3 +181,29 @@ class DirectJobInputSerializer(serializers.Serializer):
     house_number = serializers.CharField(max_length=32, required=False, allow_blank=True)
     street = serializers.CharField(max_length=160, required=False, allow_blank=True)
     landmark = serializers.CharField(max_length=200, required=False, allow_blank=True)
+
+
+class WorkReportInputSerializer(serializers.Serializer):
+    note = serializers.CharField(max_length=500, required=False, allow_blank=True, default="")
+    photo_file_ids = serializers.ListField(child=serializers.UUIDField(), max_length=6)
+    receipt_file_ids = serializers.ListField(
+        child=serializers.UUIDField(), required=False, default=list, max_length=6
+    )
+
+
+class ReopenInputSerializer(serializers.Serializer):
+    reason = serializers.CharField(max_length=500)
+
+
+class ReviewInputSerializer(serializers.Serializer):
+    text = serializers.CharField(max_length=1000)
+    would_hire_again = serializers.BooleanField()
+
+
+class ProblemReportInputSerializer(serializers.Serializer):
+    category = serializers.CharField(max_length=40)
+    summary = serializers.CharField(max_length=180)
+    details = serializers.CharField(max_length=3000, required=False, allow_blank=True, default="")
+    file_ids = serializers.ListField(
+        child=serializers.UUIDField(), required=False, default=list, max_length=5
+    )

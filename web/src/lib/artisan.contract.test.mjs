@@ -123,3 +123,40 @@ test("a job notification opens the job in the Artisans sheet, over Updates", () 
   assert.match(code(read("web/src/components/artisan/ArtisansSheet.tsx")), /useModalViews<View>\(open, request, request\.job \? \[\{ kind: "job", id: request\.job \}\] : undefined\)/);
   assert.match(read("backend/apps/notifications/handlers.py"), /"artisan_direct_job", job\.id/);
 });
+
+test("Report a problem offers exactly the backend's categories, in its order and words", () => {
+  const backend = read("backend/apps/artisan/reports.py");
+  const lib = code(read("web/src/lib/artisan.ts"));
+  for (const name of ["ABOUT_ARTISAN", "ABOUT_CUSTOMER"]) {
+    const start = backend.indexOf(`${name} = {`);
+    const block = backend.slice(start, backend.indexOf("}", start));
+    const server = [...block.matchAll(/"([a-z_]+)": "([^"]+)"/g)].map((match) => `${match[1]}=${match[2]}`);
+    const listStart = lib.indexOf(`export const ${name}`);
+    const list = lib.slice(listStart, lib.indexOf("];", listStart));
+    const client = [...list.matchAll(/value: "([a-z_]+)", label: "([^"]+)"/g)].map((match) => `${match[1]}=${match[2]}`);
+    assert.ok(server.length >= 4, `no ${name} parsed`);
+    assert.deepEqual(client, server, name);
+  }
+});
+
+test("recording payment says no money moves, and a review is words, never a score", () => {
+  const finish = code(read("web/src/components/artisan/WorkFinish.tsx"));
+  assert.match(code(read("web/src/lib/artisan.ts")), /PAID_NOTE = "This records that you paid\. Danpa HQ does not move or hold any money\."/);
+  assert.match(finish, /<p className="mt-quote-tip">\{PAID_NOTE\}<\/p>/);
+  // The first press asks; only the second records.
+  assert.match(finish, /onClick=\{\(\) => setAsking\(true\)\}>Record payment<\/button>/);
+  assert.doesNotMatch(finish, /rating|stars?\b|score/i);
+  // Every next step is the backend's call.
+  assert.match(finish, /work\.may_record_paid/);
+  assert.match(finish, /work\.may_review/);
+});
+
+test("the finish shows on a repair, a posted job and the artisan's own job", () => {
+  assert.match(code(read("web/src/components/artisan/MaintenanceArtisans.tsx")), /<WorkFinish\s/);
+  const job = code(read("web/src/components/artisan/DirectJobs.tsx"));
+  assert.match(job, /<WorkFinish[\s\S]*?canConfirm=\{Boolean\(permissions\.confirm\)\}/);
+  const own = code(read("web/src/components/artisan/ArtisanWork.tsx"));
+  assert.match(own, /row\.permissions\?\.report_done && !pending \? <WorkDoneForm/);
+  assert.match(own, /<ProblemReport target=\{\{ kind: "job", invitationId: row\.id \}\} side="artisan" \/>/);
+  assert.match(code(read("web/src/components/artisan/ArtisansSheet.tsx")), /artisan\.is_you \? null : <ProblemReport target=\{\{ kind: "artisan", artisanId: artisan\.id \}\} \/>/);
+});

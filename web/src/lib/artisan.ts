@@ -46,6 +46,9 @@ export type ArtisanApplication = {
     bio: string;
     portfolio: { id: string; file_id: string; url: string | null }[];
     certificates: ArtisanCertificate[];
+    /** Work confirmed done on Danpa HQ, and reviews of it. Counted, never averaged. */
+    jobs_completed?: number;
+    reviews_count?: number;
   } | null;
 };
 
@@ -105,7 +108,8 @@ export type PublicArtisan = ArtisanCard & {
   member_since: string;
   portfolio: { id: string; url: string | null }[];
   certificates: Omit<ArtisanCertificate, "file_id" | "decision_note">[];
-  reviews: never[];
+  /** Latest first. Words and whether they would hire again; never a score. */
+  reviews: { id: string; text: string; would_hire_again: boolean; author: string; at: string }[];
   is_you: boolean;
 };
 
@@ -208,6 +212,8 @@ export type QuoteView = {
   decision_note: string;
   created_at: string;
   decided_at: string | null;
+  /** The payer recorded paying it. Recorded only: no money moves through Danpa HQ. */
+  paid_at: string | null;
 };
 
 export type ArtisanBrief = { id: string; name: string; trades: TradeOption[]; cover_url: string | null };
@@ -219,6 +225,7 @@ export type InvitationState =
   | "declined"
   | "closed"
   | "assigned"
+  | "completed"
   | "cancelled";
 
 /** What a quote is for: a repair on a rented home, or a job somebody posted for themselves. */
@@ -239,8 +246,40 @@ export type ArtisanWork = {
     suggested_by_tenant: boolean;
     quotes: QuoteView[];
   }[];
-  permissions: { invite: boolean; approve: boolean; suggest: boolean; cancel?: boolean };
+  permissions: {
+    invite: boolean;
+    approve: boolean;
+    suggest: boolean;
+    cancel?: boolean;
+    /** A direct job the artisan reported done, waiting for its poster. */
+    confirm?: boolean;
+    report?: boolean;
+  };
   max_open_invitations: number;
+  /** How the assigned artisan's work finished. Null until somebody was assigned. */
+  work?: WorkFinish | null;
+};
+
+/** One time the artisan said the work was done. Receipts only for the money's side. */
+export type WorkReport = {
+  id: string;
+  note: string;
+  at: string;
+  photos: { id: string; url: string | null }[];
+  receipts: { id: string; name: string; url: string | null }[];
+  confirmed_at: string | null;
+  reopened_at: string | null;
+  reopen_reason: string;
+};
+
+export type WorkFinish = {
+  invitation_id: string | null;
+  reports: WorkReport[];
+  finished: boolean;
+  paid_at: string | null;
+  review: { text: string; would_hire_again: boolean; at: string; author: string } | null;
+  may_record_paid: boolean;
+  may_review: boolean;
 };
 
 /** One request as an artisan reads it. `job` exists only once their quote was approved. */
@@ -265,6 +304,8 @@ export type ArtisanInvitation = {
   };
   quotes: QuoteView[];
   unlocked: boolean;
+  permissions?: { report_done: boolean; report: boolean };
+  work?: WorkFinish;
   job?: {
     address: { line: string; street: string; house_number: string; digital_address: string; landmark: string };
     /** Null on a direct job: there is no property. */
@@ -398,6 +439,7 @@ export const INVITATION_STATE_LABEL: Record<InvitationState, string> = {
   declined: "Declined",
   closed: "Another artisan chosen",
   assigned: "Doing the work",
+  completed: "Done",
   cancelled: "Cancelled",
 };
 
@@ -424,7 +466,7 @@ export type DirectJob = ArtisanWork & {
     title: string;
     description: string;
     photo: { url: string } | null;
-    status: "open" | "assigned" | "cancelled";
+    status: "open" | "assigned" | "done_reported" | "completed" | "cancelled";
     status_display: string;
     area: { locality: string; district: string; region: string };
     address: { line: string; house_number: string; street: string; landmark: string };
@@ -471,3 +513,94 @@ export function cancelDirectJob(jobId: string) {
     ...idempotentMutation(),
   });
 }
+
+// --- finishing: done, confirmed, paid, reviewed, and Report a problem ------------------
+
+export const MAX_DONE_PHOTOS = 6;
+export const MAX_RECEIPTS = 6;
+export const MAX_EVIDENCE_FILES = 5;
+
+/** The artisan says the work is done, with photos of it and any receipts. */
+export function reportWorkDone(
+  invitationId: string,
+  input: { note: string; photo_file_ids: string[]; receipt_file_ids: string[] },
+) {
+  return authedFetch<ArtisanInvitation>(`/me/artisan/invitations/${invitationId}/work-reports/`, {
+    method: "POST",
+    body: JSON.stringify(input),
+    ...idempotentMutation(),
+  });
+}
+
+export function confirmDirectJob(jobId: string) {
+  return authedFetch<DirectJob>(`/me/direct-jobs/${jobId}/confirm/`, {
+    method: "POST",
+    body: JSON.stringify({}),
+    ...idempotentMutation(),
+  });
+}
+
+export function reopenDirectJob(jobId: string, reason: string) {
+  return authedFetch<DirectJob>(`/me/direct-jobs/${jobId}/reopen/`, {
+    method: "POST",
+    body: JSON.stringify({ reason }),
+    ...idempotentMutation(),
+  });
+}
+
+/** The payer records paying the price on record. Danpa HQ moves no money. */
+export function recordPaid(invitationId: string) {
+  return authedFetch<ArtisanWork>(`/artisan-jobs/${invitationId}/paid/`, {
+    method: "POST",
+    body: JSON.stringify({}),
+    ...idempotentMutation(),
+  });
+}
+
+export function reviewJob(invitationId: string, input: { text: string; would_hire_again: boolean }) {
+  return authedFetch<ArtisanWork>(`/artisan-jobs/${invitationId}/review/`, {
+    method: "POST",
+    body: JSON.stringify(input),
+    ...idempotentMutation(),
+  });
+}
+
+export type ProblemReportInput = { category: string; summary: string; details: string; file_ids: string[] };
+
+export function reportJobProblem(invitationId: string, input: ProblemReportInput) {
+  return authedFetch<{ id: string; received: boolean }>(`/artisan-jobs/${invitationId}/reports/`, {
+    method: "POST",
+    body: JSON.stringify(input),
+    ...idempotentMutation(),
+  });
+}
+
+export function reportArtisan(artisanId: string, input: ProblemReportInput) {
+  return authedFetch<{ id: string; received: boolean }>(`/artisans/${artisanId}/reports/`, {
+    method: "POST",
+    body: JSON.stringify(input),
+    ...idempotentMutation(),
+  });
+}
+
+/** What a customer may report about an artisan — the backend's `ABOUT_ARTISAN`. */
+export const ABOUT_ARTISAN: TradeOption[] = [
+  { value: "poor_work", label: "Poor or unfinished work" },
+  { value: "no_show", label: "Did not turn up" },
+  { value: "overcharging", label: "Asked for more than the agreed price" },
+  { value: "conduct", label: "Rude or inappropriate behaviour" },
+  { value: "safety", label: "Unsafe work or a safety concern" },
+  { value: "fake_profile", label: "Not who they say they are" },
+  { value: "other", label: "Something else" },
+];
+
+/** What an artisan may report about the customer on a job — the backend's `ABOUT_CUSTOMER`. */
+export const ABOUT_CUSTOMER: TradeOption[] = [
+  { value: "not_paid", label: "Not paid as agreed" },
+  { value: "conduct", label: "Rude or inappropriate behaviour" },
+  { value: "safety", label: "A safety concern on site" },
+  { value: "other", label: "Something else" },
+];
+
+/** Said wherever payment is recorded. */
+export const PAID_NOTE = "This records that you paid. Danpa HQ does not move or hold any money.";

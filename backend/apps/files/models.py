@@ -34,6 +34,9 @@ class FilePurpose(models.TextChoices):
     ARTISAN_WORK_PHOTO = "artisan_work_photo", "Artisan portfolio photo"
     ARTISAN_CERTIFICATE = "artisan_certificate", "Artisan certificate"
     ARTISAN_JOB_PHOTO = "artisan_job_photo", "Photo of a job to quote for"
+    ARTISAN_WORK_DONE_PHOTO = "artisan_done_photo", "Photo of finished artisan work"
+    ARTISAN_RECEIPT = "artisan_receipt", "Receipt for artisan work"
+    REPORT_EVIDENCE = "report_evidence", "Evidence for a report"
     OTHER = "other", "Other"
 
 

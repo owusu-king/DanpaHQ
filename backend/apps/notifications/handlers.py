@@ -1122,12 +1122,18 @@ def on_maintenance_fixed_reported(event) -> None:
     if request is None:
         return
     note = _latest_note(request)
+    # The artisan the payer chose may report it done; the tenant confirms either way.
+    who = (
+        request.assigned_artisan.user.display_name
+        if event.payload.get("by_artisan") and request.assigned_artisan_id
+        else "Your landlord"
+    )
     notify(
         user=request.tenant,
         kind="maintenance.awaiting_confirmation",
         title="Is it fixed? Please confirm",
         body=(
-            f"Your landlord reported the problem at {_maintenance_where(request)} fixed"
+            f"{who} reported the problem at {_maintenance_where(request)} fixed"
             f"{f': {note}' if note else '.'} Confirm it, or reopen it if it is not."
         ),
         dedupe_key=_key(event, request.tenant_id),
@@ -1500,6 +1506,186 @@ def on_direct_job_cancelled(event) -> None:
         dedupe_key=_key(event, artisan.id),
         target_type="artisan_invitation",
         target_id=event.payload.get("invitation_id"),
+    )
+
+
+# --- finishing artisan work --------------------------------------------------------------
+
+
+def _held_invitation_for(request):
+    """The invitation of the artisan doing a repair, for their notifications."""
+    if request.assigned_artisan_id is None:
+        return None
+    from apps.artisan.models import QuoteInvitation
+
+    return (
+        QuoteInvitation.objects.select_related("artisan__user")
+        .filter(maintenance_request=request, artisan_id=request.assigned_artisan_id)
+        .first()
+    )
+
+
+def _held_invitation_for_job(job):
+    from apps.artisan.models import QuoteInvitation
+
+    return (
+        QuoteInvitation.objects.select_related("artisan__user")
+        .filter(direct_job=job, artisan_id=job.assigned_artisan_id)
+        .first()
+    )
+
+
+@subscribe("artisan.work_reported.v1")
+def on_artisan_work_reported(event) -> None:
+    from apps.artisan.models import WorkReport
+
+    report = (
+        WorkReport.objects.select_related(
+            "invitation__artisan__user", "invitation__direct_job__owner"
+        )
+        .filter(id=event.aggregate_id)
+        .first()
+    )
+    if report is None:
+        return
+    invitation = report.invitation
+    name = invitation.artisan.user.display_name
+    if invitation.direct_job_id:
+        job = invitation.direct_job
+        notify(
+            user=job.owner,
+            kind="artisan.work_reported",
+            title="Is the work done? Please confirm",
+            body=(
+                f"{name} reported “{job.title}” done, with photos. Confirm it, or reopen "
+                "it if something is not right."
+            ),
+            dedupe_key=_key(event, job.owner_id),
+            target_type="artisan_direct_job",
+            target_id=job.id,
+        )
+        return
+    request = _maintenance(invitation.maintenance_request_id)
+    if request is None:
+        return
+    for provider in _maintenance_providers(request):
+        notify(
+            user=provider,
+            kind="artisan.work_reported",
+            title="An artisan reported a repair done",
+            body=(
+                f"{name} reported the repair in {_maintenance_where(request)} done, with "
+                "photos. The tenant confirms it."
+            ),
+            dedupe_key=_key(event, provider.id),
+            target_type="maintenance_request",
+            target_id=request.id,
+        )
+
+
+def _tell_artisan_confirmed(event, invitation, where: str) -> None:
+    notify(
+        user=invitation.artisan.user,
+        kind="artisan.work_confirmed",
+        title="Your work was confirmed done",
+        body=f"The work on {where} is confirmed done. It now counts on your profile.",
+        dedupe_key=_key(event, invitation.artisan.user_id),
+        target_type="artisan_invitation",
+        target_id=invitation.id,
+    )
+
+
+def _tell_artisan_reopened(event, invitation, where: str, reason: str) -> None:
+    notify(
+        user=invitation.artisan.user,
+        kind="artisan.work_reopened",
+        title="Your work was reopened",
+        body=f"The work on {where} is not finished yet{f': {reason}' if reason else '.'}",
+        dedupe_key=_key(event, invitation.artisan.user_id),
+        target_type="artisan_invitation",
+        target_id=invitation.id,
+    )
+
+
+@subscribe("maintenance.confirmed.v1")
+def on_maintenance_confirmed_for_artisan(event) -> None:
+    request = _maintenance(event.aggregate_id)
+    invitation = _held_invitation_for(request) if request else None
+    if invitation is not None:
+        _tell_artisan_confirmed(event, invitation, _maintenance_where(request))
+
+
+@subscribe("maintenance.reopened.v1")
+def on_maintenance_reopened_for_artisan(event) -> None:
+    request = _maintenance(event.aggregate_id)
+    invitation = _held_invitation_for(request) if request else None
+    if invitation is not None:
+        _tell_artisan_reopened(
+            event, invitation, _maintenance_where(request), _latest_note(request)
+        )
+
+
+def _direct_job(job_id):
+    from apps.artisan.models import DirectJob
+
+    return DirectJob.objects.filter(id=job_id).first()
+
+
+@subscribe("artisan.work_confirmed.v1")
+def on_direct_job_confirmed(event) -> None:
+    job = _direct_job(event.aggregate_id)
+    invitation = _held_invitation_for_job(job) if job else None
+    if invitation is not None:
+        _tell_artisan_confirmed(event, invitation, f"“{job.title}”")
+
+
+@subscribe("artisan.work_reopened.v1")
+def on_direct_job_reopened(event) -> None:
+    job = _direct_job(event.aggregate_id)
+    invitation = _held_invitation_for_job(job) if job else None
+    if invitation is not None:
+        _tell_artisan_reopened(event, invitation, f"“{job.title}”", event.payload.get("reason", ""))
+
+
+@subscribe("artisan.paid_recorded.v1")
+def on_artisan_paid_recorded(event) -> None:
+    quote = _quote_row(event.aggregate_id)
+    if quote is None:
+        return
+    invitation = _invitation(quote.invitation_id)
+    notify(
+        user=invitation.artisan.user,
+        kind="artisan.paid_recorded",
+        title="Payment recorded",
+        body=(
+            f"The customer recorded paying you {_price(quote)}. Danpa HQ keeps the record; "
+            "the money went directly between you."
+        ),
+        dedupe_key=_key(event, invitation.artisan.user_id),
+        target_type="artisan_invitation",
+        target_id=invitation.id,
+    )
+
+
+@subscribe("artisan.reviewed.v1")
+def on_artisan_reviewed(event) -> None:
+    from apps.artisan.models import ArtisanReview
+
+    written = (
+        ArtisanReview.objects.select_related("artisan__user", "invitation")
+        .filter(id=event.aggregate_id)
+        .first()
+    )
+    if written is None:
+        return
+    notify(
+        user=written.artisan.user,
+        kind="artisan.reviewed",
+        title="A customer reviewed your work",
+        body=f"“{written.text[:120]}” It now shows on your profile.",
+        dedupe_key=_key(event, written.artisan.user_id),
+        target_type="artisan_invitation",
+        target_id=written.invitation_id,
     )
 
 

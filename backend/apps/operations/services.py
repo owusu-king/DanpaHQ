@@ -325,7 +325,14 @@ def assert_management_actor(user) -> ManagementUser:
 
 @transaction.atomic
 def create_consumer_report(
-    *, user, subject_type: str, subject_id, category: str, summary: str, details: str = ""
+    *,
+    user,
+    subject_type: str,
+    subject_id,
+    category: str,
+    summary: str,
+    details: str = "",
+    evidence: dict | None = None,
 ) -> ManagementReport:
     """Open an operations report from a consumer workflow."""
     if subject_type not in ReportSubject.values:
@@ -339,9 +346,10 @@ def create_consumer_report(
         details=details.strip()[:3000],
         priority=(
             Priority.HIGH
-            if category in {"host_no_show", "inappropriate_conduct"}
+            if category in {"host_no_show", "inappropriate_conduct", "safety"}
             else Priority.NORMAL
         ),
+        evidence=evidence or {},
     )
     record(
         action=AuditAction.CREATE,

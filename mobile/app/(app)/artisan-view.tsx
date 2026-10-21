@@ -14,6 +14,7 @@ import {
   type WorkKind,
 } from "@/artisan";
 import { Facts, shortDate } from "@/components/artisan/ArtisanChips";
+import { ProblemReport } from "@/components/artisan/WorkFinish";
 import { Pill } from "@/components/record/RecordSurfaces";
 import { Notice, Type, space } from "@/components/ui";
 import { useSafeBottom } from "@/platform";
@@ -124,13 +125,23 @@ function Profile({ id, forRequest }: { id: string; forRequest?: ForRequest }) {
         </View>
         <View style={{ gap: space[1] }}>
           <Type variant="caption" style={{ color: MUTED }}>Reviews</Type>
-          <Type variant="caption" style={{ color: MUTED }}>No reviews yet. Reviews come from customers after a confirmed job.</Type>
+          {artisan.reviews.length ? artisan.reviews.map((review) => (
+            <View key={review.id} style={styles.review}>
+              <Type variant="body">{review.text}</Type>
+              <Type variant="caption" style={{ color: MUTED }}>
+                {review.author} · {shortDate(review.at)} · {review.would_hire_again ? "Would hire again" : "Would not hire again"}
+              </Type>
+            </View>
+          )) : (
+            <Type variant="caption" style={{ color: MUTED }}>No reviews yet. Reviews come from customers after a confirmed job.</Type>
+          )}
         </View>
       </View>
 
       <Type variant="caption" style={styles.foot}>
         On Danpa HQ since {shortDate(artisan.member_since)}. Danpa HQ checks identity and certificates and keeps a record of each job; it does not guarantee anybody&apos;s work.
       </Type>
+      {artisan.is_you ? null : <ProblemReport target={{ kind: "artisan", artisanId: artisan.id }} />}
     </View>
   );
 }
@@ -196,5 +207,6 @@ const styles = StyleSheet.create({
   photo: { width: 104, height: 104, borderRadius: 14, backgroundColor: theme.color.field["100"] },
   cert: { flexDirection: "row", alignItems: "center", gap: space[3], padding: space[3], borderRadius: 14, backgroundColor: alpha(DEEP, 0.03) },
   foot: { color: MUTED, textAlign: "center", paddingHorizontal: space[2] },
+  review: { gap: 4, marginTop: space[1], padding: space[3], borderLeftWidth: 3, borderLeftColor: LAGOON, borderRadius: 10, backgroundColor: alpha(DEEP, 0.03) },
   asked: { marginTop: space[2], padding: space[3], borderRadius: 14, backgroundColor: theme.color.kola["50"] },
 });

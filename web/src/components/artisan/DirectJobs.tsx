@@ -13,6 +13,7 @@ import { Hammer, ImagePlus, Lock, MapPin, X } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 
 import { Brief, QuoteCard } from "@/components/artisan/MaintenanceArtisans";
+import { ProblemReport, WorkFinish } from "@/components/artisan/WorkFinish";
 import { Button } from "@/components/Button";
 import { Field } from "@/components/Field";
 import { Notice } from "@/components/Notice";
@@ -301,6 +302,11 @@ export function DirectJobView({ id, onFind }: { id: string; onFind: (job: Direct
     }
   }
 
+  async function refresh() {
+    setJob(await getDirectJob(id));
+    announce(id);
+  }
+
   async function cancel() {
     setBusy("cancel");
     setActionError("");
@@ -321,7 +327,7 @@ export function DirectJobView({ id, onFind }: { id: string; onFind: (job: Direct
   const pendingRevision = invitations
     .flatMap((row) => row.quotes)
     .find((quote) => quote.revises && quote.status === "submitted");
-  const waitingRows = invitations.filter((row) => row.state !== "assigned");
+  const waitingRows = invitations.filter((row) => row.state !== "assigned" && row.state !== "completed");
 
   return (
     <article className="art-job">
@@ -367,7 +373,7 @@ export function DirectJobView({ id, onFind }: { id: string; onFind: (job: Direct
           <div className="mt-artisan is-assigned">
             <Brief artisan={assigned.artisan} />
             <div className="mt-artisan-facts">
-              <span className="mt-artisan-chip is-kola">{cancelled ? "Was chosen" : "Doing the work"}</span>
+              <span className="mt-artisan-chip is-kola">{cancelled ? "Was chosen" : job.work?.finished ? "Did the work" : "Doing the work"}</span>
               {assigned.assigned_at ? <small>Since {onDate(assigned.assigned_at)}</small> : null}
               {assigned.price_on_record ? (
                 <small>Price on record <strong>{assigned.price_on_record.price_display}</strong></small>
@@ -421,6 +427,19 @@ export function DirectJobView({ id, onFind }: { id: string; onFind: (job: Direct
           </p>
         ) : null}
       </section>
+
+      {job.work ? (
+        <WorkFinish
+          work={job.work}
+          priceOnRecord={assigned?.price_on_record?.price_display}
+          directJobId={about.id}
+          canConfirm={Boolean(permissions.confirm)}
+          onChanged={refresh}
+        />
+      ) : null}
+      {permissions.report && job.work?.invitation_id ? (
+        <ProblemReport target={{ kind: "job", invitationId: job.work.invitation_id }} />
+      ) : null}
 
       {permissions.cancel ? (
         <div className="art-job-cancel">

@@ -38,6 +38,41 @@ from .models import (
 DAYS_PER_MONTH = 30
 
 
+def record_artisan_payment(*, prop, user, amount_minor: int, note: str) -> PropertyExpense | None:
+    """Mirror a payment the payer recorded to an artisan into the property's books.
+
+    `apps.artisan` has already decided the payer may record it. Nothing moves:
+    this is the same internal record as an expense typed in by hand. A property
+    held by no organization has no books to write to, so nothing is mirrored.
+    """
+    relationship = (
+        prop.organization_relationships.filter(ended_at__isnull=True)
+        .select_related("organization")
+        .first()
+    )
+    if relationship is None:
+        return None
+    expense = PropertyExpense(
+        organization=relationship.organization,
+        property=prop,
+        category=ExpenseCategory.MAINTENANCE,
+        incurred_on=timezone.localdate(),
+        note=note[:300],
+        recorded_by=user,
+    )
+    expense.amount_minor = int(amount_minor)
+    expense.amount_currency = "GHS"
+    expense.save()
+    record(
+        action=AuditAction.CREATE,
+        aggregate_type="property_expense",
+        aggregate_id=expense.id,
+        actor=user,
+        metadata={"source": "artisan_payment", "amount_minor": int(amount_minor)},
+    )
+    return expense
+
+
 @transaction.atomic
 def record_expense(*, organization, prop, user, data: dict) -> PropertyExpense:
     """Record an internal cost; this deliberately does not move money."""

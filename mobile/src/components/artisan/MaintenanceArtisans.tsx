@@ -14,6 +14,7 @@ import {
   type ArtisanWork,
   type QuoteView,
 } from "@/artisan";
+import { ProblemReport, WorkFinish } from "@/components/artisan/WorkFinish";
 import { GroupLabel, Pill, RecordPanel } from "@/components/record/RecordSurfaces";
 import { Notice, Type, space } from "@/components/ui";
 import type { MaintenanceRequest } from "@/maintenance";
@@ -50,7 +51,7 @@ export function MaintenanceArtisans({
   const router = useRouter();
   const work = request.artisans;
   if (!work) return null;
-  if (!work.assigned && !work.invitations.length && !work.permissions.invite && !work.permissions.suggest) return null;
+  if (!work.assigned && !work.invitations.length && !work.permissions.invite && !work.permissions.suggest && !work.work) return null;
 
   function find(mode: "invite" | "suggest") {
     router.push({
@@ -76,11 +77,14 @@ export function WorkArtisans({
   side,
   onChanged,
   onFind,
+  directJobId,
 }: {
   work: ArtisanWork;
   side: "tenant" | "provider";
   onChanged: () => Promise<void>;
   onFind: (mode: "invite" | "suggest") => void;
+  /** Set on a posted job: its poster confirms or reopens the finished work here. */
+  directJobId?: string;
 }) {
   const [confirming, setConfirming] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -104,7 +108,7 @@ export function WorkArtisans({
   const pendingRevision = work.invitations
     .flatMap((row) => row.quotes)
     .find((quote) => quote.revises && quote.status === "submitted");
-  const waiting = work.invitations.filter((row) => row.state !== "assigned");
+  const waiting = work.invitations.filter((row) => row.state !== "assigned" && row.state !== "completed");
 
   return (
     <View style={{ gap: space[2] }}>
@@ -115,7 +119,7 @@ export function WorkArtisans({
         <RecordPanel style={styles.assigned}>
           <Brief artisan={work.assigned.artisan} />
           <View style={styles.facts}>
-            <Chip text="Doing the work" ink={KOLA} wash={KOLA_WASH} />
+            <Chip text={work.work?.finished ? "Did the work" : "Doing the work"} ink={KOLA} wash={KOLA_WASH} />
             {work.assigned.price_on_record ? (
               <Type variant="caption" style={{ color: MUTED }}>
                 Price on record <Type variant="captionStrong">{work.assigned.price_on_record.price_display}</Type>
@@ -174,6 +178,19 @@ export function WorkArtisans({
         />
       ) : work.permissions.suggest ? (
         <Pill tone="quiet" icon="hammer-outline" label="Suggest an artisan" onPress={() => onFind("suggest")} />
+      ) : null}
+
+      {work.work ? (
+        <WorkFinish
+          work={work.work}
+          priceOnRecord={work.assigned?.price_on_record?.price_display}
+          directJobId={directJobId}
+          canConfirm={Boolean(work.permissions.confirm)}
+          onChanged={onChanged}
+        />
+      ) : null}
+      {work.permissions.report && work.work?.invitation_id ? (
+        <ProblemReport target={{ kind: "job", invitationId: work.work.invitation_id }} />
       ) : null}
 
       {side === "provider" && !work.permissions.approve && work.invitations.some((row) => row.quotes.some((quote) => quote.status === "submitted")) ? (

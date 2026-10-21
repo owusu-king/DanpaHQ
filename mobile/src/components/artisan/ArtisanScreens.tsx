@@ -337,8 +337,8 @@ export function ArtisanProfileScreen() {
         <>
           <View style={styles.factsRow}>
             <Stat icon="shield-checkmark-outline" tone={{ ink: KOLA, wash: theme.color.kola["50"] }} title={application.identity_on_file ? "ID checked" : "ID not checked"} line="By Danpa HQ" />
-            <Stat icon="construct-outline" tone={{ ink: AMBER, wash: AMBER_WASH }} title="0 jobs" line="Done on Danpa HQ" />
-            <Stat icon="star-outline" tone={{ ink: LAGOON, wash: theme.color.lagoon["100"] }} title="No reviews" line="After confirmed jobs" />
+            <Stat icon="construct-outline" tone={{ ink: AMBER, wash: AMBER_WASH }} title={plural(application.profile?.jobs_completed ?? 0, "job")} line="Done on Danpa HQ" />
+            <Stat icon="star-outline" tone={{ ink: LAGOON, wash: theme.color.lagoon["100"] }} title={application.profile?.reviews_count ? plural(application.profile.reviews_count, "review") : "No reviews"} line="After confirmed jobs" />
           </View>
           {application.profile ? (
             <View style={styles.card}>
@@ -461,3 +461,7 @@ const styles = StyleSheet.create({
   footnote: { textAlign: "center", color: theme.color.ink["500"], paddingHorizontal: space[4] },
 });
 
+
+function plural(count: number, noun: string) {
+  return `${count} ${noun}${count === 1 ? "" : "s"}`;
+}

@@ -21,6 +21,7 @@ import { useEffect, useState } from "react";
 
 import { DistrictPicker } from "@/components/artisan/ApplicationForm";
 import { DirectJobView, PostJob } from "@/components/artisan/DirectJobs";
+import { ProblemReport } from "@/components/artisan/WorkFinish";
 import { Switch } from "@/components/Check";
 import { Notice } from "@/components/Notice";
 import { ModalSheet } from "@/components/workspace/ModalSheet";
@@ -359,7 +360,7 @@ function Facts({ artisan }: { artisan: ArtisanCard }) {
         <span key={trade} className="art-fact is-lagoon">{trade} certificate verified</span>
       ))}
       <span className="art-fact"><Wrench aria-hidden="true" />{artisan.jobs_completed} job{artisan.jobs_completed === 1 ? "" : "s"} on Danpa HQ</span>
-      <span className="art-fact"><Star aria-hidden="true" />{artisan.reviews_count ? `${artisan.reviews_count} reviews` : "No reviews yet"}</span>
+      <span className="art-fact"><Star aria-hidden="true" />{artisan.reviews_count ? `${artisan.reviews_count} review${artisan.reviews_count === 1 ? "" : "s"}` : "No reviews yet"}</span>
     </span>
   );
 }
@@ -438,13 +439,27 @@ function Profile({ id, forRequest }: { id: string; forRequest?: ArtisansForReque
 
       <section className="art-profile-section">
         <h4>Reviews</h4>
-        <p className="art-bio is-quiet">No reviews yet. Reviews come from customers after a confirmed job.</p>
+        {artisan.reviews.length ? (
+          <div className="art-reviews">
+            {artisan.reviews.map((review) => (
+              <blockquote key={review.id} className="art-review">
+                <p>{review.text}</p>
+                <footer>
+                  {review.author} · {onDate(review.at)} · {review.would_hire_again ? "Would hire again" : "Would not hire again"}
+                </footer>
+              </blockquote>
+            ))}
+          </div>
+        ) : (
+          <p className="art-bio is-quiet">No reviews yet. Reviews come from customers after a confirmed job.</p>
+        )}
       </section>
 
       <p className="art-profile-foot">
         On Danpa HQ since {onDate(artisan.member_since)}. Danpa HQ checks identity and certificates and keeps a
         record of each job; it does not guarantee anybody&apos;s work.
       </p>
+      {artisan.is_you ? null : <ProblemReport target={{ kind: "artisan", artisanId: artisan.id }} />}
     </article>
   );
 }

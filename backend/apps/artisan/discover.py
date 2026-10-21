@@ -19,13 +19,21 @@ choice is an informed one rather than a hidden filter.
 
 from __future__ import annotations
 
-from django.db.models import CharField, Exists, OuterRef, Q
+from django.db.models import CharField, Count, Exists, OuterRef, Q
 from django.db.models.functions import Cast
 from django.utils import timezone
 
 from apps.core.exceptions import NotFound
 
-from .models import ArtisanCertificate, ArtisanProfile, CertificateStatus, Trade
+from .models import (
+    ArtisanCertificate,
+    ArtisanProfile,
+    ArtisanReview,
+    CertificateStatus,
+    DirectJob,
+    DirectJobStatus,
+    Trade,
+)
 from .serializers import inline_photo_url
 
 ELECTRICAL = Trade.ELECTRICAL
@@ -80,11 +88,35 @@ def _identity_checked(user_ids) -> set[str]:
     )
 
 
+def _record_counts(profile_ids) -> dict[str, tuple[int, int]]:
+    """Jobs confirmed done on Danpa HQ, and reviews written of them, per artisan."""
+    from apps.maintenance.models import MaintenanceRequest, MaintenanceStatus
+
+    ids = list(profile_ids)
+    done: dict[str, int] = {}
+    for rows in (
+        MaintenanceRequest.objects.filter(
+            assigned_artisan_id__in=ids, status=MaintenanceStatus.COMPLETED
+        ),
+        DirectJob.objects.filter(assigned_artisan_id__in=ids, status=DirectJobStatus.COMPLETED),
+    ):
+        for row in rows.values("assigned_artisan_id").annotate(n=Count("id")):
+            key = str(row["assigned_artisan_id"])
+            done[key] = done.get(key, 0) + row["n"]
+    reviews = {
+        str(row["artisan_id"]): row["n"]
+        for row in ArtisanReview.objects.filter(artisan_id__in=ids)
+        .values("artisan_id")
+        .annotate(n=Count("id"))
+    }
+    return {str(key): (done.get(str(key), 0), reviews.get(str(key), 0)) for key in ids}
+
+
 def _public_certificates(profile) -> list[ArtisanCertificate]:
     return [row for row in profile.certificates.all() if row.status != CertificateStatus.DECLINED]
 
 
-def _card(profile, *, identity: set[str]) -> dict:
+def _card(profile, *, identity: set[str], counts: dict[str, tuple[int, int]]) -> dict:
     labels = dict(Trade.choices)
     certificates = _public_certificates(profile)
     certified = sorted(
@@ -104,10 +136,9 @@ def _card(profile, *, identity: set[str]) -> dict:
         ],
         "id_checked": str(profile.user_id) in identity,
         "certified_trades": certified,
-        # Counted from confirmed jobs once quotes and completion exist; until
-        # then there is nothing to count, and saying zero is the honest answer.
-        "jobs_completed": 0,
-        "reviews_count": 0,
+        # Counted, never averaged: work confirmed done here, and reviews of it.
+        "jobs_completed": counts.get(str(profile.id), (0, 0))[0],
+        "reviews_count": counts.get(str(profile.id), (0, 0))[1],
         "cover_url": inline_photo_url(cover.file) if cover else None,
     }
 
@@ -142,8 +173,9 @@ def discover(
         .distinct()[:MAX_RESULTS]
     )
     identity = _identity_checked(profile.user_id for profile in profiles)
+    counts = _record_counts(profile.id for profile in profiles)
     return {
-        "results": [_card(profile, identity=identity) for profile in profiles],
+        "results": [_card(profile, identity=identity, counts=counts) for profile in profiles],
         "electrical": electrical,
         "hidden_uncertified": hidden,
     }
@@ -162,7 +194,7 @@ def public_profile(*, profile_id, viewer) -> dict:
         raise NotFound("We could not find that artisan.")
     identity = _identity_checked([profile.user_id])
     return {
-        **_card(profile, identity=identity),
+        **_card(profile, identity=identity, counts=_record_counts([profile.id])),
         "bio": profile.bio,
         "member_since": profile.user.created_at.date().isoformat(),
         "portfolio": [
@@ -181,6 +213,15 @@ def public_profile(*, profile_id, viewer) -> dict:
             }
             for row in _public_certificates(profile)
         ],
-        "reviews": [],
+        "reviews": [
+            {
+                "id": str(row.id),
+                "text": row.text,
+                "would_hire_again": row.would_hire_again,
+                "author": row.author.first_name or "A customer",
+                "at": row.created_at,
+            }
+            for row in ArtisanReview.objects.filter(artisan=profile).select_related("author")[:20]
+        ],
         "is_you": profile.user_id == getattr(viewer, "id", None),
     }

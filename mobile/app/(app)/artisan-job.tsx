@@ -16,6 +16,7 @@ import {
   type Material,
 } from "@/artisan";
 import { shortDate } from "@/components/artisan/ArtisanChips";
+import { ProblemReport, WorkDoneForm, WorkFinish } from "@/components/artisan/WorkFinish";
 import { GroupLabel, Pill, Quote, RecordPanel } from "@/components/record/RecordSurfaces";
 import { Field, Notice, Type, space } from "@/components/ui";
 import { pressableFeedback, useSafeBottom } from "@/platform";
@@ -89,7 +90,7 @@ export default function ArtisanJobScreen() {
     <ScrollView style={styles.ground} contentContainerStyle={[styles.page, { paddingBottom: pageBottom }]} keyboardShouldPersistTaps="handled">
       <View style={styles.column}>
         <View style={styles.state}>
-          <Type variant="captionStrong" style={{ color: row.state === "assigned" ? theme.color.kola["800"] : AMBER }}>
+          <Type variant="captionStrong" style={{ color: row.state === "assigned" || row.state === "completed" ? theme.color.kola["800"] : AMBER }}>
             {INVITATION_STATE_LABEL[row.state]}
           </Type>
         </View>
@@ -165,7 +166,12 @@ export default function ArtisanJobScreen() {
           <Pill tone="quiet" label="Withdraw quote" busy={busy} busyLabel="Withdrawing…" onPress={() => void act(() => withdrawQuote(pending.id), "Quote withdrawn.")} />
         ) : null}
 
-        {row.state === "assigned" && !pending ? (
+        {row.work ? <WorkFinish work={row.work} onChanged={async () => setRow(await getMyInvitation(row.id))} /> : null}
+        {row.permissions?.report_done && !pending ? (
+          <WorkDoneForm invitation={row} onDone={(next) => { setRow(next); setDone("Sent for confirmation."); }} />
+        ) : null}
+
+        {row.state === "assigned" && !pending && row.permissions?.report_done ? (
           <QuoteForm
             title="Found more work? Ask for a revised price"
             withReason
@@ -188,6 +194,8 @@ export default function ArtisanJobScreen() {
             </RecordPanel>
           </View>
         ) : null}
+
+        {row.permissions?.report ? <ProblemReport target={{ kind: "job", invitationId: row.id }} side="artisan" /> : null}
       </View>
     </ScrollView>
   );

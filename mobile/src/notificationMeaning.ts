@@ -32,6 +32,7 @@ const WANTS_A_REPLY = new Set([
   "artisan.suggested",
   "artisan.quote_submitted",
   "artisan.revision_submitted",
+  "artisan.work_reported",
 ]);
 
 export function wantsAReply(kind: string): boolean {
@@ -68,6 +69,9 @@ const SUCCESS = new Set([
   "artisan.certificate_verified",
   "artisan.quote_approved",
   "maintenance.assigned",
+  "artisan.work_confirmed",
+  "artisan.paid_recorded",
+  "artisan.reviewed",
 ]);
 
 const WARNING = new Set([
@@ -80,6 +84,7 @@ const WARNING = new Set([
   "artisan.rejected",
   "artisan.certificate_declined",
   "artisan.quote_declined",
+  "artisan.work_reopened",
 ]);
 
 const CRITICAL = new Set([

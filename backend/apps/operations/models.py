@@ -99,6 +99,8 @@ class ReportSubject(models.TextChoices):
     PROPERTY = "property", "Property"
     LISTING = "listing", "Listing"
     VIEWING = "viewing", "Viewing"
+    ARTISAN = "artisan", "Artisan"
+    ARTISAN_JOB = "artisan_job", "Artisan job"
 
 
 class CaseStatus(models.TextChoices):
@@ -139,6 +141,10 @@ class ManagementReport(BaseModel):
     )
     resolution_note = models.TextField(blank=True, max_length=1000)
     resolved_at = models.DateTimeField(null=True, blank=True)
+    #: What the reporter attached and what the record said when they reported:
+    #: `{"files": [file ids], "snapshot": {...}}`. Kept as it was, so a later
+    #: edit or a withdrawn quote cannot change what Management reviews.
+    evidence = models.JSONField(default=dict, blank=True)
 
     class Meta:
         db_table = "operations_report"

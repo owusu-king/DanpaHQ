@@ -21,7 +21,7 @@ export function Facts({ artisan }: { artisan: ArtisanCard }) {
         <Fact key={trade} icon="ribbon-outline" tone={{ ink: LAGOON, wash: theme.color.lagoon["100"] }} text={`${trade} certificate verified`} />
       ))}
       <Fact icon="construct-outline" text={`${artisan.jobs_completed} job${artisan.jobs_completed === 1 ? "" : "s"} on Danpa HQ`} />
-      <Fact icon="star-outline" text={artisan.reviews_count ? `${artisan.reviews_count} reviews` : "No reviews yet"} />
+      <Fact icon="star-outline" text={artisan.reviews_count ? `${artisan.reviews_count} review${artisan.reviews_count === 1 ? "" : "s"}` : "No reviews yet"} />
     </View>
   );
 }

@@ -138,3 +138,40 @@ third experience.
 - **Migrations** add one table, make `maintenance_request` on
   `artisan_quote_invitation` nullable, and add a file purpose; existing rows
   keep their repair.
+
+## Phase 5: completion, payment, reviews and Report a problem (20 October 2026)
+
+- **Done is the artisan's claim, confirmation is the other side's.** Only the
+  assigned artisan reports work done (`WorkReport`), with one to six photos and
+  optional receipts. On a repair that is maintenance's own "fixed" move
+  (`maintenance.services.artisan_reported_fixed`, from in progress or
+  reopened), so the tenant confirms or reopens it exactly as before. On a
+  direct job the poster confirms or reopens it (`done_reported`, then
+  `completed`, or back to `assigned` with a reason). Every report stays on the
+  record, reopened ones included. Finished work cannot be cancelled.
+- **Paid is recorded, never moved.** Once work is confirmed, the payer records
+  paying the price on record (`Quote.paid_at`). On a repair it is mirrored as a
+  `rent.PropertyExpense` in the maintenance category for the organization that
+  holds the property (`rent.services.record_artisan_payment`); a direct job has
+  no books. The app says plainly that Danpa HQ moves and holds no money.
+- **One review per job, by the payer, after confirmation.** Words and "would
+  you hire them again"; no rating, so nothing is averaged into a score.
+  Profiles count jobs confirmed done and reviews, and list the reviews.
+- **Who reads what.** Everybody on the job reads what the artisan said and the
+  photos; receipts and payment are the payer's and the artisan's, never the
+  tenant's. An artisan's invitation reads "completed" once the work is
+  confirmed.
+- **Report a problem** on a profile (anybody signed in) or a job (the payer,
+  the people who run the property, the tenant on a repair, or the artisan, who
+  reports about the customer). It opens a report in Management's existing queue
+  (`ReportSubject` gains `artisan` and `artisan_job`), with the reporter's files
+  and a snapshot of the job — quotes, prices, every work report and its photos —
+  kept in `ManagementReport.evidence`, so later changes cannot alter what is
+  reviewed. Danpa HQ reviews and can suspend; it does not settle disputes.
+- **Notifications**: work reported (payer, or providers on a repair; the tenant
+  is asked to confirm by maintenance's own notice, naming the artisan), work
+  confirmed and reopened, payment recorded and review written (artisan).
+- **Migrations** add `artisan_work_report`, `artisan_work_report_file` and
+  `artisan_review`, nullable payment fields on `artisan_quote`, two direct-job
+  statuses and `completed_at`, three file purposes, and `evidence` on
+  `operations_report`. Existing rows are untouched.

@@ -10,6 +10,11 @@ Three readers, three views of the same repair or direct job:
 * **The people who run or pay** read every invitation and quote. **The
   tenant** on a repair reads who is doing it, and never the price — the
   payer's money is the payer's business.
+
+Once the artisan reports the work done, everybody on the job reads what they
+said and the photographs; receipts are the payer's and the artisan's. Paid and
+the review show once they exist. What each reader may do next is in
+`permissions`, decided here, never by a client.
 """
 
 from __future__ import annotations
@@ -19,7 +24,16 @@ from django.db.models import Q
 from apps.core.money import Money
 from apps.files.models import FilePurpose
 
-from .models import DirectJob, DirectJobStatus, Quote, QuoteInvitation, QuoteStatus, Trade
+from .models import (
+    ArtisanReview,
+    DirectJob,
+    DirectJobStatus,
+    Quote,
+    QuoteInvitation,
+    QuoteStatus,
+    Trade,
+    WorkFileKind,
+)
 from .quotes import MAX_OPEN_INVITATIONS, _Subject
 from .serializers import inline_photo_url
 
@@ -48,7 +62,115 @@ def _quote(quote: Quote) -> dict:
         "decision_note": quote.decision_note,
         "created_at": quote.created_at,
         "decided_at": quote.decided_at,
+        "paid_at": quote.paid_at,
     }
+
+
+def _signed(file) -> str | None:
+    """A short-lived link to a finished-work photo or a receipt."""
+    if file is None or not file.is_usable:
+        return None
+    from apps.files.storage import get_storage
+    from apps.maintenance.serializers import INLINE_TTL_SECONDS
+
+    return (
+        get_storage()
+        .presign_download(
+            key=file.storage_key,
+            expires_in=INLINE_TTL_SECONDS,
+            filename=file.original_filename,
+            disposition="inline",
+        )
+        .url
+    )
+
+
+def _work_reports(invitation: QuoteInvitation, *, receipts: bool) -> list[dict]:
+    """Every time the artisan said "done", oldest first. Receipts only for the money's side."""
+    rows = []
+    for report in invitation.work_reports.all():
+        files = list(report.files.all())
+        rows.append(
+            {
+                "id": str(report.id),
+                "note": report.note,
+                "at": report.created_at,
+                "photos": [
+                    {"id": str(row.file_id), "url": _signed(row.file)}
+                    for row in files
+                    if row.kind == WorkFileKind.PHOTO
+                ],
+                "receipts": [
+                    {
+                        "id": str(row.file_id),
+                        "name": row.file.original_filename,
+                        "url": _signed(row.file),
+                    }
+                    for row in files
+                    if row.kind == WorkFileKind.RECEIPT
+                ]
+                if receipts
+                else [],
+                "confirmed_at": report.confirmed_at,
+                "reopened_at": report.reopened_at,
+                "reopen_reason": report.reopen_reason,
+            }
+        )
+    return rows
+
+
+def _review(invitation: QuoteInvitation | None) -> dict | None:
+    if invitation is None:
+        return None
+    try:
+        written = invitation.review
+    except ArtisanReview.DoesNotExist:
+        return None
+    return {
+        "text": written.text,
+        "would_hire_again": written.would_hire_again,
+        "at": written.created_at,
+        "author": written.author.first_name or written.author.display_name,
+    }
+
+
+def _finished(subject) -> bool:
+    if isinstance(subject, DirectJob):
+        return subject.status == DirectJobStatus.COMPLETED
+    from apps.maintenance.models import MaintenanceStatus
+
+    return subject.status == MaintenanceStatus.COMPLETED
+
+
+def _awaiting_work(subject) -> bool:
+    """The assigned artisan may report it done now."""
+    if isinstance(subject, DirectJob):
+        return subject.status == DirectJobStatus.ASSIGNED
+    from apps.maintenance.models import MaintenanceStatus
+
+    return subject.status in (MaintenanceStatus.IN_PROGRESS, MaintenanceStatus.REOPENED)
+
+
+def _finish_block(subject, invitation: QuoteInvitation | None, *, pays: bool, money: bool) -> dict:
+    """The assigned job's finish: what the artisan reported, and the payer's next steps."""
+    finished = _finished(subject)
+    on_record = subject.assigned_quote
+    review = _review(invitation)
+    return {
+        "invitation_id": str(invitation.id) if invitation else None,
+        "reports": _work_reports(invitation, receipts=money) if invitation else [],
+        "finished": finished,
+        "paid_at": on_record.paid_at if money and on_record else None,
+        "review": review,
+        "may_record_paid": bool(
+            pays and finished and on_record is not None and on_record.paid_at is None
+        ),
+        "may_review": bool(pays and finished and invitation is not None and review is None),
+    }
+
+
+def _assigned_invitation(invitations: list[QuoteInvitation], subject) -> QuoteInvitation | None:
+    return next((row for row in invitations if row.artisan_id == subject.assigned_artisan_id), None)
 
 
 def _area(request) -> dict:
@@ -77,7 +199,8 @@ def _invitation_state(invitation: QuoteInvitation, subject) -> str:
     if isinstance(subject, DirectJob) and subject.status == DirectJobStatus.CANCELLED:
         return "cancelled"
     if subject.assigned_artisan_id == invitation.artisan_id:
-        return "assigned"
+        # Their job either way; "completed" once the other side confirmed it.
+        return "completed" if _finished(subject) else "assigned"
     if invitation.declined_at:
         return "declined"
     if invitation.closed_at or subject.assigned_artisan_id:
@@ -98,7 +221,7 @@ def artisan_view(invitation: QuoteInvitation) -> dict:
         return _artisan_job_view(invitation)
     request = invitation.maintenance_request
     state = _invitation_state(invitation, request)
-    unlocked = state == "assigned"
+    unlocked = state in ("assigned", "completed")
     view = {
         "id": str(invitation.id),
         "state": state,
@@ -118,12 +241,14 @@ def artisan_view(invitation: QuoteInvitation) -> dict:
         },
         "quotes": [_quote(quote) for quote in invitation.quotes.all()],
         "unlocked": unlocked,
+        "permissions": {"report_done": unlocked and _awaiting_work(request), "report": unlocked},
     }
     if not unlocked:
         return view
 
     from apps.core.phone import format_national
 
+    view["work"] = _finish_block(request, invitation, pays=False, money=True)
     address = request.property.address
     approved = request.assigned_quote
     view["job"] = {
@@ -186,7 +311,7 @@ def _job_history(job: DirectJob) -> list[dict]:
 def _artisan_job_view(invitation: QuoteInvitation) -> dict:
     job = invitation.direct_job
     state = _invitation_state(invitation, job)
-    unlocked = state == "assigned"
+    unlocked = state in ("assigned", "completed")
     view = {
         "id": str(invitation.id),
         "state": state,
@@ -206,12 +331,14 @@ def _artisan_job_view(invitation: QuoteInvitation) -> dict:
         },
         "quotes": [_quote(quote) for quote in invitation.quotes.all()],
         "unlocked": unlocked,
+        "permissions": {"report_done": unlocked and _awaiting_work(job), "report": unlocked},
     }
     if not unlocked:
         return view
 
     from apps.core.phone import format_national
 
+    view["work"] = _finish_block(job, invitation, pays=False, money=True)
     approved = job.assigned_quote
     view["job"] = {
         "address": {
@@ -249,7 +376,9 @@ def _artisan_rows(user, *, assigned: bool):
             "direct_job__locality__district__region",
             "direct_job__assigned_quote",
         )
-        .prefetch_related("quotes", "maintenance_request__events")
+        .prefetch_related(
+            "quotes", "maintenance_request__events", "work_reports__files__file", "review__author"
+        )
         .order_by("-invited_at")
     )
     held = Q(maintenance_request__assigned_artisan__user=user) | Q(
@@ -297,7 +426,9 @@ def _invitations(**link) -> list[QuoteInvitation]:
     return list(
         QuoteInvitation.objects.filter(**link)
         .select_related("artisan__user")
-        .prefetch_related("quotes", "artisan__portfolio__file")
+        .prefetch_related(
+            "quotes", "artisan__portfolio__file", "work_reports__files__file", "review__author"
+        )
         .order_by("created_at")
     )
 
@@ -350,13 +481,17 @@ def work_for(request, user) -> dict:
             if row.suggested_by_id == user.id or row.artisan_id == request.assigned_artisan_id
         ]
 
+    held = _assigned_invitation(invitations, request)
     return {
         "assigned": _assigned_block(request, priced=runs or pays),
         "invitations": rows,
+        # The tenant reads what was done and the photographs, never receipts or payment.
+        "work": _finish_block(request, held, pays=pays, money=runs or pays) if held else None,
         "permissions": {
             "invite": runs and open_now and open_invitations < MAX_OPEN_INVITATIONS,
             "approve": pays,
             "suggest": tenant and open_now,
+            "report": held is not None and (runs or pays or tenant),
         },
         "max_open_invitations": MAX_OPEN_INVITATIONS,
     }
@@ -365,6 +500,7 @@ def work_for(request, user) -> dict:
 def job_for_owner(job: DirectJob) -> dict:
     """A direct job as the person who posted it — and pays for it — reads it."""
     invitations = _invitations(direct_job=job)
+    held = _assigned_invitation(invitations, job)
     open_now = job.status == DirectJobStatus.OPEN and not job.assigned_artisan_id
     open_invitations = sum(1 for row in invitations if row.is_open)
     return {
@@ -389,6 +525,7 @@ def job_for_owner(job: DirectJob) -> dict:
             "cancelled_at": job.cancelled_at,
         },
         "assigned": _assigned_block(job, priced=True),
+        "work": _finish_block(job, held, pays=True, money=True) if held else None,
         "invitations": [
             {
                 "id": str(row.id),
@@ -401,9 +538,11 @@ def job_for_owner(job: DirectJob) -> dict:
         ],
         "permissions": {
             "invite": open_now and open_invitations < MAX_OPEN_INVITATIONS,
-            "approve": job.status != DirectJobStatus.CANCELLED,
+            "approve": job.is_open,
             "suggest": False,
-            "cancel": job.status != DirectJobStatus.CANCELLED,
+            "cancel": job.status in (DirectJobStatus.OPEN, DirectJobStatus.ASSIGNED),
+            "confirm": job.status == DirectJobStatus.DONE_REPORTED,
+            "report": held is not None,
         },
         "max_open_invitations": MAX_OPEN_INVITATIONS,
     }
@@ -458,7 +597,7 @@ def customer_overview(user) -> dict:
                 "place": job.locality.name,
             },
             "at": job.assigned_at or job.created_at,
-            **{key: block[key] for key in ("assigned", "invitations", "permissions")},
+            **{key: block[key] for key in ("assigned", "invitations", "permissions", "work")},
             "max_open_invitations": MAX_OPEN_INVITATIONS,
         }
         (records if job.assigned_artisan_id else requests).append(summary)

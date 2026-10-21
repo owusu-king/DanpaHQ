@@ -16,16 +16,20 @@ from rest_framework.views import APIView
 from apps.idempotency.services import idempotent_mutation
 from apps.identity.permissions import IsPhoneVerified, IsRegistrationComplete
 
-from . import discover, jobs, quotes, services, work
+from . import discover, finish, jobs, quotes, reports, services, work
 from .serializers import (
     ApplySerializer,
     ArtisanChoiceSerializer,
     DirectJobInputSerializer,
     DiscoverQuerySerializer,
+    ProblemReportInputSerializer,
     QuoteDecisionSerializer,
     QuoteInputSerializer,
+    ReopenInputSerializer,
+    ReviewInputSerializer,
     RevisionInputSerializer,
     UpdateProfileSerializer,
+    WorkReportInputSerializer,
     my_application,
 )
 
@@ -317,3 +321,101 @@ class CustomerWorkView(APIView):
 
     def get(self, request):
         return Response(work.customer_overview(request.user))
+
+
+# --- finishing ------------------------------------------------------------------------
+
+
+def _after_finish(invitation_id, user) -> dict:
+    """What the payer reads after recording payment or a review."""
+    from .models import QuoteInvitation
+
+    invitation = QuoteInvitation.objects.only("direct_job_id", "maintenance_request_id").get(
+        id=invitation_id
+    )
+    if invitation.direct_job_id:
+        return work.job_for_owner(jobs.own_job(user=user, job_id=invitation.direct_job_id))
+    return _work(invitation.maintenance_request_id, user)
+
+
+class WorkReportView(APIView):
+    """POST /me/artisan/invitations/<id>/work-reports/ — the assigned artisan says it is done."""
+
+    permission_classes = [IsAuthenticated, IsRegistrationComplete]
+
+    @idempotent_mutation(resource_type="artisan_work_report")
+    def post(self, request, pk):
+        payload = WorkReportInputSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+        finish.report_done(user=request.user, invitation_id=pk, **payload.validated_data)
+        return Response(work.my_invitation(request.user, pk), status=status.HTTP_201_CREATED)
+
+
+class ConfirmDirectJobView(APIView):
+    permission_classes = [IsAuthenticated, IsRegistrationComplete]
+
+    @idempotent_mutation(resource_type="artisan_direct_job")
+    def post(self, request, pk):
+        finish.confirm_job(user=request.user, job_id=pk)
+        return Response(work.job_for_owner(jobs.own_job(user=request.user, job_id=pk)))
+
+
+class ReopenDirectJobView(APIView):
+    permission_classes = [IsAuthenticated, IsRegistrationComplete]
+
+    @idempotent_mutation(resource_type="artisan_direct_job")
+    def post(self, request, pk):
+        payload = ReopenInputSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+        finish.reopen_job(user=request.user, job_id=pk, reason=payload.validated_data["reason"])
+        return Response(work.job_for_owner(jobs.own_job(user=request.user, job_id=pk)))
+
+
+class RecordPaidView(APIView):
+    """POST /artisan-jobs/<invitation>/paid/ — the payer records paying. Nothing moves."""
+
+    permission_classes = [IsAuthenticated, IsRegistrationComplete]
+
+    @idempotent_mutation(resource_type="artisan_quote")
+    def post(self, request, pk):
+        finish.record_paid(user=request.user, invitation_id=pk)
+        return Response(_after_finish(pk, request.user))
+
+
+class ReviewView(APIView):
+    """POST /artisan-jobs/<invitation>/review/ — one review, by the payer, of finished work."""
+
+    permission_classes = [IsAuthenticated, IsRegistrationComplete]
+
+    @idempotent_mutation(resource_type="artisan_review")
+    def post(self, request, pk):
+        payload = ReviewInputSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+        finish.review(user=request.user, invitation_id=pk, **payload.validated_data)
+        return Response(_after_finish(pk, request.user), status=status.HTTP_201_CREATED)
+
+
+class JobProblemView(APIView):
+    """POST /artisan-jobs/<invitation>/reports/ — either side reports a problem."""
+
+    permission_classes = [IsAuthenticated, IsRegistrationComplete]
+
+    @idempotent_mutation(resource_type="management_report")
+    def post(self, request, pk):
+        payload = ProblemReportInputSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+        made = reports.report_job(user=request.user, invitation_id=pk, **payload.validated_data)
+        return Response({"id": str(made.id), "received": True}, status=status.HTTP_201_CREATED)
+
+
+class ArtisanProblemView(APIView):
+    """POST /artisans/<id>/reports/ — report a problem with an artisan from their profile."""
+
+    permission_classes = [IsAuthenticated, IsRegistrationComplete]
+
+    @idempotent_mutation(resource_type="management_report")
+    def post(self, request, pk):
+        payload = ProblemReportInputSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+        made = reports.report_artisan(user=request.user, artisan_id=pk, **payload.validated_data)
+        return Response({"id": str(made.id), "received": True}, status=status.HTTP_201_CREATED)

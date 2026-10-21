@@ -997,6 +997,41 @@ def _report_row(item):
         "resolution_note": item.resolution_note,
         "created_at": _iso(item.created_at),
         "resolved_at": _iso(item.resolved_at),
+        "evidence": _report_evidence(item.evidence or {}),
+    }
+
+
+def _report_evidence(evidence: dict) -> dict:
+    """What the reporter attached, signed for this read, and the record as it stood."""
+    from apps.files.models import StoredFile
+    from apps.files.storage import get_storage
+
+    snapshot = evidence.get("snapshot") or {}
+    ids = list(evidence.get("files") or [])
+    for report in snapshot.get("work_reports") or []:
+        ids += list(report.get("photos") or []) + list(report.get("receipts") or [])
+    storage = get_storage()
+    files = {
+        str(row.id): {
+            "id": str(row.id),
+            "name": row.original_filename,
+            "url": storage.presign_download(
+                key=row.storage_key,
+                expires_in=300,
+                filename=row.original_filename,
+                disposition="inline",
+            ).url,
+        }
+        for row in StoredFile.objects.filter(id__in=ids)
+        if row.is_usable
+    }
+    return {
+        "files": [files[str(i)] for i in evidence.get("files") or [] if str(i) in files],
+        "snapshot": snapshot,
+        "snapshot_files": {
+            key: value for key, value in files.items() if key not in (evidence.get("files") or [])
+        },
+        "reported_by_side": evidence.get("reported_by_side", ""),
     }
 
 
@@ -1072,10 +1107,7 @@ def _support_row(item):
         "last_message_at": _iso(item.last_message_at or item.created_at),
         "unread": bool(
             item.last_message_at
-            and (
-                item.management_read_at is None
-                or item.management_read_at < item.last_message_at
-            )
+            and (item.management_read_at is None or item.management_read_at < item.last_message_at)
             and latest
             and latest.sender == "user"
         ),
@@ -1242,9 +1274,7 @@ class MySupportCasesView(APIView):
         payload.is_valid(raise_exception=True)
         item = services.create_support_case(user=request.user, **payload.validated_data)
         item = SupportCase.objects.prefetch_related("messages").get(id=item.id)
-        return Response(
-            _support_detail(item, audience="user"), status=status.HTTP_201_CREATED
-        )
+        return Response(_support_detail(item, audience="user"), status=status.HTTP_201_CREATED)
 
 
 class MySupportCaseDetailView(APIView):

@@ -121,6 +121,9 @@ def cancel_job(*, user, job_id) -> DirectJob:
     job = own_job(user=user, job_id=job_id, lock=True)
     if job.status == DirectJobStatus.CANCELLED:
         raise Conflict("This job is already cancelled.")
+    if job.status not in (DirectJobStatus.OPEN, DirectJobStatus.ASSIGNED):
+        # Finished work is confirmed or reopened, never called off.
+        raise Conflict("The artisan has reported this work done. Confirm it or reopen it.")
     before, now = job.status, timezone.now()
     job.status = DirectJobStatus.CANCELLED
     job.cancelled_at = now

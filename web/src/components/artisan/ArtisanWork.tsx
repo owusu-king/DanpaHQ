@@ -14,6 +14,7 @@
 import { MapPin, Phone, Plus, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
+import { ProblemReport, WorkDoneForm, WorkFinish } from "@/components/artisan/WorkFinish";
 import { Field } from "@/components/Field";
 import { Notice } from "@/components/Notice";
 import { Icon } from "@/components/portal/icons";
@@ -39,6 +40,7 @@ const STATE_TONE: Record<string, string> = {
   invited: "is-harmattan",
   quoted: "is-lagoon",
   assigned: "is-kola",
+  completed: "is-kola",
   declined: "is-muted",
   closed: "is-muted",
   suggested: "is-muted",
@@ -245,7 +247,12 @@ function Invitation({ row, onChanged }: { row: ArtisanInvitation; onChanged: (ne
         </div>
       ) : null}
 
-      {row.state === "assigned" && !pending ? (
+      {row.work ? (
+        <WorkFinish work={row.work} onChanged={async () => onChanged(await getMyInvitation(row.id))} />
+      ) : null}
+      {row.permissions?.report_done && !pending ? <WorkDoneForm invitation={row} onDone={onChanged} /> : null}
+
+      {row.state === "assigned" && !pending && row.permissions?.report_done ? (
         <details className="art-revise">
           <summary>Found more work? Ask for a revised price</summary>
           <QuoteForm
@@ -274,6 +281,8 @@ function Invitation({ row, onChanged }: { row: ArtisanInvitation; onChanged: (ne
           </ol>
         </section>
       ) : null}
+
+      {row.permissions?.report ? <ProblemReport target={{ kind: "job", invitationId: row.id }} side="artisan" /> : null}
     </div>
   );
 }

@@ -17,6 +17,7 @@ import { Hammer } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { openArtisans } from "@/components/artisan/ArtisansSheet";
+import { ProblemReport, WorkFinish } from "@/components/artisan/WorkFinish";
 import { Notice } from "@/components/Notice";
 import { useToast } from "@/components/toast/Toaster";
 import { ApiFailure } from "@/lib/api";
@@ -62,7 +63,7 @@ export function MaintenanceArtisans({
   }, [request.id, onChanged]);
 
   if (!work) return null;
-  const nothing = !work.assigned && !work.invitations.length && !work.permissions.invite && !work.permissions.suggest;
+  const nothing = !work.assigned && !work.invitations.length && !work.permissions.invite && !work.permissions.suggest && !work.work;
   if (nothing) return null;
 
   async function decide(quote: QuoteView, approve: boolean) {
@@ -89,7 +90,7 @@ export function MaintenanceArtisans({
   const pendingRevision = work.invitations
     .flatMap((row) => row.quotes)
     .find((quote) => quote.revises && quote.status === "submitted");
-  const waitingRows = work.invitations.filter((row) => row.state !== "assigned");
+  const waitingRows = work.invitations.filter((row) => row.state !== "assigned" && row.state !== "completed");
 
   function find(mode: "invite" | "suggest") {
     openArtisans({
@@ -118,7 +119,7 @@ export function MaintenanceArtisans({
         <div className="mt-artisan is-assigned">
           <Brief artisan={work.assigned.artisan} />
           <div className="mt-artisan-facts">
-            <span className="mt-artisan-chip is-kola">Doing the work</span>
+            <span className="mt-artisan-chip is-kola">{work.work?.finished ? "Did the work" : "Doing the work"}</span>
             {work.assigned.assigned_at ? <small>Since {onDate(work.assigned.assigned_at)}</small> : null}
             {work.assigned.price_on_record ? (
               <small>
@@ -169,6 +170,17 @@ export function MaintenanceArtisans({
             );
           })}
         </ul>
+      ) : null}
+
+      {work.work ? (
+        <WorkFinish
+          work={work.work}
+          priceOnRecord={work.assigned?.price_on_record?.price_display}
+          onChanged={async () => onChanged(await getMaintenanceRequest(request.id))}
+        />
+      ) : null}
+      {work.permissions.report && work.work?.invitation_id ? (
+        <ProblemReport target={{ kind: "job", invitationId: work.work.invitation_id }} />
       ) : null}
 
       {side === "provider" && !work.permissions.approve && work.invitations.some((row) => row.quotes.some((q) => q.status === "submitted")) ? (

@@ -264,6 +264,14 @@ class Quote(BaseModel):
     )
     decided_at = models.DateTimeField(null=True, blank=True)
     decision_note = models.CharField(max_length=300, blank=True)
+    #: The payer says they paid the price on record. Recorded, never moved:
+    #: Danpa HQ holds no money. On a repair it is mirrored as a property expense.
+    paid_at = models.DateTimeField(null=True, blank=True)
+    paid_recorded_by = models.ForeignKey(
+        "identity.User", null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    #: The `rent.PropertyExpense` the payment was mirrored into, when it was.
+    expense_id = models.UUIDField(null=True, blank=True)
 
     class Meta:
         db_table = "artisan_quote"
@@ -285,6 +293,9 @@ class Quote(BaseModel):
 class DirectJobStatus(models.TextChoices):
     OPEN = "open", "Looking for an artisan"
     ASSIGNED = "assigned", "Artisan chosen"
+    #: The artisan says it is done; the person who posted it confirms.
+    DONE_REPORTED = "done_reported", "Waiting for your confirmation"
+    COMPLETED = "completed", "Completed"
     CANCELLED = "cancelled", "Cancelled"
 
 
@@ -323,6 +334,7 @@ class DirectJob(BaseModel):
         Quote, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
     )
     assigned_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
     cancelled_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
@@ -335,9 +347,71 @@ class DirectJob(BaseModel):
 
     @property
     def is_open(self) -> bool:
-        return self.status != DirectJobStatus.CANCELLED
+        return self.status not in (DirectJobStatus.CANCELLED, DirectJobStatus.COMPLETED)
 
     @property
     def address_line(self) -> str:
         parts = [self.house_number, self.street, self.locality.name if self.locality_id else ""]
         return ", ".join(part for part in parts if part)
+
+
+# --- finishing: the artisan's report, and the payer's review ---------------------------
+
+
+class WorkFileKind(models.TextChoices):
+    PHOTO = "photo", "Photo of the finished work"
+    RECEIPT = "receipt", "Receipt"
+
+
+class WorkReport(BaseModel):
+    """The assigned artisan says the work is done: what they did, photos, receipts.
+
+    It moves nothing by itself. On a repair the request goes to the tenant to
+    confirm, exactly as when the provider reports it fixed; on a direct job the
+    person who posted it confirms. A reopened job gets a new report, so every
+    claim of "done" — and its photographs — stays on the record.
+    """
+
+    invitation = models.ForeignKey(
+        QuoteInvitation, on_delete=models.PROTECT, related_name="work_reports"
+    )
+    note = models.CharField(max_length=500, blank=True)
+    submitted_by = models.ForeignKey("identity.User", on_delete=models.PROTECT, related_name="+")
+    #: A direct job's answer. A repair's lives in its maintenance history.
+    confirmed_at = models.DateTimeField(null=True, blank=True)
+    reopened_at = models.DateTimeField(null=True, blank=True)
+    reopen_reason = models.CharField(max_length=500, blank=True)
+
+    class Meta:
+        db_table = "artisan_work_report"
+        ordering = ("created_at",)
+
+
+class WorkReportFile(BaseModel):
+    report = models.ForeignKey(WorkReport, on_delete=models.PROTECT, related_name="files")
+    file = models.ForeignKey("files.StoredFile", on_delete=models.PROTECT, related_name="+")
+    kind = models.CharField(max_length=12, choices=WorkFileKind.choices)
+
+    class Meta:
+        db_table = "artisan_work_report_file"
+        ordering = ("created_at",)
+
+
+class ArtisanReview(BaseModel):
+    """What the payer says about finished work. One per job, and no score.
+
+    A sentence or two and whether they would hire the artisan again: facts a
+    reader weighs, never averaged into a rating Danpa HQ would be vouching for.
+    """
+
+    invitation = models.OneToOneField(
+        QuoteInvitation, on_delete=models.PROTECT, related_name="review"
+    )
+    artisan = models.ForeignKey(ArtisanProfile, on_delete=models.PROTECT, related_name="reviews")
+    author = models.ForeignKey("identity.User", on_delete=models.PROTECT, related_name="+")
+    text = models.TextField(max_length=1000)
+    would_hire_again = models.BooleanField()
+
+    class Meta:
+        db_table = "artisan_review"
+        ordering = ("-created_at",)

@@ -222,6 +222,7 @@ def _move(
     kind: str,
     note: str = "",
     stamp: dict | None = None,
+    payload: dict | None = None,
 ) -> MaintenanceRequest:
     previous = request.status
     now = timezone.now()
@@ -254,7 +255,7 @@ def _move(
             f"maintenance.{kind}.v1",
             "maintenance_request",
             str(request.id),
-            {"from": previous, "to": to},
+            {"from": previous, "to": to, **(payload or {})},
         )
     )
     return request
@@ -364,6 +365,32 @@ def assign_artisan(
         )
     return _record_without_moving(
         request=request, user=approver, kind=MaintenanceEventKind.ASSIGNED, note=note, fields=stamp
+    )
+
+
+@transaction.atomic
+def artisan_reported_fixed(
+    *, request: MaintenanceRequest, user, note: str = ""
+) -> MaintenanceRequest:
+    """The assigned artisan says the repair is done. The tenant still confirms it.
+
+    The same move as the provider's "fixed", from work under way or work the
+    tenant reopened; `apps.artisan` has already checked that this is the
+    artisan the payer approved.
+    """
+    request = _locked(request)
+    if request.assigned_artisan_id is None or request.assigned_artisan.user_id != user.id:
+        raise PermissionDenied("Only the artisan doing this repair can report it done.")
+    if request.status not in (MaintenanceStatus.IN_PROGRESS, MaintenanceStatus.REOPENED):
+        raise Conflict("This repair is not waiting on the work.")
+    return _move(
+        request=request,
+        user=user,
+        to=MaintenanceStatus.AWAITING_TENANT_CONFIRMATION,
+        kind=MaintenanceEventKind.FIXED_REPORTED,
+        note=note.strip(),
+        stamp={"fixed_reported_at": None},
+        payload={"by_artisan": True},
     )
 
 
