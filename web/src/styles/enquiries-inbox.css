@@ -548,3 +548,20 @@
   .inbox-row:active,
   .inbox-send:active:not(:disabled) { transform: none; }
 }
+
+/* Selling or buying, on a row and in the conversation's header. */
+.inbox-side-tag {
+  display: inline-block;
+  flex: none;
+  margin-right: 6px;
+  padding: 1px 7px;
+  font-size: .625rem;
+  font-weight: 650;
+  letter-spacing: .02em;
+  line-height: 1.5;
+  vertical-align: 1px;
+  border-radius: 999px;
+}
+.inbox-side-tag.is-seller { color: var(--color-kola-800); background: color-mix(in srgb, var(--color-kola-600) 13%, var(--color-field-0)); }
+.inbox-side-tag.is-buyer { color: var(--color-lagoon-600); background: var(--color-lagoon-100); }
+.inbox-thread-who strong .inbox-side-tag { margin: 0 0 0 8px; vertical-align: 2px; }

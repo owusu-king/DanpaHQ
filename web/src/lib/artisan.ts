@@ -484,6 +484,8 @@ export type DirectJobInput = {
   house_number?: string;
   street?: string;
   landmark?: string;
+  /** Posted from an artisan's profile: they are asked to quote in the same step. */
+  invite_artisan_id?: string | null;
 };
 
 export function postDirectJob(input: DirectJobInput) {
@@ -492,6 +494,11 @@ export function postDirectJob(input: DirectJobInput) {
     body: JSON.stringify(input),
     ...idempotentMutation(),
   });
+}
+
+/** Every job this person posted, newest first. */
+export function listMyDirectJobs() {
+  return authedFetch<DirectJob[]>("/me/direct-jobs/");
 }
 
 export function getDirectJob(id: string) {

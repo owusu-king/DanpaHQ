@@ -1,6 +1,6 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import * as ImagePicker from "expo-image-picker";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { Image, Pressable, ScrollView, StyleSheet, View } from "react-native";
 
@@ -34,8 +34,10 @@ const ALERT = theme.color.laterite["600"];
 
 export default function PostDirectJobScreen() {
   const router = useRouter();
+  // Posted from an artisan's profile: they are asked to quote as it is posted.
+  const params = useLocalSearchParams<{ invite?: string; inviteName?: string; trade?: string }>();
   const pageBottom = useSafeBottom(space[10]);
-  const [trade, setTrade] = useState("");
+  const [trade, setTrade] = useState(typeof params.trade === "string" ? params.trade : "");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [locality, setLocality] = useState<Locality | null>(null);
@@ -76,6 +78,7 @@ export default function PostDirectJobScreen() {
         title: title.trim(),
         description: description.trim(),
         locality_id: locality.id,
+        invite_artisan_id: params.invite || null,
         photo_file_id: photoId,
         house_number: houseNumber.trim(),
         street: street.trim(),
@@ -99,6 +102,13 @@ export default function PostDirectJobScreen() {
     >
       <View style={styles.column}>
         {error ? <Notice tone="error" title={error} /> : null}
+        {params.invite ? (
+          <View style={styles.inviting}>
+            <Type variant="caption" style={{ color: theme.color.ink["700"] }}>
+              <Type variant="captionStrong">{params.inviteName || "This artisan"}</Type> is asked to quote as soon as you post. They see the job and the area, not the address.
+            </Type>
+          </View>
+        ) : null}
 
         <View style={{ gap: space[2] }}>
           <GroupLabel>What needs doing</GroupLabel>
@@ -284,6 +294,7 @@ const styles = StyleSheet.create({
     backgroundColor: AMBER_WASH,
   },
   pair: { flexDirection: "row", gap: space[3] },
+  inviting: { padding: space[3], borderRadius: 14, backgroundColor: AMBER_WASH },
   private: { flexDirection: "row", alignItems: "flex-start", gap: space[2], padding: space[3], borderRadius: 12, backgroundColor: LAGOON_WASH },
   place: {
     flexDirection: "row",

@@ -1,4 +1,4 @@
-import { useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Image, ScrollView, StyleSheet, View } from "react-native";
 
@@ -9,7 +9,9 @@ import {
   getArtisan,
   inviteArtisan,
   inviteToDirectJob,
+  listMyDirectJobs,
   suggestArtisan,
+  type DirectJob,
   type PublicArtisan,
   type WorkKind,
 } from "@/artisan";
@@ -87,7 +89,11 @@ function Profile({ id, forRequest }: { id: string; forRequest?: ForRequest }) {
           <Type variant="caption" style={{ color: MUTED, flexShrink: 1 }}>Works in {artisan.districts.map((district) => district.name).join(", ")}</Type>
         </View>
         <Facts artisan={artisan} />
-        {forRequest && !artisan.is_you ? <AskAction artisanId={artisan.id} name={artisan.name} forRequest={forRequest} /> : null}
+        {artisan.is_you ? null : forRequest ? (
+          <AskAction artisanId={artisan.id} name={artisan.name} forRequest={forRequest} />
+        ) : (
+          <QuoteAsk artisan={artisan} />
+        )}
       </View>
 
       {artisan.portfolio.some((photo) => photo.url) ? (
@@ -142,6 +148,77 @@ function Profile({ id, forRequest }: { id: string; forRequest?: ForRequest }) {
         On Danpa HQ since {shortDate(artisan.member_since)}. Danpa HQ checks identity and certificates and keeps a record of each job; it does not guarantee anybody&apos;s work.
       </Type>
       {artisan.is_you ? null : <ProblemReport target={{ kind: "artisan", artisanId: artisan.id }} />}
+    </View>
+  );
+}
+
+/**
+ * A profile reached by browsing: ask this artisan to quote — for one of your
+ * open jobs, or a new job posted for them, which asks them as it is posted. A
+ * repair on a rented home is asked about from the repair itself.
+ */
+function QuoteAsk({ artisan }: { artisan: PublicArtisan }) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [jobs, setJobs] = useState<DirectJob[] | null>(null);
+  const [asked, setAsked] = useState<Record<string, "busy" | "done">>({});
+  const [error, setError] = useState("");
+  const first = artisan.name.split(" ")[0] || artisan.name;
+
+  useEffect(() => {
+    if (!open || jobs) return;
+    listMyDirectJobs()
+      .then((rows) => setJobs(rows.filter((row) => row.permissions.invite)))
+      .catch(() => setJobs([]));
+  }, [open, jobs]);
+
+  async function ask(job: DirectJob) {
+    setAsked((current) => ({ ...current, [job.job.id]: "busy" }));
+    setError("");
+    try {
+      await inviteToDirectJob(job.job.id, artisan.id);
+      setAsked((current) => ({ ...current, [job.job.id]: "done" }));
+    } catch (cause) {
+      setAsked((current) => { const next = { ...current }; delete next[job.job.id]; return next; });
+      setError(cause instanceof ApiFailure ? cause.error.message : "That did not go through. Try again.");
+    }
+  }
+
+  if (!open) {
+    return (
+      <View style={{ marginTop: space[2] }}>
+        <Pill icon="paper-plane-outline" label={`Ask ${first} for a quote`} onPress={() => setOpen(true)} />
+      </View>
+    );
+  }
+  return (
+    <View style={styles.quoteAsk}>
+      <Type variant="bodyStrong">What should {first} quote for?</Type>
+      {error ? <Notice tone="error" title={error} /> : null}
+      {jobs === null ? <ActivityIndicator color={AMBER} /> : jobs.map((job) => (
+        <View key={job.job.id} style={styles.quoteAskRow}>
+          <View style={{ flex: 1, gap: 1 }}>
+            <Type variant="bodyStrong" numberOfLines={1}>{job.job.title}</Type>
+            <Type variant="caption" style={{ color: MUTED }} numberOfLines={1}>{job.job.trade_display} · {job.job.area.locality}</Type>
+          </View>
+          {asked[job.job.id] === "done" ? (
+            <Pill tone="quiet" label="Asked · open" onPress={() => router.push({ pathname: "/(app)/direct-job", params: { id: job.job.id } } as never)} />
+          ) : (
+            <Pill tone="quiet" label="Ask about this" busy={asked[job.job.id] === "busy"} busyLabel="Asking…" onPress={() => void ask(job)} />
+          )}
+        </View>
+      ))}
+      <Pill
+        icon="add"
+        label={`Post a new job for ${first}`}
+        onPress={() =>
+          router.push({
+            pathname: "/(app)/direct-job-new",
+            params: { invite: artisan.id, inviteName: artisan.name, trade: artisan.trades[0]?.value ?? "" },
+          } as never)
+        }
+      />
+      <Type variant="caption" style={{ color: MUTED }}>For a repair on a rented home, open it in Maintenance and choose Find an artisan.</Type>
     </View>
   );
 }
@@ -208,5 +285,7 @@ const styles = StyleSheet.create({
   cert: { flexDirection: "row", alignItems: "center", gap: space[3], padding: space[3], borderRadius: 14, backgroundColor: alpha(DEEP, 0.03) },
   foot: { color: MUTED, textAlign: "center", paddingHorizontal: space[2] },
   review: { gap: 4, marginTop: space[1], padding: space[3], borderLeftWidth: 3, borderLeftColor: LAGOON, borderRadius: 10, backgroundColor: alpha(DEEP, 0.03) },
+  quoteAsk: { gap: space[3], marginTop: space[2], padding: space[4], borderRadius: 16, backgroundColor: theme.color.harmattan["100"] },
+  quoteAskRow: { flexDirection: "row", alignItems: "center", gap: space[3], padding: space[3], borderRadius: 12, backgroundColor: WHITE },
   asked: { marginTop: space[2], padding: space[3], borderRadius: 14, backgroundColor: theme.color.kola["50"] },
 });

@@ -64,7 +64,11 @@ test("becoming an artisan is a quiet link in the Artisans sheet, never a menu it
   // gains only the switch, and only once the backend opens the experience.
   const menu = code(read("web/src/components/portal/AccountMenu.tsx"));
   assert.doesNotMatch(menu, /Become an artisan|Your artisan application|href=\{"\/artisan"/);
-  assert.match(menu, /artisan: "Switch to artisan experience"/);
+  assert.match(menu, /artisan: "Artisan",/);
+  // One word on the row; the hover and the accessible name say what it does.
+  assert.match(menu, /title=\{CROSSING_TITLE\[workspace\]\}/);
+  assert.match(menu, /aria-label=\{CROSSING_TITLE\[workspace\]\}/);
+  assert.match(menu, /artisan: "Switch to the artisan experience"/);
 
   const sheet = code(read("web/src/components/artisan/ArtisansSheet.tsx"));
   assert.match(sheet, /const becomeLabel = !artisan \|\| artisan\.workspace_access\s*\? null/);
@@ -159,4 +163,20 @@ test("the finish shows on a repair, a posted job and the artisan's own job", () 
   assert.match(own, /row\.permissions\?\.report_done && !pending \? <WorkDoneForm/);
   assert.match(own, /<ProblemReport target=\{\{ kind: "job", invitationId: row\.id \}\} side="artisan" \/>/);
   assert.match(code(read("web/src/components/artisan/ArtisansSheet.tsx")), /artisan\.is_you \? null : <ProblemReport target=\{\{ kind: "artisan", artisanId: artisan\.id \}\} \/>/);
+});
+
+test("a profile reached by browsing offers to ask for a quote, for a job or a new one", () => {
+  const sheet = code(read("web/src/components/artisan/ArtisansSheet.tsx"));
+  assert.match(sheet, /<QuoteAsk artisan=\{artisan\} onPostFor=\{onPostFor\} onOpenJob=\{onOpenJob\} \/>/);
+  assert.match(sheet, /rows\.filter\(\(row\) => row\.permissions\.invite\)/);
+  assert.match(code(read("web/src/components/artisan/DirectJobs.tsx")), /invite_artisan_id: invite\?\.id \?\? null/);
+  assert.match(read("backend/apps/artisan/jobs.py"), /invite_to_job\(user=user, job_id=job\.id, artisan_id=invite_artisan_id\)/);
+});
+
+test("signing out leaves for the front door with no sign-in dialog over it", () => {
+  const session = code(read("web/src/lib/session.tsx"));
+  const signOut = session.slice(session.indexOf("const signOut"), session.indexOf("const value = useMemo"));
+  assert.match(signOut, /router\.replace\("\/"\)/);
+  assert.doesNotMatch(signOut, /sign-in/);
+  assert.match(signOut, /startTransition\(\(\) => \{\s*setState\(\{ status: "signed_out" \}\);\s*router\.replace\("\/"\);/);
 });

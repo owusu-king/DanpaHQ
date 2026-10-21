@@ -102,13 +102,24 @@ test("enquiries are an inbox over the page, with the conversation's rules intact
   assert.equal(code(read("web/app/record/enquiry/page.tsx")).includes("return null"), true);
 
   // List and conversation, through the same three calls the pages used.
-  assert.match(inbox, /await listEnquiries\(effectiveSide\)/);
+  assert.match(inbox, /await listEnquiries\(listing\)/);
   assert.match(inbox, /await getEnquiry\(selectedId\)/);
   assert.match(inbox, /await replyToEnquiry\(selectedId, body\)/);
   // Reading marks it read on the server, and the list says so at once.
   assert.match(inbox, /row\.id === detail\.id \? \{ \.\.\.row, unread: false \}/);
   // A sold property or closed enquiry stays readable and takes no replies.
   assert.match(inbox, /const closed = thread \? thread\.status === "closed" \|\| thread\.sale\.status === "sold" : false;/);
-  // Only an account that can sell is offered the selling side.
-  assert.match(inbox, /const effectiveSide: EnquirySide = canSell \? side : "buyer";/);
+  // One Properties list for somebody on both sides, never a Selling and Buying
+  // split (owner, 2026-10-21); a tenant reads only what they asked about.
+  assert.match(inbox, /const listing = canSell \? "all" : "buyer";/);
+  assert.doesNotMatch(inbox, /aria-label="Which side"|\(\["seller", "buyer"\] as const\)\.map/);
+});
+
+test("in the one Properties list, a provider sees which side each conversation is on", () => {
+  const inbox = code(read("web/src/components/enquiries/EnquiriesInbox.tsx"));
+  assert.match(inbox, /\{canSell \? <SideTag role=\{row\.role\} \/> : null\}/);
+  assert.match(inbox, /role === "seller" \? "Selling" : "Buying"/);
+  const mobile = code(read("mobile/app/(app)/enquiries.tsx"));
+  assert.match(mobile, /\{selling \? "Selling" : "Buying"\}/);
+  assert.match(mobile, /showSide=\{canSell\}/);
 });

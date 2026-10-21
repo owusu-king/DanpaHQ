@@ -508,6 +508,22 @@ class TestEnquiries:
         )
         assert again.data["id"] == enquiry_id
 
+    def test_one_inbox_holds_both_sides_and_says_which(self, api, verified_land, seller, buyer):
+        api.force_authenticate(user=buyer)
+        enquiry_id = api.post(
+            f"/api/v1/sales/{verified_land.sale.id}/enquiries/",
+            {"message": "Is the price negotiable?"},
+            format="json",
+        ).data["id"]
+
+        api.force_authenticate(user=seller)
+        selling = api.get("/api/v1/me/sale-enquiries/", {"as": "all"}).data
+        api.force_authenticate(user=buyer)
+        buying = api.get("/api/v1/me/sale-enquiries/", {"as": "all"}).data
+
+        assert [(row["id"], row["role"]) for row in selling] == [(enquiry_id, "seller")]
+        assert [(row["id"], row["role"]) for row in buying] == [(enquiry_id, "buyer")]
+
     def test_the_seller_is_notified(self, api, verified_land, seller, buyer):
         from apps.notifications.handlers import on_sale_enquiry_received
         from apps.notifications.models import Notification

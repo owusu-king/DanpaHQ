@@ -232,7 +232,8 @@ export function startEnquiry(saleId: string, message: string): Promise<EnquiryDe
   });
 }
 
-export function listEnquiries(as: "buyer" | "seller"): Promise<Enquiry[]> {
+/** `all`: one inbox for somebody on both sides; each row's `role` says which. */
+export function listEnquiries(as: "buyer" | "seller" | "all"): Promise<Enquiry[]> {
   return apiFetch<Enquiry[]>(`/me/sale-enquiries/?as=${as}`);
 }
 

@@ -8,9 +8,10 @@
  * side, the chosen conversation on the other, and switching between them is a
  * click. A buyer never sees a seller's phone number (owner, 2026-09-28); the
  * conversation is the only channel. A provider can be on both sides — selling
- * one plot while asking about another — so theirs has both, opening on the side
- * their workspace suggests. A tenant owns no property and has only what they
- * asked about (owner, 2026-09-29).
+ * one plot while asking about another — and reads both in one Properties list,
+ * each conversation named for whoever is on the other side: no Selling and
+ * Buying split (owner, 2026-10-21). A tenant owns no property and has only what
+ * they asked about (owner, 2026-09-29).
  *
  * Opening a conversation marks it read on the server (the GET does that), so
  * the unread mark clears without a second call. Once a property is sold the
@@ -63,20 +64,17 @@ export function EnquiriesInbox({
   open,
   request,
   canSell,
-  defaultSide,
   onClose,
 }: {
   open: boolean;
   request: EnquiriesRequest;
   /** Selling needs property, and only a provider account holds any. */
   canSell: boolean;
-  defaultSide: EnquirySide;
   onClose: () => void;
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [closing, setClosing] = useState(false);
   const [mode, setMode] = useState<"support" | "property">("support");
-  const [side, setSide] = useState<EnquirySide>(defaultSide);
   const [rows, setRows] = useState<Enquiry[] | null>(null);
   const [listError, setListError] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -89,21 +87,20 @@ export function EnquiriesInbox({
   const endRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
 
-  const effectiveSide: EnquirySide = canSell ? side : "buyer";
+  // One list: everything for somebody who can sell, what they asked about otherwise.
+  const listing = canSell ? "all" : "buyer";
 
-  // Each opening starts from what was asked for: a conversation, a side, or
-  // the side the workspace suggests.
+  // Each opening starts from what was asked for: a conversation, or Support.
   useEffect(() => {
     if (!open) return;
     setClosing(false);
     setMode(request.id || request.side ? "property" : "support");
-    setSide(request.side ?? defaultSide);
     setSelectedId(request.id ?? null);
     setPane(request.id ? "thread" : "list");
     setThread(null);
     setDraft("");
     setPending(null);
-  }, [open, request, defaultSide]);
+  }, [open, request]);
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -137,7 +134,7 @@ export function EnquiriesInbox({
   // The list for the side on show, read on opening and quietly kept current.
   const loadList = useCallback(async (quiet = false) => {
     try {
-      const result = await listEnquiries(effectiveSide);
+      const result = await listEnquiries(listing);
       setRows(result);
       setListError("");
       return result;
@@ -148,7 +145,7 @@ export function EnquiriesInbox({
       }
       return null;
     }
-  }, [effectiveSide]);
+  }, [listing]);
 
   useEffect(() => {
     if (!open || mode === "support") return;
@@ -265,29 +262,6 @@ export function EnquiriesInbox({
             <button type="button" role="tab" aria-selected="true" className="inbox-side">Properties</button>
           </div>
 
-          {canSell ? (
-            <div className="inbox-sides" role="tablist" aria-label="Which side">
-              {(["seller", "buyer"] as const).map((key) => (
-                <button
-                  key={key}
-                  type="button"
-                  role="tab"
-                  aria-selected={effectiveSide === key}
-                  className="inbox-side"
-                  onClick={() => {
-                    if (key === effectiveSide) return;
-                    setSide(key);
-                    setSelectedId(null);
-                    setThread(null);
-                    setPane("list");
-                  }}
-                >
-                  {key === "seller" ? "Selling" : "Buying"}
-                </button>
-              ))}
-            </div>
-          ) : null}
-
           <div className="inbox-rows-wrap">
             {rows === null ? <InboxRowsSkeleton /> : null}
             {rows !== null && listError && !rows.length ? (
@@ -298,11 +272,11 @@ export function EnquiriesInbox({
               </div>
             ) : null}
             {rows !== null && !listError && !rows.length ? (
-              effectiveSide === "seller" ? (
+              canSell ? (
                 <div className="inbox-empty">
                   <span className="inbox-empty-mark" aria-hidden="true"><Icon name="chat" /></span>
                   <strong>No enquiries yet</strong>
-                  <span>When a buyer asks about a property you are selling, it arrives here.</span>
+                  <span>Buyers asking about property you sell, and sellers you ask about theirs, all arrive here.</span>
                 </div>
               ) : (
                 <div className="inbox-empty">
@@ -331,7 +305,10 @@ export function EnquiriesInbox({
                           <strong>{counterpart(row)}</strong>
                           {row.last_message_at ? <time dateTime={row.last_message_at}>{shortWhen(row.last_message_at)}</time> : null}
                         </span>
-                        <span className="inbox-row-property">{row.sale.headline || "Property for sale"}</span>
+                        <span className="inbox-row-property">
+                          {canSell ? <SideTag role={row.role} /> : null}
+                          {row.sale.headline || "Property for sale"}
+                        </span>
                         <span className="inbox-row-preview">
                           {row.last_message || "No messages yet"}
                           {row.unread ? <i className="inbox-row-dot" aria-label="Unread" /> : null}
@@ -355,7 +332,10 @@ export function EnquiriesInbox({
                 </button>
                 <span className="inbox-avatar is-large" aria-hidden="true">{initials(selected ? counterpart(selected) : thread ? counterpart(thread) : "")}</span>
                 <div className="inbox-thread-who">
-                  <strong>{selected ? counterpart(selected) : thread ? counterpart(thread) : " "}</strong>
+                  <strong>
+                    {selected ? counterpart(selected) : thread ? counterpart(thread) : " "}
+                    {canSell && (selected ?? thread) ? <SideTag role={(selected ?? thread)!.role} /> : null}
+                  </strong>
                   <span>{[
                     (selected ?? thread)?.sale.headline || null,
                     (selected ?? thread)?.sale.price_formatted,
@@ -591,6 +571,15 @@ function moveInList(event: React.KeyboardEvent<HTMLButtonElement>) {
 }
 
 /** Who the conversation is with, from the reader's side of it. */
+/**
+ * Which side of the sale this person is on, now that both share one list
+ * (owner, 2026-10-21). A word and a colour, nothing more: green for selling,
+ * lagoon for buying.
+ */
+function SideTag({ role }: { role: Enquiry["role"] }) {
+  return <span className={`inbox-side-tag is-${role}`}>{role === "seller" ? "Selling" : "Buying"}</span>;
+}
+
 function counterpart(row: Pick<Enquiry, "role" | "buyer_name" | "sale">) {
   return row.role === "seller" ? row.buyer_name : row.sale.headline || "Seller";
 }

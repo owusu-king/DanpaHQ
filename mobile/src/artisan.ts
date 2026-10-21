@@ -499,10 +499,17 @@ export type DirectJobInput = {
   house_number?: string;
   street?: string;
   landmark?: string;
+  /** Posted from an artisan's profile: they are asked to quote in the same step. */
+  invite_artisan_id?: string | null;
 };
 
 export function postDirectJob(input: DirectJobInput) {
   return apiFetch<DirectJob>("/me/direct-jobs/", { method: "POST", body: input, ...idempotentMutation() });
+}
+
+/** Every job this person posted, newest first. */
+export function listMyDirectJobs() {
+  return apiFetch<DirectJob[]>("/me/direct-jobs/");
 }
 
 export function getDirectJob(id: string) {

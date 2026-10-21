@@ -7,7 +7,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { resolveWebEntry } from "@/lib/navigation";
 import { chooseWorkspace, useSession, type Me, type Workspace } from "@/lib/session";
 
-import { Avatar } from "./icons";
+import { Avatar, Icon, type IconName } from "./icons";
 
 /**
  * The account control, and the one menu behind it.
@@ -19,6 +19,10 @@ import { Avatar } from "./icons";
  * It is a popover, not a modal: an account menu is a small aside, and taking
  * the whole screen for it on a desktop portal would be a heavier gesture than
  * the action deserves.
+ *
+ * It reads as part of the navigation (owner, 2026-10-21): the same glass as
+ * the rail, the same 20px glyphs and the same hover, with just your name and
+ * number at the top — no experience or Portfolio label (owner, 2026-10-21).
  */
 export function AccountMenu({
   me,
@@ -140,7 +144,7 @@ export function AccountMenu({
           onKeyDown={onMenuKeyDown}
         >
           <div className="portal-menu-head">
-            <Avatar name={me.display_name} size={36} photoUrl={me.profile?.avatar_url} />
+            <Avatar name={me.display_name} size={40} photoUrl={me.profile?.avatar_url} />
             <div className="portal-menu-who">
               <strong>{me.display_name}</strong>
               {/* Email is optional at registration, so it is shown only when
@@ -159,7 +163,8 @@ export function AccountMenu({
               data-menu-item
               onClick={() => close(false)}
             >
-              Settings
+              <Icon name="settings" />
+              <span>Settings</span>
             </Link>
             <WorkspaceCrossing me={me} onDone={() => close(false)} />
           </div>
@@ -191,10 +196,24 @@ function roleLabel(me: Me, activeContext: string | null): string {
   return "Tenant";
 }
 
+/** One word per experience; the hover says what pressing it does. */
 const CROSSING_LABEL: Record<Exclude<Workspace, "discovery">, string> = {
+  tenant: "Renting",
+  provider: "Provider",
+  artisan: "Artisan",
+};
+
+const CROSSING_TITLE: Record<Exclude<Workspace, "discovery">, string> = {
   tenant: "Switch to renting",
-  provider: "Switch to provider experience",
-  artisan: "Switch to artisan experience",
+  provider: "Switch to the provider experience",
+  artisan: "Switch to the artisan experience",
+};
+
+/** Each experience by the glyph its own rail opens on. */
+const CROSSING_ICON: Record<Exclude<Workspace, "discovery">, IconName> = {
+  tenant: "home",
+  provider: "properties",
+  artisan: "hammer",
 };
 
 /**
@@ -238,10 +257,22 @@ function WorkspaceCrossing({ me, onDone }: { me: Me; onDone: () => void }) {
           className="portal-menu-item"
           role="menuitem"
           data-menu-item
+          title={CROSSING_TITLE[workspace]}
+          aria-label={CROSSING_TITLE[workspace]}
           disabled={switching !== null}
           onClick={() => void cross(workspace)}
         >
-          {switching === workspace ? "Switching…" : CROSSING_LABEL[workspace]}
+          <Icon name={CROSSING_ICON[workspace]} />
+          <span>{switching === workspace ? "Switching…" : CROSSING_LABEL[workspace]}</span>
+          <svg
+            className="portal-menu-go"
+            viewBox="0 0 20 20" width="14" height="14" fill="none"
+            stroke="currentColor" strokeWidth="1.75"
+            strokeLinecap="round" strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="m8 6 4 4-4 4" />
+          </svg>
         </button>
       ))}
     </>
@@ -253,12 +284,13 @@ function SignOutItem() {
   return (
     <button
       type="button"
-      className="portal-menu-item is-quiet"
+      className="portal-menu-item is-sign-out"
       role="menuitem"
       data-menu-item
       onClick={() => void signOut()}
     >
-      Sign out
+      <Icon name="logout" />
+      <span>Sign out</span>
     </button>
   );
 }

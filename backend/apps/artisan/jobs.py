@@ -47,7 +47,9 @@ def create_job(
     house_number="",
     street="",
     landmark="",
+    invite_artisan_id=None,
 ) -> DirectJob:
+    """Post a job. Posted from an artisan's profile, that artisan is asked at once."""
     if trade not in Trade.values:
         raise ValidationFailed("Choose the trade from the list.")
     title = (title or "").strip()
@@ -82,6 +84,12 @@ def create_job(
         actor=user,
         metadata={"trade": trade},
     )
+    if invite_artisan_id:
+        from .quotes import invite_to_job
+
+        # Same transaction: a job posted "for" an artisan who cannot be asked
+        # (suspended, or yourself) is not left behind half-done.
+        invite_to_job(user=user, job_id=job.id, artisan_id=invite_artisan_id)
     return job
 
 

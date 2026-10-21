@@ -166,13 +166,15 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
       (context) => context.type === "organization" && context.id === activeContext,
     ) ?? state.me.contexts.find((context) => context.type === "organization") ?? null;
     const entry = enquiriesEntry(state.me, organization?.access ?? null);
+    const canSellNow = state.me.capabilities.provider.workspace_access;
     if (!entry) {
       setEnquiryWaiting(false);
       return;
     }
     let cancelled = false;
     const read = () =>
-      listEnquiries(entry.as)
+      // One inbox for somebody on both sides, so the mark covers both.
+      listEnquiries(canSellNow ? "all" : "buyer")
         .then((rows) => !cancelled && setEnquiryWaiting(rows.some((row) => row.unread)))
         .catch(() => undefined);
     void read();
@@ -235,7 +237,6 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
   // Selling needs property, and only a provider account holds any; a provider
   // at work opens on the selling side.
   const canSell = me.capabilities.provider.workspace_access;
-  const inboxSide = canSell && me.capabilities.active_workspace === "provider" ? "seller" : "buyer";
 
   const isCollapsed = collapsed === true;
 
@@ -356,7 +357,6 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
           open={inbox.open}
           request={inbox.request}
           canSell={canSell}
-          defaultSide={inboxSide}
           onClose={() => setInbox((current) => ({ ...current, open: false }))}
         />
 

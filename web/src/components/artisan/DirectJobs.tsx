@@ -47,8 +47,15 @@ function announce(jobId: string) {
 
 // --- posting ---------------------------------------------------------------------
 
-export function PostJob({ onPosted }: { onPosted: (job: DirectJob) => void }) {
-  const [trade, setTrade] = useState("");
+export function PostJob({
+  invite,
+  onPosted,
+}: {
+  /** Posted from an artisan's profile: they are asked to quote as it is posted. */
+  invite?: { id: string; name: string; trade?: string };
+  onPosted: (job: DirectJob) => void;
+}) {
+  const [trade, setTrade] = useState(invite?.trade ?? "");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [locality, setLocality] = useState<Locality | null>(null);
@@ -87,6 +94,7 @@ export function PostJob({ onPosted }: { onPosted: (job: DirectJob) => void }) {
         title: title.trim(),
         description: description.trim(),
         locality_id: locality.id,
+        invite_artisan_id: invite?.id ?? null,
         photo_file_id: photoId,
         house_number: houseNumber.trim(),
         street: street.trim(),
@@ -104,6 +112,11 @@ export function PostJob({ onPosted }: { onPosted: (job: DirectJob) => void }) {
   return (
     <form className="art-post" onSubmit={submit} noValidate>
       {error ? <Notice tone="error" title={error} /> : null}
+      {invite ? (
+        <p className="art-for-request">
+          <strong>{invite.name}</strong> is asked to quote as soon as you post. They see the job and the area, not the address.
+        </p>
+      ) : null}
 
       <section className="art-post-part" aria-labelledby="art-post-what">
         <h4 id="art-post-what">What needs doing</h4>

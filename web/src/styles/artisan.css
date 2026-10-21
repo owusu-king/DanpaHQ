@@ -682,3 +682,12 @@ button.art-work-row { width: 100%; font: inherit; text-align: left; cursor: poin
 .art-report h4 svg { width: 15px; height: 15px; }
 .art-job-status.is-done_reported { color: var(--color-lagoon-600); background: var(--color-lagoon-100); }
 .art-job-status.is-completed { color: var(--color-kola-800); background: var(--color-kola-50); }
+
+/* --- asking an artisan from their profile ------------------------------------- */
+
+.art-quote-ask { display: grid; gap: var(--space-3); margin-top: var(--space-2); padding: var(--space-4); background: var(--color-harmattan-100); border-radius: 14px; }
+.art-quote-ask ul { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
+.art-quote-ask li { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-3); background: var(--color-field-0); border-radius: 12px; }
+.art-quote-ask li > span { display: grid; min-width: 0; }
+.art-quote-ask li small { color: var(--color-ink-500); font-size: .8125rem; }
+.art-quote-ask .art-post-button { justify-self: start; }

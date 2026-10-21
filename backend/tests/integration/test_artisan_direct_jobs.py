@@ -124,6 +124,32 @@ class TestPosting:
         assert response.data["permissions"]["invite"] is True
         assert MaintenanceRequest.objects.count() == before
 
+    def test_posting_from_a_profile_asks_that_artisan_at_once(
+        self, sign_in_as, user, locality, carpenter
+    ):
+        response = _post_job(
+            _client(sign_in_as, user), user, locality, invite_artisan_id=str(carpenter.id)
+        )
+
+        assert response.status_code == 201, response.data
+        assert [row["artisan"]["id"] for row in response.data["invitations"]] == [str(carpenter.id)]
+        assert response.data["invitations"][0]["state"] == "invited"
+
+    def test_a_job_posted_for_yourself_as_artisan_is_not_left_behind(
+        self, sign_in_as, locality, carpenter
+    ):
+        before = DirectJob.objects.count()
+
+        response = _post_job(
+            _client(sign_in_as, carpenter.user),
+            carpenter.user,
+            locality,
+            invite_artisan_id=str(carpenter.id),
+        )
+
+        assert response.status_code == 422
+        assert DirectJob.objects.count() == before
+
     def test_a_provider_can_post_one_too(self, sign_in_as, landlord, locality):
         response = _post_job(_client(sign_in_as, landlord), landlord, locality)
 

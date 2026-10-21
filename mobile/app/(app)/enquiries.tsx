@@ -3,9 +3,10 @@
  *
  * A buyer never sees a seller's phone number (owner, 2026-09-28); they send an
  * enquiry, and the conversation lives here. A provider can be on both sides —
- * selling one plot while asking about another — so theirs has both. A tenant
- * account owns no property, so it has only what it asked about (owner,
- * 2026-09-29): no Selling side to be empty.
+ * selling one plot while asking about another — and reads both in one list,
+ * each conversation named for whoever is on the other side: no Selling and
+ * Buying split (owner, 2026-10-21). A tenant account owns no property, so it
+ * has only what it asked about (owner, 2026-09-29).
  *
  * Read as conversations rather than records (owner, 2026-10-06): new replies
  * lead, then the conversations still open, and what closed or sold folds into
@@ -13,7 +14,7 @@
  */
 
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from "react-native";
 
@@ -45,22 +46,19 @@ import { pressableFeedback, useSafeBottom } from "@/platform";
 import { listEnquiries, type Enquiry } from "@/sales";
 import { theme } from "@/theme";
 
-type Side = "buyer" | "seller";
 type InboxMode = "support" | "property";
 
 export default function EnquiriesScreen() {
   const router = useRouter();
   const density = useHomeDensity();
   const pageBottom = useSafeBottom(space[12]);
-  const { as } = useLocalSearchParams<{ as?: string }>();
   const { state } = useAuth();
   const signedIn = state.status === "signed_in";
   // Selling needs property, and only a provider account holds any.
   const canSell = signedIn && state.me.capabilities.provider.workspace_access;
-  const provider = canSell && state.me.capabilities.active_workspace === "provider";
   const [mode, setMode] = useState<InboxMode>("support");
-  const [chosen, setSide] = useState<Side>(as === "seller" || as === "buyer" ? as : provider ? "seller" : "buyer");
-  const side: Side = canSell ? chosen : "buyer";
+  // One list: everything for somebody who can sell, what they asked about otherwise.
+  const listing = canSell ? "all" : "buyer";
   const [rows, setRows] = useState<Enquiry[] | null>(null);
   const [closedOpen, setClosedOpen] = useState(false);
   const [error, setError] = useState("");
@@ -69,13 +67,13 @@ export default function EnquiriesScreen() {
   const load = useCallback(async () => {
     if (!signedIn || mode === "support") return;
     try {
-      setRows(await listEnquiries(side));
+      setRows(await listEnquiries(listing));
       setError("");
     } catch (cause) {
       setRows([]);
       setError(cause instanceof ApiFailure ? cause.error.message : "Could not load enquiries.");
     }
-  }, [mode, side, signedIn]);
+  }, [mode, listing, signedIn]);
 
   useEffect(() => {
     setRows(null);
@@ -124,14 +122,6 @@ export default function EnquiriesScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await load(); setRefreshing(false); }} tintColor={KOLA} />}
       >
         <PillSwitch label="Inbox" value={mode} options={[{ value: "support", label: "Support" }, { value: "property", label: "Properties" }]} onChange={setMode} />
-        {canSell ? (
-          <PillSwitch
-            label="Which side"
-            value={side}
-            options={[{ value: "seller", label: "Selling" }, { value: "buyer", label: "Buying" }]}
-            onChange={setSide}
-          />
-        ) : null}
         {error ? <Notice tone="error" title={error} /> : null}
 
         {rows === null ? (
@@ -140,11 +130,11 @@ export default function EnquiriesScreen() {
             <Bone height={84} />
             <Bone height={84} />
           </View>
-        ) : rows.length === 0 ? (error ? null : side === "seller" ? (
+        ) : rows.length === 0 ? (error ? null : canSell ? (
           <Empty
             icon="chatbubbles-outline"
             title="No enquiries yet"
-            hint="When a buyer asks about a property you are selling, it arrives here."
+            hint="Buyers asking about property you sell, and sellers you ask about theirs, all arrive here."
           />
         ) : (
           <Empty
@@ -162,13 +152,13 @@ export default function EnquiriesScreen() {
               parts={live ? [{ text: `${live} ${live === 1 ? "conversation" : "conversations"} open`, tone: MUTED }] : []}
             />
             {lanes.fresh.length ? (
-              <Section title="New" tone={KOLA_DEEP} rows={lanes.fresh} side={side} onOpen={openRow} />
-            ) : live ? <Calm text={side === "seller" ? "You are up to date with every buyer." : "You are up to date with every seller."} /> : null}
-            {lanes.open.length ? <Section title="Conversations" rows={lanes.open} side={side} onOpen={openRow} /> : null}
+              <Section title="New" tone={KOLA_DEEP} rows={lanes.fresh} showSide={canSell} onOpen={openRow} />
+            ) : live ? <Calm text="You are up to date with every conversation." /> : null}
+            {lanes.open.length ? <Section title="Conversations" rows={lanes.open} showSide={canSell} onOpen={openRow} /> : null}
             {lanes.closed.length ? (
               <View>
                 <Fold title="Closed or sold" icon="lock-closed-outline" summary="Kept so you can read them back" count={lanes.closed.length} open={closedOpen} onToggle={() => setClosedOpen((current) => !current)} />
-                {closedOpen ? <View style={styles.foldBody}><Section rows={lanes.closed} side={side} onOpen={openRow} /></View> : null}
+                {closedOpen ? <View style={styles.foldBody}><Section rows={lanes.closed} showSide={canSell} onOpen={openRow} /></View> : null}
               </View>
             ) : null}
           </>
@@ -178,12 +168,12 @@ export default function EnquiriesScreen() {
   );
 }
 
-function Section({ title, tone, rows, side, onOpen }: { title?: string; tone?: string; rows: Enquiry[]; side: Side; onOpen: (row: Enquiry) => void }) {
+function Section({ title, tone, rows, showSide, onOpen }: { title?: string; tone?: string; rows: Enquiry[]; showSide: boolean; onOpen: (row: Enquiry) => void }) {
   return (
     <View style={styles.section}>
       {title ? <GroupLabel count={rows.length} tone={tone}>{title}</GroupLabel> : null}
       <Panel>
-        {rows.map((row, index) => <EnquiryRow key={row.id} row={row} side={side} first={index === 0} onOpen={() => onOpen(row)} />)}
+        {rows.map((row, index) => <EnquiryRow key={row.id} row={row} showSide={showSide} first={index === 0} onOpen={() => onOpen(row)} />)}
       </Panel>
     </View>
   );
@@ -193,15 +183,19 @@ function Section({ title, tone, rows, side, onOpen }: { title?: string; tone?: s
  * One conversation: who or what it is about, the last thing said, and when. A
  * seller sees the buyer's name on the face; a buyer sees the property's tag.
  */
-function EnquiryRow({ row, side, first, onOpen }: { row: Enquiry; side: Side; first: boolean; onOpen: () => void }) {
+function EnquiryRow({ row, showSide, first, onOpen }: { row: Enquiry; showSide: boolean; first: boolean; onOpen: () => void }) {
+  // Each row knows which side this person is on, so one list needs no split.
+  const side = row.role;
   const closed = row.status === "closed" || row.sale.status === "sold";
   const headline = row.sale.headline || "Property for sale";
   const meta = [side === "seller" ? headline : null, row.sale.price_formatted, row.sale.locality_name].filter(Boolean).join(" · ");
   const title = side === "seller" ? row.buyer_name : headline;
+  // Both sides share one list now (owner, 2026-10-21): a word and a colour say which.
+  const selling = side === "seller";
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${title}. ${meta}. ${row.last_message}. ${row.unread ? "New reply." : ""}${closed ? (row.sale.status === "sold" ? " Sold." : " Closed.") : ""}`}
+      accessibilityLabel={`${showSide ? (selling ? "Selling. " : "Buying. ") : ""}${title}. ${meta}. ${row.last_message}. ${row.unread ? "New reply." : ""}${closed ? (row.sale.status === "sold" ? " Sold." : " Closed.") : ""}`}
       onPress={onOpen}
       {...pressableFeedback(PRESSED)}
       style={({ pressed }) => [rowStyles.row, first ? null : styles.ruled, pressed ? { backgroundColor: PRESSED } : null]}
@@ -219,7 +213,18 @@ function EnquiryRow({ row, side, first, onOpen }: { row: Enquiry; side: Side; fi
           <Type variant="bodyStrong" numberOfLines={2} style={[styles.title, closed ? { color: MUTED } : null]}>{title}</Type>
           {row.last_message_at ? <Type variant="caption" style={[styles.when, row.unread ? { color: KOLA_DEEP, fontWeight: "600" } : null]}>{when(row.last_message_at)}</Type> : null}
         </View>
-        {meta ? <Type variant="caption" numberOfLines={1} style={rowStyles.rowSub}>{meta}</Type> : null}
+        {meta || showSide ? (
+          <View style={styles.metaRow}>
+            {showSide ? (
+              <View style={[styles.sideTag, selling ? styles.sideSelling : styles.sideBuying]}>
+                <Type variant="captionStrong" style={[styles.sideText, { color: selling ? KOLA_DEEP : theme.color.lagoon["600"] }]}>
+                  {selling ? "Selling" : "Buying"}
+                </Type>
+              </View>
+            ) : null}
+            {meta ? <Type variant="caption" numberOfLines={1} style={[rowStyles.rowSub, { flexShrink: 1 }]}>{meta}</Type> : null}
+          </View>
+        ) : null}
         {row.last_message ? (
           <Type variant={row.unread ? "captionStrong" : "caption"} numberOfLines={2} style={[styles.last, row.unread ? { color: INK } : null]}>{row.last_message}</Type>
         ) : null}
@@ -239,6 +244,11 @@ function when(value: string): string {
 }
 
 const styles = StyleSheet.create({
+  metaRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  sideTag: { paddingVertical: 1, paddingHorizontal: 7, borderRadius: 999 },
+  sideSelling: { backgroundColor: theme.color.kola["50"] },
+  sideBuying: { backgroundColor: theme.color.lagoon["100"] },
+  sideText: { fontSize: 11, lineHeight: 15 },
   section: { gap: space[2] },
   ruled: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: RULE },
   foldBody: { marginTop: space[3] },

@@ -181,6 +181,8 @@ class DirectJobInputSerializer(serializers.Serializer):
     house_number = serializers.CharField(max_length=32, required=False, allow_blank=True)
     street = serializers.CharField(max_length=160, required=False, allow_blank=True)
     landmark = serializers.CharField(max_length=200, required=False, allow_blank=True)
+    #: Posted from an artisan's profile: ask them to quote in the same step.
+    invite_artisan_id = serializers.UUIDField(required=False, allow_null=True)
 
 
 class WorkReportInputSerializer(serializers.Serializer):

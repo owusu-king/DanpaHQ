@@ -37,8 +37,10 @@ import {
   getArtisanWork,
   inviteArtisan,
   inviteToDirectJob,
+  listMyDirectJobs,
   suggestArtisan,
   type CustomerWorkItem,
+  type DirectJob,
   type ArtisanCard,
   type DiscoverResult,
   type District,
@@ -67,6 +69,9 @@ export type ArtisansRequest = {
 
 export const OPEN_ARTISANS = "danpahq:open-artisans";
 
+/** The artisan a new job is posted for, from their profile. */
+export type AskFor = { id: string; name: string; trade?: string };
+
 /** Open the sheet over the current page, optionally at a tab or a trade. */
 export function openArtisans(request: ArtisansRequest = {}) {
   window.dispatchEvent(new CustomEvent<ArtisansRequest>(OPEN_ARTISANS, { detail: request }));
@@ -74,7 +79,7 @@ export function openArtisans(request: ArtisansRequest = {}) {
 
 type View =
   | { kind: "profile"; id: string; forRequest?: ArtisansForRequest }
-  | { kind: "post" }
+  | { kind: "post"; invite?: AskFor }
   | { kind: "job"; id: string }
   | { kind: "find"; trade: string; forRequest: ArtisansForRequest };
 
@@ -156,11 +161,20 @@ export function ArtisansSheet({
         {nav.views.map((view, index) => {
           switch (view.kind) {
             case "profile":
-              return <Profile key={index} id={view.id} forRequest={view.forRequest} />;
+              return (
+                <Profile
+                  key={index}
+                  id={view.id}
+                  forRequest={view.forRequest}
+                  onPostFor={(invite) => nav.push({ kind: "post", invite })}
+                  onOpenJob={(id) => nav.push({ kind: "job", id })}
+                />
+              );
             case "post":
               return (
                 <PostJob
                   key={index}
+                  invite={view.invite}
                   onPosted={(posted) => {
                     // The form gives way to the job it made: Back from the job
                     // returns to the list, not to a form already sent.
@@ -365,7 +379,17 @@ function Facts({ artisan }: { artisan: ArtisanCard }) {
   );
 }
 
-function Profile({ id, forRequest }: { id: string; forRequest?: ArtisansForRequest }) {
+function Profile({
+  id,
+  forRequest,
+  onPostFor,
+  onOpenJob,
+}: {
+  id: string;
+  forRequest?: ArtisansForRequest;
+  onPostFor: (invite: AskFor) => void;
+  onOpenJob: (id: string) => void;
+}) {
   const [artisan, setArtisan] = useState<PublicArtisan | null>(null);
   const [error, setError] = useState("");
 
@@ -390,7 +414,11 @@ function Profile({ id, forRequest }: { id: string; forRequest?: ArtisansForReque
           Works in {artisan.districts.map((district) => district.name).join(", ")}
         </p>
         <Facts artisan={artisan} />
-        {forRequest && !artisan.is_you ? <AskAction artisanId={artisan.id} name={artisan.name} forRequest={forRequest} /> : null}
+        {artisan.is_you ? null : forRequest ? (
+          <AskAction artisanId={artisan.id} name={artisan.name} forRequest={forRequest} />
+        ) : (
+          <QuoteAsk artisan={artisan} onPostFor={onPostFor} onOpenJob={onOpenJob} />
+        )}
       </header>
 
       {artisan.portfolio.length ? (
@@ -504,6 +532,88 @@ function AskAction({ artisanId, name, forRequest }: { artisanId: string; name: s
         {state === "busy" ? "Sending…" : invite ? "Invite to quote" : "Suggest to your landlord"}
       </button>
       {error ? <span className="art-missing" role="alert">{error}</span> : null}
+    </div>
+  );
+}
+
+/**
+ * A profile opened from browsing: ask this artisan to quote. For one of your
+ * open jobs, or a new job posted for them — they are asked as it is posted.
+ * A repair on a rented home is asked about from the repair itself.
+ */
+function QuoteAsk({
+  artisan,
+  onPostFor,
+  onOpenJob,
+}: {
+  artisan: PublicArtisan;
+  onPostFor: (invite: AskFor) => void;
+  onOpenJob: (id: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [jobs, setJobs] = useState<DirectJob[] | null>(null);
+  const [asked, setAsked] = useState<Record<string, "busy" | "done">>({});
+  const [error, setError] = useState("");
+  const first = artisan.name.split(" ")[0] || artisan.name;
+
+  useEffect(() => {
+    if (!open || jobs) return;
+    listMyDirectJobs()
+      .then((rows) => setJobs(rows.filter((row) => row.permissions.invite)))
+      .catch(() => setJobs([]));
+  }, [open, jobs]);
+
+  async function ask(job: DirectJob) {
+    setAsked((current) => ({ ...current, [job.job.id]: "busy" }));
+    setError("");
+    try {
+      await inviteToDirectJob(job.job.id, artisan.id);
+      setAsked((current) => ({ ...current, [job.job.id]: "done" }));
+      window.dispatchEvent(new CustomEvent(ARTISAN_WORK_CHANGED, { detail: { requestId: job.job.id } }));
+    } catch (cause) {
+      setAsked((current) => { const next = { ...current }; delete next[job.job.id]; return next; });
+      setError(cause instanceof ApiFailure ? cause.error.message : "That did not go through. Try again.");
+    }
+  }
+
+  const post = () => onPostFor({ id: artisan.id, name: artisan.name, trade: artisan.trades[0]?.value });
+
+  if (!open) {
+    return (
+      <div className="art-ask">
+        <button type="button" className="ws-action is-primary" onClick={() => setOpen(true)}>
+          Ask {first} for a quote
+        </button>
+      </div>
+    );
+  }
+  return (
+    <div className="art-quote-ask">
+      <strong>What should {first} quote for?</strong>
+      {error ? <span className="art-missing" role="alert">{error}</span> : null}
+      {jobs === null ? <PanelSkeleton rows={1} /> : jobs.length ? (
+        <ul>
+          {jobs.map((job) => (
+            <li key={job.job.id}>
+              <span>
+                <strong>{job.job.title}</strong>
+                <small>{job.job.trade_display} · {job.job.area.locality}</small>
+              </span>
+              {asked[job.job.id] === "done" ? (
+                <button type="button" className="art-link" onClick={() => onOpenJob(job.job.id)}>Asked · open job</button>
+              ) : (
+                <button type="button" className="ws-action" disabled={asked[job.job.id] === "busy"} onClick={() => void ask(job)}>
+                  {asked[job.job.id] === "busy" ? "Asking…" : "Ask about this"}
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      <button type="button" className="ws-action is-primary art-post-button" onClick={post}>
+        <Plus aria-hidden="true" /> Post a new job for {first}
+      </button>
+      <small className="art-post-note">For a repair on a rented home, open it in Maintenance and choose Find an artisan.</small>
     </div>
   );
 }

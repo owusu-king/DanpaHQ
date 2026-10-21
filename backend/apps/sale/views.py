@@ -162,17 +162,34 @@ class SaleEnquiryStartView(APIView):
 
 
 class MyEnquiriesView(APIView):
-    """GET /me/sale-enquiries/?as=buyer|seller — the conversations a person is in."""
+    """GET /me/sale-enquiries/?as=buyer|seller|all — the conversations a person is in.
+
+    `all` is one inbox for somebody on both sides (owner, 2026-10-21): each
+    row still says which side this person is on, newest conversation first.
+    """
 
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
         role = request.query_params.get("as", "buyer")
-        rows = (
-            services.enquiries_for_seller(request.user)
-            if role == "seller"
-            else services.enquiries_for_buyer(request.user)
-        )
+        if role == "all":
+            rows = sorted(
+                {
+                    row.id: row
+                    for row in [
+                        *services.enquiries_for_seller(request.user)[:100],
+                        *services.enquiries_for_buyer(request.user)[:100],
+                    ]
+                }.values(),
+                key=lambda row: row.last_message_at or row.created_at,
+                reverse=True,
+            )
+        else:
+            rows = (
+                services.enquiries_for_seller(request.user)
+                if role == "seller"
+                else services.enquiries_for_buyer(request.user)
+            )
         return Response(
             EnquirySerializer(rows[:100], many=True, context={"user": request.user}).data
         )

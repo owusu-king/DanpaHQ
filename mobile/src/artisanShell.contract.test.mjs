@@ -188,3 +188,16 @@ test("the finish shows on repairs, posted jobs and the artisan's job; payment sa
   assert.match(own, /<ProblemReport target=\{\{ kind: "job", invitationId: row\.id \}\} side="artisan" \/>/);
   assert.match(code(read("app/(app)/artisan-view.tsx")), /artisan\.is_you \? null : <ProblemReport target=\{\{ kind: "artisan", artisanId: artisan\.id \}\} \/>/);
 });
+
+test("a profile reached by browsing offers to ask for a quote, for a job or a new one", () => {
+  const profile = code(read("app/(app)/artisan-view.tsx"));
+  assert.match(profile, /<QuoteAsk artisan=\{artisan\} \/>/);
+  assert.match(profile, /pathname: "\/\(app\)\/direct-job-new",\s*params: \{ invite: artisan\.id/);
+  assert.match(code(read("app/(app)/direct-job-new.tsx")), /invite_artisan_id: params\.invite \|\| null/);
+});
+
+test("a provider's enquiries are one list, never a Selling and Buying split", () => {
+  const inbox = code(read("app/(app)/enquiries.tsx"));
+  assert.match(inbox, /const listing = canSell \? "all" : "buyer";/);
+  assert.doesNotMatch(inbox, /label: "Selling"|label: "Buying"|label="Which side"/);
+});

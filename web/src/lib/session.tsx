@@ -10,7 +10,7 @@
  * answer is consistent and fetched once.
  */
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, startTransition, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import {
@@ -354,9 +354,15 @@ export function SessionProvider({
       } catch { /* Session credentials are already cleared in memory. */ }
       rememberSignedIn(false);
       await ending;
-      setState({ status: "signed_out" });
-      router.replace("/sign-in");
-      router.refresh();
+      // Signing out leaves for the front door, and only the front door: no
+      // sign-in dialog over it (owner, 2026-10-21) — somebody who just left
+      // did not ask to come back in. One transition, so the page being left
+      // never flashes its "Sign in to continue" gate on the way out.
+      startTransition(() => {
+        setState({ status: "signed_out" });
+        router.replace("/");
+        router.refresh();
+      });
   }, [router]);
 
   const value = useMemo(

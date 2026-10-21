@@ -13,6 +13,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { KeyboardAvoidingView, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
 
 import { ApiFailure } from "@/api";
+import { useAuth } from "@/auth";
 import { IndexGround } from "@/components/account/IndexRows";
 import { Bone } from "@/components/billing/BillingParts";
 import { useStackHeaderHeight } from "@/components/nav/StackHeader";
@@ -27,6 +28,9 @@ import { theme } from "@/theme";
 export default function EnquiryScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const { state } = useAuth();
+  // Somebody on both sides reads one list, so the conversation says which side.
+  const canSell = state.status === "signed_in" && state.me.capabilities.provider.workspace_access;
   const headerHeight = useStackHeaderHeight();
   const composerBottom = useSafeBottom(space[3]);
   const [enquiry, setEnquiry] = useState<EnquiryDetail | null>(null);
@@ -81,6 +85,7 @@ export default function EnquiryScreen() {
   const closed = enquiry.status === "closed" || enquiry.sale.status === "sold";
   const title = enquiry.sale.headline || "Property for sale";
   const meta = [
+    canSell ? (enquiry.role === "seller" ? "You are selling" : "You are buying") : null,
     enquiry.role === "seller" ? `From ${enquiry.buyer_name}` : null,
     enquiry.sale.price_formatted,
     enquiry.sale.locality_name,
