@@ -23,6 +23,7 @@ x-backend: &backend
 
 services:
   db:
+    container_name: danpa-db
     # PostgreSQL 16 with PostGIS, on the same Alpine base as the previous
     # postgres:16-alpine image so an existing data volume keeps its collation.
     image: postgis/postgis:16-3.5-alpine
@@ -38,6 +39,7 @@ services:
       retries: 10
 
   redis:
+    container_name: danpa-redis
     image: redis:7-alpine
     command: redis-server --appendonly yes
     ports: ["6379:6379"]
@@ -48,21 +50,23 @@ services:
       retries: 10
 
   minio:
+    container_name: danpa-minio
     # S3-compatible object storage, so file handling uses the production code
     # path locally instead of the filesystem backend.
-    image: minio/minio:latest
+    image: ghcr.io/seaweedfs/minio-compat:latest
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin
     ports: ["9000:9000", "9001:9001"]
-    volumes: [miniodata:/data]
+    volumes: [seaweedfsdata:/data]
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:9000/minio/health/live"]
       interval: 5s
       retries: 10
 
   api:
+    container_name: danpa-api
     <<: *backend
     # Hardening needs a database owner role, which a hosted database may not
     # give you; it is defence in depth, so a failure must not block startup.
@@ -82,6 +86,7 @@ services:
       minio: {condition: service_healthy}
 
   worker:
+    container_name: danpa-worker
     <<: *backend
     command: celery -A config worker -Q default,payments,notifications,media -l info
     # The image's healthcheck curls the API port, which a worker does not
@@ -90,6 +95,7 @@ services:
     healthcheck: {disable: true}
 
   beat:
+    container_name: danpa-beat
     <<: *backend
     # The schedule file goes outside the mounted source tree so it does not
     # appear as an untracked file in the repository.
@@ -97,6 +103,7 @@ services:
     healthcheck: {disable: true}
 
   web:
+    container_name: danpa-web
     image: danpahq-web-dev
     build:
       context: ./web
@@ -138,6 +145,6 @@ services:
 volumes:
   pgdata:
   redisdata:
-  miniodata:
+  seaweedfsdata:
   web_node_modules:
   web_next_cache:

@@ -261,7 +261,7 @@ class TestFileDownload:
         response = client.get(f"/api/v1/files/{uuid4()}/download/")
         assert response.status_code in (401, 403)
 
-    def test_a_marketing_photo_is_served_inline(self, settings, landlord):
+    def test_a_marketing_photo_is_served_inline(self, settings, landlord, tmp_path):
         """Otherwise a browser refuses to paint it and the gallery is empty.
 
         The default is `attachment`, which is right for a document: it downloads
@@ -274,6 +274,7 @@ class TestFileDownload:
         from apps.files.storage import LocalStorageBackend, get_storage, reset_storage
 
         settings.STORAGE_BACKEND = "local"
+        settings.LOCAL_STORAGE_ROOT = tmp_path
         reset_storage()
         try:
             backend = get_storage()
@@ -289,19 +290,18 @@ class TestFileDownload:
         finally:
             reset_storage()
 
-    def test_only_an_image_may_be_served_inline(self, api, storage, user):
+    def test_only_an_image_may_be_served_inline(self, api, storage, user, settings, tmp_path):
         """`inline` on a document would let a signed URL render in the tab.
 
         The disposition is not covered by the signature — it decides how already
         authorised bytes are presented — so the view has to decide for itself
         rather than believe the query string.
         """
-        from django.conf import settings
-
         from apps.files.models import ScanStatus, StoredFile, UploadStatus
         from apps.files.storage import LocalStorageBackend, get_storage, reset_storage
 
         settings.STORAGE_BACKEND = "local"
+        settings.LOCAL_STORAGE_ROOT = tmp_path
         reset_storage()
         try:
             backend = get_storage()

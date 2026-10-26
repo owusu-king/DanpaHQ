@@ -18,7 +18,9 @@ jobs:
       - run: cp .env.example .env
       - run: docker compose up -d --wait db redis
       - run: docker compose build api
-      - run: docker compose run --rm --no-deps -T api ruff check .
+      # The checkout is bind-mounted into /app and may be owned by the runner,
+      # while the image runs as a non-root user. A single CI run needs no cache.
+      - run: docker compose run --rm --no-deps -T api ruff check --no-cache .
       - run: docker compose run --rm --no-deps -T api pytest -q
       - run: docker compose run --rm --no-deps -T api python manage.py makemigrations --check --dry-run
       - if: always()
