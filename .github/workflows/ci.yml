@@ -2,7 +2,7 @@ name: Release checks
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, staging]
 permissions:
   contents: read
 concurrency:
@@ -87,3 +87,33 @@ jobs:
           printf '%s\n' "$PRODUCTION_OWNER_ENV" > "$release_env"
           unset PRODUCTION_OWNER_ENV
           docker run --rm --env-file "$release_env" danpahq-release sh scripts/render-migrate.sh
+  staging-release:
+    name: Staging database release
+    needs: [backend, clients]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/staging'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - run: docker build -t danpahq-staging-release backend
+      - name: Migrate, provision runtime role, seed and bootstrap staging administrator
+        env:
+          STAGING_OWNER_ENV: ${{ secrets.STAGING_OWNER_ENV }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "$STAGING_OWNER_ENV" ]; then
+            echo "Configure STAGING_OWNER_ENV in the staging environment."
+            exit 1
+          fi
+          umask 077
+          release_env=$(mktemp)
+          trap 'rm -f -- "$release_env"' EXIT
+          printf '%s\n' "$STAGING_OWNER_ENV" > "$release_env"
+          unset STAGING_OWNER_ENV
+          docker run --rm --env-file "$release_env" \
+            -e DJANGO_SETTINGS_MODULE=config.settings.staging \
+            danpahq-staging-release sh scripts/render-migrate.sh

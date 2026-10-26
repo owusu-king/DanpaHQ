@@ -155,9 +155,12 @@ def test_production_rejects_console_email():
     assert "real delivery backend" in result.stderr
 
 
-def test_django_deployment_checks_pass_with_complete_production_settings():
+@pytest.mark.parametrize(
+    "settings_module", ["config.settings.production", "config.settings.staging"]
+)
+def test_django_deployment_checks_pass_with_complete_production_settings(settings_module):
     result = subprocess.run(  # noqa: S603
-        [sys.executable, "manage.py", "check", "--deploy", "--settings=config.settings.production"],
+        [sys.executable, "manage.py", "check", "--deploy", f"--settings={settings_module}"],
         cwd=BACKEND,
         env=production_env(RENDER_EXTERNAL_HOSTNAME="danpahq-api.onrender.com"),
         capture_output=True,
@@ -165,3 +168,27 @@ def test_django_deployment_checks_pass_with_complete_production_settings():
     )
     assert result.returncode == 0, result.stdout + result.stderr
     assert "System check identified no issues" in result.stdout + result.stderr
+
+
+def test_staging_retains_production_security_and_reports_its_environment():
+    probe = (
+        "import json, config.settings.staging as s; "
+        "print(json.dumps({'environment': s.ENVIRONMENT, 'debug': s.DEBUG, "
+        "'mfa': s.ADMIN_MFA_REQUIRED, 'storage': s.STORAGE_BACKEND, "
+        "'secure_cookies': s.SESSION_COOKIE_SECURE}))"
+    )
+    result = subprocess.run(  # noqa: S603
+        [sys.executable, "-c", probe],
+        cwd=BACKEND,
+        env=production_env(RENDER_EXTERNAL_HOSTNAME="danpahq-api-staging.onrender.com"),
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout) == {
+        "environment": "staging",
+        "debug": False,
+        "mfa": True,
+        "storage": "s3",
+        "secure_cookies": True,
+    }

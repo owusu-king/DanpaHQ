@@ -3,10 +3,10 @@
 set -eu
 : "${DJANGO_SETTINGS_MODULE:=config.settings.production}"
 export DJANGO_SETTINGS_MODULE
-if [ "$DJANGO_SETTINGS_MODULE" != "config.settings.production" ]; then
-  echo "Render commands require production settings." >&2
-  exit 1
-fi
+case "$DJANGO_SETTINGS_MODULE" in
+  config.settings.production|config.settings.staging) ;;
+  *) echo "Render commands require production or staging settings." >&2; exit 1 ;;
+esac
 python manage.py check --deploy --fail-level WARNING
 python manage.py migrate --noinput
 python manage.py provision_runtime_database

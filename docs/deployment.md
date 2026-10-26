@@ -1,5 +1,8 @@
 # Deploy DanpaHQ
 
+For the separate `staging` branch and test environment, see
+[Staging setup](#8-staging-setup) at the end of this document.
+
 | Part | Host | Updates |
 |---|---|---|
 | Web — `danpahq.com` | Cloudflare Pages | Push to `main` |
@@ -215,3 +218,164 @@ Unchecked requirements block the affected launch/workflow. Passing repository te
 ## 7. Roll back
 
 **Web:** Pages → previous deployment → **Rollback**. **API:** Render → previous deploy → **Rollback** only if schema-compatible; migrations do not revert. Disable auto-deploy until a corrected release is ready. **Mobile:** corrective build; support older clients. Monitor outbox/payment exceptions: [README.md](../README.md).
+
+
+---
+
+<div style="break-before: page;"></div>
+
+## 8. Staging setup
+
+Staging is a separate place to test changes before sending them to production.
+Use the `staging` branch with these addresses:
+
+| Part | Staging value |
+|---|---|
+| Website | `https://staging.danpahq.com` |
+| API | `https://api-staging.danpahq.com` |
+| Render Blueprint file | [`render.staging.yaml`](../render.staging.yaml) |
+| GitHub environment | `staging` |
+| GitHub release secret | `STAGING_OWNER_ENV` |
+
+Follow these steps in order. Keep staging databases, files and application
+secrets separate from production. Render resources add hosting costs.
+
+### Step 1 — Create the staging database in Supabase
+
+1. Sign in to Supabase and create a new project named **danpahq-staging**.
+2. Choose **Frankfurt**, matching the staging Render services. Set a strong
+   database password and save it in your password manager.
+3. Enable the database extensions **postgis**, **pg_trgm** and **btree_gist**.
+   Disable Data API exposure for the Django application tables.
+4. Open **Connect → Session pooler** and save the host, username, database name
+   and port. Use port **5432** and SSL mode **require**. Use the Session pooler,
+   rather than the direct IPv6 connection or Transaction pooler.
+5. Choose a second strong password for the application runtime role `grp_app`.
+   The GitHub release will create this role; you do not need to create it manually.
+
+### Step 2 — Create staging file storage in Cloudflare R2
+
+1. Create a private bucket named **danpahq-media-staging**.
+2. Create an Object Read & Write token restricted to this staging bucket.
+   Save its access key, secret key and R2 endpoint securely.
+3. Open **R2 Object Storage → danpahq-media-staging → Settings**.
+4. Under **CORS Policy**, select **Add CORS policy** (or edit the existing policy).
+   Select the **JSON** tab and paste the following contents of
+   [`ops/r2-cors.staging.json`](../ops/r2-cors.staging.json):
+
+   ```json
+   [
+     {
+       "AllowedOrigins": ["https://staging.danpahq.com"],
+       "AllowedMethods": ["PUT", "GET", "HEAD"],
+       "AllowedHeaders": ["Content-Type"],
+       "ExposeHeaders": ["ETag"],
+       "MaxAgeSeconds": 3600
+     }
+   ]
+   ```
+
+5. Click **Save** and confirm the policy appears in the bucket's Settings.
+   This lets the staging website upload and retrieve files using signed URLs.
+   Keep the bucket private; enabling public access is not required.
+
+### Step 3 — Set up the staging API in Render
+
+The staging configuration files must be committed and pushed to `staging`
+before Render can read them. An initial GitHub release may fail until Step 4
+adds its secret; rerun it after completing that step.
+
+1. In Render, choose **New → Blueprint** and select this GitHub repository.
+2. Select branch **staging** and set **Blueprint Path** to **render.staging.yaml**.
+   Review the price before applying it. This creates **danpahq-api-staging** and
+   **danpahq-redis-staging**.
+3. Fill the Blueprint's requested environment values using the staging database,
+   R2 bucket, email provider, scanner and Google OAuth configuration. Generate
+   fresh staging application secrets; do not copy production secrets.
+4. Use these database values for the Render API service:
+
+| Variable | Value |
+|---|---|
+| `POSTGRES_HOST` | Staging Supabase Session pooler host |
+| `POSTGRES_PORT` | `5432` |
+| `POSTGRES_DB` | `postgres` |
+| `POSTGRES_USER` | `grp_app.<staging-project-ref>` |
+| `POSTGRES_PASSWORD` | Runtime password chosen in Step 1 |
+| `DATABASE_RUNTIME_ROLE` | `grp_app` |
+| `DB_SSLMODE` | `require` |
+
+The Blueprint sets `DJANGO_SETTINGS_MODULE=config.settings.staging`, HTTPS,
+staging origins, the staging bucket and a separate Redis connection. Keep
+**After CI Checks Pass** selected. Save the generated application secret values
+securely because the GitHub release needs matching values in Step 4.
+
+5. Add **api-staging.danpahq.com** under the API service's **Custom Domains**.
+   In Cloudflare DNS, add the DNS record Render supplies. Wait for HTTPS to work.
+
+Initial API startup can fail until the GitHub release creates the database role
+and tables. Keep database owner credentials, `DATABASE_RUNTIME_PASSWORD` and
+`DJANGO_SUPERUSER_*` entries out of Render's runtime environment.
+
+### Step 4 — Add the staging release secret in GitHub
+
+1. Open the repository → **Settings → Environments → New environment**.
+   Name it **staging** and restrict deployment branches to **staging**.
+2. Fill [`backend/staging-owner.env.example`](../backend/staging-owner.env.example).
+   Store your filled copy outside Git or in the ignored `.env.staging.owner` file.
+3. For this release environment, use the Supabase **owner** login from Step 1
+   (`postgres.<staging-project-ref>`) and the project database password.
+   Set `DATABASE_RUNTIME_PASSWORD` to the runtime password used by Render.
+4. Copy the staging application's secret values from Render into the matching
+   entries. Fill the remaining storage, Redis, email and scanner values to match
+   staging. Keep `DJANGO_SETTINGS_MODULE=config.settings.staging`.
+5. To create the first staging administrator, fill all three entries:
+   `DJANGO_SUPERUSER_PHONE`, `DJANGO_SUPERUSER_EMAIL` and
+   `DJANGO_SUPERUSER_PASSWORD`. Use a valid Ghana phone number and a strong password.
+6. In the GitHub **staging** environment, create a secret named
+   **STAGING_OWNER_ENV**. Paste the complete filled template into that one secret.
+7. Push the staging configuration, or rerun the failed **Release checks** workflow
+   for `staging` if it was already pushed. Watch **Actions → Release checks**:
+   tests must pass, followed by **Staging database release**. Render then deploys.
+
+After successful bootstrap, remove the three `DJANGO_SUPERUSER_*` entries from
+the GitHub secret. Remove `DATABASE_RUNTIME_PASSWORD` after role provisioning;
+include it again only when intentionally rotating that password. Retain the
+owner credential and matching application secrets for future migrations.
+
+### Step 5 — Set up the staging website in Cloudflare Pages
+
+Create a **separate Pages project** connected to this repository. Use:
+
+| Setting | Value |
+|---|---|
+| Project name | `danpahq-staging` |
+| Production branch for this project | `staging` |
+| Root directory | `web` (keep sibling `packages/design-tokens` accessible) |
+| Build command | `npm ci && npm run build` |
+| Build output directory | `out` |
+| `NODE_VERSION` | `22.13.0` |
+| `NEXT_PUBLIC_API_URL` | `https://api-staging.danpahq.com/api/v1` |
+| `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | Staging Web OAuth client ID, matching the API |
+
+Add **staging.danpahq.com** under this project's **Custom domains** and follow
+Cloudflare's DNS instructions. Add `https://staging.danpahq.com` as an allowed
+origin on the staging Google Web OAuth client. Configure restricted Maps keys
+if needed. Keep this project's preview configuration pointed at staging too.
+
+Pages builds independently of the database release. Confirm the API release
+has succeeded before testing a website change that requires new database tables.
+
+### Step 6 — Test staging, then promote changes
+
+1. Open `https://api-staging.danpahq.com/healthz` and
+   `https://api-staging.danpahq.com/readyz`. Readiness should return `status=ok`
+   and `environment=staging`.
+2. Open `https://staging.danpahq.com` and test login, email, uploads and the
+   workflows you changed. Check Render's worker and scheduler logs.
+3. Sign in to `https://api-staging.danpahq.com/admin/`, enroll the staging
+   administrator in MFA and save recovery codes.
+4. Use test accounts and test payment credentials. Leave payments disabled
+   until configured, and do not enable live payments in staging.
+5. For future changes, push to `staging`, wait for GitHub and Render, then test.
+   When ready, open a pull request from **staging → main**. Merging it runs the
+   separate production release using production's own resources and secret.

@@ -1,0 +1,137 @@
+# yaml-language-server: $schema=https://render.com/schema/render.yaml.json
+# One supervised service + Redis. Applying this provisions paid resources.
+# See the staging setup in docs/deployment.md. Owner/bootstrap secrets live only in GitHub.
+# Staging database release must pass before Render auto-deploys staging.
+services:
+  - type: web
+    name: danpahq-api-staging
+    runtime: docker
+    plan: 1c-2g
+    region: frankfurt
+    numInstances: 1
+    branch: staging
+    autoDeployTrigger: checksPass
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    dockerCommand: sh scripts/render-start.sh
+    maxShutdownDelaySeconds: 90
+    healthCheckPath: /healthz
+    envVars:
+      - fromGroup: danpahq-integrations-staging
+      # Without this, manage.py and Celery quietly fall back to local settings.
+      - key: DJANGO_SETTINGS_MODULE
+        value: config.settings.staging
+      - key: ENVIRONMENT
+        value: staging
+      - key: ALLOWED_HOSTS
+        value: api-staging.danpahq.com
+      - key: CSRF_TRUSTED_ORIGINS
+        value: https://api-staging.danpahq.com,https://staging.danpahq.com
+
+      # Render's own *.onrender.com host is trusted automatically through
+      # RENDER_EXTERNAL_HOSTNAME (config/settings/production.py). When you add
+      # a custom domain, set ALLOWED_HOSTS and CSRF_TRUSTED_ORIGINS for it.
+      #
+      # The staging web origin on Cloudflare Pages.
+      - key: CORS_ALLOWED_ORIGINS
+        value: https://staging.danpahq.com
+
+      # --- Supabase (Session pooler, IPv4) ---------------------------------
+      # Project → Connect → Session pooler. Not the direct connection: that
+      # host is IPv6-only and Render cannot reach it.
+      - key: POSTGRES_HOST
+        sync: false          # aws-0-eu-central-1.pooler.supabase.com
+      - key: POSTGRES_PORT
+        value: "5432"
+      - key: POSTGRES_DB
+        value: postgres
+      - key: POSTGRES_USER
+        sync: false          # grp_app.<project-ref>; never the owner account
+      - key: POSTGRES_PASSWORD
+        sync: false
+      - key: DB_SSLMODE
+        value: require
+
+      # --- Redis for Celery ------------------------------------------------
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: danpahq-redis-staging
+          property: connectionString
+
+      # --- Cloudflare R2 -----------------------------------------------------
+      - key: S3_ENDPOINT_URL
+        sync: false          # https://<account-id>.r2.cloudflarestorage.com
+      - key: S3_BUCKET
+        value: danpahq-media-staging
+      - key: S3_REGION
+        value: auto
+      - key: S3_UPLOAD_METHOD
+        value: put
+      - key: DATABASE_RUNTIME_ROLE
+        value: grp_app
+      - key: S3_ACCESS_KEY
+        sync: false
+      - key: S3_SECRET_KEY
+        sync: false
+      # Cloudmersive's free pilot tier scans files up to 3.5 MB. No upload is
+      # released without an explicit clean verdict. Set the API key in Render
+      # before syncing this Blueprint; never commit the key here.
+      - key: FILE_SCAN_MODE
+        value: cloudmersive
+      - key: CLOUDMERSIVE_API_KEY
+        sync: false
+
+      # Transactional email is sent through HTTPS. Verify danpahq.com with Resend,
+      # then provide its HTTPS API key before syncing this Blueprint.
+      - key: EMAIL_BACKEND
+        value: apps.identity.email_backend.ResendEmailBackend
+      - key: RESEND_API_KEY
+        sync: false
+      - key: DEFAULT_FROM_EMAIL
+        value: Danpa HQ <no-reply@danpahq.com>
+
+      # --- Google -------------------------------------------------------------
+      - key: GOOGLE_OAUTH_CLIENT_ID
+        sync: false
+      # Optional Maps key: add GOOGLE_MAPS_SERVER_API_KEY in the dashboard.
+
+      # --- Independent secrets; existing values are preserved ---------------
+      - key: DJANGO_SECRET_KEY
+        sync: false  # Supply 50+ random characters; check --deploy enforces this.
+      - key: OTP_PEPPER
+        generateValue: true
+      - key: ACCESS_TOKEN_KEY
+        generateValue: true
+      - key: NATIONAL_ID_PEPPER
+        generateValue: true
+      - key: UNIT_ACCESS_CODE_PEPPER
+        generateValue: true
+      - key: PASSPORT_SHARE_PEPPER
+        generateValue: true
+      - key: MANAGEMENT_CSRF_KEY
+        generateValue: true
+      - key: RUNTIME_CONFIG_ENCRYPTION_KEY
+        generateValue: true
+      - key: STORAGE_SIGNING_KEY
+        generateValue: true
+
+      - key: PAYMENT_BACKEND
+        value: ""
+      - key: PAYSTACK_ALLOW_LIVE
+        value: "false"
+      - key: PAYSTACK_CALLBACK_URL
+        value: https://staging.danpahq.com/record/payment-return
+
+  - type: keyvalue
+    name: danpahq-redis-staging
+    plan: 256mb
+    region: frankfurt
+    maxmemoryPolicy: noeviction
+    ipAllowList: []
+
+# Optional shared settings (e.g. PAYMENT_ALERT_OWNER, PAYMENT_ALERT_WEBHOOK_URL,
+# GOOGLE_MAPS_SERVER_API_KEY) are entered in this group in Render, never Git.
+envVarGroups:
+  - name: danpahq-integrations-staging
+    envVars: []
