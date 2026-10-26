@@ -1,0 +1,824 @@
+/* Explore on a map (ADR 0033): the same search, drawn where it is.
+
+   The basemap is quiet so the markers can carry the colour. Price markers are
+   white pills that read at a glance; a hovered one takes kola's edge, a chosen
+   one fills with deep kola, a visited one steps back into the ground. Clusters
+   are solid kola discs whose halo says "more here". Informational notes are
+   lagoon, failures laterite, the brand moment gold — the semantic palette,
+   used for what it means. */
+
+/* --- the page tray's way into the map ------------------------------------- */
+
+.explore-discovery-pending { min-height: 8.75rem; }
+
+/* Map belongs beside Search and Filters on wider web screens. The floating
+   switch remains the one-handed view control on narrow screens. */
+.explore-map-toggle {
+  display: inline-flex;
+  height: var(--explore-bar-height);
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-4) 0 var(--space-3);
+  color: var(--color-field-0);
+  font: 650 .875rem/1 var(--font-body);
+  white-space: nowrap;
+  background: var(--color-kola-800);
+  border: var(--border-hairline) solid var(--color-kola-800);
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  transition: background-color var(--motion-duration-fast) var(--motion-easing-standard);
+}
+.explore-map-toggle > .portal-icon { width: 17px; height: 17px; color: var(--color-kola-300); }
+.explore-map-toggle:hover { background: var(--color-kola-900); border-color: var(--color-kola-900); }
+.explore-map-toggle:active { background: var(--color-kola-900); }
+@media (pointer: coarse) {
+  .explore-map-toggle { min-height: 44px; }
+}
+
+/* An area drawn on the map is where, not a filter, so it takes lagoon — as the
+   location field marks regions and districts — rather than a filter's kola. */
+.explore-area-chip {
+  color: var(--color-lagoon-600);
+  background: var(--color-lagoon-100);
+  border-color: color-mix(in oklab, var(--color-lagoon-600) 40%, transparent);
+}
+.explore-area-chip .portal-icon { color: var(--color-lagoon-600); }
+.explore-area-chip:hover { background: color-mix(in oklab, var(--color-lagoon-100) 84%, var(--color-lagoon-600)); border-color: var(--color-lagoon-600); }
+.explore-area-chip:active { background: color-mix(in oklab, var(--color-lagoon-100) 72%, var(--color-lagoon-600)); }
+
+/* --- the location field ------------------------------------------------------ */
+
+.explore-place-search:has(.explore-search-spinner) input { padding-right: 88px; }
+.explore-search-spinner {
+  position: absolute;
+  z-index: 2;
+  top: 50%;
+  right: 52px;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--color-kola-50);
+  border-top-color: var(--color-kola-600);
+  border-radius: 50%;
+  translate: 0 -50%;
+  animation: explore-spin 700ms linear infinite;
+}
+.explore-suggestions ul { display: grid; gap: 2px; padding: 0; margin: 0; list-style: none; }
+.explore-suggestions-heading {
+  margin: 0;
+  padding: var(--space-2) var(--space-3) 2px;
+  color: var(--color-ink-500);
+  font-size: .75rem;
+  font-weight: 600;
+}
+.explore-suggestions-status { margin: 0; padding: var(--space-3); color: var(--color-ink-700); font-size: .875rem; }
+.explore-suggestions mark { color: var(--color-kola-800); background: transparent; font-weight: 750; }
+.explore-suggestion-kind {
+  flex: 0 0 auto;
+  margin-left: auto;
+  padding: 3px 8px;
+  color: var(--color-ink-500);
+  font-size: .6875rem;
+  font-weight: 650;
+  letter-spacing: .01em;
+  background: var(--color-field-100);
+  border-radius: var(--radius-pill);
+}
+.explore-suggestions .is-highlighted .explore-suggestion-kind { background: var(--color-field-0); }
+.explore-suggestion-copy { flex: 1 1 auto; }
+.explore-suggestion-copy strong,
+.explore-suggestion-copy > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* What kind of place it is, told by colour as well as by the tag beside it:
+   lagoon for an area, gold for a landmark, kola for an address. */
+.explore-suggestion-mark.is-area { color: var(--color-lagoon-600); background: var(--color-lagoon-100); }
+.explore-suggestion-mark.is-landmark { color: var(--color-gold-700); background: var(--color-gold-100); }
+/* Google's suggestions shown without a Google map carry its name, in the type
+   and contrast its attribution guidelines ask for. */
+.explore-suggestions-attribution {
+  margin: 0;
+  padding: 2px var(--space-3) var(--space-1);
+  color: var(--color-ink-700);
+  font: 500 .75rem/1.3 Roboto, var(--font-body);
+  text-align: right;
+}
+
+/* --- the map view ------------------------------------------------------------ */
+
+/* The map takes the list's place inside the page instead of covering it: the
+   site header, the search and the filters stay where they were. The search
+   sticks a breath under the site's header — the public site's 5rem, the
+   portal's 4rem — on the page's own ground; the map sticks beneath the
+   search, whose height the page measures, and stays in view as the results
+   scroll. The portal's band stops at its column, clear of the navigation rail. */
+.explore {
+  --explore-stick-top: calc(5rem + var(--space-2));
+  --explore-ground: var(--background);
+  --explore-bleed: 100vmax;
+  --explore-sticky-top: calc(var(--explore-stick-top) + var(--explore-tray-height, 9.25rem) + var(--space-3));
+}
+.portal .explore {
+  --explore-stick-top: calc(4rem + var(--space-3));
+  --explore-ground: var(--color-field-50);
+  --explore-bleed: var(--space-4);
+}
+
+.explore-map-view {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(22rem, 46%);
+  align-items: start;
+  gap: var(--space-5);
+}
+
+.explore-map-results { display: grid; min-width: 0; gap: var(--space-4); }
+.explore-map-note {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  color: var(--color-lagoon-600);
+  font-size: .8125rem;
+  line-height: 1.4;
+  background: var(--color-lagoon-100);
+  border-radius: var(--radius-md);
+}
+.explore-map-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(16.5rem, 1fr));
+  gap: var(--space-4);
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+.explore-map-results .explore-more { width: 100%; min-height: 48px; }
+.explore-map-empty-list { display: grid; gap: var(--space-2); padding: var(--space-6) var(--space-2); }
+.explore-map-empty-list p { margin: 0; }
+
+/* A card and its marker point at each other. */
+.listing-card.is-highlighted {
+  border-color: var(--color-kola-600);
+  box-shadow: 0 0 0 1px var(--color-kola-600), var(--shadow-lifted);
+}
+
+.explore-map-stage {
+  position: sticky;
+  top: var(--explore-sticky-top);
+  min-width: 0;
+  height: calc(100vh - var(--explore-sticky-top) - var(--space-5));
+  height: calc(100svh - var(--explore-sticky-top) - var(--space-5));
+  min-height: 24rem;
+  overflow: hidden;
+  /* The map's own layers stay inside it, beneath the stuck search. */
+  isolation: isolate;
+  background: var(--color-field-100);
+  border: var(--border-hairline) solid var(--color-field-200);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lifted);
+}
+.explore-map-frame,
+.explore-map-canvas { position: absolute; inset: 0; z-index: 0; }
+.explore-map-loading {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, var(--color-field-100) 30%, var(--color-field-50) 50%, var(--color-field-100) 70%);
+  background-size: 300% 100%;
+  animation: explore-shimmer 1.4s ease-in-out infinite;
+}
+.explore-map-failed {
+  position: absolute;
+  z-index: 3;
+  right: var(--space-4);
+  bottom: var(--space-4);
+  left: var(--space-4);
+  display: grid;
+  gap: 2px;
+  max-width: 26rem;
+  padding: var(--space-4);
+  background: var(--color-field-0);
+  border-left: 3px solid var(--color-laterite-600);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-floating);
+}
+.explore-map-failed span { color: var(--color-ink-700); font-size: .875rem; }
+
+.explore-map-overlay-top {
+  position: absolute;
+  z-index: 3;
+  top: var(--space-4);
+  left: 50%;
+  display: grid;
+  justify-items: center;
+  gap: var(--space-2);
+  translate: -50% 0;
+  pointer-events: none;
+}
+.explore-map-overlay-top > * { pointer-events: auto; }
+
+/* Four quiet circles borrowed from the reference's right rail. They sit on
+   their own translucent glass rather than one heavy panel, so the map remains
+   the dominant surface while every view action stays in the same place. */
+.explore-map-tools {
+  position: absolute;
+  z-index: 5;
+  top: 50%;
+  right: var(--space-3);
+  display: grid;
+  gap: 9px;
+  translate: 0 -50%;
+}
+.explore-map-tool {
+  position: relative;
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  padding: 0;
+  color: var(--color-ink-700);
+  background: rgb(255 255 255 / 82%);
+  border: 1px solid rgb(255 255 255 / 88%);
+  border-radius: 50%;
+  box-shadow: 0 7px 22px -12px rgb(22 17 14 / 48%), inset 0 0 0 1px rgb(33 26 21 / 7%);
+  backdrop-filter: blur(12px) saturate(1.12);
+  -webkit-backdrop-filter: blur(12px) saturate(1.12);
+  cursor: pointer;
+  transition:
+    color var(--motion-duration-fast) var(--motion-easing-standard),
+    background-color var(--motion-duration-fast) var(--motion-easing-standard),
+    border-color var(--motion-duration-fast) var(--motion-easing-standard),
+    box-shadow var(--motion-duration-fast) var(--motion-easing-standard),
+    scale var(--motion-duration-instant) var(--motion-easing-standard);
+}
+.explore-map-tool .portal-icon { width: 19px; height: 19px; color: inherit; }
+.explore-map-tool:hover:not(:disabled) {
+  color: var(--color-kola-800);
+  background: rgb(255 255 255 / 94%);
+  border-color: color-mix(in srgb, var(--color-kola-600) 32%, white);
+  box-shadow: 0 9px 24px -12px rgb(12 58 42 / 42%), inset 0 0 0 1px rgb(27 107 79 / 9%);
+  scale: 1.045;
+}
+.explore-map-tool:active:not(:disabled) { scale: .96; }
+.explore-map-tool[aria-pressed="true"] {
+  color: var(--color-field-0);
+  background: rgb(18 80 59 / 92%);
+  border-color: rgb(255 255 255 / 78%);
+  box-shadow: 0 8px 24px -10px rgb(12 58 42 / 65%), inset 0 1px 0 rgb(255 255 255 / 20%);
+}
+.explore-map-tool.is-ready {
+  color: var(--color-kola-800);
+  background: rgb(232 241 236 / 92%);
+  border-color: color-mix(in srgb, var(--color-kola-600) 42%, white);
+  box-shadow: 0 0 0 4px rgb(27 107 79 / 12%), 0 8px 22px -12px rgb(12 58 42 / 52%);
+}
+.explore-map-tool.is-busy .portal-icon { animation: explore-spin 700ms linear infinite; }
+.explore-map-tool:disabled { opacity: .48; cursor: not-allowed; }
+.explore-map-tool::after {
+  position: absolute;
+  top: 50%;
+  right: calc(100% + 9px);
+  width: max-content;
+  padding: 6px 9px;
+  color: var(--color-field-0);
+  font: 600 .75rem/1 var(--font-body);
+  white-space: nowrap;
+  content: attr(data-label);
+  background: rgb(22 17 14 / 82%);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-raised);
+  opacity: 0;
+  pointer-events: none;
+  translate: 4px -50%;
+  transition: opacity var(--motion-duration-fast) var(--motion-easing-standard), translate var(--motion-duration-fast) var(--motion-easing-standard);
+}
+.explore-map-tool:hover::after,
+.explore-map-tool:focus-visible::after { opacity: 1; translate: 0 -50%; }
+
+.explore-map-retry:focus-visible,
+.explore-map-toggle:focus-visible,
+.explore-view-switch:focus-visible,
+.explore-map-tool:focus-visible { outline: var(--border-emphasis) solid var(--color-kola-600); outline-offset: 2px; }
+
+/* Said on the map, where the missing markers are, not in a list a phone never
+   shows beside it. */
+.explore-map-hint {
+  margin: 0;
+  padding: 6px var(--space-3);
+  color: var(--color-lagoon-600);
+  font: 600 .8125rem/1.3 var(--font-body);
+  background: var(--color-lagoon-100);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-floating);
+}
+
+.explore-map-progress {
+  position: relative;
+  display: block;
+  width: 5rem;
+  height: 4px;
+  overflow: hidden;
+  background: color-mix(in oklab, var(--color-field-0) 80%, var(--color-kola-50));
+  border-radius: var(--radius-pill);
+  box-shadow: 0 1px 3px rgb(22 17 14 / 15%);
+}
+.explore-map-progress::after {
+  position: absolute;
+  inset: 0;
+  width: 40%;
+  background: var(--color-kola-600);
+  border-radius: inherit;
+  content: "";
+  animation: explore-progress 900ms var(--motion-easing-standard) infinite;
+}
+
+.explore-map-retry {
+  height: 36px;
+  padding: 0 var(--space-4);
+  color: var(--color-laterite-600);
+  font: 600 .8125rem/1 var(--font-body);
+  background: var(--color-field-0);
+  border: var(--border-hairline) solid var(--color-laterite-100);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-lifted);
+  cursor: pointer;
+}
+
+.explore-map-empty {
+  position: absolute;
+  z-index: 3;
+  bottom: var(--space-6);
+  left: 50%;
+  display: grid;
+  width: max-content;
+  max-width: min(26rem, calc(100% - 2rem));
+  justify-items: center;
+  gap: var(--space-1);
+  padding: var(--space-4) var(--space-5);
+  text-align: center;
+  background: var(--color-field-0);
+  border: var(--border-hairline) solid var(--color-field-200);
+  border-top: 3px solid var(--color-gold-300);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-floating);
+  translate: -50% 0;
+}
+.explore-map-empty span { color: var(--color-ink-700); font-size: .875rem; }
+.explore-map-empty div { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--space-2); margin-top: var(--space-1); }
+
+/* --- markers ------------------------------------------------------------------ */
+
+/* The map positions a wrapper around each marker, never the marker itself, but
+   emphasis still uses the separate `scale` property so it composes with any
+   transform rather than replacing it. */
+.explore-marker {
+  position: relative;
+  margin: 0;
+  font-family: var(--font-body);
+  cursor: pointer;
+  user-select: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+.explore-price-marker {
+  display: inline-flex;
+  height: 34px;
+  align-items: center;
+  gap: 7px;
+  padding: 0 12px 0 9px;
+  color: var(--color-kola-900);
+  font-size: .8125rem;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -.01em;
+  white-space: nowrap;
+  background: rgb(255 255 255 / 94%);
+  border: 1px solid color-mix(in srgb, var(--color-kola-600) 30%, white);
+  border-radius: var(--radius-pill);
+  box-shadow: 0 0 0 2px rgb(255 255 255 / 72%), 0 6px 18px -8px rgb(22 17 14 / 52%);
+  backdrop-filter: blur(8px);
+  transform-origin: 50% 100%;
+  transition:
+    background-color var(--motion-duration-fast) var(--motion-easing-standard),
+    color var(--motion-duration-fast) var(--motion-easing-standard),
+    border-color var(--motion-duration-fast) var(--motion-easing-standard),
+    scale var(--motion-duration-fast) var(--motion-easing-standard);
+}
+.explore-marker-dot {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  background: var(--color-kola-600);
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-kola-600) 13%, transparent);
+}
+.explore-marker-label { line-height: 1; }
+.explore-price-marker::after,
+.explore-sale-marker::after {
+  position: absolute;
+  bottom: -5px;
+  left: 50%;
+  width: 9px;
+  height: 9px;
+  background: inherit;
+  border-right: inherit;
+  border-bottom: inherit;
+  border-bottom-right-radius: 2px;
+  content: "";
+  translate: -50% 0;
+  rotate: 45deg;
+}
+.explore-price-marker:hover,
+.explore-price-marker.is-hovered {
+  z-index: 2;
+  color: var(--color-kola-800);
+  border-color: var(--color-kola-600);
+  box-shadow: 0 0 0 2px rgb(255 255 255 / 82%), 0 9px 22px -8px rgb(12 58 42 / 52%);
+  scale: 1.06;
+}
+.explore-price-marker.is-visited { color: var(--color-ink-500); background: rgb(242 238 232 / 94%); }
+.explore-price-marker.is-visited .explore-marker-dot { background: var(--color-ink-300); box-shadow: none; }
+.explore-price-marker.is-selected {
+  z-index: 3;
+  color: var(--color-field-0);
+  background: var(--color-kola-800);
+  border-color: var(--color-kola-800);
+  box-shadow: 0 6px 16px rgb(12 58 42 / 38%);
+  scale: 1.1;
+}
+.explore-price-marker.is-selected .explore-marker-dot { background: var(--color-field-0); box-shadow: 0 0 0 3px rgb(255 255 255 / 18%); }
+
+/* Sales never fall back to Google's red pin. They use the same premium price
+   pill, with gold as the small semantic distinction from rental green. */
+.explore-sale-marker {
+  display: inline-flex;
+  height: 34px;
+  align-items: center;
+  gap: 7px;
+  padding: 0 12px 0 9px;
+  color: var(--color-ink-900);
+  font-size: .8125rem;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -.01em;
+  white-space: nowrap;
+  background: rgb(255 255 255 / 94%);
+  border: 1px solid color-mix(in srgb, var(--color-gold-500) 44%, white);
+  border-radius: var(--radius-pill);
+  box-shadow: 0 0 0 2px rgb(255 255 255 / 72%), 0 6px 18px -8px rgb(22 17 14 / 52%);
+  backdrop-filter: blur(8px);
+  transform-origin: 50% 100%;
+  transition: border-color var(--motion-duration-fast) var(--motion-easing-standard), box-shadow var(--motion-duration-fast) var(--motion-easing-standard), scale var(--motion-duration-fast) var(--motion-easing-standard);
+}
+.explore-sale-marker .explore-marker-dot { background: var(--color-gold-500); box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-gold-500) 16%, transparent); }
+.explore-sale-marker:hover { border-color: var(--color-gold-600); box-shadow: 0 0 0 2px rgb(255 255 255 / 82%), 0 9px 22px -8px rgb(122 83 20 / 48%); scale: 1.06; }
+
+.explore-cluster-marker {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  padding: 0;
+  color: var(--color-field-0);
+  font-size: .8125rem;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+  background: var(--color-kola-600);
+  border: 3px solid rgb(255 255 255 / 94%);
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 5px color-mix(in oklab, var(--color-kola-600) 20%, transparent),
+    0 7px 18px -8px rgb(12 58 42 / 68%);
+  transition:
+    background-color var(--motion-duration-fast) var(--motion-easing-standard),
+    scale var(--motion-duration-fast) var(--motion-easing-standard);
+}
+.explore-cluster-marker[data-size="m"] { width: 44px; height: 44px; font-size: .875rem; }
+.explore-cluster-marker[data-size="l"] {
+  width: 54px;
+  height: 54px;
+  font-size: .9375rem;
+  box-shadow:
+    0 0 0 8px color-mix(in oklab, var(--color-kola-600) 22%, transparent),
+    0 4px 12px rgb(12 58 42 / 34%);
+}
+.explore-cluster-marker:hover,
+.explore-cluster-marker.is-hovered { z-index: 2; background: var(--color-kola-800); scale: 1.08; }
+
+/* A stack: several rentals on one public point. It opens, it does not zoom. */
+.explore-cluster-marker.is-stack {
+  display: inline-flex;
+  width: auto;
+  height: 32px;
+  gap: 6px;
+  padding: 0 11px 0 4px;
+  color: var(--color-ink-900);
+  background: var(--color-field-0);
+  border: var(--border-hairline) solid color-mix(in oklab, var(--color-ink-900) 16%, transparent);
+  border-radius: var(--radius-pill);
+  box-shadow: 0 2px 6px rgb(22 17 14 / 20%);
+}
+.explore-cluster-marker.is-stack .explore-cluster-count {
+  display: grid;
+  min-width: 24px;
+  height: 24px;
+  place-items: center;
+  padding: 0 6px;
+  color: var(--color-field-0);
+  font-size: .75rem;
+  background: var(--color-kola-600);
+  border-radius: var(--radius-pill);
+}
+.explore-cluster-from { font-size: .8125rem; font-weight: 750; white-space: nowrap; }
+.explore-cluster-marker.is-stack:hover,
+.explore-cluster-marker.is-stack.is-hovered { color: var(--color-kola-800); background: var(--color-field-0); border-color: var(--color-kola-600); }
+.explore-cluster-marker.is-stack.is-visited { background: var(--color-field-100); }
+.explore-cluster-marker.is-stack.is-selected {
+  z-index: 3;
+  color: var(--color-field-0);
+  background: var(--color-kola-800);
+  border-color: var(--color-kola-800);
+  box-shadow: 0 6px 16px rgb(12 58 42 / 38%);
+  scale: 1.08;
+}
+.explore-cluster-marker.is-stack.is-selected .explore-cluster-count { color: var(--color-kola-800); background: var(--color-field-0); }
+
+.explore-marker:focus-visible {
+  z-index: 4;
+  outline: var(--border-emphasis) solid var(--color-kola-600);
+  outline-offset: 3px;
+}
+
+/* --- the preview a marker opens ------------------------------------------------ */
+
+/* The preview rides the map above its marker, clear of the price pill and its tail. */
+.explore-preview-anchor { padding-bottom: 44px; }
+
+.explore-preview {
+  position: relative;
+  width: min(21rem, calc(100vw - 2rem));
+  overflow: hidden;
+  color: var(--color-ink-900);
+  font-family: var(--font-body);
+  text-align: left;
+  background: var(--color-field-0);
+  border: var(--border-hairline) solid var(--color-field-200);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-modal);
+  animation: explore-pop-in var(--motion-duration-fast) var(--motion-easing-enter);
+}
+.explore-preview.is-sheet { width: 100%; border-radius: var(--radius-xl); }
+.explore-preview-body { position: relative; }
+.explore-preview-link {
+  display: grid;
+  grid-template-columns: 7.5rem minmax(0, 1fr) auto;
+  min-height: 7.5rem;
+  color: inherit;
+  text-decoration: none;
+}
+.explore-preview.is-sheet .explore-preview-link { grid-template-columns: 8.5rem minmax(0, 1fr) auto; min-height: 8.5rem; }
+.explore-preview-link:hover .explore-preview-headline { color: var(--color-kola-800); }
+.explore-preview-link:focus-visible { outline: var(--border-emphasis) solid var(--color-kola-600); outline-offset: -2px; border-radius: var(--radius-lg); }
+.explore-preview-photo { position: relative; display: block; overflow: hidden; background: var(--color-field-100); }
+.explore-preview-photo img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.explore-preview-photo-empty { position: absolute; inset: 0; display: grid; place-items: center; color: var(--color-ink-300); }
+.explore-preview-copy { display: grid; align-content: center; gap: 3px; min-width: 0; padding: var(--space-3) 2.25rem var(--space-3) var(--space-3); }
+.explore-preview-price { font: 650 1.0625rem/1.25 var(--font-display); letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.explore-preview-price span { color: var(--color-ink-500); font: 400 .75rem/1 var(--font-body); letter-spacing: 0; }
+.explore-preview-kind { color: var(--color-kola-800); font-size: .75rem; font-weight: 700; }
+.explore-preview-headline { overflow: hidden; font-size: .875rem; font-weight: 600; line-height: 1.3; text-overflow: ellipsis; white-space: nowrap; }
+.explore-preview-where {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+  overflow: hidden;
+  color: var(--color-ink-500);
+  font-size: .75rem;
+  white-space: nowrap;
+}
+.explore-preview-where .portal-icon { width: 13px; height: 13px; flex: 0 0 auto; color: var(--color-kola-600); }
+.explore-preview-go { display: grid; width: 2rem; place-items: center; color: var(--color-kola-600); }
+.explore-preview-go .portal-icon { width: 18px; height: 18px; rotate: -90deg; }
+.explore-preview-close {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  padding: 0;
+  color: var(--color-ink-700);
+  background: var(--color-field-100);
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+}
+.explore-preview-close:hover { color: var(--color-ink-900); background: var(--color-field-200); }
+.explore-preview-close .portal-icon { width: 14px; height: 14px; }
+.explore-preview-save {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  padding: 0;
+  color: var(--color-ink-900);
+  background: rgb(255 255 255 / 92%);
+  border: 0;
+  border-radius: 50%;
+  box-shadow: 0 1px 4px rgb(22 17 14 / 22%);
+  cursor: pointer;
+}
+.explore-preview-save[aria-pressed="true"] { color: var(--destructive); }
+.explore-preview-save .portal-icon { width: 16px; height: 16px; }
+.explore-preview-pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: 4px 6px;
+  color: var(--color-ink-700);
+  font-size: .75rem;
+  font-weight: 650;
+  background: var(--color-field-50);
+  border-top: var(--border-hairline) solid var(--color-field-200);
+}
+.explore-preview-pager button {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  padding: 0;
+  color: var(--color-kola-800);
+  background: transparent;
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+}
+.explore-preview-pager button:hover { background: var(--color-kola-50); }
+.explore-preview-pager .portal-icon { width: 16px; height: 16px; }
+.explore-preview-pager button:first-child .portal-icon { rotate: 90deg; }
+.explore-preview-pager button:last-child .portal-icon { rotate: -90deg; }
+.explore-preview-close:focus-visible,
+.explore-preview-save:focus-visible,
+.explore-preview-pager button:focus-visible { outline: var(--border-emphasis) solid var(--color-kola-600); outline-offset: 2px; }
+.explore-preview-skeleton { display: grid; grid-template-columns: 7.5rem minmax(0, 1fr); min-height: 7.5rem; }
+.explore-preview-skeleton .explore-preview-photo,
+.explore-preview-lines span {
+  background: linear-gradient(100deg, var(--color-field-100) 30%, var(--color-field-50) 50%, var(--color-field-100) 70%);
+  background-size: 300% 100%;
+  animation: explore-shimmer 1.4s ease-in-out infinite;
+}
+.explore-preview-lines { display: grid; align-content: center; gap: 8px; padding: var(--space-3); }
+.explore-preview-lines span { height: 10px; border-radius: var(--radius-pill); }
+.explore-preview-lines span:nth-child(1) { width: 60%; height: 14px; }
+.explore-preview-lines span:nth-child(2) { width: 85%; }
+.explore-preview-lines span:nth-child(3) { width: 45%; }
+.explore-preview-failed { display: grid; justify-items: start; gap: var(--space-2); padding: var(--space-4) 2.75rem var(--space-4) var(--space-4); font-size: .875rem; }
+.explore-preview-failed p { margin: 0; }
+
+/* Fixed to the screen rather than to the map, which can run past the fold: a
+   preview rising from the map's own bottom edge would open out of sight. */
+.explore-map-sheet {
+  position: fixed;
+  z-index: 16;
+  right: var(--space-3);
+  bottom: calc(max(var(--space-4), env(safe-area-inset-bottom)) + 56px);
+  left: var(--space-3);
+  animation: explore-sheet-in var(--motion-duration-base) var(--motion-easing-enter);
+}
+
+/* A phone's one switch between the list and the map, branded so it floats over
+   photographs and tiles alike: "List · 12" on the map, "Map" on the list. Wide
+   screens use the rail's pill instead. */
+.explore-view-switch {
+  position: fixed;
+  z-index: 15;
+  bottom: max(var(--space-4), env(safe-area-inset-bottom));
+  left: 50%;
+  display: none;
+  height: 42px;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-5);
+  color: var(--color-field-0);
+  font: 650 .9375rem/1 var(--font-body);
+  white-space: nowrap;
+  background: var(--color-kola-600);
+  border: 0;
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-floating);
+  translate: -50% 0;
+  cursor: pointer;
+}
+.explore-view-switch .portal-icon { width: 18px; height: 18px; color: var(--color-kola-50); }
+.explore-view-switch:hover { background: var(--color-kola-800); }
+
+/* --- the address on a card, and the listing's Location section ------------------ */
+
+.listing-card-where a {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-1);
+  color: inherit;
+  text-decoration: none;
+  border-radius: var(--radius-xs);
+}
+.listing-card-where a:hover { color: var(--color-kola-800); text-decoration: underline; text-underline-offset: 3px; }
+.listing-card-where a:hover .portal-icon { color: var(--color-kola-600); }
+
+/* No scroll margin of its own: the root's scroll-padding already clears the
+   sticky header for every anchor, and a margin here doubled the gap. */
+.listing-location { outline: none; }
+.listing-location-where { display: flex; align-items: center; gap: var(--space-2); margin: 0; color: var(--color-ink-700); }
+.listing-location-where .portal-icon { width: 16px; height: 16px; flex: 0 0 auto; color: var(--color-kola-600); }
+.listing-location-map {
+  position: relative;
+  height: clamp(16rem, 36vw, 22rem);
+  overflow: hidden;
+  background: var(--color-field-100);
+  border: var(--border-hairline) solid var(--color-field-200);
+  border-radius: var(--radius-lg);
+}
+.listing-location-map.is-loading {
+  background: linear-gradient(100deg, var(--color-field-100) 30%, var(--color-field-50) 50%, var(--color-field-100) 70%);
+  background-size: 300% 100%;
+  animation: explore-shimmer 1.4s ease-in-out infinite;
+}
+.listing-location-map.is-failed { display: grid; place-items: center; color: var(--color-ink-500); font-size: .875rem; }
+.listing-location-dot {
+  width: 18px;
+  height: 18px;
+  background: var(--color-kola-600);
+  border: 3px solid var(--color-field-0);
+  border-radius: 50%;
+  box-shadow: 0 0 0 6px color-mix(in oklab, var(--color-kola-600) 24%, transparent), 0 2px 6px rgb(12 58 42 / 35%);
+}
+.listing-location-note {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-3);
+  color: var(--color-lagoon-600);
+  font-size: .875rem;
+  line-height: 1.45;
+  background: var(--color-lagoon-100);
+  border-radius: var(--radius-md);
+}
+.listing-location-note .portal-icon { width: 16px; height: 16px; flex: 0 0 auto; margin-top: 2px; color: inherit; }
+
+/* --- widths ----------------------------------------------------------------------- */
+
+/* Phones and tablets: the map takes the page's width in the list's place, the
+   list is one switch away, and the preview rises from the bottom. A close
+   button and a list inside the map both once led to a list under the same
+   icon; the floating switch is the only way between the two. */
+@media (max-width: 63.999rem) {
+  .explore-map-view { grid-template-columns: minmax(0, 1fr); }
+  .explore-map-results { display: none; }
+  .explore-map-stage {
+    position: relative;
+    top: auto;
+    height: calc(100vh - var(--explore-sticky-top) - var(--space-3));
+    height: calc(100svh - var(--explore-sticky-top) - var(--space-3));
+    min-height: 22rem;
+    border-radius: var(--radius-lg);
+  }
+  .explore-map-toggle { display: none; }
+  .explore-view-switch { display: inline-flex; }
+  .explore-map-overlay-top { top: var(--space-3); }
+  .explore-map-tools { right: var(--space-2); }
+  /* Near the top, where it is on screen even while the map runs past the fold. */
+  .explore-map-empty { top: calc(var(--space-3) + 3.25rem); bottom: auto; }
+  /* Room under the last card, so the switch never covers the end of the list. */
+  .explore { padding-bottom: calc(44px + var(--space-6)); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .explore-preview,
+  .explore-map-sheet,
+  .explore-map-loading,
+  .explore-preview-skeleton .explore-preview-photo,
+  .explore-preview-lines span,
+  .listing-location-map.is-loading,
+  .explore-search-spinner,
+  .explore-map-progress::after { animation: none; }
+  .explore-price-marker,
+  .explore-sale-marker,
+  .explore-cluster-marker,
+  .explore-map-tool { transition: none; }
+}
+
+@media (hover: none) {
+  .explore-map-tool::after { display: none; }
+}
+
+@keyframes explore-shimmer {
+  from { background-position: 100% 0; }
+  to { background-position: 0 0; }
+}
+
+@keyframes explore-progress {
+  from { translate: -100% 0; }
+  to { translate: 250% 0; }
+}

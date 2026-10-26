@@ -1,0 +1,334 @@
+/* The tenant's viewings, on the host's agenda (viewings-workspace.css).
+   The cards, the record (`vr-*`) and the sheet are the host's; what the
+   tenant's side adds is here: the place's photograph on a card, the colour of
+   where each viewing stands, the countdown to a booked visit, and the pieces
+   of the record only a tenant has — the check-in code and choosing a time. */
+
+/* --- shared with the host's record ------------------------------------------- */
+
+/* Released only during a valid appointment (ViewingDirections). */
+.viewing-directions { display: grid; gap: var(--space-2); }
+.viewing-directions h3 { margin: 0; color: var(--color-ink-900); font-size: .8125rem; }
+.viewing-directions p { margin: 0; }
+.viewing-address { font-size: .9375rem; font-weight: 700; }
+.viewing-map { color: var(--color-kola-800); font-size: .75rem; font-weight: 700; text-decoration: none; }
+.viewing-map:hover { text-decoration: underline; }
+
+/* --- the head ------------------------------------------------------------------ */
+
+.tenant-viewings .ws-summary [data-tone="good"] { color: var(--color-kola-600); font-weight: 650; }
+
+/* --- a card ----------------------------------------------------------------------- */
+
+/* The host's card, coloured by where the viewing stands for the tenant. */
+.tenant-viewing-row[data-tone="attention"] { --viewing-ring: color-mix(in srgb, var(--color-harmattan-500) 30%, transparent); }
+.tenant-viewing-row[data-tone="attention"]:not([data-when="today"]) {
+  background:
+    radial-gradient(120% 90% at 0% 0%, color-mix(in srgb, var(--color-harmattan-100) 80%, transparent), transparent 60%),
+    linear-gradient(170deg, rgba(255, 255, 255, .9), rgba(255, 255, 255, .7));
+}
+.tenant-viewing-row[data-tone="neutral"] { --viewing-day: var(--color-ink-500); }
+.viewing-item[data-past] .viewing-row-person strong { color: var(--color-ink-700); font-weight: 600; }
+
+.tenant-viewing-row:hover {
+  --viewing-ring: color-mix(in srgb, var(--color-kola-600) 26%, transparent);
+  background: color-mix(in srgb, var(--color-kola-50) 35%, var(--color-field-0));
+}
+
+/* The photograph sits at the end of the date line: the date says when, the
+   picture says which place, before a word is read. */
+.tenant-viewing-photo {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  margin-left: auto;
+  overflow: hidden;
+  color: var(--color-kola-600);
+  background: var(--color-kola-50);
+  border-radius: .75rem;
+  box-shadow: 0 0 0 1px rgba(33, 26, 21, .06);
+}
+
+.tenant-viewing-photo img { width: 100%; height: 100%; object-fit: cover; transition: transform var(--motion-duration-slow) var(--ws-ease), filter var(--motion-duration-base) var(--ws-ease); }
+.tenant-viewing-photo .portal-icon { width: 18px; height: 18px; color: inherit; }
+.tenant-viewing-row:hover .tenant-viewing-photo img { transform: scale(1.06); }
+.viewing-item[data-past] .tenant-viewing-photo img { filter: saturate(.35); opacity: .85; }
+.viewing-item[data-past] .tenant-viewing-row:hover .tenant-viewing-photo img { filter: none; opacity: 1; }
+
+/* A tenant's status lines are sentences ("Waiting for the landlord to offer
+   times"); they wrap rather than lose their ending. */
+.tenant-viewing-row .viewing-row-state { white-space: normal; line-height: 1.35; }
+.tenant-viewing-row .viewing-row-state i { flex: none; align-self: flex-start; margin-top: .4em; }
+.viewing-row-state.is-neutral { color: var(--color-ink-500); }
+.viewing-row-state.is-neutral i { background: var(--color-ink-300); }
+
+.tenant-viewing-row-arrow {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  color: var(--color-ink-300);
+  border-radius: 50%;
+  transition: transform var(--motion-duration-fast) var(--motion-easing-standard),
+    color var(--motion-duration-fast) var(--motion-easing-standard),
+    background-color var(--motion-duration-fast) var(--motion-easing-standard);
+}
+
+.tenant-viewing-row:hover .tenant-viewing-row-arrow { transform: translateX(2px); color: var(--color-field-0); background: var(--color-kola-600); }
+.tenant-viewing-row[data-tone="attention"] .tenant-viewing-row-arrow { color: var(--color-harmattan-600); }
+.tenant-viewing-row[data-tone="attention"]:hover .tenant-viewing-row-arrow { color: var(--color-field-0); background: var(--color-harmattan-600); }
+
+/* A booked visit that is close says how close, beside its time. */
+.viewing-soon {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: var(--space-1);
+  padding: 1px 8px 1px 6px;
+  color: var(--color-kola-800);
+  font-size: .6875rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  background: var(--color-kola-50);
+  border-radius: var(--radius-sm);
+}
+
+.viewing-soon i { width: 6px; height: 6px; background: var(--color-kola-600); border-radius: 50%; }
+.viewing-soon[data-urgent] { color: #fff; background: var(--color-kola-600); }
+.viewing-soon[data-urgent] i { background: #fff; animation: viewing-pulse 1.6s var(--ws-ease) infinite; }
+
+.tenant-viewing-load-more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  width: 100%;
+  min-height: 2.5rem;
+  margin-top: var(--space-3);
+  color: var(--color-kola-800);
+  font: inherit;
+  font-size: .8125rem;
+  font-weight: 600;
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: background-color var(--motion-duration-fast) var(--ws-ease);
+}
+
+.tenant-viewing-load-more .portal-icon { width: 14px; height: 14px; transition: transform var(--motion-duration-base) var(--ws-ease); }
+.tenant-viewing-load-more:hover { background: var(--color-kola-50); }
+.tenant-viewing-load-more:hover .portal-icon { transform: translateY(2px); }
+.tenant-viewing-load-more:focus-visible { outline: var(--border-emphasis) solid var(--color-kola-600); outline-offset: -2px; }
+
+/* --- the next visit, counted down ---------------------------------------------------- */
+
+.tenant-next-visit {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--space-4);
+  min-width: 0;
+  padding: var(--space-3) var(--space-4) var(--space-3) var(--space-3);
+  background:
+    radial-gradient(90% 160% at 0% 0%, color-mix(in srgb, var(--color-kola-50) 95%, transparent), transparent 62%),
+    radial-gradient(60% 120% at 100% 100%, color-mix(in srgb, var(--color-gold-50) 70%, transparent), transparent 70%),
+    linear-gradient(165deg, rgba(255, 255, 255, .96), rgba(255, 255, 255, .8));
+  border: 1px solid rgba(255, 255, 255, .9);
+  border-radius: var(--radius-lg);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--color-kola-600) 18%, transparent),
+    0 14px 30px -22px color-mix(in srgb, var(--color-kola-600) 65%, transparent),
+    inset 0 1px 0 #fff;
+  animation: ws-rise var(--motion-duration-slow) var(--motion-easing-enter) both;
+}
+
+.tenant-next-visit-open {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  min-width: 0;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  background: none;
+  border: 0;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.tenant-next-visit-open:focus-visible { outline: var(--border-emphasis) solid var(--color-kola-600); outline-offset: 4px; }
+
+.tenant-next-visit-date {
+  display: grid;
+  flex: none;
+  place-content: center;
+  place-items: center;
+  width: 3.5rem;
+  height: 3.5rem;
+  color: #fff;
+  background: linear-gradient(155deg, color-mix(in srgb, var(--color-kola-600) 72%, #fff), var(--color-kola-600));
+  border-radius: .875rem;
+  box-shadow: 0 8px 18px -12px var(--color-kola-600), inset 0 1px 0 rgba(255, 255, 255, .3);
+  transition: transform var(--motion-duration-base) var(--ws-ease);
+}
+
+.tenant-next-visit-date strong { font-family: var(--font-display); font-size: 1.5rem; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -.03em; line-height: 1; }
+.tenant-next-visit-date small { margin-top: 3px; font-size: .625rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; opacity: .9; }
+.tenant-next-visit-open:hover .tenant-next-visit-date { transform: rotate(-3deg) scale(1.04); }
+
+.tenant-next-visit-copy { display: grid; gap: 2px; min-width: 0; }
+.tenant-next-visit-copy small { color: var(--color-kola-600); font-size: .6875rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.tenant-next-visit-copy strong { overflow: hidden; color: var(--color-ink-900); font-family: var(--font-display); font-size: 1rem; font-weight: 600; letter-spacing: -.01em; text-overflow: ellipsis; white-space: nowrap; transition: color var(--motion-duration-fast) var(--ws-ease); }
+.tenant-next-visit-copy > span { overflow: hidden; color: var(--color-ink-500); font-size: .8125rem; text-overflow: ellipsis; white-space: nowrap; }
+.tenant-next-visit-open:hover .tenant-next-visit-copy strong { color: var(--color-kola-800); }
+
+.tenant-next-visit-action.btn { white-space: nowrap; }
+.tenant-next-visit-action.btn .portal-icon { width: 16px; height: 16px; margin-right: 6px; color: inherit; }
+.tenant-next-visit-action.btn-primary {
+  color: #fff;
+  background: linear-gradient(150deg, var(--color-kola-600), color-mix(in srgb, var(--color-kola-600) 70%, var(--color-kola-800)));
+  border-color: transparent;
+}
+
+/* --- the countdown --------------------------------------------------------------------- */
+
+/* Each unit is its own cell with tabular digits, so ticking never moves the line. */
+.viewing-countdown { display: flex; align-items: stretch; gap: 6px; margin: 0; }
+
+.viewing-countdown-cell {
+  display: grid;
+  justify-items: center;
+  min-width: 3.25rem;
+  padding: 6px var(--space-2) 5px;
+  background: rgba(255, 255, 255, .85);
+  border-radius: var(--radius-md);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-kola-600) 14%, transparent), inset 0 1px 0 #fff;
+}
+
+.viewing-countdown-cell strong {
+  color: var(--color-kola-800);
+  font-family: var(--font-display);
+  font-size: 1.375rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -.02em;
+  line-height: 1.1;
+}
+
+.viewing-countdown-cell small { color: var(--color-ink-500); font-size: .625rem; font-weight: 650; letter-spacing: .08em; text-transform: uppercase; }
+
+/* The final hour: the seconds are showing, so the colour says so too. */
+.viewing-countdown[data-final] .viewing-countdown-cell { background: var(--color-kola-600); box-shadow: 0 8px 16px -10px var(--color-kola-600); }
+.viewing-countdown[data-final] .viewing-countdown-cell strong,
+.viewing-countdown[data-final] .viewing-countdown-cell small { color: #fff; }
+.viewing-countdown.is-now { padding: 6px var(--space-3); color: #fff; font-weight: 650; background: var(--color-kola-600); border-radius: var(--radius-md); }
+
+/* In the record's hero, between the date and the place. */
+.tenant-vr-countdown {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: color-mix(in srgb, var(--color-kola-50) 55%, rgba(255, 255, 255, .5));
+  border-top: 1px solid rgba(33, 26, 21, .06);
+}
+
+.tenant-vr-countdown > small { color: var(--color-kola-600); font-size: .6875rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.tenant-vr-countdown .viewing-countdown-cell { min-width: 2.75rem; padding: 4px 6px 3px; }
+.tenant-vr-countdown .viewing-countdown-cell strong { font-size: 1.125rem; }
+
+/* --- the record --------------------------------------------------------------------------- */
+
+.tenant-vr .vr-place { padding-right: var(--space-3); }
+.tenant-vr .vr-place .rq-place-link { margin-left: auto; }
+.tenant-vr .vr-history li strong { color: var(--color-ink-700); font-weight: 650; }
+.tenant-vr .vr-actions .vr-actions-spacer { flex: 1; }
+.tenant-vr .tenant-vr-exit.btn { color: var(--color-laterite-600); }
+.tenant-vr .tenant-vr-exit.btn:not(:disabled):hover { color: var(--color-laterite-600); background: var(--color-laterite-100); }
+.tenant-vr .vr-row .btn .portal-icon { width: 16px; height: 16px; margin-right: 6px; color: inherit; }
+/* Moving the viewing forward is kola, as it is everywhere a tenant says yes. */
+.tenant-vr .vr-row .btn-primary,
+.tenant-vr .vr-checkin-form .btn-primary {
+  color: #fff;
+  background: linear-gradient(150deg, var(--color-kola-600), color-mix(in srgb, var(--color-kola-600) 70%, var(--color-kola-800)));
+  border-color: transparent;
+  box-shadow: 0 10px 20px -12px color-mix(in srgb, var(--color-kola-600) 90%, transparent), inset 0 1px 0 rgba(255, 255, 255, .2);
+}
+.tenant-vr .vr-row .btn-primary:not(:disabled):hover,
+.tenant-vr .vr-checkin-form .btn-primary:not(:disabled):hover { color: #fff; background: linear-gradient(150deg, color-mix(in srgb, var(--color-kola-600) 90%, black), var(--color-kola-800)); }
+.tenant-vr .vr-row .btn-primary:disabled { opacity: .55; box-shadow: none; }
+.tenant-vr .vr-checkin-form .btn .portal-icon { width: 16px; height: 16px; margin-right: 6px; color: inherit; }
+.tenant-vr .vr-slot { grid-template-columns: auto minmax(0, 1fr) minmax(0, .7fr); }
+
+/* Offered times: each a card to choose, the chosen one in kola. */
+.tenant-vr-slots { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 12rem), 1fr)); gap: var(--space-2); }
+.tenant-vr-slots .control {
+  padding: var(--space-3);
+  background: rgba(255, 255, 255, .85);
+  border-radius: var(--radius-md);
+  box-shadow: 0 0 0 1px rgba(33, 26, 21, .1);
+  cursor: pointer;
+  transition: box-shadow var(--motion-duration-fast) var(--ws-ease), background-color var(--motion-duration-fast) var(--ws-ease);
+}
+.tenant-vr-slots .control:hover { box-shadow: 0 0 0 1px rgba(33, 26, 21, .22); }
+.tenant-vr-slots .control:has(.control-input:checked) {
+  background: color-mix(in srgb, var(--color-kola-50) 85%, #fff);
+  box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--color-kola-600) 60%, transparent), 0 6px 14px -10px var(--color-kola-600);
+}
+
+/* Check-in: the code is the thing to show, so it is centred and large. */
+.tenant-vr-checkin { align-items: center; }
+.tenant-vr-checkin .vr-checkin-form { grid-column: 1 / -1; }
+.tenant-vr-qr { display: grid; grid-column: 1 / -1; justify-items: center; gap: var(--space-2); padding-top: var(--space-2); text-align: center; animation: ws-rise var(--motion-duration-base) var(--ws-enter) both; }
+.viewing-qr { display: inline-flex; padding: var(--space-3); background: #fff; border-radius: var(--radius-md); box-shadow: 0 0 0 1px rgba(33, 26, 21, .08), 0 12px 28px -14px rgba(33, 26, 21, .35); }
+.viewing-code { margin: 0; color: var(--color-ink-900); font-family: var(--font-mono); font-size: 1.65rem; font-weight: 750; letter-spacing: .14em; }
+.vr-checkin.is-live { animation: ws-rise var(--motion-duration-base) var(--ws-enter) both; }
+
+.tenant-viewing-panel { max-width: 36rem; }
+
+/* --- narrow -------------------------------------------------------------------------------- */
+
+@media (max-width: 52rem) {
+  .tenant-next-visit { grid-template-columns: minmax(0, 1fr) auto; }
+  .tenant-next-visit-count { grid-column: 1 / -1; grid-row: 2; }
+  .tenant-next-visit-action { grid-column: 2; grid-row: 1; }
+}
+
+@media (max-width: 40rem) {
+  .tenant-next-visit { grid-template-columns: minmax(0, 1fr); padding: var(--space-3); }
+  .tenant-next-visit-count,
+  .tenant-next-visit-action { grid-column: 1; grid-row: auto; }
+  .tenant-next-visit-action.btn { width: 100%; justify-content: center; }
+  .viewing-countdown { justify-content: stretch; }
+  .viewing-countdown-cell { flex: 1; }
+}
+
+@media (max-width: 30rem) {
+  .tenant-viewings .ws-segment { padding-inline: 9px; }
+  .tenant-viewings .ws-segment[aria-selected="false"] .ws-segment-count { display: none; }
+}
+
+@keyframes viewing-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .35; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tenant-next-visit,
+  .tenant-vr-qr,
+  .vr-checkin.is-live,
+  .viewing-soon[data-urgent] i { animation: none; }
+  .tenant-viewing-photo img,
+  .tenant-viewing-row-arrow,
+  .tenant-next-visit-date,
+  .tenant-viewing-load-more,
+  .tenant-vr-slots .control { transition: none; }
+}

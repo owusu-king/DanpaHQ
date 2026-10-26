@@ -1,0 +1,87 @@
+name: Release checks
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+concurrency:
+  group: checks-${{ github.workflow }}-${{ github.ref }}
+  # Never interrupt a production migration because a newer commit arrived.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - run: cp .env.example .env
+      - run: docker compose up -d --wait db redis
+      - run: docker compose build api
+      - run: docker compose run --rm --no-deps -T api ruff check .
+      - run: docker compose run --rm --no-deps -T api pytest -q
+      - run: docker compose run --rm --no-deps -T api python manage.py makemigrations --check --dry-run
+      - if: always()
+        run: docker compose down -v
+  clients:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [web, mobile]
+    defaults:
+      run:
+        working-directory: ${{ matrix.app }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ${{ matrix.app }}/package-lock.json
+      - run: npm ci
+      - run: node ../packages/design-tokens/build.mjs --check
+      - run: npm test
+      - run: npm run typecheck
+      - run: npm run lint
+      - if: matrix.app == 'mobile'
+        name: Verify native release bundles and dependency isolation
+        run: |
+          npx --no-install expo export --platform ios --source-maps --output-dir .expo/release-security-ios --max-workers 2
+          npx --no-install expo export --platform android --source-maps --output-dir .expo/release-security-android --max-workers 2
+          node scripts/check-release-bundle.cjs .expo/release-security-ios .expo/release-security-android
+        env:
+          EXPO_PUBLIC_API_URL: https://api.danpahq.com/api/v1
+      - if: matrix.app == 'web'
+        run: npm run build
+        env:
+          NEXT_PUBLIC_API_URL: https://api.danpahq.com/api/v1
+  release:
+    name: Production database release
+    needs: [backend, clients]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - run: docker build -t danpahq-release backend
+      - name: Migrate, provision runtime role, seed and bootstrap first administrator
+        env:
+          PRODUCTION_OWNER_ENV: ${{ secrets.PRODUCTION_OWNER_ENV }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "$PRODUCTION_OWNER_ENV" ]; then
+            echo "Configure PRODUCTION_OWNER_ENV in the production environment."
+            exit 1
+          fi
+          umask 077
+          release_env=$(mktemp)
+          trap 'rm -f -- "$release_env"' EXIT
+          printf '%s\n' "$PRODUCTION_OWNER_ENV" > "$release_env"
+          unset PRODUCTION_OWNER_ENV
+          docker run --rm --env-file "$release_env" danpahq-release sh scripts/render-migrate.sh

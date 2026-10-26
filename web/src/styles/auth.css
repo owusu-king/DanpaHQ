@@ -1,0 +1,324 @@
+/* Authentication, as a dialog over the front door (owner, 2026-09-29).
+
+   Restraint is the brief: a white surface with one hairline and one soft
+   shadow, the product's own type at a modest size, fields and a button in the
+   same shapes as the rest of the site. Depth comes from the surface sitting
+   above a quiet scrim, not from gradients or glow. */
+
+/* --- the page behind, and the layer above it ------------------------------------- */
+
+.auth-backdrop {
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Auth links are real links for new tabs and no-script fallbacks. On touch
+   browsers this also tells Safari there is no double-tap gesture to wait for,
+   so the normal click reaches the in-place dialog without the legacy delay. */
+.auth-trigger { touch-action: manipulation; }
+
+.auth-layer {
+  position: fixed;
+  z-index: 100;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: var(--space-6) var(--space-4);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.auth-scrim {
+  position: fixed;
+  inset: 0;
+  background: rgb(22 17 14 / 38%);
+  animation: auth-fade .12s ease-out;
+}
+
+/* --- the dialog ------------------------------------------------------------------ */
+
+.auth-panel {
+  position: relative;
+  width: min(100%, 26.5rem);
+  color: var(--color-ink-900);
+  background: var(--color-field-0);
+  border: var(--border-hairline) solid rgb(22 17 14 / 8%);
+  border-radius: 16px;
+  box-shadow:
+    0 1px 2px rgb(22 17 14 / 6%),
+    0 24px 48px -12px rgb(22 17 14 / 28%);
+  animation: auth-rise .18s cubic-bezier(.2, .7, .2, 1);
+}
+.auth-panel:focus { outline: none; }
+
+.auth-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4) var(--space-4) 0 var(--space-6);
+}
+.auth-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-ink-700);
+  font-size: .8125rem;
+  font-weight: 600;
+  letter-spacing: -.005em;
+  white-space: nowrap;
+}
+.auth-mark {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  color: var(--color-field-0);
+  font: 800 .5625rem/1 var(--font-display);
+  background: var(--color-kola-600);
+  border-radius: 7px;
+}
+.auth-close {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  color: var(--color-ink-500);
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color .15s, color .15s;
+}
+.auth-close:hover { color: var(--color-ink-900); background: var(--color-field-100); }
+.auth-close:focus-visible { outline: 2px solid var(--color-kola-600); outline-offset: 1px; }
+.auth-close svg { width: 18px; height: 18px; }
+
+/* A hairline that fills as a multi-step flow moves on. */
+.auth-progress {
+  height: 2px;
+  margin: var(--space-4) var(--space-6) 0;
+  background: var(--color-field-200);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.auth-progress > span {
+  display: block;
+  height: 100%;
+  background: var(--color-kola-600);
+  border-radius: 2px;
+  transition: width .3s ease;
+}
+
+.auth-body { padding: var(--space-5) var(--space-6) var(--space-6); }
+.auth-eyebrow {
+  margin: 0 0 var(--space-2);
+  color: var(--color-ink-500);
+  font-size: .75rem;
+  font-weight: 600;
+  letter-spacing: .02em;
+}
+.auth-title {
+  margin: 0;
+  color: var(--color-ink-900);
+  font: 700 1.375rem/1.25 var(--font-display);
+  letter-spacing: -.02em;
+}
+.auth-description {
+  margin: var(--space-2) 0 0;
+  color: var(--color-ink-500);
+  font-size: .9375rem;
+  line-height: 1.5;
+}
+.auth-content { display: grid; gap: var(--space-4); margin-top: var(--space-5); }
+.auth-form { display: grid; gap: var(--space-4); }
+
+/* Google sign-in: our face below, Google's real button transparent on top.
+   The face matches the fields (44px, 10px corners) and is capped at the
+   400px Google can render, so the click area always covers it. */
+.auth-google { display: grid; width: 100%; place-items: center; }
+.auth-google.is-busy { pointer-events: none; }
+.auth-google-button-shell { position: relative; width: 100%; max-width: 400px; height: 44px; }
+.auth-google-face {
+  display: flex;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--color-ink-700);
+  font-size: .9375rem;
+  font-weight: 500;
+  background: var(--color-field-0);
+  border: var(--border-hairline) solid var(--color-field-300);
+  border-radius: 10px;
+  transition: background-color .14s ease-out, border-color .14s ease-out, box-shadow .14s ease-out;
+}
+.auth-google-mark { flex: none; }
+.auth-google-button {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 10px;
+  opacity: .0001;
+  cursor: pointer;
+}
+.auth-google-button iframe { display: block; }
+.auth-google.is-ready .auth-google-button-shell:hover .auth-google-face {
+  background: color-mix(in srgb, var(--color-field-0) 94%, var(--color-ink-700));
+  border-color: color-mix(in srgb, var(--color-field-300) 60%, var(--color-ink-500));
+}
+/* Focus lands in Google's transparent iframe; the face shows where it is. */
+.auth-google-button-shell:focus-within .auth-google-face {
+  border-color: var(--color-kola-600);
+  box-shadow: 0 0 0 3px var(--color-kola-50);
+}
+.auth-google.is-busy .auth-google-face { color: var(--color-ink-500); }
+.auth-google-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--color-field-300);
+  border-top-color: var(--color-kola-600);
+  border-radius: 50%;
+  animation: auth-spin .8s linear infinite;
+}
+.auth-google.is-unavailable { padding-inline: var(--space-3); }
+.auth-google-unavailable { margin: 0; color: var(--color-ink-500); font-size: .75rem; line-height: 1.45; text-align: center; }
+.auth-divider { display: flex; align-items: center; gap: var(--space-3); color: var(--color-ink-500); font-size: .6875rem; letter-spacing: .04em; text-transform: uppercase; }
+.auth-divider::before,
+.auth-divider::after { height: 1px; flex: 1; background: color-mix(in srgb, var(--color-ink-500) 25%, transparent); content: ""; }
+
+/* Fields, a little tighter and quieter than a page's. */
+.auth-panel .field { min-width: 0; gap: 4px; }
+.auth-panel .field-label { color: var(--color-ink-700); font-size: .8125rem; font-weight: 600; }
+.auth-panel .field-shell { min-height: 40px; border-color: color-mix(in srgb, var(--color-kola-600) 24%, var(--color-field-200)); border-radius: 8px; }
+.auth-panel .field-shell:hover { border-color: var(--color-ink-300); }
+.auth-panel .field-shell:focus-within { border-color: var(--color-kola-600); box-shadow: 0 0 0 2px var(--color-kola-50); }
+.auth-panel .field-shell-error { border-color: var(--color-laterite-600); }
+.auth-panel .field-shell-error:focus-within { border-color: var(--color-laterite-600); box-shadow: 0 0 0 2px var(--color-laterite-100); }
+.auth-panel .field-input { font-size: .875rem; line-height: 1.5; }
+.auth-panel .field-hint,
+.auth-panel .field-error { font-size: .75rem; }
+.auth-panel .select-shell,
+.auth-panel .select-control { min-height: 40px; border-radius: 8px; font-size: .875rem; }
+
+/* A link that belongs to a field — "Forgot password?" — sits on its label's line. */
+.auth-field-with-link { position: relative; }
+.auth-field-link {
+  position: absolute;
+  top: 0;
+  right: 0;
+  color: var(--color-kola-600);
+  font-size: .8125rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+.auth-field-link:hover { text-decoration: underline; text-underline-offset: 3px; }
+.auth-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-3); }
+
+/* The one act: full width, the site's primary, a little squarer than a pill. */
+.auth-submit.btn { width: 100%; min-height: 40px; margin-top: var(--space-1); border-radius: 8px; font-size: .875rem; font-weight: 650; }
+
+@media (pointer: coarse), (max-width: 47.99rem) {
+  .auth-panel .field-shell,
+  .auth-panel .select-shell,
+  .auth-panel .select-control,
+  .auth-submit.btn { min-height: 44px; }
+  .auth-panel .field-input,
+  .auth-panel .select-control { font-size: 1rem; }
+}
+
+/* Tenant or property manager: a quiet two-way switch at the top of sign-in. */
+.auth-side {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px;
+  padding: 3px;
+  background: var(--color-field-100);
+  border-radius: 10px;
+}
+.auth-side-option {
+  min-height: 34px;
+  color: var(--color-ink-500);
+  font: 600 .8125rem/1 var(--font-body);
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color .15s, color .15s, box-shadow .15s;
+}
+.auth-side-option:hover { color: var(--color-ink-900); }
+.auth-side-option[aria-checked="true"] {
+  color: var(--color-ink-900);
+  background: var(--color-field-0);
+  box-shadow: 0 1px 2px rgb(22 17 14 / 10%), 0 0 0 1px rgb(22 17 14 / 4%);
+}
+.auth-side-option:focus-visible { outline: 2px solid var(--color-kola-600); outline-offset: 1px; }
+
+/* A short, quiet aside — a caution or what happens next. Not a coloured box. */
+.auth-note {
+  margin: 0;
+  padding-left: var(--space-3);
+  color: var(--color-ink-500);
+  font-size: .8125rem;
+  line-height: 1.5;
+  border-left: 2px solid var(--color-field-300);
+}
+.auth-note strong { color: var(--color-ink-700); font-weight: 600; }
+
+.auth-foot {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-1) var(--space-2);
+  padding: var(--space-4) var(--space-6);
+  color: var(--color-ink-500);
+  font-size: .875rem;
+  background: var(--color-field-50);
+  border-top: var(--border-hairline) solid var(--color-field-200);
+  border-radius: 0 0 16px 16px;
+}
+.auth-foot a,
+.auth-body a.auth-link {
+  color: var(--color-kola-600);
+  font-weight: 600;
+  text-decoration: none;
+}
+.auth-foot a:hover,
+.auth-body a.auth-link:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+@keyframes auth-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes auth-rise { from { opacity: 0; transform: translateY(8px) scale(.99); } to { opacity: 1; transform: none; } }
+@keyframes auth-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .auth-scrim, .auth-panel, .auth-google-spinner { animation: none; }
+  .auth-google-face { transition: none; }
+}
+
+/* A phone keeps the same centred-dialog hierarchy as a wide screen. Safe-area
+   padding keeps the card clear of rounded corners and the home indicator, and
+   the panel itself scrolls on very short screens instead of being pinned to an
+   edge or clipped behind the software keyboard. */
+@media (max-width: 30rem) {
+  .auth-layer {
+    align-items: center;
+    padding:
+      max(var(--space-3), env(safe-area-inset-top))
+      max(var(--space-3), env(safe-area-inset-right))
+      max(var(--space-3), env(safe-area-inset-bottom))
+      max(var(--space-3), env(safe-area-inset-left));
+  }
+  .auth-scrim { background: rgb(22 17 14 / 44%); backdrop-filter: none; }
+  .auth-panel {
+    width: min(100%, 26.5rem);
+    max-height: 100%;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    border-radius: 14px;
+  }
+  .auth-foot { border-radius: 0 0 14px 14px; }
+  .auth-body { padding: var(--space-4) var(--space-5) var(--space-5); }
+  .auth-head { padding-left: var(--space-5); }
+  .auth-progress { margin-inline: var(--space-5); }
+  .auth-row { grid-template-columns: 1fr; }
+}

@@ -1,0 +1,163 @@
+import { useFocusEffect, useRouter } from "expo-router";
+import { useCallback, useState } from "react";
+
+import { ApiFailure } from "@/api";
+import { useAuth, type Workspace } from "@/auth";
+import { AuthPrompt } from "@/components/AuthPrompt";
+import { Identity, YouPage, type YouSection } from "@/components/account/YouParts";
+import { useProfilePhoto } from "@/components/nav/TabHeaderControls";
+import { Notice } from "@/components/ui";
+import { resolveEntryRoute } from "@/navigation";
+import { listMyPortfolioInvitations } from "@/organizations";
+import { chooseWorkspace } from "@/workspace";
+import { RenterTabFrame } from "@/components/nav/NativeTabFrame";
+
+/**
+ * The tenant's More, laid out like WhatsApp's "You" tab (owner, 2026-10-06):
+ * the person first, then everything that is not a tab in untitled white cards.
+ *
+ * The photo, the name and the pencil all open the profile, so there is no
+ * Profile row. The cards group by what they are for — what you are looking at
+ * and have asked for; how the account is kept; and leaving — without naming the
+ * groups, because a card of six rows that says what it holds needs no heading.
+ *
+ * The provider's equivalent is their More, built from the same parts. There was
+ * once a separate Settings screen listing most of these a second time; it is
+ * gone, and stays gone.
+ */
+function ProfileTab() {
+  const router = useRouter();
+  const { state, refreshMe, signOut } = useAuth();
+  const photoUri = useProfilePhoto();
+  const [switching, setSwitching] = useState<Workspace | null>(null);
+  const [leaving, setLeaving] = useState(false);
+  const [error, setError] = useState("");
+
+  // Somebody invited into a Portfolio may not be a provider at all, so the way
+  // in cannot sit behind a provider-only screen. It appears only while an
+  // invitation is waiting, and on focus, so answering one clears it on the way back.
+  const [invitationsWaiting, setInvitationsWaiting] = useState(0);
+  useFocusEffect(
+    useCallback(() => {
+      void listMyPortfolioInvitations()
+        .then((rows) => setInvitationsWaiting(rows.filter((row) => row.status === "pending").length))
+        .catch(() => setInvitationsWaiting(0));
+    }, []),
+  );
+
+  if (state.status !== "signed_in") {
+    return (
+      <AuthPrompt
+        title="Your account"
+        body="Sign in to access your account."
+        next="/(app)/(tabs)/profile"
+      />
+    );
+  }
+
+  const me = state.me;
+  const go = (path: string) => () => router.push(path as never);
+  const unfinished = (me.profile?.completeness ?? 0) < 100;
+  const artisanOpen = me.capabilities.available_workspaces.includes("artisan");
+
+  async function switchTo(workspace: Workspace) {
+    setSwitching(workspace);
+    setError("");
+    try {
+      const next = await chooseWorkspace(workspace);
+      await refreshMe();
+      router.replace(resolveEntryRoute(next) as never);
+    } catch (cause) {
+      setError(cause instanceof ApiFailure ? cause.error.message : "Could not switch.");
+    } finally {
+      setSwitching(null);
+    }
+  }
+
+  async function leave() {
+    setLeaving(true);
+    try {
+      await signOut();
+      router.replace("/(auth)/sign-in");
+    } finally {
+      setLeaving(false);
+    }
+  }
+
+  const sections: YouSection[] = [
+    {
+      key: "waiting",
+      items: invitationsWaiting
+        ? [{ key: "invitations", icon: "people-circle-outline", label: "Portfolio invitations", count: invitationsWaiting, onPress: go("/(app)/portfolio-invitations") }]
+        : [],
+    },
+    {
+      key: "renting",
+      items: [
+        { key: "saved", icon: "bookmark-outline", label: "Saved places", onPress: go("/(app)/saved") },
+        { key: "applications", icon: "document-text-outline", label: "Applications", onPress: go("/(app)/applications") },
+        { key: "viewings", icon: "calendar-outline", label: "Viewings", onPress: go("/(app)/viewings") },
+        { key: "agreements", icon: "document-outline", label: "Agreements", onPress: go("/(app)/leases") },
+        // The record of where you have lived, and the links you share it by.
+        { key: "passport", icon: "id-card-outline", label: "Housing Passport", onPress: go("/(app)/passport") },
+        // Skilled help for the home: the artisan network, as a sheet.
+        { key: "artisans", icon: "hammer-outline", label: "Find Artisans", onPress: go("/(app)/artisans") },
+        // Properties you asked to buy: the conversations a sale starts.
+      ],
+    },
+    {
+      key: "account",
+      items: [
+        { key: "security", icon: "key-outline", label: "Security", onPress: go("/(app)/security") },
+        { key: "verification", icon: "shield-checkmark-outline", label: "Verification", onPress: go("/(app)/trust") },
+        { key: "notifications", icon: "notifications-outline", label: "Notifications", onPress: go("/(app)/notification-settings") },
+      ],
+    },
+    {
+      key: "leave",
+      items: [
+        // Offered only to an account that actually holds provider capability.
+        // A change of view, not of account.
+        ...(me.capabilities.available_workspaces.includes("provider")
+          ? [{ key: "switch", icon: "swap-horizontal-outline" as const, label: "Switch to managing property", busy: switching === "provider", busyLabel: "Switching…", onPress: () => void switchTo("provider") }]
+          : []),
+        // The way into artisan work, once there is one. Becoming an artisan is
+        // never offered here: it is a quiet link inside Find Artisans.
+        ...(artisanOpen
+          ? [{ key: "artisan", icon: "hammer-outline" as const, label: "Switch to artisan work", busy: switching === "artisan", busyLabel: "Switching…", onPress: () => void switchTo("artisan") }]
+          : []),
+        { key: "sign-out", icon: "log-out-outline", label: "Sign out", danger: true, busy: leaving, busyLabel: "Signing out…", onPress: () => void leave() },
+      ],
+    },
+  ];
+
+  return (
+    <YouPage
+      tools={[
+        { key: "join", icon: "key-outline", label: "Join your home with a code", onPress: go("/(app)/tenant-setup") },
+        { key: "edit", icon: "pencil", label: "Edit your profile", onPress: go("/(app)/profile-edit") },
+      ]}
+      identity={
+        <Identity
+          name={me.display_name}
+          photoUri={photoUri}
+          note={unfinished ? "Finish your profile" : me.phone_display || me.email || "Google account"}
+          verified={me.is_phone_verified}
+          onPress={go("/(app)/profile-edit")}
+        />
+      }
+      sections={sections}
+      // A switch that fails says so beside the switch.
+      notice={error ? <Notice tone="error" title={error} /> : null}
+    />
+  );
+}
+
+/** On iOS the tab sits in the native bar, which draws no header; see `RenterTabFrame`. */
+export default function MenuTab() {
+  return (
+    <RenterTabFrame tab="menu">
+      <ProfileTab />
+    </RenterTabFrame>
+  );
+}

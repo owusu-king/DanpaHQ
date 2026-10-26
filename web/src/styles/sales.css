@@ -1,0 +1,59 @@
+/* Properties for sale: the seller's form, the sale panel, and the
+   public Buy side of Explore. */
+
+.sale-form { display: grid; gap: var(--space-5); }
+.sale-form-group { display: grid; gap: var(--space-3); }
+.sale-form-grid { display: grid; gap: var(--space-3); grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); align-items: end; }
+.sale-form-check { display: flex; align-items: center; min-height: 48px; }
+.sale-form-textarea { display: grid; gap: var(--space-2); }
+.sale-form-textarea textarea {
+  width: 100%;
+  padding: var(--space-3);
+  color: var(--color-ink-900);
+  background: var(--color-field-0);
+  border: var(--border-hairline) solid var(--color-field-300);
+  border-radius: var(--radius-sm);
+  font: inherit;
+  resize: vertical;
+}
+.sale-form-textarea textarea:disabled { opacity: .6; }
+.sale-form-missing { padding: var(--space-3) var(--space-4); border-radius: var(--radius-md); background: var(--color-harmattan-100); }
+.sale-form-missing ul { margin: var(--space-2) 0 0; padding-left: var(--space-5); display: grid; gap: var(--space-1); }
+
+/* The seller's panel on the property page. */
+.sale-panel {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  border-radius: var(--radius-lg, 16px);
+  background: linear-gradient(135deg, var(--color-kola-50), var(--color-lagoon-100));
+  border: var(--border-hairline) solid var(--color-field-200);
+}
+.sale-panel-price { display: flex; align-items: baseline; gap: var(--space-3); flex-wrap: wrap; }
+.sale-panel-price strong { font-size: 1.75rem; line-height: 1.1; color: var(--color-ink-900); letter-spacing: -0.01em; }
+.sale-panel-price span { font-size: .8rem; font-weight: 600; padding: 2px 10px; border-radius: 999px; background: var(--color-field-0); color: var(--color-kola-600); }
+.sale-panel-headline { margin: 0; font-weight: 600; color: var(--color-ink-900); }
+.sale-panel-facts { margin: 0; color: var(--color-ink-700); }
+.sale-panel-note { margin: 0; color: var(--color-ink-700); }
+.sale-panel-enquiries { display: flex; gap: var(--space-4); align-items: center; flex-wrap: wrap; padding-top: var(--space-3); border-top: var(--border-hairline) solid var(--color-field-200); }
+.sale-panel-actions { display: flex; gap: var(--space-3); flex-wrap: wrap; }
+
+/* Enquiries are an inbox over the page now: `enquiries-inbox.css`. */
+
+/* The public page of one property for sale. */
+.sale-eyebrow { display: inline-block; margin-bottom: var(--space-2); padding: 3px 12px; border-radius: 999px; background: var(--color-kola-600); color: #fff; font-size: .75rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.sale-enquiry { display: grid; gap: var(--space-2); }
+.sale-enquiry textarea { width: 100%; padding: var(--space-3); border-radius: var(--radius-sm); border: var(--border-hairline) solid var(--color-field-300); background: var(--color-field-0); color: var(--color-ink-900); font: inherit; resize: vertical; }
+.sale-enquiry p { margin: 0; }
+
+/* Explore: Rent or Buy, and the Buy side's bar. */
+.explore-mode { display: inline-flex; justify-self: start; gap: 4px; padding: 4px; border-radius: var(--radius-pill, 999px); background: var(--color-field-0); border: var(--border-hairline) solid color-mix(in oklab, var(--color-kola-600) 22%, var(--color-field-200)); box-shadow: var(--shadow-lifted); }
+.explore-mode-option { min-width: 84px; min-height: 36px; padding: 0 var(--space-5); border: 0; border-radius: var(--radius-pill, 999px); background: transparent; color: var(--color-ink-700); font: 600 .95rem/1 var(--font-body); cursor: pointer; transition: background .18s, color .18s; }
+.explore-mode-option:hover { color: var(--color-kola-800); background: var(--color-kola-50); }
+.explore-mode-option[aria-selected="true"] { background: var(--color-kola-600); color: #fff; box-shadow: 0 2px 8px color-mix(in oklab, var(--color-kola-600) 35%, transparent); }
+.sale-bar { width: 100%; }
+.sale-search { flex: 1 1 auto; }
+/* Buy's Filters panel: what is being sold leads, across the whole row. */
+.sale-filter-grid > .explore-filter-cell:first-child { grid-column: 1 / -1; }
+.sale-card .listing-card-photo { position: relative; }
+.sale-card-kind { position: absolute; top: var(--space-3); left: var(--space-3); z-index: 2; padding: 4px 12px; border-radius: 999px; background: color-mix(in oklab, var(--color-ink-900) 72%, transparent); color: #fff; font-size: .75rem; font-weight: 700; letter-spacing: .02em; backdrop-filter: blur(6px); pointer-events: none; }

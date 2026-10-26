@@ -1,0 +1,145 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "../src/styles/tokens.css";
+@import "../src/styles/shadcn-theme.css";
+@import "../src/styles/foundation.css";
+@import "../src/styles/forms.css";
+@import "../src/styles/portal.css";
+@import "../src/styles/property-workspace.css";
+@import "../src/styles/workspace.css";
+@import "../src/styles/page-loading.css";
+@import "../src/styles/enquiries-inbox.css";
+@import "../src/styles/doc-modal.css";
+@import "../src/styles/properties-workspace.css";
+@import "../src/styles/documents-workspace.css";
+@import "../src/styles/tenants-workspace.css";
+@import "../src/styles/payments-workspace.css";
+@import "../src/styles/viewings-workspace.css";
+@import "../src/styles/tenancy-requests-workspace.css";
+@import "../src/styles/request-sheet.css";
+@import "../src/styles/creation-wizard.css";
+@import "../src/styles/leases-workspace.css";
+@import "../src/styles/team-workspace.css";
+@import "../src/styles/settings-workspace.css";
+@import "../src/styles/billing-workspace.css";
+@import "../src/styles/updates-workspace.css";
+@import "../src/styles/home-workspace.css";
+@import "../src/styles/home-provider.css";
+@import "../src/styles/provider-review.css";
+@import "../src/styles/units-workspace.css";
+@import "../src/styles/explore-workspace.css";
+@import "../src/styles/explore-map.css";
+@import "../src/styles/listing-workspace.css";
+@import "../src/styles/creation-journey.css";
+@import "../src/styles/applications-workspace.css";
+@import "../src/styles/passport.css";
+@import "../src/styles/saved-workspace.css";
+@import "../src/styles/maintenance-workspace.css";
+@import "../src/styles/artisan.css";
+@import "../src/styles/record-pages.css";
+@import "../src/styles/property-detail.css";
+@import "../src/styles/agreements-workspace.css";
+@import "../src/styles/lease-builder.css";
+@import "../src/styles/viewings-tenant.css";
+@import "../src/styles/landing.css";
+@import "../src/styles/sales.css";
+@import "../src/styles/explore-hero.css";
+@import "../src/styles/auth.css";
+@import "../src/styles/onboarding.css";
+@import "../src/styles/management.css";
+
+/* Type is loaded in app/layout.tsx through next/font, which self-hosts both
+   families from the build output and exposes them as --font-display-face and
+   --font-body-face. tokens.css points --font-display and --font-body at those,
+   so swapping a family is a change in one file and nothing else moves.
+
+   There were three @font-face rules here, for Public Sans, IBM Plex Mono and
+   Bricolage Grotesque. None of the files existed: web/public/ was never
+   created, so all three 404'd on every page load and the whole product
+   rendered in the browser's default sans. The design system's voice had never
+   actually reached a screen. */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+
+  /* The page keeps its width when a scrollbar comes or goes. Without a reserved
+     gutter, a page growing past one screen — or a dialog or drawer locking the
+     page's scroll — takes the scrollbar's 15px out of the layout on Windows, and
+     everything centred jumps sideways by half of it. Overlay scrollbars (macOS,
+     phones) take no space, so there this changes nothing. */
+  scrollbar-gutter: stable;
+
+  /* The header is sticky and 5rem tall, so an in-page anchor that scrolls its
+     target to y=0 leaves that section's first line underneath it — which is how
+     every "How it works" and "Verification" link in the navigation landed.
+     `scroll-padding-top` fixes it for every anchor at once, including the
+     browser's own scroll restoration, rather than a `scroll-margin-top` that
+     each new target has to remember to carry. */
+  scroll-padding-top: 6.5rem;
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  background: var(--color-field-50);
+  color: var(--color-ink-900);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 25px;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* The focus ring is defined once, in foundation.css, and is ink rather than a
+   hue so it stays legible on gold fills and green verified states alike. */
+
+/* Skip link. Done in CSS rather than an onFocus handler so the root layout can
+   stay a Server Component - an event handler there fails the render outright. */
+.skip-link {
+  position: fixed;
+  left: var(--space-2);
+  top: var(--space-2);
+  z-index: 100;
+  transform: translateY(calc(-100% - 16px));
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-field-0);
+  border: var(--border-hairline) solid var(--color-field-300);
+  border-radius: var(--radius-md);
+}
+
+.skip-link:focus-visible {
+  transform: none;
+}
+
+/* Present to a screen reader, absent to everyone else. Used where an icon
+   control needs a name and drawing one would be noise. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* A refresh on Explore by someone who was signed in: hold the public layout
+   back until the session answers (see the head script in app/layout). */
+html[data-session-hint] .shared-pending { visibility: hidden; }

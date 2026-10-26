@@ -1,0 +1,74 @@
+{
+  "expo": {
+    "name": "Danpa HQ",
+    "slug": "danpahq",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "danpahq",
+    "userInterfaceStyle": "light",
+    "backgroundColor": "#FAF8F5",
+    "android": {
+      "package": "com.danpahq.app",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "backgroundColor": "#0B5D4E"
+      },
+      "permissions": [
+        "CAMERA",
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "android.permission.CAMERA"
+      ],
+      "blockedPermissions": [
+        "READ_CONTACTS",
+        "RECORD_AUDIO"
+      ],
+      "softwareKeyboardLayoutMode": "pan"
+    },
+    "ios": {
+      "bundleIdentifier": "com.danpahq.app",
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSCameraUsageDescription": "Take photos of a property or a document you are submitting.",
+        "NSLocationWhenInUseUsageDescription": "Show properties near where you are.",
+        "NSMicrophoneUsageDescription": "Record the sound in a short clip of a problem you are reporting to your landlord."
+      }
+    },
+    "plugins": [
+      ["expo-notifications", { "defaultChannel": "messages" }],
+      "expo-router",
+      "expo-secure-store",
+      "expo-localization",
+      "expo-asset",
+      "expo-font",
+      [
+        "expo-splash-screen",
+        {
+          "resizeMode": "contain",
+          "backgroundColor": "#FAF8F5",
+          "android": {
+            "drawable": {
+              "icon": "./assets/splashscreen_logo.xml"
+            }
+          }
+        }
+      ],
+      "expo-sharing",
+      "expo-status-bar",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow Danpa HQ to scan a tenant's temporary viewing check-in QR code.",
+          "recordAudioAndroid": false
+        }
+      ],
+      "expo-video"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "//apiUrl": "Left unset on purpose. src/api.ts picks 10.0.2.2 for an Android emulator and localhost for an iOS simulator; set EXPO_PUBLIC_API_URL to your machine's LAN address to run on a real phone."
+    }
+  }
+}

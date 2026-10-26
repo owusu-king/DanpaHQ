@@ -1,0 +1,95 @@
+# Tool configuration only. Dependencies live in requirements.txt and
+# requirements-dev.txt - one list, in the format pip reads directly.
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "config.settings.test"
+python_files = ["test_*.py"]
+testpaths = ["tests"]
+# --ds is not redundant with the line above. pytest-django ranks the
+# DJANGO_SETTINGS_MODULE environment variable higher than this file, and the
+# container has it set to config.settings.local from .env - so without --ds the
+# suite silently runs against development settings: a real Celery broker
+# instead of eager tasks, S3 instead of in-memory storage.
+addopts = "--strict-markers --strict-config -ra --ds=config.settings.test"
+markers = [
+  "slow: tests that hit external systems or take over a second",
+]
+filterwarnings = ["error::DeprecationWarning"]
+
+[tool.coverage.run]
+source = ["apps"]
+omit = ["*/migrations/*", "*/tests/*"]
+
+[tool.coverage.report]
+# Not a vanity number: the primitives below are the ones whose bugs cost money.
+fail_under = 80
+show_missing = true
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+extend-exclude = ["migrations"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "C4", "DJ", "S", "T20", "SIM", "RUF"]
+ignore = [
+  "S101",   # assert: used in tests
+  "DJ001",  # null=True on CharField: deliberate where a unique index needs NULL
+  # N818 wants every exception named `...Error`. Ours are named for the
+  # condition — `NotFound`, `Conflict`, `ValidationFailed`, `RateLimited`,
+  # `AccountExists` — which is what Django and DRF do too: `PermissionDenied`,
+  # `SuspiciousOperation`, `ImproperlyConfigured`, `ObjectDoesNotExist`,
+  # `Throttled`. These names are domain vocabulary; they appear in the ADRs, in
+  # the error-envelope contract and at several hundred call sites. Renaming
+  # them to satisfy a suffix convention would make the codebase read *less*
+  # like the frameworks it sits on, for nothing.
+  "N818",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S105", "S106", "PLR2004"]
+"config/settings/*" = ["F403", "F405", "S105"]
+# RUF012 asks for `ClassVar` on every mutable class attribute. Django's whole
+# declarative API is mutable class attributes — `Meta.ordering`,
+# `Meta.constraints`, `Meta.indexes`, `Meta.fields`, `permission_classes` — and
+# annotating a few hundred of them would make every model and view harder to
+# read while changing no behaviour at all.
+#
+# Scoped to the modules where the framework mandates the pattern rather than
+# switched off globally, so the rule still fires in services and domain code,
+# where a shared mutable class attribute is a genuine bug.
+# A models *package* is the same declarative Django API as a models module;
+# billing splits its models across files because there are seven of them.
+"**/models.py" = ["RUF012"]
+"**/models/*.py" = ["RUF012"]
+"**/serializers.py" = ["RUF012"]
+"**/views.py" = ["RUF012"]
+"**/*_views.py" = ["RUF012"]
+"**/admin.py" = ["RUF012"]
+"**/permissions.py" = ["RUF012"]
+
+[tool.mypy]
+python_version = "3.12"
+plugins = ["mypy_django_plugin.main"]
+warn_unused_ignores = true
+warn_redundant_casts = true
+disallow_untyped_defs = false
+exclude = ["migrations"]
+# `apps/` is a namespace package, so without an anchor mypy computes two module
+# names for the same file — `core.context` and `apps.core.context` — and stops
+# before checking anything. The root is the anchor because that is where Django
+# imports from.
+mypy_path = "."
+explicit_package_bases = true
+
+[[tool.mypy.overrides]]
+module = "apps.core.money"
+# The money module is the one place where types are enforced strictly.
+disallow_untyped_defs = true
+strict_equality = true
+
+[tool.django-stubs]
+django_settings_module = "config.settings.test"
+
+[tool.bandit]
+exclude_dirs = ["tests", "migrations"]

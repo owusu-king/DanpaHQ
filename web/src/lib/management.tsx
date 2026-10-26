@@ -1,0 +1,257 @@
+"use client";
+
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+
+import { API_BASE_URL } from "@/lib/apiBase";
+import { isMFAChallenge, type MFAChallenge, type MFAConfirmation } from "@/lib/mfa";
+
+export type ManagementUser = {
+  id: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  display_name: string;
+  role: "operations_admin" | "support_admin";
+  role_label: string;
+  capabilities: string[];
+  must_change_password: boolean;
+  last_login: string | null;
+};
+
+export class ManagementFailure extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly code = "request_failed",
+  ) {
+    super(message);
+    this.name = "ManagementFailure";
+  }
+}
+
+const BASE_URL = API_BASE_URL;
+const RETRYABLE_STATUS = new Set([408, 429, 500, 502, 503, 504]);
+const DEFAULT_TIMEOUT_MS = 30_000;
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+type ManagementRequestInit = RequestInit & {
+  idempotencyKey?: string;
+  maxAttempts?: number;
+  timeoutMs?: number;
+};
+
+/** A fresh key, held stable across this management mutation's retries. */
+export function managementIdempotentMutation(): Pick<
+  ManagementRequestInit,
+  "idempotencyKey" | "maxAttempts"
+> {
+  return { idempotencyKey: crypto.randomUUID(), maxAttempts: 3 };
+}
+
+function csrfToken(): string {
+  if (typeof window === "undefined") return "";
+  return window.sessionStorage.getItem("management.csrf") ?? "";
+}
+
+export async function managementFetch<T>(
+  path: string,
+  init: ManagementRequestInit = {},
+): Promise<T> {
+  const {
+    idempotencyKey,
+    maxAttempts = 1,
+    timeoutMs = DEFAULT_TIMEOUT_MS,
+    ...requestInit
+  } = init;
+  const method = (requestInit.method ?? "GET").toUpperCase();
+  const unsafe = !["GET", "HEAD", "OPTIONS"].includes(method);
+  const requestId = crypto.randomUUID();
+  let lastFailure: ManagementFailure | null = null;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const controller = new AbortController();
+    const upstreamSignal = requestInit.signal;
+    let timedOut = false;
+    const forwardAbort = () => controller.abort(upstreamSignal?.reason);
+    if (upstreamSignal?.aborted) forwardAbort();
+    else upstreamSignal?.addEventListener("abort", forwardAbort, { once: true });
+    const timeout = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, Math.max(1, timeoutMs));
+
+    try {
+      const response = await fetch(`${BASE_URL}/management${path}`, {
+        ...requestInit,
+        signal: controller.signal,
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Client": "management",
+          "X-Request-ID": requestId,
+          ...(unsafe && csrfToken() ? { "X-Management-CSRF": csrfToken() } : {}),
+          ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}),
+          ...requestInit.headers,
+        },
+      });
+      const body = response.status === 204 ? null : await response.json().catch(() => null);
+      if (response.ok) {
+        if (body?.csrf_token && typeof window !== "undefined") {
+          window.sessionStorage.setItem("management.csrf", body.csrf_token);
+        }
+        return body as T;
+      }
+
+      const error = body?.error;
+      lastFailure = new ManagementFailure(
+        error?.message ?? "That Management request did not work.",
+        response.status,
+        error?.code,
+      );
+      if (!RETRYABLE_STATUS.has(response.status)) throw lastFailure;
+    } catch (cause) {
+      if (cause instanceof ManagementFailure && !RETRYABLE_STATUS.has(cause.status)) {
+        throw cause;
+      }
+      if (timedOut) {
+        lastFailure = new ManagementFailure(
+          "Management is taking too long to respond. Try again.",
+          0,
+          "request_timeout",
+        );
+      } else if (controller.signal.aborted) {
+        lastFailure = new ManagementFailure(
+          "The Management request was cancelled.",
+          0,
+          "request_cancelled",
+        );
+      } else if (!(cause instanceof ManagementFailure)) {
+        lastFailure = new ManagementFailure(
+          "Could not reach Management. Check your connection and try again.",
+          0,
+          "network_error",
+        );
+      }
+    } finally {
+      clearTimeout(timeout);
+      upstreamSignal?.removeEventListener("abort", forwardAbort);
+    }
+
+    if (attempt < maxAttempts) await sleep(2 ** attempt * 400);
+  }
+
+  throw lastFailure ?? new ManagementFailure("That Management request did not work.", 0);
+}
+
+type State =
+  | { status: "loading" }
+  | { status: "signed_out" }
+  | { status: "signed_in"; user: ManagementUser };
+
+type Context = {
+  state: State;
+  login: (email: string, password: string, otpCode?: string) => Promise<ManagementUser | MFAChallenge>;
+  confirmMfa: (body: MFAConfirmation) => Promise<ManagementUser | MFAChallenge>;
+  logout: () => Promise<void>;
+  refresh: () => Promise<void>;
+  can: (capability: string) => boolean;
+};
+
+const ManagementContext = createContext<Context | null>(null);
+
+export function ManagementProvider({ children }: { children: React.ReactNode }) {
+  const [state, setState] = useState<State>({ status: "loading" });
+  // The login form is deliberately available while session restoration runs.
+  // A revision keeps that older probe from overwriting a newer login/logout.
+  const authRevision = useRef(0);
+
+  const refresh = useCallback(async () => {
+    const revision = ++authRevision.current;
+    try {
+      const response = await managementFetch<{ user: ManagementUser }>("/auth/session/", {
+        // A sleeping API must not hold the sign-in screen hostage. The probe
+        // still wakes it; the explicit login request gets a longer window.
+        timeoutMs: 15_000,
+      });
+      if (authRevision.current === revision) {
+        setState({ status: "signed_in", user: response.user });
+      }
+    } catch (error) {
+      if (authRevision.current !== revision) return;
+      if (error instanceof ManagementFailure && [401, 403].includes(error.status)) {
+        setState({ status: "signed_out" });
+        return;
+      }
+      setState({ status: "signed_out" });
+    }
+  }, []);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  const value = useMemo<Context>(
+    () => ({
+      state,
+      refresh,
+      login: async (email, password, otpCode) => {
+        const revision = ++authRevision.current;
+        try {
+          const response = await managementFetch<{ user: ManagementUser } | MFAChallenge>("/auth/login/", {
+            method: "POST",
+            body: JSON.stringify({ email, password, otp_code: otpCode ?? "", interactive_mfa: true }),
+            timeoutMs: 60_000,
+          });
+          if (isMFAChallenge(response)) {
+            if (authRevision.current === revision) setState({ status: "signed_out" });
+            return response;
+          }
+          if (authRevision.current === revision) {
+            setState({ status: "signed_in", user: response.user });
+          }
+          return response.user;
+        } catch (error) {
+          if (authRevision.current === revision) setState({ status: "signed_out" });
+          throw error;
+        }
+      },
+      confirmMfa: async (body) => {
+        const revision = ++authRevision.current;
+        const response = await managementFetch<{ user: ManagementUser } | MFAChallenge>("/auth/mfa/", {
+          method: "POST", body: JSON.stringify(body),
+        });
+        if (isMFAChallenge(response)) return response;
+        if (authRevision.current === revision) setState({ status: "signed_in", user: response.user });
+        return response.user;
+      },
+      logout: async () => {
+        const revision = ++authRevision.current;
+        try {
+          await managementFetch("/auth/session/", { method: "DELETE" });
+        } finally {
+          window.sessionStorage.removeItem("management.csrf");
+          if (authRevision.current === revision) setState({ status: "signed_out" });
+        }
+      },
+      can: (capability) =>
+        state.status === "signed_in" && state.user.capabilities.includes(capability),
+    }),
+    [refresh, state],
+  );
+
+  return <ManagementContext.Provider value={value}>{children}</ManagementContext.Provider>;
+}
+
+export function useManagement() {
+  const value = useContext(ManagementContext);
+  if (!value) throw new Error("useManagement must be used inside ManagementProvider");
+  return value;
+}
+
+export function formatDate(value: string | null | undefined) {
+  if (!value) return "—";
+  return new Intl.DateTimeFormat("en-GH", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(value));
+}

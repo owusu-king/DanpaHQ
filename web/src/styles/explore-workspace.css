@@ -1,0 +1,1098 @@
+/* Explore: search → scan → compare → open.
+   The photograph does the recognizing and the price does the comparing, so
+   those are the two things the card gives room to. Everything else is one line
+   apiece. */
+
+.explore { position: relative; display: grid; gap: var(--space-5); min-width: 0; }
+
+/* Search and refinement are one instrument: one search bar and one Filters
+   button — the pair the phone floats over its map — with what they produced in
+   a row beneath. The tray takes the warm field tone with a breath of kola, and
+   both controls sit on it as white pills edged in kola, the language of "Search
+   this area": the search reads first, and colour marks only what is chosen,
+   focused or pressed. A rail of quick pills and a row of chips used to repeat
+   what the panel holds. */
+.explore-discovery {
+  --explore-bar-height: 44px;
+  position: relative;
+  z-index: 4;
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background:
+    radial-gradient(120% 160% at 0% 0%, color-mix(in oklab, var(--color-kola-50) 80%, transparent), transparent 62%),
+    color-mix(in oklab, var(--color-field-100) 72%, var(--color-field-0));
+  border: var(--border-hairline) solid color-mix(in oklab, var(--color-kola-300) 24%, var(--color-field-200));
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-raised);
+  transition: box-shadow var(--motion-duration-fast) var(--motion-easing-standard);
+}
+
+/* Portal Explore is one unboxed introduction: concise orientation and the
+   Search / Filters / Map instrument form one surface. On desktop and tablet it
+   settles beneath the global header as a single stable unit; its background
+   appears only while pinned, as a quiet continuation of the page rather than a
+   rounded card. Narrow screens keep it in normal flow to protect the viewport. */
+.explore-portal { row-gap: var(--space-6); }
+.explore-portal-intro {
+  position: relative;
+  z-index: 10;
+  display: grid;
+  min-width: 0;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  background: transparent;
+  isolation: isolate;
+  transition: background-color var(--motion-duration-fast) var(--motion-easing-standard);
+}
+.explore-portal-intro > .portal-page-header {
+  min-width: 0;
+  padding: 0;
+  margin: 0;
+  border: 0;
+}
+.explore-portal-intro > .portal-page-header h1 {
+  font-size: 1.375rem;
+  line-height: 1.15;
+}
+.explore-portal-intro > .portal-page-header p {
+  max-width: none;
+  margin-top: var(--space-1);
+  font-size: .8125rem;
+  overflow: hidden;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.explore-portal-intro > * {
+  position: relative;
+  z-index: 1;
+}
+.explore-portal-intro .explore-discovery {
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+.explore-portal-intro .explore-bar { width: 100%; min-width: 0; }
+.explore-portal > .explore-feedback { margin-top: 0; }
+.explore-portal-intro [class~="explore-advanced"] {
+  top: calc(var(--explore-bar-height) + var(--space-2));
+  right: 0;
+}
+
+@media (min-width: 64rem) {
+  .portal .explore.explore-portal { --explore-bleed: var(--space-8); }
+  .explore-portal-intro {
+    position: sticky;
+    top: var(--explore-stick-top);
+    grid-template-columns: minmax(12rem, 1fr) minmax(26rem, 34rem);
+    align-items: center;
+    column-gap: var(--space-5);
+  }
+  .explore-portal-intro::before,
+  .explore-portal-intro::after {
+    position: absolute;
+    z-index: 0;
+    right: calc(var(--explore-bleed) * -1);
+    left: calc(var(--explore-bleed) * -1);
+    content: "";
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--motion-duration-fast) var(--motion-easing-standard);
+  }
+  .explore-portal-intro::before {
+    top: calc(var(--space-3) * -1);
+    bottom: calc(var(--space-2) * -1);
+    background: color-mix(in oklab, var(--color-field-50) 92%, transparent);
+    backdrop-filter: blur(16px) saturate(1.08);
+  }
+  .explore-portal-intro::after {
+    z-index: 2;
+    bottom: calc(var(--space-2) * -1);
+    height: var(--border-hairline);
+    background: color-mix(in oklab, var(--color-kola-300) 22%, var(--color-field-200));
+  }
+  .explore-portal-intro.is-stuck {
+    background: color-mix(in oklab, var(--color-kola-50) 36%, var(--color-field-0));
+  }
+  .explore-portal-intro.is-stuck::before,
+  .explore-portal-intro.is-stuck::after { opacity: 1; }
+}
+
+@media (min-width: 80rem) {
+  .explore-portal-intro {
+    grid-template-columns: minmax(15rem, 1fr) minmax(31rem, 37rem);
+    column-gap: var(--space-6);
+  }
+}
+
+@media (min-width: 90rem) {
+  .portal .explore.explore-portal { --explore-bleed: var(--space-10); }
+}
+
+/* Public Explore keeps its discovery controls in reach after they pass under
+   the site header. Portal Explore uses its own complete sticky introduction.
+   Active filter feedback remains directly above the listings.
+   Stuck, it sits on a band of the page's own ground, running the width of the
+   window from the header down to a hairline, so the rentals scroll away beneath
+   it instead of showing through the breath above it and around its corners. The
+   band is drawn behind the tray, never over the list and panel the tray opens. */
+.explore-stick {
+  position: sticky;
+  z-index: 10;
+  top: var(--explore-stick-top);
+}
+.explore-stick::before,
+.explore-stick::after {
+  position: absolute;
+  z-index: -1;
+  right: 0;
+  left: 0;
+  content: "";
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--motion-duration-fast) var(--motion-easing-standard);
+}
+.explore-stick::before {
+  top: calc(var(--space-2) * -1);
+  bottom: calc(var(--space-3) * -1);
+  background: var(--explore-ground);
+  box-shadow: 0 0 0 100vmax var(--explore-ground);
+  clip-path: inset(0 calc(var(--explore-bleed) * -1));
+}
+.explore-stick::after {
+  bottom: calc(var(--space-3) * -1);
+  height: var(--border-hairline);
+  background: var(--color-field-200);
+  box-shadow: 0 0 0 100vmax var(--color-field-200);
+  clip-path: inset(0 calc(var(--explore-bleed) * -1));
+}
+.explore-stick.is-stuck::before,
+.explore-stick.is-stuck::after { opacity: 1; }
+.explore-stick.is-stuck .explore-discovery { box-shadow: var(--shadow-lifted); }
+/* Where the search would be if it scrolled away; the page watches it pass. */
+.explore-stick-line {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: 1px;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* --- place ------------------------------------------------------------------ */
+
+.explore-bar { display: flex; min-width: 0; align-items: center; gap: var(--space-3); }
+.explore-search { position: relative; flex: 1 1 auto; min-width: 0; }
+.explore-search > .portal-icon {
+  position: absolute;
+  z-index: 1;
+  top: 50%;
+  left: calc(var(--space-4) + 2px);
+  width: 20px;
+  height: 20px;
+  color: var(--color-kola-600);
+  translate: 0 -50%;
+  pointer-events: none;
+}
+.explore-search label { display: block; }
+.explore-search input {
+  width: 100%;
+  height: var(--explore-bar-height);
+  padding: 0 52px 0 calc(var(--space-4) + 2px + 20px + var(--space-3));
+  color: var(--color-ink-900);
+  font: 500 1rem/1.25 var(--font-body);
+  background: var(--color-field-0);
+  border: var(--border-hairline) solid color-mix(in oklab, var(--color-kola-600) 35%, transparent);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-lifted);
+  appearance: none;
+  transition:
+    border-color var(--motion-duration-fast) var(--motion-easing-standard),
+    box-shadow var(--motion-duration-fast) var(--motion-easing-standard);
+}
+.explore-search input::placeholder { color: var(--color-ink-500); font-weight: 400; }
+
+/* One clear. `type="search"` draws its own cancel cross in Chromium and WebKit,
+   and beside the designed one the field offered two ways to do one thing. */
+.explore-search input::-webkit-search-cancel-button,
+.explore-search input::-webkit-search-decoration { -webkit-appearance: none; appearance: none; }
+
+.explore-search input:hover { border-color: color-mix(in oklab, var(--color-kola-600) 60%, transparent); }
+
+/* The soft ring the product's fields use. A hard ink outline used to be drawn
+   over it as well, a second square-shouldered edge around a rounded field. */
+.explore-search input:focus-visible {
+  outline: none;
+  border-color: var(--color-kola-600);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-kola-600) 16%, transparent), var(--shadow-lifted);
+}
+
+.explore-search-clear {
+  position: absolute;
+  z-index: 2;
+  top: 50%;
+  right: var(--space-2);
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  padding: 0;
+  color: var(--color-ink-500);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-pill);
+  translate: 0 -50%;
+  cursor: pointer;
+  transition:
+    color var(--motion-duration-fast) var(--motion-easing-standard),
+    background-color var(--motion-duration-fast) var(--motion-easing-standard);
+}
+.explore-search-clear .portal-icon { width: 18px; height: 18px; color: inherit; }
+.explore-search-clear:hover { color: var(--color-ink-900); background: var(--color-field-100); }
+.explore-search-clear:active { background: var(--color-field-200); }
+
+.explore-suggestions {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + var(--space-2));
+  right: 0;
+  left: 0;
+  display: grid;
+  gap: 2px;
+  padding: 6px;
+  margin: 0;
+  list-style: none;
+  background: var(--color-field-0);
+  border: var(--border-hairline) solid var(--color-field-200);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-floating);
+  animation: explore-pop-in var(--motion-duration-fast) var(--motion-easing-enter);
+}
+.explore-suggestions [role="option"] {
+  display: flex;
+  min-height: 52px;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+/* Pointer and keyboard move one highlight, so the list never shows two. */
+.explore-suggestions [role="option"].is-highlighted { background: var(--color-kola-50); }
+.explore-suggestion-mark {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  place-items: center;
+  color: var(--color-kola-600);
+  background: var(--color-kola-50);
+  border-radius: var(--radius-pill);
+}
+.explore-suggestions .is-highlighted .explore-suggestion-mark { background: var(--color-field-0); }
+.explore-suggestion-mark .portal-icon { width: 16px; height: 16px; color: inherit; }
+.explore-suggestion-copy { display: grid; min-width: 0; font-size: .9375rem; line-height: 1.3; }
+.explore-suggestion-copy strong { color: var(--color-ink-900); font-weight: 600; }
+.explore-suggestion-copy > span { color: var(--color-ink-500); font-size: .8125rem; }
+
+/* --- the Filters button ---------------------------------------------------------- */
+
+/* The one way into every filter: the search bar's height and pill, a kola icon,
+   and the count of what is on in a kola badge. Filters in force give it kola's
+   doubled edge, drawn inset so the button never grows; the open panel fills it
+   with kola's tint. */
+.explore-filters-button {
+  display: inline-flex;
+  height: var(--explore-bar-height);
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-5) 0 var(--space-4);
+  color: var(--color-kola-800);
+  font: 650 .9375rem/1 var(--font-body);
+  white-space: nowrap;
+  background: var(--color-field-0);
+  border: var(--border-hairline) solid color-mix(in oklab, var(--color-kola-600) 35%, transparent);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-lifted);
+  cursor: pointer;
+  transition:
+    background-color var(--motion-duration-fast) var(--motion-easing-standard),
+    border-color var(--motion-duration-fast) var(--motion-easing-standard),
+    box-shadow var(--motion-duration-fast) var(--motion-easing-standard);
+}
+.explore-filters-button > .portal-icon { width: 19px; height: 19px; flex: 0 0 auto; color: var(--color-kola-600); }
+.explore-filters-button:has(.explore-filter-count) { padding-right: var(--space-3); }
+.explore-filters-button:hover { background: var(--color-kola-50); border-color: color-mix(in oklab, var(--color-kola-600) 60%, transparent); }
+.explore-filters-button:active { background: color-mix(in oklab, var(--color-kola-50) 72%, var(--color-kola-300)); }
+.explore-filters-button.is-active {
+  border-color: var(--color-kola-600);
+  box-shadow: inset 0 0 0 1px var(--color-kola-600), var(--shadow-lifted);
+}
+.explore-filters-button.is-open { background: var(--color-kola-50); border-color: var(--color-kola-600); }
+.explore-filter-count {
+  display: grid;
+  min-width: 22px;
+  height: 22px;
+  place-items: center;
+  padding: 0 6px;
+  color: var(--color-field-0);
+  font: 700 .75rem/1 var(--font-body);
+  font-variant-numeric: tabular-nums;
+  background: var(--color-kola-600);
+  border-radius: var(--radius-pill);
+}
+
+.explore-more {
+  min-height: 52px;
+  padding: 0 var(--space-4);
+  color: var(--foreground);
+  font: inherit;
+  font-weight: 650;
+  background: var(--background);
+  border: var(--border-hairline) solid var(--input);
+  border-radius: 14px;
+  cursor: pointer;
+}
+
+/* --- the complete set ------------------------------------------------------------ */
+
+.explore-filter-scrim { display: none; }
+/* Opens under the button that asked for it, over the results rather than
+   pushing them down. */
+.explore-advanced {
+  position: absolute;
+  z-index: 25;
+  top: calc(var(--space-4) + var(--explore-bar-height) + var(--space-2));
+  right: var(--space-4);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  width: min(calc(100% - var(--space-4) * 2), 40rem);
+  /* Sized to the room under the search once it has stuck, which is where the
+     panel stays however far the page scrolls. */
+  max-height: min(46rem, calc(100dvh - var(--explore-stick-top) - var(--space-4) - var(--explore-bar-height) - var(--space-2) - var(--space-4)));
+  overflow: hidden;
+  background: var(--color-field-0);
+  border: var(--border-hairline) solid var(--color-field-200);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-modal);
+  animation: explore-panel-in var(--motion-duration-base) var(--motion-easing-enter);
+}
+.explore-advanced:focus-visible { outline: none; }
+.explore-advanced-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-3) var(--space-3) var(--space-6);
+  border-bottom: var(--border-hairline) solid var(--color-field-200);
+}
+.explore-advanced-head h2 { margin: 0; }
+.explore-icon-button {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  padding: 0;
+  color: var(--color-ink-700);
+  background: var(--color-field-100);
+  border: 0;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  transition:
+    color var(--motion-duration-fast) var(--motion-easing-standard),
+    background-color var(--motion-duration-fast) var(--motion-easing-standard);
+}
+.explore-icon-button .portal-icon { width: 18px; height: 18px; color: inherit; }
+.explore-icon-button:hover { color: var(--color-ink-900); background: var(--color-field-200); }
+.explore-advanced-body { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+
+/* The phone's rows, paired two to a line where the panel has the room: rent
+   across the top, then property and unit, bedrooms and advance, furnishing and
+   order — the order the phone asks them in. Each row is a label and its answer
+   on one line under a hairline, so the set takes about a third of the height its
+   chips and headed groups did. Colour marks only what is chosen, focused or open. */
+.explore-filter-label { min-width: 0; color: var(--color-ink-900); font-size: .9375rem; line-height: 1.3; }
+
+.explore-range { display: grid; gap: var(--space-1); padding: var(--space-4) var(--space-6) var(--space-3); }
+.explore-range-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); }
+.explore-range-readout {
+  color: var(--color-kola-800);
+  font: 650 .9375rem/1.3 var(--font-body);
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+}
+.explore-range-track {
+  --explore-thumb: 24px;
+  --explore-track: 32px;
+  position: relative;
+  height: var(--explore-track);
+}
+/* The rail, and the stretch of it the range covers. A thumb's centre travels
+   from half a thumb in at one end to half a thumb in at the other, so the fill
+   does too. */
+.explore-range-track::before,
+.explore-range-fill {
+  position: absolute;
+  top: 50%;
+  height: 4px;
+  border-radius: 2px;
+  translate: 0 -50%;
+}
+.explore-range-track::before {
+  right: calc(var(--explore-thumb) / 2);
+  left: calc(var(--explore-thumb) / 2);
+  background: var(--color-field-200);
+  content: "";
+}
+.explore-range-fill {
+  right: calc(var(--explore-thumb) / 2 + (100% - var(--explore-thumb)) * (1 - var(--range-high)));
+  left: calc(var(--explore-thumb) / 2 + (100% - var(--explore-thumb)) * var(--range-low));
+  background: var(--color-kola-600);
+}
+/* Two real range inputs over the one rail. Neither takes the pointer anywhere
+   but its thumb, so the thumb on top never keeps the other from being dragged. */
+.explore-range-input {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  background: transparent;
+  pointer-events: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.explore-range-input.is-front { z-index: 2; }
+.explore-range-input:focus-visible { z-index: 3; outline: none; }
+.explore-range-input::-webkit-slider-runnable-track { height: var(--explore-track); background: transparent; border: 0; }
+.explore-range-input::-moz-range-track { height: var(--explore-track); background: transparent; border: 0; }
+.explore-range-input::-webkit-slider-thumb {
+  box-sizing: border-box;
+  width: var(--explore-thumb);
+  height: var(--explore-thumb);
+  margin-top: calc((var(--explore-track) - var(--explore-thumb)) / 2);
+  background: var(--color-field-0);
+  border: var(--border-emphasis) solid var(--color-kola-600);
+  border-radius: 50%;
+  box-shadow: 0 1px 4px rgb(12 58 42 / 22%);
+  cursor: grab;
+  pointer-events: auto;
+  -webkit-appearance: none;
+  appearance: none;
+  transition:
+    scale var(--motion-duration-fast) var(--motion-easing-standard),
+    box-shadow var(--motion-duration-fast) var(--motion-easing-standard);
+}
+.explore-range-input::-moz-range-thumb {
+  box-sizing: border-box;
+  width: var(--explore-thumb);
+  height: var(--explore-thumb);
+  background: var(--color-field-0);
+  border: var(--border-emphasis) solid var(--color-kola-600);
+  border-radius: 50%;
+  box-shadow: 0 1px 4px rgb(12 58 42 / 22%);
+  cursor: grab;
+  pointer-events: auto;
+  transition:
+    scale var(--motion-duration-fast) var(--motion-easing-standard),
+    box-shadow var(--motion-duration-fast) var(--motion-easing-standard);
+}
+.explore-range-input:active::-webkit-slider-thumb { cursor: grabbing; scale: 1.12; }
+.explore-range-input:active::-moz-range-thumb { cursor: grabbing; scale: 1.12; }
+.explore-range-input:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 4px var(--color-kola-50), 0 1px 4px rgb(12 58 42 / 22%); }
+.explore-range-input:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 4px var(--color-kola-50), 0 1px 4px rgb(12 58 42 / 22%); }
+
+.explore-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr));
+  column-gap: var(--space-6);
+  padding: 0 var(--space-6) var(--space-2);
+}
+.explore-filter-cell {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 56px;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-3);
+  padding-block: var(--space-2);
+  border-top: var(--border-hairline) solid var(--color-field-200);
+}
+.explore-switch-row { cursor: pointer; }
+.explore-switch { display: flex; min-height: 40px; align-items: center; }
+
+/* A list's answer sits on the button that opens it. A set answer is tinted kola,
+   and open, the button takes kola's edge and turns its chevron over. */
+.explore-select-button {
+  display: inline-flex;
+  min-width: 0;
+  max-width: 100%;
+  min-height: 40px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 var(--space-2) 0 var(--space-3);
+  color: var(--color-ink-900);
+  font: 600 .875rem/1.2 var(--font-body);
+  background: var(--color-field-0);
+  border: var(--border-hairline) solid var(--color-field-300);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition:
+    background-color var(--motion-duration-fast) var(--motion-easing-standard),
+    border-color var(--motion-duration-fast) var(--motion-easing-standard);
+}
+.explore-select-value { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.explore-select-button .portal-icon {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  color: var(--color-ink-500);
+  transition: rotate var(--motion-duration-fast) var(--motion-easing-standard);
+}
+.explore-select-button:hover { border-color: var(--color-ink-300); }
+.explore-select-button.is-chosen { color: var(--color-kola-800); background: var(--color-kola-50); border-color: var(--color-kola-600); }
+.explore-select.is-open .explore-select-button { border-color: var(--color-kola-600); }
+.explore-select-button.is-chosen .portal-icon,
+.explore-select.is-open .explore-select-button .portal-icon { color: var(--color-kola-600); }
+.explore-select.is-open .explore-select-button .portal-icon { rotate: 180deg; }
+
+/* Fixed to the window rather than the panel, which scrolls and would clip it;
+   the component places it below its button or above, wherever it fits. */
+.explore-select-list {
+  position: fixed;
+  z-index: 40;
+  display: grid;
+  min-width: 13rem;
+  align-content: start;
+  gap: 2px;
+  padding: 6px;
+  margin: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  list-style: none;
+  background: var(--color-field-0);
+  border: var(--border-hairline) solid var(--color-field-200);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-floating);
+  animation: explore-pop-in var(--motion-duration-fast) var(--motion-easing-enter);
+}
+.explore-select-option {
+  display: flex;
+  min-height: 40px;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: 0 var(--space-3);
+  color: var(--color-ink-900);
+  font-size: .875rem;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+/* Pointer and keyboard move one highlight, so the list never shows two. */
+.explore-select-option[data-active="true"] { background: var(--color-field-100); }
+.explore-select-option[aria-selected="true"] { color: var(--color-kola-800); font-weight: 650; }
+.explore-select-option[aria-selected="true"][data-active="true"] { background: var(--color-kola-50); }
+.explore-select-option .portal-icon { width: 16px; height: 16px; flex: 0 0 auto; color: var(--color-kola-600); }
+
+/* Real radios drawn as segments on a quiet fill. Every segment keeps its edge,
+   transparent until chosen, so choosing moves nothing. */
+.explore-segments {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  background: var(--color-field-100);
+  border-radius: var(--radius-md);
+}
+.explore-segment {
+  display: inline-grid;
+  min-width: 44px;
+  min-height: 34px;
+  place-items: center;
+  padding: 0 var(--space-3);
+  color: var(--color-ink-700);
+  font: 600 .875rem/1 var(--font-body);
+  border: var(--border-hairline) solid transparent;
+  border-radius: calc(var(--radius-md) - 3px);
+  cursor: pointer;
+  transition:
+    background-color var(--motion-duration-fast) var(--motion-easing-standard),
+    border-color var(--motion-duration-fast) var(--motion-easing-standard),
+    color var(--motion-duration-fast) var(--motion-easing-standard);
+}
+.explore-segment:hover { color: var(--color-ink-900); }
+.explore-segment:has(.control-input:checked) { color: var(--color-kola-800); background: var(--color-field-0); border-color: var(--color-kola-600); }
+.explore-segment:has(.control-input:focus-visible) { border-color: var(--color-kola-600); box-shadow: 0 0 0 3px var(--color-kola-50); }
+
+.explore-advanced-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4) var(--space-3) var(--space-3);
+  background: var(--color-field-50);
+  border-top: var(--border-hairline) solid var(--color-field-200);
+}
+.explore-text-button {
+  min-height: 40px;
+  padding: 0 var(--space-3);
+  color: var(--color-kola-800);
+  font: 600 .9375rem/1 var(--font-body);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: background-color var(--motion-duration-fast) var(--motion-easing-standard);
+}
+.explore-text-button:hover:not(:disabled) { background: var(--color-kola-50); }
+.explore-text-button:disabled { color: var(--color-ink-300); cursor: default; }
+.explore-show-results { min-width: 11rem; }
+
+/* --- what the results are ---------------------------------------------------------- */
+
+.explore-feedback {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  padding: 0 var(--space-1) var(--space-2);
+  margin-top: calc(var(--space-3) * -1);
+  border-bottom: var(--border-hairline) solid var(--color-field-200);
+}
+.explore-chip {
+  display: inline-flex;
+  height: 32px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px 0 var(--space-3);
+  color: var(--color-kola-800);
+  font: 600 .8125rem/1 var(--font-body);
+  background: var(--color-kola-50);
+  border: var(--border-hairline) solid var(--color-kola-300);
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  transition:
+    background-color var(--motion-duration-fast) var(--motion-easing-standard),
+    border-color var(--motion-duration-fast) var(--motion-easing-standard);
+}
+.explore-chip .portal-icon { width: 14px; height: 14px; color: var(--color-kola-600); }
+.explore-chip:hover { background: color-mix(in oklab, var(--color-kola-50) 72%, var(--color-kola-300)); border-color: var(--color-kola-600); }
+.explore-chip:active { background: color-mix(in oklab, var(--color-kola-50) 55%, var(--color-kola-300)); }
+.explore-clear-all {
+  flex: 0 0 auto;
+  height: 32px;
+  padding: 0 var(--space-2);
+  color: var(--color-kola-800);
+  font: 600 .8125rem/1 var(--font-body);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: background-color var(--motion-duration-fast) var(--motion-easing-standard);
+}
+.explore-clear-all:hover { background: var(--color-kola-50); }
+
+@keyframes explore-pop-in {
+  from { opacity: 0; transform: translateY(-4px) scale(.98); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes explore-panel-in {
+  from { opacity: 0; translate: 0 -6px; }
+  to { opacity: 1; translate: 0 0; }
+}
+
+@keyframes explore-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.explore-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 16rem), 1fr));
+  gap: var(--space-5);
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.listing-card {
+  position: relative;
+  display: grid;
+  align-content: start;
+  height: 100%;
+  overflow: hidden;
+  background: var(--background);
+  border: var(--border-hairline) solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+/* A wider crop keeps the card image-led without making one result consume an
+   entire mobile viewport. It stays stable before the presigned image arrives. */
+.listing-card-photo { position: relative; aspect-ratio: 16 / 10; border-radius: 0; }
+.listing-card-photo-link {
+  position: absolute;
+  inset: 0;
+  display: block;
+  color: inherit;
+  cursor: grab;
+  touch-action: pan-y;
+  user-select: none;
+}
+.listing-card-photo-link:active { cursor: grabbing; }
+.listing-photo-track {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  will-change: transform;
+  transition: transform 380ms var(--motion-easing-standard);
+}
+.listing-card-photo-link.is-dragging .listing-photo-track { transition: none; }
+.listing-photo-slide { position: relative; height: 100%; flex: 0 0 100%; overflow: hidden; }
+.listing-photo-slide img { width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
+.listing-photo-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  color: var(--muted-foreground);
+  font-size: .8125rem;
+}
+.listing-photo-empty .portal-icon { width: 17px; height: 17px; }
+
+.listing-photo-dots {
+  position: absolute;
+  z-index: 2;
+  bottom: var(--space-3);
+  left: 50%;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 7px;
+  background: rgb(22 17 14 / 48%);
+  border-radius: var(--radius-pill);
+  backdrop-filter: blur(5px);
+  translate: -50% 0;
+}
+.listing-photo-dots button {
+  position: relative;
+  display: grid;
+  width: 16px;
+  height: 16px;
+  place-items: center;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+.listing-photo-dots button::after {
+  width: 5px;
+  height: 5px;
+  background: rgb(255 255 255 / 58%);
+  border-radius: 50%;
+  content: "";
+  transition: width var(--motion-duration-fast) var(--motion-easing-standard), background-color var(--motion-duration-fast) var(--motion-easing-standard);
+}
+.listing-photo-dots button[data-current="true"]::after { width: 13px; background: var(--color-field-0); border-radius: var(--radius-pill); }
+
+/* Direction controls belong to the current hover/focus session: they remain
+   usable across several photos, then leave when the pointer leaves. */
+.listing-photo-control {
+  position: absolute;
+  z-index: 3;
+  top: 50%;
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  padding: 0 0 2px;
+  color: var(--color-ink-900);
+  font: 500 1.55rem/1 var(--font-body);
+  background: rgb(255 255 255 / 88%);
+  backdrop-filter: blur(7px);
+  border: var(--border-hairline) solid rgb(255 255 255 / 52%);
+  border-radius: 50%;
+  box-shadow: 0 5px 14px rgb(22 17 14 / 10%);
+  cursor: pointer;
+  opacity: 0;
+  translate: 0 -50%;
+  transition: opacity var(--motion-duration-fast) var(--motion-easing-standard), background-color var(--motion-duration-fast) var(--motion-easing-standard);
+}
+.listing-photo-control.is-previous { left: var(--space-3); }
+.listing-photo-control.is-next { right: var(--space-3); }
+.listing-card-photo:hover .listing-photo-control,
+.listing-photo-control:focus-visible { opacity: .9; }
+.listing-photo-control:hover { background: rgb(255 255 255 / 92%); }
+.listing-photo-control:active { opacity: .7; }
+
+/* Over the photograph, because it belongs to the picture rather than the text. */
+.listing-save {
+  position: absolute;
+  z-index: 2;
+  top: var(--space-3);
+  right: var(--space-3);
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  color: var(--foreground);
+  background: color-mix(in srgb, var(--background) 90%, transparent);
+  backdrop-filter: blur(6px);
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+  transition:
+    background-color var(--motion-duration-fast) var(--motion-easing-standard),
+    color var(--motion-duration-fast) var(--motion-easing-standard),
+    scale var(--motion-duration-fast) var(--motion-easing-standard);
+}
+.listing-save:hover { background: var(--background); scale: 1.08; }
+/* The one place a press should feel springy: saving is a small delight and the
+   overshoot is what makes the tap feel answered. */
+.listing-save:active { scale: 0.92; transition-timing-function: var(--motion-easing-spring); }
+.listing-save[aria-pressed="true"] { color: var(--destructive); }
+
+.listing-card-body { display: grid; gap: var(--space-2); padding: var(--space-4); }
+.listing-card-body a { color: inherit; text-decoration: none; }
+.listing-card-body a:hover { color: var(--brand); }
+
+/* Four to a row, a card can be too narrow for the rent and the advance side by
+   side. The advance then wraps under the rent rather than printing over it. */
+.listing-card-price-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: .2rem var(--space-3);
+  min-width: 0;
+}
+
+/* The rent, in the display face. It is the number the card exists to carry and
+   the one a tenant compares across a page of them, so it gets the voice and the
+   tabular figures that make a column of them line up. */
+.listing-price {
+  min-width: 0;
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(1.25rem, 2vw, 1.5rem);
+  font-weight: 650;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.15;
+}
+.listing-price span {
+  color: var(--muted-foreground);
+  font-family: var(--font-body);
+  font-size: .8125rem;
+  font-weight: 400;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+.listing-advance {
+  flex: 0 0 auto;
+  margin: 0;
+  color: var(--color-ink-700);
+  font-size: .78rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.listing-card-headline {
+  margin: var(--space-1) 0 0;
+  color: var(--foreground);
+  font-size: 1rem;
+  font-weight: 650;
+  letter-spacing: -.01em;
+  line-height: 1.35;
+}
+
+/* Card-scoped names. The listing *detail* page also defines `.listing-where`
+   and `.listing-terms`, and its stylesheet loads second — the card's row was
+   being laid out by rules written for a different component. The clash on
+   `.listing-where` predated this row and was silently harmless until something
+   depended on the display mode.
+
+   The pin sits on the line rather than above it, at the size of the text it
+   belongs to: the shared set draws at 20px for a navigation rail, which on a
+   caption is a badge rather than a mark. */
+.listing-card-where {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  margin: calc(var(--space-1) * -1) 0 0;
+  color: var(--muted-foreground);
+  font-size: .825rem;
+}
+.listing-card-where span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Quieter than the line it sits on, deliberately. The pin is orientation, not
+   information — the place name beside it is the thing being read — so it is
+   mixed back from the caption colour rather than sharing it. It briefly did
+   share it, which flattened the row into one grey. */
+.listing-card-where .portal-icon { width: 14px; height: 14px; flex: 0 0 auto; color: color-mix(in oklab, var(--muted-foreground) 58%, transparent); }
+
+.listing-card-facts {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0;
+  min-height: 1.25rem;
+  margin: var(--space-1) 0 0;
+  padding: 0;
+  color: var(--color-ink-700);
+  font-size: .8rem;
+  list-style: none;
+}
+.listing-card-facts li { display: inline-flex; align-items: center; }
+.listing-card-facts li + li::before { margin-inline: .45rem; color: var(--color-ink-300); content: "·"; }
+
+.listing-card-trust {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-width: 0;
+  margin-top: var(--space-1);
+  padding-top: var(--space-3);
+  color: var(--muted-foreground);
+  font-size: .75rem;
+  border-top: var(--border-hairline) solid var(--color-field-200);
+}
+.listing-card-trust > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.listing-verified { display: inline-flex; flex: 0 0 auto; align-items: center; gap: var(--space-1); color: var(--brand); font-weight: 650; }
+/* `portal.css` colours every icon ink-500 for the navigation rail. Outside
+   it, an icon belongs to the thing it labels and should take its colour —
+   the verified shield was rendering grey beside green text. */
+.listing-verified .portal-icon { width: 15px; height: 15px; flex: 0 0 auto; color: inherit; }
+
+.explore-empty { display: grid; gap: var(--space-3); justify-items: start; padding: var(--space-8) 0; }
+
+/* Explore's filter controls take the kola ring the product's form controls
+   use; the cards keep the ink ring, being navigation rather than choice. */
+.explore-search-clear:focus-visible,
+.explore-filters-button:focus-visible,
+.explore-icon-button:focus-visible,
+.explore-select-button:focus-visible,
+.explore-text-button:focus-visible,
+.explore-clear-all:focus-visible,
+.explore-chip:focus-visible {
+  outline: var(--border-emphasis) solid var(--color-kola-600);
+  outline-offset: 2px;
+}
+
+.explore-more:focus-visible,
+.listing-save:focus-visible,
+.listing-photo-control:focus-visible,
+.listing-photo-dots button:focus-visible,
+.listing-card-photo-link:focus-visible,
+.listing-card-body a:focus-visible {
+  outline: var(--border-emphasis) solid var(--foreground);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .explore-advanced, .explore-suggestions, .explore-filter-scrim, .explore-select-list { animation: none; }
+  .explore-filters-button, .explore-chip, .explore-search input, .explore-discovery { transition: none; }
+  .explore-select-button, .explore-select-button .portal-icon, .explore-segment { transition: none; }
+  .explore-range-input::-webkit-slider-thumb { transition: none; }
+  .explore-range-input::-moz-range-thumb { transition: none; }
+  .explore-stick::before, .explore-stick::after { transition: none; }
+  .listing-save { transition: none; }
+  .listing-save:hover, .listing-save:active { scale: 1; }
+  .listing-photo-track, .listing-photo-control, .listing-photo-dots button::after { transition: none; }
+}
+
+@media (pointer: coarse) {
+  .listing-photo-control { opacity: .86; }
+  /* A thumb needs more than a cursor does. */
+  .explore-select-button, .explore-segment { min-height: 44px; }
+  .explore-range-track { --explore-thumb: 28px; --explore-track: 44px; }
+  .explore-chip, .explore-clear-all { height: 36px; }
+}
+
+/* Tablet and phone widths keep the bar and its button within a thumb's reach.
+   The complete set becomes a true bottom sheet rather than inserting a form
+   between the controls and the listings. */
+@media (max-width: 63.999rem) {
+  /* Tighter on a phone, where the stuck search shares a short screen. */
+  .explore-discovery { --explore-bar-height: 48px; gap: var(--space-2); padding: var(--space-3); }
+  .explore-feedback { padding-bottom: var(--space-2); }
+  .explore-filter-scrim {
+    position: fixed;
+    z-index: 69;
+    inset: 0;
+    display: block;
+    background: rgb(22 17 14 / 44%);
+    animation: explore-fade-in var(--motion-duration-base) var(--motion-easing-standard);
+  }
+  .explore-advanced {
+    position: fixed;
+    z-index: 70;
+    top: auto;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    max-height: min(88dvh, 48rem);
+    border-width: var(--border-hairline) 0 0;
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    box-shadow: var(--shadow-sheet);
+    animation-name: explore-sheet-in;
+  }
+  /* The sticky search's stacking context (z-index 10), and the tray's inside it,
+     would otherwise keep the sheet and its scrim beneath the portal's sticky
+     header (20) and drawer (50). The public page isolates its content, so its
+     site header stays above either way. */
+  .explore-stick:has(.explore-advanced),
+  .explore-discovery:has(> .explore-advanced) { z-index: 80; }
+  .explore-advanced-head { padding: var(--space-3) var(--space-3) var(--space-3) var(--space-5); }
+  .explore-range { padding: var(--space-4) var(--space-5) var(--space-3); }
+  .explore-filter-grid { padding: 0 var(--space-5) var(--space-2); }
+  .explore-advanced-actions {
+    padding: var(--space-3) var(--space-5) max(var(--space-3), env(safe-area-inset-bottom)) var(--space-2);
+  }
+  .explore-show-results { flex: 1 1 auto; }
+}
+
+@media (max-width: 700px) {
+  /* The type stays at 16px: iOS zooms the whole page into a smaller field. */
+  .explore-bar { gap: var(--space-2); }
+  .explore-search input { padding-left: calc(var(--space-3) + 2px + 18px + var(--space-2)); }
+  .explore-search > .portal-icon { left: calc(var(--space-3) + 2px); width: 18px; height: 18px; }
+  .explore-filters-button { padding-inline: var(--space-3) var(--space-4); }
+  .explore-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr)); gap: var(--space-4); }
+}
+
+/* A narrow phone keeps the search bar wide: the button drops its word and keeps
+   its icon and count, which its label still says to a screen reader. */
+@media (max-width: 30rem) {
+  .explore-filters-label { display: none; }
+  .explore-filters-button { min-width: var(--explore-bar-height); padding-inline: var(--space-3); }
+  .explore-filters-button:has(.explore-filter-count) { padding-inline: var(--space-3) var(--space-2); }
+}
+
+@keyframes explore-sheet-in {
+  from { opacity: .75; translate: 0 24px; }
+  to { opacity: 1; translate: 0 0; }
+}
+
+/* At legacy-phone widths the three financial fragments cannot remain on one
+   line without reading as one run-on amount. Preserve their relationship, but
+   let the advance sit immediately below the price instead of shrinking either
+   into illegibility. */
+@media (max-width: 23.5rem) {
+  .listing-card-body { gap: .4rem; padding: .875rem; }
+  .listing-card-price-row { align-items: flex-start; flex-direction: column; gap: .2rem; }
+  .listing-price { font-size: 1.2rem; }
+  .listing-advance { font-size: .75rem; }
+}

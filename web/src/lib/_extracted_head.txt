@@ -1,0 +1,300 @@
+"use client";
+
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useMemo, useState } from "react";
+
+import { Button } from "@/components/Button";
+import { Field } from "@/components/Field";
+import { Notice } from "@/components/Notice";
+import { Empty, LoadingRows, PageHeader } from "@/components/portal/PageHeader";
+import { ViewingRecord } from "@/components/tenant/ViewingRecord";
+import { ViewingDirections } from "@/components/viewings/ViewingDirections";
+import { ApiFailure } from "@/lib/api";
+import {
+  bySoonest,
+  matchesViewingFilter,
+  placeOf,
+  standing,
+  viewingFilters,
+  whenLabel,
+  type ViewingFilter,
+  type ViewingGroup,
+} from "@/lib/viewingMeaning";
+import {
+  cancelViewingAppointment,
+  listHostViewings,
+  offerSlots,
+  recordViewingOutcome,
+  reportViewingNoShow,
+  rescheduleViewing,
+  respondViewingAttendance,
+  validateViewingCheckIn,
+  viewingAction,
+  type Viewing,
+  type ViewingCancellationReason,
+} from "@/lib/console";
+import { useSession } from "@/lib/session";
+import {
+  confirmMyViewingSlot,
+  listMyViewings,
+  type MyViewing,
+} from "@/lib/tenant";
+import { Radio } from "@/components/Check";
+
+/**
+ * Viewing requests, from the landlord's or agent's side.
+ *
+ * This is a queue, so it is ordered by what needs an answer rather than by
+ * date, and each row states the one decision available. A tenant waiting for a
+ * reply is a tenant deciding whether this platform is worth using.
+ */
+/**
+ * Viewings, from whichever side this account is on. Same reasoning as
+ * applications: one idea, two readings, both scoped by the backend.
+ */
+export default function ViewingsPage() {
+  const { state } = useSession();
+  if (state.status === "loading") {
+    return <><PageHeader title="Viewings" /><LoadingRows /></>;
+  }
+  if (state.status !== "signed_in") return null;
+  const capabilities = state.me.capabilities;
+  const asProvider =
+    capabilities.active_workspace === "provider" && capabilities.provider.workspace_access;
+  return asProvider ? <ProviderViewings /> : <TenantViewings />;
+}
+
+/**
+ * The tenant's schedule.
+ *
+ * A viewing is an appointment, not a status. So a row says the two things
+ * somebody standing at a junction needs — where, and when — and everything the
+ * lifecycle might allow at that moment lives one click away.
+ *
+ * The old page put the whole machine on every card: the slot picker, the exact
+ * directions, the appointment history, the contact number, the QR check-in, the
+ * post-viewing follow-up, the attendance panel and three quiet buttons, all
+ * rendered at once, on every row, forever. A tenant with three viewings read
+ * that machine three times to find out what time to be somewhere.
+ *
+ * All opens first so the schedule and its history are immediately useful.
+ * Upcoming still leads inside that view, anything waiting on the tenant is
+ * pulled into its own group, and focused filters remain one tap away.
+ */
+function TenantViewings() {
+  const [viewings, setViewings] = useState<MyViewing[] | null>(null);
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [filter, setFilter] = useState<ViewingFilter>("all");
+  const [error, setError] = useState("");
+
+  const load = useCallback(async () => {
+    try {
+      setViewings(await listMyViewings());
+      setError("");
+    } catch (cause) {
+      setViewings([]);
+      setError(cause instanceof ApiFailure ? cause.error.message : "Could not load your viewings.");
+    }
+  }, []);
+
+  useEffect(() => { void load(); }, [load]);
+
+  // A reminder can point straight at one appointment.
+  useEffect(() => {
+    if (viewings === null || !window.location.hash.startsWith("#viewing-")) return;
+    const id = window.location.hash.slice("#viewing-".length);
+    if (viewings.some((viewing) => viewing.id === id)) setOpenId(id);
+  }, [viewings]);
+
+  const groups = useMemo(() => {
+    const rows = (viewings ?? []).map((viewing) => ({ viewing, state: standing(viewing) }));
+    return {
+      upcoming: rows.filter((row) => row.state.group === "upcoming")
+        .sort((a, b) => bySoonest(a.viewing, b.viewing)),
+      action: rows.filter((row) => row.state.group === "action"),
+      past: rows.filter((row) => row.state.group === "past"),
+    };
+  }, [viewings]);
+
+  const sections: readonly {
+    id: ViewingGroup;
+    label: string;
+    rows: (typeof groups)[ViewingGroup];
+  }[] = [
+    { id: "upcoming", label: "Upcoming", rows: groups.upcoming },
+    { id: "action", label: "Needs you", rows: groups.action },
+    { id: "past", label: "Past", rows: groups.past },
+  ];
+  const visibleSections = sections
+    .filter((section) => matchesViewingFilter(section.id, filter))
+    .filter((section) => section.rows.length > 0);
+  const visibleRows = visibleSections.flatMap((section) => section.rows);
+  const explicit = openId
+    ? visibleRows.find((row) => row.viewing.id === openId) ?? null
+    : null;
+  const suggested = visibleRows[0] ?? null;
+  const opened = (explicit ?? suggested)?.viewing ?? null;
+  const counts: Record<ViewingFilter, number> = {
+    all: viewings?.length ?? 0,
+    upcoming: groups.upcoming.length,
+    action: groups.action.length,
+    past: groups.past.length,
+  };
+
+  return (
+    <div className="viewings">
+      <PageHeader
+        title="Viewings"
+        description="Plan each visit, find the place, and decide what happens next."
+      />
+      {error ? <Notice tone="error" title={error} /> : null}
+
+      {viewings === null ? (
+        <LoadingRows rows={2} />
+      ) : viewings.length === 0 ? (
+        <Empty
+          title="No viewings yet"
+          body="Ask to see a place and the landlord offers you times."
+          action={<Link href="/rentals" className="type-body-strong">Explore rentals →</Link>}
+        />
+      ) : (
+        <>
+          <nav className="tenant-viewing-filters-shell" aria-label="Filter viewings">
+            <div className="tenant-viewing-filters" role="tablist">
+              {viewingFilters.map((option) => (
+                <button
+                  key={option.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={filter === option.id}
+                  className="tenant-viewing-filter"
+                  onClick={() => {
+                    setFilter(option.id);
+                    setOpenId(null);
+                  }}
+                >
+                  <span>{option.label}</span>
+                  <small
+                    aria-label={`${counts[option.id]} ${counts[option.id] === 1 ? "viewing" : "viewings"}`}
+                  >
+                    {counts[option.id]}
+                  </small>
+                </button>
+              ))}
+            </div>
+          </nav>
+
+          <div className="tenant-viewings-split" data-open={explicit ? "yes" : "no"}>
+            <div className="tenant-viewings-column">
+              {visibleSections.length ? (
+                visibleSections.map((section) => (
+                  <ViewingGroupSection
+                    key={section.id}
+                    heading={filter === "all" ? section.label : null}
+                    tone={section.id === "action" ? "action" : undefined}
+                  >
+                    {section.rows.map((row) => (
+                      <ViewingRow
+                        key={row.viewing.id}
+                        {...row}
+                        selected={explicit?.viewing.id === row.viewing.id}
+                        onOpen={() => setOpenId(row.viewing.id)}
+                      />
+                    ))}
+                  </ViewingGroupSection>
+                ))
+              ) : (
+                <TenantViewingFilterEmpty filter={filter} />
+              )}
+            </div>
+
+            <ViewingRecord
+              viewing={opened}
+              onClose={() => setOpenId(null)}
+              onChanged={load}
+            />
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function TenantViewingFilterEmpty({ filter }: { filter: ViewingFilter }) {
+  const copy: Record<ViewingFilter, { title: string; body: string }> = {
+    all: { title: "No viewings here", body: "Your viewing requests will appear here." },
+    upcoming: { title: "No upcoming visits", body: "Confirmed visits and requests waiting for a time will appear here." },
+    action: { title: "Nothing needs you", body: "You are up to date on every viewing." },
+    past: { title: "No past viewings", body: "Completed and cancelled visits will remain available here." },
+  };
+  return (
+    <div className="tenant-viewing-filter-empty" role="status">
+      <strong>{copy[filter].title}</strong>
+      <span>{copy[filter].body}</span>
+    </div>
+  );
+}
+
+function ViewingGroupSection({
+  heading,
+  tone,
+  children,
+}: {
+  heading: string | null;
+  tone?: "action";
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="viewings-group">
+      {heading ? <h2 className={tone === "action" ? "is-action" : undefined}>{heading}</h2> : null}
+      <ul className="viewings-list">{children}</ul>
+    </section>
+  );
+}
+
+/** Where, when, and one way in. Nothing else. */
+function ViewingRow({
+  viewing,
+  state,
+  selected,
+  onOpen,
+}: {
+  viewing: MyViewing;
+  state: ReturnType<typeof standing>;
+  selected: boolean;
+  onOpen: () => void;
+}) {
+  const when = whenLabel(viewing.confirmed_starts_at);
+  return (
+    <li>
+      <button
+        type="button"
+        className={`tenant-viewing-row${state.group === "action" ? " is-action" : ""}`}
+        aria-pressed={selected}
+        onClick={onOpen}
+      >
+        <span className="viewing-photo">
+        {viewing.photo_url ? (
+          /* Short-lived signed URLs from the files service. */
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img src={viewing.photo_url} alt="" />
+        ) : null}
+        </span>
+
+        <span className="viewing-identity">
+        <strong>{viewing.listing_headline}</strong>
+        <span className="viewing-place">{placeOf(viewing) || "Ghana"}</span>
+        {when ? <span className="viewing-when">{when}</span> : null}
+        <span className={`viewing-standing is-${state.group}`}>
+          <i aria-hidden="true" />{state.line}
+        </span>
+        </span>
+
+        <span className={state.callToAction ? "viewing-primary" : "viewing-secondary"}>
+          {state.callToAction ?? "View details"}
+        </span>
+      </button>
+    </li>
+  );
+}

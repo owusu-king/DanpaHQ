@@ -1,0 +1,782 @@
+/* The shared workspace: one centred column in the body, a title with its mark,
+   a compact segmented scope control, then a single quiet panel that holds the
+   records and every state they can be in. Inside a panel there is no card per
+   group and no shadow per row; a row only becomes a surface when it is pointed
+   at, pressed or focused. Pages add their own rows; the frame is this file.
+   Components: `src/components/workspace/Workspace.tsx`. */
+
+.ws-page {
+  --ws-ease: var(--motion-easing-standard);
+  --ws-enter: var(--motion-easing-enter);
+  display: grid;
+  gap: var(--space-6);
+  min-width: 0;
+  width: 100%;
+  max-width: 72rem;
+  margin-inline: auto;
+  padding-top: var(--space-2);
+}
+
+/* --- head ------------------------------------------------------------------ */
+
+.ws-head { display: grid; gap: var(--space-3); min-width: 0; }
+.ws-head-path .entity-path { margin: 0; }
+
+/* The action sits beside the title while there is room, and drops beneath it
+   rather than squeezing the summary into a column. */
+.ws-head-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.ws-title { display: flex; flex: 1 1 18rem; align-items: flex-start; gap: var(--space-3); min-width: 0; }
+.ws-title-text { min-width: 0; }
+
+.ws-title-mark {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  color: var(--color-kola-600);
+  background: var(--color-kola-50);
+  border-radius: var(--radius-md);
+}
+
+.ws-title-mark .portal-icon { width: 20px; height: 20px; }
+
+.ws-head h1 {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-family: var(--font-display);
+  font-size: 1.625rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+
+.ws-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 var(--space-1);
+  min-height: 1.35rem;
+  margin: var(--space-1) 0 0;
+  color: var(--color-ink-500);
+  font-size: .875rem;
+}
+
+.ws-summary strong { color: var(--color-kola-800); font-weight: 650; }
+.ws-summary [data-tone="critical"] { color: var(--color-laterite-600); font-weight: 650; }
+.ws-summary [data-tone="warning"] { color: var(--color-harmattan-600); font-weight: 650; }
+.ws-summary-sep { color: var(--color-ink-300); }
+
+.ws-head-actions { display: flex; flex: 0 1 auto; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); min-width: 0; }
+
+/* A quiet header action: text and a glyph, a surface only when reached for. */
+.ws-action {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 2.25rem;
+  padding: 0 var(--space-3);
+  color: var(--color-kola-800);
+  font: inherit;
+  font-size: .875rem;
+  font-weight: 600;
+  white-space: nowrap;
+  text-decoration: none;
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background-color var(--motion-duration-fast) var(--ws-ease), color var(--motion-duration-fast) var(--ws-ease);
+}
+
+.ws-action .portal-icon { width: 16px; height: 16px; }
+/* The primary action is green on green; its glyph takes the label's colour, never the icon default grey. */
+.ws-action.is-primary .portal-icon { color: inherit; }
+.ws-action:hover { color: var(--color-kola-900); background: var(--color-kola-50); }
+.ws-action:active { background: color-mix(in srgb, var(--color-kola-600) 14%, var(--color-kola-50)); }
+/* The page's main action: a kola tint rather than a solid slab. */
+.ws-action.is-primary { color: var(--color-kola-800); background: var(--color-kola-50); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-kola-600) 22%, transparent); }
+.ws-action.is-primary:hover { background: color-mix(in srgb, var(--color-kola-600) 14%, var(--color-kola-50)); }
+
+.ws-action-count { color: var(--color-kola-600); font-size: .75rem; font-weight: 550; font-variant-numeric: tabular-nums; }
+
+/* --- segmented control --------------------------------------------------------- */
+
+.ws-segment-row {
+  display: flex;
+  justify-content: center;
+  min-width: 0;
+  scroll-margin-top: 5rem;
+}
+
+/* Where a page scrolls back to when it changes page: the scope control. */
+.ws-anchor { min-width: 0; scroll-margin-top: 5rem; }
+
+/* A recessed track, one raised paper thumb that slides to the selection, kola
+   text on it. Counts are quiet numerals, not chips; they take the brand colour
+   only on the selected segment. */
+.ws-segments {
+  position: relative;
+  display: inline-flex;
+  gap: 2px;
+  max-width: 100%;
+  padding: 3px;
+  overflow-x: auto;
+  background: var(--color-field-100);
+  border-radius: calc(var(--radius-sm) + 4px);
+  box-shadow: inset 0 1px 2px rgba(33, 26, 21, .07), inset 0 0 0 1px rgba(33, 26, 21, .04);
+  scrollbar-width: none;
+}
+
+.ws-segments::-webkit-scrollbar { display: none; }
+
+.ws-segment {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 2rem;
+  padding: 0 14px;
+  color: var(--color-ink-500);
+  font: inherit;
+  font-size: .8125rem;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  line-height: 1.2;
+  white-space: nowrap;
+  background: transparent;
+  border: 0;
+  border-radius: calc(var(--radius-sm) + 1px);
+  cursor: pointer;
+  transition: color var(--motion-duration-base) var(--ws-ease), transform var(--motion-duration-instant) var(--ws-ease);
+}
+
+.ws-segment:hover:not(:disabled):not([aria-selected="true"]) { color: var(--color-ink-900); }
+.ws-segment:active:not(:disabled) { transform: scale(.97); }
+.ws-segment[aria-selected="true"] { color: var(--color-kola-800); }
+.ws-segment:disabled { cursor: default; }
+.ws-segments[data-disabled] { opacity: .7; }
+
+.ws-segment-count {
+  color: var(--color-ink-300);
+  font-size: .75rem;
+  font-weight: 550;
+  font-variant-numeric: tabular-nums;
+  transition: color var(--motion-duration-base) var(--ws-ease);
+}
+
+.ws-segment:hover:not(:disabled) .ws-segment-count { color: var(--color-ink-500); }
+.ws-segment-count[data-empty] { opacity: .55; }
+.ws-segment[aria-selected="true"] .ws-segment-count { color: var(--color-kola-600); }
+
+.ws-segment:focus-visible { outline-offset: 2px; border-radius: calc(var(--radius-sm) + 1px); }
+
+.ws-segment-thumb {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 0;
+  background: var(--color-field-0);
+  border-radius: calc(var(--radius-sm) + 1px);
+  box-shadow:
+    0 0 0 .5px rgba(33, 26, 21, .08),
+    0 1px 2px rgba(33, 26, 21, .08),
+    0 2px 6px -2px rgba(33, 26, 21, .10);
+  transition:
+    transform var(--motion-duration-base) var(--ws-ease),
+    width var(--motion-duration-base) var(--ws-ease);
+}
+
+/* In a toolbar: shorter, and not centred on its own row. */
+.ws-segment-row.is-inline { display: flex; justify-content: flex-start; flex: 0 1 auto; }
+.ws-segment-row.is-inline .ws-segment { min-height: 1.75rem; padding: 0 10px; font-size: .75rem; }
+.ws-segment-row.is-inline .ws-segment-count { font-size: .6875rem; }
+
+.ws-segments[data-disabled] .ws-segment-thumb { background: color-mix(in srgb, var(--color-field-0) 60%, transparent); box-shadow: none; }
+
+/* --- the panel that holds the records -------------------------------------------- */
+
+.ws-panel {
+  position: relative;
+  min-width: 0;
+  background: var(--color-field-0);
+  border: var(--border-hairline) solid var(--color-field-200);
+  border-radius: var(--radius-lg);
+}
+
+.ws-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-field-50);
+  border-bottom: var(--border-hairline) solid var(--color-field-200);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+}
+
+.ws-panel-tools { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
+
+.ws-range { flex: 0 0 auto; margin: 0; color: var(--color-ink-500); font-size: .8125rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ws-range strong { color: var(--color-ink-900); font-weight: 650; }
+
+.ws-panel-body { display: grid; gap: var(--space-6); min-width: 0; padding: var(--space-5) var(--space-3) var(--space-4); }
+
+.ws-group { min-width: 0; }
+
+.ws-group-heading {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-1);
+  padding: 0 var(--space-3);
+  color: var(--color-ink-500);
+  font-size: .75rem;
+  font-weight: 650;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.ws-group-heading > span { color: var(--color-ink-300); font-weight: 600; letter-spacing: 0; font-variant-numeric: tabular-nums; }
+.ws-group.is-urgent .ws-group-heading { color: var(--color-harmattan-600); }
+.ws-group.is-urgent .ws-group-heading > span { color: color-mix(in srgb, var(--color-harmattan-600) 60%, transparent); }
+
+.ws-rows {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+/* --- a canvas for cards --------------------------------------------------------- */
+
+/* The list keeps its toolbar on paper and lets the cards sit on the canvas,
+   so the glass has something to be glass over. */
+.ws-panel.is-canvas { background: transparent; border: 0; }
+.ws-panel.is-canvas > .ws-panel-head {
+  background: var(--color-field-0);
+  border: var(--border-hairline) solid var(--color-field-200);
+  border-radius: var(--radius-md);
+}
+
+.ws-canvas {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  gap: var(--space-8);
+  min-width: 0;
+  padding: var(--space-6) 0 var(--space-2);
+}
+
+.ws-canvas::before {
+  content: "";
+  position: absolute;
+  inset: -3rem 0 -4rem;
+  z-index: -1;
+  /* Feathered on every side, so the wash has no edge to find. */
+  -webkit-mask-image: radial-gradient(ellipse 50% 50% at 50% 50%, #000 55%, transparent 100%);
+  mask-image: radial-gradient(ellipse 50% 50% at 50% 50%, #000 55%, transparent 100%);
+  background:
+    radial-gradient(40rem 26rem at 18% 18%, color-mix(in srgb, var(--color-kola-300) 22%, transparent), transparent 68%),
+    radial-gradient(34rem 24rem at 84% 36%, color-mix(in srgb, var(--color-gold-300) 20%, transparent), transparent 70%),
+    radial-gradient(30rem 20rem at 40% 100%, color-mix(in srgb, var(--color-kola-300) 14%, transparent), transparent 70%);
+  pointer-events: none;
+}
+
+/* --- search -------------------------------------------------------------------- */
+
+.ws-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: min(100%, 20rem);
+  min-width: 0;
+}
+
+.ws-search-icon { position: absolute; left: 10px; color: var(--color-ink-500); pointer-events: none; }
+
+.ws-search input {
+  width: 100%;
+  min-height: 2.25rem;
+  padding: 0 2.25rem 0 2.125rem;
+  color: var(--color-ink-900);
+  font: inherit;
+  font-size: .8125rem;
+  background: var(--color-field-0);
+  border: 0;
+  border-radius: var(--radius-sm);
+  box-shadow: 0 0 0 1px var(--color-field-200);
+  outline: none;
+  transition: box-shadow var(--motion-duration-fast) var(--ws-ease);
+  appearance: none;
+}
+
+.ws-search input::placeholder { color: var(--color-ink-300); }
+.ws-search input::-webkit-search-cancel-button { display: none; }
+.ws-search input:hover { box-shadow: 0 0 0 1px var(--color-field-300); }
+.ws-search input:focus-visible { box-shadow: 0 0 0 1px var(--color-kola-600), 0 0 0 4px color-mix(in srgb, var(--color-kola-600) 14%, transparent); }
+
+.ws-search-clear {
+  position: absolute;
+  right: 4px;
+  display: grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  color: var(--color-ink-500);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+}
+
+.ws-search-clear .portal-icon { width: 14px; height: 14px; }
+.ws-search-clear:hover { color: var(--color-ink-900); background: var(--color-field-100); }
+
+/* --- filter menu ------------------------------------------------------------------ */
+
+.ws-filter {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 2.25rem;
+  padding: 0 var(--space-2) 0 var(--space-3);
+  color: var(--color-ink-700);
+  font: inherit;
+  font-size: .8125rem;
+  font-weight: 600;
+  white-space: nowrap;
+  background: var(--color-field-0);
+  border: 0;
+  border-radius: var(--radius-sm);
+  box-shadow: 0 0 0 1px var(--color-field-200);
+  cursor: pointer;
+  transition: color var(--motion-duration-fast) var(--ws-ease), box-shadow var(--motion-duration-fast) var(--ws-ease);
+}
+
+.ws-filter-prefix { margin-right: 4px; color: var(--color-ink-500); font-style: normal; font-weight: 500; }
+.ws-filter .portal-icon { width: 16px; height: 16px; color: var(--color-ink-500); }
+.ws-filter .portal-icon:last-child { width: 14px; height: 14px; transition: transform var(--motion-duration-base) var(--ws-ease); }
+.ws-filter:hover { color: var(--color-ink-900); box-shadow: 0 0 0 1px var(--color-field-300); }
+.ws-filter[data-state="open"] { color: var(--color-ink-900); box-shadow: 0 0 0 1px var(--color-ink-300); }
+.ws-filter[data-state="open"] .portal-icon:last-child { transform: rotate(180deg); }
+.ws-filter[data-active] { color: var(--color-kola-800); background: var(--color-kola-50); box-shadow: 0 0 0 1px var(--color-kola-300); }
+.ws-filter[data-active] .portal-icon { color: var(--color-kola-600); }
+
+/* One quiet sheet of paper, opening from where it was asked for. */
+.ws-menu {
+  z-index: 50;
+  min-width: 13rem;
+  padding: var(--space-1);
+  background: var(--color-field-0);
+  border: var(--border-hairline) solid var(--color-field-200);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-floating);
+  transform-origin: var(--radix-dropdown-menu-content-transform-origin);
+  animation: ws-menu-in var(--motion-duration-fast) var(--ws-enter);
+}
+
+.ws-menu[data-state="closed"] { animation: ws-menu-out 100ms var(--motion-easing-exit) forwards; }
+
+.ws-menu-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto 1rem;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 2.25rem;
+  padding: 0 var(--space-2) 0 var(--space-3);
+  color: var(--color-ink-800);
+  font-size: .875rem;
+  font-weight: 500;
+  border-radius: var(--radius-sm);
+  outline: none;
+  cursor: pointer;
+  user-select: none;
+}
+
+.ws-menu-item > span:first-child { grid-column: 1; }
+.ws-menu-count { grid-column: 2; color: var(--color-ink-500); font-size: .75rem; font-variant-numeric: tabular-nums; }
+.ws-menu-check { grid-column: 3; display: grid; place-items: center; color: var(--color-kola-600); }
+.ws-menu-check .portal-icon { width: 16px; height: 16px; }
+.ws-menu-item[data-highlighted] { color: var(--color-ink-900); background: var(--color-field-100); }
+.ws-menu-item[data-state="checked"] { color: var(--color-kola-800); font-weight: 650; }
+.ws-menu-item[data-disabled] { color: var(--color-ink-300); cursor: default; }
+.ws-menu-item[data-disabled] .ws-menu-count { color: var(--color-ink-300); }
+.ws-menu-rule { height: 1px; margin: var(--space-1) var(--space-2); background: var(--color-field-200); }
+
+/* --- what needs them ------------------------------------------------------------ */
+
+/* The one thing on a page that only moves when the reader does, lifted above
+   the list (NextUp). Glass on the canvas, kola because what waits is good news
+   — an agreement arriving — not a warning. */
+.ws-next {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-4);
+  min-width: 0;
+  padding: var(--space-3) var(--space-4) var(--space-3) var(--space-3);
+  background:
+    radial-gradient(90% 160% at 0% 0%, color-mix(in srgb, var(--color-kola-50) 95%, transparent), transparent 62%),
+    radial-gradient(60% 120% at 100% 100%, color-mix(in srgb, var(--color-gold-50) 70%, transparent), transparent 70%),
+    linear-gradient(165deg, rgba(255, 255, 255, .96), rgba(255, 255, 255, .8));
+  border: 1px solid rgba(255, 255, 255, .9);
+  border-radius: var(--radius-lg);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--color-kola-600) 18%, transparent),
+    0 14px 30px -22px color-mix(in srgb, var(--color-kola-600) 65%, transparent),
+    inset 0 1px 0 #fff;
+  animation: ws-rise var(--motion-duration-slow) var(--motion-easing-enter) both;
+}
+
+.ws-next-photo {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 3.5rem;
+  height: 3.5rem;
+  overflow: hidden;
+  color: #fff;
+  background: linear-gradient(155deg, color-mix(in srgb, var(--color-kola-600) 72%, #fff), var(--color-kola-600));
+  border-radius: .875rem;
+  box-shadow: 0 8px 18px -12px var(--color-kola-600), 0 0 0 1px rgba(33, 26, 21, .06);
+}
+
+.ws-next-photo img { width: 100%; height: 100%; object-fit: cover; }
+.ws-next-photo .portal-icon { width: 22px; height: 22px; color: inherit; }
+
+.ws-next-copy { display: grid; gap: 2px; min-width: 0; }
+
+.ws-next-copy small {
+  color: var(--color-kola-600);
+  font-size: .6875rem;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.ws-next-copy > button:not(.ws-next-more) {
+  overflow: hidden;
+  padding: 0;
+  color: var(--color-ink-900);
+  font: inherit;
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: -.01em;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  transition: color var(--motion-duration-fast) var(--ws-ease);
+}
+
+.ws-next-copy > button:not(.ws-next-more) span { color: var(--color-ink-500); font-family: var(--font-body); font-size: .875rem; font-weight: 500; }
+.ws-next-copy > button:not(.ws-next-more):hover { color: var(--color-kola-800); }
+.ws-next-hint { color: var(--color-ink-500); font-size: .8125rem; }
+
+.ws-next-more {
+  justify-self: start;
+  padding: 0;
+  color: var(--color-kola-800);
+  font: inherit;
+  font-size: .8125rem;
+  font-weight: 600;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--color-kola-600) 35%, transparent);
+  text-underline-offset: 3px;
+  transition: text-decoration-color var(--motion-duration-fast) var(--ws-ease);
+}
+
+.ws-next-more:hover { text-decoration-color: currentColor; }
+
+.ws-next-action {
+  font: inherit;
+  border: 0;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 2.5rem;
+  padding: 0 var(--space-4);
+  color: #fff;
+  font-size: .8125rem;
+  font-weight: 650;
+  white-space: nowrap;
+  text-decoration: none;
+  background: linear-gradient(150deg, var(--color-kola-600), color-mix(in srgb, var(--color-kola-600) 70%, var(--color-kola-800)));
+  border-radius: var(--radius-md);
+  box-shadow: 0 10px 20px -12px color-mix(in srgb, var(--color-kola-600) 90%, transparent), inset 0 1px 0 rgba(255, 255, 255, .2);
+  transition: background-color var(--motion-duration-fast) var(--ws-ease), box-shadow var(--motion-duration-fast) var(--ws-ease), transform var(--motion-duration-instant) var(--ws-ease);
+}
+
+.ws-next-action svg { transition: transform var(--motion-duration-base) var(--ws-ease); }
+.ws-next-action:hover { box-shadow: 0 14px 24px -12px color-mix(in srgb, var(--color-kola-600) 95%, transparent), inset 0 1px 0 rgba(255, 255, 255, .2); }
+.ws-next-action:hover svg { transform: translateX(3px); }
+.ws-next-action:active { transform: scale(.98); }
+.ws-next-action:focus-visible,
+.ws-next-copy button:focus-visible { outline: var(--border-emphasis) solid var(--color-kola-600); outline-offset: 2px; }
+
+/* Late: the same glass, warmed to laterite, so it is read before it is opened. */
+.ws-next[data-tone="overdue"] {
+  background:
+    radial-gradient(90% 160% at 0% 0%, color-mix(in srgb, var(--color-laterite-100) 95%, transparent), transparent 62%),
+    radial-gradient(60% 120% at 100% 100%, color-mix(in srgb, var(--color-gold-50) 70%, transparent), transparent 70%),
+    linear-gradient(165deg, rgba(255, 255, 255, .96), rgba(255, 255, 255, .8));
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--color-laterite-600) 20%, transparent),
+    0 14px 30px -22px color-mix(in srgb, var(--color-laterite-600) 60%, transparent),
+    inset 0 1px 0 #fff;
+}
+.ws-next[data-tone="overdue"] .ws-next-copy small { color: var(--color-laterite-600); }
+.ws-next[data-tone="overdue"] .ws-next-photo { background: linear-gradient(155deg, color-mix(in srgb, var(--color-laterite-600) 72%, #fff), var(--color-laterite-600)); box-shadow: 0 8px 18px -12px var(--color-laterite-600), 0 0 0 1px rgba(33, 26, 21, .06); }
+
+@media (max-width: 40rem) {
+  .ws-next { grid-template-columns: auto minmax(0, 1fr); gap: var(--space-3); padding: var(--space-3); }
+  .ws-next-photo { width: 3rem; height: 3rem; }
+  .ws-next-action { grid-column: 1 / -1; justify-content: center; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ws-next { animation: none; }
+  .ws-next-action,
+  .ws-next-action svg { transition: none; }
+}
+
+/* --- states -------------------------------------------------------------------- */
+
+.ws-state {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-2);
+  padding: var(--space-16) var(--space-4) var(--space-12);
+  text-align: center;
+  animation: ws-rise var(--motion-duration-slow) var(--ws-enter) both;
+}
+
+/* The empty-state mark: the page's own glyph, large and light, on nothing — no
+   disc, no badge. A soft clay line, and for an absence a stroke across it with
+   a sliver of paper either side, so the strike reads as drawn, not stamped. */
+.ws-state-mark {
+  --ws-state-ground: var(--color-field-0);
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 3.5rem;
+  height: 3.5rem;
+  margin-bottom: var(--space-2);
+  color: color-mix(in srgb, var(--color-laterite-600) 42%, var(--color-field-200));
+}
+
+.ws-state-mark > .portal-icon { width: 3.5rem; height: 3.5rem; color: inherit; stroke-width: .95; }
+
+.ws-state-strike { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; fill: none; stroke-linecap: round; }
+.ws-state-strike-gap { stroke: var(--ws-state-ground); stroke-width: 2.6; }
+.ws-state-strike-line {
+  stroke: currentColor;
+  stroke-width: .95;
+  stroke-dasharray: 19;
+  animation: ws-strike 520ms var(--ws-enter) 180ms both;
+}
+
+.ws-panel.is-canvas .ws-state-mark { --ws-state-ground: var(--color-field-50); }
+/* "All done" is good news, not an absence: the tick is drawn in kola. */
+.ws-state:not(.is-error) .ws-state-mark.is-done { color: color-mix(in srgb, var(--color-kola-600) 70%, var(--color-field-200)); }
+.ws-state.is-error .ws-state-mark { color: color-mix(in srgb, var(--color-laterite-600) 78%, var(--color-field-200)); }
+.ws-state h2 { margin: 0; color: var(--color-ink-700); font-size: 1rem; font-weight: 650; letter-spacing: -.01em; }
+.ws-state.is-error h2 { color: var(--color-ink-900); }
+.ws-state p { max-width: 42ch; margin: 0 0 var(--space-2); color: var(--color-ink-500); font-size: .875rem; line-height: 1.5; }
+
+@keyframes ws-strike { from { stroke-dashoffset: 19; } }
+
+.ws-inline-error {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: var(--space-3) var(--space-4) 0;
+  padding: var(--space-2) var(--space-3);
+  color: var(--color-laterite-600);
+  font-size: .8125rem;
+  font-weight: 500;
+  background: var(--color-laterite-100);
+  border-radius: var(--radius-sm);
+  animation: ws-rise var(--motion-duration-base) var(--ws-enter) both;
+}
+
+.ws-inline-error .portal-icon { flex: 0 0 auto; width: 16px; height: 16px; }
+.ws-inline-error span { flex: 1; }
+.ws-inline-error button {
+  padding: var(--space-1) var(--space-2);
+  color: var(--color-laterite-600);
+  font: inherit;
+  font-weight: 650;
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+}
+
+.ws-inline-error button:hover:not(:disabled) { background: color-mix(in srgb, var(--color-laterite-600) 10%, transparent); }
+.ws-inline-error button:disabled { opacity: .6; cursor: default; }
+
+.ws-skeleton { display: grid; gap: 2px; padding: calc(var(--space-5) + 1.25rem) var(--space-3) var(--space-4); }
+
+.ws-skeleton-row {
+  display: grid;
+  grid-template-columns: 2.25rem minmax(0, 1fr) 3rem;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 4.25rem;
+  padding: var(--space-3) var(--space-3) var(--space-3) calc(var(--space-2) + 6px + var(--space-3));
+  animation: ws-rise var(--motion-duration-base) var(--ws-enter) both;
+  animation-delay: calc(var(--ws-order, 0) * 40ms);
+}
+
+.ws-skeleton-lines { display: grid; gap: var(--space-2); }
+
+.ws-skeleton-block {
+  display: block;
+  height: .8rem;
+  background: linear-gradient(90deg, var(--color-field-100) 0%, var(--color-field-200) 50%, var(--color-field-100) 100%);
+  background-size: 200% 100%;
+  border-radius: var(--radius-xs);
+  animation: ws-shimmer 1.4s ease-in-out infinite;
+}
+
+.ws-skeleton-block.is-mark { width: 2.25rem; height: 2.25rem; border-radius: var(--radius-md); }
+.ws-skeleton-block.is-mark.is-round { border-radius: 50%; }
+.ws-skeleton-block.is-thin { height: .625rem; }
+.ws-skeleton-block.is-end { width: 2.75rem; height: .625rem; justify-self: end; }
+
+/* --- pagination ------------------------------------------------------------------- */
+
+.ws-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-4);
+  padding: var(--space-2) var(--space-3);
+  color: var(--color-ink-500);
+  font-size: .8125rem;
+  border-top: var(--border-hairline) solid var(--color-field-200);
+}
+
+.ws-pagination > div { display: flex; align-items: center; gap: var(--space-1); }
+.ws-pagination [aria-current="page"] { padding: 0 var(--space-3); font-variant-numeric: tabular-nums; }
+
+.ws-pagination button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: 2.25rem;
+  padding: 0 var(--space-3);
+  color: var(--color-ink-800);
+  font: inherit;
+  font-weight: 600;
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: color var(--motion-duration-fast) var(--ws-ease), background-color var(--motion-duration-fast) var(--ws-ease);
+}
+
+.ws-pagination button:hover:not(:disabled) { color: var(--color-kola-800); background: var(--color-kola-50); }
+.ws-pagination button:active:not(:disabled) { background: color-mix(in srgb, var(--color-kola-600) 14%, var(--color-kola-50)); }
+.ws-pagination button:disabled { color: var(--color-ink-300); cursor: default; }
+
+.ws-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* --- motion ------------------------------------------------------------------------ */
+
+@keyframes ws-rise {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes ws-found {
+  0%, 30% { background: var(--color-kola-50); box-shadow: 0 0 0 1px var(--color-kola-300); }
+  100% { background: transparent; box-shadow: 0 0 0 1px transparent; }
+}
+
+@keyframes ws-menu-in {
+  from { opacity: 0; transform: translateY(-4px) scale(.98); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes ws-menu-out { to { opacity: 0; transform: translateY(-2px) scale(.99); } }
+
+@keyframes ws-shimmer {
+  from { background-position: 100% 0; }
+  to { background-position: -100% 0; }
+}
+
+@keyframes ws-spin { to { transform: rotate(360deg); } }
+
+/* --- narrow ------------------------------------------------------------------------ */
+
+@media (max-width: 760px) {
+  .ws-page { gap: var(--space-5); padding-top: 0; }
+  .ws-segment-row { scroll-margin-top: 4.5rem; }
+  .ws-segments { width: 100%; }
+  .ws-segment { flex: 1 1 auto; padding-inline: var(--space-3); }
+  .ws-panel { border-radius: var(--radius-md); }
+  .ws-panel-head { padding: var(--space-2) var(--space-3); border-radius: var(--radius-md) var(--radius-md) 0 0; }
+  .ws-panel-body { padding: var(--space-4) var(--space-1) var(--space-3); }
+  .ws-canvas { gap: var(--space-6); padding-top: var(--space-5); }
+}
+
+@media (max-width: 480px) {
+  .ws-head h1 { font-size: 1.375rem; }
+  .ws-title-mark { width: 2.25rem; height: 2.25rem; }
+  .ws-segment { padding-inline: var(--space-2); }
+  .ws-filter span { display: none; }
+  .ws-filter .portal-icon:last-child { display: none; }
+  .ws-filter { padding: 0 var(--space-2); }
+  .ws-pagination > div { width: 100%; justify-content: space-between; }
+}
+
+@media (max-width: 360px) {
+  .ws-segment-count { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ws-state,
+  .ws-inline-error,
+  .ws-skeleton-row,
+  .ws-menu { animation: none; }
+  .ws-skeleton-block,
+  .ws-state-strike-line { animation: none; }
+  .ws-segment-thumb,
+  .ws-segment,
+  .ws-filter,
+  .ws-action,
+  .ws-search input,
+  .ws-pagination button { transition: none; }
+}

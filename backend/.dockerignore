@@ -1,0 +1,12 @@
+# Keep the build context small, and keep host-built artefacts out of the image.
+# A Windows .venv copied into a Linux container is broken and enormous.
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+media/
+staticfiles/

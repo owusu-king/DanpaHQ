@@ -1,0 +1,284 @@
+/* Provider review — the Home while a provider waits for approval.
+ *
+ * A waiting room, centred on the dashboard's ground: a seal, one sentence,
+ * the three steps of the journey and two quiet doors. Glass over a soft pool of
+ * the brand's green, colour kept for meaning — kola for what is done, harmattan
+ * for what is under way or asked of them, laterite for a stop. */
+
+.portal-workspace.is-dashboard:has(.review-wait) {
+  background:
+    radial-gradient(46rem 28rem at 50% -6%, color-mix(in srgb, var(--color-kola-50) 85%, transparent), transparent 70%),
+    radial-gradient(40rem 22rem at 100% 100%, color-mix(in srgb, var(--color-gold-50) 70%, transparent), transparent 70%),
+    var(--color-field-50);
+}
+
+.review-wait {
+  /* The state's colour, read by the seal, the pill and the current step. */
+  --rv-ink: var(--color-harmattan-600);
+  --rv-strong: var(--color-harmattan-500);
+  --rv-wash: var(--color-harmattan-100);
+  --rv-glass: linear-gradient(170deg, rgba(255, 255, 255, .94), rgba(255, 255, 255, .78));
+  --rv-ring: rgba(33, 26, 21, .07);
+
+  width: 100%;
+  max-width: 44rem;
+  margin: clamp(8px, 4vh, 40px) auto 48px;
+  display: grid;
+  gap: 16px;
+  font-family: var(--font-body);
+  color: var(--color-ink-900);
+}
+.review-wait[data-tone="stopped"] {
+  --rv-ink: var(--color-laterite-600);
+  --rv-strong: var(--color-laterite-600);
+  --rv-wash: var(--color-laterite-100);
+}
+
+/* The portal's icons are grey by default; here each takes the colour of the mark it sits in. */
+.review-wait .portal-icon { color: inherit; }
+
+.review-wait > * { animation: rv-rise 620ms cubic-bezier(.22, 1, .36, 1) both; }
+.review-wait > :nth-child(2) { animation-delay: 90ms; }
+.review-wait > :nth-child(3) { animation-delay: 180ms; }
+@keyframes rv-rise { from { opacity: 0; transform: translateY(10px); } }
+
+/* --- the hero ----------------------------------------------------------------- */
+
+.review-hero {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  display: grid;
+  justify-items: center;
+  text-align: center;
+  padding: 44px clamp(20px, 6vw, 56px) 36px;
+  border-radius: 28px;
+  background: var(--rv-glass);
+  box-shadow: 0 0 0 1px var(--rv-ring), 0 24px 56px -36px rgba(12, 58, 42, .4), inset 0 1px 0 rgba(255, 255, 255, .95);
+}
+/* A breath of green behind the seal, so the page has a centre. */
+.review-hero::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: -40% 10% auto;
+  height: 320px;
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--color-kola-50) 90%, transparent), transparent);
+}
+
+.review-seal { position: relative; width: 104px; height: 104px; margin-bottom: 22px; }
+.review-seal-ring { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
+.review-seal-track { fill: none; stroke: var(--rv-wash); stroke-width: 4; }
+.review-seal-arc {
+  fill: none;
+  stroke: var(--rv-strong);
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-dasharray: 18 82;
+  transform-origin: 60px 60px;
+  animation: rv-orbit 3.6s linear infinite;
+}
+/* Asked of them or stopped: the light holds still, a full ring in the state's colour. */
+.review-wait:not([data-tone="waiting"]) .review-seal-arc { animation: none; stroke-dasharray: 100 0; }
+@keyframes rv-orbit { to { transform: rotate(360deg); } }
+
+.review-seal-core {
+  position: absolute;
+  inset: 14px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--rv-ink);
+  background: linear-gradient(160deg, #fff, var(--rv-wash));
+  box-shadow: 0 0 0 1px var(--rv-ring), 0 10px 24px -16px rgba(12, 58, 42, .45);
+}
+.review-seal-core .portal-icon { width: 30px; height: 30px; }
+
+/* Small capitals over the gold register, as on the mobile Home. */
+.review-eyebrow {
+  margin: 0 0 12px;
+  padding-bottom: 8px;
+  font-size: .6875rem;
+  font-weight: 600;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--color-ink-500);
+  background: linear-gradient(var(--color-gold-500), var(--color-gold-500)) bottom center / 22px 1.5px no-repeat;
+}
+
+.review-title {
+  margin: 0;
+  max-width: 22ch;
+  font-family: var(--font-display);
+  font-size: clamp(1.625rem, 1.2rem + 1.6vw, 2.125rem);
+  line-height: 1.15;
+  font-weight: 600;
+  letter-spacing: -.02em;
+  text-wrap: balance;
+}
+
+.review-body {
+  margin: 12px 0 0;
+  max-width: 46ch;
+  font-size: 1rem;
+  line-height: 1.6;
+  color: var(--color-ink-700);
+  text-wrap: pretty;
+}
+
+.review-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 20px 0 0;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: .8125rem;
+  font-weight: 500;
+  color: var(--rv-ink);
+  background: var(--rv-wash);
+}
+.review-status-dot { position: relative; width: 8px; height: 8px; border-radius: 50%; background: var(--rv-strong); }
+.review-wait[data-tone="waiting"] .review-status-dot::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: var(--rv-strong);
+  animation: rv-pulse 2.4s ease-out infinite;
+}
+@keyframes rv-pulse { to { transform: scale(2.6); opacity: 0; } }
+
+.review-note {
+  margin: 20px 0 0;
+  max-width: 46ch;
+  padding: 14px 16px;
+  border-radius: 14px;
+  text-align: left;
+  font-size: .9375rem;
+  line-height: 1.55;
+  color: var(--color-ink-800);
+  background: color-mix(in srgb, var(--rv-wash) 60%, #fff);
+  border-left: 3px solid var(--rv-strong);
+}
+.review-note span {
+  display: block;
+  margin-bottom: 4px;
+  font-size: .6875rem;
+  font-weight: 600;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--rv-ink);
+}
+
+/* --- the journey -------------------------------------------------------------- */
+
+.review-steps {
+  list-style: none;
+  margin: 0;
+  padding: 20px 24px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  border-radius: 22px;
+  background: var(--rv-glass);
+  box-shadow: 0 0 0 1px var(--rv-ring), inset 0 1px 0 rgba(255, 255, 255, .95);
+}
+.review-step { position: relative; display: flex; align-items: center; gap: 12px; min-width: 0; }
+/* The line from one step to the next: it runs from the words to the next mark,
+   and fills once the step behind it is done. */
+.review-step:not(:last-child)::after {
+  content: "";
+  flex: 1;
+  min-width: 12px;
+  height: 2px;
+  margin-right: -12px;
+  border-radius: 2px;
+  background: var(--color-field-200);
+}
+.review-step[data-state="done"]:not(:last-child)::after { background: var(--color-kola-300); }
+
+.review-step-mark {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  font-size: .8125rem;
+  font-weight: 600;
+  color: var(--color-ink-500);
+  background: var(--color-field-100);
+  box-shadow: inset 0 0 0 1px var(--color-field-200);
+}
+.review-step-mark .portal-icon { width: 16px; height: 16px; }
+.review-step[data-state="done"] .review-step-mark { color: #fff; background: var(--color-kola-600); box-shadow: none; }
+.review-step[data-state="current"] .review-step-mark,
+.review-step[data-state="blocked"] .review-step-mark {
+  color: var(--rv-ink);
+  background: var(--rv-wash);
+  box-shadow: inset 0 0 0 1.5px var(--rv-strong);
+}
+
+.review-step-text { display: grid; gap: 1px; min-width: 0; }
+.review-step-text strong { font-size: .875rem; font-weight: 600; line-height: 1.3; }
+.review-step-text small { font-size: .75rem; line-height: 1.35; color: var(--color-ink-500); }
+.review-step[data-state="todo"] .review-step-text strong { color: var(--color-ink-500); font-weight: 500; }
+
+/* --- the doors ---------------------------------------------------------------- */
+
+.review-doors { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.review-door {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  padding: 16px 18px;
+  border-radius: 18px;
+  color: var(--color-ink-900);
+  text-decoration: none;
+  background: rgba(255, 255, 255, .62);
+  box-shadow: 0 0 0 1px var(--rv-ring), inset 0 1px 0 rgba(255, 255, 255, .9);
+  transition: transform 180ms ease, box-shadow 180ms ease, background 180ms ease;
+}
+.review-door:hover {
+  transform: translateY(-1px);
+  background: rgba(255, 255, 255, .9);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-kola-600) 22%, transparent), 0 16px 32px -24px rgba(12, 58, 42, .4);
+}
+.review-door:focus-visible { outline: 2px solid var(--color-kola-600); outline-offset: 2px; }
+.review-door-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  color: var(--color-kola-800);
+  background: var(--color-kola-50);
+}
+.review-door.is-primary .review-door-icon { color: #fff; background: var(--color-kola-800); }
+.review-door-text { flex: 1; display: grid; gap: 2px; min-width: 0; }
+.review-door-text strong { font-size: .9375rem; font-weight: 600; line-height: 1.3; }
+.review-door-text small { font-size: .8125rem; line-height: 1.35; color: var(--color-ink-500); }
+.review-door-go { flex: none; color: var(--color-kola-800); transition: transform 180ms ease; }
+.review-door:hover .review-door-go { transform: translateX(3px); }
+
+/* --- narrow ------------------------------------------------------------------- */
+
+@media (max-width: 640px) {
+  .review-wait { margin-top: 4px; gap: 12px; }
+  .review-hero { padding: 32px 20px 28px; border-radius: 24px; }
+  .review-seal { width: 88px; height: 88px; margin-bottom: 18px; }
+  .review-seal-core .portal-icon { width: 26px; height: 26px; }
+  /* The journey reads down the page, its line running between the marks. */
+  .review-steps { grid-template-columns: 1fr; gap: 14px; padding: 18px 20px; }
+  .review-step:not(:last-child)::after { position: absolute; top: 34px; left: 15px; flex: none; width: 2px; min-width: 0; height: 12px; margin: 0; }
+  .review-doors { grid-template-columns: 1fr; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .review-wait > *,
+  .review-seal-arc,
+  .review-status-dot::after { animation: none; }
+}

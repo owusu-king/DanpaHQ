@@ -1,0 +1,33 @@
+// Local signing is explicit. EAS injects its managed release config later.
+def uploadValue = { name -> project.findProperty(name) ?: System.getenv(name) }
+android {
+    signingConfigs {
+        release {
+            def path = uploadValue('DANPAHQ_UPLOAD_STORE_FILE')
+            if (path) {
+                storeFile file(path)
+                storePassword uploadValue('DANPAHQ_UPLOAD_STORE_PASSWORD')
+                keyAlias uploadValue('DANPAHQ_UPLOAD_KEY_ALIAS')
+                keyPassword uploadValue('DANPAHQ_UPLOAD_KEY_PASSWORD')
+            }
+        }
+    }
+    buildTypes.release.signingConfig signingConfigs.release
+}
+
+def verifyReleaseSigning = tasks.register('verifyReleaseSigning') {
+    doLast {
+        def config = android.buildTypes.release.signingConfig
+        if (!config?.storeFile?.isFile() || !config.storePassword || !config.keyAlias || !config.keyPassword) {
+            throw new GradleException('Release signing is required. Use EAS managed credentials or DANPAHQ_UPLOAD_* credentials.')
+        }
+        def store = java.security.KeyStore.getInstance(config.storeFile, config.storePassword.toCharArray())
+        def cert = store.getCertificate(config.keyAlias)
+        if (config.keyAlias == 'androiddebugkey' || cert == null || cert.subjectX500Principal.name.contains('CN=Android Debug')) {
+            throw new GradleException('An Android debug certificate cannot sign a release.')
+        }
+    }
+}
+tasks.configureEach { task ->
+    if (task.name == 'preReleaseBuild') task.dependsOn(verifyReleaseSigning)
+}

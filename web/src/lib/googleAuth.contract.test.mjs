@@ -1,0 +1,42 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import test from "node:test";
+
+const read = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
+
+const button = read("../components/auth/GoogleIdentityButton.tsx");
+const register = read("../components/auth/flows/RegisterFlow.tsx");
+const signIn = read("../components/auth/flows/SignInFlow.tsx");
+const security = read("../components/account/IdentitySecurity.tsx");
+const shell = read("../components/portal/PortalShell.tsx");
+
+test("GIS uses the maintained remote client and sends the opaque credential to the API", () => {
+  assert.match(button, /https:\/\/accounts\.google\.com\/gsi\/client/);
+  assert.match(button, /NEXT_PUBLIC_GOOGLE_CLIENT_ID/);
+  assert.doesNotMatch(button, /atob|decodeJwt|split\(["']\.["']\)/);
+  assert.match(button, /googleRenderKey/);
+  assert.match(button, /childElementCount > 0/);
+  assert.match(button, /busyRef\.current/);
+  // One face drawn by us, never swapped; Google's button sits transparent over it.
+  assert.match(button, /className="auth-google-face"/);
+  assert.match(button, /<div ref=\{host\} className="auth-google-button" \/>/);
+  assert.match(button, /new ResizeObserver\(\(\) => render\(\)\)/);
+  assert.doesNotMatch(button, /Loading secure sign-in/);
+  assert.match(signIn, /\/auth\/google\//);
+  assert.match(register, /google_registration_ticket/);
+});
+
+test("registration chooses the role and auth method before profile completion", () => {
+  assert.match(register, /type Step = "role" \| "method" \| "details"/);
+  assert.match(register, /if \(accountType\) go\("method"\)/);
+  assert.match(register, /Continue with phone/);
+  assert.match(register, /text="signup_with"/);
+});
+
+test("Security keeps phone verification without a Google linking control", () => {
+  assert.doesNotMatch(security, /GoogleIdentityButton|GoogleLinkSection|\/me\/google\//);
+  assert.match(security, /\/me\/phone\//);
+  assert.match(security, /\/me\/phone\/verify\//);
+  assert.match(shell, /settings\/security#phone-verification/);
+  assert.match(shell, /!me\.is_phone_verified/);
+});

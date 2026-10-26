@@ -1,0 +1,533 @@
+/* Landing page atmosphere and the two layouts that are not card grids.
+ *
+ * A note on which variables this file reads. Tailwind's `--color-*` names are
+ * resolved once, at `:root`, and inherit as computed values — so a hand-written
+ * rule saying `var(--color-background)` gets the base colour even inside a
+ * scoped override, because the indirection was collapsed before the class
+ * applied. Utilities are fine; Tailwind inlines those. Everything below reads
+ * the raw tokens, which are genuinely re-pointed.
+ */
+
+/* --- green blending into white -------------------------------------------- */
+
+.lp-light {
+  position: relative;
+  isolation: isolate;
+  overflow: clip;
+  background: var(--background);
+}
+
+/* Two soft blooms rather than hard streaks. On white the effect has to be a
+   tint the page fades up out of, not a light source on a dark ground —
+   anything with a visible edge reads as a stray shape. Painted with gradients
+   because a blur large enough to look smooth at 1440px is a quarter of a
+   megabyte as a PNG, and free as a gradient. */
+.lp-light::before,
+.lp-light::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  pointer-events: none;
+  border-radius: 50%;
+  filter: blur(90px);
+}
+
+.lp-light::before {
+  top: -18rem;
+  left: -12%;
+  width: 62%;
+  height: 40rem;
+  background: color-mix(in oklab, var(--brand-glow) 62%, transparent);
+  opacity: 0.5;
+}
+
+.lp-light::after {
+  top: -12rem;
+  right: -14%;
+  width: 54%;
+  height: 34rem;
+  background: color-mix(in oklab, var(--brand-glow) 46%, transparent);
+  opacity: 0.42;
+}
+
+/* A wash sitting directly behind the headline, so the type rises out of green
+   rather than off flat white. */
+.lp-wash {
+  position: absolute;
+  z-index: -1;
+  inset-inline: 0;
+  top: -4rem;
+  height: 40rem;
+  pointer-events: none;
+  background: radial-gradient(
+    54% 46% at 50% 30%,
+    color-mix(in oklab, var(--brand-glow) 34%, transparent) 0%,
+    transparent 70%
+  );
+}
+
+/* --- the checks, as a rail ------------------------------------------------ */
+
+/* Three bordered boxes in a row is the single most recognisable shape of a
+   generated page, and it was on this page twice. This is the same three facts
+   with the packaging taken off: one band, split by hairlines, each column
+   carrying its own weight. Nothing is a card. */
+.lp-rail {
+  display: grid;
+  gap: 0;
+  margin-block-end: 0;
+  padding: 0;
+  list-style: none;
+  border-block: 1px solid var(--border);
+}
+
+@media (min-width: 56rem) {
+  .lp-rail { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .lp-rail > li + li { border-left: 1px solid var(--border); }
+}
+
+@media (max-width: 55.99rem) {
+  .lp-rail > li + li { border-top: 1px solid var(--border); }
+}
+
+.lp-rail > li {
+  padding: clamp(1.75rem, 3vw, 2.75rem) clamp(1.25rem, 2.5vw, 2.25rem);
+}
+
+@media (min-width: 56rem) {
+  .lp-rail > li:first-child { padding-left: 0; }
+  .lp-rail > li:last-child { padding-right: 0; }
+}
+
+/* The mark is a rule, not a chip: a short green stroke above the label, which
+   is enough to group the three without drawing three boxes. */
+.lp-rail-mark {
+  display: block;
+  width: 2.25rem;
+  height: 3px;
+  margin-bottom: 1.5rem;
+  border-radius: 2px;
+  background: var(--brand);
+}
+
+/* --- the steps, staggered ------------------------------------------------- */
+
+/* Two columns, with the second dropped half a step. An even grid of four
+   identical tiles is the other shape this page kept falling into; offsetting
+   the column is what turns a grid into a composition, and it costs one rule. */
+.lp-steps {
+  display: grid;
+  gap: clamp(2rem, 4vw, 3.5rem);
+  margin-block-end: 0;
+  padding: 0;
+  list-style: none;
+}
+
+@media (min-width: 52rem) {
+  .lp-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .lp-steps > li:nth-child(even) { margin-top: clamp(2.5rem, 6vw, 5rem); }
+}
+
+.lp-step-art {
+  position: relative;
+  overflow: hidden;
+  aspect-ratio: 3 / 2;
+  border-radius: 20px;
+  background: var(--brand-tint);
+}
+
+.lp-step-art img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+@media (hover: hover) {
+  .lp-step-art img { transition: scale 480ms cubic-bezier(0.2, 0, 0, 1); }
+  .lp-steps > li:hover .lp-step-art img { scale: 1.03; }
+}
+
+/* The number sits on the artwork, not in the text: it is a label for the
+   picture, and moving it there buys the copy a clean first line. */
+.lp-step-n {
+  position: absolute;
+  z-index: 1;
+  top: 0.875rem;
+  left: 0.875rem;
+  display: grid;
+  place-items: center;
+  min-width: 2rem;
+  height: 2rem;
+  padding-inline: 0.5rem;
+  border-radius: 999px;
+  background: var(--background);
+  color: var(--brand);
+  font-family: var(--font-display);
+  font-size: 0.75rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 1px 3px oklch(0 0 0 / 12%);
+}
+
+/* --- the product, staged -------------------------------------------------- */
+
+.lp-stage {
+  position: relative;
+  display: grid;
+  place-items: center;
+  padding-block: clamp(var(--space-8), 5vw, var(--space-16));
+}
+
+.lp-stage-main {
+  position: relative;
+  z-index: 2;
+  width: min(100%, 30rem);
+  border-radius: 28px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  box-shadow:
+    0 2px 6px oklch(0.17 0.014 165 / 6%),
+    0 30px 80px -24px oklch(0.17 0.014 165 / 28%);
+}
+
+.lp-stage-main img { display: block; width: 100%; height: auto; }
+
+/* The receding siblings. Hidden where they would overlap the subject rather
+   than frame it. */
+.lp-stage-aside {
+  position: absolute;
+  z-index: 1;
+  display: none;
+  width: 17rem;
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: color-mix(in oklab, var(--background) 78%, transparent);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 12px 40px -18px oklch(0.17 0.014 165 / 26%);
+  opacity: 0.72;
+}
+
+@media (min-width: 64rem) {
+  .lp-stage-aside { display: block; }
+}
+
+.lp-stage-aside-left { left: 2%; top: 22%; rotate: -6deg; }
+.lp-stage-aside-right { right: 2%; top: 40%; rotate: 5deg; }
+
+/* The one card that stays sharp and fully lit, because it carries the claim
+   the whole page is making. */
+.lp-stage-proof {
+  position: absolute;
+  z-index: 3;
+  bottom: 8%;
+  left: 50%;
+  translate: -50% 0;
+  width: min(22rem, 88%);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: color-mix(in oklab, var(--background) 94%, transparent);
+  backdrop-filter: blur(18px) saturate(1.3);
+  box-shadow: 0 18px 46px -16px oklch(0.17 0.014 165 / 34%);
+}
+
+@media (min-width: 64rem) {
+  .lp-stage-proof { left: auto; right: 6%; bottom: 12%; translate: none; }
+}
+
+/* --- the phone -------------------------------------------------------------
+ *
+ * A device frame drawn in CSS rather than shipped as a PNG. A mockup image
+ * sharp enough for a 2x display is several hundred kilobytes, goes soft on a
+ * 3x one, and cannot re-colour with the theme; this is a handful of rules that
+ * stay crisp at any density and cost nothing to download.
+ */
+
+.lp-phone {
+  position: relative;
+  z-index: 2;
+  width: min(100%, 19rem);
+  aspect-ratio: 393 / 852;         /* iPhone 15/16 logical resolution */
+  padding: 11px;
+  border-radius: 3.2rem;
+  background: linear-gradient(160deg, #3a3d42 0%, #17191c 38%, #0e1013 100%);
+  box-shadow:
+    inset 0 0 0 1.5px rgb(255 255 255 / 18%),
+    0 2px 6px oklch(0.17 0.014 165 / 10%),
+    0 40px 90px -28px oklch(0.17 0.014 165 / 45%);
+}
+
+/* The side buttons. Small, but their absence is what makes a rounded rectangle
+   read as a rounded rectangle rather than a phone. */
+.lp-phone::before,
+.lp-phone::after {
+  content: "";
+  position: absolute;
+  width: 2px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, #4a4d52, #2a2d31);
+}
+
+.lp-phone::before { left: -2px; top: 22%; height: 5%; box-shadow: 0 8.5% 0 #3a3d42; }
+.lp-phone::after { right: -2px; top: 26%; height: 11%; }
+
+.lp-phone-screen {
+  position: relative;
+  height: 100%;
+  overflow: hidden;
+  border-radius: 2.6rem;
+  background: var(--background);
+}
+
+.lp-phone-screen img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top center;
+}
+
+/* The Dynamic Island. Drawn, because a phone frame without one reads as a
+   phone from 2019. */
+.lp-phone-island {
+  position: absolute;
+  z-index: 3;
+  top: 10px;
+  left: 50%;
+  translate: -50% 0;
+  width: 31%;
+  height: 26px;
+  border-radius: 999px;
+  background: #0b0d0f;
+}
+
+/* --- store badges ---------------------------------------------------------- */
+
+.lp-stores {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: center;
+}
+
+.lp-store {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.625rem;
+  min-height: 3.25rem;
+  padding: 0 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--foreground);
+  color: var(--background);
+  text-decoration: none;
+  transition: translate 120ms cubic-bezier(0.2, 0, 0, 1), box-shadow 160ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.lp-store:hover { box-shadow: 0 10px 26px -10px oklch(0.17 0.014 165 / 40%); }
+.lp-store:active { translate: 0 1px; }
+
+.lp-store svg { flex: none; width: 22px; height: 22px; }
+.lp-store span { display: grid; line-height: 1.15; text-align: left; }
+.lp-store small { font-size: 0.625rem; opacity: 0.72; letter-spacing: 0.02em; }
+.lp-store strong { font-size: 0.9375rem; font-weight: 600; letter-spacing: -0.01em; }
+
+/* --- the front door: one screen, one question (owner, 2026-09-29) -----------------
+
+   A headline, a line, two ways in and the three checks behind the promise. No
+   cards: the choice is two buttons, the primary one solid, the other quiet. */
+
+.lp-door { min-height: 100dvh; display: grid; }
+.lp-door-intro, .lp-door-trust { display: contents; }
+
+/* A listing keeps its navigation in reach as its details scroll underneath. */
+.site-header.is-listing-detail { height: 5rem; padding: 0; }
+.site-header.is-listing-detail .site-nav-frame {
+  height: 5rem;
+  max-width: 100%;
+  padding-inline: clamp(16px, 3vw, 40px);
+  background: color-mix(in srgb, var(--color-field-0) 96%, transparent);
+  border-radius: 0;
+  border-width: 0 0 1px;
+  border-color: var(--color-field-200);
+  box-shadow: 0 2px 8px rgb(22 17 14 / 4%);
+  transition: none;
+}
+.lp-door-stage {
+  position: relative;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: var(--space-5);
+  width: 100%;
+  max-width: 60rem;
+  margin: 0 auto;
+  padding: var(--space-8) var(--space-5) var(--space-12);
+  text-align: center;
+}
+.lp-door-eyebrow {
+  margin: 0;
+  color: var(--color-kola-600);
+  font-size: .8125rem;
+  font-weight: 700;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+}
+.lp-door-title {
+  margin: 0;
+  color: var(--color-ink-900);
+  font: 800 clamp(2.4rem, 5.6vw, 4.5rem)/1.02 var(--font-display);
+  letter-spacing: -.045em;
+  text-wrap: balance;
+}
+.lp-door-title span { display: block; color: var(--color-kola-600); }
+.lp-door-lead {
+  max-width: 44ch;
+  margin: 0;
+  color: var(--color-ink-700);
+  font-size: clamp(1rem, 1.4vw, 1.1875rem);
+  line-height: 1.55;
+}
+
+.lp-door-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+.lp-door-action {
+  display: inline-flex;
+  min-height: 40px;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-width: 10rem;
+  padding: 0 var(--space-5);
+  color: var(--color-ink-900);
+  font-size: .875rem;
+  font-weight: 650;
+  line-height: 1.4;
+  text-decoration: none;
+  background: rgb(255 255 255 / 82%);
+  border: var(--border-hairline) solid color-mix(in oklab, var(--color-kola-300) 36%, var(--color-field-200));
+  border-radius: 10px;
+  box-shadow: 0 1px 2px rgb(22 17 14 / 4%);
+  backdrop-filter: blur(10px);
+  transition: background-color .2s, border-color .2s;
+}
+.lp-door-action > svg { width: 20px; height: 20px; color: var(--color-kola-600); }
+.lp-door-action > .lp-door-arrow { width: 16px; height: 16px; margin-left: calc(var(--space-1) * -1); opacity: .8; }
+.lp-door-action:hover {
+  border-color: color-mix(in oklab, var(--color-kola-600) 50%, transparent);
+  background: var(--color-field-0);
+}
+.lp-door-action:hover > .lp-door-arrow { opacity: 1; }
+.lp-door-action:focus-visible { outline: 3px solid var(--color-kola-600); outline-offset: 3px; }
+.lp-door-action.is-primary {
+  color: var(--color-field-0);
+  background: var(--color-kola-600);
+  border-color: transparent;
+  box-shadow: 0 1px 2px rgb(22 17 14 / 8%);
+}
+.lp-door-action.is-primary:hover { background: var(--color-kola-800); }
+.lp-door-action.is-primary > svg { color: var(--color-gold-300); }
+.lp-door-action.is-primary > .lp-door-arrow { color: var(--color-field-0); }
+
+.site-header nav[aria-label="Primary"] > [data-slot="button"] {
+  height: 36px;
+  padding-inline: 16px;
+  gap: 6px;
+  border-radius: 8px;
+  font-size: .8125rem;
+}
+
+@media (pointer: coarse) {
+  .lp-door-action,
+  .site-header nav[aria-label="Primary"] > [data-slot="button"] { min-height: 44px; }
+}
+
+.lp-door-checks {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  width: min(100%, 52rem);
+  margin: var(--space-6) 0 0;
+  padding: 6px 0;
+  color: var(--color-ink-700);
+  font: 500 .8125rem/1.5 var(--font-body);
+  border-block: 1px solid color-mix(in srgb, var(--color-kola-600) 18%, var(--color-field-200));
+  list-style: none;
+}
+.lp-door-checks li { position: relative; display: flex; align-items: center; justify-content: center; gap: 10px; min-width: 0; padding: 14px 18px; }
+.lp-door-checks .lp-door-check-entry { padding-block: 14px; }
+.lp-door-checks li + li::before { position: absolute; inset-block: 10px; inset-inline-start: 0; width: 1px; background: var(--color-field-200); content: ""; }
+.lp-door-checks svg { flex: none; width: 18px; height: 18px; color: var(--color-kola-600); stroke-width: 1.5; }
+
+@media (min-width: 48rem) {
+  .lp-door-checks { transform: translateY(max(16px, calc(50dvh - 19rem))); }
+}
+
+/* Preserve room below the strip on shorter desktop windows. */
+@media (min-width: 48rem) and (max-height: 44rem) {
+  .lp-door-stage { gap: var(--space-3); padding-block: var(--space-4) var(--space-8); }
+  .lp-door-checks { margin-top: var(--space-4); }
+}
+
+@media (max-width: 47.99rem) {
+  .lp-door-stage { gap: var(--space-4); padding-top: var(--space-6); }
+  .lp-door-actions { flex-direction: column; align-self: stretch; }
+  .lp-door-action { justify-content: center; }
+  .lp-door-checks { width: 100%; margin-top: var(--space-5); padding-block: 16px; font-size: .75rem; line-height: 1.45; }
+  .lp-door-checks li { flex-direction: column; justify-content: flex-start; gap: 8px; padding: 0 8px; text-align: center; }
+  .lp-door-checks .lp-door-check-entry { padding-block: 0; }
+  .lp-door-checks li + li::before { inset-block: 4px; }
+  .lp-door-checks li > span,
+  .lp-door-checks li > .lp-door-artisan { max-width: 12ch; text-wrap: balance; }
+  .lp-door-checks svg { width: 20px; height: 20px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lp-door-action, .lp-door-arrow { transition: none; }
+  .lp-door-action:hover { transform: none; }
+}
+
+.lp-door-artisan { position: relative; display: inline-flex; align-items: center; justify-content: center; max-width: 100%; padding: 0; color: inherit; font: inherit; text-align: inherit; text-wrap: balance; text-decoration: none; }
+.lp-door-artisan::after { position: absolute; inset: -12px -4px; content: ""; }
+.lp-door-artisan:hover { color: var(--color-kola-800); text-decoration: underline; text-underline-offset: 3px; }
+.lp-door-artisan:focus-visible { outline: 2px solid var(--color-kola-600); outline-offset: 4px; }
+@media (max-width: 39.999rem) {
+  .lp-door-stage {
+    grid-template-rows: minmax(min-content, 1fr) auto;
+    min-height: calc(100svh - 5rem);
+    gap: var(--space-6);
+    padding: var(--space-6) var(--space-5);
+    align-content: stretch;
+  }
+  .lp-door-intro {
+    display: grid;
+    align-content: center;
+    justify-items: center;
+    gap: var(--space-4);
+    width: 100%;
+    padding: 0;
+  }
+  .lp-door-trust {
+    display: block;
+    width: 100%;
+    padding: 0;
+  }
+  .lp-door-trust .lp-door-checks { margin: 0; }
+}
+@media (max-width: 39.999rem) and (max-height: 40rem) {
+  .lp-door-stage { gap: var(--space-4); padding-block: var(--space-3); }
+  .lp-door-intro { gap: var(--space-3); }
+  .lp-door-title { font-size: clamp(1.75rem, 8vw, 2rem); }
+  .lp-door-lead { font-size: .875rem; line-height: 1.5; }
+  .lp-door-actions { gap: var(--space-2); margin-top: var(--space-1); }
+  .lp-door-trust .lp-door-checks { padding-block: var(--space-3); }
+}
+@media (prefers-reduced-motion: reduce) { .lp-door-artisan { transition: none; } }

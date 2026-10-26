@@ -1,0 +1,35 @@
+.inbox.is-danpa-intel { width: min(38rem, calc(100vw - var(--modal-area-left, 0px) - 2rem)); height: min(42rem, calc(100dvh - var(--modal-area-top, 0px) - 2rem)); }
+.ask-danpa-surface { height: 100%; overflow-y: auto; overscroll-behavior: contain; padding: clamp(1.25rem, 4vw, 1.75rem); padding-bottom: max(2rem, env(safe-area-inset-bottom)); max-width: 42rem; margin-inline: auto; color: var(--color-ink-900); }
+.ask-danpa-identity { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
+.ask-danpa-identity h2 { display: flex; align-items: center; gap: .65rem; margin: 0; font-size: 1.2rem; font-weight: 600; letter-spacing: -.025em; }
+.ask-danpa-identity svg { color: var(--color-kola-800); flex-shrink: 0; }
+.ask-danpa-status { display: inline-block; margin-top: .85rem; padding: .25rem .5rem; font-size: .75rem; background: var(--color-gold-50, #faf4e8); color: var(--color-gold-700, #765a29); border-radius: .25rem; }
+.ask-danpa-intro { padding-block: 1.25rem .75rem; }
+.ask-danpa-eyebrow { margin: 0; font-size: .65rem; text-transform: uppercase; letter-spacing: .12em; color: var(--color-kola-700); }
+.ask-danpa-intro h3 { font-size: clamp(1.4rem, 3vw, 1.75rem); max-width: 19rem; line-height: 1.2; font-weight: 500; letter-spacing: -.03em; margin: .75rem 0; }
+.ask-danpa-intro > p:last-child, .ask-danpa-direction p { color: var(--color-ink-700); font-size: .9rem; line-height: 1.6; margin-block: .4rem 0; }
+.ask-danpa-direction { border-top: 1px solid var(--color-field-200); padding-block: .75rem; }
+.ask-danpa-direction strong { font-size: .9rem; font-weight: 600; }
+.ask-danpa-support { width: 100%; display: flex; align-items: center; gap: .9rem; text-align: left; background: var(--color-field-50); border: 1px solid var(--color-field-200); border-radius: .5rem; color: var(--color-kola-800); padding: 1rem; min-height: 48px; margin-top: 1rem; cursor: pointer; }
+.ask-danpa-support > span:first-of-type { flex: 1; }
+.ask-danpa-support strong, .ask-danpa-support small { display: block; }
+.ask-danpa-support small { color: var(--color-ink-700); font-size: .8rem; line-height: 1.5; margin-top: .25rem; }
+.ask-danpa-support:focus-visible, .interest-list button:focus-visible { outline: 2px solid var(--color-kola-600); outline-offset: 3px; }
+.interest-list { list-style: none; padding: 0; }
+.interest-list button { display: grid; gap: .4rem; text-align: left; width: 100%; border: 0; border-bottom: 1px solid var(--color-field-200); background: transparent; color: inherit; padding: 1rem 0; cursor: pointer; min-height: 48px; }
+.interest-list span, .interest-facts dt { color: var(--color-ink-700); font-size: .85rem; }
+.interest-facts { margin-block: 1.5rem; }
+.interest-facts > div { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .5rem; padding-block: .75rem; border-bottom: 1px solid var(--color-field-200); }
+.interest-facts dd { margin: 0; }
+.interest-note { white-space: pre-wrap; overflow-wrap: anywhere; }
+
+.ask-danpa-identity .inbox-icon-button { min-width: 44px; min-height: 44px; }
+
+/* Support changes the content while the intelligence dialog keeps its dimensions. */
+.inbox.is-danpa-intel .inbox-frame { display: block; }
+.inbox.is-danpa-intel .inbox-list, .inbox.is-danpa-intel .inbox-thread { height: 100%; border-right: 0; }
+.inbox.is-danpa-intel .inbox-frame[data-pane="list"] .inbox-thread,
+.inbox.is-danpa-intel .inbox-frame[data-pane="thread"] .inbox-list { display: none; }
+.inbox.is-danpa-intel .inbox-back, .inbox.is-danpa-intel .inbox-close-list { display: grid; }
+
+.inbox.is-danpa-intel .inbox-icon-button { min-width: 44px; min-height: 44px; }

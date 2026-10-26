@@ -1,0 +1,29 @@
+# Convert legacy ID-in-path links to finite static pages. Specific routes must
+# precede their one-segment record routes.
+/applications/:requestId /record/application?requestId=:requestId 302
+/apply/:id /record/apply?id=:id 302
+/enquiries/:id /record/enquiry?id=:id 302
+
+/leases/new /record/lease-new 302
+/leases/:leaseId /record/lease?leaseId=:leaseId 302
+/listings/:id /record/listing?id=:id 302
+
+/payments/receipts/:receiptId /record/receipt?receiptId=:receiptId 302
+/payments/checkout /record/payment-checkout 302
+/payments/return /record/payment-return 302
+/payments/payout-account /record/payout-account 302
+/payments/:leaseId /record/payment?leaseId=:leaseId 302
+
+/properties/new /record/property-new 302
+/properties/:id/spaces/new /record/space-new?propertyId=:id 302
+/properties/:id/spaces/:spaceId/listing /record/space-listing?propertyId=:id&spaceId=:spaceId 302
+/properties/:id/spaces/:spaceId /record/space?propertyId=:id&spaceId=:spaceId 302
+/properties/:id/spaces /record/property-spaces?propertyId=:id 302
+/properties/:id/setup /record/property-setup?propertyId=:id 302
+/properties/:id/verify /record/property-verify?id=:id 302
+/properties/:id /record/property?id=:id 302
+
+/sales/:id /record/sale?id=:id 302
+/tenancies/:id /record/tenancy?id=:id 302
+/tenants/:tenancyId /record/tenant?tenancyId=:tenancyId 302
+/viewings/:viewingId /record/viewing?viewingId=:viewingId 302

@@ -1,0 +1,23 @@
+/* Only content loads. No sidebar replicas, overlay, or artificial wait. */
+.page-loading { display: grid; gap: 24px; width: 100%; max-width: 72rem; min-height: 320px; margin-inline: auto; padding-block: 8px 24px; }
+.page-loading-caption { display: flex; align-items: center; gap: 8px; margin: 0; color: var(--color-ink-500); font-size: .75rem; line-height: 1.5; }
+.page-loading-dot { width: 6px; height: 6px; flex: none; background: var(--color-kola-600); border-radius: 50%; }
+.page-loading-shape { display: grid; gap: 24px; animation: page-loading-breathe 2s ease-in-out infinite; }
+.page-loading-heading { display: grid; gap: 12px; }
+.page-loading-block { display: block; width: min(60%, 18rem); height: 10px; background: var(--color-field-200); border-radius: 4px; }
+.page-loading-block.is-title { width: min(44%, 15rem); height: 25px; border-radius: 6px; }
+.page-loading-block.is-description { width: min(80%, 28rem); height: 9px; }
+.page-loading-toolbar { display: flex; align-items: center; gap: 12px; padding-block: 8px 20px; border-bottom: 1px solid var(--color-field-200); }
+.page-loading-block.is-search { width: min(60%, 20rem); height: 36px; background: var(--color-field-100); border: 1px solid var(--color-field-200); border-radius: 8px; }
+.page-loading-block.is-control { width: 80px; height: 32px; margin-left: auto; background: var(--color-field-100); border-radius: 8px; }
+.page-loading-records { display: grid; }
+.page-loading-record { display: flex; align-items: center; gap: 14px; min-height: 76px; padding: 16px 0; border-bottom: 1px solid var(--color-field-200); }
+.page-loading-block.is-mark { flex: none; width: 36px; height: 36px; background: var(--color-field-100); border-radius: 9px; }
+.page-loading-lines { display: grid; flex: 1; gap: 10px; min-width: 0; }
+.page-loading-block.is-detail { width: min(80%, 22rem); height: 8px; background: var(--color-field-100); }
+.page-loading-block.is-meta { width: 42px; height: 8px; flex: none; background: var(--color-field-100); }
+.portal-bootstrap { max-width: 72rem; margin-inline: auto; padding-top: clamp(32px, 8vh, 80px); }
+.shared-page-loading { display: none; }
+html[data-session-hint] .shared-pending > .shared-page-loading { display: block; visibility: visible; position: absolute; inset: 80px 0 auto; max-width: 72rem; margin-inline: auto; padding: 32px 24px; }
+@keyframes page-loading-breathe { 0%, 100% { opacity: .65; } 50% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .page-loading-shape { animation: none; } }

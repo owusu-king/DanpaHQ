@@ -1,0 +1,158 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import test from "node:test";
+import { fileURLToPath } from "node:url";
+
+const root = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
+const read = (relative) => readFileSync(resolve(root, relative), "utf8");
+
+const webList = () => read("web/app/viewings/page.tsx");
+const webDetail = () => read("web/src/components/tenant/ViewingRecord.tsx");
+const webRecord = () => read("web/src/components/tenant/ViewingRecord.tsx");
+const webListPage = () => read("web/app/viewings/page.tsx");
+const mobileList = () => read("mobile/app/(app)/viewings.tsx");
+const mobileDetail = () => read("mobile/app/(app)/viewing/[id].tsx");
+const mobileStack = () => read("mobile/app/(app)/_layout.tsx");
+
+/** Source with comments removed, so quoted history is not read as behaviour. */
+const rendered = (source) =>
+  source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*/g, "");
+
+/** The tenant half of the web page, which also holds the provider's side. */
+function tenantWebList() {
+  const source = webList();
+  const start = source.indexOf("function TenantViewings()");
+  assert.notEqual(start, -1, "TenantViewings is missing");
+  // `formatViewingTime` moved to `providerViewings.ts`; the provider half
+  // now begins at its own component.
+  const end = source.indexOf("function ProviderViewings()", start);
+  assert.notEqual(end, -1, "the provider half is missing");
+  return source.slice(start, end);
+}
+
+test("what a viewing means is decided once, for both clients", () => {
+  const strip = (source) => source.replace(/^\/\*\*[\s\S]*?\*\/\n/, "").trim();
+  assert.equal(
+    strip(read("web/src/lib/viewingMeaning.ts")),
+    strip(read("mobile/src/viewingMeaning.ts")),
+  );
+});
+
+test("a row is a place and a time", () => {
+  // "Today · 3:30 PM" is what makes this a schedule. A raw timestamp and a
+  // status word make it a table.
+  const meaning = read("web/src/lib/viewingMeaning.ts");
+  assert.match(meaning, /`Today . \$\{time\}`/);
+  assert.match(meaning, /`Tomorrow . \$\{time\}`/);
+
+  for (const source of [tenantWebList(), mobileList()]) {
+    assert.match(source, /whenLabel\(viewing\.confirmed_starts_at\)/);
+    assert.match(source, /photo_url/);
+    assert.match(source, /placeOf\(viewing\)/);
+    // Soonest first. A schedule ordered by when the request was made is not
+    // a schedule.
+    assert.match(source, /bySoonest/);
+  }
+});
+
+test("the schedule opens on every viewing and history stays reachable", () => {
+  const meaning = read("web/src/lib/viewingMeaning.ts");
+  assert.match(meaning, /export type ViewingFilter = "all" \| ViewingGroup/);
+  for (const label of ["All", "Upcoming", "Needs you", "Past"]) {
+    assert.match(meaning, new RegExp(`label: "${label}"`));
+  }
+
+  // Web retains its address-backed filters. Mobile now shows lifecycle lanes
+  // directly and folds the past beneath them.
+  assert.match(tenantWebList(), /viewingFilters\.map/);
+  for (const source of [mobileList()]) {
+    const upcoming = source.indexOf("Coming up");
+    const needs = source.indexOf("Needs you");
+    assert.notEqual(needs, -1, "Needs you is missing");
+    assert.notEqual(upcoming, -1, "Coming up is missing");
+    assert.ok(needs < upcoming, "Needs you must come before the schedule");
+    assert.match(source, /<Fold[\s\S]*title="Past"[\s\S]*count=\{lanes\.past\.length\}/);
+    assert.match(source, /pastOpen \? \(/);
+  }
+});
+
+test("the machine is not on every row", () => {
+  // The old cards carried the slot picker, the exact directions, the contact
+  // number, the check-in, the follow-up, the attendance panel and three quiet
+  // buttons — all rendered at once, on every row, forever.
+  for (const source of [tenantWebList(), mobileList()]) {
+    const body = rendered(source);
+    assert.doesNotMatch(body, /viewing_directions/);
+    assert.doesNotMatch(body, /check_in\.|issueViewingCheckInCredential|QRCode/);
+    assert.doesNotMatch(body, /viewing\.contact/);
+    assert.doesNotMatch(body, /post_viewing\.available/);
+    assert.doesNotMatch(body, /can_reschedule|can_cancel|can_withdraw/);
+    assert.doesNotMatch(body, /viewing\.appointments/);
+  }
+});
+
+test("a control is drawn only while the lifecycle allows it", () => {
+  // Every tool is gated on the server's own per-reader answer, never on a
+  // status string the client re-derives.
+  for (const source of [webDetail(), mobileDetail()]) {
+    assert.match(source, /viewing\.check_in\.can_issue \?/);
+    assert.match(source, /viewing\.attendance\.can_report \?/);
+    assert.match(source, /viewing\.attendance\.can_respond \?/);
+    assert.match(source, /viewing\.post_viewing\.available \?/);
+    assert.match(source, /viewing\.actions\.can_reschedule/);
+    assert.match(source, /viewing\.actions\.can_cancel/);
+    assert.match(source, /viewing\.actions\.can_withdraw/);
+    // Directions render only when the backend released them.
+    assert.match(source, /viewing_directions/);
+  }
+});
+
+test("nothing explains how viewings work in general", () => {
+  // Standing instructions on a schedule are furniture. What is left is
+  // situational: the sentence that belongs to the one action on screen.
+  for (const source of [tenantWebList(), mobileList()]) {
+    const body = rendered(source);
+    assert.doesNotMatch(body, /The landlord offers times, you pick one/);
+    assert.doesNotMatch(body, /Contact details are released once a time is confirmed/);
+    assert.doesNotMatch(body, /only then do you exchange numbers/);
+  }
+});
+
+test("a substantial tenant viewing has a stable modal and a durable route", () => {
+  // The tenant can inspect the record without losing list context, while the
+  // same full record remains directly addressable for reminders and new tabs.
+  // It opens in the shared sheet, as the host's does.
+  assert.match(webRecord(), /export function ViewingSheet/);
+  assert.match(webRecord(), /<ModalSheet/);
+  assert.match(webListPage(), /<ViewingSheet/);
+  assert.doesNotMatch(rendered(webListPage()), /viewing_directions/);
+
+  assert.match(webRecord(), /className="vr viewing-detail tenant-vr"/);
+  assert.doesNotMatch(webRecord(), /<aside/);
+  assert.match(read("web/app/record/viewing/page.tsx"), /<ViewingRecord/);
+
+  // The provider's half took the other option in this test's title: a dedicated
+  // screen. A split pane always opened somebody's appointment whether or not it
+  // was asked for, and a workflow that runs across a day had no address.
+  assert.doesNotMatch(webListPage(), /ProviderViewingDialog/);
+  assert.doesNotMatch(webListPage(), /provider-viewings-split/);
+  assert.match(webListPage(), /href=\{`\/record\/viewing\?viewingId=\$\{viewing\.id\}`/);
+  const providerRoute = read("web/app/record/viewing/page.tsx");
+  assert.match(providerRoute, /<ProviderViewingRecord/);
+  assert.doesNotMatch(rendered(providerRoute), /<dialog/);
+  assert.doesNotMatch(providerRoute, /showModal\(\)/);
+
+  const stack = mobileStack();
+  const route = stack.match(/<Stack\.Screen\s+name="viewing\/\[id\]"[\s\S]*?\/>/)?.[0];
+  assert.ok(route, "the mobile viewing record route is missing");
+  assert.doesNotMatch(route, /presentation: "modal"/);
+});
+
+test("withdrawal is confirmed in context instead of firing from one tap", () => {
+  for (const source of [webDetail(), mobileDetail()]) {
+    assert.match(source, /mode === "withdraw"/);
+    assert.match(source, /Withdraw this request\?/);
+    assert.match(source, /Yes, withdraw it/);
+  }
+});

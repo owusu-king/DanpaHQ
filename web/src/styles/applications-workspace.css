@@ -1,0 +1,312 @@
+/* Tenant Applications, on the shared workspace (workspace.css).
+   A short page description, an agreement waiting for the tenant lifted above the
+   list, the stages as the segmented control once there is more than one, and
+   one quiet panel of rows. A row is a photograph, a Property and Unit, and one
+   status line; it becomes a surface only when it is pointed at. The record
+   opens in the provider's request sheet (request-sheet.css), extended at the
+   foot of this file. */
+
+.applications-workspace { min-width: 0; }
+
+.applications-workspace .ws-summary [data-tone="good"] { color: var(--color-kola-600); font-weight: 650; }
+
+/* --- the list ------------------------------------------------------------------------ */
+
+.applications-panel .ws-panel-head .ws-search { flex: 1 1 16rem; max-width: 26rem; }
+
+/* History is quieter than what is still moving, but never hidden. */
+.application-group.is-history .ws-group-heading { color: var(--color-ink-300); }
+
+/* Record rows share Payments' spacing, typography, focus and hover treatment. */
+.application-ledger { container: application-list / inline-size; }
+.application-ledger .rent-ledger-head,
+.application-ledger .application-row {
+  grid-template-columns: minmax(0, 1.5fr) minmax(12rem, 1fr) 6rem minmax(7.5rem, .75fr) 1rem;
+}
+.applications-list > li { animation-delay: calc(var(--application-order, 0) * 24ms); }
+.application-group.is-history .applications-list { opacity: .96; }
+
+.application-row { --application-tone: var(--color-ink-500); --application-wash: var(--color-field-100); }
+.application-row[data-tone="action"],
+.application-row[data-tone="good"] { --application-tone: var(--color-kola-600); --application-wash: var(--color-kola-50); }
+.application-row[data-tone="waiting"] { --application-tone: var(--color-lagoon-600); --application-wash: var(--color-lagoon-100); }
+.application-row[data-tone="stopped"] { --application-tone: var(--color-laterite-600); --application-wash: var(--color-laterite-100); }
+.application-row.is-action { background: color-mix(in srgb, var(--color-kola-50) 35%, transparent); }
+
+.application-photo {
+  display: block;
+  flex: 0 0 auto;
+  width: 1.875rem;
+  height: 1.875rem;
+  overflow: hidden;
+  background: var(--color-field-100);
+  border-radius: var(--radius-sm);
+}
+.application-photo img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.application-photo-fallback { display: grid; width: 100%; height: 100%; place-items: center; color: var(--color-kola-600); background: var(--color-kola-50); }
+.application-photo-fallback .portal-icon { width: 14px; height: 14px; }
+.application-group.is-history .application-photo img { filter: saturate(.35); opacity: .85; }
+
+.application-place { display: flex; min-width: 0; overflow: hidden; white-space: nowrap; }
+.application-place > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.application-place > span + span::before { content: "·"; margin: 0 6px; color: var(--color-ink-300); }
+.application-unit { flex: 0 1 auto; }
+.application-standing { display: grid; gap: 2px; min-width: 0; }
+.application-standing .application-status-line { margin-left: 0; color: var(--application-tone); background: var(--application-wash); white-space: normal; }
+.application-status-line strong { font: inherit; }
+.application-standing small { color: var(--color-harmattan-600); font-size: .6875rem; }
+.application-row-sent { font-variant-numeric: tabular-nums; }
+
+@media (max-width: 980px) {
+  .application-ledger .application-row {
+    grid-template-columns: minmax(0, 1fr) auto 1rem;
+    grid-template-areas: "person amount arrow" "state due arrow";
+    gap: var(--space-2) var(--space-3);
+  }
+  .application-standing { grid-area: state; margin-left: calc(1.875rem + var(--space-3)); }
+}
+@container application-list (max-width: 40rem) {
+  .application-ledger .rent-ledger-head { display: none; }
+  .application-ledger .application-row {
+    grid-template-columns: minmax(0, 1fr) auto 1rem;
+    grid-template-areas: "person amount arrow" "state due arrow";
+    gap: var(--space-2) var(--space-3);
+  }
+  .application-standing { grid-area: state; margin-left: calc(1.875rem + var(--space-3)); }
+  .application-row > .rent-row-person { grid-area: person; }
+  .application-row > .rent-row-amount { grid-area: amount; }
+  .application-row-sent { grid-area: due; justify-self: end; text-align: right; }
+  .application-row > .rent-row-arrow { grid-area: arrow; }
+}
+@media (max-width: 480px) {
+  .application-photo { display: none; }
+  .application-standing { margin-left: 0; }
+}
+
+/* Progressive disclosure: five at a time, never a wall of records. */
+.application-load-more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  width: 100%;
+  min-height: 2.5rem;
+  margin-top: var(--space-1);
+  color: var(--color-kola-800);
+  font: inherit;
+  font-size: .8125rem;
+  font-weight: 600;
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: background-color var(--motion-duration-fast) var(--ws-ease);
+}
+
+.application-load-more .portal-icon { width: 14px; height: 14px; transition: transform var(--motion-duration-base) var(--ws-ease); }
+.application-load-more:hover { background: var(--color-kola-50); }
+.application-load-more:hover .portal-icon { transform: translateY(2px); }
+.application-load-more:active { background: color-mix(in srgb, var(--color-kola-600) 14%, var(--color-kola-50)); }
+.application-load-more:focus-visible { outline: var(--border-emphasis) solid var(--color-kola-600); outline-offset: -2px; }
+
+/* --- the record, in the request sheet -------------------------------------------- */
+
+/* The tones the tenant's side adds to the shared hero. */
+.rq-hero[data-tone="action"] { --rq-tone: var(--color-kola-600); --rq-wash: var(--color-kola-50); }
+.rq-hero[data-tone="stopped"] { --rq-tone: var(--color-laterite-600); --rq-wash: var(--color-laterite-100); }
+
+.ap-place { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-4) var(--space-3) var(--space-4) var(--space-4); }
+
+.ap-photo {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 3.75rem;
+  height: 3.75rem;
+  overflow: hidden;
+  color: var(--color-kola-600);
+  background: var(--color-kola-50);
+  border-radius: .875rem;
+  box-shadow: 0 0 0 1px rgba(33, 26, 21, .06), 0 8px 18px -14px rgba(33, 26, 21, .5);
+}
+
+.ap-photo img { width: 100%; height: 100%; object-fit: cover; }
+.ap-photo .portal-icon { width: 1.375rem; height: 1.375rem; color: inherit; }
+
+.ap-place-copy { display: grid; flex: 1; gap: 2px; min-width: 0; }
+
+.ap-place-copy h2 {
+  overflow: hidden;
+  margin: 0;
+  color: var(--color-ink-900);
+  font-family: var(--font-display);
+  font-size: 1.0625rem;
+  font-weight: 600;
+  letter-spacing: -.01em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ap-place-copy > small { overflow: hidden; color: var(--color-ink-500); font-size: .75rem; text-overflow: ellipsis; white-space: nowrap; }
+.ap-rent { color: var(--color-ink-800); font-size: .8125rem; font-weight: 650; font-variant-numeric: tabular-nums; }
+.ap-rent small { color: var(--color-ink-500); font-weight: 450; }
+
+.ap-standing {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px var(--space-2);
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  color: var(--rq-tone);
+  background: rgba(255, 255, 255, .55);
+  border-top: 1px solid rgba(33, 26, 21, .06);
+}
+
+.ap-standing i { flex: none; width: 8px; height: 8px; background: currentColor; border-radius: 50%; box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 18%, transparent); }
+.ap-standing strong { font-size: .875rem; font-weight: 650; }
+.ap-standing > span { margin-left: auto; color: var(--color-ink-500); font-size: .75rem; font-variant-numeric: tabular-nums; }
+.ap-standing.is-muted i { background: var(--color-ink-300); }
+
+/* The journey: a short line of marks, never told apart by colour alone — the
+   mark changes fill and glyph, the current step gains a ring, the label weight. */
+.ap-journey { padding: var(--space-1) var(--space-2) 0; }
+
+.application-timeline { display: grid; margin: 0; padding: 0; list-style: none; }
+
+.application-timeline li {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1.375rem minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-3);
+  padding-bottom: var(--space-3);
+}
+
+.application-timeline li:last-child { padding-bottom: 0; }
+
+.application-timeline li:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  top: 1.625rem;
+  bottom: 4px;
+  left: calc(.6875rem - 1px);
+  width: 2px;
+  background: var(--color-field-200);
+  border-radius: 2px;
+}
+
+.application-timeline li[data-state="done"]:not(:last-child)::after { background: color-mix(in srgb, var(--color-kola-600) 45%, var(--color-field-200)); }
+
+.application-timeline-mark {
+  display: grid;
+  place-items: center;
+  width: 1.375rem;
+  height: 1.375rem;
+  color: #fff;
+  background: var(--color-field-0);
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1.5px var(--color-field-300);
+}
+
+.application-timeline-mark .portal-icon { width: 12px; height: 12px; color: inherit; }
+.application-timeline [data-state="done"] .application-timeline-mark { background: var(--color-kola-600); box-shadow: none; }
+
+.application-timeline [data-state="current"] .application-timeline-mark {
+  background: var(--color-field-0);
+  box-shadow: inset 0 0 0 5px var(--color-kola-600), 0 0 0 4px color-mix(in srgb, var(--color-kola-600) 16%, transparent);
+}
+
+.application-timeline [data-state="stopped"] .application-timeline-mark { background: var(--color-laterite-600); box-shadow: none; }
+.application-timeline [data-state="waiting"] .application-timeline-mark { background: var(--color-field-50); }
+
+.application-timeline-text { display: grid; gap: 1px; min-width: 0; padding-top: 2px; }
+.application-timeline-text strong { color: var(--color-ink-700); font-size: .8125rem; font-weight: 550; }
+.application-timeline [data-state="current"] .application-timeline-text strong { color: var(--color-ink-900); font-weight: 700; }
+.application-timeline [data-state="waiting"] .application-timeline-text strong { color: var(--color-ink-500); }
+.application-timeline [data-state="stopped"] .application-timeline-text strong { color: var(--color-laterite-600); font-weight: 650; }
+.application-timeline-text small { color: var(--color-ink-500); font-size: .6875rem; font-variant-numeric: tabular-nums; }
+
+/* What they told the landlord: there to be checked, not scanned. */
+.ap-told {
+  background: rgba(255, 255, 255, .55);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 0 0 1px rgba(33, 26, 21, .06);
+  transition: background-color var(--motion-duration-fast) var(--ws-ease);
+}
+
+.ap-told[open] { background: rgba(255, 255, 255, .72); }
+
+.ap-told summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 2.75rem;
+  padding: 0 var(--space-3) 0 var(--space-4);
+  color: var(--color-ink-800);
+  font-size: .8125rem;
+  font-weight: 650;
+  list-style: none;
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition: background-color var(--motion-duration-fast) var(--ws-ease);
+}
+
+.ap-told summary::-webkit-details-marker { display: none; }
+.ap-told summary:hover { background: rgba(255, 255, 255, .9); }
+.ap-told summary:focus-visible { outline: var(--border-emphasis) solid var(--color-kola-600); outline-offset: -2px; }
+.ap-told summary .portal-icon { width: 15px; height: 15px; color: var(--color-kola-600); }
+.ap-told summary .portal-icon:last-child { margin-left: auto; color: var(--color-ink-500); transition: transform var(--motion-duration-base) var(--ws-ease); }
+.ap-told[open] summary .portal-icon:last-child { transform: rotate(180deg); }
+.ap-told-body { display: grid; gap: var(--space-2); padding: 0 var(--space-3) var(--space-3); }
+.ap-told[open] .ap-told-body { animation: ws-rise var(--motion-duration-base) var(--ws-enter) both; }
+
+/* The one thing to do next is kola, as it is on the page behind the sheet. */
+.ap .rq-actions .btn-primary {
+  color: #fff;
+  background: linear-gradient(150deg, var(--color-kola-600), color-mix(in srgb, var(--color-kola-600) 70%, var(--color-kola-800)));
+  border-color: transparent;
+  box-shadow: 0 10px 20px -12px color-mix(in srgb, var(--color-kola-600) 90%, transparent), inset 0 1px 0 rgba(255, 255, 255, .2);
+}
+
+.ap .rq-actions .btn-primary:hover { color: #fff; background: linear-gradient(150deg, color-mix(in srgb, var(--color-kola-600) 90%, black), var(--color-kola-800)); }
+
+/* Asked once, plainly, where the answer is given. */
+.ap .application-confirm { grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: var(--space-3); padding: var(--space-3) var(--space-4); }
+.ap .application-confirm > .portal-icon { width: 18px; height: 18px; margin-top: 1px; color: var(--color-laterite-600); }
+.ap .application-confirm > span { display: grid; gap: 2px; }
+.ap .application-confirm strong { color: var(--color-ink-900); font-size: .875rem; font-weight: 650; }
+.ap .application-confirm small { color: var(--color-ink-700); font-size: .8125rem; line-height: 1.45; }
+
+.ap-withdraw.btn { color: var(--color-laterite-600); }
+.ap-withdraw.btn:not(:disabled):hover { color: var(--color-laterite-600); background: var(--color-laterite-100); }
+
+/* The record at its own address: the sheet, laid on the page. */
+.application-record-page .request-record-panel { padding: var(--space-4) var(--space-5) var(--space-5); }
+
+/* --- narrow ------------------------------------------------------------------------ */
+
+/* Five stages on a phone: the chosen one keeps its count, the rest give
+   theirs up so every label fits without the rail scrolling. */
+@media (max-width: 30rem) {
+  .applications-workspace .ws-segment { padding-inline: 9px; }
+  .applications-workspace .ws-segment[aria-selected="false"] .ws-segment-count { display: none; }
+}
+
+@media (max-width: 40rem) {
+  .ap-standing > span { width: 100%; margin-left: calc(8px + var(--space-2)); }
+  .application-record-page .request-record-panel { padding: var(--space-3); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .applications-list > li,
+  .ap-told[open] .ap-told-body { animation: none; }
+  .application-row,
+  .application-photo img,
+  .application-status-line i,
+  .application-load-more,
+  .application-load-more .portal-icon,
+  .ap-told,
+  .ap-told summary,
+  .ap-told summary .portal-icon:last-child { transition: none; }
+}

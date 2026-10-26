@@ -1,0 +1,143 @@
+# Local development stack. Everything runs in Docker:
+#
+#   docker compose up
+#
+# The api service applies migrations and seeds reference data on start, so a
+# clean checkout needs no other command. Configuration comes from .env
+# (copy .env.example first); the hostnames in it are the service names below.
+
+# Shared by api, worker and beat - same image, same environment, same code mount.
+x-backend: &backend
+  # One image name, so the three services share a single build.
+  image: danpahq-backend
+  build:
+    context: ./backend
+    args:
+      INSTALL_DEV: "true"   # pytest, ruff and mypy in the local image
+  env_file: [.env]
+  volumes: ["./backend:/app"]
+  depends_on:
+    db: {condition: service_healthy}
+    redis: {condition: service_healthy}
+  restart: unless-stopped
+
+services:
+  db:
+    # PostgreSQL 16 with PostGIS, on the same Alpine base as the previous
+    # postgres:16-alpine image so an existing data volume keeps its collation.
+    image: postgis/postgis:16-3.5-alpine
+    environment:
+      POSTGRES_DB: grp
+      POSTGRES_USER: grp
+      POSTGRES_PASSWORD: grp
+    ports: ["5432:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U grp"]
+      interval: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    ports: ["6379:6379"]
+    volumes: [redisdata:/data]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 10
+
+  minio:
+    # S3-compatible object storage, so file handling uses the production code
+    # path locally instead of the filesystem backend.
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports: ["9000:9000", "9001:9001"]
+    volumes: [miniodata:/data]
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      retries: 10
+
+  api:
+    <<: *backend
+    # Hardening needs a database owner role, which a hosted database may not
+    # give you; it is defence in depth, so a failure must not block startup.
+    # The subshell keeps that tolerance local - a failed migrate still stops
+    # everything after it, which is the point of the chain.
+    command: >
+      sh -c "python manage.py migrate &&
+             (python manage.py harden_database || true) &&
+             python manage.py seed_geo &&
+             python manage.py seed_amenities &&
+             python manage.py ensure_bucket &&
+             python manage.py runserver 0.0.0.0:8000"
+    ports: ["8000:8000"]
+    depends_on:
+      db: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      minio: {condition: service_healthy}
+
+  worker:
+    <<: *backend
+    command: celery -A config worker -Q default,payments,notifications,media -l info
+    # The image's healthcheck curls the API port, which a worker does not
+    # serve. Left on, it would sit "unhealthy" forever and train you to ignore
+    # the column that is supposed to tell you something.
+    healthcheck: {disable: true}
+
+  beat:
+    <<: *backend
+    # The schedule file goes outside the mounted source tree so it does not
+    # appear as an untracked file in the repository.
+    command: celery -A config beat -l info --schedule /tmp/celerybeat-schedule
+    healthcheck: {disable: true}
+
+  web:
+    image: danpahq-web-dev
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    working_dir: /app
+    # Dependencies are installed once in the image and copied into this named
+    # Linux volume. The entrypoint only reinstalls when package-lock.json changes.
+    command: ["sh", "/app/docker-entrypoint.sh"]
+    environment:
+      # NEXT_PUBLIC_API_URL: http://localhost:8000/api/v1
+      NEXT_PUBLIC_API_URL: http://localhost:8000/api/v1
+      # Public OAuth Web client ID shared with the API's audience check. Empty
+      # keeps the Google button unavailable while phone sign-in still works.
+      NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${NEXT_PUBLIC_GOOGLE_CLIENT_ID:-${GOOGLE_OAUTH_CLIENT_ID:-}}
+      # The browser map key and map ID, from .env. Empty means Explore keeps its
+      # list and says the map is not available here (README.md, local setup).
+      NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: ${NEXT_PUBLIC_GOOGLE_MAPS_API_KEY:-}
+      NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID: ${NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID:-}
+      # File changes on a Windows bind mount do not raise inotify events inside
+      # the container, so webpack's watcher never fires and edits look ignored
+      # until you restart. Polling is slower but it actually works.
+      WATCHPACK_POLLING: "true"
+      CHOKIDAR_USEPOLLING: "true"
+    volumes:
+      - "./web:/app"
+      - "web_node_modules:/app/node_modules"
+      # Do not share Next's platform-specific cache/lock files with Windows.
+      - "web_next_cache:/app/.next"
+    ports: ["3000:3000"]
+    healthcheck:
+      # A TCP probe confirms Next is listening without generating a GET / log
+      # entry every five seconds in the development console.
+      test: ["CMD", "node", "-e", "const net=require('net');const socket=net.connect(3000,'127.0.0.1',()=>{socket.end();process.exit(0)});socket.on('error',()=>process.exit(1));setTimeout(()=>process.exit(1),2000)"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 15s
+
+volumes:
+  pgdata:
+  redisdata:
+  miniodata:
+  web_node_modules:
+  web_next_cache:

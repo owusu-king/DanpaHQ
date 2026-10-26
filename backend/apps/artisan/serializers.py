@@ -1,0 +1,211 @@
+"""The artisan application as its applicant reads and sends it."""
+
+from __future__ import annotations
+
+from rest_framework import serializers
+
+from apps.files.models import FilePurpose
+
+from . import services
+from .models import Trade
+
+#: Matches the maintenance photographs: long enough on a slow connection, short
+#: enough that a copied link is not a lasting handout.
+INLINE_TTL_SECONDS = 300
+
+
+class IdentityDocumentSerializer(serializers.Serializer):
+    file_id = serializers.UUIDField()
+    evidence_type = serializers.ChoiceField(choices=sorted(services.IDENTITY_EVIDENCE_TYPES))
+
+
+class CertificateInputSerializer(serializers.Serializer):
+    file_id = serializers.UUIDField()
+    trade = serializers.ChoiceField(choices=Trade.choices)
+    issuing_body = serializers.CharField(max_length=160)
+    expires_on = serializers.DateField(required=False, allow_null=True)
+
+
+class UpdateProfileSerializer(serializers.Serializer):
+    trades = serializers.ListField(child=serializers.ChoiceField(choices=Trade.choices))
+    district_ids = serializers.ListField(child=serializers.UUIDField())
+    bio = serializers.CharField(required=False, allow_blank=True, max_length=600)
+    portfolio_file_ids = serializers.ListField(child=serializers.UUIDField())
+    certificates = CertificateInputSerializer(many=True, required=False)
+
+
+class DiscoverQuerySerializer(serializers.Serializer):
+    trade = serializers.ChoiceField(choices=Trade.choices, required=False)
+    district = serializers.UUIDField(required=False)
+    certified = serializers.BooleanField(required=False, default=False)
+    show_uncertified = serializers.BooleanField(required=False, default=False)
+
+
+class ApplySerializer(serializers.Serializer):
+    trades = serializers.ListField(child=serializers.ChoiceField(choices=Trade.choices))
+    district_ids = serializers.ListField(child=serializers.UUIDField())
+    bio = serializers.CharField(required=False, allow_blank=True, max_length=600)
+    portfolio_file_ids = serializers.ListField(child=serializers.UUIDField())
+    identity_documents = IdentityDocumentSerializer(many=True, required=False)
+    certificates = CertificateInputSerializer(many=True, required=False)
+
+
+def inline_photo_url(file, *, purpose: str = FilePurpose.ARTISAN_WORK_PHOTO) -> str | None:
+    if file is None or not file.is_usable or file.purpose != purpose:
+        return None
+    from apps.files.storage import get_storage
+
+    return (
+        get_storage()
+        .presign_download(
+            key=file.storage_key,
+            expires_in=INLINE_TTL_SECONDS,
+            filename=file.original_filename,
+            disposition="inline",
+        )
+        .url
+    )
+
+
+def trade_options() -> list[dict]:
+    return [{"value": value, "label": label} for value, label in Trade.choices]
+
+
+def _counts(profile) -> tuple[int, int]:
+    from .discover import _record_counts
+
+    return _record_counts([profile.id])[str(profile.id)]
+
+
+def my_application(user) -> dict:
+    """Where the application stands, and the profile it describes.
+
+    Only ever returned to the applicant, so their own work photographs are
+    signed inline. ``decision_note`` is what the reviewer wrote for them — the
+    internal note never leaves Management.
+    """
+    from apps.trust.models import VerificationStatus
+
+    verification = services.artisan_verification(user)
+    profile = (
+        services.ArtisanProfile.objects.filter(user=user)
+        .prefetch_related("districts__region", "portfolio__file", "certificates")
+        .first()
+    )
+    status = services._status(verification, profile)
+    labels = dict(Trade.choices)
+    speaks = verification is not None and verification.status in (
+        VerificationStatus.NEEDS_MORE,
+        VerificationStatus.REJECTED,
+        VerificationStatus.REVOKED,
+    )
+    return {
+        "status": status,
+        "submitted_at": verification.created_at if verification else None,
+        "decided_at": verification.decided_at if verification else None,
+        "decision_note": verification.decision_note if speaks else "",
+        "suspended_at": profile.suspended_at if profile else None,
+        "suspended_reason": profile.suspended_reason if profile else "",
+        "identity_on_file": services._has_current_identity(user),
+        "trade_options": trade_options(),
+        "profile": None
+        if profile is None
+        else {
+            "trades": [
+                {"value": trade, "label": labels.get(trade, trade)} for trade in profile.trades
+            ],
+            "districts": [
+                {"id": str(district.id), "name": district.name, "region": district.region.name}
+                for district in profile.districts.all()
+            ],
+            "bio": profile.bio,
+            # Counted the same way Discover counts them for customers.
+            "jobs_completed": _counts(profile)[0],
+            "reviews_count": _counts(profile)[1],
+            "portfolio": [
+                {
+                    "id": str(photo.id),
+                    "file_id": str(photo.file_id),
+                    "url": inline_photo_url(photo.file),
+                }
+                for photo in profile.portfolio.all()
+            ],
+            "certificates": [
+                {
+                    "id": str(certificate.id),
+                    "file_id": str(certificate.file_id),
+                    "trade": certificate.trade,
+                    "trade_label": certificate.get_trade_display(),
+                    "issuing_body": certificate.issuing_body,
+                    "expires_on": certificate.expires_on,
+                    "status": certificate.status,
+                    "verified_at": certificate.verified_at,
+                    "decision_note": certificate.decision_note,
+                }
+                for certificate in profile.certificates.all()
+            ],
+        },
+    }
+
+
+class MaterialSerializer(serializers.Serializer):
+    item = serializers.CharField(max_length=120)
+    quantity = serializers.CharField(max_length=40, required=False, allow_blank=True)
+    cost_minor = serializers.IntegerField(required=False, allow_null=True, min_value=0)
+
+
+class QuoteInputSerializer(serializers.Serializer):
+    price_minor = serializers.IntegerField(min_value=1)
+    scope = serializers.CharField(max_length=1000)
+    materials = MaterialSerializer(many=True, required=False)
+
+
+class RevisionInputSerializer(QuoteInputSerializer):
+    reason = serializers.CharField(max_length=500)
+
+
+class ArtisanChoiceSerializer(serializers.Serializer):
+    artisan_id = serializers.UUIDField()
+
+
+class QuoteDecisionSerializer(serializers.Serializer):
+    note = serializers.CharField(max_length=300, required=False, allow_blank=True, default="")
+
+
+class DirectJobInputSerializer(serializers.Serializer):
+    trade = serializers.CharField(max_length=24)
+    title = serializers.CharField(max_length=120)
+    description = serializers.CharField(max_length=2000)
+    locality_id = serializers.UUIDField()
+    photo_file_id = serializers.UUIDField(required=False, allow_null=True)
+    house_number = serializers.CharField(max_length=32, required=False, allow_blank=True)
+    street = serializers.CharField(max_length=160, required=False, allow_blank=True)
+    landmark = serializers.CharField(max_length=200, required=False, allow_blank=True)
+    #: Posted from an artisan's profile: ask them to quote in the same step.
+    invite_artisan_id = serializers.UUIDField(required=False, allow_null=True)
+
+
+class WorkReportInputSerializer(serializers.Serializer):
+    note = serializers.CharField(max_length=500, required=False, allow_blank=True, default="")
+    photo_file_ids = serializers.ListField(child=serializers.UUIDField(), max_length=6)
+    receipt_file_ids = serializers.ListField(
+        child=serializers.UUIDField(), required=False, default=list, max_length=6
+    )
+
+
+class ReopenInputSerializer(serializers.Serializer):
+    reason = serializers.CharField(max_length=500)
+
+
+class ReviewInputSerializer(serializers.Serializer):
+    text = serializers.CharField(max_length=1000)
+    would_hire_again = serializers.BooleanField()
+
+
+class ProblemReportInputSerializer(serializers.Serializer):
+    category = serializers.CharField(max_length=40)
+    summary = serializers.CharField(max_length=180)
+    details = serializers.CharField(max_length=3000, required=False, allow_blank=True, default="")
+    file_ids = serializers.ListField(
+        child=serializers.UUIDField(), required=False, default=list, max_length=5
+    )

@@ -1,0 +1,75 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static %}
+{% block extrastyle %}{{ block.super }}
+<link rel="stylesheet" href="{% static 'admin/css/login.css' %}">
+<link rel="stylesheet" href="{% static 'identity/admin-mfa.css' %}">
+{{ form.media }}{% endblock %}
+{% block bodyclass %}{{ block.super }} login{% if form.mfa_challenge %} mfa-login{% endif %}{% endblock %}
+{% block usertools %}{% endblock %}
+{% block nav-global %}{% endblock %}
+{% block nav-sidebar %}{% endblock %}
+{% block breadcrumbs %}{% endblock %}
+{% block content_title %}{% endblock %}
+{% block content %}
+{% if not form.mfa_prompt %}{{ form.non_field_errors }}{% endif %}
+<div id="content-main">
+  <form action="{{ app_path }}" method="post" id="login-form">
+    {% csrf_token %}
+    {% if form.mfa_challenge %}
+    <input type="hidden" name="challenge_token" value="{{ form.mfa_challenge.challenge_token }}">
+    {% if form.mfa_challenge.stage == 'enroll' %}
+    <div class="mfa-heading">
+      <span class="mfa-step">Authenticator setup</span>
+      <h2>Secure your account</h2>
+      <p>Scan with your authenticator app, then enter its 6-digit code.</p>
+    </div>
+    <div class="mfa-qr" role="img" aria-label="Scan this QR code to add Danpa HQ to your authenticator">{{ form.mfa_challenge.qr_svg|safe }}</div>
+    <details class="mfa-manual">
+      <summary>Can’t scan the QR code?</summary>
+      <p>Choose <strong>Enter a setup key</strong> in your authenticator. This adds the same account as scanning.</p>
+      <span class="mfa-key-label">Setup key</span>
+      <code class="mfa-key">{{ form.mfa_challenge.secret }}</code>
+    </details>
+    {% elif form.mfa_challenge.stage == 'verify' %}
+    <div class="mfa-heading">
+      <span class="mfa-step">Two-factor authentication</span>
+      <h2>Confirm it’s you</h2>
+      <p>Enter a code from your authenticator, or use a recovery code.</p>
+    </div>
+    {% endif %}
+    {% if form.mfa_challenge.stage == 'recovery' %}
+    <div class="mfa-heading">
+      <span class="mfa-step">Authenticator connected</span>
+      <h2>Save your recovery codes</h2>
+      <p>Keep these somewhere private. Each works once if you lose your authenticator.</p>
+    </div>
+    {% if form.mfa_challenge.recovery_codes %}
+    <ul class="mfa-recovery" aria-label="Recovery codes">
+      {% for code in form.mfa_challenge.recovery_codes %}<li><code>{{ code }}</code></li>{% endfor %}
+    </ul>
+    {% else %}<p>Use the codes shown when you confirmed your authenticator.</p>{% endif %}
+    <button class="mfa-primary" type="submit" name="mfa_action" value="complete">I saved my codes — continue</button>
+    {% else %}
+    <div class="form-row mfa-code">
+      {{ form.otp_code.errors }}
+      {% if form.mfa_challenge.stage == 'enroll' %}
+      <label for="id_otp_code">6-digit code</label>
+      <input id="id_otp_code" name="otp_code" type="text" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" value="{{ form.otp_code.value|default:'' }}" autofocus required>
+      {% else %}{{ form.otp_code.label_tag }}{{ form.otp_code }}{% endif %}
+    </div>
+    <button class="mfa-primary" type="submit" name="mfa_action" value="verify">Confirm code</button>
+    {% if form.mfa_challenge.can_skip %}<button class="mfa-secondary" type="submit" name="mfa_action" value="skip" formnovalidate>Set up later</button>{% endif %}
+    {% endif %}
+    <p class="mfa-back"><a href="{{ app_path }}">Back to sign in</a></p>
+    {% else %}
+    {% for field in form.visible_fields %}
+    {% if field.name != 'otp_code' %}
+    <div class="form-row">{{ field.errors }}{{ field.label_tag }}{{ field }}</div>
+    {% endif %}
+    {% endfor %}
+    <div class="submit-row"><input type="submit" value="{% translate 'Log in' %}"></div>
+    {% endif %}
+    <input type="hidden" name="next" value="{{ next }}">
+  </form>
+</div>
+{% endblock %}
