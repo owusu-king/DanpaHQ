@@ -230,7 +230,9 @@ class VerifyEmailSerializer(serializers.Serializer):
 
 
 class ChooseWorkspaceSerializer(serializers.Serializer):
-    tenant_confirmation = serializers.CharField(required=False, allow_blank=True, trim_whitespace=False)
+    tenant_confirmation = serializers.CharField(
+        required=False, allow_blank=True, trim_whitespace=False
+    )
     workspace = serializers.ChoiceField(choices=["discovery", "tenant", "provider", "artisan"])
 
 

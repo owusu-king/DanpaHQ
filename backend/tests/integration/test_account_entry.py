@@ -111,7 +111,9 @@ def test_unknown_google_identity_waits_for_explicit_account_selection():
     ("/api/v1/me/roles/", {"role": "tenant"}),
 ])
 @pytest.mark.parametrize("account_type", ["provider", "artisan"])
-@pytest.mark.parametrize("confirmation", [None, "", "rent account", "Rent Account", " Rent account", "Rent account "])
+@pytest.mark.parametrize(
+    "confirmation", [None, "", "rent account", "Rent Account", " Rent account", "Rent account "]
+)
 def test_new_tenant_standing_requires_exact_confirmation(path, payload, confirmation, account_type):
     user = make_account("0207778011", account_type=account_type)
     api = APIClient()
@@ -139,5 +141,11 @@ def test_confirmed_tenant_creation_keeps_provider_account(path, payload):
     assert user.has_role(Role.TENANT)
     user.refresh_from_db()
     assert user.account_type == "provider"
-    assert api.post("/api/v1/me/workspace/", {"workspace": "provider"}, format="json").status_code == 200
-    assert api.post("/api/v1/me/workspace/", {"workspace": "tenant"}, format="json").status_code == 200
+    assert (
+        api.post("/api/v1/me/workspace/", {"workspace": "provider"}, format="json").status_code
+        == 200
+    )
+    assert (
+        api.post("/api/v1/me/workspace/", {"workspace": "tenant"}, format="json").status_code
+        == 200
+    )

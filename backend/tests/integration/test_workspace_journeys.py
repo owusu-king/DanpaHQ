@@ -168,7 +168,11 @@ class TestSwitchingBack:
             == "pending"
         )
 
-        switched = api.post("/api/v1/me/workspace/", {"workspace": "tenant", "tenant_confirmation": "Rent account"}, format="json")
+        switched = api.post(
+            "/api/v1/me/workspace/",
+            {"workspace": "tenant", "tenant_confirmation": "Rent account"},
+            format="json",
+        )
 
         assert switched.status_code == 200
         assert switched.data["capabilities"]["active_workspace"] == "tenant"
@@ -198,7 +202,11 @@ class TestSwitchingBack:
             ("tenant", "/home"),
             ("provider", "/home"),
         ):
-            response = api.post("/api/v1/me/workspace/", {"workspace": workspace, "tenant_confirmation": "Rent account"}, format="json")
+            response = api.post(
+                "/api/v1/me/workspace/",
+                {"workspace": workspace, "tenant_confirmation": "Rent account"},
+                format="json",
+            )
             assert response.data["capabilities"]["active_workspace"] == workspace
             assert response.data["entry_routes"]["web"] == route
 
@@ -218,7 +226,11 @@ class TestBothCapabilities:
 
         api = APIClient()
         sign_in_as(api, user=person)
-        api.post("/api/v1/me/workspace/", {"workspace": "tenant", "tenant_confirmation": "Rent account"}, format="json")
+        api.post(
+            "/api/v1/me/workspace/",
+            {"workspace": "tenant", "tenant_confirmation": "Rent account"},
+            format="json",
+        )
         capabilities = api.get("/api/v1/me/").data["capabilities"]
 
         assert capabilities["tenant"]["workspace_access"] is True
@@ -235,7 +247,11 @@ class TestBothCapabilities:
         sign_in_as(api, user=person)
         assert api.get("/api/v1/me/").data["capabilities"]["tenant"]["workspace_access"] is False
 
-        chosen = api.post("/api/v1/me/workspace/", {"workspace": "tenant", "tenant_confirmation": "Rent account"}, format="json")
+        chosen = api.post(
+            "/api/v1/me/workspace/",
+            {"workspace": "tenant", "tenant_confirmation": "Rent account"},
+            format="json",
+        )
 
         assert chosen.data["capabilities"]["tenant"]["workspace_access"] is True
 
@@ -442,7 +458,11 @@ class TestProviderSwitchesToTenantAndBack:
         api = APIClient()
         sign_in_as(api, user=person)
 
-        to_tenant = api.post("/api/v1/me/workspace/", {"workspace": "tenant", "tenant_confirmation": "Rent account"}, format="json")
+        to_tenant = api.post(
+            "/api/v1/me/workspace/",
+            {"workspace": "tenant", "tenant_confirmation": "Rent account"},
+            format="json",
+        )
 
         assert to_tenant.status_code == 200
         assert to_tenant.data["capabilities"]["active_workspace"] == "tenant"
