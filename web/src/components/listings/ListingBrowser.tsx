@@ -661,6 +661,7 @@ export function ListingBrowser() {
         />
       ) : (
         <section aria-live="polite" aria-busy={listings === null || querying}>
+            {(listings === null || querying) && !error ? <p className="page-loading-caption" role="status"><span className="page-loading-dot" aria-hidden="true" />Finding properties…</p> : null}
           {listings?.length ? (
             <ul className="explore-grid">
               {listings.map((listing) => (
@@ -677,10 +678,11 @@ export function ListingBrowser() {
 
           {/* Guidance only. The one Clear all sits directly above, beside the
               count it would change; a second one here said the same thing twice. */}
-          {listings?.length === 0 && !error ? (
+          {listings?.length === 0 && !querying && !error ? (
             <div className="explore-empty">
               <p className="type-body-strong">Nothing matches yet</p>
               <p className="type-caption">Try a wider rent, a longer advance, or a nearby area.</p>
+              <button type="button" className="explore-clear-all" onClick={() => update({ ...withoutFilters(query), ...NO_LOCATION })}>Clear search and filters</button>
             </div>
           ) : null}
 

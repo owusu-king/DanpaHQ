@@ -1,4 +1,5 @@
 import type { ImagePickerAsset } from "expo-image-picker";
+import { readUploadSource } from "@/uploadTransfer";
 
 export const PILOT_SCAN_MAX_BYTES = 3_500_000;
 
@@ -29,7 +30,7 @@ export async function preparePhotoUpload(
   // A picker-provided fileSize can be missing or stale after conversion.
   let original: Blob | null = null;
   if (!asset.fileSize || asset.fileSize <= PILOT_SCAN_MAX_BYTES) {
-    original = await (await fetch(asset.uri)).blob();
+    original = await readUploadSource(asset.uri);
     if (original.size <= PILOT_SCAN_MAX_BYTES) {
       return { uri: asset.uri, mime, filename, blob: original };
     }
@@ -59,7 +60,7 @@ export async function preparePhotoUpload(
       const image = await context.renderAsync();
       for (const quality of JPEG_QUALITIES) {
         const result = await image.saveAsync({ format: SaveFormat.JPEG, compress: quality });
-        const blob = await (await fetch(result.uri)).blob();
+        const blob = await readUploadSource(result.uri);
         if (blob.size > 0 && blob.size <= PILOT_SCAN_MAX_BYTES) {
           return {
             uri: result.uri,

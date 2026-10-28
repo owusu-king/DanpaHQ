@@ -72,6 +72,7 @@ const NAV = [
     icon: "settings",
     items: [
       { href: "/management/configuration", label: "Configuration", capability: "view_configuration" },
+      { href: "/management/how-it-works", label: "How It Works", capability: "manage_configuration" },
       { href: "/management/audit-logs", label: "Audit log", capability: "view_audit_logs" },
     ],
   },
@@ -147,7 +148,8 @@ export function ManagementShell({ children }: { children: React.ReactNode }) {
     } else {
       setCollapsed(window.matchMedia("(max-width: 80rem)").matches);
     }
-    setExpanded((current) => new Set([...current, ...readStoredGroups()]));
+    const saved = readStoredGroups().filter((id) => (NAV as readonly NavEntry[]).some((entry) => isGroup(entry) && entry.id === id));
+    setExpanded((current) => new Set(current.size ? [...current].slice(-1) : saved.slice(-1)));
   }, []);
 
   // A direct visit, a refresh or a link from another page lands with the
@@ -155,7 +157,7 @@ export function ManagementShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const active = activeGroupId(pathname);
     if (!active) return;
-    setExpanded((current) => (current.has(active) ? current : new Set(current).add(active)));
+    setExpanded((current) => (current.has(active) ? current : new Set([active])));
   }, [pathname]);
 
   const toggleCollapsed = useCallback(() => {
@@ -166,11 +168,9 @@ export function ManagementShell({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
-  const toggleGroup = useCallback((id: string) => {
+  const toggleGroup = useCallback((id: string, forceOpen = false) => {
     setExpanded((current) => {
-      const next = new Set(current);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      const next = new Set(current.has(id) && !forceOpen ? [] : [id]);
       storeGroups(next);
       return next;
     });
@@ -237,6 +237,19 @@ export function ManagementShell({ children }: { children: React.ReactNode }) {
       data-ready={collapsed === null ? undefined : "true"}
     >
       <aside id="management-sidebar" className={`management-sidebar ${open ? "is-open" : ""}`}>
+        <button
+          type="button"
+          className="management-collapse"
+          onClick={toggleCollapsed}
+          aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+          aria-expanded={!isCollapsed}
+          aria-controls="management-sidebar"
+          title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+        >
+          <svg className="management-collapse-icon" viewBox="0 0 20 20" width="16" height="16" aria-hidden="true" focusable="false">
+            <path d="m11.5 5.5-4.5 4.5 4.5 4.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
         <div className="management-brand">
           <div className="management-brand-identity">
             <span className="management-brand-mark" aria-hidden="true">DH</span>
@@ -245,15 +258,6 @@ export function ManagementShell({ children }: { children: React.ReactNode }) {
               <span>Management</span>
             </div>
           </div>
-          <button
-            type="button"
-            className="management-collapse"
-            onClick={toggleCollapsed}
-            aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-            aria-pressed={isCollapsed}
-          >
-            <Icon name="panel" />
-          </button>
           <button type="button" className="management-drawer-close" onClick={() => closeMenu(true)} aria-label="Close menu">
             <Icon name="close" />
           </button>
@@ -267,7 +271,7 @@ export function ManagementShell({ children }: { children: React.ReactNode }) {
                 pathname={pathname}
                 expanded={expanded.has(item.id)}
                 railMode={isCollapsed && !open}
-                onToggle={() => toggleGroup(item.id)}
+                onToggle={(forceOpen) => toggleGroup(item.id, forceOpen)}
                 onNavigate={() => setOpen(false)}
               />
             ) : (
@@ -343,7 +347,7 @@ function NavGroupItem({
   pathname: string;
   expanded: boolean;
   railMode: boolean;
-  onToggle: () => void;
+  onToggle: (forceOpen?: boolean) => void;
   onNavigate: () => void;
 }) {
   const listId = useId();
@@ -351,7 +355,7 @@ function NavGroupItem({
   const triggerRef = useRef<HTMLButtonElement>(null);
   const [flyoutTop, setFlyoutTop] = useState<number | null>(null);
   const containsActive = group.items.some((item) => isActive(pathname, item.href));
-  const flyoutOpen = railMode && flyoutTop !== null;
+  const flyoutOpen = railMode && expanded && flyoutTop !== null;
 
   useEffect(() => { setFlyoutTop(null); }, [pathname, railMode]);
 
@@ -383,6 +387,7 @@ function NavGroupItem({
       setFlyoutTop(null);
       return;
     }
+    onToggle(true);
     const rect = triggerRef.current?.getBoundingClientRect();
     setFlyoutTop(rect ? rect.top : 0);
   }

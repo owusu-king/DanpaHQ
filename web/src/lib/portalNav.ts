@@ -55,6 +55,16 @@ export function portalSections(
   // The artisan experience: four places and no others. An artisan sees the work
   // they were invited to or given, never a tenant, property or request beyond it.
   // Updates stays in the top bar for them, as for everyone.
+  if (me.capabilities.active_workspace === "artisan" && !me.capabilities.artisan.workspace_access) {
+    return [
+      { items: [{ href: "/home", label: "Home", icon: "home", hint: "Where your artisan review stands" }] },
+      ACCOUNT_SECTION,
+    ];
+  }
+  if (me.capabilities.active_workspace === "discovery" && !me.capabilities.tenant.workspace_access) {
+    return [{ items: [{ href: "/rentals", label: "Explore", icon: "explore", hint: "Browse properties" }] }, ACCOUNT_SECTION];
+  }
+
   if (me.capabilities.active_workspace === "artisan" && me.capabilities.artisan.workspace_access) {
     return [
       {
@@ -93,7 +103,7 @@ export function portalSections(
         ] as PortalItem[])
         : []),
       ...(finances
-        ? ([{ href: "/payments", label: "Payments", icon: "payments", hint: "Rent balances and payment records" }] as PortalItem[])
+        ? ([{ href: "/payments", label: "Finance", icon: "payments", hint: "Rent balances and payment records" }] as PortalItem[])
         : []),
     ];
     return [

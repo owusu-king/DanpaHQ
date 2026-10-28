@@ -1,9 +1,4 @@
-/* A Property and a Unit, on the shared workspace (workspace.css).
-   Organised for the question somebody arrives with: what it looks like and the
-   one thing to do next; then the facts as tiles; then everything you can
-   manage, in one panel of rows that open. Glass on the workspace wash, kola for
-   action and good standing, harmattan for what waits on a check. Scoped to
-   `.pd-page`, so the older property pages keep their own look. */
+/* Property and Unit records: compact, visible sections on a quiet workspace. */
 
 .pd-page {
   --pd-glass: rgba(255, 255, 255, .76);
@@ -36,17 +31,17 @@
 .pd-gallery-lead {
   display: grid;
   place-items: center;
-  height: clamp(14rem, 34vh, 22rem);
+  height: clamp(10rem, 24vh, 15rem);
   overflow: hidden;
   color: color-mix(in srgb, var(--color-kola-600) 55%, var(--color-field-300));
   background:
     radial-gradient(80% 120% at 0% 0%, color-mix(in srgb, var(--color-kola-50) 90%, transparent), transparent 65%),
     var(--color-field-50);
-  border-radius: 1.25rem;
+  border-radius: 10px;
   box-shadow: 0 22px 44px -30px rgba(33, 26, 21, .55), var(--pd-ring);
 }
 .pd-gallery-lead img { width: 100%; height: 100%; object-fit: cover; }
-.pd-gallery-lead span { display: grid; justify-items: center; gap: var(--space-2); font-size: .8125rem; font-weight: 600; }
+.pd-gallery-lead span { display: grid; justify-items: center; gap: var(--space-2); font-size: .8125rem; font-weight: 500; }
 .pd-gallery-lead span .portal-icon { width: 2.25rem; height: 2.25rem; color: inherit; stroke-width: 1.1; }
 
 .pd-side { display: grid; gap: var(--space-3); min-width: 0; }
@@ -56,33 +51,20 @@
   --pd-tone: var(--color-harmattan-600);
   --pd-wash: var(--color-harmattan-100);
   display: grid;
-  gap: var(--space-2);
-  padding: var(--space-5);
-  background:
-    radial-gradient(100% 120% at 0% 0%, color-mix(in srgb, var(--pd-wash) 95%, transparent), transparent 62%),
-    linear-gradient(165deg, rgba(255, 255, 255, .96), rgba(255, 255, 255, .8));
-  border: 1px solid rgba(255, 255, 255, .95);
-  border-radius: 1.25rem;
-  box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--pd-tone) 16%, rgba(33, 26, 21, .05)),
-    0 18px 38px -28px color-mix(in srgb, var(--pd-tone) 60%, transparent),
-    inset 0 1px 0 #fff;
+  gap: 8px;
+  padding: 16px;
+  background: var(--color-field-0);
+  border: 1px solid var(--color-field-200);
+  border-radius: 10px;
 }
 .pd-next[data-tone="public"],
 .pd-next[data-tone="private"] { --pd-tone: var(--color-kola-600); --pd-wash: var(--color-kola-50); }
 .pd-next[data-tone="occupied"] { --pd-tone: var(--color-lagoon-600); --pd-wash: var(--color-lagoon-100); }
-.pd-next-kicker { justify-self: start; padding: 2px 10px; color: var(--pd-tone); font-size: .6875rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; background: color-mix(in srgb, var(--pd-wash) 85%, #fff); border-radius: 999px; }
-.pd-next h2 { margin: 0; color: var(--color-ink-900); font-family: var(--font-display); font-size: 1.25rem; font-weight: 650; letter-spacing: -.01em; }
+.pd-next-kicker { justify-self: start; padding: 2px 10px; color: var(--pd-tone); font-size: .6875rem; font-weight: 500; letter-spacing: .06em; text-transform: uppercase; background: color-mix(in srgb, var(--pd-wash) 85%, #fff); border-radius: 999px; }
+.pd-next h2 { margin: 0; color: var(--color-ink-900); font-family: var(--font-display); font-size: 1.25rem; font-weight: 500; letter-spacing: -.01em; }
 .pd-next > p { margin: 0 0 var(--space-2); color: var(--color-ink-700); font-size: .9375rem; }
 .pd-next-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
-.pd-next .btn-primary,
-.pd-next .button-link:not(.secondary) {
-  color: #fff;
-  background: linear-gradient(150deg, var(--color-kola-600), color-mix(in srgb, var(--color-kola-600) 70%, var(--color-kola-800)));
-  border-color: transparent;
-  box-shadow: 0 10px 20px -12px color-mix(in srgb, var(--color-kola-600) 90%, transparent), inset 0 1px 0 rgba(255, 255, 255, .2);
-}
-.pd-next .button-link.secondary { color: var(--color-kola-800); border-color: color-mix(in srgb, var(--color-kola-600) 30%, var(--color-field-300)); }
+
 
 /* --- facts as tiles ------------------------------------------------------------------------ */
 
@@ -101,8 +83,8 @@
 .pd-fact > span:last-child { display: grid; gap: 1px; min-width: 0; }
 .pd-fact-mark { display: grid; flex: none; place-items: center; width: 2.25rem; height: 2.25rem; color: var(--color-kola-600); background: var(--color-kola-50); border-radius: .75rem; }
 .pd-fact-mark .portal-icon { width: 17px; height: 17px; color: inherit; }
-.pd-fact dt { color: var(--color-ink-500); font-size: .6875rem; font-weight: 650; letter-spacing: .04em; text-transform: uppercase; }
-.pd-fact dd { margin: 0; color: var(--color-ink-900); font-size: .9375rem; font-weight: 650; overflow-wrap: anywhere; }
+.pd-fact dt { color: var(--color-ink-500); font-size: .6875rem; font-weight: 500; letter-spacing: .04em; text-transform: uppercase; }
+.pd-fact dd { margin: 0; color: var(--color-ink-900); font-size: .9375rem; font-weight: 500; overflow-wrap: anywhere; }
 .pd-facts.is-compact { grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr)); }
 .pd-facts.is-compact .pd-fact { background: rgba(255, 255, 255, .8); border: 0; box-shadow: 0 0 0 1px rgba(33, 26, 21, .06); }
 
@@ -112,15 +94,15 @@
   display: grid;
   gap: var(--space-3);
   min-width: 0;
-  padding: var(--space-5);
+  padding: 16px;
   background: var(--pd-glass);
   border: 1px solid rgba(255, 255, 255, .9);
   border-radius: var(--radius-lg);
   box-shadow: var(--pd-ring), 0 14px 32px -28px rgba(33, 26, 21, .5), inset 0 1px 0 #fff;
 }
 .pd-panel-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
-.pd-panel-title { display: flex; align-items: baseline; gap: var(--space-2); margin: 0; color: var(--color-ink-900); font-family: var(--font-display); font-size: 1.125rem; font-weight: 650; }
-.pd-panel-title span { color: var(--color-ink-300); font-family: var(--font-body); font-size: .875rem; font-weight: 600; }
+.pd-panel-title { display: flex; align-items: baseline; gap: var(--space-2); margin: 0; color: var(--color-ink-900); font-family: var(--font-display); font-size: 1.125rem; font-weight: 500; }
+.pd-panel-title span { color: var(--color-ink-300); font-family: var(--font-body); font-size: .875rem; font-weight: 500; }
 .pd-note { margin: 0 0 var(--space-3); color: var(--color-ink-500); font-size: .8125rem; }
 
 /* Rows that open: one glass list instead of a stack of rules. */
@@ -133,11 +115,11 @@
 .pd-page .pd-panel .detail-disclosure + .detail-disclosure,
 .pd-page .pd-panel .detail-disclosure + * { margin-top: 0; }
 .pd-page .pd-panel .detail-disclosure > summary {
-  min-height: 3.25rem;
+  min-height: 44px;
   padding: 0 var(--space-4);
   color: var(--color-ink-900);
   font-size: .9375rem;
-  font-weight: 650;
+  font-weight: 500;
   border-radius: var(--radius-md);
 }
 .pd-page .pd-panel .detail-disclosure > summary:hover { background: color-mix(in srgb, var(--color-kola-50) 60%, transparent); }
@@ -145,13 +127,11 @@
 .pd-page .pd-panel .detail-disclosure-body { padding: 0 var(--space-4) var(--space-4); }
 
 .pd-chips { display: flex; flex-wrap: wrap; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
-.pd-chips li { padding: 5px var(--space-3); color: var(--color-kola-800); font-size: .8125rem; font-weight: 600; background: color-mix(in srgb, var(--color-kola-50) 80%, #fff); border-radius: 999px; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-kola-600) 16%, transparent); }
+.pd-chips li { padding: 5px var(--space-3); color: var(--color-kola-800); font-size: .8125rem; font-weight: 500; background: color-mix(in srgb, var(--color-kola-50) 80%, #fff); border-radius: 999px; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-kola-600) 16%, transparent); }
 
 .pd-amenities { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); padding-top: var(--space-3); border-top: 1px solid rgba(33, 26, 21, .07); }
-.pd-amenities-label { color: var(--color-ink-500); font-size: .6875rem; font-weight: 650; letter-spacing: .04em; text-transform: uppercase; }
+.pd-amenities-label { color: var(--color-ink-500); font-size: .6875rem; font-weight: 500; letter-spacing: .04em; text-transform: uppercase; }
 .pd-amenities .pd-note { margin: 0; }
-.pd-edit { margin-left: auto; color: var(--color-kola-800); font-size: .8125rem; font-weight: 650; text-decoration: none; }
-.pd-edit:hover { text-decoration: underline; }
 
 .pd-link {
   display: flex;
@@ -160,7 +140,7 @@
   padding: var(--space-3);
   color: var(--color-ink-900);
   font-size: .9375rem;
-  font-weight: 650;
+  font-weight: 500;
   text-decoration: none;
   background: var(--pd-glass);
   border: 1px solid rgba(255, 255, 255, .9);
@@ -192,15 +172,90 @@
   display: grid;
   gap: var(--space-3);
   margin: 0;
-  padding: var(--space-5);
+  padding: 16px;
   background: var(--pd-glass);
   border: 1px solid rgba(255, 255, 255, .9);
   border-radius: var(--radius-lg);
   box-shadow: var(--pd-ring), 0 14px 32px -28px rgba(33, 26, 21, .5), inset 0 1px 0 #fff;
 }
 .pd-page > .workspace-section .workspace-section-head { margin: 0; }
-.pd-page > .workspace-section .workspace-section-head h2 { margin: 0; color: var(--color-ink-900); font-family: var(--font-display); font-size: 1.125rem; font-weight: 650; }
-.pd-page > .workspace-section .detail-disclosure { border: 0; border-radius: var(--radius-md); background: rgba(255, 255, 255, .7); box-shadow: 0 0 0 1px rgba(33, 26, 21, .06); }
-.pd-page > .workspace-section .detail-disclosure > summary { min-height: 3.25rem; padding: 0 var(--space-4); font-weight: 650; }
-.pd-page > .workspace-section .detail-disclosure[open] { background: #fff; }
-.pd-page > .workspace-section .detail-disclosure-body { padding: 0 var(--space-4) var(--space-4); }
+.pd-page > .workspace-section .workspace-section-head h2 { margin: 0; color: var(--color-ink-900); font-family: var(--font-display); font-size: 1.125rem; font-weight: 500; }
+
+/* Detail actions share the design-system variants and one restrained scale. */
+.pd-page .btn { min-height: 36px; padding: 0 12px; gap: 8px; border-radius: 6px; font-size: .8125rem; font-weight: 500; line-height: 1.3; box-shadow: none; }
+.pd-page .btn .portal-icon { width: 16px; height: 16px; color: inherit; }
+.pd-page .btn-primary { background: var(--color-kola-600); border-color: var(--color-kola-600); color: var(--color-field-0); }
+.pd-page .btn-primary:hover:not(:disabled) { background: var(--color-kola-800); border-color: var(--color-kola-800); }
+@media (pointer: coarse) { .pd-page .btn { min-height: 44px; } }
+
+/* Routine information stays visible, with hierarchy carried by spacing and rules. */
+.pd-page { gap: 16px; }
+.pd-page .ws-title h1 { font-size: 1.5rem; font-weight: 500; }
+.pd-panel, .pd-page > .workspace-section { background: var(--color-field-0); border: 1px solid var(--color-field-200); border-radius: 10px; box-shadow: none; }
+.pd-panel-title, .pd-page > .workspace-section .workspace-section-head h2 { font-size: .9375rem; font-weight: 500; }
+.pd-section { display: grid; min-width: 0; gap: 12px; padding-block: 16px; border-top: 1px solid var(--color-field-200); }
+.pd-section:first-child { padding-top: 0; border-top: 0; }
+.pd-section:last-child { padding-bottom: 0; }
+.pd-section .pd-panel-title { margin-bottom: 0; }
+.pd-fact, .pd-facts.is-compact .pd-fact { padding: 8px 0; background: transparent; border: 0; border-radius: 0; box-shadow: none; }
+.pd-fact-mark { width: 28px; height: 28px; border-radius: 6px; background: transparent; }
+.pd-fact dd { font-size: .875rem; font-weight: 500; }
+.pd-gallery-lead { border: 1px solid var(--color-field-200); box-shadow: none; }
+.pd-next h2 { font-size: 1.125rem; font-weight: 500; }
+.pd-next > p { font-size: .875rem; }
+.pd-page .portal-empty { min-height: 0; padding: 24px 16px; }
+.pd-page .detail-disclosure > summary { min-height: 44px; font-size: .875rem; font-weight: 500; }
+.pd-danger { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-top: 16px; border-top: 1px solid var(--color-field-200); }
+.pd-danger h3 { margin: 0 0 4px; font-size: .875rem; font-weight: 500; }
+.pd-danger .pd-note { margin: 0; max-width: 64ch; }
+.pd-danger > .btn { flex: none; }
+.doc-modal.is-sm.compact-action-sheet { width: min(30rem, calc(100vw - var(--modal-area-left, 0px) - 2rem)); height: fit-content; margin: auto; inset: var(--modal-area-top, 0px) 0 0 var(--modal-area-left, 0px); max-height: calc(100dvh - var(--modal-area-top, 0px) - 2rem); background: var(--color-field-0); border-radius: 12px; }
+.doc-modal.is-sm.property-edit-sheet { width: min(42rem, calc(100vw - var(--modal-area-left, 0px) - 2rem)); }
+.compact-action-sheet .doc-modal-head { padding: 16px 20px; }
+.compact-action-sheet .doc-modal-body { padding: 16px 20px; overflow-y: auto; }
+.compact-form, .compact-form-fields { display: grid; min-width: 0; gap: 16px; }
+.compact-form-fields { margin: 0; padding: 0; border: 0; }
+.compact-form-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.compact-form .pd-note { margin: 0; font-size: .875rem; line-height: 1.5; }
+.compact-form .field-shell, .compact-form .select-control { min-height: 38px; border-radius: 6px; }
+.compact-form .field-input { min-height: 36px; }
+.compact-form textarea { width: 100%; resize: vertical; padding: 10px 12px; }
+.compact-form-actions { display: flex; justify-content: flex-end; align-items: center; flex-wrap: wrap; gap: 8px; padding-top: 4px; }
+.compact-form .cw-amenity { min-height: 64px; padding: 10px; border: 1px solid var(--color-field-200); border-radius: 8px; box-shadow: none; }
+.compact-form .cw-amenity:hover, .compact-form .cw-amenity[aria-pressed="true"] { border-color: var(--color-kola-600); box-shadow: none; }
+@media (max-width: 640px) {
+  .pd-danger { align-items: flex-start; flex-direction: column; gap: 12px; }
+  .compact-form-grid { grid-template-columns: minmax(0, 1fr); }
+}
+@media (pointer: coarse) {
+  .compact-form .field-shell, .compact-form .select-control { min-height: 44px; }
+  .compact-form .field-input { min-height: 42px; font-size: 1rem; }
+  .compact-form select, .compact-form textarea { font-size: 1rem; }
+}
+
+.pd-gallery-lead.is-empty { height: 160px; }
+.pd-section .field-shell { min-height: 38px; }
+.pd-section .field-input { min-height: 36px; font-size: .875rem; }
+.compact-action-sheet .btn { min-height: 36px; padding-inline: 12px; font-size: .8125rem; font-weight: 500; box-shadow: none; }
+@media (pointer: coarse) {
+  .pd-section .field-shell, .compact-action-sheet .btn { min-height: 44px; }
+  .pd-section .field-input { min-height: 42px; font-size: 1rem; }
+}
+
+/* Destructive acknowledgement is deliberately small and centered in the viewport. */
+.doc-modal.is-sm.danger-confirmation { inset: 50dvh auto auto 50vw; margin: 0; translate: -50% -50%; width: min(24rem, calc(100vw - 2rem)); max-height: calc(100dvh - 2rem); border: 1px solid color-mix(in srgb, var(--color-laterite-600) 35%, var(--color-field-200)); border-radius: 10px; }
+.danger-confirmation::backdrop { inset: 0; }
+.danger-confirmation .doc-modal-head { padding: 12px 16px; gap: 10px; }
+.danger-confirmation .doc-modal-title h2 { font-size: 1rem; font-weight: 500; }
+.danger-confirmation .doc-modal-mark { width: 32px; height: 32px; color: var(--color-laterite-600); background: var(--color-laterite-100); }
+.danger-confirmation .doc-modal-body { padding: 16px; }
+.danger-confirmation .compact-form { gap: 12px; }
+.danger-confirmation-warning { margin: 0; padding: 10px 12px; color: var(--color-laterite-600); font-size: .8125rem; line-height: 1.5; background: var(--color-laterite-100); border-radius: 6px; }
+.danger-confirmation .field-label { font-size: .8125rem; font-weight: 500; overflow-wrap: anywhere; }
+.danger-confirmation .field-shell:focus-within { border-color: var(--color-laterite-600); box-shadow: 0 0 0 2px var(--color-laterite-100); }
+.danger-confirmation .btn-destructive:not(:disabled) { color: #fff; background: var(--color-laterite-600); border-color: var(--color-laterite-600); }
+.danger-confirmation .btn-destructive:hover:not(:disabled) { background: color-mix(in srgb, var(--color-laterite-600) 85%, #000); border-color: color-mix(in srgb, var(--color-laterite-600) 85%, #000); }
+
+.danger-confirmation .doc-modal-mark .portal-icon { color: inherit; }
+
+.danger-confirmation .field-label strong { color: var(--color-ink-900); font-weight: 600; }

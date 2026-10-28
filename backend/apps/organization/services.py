@@ -814,7 +814,17 @@ def portfolio_summary(*, organization: Organization, user) -> dict:
         key=lambda row: (row["property_title"].casefold(), row["unit_label"].casefold())
     )
 
+    from .finance import portfolio_profit_loss
+
+    profit_loss = portfolio_profit_loss(
+        payments=confirmed_payments,
+        expenses=PropertyExpense.objects.filter(
+            organization=organization, property_id__in=property_ids,
+        ),
+        settlements=settlements,
+    )
     return {
+        "profit_loss": profit_loss,
         "organization": {"id": str(organization.id), "name": organization.name},
         "counts": {
             "properties": len(property_rows),

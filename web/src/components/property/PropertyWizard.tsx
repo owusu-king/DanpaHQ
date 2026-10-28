@@ -84,6 +84,7 @@ export function PropertyWizard({
   onClose,
   onFinished,
   onTitle,
+  onChanged,
 }: {
   /** An existing property to carry on with; none starts a new one. */
   propertyId?: string | null;
@@ -97,6 +98,8 @@ export function PropertyWizard({
   onFinished: (propertyId: string) => void;
   /** The name to put in the sheet's header once there is one. */
   onTitle?: (title: string) => void;
+  /** Notify successful writes, never dismissal. */
+  onChanged?: () => void;
 }) {
   const [id, setId] = useState<string | null>(initialId);
   const [property, setProperty] = useState<Property | null>(null);
@@ -211,6 +214,7 @@ export function PropertyWizard({
     try {
       const ok = commitRef.current ? await commitRef.current() : true;
       if (!ok) return;
+      onChanged?.();
       const current = id ?? createdId.current;
       if (current) await load(current);
       if (shown === "review") {
@@ -328,7 +332,7 @@ export function PropertyWizard({
           saleKind={property.purpose === "sale" ? (sale?.kind ?? null) : null}
           onReady={setDocumentReady}
           commitRef={commitRef}
-          reload={() => load(property.id)}
+          reload={() => { onChanged?.(); return load(property.id); }}
         />
       ) : null}
 
@@ -341,6 +345,7 @@ export function PropertyWizard({
           title="This property"
           showSubmit={false}
           onState={setPhotos}
+          onChanged={onChanged}
         />
       ) : null}
 
@@ -370,12 +375,14 @@ export function PropertyWizardModal({
   purpose = "letting",
   onClose,
   onFinished,
+  onChanged,
 }: {
   open: boolean;
   propertyId?: string | null;
   startAt?: string | null;
   purpose?: "letting" | "sale";
   onClose: () => void;
+  onChanged?: () => void;
   onFinished: (propertyId: string) => void;
 }) {
   const [title, setTitle] = useState("");
@@ -390,7 +397,7 @@ export function PropertyWizardModal({
       icon="properties"
       title={title || (propertyId ? "Property setup" : purpose === "sale" ? "Sell a property" : "New property")}
       meta="Saved as you go"
-      className="lease-wizard-sheet is-wizard creation-sheet"
+      className="lease-wizard-sheet is-wizard creation-sheet property-creation-sheet"
       closeLabel="Close property setup"
     >
       {(close) => (
@@ -400,6 +407,7 @@ export function PropertyWizardModal({
           purpose={purpose}
           onClose={close}
           onTitle={setTitle}
+          onChanged={onChanged}
           onFinished={(id) => {
             onFinished(id);
             close();

@@ -10,7 +10,7 @@ import { initialWindowMetrics, SafeAreaProvider } from "react-native-safe-area-c
 import { AuthProvider, useAuth } from "@/auth";
 import { LaunchCurtain } from "@/components/shell/LaunchScreen";
 import { TypographyScaleProvider } from "@/components/ui";
-import { resolveEntryRoute } from "@/navigation";
+import { BASIC_ACCOUNT_SCREENS, resolveEntryRoute } from "@/navigation";
 import { gestureBackEnabled, stackAnimation } from "@/platform";
 import { accountJustCreated } from "@/registrationDraft";
 import { MessagePush } from "@/messagePush";
@@ -73,7 +73,7 @@ function entryRedirect(
   const signedOutScreen = SIGNED_OUT_SCREENS.includes(screen);
   const atRoot = segments.length === 0
     || (segments.length === 1 && segments[0] === "index");
-  const inPublicDiscovery = group === "(app)" && (screen === "(tabs)" || screen === "listing");
+  const inPublicDiscovery = group === "(app)" && ((screen === "(tabs)" && tab === "explore"));
   const inProviderTabs = group === "(app)" && screen === "(provider-tabs)";
   const inArtisanTabs = group === "(app)" && screen === "(artisan-tabs)";
   // The renter's tab at the same address, for an address both workspaces answer.
@@ -83,7 +83,7 @@ function entryRedirect(
     if (inPublicDiscovery || (inAuthFlow && signedOutScreen)) return null;
     // Installation history only chooses the front door. Account completion and
     // provider verification are read from /me after authentication.
-    return renterTwin ?? (session.firstVisit ? "/(auth)/start" : "/(auth)/sign-in");
+    return (atRoot && session.firstVisit ? "/(auth)/start" : "/(auth)/sign-in");
   }
 
   // An account created a moment ago on this device sees the welcome before
@@ -106,13 +106,21 @@ function entryRedirect(
   // address was reached. The backend's own destination is trusted when it is the
   // provider tabs themselves, so the two can never bounce somebody between them.
   const capabilities = session.me.capabilities;
-  const mayOperate = capabilities.provider.workspace_access && capabilities.active_workspace === "provider";
+  if (group === "(app)" && screen === "(tabs)" && tab !== "explore"
+      && !capabilities.tenant.workspace_access) return destination;
+  const pendingProvider = capabilities.active_workspace === "provider" && !capabilities.provider.workspace_access;
+  const pendingArtisan = capabilities.active_workspace === "artisan" && !capabilities.artisan.workspace_access;
+
+  if ((pendingProvider || pendingArtisan) && group === "(app)"
+      && !inProviderTabs && !inArtisanTabs && !BASIC_ACCOUNT_SCREENS.includes(screen)
+      && !(screen === "(tabs)" && tab === "explore")) return destination;
+  const mayOperate = capabilities.available_workspaces.includes("provider") && capabilities.active_workspace === "provider";
   if (inProviderTabs && !mayOperate && !destination.startsWith("/(app)/(provider-tabs)")) {
     return renterTwin ?? destination;
   }
   // The same for the artisan tabs, which only an approved artisan who chose
   // that experience is ever shown. Asking for them is not having them.
-  const mayWork = capabilities.artisan.workspace_access && capabilities.active_workspace === "artisan";
+  const mayWork = capabilities.available_workspaces.includes("artisan") && capabilities.active_workspace === "artisan";
   if (inArtisanTabs && !mayWork && !destination.startsWith("/(app)/(artisan-tabs)")) {
     return destination;
   }

@@ -19,7 +19,7 @@ import { SegmentedField, SelectField } from "@/components/filters/FilterFields";
 import { BottomSheet } from "@/components/sheet/BottomSheet";
 import { SheetCard, SheetGlassButton, SheetPrimaryButton } from "@/components/sheet/SheetParts";
 import { ShowField } from "@/components/explore/ExploreShow";
-import { Notice, Type, space } from "@/components/ui";
+import { Button, Notice, Type, space } from "@/components/ui";
 import {
   searchSales,
   searchSalesPage,
@@ -144,7 +144,7 @@ export function SaleExplore({
   const count = sales?.length ?? 0;
   const countLine = sales === null ? "Finding properties…" : querying
     ? "Updating…"
-    : `${count}${next ? "+" : ""} ${count === 1 ? "property" : "properties"} for sale`;
+    : !q && !refinements || error ? "Properties for sale" : `${count}${next ? "+" : ""} ${count === 1 ? "property" : "properties"} for sale`;
 
   function clearFilters() {
     setKind("");
@@ -218,10 +218,11 @@ export function SaleExplore({
         }}
         ListFooterComponent={loadingMore ? <ActivityIndicator style={{ paddingVertical: space[5] }} color={theme.color.kola["600"]} /> : null}
         ListEmptyComponent={
-          sales === null || error ? null : (
+          sales === null || querying || error ? null : (
             <View style={{ paddingVertical: space[8], gap: space[2] }}>
               <Type variant="bodyStrong">Nothing for sale matches yet</Type>
               <Type variant="caption">Try a higher budget, another kind of property, or a wider area.</Type>
+              <Button label="Clear search and filters" onPress={() => { setText(""); clearFilters(); }} />
             </View>
           )
         }

@@ -1,8 +1,9 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 
 import { apiBaseUrl, apiFetch, ApiFailure } from "@/api";
 import { useAuth } from "@/auth";
+import { ProviderTermsConsent, type AcceptedProviderTerms } from "@/components/auth/ProviderTermsConsent";
 import { DIAL_CODE, TextLink } from "@/components/auth/AuthFields";
 import {
   AuthAction,
@@ -15,13 +16,13 @@ import {
   AuthScene,
 } from "@/components/auth/AuthScene";
 import { Notice, Type } from "@/components/ui";
-import { isAccountExists } from "@/formErrors";
-import { asOnboardingIntent, pendingOnboardingIntent } from "@/onboardingIntent";
+import { fieldErrorsFrom, isAccountExists, summaryErrorFrom } from "@/formErrors";
+import { asOnboardingIntent, clearPendingOnboardingIntent, pendingOnboardingIntent } from "@/onboardingIntent";
 import { phoneInputProps } from "@/platform";
-import { clearRegistrationDraft } from "@/registrationDraft";
+import { clearRegistrationDraft, markAccountJustCreated, registrationDraft, returnDraftWithErrors, saveRegistrationDetails, saveRegistrationPhone, submitRegistration } from "@/registrationDraft";
 
 /**
- * Step two of creating an account. It has one job: get a phone number,
+ * Step three: provider agreement first, then a phone number,
  * correctly, from someone who may be standing in the sun on a cracked screen.
  *
  * Decisions that matter here:
@@ -50,11 +51,21 @@ export default function PhoneScreen() {
     intent?: string;
     workspace?: string;
   }>();
-  const { deviceFingerprint } = useAuth();
+  const { deviceFingerprint, state, signIn, refreshMe } = useAuth();
+  const draft = registrationDraft();
+  const accountType = draft?.accountType ?? (workspace === "provider" ? "provider" : "tenant");
+  const createsHere = Boolean(draft?.ticket || draft?.googleTicket) || (state.status === "signed_in" && state.me.registration_state !== "complete");
+  const [providerTerms, setProviderTerms] = useState<AcceptedProviderTerms | null>(draft?.providerTerms ?? null);
+  const needsAgreement = accountType === "provider" && !providerTerms;
+  const changeTerms = useCallback((value: AcceptedProviderTerms | null) => {
+    setProviderTerms(value);
+    const held = registrationDraft();
+    if (held) saveRegistrationDetails({ ...held, providerTerms: value });
+  }, []);
 
-  const [phone, setPhone] = useState("");
+  const [phone, setPhone] = useState(draft?.phone ?? "");
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState(draft?.errors.provider_terms ?? draft?.summary ?? "");
   const [unreachable, setUnreachable] = useState("");
   // Not an error: the number is fine, it simply already belongs to someone. The
   // server tells us this instead of sending a code, so the person finds out
@@ -62,15 +73,27 @@ export default function PhoneScreen() {
   const [accountExists, setAccountExists] = useState(false);
 
   // The details are still held, so going back finds them as they were left.
-  const backToDetails = () => (router.canGoBack() ? router.back() : router.replace("/(auth)/start"));
+  const backToDetails = () => router.dismissTo({ pathname: "/(auth)/register", params: { workspace: accountType } });
 
   const digits = phone.replace(/\D/g, "");
   const looksComplete = digits.length >= 9;
 
   async function requestCode() {
+    if (needsAgreement || busy) return;
     setBusy(true);
     setError("");
     try {
+      if (createsHere) {
+        const details = registrationDraft();
+        if (!details) { backToDetails(); return; }
+        const { session } = await submitRegistration({ details, ticket: details.ticket, googleTicket: details.googleTicket, deviceFingerprint });
+        markAccountJustCreated(details.accountType);
+        clearRegistrationDraft();
+        await clearPendingOnboardingIntent();
+        if (session) await signIn(session);
+        else await refreshMe();
+        return;
+      }
       const selectedIntent = asOnboardingIntent(intent) ?? await pendingOnboardingIntent();
       const result = await apiFetch<{
         challenge_id: string;
@@ -97,6 +120,17 @@ export default function PhoneScreen() {
         },
       });
     } catch (cause) {
+      if (createsHere) {
+        const fields = fieldErrorsFrom(cause);
+        const held = registrationDraft();
+        if (held) {
+          if (fields.provider_terms) changeTerms(null);
+          returnDraftWithErrors(held.ticket, fields, summaryErrorFrom(cause, fields));
+        }
+        setError(fields.provider_terms ?? summaryErrorFrom(cause, fields));
+        if (!fields.provider_terms) router.replace({ pathname: "/(auth)/register", params: { workspace: accountType } });
+        return;
+      }
       if (isAccountExists(cause)) {
         setAccountExists(true);
         return;
@@ -119,23 +153,31 @@ export default function PhoneScreen() {
 
   return (
     <AuthScene
-      progress={{ step: 2, of: 3 }}
+      progress={{ step: 3, of: draft?.googleTicket ? 3 : 4 }}
       header={<AuthBack label="Back to your details" onPress={backToDetails} />}
     >
       <AuthHeading
-        title="Confirm your number"
-        line="It is how you sign in and how we reach you. We'll text a six-digit code."
+        title={needsAgreement ? "Provider agreement" : createsHere ? "Complete your account" : "Confirm your number"}
+        line={needsAgreement ? "Review and accept the agreement before continuing." : createsHere ? "Your provider agreement is accepted. You can now finish creating your account." : "We'll text you a six-digit code."}
       />
 
+      {needsAgreement ? <>
+        <ProviderTermsConsent value={providerTerms} onChange={changeTerms} presentation="inline" />
+        {error ? <Notice tone="error" title={error} /> : null}
+      </> : <>
+      {accountType === "provider" ? <><Type variant="caption">Provider agreement accepted.</Type><TextLink label="Review agreement" onPress={() => changeTerms(null)} /></> : null}
+      {!createsHere ? <>
       <AuthFields>
         <AuthField
+          labelAsPlaceholder
           label="Mobile number"
           icon="call-outline"
           prefix={DIAL_CODE}
-          placeholder="24 123 4567"
+          placeholder="Mobile number"
           value={phone}
           onChangeText={(value) => {
             setPhone(value);
+            saveRegistrationPhone(value);
             setAccountExists(false);
             if (error) setError("");
           }}
@@ -147,6 +189,7 @@ export default function PhoneScreen() {
           {...phoneInputProps}
         />
       </AuthFields>
+      </> : error ? <Notice tone="error" title={error} /> : null}
 
       {unreachable ? (
         <Notice
@@ -177,15 +220,16 @@ export default function PhoneScreen() {
         </>
       ) : (
         <AuthAction
-          label="Send code"
-          busyLabel="Sending…"
+          label={createsHere ? "Create account" : "Send code"}
+          busyLabel={createsHere ? "Creating your account…" : "Sending…"}
           onPress={requestCode}
           busy={busy}
-          disabled={!looksComplete}
+          disabled={!createsHere && !looksComplete}
         />
       )}
 
-      <AuthFoot>
+      </>}
+      {!needsAgreement && !createsHere ? <AuthFoot>
         {/* The one thing worth saying at the foot of this screen. It used to be
             a four-line notice plus a line of small print about SMS rates. */}
         <Type variant="caption" style={{ textAlign: "center" }}>
@@ -199,7 +243,7 @@ export default function PhoneScreen() {
             onPress={() => router.replace({ pathname: "/(auth)/sign-in", params: { workspace } })}
           />
         </AuthAside>
-      </AuthFoot>
+      </AuthFoot> : null}
     </AuthScene>
   );
 }

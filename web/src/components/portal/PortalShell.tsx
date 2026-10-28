@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { IntelMark } from "@/components/IntelMark";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
@@ -292,14 +293,14 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
             {enquiries ? (
               <button
                 type="button"
-                className="portal-header-support"
+                className="portal-header-updates portal-header-intel"
+                title="Danpa Intel"
                 aria-haspopup="dialog"
                 aria-expanded={inbox.open}
                 aria-label="Danpa Intel"
                 onClick={() => openEnquiries()}
               >
-                <Icon name="headset" />
-                <span className="portal-header-support-label" aria-hidden="true">Danpa Intel</span>
+                <IntelMark />
               </button>
             ) : null}
             <Link href="/updates" className="portal-header-updates" aria-current={pathname === "/updates" ? "page" : undefined}>
@@ -395,10 +396,10 @@ function workspaceLabel(me: Me): string {
   if (me.capabilities.active_workspace === "provider") {
     return me.capabilities.provider.workspace_access ? "Provider" : "Provider · in review";
   }
-  if (me.capabilities.active_workspace === "artisan" && me.capabilities.artisan.workspace_access) {
-    return "Artisan";
+  if (me.capabilities.active_workspace === "artisan") {
+    return me.capabilities.artisan.workspace_access ? "Artisan" : "Artisan · in review";
   }
-  return "Renting";
+  return me.capabilities.tenant.workspace_access ? "Renting" : "Explore";
 }
 
 function PortalNav({

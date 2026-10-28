@@ -64,11 +64,10 @@ test("the old auth addresses open the dialog once, from outside", () => {
   }
 });
 
-test("sign in starts on Tenant", () => {
+test("sign in never selects or grants an account type", () => {
   const flow = code(read("src/components/auth/flows/SignInFlow.tsx"));
-  assert.match(flow, /useState<"tenant" \| "provider">\(params\.workspace \?\? "tenant"\)/);
-  // The side is always sent, so what the switch shows is what the backend hears.
-  assert.match(flow, /me = await chooseWorkspace\(workspace\);/);
+  assert.doesNotMatch(flow, /chooseWorkspace|AuthSide|account_type:|setWorkspace/);
+  assert.match(code(read("src/components/auth/flows/RegisterFlow.tsx")), /account_type/);
 });
 
 test("signed in, the person lands on their dashboard unless they were mid-task", () => {

@@ -38,6 +38,9 @@ class FilePurpose(models.TextChoices):
     ARTISAN_RECEIPT = "artisan_receipt", "Receipt for artisan work"
     REPORT_EVIDENCE = "report_evidence", "Evidence for a report"
     OTHER = "other", "Other"
+    GUIDE_VIDEO = "guide_video", "How It Works video"
+    GUIDE_THUMBNAIL = "guide_thumbnail", "How It Works thumbnail"
+    GUIDE_CAPTIONS = "guide_captions", "How It Works captions"
 
 
 class ScanStatus(models.TextChoices):
@@ -145,6 +148,11 @@ class StoredFile(SoftDeleteModel):
     def is_owned_by(self, user) -> bool:
         if user is None:
             return False
+        from apps.operations.models import ManagementUser
+
+        # Management and consumer UUIDs belong to different principal namespaces.
+        if isinstance(user, ManagementUser):
+            return self.owner_id_snapshot == f"management:{user.id}"
         if self.uploaded_by_id and str(self.uploaded_by_id) == str(user.id):
             return True
         return bool(self.owner_id_snapshot) and self.owner_id_snapshot == str(user.id)

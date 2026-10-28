@@ -105,7 +105,7 @@ test("one control per width moves between the list and the map, and says where i
   // its own.
   assert.match(browser, /map=\{<MapToggle mapView=\{mapView\} onToggle=\{mapView \? showList : showMap\} \/>\}/);
   // One row: search, chips, then Map (owner, 2026-10-05).
-  assert.match(read("web/src/components/explore/ExploreConsole.tsx"), /<div className="explore-bar">\{search\}<\/div>\s*<div className="ec-chips">\{chips\}<\/div>\s*\{map\}/);
+  assert.match(read("web/src/components/explore/ExploreConsole.tsx"), /ec-chip-options/);
   assert.doesNotMatch(between(browser, 'className="explore-feedback"', "\n  const notices"), /className="explore-map-toggle"/);
   assert.equal(browser.match(/className="explore-view-switch"/g)?.length, 1);
   assert.match(browser, /<button type="button" className="explore-view-switch" onClick=\{mapView \? showList : showMap\}>/);

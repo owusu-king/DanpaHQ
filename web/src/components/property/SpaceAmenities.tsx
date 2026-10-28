@@ -111,6 +111,7 @@ export function SpaceAmenities({
 
   const save = useCallback(
     async (after?: (names: string[]) => void | Promise<void>): Promise<boolean> => {
+      if (!loaded) return false;
       setBusy(true);
       setError("");
       try {
@@ -128,7 +129,7 @@ export function SpaceAmenities({
         setBusy(false);
       }
     },
-    [chosen, id, options, scope],
+    [chosen, id, options, scope, loaded],
   );
 
   // Written in an effect, never during render: the ref must hold the closure

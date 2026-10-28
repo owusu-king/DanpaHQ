@@ -35,6 +35,7 @@ import { UnitPrivateAccess } from "@/components/property/UnitPrivateAccess";
 import { UnitLifecycleActions } from "@/components/property/UnitLifecycleActions";
 import {
   DetailDisclosure,
+  DetailSection,
   EntityPath,
   StatusLine,
   spaceStatus,
@@ -158,7 +159,7 @@ export default function SpaceWorkspacePage() {
       {/* What it looks like, beside the one thing to do next. */}
       <div className="pd-top">
         <figure className="pd-gallery">
-          <div className="pd-gallery-lead">
+          <div className={photo ? "pd-gallery-lead" : "pd-gallery-lead is-empty"}>
             {/* Signed media URLs are supplied at runtime by the API and are not
                 stable Next image-loader resources. */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -199,7 +200,7 @@ export default function SpaceWorkspacePage() {
 
       <section className="pd-panel" aria-labelledby="unit-manage-heading">
         <h2 id="unit-manage-heading" className="pd-panel-title">Manage this Unit</h2>
-        <DetailDisclosure title={`Photos${space.photo_count ? ` (${space.photo_count})` : ""}`} open={space.verification.state !== "verified"}>
+        <DetailSection title={`Photos${space.photo_count ? ` (${space.photo_count})` : ""}`}>
           <p className="pd-note">
             {space.availability.state === "occupied"
               ? "Locked while occupied."
@@ -208,24 +209,24 @@ export default function SpaceWorkspacePage() {
                 : "The first photo leads."}
           </p>
           <SpacePhotos unitId={space.id} editable={Boolean(space.permitted_actions.edit?.allowed)} onChanged={load} />
-        </DetailDisclosure>
+        </DetailSection>
 
-        <DetailDisclosure title={`Amenities${space.amenities.length ? ` (${space.amenities.length})` : ""}`}>
+        <DetailSection title={`Amenities${space.amenities.length ? ` (${space.amenities.length})` : ""}`}>
           {space.permitted_actions.edit?.allowed ? (
             <SpaceAmenities scope="unit" id={space.id} onSaved={load} />
           ) : space.amenities.length ? (
             <ul className="pd-chips">{space.amenities.map((row) => <li key={row.id}>{row.name}</li>)}</ul>
           ) : <p className="pd-note">None recorded.</p>}
-        </DetailDisclosure>
+        </DetailSection>
 
-        <DetailDisclosure title="Details and entrance directions">
+        <DetailSection title="Details and entrance directions">
           <SpaceDetails space={space} onSaved={load} />
-        </DetailDisclosure>
+        </DetailSection>
 
         {isHostelRoom ? (
-          <DetailDisclosure title={`Beds${space.beds.length ? ` (${space.beds.length})` : ""}`}>
+          <DetailSection title={`Beds${space.beds.length ? ` (${space.beds.length})` : ""}`}>
             <Beds space={space} onChanged={load} />
-          </DetailDisclosure>
+          </DetailSection>
         ) : null}
 
         <DetailDisclosure title="Verification and publication details">
@@ -297,7 +298,7 @@ function WhatIsNext({
         <span className="pd-next-kicker">Currently occupied</span>
         <h2>Someone lives here</h2>
         <p>Danpa HQ will not accept new requests while someone lives here.</p>
-        <Link href={"/tenants" as never} className="ws-action">Manage in Tenants →</Link>
+        <Link href={"/tenants" as never} className="btn btn-secondary">Manage in Tenants →</Link>
       </section>
     );
   }
@@ -335,7 +336,7 @@ function WhatIsNext({
               href={`/record/space-new?propertyId=${propertyId}&unitId=${space.id}&step=${
                 space.verification.can_submit ? "review" : "amenities"
               }` as never}
-              className="button-link secondary"
+              className="btn btn-secondary"
             >
               Continue setup
             </Link>
@@ -370,7 +371,7 @@ function WhatIsNext({
               <>
                 <Link
                   href={`/record/listing?id=${listing?.id}` as never}
-                  className="button-link secondary"
+                  className="btn btn-secondary"
                 >
                   View public listing
                 </Link>
@@ -387,7 +388,7 @@ function WhatIsNext({
                 Publish to Explore
               </Button>
             ) : !listing && publish?.allowed ? (
-              <Link href={`/record/space-listing?propertyId=${propertyId}&spaceId=${space.id}` as never} className="button-link">
+              <Link href={`/record/space-listing?propertyId=${propertyId}&spaceId=${space.id}` as never} className="btn btn-primary">
                 Publish to Explore
               </Link>
             ) : null}
@@ -530,9 +531,7 @@ function SubmitForChecking({
       />
       <div style={{ display: "flex", gap: "var(--space-3)", flexWrap: "wrap" }}>
         {waitingOnProperty ? (
-          <Link href={`/record/property?id=${propertyId}` as never}>
-            <Button variant="secondary">Get the property checked</Button>
-          </Link>
+          <Link href={`/record/property?id=${propertyId}` as never} className="btn btn-secondary">Get the property checked</Link>
         ) : required_outstanding > 0 ? (
           <Button variant="secondary" onClick={() => scrollToPhotos()}>
             Add the photos
@@ -621,7 +620,7 @@ function SpaceDetails({ space, onSaved }: { space: UnitDetail; onSaved: () => Pr
         </span>
         <textarea
           value={description}
-          rows={4}
+          rows={3}
           maxLength={1500}
           onChange={(event) => {
             setSaved(false);

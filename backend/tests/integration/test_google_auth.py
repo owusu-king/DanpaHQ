@@ -81,14 +81,34 @@ def register_google(api, monkeypatch, value=None, account_type="tenant", **heade
     )
 
 
+def test_artisan_google_ticket_preserves_type_without_granting_tenant(monkeypatch):
+    from apps.identity.models import Role
+
+    api = APIClient()
+    started = start_google(api, monkeypatch, account_type="artisan")
+    assert started.status_code == 200
+    # A mutable completion body cannot turn a signed artisan ticket into a tenant.
+    completed = complete_google(
+        api, started.data["google_registration_ticket"], account_type="tenant"
+    )
+    assert completed.status_code == 201
+    user = User.objects.get(id=completed.data["user"]["id"])
+    assert user.account_type == "artisan"
+    assert not user.has_role(Role.TENANT)
+    assert completed.data["user"]["entry_routes"]["web"] == "/artisan"
+    assert completed.data["user"]["capabilities"]["artisan"]["can_quote"] is False
+
+
 def test_google_verifier_uses_configured_audience_and_stable_subject(monkeypatch, settings):
     seen = {}
     settings.GOOGLE_OAUTH_CLIENT_ID = "web-client.apps.googleusercontent.com"
 
-    def verify(token, request, audience):
+    def verify(token, request, audience, clock_skew_in_seconds=0):
         seen.update(token=token, request=request, audience=audience)
+        assert clock_skew_in_seconds == 10
         return {
             "sub": "stable-google-subject",
+            "exp": __import__("time").time() + 3600,
             "email": "Ama@Example.com",
             "email_verified": True,
             "given_name": "Ama",
@@ -356,7 +376,7 @@ def test_native_google_registration_and_refresh_reuse_app_sessions(monkeypatch, 
 def test_invalid_google_credential_cannot_create_a_mobile_account(monkeypatch, settings):
     settings.GOOGLE_OAUTH_CLIENT_ID = "expected-server-client.apps.googleusercontent.com"
 
-    def refuse(token, request, audience):
+    def refuse(token, request, audience, clock_skew_in_seconds=0):
         assert audience == settings.GOOGLE_OAUTH_CLIENT_ID
         raise ValueError("Invalid token signature or audience")
 
@@ -373,3 +393,123 @@ def test_invalid_google_credential_cannot_create_a_mobile_account(monkeypatch, s
     )
     assert response.status_code == 403
     assert not User.objects.exists()
+
+
+@pytest.mark.parametrize(("failure", "reason"), [
+    ("Token expired", "expired"), ("Token used too early", "not_yet_valid"),
+    ("Wrong audience", "audience"), ("Could not verify signature", "signature"),
+])
+def test_google_rejections_are_actionable_without_logging_credentials(
+    monkeypatch, settings, caplog, failure, reason,
+):
+    from apps.core.exceptions import PermissionDenied
+
+    caplog.set_level("WARNING", logger="apps.identity.google_identity")
+    settings.GOOGLE_OAUTH_CLIENT_ID = "expected.apps.googleusercontent.com"
+    def reject(*args, **kwargs):
+        raise ValueError(failure)
+    monkeypatch.setattr("google.oauth2.id_token.verify_oauth2_token", reject)
+    with pytest.raises(PermissionDenied) as caught:
+        verify_google_credential("private-test-credential")
+    assert caught.value.details["reason"] == reason
+    assert f"reason={reason}" in caplog.text
+    assert "private-test-credential" not in caplog.text
+
+
+def test_google_wrong_issuer_is_refused_not_reported_as_a_service_outage(monkeypatch, settings):
+    from google.auth.exceptions import GoogleAuthError
+
+    from apps.core.exceptions import PermissionDenied
+
+    settings.GOOGLE_OAUTH_CLIENT_ID = "expected.apps.googleusercontent.com"
+    def reject(*args, **kwargs):
+        raise GoogleAuthError("Wrong issuer")
+    monkeypatch.setattr("google.oauth2.id_token.verify_oauth2_token", reject)
+    with pytest.raises(PermissionDenied):
+        verify_google_credential("invalid-issuer-proof")
+
+
+@pytest.mark.parametrize("age", [-1, -5, -9])
+def test_google_expiry_is_strict_even_with_issued_at_tolerance(monkeypatch, settings, age):
+    import time
+
+    from apps.core.exceptions import PermissionDenied
+
+    settings.GOOGLE_OAUTH_CLIENT_ID = "expected.apps.googleusercontent.com"
+    monkeypatch.setattr("google.oauth2.id_token.verify_oauth2_token", lambda *a, **kw: {
+        "sub": "subject", "email": "ama@example.com", "email_verified": True,
+        "exp": time.time() + age,
+    })
+    with pytest.raises(PermissionDenied) as caught:
+        verify_google_credential("expired-proof")
+    assert caught.value.details["reason"] == "expired"
+
+
+@pytest.mark.parametrize("defect", [
+    "none", "future", "expired", "audience", "issuer", "signature",
+])
+def test_google_signed_proof_keeps_signature_and_timestamp_checks(
+    monkeypatch, settings, defect,
+):
+    import json
+    import time
+
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import rsa
+    from google.auth import crypt, jwt
+
+    from apps.core.exceptions import PermissionDenied
+
+    settings.GOOGLE_OAUTH_CLIENT_ID = "expected.apps.googleusercontent.com"
+    private = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    pem = private.private_bytes(
+        serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8,
+        serialization.NoEncryption(),
+    )
+    public = private.public_key().public_bytes(
+        serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo,
+    ).decode()
+    now = int(time.time())
+    token = jwt.encode(crypt.RSASigner.from_string(pem, key_id="test-key"), {
+        "sub": "signed-subject", "email": "ama@example.com", "email_verified": True,
+        "aud": "wrong-client" if defect == "audience" else settings.GOOGLE_OAUTH_CLIENT_ID,
+        "iss": "https://example.invalid" if defect == "issuer" else "https://accounts.google.com",
+        "iat": now + (60 if defect == "future" else 3),
+        "exp": now + (-1 if defect == "expired" else 3600),
+    }).decode()
+    if defect == "signature":
+        head, body, signature = token.split(".")
+        replacement = "A" if signature[0] != "A" else "B"
+        token = f"{head}.{body}.{replacement}{signature[1:]}"
+    class Certificates:
+        status = 200
+        data = json.dumps({"test-key": public}).encode()
+    monkeypatch.setattr("google.auth.transport.requests.Request", lambda: (
+        lambda *args, **kwargs: Certificates()
+    ))
+    if defect == "none":
+        assert verify_google_credential(token).subject == "signed-subject"
+    else:
+        with pytest.raises(PermissionDenied):
+            verify_google_credential(token)
+
+
+def test_unconfigured_google_signin_is_unavailable_not_an_invalid_credential(settings):
+    from apps.core.exceptions import ProviderUnavailable
+
+    settings.GOOGLE_OAUTH_CLIENT_ID = ""
+    with pytest.raises(ProviderUnavailable):
+        verify_google_credential("opaque-proof")
+
+
+def test_google_certificate_network_failure_is_retryable(monkeypatch, settings):
+    from google.auth.exceptions import TransportError
+
+    from apps.core.exceptions import ProviderUnavailable
+
+    settings.GOOGLE_OAUTH_CLIENT_ID = "expected.apps.googleusercontent.com"
+    def unavailable(*args, **kwargs):
+        raise TransportError("network unavailable")
+    monkeypatch.setattr("google.oauth2.id_token.verify_oauth2_token", unavailable)
+    with pytest.raises(ProviderUnavailable):
+        verify_google_credential("opaque-proof")

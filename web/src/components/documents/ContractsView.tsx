@@ -253,7 +253,7 @@ function AgreementCard({ agreement, onRead }: { agreement: PortfolioContracts["a
         </p>
       </div>
       <div className="docs-agreement-actions">
-        <button type="button" className="ws-action" aria-haspopup="dialog" onClick={onRead}><Icon name="leases" />Read the clauses</button>
+        <button type="button" className="ws-action is-red-outline" aria-haspopup="dialog" disabled={!agreement.clauses.length} onClick={onRead}><Icon name="leases" />Read the clauses</button>
         <Link href={"/applications" as never} className="ws-action is-primary"><Icon name="applications" />Prepare from a request</Link>
       </div>
     </section>

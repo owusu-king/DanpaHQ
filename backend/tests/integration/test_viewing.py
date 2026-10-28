@@ -337,6 +337,9 @@ class TestSecureCheckIn:
     def test_cross_viewing_and_unauthorized_validation_are_rejected(
         self, user, agent, landlord, live_listing
     ):
+        from apps.identity.services import choose_workspace
+
+        choose_workspace(user=agent, workspace="tenant")
         first = self._confirmed(user, landlord, live_listing)
         second = self._confirmed(agent, landlord, live_listing)
         first_pair = services.issue_check_in_credential(request=first, user=user)

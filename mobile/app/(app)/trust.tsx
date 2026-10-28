@@ -75,7 +75,7 @@ const RELEVANT_KINDS = {
 
 const KIND_LABEL: Record<string, string> = {
   phone: "Phone number",
-  identity: "Identity",
+  identity: "Biometric Identity Verification — Coming Soon",
   agency: "Agent licence",
 };
 
@@ -153,13 +153,14 @@ export default function VerificationScreen() {
 
   const yours: Check[] = payload ? kinds.map((kind) => {
     const entry = payload.summary[kind] ?? emptyTrustEntry;
-    const open = kind === "identity" && entry.state !== "verified";
+    const open = false; // Electronic Ghana Card integration is not available yet.
     return {
       key: kind,
       icon: KIND_ICON[kind] ?? "shield-checkmark-outline",
       title: KIND_LABEL[kind] ?? kind,
-      detail: personalCheckDetail(kind, entry),
-      state: entry.state,
+      detail: kind === "identity" ? "Electronic Ghana Card verification will be available here once the integration is ready." : personalCheckDetail(kind, entry),
+      statusLabel: kind === "identity" ? "Coming soon" : undefined,
+      state: kind === "identity" ? "unverified" : entry.state,
       actionLabel: open ? "Continue" : undefined,
       onPress: open ? () => router.push("/(app)/identity-verification" as never) : undefined,
     };
@@ -185,7 +186,7 @@ export default function VerificationScreen() {
     })));
   }
 
-  const all = [...yours, ...business];
+  const all = [...yours, ...business].filter(check => check.key !== "identity");
   const done = all.filter((check) => check.state === "verified").length;
   const waiting = all.find((check) => check.onPress && check.state !== "verified")
     ?? all.find((check) => check.state !== "verified");
@@ -202,7 +203,7 @@ export default function VerificationScreen() {
               <Progress done={done} total={all.length} />
               <View style={styles.heroText}>
                 <Type variant="title2" style={styles.heroTitle}>
-                  {done === all.length ? "Everything is verified" : `${all.length - done} ${all.length - done === 1 ? "check needs" : "checks need"} you`}
+                  {done === all.length ? "All available checks are verified" : `${all.length - done} ${all.length - done === 1 ? "check needs" : "checks need"} you`}
                 </Type>
                 <Type variant="caption" numberOfLines={3} style={styles.heroDetail}>
                   {done === all.length
@@ -280,7 +281,7 @@ function CheckRow({ check, first }: { check: Check; first: boolean }) {
       </View>
       <View style={rowStyles.rowBody}>
         <RowLine
-          start={<Type variant="bodyStrong" numberOfLines={1} style={rowStyles.rowTitle}>{check.title}</Type>}
+          start={<Type variant="bodyStrong" numberOfLines={check.key === "identity" ? 3 : 1} style={rowStyles.rowTitle}>{check.title}</Type>}
           end={<Type variant="caption" numberOfLines={1} style={[rowStyles.rowStatus, { color: tone.text }]}>{status}</Type>}
         />
         <Type variant="caption" numberOfLines={3} style={rowStyles.rowSub}>{check.detail}</Type>

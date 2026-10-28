@@ -1412,3 +1412,5 @@
 @media (max-width: 560px) {
   .portal-phone-reminder { align-items: flex-start; flex-direction: column; }
 }
+
+.portal-header-intel > svg { width: 22px; height: 22px; }

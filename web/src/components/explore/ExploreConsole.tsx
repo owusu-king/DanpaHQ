@@ -164,10 +164,34 @@ export function MapToggle({ mapView, onToggle }: { mapView: boolean; onToggle: (
  * then the chips, then Map. Narrow screens let the chips wrap under the search.
  */
 export function ExploreConsole({ search, map, chips }: { search: ReactNode; map?: ReactNode; chips: ReactNode }) {
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const filtersRoot = useRef<HTMLDivElement>(null);
+  const filtersId = useId();
+  useEffect(() => {
+    if (!filtersOpen) return;
+    function dismiss(event: PointerEvent) {
+      if (!filtersRoot.current?.contains(event.target as Node)) setFiltersOpen(false);
+    }
+    function escape(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setFiltersOpen(false);
+        filtersRoot.current?.querySelector<HTMLButtonElement>("button")?.focus();
+      }
+    }
+    document.addEventListener("pointerdown", dismiss);
+    document.addEventListener("keydown", escape);
+    return () => {
+      document.removeEventListener("pointerdown", dismiss);
+      document.removeEventListener("keydown", escape);
+    };
+  }, [filtersOpen]);
   return (
     <div className="ec-console">
       <div className="explore-bar">{search}</div>
-      <div className="ec-chips">{chips}</div>
+      <div ref={filtersRoot} className={`ec-chips${filtersOpen ? " is-expanded" : ""}`}>
+        <button type="button" className="ec-chip ec-responsive-filters" aria-expanded={filtersOpen} aria-controls={filtersId} onClick={() => setFiltersOpen(!filtersOpen)}>Filters</button>
+        <div id={filtersId} className="ec-chip-options">{chips}</div>
+      </div>
       {map}
     </div>
   );

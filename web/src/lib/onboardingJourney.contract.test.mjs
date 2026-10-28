@@ -25,6 +25,8 @@ test("Get Started opens the question, and sign-up asks it first and once", () =>
   const body = register();
   assert.match(body, /resuming \|\| googleArrival \? "details" : preselected \? "method" : "role"/);
   assert.match(body, /title: "How will you use Danpa HQ\?"/);
+  assert.match(body, /const SIGNUP_CHOICES = \["tenant", "provider"\] as const/);
+  assert.match(body, /SIGNUP_CHOICES\.map/);
   assert.match(body, /body: "Rent or find a place\."/);
   assert.match(body, /title: "Property manager"/);
   assert.match(body, /body: "Own or manage property\."/);
@@ -65,7 +67,8 @@ test("nothing is created until a phone or Google identity is proved", () => {
   assert.match(body, /google_registration_ticket: googleTicket \|\| undefined,/);
   assert.doesNotMatch(body, /atob|jwtDecode|parseJwt/);
   // A refusal returns to the details with the reason, keeping the proof.
-  assert.match(body, /setErrors\(fields\);[\s\S]{0,200}setStep\("details"\);/);
+  assert.match(body, /setErrors\(fields\);/);
+  assert.match(body, /setProviderTerms\(null\);\s*setStep\("phone"\);\s*\} else setStep\("details"\);/);
   // The password is never written anywhere but component state.
   assert.doesNotMatch(body, /localStorage|sessionStorage|searchParams\.set\("password"/);
 });

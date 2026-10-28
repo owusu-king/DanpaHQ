@@ -121,7 +121,7 @@ test("global creation chooses a Property, then reuses the flow that exists", () 
   const page = read("web/app/units/new/page.tsx");
   const units = read("web/app/units/page.tsx");
   const property = read("web/app/record/property/page.tsx");
-  assert.match(create, /<ModalSheet/);
+  assert.match(create, /<UnitWizardModal/);
   assert.match(units, /<AddUnitButton/);
   assert.doesNotMatch(units, /href=\{"\/units\/new"/);
   assert.match(page, /<PropertyChoices/);

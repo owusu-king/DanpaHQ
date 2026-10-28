@@ -1,16 +1,17 @@
 import { ArrowRight, CircleHelp, Hammer, ShieldCheck } from "lucide-react";
 
+import Link from "next/link";
 import { AuthLink } from "@/components/auth/AuthDialog";
 
 const CHECKS = [
   { icon: ShieldCheck, text: "Trusted and secured", href: null },
-  { icon: CircleHelp, text: "How it works", href: "#how-it-works" },
+  { icon: CircleHelp, text: "How it works", href: "/how-it-works" },
 ] as const;
 
 /**
  * The front door itself (owner, 2026-09-29): a headline, a line of reassurance,
- * and one way in. Get Started asks how somebody will use Danpa HQ — tenant or
- * provider — as the first step of sign-up (owner, 2026-10-07); Sign in is for
+ * and one way in. Get Started asks how somebody will use Danpa HQ — tenant,
+ * provider or artisan — as the first step of sign-up; Sign in is for
  * those who have answered it already.
  *
  * Both open the auth dialog over this page, in place (owner, 2026-10-16). Its
@@ -49,26 +50,24 @@ export function FrontDoor() {
               Sign in
             </AuthLink>
           </div>
-
         </div>
 
         <section className="lp-door-trust" aria-label="Artisans and assurances">
           <ul className="lp-door-checks" aria-label="Artisans and assurances">
             <li className="lp-door-check-entry">
               <Hammer aria-hidden="true" />
-              <AuthLink view="register" params={{ next: "/artisan" }} className="lp-door-artisan">
+              <AuthLink view="register" params={{ workspace: "artisan", next: "/artisan" }} className="lp-door-artisan">
                 Become an artisan
               </AuthLink>
             </li>
             {CHECKS.map(({ icon: Icon, text, href }) => (
               <li key={text}>
                 <Icon aria-hidden="true" />
-                {href ? <a href={href} className="lp-door-artisan">{text}</a> : <span>{text}</span>}
+                {href ? <Link href={href as never} className="lp-door-artisan">{text}</Link> : <span>{text}</span>}
               </li>
             ))}
           </ul>
         </section>
-      </section>
-    </div>
+      </section>    </div>
   );
 }

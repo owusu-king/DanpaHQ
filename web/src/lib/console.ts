@@ -1220,6 +1220,13 @@ export type ProviderTenantAccess = {
 };
 
 export type OrganizationPortfolio = {
+  profit_loss?: {
+    basis: "cash";
+    ledgers: { currency: string; revenue_minor: number; refunds_minor: number; expenses_minor: number; fees_minor: number; profit_minor: number;
+      monthly: { period: string; revenue_minor: number; refunds_minor: number; expenses_minor: number; fees_minor: number; profit_minor: number }[];
+    }[];
+  };
+
   organization: { id: string; name: string };
   counts: {
     properties: number;

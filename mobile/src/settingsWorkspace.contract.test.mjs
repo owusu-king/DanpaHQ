@@ -234,7 +234,7 @@ test("changing experience and signing out are the last card, and still say what 
   const more = code(read(PROVIDER));
 
   assert.match(tab, /\.\.\.\(me\.capabilities\.available_workspaces\.includes\("provider"\)\s*\? \[\{ key: "switch", icon: "swap-horizontal-outline" as const, label: "Switch to managing property", busy: switching === "provider", busyLabel: "Switching…", onPress: \(\) => void switchTo\("provider"\) \}\]/);
-  assert.match(more, /\{ key: "switch", icon: "swap-horizontal-outline", label: "Switch to renting", busy: switching === "tenant", busyLabel: "Switching…", onPress: \(\) => void switchTo\("tenant"\) \}/);
+  assert.match(more, /\{ key: "switch", icon: "swap-horizontal-outline", label: me\?\.capabilities\.tenant\.workspace_access \? "Switch to renting" : "Create Renting Account", busy: switching === "tenant", busyLabel: "Switching…", onPress: \(\) => void switchTo\("tenant"\) \}/);
   // Artisan work sits beside the other crossings in both, and only once the
   // backend opens it (owner, 2026-10-20). Becoming an artisan is never a Menu
   // row: Find Artisans is, and the way to apply lives inside it.
@@ -248,7 +248,7 @@ test("changing experience and signing out are the last card, and still say what 
     assert.match(screen, /key: "leave",\s*items: \[[\s\S]*key: "switch"[\s\S]*\{ key: "sign-out", icon: "log-out-outline", label: "Sign out", danger: true, busy: leaving, busyLabel: "Signing out…", onPress: \(\) => void leave\(\) \}/);
     assert.match(screen, /await signOut\(\);\s*router\.replace\("\/\(auth\)\/sign-in"\);/);
     // A switch that fails says so under the card it was pressed in.
-    assert.match(screen, /notice=\{error \? <Notice tone="error" title=\{error\} \/> : null\}/);
+    assert.match(screen, /notice=\{error(?: && !rentConfirmation)? \? <Notice tone="error" title=\{error\} \/> : null\}/);
     assert.match(screen, /setError\(cause instanceof ApiFailure \? cause\.error\.message : "Could not switch\."\);/);
   }
 

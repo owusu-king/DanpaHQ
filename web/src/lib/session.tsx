@@ -58,7 +58,7 @@ export type ProviderVerificationStatus =
  * field that decides whether the workspace opens.
  */
 export type Capabilities = {
-  account_type: "tenant" | "provider" | null;
+  account_type: "tenant" | "provider" | "artisan" | null;
   registration_state:
     | "phone_required"
     | "account_type_required"
@@ -399,9 +399,9 @@ export async function loadMe(): Promise<Me> {
  * no capability, and never creates a second account — so the switcher can be
  * offered freely wherever `available_workspaces` allows it.
  */
-export async function chooseWorkspace(workspace: Workspace): Promise<Me> {
+export async function chooseWorkspace(workspace: Workspace, tenantConfirmation?: string): Promise<Me> {
   return authedFetch<Me>("/me/workspace/", {
     method: "POST",
-    body: JSON.stringify({ workspace }),
+    body: JSON.stringify({ workspace, ...(tenantConfirmation !== undefined ? { tenant_confirmation: tenantConfirmation } : {}) }),
   });
 }

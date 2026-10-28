@@ -49,7 +49,7 @@ class VerificationSerializer(serializers.ModelSerializer):
     """The subject's own view of a check about them."""
 
     state = serializers.CharField(source="display_state", read_only=True)
-    kind_label = serializers.CharField(source="get_kind_display", read_only=True)
+    kind_label = serializers.SerializerMethodField()
     method_label = serializers.CharField(source="get_method_display", read_only=True)
     evidence_count = serializers.SerializerMethodField()
 
@@ -70,6 +70,13 @@ class VerificationSerializer(serializers.ModelSerializer):
             "created_at",
         ]
         read_only_fields = fields
+
+    def get_kind_label(self, obj):
+        if obj.kind == "provider":
+            return "Provider account verification"
+        if obj.kind == "artisan":
+            return "Artisan account verification"
+        return obj.get_kind_display()
 
     def get_evidence_count(self, obj) -> int:
         return obj.evidence.count()

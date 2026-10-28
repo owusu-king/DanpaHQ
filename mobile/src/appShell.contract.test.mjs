@@ -59,12 +59,12 @@ test("a path both tab groups answer lands in the one this person may use", () =>
   assert.match(decide, /const renterTwin = inProviderTabs && SHARED_TABS\.includes\(tab\) \? `\/\(app\)\/\(tabs\)\/\$\{tab\}` : null;/);
 
   // Signed in, the provider tabs open only inside the provider workspace.
-  assert.match(decide, /const mayOperate = capabilities\.provider\.workspace_access && capabilities\.active_workspace === "provider";/);
+  assert.match(decide, /const mayOperate = capabilities\.available_workspaces\.includes\("provider"\) && capabilities\.active_workspace === "provider";/);
   assert.match(decide, /if \(inProviderTabs && !mayOperate && !destination\.startsWith\("\/\(app\)\/\(provider-tabs\)"\)\) \{\s*return renterTwin \?\? destination;/);
   assert.match(decide, /if \(atRoot\) return destination;/);
 
   // Signed out, the renter's tab at that address is public; the provider's never is.
-  assert.match(decide, /return renterTwin \?\? \(session\.firstVisit \? "\/\(auth\)\/start" : "\/\(auth\)\/sign-in"\);/);
+  assert.match(decide, /return \(atRoot && session\.firstVisit \? "\/\(auth\)\/start" : "\/\(auth\)\/sign-in"\);/);
 });
 
 test("the launch is three dots on the page's own ivory, and it lets go gently", () => {

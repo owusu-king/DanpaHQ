@@ -930,26 +930,25 @@ li[data-tone="overdue"] .record-payment-balance { color: var(--color-laterite-60
   font-size: .8125rem;
   font-weight: 600;
   background: rgba(255, 255, 255, .75);
+  border: 1px solid rgba(33, 26, 21, .1);
   border-radius: 999px;
-  box-shadow: 0 0 0 1px rgba(33, 26, 21, .1);
   cursor: pointer;
   transition:
     color var(--motion-duration-fast) var(--ws-ease),
     background-color var(--motion-duration-fast) var(--ws-ease),
-    box-shadow var(--motion-duration-fast) var(--ws-ease),
+    border-color var(--motion-duration-fast) var(--ws-ease),
     transform var(--motion-duration-fast) var(--ws-ease);
 }
 .payment-chip input { position: absolute; inset: 0; margin: 0; opacity: 0; cursor: pointer; }
-.payment-chip .portal-icon { width: 15px; height: 15px; color: var(--color-ink-500); transition: color var(--motion-duration-fast) var(--ws-ease); }
-.payment-chip:hover { background: #fff; box-shadow: 0 0 0 1px rgba(33, 26, 21, .18); }
+.payment-chip .portal-icon { width: 15px; height: 15px; color: inherit; transition: color var(--motion-duration-fast) var(--ws-ease); }
+.payment-chip:hover { background: #fff; border-color: rgba(33, 26, 21, .18); }
 .payment-chip:active { transform: scale(.97); }
 .payment-chip:has(input:checked) {
-  color: var(--color-kola-800);
-  background: color-mix(in srgb, var(--color-kola-50) 85%, #fff);
-  box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--color-kola-600) 55%, transparent), 0 4px 10px -6px var(--color-kola-600);
+  color: var(--payment-chip-ink, var(--color-kola-800));
+  background: var(--payment-chip-surface, color-mix(in srgb, var(--color-kola-50) 85%, #fff));
+  border-color: var(--payment-chip-rule, color-mix(in srgb, var(--color-kola-600) 55%, transparent));
 }
-.payment-chip:has(input:checked) .portal-icon { color: var(--color-kola-600); }
-.payment-chip:has(input:focus-visible) { outline: 2px solid var(--color-kola-600); outline-offset: 2px; }
+.payment-chip:has(input:focus-visible) { outline: 2px solid var(--payment-chip-focus, var(--color-kola-600)); outline-offset: 2px; }
 
 
 @media (prefers-reduced-motion: reduce) {
@@ -1405,4 +1404,60 @@ li[data-tone="ended"] .rent-row-avatar[data-kind="home"] { color: var(--color-in
 @media (prefers-reduced-motion: reduce) {
   .rent-row-pay,
   .rent-row-pay svg { transition: none; }
+}
+
+/* The account-deletion outline, applied to record actions without implying deletion. */
+:is(.ws-action, .btn).is-red-outline {
+  color: var(--color-laterite-600);
+  border: 1px solid color-mix(in srgb, var(--color-laterite-600) 48%, transparent);
+  background: color-mix(in srgb, var(--color-laterite-100) 24%, var(--color-field-0));
+  box-shadow: none;
+}
+:is(.ws-action, .btn).is-red-outline:hover:not(:disabled) {
+  color: var(--color-laterite-700, #923c30);
+  border-color: var(--color-laterite-600);
+  background: var(--color-laterite-100);
+  box-shadow: none;
+}
+:is(.ws-action, .btn).is-red-outline:focus-visible { outline: 2px solid var(--color-laterite-600); outline-offset: 3px; }
+:is(.ws-action, .btn).is-red-outline:disabled { opacity: .45; cursor: not-allowed; }
+.expense-sheet { border: 1px solid color-mix(in srgb, var(--color-laterite-600) 46%, var(--color-field-200)); }
+.expense-sheet .doc-modal-head { background: color-mix(in srgb, var(--color-laterite-100) 32%, var(--color-field-0)); }
+.expense-sheet .doc-modal-mark { color: var(--color-laterite-600); background: var(--color-laterite-100); }
+/* Field owns its focus ring on the shell, including the currency prefix.
+   Drawing another outline on its input creates nested, mismatched borders. */
+.expense-sheet .field-shell:focus-within { border-color: var(--color-laterite-600); box-shadow: 0 0 0 3px var(--color-laterite-100); }
+.expense-sheet select:focus-visible { outline: 2px solid var(--color-laterite-600); outline-offset: 2px; }
+.pnl-ledger { padding: var(--space-6); }
+.pnl-heading { display: flex; justify-content: space-between; align-items: center; gap: var(--space-4); padding-bottom: var(--space-5); }
+.pnl-heading h2 { font-family: var(--font-display); font-size: 1.5rem; margin: .25rem 0 0; }
+.pnl-heading > span, .pnl-note { color: var(--color-ink-500); font-size: .8125rem; }
+.pnl-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 0 0 var(--space-6); border-block: 1px solid var(--color-field-200); }
+.pnl-summary > div { padding: var(--space-5) var(--space-4); }
+.pnl-summary > div + div { border-left: 1px solid var(--color-field-200); }
+.pnl-summary dt { font-size: .8125rem; color: var(--color-ink-500); }
+.pnl-summary dd { margin: .5rem 0; font-size: clamp(1.2rem, 2.4vw, 2rem); font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -.035em; }
+.pnl-summary small { color: var(--color-ink-500); }
+.pnl-summary > div:last-child { color: var(--color-kola-600); background: color-mix(in srgb, var(--color-kola-50) 50%, transparent); }
+.pnl-summary > div[data-loss="true"], .pnl-table [data-loss="true"] { color: var(--color-laterite-600); }
+.pnl-table-wrap { overflow-x: auto; }
+.pnl-table { width: 100%; border-collapse: collapse; font-size: .875rem; font-variant-numeric: tabular-nums; }
+.pnl-table th, .pnl-table td { padding: var(--space-4) var(--space-3); border-bottom: 1px solid var(--color-field-200); text-align: right; white-space: nowrap; }
+.pnl-table th:first-child { text-align: left; }
+.pnl-table thead th { color: var(--color-ink-500); font-weight: 500; font-size: .75rem; }
+.pnl-table tfoot { font-weight: 600; border-top: 2px solid var(--color-ink-300); }
+.pnl-note { margin: var(--space-5) 0 0; max-width: 75ch; line-height: 1.6; }
+@media (max-width: 600px) { .pnl-ledger { padding: var(--space-4); } .pnl-summary { grid-template-columns: 1fr; } .pnl-summary > div + div { border-left: 0; border-top: 1px solid var(--color-field-200); } }
+
+.expense-sheet {
+  --payment-chip-ink: var(--color-laterite-600);
+  --payment-chip-rule: var(--color-laterite-600);
+  --payment-chip-surface: color-mix(in srgb, var(--color-laterite-100) 70%, var(--color-field-0));
+  --payment-chip-focus: var(--color-laterite-600);
+}
+
+.expense-sheet, .expense-sheet .doc-modal-body { background: var(--color-field-0); }
+@media (max-width: 360px) {
+  .payments-page .payments-overview { grid-template-columns: 1fr; }
+  .payments-page .payments-figure-amount { font-size: 1.5rem; }
 }

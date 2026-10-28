@@ -15,7 +15,8 @@
 export const BRAND = "DanpaHQ";
 
 const TITLES: Record<string, string> = {
-  "/": "Verified rentals across Ghana",
+  "/": "Home",
+  "/how-it-works": "How it works",
 
   // Signing in and getting started.
   "/sign-in": "Sign in",
@@ -110,6 +111,7 @@ const TITLES: Record<string, string> = {
   "/management/audit-logs": "Audit log",
   "/management/account-deletions": "Account deletions",
   "/management/configuration": "Configuration",
+  "/management/how-it-works": "How It Works",
   "/management/profile": "Your profile",
 };
 

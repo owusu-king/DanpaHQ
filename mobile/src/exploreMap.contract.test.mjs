@@ -270,7 +270,7 @@ test("the map opens without waiting on the server, and says when it cannot reach
   assert.match(search, /const MAP_CONFIG_WAIT_MS = 1500;/);
   assert.match(search, /if \(live\) setConfig\(\(current\) => current \?\? FALLBACK_MAP\);\s*\}, MAP_CONFIG_WAIT_MS\);/);
   // A failed load is said over the map, not only inside the closed list.
-  assert.match(search, /const mapBanner: MapFeedback \| null = mapFeedback\s*\?\? \(error && error !== dismissedError \? \{ message: error, tone: "danger" \} : null\)\s*\?\?/);
+  assert.match(search, /const mapBanner: MapFeedback \| null = mapFeedback\s*\?\? \(resultError && resultError !== dismissedError \? \{ message: resultError, tone: "danger" \} : null\)\s*\?\?/);
   assert.match(search, /\{showMap && !listOpen && mapBanner \? \(/);
 });
 

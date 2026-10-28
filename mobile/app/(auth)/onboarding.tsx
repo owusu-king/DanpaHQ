@@ -81,26 +81,29 @@ export default function OnboardingScreen() {
 
       <AuthFields>
         <AuthField
+          labelAsPlaceholder
           label="First name"
           icon="person-outline"
-          placeholder="Ama"
+          placeholder="First name"
           value={firstName}
           onChangeText={setFirstName}
           autoComplete="given-name"
           autoFocus
         />
         <AuthField
+          labelAsPlaceholder
           label="Last name"
           icon="person-outline"
-          placeholder="Mensah"
+          placeholder="Last name"
           value={lastName}
           onChangeText={setLastName}
           autoComplete="family-name"
         />
         <AuthField
+          labelAsPlaceholder
           label="Preferred name (optional)"
           icon="happy-outline"
-          placeholder="What we should call you"
+          placeholder="Preferred name (optional)"
           value={preferredName}
           onChangeText={setPreferredName}
         />

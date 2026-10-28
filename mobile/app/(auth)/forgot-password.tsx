@@ -173,10 +173,11 @@ export default function ForgotPasswordScreen() {
         <>
           <AuthFields>
             <AuthField
+              labelAsPlaceholder
               label="Mobile number"
               icon="call-outline"
               prefix={DIAL_CODE}
-              placeholder="24 123 4567"
+              placeholder="Mobile number"
               value={phone}
               onChangeText={(value) => {
                 setPhone(value);
@@ -239,9 +240,10 @@ export default function ForgotPasswordScreen() {
         <>
           <AuthFields>
             <AuthField
+              labelAsPlaceholder
               label="New password"
               icon="lock-closed-outline"
-              placeholder={`At least ${MIN_PASSWORD_LENGTH} characters`}
+              placeholder="New password"
               value={password}
               onChangeText={(value) => {
                 setPassword(value);

@@ -16,6 +16,16 @@ class ManagementRole(models.TextChoices):
     SUPPORT_ADMIN = "support_admin", "Support Admin"
 
 
+class HowItWorksContent(BaseModel):
+    """One ordered collection, saved atomically with an edit revision."""
+
+    guides = models.JSONField(default=list)
+    revision = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        db_table = "operations_how_it_works"
+
+
 class ManagementUser(BaseModel):
     """An operational principal that can never be a consumer or Super Admin."""
 

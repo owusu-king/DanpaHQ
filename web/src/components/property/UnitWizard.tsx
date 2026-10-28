@@ -13,7 +13,7 @@
  * privately, and the review says plainly what it is waiting on.
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 
 import { Button } from "@/components/Button";
 import { Field } from "@/components/Field";
@@ -66,6 +66,7 @@ export function UnitWizard({
   onClose,
   onFinished,
   onTitle,
+  onChanged,
 }: {
   propertyId: string;
   /** A Unit already saved, to carry on with. */
@@ -74,6 +75,8 @@ export function UnitWizard({
   onClose: () => void;
   onFinished: (unit: UnitDetail) => void;
   onTitle?: (title: string) => void;
+  /** Notify successful writes, never dismissal. */
+  onChanged?: () => void;
 }) {
   const [property, setProperty] = useState<Property | null>(null);
   const [unit, setUnit] = useState<UnitDetail | null>(null);
@@ -132,12 +135,14 @@ export function UnitWizard({
     try {
       const ok = commitRef.current ? await commitRef.current() : true;
       if (!ok) return;
+      onChanged?.();
       const next = await reload();
       if (step === "review") {
         const current = next ?? unit;
         if (!current) return;
         if (ready && !sent) {
           await submitForReview("unit", current.id);
+          onChanged?.();
           onFinished((await getUnit(current.id)) ?? current);
         } else {
           onFinished(current);
@@ -224,7 +229,7 @@ export function UnitWizard({
       {step === "amenities" && unit ? <AmenitiesStep unitId={unit.id} commitRef={commitRef} /> : null}
 
       {step === "photos" && unit ? (
-        <SpacePhotos unitId={unit.id} editable={unit.verification.editable} onChanged={async () => { await reload(); }} />
+        <SpacePhotos unitId={unit.id} editable={unit.verification.editable} onChanged={async () => { onChanged?.(); await reload(); }} />
       ) : null}
 
       {step === "review" && unit ? <ReviewStep unit={unit} ready={ready} sent={sent} onGo={go} /> : null}
@@ -238,16 +243,20 @@ export function UnitWizard({
 export function UnitWizardModal({
   open,
   propertyId,
+  propertyPicker,
   unitId = null,
   startAt = null,
   onClose,
   onFinished,
+  onChanged,
 }: {
   open: boolean;
-  propertyId: string;
+  propertyId: string | null;
+  propertyPicker?: ReactNode;
   unitId?: string | null;
   startAt?: string | null;
   onClose: () => void;
+  onChanged?: () => void;
   onFinished: (unit: UnitDetail) => void;
 }) {
   const [title, setTitle] = useState("");
@@ -261,23 +270,24 @@ export function UnitWizardModal({
       size="sm"
       icon="units"
       title={title || "Add Unit"}
-      meta="Saved as you go"
-      className="lease-wizard-sheet is-wizard creation-sheet"
+      meta={propertyId ? "Saved as you go" : "Choose its Property"}
+      className={propertyId ? "lease-wizard-sheet is-wizard creation-sheet" : "unit-chooser-sheet"}
       closeLabel="Close Unit setup"
     >
-      {(close) => (
+      {(close) => propertyId ? (
         <UnitWizard
           propertyId={propertyId}
           unitId={unitId}
           startAt={startAt}
           onClose={close}
           onTitle={setTitle}
+          onChanged={onChanged}
           onFinished={(unit) => {
             onFinished(unit);
             close();
           }}
         />
-      )}
+      ) : propertyPicker}
     </ModalSheet>
   );
 }

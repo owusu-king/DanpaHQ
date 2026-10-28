@@ -485,8 +485,7 @@
 .provider-application-footer :is(a,button):hover { text-decoration: underline; text-underline-offset: 4px; }
 .provider-application-footer :is(a,button):focus-visible { outline: 2px solid var(--color-kola-600); outline-offset: 4px; }
 .provider-consent { display: grid; gap: var(--space-3); }
-.provider-consent summary { padding-block: var(--space-3); cursor: pointer; font-size: .875rem; line-height: 1.5; color: var(--color-ink-900); }
-.provider-consent summary span { display: block; padding-left: 1rem; font-size: .75rem; color: var(--color-ink-500); }
+.provider-consent-version { margin: 0 0 var(--space-2); font-size: .75rem; line-height: 1.5; color: var(--color-ink-500); }
 .provider-consent-reader { max-height: min(320px, 45vh); overflow-y: auto; overscroll-behavior: contain; white-space: pre-wrap; padding: var(--space-4); background: var(--color-field-50); border: 1px solid var(--color-field-200); font: 400 .875rem/1.8 var(--font-body); color: var(--color-ink-900); }
 .provider-consent-hint { margin: 0; font-size: .75rem; line-height: 1.5; color: var(--color-ink-500); }
 @media (max-width: 480px) { .provider-application-progress li { flex-direction: column; align-items: flex-start; gap: var(--space-2); } }

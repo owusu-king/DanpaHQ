@@ -22,6 +22,7 @@ from apps.notifications import views as notification_views
 from apps.occupancy import tenancy_views
 from apps.occupancy import views as occupancy_views
 from apps.operations import views as operations_views
+from apps.operations.guide_views import PublicGuidesView
 from apps.operations.mfa_views import MFALoginView
 from apps.organization import views as organization_views
 from apps.passport import views as passport_views
@@ -962,6 +963,7 @@ trust_patterns = [
 
 urlpatterns = [
     path("meta/", meta, name="meta"),
+    path("how-it-works/", PublicGuidesView.as_view(), name="how-it-works"),
     path("healthz/", healthz, name="healthz"),
     path("readyz/", readyz, name="readyz"),
     path(

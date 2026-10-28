@@ -8,12 +8,19 @@ account; email is profile data and a conflict signal, never a merge key.
 
 from __future__ import annotations
 
+import logging
+import time
 from dataclasses import dataclass
 
 from django.conf import settings
 
 from apps.core.crypto import TokenExpired, TokenInvalid, sign_payload, verify_payload
 from apps.core.exceptions import PermissionDenied, ProviderUnavailable
+
+logger = logging.getLogger(__name__)
+
+# Small measured host/Google clock drift is allowed for issued-at only.
+GOOGLE_ISSUED_AT_SKEW_SECONDS = 10
 
 GOOGLE_REGISTRATION_TICKET_TTL_SECONDS = 15 * 60
 
@@ -43,13 +50,42 @@ def verify_google_credential(credential: str) -> GoogleClaims:
             credential,
             google_requests.Request(),
             client_id,
+            clock_skew_in_seconds=GOOGLE_ISSUED_AT_SKEW_SECONDS,
         )
-    except (ValueError, TypeError) as exc:
-        raise PermissionDenied("Google could not verify that sign-in. Try again.") from exc
-    except google_exceptions.GoogleAuthError as exc:
-        raise ProviderUnavailable("Google sign-in is not available right now.") from exc
+        # Google's tolerance applies to both iat and exp. Keep expiry strict:
+        # the tolerance fixes small future-issued timestamps, never stale proof.
+        expires = payload.get("exp")
+        if isinstance(expires, bool) or not isinstance(expires, int | float):
+            raise ValueError("Token expiry is missing or malformed")
+        if time.time() >= expires:
+            raise ValueError("Token expired")
     except ImportError as exc:  # A broken release should fail closed, without leaking internals.
         raise ProviderUnavailable("Google sign-in is not available right now.") from exc
+    except (ValueError, TypeError) as exc:
+        reason = _google_failure_reason(exc)
+        logger.warning("google_sign_in_rejected reason=%s", reason)
+        messages = {
+            "expired": "That Google sign-in expired. Continue with Google again.",
+            "not_yet_valid": (
+                "Google sign-in could not confirm the server time. Please try again shortly."
+            ),
+            "audience": "Google sign-in does not match the app configuration. Contact support.",
+        }
+        raise PermissionDenied(
+            messages.get(reason, "Google could not verify that sign-in. Try again."),
+            details={"reason": reason},
+        ) from exc
+    except google_exceptions.TransportError as exc:
+        logger.warning("google_sign_in_unavailable reason=certificate_transport")
+        raise ProviderUnavailable("Google sign-in is not available right now.") from exc
+    except google_exceptions.GoogleAuthError as exc:
+        # Invalid issuers and other rejected proofs are credential failures,
+        # not an unavailable Google service. Never log the token or exception.
+        logger.warning("google_sign_in_rejected reason=issuer_or_claims")
+        raise PermissionDenied(
+            "Google could not verify that sign-in. Try again.",
+            details={"reason": "issuer_or_claims"},
+        ) from exc
 
     subject = str(payload.get("sub") or "").strip()
     email = str(payload.get("email") or "").strip().lower()
@@ -62,6 +98,20 @@ def verify_google_credential(credential: str) -> GoogleClaims:
         first_name=str(payload.get("given_name") or "").strip()[:80],
         last_name=str(payload.get("family_name") or "").strip()[:80],
     )
+
+
+def _google_failure_reason(error: Exception) -> str:
+    """Categorize verifier failures without emitting credentials or raw claims."""
+    message = str(error).lower()
+    if "expired" in message:
+        return "expired"
+    if "too early" in message or "not yet valid" in message:
+        return "not_yet_valid"
+    if "audience" in message:
+        return "audience"
+    if "signature" in message or "certificate" in message:
+        return "signature"
+    return "malformed"
 
 
 def issue_google_registration_ticket(claims: GoogleClaims, *, account_type: str) -> str:

@@ -121,7 +121,7 @@ test("the page keeps everything it could do", () => {
   assert.match(source, /<SignalPanel signals=\{signals\} \/>/);
   // Expenses are still recorded here, and "add" still opens the form.
   assert.match(source, /const \[showExpense, setShowExpense\] = useState\(action === "expense"\);/);
-  assert.match(source, /<QuietAction icon="add" label="Record expense" onPress=\{\(\) => setShowExpense\(true\)\} \/>/);
+  assert.match(source, /<ExpenseAction label="Record expense" onPress=\{\(\) => setShowExpense\(true\)\} \/>/);
   assert.match(source, /await recordPropertyExpense\(organizationId,/);
   assert.match(source, /\{canManagePayouts && organizationId \? <QuietAction icon="card-outline" label="Manage settlement account"/);
 });

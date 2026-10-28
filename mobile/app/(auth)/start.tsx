@@ -100,7 +100,7 @@ export default function StartScreen() {
   }
 
   return (
-    <AuthScene>
+    <AuthScene progress={{ step: 1, of: 4 }}>
       <AuthMark centered compact />
 
       <AuthHeading

@@ -502,7 +502,7 @@ export function EmailSheet({
       {step === "address" ? (
         <View style={{ gap: space[3] }}>
           <Type variant="body" style={{ color: theme.color.ink["700"] }}>
-            {"For receipts, agreements and getting back into your account. We'll send a six-digit code to confirm it's yours."}
+            {"We'll send a six-digit code to confirm your email."}
           </Type>
           <SheetCard>
             <View style={styles.sheetField}>
@@ -514,7 +514,7 @@ export function EmailSheet({
                   setEmail(value);
                   if (error) setError("");
                 }}
-                placeholder="you@example.com"
+                placeholder="Email address"
                 placeholderTextColor={PLACEHOLDER}
                 keyboardType="email-address"
                 autoCapitalize="none"

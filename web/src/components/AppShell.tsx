@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 
 import { AuthDialogProvider } from "@/components/auth/AuthDialog";
 import { SiteNav } from "@/components/SiteNav";
+import { DanpaIntel } from "@/components/landing/DanpaIntel";
 import { ToastProvider } from "@/components/toast/Toaster";
 import { PortalShell } from "@/components/portal/PortalShell";
 import { PageLoading } from "@/components/workspace/PageLoading";
@@ -39,10 +40,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             address to the front door, and from any page to the dashboard. */}
         <AuthDialogProvider>
           <ConsumerChrome pathname={pathname}>{children}</ConsumerChrome>
+          <PublicIntel pathname={pathname} />
         </AuthDialogProvider>
       </ToastProvider>
     </SessionProvider>
   );
+}
+
+/** The public assistant never mounts while a session is restoring or signed in. */
+function PublicIntel({ pathname }: { pathname: string }) {
+  const { state } = useSession();
+  return state.status === "signed_out" && !isPortalRoute(pathname) ? <DanpaIntel /> : null;
 }
 
 /** Screens that carry their own full-page layout and want no header at all. */

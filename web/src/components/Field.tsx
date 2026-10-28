@@ -19,12 +19,13 @@ import { forwardRef, useId } from "react";
 export const Field = forwardRef<
   HTMLInputElement,
   Omit<InputHTMLAttributes<HTMLInputElement>, "prefix"> & {
-    label: string;
+    label: ReactNode;
     hint?: string;
     error?: string;
     prefix?: ReactNode;
+    action?: ReactNode;
   }
->(function Field({ label, hint, error, prefix, className, ...props }, ref) {
+>(function Field({ label, hint, error, prefix, action, className, ...props }, ref) {
   const id = useId();
   const describedBy = error ? `${id}-error` : hint ? `${id}-hint` : undefined;
 
@@ -52,6 +53,7 @@ export const Field = forwardRef<
           aria-describedby={describedBy}
           className={className ? `type-body field-input ${className}` : "type-body field-input"}
         />
+        {action}
       </div>
 
       {error ? (

@@ -269,14 +269,16 @@ export function AuthFields({ children, compact = false }: { children: ReactNode;
 export const AuthField = forwardRef<TextInput, TextInputProps & {
   label: string;
   hideLabel?: boolean;
+  labelAsPlaceholder?: boolean;
   compact?: boolean;
   icon: keyof typeof Ionicons.glyphMap;
   error?: string;
   hint?: string;
   prefix?: string;
+  formatHint?: string;
   action?: ReactNode;
 }>(function AuthField(
-  { label, hideLabel = false, compact = false, icon, error, hint, prefix, action, style, onFocus, onBlur, ...props },
+  { label, hideLabel = false, labelAsPlaceholder = false, compact = false, icon, error, hint, prefix, formatHint, action, style, onFocus, onBlur, ...props },
   ref,
 ) {
   const [focused, setFocused] = useState(false);
@@ -297,8 +299,8 @@ export const AuthField = forwardRef<TextInput, TextInputProps & {
           color={wrong ? ALERT : focused ? KOLA : theme.color.ink["300"]}
           style={[styles.rowIcon, compact && styles.rowIconCompact]}
         />
-        <View style={[styles.rowBody, hideLabel && styles.rowBodySingle, compact && styles.rowBodyCompact]}>
-          {!hideLabel ? <Type
+        <View style={[styles.rowBody, (hideLabel || labelAsPlaceholder) && styles.rowBodySingle, compact && styles.rowBodyCompact]}>
+          {!hideLabel && !labelAsPlaceholder ? <Type
             variant="caption"
             allowFontScaling={false}
             style={[styles.rowLabel, focused ? { color: KOLA } : null, wrong ? { color: ALERT } : null]}
@@ -309,7 +311,7 @@ export const AuthField = forwardRef<TextInput, TextInputProps & {
             {prefix ? (
               // The input's own type, size for size, so "+233" and the number
               // typed after it share one baseline.
-              <Text maxFontSizeMultiplier={maxFontSizeMultiplier} style={styles.rowPrefix}>
+              <Text maxFontSizeMultiplier={maxFontSizeMultiplier} style={[styles.rowPrefix, labelAsPlaceholder && styles.inputCaption]}>
                 {prefix}
               </Text>
             ) : null}
@@ -317,9 +319,10 @@ export const AuthField = forwardRef<TextInput, TextInputProps & {
               ref={input}
               {...props}
               accessibilityLabel={label}
-              accessibilityHint={hint}
+              accessibilityHint={hint ?? props.accessibilityHint}
               maxFontSizeMultiplier={maxFontSizeMultiplier}
-              placeholderTextColor={theme.color.ink["300"]}
+              placeholder={labelAsPlaceholder ? props.placeholder ?? label : props.placeholder}
+              placeholderTextColor={labelAsPlaceholder ? MUTED : theme.color.ink["300"]}
               onFocus={(event) => {
                 setFocused(true);
                 onFocus?.(event);
@@ -328,10 +331,15 @@ export const AuthField = forwardRef<TextInput, TextInputProps & {
                 setFocused(false);
                 onBlur?.(event);
               }}
-              style={[styles.input, style]}
+              style={[styles.input, labelAsPlaceholder && styles.inputCaption, style]}
             />
           </View>
         </View>
+        {formatHint ? (
+          <Text accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" maxFontSizeMultiplier={maxFontSizeMultiplier} style={styles.rowFormat}>
+            {formatHint}
+          </Text>
+        ) : null}
         {action}
       </View>
       {error ? (
@@ -862,6 +870,7 @@ const styles = StyleSheet.create({
   },
   rowBody: {
     flex: 1,
+    minWidth: 0,
     gap: 1,
   },
   rowBodySingle: {
@@ -896,6 +905,7 @@ const styles = StyleSheet.create({
   // centres it instead, and Android drops its extra font padding likewise.
   input: {
     flex: 1,
+    minWidth: 0,
     height: 24,
     padding: 0,
     fontSize: 16,
@@ -903,6 +913,8 @@ const styles = StyleSheet.create({
     textAlignVertical: "center",
     color: INK,
   },
+  inputCaption: { fontSize: 12.5 },
+  rowFormat: { fontSize: 12.5, color: MUTED, marginLeft: space[3], flexShrink: 0, includeFontPadding: false },
   // Under the label, not under the label plus the row's padding: the row's
   // own padding is already to the left of this line, so the indent is the icon
   // column alone.

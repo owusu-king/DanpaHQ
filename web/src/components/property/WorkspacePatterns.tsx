@@ -153,3 +153,8 @@ export function DetailDisclosure({
     </details>
   );
 }
+
+/** Routine details are visible; disclosures are reserved for secondary history and actions. */
+export function DetailSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return <section className="pd-section" aria-label={title}><h2 className="pd-panel-title">{title}</h2>{children}</section>;
+}

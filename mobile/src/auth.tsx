@@ -82,7 +82,7 @@ export type ProviderVerificationStatus =
  * provider tabs open.
  */
 export type Capabilities = {
-  account_type: "tenant" | "provider" | null;
+  account_type: "tenant" | "provider" | "artisan" | null;
   registration_state:
     | "phone_required"
     | "account_type_required"

@@ -15,7 +15,7 @@ import { ActivityIndicator, FlatList, RefreshControl, View } from "react-native"
 import { ApiFailure } from "@/api";
 import { ListingCard } from "@/components/listings/ListingCard";
 import { SaleCard } from "@/components/sales/SaleCard";
-import { Notice, Type, space } from "@/components/ui";
+import { Button, Notice, Type, space } from "@/components/ui";
 import { searchListings, searchListingsPage, type Listing } from "@/listings";
 import { searchSales, searchSalesPage, type SaleCard as Sale } from "@/sales";
 import { theme } from "@/theme";
@@ -67,6 +67,9 @@ export function AllExplore({
 
   async function load(query: string) {
     const id = ++request.current;
+    setListings(null);
+    setSales(null);
+    setError("");
     const filters = query ? { q: query } : {};
     const [rent, sale] = await Promise.allSettled([searchListings(filters), searchSales(filters)]);
     if (id !== request.current) return;
@@ -85,11 +88,13 @@ export function AllExplore({
   async function loadMore() {
     if (loadingMore || !(nextListings || nextSales)) return;
     setLoadingMore(true);
+    const id = request.current;
     try {
       const [rent, sale] = await Promise.all([
         nextListings ? searchListingsPage(nextListings) : Promise.resolve(null),
         nextSales ? searchSalesPage(nextSales) : Promise.resolve(null),
       ]);
+      if (id !== request.current) return;
       if (rent) { setListings((current) => [...(current ?? []), ...rent.results]); setNextListings(rent.next); }
       if (sale) { setSales((current) => [...(current ?? []), ...sale.results]); setNextSales(sale.next); }
     } catch {
@@ -102,7 +107,7 @@ export function AllExplore({
   const items = useMemo(() => (listings && sales ? merge(listings, sales) : null), [listings, sales]);
   const line = items === null
     ? "Finding places…"
-    : `${listings?.length ?? 0}${nextListings ? "+" : ""} to rent · ${sales?.length ?? 0}${nextSales ? "+" : ""} for sale`;
+    : !q || error ? "Explore properties" : `${listings?.length ?? 0}${nextListings ? "+" : ""} to rent · ${sales?.length ?? 0}${nextSales ? "+" : ""} for sale`;
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.color.field["50"] }}>
@@ -165,8 +170,9 @@ export function AllExplore({
         ListEmptyComponent={
           items === null || error ? null : (
             <View style={{ paddingVertical: space[8], gap: space[2] }}>
-              <Type variant="bodyStrong">Nothing matches yet</Type>
-              <Type variant="caption">Try a nearby area, or a shorter search.</Type>
+              <Type variant="bodyStrong">{q ? "No places match your search" : "New places will appear here"}</Type>
+              <Type variant="caption">{q ? "Try a nearby area, or a shorter search." : "There are no verified places to browse right now. Check back soon."}</Type>
+              {q ? <Button label="Clear search" onPress={() => setText("")} /> : null}
             </View>
           )
         }

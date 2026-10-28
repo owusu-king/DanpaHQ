@@ -708,7 +708,7 @@ function NoTenancy({
             <Well icon="search-outline" tone="kola" size={44} />
             <View style={{ flex: 1, minWidth: 0 }}>
               <Type variant="bodyStrong" accessibilityRole="header" style={dash.leadTitle}>Find your next home</Type>
-              <Type variant="caption" style={dash.rowLine}>Search verified rentals across Ghana.</Type>
+              <Type variant="caption" style={dash.rowLine}>Search properties across Ghana.</Type>
             </View>
           </View>
           <Button label="Explore rentals" onPress={onExplore} />

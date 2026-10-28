@@ -89,7 +89,7 @@ export default function WelcomeScreen() {
           </View>
         </Rise>
 
-        <AuthAction label={needsPhone ? "Verify phone and continue" : "View approval status"} onPress={() => leave("/(app)/provider")} />
+        <AuthAction label={needsPhone ? "Verify phone and continue" : "View approval status"} onPress={() => leave("/(app)/(provider-tabs)")} />
 
         <AuthFoot>
           <TextLink label="Look around first" onPress={() => leave(home)} />

@@ -1,3 +1,5 @@
+import { FINANCE_VIEWS, financeEntries, type FinanceView } from "@/finance";
+import { ProfitLoss } from "@/components/payments/ProfitLoss";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
@@ -103,6 +105,7 @@ function ProviderPaymentsScreen() {
   const [open, setOpen] = useState<{ recent: boolean; paid: boolean; expenses: boolean }>({ recent: false, paid: false, expenses: action === "expense" });
   const [searching, setSearching] = useState(false);
   const [query, setQuery] = useState("");
+  const [financeView, setFinanceView] = useState<FinanceView>("balances");
   const [showExpense, setShowExpense] = useState(action === "expense");
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
@@ -141,6 +144,8 @@ function ProviderPaymentsScreen() {
     () => summary && work ? entriesFor(summary, work, expenses, { open, needle, payouts: canManagePayouts && Boolean(organizationId) }) : [],
     [summary, work, expenses, open, needle, canManagePayouts, organizationId],
   );
+
+  const visibleEntries = financeEntries(entries, financeView);
 
   function openAccount(input: { leaseId: string; tenantName: string; propertyTitle: string; unitLabel: string; bedLabel?: string | null; tenancyId?: string | null; canRecord?: boolean }) {
     router.push({ pathname: "/(app)/rent-account", params: { leaseId: input.leaseId, tenantName: input.tenantName, propertyTitle: input.propertyTitle, unitLabel: input.unitLabel, bedLabel: input.bedLabel ?? "", tenancyId: input.tenancyId ?? "", canRecord: input.canRecord ? "1" : "0" } } as never);
@@ -182,12 +187,16 @@ function ProviderPaymentsScreen() {
   return (
     <IndexGround>
       <FlatList
-        data={loading || nothingAtAll ? [] : entries}
+        data={loading || nothingAtAll ? [] : visibleEntries}
         keyExtractor={(entry) => entry.key}
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={{ paddingHorizontal: density.pagePadding, paddingTop: density.compact ? space[4] : space[5], paddingBottom: pageBottom }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await load(); setRefreshing(false); }} tintColor={KOLA} />}
-        ListHeaderComponent={loading || nothingAtAll ? (error ? <Notice tone="error" title={error} /> : null) : (
+        ListHeaderComponent={<View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: space[2], paddingBottom: space[4] }} accessibilityRole="tablist" accessibilityLabel="Finance views">
+            {FINANCE_VIEWS.map(([value, label]) => <Pressable key={value} accessibilityRole="tab" aria-selected={financeView === value} onPress={() => { setFinanceView(value); setQuery(""); if (value === "expenses") setOpen(current => ({ ...current, expenses: true })); }} style={{ paddingHorizontal: space[4], paddingVertical: space[3], borderBottomWidth: financeView === value ? 2 : 1, borderBottomColor: financeView === value ? KOLA : RULE }}><Type variant="captionStrong" style={{ color: financeView === value ? KOLA : MUTED }}>{label}</Type></Pressable>)}
+          </ScrollView>
+          {financeView === "pnl" ? <View>{error ? <Notice tone="error" title={error} /> : null}{loading ? <Type variant="caption">Loading ledger…</Type> : <ProfitLoss report={summary?.profit_loss} />}</View> : loading || nothingAtAll ? (error ? <Notice tone="error" title={error} /> : null) : (
           <View style={styles.header}>
             {error ? <Notice tone="error" title={error} /> : null}
             {month ? <MonthCard month={month} /> : null}
@@ -202,6 +211,7 @@ function ProviderPaymentsScreen() {
             <SignalPanel signals={signals} />
           </View>
         )}
+        </View>}
         renderItem={({ item: entry }) => {
           if (entry.kind === "label") {
             return (
@@ -245,7 +255,7 @@ function ProviderPaymentsScreen() {
             return <Empty compact icon="receipt-outline" title="No expenses recorded" hint="Repairs, utilities and levies you pay for a Property can be kept here. Recording one moves no money." />;
           }
           if (entry.kind === "recordExpense") {
-            return <View style={styles.record}><QuietAction icon="add" label="Record expense" onPress={() => setShowExpense(true)} /></View>;
+            return <View style={styles.record}><ExpenseAction label="Record expense" onPress={() => setShowExpense(true)} /></View>;
           }
           return (
             <ListRow first={entry.first} last={entry.last}>
@@ -257,17 +267,19 @@ function ProviderPaymentsScreen() {
             </ListRow>
           );
         }}
-        ListEmptyComponent={loading ? <PaymentsSkeleton /> : nothingAtAll ? (
+        ListEmptyComponent={financeView === "pnl" ? null : loading ? <PaymentsSkeleton /> : nothingAtAll ? (
           <Empty
             icon="wallet-outline"
             title="No rent to track yet"
             hint="Balances, payments and payouts appear here once a tenancy is running."
-            action={<QuietAction icon="add" label="Record an expense" onPress={() => setShowExpense(true)} />}
+            action={<ExpenseAction label="Record an expense" onPress={() => setShowExpense(true)} />}
           />
         ) : needle ? (
           <Empty icon="search-outline" title="No matching payments" hint="Try another tenant, Property, Unit or method." />
+        ) : summary && !loading ? (
+          <Empty compact icon="wallet-outline" title={financeView === "balances" ? "No rent due" : financeView === "records" ? "No payment records yet" : financeView === "payouts" ? "No payouts yet" : "No expenses recorded"} hint="Records will appear here when there is activity in this part of Finance." />
         ) : null}
-        ListFooterComponent={summary && !needle && summary.verification.payments_ready < summary.verification.properties_total ? (
+        ListFooterComponent={financeView !== "pnl" && summary && !needle && summary.verification.payments_ready < summary.verification.properties_total ? (
           <View style={styles.labelGap}>
             <InfoNote tone="lagoon" icon="information-circle-outline" title="Online collection is not ready for some Properties" body="It needs current identity, Property authority and a verified settlement account. Recording money paid to you directly still works." />
           </View>
@@ -524,9 +536,12 @@ function ExpenseRow({ expense }: { expense: PropertyExpense }) {
   );
 }
 
-function ExpenseModal({ visible, organizationId, properties, onClose, onDone }: { visible: boolean; organizationId: string; properties: ManagedProperty[]; onClose: () => void; onDone: () => Promise<void> }) { return <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}><ModalSafeArea><SafeBottom render={(bottom) => <ScrollView contentContainerStyle={{ padding: space[5], paddingBottom: space[8] + bottom, gap: space[4] }}><View style={{ gap: space[1] }}><Type variant="label">INTERNAL RECORD</Type><Type variant="title1" accessibilityRole="header">Record Property expense</Type><Type variant="caption">This records an expense. It does not move money.</Type></View><ExpenseForm organizationId={organizationId} properties={properties} onDone={onDone} /><Button label="Cancel" variant="quiet" onPress={onClose} /></ScrollView>} /></ModalSafeArea></Modal>; }
+function ExpenseModal({ visible, organizationId, properties, onClose, onDone }: { visible: boolean; organizationId: string; properties: ManagedProperty[]; onClose: () => void; onDone: () => Promise<void> }) { return <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}><ModalSafeArea><SafeBottom render={(bottom) => <ScrollView contentContainerStyle={{ padding: space[5], paddingBottom: space[8] + bottom, gap: space[4], borderTopWidth: 2, borderTopColor: LATERITE, backgroundColor: theme.color.field["0"] }}><View style={{ gap: space[1] }}><Type variant="label">INTERNAL RECORD</Type><Type variant="title1" accessibilityRole="header">Record Property expense</Type><Type variant="caption">This records an expense. It does not move money.</Type></View><ExpenseForm organizationId={organizationId} properties={properties} onDone={onDone} /><Button label="Cancel" variant="quiet" onPress={onClose} /></ScrollView>} /></ModalSafeArea></Modal>; }
+function ExpenseAction({ label, onPress, disabled = false, busy = false }: { label: string; onPress: () => void; disabled?: boolean; busy?: boolean }) {
+  return <Pressable accessibilityRole="button" disabled={disabled || busy} aria-disabled={disabled || busy} onPress={onPress} style={({ pressed }) => ({ opacity: disabled || busy ? 0.45 : 1, minHeight: 44, padding: space[3], borderWidth: 1, borderColor: LATERITE, borderRadius: 10, backgroundColor: pressed ? theme.color.laterite["100"] : theme.color.field["0"], alignItems: "center" })}><Type variant="captionStrong" style={{ color: LATERITE }}>{busy ? "Saving…" : label}</Type></Pressable>;
+}
 const EXPENSE_CATEGORIES = [["maintenance", "Maintenance"], ["utilities", "Utilities"], ["staff", "Staff"], ["tax", "Tax or levy"], ["supplies", "Supplies"], ["other", "Other"]] as const;
-function ExpenseForm({ organizationId, properties, onDone }: { organizationId: string; properties: ManagedProperty[]; onDone: () => Promise<void> }) { const [propertyId, setPropertyId] = useState(properties[0]?.id ?? ""); const [category, setCategory] = useState("maintenance"); const [amount, setAmount] = useState(""); const [incurredOn, setIncurredOn] = useState(new Date().toISOString().slice(0, 10)); const [note, setNote] = useState(""); const [busy, setBusy] = useState(false); const [error, setError] = useState(""); return <View style={{ gap: space[3] }}><Type variant="label">PROPERTY</Type>{properties.map((property) => <Button key={property.id} label={property.title} variant="secondary" selected={propertyId === property.id} onPress={() => setPropertyId(property.id)} />)}<Type variant="label">CATEGORY</Type><View style={{ flexDirection: "row", flexWrap: "wrap", gap: space[2] }}>{EXPENSE_CATEGORIES.map(([value, label]) => <Button key={value} label={label} variant="quiet" selected={category === value} onPress={() => setCategory(value)} />)}</View><Field label="Amount (GH₵)" value={amount} onChangeText={setAmount} keyboardType="decimal-pad" /><Field label="Date (YYYY-MM-DD)" value={incurredOn} onChangeText={setIncurredOn} /><Field label="Note (optional)" value={note} onChangeText={setNote} />{error ? <Notice tone="error" title={error} /> : null}<Button label="Save expense record" busy={busy} disabled={!propertyId || !amount.trim()} onPress={async () => { const amountMinor = Math.round(Number(amount) * 100); if (!Number.isFinite(amountMinor) || amountMinor <= 0) return setError("Enter a valid amount."); setBusy(true); setError(""); try { await recordPropertyExpense(organizationId, { property_id: propertyId, amount_minor: amountMinor, category, incurred_on: incurredOn, note }); await onDone(); } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not record the expense."); } finally { setBusy(false); } }} /></View>; }
+function ExpenseForm({ organizationId, properties, onDone }: { organizationId: string; properties: ManagedProperty[]; onDone: () => Promise<void> }) { const [propertyId, setPropertyId] = useState(properties[0]?.id ?? ""); const [category, setCategory] = useState("maintenance"); const [amount, setAmount] = useState(""); const [incurredOn, setIncurredOn] = useState(() => { const today = new Date(); return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`; }); const [note, setNote] = useState(""); const [busy, setBusy] = useState(false); const [error, setError] = useState(""); return <View style={{ gap: space[3] }}><Type variant="label">PROPERTY</Type>{properties.map((property) => <Button key={property.id} label={property.title} variant="secondary" selected={propertyId === property.id} onPress={() => setPropertyId(property.id)} />)}<Type variant="label">CATEGORY</Type><View style={{ flexDirection: "row", flexWrap: "wrap", gap: space[2] }}>{EXPENSE_CATEGORIES.map(([value, label]) => <Button key={value} label={label} variant="quiet" selected={category === value} onPress={() => setCategory(value)} />)}</View><Field label="Amount (GH₵)" value={amount} onChangeText={setAmount} keyboardType="decimal-pad" /><Field label="Date (YYYY-MM-DD)" value={incurredOn} onChangeText={setIncurredOn} /><Field label="Note (optional)" value={note} onChangeText={setNote} />{error ? <Notice tone="error" title={error} /> : null}<ExpenseAction label="Save expense record" busy={busy} disabled={!propertyId || !amount.trim()} onPress={async () => { const amountMinor = Math.round(Number(amount) * 100); if (!/^\d+(\.\d{1,2})?$/.test(amount.trim()) || !Number.isSafeInteger(amountMinor) || amountMinor <= 0) return setError("Enter a valid amount."); setBusy(true); setError(""); try { await recordPropertyExpense(organizationId, { property_id: propertyId, amount_minor: amountMinor, category, incurred_on: incurredOn, note }); await onDone(); } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not record the expense."); } finally { setBusy(false); } }} /></View>; }
 const styles = StyleSheet.create({
   header: { gap: space[4], marginBottom: space[5] },
   label: { paddingBottom: space[2] },

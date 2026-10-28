@@ -1,3 +1,5 @@
+import { useAuth } from "@/auth";
+import { VerificationHome } from "@/components/auth/VerificationHome";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Tabs } from "expo-router";
 import { NativeTabs } from "expo-router/unstable-native-tabs";
@@ -20,6 +22,9 @@ import { theme } from "@/theme";
  * URL: a bare `profile` here would share an address with the renter's Menu.
  */
 export default function ArtisanTabsLayout() {
+  const { state } = useAuth();
+  if (state.status !== "signed_in") return null;
+  if (!state.me.capabilities.artisan.workspace_access) return <VerificationHome side="artisan" />;
   return isIOS ? <ArtisanNativeTabs /> : <ArtisanJsTabs />;
 }
 

@@ -1,10 +1,14 @@
 from django.urls import path
 
-from . import views
+from . import guide_views, views
 from .mfa_configuration import MFAConfigurationView
 from .mfa_views import ManagementMFALoginView
 
 urlpatterns = [
+    path("how-it-works/", guide_views.GuideContentView.as_view()),
+    path("how-it-works/preview/", guide_views.GuidePreviewView.as_view()),
+    path("how-it-works/uploads/", guide_views.GuideReserveUploadView.as_view()),
+    path("how-it-works/uploads/<uuid:pk>/", guide_views.GuideUploadView.as_view()),
     path("configuration/mfa/", MFAConfigurationView.as_view(), name="management-mfa-configuration"),
     path("auth/mfa/", ManagementMFALoginView.as_view(), name="management-mfa"),
     path("auth/login/", views.LoginView.as_view(), name="management-login"),

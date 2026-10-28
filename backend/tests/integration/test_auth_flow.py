@@ -51,6 +51,20 @@ def register_new_number(sms, phone, **details):
     )
 
 
+def test_explicit_artisan_phone_registration_creates_no_tenant_or_provider(sms):
+    from apps.identity.models import Role
+
+    user = register_new_number(sms, "0207778098", account_type="artisan")
+    capabilities = services.account_capabilities(user)
+    assert user.account_type == "artisan"
+    assert user.is_registration_complete
+    assert not user.has_role(Role.TENANT)
+    assert capabilities["tenant"]["workspace_access"] is False
+    assert capabilities["provider"]["exists"] is False
+    assert capabilities["artisan"]["can_quote"] is False
+    assert capabilities["active_workspace"] == "artisan"
+
+
 class TestSignUpMeetsAnExistingAccount:
     """Told at the number, not after the code.
 

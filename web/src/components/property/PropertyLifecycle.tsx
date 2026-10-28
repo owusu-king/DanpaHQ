@@ -38,6 +38,9 @@ import {
 import type { SetupStep } from "@/lib/propertySetup";
 
 import { SetupProgress, SetupSteps } from "./SetupSteps";
+import { inPlace } from "@/lib/inPlace";
+import { TypedConfirmation } from "@/components/workspace/TypedConfirmation";
+import { AddUnitButton } from "./AddUnitChooser";
 
 /** A date somebody can read, or nothing if there isn't one. */
 function on(value: string | null): string {
@@ -54,16 +57,20 @@ export function PropertyLifecycle({
   steps,
   onChanged,
   compact = false,
+  onEdit,
+  onSetup,
 }: {
   property: Property;
   steps: SetupStep[];
   onChanged: () => Promise<void>;
   compact?: boolean;
+  onEdit?: () => void;
+  onSetup?: () => void;
 }) {
   const { state, review_state: reviewState } = property.verification;
 
   if (compact) {
-    return <CompactLifecycle property={property} steps={steps} onChanged={onChanged} />;
+    return <CompactLifecycle property={property} steps={steps} onChanged={onChanged} onEdit={onEdit} onSetup={onSetup} />;
   }
 
   // One card for where the property is, and — under it, in every state — the
@@ -75,7 +82,7 @@ export function PropertyLifecycle({
   // up": it is the state the creation/submission split exists to express.
   const card =
     reviewState === "verified" ? (
-      <Verified property={property} />
+      <Verified property={property} onChanged={onChanged} />
     ) : reviewState === "suspended" ? (
       <Suspended property={property} />
     ) : reviewState === "pending_verification" ? (
@@ -105,10 +112,14 @@ function CompactLifecycle({
   property,
   steps,
   onChanged,
+  onEdit,
+  onSetup,
 }: {
   property: Property;
   steps: SetupStep[];
   onChanged: () => Promise<void>;
+  onEdit?: () => void;
+  onSetup?: () => void;
 }) {
   const { state, review_state: reviewState } = property.verification;
   const edit = property.permitted_actions.edit;
@@ -145,8 +156,8 @@ function CompactLifecycle({
           <p>{property.verification.decision_note || "Update the requested information before sending this Property again."}</p>
         </div>
         <div className="attention-band-actions">
-          {edit?.allowed ? <Link href={`/record/property-setup?propertyId=${property.id}` as never} className="button-link">Update property</Link> : null}
-          {submit?.allowed ? <Link href={`/record/property-verify?id=${property.id}` as never} className="button-link secondary">Resubmit</Link> : null}
+          {edit?.allowed ? <Link href={`/record/property-setup?propertyId=${property.id}` as never} className="btn btn-primary" onClick={onSetup ? inPlace(onSetup) : undefined}>Update property</Link> : null}
+          {submit?.allowed ? <Link href={`/record/property-verify?id=${property.id}` as never} className="btn btn-secondary">Resubmit</Link> : null}
         </div>
       </div>
     );
@@ -160,8 +171,8 @@ function CompactLifecycle({
           <p>{reviewState === "withdrawn" ? "Your information is still saved. Review it, then submit again when ready." : "Verify the Property before its Units can be advertised or shared with prospective tenants."}</p>
         </div>
         <div className="attention-band-actions">
-          {submit?.allowed ? <Link href={`/record/property-verify?id=${property.id}` as never} className="button-link">Submit for verification</Link> : null}
-          {edit?.allowed ? <Link href={`/record/property-setup?propertyId=${property.id}` as never} className="button-link secondary">Edit</Link> : null}
+          {submit?.allowed ? <Link href={`/record/property-verify?id=${property.id}` as never} className="btn btn-primary">Submit for verification</Link> : null}
+          {edit?.allowed ? <Link href={`/record/property-setup?propertyId=${property.id}` as never} className="btn btn-secondary" onClick={onEdit ? inPlace(onEdit) : undefined}>Edit</Link> : null}
         </div>
       </div>
     );
@@ -176,7 +187,7 @@ function CompactLifecycle({
         <p>{complete} of {required.length} required steps complete. Everything is saved as you go.</p>
       </div>
       <div className="attention-band-actions">
-        {edit?.allowed ? <Link href={`/record/property-setup?propertyId=${property.id}` as never} className="button-link">Continue setup</Link> : null}
+        {edit?.allowed ? <Link href={`/record/property-setup?propertyId=${property.id}` as never} className="btn btn-primary" onClick={onSetup ? inPlace(onSetup) : undefined}>Continue setup</Link> : null}
       </div>
     </div>
   );
@@ -248,11 +259,9 @@ export function PropertyMore({ property }: { property: Property }) {
   return (
     <section className="workspace-section" aria-labelledby="property-more-heading">
       <div className="workspace-section-head">
-        <h2 id="property-more-heading">Property details</h2>
+        <h2 id="property-more-heading">Verification</h2>
       </div>
-      <details className="detail-disclosure">
-        <summary>Verification details</summary>
-        <div className="detail-disclosure-body">
+      <div className="pd-section">
           <dl className="fact-grid">
             <div><dt>Status</dt><dd>{property.verification.review_state_label}</dd></div>
             {property.verification.submitted_at ? <div><dt>Submitted</dt><dd>{on(property.verification.submitted_at)}</dd></div> : null}
@@ -260,14 +269,8 @@ export function PropertyMore({ property }: { property: Property }) {
             <div><dt>Package</dt><dd>Property details, authority document, photographs and amenities</dd></div>
           </dl>
           {property.verification.decision_note ? <Notice tone="info" title="Review note" body={property.verification.decision_note} /> : null}
-        </div>
-      </details>
-      {hasDanger ? (
-        <details className="detail-disclosure">
-          <summary>Archive or delete</summary>
-          <div className="detail-disclosure-body"><DangerZone property={property} /></div>
-        </details>
-      ) : null}
+      </div>
+      {hasDanger ? <DangerZone property={property} /> : null}
     </section>
   );
 }
@@ -288,104 +291,23 @@ export function PropertyMore({ property }: { property: Property }) {
 function DangerZone({ property }: { property: Property }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [reason, setReason] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-
   const remove = property.permitted_actions.delete;
   const archive = property.permitted_actions.archive;
   const act = remove?.allowed ? "delete" : archive?.allowed ? "archive" : null;
   if (!act) return null;
-
   const decision = act === "delete" ? remove! : archive!;
-
-  return (
-    <section
-      id="danger"
-      aria-labelledby="danger-heading"
-      style={{
-        marginTop: "var(--space-8)",
-        padding: "var(--space-5)",
-        border: "var(--border-hairline) solid var(--color-field-200)",
-        borderRadius: "var(--radius-md)",
-        display: "grid",
-        gap: "var(--space-3)",
-      }}
-    >
-      <h2 id="danger-heading" className="type-body-strong" style={{ margin: 0 }}>
-        {act === "delete" ? "Delete this property" : "Archive this property"}
-      </h2>
-      <p className="type-caption" style={{ margin: 0, maxWidth: "58ch" }}>
-        {decision.message}
-      </p>
-
-      {error ? <Notice tone="error" title={error} /> : null}
-
-      {open ? (
-        <div style={{ display: "grid", gap: "var(--space-3)" }}>
-          <label style={{ display: "grid", gap: "var(--space-2)" }}>
-            <span className="type-caption" style={{ color: "var(--color-ink-700)" }}>
-              Why? This is recorded.
-            </span>
-            <input
-              value={reason}
-              maxLength={400}
-              onChange={(event) => setReason(event.target.value)}
-              className="type-body"
-              style={{
-                minHeight: "var(--target-min)",
-                padding: "0 var(--space-3)",
-                background: "var(--color-field-0)",
-                border: "var(--border-hairline) solid var(--color-field-300)",
-                borderRadius: "var(--radius-md)",
-                color: "var(--color-ink-900)",
-              }}
-            />
-          </label>
-          <Actions>
-            <Button
-              variant="destructive"
-              busy={busy}
-              busyLabel={act === "delete" ? "Deleting…" : "Archiving…"}
-              disabled={!reason.trim()}
-              onClick={async () => {
-                setBusy(true);
-                setError("");
-                try {
-                  if (act === "delete") await deleteProperty(property.id, reason.trim());
-                  else await archiveProperty(property.id, reason.trim());
-                  router.push("/properties" as never);
-                } catch (cause) {
-                  setError(
-                    cause instanceof ApiFailure
-                      ? cause.error.message
-                      : `Could not ${act} this property.`,
-                  );
-                  setBusy(false);
-                }
-              }}
-            >
-              {act === "delete" ? "Delete it permanently" : "Archive it"}
-            </Button>
-            <Button variant="quiet" onClick={() => setOpen(false)} disabled={busy}>
-              Keep it
-            </Button>
-          </Actions>
-          {!reason.trim() ? (
-            <p className="type-caption" style={{ margin: 0 }}>
-              A reason is required — whoever this affects will see it.
-            </p>
-          ) : null}
-        </div>
-      ) : (
-        <Actions>
-          <Button variant="secondary" onClick={() => setOpen(true)}>
-            {act === "delete" ? "Delete property" : "Archive property"}
-          </Button>
-        </Actions>
-      )}
-    </section>
-  );
+  return <section className="pd-danger" aria-label="Property actions">
+    <div><h3>{act === "delete" ? "Delete property" : "Archive property"}</h3><p className="pd-note">{decision.message}</p></div>
+    <Button variant={act === "delete" ? "destructive" : "secondary"} onClick={() => setOpen(true)}>{act === "delete" ? "Delete property" : "Archive property"}</Button>
+    <TypedConfirmation open={open} onClose={() => setOpen(false)} title={act === "delete" ? "Delete Property" : "Archive Property"}
+      description={act === "delete" ? "This permanently deletes the property. This action cannot be undone." : "Remove this property from your workspace while keeping its records."}
+      phrase={act === "delete" ? property.title : undefined} confirmLabel={act === "delete" ? "Delete permanently" : "Archive property"} destructive={act === "delete"} reasonRequired={act !== "delete"}
+      onConfirm={async reason => {
+        if (act === "delete") await deleteProperty(property.id, reason || "Deleted after confirming the full property name.");
+        else await archiveProperty(property.id, reason);
+        router.push("/properties");
+      }} />
+  </section>;
 }
 
 // --- creation ------------------------------------------------------------------
@@ -421,10 +343,8 @@ function StillCreating({
       </Framed>
 
       <Actions>
-        <Link href={`/record/property-setup?propertyId=${property.id}` as never}>
-          <Button>
-            {begun ? `Continue with ${next.title.toLowerCase()}` : "Start setting up"}
-          </Button>
+        <Link href={`/record/property-setup?propertyId=${property.id}` as never} className="btn btn-primary">
+          {begun ? `Continue with ${next.title.toLowerCase()}` : "Start setting up"}
         </Link>
       </Actions>
     </Card>
@@ -461,14 +381,10 @@ function Created({ property }: { property: Property }) {
 
       <Actions>
         {submit?.allowed ? (
-          <Link href={`/record/property-verify?id=${property.id}` as never}>
-            <Button>Submit for verification</Button>
-          </Link>
+          <Link href={`/record/property-verify?id=${property.id}` as never} className="btn btn-primary">Submit for verification</Link>
         ) : null}
         {edit?.allowed ? (
-          <Link href={`/record/property-setup?propertyId=${property.id}` as never}>
-            <Button variant="secondary">Edit property</Button>
-          </Link>
+          <Link href={`/record/property-setup?propertyId=${property.id}` as never} className="btn btn-secondary">Edit property</Link>
         ) : null}
       </Actions>
 
@@ -650,13 +566,9 @@ function NeedsAttention({
       ) : null}
 
       <Actions>
-        <Link href={`/record/property-setup?propertyId=${property.id}` as never}>
-          <Button>Update property</Button>
-        </Link>
+        <Link href={`/record/property-setup?propertyId=${property.id}` as never} className="btn btn-primary">Update property</Link>
         {submit?.allowed ? (
-          <Link href={`/record/property-verify?id=${property.id}` as never}>
-            <Button variant="secondary">Resubmit for verification</Button>
-          </Link>
+          <Link href={`/record/property-verify?id=${property.id}` as never} className="btn btn-secondary">Resubmit for verification</Link>
         ) : null}
         <Button variant="quiet" onClick={() => setShowing((open) => !open)}>
           {showing ? "Hide review feedback" : "View review feedback"}
@@ -760,7 +672,7 @@ function Suspended({ property }: { property: Property }) {
  * approval and returns the space to draft). Properties do not yet, so this says
  * where to go instead of offering a control the API refuses.
  */
-function Verified({ property }: { property: Property }) {
+function Verified({ property, onChanged }: { property: Property; onChanged: () => Promise<void> }) {
   const [showing, setShowing] = useState(false);
   const { verification } = property;
 
@@ -784,9 +696,7 @@ function Verified({ property }: { property: Property }) {
       </div>
 
       <Actions>
-        <Link href={`/record/space-new?propertyId=${property.id}` as never}>
-          <Button>Add Unit</Button>
-        </Link>
+        <AddUnitButton propertyId={property.id} onChanged={() => void onChanged()} className="btn btn-primary">Add Unit</AddUnitButton>
         <Button variant="quiet" onClick={() => setShowing((open) => !open)}>
           {showing ? "Hide verification details" : "View verification details"}
         </Button>

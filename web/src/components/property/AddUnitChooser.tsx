@@ -1,28 +1,23 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { Notice } from "@/components/Notice";
 import { LoadingRows } from "@/components/portal/PageHeader";
-import { ModalSheet } from "@/components/workspace/ModalSheet";
+import { UnitWizardModal } from "./UnitWizard";
+import { inPlace } from "@/lib/inPlace";
 import { ApiFailure } from "@/lib/api";
 import { listOrganizations, listOrganizationProperties, type Property } from "@/lib/console";
 import { useSession } from "@/lib/session";
 
-/**
- * "Add Unit" from outside a Property: one small modal to choose which Property
- * it goes in, then the creation flow that already exists (owner, 2026-10-05: a
- * whole page for one choice was too much).
- *
- * Nothing here creates anything. From Property → Add Unit the Property is
- * already known and this is skipped.
- */
-export function AddUnitButton({ className, children }: { className: string; children: ReactNode }) {
-  const router = useRouter();
+/** One creation sheet: choose an eligible Property here, or preselect it from its record. */
+export function AddUnitButton({ className, children, propertyId: initialProperty = null, onChanged }: {
+  className: string; children: ReactNode; propertyId?: string | null; onChanged?: () => void;
+}) {
   const choices = usePropertyChoices();
   const [open, setOpen] = useState(false);
+  const [selectedProperty, setSelectedProperty] = useState<string | null>(null);
   const opening = useRef(0);
   useEffect(() => () => { opening.current += 1; }, []);
 
@@ -33,13 +28,14 @@ export function AddUnitButton({ className, children }: { className: string; chil
 
   async function start() {
     const request = ++opening.current;
+    setSelectedProperty(initialProperty);
     setOpen(true);
+    if (initialProperty) return;
     const eligible = await choices.load();
     if (request !== opening.current) return;
     // One eligible Property is not a choice. Go straight to the flow.
     if (eligible.length === 1) {
-      setOpen(false);
-      router.push(`/record/space-new?propertyId=${eligible[0]!.id}` as never);
+      setSelectedProperty(eligible[0]!.id);
       return;
     }
   }
@@ -49,16 +45,14 @@ export function AddUnitButton({ className, children }: { className: string; chil
       <button type="button" className={className} onClick={() => void start()}>
         {children}
       </button>
-      <ModalSheet
+      <UnitWizardModal
         open={open}
+        propertyId={selectedProperty}
+        propertyPicker={<PropertyChoices choices={choices} onChoose={(property) => setSelectedProperty(property.id)} />}
         onClose={close}
-        icon="units"
-        title="Add Unit"
-        meta="Choose its Property."
-        size="sm"
-      >
-        <PropertyChoices choices={choices} />
-      </ModalSheet>
+        onChanged={onChanged}
+        onFinished={() => undefined}
+      />
     </>
   );
 }
@@ -104,10 +98,11 @@ function eligibleOf(properties: Property[]) {
     .filter((property) => property.capabilities.private_inventory?.allowed)
     // A property for sale is sold whole and takes no Units (`assert_is_for_letting`).
     .filter((property) => property.purpose !== "sale")
+    .filter((property) => !property.billing_access || property.billing_access.state === "full")
     .sort((a, b) => a.title.localeCompare(b.title, "en-GH"));
 }
 
-export function PropertyChoices({ choices }: { choices: Choices }) {
+export function PropertyChoices({ choices, onChoose }: { choices: Choices; onChoose?: (property: Property) => void }) {
   const { properties, error } = choices;
   const [query, setQuery] = useState("");
 
@@ -137,7 +132,7 @@ export function PropertyChoices({ choices }: { choices: Choices }) {
         <ul className="unit-property-list">
           {eligible.map((property) => (
             <li key={property.id}>
-              <Link href={`/record/space-new?propertyId=${property.id}` as never} className="unit-property-row">
+              <Link href={`/record/space-new?propertyId=${property.id}` as never} className="unit-property-row" onClick={onChoose ? inPlace(() => onChoose(property)) : undefined}>
                 <span>
                   <strong className="type-body-strong">{property.title}</strong>
                   <br />

@@ -383,8 +383,8 @@
 /* One glass bar holds the row: search, the chips, then Map. */
 .ec-console {
   --explore-bar-height: 40px;
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: minmax(5rem, 1fr) minmax(0, auto) auto;
   align-items: center;
   gap: 6px;
   min-width: 0;
@@ -399,7 +399,7 @@
   -webkit-backdrop-filter: blur(18px) saturate(1.15);
 }
 /* The search gives up width for the chips, down to a usable minimum. */
-.ec-console > .explore-bar { display: flex; flex: 1 1 15rem; min-width: 12rem; }
+.ec-console > .explore-bar { display: flex; min-width: 0; }
 .ec-console > .explore-bar > * { flex: 1 1 auto; min-width: 0; }
 .ec-console .explore-search-form { display: flex; min-width: 0; }
 .ec-console .explore-search-form > .explore-search { flex: 1 1 auto; }
@@ -456,7 +456,6 @@
 
 /* Narrow: the search takes its own line, the chips wrap under it. */
 @media (max-width: 63.999rem) {
-  .ec-console > .explore-bar { flex-basis: 100%; }
   .ec-console > .ec-chips { flex: 1 1 100%; padding-left: 0; border-left: 0; }
   .ec-console .explore-search input { font-size: 1rem; }
 }
@@ -568,3 +567,20 @@
 .ec-option:focus-visible { outline: 2px solid var(--color-kola-600); outline-offset: -2px; }
 .ec-option[aria-selected="true"] { color: var(--color-kola-800); font-weight: 600; background: var(--color-kola-50); }
 .ec-option .portal-icon { width: 15px; height: 15px; color: var(--color-kola-600); }
+
+/* Keep search, filters and Map together through the sticky transition. */
+.ec-console > .ec-chips { flex-wrap: nowrap; min-width: 0; }
+.ec-console .explore-map-toggle { white-space: nowrap; grid-column: 3; grid-row: 1; }
+.ec-console .ec-responsive-filters { display: none; }
+@media (max-width: 1023px) {
+  .ec-console { grid-template-columns: minmax(5rem, 1fr) auto auto; gap: 4px; }
+  .ec-console > .ec-chips { padding-left: 0; border-left: 0; }
+  .ec-console .ec-responsive-filters { display: inline-flex; }
+  .ec-console .ec-chip-options { display: none; }
+  .ec-console .ec-chips.is-expanded > .ec-chip-options { display: flex; position: absolute; top: calc(100% + 8px); right: 0; z-index: 30; width: min(18rem, 80vw); padding: 12px; background: var(--color-field-0); border: 1px solid var(--color-field-200); border-radius: 12px; flex-direction: column; align-items: stretch; }
+  .ec-console .ec-chip { padding-inline: 8px; }
+  .ec-console .explore-map-toggle { padding-inline: 8px; }
+}
+
+.ec-chip-options { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.ec-console > .ec-chips { position: relative; }

@@ -63,13 +63,12 @@
   white-space: nowrap;
   text-decoration: none;
   cursor: pointer;
-  /* Colour and shadow move on their own clock from the press, which needs to
-     feel immediate or it reads as lag rather than feedback. */
+  box-shadow: none;
+  /* Flat controls use colour for feedback; the press remains immediate. */
   transition:
     background-color var(--motion-duration-fast) var(--motion-easing-standard),
     border-color var(--motion-duration-fast) var(--motion-easing-standard),
     color var(--motion-duration-fast) var(--motion-easing-standard),
-    box-shadow var(--motion-duration-fast) var(--motion-easing-standard),
     translate var(--motion-duration-instant) var(--motion-easing-standard);
 }
 
@@ -84,9 +83,6 @@
   background: var(--color-kola-600);
   border-color: var(--color-kola-600);
   color: var(--color-field-0);
-  box-shadow:
-    0 1px 2px color-mix(in srgb, var(--color-kola-900) 18%, transparent),
-    inset 0 1px 0 rgb(255 255 255 / 14%);
 }
 
 /* Kola is the product action colour. A darker hover adds depth without making
@@ -94,9 +90,6 @@
 .btn-primary:not(:disabled):hover {
   background: var(--color-kola-800);
   border-color: var(--color-kola-800);
-  box-shadow:
-    0 6px 16px -9px color-mix(in srgb, var(--color-kola-900) 70%, transparent),
-    inset 0 1px 0 rgb(255 255 255 / 12%);
 }
 
 .btn-primary:not(:disabled):active {
@@ -114,7 +107,6 @@
 .btn-secondary:not(:disabled):hover {
   border-color: var(--color-ink-300);
   background: var(--color-field-50);
-  box-shadow: var(--shadow-raised);
 }
 
 .btn-quiet {
@@ -139,7 +131,6 @@
 .btn-accent:not(:disabled):hover {
   background: var(--color-gold-300);
   border-color: var(--color-gold-300);
-  box-shadow: var(--shadow-lifted);
 }
 
 /* Pressed goes darker than rest, not lighter: the accent is the one control

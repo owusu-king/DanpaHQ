@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { Eye, EyeOff } from "lucide-react";
 
-import { AuthModal, AuthSide } from "@/components/auth/AuthModal";
+import { AuthModal } from "@/components/auth/AuthModal";
 import { GoogleIdentityButton } from "@/components/auth/GoogleIdentityButton";
 import { MFAStep } from "@/components/auth/MFAStep";
 import { isMFAChallenge, type MFAChallenge } from "@/lib/mfa";
@@ -13,10 +14,10 @@ import { Notice } from "@/components/Notice";
 import { apiFetch, ApiFailure } from "@/lib/api";
 import { setAccessToken } from "@/lib/auth";
 import { getWebDeviceContext } from "@/lib/device";
-import { fieldErrorsFrom, isNotAProvider, type FieldErrors } from "@/lib/formErrors";
+import { fieldErrorsFrom, type FieldErrors } from "@/lib/formErrors";
 import { resolveWebEntry } from "@/lib/navigation";
 import { safeInternalPath } from "@/lib/safeRedirect";
-import { chooseWorkspace, useSession, type Me } from "@/lib/session";
+import { useSession, type Me } from "@/lib/session";
 
 /**
  * Sign in with either a linked Google subject or the existing phone/password
@@ -26,52 +27,31 @@ import { chooseWorkspace, useSession, type Me } from "@/lib/session";
  * is signing in. On the Google path, the browser forwards Google's opaque ID
  * token and only the API verifies it and resolves the stored subject.
  *
- * The side starts on Tenant (owner, 2026-10-16); "I own or manage property"
- * arrives as provider, and the switch changes it. Telling the backend the side
- * *before* reading the entry route is what stops an existing tenant being
- * dropped back into tenant space, or a provider into it.
+ * Account type is chosen at registration. Login uses the existing account.
  *
  * Signed in, the person goes to their dashboard — `/home`, the backend's entry
  * route — unless they were in the middle of something (`next`), such as
  * applying for a home.
  */
 export function SignInFlow({ params, go, close, land }: AuthFlowProps) {
-  const { state, refresh, signOut } = useSession();
-  const [workspace, setWorkspace] = useState<"tenant" | "provider">(params.workspace ?? "tenant");
-  // Tenant is only the starting point. Sign-up asks the role first, so it is
-  // handed a side only when one was asked for or picked here.
-  const [sideChosen, setSideChosen] = useState(Boolean(params.workspace));
-  const chosenSide = sideChosen ? workspace : undefined;
+  const { refresh } = useSession();
   const safeNext = safeInternalPath(params.next ?? null);
 
   const [identifier, setIdentifier] = useState(params.phone ?? "");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [mfa, setMfa] = useState<MFAChallenge | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
-  // Signed in fine, but this account is not a provider. Not a failure to fix —
-  // a fact to state, with somewhere to go.
-  const [notAProvider, setNotAProvider] = useState(false);
-
-  async function enterWorkspace(initial: Me) {
-    let me = initial;
-    try {
-      me = await chooseWorkspace(workspace);
-    } catch (cause) {
-      if (isNotAProvider(cause)) {
-        await refresh();
-        setNotAProvider(true);
-        return;
-      }
-      throw cause;
-    }
+  async function enterWorkspace(me: Me) {
     await refresh();
     land(safeNext ?? resolveWebEntry(me));
   }
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
+    setShowPassword(false);
     setBusy(true);
     setError("");
     setFieldErrors({});
@@ -103,7 +83,6 @@ export function SignInFlow({ params, go, close, land }: AuthFlowProps) {
   }
 
   async function submitGoogle(credential: string) {
-    setSideChosen(true);
     setBusy(true);
     setError("");
     try {
@@ -116,19 +95,18 @@ export function SignInFlow({ params, go, close, land }: AuthFlowProps) {
         user?: Me;
       }>("/auth/google/", {
         method: "POST",
-        body: JSON.stringify({ credential, account_type: workspace, ...getWebDeviceContext() }),
+        body: JSON.stringify({ credential, ...getWebDeviceContext() }),
       });
 
       if (isMFAChallenge(result)) { setMfa(result); setPassword(""); return; }
 
-      if (result.registration_required && result.google_registration_ticket && result.profile) {
+      if (result.registration_required) {
         go("register", {
-          workspace,
           next: safeNext,
-          googleRegistration: {
+          googleRegistration: result.google_registration_ticket && result.profile ? {
             ticket: result.google_registration_ticket,
             profile: result.profile,
-          },
+          } : undefined,
         });
         return;
       }
@@ -149,33 +127,6 @@ export function SignInFlow({ params, go, close, land }: AuthFlowProps) {
       onCancel={() => setMfa(null)} />
   </AuthModal>;
 
-  if (notAProvider) {
-    return (
-      <AuthModal
-        title="This account is a tenant account"
-        description="Provider accounts are created at sign-up. You are signed in, and your tenant space is ready."
-        onClose={() => land(state.status === "signed_in" ? resolveWebEntry(state.me) : "/home")}
-      >
-        <Button
-          className="auth-submit"
-          onClick={() => land(state.status === "signed_in" ? resolveWebEntry(state.me) : "/home")}
-        >
-          Go to your tenant space
-        </Button>
-        <Button
-          variant="secondary"
-          className="auth-submit"
-          onClick={() => {
-            close();
-            void signOut();
-          }}
-        >
-          Sign out
-        </Button>
-      </AuthModal>
-    );
-  }
-
   return (
     <AuthModal
       title="Sign in"
@@ -185,10 +136,10 @@ export function SignInFlow({ params, go, close, land }: AuthFlowProps) {
         <>
           New to Danpa HQ?
           <a
-            href={authHref("register", { workspace: chosenSide, next: safeNext })}
+            href={authHref("register", { next: safeNext })}
             onClick={(event) => {
               event.preventDefault();
-              go("register", { workspace: chosenSide, next: safeNext });
+              go("register", { next: safeNext });
             }}
           >
             Create an account
@@ -196,14 +147,6 @@ export function SignInFlow({ params, go, close, land }: AuthFlowProps) {
         </>
       )}
     >
-      <AuthSide
-        value={workspace}
-        onChange={(side) => {
-          setWorkspace(side);
-          setSideChosen(true);
-        }}
-      />
-
       <GoogleIdentityButton onCredential={submitGoogle} text="signin_with" busy={busy} />
       <div className="auth-divider"><span>or use your password</span></div>
 
@@ -224,11 +167,24 @@ export function SignInFlow({ params, go, close, land }: AuthFlowProps) {
         <div className="auth-field-with-link">
           <Field
             label="Password"
-            type="password"
+            type={showPassword ? "text" : "password"}
             value={password}
           onChange={(event) => { setPassword(event.target.value); setError(""); setFieldErrors({}); }}
           error={fieldErrors.password}
             autoComplete="current-password"
+            action={
+              <button
+                type="button"
+                className="field-visibility"
+                aria-label={showPassword ? "Hide password" : "Show password"}
+                aria-pressed={showPassword}
+                disabled={busy}
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => setShowPassword((value) => !value)}
+              >
+                {showPassword ? <EyeOff aria-hidden="true" /> : <Eye aria-hidden="true" />}
+              </button>
+            }
             required
           />
           <a
@@ -242,11 +198,6 @@ export function SignInFlow({ params, go, close, land }: AuthFlowProps) {
             Forgot password?
           </a>
         </div>
-        {workspace === "provider" ? (
-          <p className="auth-note">
-            Powerful property management tools
-          </p>
-        ) : null}
         {error ? <Notice tone="error" title={error} /> : null}
         <Button type="submit" className="auth-submit" busy={busy} busyLabel="Signing in…" disabled={!identifier.trim() || !password}>
           Sign in

@@ -94,10 +94,9 @@ test("an MFA challenge never enters the mobile signed-in state", async () => {
   assert.equal(h.states[1], "");
 });
 
-test("email login preserves the existing provider refusal handling", async () => {
+test("login ignores a workspace preference and enters the existing account", async () => {
   const h = harness("ama@example.com", { failure: "workspace", workspace: "provider" });
   await h.flow.submit();
   assert.equal(h.sessions.length, 1);
-  assert.equal(h.states[4], true);
-  assert.equal(h.routes.length, 0);
+  assert.deepEqual(h.routes, ["/existing-dashboard"]);
 });

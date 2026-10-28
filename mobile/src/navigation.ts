@@ -56,3 +56,35 @@ function isReachable(me: Me, route: string): boolean {
   if (route === "/(app)/(artisan-tabs)") return me.capabilities.artisan.workspace_access;
   return true;
 }
+
+
+/** Routes a waiting account may open without mounting operational screens. */
+export const BASIC_ACCOUNT_SCREENS = [
+  "profile-edit", "security", "notification-settings", "help", "trust",
+  "identity-verification", "provider", "artisan-application", "provider-property",
+];
+
+/** Enforce access before the nested app navigator can mount a feature. */
+export function appAccessRedirect(me: Me | null, segments: readonly string[]): string | null {
+  if (segments[0] !== "(app)") return null;
+  const screen = segments[1] ?? "";
+  const tab = segments[2] ?? "";
+  const explore = screen === "(tabs)" && tab === "explore";
+  if (!me) return explore ? null : "/(auth)/sign-in";
+  if (me.account_status !== "active") {
+    return screen === "restricted" ? null : "/(app)/restricted";
+  }
+  if (me.registration_state !== "complete") return "/(auth)/register";
+  const capabilities = me.capabilities;
+  const pending = (capabilities.active_workspace === "provider" && !capabilities.provider.workspace_access)
+    || (capabilities.active_workspace === "artisan" && !capabilities.artisan.workspace_access);
+  if (pending) {
+    const ownTabs = screen === `(${capabilities.active_workspace}-tabs)`;
+    if (ownTabs || explore || BASIC_ACCOUNT_SCREENS.includes(screen)) return null;
+    return resolveEntryRoute(me);
+  }
+  if (screen === "(tabs)" && !explore && !capabilities.tenant.workspace_access) {
+    return resolveEntryRoute(me);
+  }
+  return null;
+}

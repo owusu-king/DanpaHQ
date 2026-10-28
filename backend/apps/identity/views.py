@@ -306,7 +306,7 @@ class GoogleSignInView(APIView):
         claims = verify_google_credential(data["credential"])
         result = services.authenticate_with_google(
             claims=claims,
-            account_type=data["account_type"],
+            account_type=data.get("account_type", ""),
             device_fingerprint=data.get("device_fingerprint", ""),
             platform=data["platform"],
             device_label=data.get("device_label", ""),
@@ -487,7 +487,7 @@ class WorkspaceView(APIView):
     def post(self, request):
         payload = ChooseWorkspaceSerializer(data=request.data)
         payload.is_valid(raise_exception=True)
-        services.choose_workspace(user=request.user, workspace=payload.validated_data["workspace"])
+        services.choose_workspace(user=request.user, **payload.validated_data)
         return Response(MeSerializer(request.user).data)
 
 
@@ -883,6 +883,8 @@ class RoleView(APIView):
         if not request.user.is_registration_complete:
             raise ValidationFailed("Finish setting up your account first.")
 
+        if not request.user.has_role(role):
+            services.require_tenant_confirmation(request.data.get("tenant_confirmation", ""))
         services.grant_role(user=request.user, role=role, granted_by=request.user)
         return Response(MeSerializer(request.user).data, status=status.HTTP_201_CREATED)
 

@@ -38,7 +38,7 @@ import {
 import { BottomSheet } from "@/components/sheet/BottomSheet";
 import { SheetCard, SheetGlassButton, SheetPrimaryButton } from "@/components/sheet/SheetParts";
 import { AllFilterCards, ShowField } from "@/components/explore/ExploreShow";
-import { Notice, Type, radius, space } from "@/components/ui";
+import { Button, Notice, Type, radius, space } from "@/components/ui";
 import {
   formatMinor,
   listSaved,
@@ -305,6 +305,8 @@ function MapExplore({
 
   // Properties for sale: their own search, over the same place and area.
   const [sales, setSales] = useState<Sale[] | null>(null);
+  const [saleError, setSaleError] = useState("");
+  const [saleQuerying, setSaleQuerying] = useState(false);
   const [nextSales, setNextSales] = useState<string | null>(null);
   const [saleChoices, setSaleChoices] = useState<SaleChoices>(NO_SALE_CHOICES);
   const saleRequest = useRef(0);
@@ -405,6 +407,8 @@ function MapExplore({
 
   const loadSales = useCallback(async () => {
     const id = ++saleRequest.current;
+    setSaleQuerying(true);
+    setSaleError("");
     try {
       const page = await searchSales(saleFilters);
       if (id !== saleRequest.current) return;
@@ -412,7 +416,12 @@ function MapExplore({
       setNextSales(page.next);
       recordAreaResult(boxRequestKey, "sale", page.results.length);
     } catch {
-      if (id === saleRequest.current) setSales((current) => current ?? []);
+      if (id === saleRequest.current) {
+        setSales((current) => current ?? []);
+        setSaleError("We could not load properties for sale. Please try again.");
+      }
+    } finally {
+      if (id === saleRequest.current) setSaleQuerying(false);
     }
   }, [boxRequestKey, recordAreaResult, saleFilters]);
 
@@ -578,9 +587,12 @@ function MapExplore({
     if (mode === "buy") return sales === null ? null : sale;
     return listings === null || sales === null ? null : [...rent, ...sale].sort((a, b) => b.at.localeCompare(a.at));
   }, [listings, sales, mode]);
-  const resultLine = items === null
+  const hasSearch = Boolean(place.trim() || area || bbox || refinementCount || saleRefinements(saleChoices) || allType || bedrooms);
+  const resultBusy = (showRent && querying) || (showSale && saleQuerying);
+  const resultError = (showRent && error) || (showSale && saleError);
+  const resultLine = items === null || resultBusy
     ? "Finding places…"
-    : mode === "rent"
+    : !hasSearch || resultError ? "Explore properties" : mode === "rent"
       ? querying ? "Updating rentals…" : `${resultCount} ${resultWord}`
       : mode === "buy"
         ? `${saleCount} for sale`
@@ -814,11 +826,11 @@ function MapExplore({
   }
 
   const mapBanner: MapFeedback | null = mapFeedback
-    ?? (error && error !== dismissedError ? { message: error, tone: "danger" } : null)
+    ?? (resultError && resultError !== dismissedError ? { message: resultError, tone: "danger" } : null)
     ?? (mapFailed ? { message: "Maps not loading", tone: "danger" } : null);
   const dismissMapBanner = () => {
     if (mapFeedback) setMapFeedback(null);
-    else if (error && error !== dismissedError) setDismissedError(error);
+    else if (resultError && resultError !== dismissedError) setDismissedError(resultError);
     else setMapFailed(false);
   };
 
@@ -1061,7 +1073,7 @@ function MapExplore({
               to undo the filters and, over a full list, the way back to the map. */}
           <ExploreResults
             mode={mode}
-            busy={items === null || querying}
+            busy={items === null || resultBusy}
             line={resultLine}
             detail={areaName
               ? areaName.trim().replace(/^in /, "In ")
@@ -1102,7 +1114,7 @@ function MapExplore({
             </View>
           ) : null}
 
-          {error ? <Notice tone="error" title={error} /> : null}
+          {listOpen && resultError ? <Notice tone="error" title={resultError} /> : null}
         </View>
 
         <View style={{ flex: 1 }}>
@@ -1163,7 +1175,7 @@ function MapExplore({
               ) : null
             }
             ListEmptyComponent={
-              items === null && !error ? null : (
+              items === null || resultBusy || resultError ? null : (
                 // Guidance only: the one Clear all sits just above, beside the count.
                 <View style={{ paddingVertical: space[8], gap: space[2] }}>
                   <Type variant="bodyStrong">Nothing matches yet</Type>
@@ -1174,6 +1186,7 @@ function MapExplore({
                         ? "Try a nearby area, or a shorter search."
                         : "Try a wider rent, a longer advance, or a nearby area."}
                   </Type>
+                  <Button label="Adjust filters" onPress={() => setFiltersOpen(true)} />
                 </View>
               )
             }

@@ -63,11 +63,10 @@ test("authentication stays on one focused screen", () => {
 
 test("the sign-in flow keeps the existing authority and routing decisions", () => {
   const body = code(flow());
+  assert.doesNotMatch(body, /chooseWorkspace/);
   assert.match(body, /apiFetch<MFAChallenge \| \{[\s\S]{0,200}?\}>\("\/auth\/sign-in\/"/);
-  assert.match(body, /chooseWorkspace\(workspace, result\.access_token\)/);
   assert.match(body, /resolveEntryRoute\(user, context\)/);
-  assert.match(body, /isNotAProvider\(cause\)/);
-  assert.match(body, /await signIn\(result\);\s*\n\s*setNotAProvider\(true\)/);
+
 });
 
 test("the chosen workspace survives the handoff from the question", () => {
@@ -279,7 +278,7 @@ test("the composition is the same on every screen, and bounded", () => {
 
   // The mark leads the two screens somebody can arrive at cold.
   for (const name of ["start", "sign-in"]) {
-    assert.match(code(read(`mobile/app/(auth)/${name}.tsx`)), /<AuthMark(?: centered compact)? \/>/);
+    assert.match(code(read(`mobile/app/(auth)/${name}.tsx`)), /<AuthMark(?: centered(?: compact)?)? \/>/);
   }
 });
 

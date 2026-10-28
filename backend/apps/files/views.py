@@ -215,16 +215,17 @@ def local_download(request, key: str):
     except Exception:
         raise NotFound("We could not find that file.") from None
 
-    # `inline` is only ever honoured for an image, and the content type is set
-    # from what the file actually is rather than from what the URL asked for —
-    # `nosniff` plus an image type is what makes displaying it safe. Anything
-    # else stays an octet-stream attachment, which a browser will not render or
-    # execute.
+    # Only images and checked guide media may render inline. Documents and
+    # unrecognised types remain attachments even if the URL asks otherwise.
     inline = request.query_params.get("disposition") == "inline"
     stored = StoredFile.objects.filter(storage_key=key).first()
     is_image = bool(stored and (stored.content_type or "").startswith("image/"))
+    is_guide_media = bool(stored and stored.is_usable and (
+        (stored.purpose == "guide_video" and stored.content_type in {"video/mp4", "video/webm"})
+        or (stored.purpose == "guide_captions" and stored.content_type == "text/vtt")
+    ))
 
-    if inline and is_image:
+    if inline and (is_image or is_guide_media):
         response = HttpResponse(data, content_type=stored.content_type)
         response["Content-Disposition"] = "inline"
     else:

@@ -121,9 +121,9 @@ ALERT_TOPICS: list[dict] = [
     },
     {
         "key": "enquiries",
-        "label": "Enquiries",
-        "description": "New enquiries and replies about a property for sale.",
-        "prefixes": ("sale.",),
+        "label": "Support",
+        "description": "Support updates and replies, including property enquiries.",
+        "prefixes": ("sale.", "support."),
     },
     {
         "key": "account",

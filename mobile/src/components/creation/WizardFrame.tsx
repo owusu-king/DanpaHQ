@@ -40,19 +40,21 @@ export function WizardFrame({
   onGo,
   footer,
   children,
+  compact = false,
 }: {
   steps: WizardStep[];
   current: string;
   onGo: (key: string) => void;
   footer: ReactNode;
   children: ReactNode;
+  compact?: boolean;
 }) {
   const at = Math.max(0, steps.findIndex((step) => step.key === current));
   const step = steps[at] ?? steps[0]!;
 
   return (
-    <View style={styles.screen}>
-      <View style={styles.top}>
+    <View style={compact ? styles.compactScreen : styles.screen}>
+      <View style={[styles.top, compact && styles.compactTop]}>
         <View style={styles.strip} accessibilityRole="tablist">
           {steps.map((item, index) => {
             const state = item.key === step.key ? "current" : item.done ? "done" : "todo";
@@ -94,8 +96,8 @@ export function WizardFrame({
 
       <ScrollView
         key={step.key}
-        style={styles.body}
-        contentContainerStyle={styles.bodyContent}
+        style={compact ? styles.compactBody : styles.body}
+        contentContainerStyle={[styles.bodyContent, compact && styles.compactContent]}
         keyboardShouldPersistTaps="handled"
       >
         {children}
@@ -205,6 +207,10 @@ export function ReviewLine({
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: theme.color.field["50"] },
+  compactScreen: { maxHeight: "100%", flexShrink: 1, backgroundColor: theme.color.field["50"] },
+  compactBody: { flexGrow: 0, flexShrink: 1 },
+  compactTop: { gap: space[3] },
+  compactContent: { paddingBottom: space[4], gap: space[4] },
   top: {
     gap: space[4],
     paddingHorizontal: space[4],

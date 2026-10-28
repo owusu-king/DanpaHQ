@@ -37,6 +37,7 @@ export function VerificationPanel({
   title,
   showSubmit = true,
   onState,
+  onChanged,
   submitRef,
 }: {
   subject: Subject;
@@ -46,6 +47,7 @@ export function VerificationPanel({
    *  review step, where the photos and the ownership document go together. */
   showSubmit?: boolean;
   onState?: (state: VerificationProgress | null) => void;
+  onChanged?: () => void;
   /** Filled with this panel's submit, so a shared button can call it. */
   submitRef?: { current: (() => Promise<void>) | null };
 }) {
@@ -95,6 +97,7 @@ export function VerificationPanel({
       });
       setState(next);
       report.current?.(next);
+      onChanged?.();
     } catch (cause) {
       setError(
         cause instanceof ApiFailure ? cause.error.message : "Could not add that photo.",
@@ -111,6 +114,7 @@ export function VerificationPanel({
       const next = await removeEvidence(subject, id, slotKey);
       setState(next);
       report.current?.(next);
+      onChanged?.();
     } catch (cause) {
       setError(
         cause instanceof ApiFailure ? cause.error.message : "Could not remove that photo.",
@@ -127,6 +131,7 @@ export function VerificationPanel({
       const next = await submitForReview(subject, id);
       setState(next);
       report.current?.(next);
+      onChanged?.();
     } catch (cause) {
       // The refusal names the outstanding slots, so it is worth showing as-is.
       setError(

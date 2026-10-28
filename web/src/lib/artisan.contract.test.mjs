@@ -211,11 +211,12 @@ test("discovery pauses the five requested trades on web and Expo without droppin
 
 test("the landing artisan entry keeps its application destination through registration", () => {
   const landing = code(read("web/src/components/landing/FrontDoor.tsx"));
-  assert.match(landing, /<AuthLink view="register" params=\{\{ next: "\/artisan" \}\}[^>]*>\s*Become an artisan/);
+  assert.match(landing, /<AuthLink view="register" params=\{\{ workspace: "artisan", next: "\/artisan" \}\}[^>]*>\s*Become an artisan/);
   const registration = code(read("web/src/components/auth/flows/RegisterFlow.tsx"));
   assert.match(registration, /safeInternalPath\(params.next/);
-  assert.match(registration, /const applyingAsArtisan = safeNext === "\/artisan"/);
-  assert.match(registration, /params.workspace \?\? \(applyingAsArtisan \? "tenant" : null\)/);
+  assert.match(registration, /const artisanEntry = requestedNext === "\/artisan" \|\| params.workspace === "artisan"/);
+  assert.match(registration, /artisanEntry \? "artisan" : params.workspace \?\? null/);
+  assert.doesNotMatch(registration, /applyingAsArtisan \? "tenant"/);
   assert.match(registration, /workspace: applyingAsArtisan \? undefined : accountType/);
   assert.match(registration, /show\("welcome", \{ next: safeNext \}\)/);
   const welcome = code(read("web/src/components/auth/flows/WelcomeFlow.tsx"));

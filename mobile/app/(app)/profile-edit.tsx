@@ -380,7 +380,6 @@ export default function ProfileScreen() {
                 label="Preferred name"
                 value={preferredName}
                 onChangeText={edit(setPreferredName)}
-                placeholder="Kobby"
                 textContentType="nickname"
               />
               <FieldRow
@@ -406,7 +405,7 @@ export default function ProfileScreen() {
           <View style={{ gap: space[2] }}>
             <SectionTitle>Contact</SectionTitle>
             <GlassPanel>
-              <ReadRow label="Phone" value={me.phone_display || "Not added"} note={me.google_linked ? "Optional · manage in Security" : "How you sign in"} />
+              <ReadRow label="Phone" value={me.phone_display || "Not added"} />
               <ActionRow
                 label="Email"
                 value={me.email ?? undefined}
@@ -433,12 +432,11 @@ export default function ProfileScreen() {
           <View style={{ gap: space[2] }}>
             <SectionTitle>About you</SectionTitle>
             <GlassPanel>
-              <ReadRow label="Date of birth" value={longDate(me.date_of_birth)} note="Set when you joined" />
+              <ReadRow label="Date of birth" value={longDate(me.date_of_birth)} />
               <FieldRow
                 label="About"
                 value={bio}
                 onChangeText={edit(setBio)}
-                placeholder="A line or two for providers"
                 autoCapitalize="sentences"
                 multiline
                 maxLength={600}
@@ -454,13 +452,11 @@ export default function ProfileScreen() {
                   label="Occupation"
                   value={tenant.occupation}
                   onChangeText={(value) => editTenant("occupation", value)}
-                  placeholder="Nurse"
                 />
                 <FieldRow
                   label="Employer"
                   value={tenant.employer}
                   onChangeText={(value) => editTenant("employer", value)}
-                  placeholder="Korle Bu"
                 />
                 <ChoiceRow
                   label="Monthly income"
@@ -483,7 +479,7 @@ export default function ProfileScreen() {
                   label="Move in from"
                   value={tenant.move_in_from ?? ""}
                   onChangeText={(value) => editTenant("move_in_from", formatDate(value) || null)}
-                  placeholder="2026-12-01"
+                  placeholder="YYYY-MM-DD"
                   keyboardType="number-pad"
                   maxLength={10}
                 />

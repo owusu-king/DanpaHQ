@@ -97,6 +97,17 @@ export default function HomePage() {
     return <ArtisanHome me={me} />;
   }
 
+  if (me.capabilities.active_workspace === "artisan") {
+    return <>
+      <PageHeader title="Your artisan account" description="Your verification status" />
+      <p className="type-body-strong">{me.capabilities.artisan.status === "pending" ? "Your verification is under review" : "Review your verification details"}</p>
+      <p>We’ll notify you when there is an update. Workspace tools open after approval.</p>
+      <Link href="/artisan">View verification</Link>
+    </>;
+  }
+  if (!inProvider && !me.capabilities.tenant.workspace_access) {
+    return <><PageHeader title="Explore Danpa HQ" /><Link href="/rentals">Explore properties</Link></>;
+  }
   return inProvider ? <ProviderHome me={me} activeContext={activeContext} /> : <TenantHome me={me} />;
 }
 
@@ -760,7 +771,7 @@ function NoTenancy({
             <h2>Find your next home</h2>
           </div>
           <div className="tenant-start-body">
-            <p>Search verified rentals across Ghana, with the owner and the address checked before the listing goes up.</p>
+            <p>Search properties across Ghana, with the owner and the address checked before the listing goes up.</p>
             <Link href="/rentals" className="home-primary-action">Explore rentals</Link>
           </div>
         </section>
@@ -1045,7 +1056,7 @@ function ProviderHome({ me, activeContext }: { me: Me; activeContext: string | n
                 agreements and rent.
               </p>
               {canAddProperty ? (
-                <p><Link href={next.href as never} className="home-start-action">{next.label}<span aria-hidden="true">→</span></Link></p>
+                <p><Link href={next.href as never} className="btn btn-primary home-start-action">{next.label}<span aria-hidden="true">→</span></Link></p>
               ) : (
                 <p className="type-caption">{next.reason}</p>
               )}

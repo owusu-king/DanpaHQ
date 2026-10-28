@@ -85,8 +85,9 @@ test("enquiries are reached on both sides, from the top bar's Danpa Intel", () =
   assert.match(nav, /return operates \? \{ href: "\/enquiries", as: "seller" \} : null;/);
   assert.match(nav, /return \{ href: "\/enquiries", as: "buyer" \};/);
   assert.match(shell, /className="portal-header-support"/);
-  assert.match(shell, /<Icon name="headset" \/>/);
-  assert.match(shell, />Danpa Intel<\/span>/);
+  assert.match(shell, /<IntelMark \/>/);
+  assert.match(shell, /aria-label="Danpa Intel"/);
+  assert.match(shell, /title="Danpa Intel"/);
   assert.match(read("web/src/lib/notificationMeaning.ts"), /case "sale_enquiry":\s*return `\/record\/enquiry\?id=\$\{item\.target_id\}`;/);
 });
 

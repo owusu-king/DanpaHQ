@@ -8,6 +8,7 @@ import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, use
 import { Button } from "@/components/Button";
 import { Notice } from "@/components/Notice";
 import { Icon } from "@/components/portal/icons";
+import { EditPropertyModal } from "@/components/property/EditPropertyModal";
 import { PropertyWizardModal } from "@/components/property/PropertyWizard";
 import { UnitWizardModal } from "@/components/property/UnitWizard";
 import { propertyStatus } from "@/components/property/WorkspacePatterns";
@@ -108,7 +109,7 @@ function PropertiesContent() {
   // Creating opens in place (owner, 2026-10-20): a sheet over this page, held
   // in page state like every other modal here.
   const [sheet, setSheet] = useState<
-    { kind: "property"; propertyId?: string } | { kind: "unit"; propertyId: string } | null
+    { kind: "property"; propertyId?: string } | { kind: "unit"; propertyId: string } | { kind: "edit"; property: Property } | null
   >(null);
   const pendingReturn = useRef<ReturnPoint | null>(null);
 
@@ -121,10 +122,10 @@ function PropertiesContent() {
     ? activeContext.slice("organization:".length)
     : "";
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (preserveContent = false) => {
     // Blank first: a switch must never leave the previous Portfolio's
     // Properties on screen while the next Portfolio's are still in flight.
-    setProperties(null);
+    if (!preserveContent) setProperties(null);
     try {
       const orgs = await listOrganizations();
       setOrganizations(orgs);
@@ -133,8 +134,10 @@ function PropertiesContent() {
       setError("");
     } catch (cause) {
       setError(cause instanceof ApiFailure ? cause.error.message : "Could not load properties.");
-      setProperties([]);
-      setOrganizations([]);
+      if (!preserveContent) {
+        setProperties([]);
+        setOrganizations([]);
+      }
     }
   }, [preferred]);
 
@@ -271,9 +274,6 @@ function PropertiesContent() {
         icon="properties"
         title="Properties"
         summary="Organize the properties you manage and the spaces within them."
-        actions={!loading && canCreateProperty && count ? (
-          <Link href={next.href as never} className="ws-action" onClick={openCreate}><PlusGlyph />Add Property</Link>
-        ) : null}
       />
 
       {provider && !canCreateProperty ? (
@@ -394,7 +394,7 @@ function PropertiesContent() {
                   returned={returnedTo === property.id}
                   onOpen={remember}
                   onAddUnit={() => setSheet({ kind: "unit", propertyId: property.id })}
-                  onEdit={() => setSheet({ kind: "property", propertyId: property.id })}
+                  onEdit={() => setSheet({ kind: "edit", property })}
                 />
               ))}
               {canCreateProperty && !narrowed ? (
@@ -410,13 +410,21 @@ function PropertiesContent() {
       <PropertyWizardModal
         open={sheet?.kind === "property"}
         propertyId={sheet?.kind === "property" ? (sheet.propertyId ?? null) : null}
-        onClose={() => { setSheet(null); void load(); }}
+        onClose={() => setSheet(null)}
+        onChanged={() => void load(true)}
         onFinished={() => toast({ tone: "success", title: "Property created", description: "It is private until you send it for checking." })}
       />
+      {sheet?.kind === "edit" ? <EditPropertyModal
+        open
+        property={sheet.property}
+        onClose={() => setSheet(null)}
+        onSaved={() => void load(true)}
+      /> : null}
       <UnitWizardModal
         open={sheet?.kind === "unit"}
         propertyId={sheet?.kind === "unit" ? sheet.propertyId : ""}
-        onClose={() => { setSheet(null); void load(); }}
+        onClose={() => setSheet(null)}
+        onChanged={() => void load(true)}
         onFinished={(unit) => toast({ tone: "success", title: `${unit.label || "Unit"} saved`, description: unit.verification.state_label })}
       />
     </div>
@@ -545,9 +553,9 @@ function PropertyCard({
             </Link>
           ) : null}
           {canEdit ? (
-            <Link href={`/record/property-setup?propertyId=${property.id}` as never} className="property-card-action" onClick={inPlace(onEdit)}>
+            <button type="button" className="property-card-action" onClick={onEdit}>
               Edit details
-            </Link>
+            </button>
           ) : null}
         </div>
 

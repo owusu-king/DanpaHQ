@@ -9,13 +9,13 @@ import { isMFAChallenge, type MFAChallenge } from "@/mfa";
 
 export type GoogleRegistration = {
   registration_required: true;
-  google_registration_ticket: string;
+  google_registration_ticket: string | null;
   expires_in: number;
   profile: { first_name: string; last_name: string; email: string };
 };
 
 export async function exchangeGoogleCredential(
-  credential: string, accountType: AccountType, deviceFingerprint: string,
+  credential: string, accountType: AccountType | undefined, deviceFingerprint: string,
 ): Promise<GoogleRegistration | CreatedSession | MFAChallenge> {
   if (!credential || !deviceFingerprint) throw new Error("Could not start Google sign-in. Try again.");
   const result = await apiFetch<Partial<GoogleRegistration & CreatedSession> | MFAChallenge>("/auth/google/", {
@@ -27,7 +27,7 @@ export async function exchangeGoogleCredential(
   });
   if (isMFAChallenge(result)) return result;
   if (result.registration_required === true) {
-    if (!result.google_registration_ticket || !result.profile?.email || !result.expires_in) {
+    if ((accountType && !result.google_registration_ticket) || !result.profile?.email || !result.expires_in) {
       throw new Error("Google registration could not be started. Try again.");
     }
     return result as GoogleRegistration;

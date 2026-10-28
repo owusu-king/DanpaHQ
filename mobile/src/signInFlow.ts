@@ -2,11 +2,10 @@ import { useState } from "react";
 import { Platform } from "react-native";
 
 import { apiFetch, ApiFailure } from "@/api";
-import { useAuth, type Me, type Workspace } from "@/auth";
-import { fieldErrorsFrom, isNotAProvider, type FieldErrors } from "@/formErrors";
+import { useAuth, type Me } from "@/auth";
+import { fieldErrorsFrom, type FieldErrors } from "@/formErrors";
 import { resolveEntryRoute } from "@/navigation";
 import { describeDevice } from "@/device";
-import { chooseWorkspace } from "@/workspace";
 import { isMFAChallenge, type MFAChallenge } from "@/mfa";
 import type { CreatedSession } from "@/registrationDraft";
 
@@ -14,13 +13,8 @@ import type { CreatedSession } from "@/registrationDraft";
  * Signing in, once.
  *
  * Everything that decides whether somebody is signed in, and where they land
- * afterwards, lives here: the one call to `/auth/sign-in/`, the workspace
- * request, the session and the entry route. The screen owns layout only.
- *
- * Nothing about the flow itself moved. The sequence below — sign in, then ask
- * for the workspace, then read the entry route — is the same sequence the
- * screen has always run, including the part that matters most: a session that
- * succeeded is kept even when the *requested experience* is refused.
+ * afterwards, lives here. Authentication follows the backend entry route
+ * without selecting a workspace or granting an account capability.
  */
 
 export type SignInFlow = {
@@ -34,23 +28,15 @@ export type SignInFlow = {
   busy: boolean;
   error: string;
   fieldErrors: FieldErrors;
-  /** Signed in, but this account cannot manage property. A fact, not a failure. */
-  notAProvider: boolean;
   /** Enough typed, and nothing already in flight. */
   ready: boolean;
   submit: () => Promise<void>;
 };
 
 export function useSignInFlow({
-  workspace,
   initialPhone = "",
   onSignedIn,
 }: {
-  /**
-   * Which side of the relationship was asked for, or `null` when somebody
-   * arrived at the front door without saying.
-   */
-  workspace: Workspace | null;
   /**
    * Prefilled when someone arrives from a sign-up that turned out to already
    * have an account. Retyping a number they just typed is pure friction.
@@ -65,7 +51,6 @@ export function useSignInFlow({
   const [password, setPasswordValue] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [notAProvider, setNotAProvider] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [mfa, setMfa] = useState<MFAChallenge | null>(null);
 
@@ -122,22 +107,7 @@ export function useSignInFlow({
   }
 
   async function completeSignIn(result: CreatedSession) {
-      let user = result.user;
-      if (workspace) {
-        try {
-          user = await chooseWorkspace(workspace, result.access_token);
-        } catch (cause) {
-          if (isNotAProvider(cause)) {
-            // The sign-in itself succeeded, so keep the session. Only the
-            // requested experience is refused.
-            setMfa(null);
-            await signIn(result);
-            setNotAProvider(true);
-            return;
-          }
-          throw cause;
-        }
-      }
+      const user = result.user;
       const context = await signIn({ ...result, user });
       onSignedIn(resolveEntryRoute(user, context));
       setMfa(null);
@@ -152,7 +122,6 @@ export function useSignInFlow({
     busy,
     error,
     fieldErrors,
-    notAProvider,
     ready,
     submit,
   };

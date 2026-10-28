@@ -168,7 +168,7 @@ class TestSwitchingBack:
             == "pending"
         )
 
-        switched = api.post("/api/v1/me/workspace/", {"workspace": "tenant"}, format="json")
+        switched = api.post("/api/v1/me/workspace/", {"workspace": "tenant", "tenant_confirmation": "Rent account"}, format="json")
 
         assert switched.status_code == 200
         assert switched.data["capabilities"]["active_workspace"] == "tenant"
@@ -194,11 +194,11 @@ class TestSwitchingBack:
         sign_in_as(api, user=person)
 
         for workspace, route in (
-            ("provider", "/provider"),
+            ("provider", "/home"),
             ("tenant", "/home"),
-            ("provider", "/provider"),
+            ("provider", "/home"),
         ):
-            response = api.post("/api/v1/me/workspace/", {"workspace": workspace}, format="json")
+            response = api.post("/api/v1/me/workspace/", {"workspace": workspace, "tenant_confirmation": "Rent account"}, format="json")
             assert response.data["capabilities"]["active_workspace"] == workspace
             assert response.data["entry_routes"]["web"] == route
 
@@ -218,7 +218,7 @@ class TestBothCapabilities:
 
         api = APIClient()
         sign_in_as(api, user=person)
-        api.post("/api/v1/me/workspace/", {"workspace": "tenant"}, format="json")
+        api.post("/api/v1/me/workspace/", {"workspace": "tenant", "tenant_confirmation": "Rent account"}, format="json")
         capabilities = api.get("/api/v1/me/").data["capabilities"]
 
         assert capabilities["tenant"]["workspace_access"] is True
@@ -235,7 +235,7 @@ class TestBothCapabilities:
         sign_in_as(api, user=person)
         assert api.get("/api/v1/me/").data["capabilities"]["tenant"]["workspace_access"] is False
 
-        chosen = api.post("/api/v1/me/workspace/", {"workspace": "tenant"}, format="json")
+        chosen = api.post("/api/v1/me/workspace/", {"workspace": "tenant", "tenant_confirmation": "Rent account"}, format="json")
 
         assert chosen.data["capabilities"]["tenant"]["workspace_access"] is True
 
@@ -264,7 +264,7 @@ class TestTenantCapabilityIsRecordedNotAssumed:
 
         assert account_capabilities(person)["tenant"]["workspace_access"] is False
 
-    def test_asking_to_view_a_place_establishes_the_capability(
+    def test_asking_to_view_a_place_requires_explicit_tenant_creation(
         self, registered, landlord, address_for_listing
     ):
         from apps.identity.services import account_capabilities
@@ -273,8 +273,14 @@ class TestTenantCapabilityIsRecordedNotAssumed:
         person = registered("0207770010", account_type="provider")
         assert account_capabilities(person)["tenant"]["workspace_access"] is False
 
-        viewing_services.request_viewing(listing=address_for_listing, tenant=person)
+        from apps.core.exceptions import PermissionDenied
+        from apps.identity.services import choose_workspace
 
+        with pytest.raises(PermissionDenied):
+            viewing_services.request_viewing(listing=address_for_listing, tenant=person)
+        assert account_capabilities(person)["tenant"]["workspace_access"] is False
+        choose_workspace(user=person, workspace="tenant", tenant_confirmation="Rent account")
+        viewing_services.request_viewing(listing=address_for_listing, tenant=person)
         assert account_capabilities(person)["tenant"]["workspace_access"] is True
 
 
@@ -365,11 +371,11 @@ class TestProviderNeverFallsThroughToTenantSpace:
 
         # Registration submitted the application; the provider waits for review.
         assert created.data["user"]["capabilities"]["active_workspace"] == "provider"
-        assert created.data["user"]["entry_routes"]["mobile"] == "/(app)/provider"
+        assert created.data["user"]["entry_routes"]["mobile"] == "/(app)/(provider-tabs)"
 
         # After choosing the workspace explicitly, still provider onboarding.
         chosen = api.post("/api/v1/me/workspace/", {"workspace": "provider"}, format="json")
-        assert chosen.data["entry_routes"]["mobile"] == "/(app)/provider"
+        assert chosen.data["entry_routes"]["mobile"] == "/(app)/(provider-tabs)"
 
         person = User.objects.get(id=created.data["user"]["id"])
         assert person.is_phone_verified and person.provider_terms_accepted_at
@@ -387,8 +393,8 @@ class TestProviderNeverFallsThroughToTenantSpace:
         assert pending["capabilities"]["provider"]["workspace_access"] is False
         assert pending["capabilities"]["provider"]["can_create_property"] is False
         assert pending["entry_routes"] == {
-            "mobile": "/(app)/provider",
-            "web": "/provider",
+            "mobile": "/(app)/(provider-tabs)",
+            "web": "/home",
         }
 
         # And after approval it stays the provider workspace.
@@ -436,7 +442,7 @@ class TestProviderSwitchesToTenantAndBack:
         api = APIClient()
         sign_in_as(api, user=person)
 
-        to_tenant = api.post("/api/v1/me/workspace/", {"workspace": "tenant"}, format="json")
+        to_tenant = api.post("/api/v1/me/workspace/", {"workspace": "tenant", "tenant_confirmation": "Rent account"}, format="json")
 
         assert to_tenant.status_code == 200
         assert to_tenant.data["capabilities"]["active_workspace"] == "tenant"

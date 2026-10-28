@@ -244,7 +244,7 @@ export function AllBrowser() {
           </div>
         )}
 
-        {items ? (
+        {items && !querying && !error && (query.q || query.area || query.bbox || filterCount > 0) ? (
           <div className="explore-all-summary">
             <p>
               <strong>{rentCount}{nextListings ? "+" : ""}</strong> to rent
@@ -276,6 +276,7 @@ export function AllBrowser() {
           />
         ) : (
           <section aria-live="polite" aria-busy={items === null || querying}>
+            {(items === null || querying) && !error ? <p className="page-loading-caption" role="status"><span className="page-loading-dot" aria-hidden="true" />Finding properties…</p> : null}
             {items?.length ? (
               <ul className="explore-grid">
                 {items.map((item) =>
@@ -286,10 +287,11 @@ export function AllBrowser() {
               </ul>
             ) : null}
 
-            {items?.length === 0 && !error ? (
+            {items?.length === 0 && !querying && !error ? (
               <div className="explore-empty">
                 <p className="type-body-strong">Nothing matches yet</p>
                 <p className="type-caption">Try a nearby area, or fewer filters.</p>
+                <button type="button" className="explore-clear-all" onClick={() => update({ ...NO_LOCATION, propertyType: "", bedrooms: "" })}>Clear search and filters</button>
               </div>
             ) : null}
 

@@ -211,6 +211,9 @@
 .property-card-actions:has(.property-card-action) .property-card-go { display: none; }
 
 .property-card-action {
+  border: 0;
+  cursor: pointer;
+  font-family: inherit;
   display: inline-flex;
   align-items: center;
   gap: 4px;

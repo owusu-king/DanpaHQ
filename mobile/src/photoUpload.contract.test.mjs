@@ -12,5 +12,4 @@ test("mobile photo uploads are compressed before reserve and use actual byte cou
   assert.match(helper, /DOCUMENT_PURPOSES\.has\(purpose\) \? TARGET_LONG_EDGES\.slice\(0, 2\)/);
   assert.match(provider, /await preparePhotoUpload\(asset, mime, filename, purpose\)/);
   assert.match(provider, /size_bytes: prepared\.blob\.size/);
-  assert.match(provider, /uri: prepared\.uri/);
 });

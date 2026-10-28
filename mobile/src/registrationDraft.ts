@@ -40,6 +40,7 @@ export type RegistrationDetails = {
 };
 
 type Draft = RegistrationDetails & {
+  phone?: string;
   googleTicket?: string;
   /** Set once the number is proved: the account can be created from details alone. */
   ticket: string;
@@ -51,7 +52,13 @@ type Draft = RegistrationDetails & {
 let draft: Draft | null = null;
 
 export function saveRegistrationDetails(details: RegistrationDetails): void {
-  draft = { ticket: draft?.ticket ?? "", errors: {}, summary: "", ...details };
+  const sameType = draft?.accountType === details.accountType;
+  draft = { ...details, ticket: draft?.ticket ?? "", googleTicket: sameType ? draft?.googleTicket : undefined,
+    phone: sameType ? draft?.phone : undefined, errors: {}, summary: "" };
+}
+
+export function saveRegistrationPhone(phone: string): void {
+  if (draft) draft = { ...draft, phone };
 }
 
 /** A Google proof stays in memory, never in navigation parameters or storage. */

@@ -203,7 +203,7 @@ export function SiteNav() {
                       Become an artisan
                     </Link>
                   ) : (
-                    <AuthLink view="register" params={{ next: "/artisan" }} className="rounded-lg px-3 py-3 text-base font-medium text-foreground transition-colors hover:bg-accent">
+                    <AuthLink view="register" params={{ workspace: "artisan", next: "/artisan" }} className="rounded-lg px-3 py-3 text-base font-medium text-foreground transition-colors hover:bg-accent">
                       Become an artisan
                     </AuthLink>
                   )}

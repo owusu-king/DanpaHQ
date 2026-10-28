@@ -1,3 +1,5 @@
+import { useAuth } from "@/auth";
+import { VerificationHome } from "@/components/auth/VerificationHome";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Tabs } from "expo-router";
 import { NativeTabs } from "expo-router/unstable-native-tabs";
@@ -14,6 +16,9 @@ import { shell } from "@/shell";
 import { theme } from "@/theme";
 
 export default function ProviderTabsLayout() {
+  const { state } = useAuth();
+  if (state.status !== "signed_in") return null;
+  if (!state.me.capabilities.provider.workspace_access) return <VerificationHome side="provider" />;
   return isIOS ? <ProviderNativeTabs /> : <ProviderJsTabs />;
 }
 
@@ -43,7 +48,7 @@ function ProviderNativeTabs() {
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="payments" disableAutomaticContentInsets contentStyle={{ backgroundColor: shell.canvas }}>
         <NativeTabs.Trigger.Icon sf={{ default: "wallet.bifold", selected: "wallet.bifold.fill" }} />
-        <NativeTabs.Trigger.Label>Payments</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Label>Finance</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="more" disableAutomaticContentInsets contentStyle={{ backgroundColor: shell.canvas }}>
         <NativeTabs.Trigger.Icon sf="list.bullet" />
@@ -74,7 +79,7 @@ function ProviderJsTabs() {
       <Tabs.Screen name="index" options={{ title: "Home", headerShadowVisible: false, sceneStyle: { backgroundColor: shell.dashboard }, headerLeft: () => <PortfolioHeaderButton compact={compact} />, tabBarLabel: "Home", tabBarIcon: ({ color, size, focused }) => <Ionicons name={focused ? "home" : "home-outline"} color={color} size={size} /> }} />
       <Tabs.Screen name="properties" options={{ title: "Properties", tabBarLabel: "Properties", tabBarIcon: ({ color, size, focused }) => <Ionicons name={focused ? "business" : "business-outline"} color={color} size={size} /> }} />
       <Tabs.Screen name="tenants" options={{ title: "Tenants", tabBarLabel: "Tenants", tabBarIcon: ({ color, size, focused }) => <Ionicons name={focused ? "people" : "people-outline"} color={color} size={size} /> }} />
-      <Tabs.Screen name="payments" options={{ title: "Payments", tabBarLabel: "Payments", tabBarIcon: ({ color, size, focused }) => <Ionicons name={focused ? "wallet" : "wallet-outline"} color={color} size={size} /> }} />
+      <Tabs.Screen name="payments" options={{ title: "Finance", tabBarLabel: "Finance", tabBarIcon: ({ color, size, focused }) => <Ionicons name={focused ? "wallet" : "wallet-outline"} color={color} size={size} /> }} />
       <Tabs.Screen name="more" options={{ title: "Menu", tabBarLabel: "Menu", headerShown: false, tabBarIcon: ({ color, size, focused }) => <Ionicons name={focused ? "list" : "list-outline"} color={color} size={size} /> }} />
       <Tabs.Screen name="add" options={{ href: null }} />
     </Tabs>

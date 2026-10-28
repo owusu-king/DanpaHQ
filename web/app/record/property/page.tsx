@@ -4,12 +4,14 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
+import { Button } from "@/components/Button";
+import { PropertyWizardModal } from "@/components/property/PropertyWizard";
 import { Notice } from "@/components/Notice";
 import { usePageTitle } from "@/components/PageTitle";
 import { Empty, LoadingRows } from "@/components/portal/PageHeader";
 import { Icon, type IconName } from "@/components/portal/icons";
 import { PropertyLifecycle, PropertyMore } from "@/components/property/PropertyLifecycle";
-import { PropertyWizardModal } from "@/components/property/PropertyWizard";
+import { EditPropertyModal } from "@/components/property/EditPropertyModal";
 import { UnitWizardModal } from "@/components/property/UnitWizard";
 import { SalePanel } from "@/components/property/SalePanel";
 import {
@@ -44,7 +46,7 @@ export default function PropertyDetailPage() {
   const [sale, setSale] = useState<SellerSale | null>(null);
   const [error, setError] = useState("");
   // Setup and Add Unit open over this page (owner, 2026-10-20), held in state.
-  const [sheet, setSheet] = useState<{ kind: "property"; step?: string } | { kind: "unit" } | null>(null);
+  const [sheet, setSheet] = useState<{ kind: "property"; step?: string } | { kind: "unit" } | { kind: "setup" } | null>(null);
   usePageTitle(property ? property.title || "Untitled property" : null);
 
   const load = useCallback(async () => {
@@ -147,7 +149,7 @@ export default function PropertyDetailPage() {
             {fullAddress}
           </>
         )}
-        actions={primary ? <Link href={primary.href as never} className="ws-action is-primary" onClick={inPlace(() => setSheet({ kind: "unit" }))}><Icon name="plus" />{primary.label}</Link> : undefined}
+        actions={primary ? <Link href={primary.href as never} className="btn btn-primary" onClick={inPlace(() => setSheet({ kind: "unit" }))}><Icon name="plus" />{primary.label}</Link> : undefined}
       />
 
       {error ? <Notice tone="error" title={error} body="Some information may be out of date. Try again." /> : null}
@@ -158,7 +160,7 @@ export default function PropertyDetailPage() {
           body={`${access.message} Manage this in Settings → Plan & billing.`}
         />
       ) : null}
-      <PropertyLifecycle property={property} steps={steps} onChanged={load} compact />
+      <PropertyLifecycle property={property} steps={steps} onChanged={load} compact onEdit={() => setSheet({ kind: "property" })} onSetup={() => setSheet({ kind: "setup" })} />
 
       {selling ? (
         sale ? (
@@ -174,7 +176,7 @@ export default function PropertyDetailPage() {
         <div className="pd-panel-head">
           <h2 id="units-heading" className="pd-panel-title">Units <span>{units.length}</span></h2>
           {canAddUnit && primary?.label !== "Add Unit" ? (
-            <Link href={`/record/space-new?propertyId=${property.id}` as never} className="ws-action" onClick={inPlace(() => setSheet({ kind: "unit" }))}>Add Unit</Link>
+            <Link href={`/record/space-new?propertyId=${property.id}` as never} className="btn btn-secondary" onClick={inPlace(() => setSheet({ kind: "unit" }))}>Add Unit</Link>
           ) : null}
         </div>
 
@@ -202,7 +204,7 @@ export default function PropertyDetailPage() {
       <section className="pd-panel" aria-labelledby="about-property-heading">
         <div className="pd-panel-head">
           <h2 id="about-property-heading" className="pd-panel-title">About this Property</h2>
-          {edit?.allowed ? <Link href={`/record/property-setup?propertyId=${property.id}` as never} className="ws-action" onClick={inPlace(() => setSheet({ kind: "property" }))}><Icon name="pencil" />Edit</Link> : null}
+          {edit?.allowed ? <Button type="button" variant="secondary" onClick={() => setSheet({ kind: "property" })}><Icon name="pencil" />Edit</Button> : null}
         </div>
         <dl className="pd-facts is-compact">
           <Fact icon="properties" label="Type" value={propertyTypeLabel(property.property_type)} />
@@ -223,24 +225,32 @@ export default function PropertyDetailPage() {
             {amenities === null ? <LoadingRows rows={1} /> : amenities.length ? (
               <ul className="pd-chips">{amenities.map((amenity) => <li key={amenity.id}>{amenity.name}</li>)}</ul>
             ) : <span className="pd-note">None recorded.</span>}
-            {edit?.allowed ? <Link href={`/record/property-setup?propertyId=${property.id}&step=amenities` as never} className="pd-edit" onClick={inPlace(() => setSheet({ kind: "property", step: "amenities" }))}>Edit</Link> : null}
+            {edit?.allowed ? <Button type="button" variant="quiet" onClick={() => setSheet({ kind: "property", step: "amenities" })}>Edit</Button> : null}
           </div>
         )}
       </section>
 
       <PropertyMore property={property} />
 
-      <PropertyWizardModal
+      <EditPropertyModal
         open={sheet?.kind === "property"}
+        property={property}
+        amenitiesOnly={sheet?.kind === "property" && sheet.step === "amenities"}
+        onClose={() => setSheet(null)}
+        onSaved={() => void load()}
+      />
+      <PropertyWizardModal
+        open={sheet?.kind === "setup"}
         propertyId={property.id}
-        startAt={sheet?.kind === "property" ? (sheet.step ?? null) : null}
-        onClose={() => { setSheet(null); void load(); }}
+        onClose={() => setSheet(null)}
+        onChanged={() => void load()}
         onFinished={() => undefined}
       />
       <UnitWizardModal
         open={sheet?.kind === "unit"}
         propertyId={property.id}
-        onClose={() => { setSheet(null); void load(); }}
+        onClose={() => setSheet(null)}
+        onChanged={() => void load()}
         onFinished={() => undefined}
       />
     </div>

@@ -61,7 +61,7 @@ export function WelcomeFlow({ close, land }: AuthFlowProps) {
   const name = me?.preferred_name || me?.first_name || "";
   const provider = arrival.type === "provider";
   const needsPhone = provider && !me?.is_phone_verified;
-  const applyingAsArtisan = arrival.next === "/artisan";
+  const applyingAsArtisan = arrival.type === "artisan" || arrival.next === "/artisan";
 
   return (
     <AuthModal

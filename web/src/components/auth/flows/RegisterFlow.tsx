@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, Building2, Check, Home } from "lucide-react";
+import { ArrowLeft, Building2, Check, Hammer, Home } from "lucide-react";
 import { useState } from "react";
 
 import { ProviderTermsConsent, type AcceptedProviderTerms } from "@/components/auth/ProviderTermsConsent";
@@ -47,6 +47,7 @@ import { chooseWorkspace, useSession, type Me } from "@/lib/session";
  * second text.
  */
 const MIN_PASSWORD_LENGTH = 8;
+const SIGNUP_CHOICES = ["tenant", "provider"] as const;
 
 type Step = "role" | "method" | "details" | "phone" | "code";
 type AuthMethod = "phone" | "google";
@@ -66,16 +67,19 @@ const SIDES: Record<AccountType, {
     body: "Own or manage property.",
     Icon: Building2,
   },
+  artisan: {
+    title: "Artisan",
+    body: "Offer your skills and apply for work.",
+    Icon: Hammer,
+  },
 };
 
 export function RegisterFlow({ params, go: show, close, land }: AuthFlowProps) {
   const [mfa, setMfa] = useState<MFAChallenge | null>(null);
   const { state, refresh } = useSession();
-  const safeNext = safeInternalPath(params.next ?? null);
-  // Artisan approval is a separate capability on a personal account. This entry
-  // should not ask an applicant to choose between renting and managing property.
-  const applyingAsArtisan = safeNext === "/artisan";
-  const preselected: AccountType | null = params.workspace ?? (applyingAsArtisan ? "tenant" : null);
+  const requestedNext = safeInternalPath(params.next ?? null);
+  const artisanEntry = requestedNext === "/artisan" || params.workspace === "artisan";
+  const preselected: AccountType | null = artisanEntry ? "artisan" : params.workspace ?? null;
 
   // An account left unfinished before tickets existed arrives signed in, and
   // finishes itself from the details step.
@@ -91,7 +95,9 @@ export function RegisterFlow({ params, go: show, close, land }: AuthFlowProps) {
   const [chosenType, setAccountType] = useState<AccountType | null>(preselected);
   // A resumed account already has a type on file; it is the default until changed.
   const accountType: AccountType | null = chosenType
-    ?? (resuming && state.status === "signed_in" ? state.me.capabilities.account_type ?? "tenant" : null);
+    ?? (resuming && state.status === "signed_in" ? state.me.capabilities.account_type ?? null : null);
+  const applyingAsArtisan = accountType === "artisan";
+  const safeNext = requestedNext ?? (applyingAsArtisan ? "/artisan" : null);
 
   const [firstName, setFirstName] = useState(googleArrival?.profile.first_name ?? "");
   const [lastName, setLastName] = useState(googleArrival?.profile.last_name ?? "");
@@ -169,13 +175,13 @@ export function RegisterFlow({ params, go: show, close, land }: AuthFlowProps) {
         found.confirm_password = confirm ? "The two passwords do not match." : "Type the password again.";
       }
     }
-    if (accountType === "provider" && !providerTerms) found.provider_terms = "Accept the Provider Terms and Conditions.";
     return found;
   }
 
   /** The one call that makes a member — with the ticket, or as a resumed account. */
   async function createAccount(proof: string) {
     if (!accountType) return;
+    if (accountType === "provider" && !providerTerms) { go("phone"); return; }
     setCreating(true);
     setBusy(true);
     setError("");
@@ -215,7 +221,10 @@ export function RegisterFlow({ params, go: show, close, land }: AuthFlowProps) {
       setErrors(fields);
       setError(summaryErrorFrom(cause, fields));
       setRefusals((count) => count + 1);
-      setStep("details");
+      if (["provider_terms", "terms_accepted", "accepted_terms_version", "accepted_terms_digest"].some(field => fields[field])) {
+        setProviderTerms(null);
+        setStep("phone");
+      } else setStep("details");
       setCreating(false);
     } finally {
       setBusy(false);
@@ -270,6 +279,7 @@ export function RegisterFlow({ params, go: show, close, land }: AuthFlowProps) {
       setRefusals((count) => count + 1);
       return;
     }
+    if (accountType === "provider" && !providerTerms) { go("phone"); return; }
     if (createsHere) {
       void createAccount(ticket);
       return;
@@ -280,6 +290,8 @@ export function RegisterFlow({ params, go: show, close, land }: AuthFlowProps) {
 
   async function requestCode(event?: React.FormEvent) {
     event?.preventDefault();
+    if (accountType === "provider" && !providerTerms) { go("phone"); return; }
+    if (createsHere) { await createAccount(ticket); return; }
     setBusy(true);
     setError("");
     try {
@@ -343,23 +355,31 @@ export function RegisterFlow({ params, go: show, close, land }: AuthFlowProps) {
   }
 
   const stepNumber = step === "method" ? 1 : step === "details" ? 2 : step === "phone" ? 3 : 4;
+  const totalSteps = method === "google" ? 3 : 4;
+  const needsAgreement = accountType === "provider" && !providerTerms;
   const side = accountType ? SIDES[accountType] : null;
 
   const heading = {
     role: {
       title: "How will you use Danpa HQ?",
-      description: "Choose one to start. You can add the other side later.",
+      description: "Choose how you’ll use Danpa HQ. You can add another account later.",
     },
     method: {
-      title: applyingAsArtisan ? "Create your account" : "How would you like to continue?",
-      description: applyingAsArtisan ? "Create an account, then submit your artisan application." : "Continue with Google or phone.",
+      title: applyingAsArtisan ? "Create your artisan account" : "How would you like to continue?",
+      description: applyingAsArtisan ? "Create your account, then submit your work for review." : "Continue with Google or phone.",
     },
     details: googleTicket
       ? { title: "Complete your profile", description: "Google filled what it could. Check it and add the missing details." }
       : createsHere
         ? { title: "Almost there", description: "Your number is confirmed. Check the details below to finish." }
       : { title: "Tell us about you", description: "Your basic details." },
-    phone: {
+    phone: needsAgreement ? {
+      title: "Provider agreement",
+      description: "Review and accept the agreement before continuing.",
+    } : createsHere ? {
+      title: "Complete your account",
+      description: "Your provider agreement is accepted. You can now finish creating your account.",
+    } : {
       title: "Confirm your number",
       description: "It is how you sign in and how we reach you. We'll text a six-digit code.",
     },
@@ -383,8 +403,8 @@ export function RegisterFlow({ params, go: show, close, land }: AuthFlowProps) {
   return (
     <AuthModal
       // Back on the details with a proved number is the last step, not the first.
-      eyebrow={step === "role" ? "Get started" : step === "details" && createsHere ? "Last step" : `Step ${stepNumber} of 4`}
-      progress={step === "role" ? undefined : step === "details" && createsHere ? 1 : stepNumber / 4}
+      eyebrow={step === "role" ? "Get started" : step === "details" && createsHere && !needsAgreement ? "Last step" : `Step ${stepNumber} of ${totalSteps}`}
+      progress={step === "role" ? undefined : step === "details" && createsHere && !needsAgreement ? 1 : stepNumber / totalSteps}
       title={heading.title}
       description={heading.description}
       onClose={close}
@@ -406,7 +426,7 @@ export function RegisterFlow({ params, go: show, close, land }: AuthFlowProps) {
             }}
           >
             <div className="auth-roles" role="radiogroup" aria-label="How you will use Danpa HQ">
-              {(Object.keys(SIDES) as AccountType[]).map((key) => {
+              {SIGNUP_CHOICES.map((key) => {
                 const option = SIDES[key];
                 const on = accountType === key;
                 return (
@@ -484,7 +504,7 @@ export function RegisterFlow({ params, go: show, close, land }: AuthFlowProps) {
 
         {step === "details" ? (
           <form onSubmit={submitDetails} className="auth-form" noValidate>
-            {side && accountType ? (
+            {!applyingAsArtisan && side && accountType ? (
               <div className={`auth-account is-${accountType}`}>
                 <span className="auth-account-tile" aria-hidden="true"><side.Icon /></span>
                 <span className="auth-account-text">
@@ -535,7 +555,7 @@ export function RegisterFlow({ params, go: show, close, land }: AuthFlowProps) {
                   onChange={edit(["date_of_birth"], setDateOfBirth)}
                   error={errors.date_of_birth}
                   autoComplete="bday"
-                  hint="Tenancy agreements need an adult on them."
+                  hint={applyingAsArtisan ? "You must be an adult to offer work on Danpa HQ." : "Tenancy agreements need an adult on them."}
                 />
                 {method !== "google" ? (
                   <>
@@ -583,15 +603,14 @@ export function RegisterFlow({ params, go: show, close, land }: AuthFlowProps) {
 
             {accountType === "provider" ? (
               <p className="auth-note">
-                <strong>Management approval comes next.</strong> Your phone must be verified by OTP before management review. No identity documents are required at registration.
+                <strong>Management approval comes next.</strong> Your phone must be verified by OTP before management review.
               </p>
             ) : null}
-            {accountType === "provider" ? <><ProviderTermsConsent value={providerTerms} onChange={setProviderTerms} />{errors.provider_terms ? <p role="alert">{errors.provider_terms}</p> : null}</> : null}
             {error ? <Notice tone="error" title={error} /> : null}
             {/* Never disabled for a validation reason: pressing always continues
                 or says which field to fix. */}
             <Button type="submit" className="auth-submit" busy={busy} busyLabel="Creating your account…">
-              {createsHere ? "Create account" : "Continue"}
+              {createsHere && !needsAgreement ? "Create account" : "Continue"}
             </Button>
           </form>
         ) : null}
@@ -601,6 +620,13 @@ export function RegisterFlow({ params, go: show, close, land }: AuthFlowProps) {
             <button type="button" className="auth-back" onClick={() => go("details")}>
               <ArrowLeft aria-hidden="true" /> Your details
             </button>
+            {needsAgreement ? <>
+              <ProviderTermsConsent value={providerTerms} onChange={setProviderTerms} />
+              {errors.provider_terms ? <p role="alert">{errors.provider_terms}</p> : null}
+              {error ? <Notice tone="error" title={error} /> : null}
+            </> : <>
+            {accountType === "provider" ? <p className="auth-note">Provider agreement accepted. <button type="button" className="auth-inline" onClick={() => setProviderTerms(null)}>Review agreement</button></p> : null}
+            {!createsHere ? <>
             <Field
               label="Mobile number"
               value={phone}
@@ -614,6 +640,7 @@ export function RegisterFlow({ params, go: show, close, land }: AuthFlowProps) {
               placeholder="024 123 4567"
               autoFocus
             />
+            </> : null}
             {error ? <Notice tone="error" title={error} /> : null}
             {accountExists ? (
               <>
@@ -625,11 +652,12 @@ export function RegisterFlow({ params, go: show, close, land }: AuthFlowProps) {
                 </a>
               </>
             ) : (
-              <Button type="submit" className="auth-submit" busy={busy} busyLabel="Sending…" disabled={!phone.trim()}>
-                Send code
+              <Button type="submit" className="auth-submit" busy={busy} busyLabel={createsHere ? "Creating your account…" : "Sending…"} disabled={!createsHere && !phone.trim()}>
+                {createsHere ? "Create account" : "Send code"}
               </Button>
             )}
-            <p className="auth-aside">We will never ask you for your code. Standard SMS rates apply.</p>
+            {!createsHere ? <p className="auth-aside">We will never ask you for your code. Standard SMS rates apply.</p> : null}
+            </>}
           </form>
         ) : null}
 

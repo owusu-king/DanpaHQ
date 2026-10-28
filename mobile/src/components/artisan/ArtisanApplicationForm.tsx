@@ -318,7 +318,7 @@ export function ArtisanApplicationForm({
       </Rise>
 
       <Rise index={5}>
-        <Step number="+" optional title="Certificates (optional)" line="Any trade certificate you hold. It shows as “Certificate provided” until our team checks it, then as verified with the date.">
+        <Step number="+" title="Certificates (optional)" line="Any trade certificate you hold. It shows as “Certificate provided” until our team checks it, then as verified with the date.">
           {certificates.map((row, index) => (
             <View key={row.key} style={styles.certificate}>
               <View style={styles.certificateHead}>
@@ -391,18 +391,17 @@ export function ArtisanApplicationForm({
   );
 }
 
-function Step({ number, title, line, optional = false, children }: {
+function Step({ number, title, line, children }: {
   number: string;
   title: string;
   line: string;
-  optional?: boolean;
   children: React.ReactNode;
 }) {
   return (
     <View style={styles.card}>
       <View style={styles.stepHead}>
-        <View style={[styles.stepNumber, optional ? styles.stepNumberOptional : null]}>
-          <Type variant="captionStrong" style={{ color: optional ? LAGOON : WHITE }}>{number}</Type>
+        <View style={styles.stepNumber}>
+          <Type variant="captionStrong" style={{ color: theme.color.ink["700"] }}>{number}</Type>
         </View>
         <View style={{ flex: 1, gap: 2 }}>
           <Type variant="title2" accessibilityRole="header">{title}</Type>
@@ -496,8 +495,7 @@ const styles = StyleSheet.create({
   card: { gap: space[4], padding: space[4], borderRadius: 20, borderWidth: 1, borderColor: alpha(DEEP, 0.08), backgroundColor: WHITE },
   centerMuted: { textAlign: "center", color: theme.color.ink["500"] },
   stepHead: { flexDirection: "row", alignItems: "flex-start", gap: space[3] },
-  stepNumber: { width: 32, height: 32, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: AMBER },
-  stepNumberOptional: { backgroundColor: theme.color.lagoon["100"] },
+  stepNumber: { width: 32, height: 32, borderRadius: 6, borderWidth: 1, borderColor: theme.color.field["300"], alignItems: "center", justifyContent: "center", backgroundColor: theme.color.field["0"] },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: space[2] },
   place: {
     flexDirection: "row",

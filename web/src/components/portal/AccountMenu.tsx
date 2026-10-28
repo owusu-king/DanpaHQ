@@ -7,6 +7,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { resolveWebEntry } from "@/lib/navigation";
 import { chooseWorkspace, useSession, type Me, type Workspace } from "@/lib/session";
 
+import { CreateRentingAccount } from "./CreateRentingAccount";
 import { Avatar, Icon, type IconName } from "./icons";
 
 /**
@@ -53,6 +54,7 @@ export function AccountMenu({
       if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
     };
     const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.target as Element | null)?.closest("dialog[open]")) return;
       if (event.key === "Escape") {
         event.stopPropagation();
         close();
@@ -81,6 +83,7 @@ export function AccountMenu({
 
   /** Up and down move through the menu; Home and End jump to its ends. */
   function onMenuKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
+    if ((event.target as Element).closest("dialog[open]")) return;
     const items = Array.from(
       menuRef.current?.querySelectorAll<HTMLElement>("[data-menu-item]") ?? [],
     );
@@ -234,7 +237,7 @@ function WorkspaceCrossing({ me, onDone }: { me: Me; onDone: () => void }) {
     (workspace): workspace is Exclude<Workspace, "discovery"> =>
       workspace !== me.capabilities.active_workspace && workspace !== "discovery",
   );
-  if (others.length === 0) return null;
+
 
   async function cross(workspace: Workspace) {
     setSwitching(workspace);
@@ -250,6 +253,7 @@ function WorkspaceCrossing({ me, onDone }: { me: Me; onDone: () => void }) {
 
   return (
     <>
+      {!me.capabilities.tenant.workspace_access ? <CreateRentingAccount menu onCreated={() => { onDone(); router.push("/rentals"); }} /> : null}
       {others.map((workspace) => (
         <button
           key={workspace}

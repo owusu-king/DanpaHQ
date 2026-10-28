@@ -41,17 +41,12 @@ export function AuthModal({
   children: ReactNode;
   /** The quiet row under the form: the other ways in and out. */
   footer?: ReactNode;
-  /** Escape, the scrim and the close button all end here. */
+  /** Only the explicit close button dismisses the modal. */
   onClose: () => void;
 }) {
   const titleId = useId();
   const panel = useRef<HTMLDivElement>(null);
-  // The key handler is bound once; it reads the latest close through this.
-  const closeRef = useRef(onClose);
-  useEffect(() => { closeRef.current = onClose; }, [onClose]);
-  const close = () => closeRef.current();
-
-  // Escape closes; the page behind does not scroll. A fine pointer starts in
+  // Escape does not discard the form; the page behind does not scroll. A fine pointer starts in
   // the form. On a touch-first device, focus the dialog itself so iOS can paint
   // it without also having to raise and lay out the software keyboard.
   useEffect(() => {
@@ -60,9 +55,9 @@ export function AuthModal({
     root.style.overflow = "hidden";
     const first = panel.current?.querySelector<HTMLElement>("input, select, textarea");
     const touchFirst = window.matchMedia("(pointer: coarse)").matches;
-    (touchFirst ? panel.current : first)?.focus({ preventScroll: true });
+    (touchFirst ? panel.current : first ?? panel.current)?.focus({ preventScroll: true });
     function onKey(event: KeyboardEvent) {
-      if (event.key === "Escape" && !event.defaultPrevented) close();
+      if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); return; }
       // Tab stays inside the dialog.
       if (event.key === "Tab" && panel.current) {
         const focusable = Array.from(
@@ -71,6 +66,11 @@ export function AuthModal({
         if (!focusable.length) return;
         const firstItem = focusable[0]!;
         const lastItem = focusable[focusable.length - 1]!;
+        if (document.activeElement === panel.current || !panel.current.contains(document.activeElement)) {
+          event.preventDefault();
+          (event.shiftKey ? lastItem : firstItem).focus();
+          return;
+        }
         if (event.shiftKey && document.activeElement === firstItem) { event.preventDefault(); lastItem.focus(); }
         else if (!event.shiftKey && document.activeElement === lastItem) { event.preventDefault(); firstItem.focus(); }
       }
@@ -80,14 +80,13 @@ export function AuthModal({
       root.style.overflow = previous;
       document.removeEventListener("keydown", onKey);
     };
-    // Mount only: one dialog, one set of listeners. `close` reads the current
-    // callback through closeRef, so the listener never needs to be rebound.
+    // Mount only: one dialog, one set of listeners.
   }, []);
 
   return (
     <>
       <div className="auth-layer">
-        <div className="auth-scrim" onClick={close} aria-hidden="true" />
+        <div className="auth-scrim" aria-hidden="true" />
         <div
           ref={panel}
           role="dialog"
@@ -101,7 +100,7 @@ export function AuthModal({
               <span className="auth-mark" aria-hidden="true">DH</span>
               <span>Danpa HQ</span>
             </div>
-            <button type="button" className="auth-close" aria-label="Close" onClick={close}>
+            <button type="button" className="auth-close" aria-label="Close" onClick={onClose}>
               <X aria-hidden="true" />
             </button>
           </header>

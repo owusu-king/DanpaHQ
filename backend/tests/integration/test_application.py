@@ -341,6 +341,9 @@ class TestDeciding:
         first = services.submit_application(
             listing=live_listing, tenant=user, data={"advance_months_offered": 12}
         )
+        from apps.identity.services import choose_workspace
+
+        choose_workspace(user=agent, workspace="tenant")
         second = services.submit_application(
             listing=live_listing, tenant=agent, data={"advance_months_offered": 12}
         )

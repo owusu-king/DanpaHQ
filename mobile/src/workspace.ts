@@ -9,10 +9,10 @@ import type { Me, Workspace } from "@/auth";
  * can be offered wherever `available_workspaces` allows it, without warning the
  * person that they are about to lose something.
  */
-export function chooseWorkspace(workspace: Workspace, token?: string): Promise<Me> {
+export function chooseWorkspace(workspace: Workspace, token?: string, tenantConfirmation?: string): Promise<Me> {
   return apiFetch<Me>("/me/workspace/", {
     method: "POST",
-    body: { workspace },
+    body: { workspace, ...(tenantConfirmation !== undefined ? { tenant_confirmation: tenantConfirmation } : {}) },
     ...(token ? { token } : {}),
   });
 }

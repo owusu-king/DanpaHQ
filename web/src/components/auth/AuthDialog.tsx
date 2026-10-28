@@ -153,7 +153,7 @@ export function AuthEntry({ view }: { view: AuthView }) {
     handled.current = true;
     const workspace = search.get("workspace");
     const params: AuthParams = {
-      workspace: workspace === "tenant" || workspace === "provider" ? workspace : undefined,
+      workspace: workspace === "tenant" || workspace === "provider" || workspace === "artisan" ? workspace : undefined,
       next: safeInternalPath(search.get("next")),
       phone: search.get("phone") ?? undefined,
     };

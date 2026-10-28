@@ -36,7 +36,7 @@ test("nothing is created until the number is proved", () => {
   // The details screen holds the details and goes to the phone; it only
   // creates the account itself when it already holds a proof.
   const body = register();
-  assert.match(body, /if \(!createsHere\) \{\s*saveRegistrationDetails\(details\);\s*router\.push\(\{ pathname: "\/\(auth\)\/phone"/);
+  assert.match(body, /if \(!createsHere \|\| \(accountType === "provider" && !details\.providerTerms\)\) \{\s*saveRegistrationDetails\(details\);\s*router\.push\(\{ pathname: "\/\(auth\)\/phone"/);
   assert.match(body, /const createsHere = Boolean\(ticket \|\| googleTicket\) \|\| pinned;/);
 
   // The one call that makes a member still carries the ticket from /auth/verify.

@@ -240,6 +240,7 @@ export function PropertyWizard({
 
   return (
     <WizardFrame
+      compact
       steps={strip}
       current={shown}
       onGo={(key) => go(key as StepKey)}

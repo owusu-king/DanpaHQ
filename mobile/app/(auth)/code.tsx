@@ -28,6 +28,7 @@ import {
   markAccountJustCreated,
   registrationDraft,
   returnDraftWithErrors,
+  saveRegistrationDetails,
   submitRegistration,
 } from "@/registrationDraft";
 
@@ -197,8 +198,9 @@ export default function CodeScreen() {
             // the code is spent, but the ticket is good for half an hour, so
             // "Create account" there finishes without a second text.
             const fields = fieldErrorsFrom(cause);
+            if (fields.provider_terms) saveRegistrationDetails({ ...draft, providerTerms: null });
             returnDraftWithErrors(ticket, fields, summaryErrorFrom(cause, fields));
-            router.replace({ pathname: "/(auth)/register", params: { workspace: draft.accountType } });
+            router.replace({ pathname: fields.provider_terms ? "/(auth)/phone" : "/(auth)/register", params: { workspace: draft.accountType } });
           } finally {
             setCreating(false);
           }
@@ -280,7 +282,7 @@ export default function CodeScreen() {
 
   return (
     <AuthScene
-      progress={{ step: 3, of: 3 }}
+      progress={{ step: 4, of: 4 }}
       header={<AuthBack label="Back to your number" onPress={() => router.back()} />}
     >
       <AuthHeading

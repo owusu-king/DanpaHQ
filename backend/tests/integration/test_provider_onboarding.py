@@ -111,7 +111,7 @@ class TestBasicIntent:
         with pytest.raises(ValidationFailed):
             services.select_onboarding_role(user=nameless, intent="both")
 
-    def test_choosing_both_intents_grants_only_the_tenant_capability(self, landlord):
+    def test_browsing_and_provider_intents_do_not_create_a_tenant_account(self, landlord):
         """ "Both" is two stated journeys, not two grants.
 
         The tenant half is self-grantable and arrives immediately. The provider
@@ -124,7 +124,7 @@ class TestBasicIntent:
         services.select_onboarding_role(user=landlord, intent="both")
         landlord.refresh_from_db()
 
-        assert landlord.roles == {"tenant"}
+        assert landlord.roles == set()
         assert set(landlord.intent_selections.values_list("intent", flat=True)) == {
             "find_property",
             "manage_property",

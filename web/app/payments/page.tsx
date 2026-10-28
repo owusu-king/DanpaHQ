@@ -1,4 +1,5 @@
 "use client";
+import { ProfitLoss } from "@/components/payments/ProfitLoss";
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -42,10 +43,10 @@ import {
 import { useSession } from "@/lib/session";
 import { getLeaseLedger, type LeaseLedger } from "@/lib/tenant";
 
-type PaymentsView = "balances" | "records" | "payouts" | "expenses";
+type PaymentsView = "balances" | "records" | "payouts" | "expenses" | "pnl";
 type BalanceFilter = "all" | "overdue" | "outstanding" | "current";
 
-const VIEWS: PaymentsView[] = ["balances", "records", "payouts", "expenses"];
+const VIEWS: PaymentsView[] = ["balances", "records", "payouts", "expenses", "pnl"];
 const FILTERS: BalanceFilter[] = ["all", "overdue", "outstanding", "current"];
 
 const FILTER_LABEL: Record<BalanceFilter, string> = {
@@ -77,8 +78,8 @@ export default function ProviderPaymentsPage() {
 function PaymentsLoading() {
   return (
     <div className="ws-page rent-workspace payments-page">
-      <WorkspaceHead icon="payments" title="Payments" summary="Track rent due, tenant payments, expenses and settlements." />
-      <section className="ws-panel" aria-busy="true" aria-label="Payments"><PanelSkeleton rows={5} round /></section>
+      <WorkspaceHead icon="payments" title="Finance" summary="Track rent due, tenant payments, expenses and settlements." />
+      <section className="ws-panel" aria-busy="true" aria-label="Finance"><PanelSkeleton rows={5} round /></section>
     </div>
   );
 }
@@ -233,11 +234,11 @@ function ProviderPaymentsContent() {
   return <div className="ws-page rent-workspace payments-page">
     <WorkspaceHead
       icon="payments"
-      title="Payments"
+      title="Finance"
       summary="Track rent due, tenant payments, expenses and settlements."
       actions={summary ? (
         <>
-          <button type="button" className="ws-action" onClick={() => setRecording(true)}><PlusGlyph />Record expense</button>
+          <button type="button" className="ws-action is-red-outline" onClick={() => setRecording(true)}><PlusGlyph />Record expense</button>
           <button type="button" className="ws-action is-primary" onClick={() => setRecordingPayment(true)}><PlusGlyph />Record payment</button>
         </>
       ) : null}
@@ -245,16 +246,16 @@ function ProviderPaymentsContent() {
 
     {error && summary ? <div className="ws-inline-error payments-inline-error" role="alert"><Icon name="warning" /><span>{error}</span><button type="button" onClick={() => void retry()} disabled={retrying}>{retrying ? "Retrying…" : "Try again"}</button></div> : null}
 
-    {loading ? <section className="ws-panel" aria-busy="true" aria-label="Payments"><PanelSkeleton rows={5} round /></section> : null}
+    {loading ? <section className="ws-panel" aria-busy="true" aria-label="Finance"><PanelSkeleton rows={5} round /></section> : null}
 
     {!loading && error && !summary ? (
-      <section className="ws-panel" aria-label="Payments">
-        <PanelState tone="error" icon="warning" title="Payments didn’t load" body={error} action={<Button variant="secondary" size="sm" busy={retrying} busyLabel="Retrying…" onClick={() => void retry()}>Try again</Button>} />
+      <section className="ws-panel" aria-label="Finance">
+        <PanelState tone="error" icon="warning" title="Finance didn’t load" body={error} action={<Button variant="secondary" size="sm" busy={retrying} busyLabel="Retrying…" onClick={() => void retry()}>Try again</Button>} />
       </section>
     ) : null}
 
     {organizations?.length === 0 ? (
-      <section className="ws-panel" aria-label="Payments">
+      <section className="ws-panel" aria-label="Finance">
         <PanelState icon="properties" title="Add a Property first" body="Rent records belong to a tenancy in your Portfolio." action={<Link href="/properties" className="btn btn-quiet btn-sm">Open Properties</Link>} />
       </section>
     ) : null}
@@ -303,11 +304,12 @@ function ProviderPaymentsContent() {
         {summary.money.settlement_attention_minor > 0 ? <AttentionTile tone="overdue" icon="warning" title="Payout needs attention" action="Review affected settlement" onClick={() => { setView("payouts"); setQuery(""); }} /> : null}
       </div> : null}
 
-      <div className="payments-tabs" role="tablist" aria-label="Rent and payment views">
+      <div className="payments-tabs" role="tablist" aria-label="Finance views">
         <PaymentTab selected={view === "balances"} controls="rent-balances" icon="users" count={balanceCounts.overdue + balanceCounts.outstanding} alert={balanceCounts.overdue > 0} onClick={() => setView("balances")}>Rent due</PaymentTab>
         <PaymentTab selected={view === "records"} controls="payment-records" icon="details" count={summary.money.payment_records_awaiting_you} alert={summary.money.payment_records_awaiting_you > 0} onClick={() => setView("records")}>Payment records</PaymentTab>
         <PaymentTab selected={view === "payouts"} controls="settlement-history" icon="payments" count={summary.money.settlement_attention_minor > 0 ? 1 : 0} alert={summary.money.settlement_attention_minor > 0} onClick={() => setView("payouts")}>Payouts</PaymentTab>
         <PaymentTab selected={view === "expenses"} controls="expense-history" icon="reports" onClick={() => setView("expenses")}>Expenses</PaymentTab>
+        <PaymentTab selected={view === "pnl"} controls="profit-loss" icon="reports" onClick={() => setView("pnl")}>Profit &amp; Loss (P&amp;L)</PaymentTab>
       </div>
 
       {view === "balances" ? <section id="rent-balances" role="tabpanel" aria-labelledby="rent-balances-tab" className="ws-panel payments-panel">
@@ -358,6 +360,8 @@ function ProviderPaymentsContent() {
 
       {/* Refreshed through `load`, not `reloadKey`: that blanks the page, and
           the record would close under the person who just confirmed it. */}
+      {view === "pnl" ? <ProfitLoss report={summary.profit_loss} /> : null}
+
       <RentDueModal
         tenant={openedDue}
         onClose={() => setOpenDueId("")}
@@ -481,7 +485,7 @@ function ExpensesSection({ expenses, onRecord }: { expenses: PropertyExpense[]; 
   return <section id="expense-history" role="tabpanel" aria-labelledby="expense-history-tab" className="ws-panel payments-panel">
     <div className="ws-panel-head payments-panel-head">
       <p className="expense-total"><span>Recorded in this Portfolio</span><strong>{ghs(total)}</strong></p>
-      <Button variant="secondary" size="sm" onClick={onRecord}>Record expense</Button>
+      <Button className="is-red-outline" variant="secondary" size="sm" onClick={onRecord}>Record expense</Button>
     </div>
     {expenses.length ? <ul className="rent-list expense-list">{expenses.map((expense) => <li className="expense-row" key={expense.id}>
       <span className="rent-row-avatar" data-kind="expense" aria-hidden="true"><Icon name={EXPENSE_ICON[expense.category] ?? "reports"} /></span>
@@ -588,7 +592,7 @@ function ExpenseDialog({ open, organizationId, properties, onClose, onDone }: { 
 
 const EXPENSE_CATEGORIES = [["maintenance", "Maintenance"], ["utilities", "Utilities"], ["staff", "Staff"], ["tax", "Tax or levy"], ["supplies", "Supplies"], ["other", "Other"]] as const;
 function ExpenseForm({ organizationId, properties, onCancel, onDone }: { organizationId: string; properties: Property[]; onCancel: () => void; onDone: () => Promise<void> }) {
-  const [propertyId, setPropertyId] = useState(properties[0]?.id ?? ""); const [category, setCategory] = useState("maintenance"); const [amount, setAmount] = useState(""); const [incurredOn, setIncurredOn] = useState(new Date().toISOString().slice(0, 10)); const [note, setNote] = useState(""); const [busy, setBusy] = useState(false); const [error, setError] = useState("");
+  const [propertyId, setPropertyId] = useState(properties[0]?.id ?? ""); const [category, setCategory] = useState("maintenance"); const [amount, setAmount] = useState(""); const [incurredOn, setIncurredOn] = useState(() => { const today = new Date(); return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`; }); const [note, setNote] = useState(""); const [busy, setBusy] = useState(false); const [error, setError] = useState("");
   return <div className="payment-sheet-form">
     <label className="rent-field type-caption">Property<select value={propertyId} onChange={(event) => setPropertyId(event.target.value)}>{properties.map((property) => <option key={property.id} value={property.id}>{property.title}</option>)}</select></label>
     <fieldset className="payment-chips">
@@ -606,7 +610,7 @@ function ExpenseForm({ organizationId, properties, onCancel, onDone }: { organiz
     </div>
     <Field label="Note (optional)" value={note} onChange={(event) => setNote(event.target.value)} placeholder="What it was for" />
     {error ? <Notice tone="error" title={error} /> : null}
-    <div className="rent-actions"><Button busy={busy} disabled={!propertyId || !amount} onClick={async () => { const amountMinor = Math.round(Number(amount) * 100); if (!Number.isFinite(amountMinor) || amountMinor <= 0) return setError("Enter a valid amount."); setBusy(true); setError(""); try { await recordPropertyExpense(organizationId, { property_id: propertyId, amount_minor: amountMinor, category, incurred_on: incurredOn, note }); await onDone(); } catch (cause) { setError(cause instanceof ApiFailure ? cause.error.message : "Could not record the expense."); } finally { setBusy(false); } }}>Save expense</Button><Button variant="quiet" disabled={busy} onClick={onCancel}>Cancel</Button></div>
+    <div className="rent-actions"><Button className="is-red-outline" variant="secondary" busy={busy} disabled={!propertyId || !amount} onClick={async () => { const amountMinor = Math.round(Number(amount) * 100); if (!/^\d+(\.\d{1,2})?$/.test(amount.trim()) || !Number.isSafeInteger(amountMinor) || amountMinor <= 0) return setError("Enter a valid amount."); setBusy(true); setError(""); try { await recordPropertyExpense(organizationId, { property_id: propertyId, amount_minor: amountMinor, category, incurred_on: incurredOn, note }); await onDone(); } catch (cause) { setError(cause instanceof ApiFailure ? cause.error.message : "Could not record the expense."); } finally { setBusy(false); } }}>Save expense</Button><Button variant="quiet" disabled={busy} onClick={onCancel}>Cancel</Button></div>
   </div>;
 }
 

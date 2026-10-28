@@ -148,9 +148,8 @@ def request_viewing(
     ).exists():
         raise Conflict("You have already asked to see this place. Check your viewings.")
 
-    # Asking to see a place is a tenant action, so it establishes the capability
-    # rather than assuming it. See ensure_tenant_capability for why this side
-    # acquires on demand while the provider side never does.
+    # A viewing requires an explicitly created tenant account. The request
+    # itself must never grant another account type.
     from apps.identity.services import ensure_tenant_capability
 
     ensure_tenant_capability(tenant)

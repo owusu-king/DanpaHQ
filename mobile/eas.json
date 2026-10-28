@@ -4,6 +4,17 @@
     "appVersionSource": "remote"
   },
   "build": {
+    "staging": {
+      "distribution": "internal",
+      "environment": "preview",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://api-staging.danpahq.com/api/v1"
+      },
+      "android": {
+        "buildType": "apk"
+      },
+      "credentialsSource": "remote"
+    },
     "preview": {
       "distribution": "internal",
       "environment": "preview",

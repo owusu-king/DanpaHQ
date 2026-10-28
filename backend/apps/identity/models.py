@@ -53,6 +53,7 @@ class AccountType(models.TextChoices):
 
     TENANT = "tenant", "Tenant"
     PROVIDER = "provider", "Property provider"
+    ARTISAN = "artisan", "Artisan"
 
 
 class Intent(models.TextChoices):

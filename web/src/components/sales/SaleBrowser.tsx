@@ -98,6 +98,7 @@ export function SaleBrowser() {
     };
   }, [paramsKey]);
 
+  const [querying, setQuerying] = useState(false);
   const [sales, setSales] = useState<Sale[] | null>(null);
   const [next, setNext] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -153,6 +154,7 @@ export function SaleBrowser() {
 
   useEffect(() => {
     const id = ++request.current;
+    setQuerying(true);
     const timer = setTimeout(async () => {
       try {
         const page = await searchSales(filters);
@@ -165,6 +167,8 @@ export function SaleBrowser() {
         setSales((current) => current ?? []);
         setNext(null);
         setError(cause instanceof ApiFailure ? cause.error.message : "We could not load properties for sale.");
+      } finally {
+        if (id === request.current) setQuerying(false);
       }
     }, 200);
     return () => clearTimeout(timer);
@@ -366,17 +370,19 @@ export function SaleBrowser() {
       ) : null}
       {error ? <Notice tone="error" title={error} /> : null}
 
-      <section aria-live="polite" aria-busy={sales === null}>
+      <section aria-live="polite" aria-busy={sales === null || querying}>
+            {(sales === null || querying) && !error ? <p className="page-loading-caption" role="status"><span className="page-loading-dot" aria-hidden="true" />Finding properties…</p> : null}
         {sales?.length ? (
           <ul className="explore-grid">
             {sales.map((sale) => <SaleCard key={sale.id} sale={sale} />)}
           </ul>
         ) : null}
 
-        {sales?.length === 0 && !error ? (
+        {sales?.length === 0 && !querying && !error ? (
           <div className="explore-empty">
             <p className="type-body-strong">Nothing for sale matches yet</p>
             <p className="type-caption">Try a higher budget, another kind of property, or a wider area.</p>
+            <button type="button" className="explore-clear-all" onClick={() => { update({ q: "", kind: "", price_max: "", bedrooms_min: "", tenure: "", sort: "" }); }}>Clear search and filters</button>
           </div>
         ) : null}
 

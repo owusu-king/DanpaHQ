@@ -51,6 +51,18 @@ MB = 1024 * 1024
 #: anything. Identity documents are capped tighter than property photos because
 #: a legible Ghana Card photo needs far less.
 LIMITS: dict[str, PurposeLimits] = {
+    "guide_video": PurposeLimits(
+        max_bytes=100 * MB, content_types=frozenset({"video/mp4", "video/webm"}),
+        human="an MP4 or WebM video up to 100MB",
+    ),
+    "guide_thumbnail": PurposeLimits(
+        max_bytes=5 * MB, content_types=frozenset({"image/jpeg", "image/png", "image/webp"}),
+        human="a JPEG, PNG or WebP image up to 5MB",
+    ),
+    "guide_captions": PurposeLimits(
+        max_bytes=MB, content_types=frozenset({"text/vtt"}),
+        human="a WebVTT caption file up to 1MB",
+    ),
     "identity_document": PurposeLimits(
         max_bytes=8 * MB,
         content_types=frozenset({"image/jpeg", "image/png", "image/heic", "application/pdf"}),
@@ -199,6 +211,8 @@ def sniff_content_type(header: bytes) -> str | None:
     """Identify a file from its first bytes, or ``None`` if unrecognised."""
     if not header:
         return None
+    if header.removeprefix(b"\xef\xbb\xbf").startswith((b"WEBVTT\n", b"WEBVTT\r", b"WEBVTT ")):
+        return "text/vtt"
 
     for offset, magic, content_type in _SIGNATURES:
         if header[offset : offset + len(magic)] == magic:

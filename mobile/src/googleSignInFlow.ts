@@ -5,11 +5,10 @@ import { useAuth } from "@/auth";
 import { exchangeGoogleCredential, type GoogleRegistration } from "@/googleAuth";
 import { resolveEntryRoute } from "@/navigation";
 import type { AccountType, CreatedSession } from "@/registrationDraft";
-import { chooseWorkspace } from "@/workspace";
 import { isMFAChallenge, type MFAChallenge } from "@/mfa";
 
 export function useGoogleSignInFlow({ accountType, onRegistration, onSignedIn }: {
-  accountType: AccountType;
+  accountType?: AccountType;
   onRegistration: (registration: GoogleRegistration) => void;
   onSignedIn: (route: string) => void;
 }) {
@@ -38,7 +37,7 @@ export function useGoogleSignInFlow({ accountType, onRegistration, onSignedIn }:
   }
   async function completeSignIn(result: CreatedSession) {
       // A failed workspace preference must never discard a valid new session.
-      const user = await chooseWorkspace(accountType, result.access_token).catch(() => result.user);
+      const user = result.user;
       if (!active.current) return;
       const context = await signIn({ ...result, user });
       onSignedIn(resolveEntryRoute(user, context));

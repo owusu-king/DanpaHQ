@@ -3,8 +3,8 @@
 export type AuthView = "sign-in" | "register" | "forgot-password" | "welcome";
 
 export type AuthParams = {
-  /** The side asked for: "I own or manage property" rides in as provider. */
-  workspace?: "tenant" | "provider";
+  /** Explicit account type for registration; credentials alone determine login. */
+  workspace?: "tenant" | "provider" | "artisan";
   /** A same-origin path to finish on, when the person was in the middle of something. */
   next?: string | null;
   /** A number already typed elsewhere, so it is not typed twice. */

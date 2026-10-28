@@ -73,7 +73,7 @@ export function WizardShell({
                   </span>
                   <span className="lw-rail-copy">
                     <strong>{item.label}</strong>
-                    <small>{item.summary || (item.done ? "Done" : state === "current" ? "Now" : "To do")}</small>
+                    <small data-summary={Boolean(item.summary) || undefined}>{item.summary || (item.done ? "Done" : state === "current" ? "Now" : "To do")}</small>
                   </span>
                   {item.done ? <span className="sr-only">, done</span> : null}
                 </button>

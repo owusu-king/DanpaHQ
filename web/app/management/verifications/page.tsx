@@ -130,7 +130,7 @@ export default function VerificationPage() {
             const evidenceCount = group.items.reduce((total, item) => total + item.verification.evidence.length, 0);
             return <tr key={group.key}>
               <td><strong>{group.label || lead.verification.subject_label}</strong><span className="management-subtext">{humanize(lead.verification.subject_type)}</span></td>
-              <td><div className="management-status-stack">{group.items.map((item) => <Status key={item.id} value={item.verification.status} label={item.verification.kind_label} />)}</div></td>
+              <td><div className="management-status-stack">{group.items.map((item) => <Status key={item.id} value={item.verification.status} label={`${item.verification.kind === "provider" ? "Provider" : item.verification.kind_label} · ${humanize(item.verification.status)}`} />)}</div></td>
               <td>{evidenceCount ? `${evidenceCount} ${evidenceCount === 1 ? "file" : "files"}` : <span className="management-subtext">None attached</span>}</td>
               <td>{group.priority}</td>
               <td className="is-date">{formatDate(group.created_at)}</td>

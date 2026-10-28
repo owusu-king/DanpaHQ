@@ -424,7 +424,7 @@ def open_registration_ticket(ticket: str) -> tuple[str, str]:
 def authenticate_with_google(
     *,
     claims,
-    account_type: str,
+    account_type: str = "",
     device_fingerprint: str = "",
     platform: str = DevicePlatform.WEB,
     device_label: str = "",
@@ -444,7 +444,7 @@ def authenticate_with_google(
     )
     from .models import AccountType
 
-    if account_type not in AccountType.values:
+    if account_type and account_type not in AccountType.values:
         raise ValidationFailed(
             "Choose whether you are a tenant or a property provider.",
             details={"fields": {"account_type": ["Choose an account type."]}},
@@ -493,7 +493,7 @@ def authenticate_with_google(
         "registration_required": True,
         "google_registration_ticket": issue_google_registration_ticket(
             claims, account_type=account_type
-        ),
+        ) if account_type else None,
         "expires_in": GOOGLE_REGISTRATION_TICKET_TTL_SECONDS,
         "profile": {
             "first_name": claims.first_name,
@@ -755,6 +755,14 @@ def _establish_session(
         mfa_proof = mfa.Proof(True)
     if not mfa_proof.accepted or not mfa.session_valid(user, mfa_proof.credential_id):
         raise PermissionDenied("Sign in again with your authenticator.")
+
+    # Each new login starts in an existing special account. Switching later is
+    # still explicit navigation; authentication never grants a role.
+    if user.is_registration_complete:
+        if _may_enter_provider(user):
+            choose_workspace(user=user, workspace=WORKSPACE_PROVIDER)
+        elif _may_enter_artisan(user):
+            choose_workspace(user=user, workspace=WORKSPACE_ARTISAN)
 
     device, device_is_new = _upsert_device(
         user=user,
@@ -1293,7 +1301,7 @@ def select_onboarding_intent(*, user, intent: str):
     # nothing: the intent is recorded, and provider standing is decided by the
     # verification that exists to decide it.
     roles_by_intent = {
-        Intent.FIND_PROPERTY: [Role.TENANT],
+        Intent.FIND_PROPERTY: [],
         Intent.CURRENT_TENANT: [Role.TENANT],
         Intent.MANAGE_PROPERTY: [],
     }
@@ -1584,7 +1592,7 @@ def complete_registration(
         google_registration["account_type"] if google_registration else data.get("account_type")
     )
     if account_type not in AccountType.values:
-        errors["account_type"] = ["Choose whether you are a tenant or a property provider."]
+        errors["account_type"] = ["Choose a tenant, property provider or artisan account."]
 
     provider_terms = None
     if account_type == AccountType.PROVIDER:
@@ -2108,9 +2116,8 @@ def record_identity_from_review(
 WORKSPACE_DISCOVERY = "discovery"
 WORKSPACE_TENANT = "tenant"
 WORKSPACE_PROVIDER = "provider"
-#: Opens only on an approved artisan application, and asking for it before then
-#: is refused rather than routed to onboarding: applying is something done from
-#: the experience a person already has (`apps.artisan`).
+#: An artisan application opens its status experience. Operational access is
+#: still decided separately by artisan_capabilities.
 WORKSPACE_ARTISAN = "artisan"
 
 #: Which experience each stated journey corresponds to. The welcome screen picks
@@ -2226,7 +2233,7 @@ def account_capabilities(user) -> dict:
         available.append(WORKSPACE_TENANT)
     if provider_exists or team_access:
         available.append(WORKSPACE_PROVIDER)
-    if artisan["workspace_access"]:
+    if _may_enter_artisan(user):
         available.append(WORKSPACE_ARTISAN)
 
     return {
@@ -2259,10 +2266,8 @@ def account_capabilities(user) -> dict:
         "tenant": {
             "workspace_access": tenant_access,
         },
-        # Applying never moves anybody: the block reports where an application
-        # stands, and the experience appears in `available_workspaces` only on
-        # approval. Suspension keeps the experience open (their records are
-        # still theirs to read) and closes `can_quote`.
+        # Pending artisans can open their status experience; operational access
+        # and the ability to quote still require the appropriate approval.
         "artisan": artisan,
     }
 
@@ -2293,6 +2298,8 @@ def active_workspace(user) -> str:
             return chosen
     if user.account_type == AccountType.PROVIDER:
         return WORKSPACE_PROVIDER
+    if user.account_type == AccountType.ARTISAN:
+        return WORKSPACE_ARTISAN
     if user.has_role(Role.TENANT):
         return WORKSPACE_TENANT
     return WORKSPACE_DISCOVERY
@@ -2301,32 +2308,29 @@ def active_workspace(user) -> str:
 def _may_enter_artisan(user) -> bool:
     from apps.artisan.services import artisan_capabilities
 
-    return artisan_capabilities(user)["workspace_access"]
+    from .models import AccountType
+
+    return (
+        user.account_type == AccountType.ARTISAN
+        or artisan_capabilities(user)["status"] != "not_started"
+    )
 
 
 def ensure_tenant_capability(user):
-    """Record tenant capability the first time someone acts as one.
-
-    Applying for a place and asking to view one *are* the acts of being a
-    tenant, so this is where the capability is established rather than at a gate
-    in front of them. That is deliberate: the product's own entry path is an
-    anonymous browser who signs in at the moment they want to apply, and
-    refusing them there for want of a capability they are in the middle of
-    acquiring would be a wall across the main road.
-
-    What matters for authorization is that the capability is a backend-owned
-    record and not an assumption — it is granted here, audited, and readable in
-    ``capabilities``. Nothing behind it can be done without the other party's
-    agreement, which is why acquiring it on demand costs nobody anything. The
-    provider side works the opposite way for the opposite reason.
-    """
-    if user.has_role(Role.TENANT):
-        return None
-    return grant_role(user=user, role=Role.TENANT, granted_by=user)
+    """Require an explicitly created tenant account; actions never grant one."""
+    if not user.has_role(Role.TENANT):
+        raise PermissionDenied("Create a tenant account before requesting a viewing or applying.")
+    return None
 
 
 @transaction.atomic
-def choose_workspace(*, user, workspace: str):
+def require_tenant_confirmation(value):
+    """Creating additional tenant standing always needs explicit acknowledgement."""
+    if value != "Rent account":
+        raise ValidationFailed('Type "Rent account" exactly to create your renting account.')
+
+
+def choose_workspace(*, user, workspace: str, tenant_confirmation: str = ""):
     """Move between experiences. Navigation, and nothing else.
 
     This is the whole of what the welcome screen's choice does. It records which
@@ -2338,10 +2342,9 @@ def choose_workspace(*, user, workspace: str):
       pending provider review exactly where it was;
     * it never ends the session or creates a second account.
 
-    The one thing it grants is the tenant capability, and only when the tenant
-    workspace is asked for. That is the deliberate business rule: everything
-    behind tenant capability needs the other party's agreement, so letting
-    someone take it on request costs nobody anything.
+    New tenant standing requires the exact creation acknowledgement. Selecting
+    an existing workspace stays a navigation change; a missing tenant account
+    is never silently created by a navigation request.
 
     The provider side is the reverse, and asymmetric on purpose: this call will
     not put someone into the provider experience who did not register as one.
@@ -2374,6 +2377,7 @@ def choose_workspace(*, user, workspace: str):
         raise NotAProvider()
 
     if workspace == WORKSPACE_TENANT and not user.has_role(Role.TENANT):
+        require_tenant_confirmation(tenant_confirmation)
         grant_role(user=user, role=Role.TENANT, granted_by=user)
 
     select_onboarding_intent(user=user, intent=intent)
@@ -2388,12 +2392,12 @@ def choose_workspace(*, user, workspace: str):
 
 
 def _choose_artisan_workspace(user):
-    """Enter the artisan experience, which only an approved application opens.
+    """Enter a declared artisan journey or an existing application.
 
     Kept apart from `select_onboarding_intent` on purpose: that function is
-    also the onboarding endpoint, and being an artisan is not something anybody
-    can declare at onboarding. Only the primary intent moves; nothing is
-    granted, and the tenant and provider sides are left exactly as they were.
+    also the onboarding endpoint. Registration records an artisan's intent;
+    only approval grants work permissions. Here only the primary intent moves;
+    the tenant and provider sides are left exactly as they were.
     """
     from .models import Intent, UserIntent
 

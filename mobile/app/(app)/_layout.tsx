@@ -1,4 +1,6 @@
-import { Stack } from "expo-router";
+import { Redirect, Stack, useSegments } from "expo-router";
+import { useAuth } from "@/auth";
+import { appAccessRedirect } from "@/navigation";
 
 import { backHeaderLeft, closeHeaderLeft } from "@/components/nav/BackControl";
 import { StackHeader } from "@/components/nav/StackHeader";
@@ -6,6 +8,11 @@ import { gestureBackEnabled, stackAnimation } from "@/platform";
 import { shell } from "@/shell";
 
 export default function AppLayout() {
+  const { state } = useAuth();
+  const segments = useSegments() as readonly string[];
+  if (state.status === "loading") return null;
+  const redirect = appAccessRedirect(state.status === "signed_in" ? state.me : null, segments);
+  if (redirect) return <Redirect href={redirect as never} />;
   return (
     <Stack
       screenOptions={{

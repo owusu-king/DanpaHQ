@@ -55,10 +55,10 @@ export function ProviderTermsConsent({ value, onChange, presentation = "inline",
   return <div className="provider-consent">
     {presentation === "page" && reading ? <Button variant="quiet" onClick={closeReading}>Back to application</Button> : null}
     {policy?.available ? <>
-      {presentation === "page" ? <button ref={trigger} type="button" className="provider-agreement-open" onClick={() => onReadingChange?.(true)}><span>Read Provider Terms and Conditions<small>Version {policy.version}</small></span><span aria-hidden="true">↗</span></button> : <details onToggle={(event) => { if (event.currentTarget.open) { checkEnd(); reader.current?.focus({ preventScroll: true }); } }}>
-        <summary>Read Provider Terms and Conditions <span>Version {policy.version}</span></summary>
+      {presentation === "page" ? <button ref={trigger} type="button" className="provider-agreement-open" onClick={() => onReadingChange?.(true)}><span>Read Provider Terms and Conditions<small>Version {policy.version}</small></span><span aria-hidden="true">↗</span></button> : <div className="provider-consent-document">
+        <p className="provider-consent-version">Terms and Conditions · Version {policy.version}</p>
         <div key={key} ref={reader} role="region" aria-label="Provider agreement text" tabIndex={0} className="provider-consent-reader" onScroll={checkEnd}>{policy.text}</div><button type="button" className="auth-inline" onClick={() => void load()}>Refresh terms</button>
-      </details>}
+      </div>}
       <p className="provider-consent-hint" role="status">{ready ? "Agreement viewed. You can now accept it." : "Read to the end of the agreement to enable acceptance."}</p>
       <Check label="I accept the Provider Terms and Conditions." disabled={!ready} checked={ready && value?.digest === policy.digest && value.version === policy.version} onChange={(checked) => onChange(checked && ready ? { version: policy.version, digest: policy.digest } : null)} />
     </> : !error ? <p role="status">Loading provider agreement…</p> : null}

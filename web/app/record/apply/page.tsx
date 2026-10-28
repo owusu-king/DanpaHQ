@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
+import { CreateRentingAccount } from "@/components/portal/CreateRentingAccount";
 import { Button } from "@/components/Button";
 import { Field } from "@/components/Field";
 import { Notice } from "@/components/Notice";
@@ -68,6 +69,7 @@ export default function ApplyPage() {
   useEffect(() => {
     if (
       state.status !== "signed_in"
+      || !state.me.capabilities.tenant.workspace_access
       || state.me.capabilities.active_workspace === "tenant"
       || switchingWorkspace
       || workspaceError
@@ -156,6 +158,9 @@ export default function ApplyPage() {
   }
   if (state.status === "unavailable") {
     return <main style={SHELL}><Notice tone="error" title="We could not confirm your session." body="Check your connection and try again." /></main>;
+  }
+  if (state.status === "signed_in" && !state.me.capabilities.tenant.workspace_access) {
+    return <main style={SHELL}><h1 className="type-title-2">Apply with a renting account</h1><p className="type-body">Create your own renting account to continue with this application.</p><CreateRentingAccount /></main>;
   }
   if (workspaceError) {
     return <main style={SHELL}><Notice tone="error" title={workspaceError} /></main>;

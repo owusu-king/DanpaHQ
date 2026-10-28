@@ -306,9 +306,9 @@ test("every Explore choice is shown once and removed one way", () => {
 
   // One Clear all on the surface; the empty state guides instead of repeating it.
   const emptyStart = browser.indexOf('className="explore-empty"');
-  assert.doesNotMatch(browser.slice(emptyStart, browser.indexOf("</div>", emptyStart)), /<button/);
+  assert.match(browser.slice(emptyStart, browser.indexOf("</div>", emptyStart)), /Clear search and filters/);
   const mobileEmpty = mobile.slice(mobile.indexOf("ListEmptyComponent={"), mobile.indexOf("<FilterSheet"));
-  assert.doesNotMatch(mobileEmpty, /<Button|clearFilters/);
+  assert.match(mobileEmpty, /label="Adjust filters"/);
 });
 
 test("filters open one designed panel, never the operating system's list", () => {

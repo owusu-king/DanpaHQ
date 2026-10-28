@@ -13,6 +13,16 @@ export function portalSections(me, portfolioName, access) {
   const inProvider = me.capabilities.active_workspace === "provider"
     && (provider.workspace_access || provider.exists);
 
+  if (me.capabilities.active_workspace === "artisan" && !me.capabilities.artisan.workspace_access) {
+    return [
+      { items: [{ href: "/home", label: "Home", icon: "home", hint: "Where your artisan review stands" }] },
+      ACCOUNT_SECTION,
+    ];
+  }
+  if (me.capabilities.active_workspace === "discovery" && !me.capabilities.tenant.workspace_access) {
+    return [{ items: [{ href: "/rentals", label: "Explore", icon: "explore", hint: "Browse properties" }] }, ACCOUNT_SECTION];
+  }
+
   if (me.capabilities.active_workspace === "artisan" && me.capabilities.artisan.workspace_access) {
     return [
       {
@@ -46,7 +56,7 @@ export function portalSections(me, portfolioName, access) {
         ]
         : []),
       ...(finances
-        ? [{ href: "/payments", label: "Payments", icon: "payments", hint: "Rent balances and payment records" }]
+        ? [{ href: "/payments", label: "Finance", icon: "payments", hint: "Rent balances and payment records" }]
         : []),
     ];
     return [

@@ -50,6 +50,7 @@ from .validation import (
 logger = logging.getLogger("files")
 
 UPLOAD_WINDOW_MINUTES = 15
+GUIDE_PURPOSES = frozenset({"guide_video", "guide_thumbnail", "guide_captions"})
 DOWNLOAD_TTL_SECONDS = 300
 SENSITIVE_DOWNLOAD_TTL_SECONDS = 60
 
@@ -78,6 +79,7 @@ def _extension_for(content_type: str) -> str:
         "video/mp4": "mp4",
         "video/quicktime": "mov",
         "video/webm": "webm",
+        "text/vtt": "vtt",
     }.get(content_type, "bin")
 
 
@@ -94,6 +96,12 @@ def build_key(*, purpose: str, owner_id: str, content_type: str) -> str:
     return f"{purpose}/{today:%Y/%m}/{owner_id}/{unique}.{_extension_for(content_type)}"
 
 
+def _audit_actor(user):
+    from apps.operations.models import ManagementUser
+
+    return {"management_actor": user} if isinstance(user, ManagementUser) else {"actor": user}
+
+
 @transaction.atomic
 def reserve_upload(
     *,
@@ -106,6 +114,17 @@ def reserve_upload(
     """Step 1. Validate the claim, reserve a row, return a presigned URL."""
     if not user or not user.is_authenticated:
         raise PermissionDenied("Sign in to upload a file.")
+
+    from apps.operations.models import ManagementUser
+    from apps.operations.permissions import Capability, capabilities_for
+
+    management = isinstance(user, ManagementUser)
+    if management:
+        if (not user.is_active or purpose not in GUIDE_PURPOSES
+                or Capability.MANAGE_CONFIGURATION not in capabilities_for(user.role)):
+            raise PermissionDenied("Your Management role cannot upload this file.")
+    elif purpose in GUIDE_PURPOSES:
+        raise PermissionDenied("Guide uploads require Management access.")
 
     try:
         validate_declared_upload(
@@ -154,8 +173,8 @@ def reserve_upload(
         is_sensitive=purpose in SENSITIVE_PURPOSES,
         upload_status=UploadStatus.AWAITING_UPLOAD,
         upload_expires_at=timezone.now() + timedelta(minutes=UPLOAD_WINDOW_MINUTES),
-        uploaded_by=user,
-        owner_id_snapshot=str(user.id),
+        uploaded_by=None if management else user,
+        owner_id_snapshot=f"management:{user.id}" if management else str(user.id),
         retain_until=((timezone.now() + timedelta(days=retention)).date() if retention else None),
     )
 
@@ -163,7 +182,7 @@ def reserve_upload(
         action=AuditAction.CREATE,
         aggregate_type="file",
         aggregate_id=stored.id,
-        actor=user,
+        **_audit_actor(user),
         metadata={
             "purpose": purpose,
             "declared_type": normalised_type,
@@ -213,7 +232,7 @@ def _reject_upload(*, user, file_id, reason: str) -> None:
         action=AuditAction.UPDATE,
         aggregate_type="file",
         aggregate_id=stored.id,
-        actor=user,
+        **_audit_actor(user),
         metadata={"rejected": True, "reason": reason[:200]},
     )
 
@@ -296,7 +315,7 @@ def _complete_upload(*, user, file_id) -> StoredFile:
         action=AuditAction.UPDATE,
         aggregate_type="file",
         aggregate_id=stored.id,
-        actor=user,
+        **_audit_actor(user),
         changes={"upload_status": [UploadStatus.AWAITING_UPLOAD, UploadStatus.UPLOADED]},
         metadata={"detected_type": detected, "size": actual_size},
     )
@@ -411,7 +430,7 @@ def issue_download(*, user, stored: StoredFile, reason: str = "") -> object:
             action=AuditAction.VIEW,
             aggregate_type="file",
             aggregate_id=stored.id,
-            actor=user,
+            **_audit_actor(user),
             metadata={"purpose": stored.purpose, "reason": reason},
         )
     return presigned
@@ -437,6 +456,11 @@ def can_read(*, user, stored: StoredFile) -> bool:
 
     if stored.is_owned_by(user):
         return True
+
+    from apps.operations.models import ManagementUser
+
+    if isinstance(user, ManagementUser):
+        return False
 
     from apps.identity.models import Role  # function-scope cross-domain import
 

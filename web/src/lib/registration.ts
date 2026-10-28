@@ -17,7 +17,7 @@
  * storage or in an address bar.
  */
 
-export type AccountType = "tenant" | "provider";
+export type AccountType = "tenant" | "provider" | "artisan";
 
 type Arrival = { type: AccountType; next: string | null };
 
@@ -30,7 +30,7 @@ function stored(): Arrival | null {
     const raw = window.sessionStorage.getItem(KEY);
     if (!raw) return null;
     const value = JSON.parse(raw) as Arrival;
-    return value.type === "tenant" || value.type === "provider"
+    return value.type === "tenant" || value.type === "provider" || value.type === "artisan"
       ? { type: value.type, next: typeof value.next === "string" && value.next.startsWith("/") ? value.next : null }
       : null;
   } catch {

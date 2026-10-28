@@ -107,7 +107,7 @@ export default function VerificationSettingsPage() {
     ?? RELEVANT_KINDS.tenant;
 
   // How much of this person's standing is confirmed, for the meter in the head.
-  const personal = payload ? kinds.map((kind) => (payload.trust[kind] ?? emptyTrustEntry).state) : [];
+  const personal = payload ? kinds.filter(kind => kind !== "identity").map((kind) => (payload.trust[kind] ?? emptyTrustEntry).state) : [];
   const providerState = me?.capabilities.provider.exists
     ? providerTrustState(me.capabilities.provider.verification_status)
     : null;
@@ -141,12 +141,11 @@ export default function VerificationSettingsPage() {
             return (
               <VerificationRow
                 key={kind}
-                title={KIND_LABEL[kind] ?? kind}
-                state={entry.state}
-                detail={notice ?? personalCheckDetail(kind, entry)}
-                actionHref={isIdentity && entry.state !== "verified"
-                  ? "/settings/verification/identity"
-                  : undefined}
+                title={isIdentity ? "Biometric Identity Verification — Coming Soon" : KIND_LABEL[kind] ?? kind}
+                state={isIdentity ? "unverified" : entry.state}
+                detail={isIdentity ? "Electronic Ghana Card verification will be available here. Existing verification records are preserved." : notice ?? personalCheckDetail(kind, entry)}
+                comingSoon={isIdentity}
+                statusLabel={isIdentity ? "Coming soon" : undefined}
                 actionLabel={isIdentity
                   ? entry.state === "pending" ? "View" : "Continue"
                   : undefined}
@@ -248,6 +247,7 @@ function VerificationRow({
   statusLabel,
   actionHref,
   actionLabel,
+  comingSoon = false,
 }: {
   title: string;
   state: TrustState;
@@ -255,6 +255,7 @@ function VerificationRow({
   statusLabel?: string;
   actionHref?: string;
   actionLabel?: string;
+  comingSoon?: boolean;
 }) {
   return (
     <article className={`verification-row is-${state}`}>
@@ -267,7 +268,9 @@ function VerificationRow({
       </div>
       <div className="verification-state">
         <span>{statusLabel ?? STATE_LABEL[state]}</span>
-        {actionHref && actionLabel ? <Link href={actionHref as never}>{actionLabel} →</Link> : null}
+        {comingSoon ? <button type="button" disabled aria-describedby="identity-coming-soon">Verify</button> : null}
+          {comingSoon ? <span id="identity-coming-soon" className="sr-only">Electronic Ghana Card integration is not available yet.</span> : null}
+          {actionHref && actionLabel ? <Link href={actionHref as never}>{actionLabel} →</Link> : null}
       </div>
     </article>
   );

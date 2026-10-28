@@ -1,5 +1,6 @@
 import type { ImagePickerAsset } from "expo-image-picker";
 import { preparePhotoUpload } from "@/photoUpload";
+import { transferUpload, type UploadReservation } from "@/uploadTransfer";
 
 import { apiFetch, idempotentMutation } from "@/api";
 import type { ProviderReadiness } from "@/auth";
@@ -15,13 +16,6 @@ export type ProviderApplication = {
   status_label: string;
   property_id: string | null;
   decision_note: string;
-};
-
-type Reservation = {
-  file_id: string;
-  url: string;
-  method: "PUT" | "POST";
-  fields?: Record<string, string>;
 };
 
 export type UploadedFile = {
@@ -55,24 +49,12 @@ export async function uploadImage(
   const extension = { "video/quicktime": "mov", "video/mp4": "mp4", "video/webm": "webm", "image/png": "png", "image/webp": "webp", "image/heic": "heic" }[mime] ?? "jpg";
   const filename = asset.fileName ?? `${purpose}-${Date.now()}.${extension}`;
   const prepared = await preparePhotoUpload(asset, mime, filename, purpose);
-  const reservation = await apiFetch<Reservation>("/files/uploads/", {
+  const reservation = await apiFetch<UploadReservation>("/files/uploads/", {
     method: "POST",
     body: { purpose, filename: prepared.filename, content_type: prepared.mime, size_bytes: prepared.blob.size },
   });
 
-  let response: Response;
-  if (reservation.method === "PUT") {
-    response = await fetch(reservation.url, {
-      method: "PUT",
-      headers: { "Content-Type": prepared.mime },
-      body: prepared.blob,
-    });
-  } else {
-    const form = new FormData();
-    for (const [key, value] of Object.entries(reservation.fields ?? {})) form.append(key, value);
-    form.append("file", { uri: prepared.uri, name: prepared.filename, type: prepared.mime } as unknown as Blob);
-    response = await fetch(reservation.url, { method: "POST", body: form });
-  }
+  const response = await transferUpload(reservation, prepared);
   if (!response.ok) throw new Error("Storage refused the document upload.");
   let stored = await apiFetch<UploadedFile>(`/files/uploads/${reservation.file_id}/complete/`, {
     method: "POST",

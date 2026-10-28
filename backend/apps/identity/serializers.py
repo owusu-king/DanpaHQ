@@ -122,7 +122,7 @@ class PasswordSignInSerializer(DeviceContextSerializer):
 
 class GoogleSignInSerializer(DeviceContextSerializer):
     credential = serializers.CharField(trim_whitespace=False, max_length=10_000)
-    account_type = serializers.ChoiceField(choices=AccountType.choices)
+    account_type = serializers.ChoiceField(choices=AccountType.choices, required=False)
 
 
 class GoogleCredentialSerializer(serializers.Serializer):
@@ -230,6 +230,7 @@ class VerifyEmailSerializer(serializers.Serializer):
 
 
 class ChooseWorkspaceSerializer(serializers.Serializer):
+    tenant_confirmation = serializers.CharField(required=False, allow_blank=True, trim_whitespace=False)
     workspace = serializers.ChoiceField(choices=["discovery", "tenant", "provider", "artisan"])
 
 
@@ -634,12 +635,15 @@ class MeSerializer(serializers.ModelSerializer):
                 # destination whether they have submitted or not: before, it is
                 # the form; after, it is where their review stands. Neither is
                 # the tenant experience, and neither is an empty workspace.
-                return {"mobile": "/(app)/provider", "web": "/provider"}
+                return {"mobile": "/(app)/(provider-tabs)", "web": "/home"}
 
-        if workspace == "artisan" and capabilities["artisan"]["workspace_access"]:
+        if workspace == "artisan":
             # Web shares /home, which reads the workspace; mobile has its own
             # four tabs, because an artisan has no properties and no rent.
-            return {"mobile": "/(app)/(artisan-tabs)", "web": "/home"}
+            return {
+                "mobile": "/(app)/(artisan-tabs)",
+                "web": "/home" if capabilities["artisan"]["workspace_access"] else "/artisan",
+            }
 
         if workspace == "tenant" and capabilities["tenant"]["workspace_access"]:
             # A tenant with no occupancy still belongs here. Joining a property
@@ -649,7 +653,7 @@ class MeSerializer(serializers.ModelSerializer):
         # Discovery: the experience that needs no capability at all, and the
         # honest destination for anyone whose chosen workspace is not open to
         # them. There is deliberately no role-name branch anywhere above.
-        return {"mobile": "/(app)/(tabs)", "web": "/home"}
+        return {"mobile": "/(app)/(tabs)/explore", "web": "/home"}
 
 
 class PublicUserSerializer(serializers.ModelSerializer):

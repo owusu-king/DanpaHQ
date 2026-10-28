@@ -111,7 +111,9 @@ test("Verification is a clean overview and settlement status comes from the Port
   assert.match(overview, /title="Bank or Mobile Money"/);
   assert.doesNotMatch(overview, /<IdentitySection/);
   assert.doesNotMatch(overview, /Your checks/);
-  assert.match(identity, /<IdentitySection/);
+  assert.match(identity, /Biometric Identity Verification — Coming Soon/);
+  assert.match(identity, /disabled/);
+  assert.doesNotMatch(identity, /<IdentitySection/);
 });
 
 test("deleting an account is asked for here and decided by Management", () => {

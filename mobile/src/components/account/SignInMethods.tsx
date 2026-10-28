@@ -60,7 +60,7 @@ export function SignInMethods() {
             <Button label={resendIn ? `Resend in ${resendIn}s` : "Resend code"} variant="quiet" disabled={busy || resendIn > 0} onPress={() => void send()} />
             <Button label="Use another number" variant="quiet" disabled={busy} onPress={() => { setChallenge(null); setCode(""); setError(""); }} />
           </> : <>
-            <AuthFields><AuthField label="Mobile number" icon="call-outline" placeholder="024 123 4567" value={phone} onChangeText={setPhone} {...phoneInputProps} /></AuthFields>
+            <AuthFields><AuthField labelAsPlaceholder label="Mobile number" icon="call-outline" placeholder="Mobile number" value={phone} onChangeText={setPhone} {...phoneInputProps} /></AuthFields>
             <Button label="Send code" busy={busy} disabled={!phone.trim()} onPress={() => void send()} />
           </>}
         </>}

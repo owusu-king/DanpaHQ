@@ -214,3 +214,17 @@ class TestSummary:
         summary = services.trust_summary(SubjectType.USER, user.id)
         assert summary[VerificationKind.IDENTITY]["state"] == "verified"
         assert summary[VerificationKind.IDENTITY]["decided_at"] is not None
+
+
+@pytest.mark.parametrize("decision", ["pending", "needs_more_info", "rejected", "approved"])
+def test_provider_kind_label_does_not_claim_a_decision(user, decision):
+    from apps.trust.models import Verification
+    from apps.trust.serializers import VerificationSerializer
+
+    verification = Verification.objects.create(
+        subject_type="user", subject_id=str(user.id), kind="provider",
+        method="management_approval", status=decision, submitted_by=user,
+    )
+    payload = VerificationSerializer(verification).data
+    assert payload["kind_label"] == "Provider account verification"
+    assert payload["status"] == decision

@@ -2,11 +2,9 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useRef, useState } from "react";
 import { StyleSheet, TextInput, View } from "react-native";
 
-import { useAuth, type Workspace } from "@/auth";
 import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 import { MFASignIn } from "@/components/auth/MFASignIn";
 import { useGoogleSignInFlow } from "@/googleSignInFlow";
-import { saveGoogleRegistration } from "@/registrationDraft";
 import { TextLink } from "@/components/auth/AuthFields";
 import {
   AuthAction,
@@ -14,7 +12,6 @@ import {
   AuthField,
   AuthFields,
   AuthFoot,
-  AuthHeading,
   AuthMark,
   AuthScene,
   RevealToggle,
@@ -30,11 +27,7 @@ import { theme } from "@/theme";
  * were the same thing while sign-in was an SMS code, which made whoever held
  * the SIM the owner of the account.
  *
- * The `workspace` param carries a choice through — from the question the app
- * opens on, or from a sign-up that turned out to already have an account.
- * Telling the backend which experience was asked for, before reading the entry
- * route, is what stops an existing tenant who tapped "I manage property" being
- * dropped straight back into tenant space.
+ * Login follows the existing account; account type is chosen at registration.
  *
  * **This is the front door**, so it is the screen the whole flow's composition
  * was designed around: mark, heading, one line, the credential as a single
@@ -48,62 +41,25 @@ import { theme } from "@/theme";
  */
 export default function SignInScreen() {
   const router = useRouter();
-  const { signOut } = useAuth();
   const params = useLocalSearchParams<{ workspace?: string; phone?: string }>();
   const passwordRef = useRef<TextInput>(null);
   const [reveal, setReveal] = useState(false);
 
-  const workspace: Workspace | null =
-    params.workspace === "tenant" || params.workspace === "provider"
-      ? params.workspace
-      : null;
-
   const flow = useSignInFlow({
-    workspace,
     // Prefilled when someone arrives from a sign-up that turned out to already
     // have an account. Retyping a number they just typed is pure friction.
     initialPhone: params.phone ?? "",
     onSignedIn: (route) => router.replace(route as never),
   });
   const google = useGoogleSignInFlow({
-    accountType: workspace === "provider" ? "provider" : "tenant",
     onRegistration: (result) => {
-      saveGoogleRegistration(result.google_registration_ticket, workspace === "provider" ? "provider" : "tenant", result.profile);
-      router.push({ pathname: "/(auth)/register", params: { workspace: workspace ?? "tenant" } });
+      router.push({ pathname: "/(auth)/start", params: { step: "role" } });
     },
     onSignedIn: (route) => router.replace(route as never),
   });
 
   if (flow.mfa) return <MFASignIn initial={flow.mfa} onComplete={flow.completeSignIn} onCancel={flow.cancelMfa} />;
   if (google.mfa) return <MFASignIn initial={google.mfa} onComplete={google.completeSignIn} onCancel={google.cancelMfa} />;
-
-  if (flow.notAProvider) {
-    return (
-      <AuthScene>
-        <AuthMark />
-        <AuthHeading
-          title={`This account rents,\nit does not let.`}
-          line="You are signed in. Provider accounts are created at sign-up, so your home is what is waiting."
-        />
-        <AuthAction
-          label="Go to your home"
-          onPress={() => router.replace("/(app)/(tabs)" as never)}
-        />
-        <AuthFoot>
-          <TextLink
-            label="Sign out"
-            muted
-            onPress={async () => {
-              await signOut();
-              // Sign-in, not the opening question: signing out does not undo
-              // knowing what somebody came here for.
-              router.replace("/(auth)/sign-in");
-            }}
-          />
-        </AuthFoot>
-      </AuthScene>
-    );
-  }
 
   return (
     <AuthScene>

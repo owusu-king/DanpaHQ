@@ -264,7 +264,7 @@ export default function UnitsPage() {
         title="Units"
         summary="Manage your rentable spaces, availability and listing details."
         actions={hasUnits ? (
-          <AddUnitButton className="ws-action">
+          <AddUnitButton className="ws-action" onChanged={() => void load()}>
             <PlusGlyph />Add Unit
           </AddUnitButton>
         ) : null}
@@ -337,7 +337,7 @@ export default function UnitsPage() {
             body="Units are the rentable spaces inside a Property — a room, a flat, a shop."
             action={(
               <span className="units-empty-actions">
-                <AddUnitButton className="btn btn-secondary btn-sm">Add Unit</AddUnitButton>
+                <AddUnitButton className="btn btn-secondary btn-sm" onChanged={() => void load()}>Add Unit</AddUnitButton>
                 <Link href="/properties" className="btn btn-quiet btn-sm">Open Properties</Link>
               </span>
             )}

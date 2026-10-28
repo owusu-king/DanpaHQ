@@ -3,7 +3,6 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { Pressable, StyleSheet, TextInput, View } from "react-native";
 
-import { ProviderTermsConsent, type AcceptedProviderTerms } from "@/components/auth/ProviderTermsConsent";
 import { useAuth } from "@/auth";
 import { Shake } from "@/components/auth/AuthMotion";
 import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
@@ -26,6 +25,7 @@ import {
   clearRegistrationDraft,
   markAccountJustCreated,
   registrationDraft,
+  returnDraftWithErrors,
   saveRegistrationDetails,
   saveGoogleRegistration,
   submitRegistration,
@@ -45,8 +45,9 @@ import { theme } from "@/theme";
  * `registrationDraft`) while the number is proved, and the code screen creates
  * the account the moment the code is right. The backend's rule is unchanged:
  * a phone account needs a proved number, and leaving before then writes nothing.
- * Google supplies its own proof instead, so its details finish registration
- * without the phone/password steps. No account exists until those details pass.
+ * Google supplies its own proof instead, without the phone/password steps.
+ * Providers review their agreement after details, before either path creates
+ * the account. No account exists until the appropriate proof and details pass.
  *
  * This screen still creates an account itself in two cases, both of which
  * already hold a proved number:
@@ -84,7 +85,7 @@ export default function RegisterScreen() {
   const [password, setPassword] = useState(draft?.password ?? "");
   const [confirm, setConfirm] = useState(draft?.password ?? "");
   const [busy, setBusy] = useState(false);
-  const [providerTerms, setProviderTerms] = useState<AcceptedProviderTerms | null>(draft?.providerTerms ?? null);
+  const providerTerms = draft?.providerTerms ?? null;
   const [reveal, setReveal] = useState(false);
   const [errors, setErrors] = useState<FieldErrors>(draft?.errors ?? {});
   const [summary, setSummary] = useState(draft?.summary ?? "");
@@ -100,6 +101,7 @@ export default function RegisterScreen() {
   const google = useGoogleSignInFlow({
     accountType,
     onRegistration: (result) => {
+      if (!result.google_registration_ticket) return;
       saveGoogleRegistration(result.google_registration_ticket, accountType, result.profile);
       setGoogleTicket(result.google_registration_ticket);
       setFirstName(result.profile.first_name); setLastName(result.profile.last_name); setEmail(result.profile.email);
@@ -149,7 +151,7 @@ export default function RegisterScreen() {
     if (!dateOfBirth.trim()) {
       found.date_of_birth = "Enter your date of birth.";
     } else if (!/^\d{4}-\d{2}-\d{2}$/.test(dateOfBirth)) {
-      found.date_of_birth = "Enter all eight digits, for example 1994 03 02.";
+      found.date_of_birth = "Enter the full date of birth in year, month, day order.";
     }
     if (!googleTicket && !password) {
       found.password = "Choose a password.";
@@ -162,7 +164,6 @@ export default function RegisterScreen() {
     if (email.trim() && !/^\S+@\S+\.\S+$/.test(email.trim())) {
       found.email = "Check the email address, or leave it empty.";
     }
-    if (accountType === "provider" && !providerTerms) found.provider_terms = "Accept the Provider Terms and Conditions.";
     return found;
   }
 
@@ -176,10 +177,10 @@ export default function RegisterScreen() {
       return;
     }
 
-    const details = { accountType, firstName, lastName, dateOfBirth, email, password, providerTerms };
+    const details = { accountType, firstName, lastName, dateOfBirth, email, password, providerTerms: registrationDraft()?.providerTerms ?? null };
 
     // The usual path: hold the details and prove the number. Nothing is created.
-    if (!createsHere) {
+    if (!createsHere || (accountType === "provider" && !details.providerTerms)) {
       saveRegistrationDetails(details);
       router.push({ pathname: "/(auth)/phone", params: { workspace: accountType } });
       return;
@@ -199,6 +200,12 @@ export default function RegisterScreen() {
       else await refreshMe();
     } catch (cause) {
       const fields = fieldErrorsFrom(cause);
+      if (fields.provider_terms) {
+        saveRegistrationDetails({ ...details, providerTerms: null });
+        returnDraftWithErrors(ticket, fields, summaryErrorFrom(cause, fields));
+        router.push({ pathname: "/(auth)/phone", params: { workspace: accountType } });
+        return;
+      }
       setErrors(fields);
       setSummary(summaryErrorFrom(cause, fields));
       setRefusals((count) => count + 1);
@@ -216,7 +223,7 @@ export default function RegisterScreen() {
 
   return (
     <AuthScene
-      progress={{ step: 1, of: googleTicket ? 1 : 3 }}
+      progress={{ step: 2, of: googleTicket ? (accountType === "provider" && !providerTerms ? 3 : 2) : 4 }}
       header={
         pinned ? undefined : (
           <AuthBack label="Back to the question" onPress={() => (router.canGoBack() ? router.back() : router.replace({ pathname: "/(auth)/start", params: { step: "role" } }))} />
@@ -264,9 +271,10 @@ export default function RegisterScreen() {
         <View style={{ gap: space[3] }}>
           <AuthFields>
             <AuthField
+              labelAsPlaceholder
               label="First name"
               icon="person-outline"
-              placeholder="Ama"
+              placeholder="First name"
               value={firstName}
               onChangeText={edit(["first_name"], setFirstName)}
               error={errors.first_name}
@@ -278,10 +286,11 @@ export default function RegisterScreen() {
           </AuthFields>
           <AuthFields>
             <AuthField
+              labelAsPlaceholder
               ref={lastRef}
               label="Last name"
               icon="people-outline"
-              placeholder="Mensah"
+              placeholder="Last name"
               value={lastName}
               onChangeText={edit(["last_name"], setLastName)}
               error={errors.last_name}
@@ -293,16 +302,16 @@ export default function RegisterScreen() {
           </AuthFields>
           <AuthFields>
             <AuthField
+              labelAsPlaceholder
               ref={birthRef}
               label="Date of birth"
               icon="calendar-outline"
-              // A worked example, not a format string. The dashes are inserted
-              // as the digits arrive, so nobody has to type them.
-              placeholder="1994-03-02"
+              placeholder="Date of birth"
               value={dateOfBirth}
               onChangeText={edit(["date_of_birth"], (value) => setDateOfBirth(formatDate(value)))}
               error={errors.date_of_birth}
-              hint="Year, month, day. Tenancy agreements need an adult on them."
+              accessibilityHint="Date format: YYYY-MM-DD."
+              formatHint="YYYY-MM-DD"
               keyboardType="number-pad"
               maxLength={10}
               returnKeyType="next"
@@ -318,10 +327,11 @@ export default function RegisterScreen() {
           <View style={{ gap: space[3] }}>
             <AuthFields>
               <AuthField
+                labelAsPlaceholder
                 ref={passwordRef}
                 label="Password"
                 icon="lock-closed-outline"
-                placeholder={`At least ${MIN_PASSWORD_LENGTH} characters`}
+                placeholder="Password"
                 value={password}
                 onChangeText={edit(["password", "confirm_password"], setPassword)}
                 error={errors.password}
@@ -335,10 +345,11 @@ export default function RegisterScreen() {
             </AuthFields>
             <AuthFields>
               <AuthField
+                labelAsPlaceholder
                 ref={confirmRef}
                 label="Confirm password"
                 icon="shield-checkmark-outline"
-                placeholder="Type it again"
+                placeholder="Confirm password"
                 value={confirm}
                 onChangeText={edit(["confirm_password"], setConfirm)}
                 error={errors.confirm_password}
@@ -359,14 +370,14 @@ export default function RegisterScreen() {
 
       <AuthFields>
         <AuthField
+          labelAsPlaceholder
           ref={emailRef}
           label="Email (optional)"
           icon="mail-outline"
-          placeholder="you@example.com"
+          placeholder="Email (optional)"
           value={email}
           onChangeText={edit(["email"], setEmail)}
           error={errors.email}
-          hint="For receipts and account recovery. You can add it later."
           keyboardType="email-address"
           autoCapitalize="none"
           autoComplete="email"
@@ -380,16 +391,15 @@ export default function RegisterScreen() {
         <Notice
           tone="info"
           title="Management approval comes next"
-          body="Your phone must be verified by OTP before management review. No identity documents are required at registration."
+          body="Your phone must be verified by OTP before management review."
         />
       ) : null}
 
-      {accountType === "provider" ? <><ProviderTermsConsent value={providerTerms} onChange={setProviderTerms} />{errors.provider_terms ? <Notice tone="error" title={errors.provider_terms} /> : null}</> : null}
 
       {summary ? <Notice tone="error" title={summary} /> : null}
 
       <AuthAction
-        label={createsHere ? "Create account" : "Continue"}
+        label={createsHere && !(accountType === "provider" && !providerTerms) ? "Create account" : "Continue"}
         busyLabel="Creating your account…"
         onPress={() => void submit()}
         busy={busy}

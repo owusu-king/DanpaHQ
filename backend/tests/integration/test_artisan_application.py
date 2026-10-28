@@ -138,8 +138,7 @@ class TestApplying:
         }
         # Never auto-switched, and nothing else about the account moved.
         assert after["active_workspace"] == before["active_workspace"]
-        assert after["available_workspaces"] == before["available_workspaces"]
-        assert "artisan" not in after["available_workspaces"]
+        assert after["available_workspaces"] == [*before["available_workspaces"], "artisan"]
 
     def test_a_second_application_waits_for_the_first(self, sign_in_as, user, district):
         api = _client(sign_in_as, user)
@@ -275,7 +274,7 @@ class TestApplying:
 
 
 class TestTheWorkspaceIsEarned:
-    def test_asking_for_the_artisan_workspace_before_approval_is_refused(
+    def test_pending_artisan_can_open_status_but_cannot_operate(
         self, sign_in_as, user, district
     ):
         api = _client(sign_in_as, user)
@@ -283,9 +282,11 @@ class TestTheWorkspaceIsEarned:
 
         response = api.post("/api/v1/me/workspace/", {"workspace": "artisan"}, format="json")
 
-        assert response.status_code == 403
-        assert response.data["error"]["code"] == "NOT_AN_ARTISAN"
-        assert _capabilities(api)["active_workspace"] != "artisan"
+        assert response.status_code == 200
+        assert _capabilities(api)["active_workspace"] == "artisan"
+        assert _capabilities(api)["artisan"]["workspace_access"] is False
+        with pytest.raises(PermissionDenied):
+            artisan_services.require_working_artisan(user)
 
     def test_onboarding_cannot_declare_somebody_an_artisan(self, sign_in_as, user):
         api = _client(sign_in_as, user)
@@ -374,7 +375,8 @@ class TestTheDecision:
         mine = api.get("/api/v1/me/artisan/").data
         assert mine["status"] == "rejected"
         assert mine["decision_note"] == "The ID photo is too blurred to read."
-        assert "artisan" not in _capabilities(api)["available_workspaces"]
+        assert "artisan" in _capabilities(api)["available_workspaces"]
+        assert _capabilities(api)["artisan"]["workspace_access"] is False
         assert Notification.objects.filter(user=user, kind="artisan.rejected").exists()
 
         again = _apply(api, user, district)

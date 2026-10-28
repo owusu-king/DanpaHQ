@@ -1,11 +1,13 @@
 import { useFocusEffect, useRouter } from "expo-router";
+import { View } from "react-native";
+import { BottomSheet } from "@/components/sheet/BottomSheet";
 import { useCallback, useState } from "react";
 
 import { ApiFailure } from "@/api";
 import { useAuth, type Workspace } from "@/auth";
 import { Identity, YouPage, type YouItem, type YouSection } from "@/components/account/YouParts";
 import { useProfilePhoto } from "@/components/nav/TabHeaderControls";
-import { Notice } from "@/components/ui";
+import { Button, Field, Type, space, Notice } from "@/components/ui";
 import { resolveEntryRoute } from "@/navigation";
 import { listNotifications } from "@/notifications";
 import { listMyPortfolioInvitations } from "@/organizations";
@@ -30,6 +32,8 @@ function ProviderMoreScreen() {
   const { activeContext, state, refreshMe, signOut } = useAuth();
   const photoUri = useProfilePhoto();
   const [switching, setSwitching] = useState<Workspace | null>(null);
+  const [rentConfirmation, setRentConfirmation] = useState(false);
+  const [rentText, setRentText] = useState("");
   const [leaving, setLeaving] = useState(false);
   const [error, setError] = useState("");
   const [unread, setUnread] = useState(0);
@@ -65,12 +69,14 @@ function ProviderMoreScreen() {
    * `active_workspace` on provider, so the entry route kept pointing back here
    * and the gate bounced the person straight round.
    */
-  async function switchTo(workspace: Workspace) {
+  async function switchTo(workspace: Workspace, confirmation?: string) {
+    if (workspace === "tenant" && !me?.capabilities.tenant.workspace_access && confirmation !== "Rent account") { setRentText(""); setError(""); setRentConfirmation(true); return; }
     setSwitching(workspace);
     setError("");
     try {
-      const next = await chooseWorkspace(workspace);
+      const next = await chooseWorkspace(workspace, undefined, confirmation);
       await refreshMe();
+      setRentConfirmation(false);
       router.replace(resolveEntryRoute(next) as never);
     } catch (cause) {
       setError(cause instanceof ApiFailure ? cause.error.message : "Could not switch.");
@@ -98,7 +104,6 @@ function ProviderMoreScreen() {
       key: "work",
       items: [
         ...only(operates, { key: "units", icon: "grid-outline", label: "Units", onPress: go("/(app)/units") }),
-        ...only(operates, { key: "listings", icon: "megaphone-outline", label: "Listings", onPress: go("/(app)/(provider-tabs)/properties") }),
         ...only(operates, { key: "viewings", icon: "calendar-outline", label: "Viewings", onPress: go("/(app)/provider-viewings") }),
         ...only(operates, { key: "requests", icon: "document-text-outline", label: "Tenancy requests", onPress: go("/(app)/provider-applications") }),
         ...only(operates || finances, { key: "leases", icon: "reader-outline", label: "Leases", onPress: go("/(app)/leases") }),
@@ -130,7 +135,7 @@ function ProviderMoreScreen() {
       key: "leave",
       items: [
         // A change of view, not of account. Switching back is one tap from the tenant's More.
-        { key: "switch", icon: "swap-horizontal-outline", label: "Switch to renting", busy: switching === "tenant", busyLabel: "Switching…", onPress: () => void switchTo("tenant") },
+        { key: "switch", icon: "swap-horizontal-outline", label: me?.capabilities.tenant.workspace_access ? "Switch to renting" : "Create Renting Account", busy: switching === "tenant", busyLabel: "Switching…", onPress: () => void switchTo("tenant") },
         // The way into artisan work, once there is one. Becoming an artisan is
         // never offered here: it is a quiet link inside Find Artisans.
         ...only(Boolean(me?.capabilities.available_workspaces.includes("artisan")), { key: "artisan", icon: "hammer-outline", label: "Switch to artisan work", busy: switching === "artisan", busyLabel: "Switching…", onPress: () => void switchTo("artisan") }),
@@ -140,6 +145,7 @@ function ProviderMoreScreen() {
   ];
 
   return (
+    <>
     <YouPage
       tools={[
         { key: "create", icon: "add", label: "Add or create", onPress: go("/(app)/provider-actions") },
@@ -155,8 +161,17 @@ function ProviderMoreScreen() {
         />
       ) : null}
       sections={sections}
-      notice={error ? <Notice tone="error" title={error} /> : null}
+      notice={error && !rentConfirmation ? <Notice tone="error" title={error} /> : null}
     />
+    <BottomSheet visible={rentConfirmation} onClose={() => { if (!switching) setRentConfirmation(false); }} title="Create Renting Account" closeLabel="Cancel account creation">
+      <View style={{ gap: space[4] }}>
+        <Type variant="body">Add a renting account for your own housing applications and tenancies. Your provider account stays intact. This does not create a tenancy or lease.</Type>
+        <Field label="Confirmation" hint="Type Rent account exactly, including capital letters." value={rentText} onChangeText={setRentText} autoCapitalize="none" autoCorrect={false} editable={!switching} />
+        {error ? <Notice tone="error" title={error} /> : null}
+        <Button label="Create account" disabled={rentText !== "Rent account"} busy={switching === "tenant"} onPress={() => { if (rentText === "Rent account") void switchTo("tenant", rentText); }} />
+      </View>
+    </BottomSheet>
+    </>
   );
 }
 

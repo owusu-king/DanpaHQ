@@ -16,11 +16,11 @@ import test from "node:test";
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8").replaceAll("\r\n", "\n");
 const code = (source) => source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*/g, "");
 
-test("only an approved artisan who chose the experience is shown the artisan tabs", () => {
+test("artisan accounts enter their experience with operations guarded separately", () => {
   const gate = code(read("app/_layout.tsx"));
 
   assert.match(gate, /const inArtisanTabs = group === "\(app\)" && screen === "\(artisan-tabs\)";/);
-  assert.match(gate, /const mayWork = capabilities\.artisan\.workspace_access && capabilities\.active_workspace === "artisan";/);
+  assert.match(gate, /const mayWork = capabilities\.available_workspaces\.includes\("artisan"\) && capabilities\.active_workspace === "artisan";/);
   assert.match(gate, /if \(inArtisanTabs && !mayWork && !destination\.startsWith\("\/\(app\)\/\(artisan-tabs\)"\)\) \{\s*return destination;/);
   // A stored context can never route somebody into tabs they cannot open.
   assert.match(code(read("src/navigation.ts")), /if \(route === "\/\(app\)\/\(artisan-tabs\)"\) return me\.capabilities\.artisan\.workspace_access;/);

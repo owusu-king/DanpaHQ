@@ -25,11 +25,12 @@ const screen = () => code(read("app/(app)/trust.tsx"));
 
 test("how far the checks have got leads, and the one that needs somebody is named", () => {
   const source = screen();
+  assert.match(source, /filter\(check => check\.key !== "identity"\)/);
   assert.match(source, /const done = all\.filter\(\(check\) => check\.state === "verified"\)\.length;/);
   // The one to act on first: something with a way on, and only then anything else unfinished.
   assert.match(source, /const waiting = all\.find\(\(check\) => check\.onPress && check\.state !== "verified"\)\s*\?\? all\.find\(\(check\) => check\.state !== "verified"\);/);
   assert.match(source, /<Progress done=\{done\} total=\{all\.length\} \/>/);
-  assert.match(source, /\{done === all\.length \? "Everything is verified" : `\$\{all\.length - done\} \$\{all\.length - done === 1 \? "check needs" : "checks need"\} you`\}/);
+  assert.match(source, /\{done === all\.length \? "All available checks are verified" : `\$\{all\.length - done\} \$\{all\.length - done === 1 \? "check needs" : "checks need"\} you`\}/);
   assert.match(source, /`\$\{waiting\.title\} · \$\{waiting\.statusLabel \?\? stateLabel\(waiting\.state\)\}`/);
 
   // The ring is the arc of what is confirmed, kola only when it is all of it.
@@ -45,7 +46,7 @@ test("the checks read as two groups: the person's own, and the Portfolio's", () 
   const source = screen();
   assert.match(source, /<CheckGroup title="Your checks" checks=\{yours\} \/>/);
   assert.match(source, /\{business\.length \? <CheckGroup title="Your Portfolio" checks=\{business\} \/> : null\}/);
-  assert.match(source, /const open = kind === "identity" && entry\.state !== "verified";/);
+  assert.match(source, /const open = false;/);
   assert.match(source, /onPress: open \? \(\) => router\.push\("\/\(app\)\/identity-verification" as never\) : undefined,/);
   assert.match(source, /if \(payload && me\?\.capabilities\.provider\.exists\) \{/);
   assert.match(source, /onPress: \(\) => router\.push\("\/\(app\)\/provider" as never\),/);

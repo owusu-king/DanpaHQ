@@ -174,6 +174,32 @@ test("phone registration still sends phone proof and password", async () => {
   assert.equal(calls[0][1].body.google_registration_ticket, undefined);
 });
 
+test("provider agreement navigation retains Google proof and private draft values", () => {
+  const { api } = registrationHarness();
+  api.saveGoogleRegistration("google-proof", "provider", registration.profile);
+  api.saveRegistrationDetails({ ...details, accountType: "provider", providerTerms: null });
+  api.saveRegistrationPhone("0241234567");
+  const terms = { version: "v2", digest: "current-policy" };
+  api.saveRegistrationDetails({ ...api.registrationDraft(), providerTerms: terms });
+  assert.equal(api.registrationDraft().googleTicket, "google-proof");
+  assert.equal(api.registrationDraft().phone, "0241234567");
+  assert.equal(api.registrationDraft().firstName, details.firstName);
+  assert.deepEqual(api.registrationDraft().providerTerms, terms);
+  api.saveRegistrationDetails({ ...api.registrationDraft(), accountType: "tenant" });
+  assert.equal(api.registrationDraft().googleTicket, undefined);
+});
+
+test("provider registration sends accepted policy metadata with its phone proof", async () => {
+  const { api, calls } = registrationHarness();
+  const providerTerms = { version: "v3", digest: "latest-policy" };
+  await api.submitRegistration({ details: { ...details, accountType: "provider", providerTerms }, ticket: "phone-proof", deviceFingerprint: "install" });
+  assert.equal(calls[0][1].body.account_type, "provider");
+  assert.equal(calls[0][1].body.terms_accepted, true);
+  assert.equal(calls[0][1].body.accepted_terms_version, providerTerms.version);
+  assert.equal(calls[0][1].body.accepted_terms_digest, providerTerms.digest);
+  assert.equal(calls[0][1].body.registration_ticket, "phone-proof");
+});
+
 test("a malformed registration response cannot be treated as a completed session", async () => {
   const { api } = registrationHarness({ user });
   await assert.rejects(api.submitRegistration({ details, ticket: "", googleTicket: "proof", deviceFingerprint: "install" }), /incomplete/);

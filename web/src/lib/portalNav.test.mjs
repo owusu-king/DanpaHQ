@@ -241,7 +241,7 @@ test("a suspended artisan keeps their four places, to read their records", () =>
   assert.equal(hrefs(me).length, 4);
 });
 
-test("an applicant is not given the artisan experience by asking for it", () => {
+test("an applicant gets a status Home without operational access", () => {
   // A stale or forged workspace with no access falls back to the tenant rail,
   // and nothing artisan is offered.
   const me = account({
@@ -250,7 +250,7 @@ test("an applicant is not given the artisan experience by asking for it", () => 
   });
 
   assert.ok(!hrefs(me).some((href) => href.startsWith("/artisan")));
-  assert.ok(hrefs(me).includes("/rentals"));
+  assert.deepEqual(hrefs(me), ["/home", "/updates"]);
 });
 
 test("tenants and approved providers can open Artisans; artisans and providers in review cannot", () => {
@@ -264,4 +264,15 @@ test("tenants and approved providers can open Artisans; artisans and providers i
     })),
     false,
   );
+});
+
+
+test("pending artisans keep their status experience without tenant or operational navigation", () => {
+  assert.deepEqual(hrefs(account({ workspace: "artisan", artisan: { status: "pending", workspace_access: false, can_quote: false } })), ["/home", "/updates"]);
+});
+
+test("discovery never assumes a tenant capability", () => {
+  const me = account({ workspace: "discovery", available: ["discovery"] });
+  me.capabilities.tenant.workspace_access = false;
+  assert.deepEqual(hrefs(me), ["/rentals", "/updates"]);
 });

@@ -19,8 +19,9 @@ test("mobile Verification is an overview with focused identity and payout journe
   assert.match(overview, /pathname: "\/\(app\)\/payout-account"/);
   assert.match(overview, /\/\(app\)\/identity-verification/);
   assert.doesNotMatch(overview, /ImagePicker|Ghana Card number/);
-  assert.match(identity, /ImagePicker/);
-  assert.match(identity, /Ghana Card number/);
+  assert.doesNotMatch(identity, /ImagePicker/);
+  assert.match(identity, /Biometric Identity Verification — Coming Soon/);
+  assert.match(identity, /disabled/);
   assert.match(layout, /name="trust" options=\{\{ title: "Verification"/);
   assert.match(tenantIndex, /label: "Verification"/);
   assert.match(providerIndex, /label: "Verification"/);
