@@ -286,8 +286,8 @@ class TestRegistrationJourney:
         assert provider["workspace_access"] is False
         assert provider["can_create_property"] is False
         assert me["entry_routes"] == {
-            "mobile": "/(app)/provider",
-            "web": "/provider",
+            "mobile": "/(app)/(provider-tabs)",
+            "web": "/home",
         }
         # Declaring provider grants no role. Roles now follow a decision.
         assert me["roles"] == []

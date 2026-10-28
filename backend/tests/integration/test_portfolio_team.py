@@ -175,7 +175,11 @@ class TestProviderPropertyEntryJourneys:
         api = APIClient()
         sign_in_as(api, user=provider)
 
-        tenant_side = api.post("/api/v1/me/workspace/", {"workspace": "tenant"}, format="json")
+        tenant_side = api.post(
+            "/api/v1/me/workspace/",
+            {"workspace": "tenant", "tenant_confirmation": "Rent account"},
+            format="json",
+        )
         assert tenant_side.status_code == 200
         assert tenant_side.data["capabilities"]["active_workspace"] == "tenant"
         assert "provider" in tenant_side.data["capabilities"]["available_workspaces"]

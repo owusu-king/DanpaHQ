@@ -35,8 +35,8 @@ def test_a_registered_tenant_lands_in_discovery(registered):
     assert data["capabilities"]["provider"]["exists"] is False
 
 
-def test_a_provider_who_has_submitted_nothing_gets_provider_onboarding(registered):
-    """Declared, but nothing sent. Onboarding is the destination."""
+def test_a_provider_who_has_submitted_nothing_gets_home_without_work_access(registered):
+    """Home shows the declared provider's next step without opening operations."""
     user = registered("0200000012", account_type="provider")
 
     data = MeSerializer(user).data
@@ -47,7 +47,7 @@ def test_a_provider_who_has_submitted_nothing_gets_provider_onboarding(registere
     assert provider["onboarding_complete"] is False
     assert provider["workspace_access"] is False
     assert provider["can_create_property"] is False
-    assert data["entry_routes"] == {"mobile": "/(app)/provider", "web": "/provider"}
+    assert data["entry_routes"] == {"mobile": "/(app)/(provider-tabs)", "web": "/home"}
 
 
 def test_an_approved_provider_reaches_the_workspace(registered, provider_standing):
@@ -91,7 +91,7 @@ def test_a_revoked_provider_loses_the_workspace(registered, provider_standing):
 
     assert data["capabilities"]["provider"]["verification_status"] == "revoked"
     assert data["capabilities"]["provider"]["workspace_access"] is False
-    assert data["entry_routes"] == {"mobile": "/(app)/provider", "web": "/provider"}
+    assert data["entry_routes"] == {"mobile": "/(app)/(provider-tabs)", "web": "/home"}
 
 
 def test_restricted_route_wins_over_everything(registered):
@@ -123,10 +123,10 @@ def test_operations_roles_never_become_consumer_contexts_or_capabilities(registe
     ("intent", "mobile_route", "web_route"),
     [
         ("current_tenant", "/(app)/(tabs)", "/home"),
-        ("find_property", "/(app)/(tabs)", "/home"),
+        ("find_property", "/(app)/(tabs)/explore", "/home"),
     ],
 )
-def test_a_tenant_intent_enters_home_without_requiring_a_relationship(
+def test_a_tenant_intent_enters_its_experience_without_requiring_a_relationship(
     registered, intent, mobile_route, web_route
 ):
     from apps.identity.services import select_onboarding_intent
@@ -175,7 +175,7 @@ def test_switching_back_to_tenant_changes_nothing_but_the_route(registered):
     user = registered("0200000032", account_type="provider")
     # Take the tenant side once so both capabilities are settled, then compare
     # a switch between two experiences the account already holds.
-    choose_workspace(user=user, workspace="tenant")
+    choose_workspace(user=user, workspace="tenant", tenant_confirmation="Rent account")
     choose_workspace(user=user, workspace="provider")
     before = MeSerializer(user).data["capabilities"]
 

@@ -339,7 +339,7 @@ class TestSecureCheckIn:
     ):
         from apps.identity.services import choose_workspace
 
-        choose_workspace(user=agent, workspace="tenant")
+        choose_workspace(user=agent, workspace="tenant", tenant_confirmation="Rent account")
         first = self._confirmed(user, landlord, live_listing)
         second = self._confirmed(agent, landlord, live_listing)
         first_pair = services.issue_check_in_credential(request=first, user=user)
