@@ -40,7 +40,7 @@ function NewProperty() {
           purpose={selling ? "sale" : "letting"}
           organizationId={search.get("organization")}
           onClose={() => router.push("/properties" as never)}
-          onFinished={(id) => router.push(`/properties?created=${encodeURIComponent(id)}` as never)}
+          onFinished={() => router.replace("/properties")}
         />
       </section>
     </div>

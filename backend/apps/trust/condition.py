@@ -428,8 +428,7 @@ def _snapshot(subject) -> dict:
     required_total = sum(1 for slot in slots if slot.required)
     outstanding = required_total
     if review is not None:
-        collected = [evidence.evidence_type for evidence in review.evidence.all()]
-        outstanding = len(evidence_policy.missing_required(collected, slots))
+        outstanding = len(_missing_required(review, slots))
 
     # --- the older vocabulary -------------------------------------------------
     if settled is not None and settled.status == VerificationStatus.APPROVED:

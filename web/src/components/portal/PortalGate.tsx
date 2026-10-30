@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
+import { Suspense, useState } from "react";
 
 import { AuthLink } from "@/components/auth/AuthDialog";
 import { useSession } from "@/lib/session";
@@ -24,8 +24,14 @@ import { PageLoading } from "@/components/workspace/PageLoading";
  *   still signed in, so this must not say otherwise; it offers a retry.
  */
 export function PortalGate() {
+  return <Suspense fallback={<PageLoading label="Opening your workspace" />}><PortalGateContent /></Suspense>;
+}
+
+function PortalGateContent() {
   const { state, refresh } = useSession();
   const pathname = usePathname();
+  const query = useSearchParams().toString();
+  const returnTo = query ? `${pathname}?${query}` : pathname;
   const [retrying, setRetrying] = useState(false);
 
   if (state.status === "loading") {
@@ -65,7 +71,7 @@ export function PortalGate() {
       <h1>Sign in to continue</h1>
       <p>Your session has ended. Signing in again brings you straight back here.</p>
       <div className="portal-gate-actions">
-        <AuthLink view="sign-in" params={{ next: pathname }} className="portal-gate-button">
+        <AuthLink view="sign-in" params={{ next: returnTo }} className="portal-gate-button">
           Sign in
         </AuthLink>
         <Link href="/rentals" className="portal-gate-link">Browse rentals</Link>

@@ -12,8 +12,9 @@ export function CreateRentingAccount({ menu = false, onCreated }: { menu?: boole
     <button type="button" className={menu ? "portal-menu-item" : "btn btn-primary"} role={menu ? "menuitem" : undefined} data-menu-item={menu || undefined} onClick={() => setOpen(true)}>
       {menu ? <Icon name="home" /> : null}Create Renting Account
     </button>
-    <TypedConfirmation open={open} onClose={() => setOpen(false)} title="Create Renting Account" phrase="Rent account" confirmLabel="Create account"
-      description="Add a renting account to your profile to apply for homes and manage your own tenancies. Your provider or artisan account stays intact. This does not create a tenancy or lease."
-      onConfirm={async () => { await chooseWorkspace("tenant", "Rent account"); await refresh(); onCreated?.(); }} />
+    <TypedConfirmation open={open} onClose={() => setOpen(false)} title="Create Renting Account" phrase="TENANT"
+      confirmationPrompt={<>Type <strong>TENANT</strong> to confirm your account creation</>} confirmLabel="Create account"
+      description="Create a tenant account to apply for homes and manage your tenancies. Your other accounts stay unchanged."
+      onConfirm={async () => { await chooseWorkspace("tenant", "TENANT"); await refresh(); onCreated?.(); }} />
   </>;
 }

@@ -237,7 +237,7 @@ test("an individual web provider creates a first Property without setup detour",
   assert.match(property, /createPersonalPortfolioProperty/);
   // The Property is filed into the Portfolio the account already has, and the
   // form says so. It no longer promises to create one, because approval did.
-  assert.match(property, /This goes into your Danpa HQ Portfolio/);
+  assert.doesNotMatch(property, /This goes into your Danpa HQ Portfolio/);
   assert.doesNotMatch(property, /will be created/);
   assert.doesNotMatch(property, /propertyTypes\.filter/);
   assert.match(next, /href: "\/record\/property-new"/);
@@ -419,9 +419,12 @@ test("web Property and Unit pages keep one operational hierarchy", () => {
   assert.match(property, /lifecycleOwnsPrimary/);
   assert.doesNotMatch(property, /label: "Continue setup"/);
   assert.doesNotMatch(property, /action=\{canAddUnit/);
-  assert.match(property, /Manage tenant access and tenancies/);
-  assert.match(unit, /Manage this Unit/);
-  assert.match(unit, /Verification and publication details/);
+  assert.doesNotMatch(property, /Manage tenant access and tenancies/);
+  assert.match(property, /record-property-units/);
+  assert.match(unit, /<RecordSection title="Overview"/);
+  assert.match(unit, /Unit details/);
+  assert.match(unit, /<RecordHero/);
+  assert.doesNotMatch(unit, /Verification and publication details/);
   // The Unit's own access code is managed on the Unit; the link beside it is
   // about tenancy work, which is not the same thing.
   assert.match(unit, /<UnitPrivateAccess/);

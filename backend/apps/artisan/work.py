@@ -186,8 +186,8 @@ def _job_area(job: DirectJob) -> dict:
     locality = job.locality
     return {
         "locality": locality.name,
-        "district": locality.district.name,
-        "region": locality.district.region.name,
+        "district": locality.district_label,
+        "region": locality.region_label,
     }
 
 
@@ -367,6 +367,7 @@ def _artisan_rows(user, *, assigned: bool):
         QuoteInvitation.objects.filter(artisan__user=user, invited_at__isnull=False)
         .select_related(
             "maintenance_request__property__address__locality__district__region",
+            "maintenance_request__property__address__locality__region",
             "maintenance_request__tenant",
             "maintenance_request__unit",
             "maintenance_request__photo",
@@ -374,6 +375,7 @@ def _artisan_rows(user, *, assigned: bool):
             "direct_job__owner",
             "direct_job__photo",
             "direct_job__locality__district__region",
+            "direct_job__locality__region",
             "direct_job__assigned_quote",
         )
         .prefetch_related(

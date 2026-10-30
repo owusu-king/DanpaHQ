@@ -19,7 +19,7 @@ function setup(existing = false) {
 }
 
 test("mobile never creates tenant standing before the exact acknowledgement", async () => {
-  for (const value of [undefined, "", "rent account", "Rent Account", "Rent account "]) {
+  for (const value of [undefined, "", "tenant", "Tenant", " TENANT", "TENANT ", "Rent account"]) {
     const flow = setup();
     await flow.switchTo("tenant", value);
     assert.deepEqual(flow.requests, []);
@@ -30,8 +30,8 @@ test("mobile never creates tenant standing before the exact acknowledgement", as
 
 test("mobile sends the explicit confirmation and refreshes before navigation", async () => {
   const flow = setup();
-  await flow.switchTo("tenant", "Rent account");
-  assert.deepEqual(flow.requests, [["tenant", undefined, "Rent account"]]);
+  await flow.switchTo("tenant", "TENANT");
+  assert.deepEqual(flow.requests, [["tenant", undefined, "TENANT"]]);
   assert.deepEqual(flow.routes, ["/renting"]);
 });
 

@@ -13,11 +13,11 @@
 
 import * as ImagePicker from "expo-image-picker";
 import { useCallback, useEffect, useState } from "react";
-import { Image, View } from "react-native";
+import { View } from "react-native";
 
 import { ApiFailure } from "@/api";
-import { Pill, QuietAct } from "@/components/record/RecordSurfaces";
-import { Notice, Surface, Type, space } from "@/components/ui";
+import { QuietAct } from "@/components/record/RecordSurfaces";
+import { Notice, Type, space } from "@/components/ui";
 import {
   attachUnitPhoto,
   listUnitPhotos,
@@ -27,6 +27,7 @@ import {
   type SpacePhoto,
 } from "@/provider";
 import { theme } from "@/theme";
+import { EvidenceTile } from "./VerificationPanel";
 import { getVerification, type EvidenceSlot } from "@/verification";
 
 export function SpacePhotos({
@@ -122,75 +123,52 @@ export function SpacePhotos({
   return (
     <View style={{ gap: space[3] }}>
       {error ? <Notice tone="error" title={error} /> : null}
+      {editable ? <Type variant="caption">The main view and each selected amenity need a photo. The two context views are optional.</Type> : null}
 
       {rows.map(({ slot, photo }, index) => (
-        <Surface key={slot?.key ?? photo?.id ?? index} style={{ gap: space[3] }}>
-          <View
-            style={{
-              height: 180,
-              borderRadius: 8,
-              overflow: "hidden",
-              backgroundColor: theme.color.field["100"],
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            {photo?.download_url ? (
-              <Image
-                source={{ uri: photo.download_url }}
-                accessibilityLabel={slot?.label ?? photo.caption ?? "Photo of this Unit"}
-                style={{ width: "100%", height: "100%" }}
-                resizeMode="cover"
-              />
-            ) : (
-              <Type variant="caption">{photo ? "Photo added" : "No photo yet"}</Type>
-            )}
-          </View>
+        <View key={slot?.key ?? photo?.id ?? index} style={{ flexDirection: "row", alignItems: "flex-start", gap: space[3], paddingVertical: space[3], borderTopWidth: index === 0 ? 0 : 1, borderTopColor: theme.color.field["200"] }}>
+          <EvidenceTile
+            slot={{ label: slot?.label || photo?.caption || `Photo ${index + 1}`, provided: Boolean(photo), preview_url: photo?.download_url ?? null }}
+            locked={!editable || Boolean(photo)}
+            busy={busySlot === slot?.key}
+            disabled={Boolean(busySlot)}
+            onPress={() => void add(slot?.key ?? "")}
+          />
 
-          <View style={{ gap: space[1] }}>
-            <Type variant="bodyStrong">
-              {photo?.is_primary ? "First image · " : ""}
-              {slot?.label ?? photo?.caption ?? "Photo"}
-              {slot && !slot.required ? " (optional)" : ""}
-            </Type>
-            {slot ? <Type variant="caption">{slot.why}</Type> : null}
-          </View>
+          <View style={{ flex: 1, minWidth: 0, gap: space[2] }}>
+            <View style={{ gap: space[1] }}>
+              <Type variant="bodyStrong">
+                {photo?.is_primary ? "First image · " : ""}
+                {slot?.label || photo?.caption || `Photo ${index + 1}`}
+                {slot && !slot.required ? " (optional)" : ""}
+              </Type>
+              {slot ? <Type variant="caption">{slot.why}</Type> : null}
+            </View>
 
-          {/* A slot's controls belong to the slot, so they are quiet words
-              beside it — an action bar per photograph would be a page of
-              things all asking to be pressed. Adding is the one act, so it
-              keeps a pill; the rest are words. */}
-          {!editable ? null : photo ? (
-            <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: space[4] }}>
-              {photo.is_primary ? null : (
+            {/* A slot's controls belong to the slot, so they are quiet words
+                beside it — an action bar per photograph would be a page of
+                things all asking to be pressed. The shared photo tile adds an image;
+                the remaining actions stay beside its label. */}
+            {!editable ? null : photo ? (
+              <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: space[4] }}>
+                {photo.is_primary ? null : (
+                  <QuietAct
+                    label="Make it first"
+                    icon="star-outline"
+                    accessibilityLabel="Make it the first image"
+                    onPress={() => void act(() => setPrimaryUnitPhoto(unitId, photo.id))}
+                  />
+                )}
                 <QuietAct
-                  label="Make it first"
-                  icon="star-outline"
-                  accessibilityLabel="Make it the first image"
-                  onPress={() => void act(() => setPrimaryUnitPhoto(unitId, photo.id))}
+                  label="Remove"
+                  icon="trash-outline"
+                  accessibilityLabel="Remove this photo"
+                  onPress={() => void act(() => removeUnitPhoto(unitId, photo.id))}
                 />
-              )}
-              <QuietAct
-                label="Remove"
-                icon="trash-outline"
-                accessibilityLabel="Remove this photo"
-                onPress={() => void act(() => removeUnitPhoto(unitId, photo.id))}
-              />
-            </View>
-          ) : (
-            <View style={{ flexDirection: "row" }}>
-              <Pill
-                label="Add photo"
-                icon="camera-outline"
-                tone="quiet"
-                busy={busySlot === slot?.key}
-                busyLabel="Adding"
-                disabled={Boolean(busySlot)}
-                onPress={() => void add(slot?.key ?? "")}
-              />
-            </View>
-          )}
-        </Surface>
+              </View>
+            ) : null}
+          </View>
+        </View>
       ))}
 
       {!editable && photos.length === 0 ? (

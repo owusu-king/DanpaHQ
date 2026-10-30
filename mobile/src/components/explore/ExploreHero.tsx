@@ -8,6 +8,8 @@ import { HeaderChromeBackground } from "@/components/nav/HeaderChromeBackground"
 import { Type, radius, space } from "@/components/ui";
 import { pressableFeedback, safeHeaderTop } from "@/platform";
 import { alpha } from "@/shell";
+import { LocationSuggestions } from "@/components/property/LocationAutocomplete";
+import type { LocationReference } from "@/locations";
 import { theme } from "@/theme";
 
 type IconName = keyof typeof Ionicons.glyphMap;
@@ -146,6 +148,8 @@ export function HeroSearch({
   placeholder,
   label,
   icon = "search",
+  onSelectLocation,
+  onSubmit,
 }: {
   value: string;
   onChangeText: (value: string) => void;
@@ -153,8 +157,11 @@ export function HeroSearch({
   placeholder: string;
   label: string;
   icon?: IconName;
+  onSelectLocation?: (row: LocationReference) => void;
+  onSubmit?: (query: string) => void;
 }) {
   const [focused, setFocused] = useState(false);
+  const [locationsOpen, setLocationsOpen] = useState(false);
   return (
     <View>
       {focused ? <View pointerEvents="none" style={styles.ring} /> : null}
@@ -163,11 +170,12 @@ export function HeroSearch({
         <TextInput
           accessibilityLabel={label}
           value={value}
-          onChangeText={onChangeText}
-          onFocus={() => setFocused(true)}
+          onChangeText={(text) => { onChangeText(text); setLocationsOpen(true); }}
+          onFocus={() => { setFocused(true); setLocationsOpen(true); }}
           onBlur={() => setFocused(false)}
           placeholder={placeholder}
           placeholderTextColor={theme.color.ink["500"]}
+          onSubmitEditing={() => { setLocationsOpen(true); onSubmit?.(value); }}
           returnKeyType="search"
           // Place names are not dictionary words; autocorrect only mangles them.
           autoCorrect={false}
@@ -180,7 +188,7 @@ export function HeroSearch({
             accessibilityRole="button"
             accessibilityLabel="Clear search"
             hitSlop={4}
-            onPress={onClear}
+            onPress={() => { setLocationsOpen(false); onClear(); }}
             {...pressableFeedback(theme.color.field["200"])}
             style={({ pressed }) => [styles.clear, pressed ? { backgroundColor: theme.color.field["100"] } : null]}
           >
@@ -188,6 +196,9 @@ export function HeroSearch({
           </Pressable>
         ) : null}
       </View>
+      <LocationSuggestions query={value} enabled={locationsOpen} search
+        onSelect={(row) => { setLocationsOpen(false); if (onSelectLocation) onSelectLocation(row); else onChangeText(row.name); }}
+        onUseText={() => { setLocationsOpen(false); onSubmit?.(value); }} />
     </View>
   );
 }

@@ -25,6 +25,7 @@ import { Icon } from "@/components/portal/icons";
 import { PageHeader } from "@/components/portal/PageHeader";
 import { SaleCard } from "@/components/sales/SaleCard";
 import { ApiFailure, isAborted } from "@/lib/api";
+import { saleDetailPath } from "@/lib/exploreReturn";
 import type { Listing } from "@/lib/console";
 import {
   listingSearchParams,
@@ -75,6 +76,7 @@ export function AllBrowser() {
   const signedIn = state.status === "signed_in";
   const params = useSearchParams();
   const paramsKey = params.toString();
+  const returnTo = paramsKey ? `/rentals?${paramsKey}` : "/rentals";
   const query = useMemo(() => {
     const parsed = parseExploreQuery(new URLSearchParams(paramsKey));
     // Only the filters both sides answer; a link from Rent's panel keeps its place, not its rent band.
@@ -124,6 +126,11 @@ export function AllBrowser() {
     else window.history.replaceState(null, "", url);
   }, []);
 
+
+  // Old list links and malformed map boxes must not keep a hidden area in the URL.
+  useEffect(() => {
+    if (new URLSearchParams(paramsKey).has("bbox") && !query.bbox) update({ bbox: null });
+  }, [paramsKey, query.bbox, update]);
   // Both sides follow the controls; a slower earlier answer never replaces a newer one.
   useEffect(() => {
     const id = ++request.current;
@@ -168,6 +175,24 @@ export function AllBrowser() {
       window.removeEventListener("resize", measure);
     };
   }, []);
+
+  // The public map must meet the search bar even after that bar collapses.
+  useEffect(() => {
+    if (signedIn) return;
+    const element = stick.current;
+    const explore = element?.closest<HTMLElement>(".explore");
+    if (!element || !explore) return;
+    const publish = () => explore.style.setProperty(
+      "--explore-tray-height", `${Math.ceil(element.getBoundingClientRect().height)}px`,
+    );
+    publish();
+    const observer = new ResizeObserver(publish);
+    observer.observe(element);
+    return () => {
+      observer.disconnect();
+      explore.style.removeProperty("--explore-tray-height");
+    };
+  }, [signedIn]);
 
   function choosePlace(place: ResolvedPlace) {
     const area = { name: place.display_name, bounds: place.bounds, ref: `${place.provider}:${place.reference}` };
@@ -269,10 +294,9 @@ export function AllBrowser() {
             onLoadMore={() => void loadMore()}
             onOpenListing={() => undefined}
             onSearchArea={(bounds: GeoBounds) => update({ bbox: bounds })}
-            onClearFilters={() => update({ propertyType: "", bedrooms: "" })}
-            hasFilters={filterCount > 0}
+            onClearFilters={() => update({ ...NO_LOCATION, propertyType: "", bedrooms: "" })}
             sales={sales}
-            onOpenSale={(id) => router.push(`/record/sale?id=${id}` as never)}
+            onOpenSale={(id) => router.push(saleDetailPath(id, returnTo) as never)}
           />
         ) : (
           <section aria-live="polite" aria-busy={items === null || querying}>
@@ -282,7 +306,7 @@ export function AllBrowser() {
                 {items.map((item) =>
                   item.side === "rent"
                     ? <ListingCard key={`rent-${item.listing.id}`} listing={item.listing} />
-                    : <SaleCard key={`sale-${item.sale.id}`} sale={item.sale} />,
+                    : <SaleCard key={`sale-${item.sale.id}`} sale={item.sale} returnTo={returnTo} />,
                 )}
               </ul>
             ) : null}

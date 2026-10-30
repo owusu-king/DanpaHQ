@@ -1,19 +1,8 @@
-"""Where a listing may be shown on a public map.
+"""Public markers derive only from saved property coordinates.
 
-Never where it is. ADR 0022 releases the street, the house number and the
-coordinates only through a confirmed viewing, and a map marker *is* a
-coordinate — so the point published here is derived, stable and coarse
-(ADR 0033):
-
-* **area** — the property's own coordinates snapped to the centre of a fixed
-  grid cell about 300 m across. Stable, so repeated reads cannot be averaged
-  towards the door; coarse, so the marker says "around here" and no more.
-* **locality** — the neighbourhood's centre, while the property has no
-  coordinates of its own. Every such listing in a neighbourhood shares the one
-  point, which the map draws as a stack.
-
-A listing with neither has no public point. It still appears in results; the
-map reports how many it could not place rather than inventing a position.
+Property pins use the existing approximately 300 m privacy grid. Legacy
+properties may use their recorded locality centre, explicitly labelled as a
+neighbourhood location. Unknown coordinates remain unmapped.
 """
 
 from __future__ import annotations
@@ -36,8 +25,8 @@ def snap_to_cell(latitude: float, longitude: float) -> tuple[float, float]:
     """The centre of the fixed grid cell a coordinate falls in."""
     cell = settings.LISTING_PUBLIC_CELL_DEGREES
     return (
-        round((math.floor(latitude / cell) + 0.5) * cell, 6),
-        round((math.floor(longitude / cell) + 0.5) * cell, 6),
+        max(-90, min(90, round((math.floor(latitude / cell) + 0.5) * cell, 6))),
+        max(-180, min(180, round((math.floor(longitude / cell) + 0.5) * cell, 6))),
     )
 
 
@@ -53,15 +42,29 @@ def public_location_for_property(prop) -> tuple[Point | None, str]:
     listing inside it would — one rule for how coarse a public marker is.
     """
     address = prop.address
-    if address.latitude is not None and address.longitude is not None:
+    if (
+        address.latitude is not None
+        and address.longitude is not None
+        and math.isfinite(float(address.latitude))
+        and math.isfinite(float(address.longitude))
+        and -90 <= address.latitude <= 90
+        and -180 <= address.longitude <= 180
+    ):
         latitude, longitude = snap_to_cell(float(address.latitude), float(address.longitude))
         return Point(longitude, latitude, srid=4326), LocationPrecision.AREA
 
+    # Older verified properties cannot be edited to add a pin. Their actual
+    # reference locality can still locate a neighbourhood-level marker without
+    # claiming that this is the building's position or changing the property.
     locality = address.locality
-    if locality is not None and locality.latitude is not None and locality.longitude is not None:
-        point = Point(float(locality.longitude), float(locality.latitude), srid=4326)
-        return point, LocationPrecision.LOCALITY
-
+    latitude = locality.latitude if locality else address.place_latitude
+    longitude = locality.longitude if locality else address.place_longitude
+    if (
+        latitude is not None and longitude is not None
+        and math.isfinite(float(latitude)) and math.isfinite(float(longitude))
+        and -90 <= latitude <= 90 and -180 <= longitude <= 180
+    ):
+        return Point(float(longitude), float(latitude), srid=4326), LocationPrecision.LOCALITY
     return None, ""
 
 
@@ -85,7 +88,7 @@ def apply_public_location(listing: Listing) -> list[str]:
 
 
 def refresh_public_locations(listings=None) -> int:
-    """Recompute public points, e.g. after a places import set locality centres.
+    """Recompute public points after property coordinate updates.
 
     A queryset update rather than `save()`: the point is derived data, so it
     must not move `updated_at` or run the status derivation a save performs.
@@ -99,6 +102,25 @@ def refresh_public_locations(listings=None) -> int:
             Listing.objects.filter(pk=listing.pk).update(
                 public_point=listing.public_point,
                 public_point_precision=listing.public_point_precision,
+            )
+            updated += 1
+    return updated
+
+
+def refresh_public_sale_locations(sales=None) -> int:
+    """Refresh the same derived privacy point on standalone sale records."""
+    from apps.sale.models import SaleListing
+
+    rows = (sales if sales is not None else SaleListing.objects.all()).select_related(
+        "property__address"
+    )
+    updated = 0
+    for sale in rows.iterator(chunk_size=500):
+        point, precision = public_location_for_property(sale.property)
+        if not _same_point(sale.public_point, point) or sale.public_point_precision != precision:
+            SaleListing.objects.filter(pk=sale.pk).update(
+                public_point=point,
+                public_point_precision=precision,
             )
             updated += 1
     return updated

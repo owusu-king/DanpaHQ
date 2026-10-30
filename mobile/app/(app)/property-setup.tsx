@@ -34,7 +34,7 @@ export default function PropertySetupScreen() {
       propertyId={propertyId}
       startAt={step ?? null}
       onClose={leave}
-      onFinished={(id) => router.replace({ pathname: "/(app)/provider-property", params: { propertyId: id, created: "1" } })}
+      onFinished={leave}
     />
   );
 }

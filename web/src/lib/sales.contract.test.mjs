@@ -26,7 +26,8 @@ test("whether a sale is public is the server's answer, never worked out on the p
 test("a sale takes no Units", () => {
   const page = code(read("web/app/record/property/page.tsx"));
   assert.match(page, /const primary = !selling && !lifecycleOwnsPrimary && canAddUnit/);
-  assert.match(page, /\{selling \? \(\s*sale \? \(\s*<SalePanel/);
+  assert.match(page, /selling \? sale \? <SalePanel/);
+  assert.match(page, /\{!selling \? \(\s*<section className="record-section record-property-units" aria-labelledby="units-heading"/);
 });
 
 test("the setup journey walks the steps this property has, not a fixed list", () => {

@@ -37,7 +37,7 @@ import { STATE_LABEL, type TrustState } from "@/lib/trust";
  *
  * Drawn in the workspace's vocabulary (Saved, Applications, the tenancy
  * request): glass sections on a kola-and-gold wash, facts as tiles with their
- * glyph, the money to move in as the same deep-kola receipt the lease wizard
+ * glyph, the money to move in as the same compact receipt the lease wizard
  * totals with, and verification as rows that say what was checked.
  *
  * Two rules shape what is *not* here. Nothing is said twice — the locality is
@@ -347,19 +347,6 @@ export default function PublicListingPage() {
             ) : null}
           </div>
 
-          <div className="listing-receipt">
-            <small>To move in</small>
-            <strong>{cedis(listing.total_move_in_minor)}</strong>
-            <dl className="listing-terms">
-              {moveIn.map((row) => (
-                <div key={row.label}>
-                  <dt>{row.label} <em>{row.detail}</em></dt>
-                  <dd>{rentMinor !== null ? cedis(rentMinor * row.months) : row.detail}</dd>
-                </div>
-              ))}
-            </dl>
-          </div>
-
           {error ? <Notice tone="error" title={error} /> : null}
 
           {taken ? (
@@ -436,6 +423,19 @@ export default function PublicListingPage() {
               </div>
             </div>
           )}
+
+          <div className="listing-receipt">
+            <small>To move in</small>
+            <strong>{cedis(listing.total_move_in_minor)}</strong>
+            <dl className="listing-terms">
+              {moveIn.map((row) => (
+                <div key={row.label}>
+                  <dt>{row.label} <em>{row.detail}</em></dt>
+                  <dd>{rentMinor !== null ? cedis(rentMinor * row.months) : row.detail}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
 
           {/* Stated, not hidden behind a disclosure. Three checks and one
               line is short enough to read at a glance, and a dropdown made the

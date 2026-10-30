@@ -44,7 +44,7 @@ type Audience = "owner" | "recipient";
 
 const C = theme.color;
 const COVER_INK = "#F6F0E2";
-const COVER_MUTED = alpha("#F6F0E2", 0.7);
+const COVER_MUTED = alpha("#F6F0E2", 0.78);
 const COVER_FOIL = C.gold["300"];
 
 // --- the cover ---------------------------------------------------------------------
@@ -127,14 +127,21 @@ function CoverGround() {
           <Stop offset="0.78" stopColor={C.kola["900"]} />
         </LinearGradient>
         <RadialGradient id="pp-glow" cx="400" cy="0" r="300" gradientUnits="userSpaceOnUse">
-          <Stop offset="0" stopColor={C.kola["600"]} stopOpacity={0.72} />
+          <Stop offset="0" stopColor={C.kola["600"]} stopOpacity={0.6} />
           <Stop offset="0.58" stopColor={C.kola["600"]} stopOpacity={0} />
         </RadialGradient>
+        <LinearGradient id="pp-glass" x1="0" y1="0" x2="1" y2="0.65">
+          <Stop offset="0" stopColor="#FFFFFF" stopOpacity={0.14} />
+          <Stop offset="0.28" stopColor="#FFFFFF" stopOpacity={0.035} />
+          <Stop offset="0.52" stopColor="#FFFFFF" stopOpacity={0} />
+          <Stop offset="1" stopColor="#FFFFFF" stopOpacity={0.025} />
+        </LinearGradient>
       </Defs>
       <Rect x="0" y="0" width="400" height="260" fill="url(#pp-base)" />
       <Rect x="0" y="0" width="400" height="260" fill="url(#pp-glow)" />
+      <Rect x="0" y="0" width="400" height="260" fill="url(#pp-glass)" />
       {Array.from({ length: 9 }).map((_, index) => (
-        <Ellipse key={index} cx="330" cy="40" rx={60 + index * 26} ry={34 + index * 15} fill="none" stroke={COVER_FOIL} strokeWidth={0.6} strokeOpacity={0.16} />
+        <Ellipse key={index} cx="330" cy="40" rx={60 + index * 26} ry={34 + index * 15} fill="none" stroke={COVER_FOIL} strokeWidth={0.6} strokeOpacity={0.1} />
       ))}
     </Svg>
   );
@@ -533,12 +540,19 @@ const styles = StyleSheet.create({
     gap: space[5],
     padding: space[5],
     borderRadius: 20,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: alpha("#FFFFFF", 0.2),
     backgroundColor: C.kola["900"],
+    shadowColor: C.kola["900"],
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
   },
   coverLoading: { minHeight: 228, backgroundColor: C.kola["800"], opacity: 0.85 },
   coverTop: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: space[2] },
   wordmark: { flexDirection: "row", alignItems: "center", gap: space[2] },
-  wordmarkText: { color: COVER_FOIL, letterSpacing: 1.4 },
+  wordmarkText: { color: COVER_FOIL, letterSpacing: 1 },
   wordmarkSub: { color: COVER_MUTED, fontWeight: "400", letterSpacing: 0.9 },
   mode: {
     flexDirection: "row",
@@ -548,7 +562,8 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     borderRadius: radius.pill,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: alpha(COVER_FOIL, 0.4),
+    borderColor: alpha("#FFFFFF", 0.16),
+    backgroundColor: alpha("#FFFFFF", 0.08),
   },
   modeText: { fontSize: 11.5, lineHeight: 15, color: COVER_MUTED },
   holder: { flexDirection: "row", alignItems: "center", gap: space[4] },
@@ -558,9 +573,9 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 1.5,
-    borderColor: alpha(COVER_FOIL, 0.8),
-    backgroundColor: alpha(COVER_FOIL, 0.08),
+    borderWidth: 1,
+    borderColor: alpha(COVER_FOIL, 0.55),
+    backgroundColor: alpha("#FFFFFF", 0.09),
   },
   monogramText: { color: COVER_FOIL, letterSpacing: 1 },
   holderText: { flex: 1, minWidth: 0, gap: 3 },
@@ -577,8 +592,7 @@ const styles = StyleSheet.create({
     gap: 4,
     paddingTop: space[3],
     borderTopWidth: 1,
-    borderStyle: "dashed",
-    borderTopColor: alpha(COVER_FOIL, 0.32),
+    borderTopColor: alpha("#FFFFFF", 0.16),
   },
 
   status: {

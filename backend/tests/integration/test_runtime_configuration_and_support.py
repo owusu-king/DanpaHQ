@@ -11,7 +11,9 @@ PASSWORD = "correct-horse-battery-staple"
 
 @override_settings(RUNTIME_CONFIGURATION_ENABLED=True)
 def test_brevo_configuration_is_encrypted_masked_and_used_without_restart(
-    user, monkeypatch, django_capture_on_commit_callbacks,
+    user,
+    monkeypatch,
+    django_capture_on_commit_callbacks,
 ):
     from unittest.mock import Mock
 
@@ -21,12 +23,14 @@ def test_brevo_configuration_is_encrypted_masked_and_used_without_restart(
     actor, client = management_client(email="brevo-config@example.com")
     response = client.patch(
         "/api/v1/management/configuration/",
-        {"updates": [
-            {"key": "NOTIFICATION_EMAIL_BACKEND", "value": "brevo"},
-            {"key": "BREVO_API_KEY", "value": "brevo-management-secret"},
-            {"key": "BREVO_SENDER_EMAIL", "value": "alerts@example.com"},
-            {"key": "BREVO_SENDER_NAME", "value": "Danpa HQ alerts"},
-        ]},
+        {
+            "updates": [
+                {"key": "NOTIFICATION_EMAIL_BACKEND", "value": "brevo"},
+                {"key": "BREVO_API_KEY", "value": "brevo-management-secret"},
+                {"key": "BREVO_SENDER_EMAIL", "value": "alerts@example.com"},
+                {"key": "BREVO_SENDER_NAME", "value": "Danpa HQ alerts"},
+            ]
+        },
         format="json",
     )
     assert response.status_code == 200, response.data
@@ -37,7 +41,9 @@ def test_brevo_configuration_is_encrypted_masked_and_used_without_restart(
     assert "brevo-management-secret" not in str(response.data)
     assert value("BREVO_API_KEY") == "brevo-management-secret"
     field = next(
-        field for section in response.data["sections"] for field in section["fields"]
+        field
+        for section in response.data["sections"]
+        for field in section["fields"]
         if field["key"] == "BREVO_API_KEY"
     )
     assert field["is_set"] is True
@@ -52,8 +58,13 @@ def test_brevo_configuration_is_encrypted_masked_and_used_without_restart(
     post = Mock(return_value=Mock(json=lambda: {"messageId": "accepted"}))
     monkeypatch.setattr("apps.notifications.email.requests.post", post)
     with django_capture_on_commit_callbacks(execute=True):
-        notify(user=user, kind="viewing.approaching", title="Viewing soon", body="Open the app",
-               dedupe_key="management-email")
+        notify(
+            user=user,
+            kind="viewing.approaching",
+            title="Viewing soon",
+            body="Open the app",
+            dedupe_key="management-email",
+        )
     assert post.call_args.kwargs["headers"]["api-key"] == "brevo-management-secret"
     assert post.call_args.kwargs["json"]["sender"]["email"] == "alerts@example.com"
 
@@ -62,16 +73,21 @@ def test_brevo_sender_address_is_validated_and_support_cannot_set_credentials():
     _, client = management_client(email="brevo-validation@example.com")
     response = client.patch(
         "/api/v1/management/configuration/",
-        {"updates": [{"key": "BREVO_SENDER_EMAIL", "value": "not-an-email"}]}, format="json",
+        {"updates": [{"key": "BREVO_SENDER_EMAIL", "value": "not-an-email"}]},
+        format="json",
     )
     assert response.status_code == 422
     _, support = management_client(
         role=ManagementRole.SUPPORT_ADMIN, email="brevo-support@example.com"
     )
-    assert support.patch(
-        "/api/v1/management/configuration/",
-        {"updates": [{"key": "BREVO_API_KEY", "value": "secret"}]}, format="json",
-    ).status_code == 403
+    assert (
+        support.patch(
+            "/api/v1/management/configuration/",
+            {"updates": [{"key": "BREVO_API_KEY", "value": "secret"}]},
+            format="json",
+        ).status_code
+        == 403
+    )
 
 
 def management_client(*, role=ManagementRole.OPERATIONS_ADMIN, email="ops-config@example.com"):
@@ -299,3 +315,36 @@ def test_support_ticket_is_a_two_way_management_conversation(user, sign_in_as):
     assert thread.status_code == 200
     assert [message["mine"] for message in thread.data["messages"]] == [True, False]
     assert "assigned_to" not in thread.data
+
+
+@override_settings(RUNTIME_CONFIGURATION_ENABLED=True)
+def test_managed_maps_are_publicly_consumed_and_invalid_templates_are_rejected():
+    _, client = management_client(email="map-config@example.com")
+    response = client.patch(
+        "/api/v1/management/configuration/",
+        {
+            "updates": [
+                {"key": "MAP_ENABLED", "value": False},
+                {"key": "MAP_TILE_URL", "value": "https://tiles.example.com/{z}/{x}/{y}.png"},
+                {"key": "MAP_TILE_ATTRIBUTION", "value": "Example tiles"},
+                {"key": "MAP_TILE_ATTRIBUTION_URL", "value": "https://tiles.example.com/copyright"},
+            ]
+        },
+        format="json",
+    )
+    assert response.status_code == 200, response.data
+    assert any(section["name"] == "Maps" for section in response.data["sections"])
+    config = APIClient().get("/api/v1/map/config/").data
+    assert config["enabled"] is False
+    assert config["tiles"]["url"] == "https://tiles.example.com/{z}/{x}/{y}.png"
+    assert config["tiles"]["attribution"] == "Example tiles"
+    bad = client.patch(
+        "/api/v1/management/configuration/",
+        {
+            "updates": [
+                {"key": "MAP_TILE_URL", "value": "https://tiles.example.com/no-template.png"},
+            ]
+        },
+        format="json",
+    )
+    assert bad.status_code == 422

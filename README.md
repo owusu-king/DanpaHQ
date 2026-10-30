@@ -2,6 +2,9 @@
 
 Property management and tenancy software for Ghana, with a web app and Android/iOS apps.
 
+Ghana reference locations, source licences, import/update commands and coverage
+checks are documented in [Ghana locations](docs/ghana-locations.md).
+
 DanpaHQ covers rental/sale discovery, property and provider verification, viewings, applications, agreements, tenancy records, rent/payments, maintenance, artisans and Housing Passport sharing. One account supports multiple experiences; the backend controls access.
 
 **Stack:** Django/DRF, PostgreSQL/PostGIS, Redis/Celery, Next.js and Expo. Docker runs local infrastructure, including MinIO for uploads. Dependency manifests and lockfiles define the versions.
@@ -51,7 +54,7 @@ Use the same Wi-Fi network as your computer. The API address is normally inferre
 
 **Google sign-in needs an installed native development build**, rather than Expo Go. Start it with `npm start -- --dev-client --lan`. Local Android builds use `npm run android` with Android SDK/JDK installed; local iOS builds need macOS/Xcode and `npm run ios`. See [Google setup](mobile/GOOGLE_SIGN_IN.md) and [release builds](docs/deployment.md).
 
-For local Google authentication, set root `.env` `GOOGLE_OAUTH_CLIENT_ID`; iOS also needs `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID`. Recreate `web` and `api` after changing their environment, and restart Metro. Google Cloud must allow the web origin. Map keys are optional for local list-based browsing.
+For local Google authentication, set root `.env` `GOOGLE_OAUTH_CLIENT_ID`; iOS also needs `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID`. Recreate `web` and `api` after changing their environment, and restart Metro. Google Cloud must allow the web origin. Maps use Leaflet with configurable public tiles; no Google Maps key is needed. See [map setup and usage limits](docs/free-maps.md).
 
 ## Everyday commands
 

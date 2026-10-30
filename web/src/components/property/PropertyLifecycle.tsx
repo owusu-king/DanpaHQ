@@ -26,8 +26,10 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { PropertySubmissionButton } from "./PropertyVerification";
 import { Button } from "@/components/Button";
 import { Notice } from "@/components/Notice";
+import { ModalSheet } from "@/components/workspace/ModalSheet";
 import { ApiFailure } from "@/lib/api";
 import {
   archiveProperty,
@@ -157,7 +159,7 @@ function CompactLifecycle({
         </div>
         <div className="attention-band-actions">
           {edit?.allowed ? <Link href={`/record/property-setup?propertyId=${property.id}` as never} className="btn btn-primary" onClick={onSetup ? inPlace(onSetup) : undefined}>Update property</Link> : null}
-          {submit?.allowed ? <Link href={`/record/property-verify?id=${property.id}` as never} className="btn btn-secondary">Resubmit</Link> : null}
+          {submit?.allowed ? <PropertySubmissionButton propertyId={property.id} onSubmitted={onChanged} label="Resubmit" secondary /> : null}
         </div>
       </div>
     );
@@ -171,7 +173,7 @@ function CompactLifecycle({
           <p>{reviewState === "withdrawn" ? "Your information is still saved. Review it, then submit again when ready." : "Verify the Property before its Units can be advertised or shared with prospective tenants."}</p>
         </div>
         <div className="attention-band-actions">
-          {submit?.allowed ? <Link href={`/record/property-verify?id=${property.id}` as never} className="btn btn-primary">Submit for verification</Link> : null}
+          {submit?.allowed ? <PropertySubmissionButton propertyId={property.id} onSubmitted={onChanged} /> : null}
           {edit?.allowed ? <Link href={`/record/property-setup?propertyId=${property.id}` as never} className="btn btn-secondary" onClick={onEdit ? inPlace(onEdit) : undefined}>Edit</Link> : null}
         </div>
       </div>
@@ -221,7 +223,9 @@ function CompactPending({
           <Button variant="quiet" onClick={() => setConfirming(true)}>Withdraw…</Button>
         ) : null}
         {confirming ? (
-          <>
+          <ModalSheet open onClose={() => setConfirming(false)} icon="verification" title="Withdraw submission?" size="sm">
+            {error ? <Notice tone="error" title={error} /> : null}
+            <p>Your Property stays saved and private. You can submit it again later.</p>
             <Button
               variant="destructive"
               busy={busy}
@@ -243,7 +247,7 @@ function CompactPending({
               Confirm withdrawal
             </Button>
             <Button variant="quiet" disabled={busy} onClick={() => setConfirming(false)}>Keep submitted</Button>
-          </>
+          </ModalSheet>
         ) : null}
       </div>
     </div>
@@ -459,7 +463,8 @@ function WithReviewer({
       ) : null}
 
       {confirming ? (
-        <>
+        <ModalSheet open onClose={() => setConfirming(false)} icon="verification" title="Withdraw submission?" size="sm">
+            {error ? <Notice tone="error" title={error} /> : null}
           <Notice
             tone="warning"
             title="Taking this back out of the queue"
@@ -497,7 +502,7 @@ function WithReviewer({
               Withdraw it
             </Button>
           </Actions>
-        </>
+        </ModalSheet>
       ) : null}
     </Card>
   );

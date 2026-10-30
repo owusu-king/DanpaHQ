@@ -19,7 +19,7 @@ test("record flows do not request malformed API paths when their route id is abs
     // The setup and new-Unit routes render the wizards, which fetch only with an id.
     ["web/src/components/property/PropertyWizard.tsx", /if \(!initialId\) return;/],
     ["web/src/components/property/UnitWizard.tsx", /if \(!initialUnit\) return;/],
-    ["web/app/record/property-verify/page.tsx", /if \(!id\) return;/],
+    ["web/src/components/property/PropertyVerification.tsx", /if \(!id\) return;/],
     ["web/app/record/space-new/page.tsx", /if \(!propertyId\) \{/],
     ["web/app/record/space-listing/page.tsx", /if \(!spaceId\) return;/],
   ]) assert.match(read(file), guard, `${file} fetches without a route id`);

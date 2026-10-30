@@ -769,6 +769,17 @@
 
 /* --- widths ----------------------------------------------------------------------- */
 
+/* Keep matching gaps above and below the public desktop map. */
+@media (min-width: 64rem) {
+  .explore-public-head + .explore {
+    --explore-sticky-top: calc(var(--explore-stick-top) + var(--explore-tray-height, 9.25rem) + var(--space-2));
+  }
+  .explore-public-head + .explore .explore-map-stage {
+    height: calc(100vh - var(--explore-sticky-top) - var(--space-2));
+    height: calc(100svh - var(--explore-sticky-top) - var(--space-2));
+  }
+}
+
 /* Phones and tablets: the map takes the page's width in the list's place, the
    list is one switch away, and the preview rises from the bottom. A close
    button and a list inside the map both once led to a list under the same

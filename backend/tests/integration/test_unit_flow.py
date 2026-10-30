@@ -1164,10 +1164,91 @@ class TestAfterVerification:
         spaces.request_recheck(unit=unit, user=landlord, reason="Repainted and re-tiled.")
 
         listing.refresh_from_db()
-        assert listing.status == ListingStatus.SUSPENDED
+        assert listing.status == ListingStatus.WITHDRAWN
         assert condition.lifecycle_state(unit) == "draft"
         # And the space is editable again, which is what the re-check was for.
         spaces.update_space(unit=unit, user=landlord, data={"label": "Flat A (renovated)"})
+
+
+    def test_recheck_approval_stays_private_until_explicit_republish(
+        self, held, landlord, api, sign_in_as
+    ):
+        from apps.listing import services as listing_services
+        from apps.property import spaces
+        from apps.property.serializers import unit_publication
+
+        _, unit = held
+        _fill_required(unit, landlord)
+        _approve_open_review(unit, landlord)
+        listing = listing_services.create_listing(user=landlord, unit=unit, data={
+            "rent_minor": 180000, "headline": "Recheck cycle", "description": "A checked room.",
+        })
+        listing_services.publish_listing(listing=listing, user=landlord)
+        sign_in_as(api, user=landlord)
+        for cycle in range(2):
+            assert unit_publication(unit)["state"] == "published"
+            spaces.request_recheck(unit=unit, user=landlord, reason=f"Repainted {cycle}")
+            assert unit_publication(unit)["state"] == "withdrawn"
+            assert not api.get("/api/v1/listings/").data["results"]
+            spaces.update_space(unit=unit, user=landlord, data={"label": f"Room {cycle}"})
+            _approve_open_review(unit, landlord)
+            assert unit_publication(unit)["state"] == "withdrawn"
+            detail = api.get(f"/api/v1/units/{unit.id}/").data
+            assert detail["publication"]["state"] == "withdrawn"
+            assert detail["permitted_actions"]["publish"]["allowed"]
+            listing_services.publish_listing(listing=listing, user=landlord)
+            assert unit_publication(unit)["state"] == "published"
+            listing_services.withdraw_listing(listing=listing, user=landlord)
+            assert unit_publication(unit)["state"] == "withdrawn"
+            listing_services.publish_listing(listing=listing, user=landlord)
+
+    def test_legacy_suspension_never_looks_public_and_moderation_stays_blocked(
+        self, held, landlord, approve_space
+    ):
+        from apps.listing import services as listing_services
+        from apps.listing.models import Listing, ListingStatus
+        from apps.property.serializers import unit_publication
+
+        _, unit = held
+        approve_space(unit)
+        listing = listing_services.create_listing(user=landlord, unit=unit, data={
+            "rent_minor": 180000, "headline": "Suspended room", "description": "A room.",
+        })
+        listing_services.publish_listing(listing=listing, user=landlord)
+        Listing.objects.filter(pk=listing.pk).update(status=ListingStatus.SUSPENDED)
+        assert unit_publication(unit)["state"] == "private"
+        with pytest.raises(Conflict):
+            listing_services.publish_listing(listing=listing, user=landlord)
+        listing.refresh_from_db()
+        assert listing.status == ListingStatus.SUSPENDED
+
+    def test_old_recheck_suspension_recovers_only_on_explicit_publish(
+        self, held, landlord, approve_space
+    ):
+        from apps.audit.models import AuditAction
+        from apps.audit.services import record
+        from apps.listing import services as listing_services
+        from apps.property.serializers import unit_publication
+
+        _, unit = held
+        approve_space(unit)
+        listing = listing_services.create_listing(user=landlord, unit=unit, data={
+            "rent_minor": 180000, "headline": "Legacy recheck", "description": "A room.",
+        })
+        listing_services.publish_listing(listing=listing, user=landlord)
+        from apps.core.context import use_context
+
+        with use_context(request_id="legacy-recheck-regression"):
+            listing_services.suspend_for_verification(subject_type="space", subject_id=unit.pk,
+                kind="space_condition", reason="Reopened to change the Unit.")
+            record(action=AuditAction.UPDATE, aggregate_type="unit", aggregate_id=unit.pk,
+                actor=landlord, changes={"condition": ["verified", "draft"]}, metadata={
+                    "reason": "Reopened to change the Unit.", "listings_suspended": 1,
+                    "superseded_verification_id": str(unit.pk),
+                })
+        assert unit_publication(unit)["state"] == "private"
+        listing_services.publish_listing(listing=listing, user=landlord)
+        assert unit_publication(unit)["state"] == "published"
 
 
 class TestThePublicView:
@@ -1690,3 +1771,192 @@ class TestOccupiedSpaceRestrictions:
         assert actions["archive"]["allowed"] is False
         assert actions["delete"]["allowed"] is False
         assert actions["edit_operational"]["allowed"] is True
+
+
+def test_recheck_retains_named_gallery_evidence_and_removal_updates_both_checklists(held, landlord):
+    from django.utils import timezone
+
+    from apps.property import spaces
+    from apps.trust import condition
+    from apps.trust.models import VerificationStatus
+
+    _, unit = held
+    for slot in condition.slots_for(unit):
+        spaces.attach_photo(unit=unit, user=landlord, file=_photo(landlord), slot_key=slot.key)
+    old = condition.current_review(unit)
+    original_files = set(old.evidence.values_list("file_id", flat=True))
+    old.status = VerificationStatus.APPROVED
+    old.decided_at = timezone.now()
+    old.save()
+    spaces.request_recheck(unit=unit, user=landlord)
+    fresh = condition.current_review(unit)
+    assert fresh.id != old.id
+    from apps.trust.models import ReviewQueueEntry
+
+    assert not ReviewQueueEntry.objects.filter(verification=fresh).exists()
+    assert set(fresh.evidence.values_list("file_id", flat=True)) == original_files
+    assert set(old.evidence.values_list("file_id", flat=True)) == original_files
+    assert condition.progress(subject=unit, user=landlord)["required_outstanding"] == 0
+    assert condition.snapshot(unit)["required_outstanding"] == 0
+    required = next(slot for slot in condition.slots_for(unit) if slot.required)
+    photo = unit.media.get(slot_key=required.key)
+    spaces.remove_photo(unit=unit, user=landlord, media_id=photo.id)
+    assert condition.progress(subject=unit, user=landlord)["required_outstanding"] == 1
+    assert condition.snapshot(unit)["required_outstanding"] == 1
+    assert set(old.evidence.values_list("file_id", flat=True)) == original_files
+    with pytest.raises(ValidationFailed) as exc:
+        condition.submit_for_review(subject=unit, actor=landlord)
+    assert "photo" in str(exc.value).lower() or "main" in str(exc.value).lower()
+
+
+def test_management_history_includes_readable_unit_approvals_and_superseded_checks(held, landlord):
+    from django.utils import timezone
+
+    from apps.property import spaces
+    from apps.trust import condition
+    from apps.trust.models import VerificationStatus
+    from tests.integration.test_runtime_configuration_and_support import management_client
+
+    prop, unit = held
+    _fill_required(unit, landlord)
+    old = condition.current_review(unit)
+    old.status = VerificationStatus.APPROVED
+    old.decided_at = timezone.now()
+    old.save()
+    _, client = management_client(email="unit-history@example.com")
+    response = client.get("/api/v1/management/providers/")
+    assert response.status_code == 200
+    row = next(row for row in response.data["results"] if row["id"] == str(old.id))
+    assert row["status"] == "approved" and row["subject_type"] == "unit"
+    assert unit.label in row["title"] and prop.title in row["title"]
+    spaces.request_recheck(unit=unit, user=landlord)
+    response = client.get("/api/v1/management/providers/")
+    assert (
+        next(row for row in response.data["results"] if row["id"] == str(old.id))["status"]
+        == "superseded"
+    )
+
+
+def test_optional_context_photo_cannot_satisfy_a_required_amenity_in_the_summary(held, landlord):
+    from apps.property import spaces
+    from apps.property.models import Amenity
+    from apps.trust import condition
+
+    _, unit = held
+    amenity = Amenity.objects.create(name="Private storage", category="other", scope="unit")
+    spaces.set_space_amenities(unit=unit, user=landlord, amenity_ids=[amenity.id])
+    slots = condition.slots_for(unit)
+    required = next(slot for slot in slots if slot.key.startswith("amenity."))
+    context = next(
+        slot for slot in slots if not slot.required and slot.evidence_type == required.evidence_type
+    )
+    for key in ("space.overview", context.key):
+        spaces.attach_photo(unit=unit, user=landlord, file=_photo(landlord), slot_key=key)
+    assert condition.progress(subject=unit, user=landlord)["required_outstanding"] == 1
+    summary = condition.snapshot(unit)
+    assert summary["required_outstanding"] == 1 and not summary["can_submit"]
+    with pytest.raises(ValidationFailed):
+        condition.submit_for_review(subject=unit, actor=landlord)
+
+
+def test_history_separates_property_review_type_from_claimed_role_and_filters_displayed_status(
+    held, landlord
+):
+    from django.utils import timezone
+
+    from apps.property.models import PropertyProviderApplication, ProviderApplicationStatus
+    from tests.integration.test_runtime_configuration_and_support import management_client
+
+    prop, _ = held
+    application = PropertyProviderApplication.objects.create(
+        applicant=landlord,
+        property=prop,
+        title=prop.title,
+        property_type=prop.property_type,
+        address=prop.address,
+        relationship_type="owner",
+        status=ProviderApplicationStatus.APPROVED,
+        submitted_at=timezone.now(),
+        reviewed_at=timezone.now(),
+    )
+    _, client = management_client(email="history-labels@example.com")
+    response = client.get("/api/v1/management/providers/?status=verified")
+    assert response.status_code == 200
+    row = next(row for row in response.data["results"] if row["id"] == str(application.id))
+    assert row["review_label"] == "Property verification"
+    assert row["relationship_label"] == "Owner" and row["relationship"] == "owner"
+    assert row["status"] == "verified" and row["status_scope"] == "latest_property_submission"
+    assert row["person_label"] == "Applicant"
+
+
+def test_history_does_not_fabricate_submission_dates_or_expire_recorded_approvals(
+    held, approve_space
+):
+    from datetime import timedelta
+
+    from django.utils import timezone
+
+    from apps.property.models import PropertyProviderApplication
+    from apps.trust.models import (
+        SubjectType,
+        Verification,
+        VerificationKind,
+        VerificationMethod,
+        VerificationStatus,
+    )
+    from tests.integration.test_runtime_configuration_and_support import management_client
+
+    prop, unit = held
+    # This has never been submitted, despite having an ownership role.
+    draft = PropertyProviderApplication.objects.create(
+        applicant=prop.owner,
+        title="Unsent property",
+        property_type=prop.property_type,
+        address=prop.address,
+        relationship_type="owner",
+    )
+    approved = approve_space(unit)
+    approved.expires_at = timezone.now() - timedelta(days=1)
+    approved.save()
+    draft_check = Verification.objects.create(
+        subject_type=SubjectType.SPACE,
+        subject_id="00000000-0000-0000-0000-000000000001",
+        kind=VerificationKind.SPACE_CONDITION,
+        status=VerificationStatus.NOT_STARTED,
+        method=VerificationMethod.DOCUMENT_REVIEW,
+    )
+    _, client = management_client(email="history-dates@example.com")
+    response = client.get("/api/v1/management/providers/")
+    assert response.status_code == 200
+    rows = response.data["results"]
+    assert str(draft.id) not in {row["id"] for row in rows}
+    assert str(draft_check.id) not in {row["id"] for row in rows}
+    row = next(row for row in rows if row["id"] == str(approved.id))
+    assert row["review_label"] == "Unit verification" and row["relationship"] == ""
+    assert row["status"] == "approved" and row["status_label"] == "Approved"
+    assert row["submitted_at"] is None and row["reviewed_at"] is not None
+    assert row["recorded_at"] is not None and row["person_label"] == "Review author"
+
+
+def test_history_declares_when_it_is_showing_only_a_recent_window(held, approve_space):
+    from apps.property.models import Unit
+    from tests.integration.test_runtime_configuration_and_support import management_client
+
+    prop, unit = held
+    approve_space(unit)
+    approve_space(
+        Unit.objects.create(
+            property=prop,
+            label="Flat B",
+            space_type="apartment",
+            bedrooms=1,
+            bathrooms=1,
+            floor_level=0,
+        )
+    )
+    _, client = management_client(email="history-window@example.com")
+    response = client.get("/api/v1/management/providers/?limit=1")
+    assert response.status_code == 200
+    assert len(response.data["results"]) == 1
+    assert response.data["limit"] == 1 and response.data["has_more"]
+    assert response.data["scope"] == "recent_records"

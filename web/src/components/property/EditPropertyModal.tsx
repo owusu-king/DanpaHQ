@@ -10,6 +10,7 @@ import { ApiFailure } from "@/lib/api";
 import { updateProperty, type Property } from "@/lib/console";
 import { loadPropertyVocabulary, type PropertyVocabulary } from "@/lib/propertyTypes";
 import { SpaceAmenities } from "./SpaceAmenities";
+import { LocationPicker, pinFromAddress } from "./LocationPicker";
 
 /** Editing is a focused form; setup, evidence and verification stay in the wizard. */
 export function EditPropertyModal({ open, property, amenitiesOnly = false, onClose, onSaved }: {
@@ -22,6 +23,7 @@ export function EditPropertyModal({ open, property, amenitiesOnly = false, onClo
 
 function EditForm({ property, amenitiesOnly, close, onSaved }: { property: Property; amenitiesOnly: boolean; close: () => void; onSaved?: () => void }) {
   const [title, setTitle] = useState(property.title);
+  const [pin, setPin] = useState(() => pinFromAddress(property.address));
   const [notes, setNotes] = useState(property.notes);
   const [water, setWater] = useState(property.water_source);
   const [power, setPower] = useState(property.power_meter_type);
@@ -45,7 +47,7 @@ function EditForm({ property, amenitiesOnly, close, onSaved }: { property: Prope
     let changed = false;
     let complete = false;
     try {
-      if (!amenitiesOnly) { await updateProperty(property.id, { title: title.trim(), notes, ...(!land ? { water_source: water, power_meter_type: power, compound_type: compound } : {}) }); changed = true; }
+      if (!amenitiesOnly) { await updateProperty(property.id, { title: title.trim(), notes, location: { latitude: pin?.latitude ?? null, longitude: pin?.longitude ?? null }, ...(!land ? { water_source: water, power_meter_type: power, compound_type: compound } : {}) }); changed = true; }
       if (!land && !(await amenitiesSave.current?.())) { setError("The amenities could not be saved. Please try again."); return; }
       changed = true;
       complete = true;
@@ -60,6 +62,7 @@ function EditForm({ property, amenitiesOnly, close, onSaved }: { property: Prope
       {!amenitiesOnly ? <>
         <Field label="Property name" value={title} required onChange={event => setTitle(event.target.value)} />
         <p className="pd-note">The property type and address stay fixed.</p>
+        <LocationPicker value={pin} onChange={setPin} />
         {!land && vocabulary ? <div className="compact-form-grid">
           <Select label="Water source" value={water} onChange={setWater} options={vocabulary.water_sources.map(row => [row.value, row.label] as const)} />
           <Select label="Power meter" value={power} onChange={setPower} options={vocabulary.power_meter_types.map(row => [row.value, row.label] as const)} />

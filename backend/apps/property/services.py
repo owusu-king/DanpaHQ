@@ -54,6 +54,7 @@ def provider_readiness(user, *, property_id=None) -> dict:
     applications = list(application_rows.select_related("property", "address__locality"))
     application = applications[0] if applications else None
     from apps.identity.assurance import permits_provider_operations
+
     if not permits_provider_operations(user):
         next_step = "identity"
     elif application is None or application.status in {
@@ -146,6 +147,7 @@ def _assert_may_ask_for_review(user) -> None:
     from apps.identity.assurance import permits_provider_operations
     from apps.trust import services as trust_services
     from apps.trust.models import SubjectType, VerificationKind
+
     if not permits_provider_operations(user):
         raise PermissionDenied("Complete account approval before submitting a property for review.")
     if trust_services.current_for(SubjectType.USER, user.id, VerificationKind.PHONE) is None:
@@ -244,6 +246,23 @@ def submit_provider_application(
         raise ValidationFailed("Upload evidence for the authority claim before submitting.")
     if any(not file.is_usable or not file.is_owned_by(user) for file in files):
         raise PermissionDenied("Every evidence file must be ready and uploaded by you.")
+
+    if existing_property is not None and existing_property.is_for_sale:
+        from apps.trust.evidence_policy import authority_requirements, missing_required
+
+        collected = [
+            authority_evidence_type(
+                file=file,
+                declared=data.get("evidence_types") or {},
+                relationship_type=relationship_type,
+                prop=existing_property,
+            )
+            for file in files
+        ]
+        required_slots = authority_requirements(relationship_type, existing_property)
+        missing = missing_required(collected, required_slots)
+        if missing:
+            raise ValidationFailed(f"{missing[0].label} is required.")
 
     owner_phone = ""
     if relationship_type != PropertyRelationshipType.OWNER:
@@ -479,6 +498,7 @@ def apply_provider_application_decision(
         return
 
     from apps.identity.assurance import permits_provider_operations
+
     if not permits_provider_operations(application.applicant):
         raise ValidationFailed(
             "The applicant no longer meets account verification requirements. "
@@ -842,7 +862,7 @@ def get_property_or_404(pk, user) -> Property:
         Property.objects.filter(id=pk)
         # Down to region: the serializer names the whole chain, and without this
         # every property read is four queries instead of one.
-        .select_related("address__locality__district__region", "owner")
+        .select_related("address__locality__district__region", "address__locality__region", "owner")
         .first()
     )
     if prop is None or prop.deleted_at is not None:
@@ -1148,6 +1168,82 @@ def update_property(*, prop: Property, user, data: dict) -> Property:
     # to describe here — see the policy for why a verified name is as fixed as a
     # verified water source.
     enforce(can_edit_property(actor=user, target=prop))
+
+    if "location" in data:
+        from apps.geo.models import Address
+        from apps.geo.serializers import PropertyLocationSerializer
+        from apps.identity.models import Profile
+        from apps.listing.location import refresh_public_locations, refresh_public_sale_locations
+        from apps.listing.models import Listing
+        from apps.sale.models import SaleListing
+
+        location = PropertyLocationSerializer(data=data["location"])
+        location.is_valid(raise_exception=True)
+        address = Address.objects.select_for_update().get(pk=prop.address_id)
+        values = location.validated_data
+        before_location = {key: getattr(address, key) for key in values}
+        if before_location != values:
+            # An address may be referenced by another property. Copy its written
+            # fields so this owner's pin edit never moves somebody else's map pin.
+            if (
+                Property.all_objects.filter(address_id=address.id).exclude(pk=prop.pk).exists()
+                or address.provider_applications.exists()
+                or Profile.objects.filter(address_id=address.id).exists()
+            ):
+                written = {
+                    field.attname: getattr(address, field.attname)
+                    for field in Address._meta.concrete_fields
+                    if field.name
+                    not in {
+                        "id",
+                        "created_at",
+                        "updated_at",
+                        "version",
+                        "is_deleted",
+                        "deleted_at",
+                        "latitude",
+                        "longitude",
+                        "coordinates_source",
+                        "coordinates_confirmed_at",
+                    }
+                }
+                address = Address.objects.create(**written, **values)
+                prop.address = address
+                prop.save(update_fields=["address", "updated_at"])
+            else:
+                for key, value in values.items():
+                    setattr(address, key, value)
+                address.coordinates_source = ""
+                address.coordinates_confirmed_at = None
+                address.save(
+                    update_fields=[
+                        "latitude",
+                        "longitude",
+                        "coordinates_source",
+                        "coordinates_confirmed_at",
+                        "updated_at",
+                    ]
+                )
+            refresh_public_locations(Listing.objects.filter(unit__property=prop))
+            refresh_public_sale_locations(SaleListing.objects.filter(property=prop))
+            record(
+                action=AuditAction.UPDATE,
+                aggregate_type="property",
+                aggregate_id=prop.id,
+                actor=user,
+                changes={
+                    "location": [
+                        {
+                            key: str(value) if value is not None else None
+                            for key, value in before_location.items()
+                        },
+                        {
+                            key: str(value) if value is not None else None
+                            for key, value in values.items()
+                        },
+                    ]
+                },
+            )
 
     # A category is structural, not a display label. Moving a hostel to another
     # category must not leave its rooms or beds in a shape the destination

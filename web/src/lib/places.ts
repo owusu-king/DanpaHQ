@@ -42,6 +42,8 @@ export type ResolvedPlace = {
 };
 
 export type MapConfig = {
+  enabled?: boolean;
+  tiles?: { url: string; attribution: string; attributionUrl: string };
   /** West, south, east, north: where Danpa HQ's maps may go. */
   bounds: [number, number, number, number];
   default_view: { lat: number; lng: number; zoom: number };
@@ -110,9 +112,11 @@ export function resolvePlace(suggestion: PlaceSuggestion, session: string | null
 }
 
 let mapConfig: Promise<MapConfig> | null = null;
+let mapConfigExpires = 0;
 
 /** Where maps may go and where they open. Fetched once per tab; a failure is not remembered. */
 export function getMapConfig(): Promise<MapConfig> {
+  if (Date.now() >= mapConfigExpires) { mapConfig = null; mapConfigExpires = Date.now() + 60_000; }
   mapConfig ??= apiFetch<MapConfig>("/map/config/").catch((cause) => {
     mapConfig = null;
     throw cause;

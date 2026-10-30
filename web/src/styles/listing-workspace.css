@@ -2,8 +2,8 @@
    a property for sale).
    Drawn in the workspace's vocabulary — Saved, Applications, the tenancy
    request sheet: glass sections on a feathered kola-and-gold wash, facts as
-   tiles with a tinted glyph, the money to move in as the lease wizard's
-   deep-kola receipt, and verification as rows that say what was checked.
+   compact chips, the money to move in on a pale green
+   receipt, and verification as rows that say what was checked.
    Photographs lead, price and terms sit where the eye lands next, and nothing
    is said twice. */
 
@@ -134,42 +134,15 @@
 
 /* The facts a tenant compares on, as tiles rather than a sentence. A plain
    list item (the sale page's) reads as a tile too. */
-.listing-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 9.5rem), 1fr)); gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
-.listing-facts li {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  min-width: 0;
-  min-height: 3.25rem;
-  padding: var(--space-3);
-  color: var(--color-ink-800);
-  font-size: .875rem;
-  font-weight: 600;
-  background: var(--listing-glass);
-  border: 1px solid rgba(255, 255, 255, .9);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--listing-ring), 0 8px 20px -18px rgba(33, 26, 21, .45);
-  animation: ws-rise var(--motion-duration-base) var(--ws-enter) both;
-}
-.listing-facts li:nth-child(2) { animation-delay: 40ms; }
-.listing-facts li:nth-child(3) { animation-delay: 80ms; }
-.listing-facts li:nth-child(4) { animation-delay: 120ms; }
-
-.listing-fact-mark {
-  display: grid;
-  flex: 0 0 auto;
-  place-items: center;
-  width: 2.25rem;
-  height: 2.25rem;
-  color: var(--color-kola-600);
-  background: linear-gradient(150deg, var(--color-kola-50), color-mix(in srgb, var(--color-kola-50) 55%, #fff));
-  border-radius: .75rem;
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-kola-600) 14%, transparent);
-}
-.listing-fact-mark .portal-icon { width: 18px; height: 18px; color: inherit; }
-.listing-fact-copy { display: grid; gap: 1px; min-width: 0; }
-.listing-fact-copy small { color: var(--color-ink-500); font-size: .6875rem; font-weight: 650; letter-spacing: .04em; text-transform: uppercase; }
-.listing-fact-copy strong { overflow: hidden; color: var(--color-ink-900); font-size: .875rem; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+/* Compact facts keep the listing itself and its actions in focus. */
+.listing-facts { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.listing-facts li { display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 100%; padding: 6px 9px; color: var(--color-ink-800); font-size: .75rem; background: var(--listing-glass); border: 1px solid var(--color-field-200); border-radius: 8px; }
+.listing-fact-mark { display: inline-flex; flex: 0 0 auto; color: var(--color-kola-600); }
+.listing-fact-mark .portal-icon { width: 14px; height: 14px; color: inherit; }
+.listing-fact-copy { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px; min-width: 0; }
+.listing-fact-copy small { color: var(--color-ink-500); font-size: .6875rem; }
+.listing-fact-copy small::after { content: ":"; }
+.listing-fact-copy strong { color: var(--color-ink-900); font-size: .75rem; font-weight: 600; overflow-wrap: anywhere; }
 
 /* --- sections: glass on the canvas ----------------------------------------------------- */
 
@@ -193,9 +166,9 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 4px var(--space-3);
+  padding: 3px 9px;
   color: var(--color-kola-800);
-  font-size: .8125rem;
+  font-size: .75rem;
   font-weight: 600;
   background: color-mix(in srgb, var(--color-kola-50) 80%, #fff);
   border-radius: 999px;
@@ -331,28 +304,18 @@
 
 /* The money to move in: the lease wizard's receipt, so the sum a tenant will
    hand over looks like the same sum on the agreement later. */
-.listing-receipt {
-  display: grid;
-  gap: 2px;
-  padding: var(--space-4);
-  color: #fff;
-  background:
-    radial-gradient(120% 90% at 100% 0%, rgba(255, 255, 255, .18), transparent 60%),
-    linear-gradient(160deg, color-mix(in srgb, var(--color-kola-600) 85%, #1b2a22), color-mix(in srgb, var(--color-kola-600) 58%, #0f1a14));
-  border-radius: var(--radius-lg);
-  box-shadow: 0 18px 36px -22px color-mix(in srgb, var(--color-kola-600) 80%, #000), inset 0 1px 0 rgba(255, 255, 255, .2);
-}
-.listing-receipt > small { font-size: .6875rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; opacity: .8; }
+.listing-receipt { display: grid; gap: 4px; padding: var(--space-4); color: var(--color-ink-900); background: color-mix(in srgb, var(--color-kola-50) 55%, #fff); border: 1px solid color-mix(in srgb, var(--color-kola-600) 12%, #fff); border-radius: var(--radius-lg); }
+.listing-receipt > small { color: var(--color-kola-800); font-size: .6875rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
 .listing-receipt > strong { font-family: var(--font-display); font-size: 1.625rem; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
-.listing-receipt .listing-terms { gap: 6px; margin-top: var(--space-2); padding: var(--space-3) 0 0; background: none; border-top: 1px solid rgba(255, 255, 255, .18); border-radius: 0; box-shadow: none; }
-.listing-receipt .listing-terms dt { color: rgba(255, 255, 255, .82); font-size: .8125rem; }
-.listing-receipt .listing-terms dt em { margin-left: 4px; color: rgba(255, 255, 255, .6); font-size: .75rem; font-style: normal; }
-.listing-receipt .listing-terms dd { color: #fff; font-size: .8125rem; }
+.listing-receipt .listing-terms { gap: 6px; margin-top: var(--space-2); padding: var(--space-3) 0 0; background: none; border-top: 1px solid var(--color-field-200); border-radius: 0; box-shadow: none; }
+.listing-receipt .listing-terms dt { color: var(--color-ink-700); font-size: .8125rem; }
+.listing-receipt .listing-terms dt em { margin-left: 4px; color: var(--color-ink-500); font-size: .75rem; font-style: normal; }
+.listing-receipt .listing-terms dd { color: var(--color-ink-900); font-size: .8125rem; }
 
 /* --- actions --- */
 
 .listing-actions { display: grid; gap: var(--space-2); }
-.listing-actions .btn { min-height: 36px; padding: 6px 12px; gap: 6px; border-radius: 8px; font-size: .8125rem; font-weight: 650; line-height: 1.4; white-space: normal; }
+.listing-actions .btn { min-height: 44px; padding: 6px 12px; gap: 6px; border-radius: 8px; font-size: .8125rem; font-weight: 650; line-height: 1.4; white-space: normal; }
 .listing-actions .btn .portal-icon { width: 16px; height: 16px; color: inherit; }
 
 /* The page's one strong colour: Apply is the workspace's kola action, not an
@@ -599,9 +562,7 @@ ul.listing-trust-stamps { display: grid; gap: 2px; padding: var(--space-1); back
   .listing-gallery > button:first-child { grid-row: auto; }
   .listing-gallery-all { right: var(--space-2); bottom: var(--space-2); min-height: 2.25rem; padding: 0 var(--space-3); }
   .listing-head h1 { font-size: 1.5rem; }
-  .listing-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .listing-facts li { padding: var(--space-2) var(--space-3); gap: var(--space-2); }
-  .listing-fact-mark { width: 2rem; height: 2rem; }
+  .listing-facts li { padding: 6px 9px; gap: 6px; }
   .listing-section { padding: var(--space-4); }
   .listing-panel { padding: var(--space-4); border-radius: var(--radius-lg); }
   .listing-skeleton-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }

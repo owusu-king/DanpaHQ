@@ -1,3 +1,4 @@
+import { useAuth } from "@/auth";
 import type { ReactNode } from "react";
 import { useWindowDimensions, View } from "react-native";
 
@@ -72,6 +73,8 @@ type RenterTab = "home" | "explore" | "services" | "payments" | "menu";
  * Home's header runs on into its hero; Services and Payments keep their help.
  */
 export function RenterTabFrame({ tab, children }: { tab: RenterTab; children: ReactNode }) {
+  const { state } = useAuth();
+  if (state.status !== "signed_in") return <>{children}</>;
   const header =
     tab === "explore" || tab === "menu" ? null : (
       <TabHeaderRow

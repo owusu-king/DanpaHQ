@@ -11,6 +11,7 @@ export type Organization = {
 
 export type ManagedProperty = {
   id: string;
+  created_at: string;
   title: string;
   property_type: string;
   /** `sale` for a property sold whole — no Units (owner, 2026-09-28). */

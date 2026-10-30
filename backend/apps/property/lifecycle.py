@@ -54,7 +54,7 @@ def archived_resources_for(*, actor) -> dict:
     accessible = properties_for_user(actor, include_archived=True)
     property_rows = list(
         accessible.filter(deleted_at__isnull=False)
-        .select_related("address__locality__district")
+        .select_related("address__locality__district", "address__locality__region")
         .prefetch_related("units__beds")
         .order_by("-deleted_at", "title")
     )

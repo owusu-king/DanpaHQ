@@ -15,7 +15,6 @@
  * finished, so a phone backgrounded mid-way loses only the step on screen.
  */
 
-import Ionicons from "@expo/vector-icons/Ionicons";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 
@@ -31,13 +30,10 @@ import { VerificationPanel } from "@/components/property/VerificationPanel";
 import {
   EDGE,
   Footnote,
-  INK,
-  KOLA,
   KOLA_DEEP,
   LATERITE,
   MUTED,
   PAPER,
-  PRESSED,
   Pill,
   QuietAct,
 } from "@/components/record/RecordSurfaces";
@@ -49,8 +45,9 @@ import {
   listOrganizations,
   type Organization,
 } from "@/organizations";
-import { newPlacesSession, placeLabel, suggestPlaces, type PlaceSuggestion } from "@/places";
-import { pressableFeedback } from "@/platform";
+import { LocationPicker, pinFromAddress, type PinLocation } from "@/components/property/LocationPicker";
+import { LocationAutocomplete } from "@/components/property/LocationAutocomplete";
+import { referenceArea, type LocationReference } from "@/locations";
 import { describePropertySetup, resumeAt, toSetupInput, type SetupStep } from "@/propertySetup";
 import { loadPropertyVocabulary, type FeatureOption, type PropertyVocabulary } from "@/propertyTypes";
 import {
@@ -224,7 +221,7 @@ export function PropertyWizard({
   const primary =
     shown === "review"
       ? settled ? "Done" : "Create property"
-      : shown === "documents" && !recorded && !documentReady
+      : shown === "documents" && !recorded && !documentReady && property?.purpose !== "sale"
         ? "Skip for now"
         : shown === "basics" && !id
           ? "Continue"
@@ -248,9 +245,7 @@ export function PropertyWizard({
         <>
           {at > 0 ? (
             <QuietAct label="Back" icon="chevron-back" disabled={busy} onPress={() => go(keys[at - 1]!)} />
-          ) : (
-            <QuietAct label="Cancel" disabled={busy} onPress={onClose} />
-          )}
+          ) : null}
           {locked ? (
             <Pill label="Close" grow onPress={onClose} />
           ) : (
@@ -380,10 +375,10 @@ function NewPropertyStep({
   const [organizationId, setOrganizationId] = useState(requestedOrganization ?? "");
   const [title, setTitle] = useState("");
   const [query, setQuery] = useState("");
-  const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([]);
-  const [place, setPlace] = useState<PlaceSuggestion | null>(null);
-  const [attribution, setAttribution] = useState<string | null>(null);
-  const session = useRef<string | null>(null);
+  const [location, setLocation] = useState<LocationReference | null>(null);
+  const [areaFocus, setAreaFocus] = useState<PinLocation>(null);
+  const [city, setCity] = useState("");
+  const [pin, setPin] = useState<PinLocation>(null);
   const [digitalAddress, setDigitalAddress] = useState("");
   const [street, setStreet] = useState("");
   const [landmark, setLandmark] = useState("");
@@ -407,47 +402,19 @@ function NewPropertyStep({
       .catch(() => setOrganizations([]));
   }, [activeContext, requestedOrganization]);
 
-  useEffect(() => {
-    const typed = query.trim();
-    if (place || typed.length < 2) {
-      setSuggestions([]);
-      return;
-    }
-    session.current ??= newPlacesSession();
-    let live = true;
-    const timer = setTimeout(() => {
-      void suggestPlaces(typed, session.current!, true)
-        .then((response) => {
-          if (!live) return;
-          setSuggestions(response.suggestions);
-          setAttribution(response.attribution);
-        })
-        .catch(() => {
-          if (live) setSuggestions([]);
-        });
-    }, 300);
-    return () => {
-      live = false;
-      clearTimeout(timer);
-    };
-  }, [query, place]);
-
   useCommit(commitRef, async () => {
     const problems: Record<string, string> = {};
     if (organizations && organizations.length > 1 && !organizationId) problems.portfolio = "Choose the Portfolio it goes into.";
     if (!title.trim()) problems.title = "Give it a name only you will see.";
     if (!propertyType) problems.type = "Choose what kind of property it is.";
-    if (!place) problems.place = "Type the town, then pick it from the list.";
+    if (!query.trim()) problems.place = "Enter the town or neighbourhood.";
     setMissing(problems);
-    if (Object.keys(problems).length || !place) return false;
+    if (Object.keys(problems).length) return false;
     const address = await createAddress({
-      place: {
-        provider: place.provider,
-        reference: place.reference,
-        session: session.current ?? undefined,
-        name: place.name,
-        context: place.context,
-      },
+      ...(location ? { locality_id: location.id } : { place_name: query.trim() }),
+      place_context: city.trim(),
+      latitude: pin?.latitude ?? null,
+      longitude: pin?.longitude ?? null,
       digital_address: digitalAddress || undefined,
       street: street || undefined,
       landmark: landmark || undefined,
@@ -529,44 +496,17 @@ function NewPropertyStep({
             setMissing((current) => ({ ...current, title: "" }));
           }}
         />
-        <Field
-          label="Town or neighbourhood"
-          placeholder="Start typing, then pick one"
-          value={query}
-          error={missing.place || undefined}
-          onChangeText={(next) => {
-            if (place) session.current = null;
-            setQuery(next);
-            setPlace(null);
-            setMissing((current) => ({ ...current, place: "" }));
-          }}
-          suffix={place ? <Ionicons name="checkmark-circle" size={18} color={KOLA} /> : undefined}
-        />
-        {!place && suggestions.length ? (
-          <View style={styles.places}>
-            {suggestions.map((item, index) => (
-              <Pressable
-                key={item.provider + item.reference}
-                accessibilityRole="button"
-                accessibilityLabel={item.context ? `${item.name}. ${item.context}` : item.name}
-                onPress={() => {
-                  setPlace(item);
-                  setQuery(placeLabel(item));
-                  setSuggestions([]);
-                }}
-                {...pressableFeedback(PRESSED)}
-                style={({ pressed }) => [styles.place, index ? styles.placeRuled : null, pressed ? { backgroundColor: PRESSED } : null]}
-              >
-                <Ionicons name="location-outline" size={16} color={KOLA} />
-                <View style={styles.placeCopy}>
-                  <Type variant="captionStrong" numberOfLines={1} style={{ color: INK }}>{item.name}</Type>
-                  {item.context ? <Type variant="caption" numberOfLines={1} style={{ color: MUTED }}>{item.context}</Type> : null}
-                </View>
-              </Pressable>
-            ))}
-            {attribution === "google" ? <Footnote>Google Maps</Footnote> : null}
-          </View>
-        ) : null}
+        <LocationAutocomplete value={query} selected={location} error={missing.place || undefined}
+        onChange={(text) => { setQuery(text); setLocation(null); setPin(null); setAreaFocus(null); setMissing((current) => ({ ...current, place: "" })); }}
+        onSelect={(row) => {
+          setLocation(row); setQuery(row.name); setCity(row.district_name);
+          const area = referenceArea(row);
+          const selectedPin = area ? { latitude: area.lat, longitude: area.lng } : null;
+          setPin(selectedPin); setAreaFocus(selectedPin);
+        }}
+        onShowArea={(row) => { const area = referenceArea(row); if (area) setAreaFocus({ latitude: area.lat, longitude: area.lng }); }} />
+        <Field label="City or district (optional)" value={city} onChangeText={(text) => { setCity(text); setLocation(null); setPin(null); setAreaFocus(null); }} />
+        <LocationPicker value={pin} onChange={setPin} focus={areaFocus} />
         <Field label="GhanaPost GPS (optional)" placeholder="GA-492-1234" value={digitalAddress} onChangeText={setDigitalAddress} autoCapitalize="characters" />
         <Field label="Street (optional)" placeholder="Nii Tetteh Street" value={street} onChangeText={setStreet} />
         <Field label="Landmark (optional)" placeholder="Opposite the Baptist church" value={landmark} onChangeText={setLandmark} />
@@ -586,23 +526,26 @@ function NameStep({
   commitRef: CommitRef;
 }) {
   const [title, setTitle] = useState(property.title);
+  const [pin, setPin] = useState<PinLocation>(() => pinFromAddress(property.address));
   const editable = property.permitted_actions.edit?.allowed !== false;
 
   useCommit(commitRef, async () => {
-    if (!editable || title.trim() === property.title) return true;
+    if (!editable) return true;
+    if (title.trim() === property.title && JSON.stringify(pin) === JSON.stringify(pinFromAddress(property.address))) return true;
     if (!title.trim()) return false;
-    await updateProperty(property.id, { title: title.trim() });
+    await updateProperty(property.id, { title: title.trim(), location: { latitude: pin?.latitude ?? null, longitude: pin?.longitude ?? null } });
     return true;
   });
 
   return (
     <>
       <Field label="Name" value={title} editable={editable} onChangeText={setTitle} />
+      <LocationPicker value={pin} onChange={setPin} disabled={!editable} />
       <ReviewList>
         <ReviewLine first icon={TYPE_GLYPHS[property.property_type] ?? "business-outline"} term="Kind" value={typeLabel(property, vocabulary)} />
         <ReviewLine icon="location-outline" term="Where" value={addressLine(property)} />
       </ReviewList>
-      <Footnote>A property is one address, so it cannot move.</Footnote>
+      <Footnote>The written address stays fixed when you adjust the map pin.</Footnote>
     </>
   );
 }
@@ -689,7 +632,10 @@ function DocumentsStep({
   const claimRef = useRef<(() => Promise<void>) | null>(null);
   const [ready, setReady] = useState(false);
   const document = property.verification.authority.state;
-  const recorded = document !== "draft";
+  const missingDocuments = saleKind && property.permitted_actions.submit_for_verification?.blockers.some(
+    (blocker) => blocker.kind === "document_missing" || blocker.kind === "title_missing",
+  );
+  const recorded = document !== "draft" && !missingDocuments;
   const withTeam = document === "submitted" || document === "under_review";
   const verb = saleKind ? "sell" : "let";
 
@@ -698,8 +644,12 @@ function DocumentsStep({
   }, [ready, onReady]);
 
   useCommit(commitRef, async () => {
-    // Nothing chosen is a skip: the strip keeps it open, and Review says so.
-    if (recorded || !ready) return true;
+    if (recorded) return true;
+    if (!ready) {
+      // Sales must show the missing-document error instead of skipping ahead.
+      if (saleKind) await claimRef.current?.();
+      return !saleKind;
+    }
     await claimRef.current?.();
     const next = await reload();
     return next.verification.authority.state !== "draft";

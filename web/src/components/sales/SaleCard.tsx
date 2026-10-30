@@ -4,6 +4,7 @@ import Link from "next/link";
 
 import { Icon } from "@/components/portal/icons";
 import { saleFacts, type SaleCard as Sale } from "@/lib/sales";
+import { saleDetailPath } from "@/lib/exploreReturn";
 
 /**
  * A property for sale in the Buy grid.
@@ -13,9 +14,9 @@ import { saleFacts, type SaleCard as Sale } from "@/lib/sales";
  * house's rooms, a commercial building's use and floor area, land's size.
  * Every card here is verified; that is what put it on the page.
  */
-export function SaleCard({ sale }: { sale: Sale }) {
+export function SaleCard({ sale, returnTo = "/rentals" }: { sale: Sale; returnTo?: string }) {
   const where = [sale.locality_name, sale.district_name].filter(Boolean).join(", ");
-  const href = `/record/sale?id=${sale.id}` as never;
+  const href = saleDetailPath(sale.id, returnTo) as never;
   const facts = saleFacts(sale);
 
   return (

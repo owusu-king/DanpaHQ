@@ -2326,8 +2326,8 @@ def ensure_tenant_capability(user):
 @transaction.atomic
 def require_tenant_confirmation(value):
     """Creating additional tenant standing always needs explicit acknowledgement."""
-    if value != "Rent account":
-        raise ValidationFailed('Type "Rent account" exactly to create your renting account.')
+    if value != "TENANT":
+        raise ValidationFailed("Type TENANT to confirm your account creation")
 
 
 def choose_workspace(*, user, workspace: str, tenant_confirmation: str = ""):

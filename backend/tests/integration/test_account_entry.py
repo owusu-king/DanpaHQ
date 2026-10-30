@@ -65,7 +65,7 @@ def test_provider_tenant_capability_requires_explicit_creation():
         services.ensure_tenant_capability(user)
     services.select_onboarding_intent(user=user, intent=Intent.FIND_PROPERTY)
     assert not user.has_role(Role.TENANT)
-    services.choose_workspace(user=user, workspace="tenant", tenant_confirmation="Rent account")
+    services.choose_workspace(user=user, workspace="tenant", tenant_confirmation="TENANT")
     assert user.has_role(Role.TENANT)
     sign_in(user=user)
     assert services.active_workspace(user) == "provider"
@@ -112,7 +112,7 @@ def test_unknown_google_identity_waits_for_explicit_account_selection():
 ])
 @pytest.mark.parametrize("account_type", ["provider", "artisan"])
 @pytest.mark.parametrize(
-    "confirmation", [None, "", "rent account", "Rent Account", " Rent account", "Rent account "]
+    "confirmation", [None, "", "tenant", "Tenant", " TENANT", "TENANT ", "Rent account"]
 )
 def test_new_tenant_standing_requires_exact_confirmation(path, payload, confirmation, account_type):
     user = make_account("0207778011", account_type=account_type)
@@ -136,7 +136,7 @@ def test_confirmed_tenant_creation_keeps_provider_account(path, payload):
     user = make_account("0207778012", account_type="provider")
     api = APIClient()
     api.force_authenticate(user)
-    response = api.post(path, {**payload, "tenant_confirmation": "Rent account"}, format="json")
+    response = api.post(path, {**payload, "tenant_confirmation": "TENANT"}, format="json")
     assert response.status_code in (200, 201)
     assert user.has_role(Role.TENANT)
     user.refresh_from_db()

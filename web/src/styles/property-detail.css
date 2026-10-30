@@ -259,3 +259,146 @@
 .danger-confirmation .doc-modal-mark .portal-icon { color: inherit; }
 
 .danger-confirmation .field-label strong { color: var(--color-ink-900); font-weight: 600; }
+
+
+/* Property and Unit details share restrained surfaces and aligned action groups. */
+.pd-next-actions { align-items: center; }
+.pd-next-actions .btn { min-height: 36px; }
+.pd-side > * { min-width: 0; }
+.pd-panel { box-shadow: none; }
+.listing-compose-fields { display: grid; gap: var(--space-4); min-width: 0; margin: 0; padding: 0; border: 0; }
+.listing-compose-fields section { min-width: 0; }
+@media (min-width: 961px) { .pd-top { grid-template-columns: minmax(0, 1.25fr) minmax(20rem, 1fr); } }
+.portal-main:has(> .record-page) { padding-top: 20px; }
+.record-page { container: record-detail / inline-size; width: 100%; max-width: 1180px; margin-inline: auto; gap: 18px; padding-top: 4px; }
+.record-page::before { display: none; }
+.record-header { display: grid; gap: 7px; min-width: 0; }
+.record-header .entity-path { margin: 0; font-size: .75rem; }
+.record-heading { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; min-width: 0; }
+.record-heading h1 { flex: 1 1 18rem; min-width: 0; margin: 0; font-size: 1.4rem; line-height: 1.3; font-weight: 600; letter-spacing: -.025em; overflow-wrap: anywhere; }
+.record-context { margin: 0; color: var(--color-ink-500); font-size: .8125rem; line-height: 1.5; overflow-wrap: anywhere; }
+.record-statuses { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; }
+.record-statuses .status-line { margin: 0; font-size: .75rem; }
+.record-hero { display: grid; grid-template-columns: minmax(240px, .85fr) minmax(0, 1.45fr); gap: 24px; align-items: start; padding-block: 2px 18px; border-bottom: 1px solid var(--color-field-200); min-width: 0; }
+.record-media { display: grid; gap: 8px; margin: 0; min-width: 0; }
+.record-image-button { position: relative; width: 100%; display: block; padding: 0; aspect-ratio: 4 / 3; max-height: 230px; overflow: hidden; border: 1px solid var(--color-field-200); border-radius: 8px; background: var(--color-field-100); cursor: zoom-in; }
+.record-image-button > img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.record-image-button:focus-visible, .record-thumbnails button:focus-visible { outline: 2px solid var(--color-kola-600); outline-offset: 3px; }
+.record-image-count { position: absolute; right: 8px; bottom: 8px; padding: 3px 7px; background: rgb(255 255 255 / .95); color: var(--color-ink-900); font-size: .6875rem; border-radius: 4px; }
+.record-thumbnails { display: flex; gap: 6px; overflow-x: auto; padding: 2px; }
+.record-thumbnails button { flex: 0 0 48px; width: 48px; height: 40px; padding: 0; overflow: hidden; border: 2px solid transparent; border-radius: 5px; background: var(--color-field-100); }
+.record-thumbnails button[aria-pressed="true"] { border-color: var(--color-kola-600); }
+.record-thumbnails img { width: 100%; height: 100%; object-fit: cover; }
+.record-media-empty { display: grid; align-items: center; min-height: 112px; padding: 16px; background: var(--color-field-100); border: 1px dashed var(--color-field-300); border-radius: 8px; font-size: .8125rem; color: var(--color-ink-500); }
+.record-expanded-image { display: block; width: 100%; max-height: 75dvh; object-fit: contain; }
+.record-primary { display: grid; align-content: start; min-width: 0; gap: 12px; padding-block: 4px; }
+.record-action-title, .record-primary .record-workflow h2 { margin: 0; font: inherit; font-size: .9375rem; font-weight: 600; }
+.record-action-group, .record-section-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.record-primary .btn, .record-section .btn { min-height: 36px; font-size: .8125rem; padding-inline: 12px; box-shadow: none; }
+.record-primary .attention-band { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; margin: 0; padding: 0; background: none; border: 0; box-shadow: none; }
+.record-primary .attention-band-actions { justify-content: flex-start; }
+.record-primary .attention-band h2 { margin: 0; font-size: .9375rem; }
+.record-primary .attention-band p { margin: 4px 0 0; font-size: .8125rem; }
+.record-primary .workspace-section { margin: 0; padding: 0; border: 0; box-shadow: none; background: none; }
+.record-primary .workspace-section-head { margin-bottom: 8px; }
+.record-primary .workspace-section-head h2 { margin: 0; font-size: .9375rem; }
+.record-primary .sale-panel { padding: 0; border: 0; background: none; box-shadow: none; gap: 8px; }
+.record-metrics { display: flex; flex-wrap: wrap; gap: 12px 28px; margin: 0; }
+.record-metrics > div { display: grid; gap: 2px; }
+.record-metrics dt { color: var(--color-ink-500); font-size: .75rem; }
+.record-metrics dd { margin: 0; font-size: 1.25rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.record-hint { margin: 0; font-size: .8125rem; line-height: 1.5; color: var(--color-ink-500); }
+.record-workflow { display: grid; gap: 10px; min-width: 0; }
+.record-workflow > p { margin: 0; font-size: .8125rem; color: var(--color-ink-500); }
+.record-workflow .pd-next-kicker { display: none; }
+.record-workflow .pd-next-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.record-detail-grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.record-section { display: grid; gap: 12px; min-width: 0; padding: 16px; border: 1px solid var(--color-field-200); border-radius: 8px; background: var(--color-field-0); }
+.record-section-head { display: flex; gap: 12px; align-items: center; justify-content: space-between; }
+.record-section h2, .record-section-title { margin: 0; font: inherit; font-size: .9375rem; font-weight: 600; }
+.record-section h3 { margin: 0; font-size: .8125rem; font-weight: 600; }
+.record-fields { display: grid; gap: 10px; margin: 0; min-width: 0; }
+.record-fields .pd-fact { display: block; padding: 0; border: 0; background: none; box-shadow: none; }
+.record-fields .pd-fact-mark { display: none; }
+.record-fields .pd-fact > span:last-child { display: grid; grid-template-columns: minmax(80px, .6fr) minmax(0, 1fr); align-items: baseline; gap: 8px; }
+.record-fields .pd-fact dt { font-size: .75rem; text-transform: none; letter-spacing: 0; font-weight: 400; }
+.record-fields .pd-fact dd { font-size: .8125rem; line-height: 1.5; font-weight: 500; }
+.record-fields.is-overview { grid-template-columns: repeat(auto-fit, minmax(135px, 1fr)); gap: 12px 20px; }
+.record-fields.is-overview .pd-fact > span:last-child { grid-template-columns: minmax(0, 1fr); gap: 3px; }
+.record-amenities { display: grid; gap: 8px; padding-top: 12px; border-top: 1px solid var(--color-field-200); }
+.record-description { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: .875rem; line-height: 1.6; }
+.record-section .pd-section { padding-block: 12px; border-top: 1px solid var(--color-field-200); gap: 8px; }
+.record-section .pd-section:first-of-type { padding-top: 0; border-top: 0; }
+.record-section .pd-note { margin-bottom: 4px; }
+.record-section .unit-access { padding: 0; border: 0; box-shadow: none; background: none; }
+.record-support-grid > .workspace-section { padding: 16px; margin: 0; border: 1px solid var(--color-field-200); border-radius: 8px; background: var(--color-field-0); box-shadow: none; }
+.record-support-grid .workspace-section-head { margin: 0 0 8px; }
+.record-support-grid .workspace-section-head h2 { font-size: .9375rem; }
+.record-support-grid .pd-section { padding-top: 0; border-top: 0; }
+.record-page .fact-grid { margin: 0; gap: 10px; }
+.record-page .fact-grid > div { display: grid; grid-template-columns: minmax(80px, .55fr) minmax(0, 1fr); gap: 8px; align-items: baseline; padding: 0; }
+.record-page .fact-grid dt { font-size: .75rem; font-weight: 400; }
+.record-page .fact-grid dd { margin: 0; font-size: .8125rem; line-height: 1.5; }
+
+.record-unit-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 24px; list-style: none; padding: 0; margin: 0; }
+.record-unit-row { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--color-field-200); color: inherit; text-decoration: none; min-width: 0; }
+.record-unit-photo { flex: 0 0 56px; width: 56px; height: 48px; overflow: hidden; background: var(--color-field-100); border-radius: 5px; display: grid; place-items: center; font-size: .625rem; }
+.record-unit-photo img { width: 100%; height: 100%; object-fit: cover; }
+.record-unit-copy { display: grid; gap: 3px; flex: 1; min-width: 0; }
+.record-unit-copy strong { font-size: .875rem; overflow-wrap: anywhere; }
+.record-unit-meta { font-size: .75rem; color: var(--color-ink-500); }
+.record-unit-row > .status-line { max-width: 10rem; font-size: .6875rem; }
+.record-row-arrow { color: var(--color-ink-500); }
+@container record-detail (max-width: 760px) { .record-unit-list { grid-template-columns: minmax(0, 1fr); } }
+@container record-detail (max-width: 700px) {
+  .record-hero { grid-template-columns: minmax(160px, .85fr) minmax(0, 1fr); gap: 16px; }
+  .record-image-button { max-height: 190px; }
+  .record-detail-grid { grid-template-columns: minmax(0, 1fr); }
+}
+@container record-detail (max-width: 500px) {
+  .record-hero { grid-template-columns: minmax(0, 1fr); gap: 14px; }
+  .record-image-button { aspect-ratio: 16 / 9; max-height: 190px; }
+  .record-heading h1 { flex-basis: 100%; font-size: 1.25rem; }
+  .record-section { padding: 12px; }
+  .record-unit-row { gap: 8px; flex-wrap: wrap; }
+  .record-unit-copy { min-width: calc(100% - 72px); }
+  .record-unit-row > .status-line { margin-left: 64px; max-width: none; }
+  .record-row-arrow { margin-left: auto; }
+}
+@media (pointer: coarse) { .record-primary .btn, .record-section .btn { min-height: 44px; } }
+
+.record-side-sections { display: grid; gap: 16px; min-width: 0; }
+.record-secondary-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; padding-top: 12px; border-top: 1px solid var(--color-field-200); }
+.record-section .unit-access { margin: 0; }
+
+/* Record actions stay together; destructive actions retain an explicit boundary. */
+.record-withdraw-action { border-color: var(--color-laterite-600); background: color-mix(in srgb, var(--color-laterite-100) 65%, white); color: var(--color-laterite-600); }
+.record-withdraw-action:hover:not(:disabled) { background: var(--color-laterite-100); border-color: var(--color-laterite-600); }
+.record-recheck-action { border-color: var(--color-kola-300); background: var(--color-kola-50); color: var(--color-kola-800); }
+.record-recheck-action:hover:not(:disabled) { background: color-mix(in srgb, var(--color-kola-300) 25%, white); border-color: var(--color-kola-600); }
+.record-tenancy-action { justify-content: flex-start; }
+.record-detail-grid.is-unit-record { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.record-detail-grid.is-unit-record:has(> :only-child) { grid-template-columns: minmax(0, 1fr); }
+.record-readonly-details { display: grid; gap: 10px; }
+/* Fit up to three unit cards; unused columns collapse when there are fewer units. */
+.record-property-units .record-unit-list {
+  --unit-min-width: max(14rem, calc((100% - 24px) / 3));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--unit-min-width)), 1fr));
+  gap: 12px;
+}
+.record-property-units .record-unit-list > li { min-width: 0; }
+.record-property-units .record-unit-row {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr) auto;
+  align-content: start;
+  gap: 6px 12px;
+  height: 100%;
+  padding: 12px;
+  border: 1px solid var(--color-field-200);
+  border-radius: 8px;
+}
+.record-property-units .record-unit-photo { grid-row: 1 / span 2; }
+.record-property-units .record-unit-copy { grid-column: 2; min-width: 0; }
+.record-property-units .record-unit-row > .status-line { grid-column: 2; grid-row: 2; max-width: 100%; margin-left: 0; white-space: normal; overflow-wrap: anywhere; }
+.record-property-units .record-row-arrow { grid-column: 3; grid-row: 1 / span 2; align-self: center; }
+@container record-detail (max-width: 700px) { .record-detail-grid.is-unit-record { grid-template-columns: minmax(0, 1fr); } }

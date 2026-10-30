@@ -108,11 +108,11 @@ test("place leads, because that is the first question", () => {
 
   // Web chooses a place — resolved to a centre and a box — not a locality string.
   assert.match(browser, /<PlaceSearch\s/);
-  assert.match(places, /suggestPlaces\(typed, session\.current, controller\.signal\)/);
+  assert.match(places, /onSubmitText\(row\.name\)/);
   // A link made before places still filters by its locality.
   assert.match(query, /params\.set\("locality_id", query\.localityId\)/);
   // The phone chooses places the same way, through the same API.
-  assert.match(mobile, /suggestPlaces\(typed, session\.current\)/);
+  assert.doesNotMatch(mobile, /suggestPlaces|resolvePlace|newPlacesSession/);
   assert.match(mobile, /west: box\?\.west/);
   // Free text must be sent when no suggested place has been chosen.
   assert.match(mobile, /q: area \? undefined : place\.trim\(\) \|\| undefined/);
@@ -255,9 +255,8 @@ test("every Explore choice is shown once and removed one way", () => {
   // The search field drew two clears: the designed one and the browser's own
   // search-cancel cross beside it.
   assert.match(css, /\.explore-search input::-webkit-search-cancel-button,[\s\S]{0,80}appearance: none/);
-  const places = read("web/src/components/explore/PlaceSearch.tsx");
   const query = read("web/src/lib/exploreQuery.ts");
-  assert.equal(places.match(/aria-label="Clear search"/g)?.length, 1);
+  assert.equal(read("web/src/components/property/LocationAutocomplete.tsx").match(/aria-label="Clear search"/g)?.length, 1);
   assert.doesNotMatch(browser, /aria-label="Clear search"/);
 
   // Neither client repeats a choice as a pill or a chip: every one lives in the
@@ -282,7 +281,7 @@ test("every Explore choice is shown once and removed one way", () => {
   // Clear all clears filters. Place has its own clear, in the field.
   const mobileClearStart = mobile.indexOf("function clearFilters() {");
   assert.ok(mobileClearStart > 0, "mobile clearFilters not found");
-  const mobileClear = mobile.slice(mobileClearStart, mobile.indexOf("}", mobileClearStart));
+  const mobileClear = mobile.slice(mobileClearStart, mobile.indexOf("\n  }", mobileClearStart));
   assert.match(mobileClear, /setSort\("newest"\)/);
   assert.match(mobileClear, /setFurnished\(false\)/);
   assert.doesNotMatch(mobileClear, /setLocality|setQ\(|setPlace\(/);
@@ -293,7 +292,7 @@ test("every Explore choice is shown once and removed one way", () => {
   assert.ok(keptStart > 0, "withoutFilters not found");
   const kept = query.slice(keptStart, query.indexOf("\n}", keptStart));
   assert.match(kept, /\.\.\.EMPTY_EXPLORE_QUERY,/);
-  for (const field of ["area", "bbox", "q", "localityId", "localityName", "view"]) {
+  for (const field of ["area", "q", "localityId", "localityName", "view"]) {
     assert.match(kept, new RegExp("\\b" + field + ": query\\." + field + ","));
   }
 
@@ -351,11 +350,9 @@ test("the Filters panel behaves as the dialog it announces", () => {
   assert.match(browser, /if \(event\.shiftKey && \(current === first \|\| current === event\.currentTarget\)\) \{\s*event\.preventDefault\(\);\s*last\.focus\(\);/);
   assert.match(browser, /else if \(!event\.shiftKey && current === last\) \{\s*event\.preventDefault\(\);\s*first\.focus\(\);/);
   assert.match(browser, /<div className="explore-filter-scrim" aria-hidden="true" \/>/);
-  // The suggestions are a real listbox the keyboard can walk and dismiss.
-  const places = read("web/src/components/explore/PlaceSearch.tsx");
-  assert.match(places, /role="combobox"/);
-  assert.match(places, /role="listbox"/);
-  assert.match(places, /event\.key === "Escape"\) \{\s*if \(listOpen\) \{[\s\S]{0,160}setOpen\(false\);/);
+  // Plain database search remains labelled and keyboard-submittable.
+  assert.match(read("web/src/components/property/LocationAutocomplete.tsx"), /className="sr-only">\{label\}/);
+  assert.match(read("web/src/components/property/LocationAutocomplete.tsx"), /event\.key === "Enter"/);
 
   // More filters sits in the chip row under the search, and says what it opens and whether it is open.
   assert.ok(browser.indexOf("<PlaceSearch") < browser.indexOf("<MoreFiltersButton"));

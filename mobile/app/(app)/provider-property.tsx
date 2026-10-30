@@ -1,3 +1,5 @@
+import { RecordHeader, RecordHero, RecordFacts, RecordSection, RecordUnitRow } from "@/components/property/RecordDetail";
+import { LocationPicker, pinFromAddress } from "@/components/property/LocationPicker";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { FlatList, StyleSheet, View } from "react-native";
 import { useCallback, useState } from "react";
@@ -6,14 +8,9 @@ import { ApiFailure } from "@/api";
 import { Bone } from "@/components/billing/BillingParts";
 import {
   ActionBar,
-  EDGE,
   Fact,
   Footnote,
   GroupLabel,
-  HARMATTAN,
-  INK,
-  KOLA_DEEP,
-  Lead,
   LinkRow,
   Pill,
   RecordPanel,
@@ -23,10 +20,10 @@ import {
 import { BottomSheet } from "@/components/sheet/BottomSheet";
 import { Button, Notice, Type, space } from "@/components/ui";
 import { PropertyLifecycle, PropertyMore, PropertyRemoval, propertyRemoval } from "@/components/property/PropertyLifecycle";
-import { propertyStatus } from "@/components/property/WorkspacePatterns";
+import { propertyStatus, spaceStatus } from "@/components/property/WorkspacePatterns";
 import { SaleDetailsForm } from "@/components/property/SaleDetailsForm";
 import { SalePanel, saleVisibility } from "@/components/property/SalePanel";
-import { UNIT_COLUMNS, UNIT_TILE_GAP, UnitTile } from "@/components/property/UnitTile";
+import { UNIT_TILE_GAP } from "@/components/property/UnitTile";
 import { useSafeBottom } from "@/platform";
 import { describePropertySetup, toSetupInput } from "@/propertySetup";
 import {
@@ -38,7 +35,6 @@ import {
   type Unit,
 } from "@/provider";
 import { getSellerSale, type SellerSale } from "@/sales";
-import { theme } from "@/theme";
 import { getVerification, type VerificationProgress } from "@/verification";
 
 type Sheet = "information" | "amenities" | "more" | "danger" | "sale";
@@ -140,7 +136,7 @@ export default function ProviderPropertyScreen() {
   ].filter(Boolean).join(", ");
 
   const occupied = units.filter((unit) => unit.availability.state === "occupied").length;
-  const vacant = units.length - occupied;
+  const vacant = units.filter((unit) => unit.availability.state === "available").length;
   const addUnit = () => router.push({ pathname: "/(app)/space-new", params: { propertyId: property.id } });
 
   return (
@@ -148,17 +144,13 @@ export default function ProviderPropertyScreen() {
       <FlatList
         data={units}
         keyExtractor={(unit) => unit.id}
-        numColumns={UNIT_COLUMNS}
-        columnWrapperStyle={{ gap: UNIT_TILE_GAP }}
+
         contentContainerStyle={[styles.page, { paddingBottom: offerUnit ? space[6] : pageBottom }]}
         keyboardShouldPersistTaps="handled"
         renderItem={({ item }) => (
-          <UnitTile
-            unit={item}
-            // Inside a Property the building is a given — what kind of space it
-            // is and how big is what tells one Unit from the next.
-            meta={`${item.space_type_label} · ${item.bedrooms === 0 ? "Single room" : `${item.bedrooms} bed${item.bedrooms === 1 ? "" : "s"}`}`}
-            onOpen={() => router.push({ pathname: "/(app)/space", params: { unitId: item.id } })}
+          <RecordUnitRow title={item.label || "Unit"} photo={item.primary_photo?.download_url} meta={item.space_type_label}
+            status={<StandingLine tone={spaceStatus(item).tone === "good" ? "good" : "quiet"} line={spaceStatus(item).label} />}
+            onPress={() => router.push({ pathname: "/(app)/space", params: { unitId: item.id } })}
           />
         )}
         ListHeaderComponent={
@@ -172,64 +164,12 @@ export default function ProviderPropertyScreen() {
               />
             ) : null}
 
-            {/* One card says what this Property is (owner, 2026-10-06): its name,
-                where it is and where it stands, how much of it is let as a bar,
-                and its counts on one straight line — not a title on the ground
-                over a separate "Let 5/6" panel. */}
-            <View style={styles.card}>
-              <View style={styles.identity}>
-                <Type variant="title2" accessibilityRole="header" numberOfLines={2} style={styles.who}>
-                  {property.title || "Untitled Property"}
-                </Type>
-                <Type variant="caption" numberOfLines={2} style={styles.where}>
-                  {fullAddress || `${property.address.locality_name}, ${property.address.district_name}`}
-                </Type>
-                <StandingLine tone={tone} line={status.label} />
-              </View>
-              {selling ? (
-                <View style={styles.sale}>
-                  <Lead
-                    label="Asking price"
-                    value={sale?.price_formatted ?? "No price yet"}
-                    note={shown ? `${shown.label} · ${shown.note}` : "Loading…"}
-                    tone={shown?.tone ?? "quiet"}
-                  />
-                </View>
-              ) : units.length ? (
-                <View accessible accessibilityLabel={`${occupied} of ${units.length} Units let`} style={styles.letting}>
-                  <View style={styles.lettingHead}>
-                    <Type variant="caption" style={styles.lettingLabel}>Let</Type>
-                    <Type variant="captionStrong" style={{ color: vacant ? HARMATTAN : KOLA_DEEP }}>
-                      {vacant ? `${vacant} still to let` : "Every Unit is let"}
-                    </Type>
-                  </View>
-                  <View style={styles.bar}>
-                    <View style={[styles.barFill, { flex: occupied }]} />
-                    <View style={{ flex: vacant }} />
-                  </View>
-                </View>
-              ) : null}
-              <View style={styles.facts}>
-                <PropertyFact label="Type" wide value={propertyTypeLabel(property.property_type).replace(/ Property$/, "")} />
-                {selling ? null : (
-                  <>
-                    <View style={styles.factRule} />
-                    <PropertyFact label="Units" value={units.length ? `${occupied}/${units.length} let` : "None yet"} />
-                  </>
-                )}
-              </View>
-            </View>
-
-            {access && restricted ? (
-              <Notice
-                tone={access.state === "wind_down" ? "warning" : "info"}
-                title={access.state === "wind_down" ? "Winding down on your current plan" : "Read-only on your current plan"}
-                body={`${access.message} Manage this in More → Plan & billing.`}
-              />
-            ) : null}
-
-            <PropertyLifecycle property={property} steps={steps} onChanged={load} compact />
-
+            <RecordHeader title={property.title || "Untitled Property"} context={`${propertyTypeLabel(property.property_type)} · ${property.address.locality_name}`} status={<StandingLine tone={tone} line={status.label} />} />
+            <RecordHero photo={property.cover_url} title={property.title || "Property"}>
+              <PropertyLifecycle property={property} steps={steps} onChanged={load} compact />
+              {selling ? <>
+                <Type variant="caption">Asking price</Type><Type variant="title2">{sale?.price_formatted ?? "No price yet"}</Type>
+                {shown ? <StandingLine line={shown.label} tone={shown.tone} /> : null}
             {selling && sale ? (
               <SalePanel
                 propertyId={property.id}
@@ -239,9 +179,51 @@ export default function ProviderPropertyScreen() {
                 onEdit={() => setSheet("sale")}
               />
             ) : null}
+              </> : <View accessible accessibilityLabel={`${occupied} of ${units.length} Units let`}>
+                <RecordFacts rows={[{ label: "Units", value: String(units.length) }, { label: "Occupied", value: String(occupied) }, { label: "Available", value: String(vacant) }]} />
+              </View>}
+            </RecordHero>
+            {!land || property.notes ? <RecordSection title={land ? "Description" : "Overview"}>{!land ? <RecordFacts rows={[{ label: "Type", value: propertyTypeLabel(property.property_type) }, { label: "Water", value: property.water_source_label }, { label: "Power", value: property.power_meter_label }, { label: "Compound", value: property.compound_label }]} /> : null}{property.notes ? <Type variant="body">{property.notes}</Type> : null}</RecordSection> : null}
+            <RecordSection title="Location">
+              <Type variant="body">{fullAddress || "Address not recorded"}</Type>
+              {property.address.digital_address ? <Type variant="caption">{property.address.digital_address}</Type> : null}
+              {property.address.landmark ? <Type variant="caption">{property.address.landmark}</Type> : null}
+              {pinFromAddress(property.address) ? <LocationPicker value={pinFromAddress(property.address)} disabled onChange={() => {}} /> : null}
+            </RecordSection>
 
+            {access && restricted ? (
+              <Notice
+                tone={access.state === "wind_down" ? "warning" : "info"}
+                title={access.state === "wind_down" ? "Winding down on your current plan" : "Read-only on your current plan"}
+                body={`${access.message} Manage this in More → Plan & billing.`}
+              />
+            ) : null}
+
+
+
+
+
+            {selling ? null : (
+              <View style={styles.section}>
+                <GroupLabel>{units.length ? `Units · ${units.length}` : "Units"}</GroupLabel>
+              </View>
+            )}
+          </View>
+        }
+        ListEmptyComponent={selling ? null : (
+          <RecordPanel>
+            <Fact
+              wide
+              first
+              label="No Units yet"
+              value="Add the room, apartment, shop or other space a tenant can rent."
+            />
+          </RecordPanel>
+        )}
+        ListFooterComponent={
+          <View style={styles.foot}>
             <View style={styles.section}>
-              <GroupLabel>About this Property</GroupLabel>
+              <GroupLabel>Record tools</GroupLabel>
               <RecordPanel>
                 <LinkRow
                   first
@@ -276,26 +258,6 @@ export default function ProviderPropertyScreen() {
                 ) : null}
               </RecordPanel>
             </View>
-
-            {selling ? null : (
-              <View style={styles.section}>
-                <GroupLabel>{units.length ? `Units · ${units.length}` : "Units"}</GroupLabel>
-              </View>
-            )}
-          </View>
-        }
-        ListEmptyComponent={selling ? null : (
-          <RecordPanel>
-            <Fact
-              wide
-              first
-              label="No Units yet"
-              value="Add the room, apartment, shop or other space a tenant can rent."
-            />
-          </RecordPanel>
-        )}
-        ListFooterComponent={
-          <View style={styles.foot}>
             {selling ? null : <RecordPanel>
               <LinkRow
                 first
@@ -389,16 +351,6 @@ export default function ProviderPropertyScreen() {
   );
 }
 
-/** One of the Property's facts on the identity card's straight line. */
-function PropertyFact({ label, value, wide = false }: { label: string; value: string; wide?: boolean }) {
-  return (
-    <View accessible accessibilityLabel={`${label}, ${value}`} style={[styles.fact, wide ? { flex: 1.5 } : null]}>
-      <Type variant="caption" style={styles.factLabel}>{label}</Type>
-      <Type variant="bodyStrong" numberOfLines={2} style={styles.factValue}>{value}</Type>
-    </View>
-  );
-}
-
 function sheetTitle(sheet: Sheet | null) {
   if (sheet === "information") return "Property information";
   if (sheet === "amenities") return "Shared amenities";
@@ -444,102 +396,11 @@ function PropertySkeleton() {
 }
 
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-  },
-  page: {
-    padding: space[4],
-    gap: UNIT_TILE_GAP,
-  },
-  head: {
-    gap: space[4],
-    marginBottom: space[1],
-  },
-  card: {
-    overflow: "hidden",
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: EDGE,
-    backgroundColor: theme.color.field["0"],
-  },
-  identity: {
-    gap: space[2],
-    paddingHorizontal: space[4],
-    paddingTop: space[4],
-  },
-  who: {
-    fontSize: 22,
-    lineHeight: 28,
-    color: INK,
-  },
-  where: {
-    marginTop: -4,
-  },
-  sale: {
-    marginHorizontal: -space[4],
-  },
-  letting: {
-    gap: space[2],
-    paddingHorizontal: space[4],
-    paddingTop: space[4],
-  },
-  lettingHead: {
-    flexDirection: "row",
-    alignItems: "baseline",
-    justifyContent: "space-between",
-  },
-  lettingLabel: {
-    color: theme.color.ink["500"],
-  },
-  bar: {
-    height: 8,
-    flexDirection: "row",
-    overflow: "hidden",
-    borderRadius: 4,
-    backgroundColor: theme.color.harmattan["100"],
-  },
-  barFill: {
-    borderRadius: 4,
-    backgroundColor: theme.color.kola["600"],
-  },
-  facts: {
-    flexDirection: "row",
-    marginTop: space[4],
-    paddingVertical: space[3],
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: EDGE,
-  },
-  fact: {
-    flex: 1,
-    minWidth: 0,
-    gap: 2,
-    paddingHorizontal: space[4],
-  },
-  factRule: {
-    width: StyleSheet.hairlineWidth,
-    backgroundColor: EDGE,
-  },
-  factLabel: {
-    fontSize: 12,
-    lineHeight: 16,
-  },
-  factValue: {
-    fontSize: 14,
-    lineHeight: 19,
-    color: INK,
-  },
-  section: {
-    gap: space[2],
-  },
-  foot: {
-    gap: space[3],
-    marginTop: space[4],
-  },
-  sheetBody: {
-    gap: space[4],
-  },
-  skeletonPanel: {
-    gap: space[3],
-    padding: space[4],
-  },
+  screen: { flex: 1 },
+  page: { padding: space[4], gap: space[3] },
+  head: { gap: space[3], marginBottom: space[1] },
+  section: { gap: space[2] },
+  foot: { gap: space[3], marginTop: space[4] },
+  sheetBody: { gap: space[4] },
+  skeletonPanel: { gap: space[3], padding: space[4] },
 });

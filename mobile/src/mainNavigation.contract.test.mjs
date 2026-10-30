@@ -239,7 +239,7 @@ test("iOS floats a glass capsule over the page, and every tab clears it", () => 
 test("iOS renter tabs are Apple's own bar, and every tab page draws its own header", () => {
   const layout = code(renter);
   // iOS takes the native bar; Android keeps the JS tabs and their shelf.
-  assert.match(layout, /return isIOS \? <RenterNativeTabs \/> : <RenterJsTabs \/>;/);
+  assert.match(layout, /return isIOS && state\.status === "signed_in" \? <RenterNativeTabs \/> : <RenterJsTabs \/>;/);
   assert.match(layout, /from "expo-router\/unstable-native-tabs"/);
   for (const name of ["index", "explore", "services", "payments", "profile"]) {
     assert.match(layout, new RegExp(`<NativeTabs\.Trigger name="${name}" disableAutomaticContentInsets`), `${name} is missing`);

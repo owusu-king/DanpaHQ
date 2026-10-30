@@ -21,9 +21,7 @@ export default function PrivatePropertyScreen() {
       purpose={purpose === "sale" ? "sale" : "letting"}
       organizationId={organizationId || null}
       onClose={() => (router.canGoBack() ? router.back() : router.replace("/(app)/(provider-tabs)/properties" as never))}
-      onFinished={(propertyId) =>
-        router.replace({ pathname: "/(app)/provider-property", params: { propertyId, created: "1" } })
-      }
+      onFinished={() => (router.canGoBack() ? router.back() : router.replace("/(app)/(provider-tabs)/properties" as never))}
     />
   );
 }

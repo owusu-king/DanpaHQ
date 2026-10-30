@@ -6,9 +6,9 @@ import { useEffect, useState } from "react";
 import { Notice } from "@/components/Notice";
 import { LoadingRows } from "@/components/portal/PageHeader";
 import { ListingComposer } from "@/components/property/ListingComposer";
-import { EntityHeader, EntityPath } from "@/components/property/WorkspacePatterns";
+import { ModalSheet } from "@/components/workspace/ModalSheet";
 import { ApiFailure } from "@/lib/api";
-import { getUnit, type UnitDetail } from "@/lib/console";
+import { getUnit, listMyListings, type Listing, type UnitDetail } from "@/lib/console";
 
 export default function NewUnitListingPage() {
   const search = useSearchParams();
@@ -17,11 +17,17 @@ export default function NewUnitListingPage() {
   const router = useRouter();
   const [unit, setUnit] = useState<UnitDetail | null>(null);
   const [error, setError] = useState("");
+  const [listing, setListing] = useState<Listing | null>(null);
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     if (!spaceId) return;
     getUnit(spaceId)
-      .then(setUnit)
+      .then(async (value) => {
+        const rows = value.publication.listing_id ? await listMyListings() : [];
+        setListing(rows.find((row) => row.id === value.publication.listing_id) ?? null);
+        setUnit(value);
+      })
       .catch((cause) => setError(cause instanceof ApiFailure ? cause.error.message : "Could not load this Unit."));
   }, [spaceId]);
 
@@ -34,19 +40,8 @@ export default function NewUnitListingPage() {
 
   const unitPath = `/record/space?propertyId=${propertyId}&spaceId=${spaceId}`;
   return (
-    <div>
-      <EntityPath items={[
-        { label: "Properties", href: "/properties" },
-        { label: unit.property.title || "Property", href: `/record/property?id=${propertyId}` },
-        { label: unit.label || "Unit", href: unitPath },
-        { label: "Publish" },
-      ]} />
-      <EntityHeader
-        eyebrow="Public listing"
-        title={`Publish ${unit.label || "this Unit"}`}
-        subtitle="Set the public description and move-in amount. The Unit’s verified photos and Property context are added automatically."
-      />
-      <ListingComposer unitId={unit.id} onCreated={async () => router.replace(unitPath as never)} />
-    </div>
+    <ModalSheet open onClose={() => { if (!busy) router.replace(unitPath as never); }} title="Publish to Explore" icon="units" size="sm" dismissible={false} className="compact-action-sheet">
+      <ListingComposer unitId={unit.id} listing={listing} onBusyChange={setBusy} onCreated={async () => router.replace(unitPath as never)} />
+    </ModalSheet>
   );
 }

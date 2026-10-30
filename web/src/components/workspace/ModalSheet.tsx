@@ -28,6 +28,7 @@ export function ModalSheet({
   meta,
   size = "md",
   closeLabel = "Close",
+  dismissible = true,
   className,
   bodyBusy,
   titleId,
@@ -46,6 +47,8 @@ export function ModalSheet({
   /** `sm` fits a short form; `md` a document. */
   size?: "sm" | "md";
   closeLabel?: string;
+  /** Creation flows require an explicit close button. */
+  dismissible?: boolean;
   className?: string;
   bodyBusy?: boolean;
   /** A stable id for the title, when two sheets are mounted at once and something names it. */
@@ -129,8 +132,8 @@ export function ModalSheet({
       ref={dialogRef}
       className={`doc-modal is-${size}${closing ? " is-closing" : ""}${className ? ` ${className}` : ""}`}
       aria-labelledby={labelId}
-      onCancel={(event) => { event.preventDefault(); requestClose(); }}
-      onClick={(event) => { if (isBackdropClick(dialogRef.current, event)) requestClose(); }}
+      onCancel={(event) => { event.preventDefault(); if (dismissible) requestClose(); }}
+      onClick={(event) => { if (dismissible && isBackdropClick(dialogRef.current, event)) requestClose(); }}
     >
       {open ? <>
         <header className="doc-modal-head">

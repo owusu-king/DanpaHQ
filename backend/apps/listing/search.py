@@ -90,6 +90,7 @@ def filtered_listings(data: dict, area: Bounds | None) -> QuerySet[Listing]:
             | Q(unit__property__address__locality__name__icontains=query)
             | Q(unit__property__address__locality__aliases__icontains=query)
             | Q(unit__property__address__locality__district__name__icontains=query)
+            | Q(unit__property__address__locality__region__name__icontains=query)
             | Q(unit__property__address__place_name__icontains=query)
             | Q(unit__property__address__place_context__icontains=query)
         )

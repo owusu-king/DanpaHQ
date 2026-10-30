@@ -166,6 +166,8 @@ export async function apiFetch<T>(
     anonymous?: boolean;
     idempotencyKey?: string;
     maxAttempts?: number;
+    signal?: AbortSignal;
+    timeoutMs?: number;
   } = {},
 ): Promise<T> {
   const { method = "GET", body, idempotencyKey } = options;
@@ -177,8 +179,11 @@ export async function apiFetch<T>(
   let lastError: ApiFailure | null = null;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    if (options.signal?.aborted) throw Object.assign(new Error("Request cancelled"), { name: "AbortError" });
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+    const follow = () => controller.abort();
+    options.signal?.addEventListener("abort", follow, { once: true });
+    const timer = setTimeout(() => controller.abort(), options.timeoutMs ?? TIMEOUT_MS);
 
     try {
       const response = await fetch(`${BASE_URL}${path}`, {
@@ -232,6 +237,7 @@ export async function apiFetch<T>(
 
       if (!RETRYABLE_STATUS.has(response.status)) throw lastError;
     } catch (cause) {
+      if (options.signal?.aborted) throw cause;
       if (cause instanceof ApiFailure && !RETRYABLE_STATUS.has(cause.status)) throw cause;
       lastError =
         cause instanceof ApiFailure
@@ -247,6 +253,7 @@ export async function apiFetch<T>(
             );
     } finally {
       clearTimeout(timer);
+      options.signal?.removeEventListener("abort", follow);
     }
 
     if (attempt < maxAttempts) await sleep(2 ** attempt * 400);

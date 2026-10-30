@@ -108,10 +108,10 @@ export default function AppLayout() {
           the same split the space flow already makes. `private-property` is its
           first step and this is steps two to six, so they share a title: from
           the provider's side it is one thing. */}
-      <Stack.Screen name="property-setup" options={{ title: "Property setup", presentation: "modal", headerLeft: closeHeaderLeft }} />
+      <Stack.Screen name="property-setup" options={{ title: "Property setup", presentation: "modal", headerLeft: closeHeaderLeft, gestureEnabled: false }} />
       {/* Asking for verification is a separate journey again, made afterwards
           from the property. */}
-      <Stack.Screen name="property-verify" options={{ title: "Submit for verification" }} />
+      <Stack.Screen name="property-verify" options={{ title: "Submit for verification", presentation: "modal", headerLeft: closeHeaderLeft, gestureEnabled: false }} />
       {/* The space is its own screen, not a card on the property. Its check,
           its photos, its amenities and its publication decision are a
           workspace of their own. */}
@@ -120,7 +120,7 @@ export default function AppLayout() {
       <Stack.Screen name="unit-new" options={{ title: "Add Unit" }} />
       {/* Creation opens as a modal over the screen that asked (owner,
           2026-10-20), like the sheet it is on the web. */}
-      <Stack.Screen name="space-new" options={{ title: "Add Unit", presentation: "modal", headerLeft: closeHeaderLeft }} />
+      <Stack.Screen name="space-new" options={{ title: "Add Unit", presentation: "modal", headerLeft: closeHeaderLeft, gestureEnabled: false }} />
       <Stack.Screen name="provider-tenancy" options={{ title: "Tenancy" }} />
       <Stack.Screen name="team" options={{ title: "Team" }} />
       {/* Changing plan is a journey of focused screens — choose, review, pay
@@ -132,7 +132,7 @@ export default function AppLayout() {
       <Stack.Screen name="team-member" options={{ title: "Team member" }} />
       <Stack.Screen name="notification-settings" options={{ title: "Notifications" }} />
       <Stack.Screen name="portfolio-invitations" options={{ title: "Portfolio invitations" }} />
-      <Stack.Screen name="private-property" options={{ title: "New property", presentation: "modal", headerLeft: closeHeaderLeft }} />
+      <Stack.Screen name="private-property" options={{ title: "New property", presentation: "modal", headerLeft: closeHeaderLeft, gestureEnabled: false }} />
       <Stack.Screen name="tenant-setup" options={{ title: "Join another tenancy" }} />
       <Stack.Screen name="provider-actions" options={{ title: "Quick actions", presentation: "modal", headerLeft: closeHeaderLeft }} />
       <Stack.Screen name="security" options={{ title: "Security" }} />

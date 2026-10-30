@@ -226,6 +226,7 @@ def get_payment_or_404(pk) -> RentPayment:
         .select_related(
             "lease__unit__property__owner",
             "lease__unit__property__address__locality__district__region",
+            "lease__unit__property__address__locality__region",
             "lease__tenant",
             "lease__landlord",
             "lease__bed",

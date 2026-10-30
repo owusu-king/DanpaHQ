@@ -4,8 +4,7 @@ Two promises are pinned here. Where a typed place name comes from is
 `test_place_lookup`.
 
 * **A marker is never a door.** A property's coordinates are published only
-  snapped to a fixed grid cell, and a neighbourhood centre stands in when the
-  property has none (ADR 0022, ADR 0033).
+  snapped to a fixed grid cell. A missing pin never becomes a locality marker.
 * **Cards and markers are one search.** The same filters, eligibility and area
   produce the same set of listings whichever endpoint answers, and the area is
   a box the client sends — the API never looks a place up to search it.
@@ -58,9 +57,15 @@ def _listing(
     *,
     rent=150_000,
     status=ListingStatus.ACTIVE,
-    property_point=None,
+    property_point="locality",
     headline="A place to rent",
 ):
+    if property_point == "locality":
+        property_point = (
+            (float(locality.longitude), float(locality.latitude))
+            if locality.longitude is not None and locality.latitude is not None
+            else None
+        )
     address = Address.objects.create(
         locality=locality,
         street="Test Road",
@@ -115,6 +120,41 @@ def _bbox(center, half=0.02):
 
 
 class TestPublicPoint:
+    def test_legacy_units_use_the_parent_neighbourhood_with_honest_precision(
+        self, api, landlord, accra
+    ):
+        listing = _listing(landlord, accra["east_legon"], property_point=None)
+        listing.refresh_from_db()
+        assert listing.public_point is not None
+        assert listing.public_point_precision == LocationPrecision.LOCALITY
+        assert str(listing.id) in _marker_ids(api.get("/api/v1/listings/map/?zoom=18"))
+        card = api.get("/api/v1/listings/").data["results"][0]
+        assert card["public_location"]["precision"] == "locality"
+        assert card["public_location"]["radius_m"] == 1500
+        assert listing.unit.property.address.latitude is None
+
+    def test_an_unknown_location_stays_unmapped(self, api, landlord, accra):
+        listing = _listing(landlord, accra["unplaced"], property_point=None)
+        assert listing.public_point is None
+        response = api.get("/api/v1/listings/map/?zoom=18")
+        assert response.data["features"] == []
+        assert response.data["unmapped"] == 1
+
+    def test_management_unit_label_names_the_unit_and_parent(self, landlord, accra):
+        from types import SimpleNamespace
+
+        from apps.operations.views import _review_subject
+
+        listing = _listing(landlord, accra["east_legon"], headline="Garden Court")
+        unit = listing.unit
+        unit.label = "Flat B"
+        unit.save(update_fields=["label"])
+        subject = SimpleNamespace(subject_type="space", subject_id=unit.id)
+        assert _review_subject(subject)[1] == "Flat B — Garden Court"
+        unit.label = ""
+        unit.save(update_fields=["label"])
+        assert _review_subject(subject)[1] == "Apartment — Garden Court"
+
     def test_property_coordinates_are_published_snapped_never_exact(self, api, landlord, accra):
         exact = (-0.162345, 5.637891)
         listing = _listing(landlord, accra["east_legon"], property_point=exact)
@@ -146,10 +186,10 @@ class TestPublicPoint:
         assert snap_to_cell(5.6380, -0.1640) == (5.63895, -0.16335)
         assert snap_to_cell(5.6380, -0.1640) != snap_to_cell(5.6380, -0.1570)
 
-    def test_the_neighbourhood_centre_stands_in_without_property_coordinates(self, landlord, accra):
-        listing = _listing(landlord, accra["east_legon"])
+    def test_locality_without_a_property_pin_uses_neighbourhood_precision(self, landlord, accra):
+        listing = _listing(landlord, accra["east_legon"], property_point=None)
+        assert listing.public_point is not None
         assert listing.public_point_precision == LocationPrecision.LOCALITY
-        assert (listing.public_point.x, listing.public_point.y) == EAST_LEGON
 
     def test_no_point_is_invented_when_neither_is_known(self, api, landlord, accra):
         listing = _listing(landlord, accra["unplaced"])
@@ -263,7 +303,7 @@ class TestMapConfig:
         response = api.get("/api/v1/map/config/")
         config = response.data
 
-        assert set(config) == {"bounds", "default_view", "min_zoom", "max_zoom"}
+        assert set(config) == {"bounds", "default_view", "min_zoom", "max_zoom", "enabled", "tiles"}
         assert len(config["bounds"]) == 4
         assert config["default_view"]["zoom"] >= config["min_zoom"]
         assert "server-key-must-not-leak" not in response.content.decode()

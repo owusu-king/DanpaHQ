@@ -24,23 +24,23 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 import { Button } from "@/components/Button";
+import { ModalSheet } from "@/components/workspace/ModalSheet";
 import { Field } from "@/components/Field";
 import { Notice } from "@/components/Notice";
 import { LoadingRows } from "@/components/portal/PageHeader";
 import { Icon, type IconName } from "@/components/portal/icons";
-import { SpaceAmenities } from "@/components/property/SpaceAmenities";
-import { SpaceLifecycle } from "@/components/property/SpaceLifecycle";
-import { SpacePhotos } from "@/components/property/SpacePhotos";
+import { ListingComposer } from "@/components/property/ListingComposer";
 import { UnitPrivateAccess } from "@/components/property/UnitPrivateAccess";
 import { UnitLifecycleActions } from "@/components/property/UnitLifecycleActions";
+import { UnitWizardModal } from "@/components/property/UnitWizard";
 import {
-  DetailDisclosure,
   DetailSection,
+  DetailDisclosure,
   EntityPath,
   StatusLine,
   spaceStatus,
 } from "@/components/property/WorkspacePatterns";
-import { WorkspaceHead } from "@/components/workspace/Workspace";
+import { RecordHeader, RecordHero, RecordSection } from "@/components/property/RecordDetail";
 import { ApiFailure } from "@/lib/api";
 import {
   createBed,
@@ -48,12 +48,13 @@ import {
   listMyListings,
   listingAction,
   requestUnitRecheck,
-  updateUnit,
   withdrawSpaceSubmission,
   type Listing,
   type UnitDetail,
 } from "@/lib/console";
 import { submitForReview } from "@/lib/verification";
+import { inPlace } from "@/lib/inPlace";
+import { privateAccess } from "@/lib/accessCodeMeaning";
 
 export default function SpaceWorkspacePage() {
   const search = useSearchParams();
@@ -71,7 +72,7 @@ export default function SpaceWorkspacePage() {
       setSpace(unit);
       setListing(
         listings.find(
-          (row) => row.unit === spaceId && row.status !== "rejected",
+          (row) => row.id === unit.publication.listing_id,
         ) ?? null,
       );
       setError("");
@@ -92,55 +93,33 @@ export default function SpaceWorkspacePage() {
 
   if (error && !space) {
     return (
-      <div className="ws-page pd-page">
+      <div className="ws-page pd-page record-page">
         <EntityPath items={[{ label: "Properties", href: "/properties" }, { label: "Property", href: `/record/property?id=${propertyId}` }, { label: "Unavailable" }]} />
         <Notice tone="error" title={error} body="Return to the Property and try again." />
       </div>
     );
   }
 
-  if (!space) return <div className="ws-page pd-page"><LoadingRows rows={5} /></div>;
+  if (!space) return <div className="ws-page pd-page record-page"><LoadingRows rows={5} /></div>;
 
-  const where = [
-    space.property.title,
-    space.floor_level === null ? "" : space.floor_level === 0 ? "Ground floor" : `Floor ${space.floor_level}`,
-  ]
-    .filter(Boolean)
-    .join(" · ");
   const isHostelRoom =
     space.property.property_type === "hostel" && space.space_type === "room";
   // Served with the Unit; the fallback is an older API, which asked everything.
   const asks = space.asks ?? { bedrooms: true, bathrooms: "count", floor: true };
   const status = spaceStatus(space);
+  const showAccess = privateAccess(space.access_code, {
+    verified: space.verification.state === "verified",
+    occupied: space.availability.state === "occupied",
+  }).show;
   const photos = [space.primary_photo, ...space.media.filter((row) => row.id !== space.primary_photo?.id)]
     .filter((row): row is NonNullable<typeof row> => Boolean(row?.download_url));
-  const photo = photos[0]?.download_url ?? null;
+
 
   return (
-    <div className="ws-page pd-page">
-      <WorkspaceHead
-        icon="units"
-        title={space.label || "Unnamed Unit"}
-        path={(
-          <EntityPath items={[
-            { label: "Properties", href: "/properties" },
-            {
-              label: space.property.title || "Property",
-              href: `/record/property?id=${propertyId}`,
-              mobileLabel: "Back to Property",
-            },
-            { label: space.label || "Unit" },
-          ]} />
-        )}
-        summary={(
-          <>
-            <StatusLine label={status.label} tone={status.tone} />
-            <span className="ws-summary-sep" aria-hidden="true">·</span>
-            {space.space_type_label}
-            <span className="ws-summary-sep" aria-hidden="true">·</span>
-            {where}
-          </>
-        )}
+    <div className="ws-page pd-page record-page">
+      <RecordHeader title={space.label || "Unnamed Unit"} context={`${space.property.title} · ${space.space_type_label}${space.floor_level === null ? "" : space.floor_level === 0 ? " · Ground floor" : ` · Floor ${space.floor_level}`}`}
+        path={<EntityPath items={[{ label: "Properties", href: "/properties" }, { label: space.property.title || "Property", href: `/record/property?id=${propertyId}`, mobileLabel: "Back to Property" }, { label: space.label || "Unit" }]} />}
+        status={<><StatusLine label={space.verification.state === "verified" ? "Verified" : space.verification.state_label} tone={status.tone} /><StatusLine label={space.publication.state === "published" && space.publication.listing_status === "active" ? "Public" : "Private"} tone={space.publication.state === "published" && space.publication.listing_status === "active" ? "good" : "neutral"} /><StatusLine label={space.availability.label} /></>}
       />
 
       {error ? <Notice tone="error" title={error} body="Some information may be out of date. Try again." /> : null}
@@ -156,33 +135,13 @@ export default function SpaceWorkspacePage() {
         />
       ) : null}
 
-      {/* What it looks like, beside the one thing to do next. */}
-      <div className="pd-top">
-        <figure className="pd-gallery">
-          <div className={photo ? "pd-gallery-lead" : "pd-gallery-lead is-empty"}>
-            {/* Signed media URLs are supplied at runtime by the API and are not
-                stable Next image-loader resources. */}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            {photo ? <img src={photo} alt={space.label || "Unit"} /> : <span><Icon name="photos" />No photo yet</span>}
-          </div>
-        </figure>
+      <RecordHero key={space.id} title={space.label || "Unit"} photos={photos.map((row) => ({ id: row.id, url: row.download_url!, label: row.caption || space.label || "Unit photo" }))}>
+        <WhatIsNext space={space} listing={listing} propertyId={propertyId} onChanged={load} />
+        <div className="record-secondary-actions"><Link href={"/tenants#access" as never} className="btn btn-secondary record-tenancy-action"><Icon name="users" />Tenancy requests and tenancies</Link></div>
+      </RecordHero>
 
-        <div className="pd-side">
-          <WhatIsNext space={space} listing={listing} propertyId={propertyId} onChanged={load} />
-          {/* The code belongs to this Unit, so it is managed from this Unit.
-              It used to be reachable only through the Portfolio summary,
-              which a provider holding a Property directly is not in. */}
-          <UnitPrivateAccess
-            unitId={space.id}
-            accessCode={space.access_code}
-            verified={space.verification.state === "verified"}
-            occupied={space.availability.state === "occupied"}
-            onChanged={load}
-          />
-        </div>
-      </div>
-
-      <dl className="pd-facts" aria-label="Unit information">
+      <RecordSection title="Overview">
+      <dl className="record-fields is-overview" aria-label="Unit information">
         <Fact icon="units" label="Type" value={space.space_type_label} />
         {/* Only facts that fit this kind of space: a shop shows no bedrooms. */}
         {asks.bedrooms ? <Fact icon="bed" label="Bedrooms" value={String(space.bedrooms)} /> : null}
@@ -198,50 +157,37 @@ export default function SpaceWorkspacePage() {
         {space.floor_area_sqm ? <Fact icon="details" label="Area" value={`${space.floor_area_sqm} m²`} /> : null}
       </dl>
 
-      <section className="pd-panel" aria-labelledby="unit-manage-heading">
-        <h2 id="unit-manage-heading" className="pd-panel-title">Manage this Unit</h2>
-        <DetailSection title={`Photos${space.photo_count ? ` (${space.photo_count})` : ""}`}>
-          <p className="pd-note">
-            {space.availability.state === "occupied"
-              ? "Locked while occupied."
-              : space.verification.state === "verified"
-                ? "Checked photos. Re-check to change them."
-                : "The first photo leads."}
-          </p>
-          <SpacePhotos unitId={space.id} editable={Boolean(space.permitted_actions.edit?.allowed)} onChanged={load} />
-        </DetailSection>
+      </RecordSection>
+
+      <div className="record-detail-grid is-unit-record">
+      <section className="record-section" aria-labelledby="unit-manage-heading">
+        <h2 id="unit-manage-heading" className="record-section-title">Unit details</h2>
+
 
         <DetailSection title={`Amenities${space.amenities.length ? ` (${space.amenities.length})` : ""}`}>
-          {space.permitted_actions.edit?.allowed ? (
-            <SpaceAmenities scope="unit" id={space.id} onSaved={load} />
-          ) : space.amenities.length ? (
+          {space.amenities.length ? (
             <ul className="pd-chips">{space.amenities.map((row) => <li key={row.id}>{row.name}</li>)}</ul>
           ) : <p className="pd-note">None recorded.</p>}
         </DetailSection>
 
-        <DetailSection title="Details and entrance directions">
-          <SpaceDetails space={space} onSaved={load} />
+        <DetailSection title="Description">
+          <p className="record-description">{space.description || "No description added."}</p>
         </DetailSection>
 
         {isHostelRoom ? (
-          <DetailSection title={`Beds${space.beds.length ? ` (${space.beds.length})` : ""}`}>
+          <DetailDisclosure title={`Beds${space.beds.length ? ` (${space.beds.length})` : ""}`}>
             <Beds space={space} onChanged={load} />
-          </DetailSection>
+          </DetailDisclosure>
         ) : null}
-
-        <DetailDisclosure title="Verification and publication details">
-          <SpaceLifecycle verification={space.verification} publication={space.publication} availability={space.availability} />
-          {space.verification.decision_note ? <Notice tone="info" title="Review note" body={space.verification.decision_note} /> : null}
-        </DetailDisclosure>
 
         <UnitLifecycleActions unit={space} />
       </section>
+      {showAccess ? <RecordSection title="Access and verification">
+        <UnitPrivateAccess unitId={space.id} accessCode={space.access_code} verified={space.verification.state === "verified"} occupied={space.availability.state === "occupied"} onChanged={load} />
+      </RecordSection> : null}
+      </div>
 
-      <Link href={"/tenants#access" as never} className="pd-link">
-        <span className="pd-link-mark" aria-hidden="true"><Icon name="users" /></span>
-        <span>Tenancy requests and tenancies</span>
-        <span aria-hidden="true">→</span>
-      </Link>
+
     </div>
   );
 }
@@ -275,6 +221,8 @@ function WhatIsNext({
   const [error, setError] = useState("");
   const [rechecking, setRechecking] = useState(false);
   const [withdrawing, setWithdrawing] = useState(false);
+  const [composing, setComposing] = useState(false);
+  const [setupStep, setSetupStep] = useState<string | null>(null);
 
   const publish = space.permitted_actions.publish;
   const recheck = space.permitted_actions.recheck;
@@ -294,7 +242,7 @@ function WhatIsNext({
 
   if (space.availability.state === "occupied") {
     return (
-      <section className="pd-next" data-tone="occupied">
+      <section className="record-workflow" data-tone="occupied">
         <span className="pd-next-kicker">Currently occupied</span>
         <h2>Someone lives here</h2>
         <p>Danpa HQ will not accept new requests while someone lives here.</p>
@@ -304,7 +252,19 @@ function WhatIsNext({
   }
 
   return (
-    <section className="pd-next" data-tone={space.verification.state !== "verified" ? "check" : space.publication.state === "published" ? "public" : "private"}>
+    <section className="record-workflow" data-tone={space.verification.state !== "verified" ? "check" : (space.publication.state === "published" && space.publication.listing_status === "active") ? "public" : "private"}>
+      <UnitWizardModal
+        open={setupStep !== null}
+        propertyId={space.property.id}
+        unitId={space.id}
+        startAt={setupStep}
+        onClose={() => setSetupStep(null)}
+        onChanged={() => void onChanged()}
+        onFinished={() => { setSetupStep(null); void onChanged(); }}
+      />
+      <ModalSheet open={composing} onClose={() => { if (!busy) { setComposing(false); void onChanged(); } }} title="Publish to Explore" icon="units" size="sm" dismissible={false} className="compact-action-sheet">
+        {composing ? <ListingComposer unitId={space.id} listing={listing} onBusyChange={setBusy} onCreated={async () => { setComposing(false); await onChanged(); }} /> : null}
+      </ModalSheet>
       {space.verification.decision_note ? (
         <Notice
           tone={space.verification.state === "verified" ? "info" : "warning"}
@@ -330,13 +290,13 @@ function WhatIsNext({
               : "Needed before you share or advertise it."}
           </p>
 
-          {space.verification.state === "draft" ||
-          space.verification.state === "ready_for_submission" ? (
+          {space.verification.editable && space.permitted_actions.edit?.allowed ? (
             <Link
               href={`/record/space-new?propertyId=${propertyId}&unitId=${space.id}&step=${
                 space.verification.can_submit ? "review" : "amenities"
               }` as never}
               className="btn btn-secondary"
+              onClick={inPlace(() => setSetupStep(space.verification.can_submit ? "review" : "amenities"))}
             >
               Continue setup
             </Link>
@@ -350,93 +310,58 @@ function WhatIsNext({
             onWithdraw={() =>
               run(() => withdrawSpaceSubmission(space.id, "Withdrawn by the provider."))
             }
+            onSetup={setSetupStep}
           />
         </>
       ) : (
         <>
-          <span className="pd-next-kicker">{space.publication.state === "published" ? "Public" : "Checked"}</span>
+          <span className="pd-next-kicker">{(space.publication.state === "published" && space.publication.listing_status === "active") ? "Public" : "Checked"}</span>
           <h2>
-            {space.publication.state === "published"
+            {(space.publication.state === "published" && space.publication.listing_status === "active")
               ? "Live in Explore"
               : "Share it or publish it"}
           </h2>
           <p>
-            {space.publication.state === "published"
+            {(space.publication.state === "published" && space.publication.listing_status === "active")
               ? "Anyone can request a viewing."
               : "Share its access code, or publish it to Explore."}
           </p>
 
           <div className="pd-next-actions">
-            {space.publication.state === "published" ? (
+            {(space.publication.state === "published" && space.publication.listing_status === "active") ? (
               <>
                 <Link
-                  href={`/record/listing?id=${listing?.id}` as never}
-                  className="btn btn-secondary"
+                  href={`/record/listing?id=${space.publication.listing_id}` as never}
+                  className="btn btn-primary"
                 >
                   View public listing
                 </Link>
-                <Button variant="quiet" onClick={() => setWithdrawing((open) => !open)}>
+                <Button variant="destructive" className="record-withdraw-action" onClick={() => setWithdrawing((open) => !open)}>
                   {withdrawing ? "Keep it public" : "Take down…"}
                 </Button>
               </>
-            ) : listing && publish?.allowed ? (
-              <Button
-                busy={busy}
-                busyLabel="Publishing…"
-                onClick={() => run(() => listingAction(listing.id, "publish"))}
-              >
-                Publish to Explore
-              </Button>
-            ) : !listing && publish?.allowed ? (
-              <Link href={`/record/space-listing?propertyId=${propertyId}&spaceId=${space.id}` as never} className="btn btn-primary">
-                Publish to Explore
-              </Link>
+            ) : publish?.allowed ? (
+              <Button onClick={() => setComposing(true)}>Publish to Explore</Button>
             ) : null}
 
-            {recheck?.allowed ? (
-              <Button variant="quiet" onClick={() => setRechecking((open) => !open)}>
-                {rechecking ? "Never mind" : "Change what was checked"}
-              </Button>
-            ) : null}
+
+
+            {recheck?.allowed ? <Button variant="secondary" className="record-recheck-action" onClick={() => setRechecking(true)}>Change what was checked</Button> : null}
           </div>
+
 
           {!publish?.allowed && publish?.message ? (
             <Notice tone="info" title="This cannot be published" body={publish.message} />
           ) : null}
 
-          {withdrawing && listing ? (
-            <div style={{ display: "grid", gap: "var(--space-3)" }}>
-              <Notice tone="warning" title="Remove it from Explore?" body="Records stay. You can publish it again." />
-              <div><Button variant="destructive" busy={busy} busyLabel="Taking down…" onClick={() => run(async () => {
-                await listingAction(listing.id, "withdraw", "Taken down by the provider");
-                setWithdrawing(false);
-              })}>Take it down</Button></div>
-            </div>
-          ) : null}
+          <ModalSheet open={withdrawing && Boolean(listing)} onClose={() => { if (!busy) setWithdrawing(false); }} title="Remove it from Explore?" icon="units" size="sm" className="compact-action-sheet">
+            <div className="compact-form"><p className="record-hint">Records stay. You can publish it again while it is available.</p><div className="compact-form-actions"><Button variant="quiet" disabled={busy} onClick={() => setWithdrawing(false)}>Cancel</Button><Button variant="destructive" busy={busy} busyLabel="Taking down…" onClick={() => listing && run(async () => { await listingAction(space.publication.listing_id ?? listing.id, "withdraw", "Taken down by the provider"); setWithdrawing(false); })}>Take it down</Button></div></div>
+          </ModalSheet>
 
-          {rechecking ? (
-            <>
-              <Notice
-                tone="warning"
-                title="A re-check takes it out of Explore"
-                body="It returns to draft for editing, then needs checking again."
-              />
-              <div>
-                <Button
-                  variant="destructive"
-                  busy={busy}
-                  onClick={() =>
-                    run(async () => {
-                      await requestUnitRecheck(space.id, "Reopened to change the Unit.");
-                      setRechecking(false);
-                    })
-                  }
-                >
-                  Reopen this Unit
-                </Button>
-              </div>
-            </>
-          ) : null}
+          <ModalSheet open={rechecking} onClose={() => { if (!busy) setRechecking(false); }} title="Reopen this Unit?" icon="units" size="sm" className="compact-action-sheet">
+            <div className="compact-form"><p className="record-hint">A re-check takes it out of Explore. Your details stay saved and editable, then need checking again.</p><div className="compact-form-actions"><Button variant="quiet" disabled={busy} onClick={() => setRechecking(false)}>Cancel</Button><Button variant="destructive" busy={busy} onClick={() => run(async () => { await requestUnitRecheck(space.id, "Reopened to change the Unit."); setRechecking(false); })}>Reopen this Unit</Button></div></div>
+          </ModalSheet>
+
         </>
       )}
     </section>
@@ -471,13 +396,16 @@ function SubmitForChecking({
   busy,
   onSubmit,
   onWithdraw,
+  onSetup,
 }: {
   space: UnitDetail;
   propertyId: string;
   busy: boolean;
   onSubmit: () => void;
   onWithdraw: () => void;
+  onSetup: (step: string) => void;
 }) {
+  const [confirming, setConfirming] = useState(false);
   const submit = space.permitted_actions.submit_for_verification;
   const { state, required_outstanding, required_total, can_submit } = space.verification;
 
@@ -488,12 +416,17 @@ function SubmitForChecking({
     if (!withdraw?.allowed) return null;
     return (
       <div style={{ display: "flex", gap: "var(--space-3)", flexWrap: "wrap" }}>
-        <Button variant="quiet" busy={busy} busyLabel="Withdrawing…" onClick={onWithdraw}>
+        <Button variant="quiet" busy={busy} busyLabel="Withdrawing…" onClick={() => setConfirming(true)}>
           Withdraw submission
         </Button>
         <span className="type-caption" style={{ alignSelf: "center" }}>
           {withdraw.message}
         </span>
+        <ModalSheet open={confirming} onClose={() => setConfirming(false)} icon="verification" title="Withdraw submission?" size="sm">
+          <p>Your Unit stays saved and editable. You can submit it again later.</p>
+          <Button variant="destructive" busy={busy} onClick={() => { onWithdraw(); setConfirming(false); }}>Withdraw submission</Button>
+          <Button variant="quiet" disabled={busy} onClick={() => setConfirming(false)}>Keep submitted</Button>
+        </ModalSheet>
       </div>
     );
   }
@@ -532,127 +465,19 @@ function SubmitForChecking({
       <div style={{ display: "flex", gap: "var(--space-3)", flexWrap: "wrap" }}>
         {waitingOnProperty ? (
           <Link href={`/record/property?id=${propertyId}` as never} className="btn btn-secondary">Get the property checked</Link>
-        ) : required_outstanding > 0 ? (
-          <Button variant="secondary" onClick={() => scrollToPhotos()}>
-            Add the photos
-          </Button>
+        ) : required_outstanding > 0 && space.verification.editable && space.permitted_actions.edit?.allowed ? (
+          <Link className="btn btn-secondary" href={`/record/space-new?propertyId=${propertyId}&unitId=${space.id}&step=photos` as never} onClick={inPlace(() => onSetup("photos"))}>Add the photos</Link>
         ) : null}
 
         {/* Complete on its own terms but refused by the policy: offering the
             call is what turns a silent refusal into a stated one. */}
-        {can_submit ? (
+        {can_submit && !waitingOnProperty ? (
           <Button variant="quiet" busy={busy} busyLabel="Sending…" onClick={onSubmit}>
             Try sending anyway
           </Button>
         ) : null}
       </div>
     </>
-  );
-}
-
-function scrollToPhotos() {
-  document.getElementById("photos")?.scrollIntoView({ behavior: "smooth", block: "start" });
-}
-
-// --- details ------------------------------------------------------------------
-
-function SpaceDetails({ space, onSaved }: { space: UnitDetail; onSaved: () => Promise<void> }) {
-  const [label, setLabel] = useState(space.label);
-  const [description, setDescription] = useState(space.description);
-  const [entrance, setEntrance] = useState(space.entrance_note);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const [saved, setSaved] = useState(false);
-  const fullEditable = Boolean(space.permitted_actions.edit?.allowed);
-  const operationalEditable = Boolean(space.permitted_actions.edit_operational?.allowed);
-
-  if (!fullEditable && !operationalEditable) {
-    return (
-      <dl style={{ display: "grid", gap: "var(--space-3)", margin: 0 }}>
-        <Row term="Name" value={space.label || "Not named"} />
-        <Row term="Type" value={space.space_type_label} />
-        {space.description ? <Row term="Description" value={space.description} /> : null}
-        {space.entrance_note ? <Row term="Entrance" value={space.entrance_note} /> : null}
-        <p className="type-caption" style={{ margin: 0, color: "var(--color-ink-500)" }}>
-          {space.permitted_actions.edit?.message ?? "These cannot be changed at the moment."}
-        </p>
-      </dl>
-    );
-  }
-
-  async function save() {
-    setBusy(true);
-    setError("");
-    try {
-      await updateUnit(space.id, {
-        entrance_note: entrance,
-        ...(fullEditable ? { label, description } : {}),
-      });
-      setSaved(true);
-      await onSaved();
-    } catch (cause) {
-      setError(cause instanceof ApiFailure ? cause.error.message : "That did not save.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <div style={{ display: "grid", gap: "var(--space-4)" }}>
-      {fullEditable ? <Field
-        label="Name"
-        value={label}
-        onChange={(event) => {
-          setSaved(false);
-          setLabel(event.target.value);
-        }}
-      /> : <Row term="Called" value={space.label || "Not named"} />}
-      {!fullEditable ? (
-        <Notice
-          tone="info"
-          title="Checked details are protected"
-          body={space.permitted_actions.edit?.message}
-        />
-      ) : null}
-      {fullEditable ? <label style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
-        <span className="type-caption" style={{ color: "var(--color-ink-700)" }}>
-          Description
-        </span>
-        <textarea
-          value={description}
-          rows={3}
-          maxLength={1500}
-          onChange={(event) => {
-            setSaved(false);
-            setDescription(event.target.value);
-          }}
-          className="type-body"
-          style={TEXTAREA}
-        />
-      </label> : null}
-      <Field
-        label="Entrance directions"
-        hint="Never shown publicly."
-        value={entrance}
-        onChange={(event) => {
-          setSaved(false);
-          setEntrance(event.target.value);
-        }}
-      />
-
-      {error ? <Notice tone="error" title={error} /> : null}
-
-      <div style={{ display: "flex", alignItems: "center", gap: "var(--space-4)" }}>
-        <Button variant="secondary" onClick={save} busy={busy} busyLabel="Saving…">
-          Save details
-        </Button>
-        {saved ? (
-          <span className="type-caption" style={{ color: "var(--color-kola-600)" }}>
-            Saved
-          </span>
-        ) : null}
-      </div>
-    </div>
   );
 }
 
@@ -719,27 +544,3 @@ function Beds({ space, onChanged }: { space: UnitDetail; onChanged: () => Promis
     </div>
   );
 }
-
-// --- layout -------------------------------------------------------------------
-
-function Row({ term, value }: { term: string; value: string }) {
-  return (
-    <div style={{ display: "grid", gridTemplateColumns: "10rem 1fr", gap: "var(--space-4)" }}>
-      <dt className="type-caption" style={{ color: "var(--color-ink-500)" }}>
-        {term}
-      </dt>
-      <dd className="type-body" style={{ margin: 0 }}>
-        {value}
-      </dd>
-    </div>
-  );
-}
-
-const TEXTAREA: React.CSSProperties = {
-  padding: "var(--space-3)",
-  background: "var(--color-field-0)",
-  border: "var(--border-hairline) solid var(--color-field-300)",
-  borderRadius: "var(--radius-md)",
-  color: "var(--color-ink-900)",
-  resize: "vertical",
-};

@@ -12,7 +12,7 @@ const POSITION_KEY = "danpa-intel-corner";
 const CORNERS = ["top-left", "top-right", "bottom-left", "bottom-right"] as const;
 type Corner = typeof CORNERS[number];
 
-const GREETING = "Hey, I am DanpaHQ Intel. How may I assist you? Once you have an account, I will meet you in your workspace to unleash my full capabilities.";
+const GREETING = "Hey, I am Danpa Intel. The most capable Ghana's rental and property managment system. Once you have an account, I will meet you in your workspace to unleash my full capabilities.";
 const WORKSPACE_NOTE = "I'll meet you at your workspace.";
 
 /** A local greeting exchange; the workspace assistant is integrated separately. */
@@ -54,7 +54,7 @@ export function DanpaIntel() {
       { role: "assistant", text: current.length ? WORKSPACE_NOTE : GREETING },
     ]);
     setDraft("");
-    input.current?.focus();
+    input.current?.focus({ preventScroll: true });
   }
 
   function remember(next: Corner) {
@@ -98,7 +98,7 @@ export function DanpaIntel() {
     setDragPosition(null);
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
   }
-  return <Popover.Root modal open={open} onOpenChange={setOpen}>
+  return <Popover.Root modal={false} open={open} onOpenChange={setOpen}>
     {mounted ? createPortal(<Popover.Trigger asChild>
       <button type="button" className={`lp-intel-entry${dragPosition ? " is-dragging" : ""}`} data-corner={corner}
         style={dragPosition ? { left: dragPosition.x, top: dragPosition.y, right: "auto", bottom: "auto" } : undefined}
@@ -118,21 +118,18 @@ export function DanpaIntel() {
       </button>
     </Popover.Trigger>, document.body) : null}
     <Popover.Portal>
-    <Popover.Content side="top" align="end" sideOffset={12} collisionPadding={16} className="danpa-intel-panel" onOpenAutoFocus={event => { event.preventDefault(); input.current?.focus(); }} aria-labelledby={id + "-title"} aria-describedby={id + "-description"}>
+    <Popover.Content side="top" align="end" sideOffset={12} collisionPadding={16} className="danpa-intel-panel" onOpenAutoFocus={event => { event.preventDefault(); input.current?.focus({ preventScroll: true }); }} aria-labelledby={id + "-title"} aria-describedby={id + "-description"}>
       <header className="intel-header">
         <span className="intel-identity" aria-hidden="true"><IntelMark /></span>
         <div className="intel-header-copy">
           <div className="intel-title-row"><h2 id={id + "-title"}>Danpa Intel</h2></div>
-          <p id={id + "-description"} className="sr-only">Your AI housing assistant.</p>
+          <p id={id + "-description"}>Your AI housing assistant.</p>
         </div>
         <Popover.Close className="intel-close" aria-label="Close Danpa Intel"><X aria-hidden="true" /></Popover.Close>
       </header>
       <section ref={messageArea} className="intel-messages" aria-label="Message area">
         {!messages.length ? (
-          <div className="intel-welcome">
-            <h3>Hello.</h3>
-            <p>Say hello to DanpaHQ Intel.</p>
-          </div>
+          <p className="intel-message is-assistant intel-welcome">Hello. How can I help you?</p>
         ) : null}
         <div className="intel-transcript" role="log" aria-label="Conversation" aria-live="polite" aria-relevant="additions">
           {messages.map((message, index) => (
@@ -152,7 +149,7 @@ export function DanpaIntel() {
                 send();
               }
             }}
-            aria-label="Message Danpa Intel" aria-describedby={id + "-input-hint"} placeholder="Say hello…" />
+            aria-label="Message Danpa Intel" aria-describedby={id + "-input-hint"} placeholder="Chat here…" />
           <button type="submit" disabled={!draft.trim()} aria-label="Send message"><ArrowUp aria-hidden="true" /></button>
         </div>
         <p id={id + "-input-hint"}>{WORKSPACE_NOTE}</p>

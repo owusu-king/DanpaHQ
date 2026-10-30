@@ -1,3 +1,4 @@
+import { useGuestSignIn } from "@/components/auth/GuestSignIn";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { BlurView } from "expo-blur";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -50,22 +51,19 @@ import {
   type ListingSort,
   type SearchFilters,
 } from "@/listings";
-import { DanpaHQMap, mapAvailable, type BaseMapStyle, type MapMarker, type MapMove } from "@/maps";
+import { DanpaHQMap, mapAvailable, type MapMarker, type MapMove } from "@/maps";
 import { compactRent, getListingsById, roundCoordinate, searchListingMap, type MapFeature } from "@/mapSearch";
 import { useReduceMotion } from "@/motion";
 import {
   getMapConfig,
-  newPlacesSession,
-  resolvePlace,
-  suggestPlaces,
   type GeoBounds,
   type MapConfig,
-  type PlaceKind,
-  type PlaceSuggestion,
 } from "@/places";
 import { pressableFeedback, useFloatingTabBarClearance, useInTabs } from "@/platform";
 import { loadPropertyTypes, type PropertyTypeOption } from "@/propertyTypes";
 import { searchSales, searchSalesPage, type SaleCard as Sale, type SaleKind } from "@/sales";
+import { locationSearchArea, uniqueLocationMatch } from "@/exploreLocation";
+import { searchLocations, type LocationReference } from "@/locations";
 import { theme } from "@/theme";
 
 /**
@@ -80,8 +78,7 @@ import { theme } from "@/theme";
  * the same filters and the same box, built once (`listingQuery`).
  *
  * Where you are looking is the first question a Ghanaian tenant asks, so it
- * leads. Typing asks Danpa HQ's API for places (ADR 0034), and one search is one
- * Places session, spent by the place it chooses. Everything else — rent,
+ * leads. Typed names search our own listings database without geocoding. Everything else — rent,
  * advance, type, bedrooms, furnishing and order — lives in the Filters sheet,
  * and the button carries the count of what is on.
  *
@@ -102,6 +99,7 @@ const ADVANCE: readonly (readonly [string, string])[] = [
   ["6", "Up to 6 months"],
   ["12", "Up to 1 year"],
   ["24", "Up to 2 years"],
+  ["36", "Up to 3 years"],
 ];
 
 const SORTS: readonly (readonly [ListingSort, string])[] = [
@@ -142,18 +140,8 @@ const FALLBACK_MAP: MapConfig = {
 /** How long the map waits for the server's settings before opening on its own. */
 const MAP_CONFIG_WAIT_MS = 1500;
 
-const KIND_ICON: Record<PlaceKind, keyof typeof Ionicons.glyphMap> = {
-  area: "map-outline",
-  landmark: "business-outline",
-  address: "location-outline",
-};
 
 /** What kind of place it is, told by colour as well: lagoon, gold, kola. */
-const KIND_TINT: Record<PlaceKind, { color: string; background: string }> = {
-  area: { color: theme.color.lagoon["600"], background: theme.color.lagoon["100"] },
-  landmark: { color: theme.color.gold["700"], background: theme.color.gold["100"] },
-  address: { color: theme.color.kola["600"], background: theme.color.kola["50"] },
-};
 
 const markerKey = (feature: MapFeature) =>
   feature.type === "listing" ? `listing:${feature.id}` : `cluster:${feature.key}`;
@@ -235,6 +223,7 @@ function MapExplore({
   const barClearance = useFloatingTabBarClearance();
   const reduceMotion = useReduceMotion();
   const { state } = useAuth();
+  const requestSignIn = useGuestSignIn();
   const signedIn = state.status === "signed_in";
   const showMap = mapAvailable();
 
@@ -249,14 +238,6 @@ function MapExplore({
   const [place, setPlace] = useState("");
   const [area, setArea] = useState<SearchArea | null>(null);
   const [bbox, setBbox] = useState<GeoBounds | null>(null);
-  const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([]);
-  const [attribution, setAttribution] = useState<string | null>(null);
-  const [resolving, setResolving] = useState(false);
-  /** The Places session this search's requests share; none until a request goes. */
-  const session = useRef<string | null>(null);
-  const suggestionRequest = useRef(0);
-  const resolveRequest = useRef(0);
-
   const [propertyTypes, setPropertyTypes] = useState<PropertyTypeOption[]>([]);
   const [propertyType, setPropertyType] = useState("");
   // All asks only the kinds both sides know; a hostel is only let, land only sold.
@@ -271,15 +252,17 @@ function MapExplore({
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [saved, setSaved] = useState<Set<string>>(new Set());
   const requestId = useRef(0);
+  const locationLookup = useRef<AbortController | null>(null);
+  useEffect(() => () => locationLookup.current?.abort(), []);
 
   // The map: what it draws, where it is, and what was tapped.
   const [config, setConfig] = useState<MapConfig | null>(null);
   const [features, setFeatures] = useState<MapFeature[]>([]);
   const [extent, setExtent] = useState<GeoBounds | null>(null);
+  const [unmapped, setUnmapped] = useState(0);
   const [view, setView] = useState<MapMove | null>(null);
   const [userMoved, setUserMoved] = useState(false);
   const [fit, setFit] = useState<{ key: string; bounds: GeoBounds } | null>(null);
-  const [baseMap, setBaseMap] = useState<BaseMapStyle>("standard");
   const [mapFeedback, setMapFeedback] = useState<MapFeedback | null>(null);
   // A load that failed is said on the map too, not only inside the closed list.
   const [dismissedError, setDismissedError] = useState("");
@@ -460,31 +443,6 @@ function MapExplore({
     };
   }, [showMap]);
 
-  // Places while somebody types. The first request opens a Places session, and
-  // every one after it in this search carries the same token.
-  useEffect(() => {
-    const typed = place.trim();
-    if (area || typed.length < 2) {
-      suggestionRequest.current += 1;
-      setSuggestions([]);
-      return;
-    }
-    const id = ++suggestionRequest.current;
-    const timer = setTimeout(() => {
-      session.current ??= newPlacesSession();
-      suggestPlaces(typed, session.current)
-        .then((answer) => {
-          if (id !== suggestionRequest.current) return;
-          setSuggestions(answer.suggestions);
-          setAttribution(answer.attribution);
-        })
-        .catch(() => {
-          if (id === suggestionRequest.current) setSuggestions([]);
-        });
-    }, 250);
-    return () => clearTimeout(timer);
-  }, [place, area]);
-
   const fetchMarkers = useCallback((move: MapMove | null, withSummary: boolean) => {
     const id = ++markerRequest.current;
     const summaryId = withSummary ? ++summaryRequest.current : 0;
@@ -492,6 +450,7 @@ function MapExplore({
       .then((answer) => {
         // The extent belongs to the search, so a newer window's markers never discard it.
         if (withSummary && summaryId === summaryRequest.current) setExtent(answer.extent ?? null);
+        if (withSummary && summaryId === summaryRequest.current) setUnmapped(answer.unmapped ?? 0);
         // A slower, older answer must never replace a newer one.
         if (id !== markerRequest.current) return;
         setFeatures(answer.features);
@@ -512,9 +471,7 @@ function MapExplore({
     if (!showMap || !view) return;
     const timer = setTimeout(() => fetchMarkers(view, false), 250);
     return () => clearTimeout(timer);
-    // Keyed on the window; a new search is the effect above.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view]);
+  }, [view, showMap, fetchMarkers]);
 
   // A new search is a new set of rentals: whatever was selected may not be in
   // it, and what the map shows now is what the results describe.
@@ -745,45 +702,53 @@ function MapExplore({
 
   // Typing over a place, or over an area searched from the map, asks a new question.
   function editPlace(text: string) {
-    resolveRequest.current += 1;
-    setResolving(false);
+    locationLookup.current?.abort();
+    markerRequest.current += 1;
+    summaryRequest.current += 1;
+    extentFitted.current = false;
+    setExtent(null);
+    setFit(null);
+    setMapFeedback(null);
     setArea(null);
     setBbox(null);
     setPlace(text);
   }
 
+  function selectLocation(row: LocationReference) {
+    editPlace(row.name);
+    Keyboard.dismiss();
+    const target = locationSearchArea(row);
+    if (target) setArea(target);
+    else setMapFeedback({ message: "This location has no map coordinates yet. You can still search its listings by name.", tone: "danger" });
+  }
+
+  async function submitLocation(query: string) {
+    locationLookup.current?.abort();
+    if (query.trim().length < 2) return;
+    const controller = new AbortController();
+    locationLookup.current = controller;
+    try {
+      const answer = await searchLocations(query, controller.signal);
+      if (controller.signal.aborted) return;
+      const match = uniqueLocationMatch(query, answer.results);
+      if (match) selectLocation(match);
+      else setMapFeedback({ message: "Choose a suggested location to focus the map. Text searches also show matching listings.", tone: "danger" });
+    } catch {
+      if (!controller.signal.aborted) setMapFeedback({ message: "Location lookup is unavailable. Listing search still works by name.", tone: "danger" });
+    }
+  }
+
   function clearPlace() {
-    resolveRequest.current += 1;
-    setResolving(false);
-    // An abandoned session is never picked up again: the next search opens its own.
-    session.current = null;
+    locationLookup.current?.abort();
+    markerRequest.current += 1;
+    summaryRequest.current += 1;
+    setMapFeedback(null);
+    extentFitted.current = false;
+    setExtent(null);
+    setFit(null);
     setArea(null);
     setBbox(null);
     setPlace("");
-    setSuggestions([]);
-  }
-
-  async function choosePlace(row: PlaceSuggestion) {
-    Keyboard.dismiss();
-    const id = ++resolveRequest.current;
-    setResolving(true);
-    try {
-      const chosen = await resolvePlace(row, session.current);
-      // Resolving spends the session; the next search starts another.
-      session.current = null;
-      // Typed over or cleared while it was on its way: the tenant has moved on.
-      if (id !== resolveRequest.current) return;
-      suggestionRequest.current += 1;
-      setSuggestions([]);
-      setBbox(null);
-      setArea({ name: chosen.display_name, bounds: chosen.bounds, ref: `${chosen.provider}:${chosen.reference}` });
-      setPlace(chosen.display_name);
-      setError("");
-    } catch {
-      if (id === resolveRequest.current) setError("That place did not open. Choose it again, or search the text.");
-    } finally {
-      if (id === resolveRequest.current) setResolving(false);
-    }
   }
 
   function openListing(listing: Listing) {
@@ -792,7 +757,7 @@ function MapExplore({
   }
 
   async function toggleSave(listing: Listing) {
-    if (!signedIn) { router.push("/(auth)/start" as never); return; }
+    if (!signedIn) { requestSignIn(); return; }
     const has = saved.has(listing.id);
     // Optimistic: shortlisting is private and reversible, so a wrong guess costs
     // nothing and waiting costs the feel of the whole screen.
@@ -814,6 +779,10 @@ function MapExplore({
 
   // Filters, not place: the search bar keeps the one clear for that.
   function clearFilters() {
+    setBbox(null);
+    extentFitted.current = false;
+    setExtent(null);
+    setFit(area ? { key: `clear:${Date.now()}`, bounds: area.bounds } : null);
     setPropertyType(""); setSpaceType(""); setBedrooms("");
     setRentMin(""); setRentMax(""); setAdvanceMax(""); setFurnished(false); setSort("newest");
   }
@@ -843,7 +812,7 @@ function MapExplore({
         <DanpaHQMap
           initialView={config.default_view}
           fit={fit}
-          baseMap={baseMap}
+          baseMap="standard"
           insets={mapInsets}
           markers={markers}
           onMove={moveMap}
@@ -874,23 +843,13 @@ function MapExplore({
               icon={area ? "location" : "search"}
               value={place}
               onChangeText={editPlace}
+              onSelectLocation={selectLocation}
+              onSubmit={(query) => { void submitLocation(query); }}
               onClear={clearPlace}
             />
           )}
         />
       </View>
-
-      {/* Beside the controls rather than inside them: Android delivers no touch
-          to a child drawn outside its parent's bounds. */}
-      {suggestions.length || resolving ? (
-        <PlaceSuggestions
-          suggestions={suggestions}
-          attribution={attribution}
-          resolving={resolving}
-          onChoose={(row) => void choosePlace(row)}
-          style={{ position: "absolute", top: controlsHeight - space[1], left: space[3], right: space[3], zIndex: 8 }}
-        />
-      ) : null}
 
       {showMap && config && !listOpen ? (
         // Three stable, thumb-sized controls. Their translucent circles echo the
@@ -930,12 +889,6 @@ function MapExplore({
               </>
             )}
             <MapTool
-              label={baseMap === "hybrid" ? "Show standard map" : "Show satellite map"}
-              icon="layers-outline"
-              selected={baseMap === "hybrid"}
-              onPress={() => setBaseMap((current) => current === "hybrid" ? "standard" : "hybrid")}
-            />
-            <MapTool
               label="Search this area"
               icon="scan-outline"
               emphasized={userMoved}
@@ -947,6 +900,11 @@ function MapExplore({
         </View>
       ) : null}
 
+      {showMap && !listOpen && !mapBanner && unmapped > 0 ? (
+        <View style={{ position: "absolute", top: controlsHeight + space[5], left: space[3], right: 88, zIndex: 6 }}>
+          <Notice tone="info" title={`${unmapped} rentals have no map location yet`} body="Open the list to see them." />
+        </View>
+      ) : null}
       {showMap && !listOpen && mapBanner ? (
         <View
           pointerEvents="box-none"
@@ -981,6 +939,7 @@ function MapExplore({
             >
               {mapBanner.message}
             </Type>
+            {mapFeedback?.tone === "danger" ? <Button label="Clear Filters" variant="quiet" onPress={() => { clearPlace(); clearFilters(); setSaleChoices(NO_SALE_CHOICES); }} /> : null}
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Dismiss map search message"
@@ -1187,6 +1146,7 @@ function MapExplore({
                         : "Try a wider rent, a longer advance, or a nearby area."}
                   </Type>
                   <Button label="Adjust filters" onPress={() => setFiltersOpen(true)} />
+                  <Button label="Clear Filters" variant="quiet" onPress={() => { clearPlace(); clearFilters(); setSaleChoices(NO_SALE_CHOICES); }} />
                 </View>
               )
             }
@@ -1285,94 +1245,6 @@ function MapTool({
         />
         <Ionicons name={icon} size={21} color={iconColor} />
       </Pressable>
-    </View>
-  );
-}
-
-/**
- * The places a typed name might mean, from Danpa HQ's API. Google's carry its
- * name beneath them: here they are shown with no Google map in sight.
- */
-function PlaceSuggestions({
-  suggestions,
-  attribution,
-  resolving,
-  onChoose,
-  style,
-}: {
-  suggestions: PlaceSuggestion[];
-  attribution: string | null;
-  resolving: boolean;
-  onChoose: (row: PlaceSuggestion) => void;
-  style?: StyleProp<ViewStyle>;
-}) {
-  return (
-    <View
-      style={[
-        {
-          overflow: "hidden",
-          borderWidth: 1,
-          borderColor: theme.color.field["200"],
-          borderRadius: radius.lg,
-          backgroundColor: theme.color.field["0"],
-          shadowColor: theme.color.ink["950"],
-          shadowOpacity: 0.16,
-          shadowRadius: 18,
-          shadowOffset: { width: 0, height: 8 },
-          // Above the sheet's own elevation, which Android draws by before zIndex.
-          elevation: 20,
-        },
-        style,
-      ]}
-    >
-      {resolving ? (
-        <View style={{ minHeight: 52, flexDirection: "row", alignItems: "center", gap: space[3], paddingHorizontal: space[4] }}>
-          <ActivityIndicator size="small" color={theme.color.kola["600"]} />
-          <Type variant="caption" accessibilityLiveRegion="polite">Opening that place…</Type>
-        </View>
-      ) : null}
-      {suggestions.map((row, index) => (
-        <Pressable
-          key={`${row.provider}:${row.reference}`}
-          accessibilityRole="button"
-          accessibilityLabel={row.context ? `${row.name}, ${row.context}` : row.name}
-          disabled={resolving}
-          onPress={() => onChoose(row)}
-          {...pressableFeedback(theme.color.kola["50"])}
-          style={({ pressed }) => ({
-            minHeight: 58,
-            flexDirection: "row",
-            alignItems: "center",
-            gap: space[3],
-            paddingHorizontal: space[3],
-            borderTopWidth: index || resolving ? 1 : 0,
-            borderTopColor: theme.color.field["100"],
-            backgroundColor: pressed ? theme.color.kola["50"] : "transparent",
-          })}
-        >
-          <View
-            style={{
-              width: 32,
-              height: 32,
-              alignItems: "center",
-              justifyContent: "center",
-              borderRadius: 16,
-              backgroundColor: KIND_TINT[row.kind].background,
-            }}
-          >
-            <Ionicons name={KIND_ICON[row.kind]} size={17} color={KIND_TINT[row.kind].color} />
-          </View>
-          <View style={{ flex: 1, minWidth: 0 }}>
-            <Type variant="bodyStrong" numberOfLines={1}>{row.name}</Type>
-            {row.context ? <Type variant="caption" numberOfLines={1}>{row.context}</Type> : null}
-          </View>
-        </Pressable>
-      ))}
-      {attribution === "google" && suggestions.length ? (
-        <Type variant="caption" style={{ alignSelf: "flex-end", paddingHorizontal: space[3], paddingVertical: space[1], color: theme.color.ink["700"], fontSize: 12 }}>
-          Google Maps
-        </Type>
-      ) : null}
     </View>
   );
 }

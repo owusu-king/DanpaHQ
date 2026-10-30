@@ -31,7 +31,7 @@ about Ghanaian law.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from .models import EvidenceType
 
@@ -56,7 +56,8 @@ from .models import EvidenceType
 #: `2026.10.1` asks a property to let for two views only — the front and the
 #: wider area — and offers one optional view per shared amenity in place of
 #: the side, compound, water and meter views (owner, 2026-10-20).
-POLICY_VERSION = "2026.10.1"
+#: `2026.10.2` requires only the title for sale authority; other documents are optional.
+POLICY_VERSION = "2026.10.2"
 
 
 @dataclass(frozen=True)
@@ -135,10 +136,10 @@ def authority_requirements(relationship_type: str, prop=None) -> list[EvidenceSl
 
     The relationship's own document always comes first, so a caller reading the
     first slot still gets the one that proves the relationship. A property for
-    sale then adds its title, and land its site plan — see `sale_title_slots`.
+    sale requires its title; relationship proof and a land site plan are optional.
     """
     slot = _AUTHORITY.get(relationship_type) or _AUTHORITY["owner"]
-    return [slot, *sale_title_slots(prop)]
+    return [replace(slot, required=False) if _is_sale(prop) else slot, *sale_title_slots(prop)]
 
 
 def _is_sale(prop) -> bool:
@@ -151,8 +152,7 @@ def sale_title_slots(prop) -> list[EvidenceSlot]:
     Letting asks whether this person may let the place. Selling transfers the
     place itself, so the reviewer reads the title as well as the relationship:
     a Land Title Certificate or, where the land is not yet registered, the
-    indenture. Land adds its surveyed site plan, because where a plot starts and
-    stops is what land disputes here turn on (owner, 2026-09-28).
+    indenture. Land also offers an optional surveyed site plan.
     """
     if not _is_sale(prop):
         return []
@@ -170,6 +170,7 @@ def sale_title_slots(prop) -> list[EvidenceSlot]:
         slots.append(
             EvidenceSlot(
                 key="title.site_plan",
+                required=False,
                 evidence_type=EvidenceType.SITE_PLAN,
                 label="The site plan",
                 why="Surveyed plan, signed by a surveyor.",

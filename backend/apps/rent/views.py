@@ -70,6 +70,7 @@ def _lease_or_404(pk, user):
         .select_related(
             "unit__property__owner",
             "unit__property__address__locality__district__region",
+            "unit__property__address__locality__region",
             "tenant",
             "landlord",
             "tenancy",

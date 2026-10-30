@@ -46,7 +46,7 @@ export default function RentalsPage() {
        does it — the header is sticky and sits before <main> in flow, so without
        this there is a bare strip above the title. */
     <div className="lp-light -mt-20 bg-background pt-20 text-foreground">
-      <div className="relative mx-auto w-full max-w-[76rem] px-5 pt-8 pb-24 sm:px-8 lg:px-12 lg:pt-10">
+      <div className="explore-public-layout relative mx-auto w-full max-w-[76rem] px-5 pt-8 pb-24 sm:px-8 lg:px-12 lg:pt-10">
         <span aria-hidden="true" className="lp-wash top-0 h-[26rem]" />
 
         {/* The page's own header and the search it introduces are one green

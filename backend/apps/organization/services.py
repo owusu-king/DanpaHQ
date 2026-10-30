@@ -463,13 +463,13 @@ def properties_for_user(user, *, include_archived: bool = False):
     ).distinct()
 
 
-def properties_for_organization_member(*, organization: Organization, user):
+def properties_for_organization_member(*, organization: Organization, user, include_archived=False):
     from apps.property.models import Property
 
     membership = active_membership(organization=organization, user=user)
     if membership is None:
         return Property.objects.none()
-    rows = Property.objects.filter(
+    rows = (Property.all_objects if include_archived else Property.objects).filter(
         organization_relationships__organization=organization,
         organization_relationships__ended_at__isnull=True,
     )

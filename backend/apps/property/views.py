@@ -37,7 +37,7 @@ def _unit_queryset():
     queries per room and the provider watches a spinner on a phone.
     """
     return Unit.objects.select_related(
-        "property__address__locality__district__region"
+        "property__address__locality__district__region", "property__address__locality__region"
     ).prefetch_related("media__file", "unit_amenities__amenity", "beds")
 
 
@@ -62,7 +62,10 @@ class ProviderApplicationView(APIView):
 
     def get(self, request):
         rows = PropertyProviderApplication.objects.filter(applicant=request.user).select_related(
-            "address__locality__district__region", "property"
+            "address__locality__district__region",
+            "address__locality__region",
+            "address__locality__region",
+            "property",
         )
         response = Response(ProviderApplicationSerializer(rows, many=True).data)
         response["Cache-Control"] = "private, no-store"
@@ -79,7 +82,7 @@ class ProviderApplicationView(APIView):
             user=request.user, data=data, files=files
         )
         application = PropertyProviderApplication.objects.select_related(
-            "address__locality__district__region", "property"
+            "address__locality__district__region", "address__locality__region", "property"
         ).get(id=application.id)
         return Response(
             ProviderApplicationSerializer(application).data,
@@ -121,7 +124,7 @@ class PropertyClaimView(APIView):
             user=request.user, prop=prop, data=data, files=files
         )
         application = PropertyProviderApplication.objects.select_related(
-            "address__locality__district__region", "property"
+            "address__locality__district__region", "address__locality__region", "property"
         ).get(id=application.id)
         return Response(
             ProviderApplicationSerializer(application).data,
@@ -179,7 +182,9 @@ class PropertyListCreateView(APIView):
         )
 
         props = (
-            rows.select_related("address__locality__district__region", "owner")
+            rows.select_related(
+                "address__locality__district__region", "address__locality__region", "owner"
+            )
             # The Property's own photographs, without a query per row. The
             # condition evidence the cover falls back to cannot be prefetched —
             # `subject_id` is not a foreign key — and is batched in the

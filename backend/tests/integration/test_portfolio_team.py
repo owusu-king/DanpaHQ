@@ -177,7 +177,7 @@ class TestProviderPropertyEntryJourneys:
 
         tenant_side = api.post(
             "/api/v1/me/workspace/",
-            {"workspace": "tenant", "tenant_confirmation": "Rent account"},
+            {"workspace": "tenant", "tenant_confirmation": "TENANT"},
             format="json",
         )
         assert tenant_side.status_code == 200

@@ -87,6 +87,10 @@ export function getProviderReadiness(propertyId?: string) {
 
 export function createAddress(input: {
   locality_id?: string;
+  place_name?: string;
+  place_context?: string;
+  latitude?: number | null;
+  longitude?: number | null;
   place?: {
     provider: string;
     reference: string;
@@ -118,6 +122,7 @@ export type PropertySaleSummary = {
 
 export type Property = {
   id: string;
+  created_at: string;
   title: string;
   property_type: string;
   /** `sale` for a property sold whole — no Units (owner, 2026-09-28). */
@@ -166,6 +171,8 @@ export type Property = {
     street: string;
     house_number: string;
     landmark: string;
+  latitude?: string | null;
+  longitude?: string | null;
   };
 };
 
@@ -326,7 +333,7 @@ export type UnitDetail = Unit & {
     id: string;
     title: string;
     property_type: string;
-    address: { locality_name: string; district_name: string } | null;
+    address: { locality_name: string; district_name: string; latitude?: string | null; longitude?: string | null } | null;
     authority_state: string;
     condition_state: ConditionState;
   };
@@ -485,6 +492,7 @@ export function updateProperty(
   id: string,
   input: Partial<{
     title: string;
+    location: { latitude: number | null; longitude: number | null };
     water_source: string;
     power_meter_type: string;
     compound_type: string;

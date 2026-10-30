@@ -113,6 +113,7 @@ const Portfolio = () => null;
 const headerControls = Object.fromEntries(["TenantProfileButton", "TenantHeaderActions", "ProviderHeaderActions", "ArtisanHeaderActions"].map((key) => [key, () => null]));
 function frameHarness() {
   return compile("./components/nav/NativeTabFrame.tsx", {
+    "@/auth": { useAuth: () => ({ state: { status: "signed_in" } }) },
     "react-native": native(), "@/components/nav/TabHeader": { TabHeaderRow: "TabHeaderRow" },
     "@/components/nav/TabHeaderControls": headerControls,
     "@/components/portfolio/PortfolioSwitcher": { PortfolioHeaderButton: Portfolio },
@@ -144,13 +145,14 @@ test("iOS preserves the exact Portfolio control on Home and replaces it on every
   assert.equal(frames.ProviderTabFrame({ tab: "menu" }).props.header, null);
 });
 
-function jsTabs(path) {
+function jsTabs(path, { signedIn = true, requestSignIn = () => undefined } = {}) {
   const Tabs = Object.assign(() => null, { Screen: "Screen" });
   const api = compile(path, {
     "@expo/vector-icons/Ionicons": { __esModule: true, default: "Icon" },
     "@expo/vector-icons/MaterialCommunityIcons": { __esModule: true, default: "MapIcon" },
     "expo-router": { Tabs }, "expo-router/unstable-native-tabs": { NativeTabs: {} },
-    "react-native": native(320), "@/auth": { useAuth: () => ({ state: { status: "signed_in", me: { capabilities: { provider: { workspace_access: true } } } } }) },
+    "react-native": native(320), "@/auth": { useAuth: () => ({ state: { status: signedIn ? "signed_in" : "signed_out", me: { capabilities: { provider: { workspace_access: true } } } } }) },
+    "@/components/auth/GuestSignIn": { useGuestSignIn: () => requestSignIn },
     "@/components/auth/VerificationHome": { VerificationHome: "VerificationHome" },
     "@/components/nav/MainTabBar": { MainTabBar: "Bar" },
     "@/components/nav/NativeTabFrame": { nativeTabHaptics: {} },
@@ -162,6 +164,19 @@ function jsTabs(path) {
   });
   return api.default().type();
 }
+
+test("guest tab presses prompt before navigation and leave Explore open", () => {
+  const prompts = [];
+  const tree = jsTabs("../app/(app)/(tabs)/_layout.tsx", { signedIn: false, requestSignIn: (next) => prompts.push(next) });
+  let blocked = false;
+  tree.props.screenListeners({ route: { name: "payments" } }).tabPress({ preventDefault: () => { blocked = true; } });
+  assert.equal(blocked, true);
+  assert.deepEqual(prompts, ["/(app)/(tabs)/payments"]);
+  blocked = false;
+  tree.props.screenListeners({ route: { name: "explore" } }).tabPress({ preventDefault: () => { blocked = true; } });
+  assert.equal(blocked, false);
+  assert.equal(prompts.length, 1);
+});
 
 test("Android tenant and provider navigators preserve header tools and scope Portfolio to Home", () => {
   const tenant = jsTabs("../app/(app)/(tabs)/_layout.tsx");

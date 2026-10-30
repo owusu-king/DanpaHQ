@@ -184,9 +184,14 @@ class DashboardView(ManagementAPIView):
         from apps.lease.models import Lease, LeaseStatus
         from apps.listing.models import Listing, ListingStatus
         from apps.trust.models import ReviewQueueEntry
-        queue_entries = list(reviewable_entries(
-            ReviewQueueEntry.objects.filter(resolved_at__isnull=True).select_related("verification")
-        ))
+
+        queue_entries = list(
+            reviewable_entries(
+                ReviewQueueEntry.objects.filter(resolved_at__isnull=True).select_related(
+                    "verification"
+                )
+            )
+        )
         pending_groups = {_review_subject(entry.verification)[0] for entry in queue_entries}
 
         return Response(
@@ -469,17 +474,23 @@ class ArtisanCertificateDecisionView(ManagementAPIView):
 
 
 class ProvidersView(ManagementAPIView):
-    """Read-only property verification submission history.
+    """Recent property submission summaries and individual unit review records.
 
-    The claimant's account standing remains useful context, but the property
-    column reports the package's single verification result rather than the
-    authority check's internal approval status.
+    The legacy route name remains for compatibility. A property's package has
+    one current submission state; a unit row is an actual review record. Neither
+    an ownership claim nor account-level provider standing is a review type.
     """
 
     required_capability = Capability.VIEW_PROPERTIES
 
     def get(self, request):
-        from apps.property.models import PropertyProviderApplication
+        from django.db.models.functions import Coalesce, Greatest
+
+        from apps.property.models import (
+            PropertyProviderApplication,
+            ProviderApplicationStatus,
+            Unit,
+        )
         from apps.property.verification import lifecycle as property_lifecycle
         from apps.trust.models import (
             SubjectType,
@@ -488,16 +499,40 @@ class ProvidersView(ManagementAPIView):
             VerificationStatus,
         )
 
-        rows = PropertyProviderApplication.objects.select_related(
-            "applicant", "address__locality__district__region", "property"
-        )
+        limit = _bounded_limit(request)
         state = request.query_params.get("status", "").strip()
-        if state:
-            rows = rows.filter(status=state)
-        rows = list(rows[: _bounded_limit(request)])
-
-        # One query for every applicant on the page rather than one per row.
-        standing_by_user: dict[str, str] = {}
+        submitted_states = (
+            ProviderApplicationStatus.PENDING_REVIEW,
+            ProviderApplicationStatus.NEEDS_MORE,
+            ProviderApplicationStatus.APPROVED,
+            ProviderApplicationStatus.REJECTED,
+            ProviderApplicationStatus.SUSPENDED,
+            ProviderApplicationStatus.EXPIRED,
+            ProviderApplicationStatus.WITHDRAWN,
+        )
+        property_probe = list(
+            PropertyProviderApplication.objects.filter(
+                Q(submitted_at__isnull=False)
+                | Q(reviewed_at__isnull=False)
+                | Q(status__in=submitted_states)
+            )
+            .select_related(
+                "applicant",
+                "address__locality__district__region",
+                "address__locality__region",
+                "property",
+            )
+            .annotate(
+                history_activity=Greatest(
+                    "updated_at",
+                    Coalesce("submitted_at", "created_at"),
+                    Coalesce("reviewed_at", "created_at"),
+                )
+            )
+            .order_by("-history_activity", "-id")[: limit + 1]
+        )
+        rows = property_probe[:limit]
+        standing_by_user = {}
         applicant_ids = {str(item.applicant_id) for item in rows}
         if applicant_ids:
             for check in (
@@ -513,33 +548,118 @@ class ProvidersView(ManagementAPIView):
 
         results = []
         for item in rows:
+            package = property_lifecycle(item.property) if item.property_id else None
             results.append(
                 {
                     "id": str(item.id),
+                    "subject_type": "property",
+                    "review_kind": "property_verification",
+                    "review_label": "Property verification",
+                    "status_scope": "latest_property_submission",
+                    "person_label": "Applicant",
                     "applicant_id": str(item.applicant_id),
                     "applicant": item.applicant.display_name,
                     "phone": mask(item.applicant.phone),
-                    # The account-level decision, alongside the property one.
                     "provider_standing": standing_by_user.get(
                         str(item.applicant_id), "not_started"
                     ),
                     "relationship": item.relationship_type,
+                    "relationship_label": item.get_relationship_type_display(),
                     "title": item.title,
                     "property_type": item.property_type,
                     "locality": item.address.locality_label,
                     "region": item.address.region_label,
-                    "status": (
-                        property_lifecycle(item.property)["review_state"]
-                        if item.property_id
-                        else item.status
-                    ),
+                    "status": package["review_state"] if package else item.status,
+                    "status_label": package["review_state_label"]
+                    if package
+                    else item.get_status_display(),
                     "verification_id": str(item.authority_verification_id or ""),
                     "decision_note": item.decision_note,
                     "submitted_at": _iso(item.submitted_at),
                     "reviewed_at": _iso(item.reviewed_at),
+                    "recorded_at": _iso(item.history_activity),
                 }
             )
-        return Response({"results": results})
+
+        decided_states = (
+            VerificationStatus.NEEDS_MORE,
+            VerificationStatus.APPROVED,
+            VerificationStatus.REJECTED,
+            VerificationStatus.EXPIRED,
+            VerificationStatus.REVOKED,
+            VerificationStatus.SUPERSEDED,
+        )
+        unit_probe = list(
+            Verification.objects.filter(
+                subject_type=SubjectType.SPACE, kind=VerificationKind.SPACE_CONDITION
+            )
+            .filter(Q(queue_entry__isnull=False) | Q(status__in=decided_states))
+            .select_related("submitted_by", "queue_entry")
+            .annotate(
+                history_activity=Greatest(
+                    "updated_at",
+                    Coalesce("queue_entry__created_at", "created_at"),
+                    Coalesce("decided_at", "created_at"),
+                )
+            )
+            .order_by("-history_activity", "-id")[: limit + 1]
+        )
+        checks = unit_probe[:limit]
+        units = {
+            str(unit.id): unit
+            for unit in Unit.objects.filter(
+                id__in=[row.subject_id for row in checks],
+            ).select_related(
+                "property__address__locality__district__region",
+                "property__address__locality__region",
+            )
+        }
+        for check in checks:
+            unit = units.get(check.subject_id)
+            submitter = check.submitted_by
+            entry = getattr(check, "queue_entry", None)
+            name = unit.label or unit.space_type.replace("_", " ").title() if unit else ""
+            results.append(
+                {
+                    "id": str(check.id),
+                    "subject_type": "unit",
+                    "review_kind": "unit_condition",
+                    "review_label": "Unit verification",
+                    "status_scope": "unit_review",
+                    "person_label": "Review author",
+                    "applicant_id": str(check.submitted_by_id or ""),
+                    "applicant": submitter.display_name if submitter else "Account unavailable",
+                    "phone": mask(submitter.phone) if submitter else "",
+                    "relationship": "",
+                    "relationship_label": "",
+                    "title": f"{name} · {unit.property.title}"
+                    if unit
+                    else "Unit no longer available",
+                    "property_type": unit.space_type if unit else "unit",
+                    "locality": unit.property.address.locality_label if unit else "",
+                    "region": unit.property.address.region_label if unit else "",
+                    # An approved historical review does not turn into an expired
+                    # verdict merely because its validity date has elapsed.
+                    "status": check.status,
+                    "status_label": check.get_status_display(),
+                    "verification_id": str(check.id),
+                    "decision_note": check.decision_note,
+                    "submitted_at": _iso(entry.created_at) if entry else None,
+                    "reviewed_at": _iso(check.decided_at),
+                    "recorded_at": _iso(check.history_activity),
+                }
+            )
+        results.sort(key=lambda row: (row["recorded_at"], row["id"]), reverse=True)
+        has_more = len(property_probe) > limit or len(unit_probe) > limit or len(results) > limit
+        # This endpoint serves a bounded recent-record window. Apply filters to
+        # the same displayed states and window as the client, never to raw
+        # application statuses that differ from package states.
+        recent = results[:limit]
+        if state:
+            recent = [row for row in recent if row["status"] == state]
+        return Response(
+            {"results": recent, "limit": limit, "has_more": has_more, "scope": "recent_records"}
+        )
 
 
 def _review_subject(verification) -> tuple[str, str, str]:
@@ -581,6 +701,14 @@ def _review_subject(verification) -> tuple[str, str, str]:
                 str(application.id),
             )
 
+    if verification.subject_type == "space":
+        from apps.property.models import Unit
+
+        unit = Unit.objects.select_related("property").filter(id=verification.subject_id).first()
+        if unit is not None:
+            label = unit.label or unit.space_type.replace("_", " ").capitalize()
+            return f"space:{unit.id}", f"{label} — {unit.property.title}", ""
+
     return f"{verification.subject_type}:{verification.subject_id}", "", ""
 
 
@@ -591,6 +719,7 @@ class VerificationQueueView(ManagementAPIView):
         from apps.identity.provider_approval import reviewable_entries
         from apps.trust.models import ReviewQueueEntry
         from apps.trust.serializers import ReviewerVerificationSerializer
+
         rows = (
             reviewable_entries(ReviewQueueEntry.objects.filter(resolved_at__isnull=True))
             .select_related("verification")
@@ -650,6 +779,7 @@ class VerificationClaimView(ManagementAPIView):
     def post(self, request, pk):
         from apps.identity.provider_approval import reviewable_entries
         from apps.trust.models import ReviewQueueEntry
+
         entry = (
             reviewable_entries(ReviewQueueEntry.objects.select_for_update())
             .filter(id=pk, resolved_at__isnull=True)
@@ -868,7 +998,10 @@ class PropertiesView(ManagementAPIView):
         from apps.property.models import Property
 
         rows = Property.objects.select_related(
-            "owner", "created_by", "address__locality__district__region"
+            "owner",
+            "created_by",
+            "address__locality__district__region",
+            "address__locality__region",
         ).prefetch_related("relationships__user")
         query = request.query_params.get("q", "").strip()
         if query:

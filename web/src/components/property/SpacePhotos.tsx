@@ -16,7 +16,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-import { Button } from "@/components/Button";
+import { EvidenceTile } from "./VerificationPanel";
 import { Notice } from "@/components/Notice";
 import { ApiFailure } from "@/lib/api";
 import {
@@ -112,132 +112,31 @@ export function SpacePhotos({
   return (
     <div style={{ display: "grid", gap: "var(--space-4)" }}>
       {error ? <Notice tone="error" title={error} /> : null}
+      {editable ? <p className="type-caption">The main view and each selected amenity need a photo. The two context views are optional.</p> : null}
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fill, minmax(15rem, 1fr))",
-          gap: "var(--space-4)",
-        }}
-      >
+      <ul className="evidence-slots">
         {rows.map(({ slot, photo }, index) => (
-          <figure
-            key={slot?.key ?? photo?.id ?? index}
-            style={{
-              margin: 0,
-              display: "grid",
-              gap: "var(--space-2)",
-              padding: "var(--space-3)",
-              background: "var(--color-field-0)",
-              border: "var(--border-hairline) solid var(--color-field-200)",
-              borderRadius: "var(--radius-md)",
-            }}
-          >
-            <div
-              style={{
-                position: "relative",
-                aspectRatio: "4 / 3",
-                background: "var(--color-field-100)",
-                borderRadius: "var(--radius-sm)",
-                overflow: "hidden",
-                display: "grid",
-                placeItems: "center",
-              }}
-            >
-              {photo?.download_url ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={photo.download_url}
-                  alt={slot?.label ?? photo.caption ?? "Photo of this Unit"}
-                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                />
-              ) : (
-                <span className="type-caption" style={{ color: "var(--color-ink-500)" }}>
-                  {photo ? "Photo added" : "No photo yet"}
-                </span>
-              )}
-              {photo?.is_primary ? (
-                <span
-                  className="type-label"
-                  style={{
-                    position: "absolute",
-                    top: "var(--space-2)",
-                    left: "var(--space-2)",
-                    padding: "2px var(--space-2)",
-                    background: "var(--color-kola-600)",
-                    color: "var(--color-field-0)",
-                    borderRadius: "var(--radius-stamp)",
-                    textTransform: "uppercase",
-                  }}
-                >
-                  First image
-                </span>
-              ) : null}
+          <li className="evidence-slot" key={slot?.key ?? photo?.id ?? index}>
+            <EvidenceTile
+              slot={{ label: slot?.label || photo?.caption || `Photo ${index + 1}`, provided: Boolean(photo), preview_url: photo?.download_url ?? null }}
+              locked={!editable || Boolean(photo)}
+              busy={busySlot === slot?.key}
+              disabled={Boolean(busySlot)}
+              onChoose={(file) => void add(slot?.key ?? "", file)}
+            />
+            <div className="evidence-slot-what">
+              <p className="type-body-strong" style={{ margin: 0 }}>
+                {photo?.is_primary ? "First image · " : ""}{slot?.label || photo?.caption || `Photo ${index + 1}`}{slot && !slot.required ? " (optional)" : ""}
+              </p>
+              {slot ? <p className="type-caption" style={{ margin: 0 }}>{slot.why}</p> : null}
+              {!editable || !photo ? null : <div style={{ display: "flex", gap: "var(--space-3)", flexWrap: "wrap" }}>
+                {!photo.is_primary ? <button type="button" className="type-caption evidence-slot-remove" disabled={Boolean(busySlot)} onClick={() => void act(() => setPrimaryUnitPhoto(unitId, photo.id))}>Make it first</button> : null}
+                <button type="button" className="type-caption evidence-slot-remove" disabled={Boolean(busySlot)} onClick={() => void act(() => removeUnitPhoto(unitId, photo.id))}>Remove</button>
+              </div>}
             </div>
-
-            <figcaption style={{ display: "grid", gap: "var(--space-1)" }}>
-              <span className="type-body-strong">
-                {slot?.label ?? photo?.caption ?? "Photo"}
-                {slot && !slot.required ? " (optional)" : ""}
-              </span>
-              {slot ? (
-                <span className="type-caption" style={{ color: "var(--color-ink-500)" }}>
-                  {slot.why}
-                </span>
-              ) : null}
-            </figcaption>
-
-            {!editable ? null : photo ? (
-              <div style={{ display: "flex", gap: "var(--space-2)", flexWrap: "wrap" }}>
-                {photo.is_primary ? null : (
-                  <Button
-                    variant="quiet"
-                    onClick={() => act(() => setPrimaryUnitPhoto(unitId, photo.id))}
-                  >
-                    Make it first
-                  </Button>
-                )}
-                <Button
-                  variant="quiet"
-                  onClick={() => act(() => removeUnitPhoto(unitId, photo.id))}
-                  style={{ color: "var(--color-laterite-600)" }}
-                >
-                  Remove
-                </Button>
-              </div>
-            ) : (
-              <label
-                className="type-body-strong"
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  minHeight: "var(--target-min)",
-                  padding: "0 var(--space-4)",
-                  border: "var(--border-hairline) solid var(--color-field-300)",
-                  borderRadius: "var(--radius-md)",
-                  cursor: busySlot ? "progress" : "pointer",
-                }}
-              >
-                {busySlot === slot?.key ? "Adding…" : "Add photo"}
-                <input
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  disabled={Boolean(busySlot)}
-                  onChange={(event) => {
-                    const file = event.target.files?.[0];
-                    // Cleared so the same file can be chosen again after a
-                    // failure; without it the change event never fires twice.
-                    event.target.value = "";
-                    void add(slot?.key ?? "", file);
-                  }}
-                  className="sr-only"
-                />
-              </label>
-            )}
-          </figure>
+          </li>
         ))}
-      </div>
+      </ul>
 
       {!editable && photos.length === 0 ? (
         <p className="type-caption" style={{ margin: 0 }}>

@@ -1,3 +1,5 @@
+import { RecordHeader, RecordHero, RecordFacts, RecordSection } from "@/components/property/RecordDetail";
+import { LocationPicker, pinFromAddress } from "@/components/property/LocationPicker";
 /**
  * One rentable space, and everything that happens to it.
  *
@@ -14,21 +16,16 @@
  * the work rather than after it.
  */
 
-import Ionicons from "@expo/vector-icons/Ionicons";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
-import { useCallback, useState } from "react";
-import { Alert, Image, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { useCallback, useRef, useState } from "react";
+import { Alert, ScrollView, StyleSheet, View } from "react-native";
 
 import { ApiFailure } from "@/api";
 import { Bone } from "@/components/billing/BillingParts";
 import {
-  EDGE,
   Fact,
   Footnote,
   GroupLabel,
-  INK,
-  KOLA,
-  KOLA_DEEP,
   LinkRow,
   Pill,
   QuietAct,
@@ -80,7 +77,7 @@ export default function SpaceScreen() {
       const [detail, listings] = await Promise.all([getUnit(unitId), listMyListings()]);
       setUnit(detail);
       setListing(
-        listings.find((row) => row.unit === unitId && row.status !== "rejected") ?? null,
+        listings.find((row) => row.id === detail.publication.listing_id) ?? null,
       );
       setError("");
     } catch (cause) {
@@ -137,61 +134,16 @@ export default function SpaceScreen() {
           />
         ) : null}
 
-        {/* One card says what this Unit is (owner, 2026-10-06): the photograph,
-            which is how it is recognised; its name, where it is and where it
-            stands; and what kind of space it is, on one straight line. */}
-        <View style={styles.card}>
-          {photo ? (
-            <View style={styles.hero}>
-              <Image source={{ uri: photo }} accessibilityLabel={unit.label || "Unit"} style={styles.heroPhoto} resizeMode="cover" />
-              <View style={styles.heroChip}>
-                <View style={[styles.heroDot, { backgroundColor: occupied ? INK : KOLA_DEEP }]} />
-                <Type variant="captionStrong" style={[styles.heroChipText, { color: occupied ? INK : KOLA_DEEP }]}>
-                  {occupied ? "Occupied" : "Vacant"}
-                </Type>
-              </View>
-              {published ? (
-                <View style={styles.heroPublic} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-                  <Ionicons name="earth" size={13} color={theme.color.field["0"]} />
-                </View>
-              ) : null}
-            </View>
-          ) : (
-            // Without a photograph, a strip that leads to adding one, not two
-            // hundred points of grey.
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="No photo yet. Add photos."
-              onPress={() => setSheet("photos")}
-              style={({ pressed }) => [styles.heroBare, pressed ? { opacity: 0.85 } : null]}
-            >
-              <Ionicons name="image-outline" size={20} color={KOLA_DEEP} />
-              <Type variant="captionStrong" style={{ flex: 1, color: KOLA_DEEP }}>Add the first photo</Type>
-              <Ionicons name="add" size={18} color={KOLA_DEEP} />
-            </Pressable>
-          )}
-          <View style={styles.identity}>
-            <View style={styles.identityHead}>
-              <Type variant="title2" accessibilityRole="header" numberOfLines={2} style={styles.who}>
-                {unit.label || "Unnamed Unit"}
-              </Type>
-              <View style={[styles.state, { backgroundColor: occupied ? theme.color.field["100"] : theme.color.kola["50"] }]}>
-                <Type variant="captionStrong" style={{ color: occupied ? INK : KOLA_DEEP }}>{occupied ? "Occupied" : "Vacant"}</Type>
-              </View>
-            </View>
-            <Type variant="caption" numberOfLines={2} style={styles.where}>{where}</Type>
-            <StandingLine tone={recordTone(status.tone)} line={status.label} />
-          </View>
-          <View style={styles.facts}>
-            <UnitFact label="Type" value={unit.space_type_label} />
-            <View style={styles.factRule} />
-            <UnitFact label="Size" value={size || "—"} wide />
-            <View style={styles.factRule} />
-            <UnitFact label="Furnished" value={unit.is_furnished ? "Yes" : "No"} />
-          </View>
-        </View>
-
-        <WhatIsNext unit={unit} listing={listing} onChanged={load} />
+        <RecordHeader title={unit.label || "Unnamed Unit"} context={where} status={<><StandingLine tone={recordTone(status.tone)} line={unit.verification.state === "verified" ? "Verified" : unit.verification.state_label} /><StandingLine line={published ? "Public" : "Private"} tone={published ? "good" : "quiet"} /><StandingLine line={unit.availability.label} /></>} />
+        <RecordHero photo={photo} title={unit.label || "Unit"} onPhotoPress={() => setSheet("photos")}>
+          <WhatIsNext unit={unit} listing={listing} onChanged={load} />
+        </RecordHero>
+        <RecordSection title="Overview"><RecordFacts rows={[{ label: "Type", value: unit.space_type_label }, { label: "Size", value: size || "Not recorded" }, { label: "Furnished", value: unit.is_furnished ? "Yes" : "No" }]} /></RecordSection>
+        <RecordSection title="Location">
+          <Type variant="body">{[unit.property.address?.locality_name, unit.property.address?.district_name].filter(Boolean).join(", ") || unit.property.title}</Type>
+          {pinFromAddress(unit.property.address) ? <LocationPicker value={pinFromAddress(unit.property.address)} disabled onChange={() => {}} /> : null}
+          <Type variant="caption">Location belongs to {unit.property.title}.</Type>
+        </RecordSection>
 
         {/* Five stacked disclosures under one heading is a settings page. Each
             is its own piece of work, so each opens on the row that names it. */}
@@ -331,16 +283,6 @@ function sheetTitle(sheet: Sheet | null, unit: UnitDetail, removal: "delete" | "
   return "";
 }
 
-/** One of the Unit's facts on the identity card's straight line. */
-function UnitFact({ label, value, wide = false }: { label: string; value: string; wide?: boolean }) {
-  return (
-    <View accessible accessibilityLabel={`${label}, ${value}`} style={[styles.fact, wide ? { flex: 1.6 } : null]}>
-      <Type variant="caption" style={styles.factLabel}>{label}</Type>
-      <Type variant="bodyStrong" numberOfLines={2} style={styles.factValue}>{value}</Type>
-    </View>
-  );
-}
-
 /** The workspace status tones, said in the record kit's vocabulary. */
 function recordTone(tone: string): RecordTone {
   return tone === "good" ? "good" : tone === "attention" ? "alert" : tone === "waiting" ? "waiting" : "quiet";
@@ -363,146 +305,14 @@ function UnitSkeleton() {
 }
 
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-  },
-  page: {
-    padding: space[4],
-    gap: space[4],
-  },
-  next: {
-    gap: space[3],
-    padding: space[4],
-  },
-  nextBody: {
-    color: theme.color.ink["700"],
-  },
-  card: {
-    overflow: "hidden",
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: EDGE,
-    backgroundColor: theme.color.field["0"],
-  },
-  identity: {
-    gap: space[2],
-    paddingHorizontal: space[4],
-    paddingTop: space[4],
-  },
-  identityHead: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: space[2],
-  },
-  who: {
-    flex: 1,
-    minWidth: 0,
-    fontSize: 22,
-    lineHeight: 28,
-    color: INK,
-  },
-  state: {
-    marginTop: 3,
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderRadius: 999,
-  },
-  where: {
-    marginTop: -4,
-  },
-  facts: {
-    flexDirection: "row",
-    marginTop: space[4],
-    paddingVertical: space[3],
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: EDGE,
-  },
-  fact: {
-    flex: 1,
-    minWidth: 0,
-    gap: 2,
-    paddingHorizontal: space[4],
-  },
-  factRule: {
-    width: StyleSheet.hairlineWidth,
-    backgroundColor: EDGE,
-  },
-  factLabel: {
-    fontSize: 12,
-    lineHeight: 16,
-  },
-  factValue: {
-    fontSize: 14,
-    lineHeight: 19,
-    color: INK,
-  },
-  section: {
-    gap: space[2],
-  },
-  hero: {
-    height: 200,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: theme.color.field["100"],
-  },
-  heroPhoto: {
-    width: "100%",
-    height: "100%",
-  },
-  heroBare: {
-    minHeight: 48,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: space[2],
-    paddingHorizontal: space[4],
-    backgroundColor: theme.color.kola["50"],
-  },
-  acts: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    alignItems: "center",
-    gap: space[2],
-  },
-  heroChip: {
-    position: "absolute",
-    left: space[3],
-    bottom: space[3],
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 9,
-    paddingVertical: 4,
-    borderRadius: 999,
-    backgroundColor: "rgba(255,255,255,0.92)",
-  },
-  heroDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
-  },
-  heroChipText: {
-    fontSize: 13,
-    lineHeight: 17,
-  },
-  heroPublic: {
-    position: "absolute",
-    right: space[3],
-    top: space[3],
-    width: 26,
-    height: 26,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 13,
-    backgroundColor: KOLA,
-  },
-  exit: {
-    alignItems: "flex-start",
-    paddingHorizontal: 2,
-    paddingTop: space[2],
-  },
-  sheetBody: {
-    gap: space[4],
-  },
+  screen: { flex: 1 },
+  page: { padding: space[4], gap: space[3] },
+  next: { gap: space[2], padding: 0, borderWidth: 0, backgroundColor: "transparent", boxShadow: "none", elevation: 0 },
+  nextBody: { color: theme.color.ink["700"] },
+  section: { gap: space[2] },
+  acts: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: space[2] },
+  exit: { alignItems: "flex-start", paddingTop: space[2] },
+  sheetBody: { gap: space[4] },
 });
 
 // --- the one thing to do next -------------------------------------------------
@@ -543,7 +353,7 @@ function WhatIsNext({
     // A card and its way on, rather than a notice boxed inside a card with
     // nothing to press (owner, 2026-10-06).
     return (
-      <RecordPanel style={{ gap: space[3], padding: space[4] }}>
+      <RecordPanel style={styles.next}>
         <StandingLine tone="good" line="Someone lives here" />
         <Type variant="caption" style={{ color: theme.color.ink["700"] }}>
           Danpa HQ takes no new requests for it while it is let. The tenancy, its rent and its end are managed from Tenants.
@@ -576,8 +386,8 @@ function WhatIsNext({
         />
         <Type variant="caption" style={styles.nextBody}>
           {waiting
-            ? "We will let you know the outcome. There is nothing more to do here, and the rest of the Property is unaffected."
-            : "Until it passes, no private access code can be shared and it cannot be advertised. Everything else stays yours to edit."}
+            ? "We’ll tell you when the review is complete."
+            : "Verify this Unit before sharing its code or publishing it."}
         </Type>
 
         {unit.verification.decision_note ? (
@@ -615,18 +425,21 @@ function WhatIsNext({
             onPress={() => router.push({ pathname: "/(app)/space-new", params: { propertyId: unit.property.id, unitId: unit.id, step: unit.verification.can_submit ? "review" : "amenities" } })}
           />
         ) : null}
-        {!waiting && !submit?.allowed && unit.verification.can_submit ? (
+        {!waiting && !waitingOnProperty && !submit?.allowed && unit.verification.can_submit ? (
           // Complete on its own terms but refused: offering the call is what turns a silent refusal into a stated one.
           <QuietAct label="Try sending anyway" icon="paper-plane-outline" busy={busy} onPress={() => void run(() => submitForReview("unit", unit.id))} />
         ) : null}
         {waiting && unit.permitted_actions.withdraw_submission?.allowed ? (
-          <QuietAct label="Withdraw submission" icon="arrow-undo-outline" busy={busy} onPress={() => void run(() => withdrawSpaceSubmission(unit.id, "Withdrawn by the provider."))} />
+          <QuietAct label="Withdraw submission" icon="arrow-undo-outline" busy={busy} onPress={() => Alert.alert("Withdraw submission?", "Your Unit stays saved and editable. You can submit it again later.", [
+            { text: "Keep submitted", style: "cancel" },
+            { text: "Withdraw", style: "destructive", onPress: () => void run(() => withdrawSpaceSubmission(unit.id, "Withdrawn by the provider.")) },
+          ])} />
         ) : null}
       </RecordPanel>
     );
   }
 
-  const published = unit.publication.state === "published";
+  const published = (unit.publication.state === "published" && unit.publication.listing_status === "active");
   // The Unit names its own listing. The list of the provider's listings is only
   // a fallback: when it missed, a Unit already on Explore was offered "Publish
   // to Explore" again (owner, 2026-10-06).
@@ -652,14 +465,18 @@ function WhatIsNext({
         <Notice tone="info" title="This cannot be published" body={publish.message} />
       ) : null}
 
-      {composing && !listingId ? (
+      {composing ? (
+        <BottomSheet visible onClose={() => { if (!busy) { setComposing(false); void onChanged(); } }} title="Publish to Explore" closeLabel="Cancel">
         <ComposeListing
           unitId={unit.id}
+          listing={listing}
+          onBusyChange={setBusy}
           onDone={async () => {
             setComposing(false);
             await onChanged();
           }}
         />
+        </BottomSheet>
       ) : null}
 
       {/* Reopening is the one act while it is being considered, so the panel
@@ -726,7 +543,7 @@ function WhatIsNext({
               busy={busy}
               busyLabel="Publishing"
               grow
-              onPress={() => void run(() => publishListing(listingId))}
+              onPress={() => setComposing(true)}
             />
           ) : !published && !listingId && publish?.allowed ? (
             <Pill
@@ -924,41 +741,53 @@ function Beds({ unit, onChanged }: { unit: UnitDetail; onChanged: () => Promise<
 
 // --- publishing ---------------------------------------------------------------
 
-function ComposeListing({ unitId, onDone }: { unitId: string; onDone: () => Promise<void> }) {
-  const [headline, setHeadline] = useState("");
-  const [description, setDescription] = useState("");
-  const [rent, setRent] = useState("");
-  const [advance, setAdvance] = useState("6");
-  const [deposit, setDeposit] = useState("0");
+function ComposeListing({ unitId, listing, onDone, onBusyChange }: { unitId: string; listing?: Listing | null; onDone: () => Promise<void>; onBusyChange: (busy: boolean) => void }) {
+  const [headline, setHeadline] = useState(listing?.headline ?? "");
+  const [description, setDescription] = useState(listing?.description ?? "");
+  const [rent, setRent] = useState(listing?.rent_minor != null ? String(listing.rent_minor / 100) : "");
+  const [advance, setAdvance] = useState(String(listing?.advance_months ?? 6));
+  const [deposit, setDeposit] = useState(String(listing?.caution_months ?? 0));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
+  const pending = useRef(false);
+  const savedId = useRef(listing?.id ?? null);
+  const published = useRef(false);
   const rentMinor = Math.round(Number(rent || 0) * 100);
-  const months = Number(advance || 0) + Number(deposit || 0);
+  const months = Number(advance || 0) + Number(deposit || 0) + (listing?.agency_fee_months ?? 0);
+  const advanceError = !Number.isInteger(Number(advance || 0)) || Number(advance || 0) < 0 || Number(advance || 0) > 36
+    ? "Enter an advance between 0 and 36 months."
+    : "";
 
   return (
     <View style={{ gap: space[3] }}>
-      <Field label="Public headline" value={headline} onChangeText={setHeadline} />
+      {listing ? <Type variant="caption">Publish again with these saved terms.</Type> : null}
+      <Field editable={!listing && !busy} label="Public headline" value={headline} onChangeText={setHeadline} />
       <Field
+        editable={!listing && !busy}
         label="Description"
         value={description}
         onChangeText={setDescription}
         multiline
       />
       <Field
-        label="Monthly rent (GH₵)"
+        editable={!listing && !busy}
+        label={listing?.rent_period === "yearly" ? "Yearly rent (GH₵)" : "Monthly rent (GH₵)"}
         value={rent}
         onChangeText={setRent}
         keyboardType="decimal-pad"
       />
       <Field
+        editable={!listing && !busy}
         label="Advance (months)"
-        hint="Up to 24 is common."
+        hint="From 0 to 36 months."
+        error={advanceError}
         value={advance}
         onChangeText={setAdvance}
         keyboardType="number-pad"
       />
       <Field
+        editable={!listing && !busy}
         label="Deposit (months)"
         value={deposit}
         onChangeText={setDeposit}
@@ -978,11 +807,14 @@ function ComposeListing({ unitId, onDone }: { unitId: string; onDone: () => Prom
       <Button
         label="Publish to Explore"
         busy={busy}
-        disabled={!headline.trim() || !description.trim() || rentMinor <= 0}
+        disabled={!headline.trim() || !description.trim() || rentMinor <= 0 || Boolean(advanceError)}
         onPress={async () => {
-          setBusy(true);
+          if (pending.current) return;
+          pending.current = true;
+          setBusy(true); onBusyChange(true);
           setError("");
           try {
+            if (!savedId.current) {
             const created = await createListing({
               unit_id: unitId,
               rent_minor: rentMinor,
@@ -992,14 +824,17 @@ function ComposeListing({ unitId, onDone }: { unitId: string; onDone: () => Prom
               caution_months: Number(deposit || 0),
               minimum_lease_months: 6,
             });
-            await publishListing(created.id);
+            savedId.current = created.id;
+            }
+            if (!published.current) { await publishListing(savedId.current); published.current = true; }
             await onDone();
           } catch (cause) {
             setError(
               cause instanceof ApiFailure ? cause.error.message : "That did not publish.",
             );
           } finally {
-            setBusy(false);
+            pending.current = false;
+            setBusy(false); onBusyChange(false);
           }
         }}
       />

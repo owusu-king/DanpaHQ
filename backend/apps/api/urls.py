@@ -178,6 +178,8 @@ geo_patterns = [
     path("geo/regions/", geo_views.RegionListView.as_view(), name="geo-regions"),
     path("geo/districts/", geo_views.DistrictListView.as_view(), name="geo-districts"),
     path("geo/localities/", geo_views.LocalityListView.as_view(), name="geo-localities"),
+    path("geo/locations/", geo_views.LocationSearchView.as_view(), name="geo-locations"),
+    path("geo/dataset/", geo_views.LocationDatasetView.as_view(), name="geo-dataset"),
     path("geo/places/suggest/", geo_views.PlaceSuggestView.as_view(), name="geo-place-suggest"),
     path("geo/places/resolve/", geo_views.PlaceResolveView.as_view(), name="geo-place-resolve"),
     path("map/config/", geo_views.MapConfigView.as_view(), name="map-config"),
@@ -405,6 +407,11 @@ organization_patterns = [
         "organizations/<uuid:pk>/portfolio/",
         organization_views.OrganizationPortfolioView.as_view(),
         name="organization-portfolio",
+    ),
+    path(
+        "organizations/<uuid:pk>/finance/rent-tax-report/",
+        organization_views.OrganizationRentTaxReportView.as_view(),
+        name="organization-rent-tax-report",
     ),
     path(
         "organizations/<uuid:pk>/billing/",

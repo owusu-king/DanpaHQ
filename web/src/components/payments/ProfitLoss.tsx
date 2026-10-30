@@ -2,16 +2,18 @@
 import { useState } from "react";
 import type { OrganizationPortfolio } from "@/lib/console";
 import { formatMoney } from "@/lib/money";
+import { GraReport } from "./GraReport";
 
-export function ProfitLoss({ report }: { report: OrganizationPortfolio["profit_loss"] }) {
+export function ProfitLoss({ report, organizationId, organizationName = "", properties = [] }: { report: OrganizationPortfolio["profit_loss"]; organizationId?: string; organizationName?: string; properties?: { id: string; title: string }[] }) {
   const [currency, setCurrency] = useState("GHS");
   if (!report) return <p role="status">Refresh Finance to load your Profit &amp; Loss ledger.</p>;
   const ledger = report.ledgers.find(row => row.currency === currency) ?? report.ledgers[0];
   if (!ledger) return null;
   const money = (minor: number) => formatMoney({ minor, currency: ledger.currency });
   return <section id="profit-loss" role="tabpanel" aria-labelledby="profit-loss-tab" className="ws-panel pnl-ledger">
-    <header className="pnl-heading"><div><p className="type-caption">All recorded periods · Cash basis</p><h2>Profit &amp; Loss</h2></div>
-      {report.ledgers.length > 1 ? <label>Currency <select value={ledger.currency} onChange={event => setCurrency(event.target.value)}>{report.ledgers.map(row => <option key={row.currency}>{row.currency}</option>)}</select></label> : <span>{ledger.currency}</span>}
+    <header className="pnl-heading flex-wrap"><div><p className="type-caption">All recorded periods · Cash basis</p><h2>Profit &amp; Loss</h2></div>
+      <div className="flex flex-wrap items-center gap-3">{report.ledgers.length > 1 ? <label>Currency <select value={ledger.currency} onChange={event => setCurrency(event.target.value)}>{report.ledgers.map(row => <option key={row.currency}>{row.currency}</option>)}</select></label> : <span>{ledger.currency}</span>}
+      {organizationId ? <GraReport key={organizationId} organizationId={organizationId} organizationName={organizationName} properties={properties} /> : null}</div>
     </header>
     <dl className="pnl-summary">
       <div><dt>Net rent revenue</dt><dd>{money(ledger.revenue_minor - ledger.refunds_minor)}</dd><small>Confirmed rent less completed refunds</small></div>

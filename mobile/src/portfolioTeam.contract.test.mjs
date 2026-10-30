@@ -214,17 +214,17 @@ test("mobile Property and Unit screens mirror the operational hierarchy", () => 
   // Unit looks the same whether it is reached through its Property or
   // through Units; the rule that this screen renders Units through a
   // component rather than inline is unchanged.
-  assert.match(property, /<UnitTile/);
+  assert.match(property, /<RecordUnitRow/);
   assert.doesNotMatch(property, /function Unit(Row|Tile)/);
   assert.match(property, /label="Tenant access and tenancies"/);
   assert.doesNotMatch(property, /function SpaceCard/);
   // The Unit was five stacked disclosures under one heading — a settings page,
   // not a record. Each is its own piece of work, so each opens on the row that
   // names it, and the photograph leads because that is how a Unit is known.
-  assert.match(unit, /<UnitFact label="Type"/);
+  assert.match(unit, /<RecordFacts rows=/);
   assert.match(unit, /<GroupLabel>Manage this Unit<\/GroupLabel>/);
   assert.match(unit, /label="Verification and publication"/);
-  assert.match(unit, /<View style=\{styles\.hero\}>/);
+  assert.match(unit, /<RecordHero photo=\{photo\}/);
   // Mid-page acts are a row in the page; the pinned bar drew a white slab there.
   assert.doesNotMatch(unit, /<ActionBar>/);
   assert.doesNotMatch(unit, /<Disclosure/, "a record does not stack disclosures");
@@ -252,7 +252,7 @@ test("mobile Property and Unit screens mirror the operational hierarchy", () => 
   assert.match(lifecycle, /With our review team/);
   assert.match(lifecycle, /This returns the submission to you/);
   assert.match(patterns, /availability\.state === "occupied"/);
-  assert.match(patterns, /publication\.state === "published" \? "Verified · Public · Available"/);
+  assert.match(patterns, /publication\.state === "published" && publication\.listing_status === "active" \? "Verified · Public · Available"/);
   assert.match(primitives, /paddingVertical: space\[3\]/);
   assert.match(primitives, /flexShrink: 1, textAlign: "center"/);
   assert.match(layout, /name="space" options=\{\{ title: "Unit" \}\}/);

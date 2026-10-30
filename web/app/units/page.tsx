@@ -407,7 +407,7 @@ function UnitCard({
         data-unit-id={unit.id}
         data-flagged={flag ? "" : undefined}
         onClick={() => onOpen(unit)}
-        aria-label={`${unit.label}, ${unit.property_title}. ${unit.availability.label}.${flag ? ` ${flag}.` : ""}`}
+        aria-label={`${unit.label}, ${unit.property_title}. ${unit.availability.label}. ${isPublic(unit) ? "Public" : "Private"}.${flag ? ` ${flag}.` : ""}`}
       >
         <span className="unit-card-photo">
           {photo ? (
@@ -421,11 +421,14 @@ function UnitCard({
               <small>No photo yet</small>
             </span>
           )}
-          <span
-            className={`unit-card-state is-${unit.availability.state}`}
-          >
-            <i aria-hidden="true" />
-            {unit.availability.label}
+          <span className="unit-card-badges">
+            <span className={`unit-card-state is-${unit.availability.state}`}>
+              <i aria-hidden="true" />
+              {unit.availability.label}
+            </span>
+            <span className={`unit-card-state unit-card-visibility is-${isPublic(unit) ? "public" : "private"}`}>
+              {isPublic(unit) ? "Public" : "Private"}
+            </span>
           </span>
         </span>
 

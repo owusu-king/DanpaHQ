@@ -148,6 +148,9 @@ export default function LeaseBuilderScreen() {
     if (step === 2 && !form.startsOn) return "Choose when the tenancy starts.";
     if (step === 2 && Number(form.term) < 1) return "Enter a valid term.";
     if (step === 3 && Number(form.rent) <= 0) return "Enter the rent amount.";
+    if (step === 3 && (!Number.isInteger(Number(form.advance || 0)) || Number(form.advance || 0) > 36 || Number(form.advance || 0) < 0)) {
+      return "Advance: enter between 0 and 36 months.";
+    }
     if (
       step === 4 &&
       (!form.providerResponsibilities.length || !form.tenantResponsibilities.length)

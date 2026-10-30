@@ -41,7 +41,7 @@ import { theme } from "@/theme";
  */
 export default function SignInScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ workspace?: string; phone?: string }>();
+  const params = useLocalSearchParams<{ workspace?: string; next?: string; phone?: string }>();
   const passwordRef = useRef<TextInput>(null);
   const [reveal, setReveal] = useState(false);
 
@@ -49,13 +49,13 @@ export default function SignInScreen() {
     // Prefilled when someone arrives from a sign-up that turned out to already
     // have an account. Retyping a number they just typed is pure friction.
     initialPhone: params.phone ?? "",
-    onSignedIn: (route) => router.replace(route as never),
+    onSignedIn: (route) => router.replace((params.next?.startsWith("/(app)/") || params.next?.startsWith("/listing/") || params.next?.startsWith("/search") || params.next?.startsWith("/sale/") ? params.next : route) as never),
   });
   const google = useGoogleSignInFlow({
     onRegistration: (result) => {
       router.push({ pathname: "/(auth)/start", params: { step: "role" } });
     },
-    onSignedIn: (route) => router.replace(route as never),
+    onSignedIn: (route) => router.replace((params.next?.startsWith("/(app)/") || params.next?.startsWith("/listing/") || params.next?.startsWith("/search") || params.next?.startsWith("/sale/") ? params.next : route) as never),
   });
 
   if (flow.mfa) return <MFASignIn initial={flow.mfa} onComplete={flow.completeSignIn} onCancel={flow.cancelMfa} />;

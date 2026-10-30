@@ -50,7 +50,7 @@ Use one column throughout setup. Create separate databases, Redis, buckets and a
 1. In **Resend**, verify the sender domain and create an API key. Save `RESEND_API_KEY`.
 2. In **Cloudmersive**, create an API key. Save `CLOUDMERSIVE_API_KEY`. Current upload limit: **3,500,000 bytes**.
 
-### Google login and optional Maps
+### Google login and free-first maps
 
 1. In Google Cloud, configure the following OAuth registrations. Reuse existing registrations where they match.
 
@@ -62,16 +62,9 @@ Use one column throughout setup. Create separate databases, Redis, buckets and a
 
 2. Use the **Web** client ID for API `GOOGLE_OAUTH_CLIENT_ID`, Pages `NEXT_PUBLIC_GOOGLE_CLIENT_ID`, and mobile `GOOGLE_OAUTH_CLIENT_ID`.
 3. Use the **iOS** client ID for mobile `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID`. Do not substitute it for the Web ID.
-4. If using Maps, enable billing/APIs and restrict these keys:
+4. Maps use Leaflet and configurable public HTTPS XYZ tiles on web and mobile. No Google Maps/Places key or billing setup is needed. Configure the matching `NEXT_PUBLIC_MAP_TILE_*` and `EXPO_PUBLIC_MAP_TILE_*` values from [free maps](free-maps.md), with the tile provider's required attribution. Rebuild clients after changing build inputs. The community OSM default is for light development, with no guaranteed capacity or SLA.
 
-| Variable | Restriction |
-|---|---|
-| `GOOGLE_MAPS_SERVER_API_KEY` | Places API (New), server use |
-| `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` | Maps JavaScript API, selected website origin |
-| `NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID` | Your browser map ID |
-| `GOOGLE_MAPS_ANDROID_API_KEY` | Android Maps SDK, package and signing SHA-1 |
-
-Keep Android OAuth client IDs in Google Cloud. iOS uses Apple Maps.
+Keep Android OAuth client IDs in Google Cloud. Google Sign-In configuration remains separate from maps.
 
 ## 2. Deploy the API — repeat for staging and production
 
@@ -166,7 +159,7 @@ Use the selected environment's API and Management website.
 
 3. Keep sibling `packages/design-tokens` accessible. Preserve `_headers` and `_redirects`; keep `Cross-Origin-Opener-Policy: same-origin-allow-popups`.
 4. Under **Custom domains**, add the selected website hostname. Follow Cloudflare's DNS instructions and verify HTTPS. Configure `www` redirect if used.
-5. Add optional browser Maps variables from §1. Keep staging previews pointed at staging.
+5. Add public tile variables from §1 only if changing the default provider. Keep staging previews pointed at staging.
 6. Deploy/retry the build. Rebuild whenever `NEXT_PUBLIC_*` changes; do not run `next start` for this static export. Allow Google Fonts access during builds.
 7. When mobile store listings are public, set `NEXT_PUBLIC_APP_STORE_URL` / `NEXT_PUBLIC_PLAY_STORE_URL` and retry deployment.
 
@@ -201,7 +194,7 @@ npx eas-cli project:info
 | `EXPO_PUBLIC_EAS_PROJECT_ID` | Existing project UUID | Same UUID | Plain text |
 | `GOOGLE_OAUTH_CLIENT_ID` | Web OAuth ID accepted by staging API | Copy `build.production.env` value from `eas.json` | Plain text |
 | `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID` | iOS OAuth ID registered for `com.danpahq.app` | Copy `build.production.env` value from `eas.json` | Plain text |
-| `GOOGLE_MAPS_ANDROID_API_KEY` | Optional Android Maps key restricted to package/signing SHA-1 | Production-restricted key | Plain text or sensitive |
+| `EXPO_PUBLIC_MAP_TILE_URL`, `EXPO_PUBLIC_MAP_TILE_ATTRIBUTION`, `EXPO_PUBLIC_MAP_TILE_ATTRIBUTION_URL` | Public tile URL and matching credits; see free-maps.md | Same, using the chosen provider | Plain text (never private keys) |
 | `GOOGLE_SERVICES_JSON` | Existing matching Firebase Android file, if push is used | Same matching file | Secret **file** |
 
 3. To save/check API values by CLI:

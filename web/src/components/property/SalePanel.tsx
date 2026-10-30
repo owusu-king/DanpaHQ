@@ -16,11 +16,12 @@ import { useState } from "react";
 
 import { Button } from "@/components/Button";
 import { Notice } from "@/components/Notice";
+import { ModalSheet } from "@/components/workspace/ModalSheet";
 import { ApiFailure } from "@/lib/api";
 import { COMMERCIAL_USES, LAND_UNITS, saleFacts, setSaleStatus, type SellerSale } from "@/lib/sales";
 
-import { SaleDetailsForm } from "./SaleDetailsForm";
-import { DetailDisclosure, StatusLine, type StatusTone } from "./WorkspacePatterns";
+import { PropertyWizardModal } from "./PropertyWizard";
+import type { StatusTone } from "./WorkspacePatterns";
 
 function visibility(sale: SellerSale, verified: boolean): { label: string; tone: StatusTone; body: string } {
   if (sale.status === "sold") {
@@ -57,6 +58,7 @@ export function SalePanel({
   onChanged: () => Promise<void>;
 }) {
   const [busy, setBusy] = useState<"" | "withdraw" | "relist" | "sold">("");
+  const [editing, setEditing] = useState(false);
   const [confirmingSold, setConfirmingSold] = useState(false);
   const [error, setError] = useState("");
   const shown = visibility(sale, verified);
@@ -71,6 +73,11 @@ export function SalePanel({
   });
   // Price and words stay open once it is verified; the rest was checked.
   const canEditPresentation = verified && sale.status !== "sold" && sale.editable_fields.length > 0;
+
+  function closeSoldConfirmation() {
+    setConfirmingSold(false);
+    setError("");
+  }
 
   async function act(action: "withdraw" | "relist" | "sold") {
     setBusy(action);
@@ -90,7 +97,6 @@ export function SalePanel({
     <section className="workspace-section" aria-labelledby="sale-heading">
       <div className="workspace-section-head">
         <h2 id="sale-heading">For sale</h2>
-        <StatusLine label={shown.label} tone={shown.tone} />
       </div>
 
       <div className="sale-panel">
@@ -114,13 +120,14 @@ export function SalePanel({
           ) : null}
         </div>
 
-        {error ? <Notice tone="error" title={error} /> : null}
+        {error && !confirmingSold ? <Notice tone="error" title={error} /> : null}
 
         {verified && sale.status !== "sold" ? (
           <div className="sale-panel-actions">
             {sale.status === "active" ? (
               <Button
                 variant="secondary"
+                disabled={Boolean(busy)}
                 busy={busy === "withdraw"}
                 busyLabel="Taking it off…"
                 onClick={() => act("withdraw")}
@@ -128,38 +135,31 @@ export function SalePanel({
                 Take off the market
               </Button>
             ) : (
-              <Button busy={busy === "relist"} busyLabel="Relisting…" onClick={() => act("relist")}>
+              <Button disabled={Boolean(busy)} busy={busy === "relist"} busyLabel="Relisting…" onClick={() => act("relist")}>
                 Put back on the market
               </Button>
             )}
-            {confirmingSold ? (
-              <>
-                <Button busy={busy === "sold"} busyLabel="Marking…" onClick={() => act("sold")}>
-                  Yes, it is sold
-                </Button>
-                <Button variant="quiet" onClick={() => setConfirmingSold(false)}>
-                  Not yet
-                </Button>
-              </>
-            ) : (
-              <Button variant="quiet" onClick={() => setConfirmingSold(true)}>
-                Mark as sold
-              </Button>
-            )}
+            <Button variant="destructive" disabled={Boolean(busy)} busy={busy === "sold"} busyLabel="Marking…" onClick={() => { setError(""); setConfirmingSold(true); }}>
+              Mark as sold
+            </Button>
+            {canEditPresentation ? <Button variant="secondary" disabled={Boolean(busy)} onClick={() => setEditing(true)}>Change the price or description</Button> : null}
           </div>
-        ) : null}
-        {confirmingSold ? (
-          <p className="type-caption sale-panel-note">
-            Selling is final: it leaves Explore for good and its open enquiries close.
-          </p>
         ) : null}
       </div>
 
-      {canEditPresentation ? (
-        <DetailDisclosure title="Change the price or description">
-          <SaleDetailsForm propertyId={propertyId} sale={sale} saveLabel="Save changes" onSaved={onChanged} />
-        </DetailDisclosure>
-      ) : null}
+      <ModalSheet open={confirmingSold && verified && sale.status !== "sold"} onClose={closeSoldConfirmation} title="Mark this property as sold?" icon="properties" size="sm" className="compact-action-sheet" dismissible={!busy}>
+        <div className="compact-form">
+          <p className="record-hint">This is final: the property leaves Explore permanently and its open enquiries close.</p>
+          {error ? <Notice tone="error" title={error} /> : null}
+          <div className="compact-form-actions">
+            <Button variant="quiet" disabled={Boolean(busy)} onClick={closeSoldConfirmation}>Cancel</Button>
+            <Button variant="destructive" disabled={Boolean(busy)} busy={busy === "sold"} busyLabel="Marking…" onClick={() => act("sold")}>Mark as sold</Button>
+          </div>
+        </div>
+      </ModalSheet>
+
+      <PropertyWizardModal open={editing && canEditPresentation} propertyId={propertyId} sale={sale} onClose={() => setEditing(false)} onChanged={() => { void onChanged(); }} onFinished={() => setEditing(false)} />
+
     </section>
   );
 }

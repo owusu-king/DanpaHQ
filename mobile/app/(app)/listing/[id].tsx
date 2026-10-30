@@ -19,6 +19,7 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 
 import { ApiFailure } from "@/api";
 import { isLive } from "@/applicationMeaning";
+import { useGuestSignIn } from "@/components/auth/GuestSignIn";
 import { useAuth } from "@/auth";
 import { Button, Notice, Stamp, Type, space } from "@/components/ui";
 import { ListingCard } from "@/components/listings/ListingCard";
@@ -32,7 +33,6 @@ import {
   unsaveListing,
   type ListingDetail,
 } from "@/listings";
-import { rememberOnboardingIntent } from "@/onboardingIntent";
 import { listMyApplications } from "@/applications";
 import { listMyViewings, requestViewing } from "@/viewings";
 import { pressableFeedback, useSafeBottom } from "@/platform";
@@ -79,11 +79,9 @@ export default function ListingDetailScreen() {
 
   const signedIn = state.status === "signed_in";
 
+  const requestSignIn = useGuestSignIn();
   async function continueWithPhone(next = `/(app)/listing/${id}`) {
-    await rememberOnboardingIntent("find_property");
-    // Somebody saving or applying for a home is a tenant: straight to the
-    // details step, which already knows which account this is.
-    router.push({ pathname: "/(auth)/register", params: { workspace: "tenant", next } });
+    requestSignIn(next);
   }
 
   useEffect(() => {
@@ -704,14 +702,16 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: space[1] + 2,
-    minHeight: 34,
-    paddingHorizontal: space[3],
+    minHeight: 28,
+    paddingHorizontal: space[2],
     borderRadius: 999,
     borderWidth: 1,
     borderColor: theme.color.field["200"],
     backgroundColor: theme.color.field["0"],
   },
   factText: {
+    fontSize: 11,
+    lineHeight: 16,
     color: theme.color.ink["900"],
   },
   section: {

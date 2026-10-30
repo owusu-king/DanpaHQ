@@ -93,6 +93,7 @@ const ADVANCE = [
   ["6", "Up to 6 months"],
   ["12", "Up to 1 year"],
   ["24", "Up to 2 years"],
+  ["36", "Up to 3 years"],
 ] as const;
 
 const SORTS: ReadonlyArray<readonly [ListingSort, string]> = [
@@ -156,6 +157,11 @@ export function ListingBrowser() {
     else window.history.replaceState(null, "", url);
   }, []);
 
+
+  // Old list links and malformed map boxes must not keep a hidden area in the URL.
+  useEffect(() => {
+    if (new URLSearchParams(paramsKey).has("bbox") && !query.bbox) update({ bbox: null });
+  }, [paramsKey, query.bbox, update]);
   const spaceTypes = useMemo(() => {
     const source = query.propertyType
       ? propertyTypes.filter((type) => type.value === query.propertyType)
@@ -656,8 +662,7 @@ export function ListingBrowser() {
           onLoadMore={() => void loadMore()}
           onOpenListing={rememberExplorePosition}
           onSearchArea={(bounds: GeoBounds) => update({ bbox: bounds })}
-          onClearFilters={clearFilters}
-          hasFilters={filterCount > 0}
+          onClearFilters={() => update({ ...withoutFilters(query), ...NO_LOCATION })}
         />
       ) : (
         <section aria-live="polite" aria-busy={listings === null || querying}>

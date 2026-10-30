@@ -26,6 +26,12 @@ class AddressShortSerializer(serializers.Serializer):
     street = serializers.CharField(read_only=True)
     house_number = serializers.CharField(read_only=True)
     landmark = serializers.CharField(read_only=True)
+    latitude = serializers.DecimalField(
+        max_digits=9, decimal_places=6, allow_null=True, read_only=True
+    )
+    longitude = serializers.DecimalField(
+        max_digits=9, decimal_places=6, allow_null=True, read_only=True
+    )
 
 
 class AmenityOptionSerializer(serializers.ModelSerializer):
@@ -138,10 +144,17 @@ def unit_publication(unit) -> dict:
     state, label = labels.get(listing.publication_state, ("private", "Private"))
     from apps.occupancy.services import unit_is_occupied
 
+    if state == "published" and listing.derived_status() != "active":
+        state, label = "private", listing.get_status_display()
     if state == "published" and unit_is_occupied(unit):
         # Defence for legacy/inconsistent rows. Public search applies the same
         # occupancy exclusion and new occupancies reconcile the listing itself.
         state, label = "withdrawn", "Not public while occupied"
+    if state == "published":
+        from apps.listing.read_models import public_listings
+
+        if not public_listings().filter(pk=listing.pk).exists():
+            state, label = "private", "Not currently public"
     return {
         "state": state,
         "label": label,

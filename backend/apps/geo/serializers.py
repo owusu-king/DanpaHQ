@@ -16,25 +16,88 @@ from .models import Address, District, Locality, Region
 from .providers import PROVIDER_NAMES
 
 
-class RegionSerializer(serializers.ModelSerializer):
+class AdministrativeReferenceSerializer(serializers.ModelSerializer):
+    sources = serializers.SerializerMethodField()
+    aliases = serializers.SerializerMethodField()
+    latitude = serializers.SerializerMethodField()
+    longitude = serializers.SerializerMethodField()
+
+    def get_sources(self, obj):
+        return [
+            {
+                "dataset": row.dataset_id,
+                "source_id": row.source_id,
+                "license": row.dataset.license,
+                "attribution": row.dataset.attribution,
+                "source_name": row.data.get("source_name", row.data.get("name")),
+            }
+            for row in obj.source_records.all()
+        ]
+
+    def get_aliases(self, obj):
+        return sorted(
+            {
+                name
+                for row in obj.source_records.all()
+                for name in [
+                    row.data.get("name"),
+                    row.data.get("source_name"),
+                    *row.data.get("aliases", []),
+                ]
+                if name and name != obj.name
+            }
+        )
+
+    def get_latitude(self, obj):
+        return next(
+            (
+                row.data["latitude"]
+                for row in obj.source_records.all()
+                if row.data.get("latitude") is not None
+            ),
+            None,
+        )
+
+    def get_longitude(self, obj):
+        return next(
+            (
+                row.data["longitude"]
+                for row in obj.source_records.all()
+                if row.data.get("longitude") is not None
+            ),
+            None,
+        )
+
+
+class RegionSerializer(AdministrativeReferenceSerializer):
     class Meta:
         model = Region
-        fields = ["id", "name", "code", "capital"]
+        fields = ["id", "name", "code", "capital", "aliases", "latitude", "longitude", "sources"]
         read_only_fields = fields
 
 
-class DistrictSerializer(serializers.ModelSerializer):
+class DistrictSerializer(AdministrativeReferenceSerializer):
     region_name = serializers.CharField(source="region.name", read_only=True)
 
     class Meta:
         model = District
-        fields = ["id", "name", "code", "region", "region_name"]
+        fields = [
+            "id",
+            "name",
+            "code",
+            "region",
+            "region_name",
+            "aliases",
+            "latitude",
+            "longitude",
+            "sources",
+        ]
         read_only_fields = fields
 
 
 class LocalitySerializer(serializers.ModelSerializer):
-    district_name = serializers.CharField(source="district.name", read_only=True)
-    region_name = serializers.CharField(source="district.region.name", read_only=True)
+    district_name = serializers.CharField(source="district_label", read_only=True)
+    region_name = serializers.CharField(source="region_label", read_only=True)
 
     class Meta:
         model = Locality
@@ -47,14 +110,58 @@ class LocalitySerializer(serializers.ModelSerializer):
             "region_name",
             "latitude",
             "longitude",
+            "region",
+            "kind",
+            "parent_status",
         ]
         read_only_fields = fields
+
+
+class LocationReferenceSerializer(LocalitySerializer):
+    sources = serializers.SerializerMethodField()
+    label = serializers.SerializerMethodField()
+
+    class Meta(LocalitySerializer.Meta):
+        fields = [*LocalitySerializer.Meta.fields, "sources", "label"]
+        read_only_fields = fields
+
+    def get_sources(self, obj):
+        return [
+            {
+                "dataset": row.dataset_id,
+                "source_id": row.source_id,
+                "license": row.dataset.license,
+                "attribution": row.dataset.attribution,
+            }
+            for row in obj.source_records.all()
+        ]
+
+    def get_label(self, obj):
+        return ", ".join(
+            filter(
+                None,
+                [
+                    obj.name,
+                    obj.district_label or "District unverified",
+                    obj.region_label or "Region unverified",
+                ],
+            )
+        )
+
+
+class LocationLookupQuerySerializer(serializers.Serializer):
+    q = serializers.CharField(max_length=120, required=False, allow_blank=True, default="")
+    district = serializers.UUIDField(required=False)
+    region = serializers.UUIDField(required=False)
+    limit = serializers.IntegerField(required=False, min_value=10, max_value=15, default=12)
+    page = serializers.IntegerField(required=False, min_value=1, max_value=10000, default=1)
 
 
 class AddressSerializer(serializers.ModelSerializer):
     locality_name = serializers.CharField(source="locality_label", read_only=True)
     district_name = serializers.CharField(source="district_label", read_only=True)
     region_name = serializers.CharField(source="region_label", read_only=True)
+    location_status = serializers.CharField(read_only=True)
 
     class Meta:
         model = Address
@@ -73,6 +180,7 @@ class AddressSerializer(serializers.ModelSerializer):
             "place_provider",
             "place_reference",
             "created_at",
+            "location_status",
         ]
         read_only_fields = [
             "id",
@@ -104,6 +212,8 @@ class CreateAddressSerializer(serializers.Serializer):
     """
 
     locality_id = serializers.UUIDField(required=False)
+    place_name = serializers.CharField(max_length=160, required=False)
+    place_context = serializers.CharField(max_length=160, required=False, allow_blank=True)
     place = AddressPlaceSerializer(required=False)
     digital_address = serializers.CharField(max_length=12, required=False, allow_blank=True)
     street = serializers.CharField(max_length=160, required=False, allow_blank=True)
@@ -146,10 +256,42 @@ class CreateAddressSerializer(serializers.Serializer):
         return value
 
     def validate(self, attrs):
-        if bool(attrs.get("locality_id")) == bool(attrs.get("place")):
+        if sum(bool(attrs.get(key)) for key in ("locality_id", "place", "place_name")) != 1:
             raise serializers.ValidationError(
-                "Choose one town or neighbourhood from the location results."
+                "Enter a town or neighbourhood, or choose an existing locality."
             )
+        validate_coordinate_pair(attrs)
+        return attrs
+
+
+def validate_coordinate_pair(attrs):
+    if (attrs.get("latitude") is None) != (attrs.get("longitude") is None):
+        raise serializers.ValidationError(
+            {
+                "latitude": "Provide both latitude and longitude, or leave both blank.",
+                "longitude": "Provide both latitude and longitude, or leave both blank.",
+            }
+        )
+
+
+class PropertyLocationSerializer(serializers.Serializer):
+    latitude = serializers.DecimalField(
+        max_digits=9,
+        decimal_places=6,
+        allow_null=True,
+        min_value=Decimal("-90"),
+        max_value=Decimal("90"),
+    )
+    longitude = serializers.DecimalField(
+        max_digits=9,
+        decimal_places=6,
+        allow_null=True,
+        min_value=Decimal("-180"),
+        max_value=Decimal("180"),
+    )
+
+    def validate(self, attrs):
+        validate_coordinate_pair(attrs)
         return attrs
 
 
@@ -159,10 +301,8 @@ class PlaceSuggestQuerySerializer(serializers.Serializer):
     q = serializers.CharField(required=False, allow_blank=True, max_length=120)
     #: One per typing session, made by the client: a UUID, as Google recommends.
     session = serializers.UUIDField(required=False)
-    limit = serializers.IntegerField(required=False, min_value=1, max_value=8, default=5)
-    scope = serializers.ChoiceField(
-        choices=("all", "areas"), required=False, default="all"
-    )
+    limit = serializers.IntegerField(required=False, min_value=1, max_value=15, default=12)
+    scope = serializers.ChoiceField(choices=("all", "areas"), required=False, default="all")
 
 
 class PlaceResolveQuerySerializer(serializers.Serializer):

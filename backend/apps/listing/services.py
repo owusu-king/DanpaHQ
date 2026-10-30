@@ -265,6 +265,35 @@ def update_listing(*, listing: Listing, user, data: dict) -> Listing:
     return listing
 
 
+def _provider_recheck_suspension(listing: Listing) -> bool:
+    """Recognise only the old provider re-check suspension, never moderation."""
+    if listing.status != ListingStatus.SUSPENDED:
+        return False
+    from apps.audit.models import AuditLog
+
+    last = AuditLog.objects.filter(
+        aggregate_type="listing", aggregate_id=str(listing.id)
+    ).order_by("-created_at", "-id").first()
+    if not last or not last.request_id or last.changes.get("status") != ["active", "suspended"]:
+        return False
+    if last.metadata.get("verification_kind") != "space_condition":
+        return False
+    recheck = AuditLog.objects.filter(
+        aggregate_type="unit", aggregate_id=str(listing.unit_id),
+        created_at__gte=last.created_at, request_id=last.request_id,
+    ).order_by("created_at", "id").first()
+    return bool(
+        recheck and recheck.actor_id
+        and recheck.changes.get("condition") == ["verified", "draft"]
+        and recheck.metadata.get("listings_suspended", 0) > 0
+        and recheck.metadata.get("superseded_verification_id")
+        and last.metadata.get("reason") == (
+            recheck.metadata.get("reason")
+            or "The provider reopened this space for changes, so its check no longer applies."
+        )
+    )
+
+
 @transaction.atomic
 def publish_listing(*, listing: Listing, user) -> Listing:
     """Put it in front of strangers.
@@ -308,7 +337,7 @@ def publish_listing(*, listing: Listing, user) -> Listing:
         ListingStatus.DRAFT,
         ListingStatus.WITHDRAWN,
         ListingStatus.REJECTED,
-    ):
+    ) and not _provider_recheck_suspension(listing):
         raise Conflict("This listing cannot be published from its current state.")
 
     if not listing.headline:

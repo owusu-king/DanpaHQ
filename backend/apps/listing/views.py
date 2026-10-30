@@ -39,7 +39,11 @@ class ListingSearchView(APIView):
         area = search.resolve_area(data)
         qs = (
             search.filtered_listings(data, area)
-            .select_related("unit__property__address__locality__district", "created_by")
+            .select_related(
+                "unit__property__address__locality__district",
+                "unit__property__address__locality__region",
+                "created_by",
+            )
             .prefetch_related("media__file", "unit__media__file", "highlighted_amenities")
         )
 

@@ -111,6 +111,7 @@ def property_list_queryset(queryset, *, user):
     return (
         queryset.select_related(
             "address__locality__district__region",
+            "address__locality__region",
             "owner",
             "provider_application",
         )

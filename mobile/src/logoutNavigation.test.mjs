@@ -18,7 +18,7 @@ const navigation = compile(read("./navigation.ts"));
 const layout = read("../app/_layout.tsx");
 const decision = layout.slice(layout.indexOf("const SIGNED_OUT_SCREENS"), layout.indexOf("function Shell()"));
 const { entryRedirect } = compile(`${decision}\nexport { entryRedirect };`, {}, {
-  resolveEntryRoute: navigation.resolveEntryRoute, accountJustCreated: () => null,
+  isPublicDiscovery: navigation.isPublicDiscovery, resolveEntryRoute: navigation.resolveEntryRoute, accountJustCreated: () => null,
 });
 const me = (role, pending = false) => ({
   id: role, account_status: "active", registration_state: "complete",
