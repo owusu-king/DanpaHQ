@@ -266,14 +266,14 @@ export function VerificationPanel({
  * It stops being a control once a reviewer holds the submission: what they were
  * sent must not change under them, and the API refuses either way.
  */
-function EvidenceTile({
+export function EvidenceTile({
   slot,
   locked,
   busy,
   disabled,
   onPress,
 }: {
-  slot: VerificationProgress["slots"][number];
+  slot: Pick<VerificationProgress["slots"][number], "label" | "provided" | "preview_url">;
   locked: boolean;
   busy: boolean;
   disabled: boolean;

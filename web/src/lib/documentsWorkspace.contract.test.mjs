@@ -93,7 +93,7 @@ test("every modal uses the same responsive opening motion", () => {
   ]) {
     const body = code(read(file));
     assert.doesNotMatch(body, /closeOnOutsidePress/, `${file} closes on a press outside`);
-    assert.match(body, /if \(isBackdropClick\(dialogRef\.current, event\)\) requestClose\(\)/, `${file} does not close from its dimmed area`);
+    assert.match(body, /if \((?:dismissible && )?isBackdropClick\(dialogRef\.current, event\)\) requestClose\(\)/, `${file} does not close from its dimmed area`);
     assert.match(body, /holdModalInWorkspace\(dialog\)/, `${file} is not placed over the page`);
   }
 

@@ -1,5 +1,6 @@
 "use client";
 
+
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
@@ -20,7 +21,7 @@ import {
   propertyStatus,
   spaceStatus,
 } from "@/components/property/WorkspacePatterns";
-import { WorkspaceHead } from "@/components/workspace/Workspace";
+import { RecordHeader, RecordHero, RecordSection } from "@/components/property/RecordDetail";
 import { ApiFailure } from "@/lib/api";
 import {
   getProperty,
@@ -78,7 +79,7 @@ export default function PropertyDetailPage() {
 
   if (!id) {
     return (
-      <div className="ws-page pd-page">
+      <div className="ws-page pd-page record-page">
         <EntityPath items={[{ label: "Properties", href: "/properties" }, { label: "Choose a property" }]} />
         <Notice tone="info" title="Choose a property first" body="Open a property from your Portfolio to see its record." />
       </div>
@@ -87,14 +88,14 @@ export default function PropertyDetailPage() {
 
   if (error && !property) {
     return (
-      <div className="ws-page pd-page">
+      <div className="ws-page pd-page record-page">
         <EntityPath items={[{ label: "Properties", href: "/properties" }, { label: "Unavailable" }]} />
         <Notice tone="error" title={error} body="Return to Properties and try again." />
       </div>
     );
   }
 
-  if (!property) return <div className="ws-page pd-page"><LoadingRows rows={5} /></div>;
+  if (!property) return <div className="ws-page pd-page record-page"><LoadingRows rows={5} /></div>;
 
   const address = property.address;
   const fullAddress = address
@@ -130,26 +131,19 @@ export default function PropertyDetailPage() {
     ? { href: `/record/space-new?propertyId=${property.id}`, label: "Add Unit" }
     : null;
 
+  const locationSection = (
+    <RecordSection title="Location">
+          <dl className="record-fields"><Fact icon="pin" label="Address" value={fullAddress || "Not recorded"} />{address?.digital_address ? <Fact icon="map" label="Digital address" value={address.digital_address} /> : null}{address?.landmark ? <Fact icon="landmark" label="Landmark" value={address.landmark} /> : null}</dl>
+          <p className="record-hint">{selling ? "The public sale marker uses this property’s location." : "Units inherit this property’s location."}</p>
+        </RecordSection>
+  );
+
   return (
-    <div className="ws-page pd-page">
-      <WorkspaceHead
-        icon="properties"
-        title={property.title || "Untitled property"}
+    <div className="ws-page pd-page record-page">
+      <RecordHeader title={property.title || "Untitled property"}
         path={<EntityPath items={[{ label: "Properties", href: "/properties" }, { label: property.title || "Property" }]} />}
-        mark={property.cover_url ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img className="pd-cover" src={property.cover_url} alt="" />
-        ) : undefined}
-        summary={(
-          <>
-            <StatusLine label={status.label} tone={status.tone} />
-            <span className="ws-summary-sep" aria-hidden="true">·</span>
-            {selling ? `${propertyTypeLabel(property.property_type)} · For sale` : propertyTypeLabel(property.property_type)}
-            <span className="ws-summary-sep" aria-hidden="true">·</span>
-            {fullAddress}
-          </>
-        )}
-        actions={primary ? <Link href={primary.href as never} className="btn btn-primary" onClick={inPlace(() => setSheet({ kind: "unit" }))}><Icon name="plus" />{primary.label}</Link> : undefined}
+        context={`${propertyTypeLabel(property.property_type)} · ${address?.locality_name || fullAddress}`}
+        status={<><StatusLine label={status.label} tone={status.tone} />{selling ? <StatusLine label={sale?.is_public ? "Public" : "Private"} tone={sale?.is_public ? "good" : "neutral"} /> : null}</>}
       />
 
       {error ? <Notice tone="error" title={error} body="Some information may be out of date. Try again." /> : null}
@@ -160,22 +154,31 @@ export default function PropertyDetailPage() {
           body={`${access.message} Manage this in Settings → Plan & billing.`}
         />
       ) : null}
-      <PropertyLifecycle property={property} steps={steps} onChanged={load} compact onEdit={() => setSheet({ kind: "property" })} onSetup={() => setSheet({ kind: "setup" })} />
+      <RecordHero key={property.id} title={property.title || "Property"} photos={property.cover_url ? [{ id: property.id, url: property.cover_url, label: property.title || "Property" }] : []}>
+        <PropertyLifecycle property={property} steps={steps} onChanged={load} compact onEdit={() => setSheet({ kind: "property" })} onSetup={() => setSheet({ kind: "setup" })} />
+        {selling ? sale ? <SalePanel propertyId={property.id} sale={sale} verified={property.verification.review_state === "verified"} onChanged={load} /> : null : <>
+          <h2 className="record-action-title">Property management</h2>
+          <dl className="record-metrics"><div><dt>Units</dt><dd>{units.length}</dd></div><div><dt>Occupied</dt><dd>{units.filter((unit) => unit.availability.state === "occupied").length}</dd></div><div><dt>Available</dt><dd>{units.filter((unit) => unit.availability.state === "available").length}</dd></div></dl>
+          {primary ? <div className="record-action-group"><Link href={primary.href as never} className="btn btn-primary" onClick={inPlace(() => setSheet({ kind: "unit" }))}><Icon name="plus" />{primary.label}</Link></div> : null}
+          {property.verification.review_state === "verified" ? <p className="record-hint">Verified details are locked. Each Unit has its own review and publication.</p> : null}
+        </>}
+      </RecordHero>
 
-      {selling ? (
-        sale ? (
-          <SalePanel
-            propertyId={property.id}
-            sale={sale}
-            verified={property.verification.review_state === "verified"}
-            onChanged={load}
-          />
-        ) : null
-      ) : (
-      <section className="pd-panel" aria-labelledby="units-heading">
-        <div className="pd-panel-head">
-          <h2 id="units-heading" className="pd-panel-title">Units <span>{units.length}</span></h2>
-          {canAddUnit && primary?.label !== "Add Unit" ? (
+      <div className="record-detail-grid">
+        <div className="record-side-sections">
+        {land ? <div className="record-side-sections">{locationSection}{property.notes ? <RecordSection title="Description"><p className="record-description">{property.notes}</p></RecordSection> : null}</div> : <RecordSection title="Overview" actions={edit?.allowed ? <Button type="button" variant="quiet" onClick={() => setSheet({ kind: "property" })}><Icon name="pencil" />Edit</Button> : undefined}>
+          <dl className="record-fields">
+            <Fact icon="properties" label="Type" value={propertyTypeLabel(property.property_type)} />
+            {land ? null : <><Fact icon="water" label="Water" value={property.water_source_label} /><Fact icon="power" label="Power meter" value={property.power_meter_label} /><Fact icon="home" label="Compound" value={property.compound_label} /></>}
+          </dl>
+          {property.notes ? <p className="record-description">{property.notes}</p> : null}
+          {land ? null : <div className="record-amenities"><h3>Shared amenities</h3>{amenities === null ? <LoadingRows rows={1} /> : amenities.length ? <ul className="pd-chips">{amenities.map((amenity) => <li key={amenity.id}>{amenity.name}</li>)}</ul> : <p className="record-hint">None recorded.</p>}{edit?.allowed ? <Button type="button" variant="quiet" onClick={() => setSheet({ kind: "property", step: "amenities" })}>Edit amenities</Button> : null}</div>}
+        </RecordSection>}
+      {!selling ? (
+      <section className="record-section record-property-units" aria-labelledby="units-heading">
+        <div className="record-section-head">
+          <h2 id="units-heading" className="record-section-title">Units <span>{units.length}</span></h2>
+          {canAddUnit && !primary ? (
             <Link href={`/record/space-new?propertyId=${property.id}` as never} className="btn btn-secondary" onClick={inPlace(() => setSheet({ kind: "unit" }))}>Add Unit</Link>
           ) : null}
         </div>
@@ -186,51 +189,19 @@ export default function PropertyDetailPage() {
             body="Add a room, flat, shop or other space to rent."
           />
         ) : (
-          <ul className="unit-columns" aria-label={`Units at ${property.title}`}>
+          <ul className="record-unit-list" aria-label={`Units at ${property.title}`}>
             {units.map((unit) => <UnitTile key={unit.id} propertyId={property.id} unit={unit} />)}
           </ul>
         )}
-        {units.length ? (
-          <Link href={"/tenants" as never} className="pd-link is-inline">
-            <span className="pd-link-mark" aria-hidden="true"><Icon name="users" /></span>
-            <span>Manage tenant access and tenancies</span>
-            <span aria-hidden="true">→</span>
-          </Link>
-        ) : null}
-      </section>
-      )}
 
-      {/* What the property is, said once and in view: no disclosure to open. */}
-      <section className="pd-panel" aria-labelledby="about-property-heading">
-        <div className="pd-panel-head">
-          <h2 id="about-property-heading" className="pd-panel-title">About this Property</h2>
-          {edit?.allowed ? <Button type="button" variant="secondary" onClick={() => setSheet({ kind: "property" })}><Icon name="pencil" />Edit</Button> : null}
+      </section>
+      ) : null}
         </div>
-        <dl className="pd-facts is-compact">
-          <Fact icon="properties" label="Type" value={propertyTypeLabel(property.property_type)} />
-          <Fact icon="pin" label="Address" value={fullAddress} />
-          {address?.digital_address ? <Fact icon="map" label="Digital address" value={address.digital_address} /> : null}
-          {address?.landmark ? <Fact icon="landmark" label="Landmark" value={address.landmark} /> : null}
-          {land ? null : (
-            <>
-              <Fact icon="water" label="Water" value={property.water_source_label} />
-              <Fact icon="power" label="Power meter" value={property.power_meter_label} />
-              <Fact icon="home" label="Compound" value={property.compound_label} />
-            </>
-          )}
-        </dl>
-        {land ? null : (
-          <div className="pd-amenities">
-            <span className="pd-amenities-label">Shared amenities</span>
-            {amenities === null ? <LoadingRows rows={1} /> : amenities.length ? (
-              <ul className="pd-chips">{amenities.map((amenity) => <li key={amenity.id}>{amenity.name}</li>)}</ul>
-            ) : <span className="pd-note">None recorded.</span>}
-            {edit?.allowed ? <Button type="button" variant="quiet" onClick={() => setSheet({ kind: "property", step: "amenities" })}>Edit</Button> : null}
-          </div>
-        )}
-      </section>
-
-      <PropertyMore property={property} />
+        <div className="record-side-sections">
+        {land ? null : locationSection}
+        <div className="record-support-grid"><PropertyMore property={property} /></div>
+        </div>
+      </div>
 
       <EditPropertyModal
         open={sheet?.kind === "property"}
@@ -289,18 +260,20 @@ function UnitTile({ propertyId, unit }: { propertyId: string; unit: Unit }) {
 
   return (
     <li>
-      <Link href={`/record/space?propertyId=${propertyId}&spaceId=${unit.id}` as never} className="unit-card">
-        <span className="unit-card-photo">
+      <Link href={`/record/space?propertyId=${propertyId}&spaceId=${unit.id}` as never} className="record-unit-row">
+        <span className="record-unit-photo">
           {/* Signed media URLs are supplied at runtime by the API and are not
               stable Next image-loader resources. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           {photo ? <img src={photo} alt="" /> : <span>No photo</span>}
         </span>
-        <span className="unit-card-body">
+        <span className="record-unit-copy">
           <strong>{unit.label || "Unnamed Unit"}</strong>
-          <span className="unit-card-where">{unit.space_type_label} · {rooms}</span>
-          <StatusLine label={status.label} tone={status.tone} />
+          <span className="record-unit-meta">{unit.space_type_label} · {rooms}</span>
+
         </span>
+        <StatusLine label={status.label} tone={status.tone} />
+        <span className="record-row-arrow" aria-hidden="true">→</span>
       </Link>
     </li>
   );

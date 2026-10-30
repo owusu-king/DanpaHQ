@@ -146,24 +146,13 @@ DATABASES = {
 #: window markers are drawn for when a search names no area.
 MAP_BOUNDS = [-3.35, 4.6, 1.3, 11.25]
 MAP_DEFAULT_VIEW = {"lat": 5.6037, "lng": -0.187, "zoom": 11}
+MAP_ENABLED = env("MAP_ENABLED", True, cast=bool)
+MAP_TILE_URL = env("MAP_TILE_URL", default="")
+MAP_TILE_ATTRIBUTION = env("MAP_TILE_ATTRIBUTION", default="© OpenStreetMap contributors")
+MAP_TILE_ATTRIBUTION_URL = env("MAP_TILE_ATTRIBUTION_URL", default="https://www.openstreetmap.org/copyright")
 
-# Location provider (ADR 0034). Suggestions and the chosen place's location are
-# looked up by the API on a client's behalf, so no client carries a key that can
-# call Places.
-#: "google" for Places API (New), or "localities" for Danpa HQ's own neighbourhoods.
-#: "google" without a server key falls back to the localities.
-LOCATION_PROVIDER = env("LOCATION_PROVIDER", "google")
-#: Server-only key for Places API (New). In Google Cloud, restrict it to the API's
-#: egress IP addresses and to the Places API (New); it never reaches a client.
-GOOGLE_MAPS_SERVER_API_KEY = env("GOOGLE_MAPS_SERVER_API_KEY", "")
-#: Countries suggestions may come from. Places API (New) accepts up to fifteen.
-GOOGLE_PLACES_REGION_CODES = [
-    code.strip().lower()
-    for code in env("GOOGLE_PLACES_REGION_CODES", "gh").split(",")
-    if code.strip()
-]
-GOOGLE_PLACES_LANGUAGE = env("GOOGLE_PLACES_LANGUAGE", "en")
-GOOGLE_PLACES_TIMEOUT_SECONDS = float(env("GOOGLE_PLACES_TIMEOUT_SECONDS", "4"))
+
+# Place lookup is local-only. Management may override public client tile defaults.
 #: Public listing points are snapped to a grid this many degrees across — about
 #: 300 m in Ghana — so a published marker cannot be walked back to a door.
 LISTING_PUBLIC_CELL_DEGREES = 0.0027

@@ -50,11 +50,11 @@ const RELATIONSHIPS = [
 /** What each relationship has to produce. Read from the same policy the backend
  *  enforces would be better; this is the label only, and the server still
  *  decides whether what arrives is enough. */
-const EVIDENCE_HINT: Record<string, string> = {
-  owner: "Title, indenture or land document naming you.",
-  agent: "The owner's letter naming you.",
-  manager: "The agreement appointing you.",
-  company_representative: "The company's registration certificate.",
+const EVIDENCE_LABEL: Record<string, string> = {
+  owner: "Ownership document",
+  agent: "Owner authorization",
+  manager: "Management agreement",
+  company_representative: "Company registration",
 };
 
 /** A property for sale is sold on its title, so the review reads the title too.
@@ -73,8 +73,7 @@ export function AuthorityClaim({
   saleKind = null,
 }: {
   propertyId: string;
-  /** Set for a property for sale: its title is asked for beside the
-   *  relationship document, and land adds its surveyed site plan. */
+  /** Sales require a title; relationship proof and the land site plan are optional. */
   saleKind?: "residential" | "commercial" | "land" | null;
   onSubmitted: () => Promise<void>;
   /** False when the setup flow's review step owns the one button that sends
@@ -102,19 +101,15 @@ export function AuthorityClaim({
   const actingForAnother = relationship !== "owner";
   const selling = saleKind !== null;
   const land = saleKind === "land";
-  const ready = Boolean(file) && (!selling || Boolean(titleFile)) && (!land || Boolean(sitePlan));
+  const ready = selling ? Boolean(titleFile) : Boolean(file);
 
   async function submit() {
-    if (!file) {
-      setError("Add the document that supports your claim.");
+    if (!selling && !file) {
+      setError("Add the document proving your relationship to this property.");
       return;
     }
     if (selling && !titleFile) {
-      setError("Add the property's title — its Land Title Certificate or indenture.");
-      return;
-    }
-    if (land && !sitePlan) {
-      setError("Add the surveyed site plan of the plot.");
+      setError("Add the title document.");
       return;
     }
     setBusy(true);
@@ -124,7 +119,7 @@ export function AuthorityClaim({
       // it as the one the relationship asks for. The title and the site plan say
       // which they are, so the reviewer finds each where it belongs.
       const uploads: { file: File; type: string | null }[] = [
-        { file, type: null },
+        ...(file ? [{ file, type: null }] : []),
         ...(selling && titleFile ? [{ file: titleFile, type: titleType }] : []),
         ...(land && sitePlan ? [{ file: sitePlan, type: "site_plan" }] : []),
       ];
@@ -176,14 +171,13 @@ export function AuthorityClaim({
     return (
       <Notice
         tone="success"
-        title="Document saved with this property"
-        body="It goes to our team when you send the property for checking."
+        title="Documents saved"
       />
     );
   }
 
   return (
-    <div style={{ display: "grid", gap: "var(--space-4)" }}>
+    <div style={{ display: "grid", minWidth: 0, gap: "var(--space-4)" }}>
       <Select
         label="What is your relationship to this property?"
         value={relationship}
@@ -215,43 +209,18 @@ export function AuthorityClaim({
         />
       ) : null}
 
-      <FilePick
-        hint={EVIDENCE_HINT[relationship]!}
-        file={file}
-        onChange={setFile}
-        empty="Choose the document"
-      />
-
       {selling ? (
         <>
-          <Select
-            label="The property's title"
-            hint="Needed for a sale."
-            value={titleType}
-            onChange={setTitleType}
-            options={TITLE_TYPES}
-          />
-          <FilePick
-            hint={
-              titleType === "indenture"
-                ? "Every page, plus stamp duty receipt."
-                : "From the Lands Commission."
-            }
-            file={titleFile}
-            onChange={setTitleFile}
-            empty="Choose the title document"
-          />
+          <Select label="Title type" value={titleType} onChange={setTitleType} options={TITLE_TYPES} />
+          <FilePick label="Title document (Required)" file={titleFile} onChange={setTitleFile} />
         </>
       ) : null}
-
-      {land ? (
-        <FilePick
-          hint="Signed by a licensed surveyor."
-          file={sitePlan}
-          onChange={setSitePlan}
-          empty="Choose the site plan"
-        />
-      ) : null}
+      <FilePick
+        label={`${EVIDENCE_LABEL[relationship]} (${selling ? "Optional" : "Required"})`}
+        file={file}
+        onChange={setFile}
+      />
+      {land ? <FilePick label="Site plan (Optional)" file={sitePlan} onChange={setSitePlan} /> : null}
 
       {error ? <Notice tone="error" title={error} /> : null}
 
@@ -266,39 +235,20 @@ export function AuthorityClaim({
   );
 }
 
-/** One document to choose, with what it should be said above it. */
-function FilePick({
-  hint,
-  file,
-  onChange,
-  empty,
-}: {
-  hint: string;
+/** A full-width upload field; long filenames wrap inside the control. */
+function FilePick({ label, file, onChange }: {
+  label: string;
   file: File | null;
   onChange: (file: File | null) => void;
-  empty: string;
 }) {
   return (
-    <div>
-      <p className="type-caption" style={{ margin: "0 0 var(--space-2)" }}>
-        {hint}
-      </p>
-      <label
-        className="type-caption"
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          minHeight: 48,
-          padding: "0 var(--space-4)",
-          border: "var(--border-hairline) solid var(--color-field-300)",
-          borderRadius: "var(--radius-sm)",
-          cursor: "pointer",
-          fontWeight: 600,
-        }}
-      >
-        {file ? file.name : empty}
+    <div className="field cw-document-field">
+      <span className="type-caption field-label">{label}</span>
+      <label className="btn btn-secondary cw-document-upload">
+        <span className="cw-document-filename">{file ? file.name : "Choose document"}</span>
         <input
           type="file"
+          aria-label={label}
           accept="image/jpeg,image/png,application/pdf"
           onChange={(event) => onChange(event.target.files?.[0] ?? null)}
           className="sr-only"

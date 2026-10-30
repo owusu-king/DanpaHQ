@@ -118,10 +118,10 @@ services:
       # Public OAuth Web client ID shared with the API's audience check. Empty
       # keeps the Google button unavailable while phone sign-in still works.
       NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${NEXT_PUBLIC_GOOGLE_CLIENT_ID:-${GOOGLE_OAUTH_CLIENT_ID:-}}
-      # The browser map key and map ID, from .env. Empty means Explore keeps its
-      # list and says the map is not available here (README.md, local setup).
-      NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: ${NEXT_PUBLIC_GOOGLE_MAPS_API_KEY:-}
-      NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID: ${NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID:-}
+      # Public XYZ tile config. Empty values use the documented OSM default.
+      NEXT_PUBLIC_MAP_TILE_URL: ${NEXT_PUBLIC_MAP_TILE_URL:-}
+      NEXT_PUBLIC_MAP_TILE_ATTRIBUTION: ${NEXT_PUBLIC_MAP_TILE_ATTRIBUTION:-}
+      NEXT_PUBLIC_MAP_TILE_ATTRIBUTION_URL: ${NEXT_PUBLIC_MAP_TILE_ATTRIBUTION_URL:-}
       # File changes on a Windows bind mount do not raise inotify events inside
       # the container, so webpack's watcher never fires and edits look ignored
       # until you restart. Polling is slower but it actually works.

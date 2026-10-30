@@ -3,6 +3,9 @@ import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { Tabs } from "expo-router";
 import { NativeTabs } from "expo-router/unstable-native-tabs";
 
+import { useAuth } from "@/auth";
+import { useGuestSignIn } from "@/components/auth/GuestSignIn";
+
 import { MainTabBar } from "@/components/nav/MainTabBar";
 import { nativeTabHaptics } from "@/components/nav/NativeTabFrame";
 import { TabHeader } from "@/components/nav/TabHeader";
@@ -13,7 +16,8 @@ import { shell } from "@/shell";
 import { theme } from "@/theme";
 
 export default function RenterTabsLayout() {
-  return isIOS ? <RenterNativeTabs /> : <RenterJsTabs />;
+  const { state } = useAuth();
+  return isIOS && state.status === "signed_in" ? <RenterNativeTabs /> : <RenterJsTabs />;
 }
 
 /**
@@ -57,9 +61,17 @@ function RenterNativeTabs() {
 
 /** Android: the JS tabs and their shelf, unchanged. */
 function RenterJsTabs() {
+  const { state } = useAuth();
+  const requestSignIn = useGuestSignIn();
   return (
     <Tabs
       tabBar={(props) => <MainTabBar {...props} />}
+      screenListeners={({ route }) => ({ tabPress: (event) => {
+        if (state.status !== "signed_in" && route.name !== "explore") {
+          event.preventDefault();
+          requestSignIn(`/(app)/(tabs)/${route.name}`);
+        }
+      } })}
       screenOptions={{
         // Every tab shares one tool row on the green chrome: you, Danpa Intel and the
         // bell. The tab bar names the page, so the header does not.

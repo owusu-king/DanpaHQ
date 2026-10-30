@@ -92,7 +92,9 @@ def get_space_or_404(pk, user) -> Unit:
     """
     unit = (
         Unit.objects.filter(pk=pk)
-        .select_related("property__address__locality__district__region")
+        .select_related(
+            "property__address__locality__district__region", "property__address__locality__region"
+        )
         .first()
     )
     if unit is None:
@@ -632,9 +634,10 @@ def request_recheck(*, unit: Unit, user, reason: str = "") -> Unit:
     verification model exists to prevent.
     """
     from apps.core.policy import enforce
-    from apps.listing.services import suspend_for_verification
+    from apps.listing.models import Listing, ListingStatus
+    from apps.listing.services import withdraw_listing
     from apps.trust import condition
-    from apps.trust.models import SubjectType, VerificationKind, VerificationStatus
+    from apps.trust.models import VerificationStatus
 
     from .policies import can_recheck_space
 
@@ -648,19 +651,44 @@ def request_recheck(*, unit: Unit, user, reason: str = "") -> Unit:
 
     settled.status = VerificationStatus.SUPERSEDED
     settled.save(update_fields=["status", "updated_at"])
+    # A new review must describe the same gallery the provider sees. Keep the
+    # decided evidence immutable; copy only still-attached, usable named photos
+    # into a fresh, unqueued review. Invalid/obsolete slots stay outstanding.
+    from apps.trust import services as trust_services
+
+    review = condition.open_review(subject=unit, actor=user)
+    available_slots = {slot.key: slot for slot in condition.slots_for(unit)}
+    copied = set()
+    for photo in unit.media.select_related("file").order_by("sort_order", "id"):
+        slot = available_slots.get(photo.slot_key)
+        if slot is None or slot.key in copied or not photo.file.is_usable:
+            continue
+        if photo.file.is_sensitive or photo.file.purpose != "property_photo":
+            continue
+        trust_services.attach_evidence(
+            review,
+            evidence_type=slot.evidence_type,
+            file=photo.file,
+            collected_by=user,
+            notes=f"Retained gallery photo; slot {slot.key}.",
+        )
+        copied.add(slot.key)
+
     from .access_codes import revoke
 
     revoke(unit=unit, actor=user, reason="space_recheck_started")
 
-    withdrawn = suspend_for_verification(
-        subject_type=SubjectType.SPACE,
-        subject_id=unit.id,
-        kind=VerificationKind.SPACE_CONDITION,
-        reason=(
-            reason.strip()
-            or "The provider reopened this space for changes, so its check no longer applies."
-        ),
-    )
+    # A provider reopening their own Unit is a takedown, not a moderation
+    # suspension. Approval of the new review must never republish it implicitly.
+    withdrawn = 0
+    for listing in Listing.objects.select_for_update().filter(
+        unit=unit, status__in=[ListingStatus.ACTIVE, ListingStatus.PENDING_REVIEW]
+    ):
+        withdraw_listing(
+            listing=listing, user=user, reason=reason.strip() or "Unit re-check started."
+        )
+        withdrawn += 1
+
 
     record(
         action=AuditAction.UPDATE,
@@ -670,7 +698,7 @@ def request_recheck(*, unit: Unit, user, reason: str = "") -> Unit:
         changes={"condition": ["verified", "draft"]},
         metadata={
             "reason": reason.strip(),
-            "listings_suspended": withdrawn,
+            "listings_withdrawn": withdrawn,
             "superseded_verification_id": str(settled.id),
         },
     )

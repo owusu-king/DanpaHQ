@@ -155,7 +155,7 @@ test("provider tenant acquisition separates request decisions from active tenant
   }
 
   assert.doesNotMatch(property, /listPropertyJoinRequests|function TenantAccess/);
-  assert.match(property, /"\/tenants" as never/);
+  assert.doesNotMatch(property, /Manage tenant access and tenancies/);
   assert.doesNotMatch(unit, /<SpaceTenantAccess/);
   assert.match(unit, /"\/tenants#access" as never/);
 });

@@ -85,6 +85,7 @@ export function SaleBrowser() {
   const signedIn = state.status === "signed_in";
   const params = useSearchParams();
   const paramsKey = params.toString();
+  const returnTo = paramsKey ? `/rentals?${paramsKey}` : "/rentals";
   const filters = useMemo<SaleFilters>(() => {
     const read = new URLSearchParams(paramsKey);
     const number = (key: string) => (read.get(key) ? Number(read.get(key)) : undefined);
@@ -374,7 +375,7 @@ export function SaleBrowser() {
             {(sales === null || querying) && !error ? <p className="page-loading-caption" role="status"><span className="page-loading-dot" aria-hidden="true" />Finding properties…</p> : null}
         {sales?.length ? (
           <ul className="explore-grid">
-            {sales.map((sale) => <SaleCard key={sale.id} sale={sale} />)}
+            {sales.map((sale) => <SaleCard key={sale.id} sale={sale} returnTo={returnTo} />)}
           </ul>
         ) : null}
 

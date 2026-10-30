@@ -45,6 +45,7 @@ class MyTenanciesView(APIView):
             .select_related(
                 "property",
                 "property__address__locality__district",
+                "property__address__locality__region",
                 "unit",
                 "bed",
             )

@@ -584,3 +584,49 @@
 
 .ec-chip-options { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .ec-console > .ec-chips { position: relative; }
+
+/* Public desktop intro: heading on the left, search and filters on the right.
+   Reserve the intro row so collapsing the sticky controls cannot move results. */
+@media (min-width: 64rem) {
+  .explore-public-layout { --public-explore-intro-height: 12rem; }
+  .explore-public-layout > .explore-public-head {
+    position: absolute;
+    top: var(--space-10);
+    left: var(--space-12);
+    right: var(--space-12);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    height: var(--public-explore-intro-height);
+    padding: 24px 28px;
+    border-bottom: var(--border-hairline) solid var(--masthead-edge);
+    border-radius: calc(var(--radius-xl) + 6px);
+  }
+  .explore-public-layout > .explore-public-head h1 {
+    max-width: 40%;
+    margin: 12px 0 8px;
+    font-size: clamp(1.75rem, 2.7vw, 2.25rem);
+    line-height: 1.15;
+    letter-spacing: -.025em;
+  }
+  .explore-public-layout > .explore-public-head p { max-width: 40%; margin: 0; font-size: .875rem; line-height: 1.5; }
+  .explore-public-layout > .explore { grid-template-rows: var(--public-explore-intro-height); }
+  .explore-public-layout > .explore-discovery-pending { min-height: var(--public-explore-intro-height); }
+  .explore-public-head + .explore > .explore-stick { align-self: start; }
+  .explore-public-head + .explore > .explore-stick:not(.is-stuck) {
+    display: grid;
+    align-content: center;
+    min-height: var(--public-explore-intro-height);
+    padding: 24px 28px 24px 45%;
+    background: none;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    backdrop-filter: none;
+  }
+  .explore-public-head + .explore > .explore-stick:not(.is-stuck) .ec-console { grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+  .explore-public-head + .explore > .explore-stick:not(.is-stuck) .ec-console > .explore-bar { grid-column: 1 / -1; grid-row: 1; }
+  .explore-public-head + .explore > .explore-stick:not(.is-stuck) .ec-console > .ec-chips { grid-column: 1; grid-row: 2; padding-left: 0; border-left: 0; }
+  .explore-public-head + .explore > .explore-stick:not(.is-stuck) .ec-chip-options { flex-wrap: wrap; }
+  .explore-public-head + .explore > .explore-stick:not(.is-stuck) .ec-console .explore-map-toggle { grid-column: 2; grid-row: 2; align-self: end; }
+}

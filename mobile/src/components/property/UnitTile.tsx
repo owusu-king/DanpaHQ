@@ -47,7 +47,7 @@ export const UNIT_TILE_GAP = space[3];
  * Available" — was three facts in one string, and in half a phone's width it
  * was cut after the first. They are separated: whether somebody lives there
  * rides on the photograph, where it stands in review is the line under the
- * name, and being on Explore is a mark rather than a word.
+ * name, and publication is a separate Public or Private chip.
  */
 
 /** Which ground the tile is standing on. */
@@ -95,7 +95,7 @@ export function UnitTile({
   return (
     <Pressable
       accessibilityRole="link"
-      accessibilityLabel={`${unit.label || "Unnamed Unit"}. ${meta}. ${occupancy.label}. ${review.label}.${published ? " On Explore." : ""}`}
+      accessibilityLabel={`${unit.label || "Unnamed Unit"}. ${meta}. ${occupancy.label}. ${review.label}. ${published ? "Public" : "Private"}.`}
       onPress={onOpen}
       {...pressableFeedback(glass ? theme.color.kola["50"] : theme.color.field["200"])}
       style={({ pressed }) => [
@@ -111,22 +111,19 @@ export function UnitTile({
           <Ionicons name="image-outline" size={22} color={CHEVRON} />
         )}
 
-        {/* Whether it is let rides on the photograph, where the eye already is. */}
-        <View style={styles.chip}>
-          {/* Centred against one line, unlike the status dot below, which has
-              to sit against the first of two. */}
-          <View style={[styles.dot, styles.chipDot, { backgroundColor: occupancy.ink }]} />
-          <Type variant="captionStrong" numberOfLines={1} style={[styles.chipText, { color: occupancy.ink }]}>
-            {occupancy.label}
-          </Type>
-        </View>
-
-        {/* On Explore is a mark, not a third word competing for the same line. */}
-        {published ? (
-          <View style={styles.public} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-            <Ionicons name="earth" size={12} color={theme.color.field["0"]} />
+        <View style={styles.badges}>
+          <View style={styles.chip}>
+            <View style={[styles.dot, styles.chipDot, { backgroundColor: occupancy.ink }]} />
+            <Type variant="captionStrong" numberOfLines={1} style={[styles.chipText, { color: occupancy.ink }]}>
+              {occupancy.label}
+            </Type>
           </View>
-        ) : null}
+          <View style={styles.chip}>
+            <Type variant="captionStrong" numberOfLines={1} style={[styles.chipText, { color: published ? KOLA : MUTED }]}>
+              {published ? "Public" : "Private"}
+            </Type>
+          </View>
+        </View>
       </View>
 
       <View style={styles.body}>
@@ -174,14 +171,20 @@ const styles = StyleSheet.create({
     width: "100%",
     height: "100%",
   },
-  chip: {
+  badges: {
     position: "absolute",
     left: space[2],
+    right: space[2],
     bottom: space[2],
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 4,
+  },
+  chip: {
     flexDirection: "row",
     alignItems: "center",
     gap: 5,
-    maxWidth: "90%",
+    maxWidth: "100%",
     paddingHorizontal: 7,
     paddingVertical: 3,
     borderRadius: 999,
@@ -192,17 +195,6 @@ const styles = StyleSheet.create({
     flexShrink: 1,
     fontSize: 13,
     lineHeight: 17,
-  },
-  public: {
-    position: "absolute",
-    right: space[2],
-    top: space[2],
-    width: 22,
-    height: 22,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 11,
-    backgroundColor: KOLA,
   },
   body: {
     padding: space[3],

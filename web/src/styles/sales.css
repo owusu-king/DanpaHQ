@@ -36,7 +36,8 @@
 .sale-panel-facts { margin: 0; color: var(--color-ink-700); }
 .sale-panel-note { margin: 0; color: var(--color-ink-700); }
 .sale-panel-enquiries { display: flex; gap: var(--space-4); align-items: center; flex-wrap: wrap; padding-top: var(--space-3); border-top: var(--border-hairline) solid var(--color-field-200); }
-.sale-panel-actions { display: flex; gap: var(--space-3); flex-wrap: wrap; }
+.sale-panel-actions { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: var(--space-2); align-items: stretch; }
+.sale-panel-actions > .btn { min-width: 0; min-height: 44px; height: auto; white-space: normal; overflow-wrap: anywhere; text-align: center; line-height: 1.4; }
 
 /* Enquiries are an inbox over the page now: `enquiries-inbox.css`. */
 

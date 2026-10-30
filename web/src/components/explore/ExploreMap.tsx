@@ -197,6 +197,7 @@ export function ExploreMap({
     const element = container.current;
     if (!element) return;
     let cancelled = false;
+    const controller = new AbortController();
     let created: DanpaHQMap | null = null;
     const unsubscribe: Array<() => void> = [];
     const fail = () => {
@@ -207,6 +208,7 @@ export function ExploreMap({
     const [west, south, east, north] = config.bounds;
 
     createMap(element, {
+      signal: controller.signal,
       center: { lat: config.default_view.lat, lng: config.default_view.lng },
       zoom: config.default_view.zoom,
       minZoom: config.min_zoom,
@@ -228,6 +230,7 @@ export function ExploreMap({
         setMapped((count) => count + 1);
       })
       .catch((cause: unknown) => {
+        if (cancelled) return;
         console.warn("The map could not load", cause);
         fail();
       });
@@ -236,6 +239,7 @@ export function ExploreMap({
     const markerMap = markers.current;
     return () => {
       cancelled = true;
+      controller.abort();
       for (const stop of unsubscribe) stop();
       for (const entry of markerMap.values()) entry.marker.remove();
       markerMap.clear();
@@ -353,7 +357,7 @@ export function ExploreMap({
       <div ref={container} className="explore-map-canvas" role="region" aria-label="Map of rentals" />
       {mapped && !failed ? (
         <div className="explore-map-tools" role="toolbar" aria-label="Map view controls">
-          <button
+          {capabilities.satellite ? <button
             type="button"
             className="explore-map-tool"
             aria-label={baseMap === "satellite" ? "Show standard map" : "Show satellite map"}
@@ -361,8 +365,8 @@ export function ExploreMap({
             data-label={baseMap === "satellite" ? "Standard map" : "Satellite view"}
             disabled={!capabilities.satellite}
             onClick={toggleBaseMap}
-          ><Icon name="map" /></button>
-          <button
+          ><Icon name="map" /></button> : null}
+          {capabilities.streetView ? <button
             type="button"
             className="explore-map-tool"
             aria-label={streetView ? "Close Street View" : "Open Street View at the map centre"}
@@ -370,7 +374,7 @@ export function ExploreMap({
             data-label={streetView ? "Close Street View" : "Street View"}
             disabled={!capabilities.streetView}
             onClick={toggleStreetView}
-          ><Icon name="eye" /></button>
+          ><Icon name="eye" /></button> : null}
           <button
             type="button"
             className={`explore-map-tool${canSearchArea ? " is-ready" : ""}${searchingArea ? " is-busy" : ""}`}

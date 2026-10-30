@@ -1,59 +1,74 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { Button } from "@/components/Button";
 import { Field } from "@/components/Field";
 import { Notice } from "@/components/Notice";
 import { ApiFailure } from "@/lib/api";
-import { createListing, listingAction } from "@/lib/console";
+import { createListing, updateListing, listingAction, type Listing } from "@/lib/console";
 
 export function ListingComposer({
   unitId,
   onCreated,
+  listing,
+  onBusyChange,
 }: {
   unitId: string;
+  listing?: Listing | null;
+  onBusyChange?: (busy: boolean) => void;
   onCreated: () => Promise<void>;
 }) {
-  const [headline, setHeadline] = useState("");
-  const [description, setDescription] = useState("");
-  const [rent, setRent] = useState("");
-  const [advance, setAdvance] = useState("6");
-  const [caution, setCaution] = useState("0");
-  const [agencyFee, setAgencyFee] = useState("0");
+  const [headline, setHeadline] = useState(listing?.headline ?? "");
+  const [description, setDescription] = useState(listing?.description ?? "");
+  const [rent, setRent] = useState(listing?.rent_minor != null ? String(listing.rent_minor / 100) : "");
+  const [advance, setAdvance] = useState(String(listing?.advance_months ?? 6));
+  const [caution, setCaution] = useState(String(listing?.caution_months ?? 0));
+  const [agencyFee, setAgencyFee] = useState(String(listing?.agency_fee_months ?? 0));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
+  const pending = useRef(false);
+  const savedId = useRef(listing?.id ?? null);
+  const published = useRef(false);
+  const editable = !listing || ["draft", "rejected", "flagged"].includes(listing.status);
   const rentMinor = Math.round(Number(rent || 0) * 100);
   const months = Number(advance || 0) + Number(caution || 0) + Number(agencyFee || 0);
   const moveIn = rentMinor * months;
 
   return (
     <form
-      style={{ display: "grid", gap: "var(--space-5)", maxWidth: "48rem" }}
+      style={{ display: "grid", gap: "var(--space-4)", minWidth: 0 }}
       onSubmit={async (event) => {
         event.preventDefault();
-        setBusy(true);
+        if (pending.current) return;
+        pending.current = true;
+        setBusy(true); onBusyChange?.(true);
         setError("");
         try {
-          const created = await createListing({
-            unit_id: unitId,
-            rent_minor: rentMinor,
-            headline: headline.trim(),
-            description: description.trim(),
-            advance_months: Number(advance || 0),
-            caution_months: Number(caution || 0),
-            agency_fee_months: Number(agencyFee || 0),
-          });
-          await listingAction(created.id, "publish");
+          const input = {
+            rent_minor: rentMinor, headline: headline.trim(), description: description.trim(),
+            advance_months: Number(advance || 0), caution_months: Number(caution || 0), agency_fee_months: Number(agencyFee || 0),
+          };
+          if (!published.current) {
+            if (!savedId.current) {
+              const created = await createListing({ unit_id: unitId, ...input });
+              savedId.current = created.id;
+            } else if (editable) await updateListing(savedId.current, input);
+            await listingAction(savedId.current, "publish");
+            published.current = true;
+          }
           await onCreated();
         } catch (cause) {
           setError(cause instanceof ApiFailure ? cause.error.message : "Could not publish this listing.");
         } finally {
-          setBusy(false);
+          pending.current = false;
+          setBusy(false); onBusyChange?.(false);
         }
       }}
     >
+      {!editable ? <p className="type-caption">Publish again with these saved terms.</p> : null}
+      <fieldset disabled={busy || !editable} className="listing-compose-fields">
       <section>
         <h2 className="type-title-2" style={{ margin: "0 0 var(--space-4)" }}>What tenants will see</h2>
         <div style={{ display: "grid", gap: "var(--space-4)" }}>
@@ -70,7 +85,7 @@ export function ListingComposer({
             <textarea
               value={description}
               onChange={(event) => setDescription(event.target.value)}
-              rows={6}
+              rows={3}
               maxLength={3000}
               className="type-body"
               style={TEXTAREA}
@@ -82,8 +97,8 @@ export function ListingComposer({
       <section style={{ paddingTop: "var(--space-5)", borderTop: "var(--border-hairline) solid var(--color-field-200)" }}>
         <h2 className="type-title-2" style={{ margin: "0 0 var(--space-4)" }}>Rent and move-in amount</h2>
         <div style={GRID}>
-          <Field label="Monthly rent (GH₵)" inputMode="decimal" value={rent} onChange={(event) => setRent(event.target.value.replace(/[^0-9.]/g, ""))} />
-          <Field label="Advance (months)" inputMode="numeric" value={advance} onChange={(event) => setAdvance(event.target.value.replace(/\D/g, ""))} />
+          <Field label={listing?.rent_period === "yearly" ? "Yearly rent (GH₵)" : "Monthly rent (GH₵)"} inputMode="decimal" value={rent} onChange={(event) => setRent(event.target.value.replace(/[^0-9.]/g, ""))} />
+          <Field label="Advance (months)" type="number" min={0} max={36} inputMode="numeric" value={advance} onChange={(event) => setAdvance(event.target.value.replace(/\D/g, ""))} />
           <Field label="Deposit (months)" inputMode="numeric" value={caution} onChange={(event) => setCaution(event.target.value.replace(/\D/g, ""))} />
           <Field label="Agency fee (months)" inputMode="numeric" value={agencyFee} onChange={(event) => setAgencyFee(event.target.value.replace(/\D/g, ""))} />
         </div>
@@ -96,6 +111,7 @@ export function ListingComposer({
         ) : null}
       </section>
 
+      </fieldset>
       {error ? <Notice tone="error" title={error} body="Your listing details are still here. Review them and try again." /> : null}
       <div><Button type="submit" busy={busy} busyLabel="Publishing…" disabled={!headline.trim() || !description.trim() || rentMinor <= 0}>Publish to Explore</Button></div>
     </form>

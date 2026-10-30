@@ -40,7 +40,7 @@ type ReturnPoint = { query: string; stage: Stage; purpose: Purpose; sort: Sort; 
 /** Where a Property stands, in the few words a manager filters by. */
 type Stage = "all" | "verified" | "review" | "attention" | "setup";
 type Purpose = "any" | "letting" | "sale";
-type Sort = "name" | "units" | "occupancy" | "attention";
+type Sort = "newest" | "name" | "units" | "occupancy" | "attention";
 
 const STAGES: { key: Stage; label: string }[] = [
   { key: "all", label: "All" },
@@ -51,6 +51,7 @@ const STAGES: { key: Stage; label: string }[] = [
 ];
 
 const SORTS: { value: Sort; label: string }[] = [
+  { value: "newest", label: "Newest" },
   { value: "name", label: "Name" },
   { value: "units", label: "Most Units" },
   { value: "occupancy", label: "Occupancy" },
@@ -68,6 +69,8 @@ function stageOf(property: Property): Exclude<Stage, "all"> {
   if (property.verification.review_state === "pending_verification") return "review";
   return "setup";
 }
+
+function creationTime(value?: string) { const time = Date.parse(value ?? ""); return Number.isFinite(time) ? time : 0; }
 
 function occupancyOf(property: Property) {
   return property.purpose === "sale" || !property.unit_count ? -1 : property.occupied_unit_count / property.unit_count;
@@ -208,6 +211,7 @@ function PropertiesContent() {
       ].filter(Boolean).join(" ").toLocaleLowerCase("en-GH").includes(needle))
       .sort((a, b) => {
         const byName = (a.title || "").localeCompare(b.title || "", "en-GH");
+        if (sort === "newest") return creationTime(b.created_at) - creationTime(a.created_at) || byName || a.id.localeCompare(b.id);
         if (sort === "units") return b.unit_count - a.unit_count || byName;
         if (sort === "occupancy") return occupancyOf(b) - occupancyOf(a) || byName;
         if (sort === "attention") {
@@ -383,25 +387,25 @@ function PropertiesContent() {
           />
         ) : null}
 
-        {!loading && visible.length ? (
+        {!loading && count > 0 && (visible.length > 0 || canCreateProperty) ? (
           <div className="ws-canvas properties-canvas" onKeyDown={movePropertyFocus}>
             <ul className="property-grid">
+              {canCreateProperty ? (
+                <li className="property-card-item" style={{ "--property-order": 0 } as React.CSSProperties}>
+                  <AddPropertyCard href={next.href} onClick={openCreate} />
+                </li>
+              ) : null}
               {visible.map((property, index) => (
                 <PropertyCard
                   key={property.id}
                   property={property}
-                  order={index}
+                  order={index + 1}
                   returned={returnedTo === property.id}
                   onOpen={remember}
                   onAddUnit={() => setSheet({ kind: "unit", propertyId: property.id })}
                   onEdit={() => setSheet({ kind: "edit", property })}
                 />
               ))}
-              {canCreateProperty && !narrowed ? (
-                <li className="property-card-item" style={{ "--property-order": Math.min(visible.length, 12) } as React.CSSProperties}>
-                  <AddPropertyCard href={next.href} onClick={openCreate} />
-                </li>
-              ) : null}
             </ul>
           </div>
         ) : null}
@@ -412,7 +416,7 @@ function PropertiesContent() {
         propertyId={sheet?.kind === "property" ? (sheet.propertyId ?? null) : null}
         onClose={() => setSheet(null)}
         onChanged={() => void load(true)}
-        onFinished={() => toast({ tone: "success", title: "Property created", description: "It is private until you send it for checking." })}
+        onFinished={() => void load(true)}
       />
       {sheet?.kind === "edit" ? <EditPropertyModal
         open

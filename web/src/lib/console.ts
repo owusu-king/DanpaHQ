@@ -33,6 +33,8 @@ export type Address = {
   street: string;
   house_number: string;
   landmark: string;
+  latitude?: string | null;
+  longitude?: string | null;
 };
 
 /** Reference data, readable signed out - a search filter needs it before sign-in. */
@@ -42,6 +44,10 @@ export function searchLocalities(query: string) {
 
 export function createAddress(input: {
   locality_id?: string;
+  place_name?: string;
+  place_context?: string;
+  latitude?: number | null;
+  longitude?: number | null;
   place?: {
     provider: string;
     reference: string;
@@ -559,6 +565,7 @@ export function updateProperty(
   id: string,
   input: Partial<{
     title: string;
+    location: { latitude: number | null; longitude: number | null };
     water_source: string;
     power_meter_type: string;
     compound_type: string;

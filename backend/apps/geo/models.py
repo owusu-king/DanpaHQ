@@ -1,27 +1,16 @@
-"""Ghanaian location reference data and addresses.
+"""Source-linked Ghana reference geography and independently stored user addresses.
 
-Location is a trust problem here, not just a display problem. "East Legon" means
-something specific to a tenant deciding whether a rent is plausible, and a listing
-that claims the wrong neighbourhood is one of the commonest scam signals. So
-location is modelled as reference data with a controlled hierarchy, plus a free
-"landmark" field because that is genuinely how people navigate.
-
-Region -> District -> Locality is the government's own hierarchy (16 regions
-since 2019). Localities are seeded and extended by operations, never created ad
-hoc from user input - otherwise the same neighbourhood appears eleven times with
-eleven spellings and search stops working. An Address may instead retain a
-provider-resolved place when the controlled table does not yet cover that town;
-that does not silently promote third-party text into Danpa HQ reference data.
-
-PostGIS arrived with map search (ADR 0033, superseding that part of ADR 0003):
-listings carry an approximate public point the map searches. What a tenant types
-into the location field is looked up through a location provider and never
-stored here (ADR 0034). Addresses keep their plain latitude/longitude pair — they
-are private facts, and no query needs to be spatial about them.
+Regions and districts retain existing IDs. Localities may have unknown parents;
+2021 boundary matches are an inference, not current administrative verification.
+Imported gazetteer points never become a property's private map pin. User-entered
+names remain on Address as explicitly unverified text rather than polluting the
+public reference tables.
 """
 
 from __future__ import annotations
 
+from django.contrib.gis.db import models as gis_models
+from django.contrib.postgres.indexes import GinIndex
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 
@@ -46,6 +35,7 @@ class District(BaseModel):
     region = models.ForeignKey(Region, on_delete=models.PROTECT, related_name="districts")
     name = models.CharField(max_length=80)
     code = models.CharField(max_length=12, blank=True)
+    boundary = gis_models.MultiPolygonField(srid=4326, null=True, blank=True)
 
     class Meta:
         db_table = "geo_district"
@@ -66,8 +56,20 @@ class Locality(BaseModel):
     listing an agent filed under a different one.
     """
 
-    district = models.ForeignKey(District, on_delete=models.PROTECT, related_name="localities")
-    name = models.CharField(max_length=100)
+    district = models.ForeignKey(
+        District, on_delete=models.PROTECT, related_name="localities", null=True, blank=True
+    )
+    region = models.ForeignKey(
+        Region, on_delete=models.PROTECT, related_name="localities", null=True, blank=True
+    )
+    name = models.CharField(max_length=200)
+    normalized_name = models.CharField(max_length=240, blank=True, default="")
+    search_text = models.TextField(blank=True, default="")
+    kind = models.CharField(max_length=32, blank=True)
+    parent_status = models.CharField(max_length=32, default="unverified")
+    imported = models.BooleanField(default=False)
+    primary_source = models.CharField(max_length=160, blank=True)
+    import_locked = models.BooleanField(default=False)
     aliases = models.JSONField(default=list, blank=True)
     latitude = models.DecimalField(
         max_digits=9,
@@ -88,10 +90,48 @@ class Locality(BaseModel):
     class Meta:
         db_table = "geo_locality"
         ordering = ("name",)
-        constraints = [
-            models.UniqueConstraint(fields=["district", "name"], name="geo_locality_unique")
+        indexes = [
+            models.Index(fields=["name"], name="geo_locality_name_idx"),
+            GinIndex(fields=["normalized_name"], opclasses=["gin_trgm_ops"], name="geo_name_trgm"),
+            GinIndex(fields=["search_text"], opclasses=["gin_trgm_ops"], name="geo_search_trgm"),
         ]
-        indexes = [models.Index(fields=["name"], name="geo_locality_name_idx")]
+
+    @property
+    def district_label(self):
+        return self.district.name if self.district_id else ""
+
+    @property
+    def region_label(self):
+        if self.district_id:
+            return self.district.region.name
+        return self.region.name if self.region_id else ""
+
+    def prepare_search(self):
+        from .search import normalize_name
+
+        if self.district_id:
+            self.region_id = self.district.region_id
+        self.normalized_name = normalize_name(self.name)
+        self.search_text = normalize_name(
+            " ".join(
+                [
+                    self.name,
+                    *self.aliases,
+                    self.district_label,
+                    self.region_label,
+                ]
+            )
+        )
+
+    def save(self, *args, **kwargs):
+        self.prepare_search()
+        if kwargs.get("update_fields") is not None:
+            kwargs["update_fields"] = set(kwargs["update_fields"]) | {
+                "normalized_name",
+                "search_text",
+                "region",
+            }
+        super().save(*args, **kwargs)
 
     def __str__(self) -> str:
         return self.name
@@ -119,6 +159,10 @@ class Address(SoftDeleteModel):
     place_context = models.CharField(max_length=160, blank=True)
     place_provider = models.CharField(max_length=32, blank=True)
     place_reference = models.CharField(max_length=300, blank=True)
+    # A resolved neighbourhood centre is public, approximate geography. Keep it
+    # separate from the property's private latitude/longitude.
+    place_latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    place_longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     digital_address = DigitalAddressField(blank=True, db_index=True)
     street = models.CharField(max_length=160, blank=True)
     house_number = models.CharField(max_length=32, blank=True)
@@ -157,13 +201,65 @@ class Address(SoftDeleteModel):
     @property
     def district_label(self) -> str:
         if self.locality_id:
-            return self.locality.district.name
+            return self.locality.district_label
         return self.place_context.split(",", 1)[0].strip()
 
     @property
     def region_label(self) -> str:
-        return self.locality.district.region.name if self.locality_id else ""
+        return self.locality.region_label if self.locality_id else ""
+
+    @property
+    def location_status(self) -> str:
+        return "reference" if self.locality_id else "unverified"
 
     def __str__(self) -> str:
         parts = [self.house_number, self.street, self.locality_label]
         return ", ".join(p for p in parts if p)
+
+
+class GeoDataset(models.Model):
+    """Licensing and version of an obtained reference dataset, never user addresses."""
+
+    id = models.CharField(primary_key=True, max_length=40)
+    url = models.URLField(max_length=500)
+    license = models.CharField(max_length=80)
+    attribution = models.TextField()
+    version = models.CharField(max_length=160, blank=True)
+    sha256 = models.CharField(max_length=64)
+    imported_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.id
+
+
+class LocationSourceRecord(models.Model):
+    """Stable external identity and original facts; several sources can share one place."""
+
+    dataset = models.ForeignKey(GeoDataset, on_delete=models.PROTECT)
+    source_id = models.CharField(max_length=100)
+    region = models.ForeignKey(
+        Region, on_delete=models.PROTECT, null=True, blank=True, related_name="source_records"
+    )
+    district = models.ForeignKey(
+        District, on_delete=models.PROTECT, null=True, blank=True, related_name="source_records"
+    )
+    locality = models.ForeignKey(
+        Locality, on_delete=models.PROTECT, null=True, blank=True, related_name="source_records"
+    )
+    data = models.JSONField(default=dict)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["dataset", "source_id"], name="geo_source_identity"),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(region__isnull=False, district__isnull=True, locality__isnull=True)
+                    | models.Q(region__isnull=True, district__isnull=False, locality__isnull=True)
+                    | models.Q(region__isnull=True, district__isnull=True, locality__isnull=False)
+                ),
+                name="geo_source_one_target",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.dataset_id}:{self.source_id}"

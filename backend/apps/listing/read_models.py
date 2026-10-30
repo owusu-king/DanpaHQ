@@ -35,7 +35,10 @@ def public_listings() -> QuerySet[Listing]:
         ended_at__isnull=True,
     )
     return (
-        Listing.objects.filter(status=ListingStatus.ACTIVE)
+        Listing.objects.filter(
+            status=ListingStatus.ACTIVE, moderation_state="approved",
+            publication_state="published", availability_state="available",
+        )
         .annotate(unit_is_occupied=Exists(active_occupancy))
         .filter(unit_is_occupied=False)
         # A unit above its Portfolio's plan allowance takes no new tenants, so it
@@ -105,9 +108,7 @@ def related_listings(listing: Listing, *, limit: int = 4) -> QuerySet[Listing]:
                 then=Value(500),
             )
         )
-        location_candidates |= Q(
-            unit__property__address__locality__district_id=district_id
-        )
+        location_candidates |= Q(unit__property__address__locality__district_id=district_id)
     location_score = Case(
         *location_cases,
         default=Value(0),
@@ -206,7 +207,11 @@ def related_listings(listing: Listing, *, limit: int = 4) -> QuerySet[Listing]:
                 output_field=IntegerField(),
             )
         )
-        .select_related("unit__property__address__locality__district", "created_by")
+        .select_related(
+            "unit__property__address__locality__district",
+            "unit__property__address__locality__region",
+            "created_by",
+        )
         .prefetch_related("media__file", "unit__media__file", "highlighted_amenities")
         .order_by("-relevance_score", "rent_distance", "-created_at")[:limit]
     )

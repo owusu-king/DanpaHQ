@@ -95,8 +95,9 @@ test("a Property is its Units, with reference material one tap away", () => {
   // One identity card (owner, 2026-10-06): name, address, standing, a bar of
   // what is let, and the counts on one line.
   assert.match(source, /accessibilityLabel=\{`\$\{occupied\} of \$\{units\.length\} Units let`\}/);
-  assert.match(source, /<PropertyFact label="Units"/);
-  assert.match(source, /<GroupLabel>About this Property<\/GroupLabel>/);
+  assert.match(source, /label: "Units", value: String\(units\.length\)/);
+  assert.match(source, /<RecordSection title=\{land \? "Description" : "Overview"\}/);
+  assert.match(source, /<RecordHeader/);
   for (const row of ["Property information", "Shared amenities", "Verification details"]) {
     assert.match(source, new RegExp(`label="${row}"`), `${row} is not a row`);
   }
@@ -122,13 +123,11 @@ test("a Unit is a record, not a settings page", () => {
   // facts that would otherwise be words.
   // One identity card (owner, 2026-10-06): the photograph, the name with whether
   // somebody lives there, where it stands, and what it is on one line of facts.
-  assert.match(source, /<View style=\{styles\.card\}>\s*\{photo \? \(\s*<View style=\{styles\.hero\}>/);
-  // Without a photo, a strip that leads to adding one, not a grey slab.
-  assert.match(source, /accessibilityLabel="No photo yet\. Add photos\."\s+onPress=\{\(\) => setSheet\("photos"\)\}/);
-  assert.match(source, /occupied \? "Occupied" : "Vacant"/);
-  assert.match(source, /styles\.heroPublic/);
-  assert.match(source, /<UnitFact label="Type" value=\{unit\.space_type_label\} \/>/);
-  assert.match(source, /<UnitFact label="Size" value=\{size \|\| "—"\} wide \/>/);
+  assert.match(source, /<RecordHero photo=\{photo\}/);
+  assert.match(source, /onPhotoPress=\{\(\) => setSheet\("photos"\)\}/);
+  assert.match(source, /line=\{unit\.availability\.label\}/);
+  assert.match(source, /label: "Type", value: unit\.space_type_label/);
+  assert.match(source, /label: "Size", value: size/);
   assert.doesNotMatch(source, /<GroupLabel>What it is<\/GroupLabel>/);
 
   // Archiving or deleting waits behind one quiet way in, offered only when the

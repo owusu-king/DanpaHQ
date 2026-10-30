@@ -1,0 +1,10 @@
+{
+  "region_aliases": {"Northern East": "North East"},
+  "district_aliases": {"adenta": "adentan"},
+  "geonames_supplemental_district_ids": ["13609064"],
+  "evidence": [
+    {"correction": "HDX GH09 Northern East denotes North East", "evidence": "GeoNames ADM1 North East coordinate is contained by HDX GH09; the direct GSS 261-district DBF names the region North East.", "sources": ["https://statsbank.statsghana.gov.gh/assets/geofiles.zip", "https://download.geonames.org/export/dump/GH.zip", "https://data.humdata.org/dataset/cod-ab-gha"]},
+    {"correction": "HDX Adenta Municipal and the existing Adentan Municipal retain one existing district ID", "evidence": "Administrative spelling crosswalk; no boundary or private address is rewritten.", "sources": ["https://data.humdata.org/dataset/cod-ab-gha", "https://adma.gov.gh/"]},
+    {"correction": "Supplement Guan District without asserting a current district polygon", "evidence": "GSS District_261.dbf contains Guan in Oti. GeoNames ADM2 13609064 independently supplies Guan District, country GH, admin1 16 (Oti), point 7.1/0.3, modified 2026-04-15. Only the explicitly CC BY licensed GeoNames record is redistributed.", "sources": ["https://statsbank.statsghana.gov.gh/assets/geofiles.zip", "https://www.geonames.org/13609064/guan-district.html"]}
+  ]
+}

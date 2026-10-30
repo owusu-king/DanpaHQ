@@ -32,13 +32,15 @@ def portfolio(landlord):
     return organization
 
 
-@pytest.fixture
-def address(db):
+@pytest.fixture(params=[False, True])
+def address(db, request):
     from apps.geo.models import Address, District, Locality, Region
 
     region = Region.objects.create(code="QC", name="Query Count Region")
     district = District.objects.create(region=region, name="Query Count District")
-    locality = Locality.objects.create(district=district, name="Query Count Locality")
+    locality = Locality.objects.create(
+        district=None if request.param else district, region=region, name="Query Count Locality"
+    )
     return Address.objects.create(locality=locality, street="1 Constant Lane")
 
 

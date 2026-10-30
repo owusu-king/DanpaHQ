@@ -63,7 +63,6 @@ export function UnitWizard({
   propertyId,
   unitId: initialUnit = null,
   startAt = null,
-  onClose,
   onFinished,
   onTitle,
   onChanged,
@@ -120,7 +119,7 @@ export function UnitWizard({
   }, [unit]);
 
   const at = STEPS.findIndex((row) => row.key === step);
-  const ready = unit ? unit.verification.can_submit && unit.permitted_actions.submit_for_verification?.allowed !== false : false;
+  const ready = unit ? unit.verification.can_submit && unit.permitted_actions.submit_for_verification?.allowed === true : false;
   const sent = unit ? !unit.verification.editable : false;
 
   function go(key: StepKey) {
@@ -158,7 +157,7 @@ export function UnitWizard({
     }
   }
 
-  if (!property) {
+  if (!property || property.id !== propertyId || (initialUnit && (!unit || unit.id !== initialUnit || unit.property.id !== propertyId))) {
     return (
       <div className="cw-loading">
         {error ? <Notice tone="error" title={error} /> : <p className="type-caption">Loading…</p>}
@@ -198,13 +197,9 @@ export function UnitWizard({
         <>
           {at > 0 ? (
             <Button variant="quiet" disabled={busy} onClick={() => go(STEPS[at - 1]!.key)}>Back</Button>
-          ) : (
-            <Button variant="quiet" disabled={busy} onClick={onClose}>Cancel</Button>
-          )}
-          <span className="lw-foot-spacer" />
-          {unit && step !== "review" ? (
-            <Button variant="quiet" disabled={busy} onClick={onClose}>Finish later</Button>
           ) : null}
+          <span className="lw-foot-spacer" />
+
           {step === "review" && ready && !sent ? (
             <Button variant="quiet" disabled={busy} onClick={() => unit && onFinished(unit)}>Not yet</Button>
           ) : null}
@@ -273,6 +268,7 @@ export function UnitWizardModal({
       meta={propertyId ? "Saved as you go" : "Choose its Property"}
       className={propertyId ? "lease-wizard-sheet is-wizard creation-sheet" : "unit-chooser-sheet"}
       closeLabel="Close Unit setup"
+      dismissible={false}
     >
       {(close) => propertyId ? (
         <UnitWizard

@@ -63,7 +63,7 @@ export function spaceStatus({
     return { label: verification.state_label, tone: "neutral" };
   }
   return {
-    label: publication.state === "published" ? "Verified · Public · Available" : "Verified · Available",
+    label: availability.state === "expired" ? "Verified · Expired" : publication.state === "published" && publication.listing_status === "active" ? "Verified · Public · Available" : "Verified · Available",
     tone: "good",
   };
 }

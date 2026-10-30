@@ -143,14 +143,20 @@ FIELDS = (
         kind="boolean",
     ),
     ConfigurationField(
-        "PROVIDER_TERMS_VERSION", "Provider onboarding", "Provider terms version",
-        "Change the version when updating provider Terms and Conditions.", max_length=80,
+        "PROVIDER_TERMS_VERSION",
+        "Provider onboarding",
+        "Provider terms version",
+        "Change the version when updating provider Terms and Conditions.",
+        max_length=80,
     ),
     ConfigurationField(
-        "PROVIDER_TERMS_TEXT", "Provider onboarding", "Provider Terms and Conditions",
+        "PROVIDER_TERMS_TEXT",
+        "Provider onboarding",
+        "Provider Terms and Conditions",
         "The full agreement shown before provider registration. "
         "Changes do not rewrite prior acceptances.",
-        kind="multiline", max_length=20000,
+        kind="multiline",
+        max_length=20000,
     ),
     ConfigurationField(
         "NOTIFICATION_EMAIL_BACKEND",
@@ -182,6 +188,34 @@ FIELDS = (
         "Sender name",
         "The name recipients see, for example Danpa HQ.",
         max_length=80,
+    ),
+    ConfigurationField(
+        "MAP_ENABLED",
+        "Maps",
+        "Show maps",
+        "Allow maps on web and mobile. Reopen maps or reload the app after saving.",
+        kind="boolean",
+    ),
+    ConfigurationField(
+        "MAP_TILE_URL",
+        "Maps",
+        "Public tile URL",
+        "HTTPS XYZ template containing {z}, {x} and {y}. "
+        "Blank keeps each client's existing provider. Never enter a private key.",
+        kind="url",
+    ),
+    ConfigurationField(
+        "MAP_TILE_ATTRIBUTION",
+        "Maps",
+        "Tile attribution",
+        "Required credit for the selected tile provider; shown on every map.",
+    ),
+    ConfigurationField(
+        "MAP_TILE_ATTRIBUTION_URL",
+        "Maps",
+        "Attribution link",
+        "HTTPS link to the tile provider's copyright or licence terms.",
+        kind="url",
     ),
     ConfigurationField(
         "STOLEN_DEVICE_REPORTING_ENABLED",
@@ -273,6 +307,12 @@ def _normalise(field: ConfigurationField, raw: Any) -> str:
             URLValidator(schemes=["https"])(text)
         except ValidationError as exc:
             raise ValidationFailed(f"{field.label} must be a valid HTTPS URL.") from exc
+    if (
+        field.key == "MAP_TILE_URL"
+        and text
+        and not all(token in text for token in ("{z}", "{x}", "{y}"))
+    ):
+        raise ValidationFailed("The tile URL must contain {z}, {x} and {y}.")
     if field.key == "BREVO_SENDER_EMAIL" and text:
         try:
             validate_email(text)

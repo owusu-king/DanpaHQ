@@ -14,10 +14,11 @@
  */
 
 import { useRouter } from "expo-router";
-import { useState, type ReactNode } from "react";
-import { StyleSheet, View } from "react-native";
+import { useRef, useState, type ReactNode } from "react";
+import { Alert, StyleSheet, View } from "react-native";
 
 import { ApiFailure } from "@/api";
+import { BottomSheet } from "@/components/sheet/BottomSheet";
 import { Button, Field, Notice, Surface, Type, space } from "@/components/ui";
 import { Fact, Pill, QuietAct, RecordPanel, StandingLine, type RecordTone } from "@/components/record/RecordSurfaces";
 import { Segments } from "@/components/work/WorkParts";
@@ -25,6 +26,7 @@ import type { SetupStep } from "@/propertySetup";
 import {
   archiveProperty,
   deleteProperty,
+  submitPropertyForVerification,
   withdrawPropertySubmission,
   type Property,
 } from "@/provider";
@@ -99,7 +101,17 @@ function CompactLifecycle({ property, steps, onChanged }: { property: Property; 
   const submit = property.permitted_actions.submit_for_verification;
   const withdraw = property.permitted_actions.withdraw_submission;
   const openSetup = () => router.push({ pathname: "/(app)/property-setup", params: { propertyId: property.id } });
-  const openVerify = () => router.push({ pathname: "/(app)/property-verify", params: { propertyId: property.id } });
+  const submissionPending = useRef(false);
+  const openVerify = () => Alert.alert("Submit for verification?", "Send this property's details, documents and photos to our team? It stays private.", [
+    { text: "Cancel", style: "cancel" },
+    { text: "Confirm Submission", onPress: async () => {
+      if (submissionPending.current) return;
+      submissionPending.current = true;
+      try { await submitPropertyForVerification(property.id); await onChanged(); }
+      catch (cause) { Alert.alert("Could not submit", cause instanceof ApiFailure ? cause.error.message : "Please try again."); }
+      finally { submissionPending.current = false; }
+    } },
+  ]);
 
   if (reviewState === "verified") return null;
 
@@ -114,6 +126,7 @@ function CompactLifecycle({ property, steps, onChanged }: { property: Property; 
       >
         {error ? <Notice tone="error" title={error} /> : null}
         {confirming ? (
+          <BottomSheet visible onClose={() => setConfirming(false)} title="Withdraw submission?" closeLabel="Keep submitted">
           <View style={styles.acts}>
             <Pill
               label="Withdraw submission"
@@ -138,6 +151,7 @@ function CompactLifecycle({ property, steps, onChanged }: { property: Property; 
             />
             <QuietAct label="Keep it submitted" disabled={busy} onPress={() => setConfirming(false)} />
           </View>
+          </BottomSheet>
         ) : withdraw?.allowed ? (
           <QuietAct label="Withdraw submission…" icon="arrow-undo-outline" onPress={() => setConfirming(true)} />
         ) : null}
@@ -544,6 +558,7 @@ function WithReviewer({
       ) : null}
 
       {confirming ? (
+        <BottomSheet visible onClose={() => setConfirming(false)} title="Withdraw submission?" closeLabel="Keep submitted">
         <View style={{ gap: space[3] }}>
           <Notice
             tone="warning"
@@ -579,6 +594,7 @@ function WithReviewer({
             }}
           />
         </View>
+        </BottomSheet>
       ) : null}
     </Surface>
   );

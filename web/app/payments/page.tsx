@@ -360,7 +360,7 @@ function ProviderPaymentsContent() {
 
       {/* Refreshed through `load`, not `reloadKey`: that blanks the page, and
           the record would close under the person who just confirmed it. */}
-      {view === "pnl" ? <ProfitLoss report={summary.profit_loss} /> : null}
+      {view === "pnl" ? <ProfitLoss report={summary.profit_loss} organizationId={organizationId} organizationName={summary.organization.name} properties={properties} /> : null}
 
       <RentDueModal
         tenant={openedDue}

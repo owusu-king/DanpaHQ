@@ -42,11 +42,7 @@ export type DanpaHQMapProps = {
   onMove: (move: MapMove) => void;
   onMarkerPress: (key: string) => void;
   onBackgroundPress: () => void;
-  /**
-   * Google never drew the map: the view is up, the logo is there, and the tiles
-   * never come — an outdated Google Play services, a key the phone's build is not
-   * allowed, or no route to Google. Android only; called once.
-   */
+  /** The map document could not load. */
   onUnavailable?: () => void;
   style?: StyleProp<ViewStyle>;
 };

@@ -1,3 +1,4 @@
+import { Select } from "@/components/form/Select";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
@@ -158,13 +159,19 @@ function ProviderPropertiesScreen() {
   const units = properties.reduce((total, property) => total + property.unit_count, 0);
   const occupied = properties.reduce((total, property) => total + property.occupied_unit_count, 0);
 
+  const [sort, setSort] = useState<"name" | "newest">("name");
   const visible = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase("en-GH");
     return properties
       .filter((property) => filter === "all" || stageOf(property) === filter)
       .filter((property) => !needle || `${property.title} ${property.address.locality_name} ${property.address.district_name}`
-        .toLocaleLowerCase("en-GH").includes(needle));
-  }, [properties, filter, query]);
+        .toLocaleLowerCase("en-GH").includes(needle))
+      .sort((a, b) => {
+        const byName = a.title.localeCompare(b.title, "en-GH");
+        const time = (value: string) => { const result = Date.parse(value); return Number.isFinite(result) ? result : 0; };
+        return (sort === "newest" ? time(b.created_at) - time(a.created_at) : 0) || byName || a.id.localeCompare(b.id);
+      });
+  }, [properties, filter, query, sort]);
 
   const add = () => router.push({ pathname: "/(app)/private-property", params: { organizationId } });
 
@@ -221,6 +228,7 @@ function ProviderPropertiesScreen() {
                     tone: value === "all" ? undefined : FILTER_TONE[value],
                   }))}
                 />
+                <Select label="Sort Properties" value={sort} onChange={setSort} options={[{ value: "name", label: "Name" }, { value: "newest", label: "Newest" }]} />
                 <SearchField label="Search Properties" placeholder="Property, town or district" value={query} onChangeText={setQuery} />
               </View>
             ) : null}

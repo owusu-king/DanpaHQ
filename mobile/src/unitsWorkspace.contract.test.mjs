@@ -44,13 +44,13 @@ test("a mobile Unit tile recognizes, then opens the canonical Unit", () => {
   // Three facts, not one string. "Verified · Public · Available" was cut after
   // the first word in half a phone's width, so: whether it is let rides on the
   // photograph, where it stands in review is the line under the name, and being
-  // on Explore is a mark. All three reach a screen reader through the label.
+  // publication is a separate Public/Private chip. All reach the screen reader.
   assert.match(tile, /function occupancyOf/);
   assert.match(tile, /function reviewOf/);
   assert.doesNotMatch(tile, /<StatusLine/, "the combined status truncates in a tile");
   assert.match(
     tile,
-    /accessibilityLabel=\{`\$\{unit\.label \|\| "Unnamed Unit"\}\. \$\{meta\}\. \$\{occupancy\.label\}\. \$\{review\.label\}\.\$\{published \? " On Explore\." : ""\}`\}/,
+    /accessibilityLabel=\{`\$\{unit\.label \|\| "Unnamed Unit"\}\. \$\{meta\}\. \$\{occupancy\.label\}\. \$\{review\.label\}\. \$\{published \? "Public" : "Private"\}\.`\}/,
   );
 
   // The same tile on two grounds: paper inside a Property, glass on the green.
@@ -79,14 +79,14 @@ test("mobile Unit detail can archive or delete without a modal workflow", () => 
   assert.match(api, /\/spaces\/\$\{unitId\}\/archive\//);
 });
 
-test("Units are browsed two across on a handset", () => {
+test("Units uses two columns while Property details uses compact shared rows", () => {
   const tile = read("mobile/src/components/property/UnitTile.tsx");
   const screens = [
     read("mobile/app/(app)/units.tsx"),
-    read("mobile/app/(app)/provider-property.tsx"),
   ];
 
   assert.match(tile, /export const UNIT_COLUMNS = 2;/);
+  assert.match(read("mobile/app/(app)/provider-property.tsx"), /<RecordUnitRow/);
   for (const screen of screens) {
     assert.match(screen, /numColumns=\{UNIT_COLUMNS\}/);
     assert.match(screen, /columnWrapperStyle=\{\{ gap: UNIT_TILE_GAP \}\}/);

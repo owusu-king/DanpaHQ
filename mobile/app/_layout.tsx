@@ -8,9 +8,10 @@ import { View } from "react-native";
 import { initialWindowMetrics, SafeAreaProvider } from "react-native-safe-area-context";
 
 import { AuthProvider, useAuth } from "@/auth";
+import { GuestSignInProvider } from "@/components/auth/GuestSignIn";
 import { LaunchCurtain } from "@/components/shell/LaunchScreen";
 import { TypographyScaleProvider } from "@/components/ui";
-import { BASIC_ACCOUNT_SCREENS, resolveEntryRoute } from "@/navigation";
+import { BASIC_ACCOUNT_SCREENS, isPublicDiscovery, resolveEntryRoute } from "@/navigation";
 import { gestureBackEnabled, stackAnimation } from "@/platform";
 import { accountJustCreated } from "@/registrationDraft";
 import { MessagePush } from "@/messagePush";
@@ -73,7 +74,7 @@ function entryRedirect(
   const signedOutScreen = SIGNED_OUT_SCREENS.includes(screen);
   const atRoot = segments.length === 0
     || (segments.length === 1 && segments[0] === "index");
-  const inPublicDiscovery = group === "(app)" && ((screen === "(tabs)" && tab === "explore"));
+  const inPublicDiscovery = isPublicDiscovery(segments);
   const inProviderTabs = group === "(app)" && screen === "(provider-tabs)";
   const inArtisanTabs = group === "(app)" && screen === "(artisan-tabs)";
   // The renter's tab at the same address, for an address both workspaces answer.
@@ -203,7 +204,7 @@ export default function RootLayout() {
       <ThemeProvider value={navigationTheme}>
         <TypographyScaleProvider>
           <AuthProvider>
-            <Shell />
+            <GuestSignInProvider><Shell /></GuestSignInProvider>
           </AuthProvider>
         </TypographyScaleProvider>
       </ThemeProvider>

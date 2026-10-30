@@ -106,7 +106,6 @@ export function ExploreMapView({
   onOpenListing,
   onSearchArea,
   onClearFilters,
-  hasFilters,
   sales = null,
   onOpenSale,
 }: {
@@ -125,7 +124,6 @@ export function ExploreMapView({
   onOpenListing: (listing: Listing) => void;
   onSearchArea: (bounds: GeoBounds) => void;
   onClearFilters: () => void;
-  hasFilters: boolean;
   /** Explore's All view: properties for sale over the same search, as their own pins. */
   sales?: Sale[] | null;
   /** The map never leaves by itself: what a sale pin opens is the page's call. */
@@ -177,6 +175,8 @@ export function ExploreMapView({
   useEffect(() => {
     setSelection(null);
     setUserMoved(false);
+    setZoomTo(null);
+    setSuppressedFit(null);
   }, [search]);
 
   const searched: GeoBounds | null = query.bbox ?? area?.bounds ?? summary?.extent ?? null;
@@ -187,7 +187,7 @@ export function ExploreMapView({
     : area
       ? { key: `area:${area.ref || formatBounds(area.bounds)}`, bounds: area.bounds, maxZoom: 16 }
       : summary?.extent
-        ? { key: "extent", bounds: summary.extent, maxZoom: 14 }
+        ? { key: `extent:${search}:${formatBounds(summary.extent)}`, bounds: summary.extent, maxZoom: 14 }
         : null;
   // "Search this area" searched what is already on screen; fitting it again
   // would nudge the map for no reason.
@@ -204,15 +204,15 @@ export function ExploreMapView({
       controller.signal,
     )
       .then((response) => {
+        if (withSummary && summaryId === summaryRequest.current && typeof response.total === "number") {
+          setSummary({ total: response.total, unmapped: response.unmapped ?? 0, extent: response.extent ?? null });
+        }
         // A slower, older answer must never replace a newer one.
         if (id !== markerRequest.current) return;
         setFeatures(response.features);
         setTruncated(response.truncated);
         setMarkersFailed(false);
         setLoading(false);
-        if (withSummary && summaryId === summaryRequest.current && typeof response.total === "number") {
-          setSummary({ total: response.total, unmapped: response.unmapped ?? 0, extent: response.extent ?? null });
-        }
       })
       .catch((cause) => {
         if (isAborted(cause) || id !== markerRequest.current) return;
@@ -238,8 +238,7 @@ export function ExploreMapView({
       window.clearTimeout(timer);
       controller?.abort();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view]);
+  }, [view, fetchMarkers]);
 
   // What a selected marker shows: the loaded cards first, the API for the rest.
   useEffect(() => {
@@ -383,6 +382,7 @@ export function ExploreMapView({
           <div className="explore-map-empty-list">
             <p className="type-body-strong">No available rentals {areaName}.</p>
             <p className="type-caption">Zoom out and search this area, clear a filter, or try a nearby place.</p>
+            <button type="button" className="explore-clear-all" onClick={onClearFilters}>Clear Filters</button>
           </div>
         ) : null}
       </aside>
@@ -439,6 +439,11 @@ export function ExploreMapView({
         )}
 
         <div className="explore-map-overlay-top">
+          {summary?.unmapped ? (
+            <p className="explore-map-hint" role="status">
+              {summary.unmapped} rental{summary.unmapped === 1 ? " has" : "s have"} no map location yet. Open List to see them.
+            </p>
+          ) : null}
           {loading ? <span className="explore-map-progress" aria-hidden="true" /> : null}
           {markersFailed ? (
             <button type="button" className="explore-map-retry" onClick={() => fetchMarkers(viewRef.current, true)}>
@@ -461,7 +466,7 @@ export function ExploreMapView({
                   onClick={() => setZoomTo({ key: `out:${Date.now()}`, bounds: grow(view.bounds, 1.2), maxZoom: 13 })}
                 >Zoom out</button>
               ) : null}
-              {hasFilters ? <button type="button" className="explore-text-button" onClick={onClearFilters}>Clear filters</button> : null}
+              <button type="button" className="explore-text-button" onClick={onClearFilters}>Clear Filters</button>
             </div>
           </div>
         ) : null}

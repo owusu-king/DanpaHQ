@@ -30,11 +30,11 @@ const RELATIONSHIPS = [
 
 type Relationship = (typeof RELATIONSHIPS)[number]["value"];
 
-const EVIDENCE_HINT: Record<Relationship, string> = {
-  owner: "An indenture, title, or a land or assembly document naming you.",
-  agent: "A letter from the owner naming you and this property.",
-  manager: "The agreement appointing you to manage it.",
-  company_representative: "The certificate showing the company is registered.",
+const EVIDENCE_LABEL: Record<Relationship, string> = {
+  owner: "Ownership document",
+  agent: "Owner authorization",
+  manager: "Management agreement",
+  company_representative: "Company registration",
 };
 
 /** A property for sale is sold on its title, so the review reads the title too.
@@ -55,8 +55,7 @@ export function AuthorityClaim({
   saleKind = null,
 }: {
   propertyId: string;
-  /** Set for a property for sale: its title is asked for beside the
-   *  relationship document, and land adds its surveyed site plan. */
+  /** Sales require a title; relationship proof and the land site plan are optional. */
   saleKind?: "residential" | "commercial" | "land" | null;
   onSubmitted: () => Promise<void>;
   /** False when the property screen owns the one button for the whole thing. */
@@ -82,7 +81,7 @@ export function AuthorityClaim({
   const actingForAnother = relationship !== "owner";
   const selling = saleKind !== null;
   const land = saleKind === "land";
-  const ready = Boolean(document) && (!selling || Boolean(title)) && (!land || Boolean(sitePlan));
+  const ready = selling ? Boolean(title) : Boolean(document);
 
   async function pick(set: (asset: Asset) => void) {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -98,16 +97,12 @@ export function AuthorityClaim({
   }
 
   async function submit() {
-    if (!document) {
-      setError("Add the document that supports your claim.");
+    if (!selling && !document) {
+      setError("Add the document proving your relationship to this property.");
       return;
     }
     if (selling && !title) {
-      setError("Add the property's title — its Land Title Certificate or indenture.");
-      return;
-    }
-    if (land && !sitePlan) {
-      setError("Add the surveyed site plan of the plot.");
+      setError("Add the title document.");
       return;
     }
     setBusy(true);
@@ -116,7 +111,7 @@ export function AuthorityClaim({
       // The relationship document carries no declared type; the title and the
       // site plan say which they are, so the reviewer finds each where it belongs.
       const uploads: { asset: Asset; type: string | null }[] = [
-        { asset: document, type: null },
+        ...(document ? [{ asset: document, type: null }] : []),
         ...(selling && title ? [{ asset: title, type: titleType }] : []),
         ...(land && sitePlan ? [{ asset: sitePlan, type: "site_plan" }] : []),
       ];
@@ -165,8 +160,7 @@ export function AuthorityClaim({
     return (
       <Notice
         tone="info"
-        title="Your claim is with our team"
-        body="Once it is accepted this property is recorded as yours, and it can be advertised."
+        title="Documents saved"
       />
     );
   }
@@ -174,7 +168,7 @@ export function AuthorityClaim({
   return (
     <View style={styles.claim}>
       <Select
-        label="Your relationship to this property"
+        label="What is your relationship to this property?"
         placeholder="Choose one"
         value={relationship}
         options={RELATIONSHIPS.map((row) => ({ value: row.value, label: row.label }))}
@@ -198,53 +192,37 @@ export function AuthorityClaim({
         <Field label="Company name" placeholder="Adenta Homes Ltd" value={companyName} onChangeText={setCompanyName} />
       ) : null}
 
-      {/* The document is a thing you attach, so it reads as a row that holds
-          one — with a tick once it does — rather than as a secondary button
-          whose label had to say both what it does and what it has done. */}
+      {selling ? <Select
+        label="Title type"
+        value={titleType}
+        options={TITLE_TYPES.map((row) => ({ value: row.value, label: row.label }))}
+        onChange={setTitleType}
+      /> : null}
       <RecordPanel>
-        <LinkRow
+        {selling ? <LinkRow
           first
+          icon={title ? "checkmark-circle" : "document-text-outline"}
+          tone={title ? "good" : "action"}
+          label="Title document (Required)"
+          detail={title?.fileName || "Choose document"}
+          onPress={() => void pick(setTitle)}
+        /> : null}
+        <LinkRow
+          first={!selling}
           icon={document ? "checkmark-circle" : "document-attach-outline"}
           tone={document ? "good" : "action"}
-          label={document ? (document.fileName || "Document attached") : "Attach the document"}
-          detail={document ? "Tap to choose a different one" : EVIDENCE_HINT[relationship]}
+          label={`${EVIDENCE_LABEL[relationship]} (${selling ? "Optional" : "Required"})`}
+          detail={document?.fileName || "Choose document"}
           onPress={() => void pick(setDocument)}
         />
+        {land ? <LinkRow
+          icon={sitePlan ? "checkmark-circle" : "map-outline"}
+          tone={sitePlan ? "good" : "action"}
+          label="Site plan (Optional)"
+          detail={sitePlan?.fileName || "Choose document"}
+          onPress={() => void pick(setSitePlan)}
+        /> : null}
       </RecordPanel>
-
-      {selling ? (
-        <>
-          <Select
-            label="The property's title"
-            value={titleType}
-            options={TITLE_TYPES.map((row) => ({ value: row.value, label: row.label }))}
-            onChange={setTitleType}
-          />
-          <RecordPanel>
-            <LinkRow
-              first
-              icon={title ? "checkmark-circle" : "document-text-outline"}
-              tone={title ? "good" : "action"}
-              label={title ? (title.fileName || "Title attached") : "Attach the title"}
-              detail={title
-                ? "Tap to choose a different one"
-                : titleType === "indenture"
-                  ? "Every page, and the stamp duty receipt if you have it."
-                  : "The certificate from the Lands Commission."}
-              onPress={() => void pick(setTitle)}
-            />
-            {land ? (
-              <LinkRow
-                icon={sitePlan ? "checkmark-circle" : "map-outline"}
-                tone={sitePlan ? "good" : "action"}
-                label={sitePlan ? (sitePlan.fileName || "Site plan attached") : "Attach the site plan"}
-                detail={sitePlan ? "Tap to choose a different one" : "Signed by a licensed surveyor."}
-                onPress={() => void pick(setSitePlan)}
-              />
-            ) : null}
-          </RecordPanel>
-        </>
-      ) : null}
 
       {error ? <Notice tone="error" title={error} /> : null}
 
@@ -267,6 +245,7 @@ export function AuthorityClaim({
 
 const styles = StyleSheet.create({
   claim: {
+    minWidth: 0,
     gap: space[3],
   },
 });

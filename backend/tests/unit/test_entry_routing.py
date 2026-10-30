@@ -175,7 +175,7 @@ def test_switching_back_to_tenant_changes_nothing_but_the_route(registered):
     user = registered("0200000032", account_type="provider")
     # Take the tenant side once so both capabilities are settled, then compare
     # a switch between two experiences the account already holds.
-    choose_workspace(user=user, workspace="tenant", tenant_confirmation="Rent account")
+    choose_workspace(user=user, workspace="tenant", tenant_confirmation="TENANT")
     choose_workspace(user=user, workspace="provider")
     before = MeSerializer(user).data["capabilities"]
 

@@ -554,8 +554,8 @@ function MoneyStep({ form, update, advanceAsked, offered }: { form: FormState; u
         <div className="lw-steppers">
           <Stepper label="Advance" value={advance} onChange={(value) => update("advance", String(value))}
             hint={offered !== undefined && advanceAsked !== undefined ? `Offered ${offered} of ${advanceAsked}` : undefined} />
-          <Stepper label="Deposit" value={deposit} onChange={(value) => update("deposit", String(value))} />
-          <Stepper label="Agency fee" value={agency} onChange={(value) => update("agencyFee", String(value))} />
+          <Stepper max={12} label="Deposit" value={deposit} onChange={(value) => update("deposit", String(value))} />
+          <Stepper max={6} label="Agency fee" value={agency} onChange={(value) => update("agencyFee", String(value))} />
         </div>
 
         <div className="lw-field">
@@ -759,14 +759,14 @@ function ReviewStep({ form, lease, document, stale, onEdit }: {
 
 // --- parts -------------------------------------------------------------------------
 
-function Stepper({ label, value, onChange, hint }: { label: string; value: number; onChange: (value: number) => void; hint?: string }) {
+function Stepper({ label, value, onChange, hint, max = 36 }: { label: string; value: number; onChange: (value: number) => void; hint?: string; max?: number }) {
   return (
     <div className="lw-stepper">
       <span className="lw-label">{label}</span>
       <div className="lw-stepper-control">
         <button type="button" aria-label={`Fewer months of ${label.toLowerCase()}`} disabled={value <= 0} onClick={() => onChange(Math.max(0, value - 1))}>−</button>
         <output aria-live="polite"><strong>{value}</strong><small>mo</small></output>
-        <button type="button" aria-label={`More months of ${label.toLowerCase()}`} disabled={value >= 24} onClick={() => onChange(Math.min(24, value + 1))}>+</button>
+        <button type="button" aria-label={`More months of ${label.toLowerCase()}`} disabled={value >= max} onClick={() => onChange(Math.min(max, value + 1))}>+</button>
       </div>
       {hint ? <small className="lw-stepper-hint">{hint}</small> : null}
     </div>

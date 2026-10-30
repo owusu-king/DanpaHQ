@@ -11,8 +11,6 @@ from __future__ import annotations
 
 import uuid
 
-from django.db.models import Case, IntegerField, Q, Value, When
-
 from apps.geo.models import Locality
 
 from .base import GeoBounds, GeoPoint, PlaceKind, PlaceSuggestion, ResolvedPlace
@@ -22,8 +20,8 @@ HALF_SIDE = 0.0135
 
 
 def _context(locality: Locality) -> str:
-    district, region = locality.district.name, locality.district.region.name
-    return district if district == region else f"{district}, {region}"
+    district, region = locality.district_label, locality.region_label
+    return ", ".join(dict.fromkeys(value for value in (district, region) if value))
 
 
 class LocalityProvider:
@@ -41,22 +39,13 @@ class LocalityProvider:
         query = text.strip()
         if len(query) < 2:
             return []
-        candidates = Locality.objects.filter(is_active=True)
+        from apps.geo.search import search_localities
+
+        candidates = search_localities(query)
         if not areas_only:
             # Explore must be able to resolve every suggestion onto its map.
             candidates = candidates.filter(latitude__isnull=False, longitude__isnull=False)
-        rows = (
-            candidates.filter(Q(name__icontains=query) | Q(aliases__icontains=query))
-            .select_related("district__region")
-            .annotate(
-                leads=Case(
-                    When(name__istartswith=query, then=Value(0)),
-                    default=Value(1),
-                    output_field=IntegerField(),
-                )
-            )
-            .order_by("leads", "name")[:limit]
-        )
+        rows = candidates[:limit]
         return [
             PlaceSuggestion(
                 provider=self.name,
@@ -77,13 +66,13 @@ class LocalityProvider:
             return None
         row = (
             Locality.objects.filter(id=locality_id, is_active=True)
-            .select_related("district__region")
+            .select_related("district__region", "region")
             .first()
         )
         if row is None or row.latitude is None or row.longitude is None:
             return None
         center = GeoPoint(float(row.latitude), float(row.longitude))
-        display_name = name_hint.strip() or f"{row.name}, {row.district.name}"
+        display_name = name_hint.strip() or ", ".join(filter(None, [row.name, _context(row)]))
         return ResolvedPlace(
             provider=self.name,
             reference=str(row.id),

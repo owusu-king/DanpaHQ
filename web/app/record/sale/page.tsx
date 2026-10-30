@@ -26,6 +26,7 @@ import { Icon } from "@/components/portal/icons";
 import { ApiFailure } from "@/lib/api";
 import { getSale, saleFacts, startEnquiry, type SaleDetail, type SalePhoto } from "@/lib/sales";
 import { useSession } from "@/lib/session";
+import { exploreReturnPath, saleDetailPath } from "@/lib/exploreReturn";
 
 const LocationMap = dynamic(
   () => import("@/components/listings/ListingLocationMap").then((module) => module.ListingLocationMap),
@@ -33,7 +34,9 @@ const LocationMap = dynamic(
 );
 
 export default function SalePage() {
-  const id = useSearchParams().get("id") ?? "";
+  const search = useSearchParams();
+  const id = search.get("id") ?? "";
+  const returnTo = exploreReturnPath(search.get("returnTo"));
   const router = useRouter();
   const { open: openAuth } = useAuthDialog();
   const { state } = useSession();
@@ -62,7 +65,7 @@ export default function SalePage() {
   if (error && !sale) {
     return (
       <main className="listing">
-        <p><Link href={"/rentals?mode=buy" as never} className="listing-back">← Keep looking</Link></p>
+        <p><Link href={returnTo as never} className="listing-back">← Keep looking</Link></p>
         <Notice tone="error" title={error} body="It may have been sold or taken off the market." />
       </main>
     );
@@ -83,7 +86,7 @@ export default function SalePage() {
     land && sale.is_serviced ? "Serviced plot" : null,
   ].filter(Boolean) as string[];
   const longDescription = sale.description.length > 420;
-  const next = `/record/sale?id=${sale.id}`;
+  const next = saleDetailPath(sale.id, returnTo);
 
   async function send() {
     if (!signedIn) {
@@ -104,7 +107,7 @@ export default function SalePage() {
 
   return (
     <main className="listing">
-      <p><Link href={"/rentals?mode=buy" as never} className="listing-back">← Keep looking</Link></p>
+      <p><Link href={returnTo as never} className="listing-back">← Keep looking</Link></p>
 
       {photos.length ? (
         <div className="listing-photos">

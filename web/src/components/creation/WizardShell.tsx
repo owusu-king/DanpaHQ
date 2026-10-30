@@ -64,6 +64,8 @@ export function WizardShell({
                   type="button"
                   className="lw-rail-step"
                   data-state={state}
+                  aria-label={`${item.label}${item.done ? ", done" : ""}`}
+                  title={item.label}
                   aria-current={item.key === step.key ? "step" : undefined}
                   disabled={!item.reachable}
                   onClick={() => onGo(item.key)}

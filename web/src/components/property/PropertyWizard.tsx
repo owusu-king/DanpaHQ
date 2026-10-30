@@ -49,7 +49,9 @@ import {
   type SpaceAmenity,
 } from "@/lib/console";
 import { FACT_GLYPHS, FACT_HINTS, shortFactLabel } from "@/lib/creationGlyphs";
-import { newPlacesSession, placeLabel, suggestPlaces, type PlaceSuggestion } from "@/lib/places";
+import { LocationPicker, pinFromAddress, type PinLocation } from "@/components/property/LocationPicker";
+import { LocationAutocomplete } from "@/components/property/LocationAutocomplete";
+import { referenceArea, type LocationReference } from "@/lib/locations";
 import { describePropertySetup, resumeAt, toSetupInput, type SetupStep } from "@/lib/propertySetup";
 import { loadPropertyVocabulary, type FeatureOption, type PropertyVocabulary } from "@/lib/propertyTypes";
 import { getSellerSale, type SellerSale } from "@/lib/sales";
@@ -235,7 +237,7 @@ export function PropertyWizard({
   const primary =
     shown === "review"
       ? settled ? "Done" : "Create property"
-      : shown === "documents" && !recorded && !documentReady
+      : shown === "documents" && !recorded && !documentReady && property?.purpose !== "sale"
         ? "Skip for now"
         : shown === "basics" && !id
           ? "Continue"
@@ -247,17 +249,9 @@ export function PropertyWizard({
         <Button variant="quiet" disabled={busy} onClick={() => go(keys[at - 1]!)}>
           Back
         </Button>
-      ) : (
-        <Button variant="quiet" disabled={busy} onClick={onClose}>
-          Cancel
-        </Button>
-      )}
-      <span className="lw-foot-spacer" />
-      {id && shown !== "review" ? (
-        <Button variant="quiet" disabled={busy} onClick={onClose}>
-          Finish later
-        </Button>
       ) : null}
+      <span className="lw-foot-spacer" />
+
       {locked ? (
         <Button onClick={onClose}>Close</Button>
       ) : (
@@ -370,6 +364,7 @@ export function PropertyWizard({
 /** The wizard in its sheet, over the page that opened it. */
 export function PropertyWizardModal({
   open,
+  sale = null,
   propertyId = null,
   startAt = null,
   purpose = "letting",
@@ -378,6 +373,8 @@ export function PropertyWizardModal({
   onChanged,
 }: {
   open: boolean;
+  /** Reuse the creation sheet and sale form for permitted presentation edits. */
+  sale?: SellerSale | null;
   propertyId?: string | null;
   startAt?: string | null;
   purpose?: "letting" | "sale";
@@ -386,6 +383,8 @@ export function PropertyWizardModal({
   onFinished: (propertyId: string) => void;
 }) {
   const [title, setTitle] = useState("");
+  const [savingSale, setSavingSale] = useState(false);
+  const saleSubmit = useRef<(() => Promise<SellerSale | null>) | null>(null);
   useEffect(() => {
     if (!open) setTitle("");
   }, [open]);
@@ -395,13 +394,15 @@ export function PropertyWizardModal({
       onClose={onClose}
       size="sm"
       icon="properties"
-      title={title || (propertyId ? "Property setup" : purpose === "sale" ? "Sell a property" : "New property")}
-      meta="Saved as you go"
-      className="lease-wizard-sheet is-wizard creation-sheet property-creation-sheet"
-      closeLabel="Close property setup"
+      title={sale ? "Edit sale details" : title || (propertyId ? "Property setup" : purpose === "sale" ? "Sell a property" : "New property")}
+      meta={sale ? "Verified details stay locked" : "Saved as you go"}
+      className={`lease-wizard-sheet is-wizard creation-sheet property-creation-sheet${sale ? " is-sale-edit" : ""}`}
+      closeLabel={sale ? "Close sale details" : "Close property setup"}
+      dismissible={false}
+      footer={sale ? () => <Button busy={savingSale} busyLabel="Saving…" onClick={async () => { setSavingSale(true); try { await saleSubmit.current?.(); } finally { setSavingSale(false); } }}>Save changes</Button> : undefined}
     >
       {(close) => (
-        <PropertyWizard
+        sale && propertyId ? <SaleDetailsForm propertyId={propertyId} sale={sale} submitRef={saleSubmit} saveLabel="Save changes" onSaved={() => { onChanged?.(); close(); }} /> : <PropertyWizard
           propertyId={propertyId}
           startAt={startAt}
           purpose={purpose}
@@ -456,10 +457,10 @@ function NewPropertyStep({
   const [organizationId, setOrganizationId] = useState(requestedOrganization ?? "");
   const [title, setTitle] = useState("");
   const [query, setQuery] = useState("");
-  const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([]);
-  const [place, setPlace] = useState<PlaceSuggestion | null>(null);
-  const [attribution, setAttribution] = useState<string | null>(null);
-  const session = useRef<string | null>(null);
+  const [location, setLocation] = useState<LocationReference | null>(null);
+  const [areaFocus, setAreaFocus] = useState<PinLocation>(null);
+  const [city, setCity] = useState("");
+  const [pin, setPin] = useState<PinLocation>(null);
   const [digitalAddress, setDigitalAddress] = useState("");
   const [street, setStreet] = useState("");
   const [landmark, setLandmark] = useState("");
@@ -478,45 +479,18 @@ function NewPropertyStep({
       .catch(() => setOrganizations([]));
   }, [activeContext]);
 
-  useEffect(() => {
-    const typed = query.trim();
-    if (place || typed.length < 2) {
-      setSuggestions([]);
-      return;
-    }
-    session.current ??= newPlacesSession();
-    const controller = new AbortController();
-    const timer = window.setTimeout(() => {
-      void suggestPlaces(typed, session.current!, controller.signal, true)
-        .then((response) => {
-          setSuggestions(response.suggestions);
-          setAttribution(response.attribution);
-        })
-        .catch(() => {
-          if (!controller.signal.aborted) setSuggestions([]);
-        });
-    }, 300);
-    return () => {
-      window.clearTimeout(timer);
-      controller.abort();
-    };
-  }, [query, place]);
-
   useCommit(commitRef, async () => {
     const problems: Record<string, string> = {};
     if (!title.trim()) problems.title = "Give it a name only you will see.";
     if (!propertyType) problems.type = "Choose what kind of property it is.";
-    if (!place) problems.place = "Type the town or neighbourhood, then pick it from the list.";
+    if (!query.trim()) problems.place = "Enter the town or neighbourhood.";
     setMissing(problems);
-    if (Object.keys(problems).length || !place) return false;
+    if (Object.keys(problems).length) return false;
     const address = await createAddress({
-      place: {
-        provider: place.provider,
-        reference: place.reference,
-        session: session.current ?? undefined,
-        name: place.name,
-        context: place.context,
-      },
+      ...(location ? { locality_id: location.id } : { place_name: query.trim() }),
+      place_context: city.trim(),
+      latitude: pin?.latitude ?? null,
+      longitude: pin?.longitude ?? null,
       digital_address: digitalAddress || undefined,
       street: street || undefined,
       landmark: landmark || undefined,
@@ -569,71 +543,40 @@ function NewPropertyStep({
       )}
       {missing.type ? <p className="cw-missing">{missing.type}</p> : null}
 
-      <div className="lw-grid">
-        <Field
-          label="Name"
-          hint="Only you see this."
-          placeholder="e.g. Adom Court"
-          value={title}
-          error={missing.title || undefined}
-          onChange={(event) => {
-            setTitle(event.target.value);
-            setMissing((current) => ({ ...current, title: "" }));
-          }}
-        />
-        {organizations && organizations.length === 0 ? (
-          <p className="lw-quiet cw-portfolio-note"><Icon name="portfolio" />This goes into your Danpa HQ Portfolio</p>
-        ) : null}
-        {organizations && organizations.length > 1 ? (
-          <Select
-            label="Portfolio"
-            value={organizationId}
-            onChange={setOrganizationId}
-            options={organizations.map((row) => [row.id, row.name] as const)}
+      <div className="cw-location-layout">
+        <div className="cw-location-fields">
+          <Field
+            label="Name"
+            placeholder="e.g. Adom Court"
+            value={title}
+            error={missing.title || undefined}
+            onChange={(event) => {
+              setTitle(event.target.value);
+              setMissing((current) => ({ ...current, title: "" }));
+            }}
           />
-        ) : null}
-      </div>
+          {organizations && organizations.length > 1 ? (
+            <Select
+              label="Portfolio"
+              value={organizationId}
+              onChange={setOrganizationId}
+              options={organizations.map((row) => [row.id, row.name] as const)}
+            />
+          ) : null}
 
-      <div className="cw-place">
-        <Field
-          label="Town or neighbourhood"
-          placeholder="Start typing, then pick one"
-          autoComplete="off"
-          value={query}
-          error={missing.place || undefined}
-          onChange={(event) => {
-            if (place) session.current = null;
-            setQuery(event.target.value);
-            setPlace(null);
-            setMissing((current) => ({ ...current, place: "" }));
-          }}
-        />
-        {place ? (
-          <p className="cw-place-chosen"><Icon name="pin" />{placeLabel(place)}</p>
-        ) : suggestions.length ? (
-          <div className="cw-places" role="listbox" aria-label="Places">
-            {suggestions.map((item) => (
-              <button
-                key={item.provider + item.reference}
-                type="button"
-                role="option"
-                aria-selected={false}
-                onClick={() => {
-                  setPlace(item);
-                  setQuery(placeLabel(item));
-                  setSuggestions([]);
-                }}
-              >
-                <Icon name="pin" />
-                <span>
-                  <strong>{item.name}</strong>
-                  {item.context ? <small>{item.context}</small> : null}
-                </span>
-              </button>
-            ))}
-            {attribution === "google" ? <p className="cw-places-credit">Google Maps</p> : null}
-          </div>
-        ) : null}
+          <LocationAutocomplete minimal value={query} selected={location} error={missing.place || undefined}
+            onChange={(text) => { setQuery(text); setLocation(null); setPin(null); setAreaFocus(null); setMissing((current) => ({ ...current, place: "" })); }}
+            onSelect={(row) => {
+              setLocation(row); setQuery(row.name); setCity(row.district_name);
+              const area = referenceArea(row);
+              const selectedPin = area ? { latitude: area.lat, longitude: area.lng } : null;
+              setPin(selectedPin); setAreaFocus(selectedPin);
+            }}
+            onSubmit={() => { setLocation(null); setPin(null); setAreaFocus(null); }}
+            onShowArea={(row) => { const area = referenceArea(row); if (area) setAreaFocus({ latitude: area.lat, longitude: area.lng }); }} />
+          <Field label="City or district" value={city} onChange={(event) => { setCity(event.target.value); setLocation(null); setPin(null); setAreaFocus(null); }} />
+        </div>
+        <LocationPicker value={pin} onChange={setPin} focus={areaFocus} />
       </div>
 
       <div className="lw-grid cw-grid-3">
@@ -656,23 +599,26 @@ function NameStep({
   commitRef: CommitRef;
 }) {
   const [title, setTitle] = useState(property.title);
+  const [pin, setPin] = useState<PinLocation>(() => pinFromAddress(property.address));
   const editable = property.permitted_actions.edit?.allowed !== false;
 
   useCommit(commitRef, async () => {
-    if (!editable || title.trim() === property.title) return true;
+    if (!editable) return true;
+    if (title.trim() === property.title && JSON.stringify(pin) === JSON.stringify(pinFromAddress(property.address))) return true;
     if (!title.trim()) return false;
-    await updateProperty(property.id, { title: title.trim() });
+    await updateProperty(property.id, { title: title.trim(), location: { latitude: pin?.latitude ?? null, longitude: pin?.longitude ?? null } });
     return true;
   });
 
   return (
     <div className="cw-form">
       <Field label="Name" hint="Only you see this." value={title} disabled={!editable} onChange={(event) => setTitle(event.target.value)} />
+      <LocationPicker value={pin} onChange={setPin} disabled={!editable} />
       <dl className="cw-review">
         <ReviewLine icon={TYPE_GLYPHS[property.property_type] ?? "properties"} term="Kind" value={typeLabel(property, vocabulary)} />
         <ReviewLine icon="pin" term="Where" value={addressLine(property)} />
       </dl>
-      <p className="lw-quiet"><Icon name="lock" />A property is one address, so it cannot move.</p>
+      <p className="lw-quiet"><Icon name="lock" />The written address stays fixed when you adjust the map pin.</p>
     </div>
   );
 }
@@ -767,7 +713,10 @@ function DocumentsStep({
   const claim = useRef<(() => Promise<void>) | null>(null);
   const [ready, setReady] = useState(false);
   const document = property.verification.authority.state;
-  const recorded = document !== "draft";
+  const missingDocuments = saleKind && property.permitted_actions.submit_for_verification?.blockers.some(
+    (blocker) => blocker.kind === "document_missing" || blocker.kind === "title_missing",
+  );
+  const recorded = document !== "draft" && !missingDocuments;
   const withTeam = document === "submitted" || document === "under_review";
   const verb = saleKind ? "sell" : "let";
 
@@ -776,8 +725,12 @@ function DocumentsStep({
   }, [ready, onReady]);
 
   useCommit(commitRef, async () => {
-    // Nothing chosen is a skip: the rail keeps it open, and Review says so.
-    if (recorded || !ready) return true;
+    if (recorded) return true;
+    if (!ready) {
+      // Sales must show the missing-document error instead of skipping ahead.
+      if (saleKind) await claim.current?.();
+      return !saleKind;
+    }
     await claim.current?.();
     const next = await reload();
     return next.verification.authority.state !== "draft";

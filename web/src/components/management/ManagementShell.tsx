@@ -33,7 +33,7 @@ const NAV = [
     icon: "shield",
     items: [
       { href: "/management/verifications", label: "Verification queue", capability: "view_verifications" },
-      { href: "/management/providers", label: "Verification history", capability: "view_properties" },
+      { href: "/management/providers", label: "Verification records", capability: "view_properties" },
       { href: "/management/reports", label: "Reports", capability: "view_reports" },
     ],
   },

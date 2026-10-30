@@ -94,7 +94,6 @@ services:
       # --- Google -------------------------------------------------------------
       - key: GOOGLE_OAUTH_CLIENT_ID
         sync: false
-      # Optional Maps key: add GOOGLE_MAPS_SERVER_API_KEY in the dashboard.
 
       # --- Independent secrets; existing values are preserved ---------------
       - key: DJANGO_SECRET_KEY
@@ -131,7 +130,7 @@ services:
     ipAllowList: []
 
 # Optional shared settings (e.g. PAYMENT_ALERT_OWNER, PAYMENT_ALERT_WEBHOOK_URL,
-# GOOGLE_MAPS_SERVER_API_KEY) are entered in this group in Render, never Git.
+# other private credentials) are entered in this group in Render, never Git.
 envVarGroups:
   - name: danpahq-integrations
     envVars: []

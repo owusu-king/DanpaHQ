@@ -132,6 +132,7 @@ def _maintenance(request_id, *, lock: bool = False) -> _Subject:
 
     rows = MaintenanceRequest.objects.select_related(
         "property__address__locality__district__region",
+        "property__address__locality__region",
         "tenant",
         "unit",
         "assigned_artisan__user",

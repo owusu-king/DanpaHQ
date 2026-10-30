@@ -15,6 +15,8 @@ export type BaseMapStyle = "roadmap" | "satellite";
 export type MapCapabilities = { satellite: boolean; streetView: boolean };
 
 export type MapOptions = {
+  /** Cancel a pending browser-library import when its React mount is abandoned. */
+  signal?: AbortSignal;
   center: LatLng;
   zoom: number;
   minZoom: number;
@@ -36,6 +38,8 @@ export type MarkerOptions = {
   title?: string;
   /** Given a click, the marker is keyboard-reachable too. */
   onClick?: () => void;
+  draggable?: boolean;
+  onDragEnd?: (position: LatLng) => void;
 };
 
 export interface MapMarker {
@@ -73,6 +77,7 @@ export interface DanpaHQMap {
   onStreetViewChange(listener: (visible: boolean) => void): () => void;
   /** A tap on the map itself — not on a marker, nor anything drawn as one. */
   onBackgroundClick(listener: () => void): () => void;
+  onCoordinateClick?(listener: (position: LatLng) => void): () => void;
   destroy(): void;
 }
 

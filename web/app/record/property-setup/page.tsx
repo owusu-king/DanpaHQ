@@ -47,7 +47,7 @@ function PropertySetup() {
           propertyId={propertyId}
           startAt={search.get("step")}
           onClose={back}
-          onFinished={(id) => router.push(`/properties?created=${encodeURIComponent(id)}` as never)}
+          onFinished={(id) => router.push(`/record/property-verify?id=${encodeURIComponent(id)}` as never)}
         />
       </section>
     </div>

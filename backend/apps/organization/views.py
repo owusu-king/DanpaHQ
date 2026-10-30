@@ -281,7 +281,9 @@ class OrganizationPropertyView(APIView):
             services.properties_for_organization_member(
                 organization=organization, user=request.user
             )
-            .select_related("address__locality__district__region", "owner")
+            .select_related(
+                "address__locality__district__region", "address__locality__region", "owner"
+            )
             .prefetch_related(
                 # The mobile Properties tab reads `cover_url` from the same
                 # serializer; its condition-evidence fallback is batched there.
@@ -332,6 +334,29 @@ class OrganizationPortfolioView(APIView):
         return response
 
 
+class OrganizationRentTaxReportView(APIView):
+    permission_classes = [IsAuthenticated, IsPhoneVerified]
+
+    def post(self, request, pk):
+        from apps.core.exceptions import PermissionDenied
+
+        from .tax_reports import RentTaxReportSerializer, rental_tax_schedule
+
+        organization = services.get_organization_or_404(pk, request.user)
+        membership = services.active_membership(organization=organization, user=request.user)
+        if membership is None or "view_finances" not in services.ROLE_ABILITIES.get(
+            membership.role, ()
+        ):
+            raise PermissionDenied("You do not have access to this Portfolio's finances.")
+        serializer = RentTaxReportSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        response = Response(rental_tax_schedule(
+            organization=organization, user=request.user, identity=serializer.validated_data,
+        ))
+        response["Cache-Control"] = "private, no-store"
+        return response
+
+
 class OrganizationUnitView(APIView):
     """GET /organizations/<id>/units/ — every Unit in one Portfolio.
 
@@ -357,7 +382,10 @@ class OrganizationUnitView(APIView):
         )
         units = (
             Unit.objects.filter(property_id__in=property_ids, is_active=True)
-            .select_related("property__address__locality__district__region")
+            .select_related(
+                "property__address__locality__district__region",
+                "property__address__locality__region",
+            )
             .prefetch_related("media__file", "unit_amenities__amenity", "beds")
             .order_by("property__title", "label")
         )

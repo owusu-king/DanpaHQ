@@ -70,7 +70,7 @@ function ProviderMoreScreen() {
    * and the gate bounced the person straight round.
    */
   async function switchTo(workspace: Workspace, confirmation?: string) {
-    if (workspace === "tenant" && !me?.capabilities.tenant.workspace_access && confirmation !== "Rent account") { setRentText(""); setError(""); setRentConfirmation(true); return; }
+    if (workspace === "tenant" && !me?.capabilities.tenant.workspace_access && confirmation !== "TENANT") { setRentText(""); setError(""); setRentConfirmation(true); return; }
     setSwitching(workspace);
     setError("");
     try {
@@ -165,10 +165,13 @@ function ProviderMoreScreen() {
     />
     <BottomSheet visible={rentConfirmation} onClose={() => { if (!switching) setRentConfirmation(false); }} title="Create Renting Account" closeLabel="Cancel account creation">
       <View style={{ gap: space[4] }}>
-        <Type variant="body">Add a renting account for your own housing applications and tenancies. Your provider account stays intact. This does not create a tenancy or lease.</Type>
-        <Field label="Confirmation" hint="Type Rent account exactly, including capital letters." value={rentText} onChangeText={setRentText} autoCapitalize="none" autoCorrect={false} editable={!switching} />
+        <Type variant="body">Create a tenant account to apply for homes and manage your tenancies. Your other accounts stay unchanged.</Type>
+        <View style={{ gap: space[2] }}>
+          <Field label="Confirmation" accessibilityHint="Type TENANT to confirm your account creation" value={rentText} onChangeText={setRentText} autoCapitalize="none" autoCorrect={false} editable={!switching} />
+          <Type variant="caption">Type <Type variant="caption" style={{ fontWeight: "700" }}>TENANT</Type> to confirm your account creation</Type>
+        </View>
         {error ? <Notice tone="error" title={error} /> : null}
-        <Button label="Create account" disabled={rentText !== "Rent account"} busy={switching === "tenant"} onPress={() => { if (rentText === "Rent account") void switchTo("tenant", rentText); }} />
+        <Button label="Create account" disabled={rentText !== "TENANT"} busy={switching === "tenant"} onPress={() => { if (rentText === "TENANT") void switchTo("tenant", rentText); }} />
       </View>
     </BottomSheet>
     </>

@@ -248,14 +248,14 @@ export function VerificationPanel({
  * Both disappear once a reviewer holds the submission, because what they were
  * sent must not change under them — the API refuses either way.
  */
-function EvidenceTile({
+export function EvidenceTile({
   slot,
   locked,
   busy,
   disabled,
   onChoose,
 }: {
-  slot: EvidenceSlot;
+  slot: Pick<EvidenceSlot, "label" | "provided" | "preview_url">;
   locked: boolean;
   busy: boolean;
   disabled: boolean;

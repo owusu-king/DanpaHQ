@@ -39,7 +39,7 @@
   text-decoration: none;
   background: linear-gradient(170deg, rgba(255, 255, 255, .9), rgba(255, 255, 255, .7));
   border: 1px solid rgba(255, 255, 255, .9);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-sm);
   box-shadow:
     0 0 0 1px var(--unit-ring),
     0 1px 2px rgba(33, 26, 21, .04),
@@ -59,7 +59,7 @@
   aspect-ratio: 16 / 11;
   overflow: hidden;
   background: linear-gradient(150deg, var(--color-field-100), color-mix(in srgb, var(--color-kola-50) 70%, var(--color-field-100)));
-  border-radius: calc(var(--radius-lg) - 5px);
+  border-radius: var(--radius-xs);
 }
 
 .unit-card-photo img {
@@ -72,7 +72,7 @@
 
 /* An empty frame says so quietly; initials would be meaningless for a room.
    The Property page's tiles still render a bare span here. */
-.unit-card-photo > span:not(.unit-card-state) {
+.unit-card-photo > span:not(.unit-card-state):not(.unit-card-badges) {
   position: absolute;
   inset: 0;
   display: grid;
@@ -199,7 +199,7 @@
 .unit-card:focus-visible {
   outline: var(--border-emphasis) solid var(--color-kola-600);
   outline-offset: 3px;
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-sm);
 }
 
 .unit-card:focus-visible .unit-card-open { opacity: 1; transform: none; }
@@ -293,3 +293,9 @@
   .unit-card:active,
   .unit-card:hover .unit-card-photo img { transform: none; }
 }
+
+/* Availability and publication are separate, compact facts. */
+.unit-card-badges { position: absolute; top: 8px; left: 8px; right: 8px; display: flex; flex-wrap: wrap; gap: 4px; }
+.unit-card-badges .unit-card-state { position: static; padding: 3px 7px; font-size: .6875rem; line-height: 1.4; }
+.unit-card-visibility.is-public { color: var(--color-kola-600); }
+.unit-card-visibility.is-private { color: var(--color-ink-500); }

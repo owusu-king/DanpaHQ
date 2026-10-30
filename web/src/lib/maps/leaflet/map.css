@@ -1,0 +1,8 @@
+.danpahq-leaflet-icon { background: transparent; border: 0; width: max-content !important; height: auto !important; }
+/* Individual translate composes with Leaflet's positional transform and keeps
+   the accessible/clickable marker box over its visible face. */
+.danpahq-leaflet-icon.is-bottom { translate: -50% -100%; }
+.danpahq-leaflet-icon.is-center { translate: -50% -50%; }
+.danpahq-leaflet-marker { width: max-content; position: relative; }
+.leaflet-container { font: inherit; z-index: 0; }
+.leaflet-container .leaflet-control-attribution { font-size: 10px; background: rgb(255 255 255 / .9); }

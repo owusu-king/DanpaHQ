@@ -48,6 +48,28 @@ class ValidationFailed(DomainError):
     status_code = 422
     message = "Some of the details need fixing."
 
+    def __init__(self, message=None, *, details=None):
+        fields = (details or {}).get("fields")
+        if fields and (not message or message == self.message):
+            messages = []
+
+            def collect(value, path=""):
+                if isinstance(value, dict):
+                    for key, child in value.items():
+                        label = str(key).replace("_", " ")
+                        name = "" if key in ("non_field_errors", "__all__") else label
+                        collect(child, ". ".join(filter(None, (path, name))))
+                elif isinstance(value, list | tuple):
+                    for child in value:
+                        collect(child, path)
+                else:
+                    prefix = f"{path.capitalize()}: " if path else ""
+                    messages.append(f"{prefix}{value}")
+
+            collect(fields)
+            message = " ".join(messages) or message
+        super().__init__(message, details=details)
+
 
 class NotFound(DomainError):
     code = "not_found"

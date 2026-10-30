@@ -43,7 +43,6 @@ export function UnitWizard({
   propertyId,
   unitId: initialUnit = null,
   startAt = null,
-  onClose,
   onFinished,
 }: {
   propertyId: string;
@@ -92,7 +91,7 @@ export function UnitWizard({
 
   const at = STEPS.findIndex((row) => row.key === step);
   const ready = unit
-    ? unit.verification.can_submit && unit.permitted_actions.submit_for_verification?.allowed !== false
+    ? unit.verification.can_submit && unit.permitted_actions.submit_for_verification?.allowed === true
     : false;
   const sent = unit ? !unit.verification.editable : false;
 
@@ -162,9 +161,7 @@ export function UnitWizard({
         <>
           {at > 0 ? (
             <QuietAct label="Back" icon="chevron-back" disabled={busy} onPress={() => go(STEPS[at - 1]!.key)} />
-          ) : (
-            <QuietAct label="Cancel" disabled={busy} onPress={onClose} />
-          )}
+          ) : null}
           <Pill
             label={primary}
             icon={step === "review" ? (ready && !sent ? "shield-checkmark-outline" : "checkmark") : "arrow-forward"}

@@ -2,6 +2,8 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { useRouter } from "expo-router";
 import { Pressable, StyleSheet } from "react-native";
 
+import { useAuth } from "@/auth";
+import { useGuestSignIn } from "@/components/auth/GuestSignIn";
 import { alpha, shell } from "@/shell";
 
 /** The same height as the search field and the Filters button beside it. */
@@ -22,12 +24,17 @@ const SIZE = 42;
  */
 export function ExploreHeaderActions() {
   const router = useRouter();
+  const { state } = useAuth();
+  const requestSignIn = useGuestSignIn();
 
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel="Saved"
-      onPress={() => router.push("/(app)/saved" as never)}
+      onPress={() => {
+        if (state.status !== "signed_in") { requestSignIn("/(app)/saved"); return; }
+        router.push("/(app)/saved" as never);
+      }}
       hitSlop={3}
       style={({ pressed }) => [styles.saved, pressed ? styles.pressed : null]}
     >

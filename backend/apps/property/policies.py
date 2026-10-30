@@ -518,14 +518,14 @@ def can_edit_property(*, actor, target, elevated: bool = False) -> Decision:
     return allow(message="You can change this property while it is with you.")
 
 
-def _sale_title_blockers(target, application) -> list[Blocker]:
-    """The title — and for land the site plan — a sale's review reads.
+def _sale_authority_blockers(target, application) -> list[Blocker]:
+    """The relationship, title and site plan a sale's review reads.
 
     Stricter than letting on purpose (owner, 2026-09-28): the claim carries the
     seller's relationship, and a sale adds the document showing what is being
     sold. Named, because "a document is missing" does not say which of three.
     """
-    from apps.trust.evidence_policy import missing_required, sale_title_slots
+    from apps.trust.evidence_policy import authority_requirements, missing_required
     from apps.trust.models import VerificationEvidence
 
     collected = list(
@@ -533,9 +533,15 @@ def _sale_title_blockers(target, application) -> list[Blocker]:
             verification_id=application.authority_verification_id
         ).values_list("evidence_type", flat=True)
     )
-    outstanding = missing_required(collected, sale_title_slots(target))
+    outstanding = missing_required(
+        collected, authority_requirements(application.relationship_type, target)
+    )
     return [
-        Blocker(kind="title_missing", count=1, message=f"{slot.label} is still needed.")
+        Blocker(
+            kind="document_missing" if slot.key.startswith("authority.") else "title_missing",
+            count=1,
+            message=f"{slot.label} is still needed.",
+        )
         for slot in outstanding
     ]
 
@@ -594,7 +600,7 @@ def can_submit_property(*, actor, target, elevated: bool = False) -> Decision:
             )
         )
     elif target.is_for_sale:
-        blockers.extend(_sale_title_blockers(target, application))
+        blockers.extend(_sale_authority_blockers(target, application))
 
     if target.is_for_sale:
         from apps.sale.services import sale_blockers

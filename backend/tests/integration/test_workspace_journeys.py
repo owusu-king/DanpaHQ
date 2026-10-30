@@ -170,7 +170,7 @@ class TestSwitchingBack:
 
         switched = api.post(
             "/api/v1/me/workspace/",
-            {"workspace": "tenant", "tenant_confirmation": "Rent account"},
+            {"workspace": "tenant", "tenant_confirmation": "TENANT"},
             format="json",
         )
 
@@ -204,7 +204,7 @@ class TestSwitchingBack:
         ):
             response = api.post(
                 "/api/v1/me/workspace/",
-                {"workspace": workspace, "tenant_confirmation": "Rent account"},
+                {"workspace": workspace, "tenant_confirmation": "TENANT"},
                 format="json",
             )
             assert response.data["capabilities"]["active_workspace"] == workspace
@@ -228,7 +228,7 @@ class TestBothCapabilities:
         sign_in_as(api, user=person)
         api.post(
             "/api/v1/me/workspace/",
-            {"workspace": "tenant", "tenant_confirmation": "Rent account"},
+            {"workspace": "tenant", "tenant_confirmation": "TENANT"},
             format="json",
         )
         capabilities = api.get("/api/v1/me/").data["capabilities"]
@@ -249,7 +249,7 @@ class TestBothCapabilities:
 
         chosen = api.post(
             "/api/v1/me/workspace/",
-            {"workspace": "tenant", "tenant_confirmation": "Rent account"},
+            {"workspace": "tenant", "tenant_confirmation": "TENANT"},
             format="json",
         )
 
@@ -295,7 +295,7 @@ class TestTenantCapabilityIsRecordedNotAssumed:
         with pytest.raises(PermissionDenied):
             viewing_services.request_viewing(listing=address_for_listing, tenant=person)
         assert account_capabilities(person)["tenant"]["workspace_access"] is False
-        choose_workspace(user=person, workspace="tenant", tenant_confirmation="Rent account")
+        choose_workspace(user=person, workspace="tenant", tenant_confirmation="TENANT")
         viewing_services.request_viewing(listing=address_for_listing, tenant=person)
         assert account_capabilities(person)["tenant"]["workspace_access"] is True
 
@@ -460,7 +460,7 @@ class TestProviderSwitchesToTenantAndBack:
 
         to_tenant = api.post(
             "/api/v1/me/workspace/",
-            {"workspace": "tenant", "tenant_confirmation": "Rent account"},
+            {"workspace": "tenant", "tenant_confirmation": "TENANT"},
             format="json",
         )
 

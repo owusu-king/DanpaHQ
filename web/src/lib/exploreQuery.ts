@@ -4,8 +4,8 @@
  * The location field, the filter pills, the Filters panel, the results list,
  * the map's markers and the result count all read this; only the URL writes it.
  * The map is a view of the search, not its owner — so opening it, closing it,
- * leaving for a listing and coming back all return to exactly this, and a copied
- * address reproduces it for somebody else.
+ * leaving for a listing and coming back restore explicit search choices. Map
+ * boxes belong to map URLs only; returning to List drops that narrowing.
  *
  * The geographic part of a search is its *area*: a box searched on the map, or
  * else a chosen place — its name, its box and where it came from, all in the
@@ -70,6 +70,7 @@ const digits = (value: string | null) => (value ?? "").replace(/\D/g, "");
 /** `west,south,east,north`, and only when all four are real, in range and the right way round. */
 export function parseBounds(value: string | null): GeoBounds | null {
   if (!value) return null;
+  if (value.split(",").some((part) => !part.trim())) return null;
   const parts = value.split(",").map(Number);
   if (parts.length !== 4 || parts.some((part) => !Number.isFinite(part))) return null;
   const [west, south, east, north] = parts as [number, number, number, number];
@@ -104,7 +105,7 @@ export function parseExploreQuery(params: URLSearchParams): ExploreQuery {
   const bedrooms = digits(params.get("bedrooms_min"));
   return {
     area: parseArea(params),
-    bbox: parseBounds(params.get("bbox")),
+    bbox: params.get("view") === "map" ? parseBounds(params.get("bbox")) : null,
     q: (params.get("q") ?? "").slice(0, 120),
     localityId: params.get("locality_id") ?? "",
     localityName: params.get("locality_name") ?? "",
@@ -132,7 +133,7 @@ export function serializeExploreQuery(query: ExploreQuery): URLSearchParams {
     params.set("locality_id", query.localityId);
     if (query.localityName) params.set("locality_name", query.localityName);
   } else if (query.q.trim()) params.set("q", query.q.trim());
-  if (query.bbox) params.set("bbox", formatBounds(query.bbox));
+  if (query.view === "map" && query.bbox) params.set("bbox", formatBounds(query.bbox));
   if (query.propertyType) params.set("property_type", query.propertyType);
   if (query.spaceType) params.set("space_type", query.spaceType);
   if (query.bedrooms) params.set("bedrooms_min", query.bedrooms);
@@ -188,12 +189,12 @@ export function refinementCount(query: ExploreQuery): number {
   ].filter(Boolean).length;
 }
 
-/** The same query with every filter cleared and the area, text and view kept. */
+/** The same query with every filter cleared and the chosen place, text and view kept. Map-area narrowing is reset. */
 export function withoutFilters(query: ExploreQuery): ExploreQuery {
   return {
     ...EMPTY_EXPLORE_QUERY,
     area: query.area,
-    bbox: query.bbox,
+    bbox: null,
     q: query.q,
     localityId: query.localityId,
     localityName: query.localityName,

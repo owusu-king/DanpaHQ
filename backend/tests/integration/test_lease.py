@@ -621,7 +621,7 @@ class TestGoingLiveClosesTheMarket:
         winner = application_services.submit_application(
             listing=live_listing, tenant=user, data={"advance_months_offered": 6}
         )
-        choose_workspace(user=agent, workspace="tenant", tenant_confirmation="Rent account")
+        choose_workspace(user=agent, workspace="tenant", tenant_confirmation="TENANT")
         other = application_services.submit_application(
             listing=live_listing, tenant=agent, data={"advance_months_offered": 12}
         )

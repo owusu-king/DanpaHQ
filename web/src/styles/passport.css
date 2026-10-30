@@ -46,7 +46,7 @@
 
 .passport-cover {
   --cover-ink: #F6F0E2;
-  --cover-muted: color-mix(in srgb, #F6F0E2 66%, var(--color-kola-800));
+  --cover-muted: color-mix(in srgb, #F6F0E2 78%, var(--color-kola-800));
   --cover-foil: var(--color-gold-300);
   position: relative;
   isolation: isolate;
@@ -57,24 +57,28 @@
   overflow: hidden;
   color: var(--cover-ink);
   background:
-    radial-gradient(110% 120% at 100% 0%, color-mix(in srgb, var(--color-kola-600) 72%, transparent) 0%, transparent 58%),
-    linear-gradient(158deg, var(--color-kola-800) 0%, var(--color-kola-900) 78%);
+    linear-gradient(120deg, rgba(255, 255, 255, .14), rgba(255, 255, 255, .035) 28%, transparent 52%, rgba(255, 255, 255, .025)),
+    radial-gradient(110% 120% at 100% 0%, color-mix(in srgb, var(--color-kola-600) 60%, transparent) 0%, transparent 58%),
+    linear-gradient(158deg, color-mix(in srgb, var(--color-kola-800) 94%, transparent) 0%, color-mix(in srgb, var(--color-kola-900) 97%, transparent) 78%);
+  -webkit-backdrop-filter: blur(18px) saturate(115%);
+  backdrop-filter: blur(18px) saturate(115%);
   border-radius: 1.25rem;
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, .09),
-    0 0 0 1px rgba(12, 58, 42, .5),
-    0 22px 44px -26px rgba(12, 58, 42, .7);
+    inset 0 1px 0 rgba(255, 255, 255, .24),
+    inset 0 -1px 0 rgba(12, 58, 42, .16),
+    0 0 0 1px rgba(12, 58, 42, .18),
+    0 16px 36px -22px rgba(12, 58, 42, .38);
   animation: passport-cover-in 520ms var(--motion-easing-enter) both;
 }
 
 /* Fine engraved rings, the way a printed credential guards its face. */
 .passport-cover .portal-icon { color: inherit; }
 .passport-cover-guilloche { position: absolute; inset: 0; z-index: -1; pointer-events: none; }
-.passport-cover-guilloche svg { width: 100%; height: 100%; fill: none; stroke: var(--cover-foil); stroke-width: .6; opacity: .16; }
+.passport-cover-guilloche svg { width: 100%; height: 100%; fill: none; stroke: var(--cover-foil); stroke-width: .6; opacity: .1; }
 
 .passport-cover-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2) var(--space-4); }
 
-.passport-wordmark { display: inline-flex; align-items: center; gap: var(--space-2); color: var(--cover-foil); font-size: .75rem; font-weight: 650; letter-spacing: .14em; text-transform: uppercase; }
+.passport-wordmark { display: inline-flex; align-items: center; gap: var(--space-2); color: var(--cover-foil); font-size: .75rem; font-weight: 650; letter-spacing: .1em; text-transform: uppercase; }
 .passport-wordmark .portal-icon { width: 18px; height: 18px; }
 .passport-wordmark em { margin-left: 4px; color: var(--cover-muted); font-style: normal; font-weight: 500; letter-spacing: .08em; }
 
@@ -86,9 +90,9 @@
   color: var(--cover-muted);
   font-size: .75rem;
   font-weight: 500;
-  background: rgba(255, 255, 255, .06);
+  background: rgba(255, 255, 255, .08);
   border-radius: var(--radius-pill);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .1);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .16), inset 0 1px 0 rgba(255, 255, 255, .08);
 }
 .passport-cover-mode .portal-icon { width: 13px; height: 13px; }
 
@@ -105,9 +109,9 @@
   font-size: 1.25rem;
   font-weight: 600;
   letter-spacing: .02em;
-  background: radial-gradient(circle at 30% 25%, rgba(255, 255, 255, .14), rgba(255, 255, 255, .03));
+  background: radial-gradient(circle at 30% 25%, rgba(255, 255, 255, .2), rgba(255, 255, 255, .05));
   border-radius: 50%;
-  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--cover-foil) 80%, transparent), 0 0 0 4px rgba(221, 179, 90, .08);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--cover-foil) 55%, transparent), 0 0 0 4px rgba(255, 255, 255, .035);
 }
 
 .passport-holder-text { min-width: 0; }
@@ -150,7 +154,7 @@
   padding-top: var(--space-4);
   color: var(--cover-muted);
   font-size: .8125rem;
-  border-top: 1px dashed color-mix(in srgb, var(--cover-foil) 32%, transparent);
+  border-top: 1px solid rgba(255, 255, 255, .16);
 }
 .passport-cover-foot strong { color: #FFFBF2; font-weight: 600; }
 

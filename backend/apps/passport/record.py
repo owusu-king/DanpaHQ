@@ -73,6 +73,7 @@ def eligible_tenancies(user):
         .select_related(
             "property",
             "property__address__locality__district",
+            "property__address__locality__region",
             "unit",
             "bed",
             "activation_lease",

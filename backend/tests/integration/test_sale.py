@@ -314,6 +314,12 @@ class TestStricterVerification:
             "authority.ownership",
             "title.document",
         ]
+        assert [s.key for s in authority_requirements("owner", land) if s.required] == [
+            "title.document"
+        ]
+        assert [s.key for s in authority_requirements("owner", house) if s.required] == [
+            "title.document"
+        ]
         # Letting is unchanged: the relationship's one document.
         assert [s.key for s in authority_requirements("owner")] == ["authority.ownership"]
 
@@ -325,17 +331,84 @@ class TestStricterVerification:
         }
         assert "sale.interior" in {s.key for s in property_requirements(house) if s.required}
 
+    @pytest.mark.parametrize("kind", ["land", "residential"])
+    @pytest.mark.parametrize(
+        "relationship", ["owner", "agent", "manager", "company_representative"]
+    )
+    def test_sale_claim_accepts_title_without_optional_documents(
+        self, api, seller, portfolio, address, upload, relationship, kind
+    ):
+        from apps.property.models import PropertyProviderApplication
+
+        prop = _property(_create(api, seller, portfolio, address, kind=kind))
+        title = upload("property_document")
+        response = api.post(
+            f"/api/v1/properties/{prop.id}/claim/",
+            {
+                "relationship_type": relationship,
+                "owner_name": "Test owner",
+                "owner_phone": "+233209720009",
+                "company_name": "Test company",
+                "file_ids": [str(title.id)],
+                "evidence_types": {str(title.id): "land_title_certificate"},
+            },
+            format="json",
+        )
+        assert response.status_code == 201, response.data
+        assert PropertyProviderApplication.objects.filter(property=prop).exists()
+
+    @pytest.mark.parametrize("document_type", ["ownership_document", "site_plan"])
+    def test_optional_documents_cannot_replace_required_title(
+        self, api, seller, portfolio, address, upload, document_type
+    ):
+        prop = _property(_create(api, seller, portfolio, address, kind="land"))
+        document = upload("property_document")
+        response = api.post(
+            f"/api/v1/properties/{prop.id}/claim/",
+            {
+                "relationship_type": "owner",
+                "file_ids": [str(document.id)],
+                "evidence_types": {str(document.id): document_type},
+            },
+            format="json",
+        )
+        assert response.status_code == 422, response.data
+        assert "title" in str(response.data).lower()
+
+    def test_title_only_land_can_complete_verification(
+        self, api, seller, portfolio, address, upload, reviewer
+    ):
+        from apps.property.models import PropertyProviderApplication
+        from apps.property.policies import can_submit_property
+        from apps.property.verification import application_for
+        from apps.trust.models import VerificationEvidence
+
+        prop = _property(_create(api, seller, portfolio, address, kind="land", sale=LAND_DETAILS))
+        _complete(prop, seller, upload, site_plan=False)
+        claim = application_for(prop)
+        VerificationEvidence.objects.filter(
+            verification_id=claim.authority_verification_id,
+            evidence_type="ownership_document",
+        ).delete()
+        assert can_submit_property(actor=seller, target=prop).allowed is True
+        _verify(prop, seller, reviewer)
+        assert PropertyProviderApplication.objects.get(property=prop).status == "approved"
+
     def test_submission_names_what_is_missing(self, api, seller, portfolio, address, upload):
         from apps.property.policies import can_submit_property
+        from apps.property.verification import application_for
+        from apps.trust.models import VerificationEvidence
 
         prop = _property(_create(api, seller, portfolio, address, kind="land"))
-        _complete(prop, seller, upload, title=False, site_plan=False)
-
+        _complete(prop, seller, upload, site_plan=False)
+        VerificationEvidence.objects.filter(
+            verification_id=application_for(prop).authority_verification_id,
+            evidence_type="land_title_certificate",
+        ).delete()
         decision = can_submit_property(actor=seller, target=prop)
-
         assert decision.allowed is False
         kinds = [blocker.kind for blocker in decision.blockers]
-        assert kinds.count("title_missing") == 2
+        assert kinds.count("title_missing") == 1
         assert "sale_details_missing" in kinds
 
     def test_a_document_the_review_does_not_ask_for_is_refused(

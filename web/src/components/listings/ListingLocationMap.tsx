@@ -43,6 +43,7 @@ export function ListingLocationMap({
     if (!element || !mapsConfigured()) return;
     let map: DanpaHQMap | null = null;
     let cancelled = false;
+    const controller = new AbortController();
     const fail = () => {
       if (!cancelled) setState("failed");
     };
@@ -51,6 +52,7 @@ export function ListingLocationMap({
       .then((config) => {
         const [west, south, east, north] = config.bounds;
         return createMap(element, {
+          signal: controller.signal,
           center: { lat: latitude, lng: longitude },
           zoom: 15,
           minZoom: config.min_zoom,
@@ -88,6 +90,7 @@ export function ListingLocationMap({
 
     return () => {
       cancelled = true;
+      controller.abort();
       stopRefused();
       map?.destroy();
     };

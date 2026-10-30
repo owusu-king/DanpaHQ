@@ -3,17 +3,15 @@
 /**
  * Adding a Unit, at an address.
  *
- * Normally a sheet over the property. This route keeps "Add Unit" links from
- * the Units workspace and a half-finished Unit's "carry on" link working, with
- * the same wizard in the page.
+ * Direct and bookmarked setup links use the same modal as the Unit record.
  */
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense } from "react";
+import { Suspense, useRef } from "react";
 
 import { Notice } from "@/components/Notice";
-import { UnitWizard } from "@/components/property/UnitWizard";
+import { UnitWizardModal } from "@/components/property/UnitWizard";
 import { WorkspaceHead } from "@/components/workspace/Workspace";
 
 export default function NewSpacePage() {
@@ -28,6 +26,14 @@ function NewSpace() {
   const router = useRouter();
   const search = useSearchParams();
   const propertyId = search.get("propertyId") ?? "";
+  const finishedUnit = useRef<string | null>(null);
+
+  const returnToRecord = () => {
+    const unitId = finishedUnit.current ?? search.get("unitId");
+    router.replace((unitId
+      ? `/record/space?propertyId=${propertyId}&spaceId=${unitId}`
+      : `/record/property?id=${propertyId}`) as never);
+  };
 
   if (!propertyId) {
     return (
@@ -40,16 +46,15 @@ function NewSpace() {
 
   return (
     <div className="ws-page lease-wizard-page">
-      <WorkspaceHead icon="units" title="Add Unit" summary="Saved as you go." />
-      <section className="ws-panel creation-frame">
-        <UnitWizard
-          propertyId={propertyId}
-          unitId={search.get("unitId")}
-          startAt={search.get("step")}
-          onClose={() => router.push(`/record/property?id=${propertyId}` as never)}
-          onFinished={(unit) => router.push(`/record/space?propertyId=${propertyId}&spaceId=${unit.id}` as never)}
-        />
-      </section>
+      <WorkspaceHead icon="units" title={search.get("unitId") ? "Unit setup" : "Add Unit"} summary="Saved as you go." />
+      <UnitWizardModal
+        open
+        propertyId={propertyId}
+        unitId={search.get("unitId")}
+        startAt={search.get("step")}
+        onClose={returnToRecord}
+        onFinished={(unit) => { finishedUnit.current = unit.id; returnToRecord(); }}
+      />
     </div>
   );
 }

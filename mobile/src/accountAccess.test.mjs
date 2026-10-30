@@ -16,12 +16,13 @@ function compile(source, imports = {}, globals = {}) {
   }, ...globals });
   return exports;
 }
+const { isPublicDiscovery } = compile(read("src/navigation.ts"));
 const root = read("app/_layout.tsx");
 const gateSource = "export " + root.slice(root.indexOf("function entryRedirect("), root.indexOf("function Shell("));
 const { entryRedirect } = compile(gateSource, {}, {
   SIGNED_OUT_SCREENS: ["start", "sign-in", "phone", "code", "register", "forgot-password"],
   BASIC_ACCOUNT_SCREENS: ["profile-edit", "security", "notification-settings", "help", "trust", "identity-verification", "provider", "artisan-application", "provider-property"],
-  SHARED_TABS: ["payments"], accountJustCreated: () => false,
+  isPublicDiscovery, SHARED_TABS: ["payments"], accountJustCreated: () => false,
   resolveEntryRoute: (me) => me.entry_routes.mobile,
 });
 const signedOut = { status: "signed_out", firstVisit: true };
@@ -38,14 +39,15 @@ test("a newly registered artisan can apply without tenant access or operational 
     assert.equal(entryRedirect(session, null, ["(app)", screen]), "/(app)/(artisan-tabs)");
   }
 });
-test("anonymous access is limited to Explore and authentication", () => {
+test("anonymous access includes public listing discovery and keeps private routes protected", () => {
   assert.equal(entryRedirect(signedOut, null, ["(app)", "(tabs)", "explore"]), null);
   for (const route of [
     ["(app)", "(tabs)", "index"], ["(app)", "(tabs)", "payments"],
     ["(app)", "(tabs)", "profile"], ["(app)", "(tabs)", "services"],
-    ["(app)", "(provider-tabs)", "payments"], ["(app)", "listing", "123"],
+    ["(app)", "(provider-tabs)", "payments"],
     ["(app)", "profile-edit"], ["(app)", "artisan-job"],
   ]) assert.equal(entryRedirect(signedOut, null, route), "/(auth)/sign-in");
+  assert.equal(entryRedirect(signedOut, null, ["(app)", "listing", "123"]), null);
   assert.equal(entryRedirect(signedOut, null, ["(auth)", "register"]), null);
 });
 for (const side of ["provider", "artisan"]) {

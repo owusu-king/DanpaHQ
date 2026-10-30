@@ -26,7 +26,7 @@ from .serializers import (
     UpdateSaleSerializer,
 )
 
-_RELATED = ("property__address__locality__district__region",)
+_RELATED = ("property__address__locality__district__region", "property__address__locality__region")
 
 
 def _filtered(data: dict):
@@ -38,6 +38,8 @@ def _filtered(data: dict):
             | Q(description__icontains=query)
             | Q(property__address__locality__name__icontains=query)
             | Q(property__address__locality__district__name__icontains=query)
+            | Q(property__address__locality__aliases__icontains=query)
+            | Q(property__address__locality__region__name__icontains=query)
             | Q(property__address__place_name__icontains=query)
         )
     if "kind" in data:

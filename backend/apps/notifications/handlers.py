@@ -701,9 +701,9 @@ def on_sale_enquiry_replied(event) -> None:
     enquiry = _enquiry(event.aggregate_id)
     if enquiry is None:
         return
-    message = enquiry.messages.select_related("author").filter(
-        id=event.payload.get("message_id")
-    ).first()
+    message = (
+        enquiry.messages.select_related("author").filter(id=event.payload.get("message_id")).first()
+    )
     if message is None:
         return
     headline = enquiry.sale.headline or "the property"
@@ -1341,6 +1341,7 @@ def _invitation(invitation_id):
         QuoteInvitation.objects.select_related(
             "artisan__user",
             "maintenance_request__property__address__locality__district",
+            "maintenance_request__property__address__locality__region",
             "maintenance_request__tenant",
             "maintenance_request__unit",
             "maintenance_request__tenancy__activation_lease__landlord",
@@ -1348,6 +1349,7 @@ def _invitation(invitation_id):
             "maintenance_request__property__managed_by",
             "direct_job__owner",
             "direct_job__locality__district",
+            "direct_job__locality__region",
         )
         .filter(id=invitation_id)
         .first()

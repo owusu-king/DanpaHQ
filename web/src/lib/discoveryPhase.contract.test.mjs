@@ -115,7 +115,7 @@ test("provider space screens render occupied restrictions from backend actions",
   for (const source of sources) {
     assert.match(source, /availability\.state === "occupied"/);
     assert.match(source, /permitted_actions\.recheck/);
-    assert.match(source, /permitted_actions\.edit_operational/);
+    assert.match(source, /permitted_actions\.edit/);
     assert.match(source, /permitted_actions\.add_bed/);
     assert.match(source, /publish\?\.allowed/);
     assert.match(source, /Someone lives here/);

@@ -139,7 +139,7 @@ class ReviewerVerificationSerializer(VerificationSerializer):
 
         application = (
             PropertyProviderApplication.objects.select_related(
-                "applicant", "address__locality__district__region"
+                "applicant", "address__locality__district__region", "address__locality__region"
             )
             .filter(id=obj.subject_id)
             .first()
@@ -206,15 +206,15 @@ class ReviewerVerificationSerializer(VerificationSerializer):
             "account_type": user.account_type or "not chosen",
             "registration": user.registration_state,
             "provider_approval_method": obj.method if obj.kind == "provider" else "",
-            "provider_terms_version": (obj.provider_response or {}).get("terms", {}).get(
-                "version", ""
-            ),
-            "provider_terms_accepted_at": (obj.provider_response or {}).get("terms", {}).get(
-                "accepted_at", ""
-            ),
-            "provider_terms_digest": (obj.provider_response or {}).get("terms", {}).get(
-                "digest", ""
-            ),
+            "provider_terms_version": (obj.provider_response or {})
+            .get("terms", {})
+            .get("version", ""),
+            "provider_terms_accepted_at": (obj.provider_response or {})
+            .get("terms", {})
+            .get("accepted_at", ""),
+            "provider_terms_digest": (obj.provider_response or {})
+            .get("terms", {})
+            .get("digest", ""),
             "date_of_birth": user.date_of_birth.isoformat() if user.date_of_birth else "",
             "email": user.email or "",
             "member_since": user.created_at.date().isoformat(),

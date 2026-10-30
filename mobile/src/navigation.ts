@@ -64,13 +64,20 @@ export const BASIC_ACCOUNT_SCREENS = [
   "identity-verification", "provider", "artisan-application", "provider-property",
 ];
 
+export function isPublicDiscovery(segments: readonly string[]): boolean {
+  return segments[0] === "(app)" && (
+    (segments[1] === "(tabs)" && segments[2] === "explore")
+    || ["search", "listing", "sale"].includes(segments[1] ?? "")
+  );
+}
+
 /** Enforce access before the nested app navigator can mount a feature. */
 export function appAccessRedirect(me: Me | null, segments: readonly string[]): string | null {
   if (segments[0] !== "(app)") return null;
   const screen = segments[1] ?? "";
   const tab = segments[2] ?? "";
   const explore = screen === "(tabs)" && tab === "explore";
-  if (!me) return explore ? null : "/(auth)/sign-in";
+  if (!me) return isPublicDiscovery(segments) ? null : "/(auth)/sign-in";
   if (me.account_status !== "active") {
     return screen === "restricted" ? null : "/(app)/restricted";
   }

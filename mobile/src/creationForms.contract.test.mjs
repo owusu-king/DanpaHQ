@@ -71,7 +71,7 @@ test("one act is pinned where a thumb is, and the way back is quiet", () => {
     const source = read(path);
     assert.match(source, /footer=\{/);
     assert.match(source, /<QuietAct label="Back" icon="chevron-back"/);
-    assert.match(source, /<QuietAct label="Cancel"/);
+    assert.doesNotMatch(source, /<QuietAct label="Cancel"/);
     assert.doesNotMatch(source, /<Button\s+label=/, `${path} still stacks slabs`);
   }
   // A Documents step with nothing chosen says it skips, rather than "Save".
@@ -102,7 +102,7 @@ test("a set of answers is drawn, not hidden in a sheet or thrown about as chips"
   const select = read("src/components/form/Select.tsx");
   assert.match(select, /<BottomSheet/);
   assert.match(select, /aria-expanded=\{open\}/);
-  assert.match(read("src/components/property/AuthorityClaim.tsx"), /<Select\n        label="Your relationship to this property"/);
+  assert.match(read("src/components/property/AuthorityClaim.tsx"), /<Select\n        label="What is your relationship to this property\?"/);
 });
 
 test("amenities are one compact grid, each with its own glyph", () => {
@@ -135,14 +135,15 @@ test("every act in the creation flow is drawn the same way", () => {
 
   const photos = read("src/components/property/SpacePhotos.tsx");
   assert.doesNotMatch(photos, /<ActionBar>/, "a slot must not pin its own bar");
-  assert.match(photos, /<QuietAct\n                  label="Make it first"/);
+  assert.match(photos, /<QuietAct\s+label="Make it first"/);
   const claim = read("src/components/property/AuthorityClaim.tsx");
-  assert.match(claim, /label=\{document \? \(document\.fileName \|\| "Document attached"\) : "Attach the document"\}/);
+  assert.match(claim, /label="Title document \(Required\)"/);
+  assert.match(claim, /detail=\{document\?\.fileName \|\| "Choose document"\}/);
 });
 
-test("choosing where a Property is reads as a list of places", () => {
+test("a property has a written address and an independent manual pin", () => {
   const source = read(WIZARDS.property);
-  assert.match(source, /<View style=\{styles\.places\}>\s*\{suggestions\.map/);
-  assert.match(source, /name="location-outline"/);
-  assert.match(source, /suffix=\{place \? <Ionicons name="checkmark-circle"/);
+  assert.match(source, /<LocationPicker value=\{pin\}/);
+  assert.match(source, /place_name: query\.trim\(\)/);
+  assert.doesNotMatch(source, /suggestPlaces|resolvePlace|newPlacesSession/);
 });

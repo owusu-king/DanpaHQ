@@ -66,14 +66,15 @@ test("a Unit card carries enough to recognize it and nothing more", () => {
   assert.match(page, /unit\.property_title/);
   assert.match(page, /unit\.availability\.label/);
 
-  // Verification, publication, occupancy, lease and listing detail belong to
-  // the Unit itself. The card shows a flag only when something is wrong.
+  // The card separates availability from public/private visibility.
+  // Detailed verification, lease and listing controls remain on the Unit.
   //
   // Scoped to the card, not the page: the page reads publication to *filter*
-  // on it, which is a different thing from printing it on every tile.
+  // on it, and the card uses that same rule for its Public/Private badge.
   const card = body(page, "UnitCard");
   assert.match(page, /function needsAttention/);
-  assert.doesNotMatch(card, /publication\./);
+  assert.match(card, /unit-card-badges/);
+  assert.match(card, /isPublic\(unit\) \? "Public" : "Private"/);
   assert.doesNotMatch(card, /access_code/);
   assert.doesNotMatch(card, /photo_count/);
 });
@@ -148,7 +149,8 @@ test("Unit creation can be left safely and resumed with amenity photo evidence",
   // A half-finished Unit reopens where it was left, and every step can be left.
   assert.match(route, /unitId=\{search\.get\("unitId"\)\}/);
   assert.match(create, /getUnit\(initialUnit\)/);
-  assert.match(create, />Finish later</);
+  assert.match(create, /dismissible=\{false\}/);
+  assert.match(create, /closeLabel="Close Unit setup"/);
   assert.match(detail, /Continue setup/);
   assert.match(detail, /unitId=\$\{space\.id\}/);
 
@@ -194,7 +196,7 @@ test("Unit detail exposes the backend-owned archive or delete decision", () => {
   assert.match(api, /\/spaces\/\$\{unitId\}\/archive\//);
 });
 
-test("a Property is recognized by its picture, and its Units are browsed five across", () => {
+test("a Property is recognized by its picture, with compact related Unit rows", () => {
   const list = read("web/app/properties/page.tsx");
   const detail = read("web/app/record/property/page.tsx");
   const css = read("web/src/styles/property-workspace.css");
@@ -220,7 +222,9 @@ test("a Property is recognized by its picture, and its Units are browsed five ac
   }
 
   // Units inside their Property are tiles, not one-per-line rows.
-  assert.match(detail, /className="unit-columns"/);
+  assert.match(detail, /className="record-unit-list"/);
+  assert.match(detail, /className="record-unit-row"/);
+  assert.match(detail, /<RecordHero/);
   assert.match(detail, /function UnitTile/);
   assert.doesNotMatch(detail, /function UnitRow/);
   assert.match(css, /\.unit-columns \{[\s\S]*?repeat\(5, minmax\(0, 1fr\)\)/);
