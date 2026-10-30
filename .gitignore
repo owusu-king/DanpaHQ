@@ -298,3 +298,13 @@ deployment_resources.md
 # Embedded Android debug bundles and their generated resources.
 /mobile/android/app/src/debug/assets/
 /mobile/android/app/src/debug/res/
+
+
+backend/data/geography/raw/GH.zip
+backend/data/geography/raw/ghana-latest.osm.pbf
+backend/data/geography/raw/gss-geofiles.zip
+backend/data/geography/raw/gss-hdx.geojson.zip
+backend/data/geography/raw/hdx.json
+backend/data/geography/raw/osm-area-places.geojsonl
+backend/data/geography/raw/osm-places.geojsonl
+mobile/src/maps/leafletRuntime.generated.ts
