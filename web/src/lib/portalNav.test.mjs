@@ -65,7 +65,7 @@ test("an approved provider is offered the portfolio, and no tenant shortlist", (
 
   assert.deepEqual(links, [
     "/home", "/properties", "/units", "/tenants", "/documents", "/payments",
-    "/applications", "/viewings", "/maintenance", "/updates",
+    "/applications", "/viewings", "/maintenance", "/provider-passport", "/updates",
   ]);
   assert.ok(!links.includes("/saved"));
 });

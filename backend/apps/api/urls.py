@@ -25,6 +25,7 @@ from apps.operations import views as operations_views
 from apps.operations.guide_views import PublicGuidesView
 from apps.operations.mfa_views import MFALoginView
 from apps.organization import views as organization_views
+from apps.passport import provider_views
 from apps.passport import views as passport_views
 from apps.payments import views as payment_views
 from apps.property import lifecycle_views
@@ -336,6 +337,29 @@ property_patterns = [
 ]
 
 organization_patterns = [
+    path(
+        "organizations/<uuid:pk>/provider-passport/", provider_views.ProviderPassportView.as_view()
+    ),
+    path(
+        "organizations/<uuid:pk>/provider-passport/submit/",
+        provider_views.ProviderPassportSubmitView.as_view(),
+    ),
+    path(
+        "organizations/<uuid:pk>/provider-passport/documents/",
+        provider_views.ProviderPassportDocumentsView.as_view(),
+    ),
+    path(
+        "organizations/<uuid:pk>/provider-passport/documents/<uuid:document_pk>/",
+        provider_views.ProviderPassportDocumentView.as_view(),
+    ),
+    path(
+        "organizations/<uuid:pk>/provider-passport/documents/<uuid:document_pk>/download/",
+        provider_views.ProviderPassportDownloadView.as_view(),
+    ),
+    path(
+        "organizations/<uuid:pk>/provider-passport/photo/",
+        provider_views.ProviderPassportDownloadView.as_view(),
+    ),
     path(
         "organizations/",
         organization_views.OrganizationListView.as_view(),

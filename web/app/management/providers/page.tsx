@@ -20,7 +20,7 @@ import {
 } from "@/components/management/ManagementUI";
 import { formatDate, useManagement } from "@/lib/management";
 
-type VerificationRecord = { review_label: string; relationship_label: string; status_label: string; status_scope: "latest_property_submission" | "unit_review"; person_label: string; reviewed_at: string | null; recorded_at: string; subject_type: "property" | "unit"; id: string; applicant: string; phone: string; relationship: string; title: string; property_type: string; locality: string; region: string; status: string; verification_id: string; decision_note: string; submitted_at: string | null };
+type VerificationRecord = { review_label: string; relationship_label: string; status_label: string; status_scope: "latest_property_submission" | "unit_review" | "provider_passport_review"; person_label: string; reviewed_at: string | null; recorded_at: string; subject_type: "property" | "unit" | "provider_passport"; id: string; applicant: string; phone: string; relationship: string; title: string; property_type: string; locality: string; region: string; status: string; verification_id: string; decision_note: string; submitted_at: string | null };
 
 export default function ProvidersPage() {
   const { can } = useManagement();
@@ -39,7 +39,7 @@ export default function ProvidersPage() {
         description="Latest property submission statuses and individual unit review records. Claimed ownership roles are separate from review types."
         actions={can("view_verifications") ? <Link className="management-button" href="/management/verifications">Open the queue</Link> : null}
       />
-      <Panel title="Property and unit records" meta={resource.data ? countMeta(rows.length, all.length, ["record", "records"]) : undefined}>
+      <Panel title="Verification records" meta={resource.data ? countMeta(rows.length, all.length, ["record", "records"]) : undefined}>
         {resource.data?.has_more ? <p className="management-subtext">Showing the latest {resource.data.limit} records. Search and filters apply to these displayed records.</p> : null}
         <Toolbar>
           <SearchField label="Filter records" placeholder="Person, property, unit, role or area" value={query} onChange={setQuery} />
@@ -54,8 +54,8 @@ export default function ProvidersPage() {
         </Toolbar>
         <ResourceState loading={resource.loading} error={resource.error} onRetry={resource.reload} />
         {resource.data && rows.length ? (
-          <DataTable label="Property and unit verification records">
-            <thead><tr><th>Person</th><th>Review type</th><th>Claimed role</th><th>Property or unit</th><th>Location</th><th>Status</th><th>Last activity</th></tr></thead>
+          <DataTable label="Provider, property and unit verification records">
+            <thead><tr><th>Person</th><th>Review type</th><th>Claimed role</th><th>Subject</th><th>Location</th><th>Status</th><th>Last activity</th></tr></thead>
             <tbody>{rows.map((item) => (
               <tr key={`${item.subject_type}:${item.id}`}>
                 <td><strong>{item.applicant}</strong><span className="management-subtext">{item.person_label}{item.phone ? ` · ${item.phone}` : ""}</span></td>
@@ -63,13 +63,13 @@ export default function ProvidersPage() {
                 <td>{item.subject_type === "unit" ? <span className="management-subtext">Not applicable</span> : item.relationship_label || "—"}</td>
                 <td><strong>{item.title}</strong><span className="management-subtext">{humanize(item.property_type)}</span></td>
                 <td>{item.locality}<span className="management-subtext">{item.region}</span></td>
-                <td><Status value={item.status} label={item.status_label} /><span className="management-subtext">{item.status_scope === "unit_review" ? "Unit review record" : "Current property submission"}</span>{item.decision_note ? <span className="management-subtext">{item.decision_note}</span> : null}</td>
+                <td><Status value={item.status} label={item.status_label} /><span className="management-subtext">{item.status_scope === "unit_review" ? "Unit review record" : item.status_scope === "provider_passport_review" ? "Provider Passport review" : "Current property submission"}</span>{item.decision_note ? <span className="management-subtext">{item.decision_note}</span> : null}</td>
                 <td className="is-date">{formatDate(item.recorded_at)}{item.submitted_at ? <span className="management-subtext">Submitted {formatDate(item.submitted_at)}</span> : null}{item.reviewed_at ? <span className="management-subtext">Decided {formatDate(item.reviewed_at)}</span> : null}</td>
               </tr>
             ))}</tbody>
           </DataTable>
         ) : resource.data ? (
-          <Empty icon="verification" message={all.length ? "No records match this filter." : "No property submissions or unit reviews have been recorded yet."} />
+          <Empty icon="verification" message={all.length ? "No records match this filter." : "No provider, property or unit reviews have been recorded yet."} />
         ) : null}
       </Panel>
     </>

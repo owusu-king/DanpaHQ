@@ -457,6 +457,20 @@ def can_read(*, user, stored: StoredFile) -> bool:
     if stored.is_owned_by(user):
         return True
 
+    # Provider credentials use the capability-protected management evidence
+    # route, or their Portfolio's private document route. A legacy support role
+    # alone must not grant access to these identity/business documents.
+    from apps.passport.models import ProviderPassportDocument
+    from apps.trust.models import VerificationEvidence
+
+    if stored.purpose == FilePurpose.PROPERTY_DOCUMENT and (
+        ProviderPassportDocument.objects.filter(file=stored).exists()
+        or VerificationEvidence.objects.filter(
+            file=stored, verification__kind="provider_credentials"
+        ).exists()
+    ):
+        return False
+
     from apps.operations.models import ManagementUser
 
     if isinstance(user, ManagementUser):

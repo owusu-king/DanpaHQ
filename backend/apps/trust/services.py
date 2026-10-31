@@ -288,6 +288,10 @@ def decide(
     The evidence requirement is not bureaucracy: a manual approval with nothing
     attached cannot be re-examined when the tenant it protected loses money.
     """
+    if verification.kind == VerificationKind.PROVIDER_CREDENTIALS:
+        from apps.passport.provider import guard_review
+
+        verification = guard_review(verification, approved=approved)
     if verification.status not in (VerificationStatus.PENDING, VerificationStatus.NEEDS_MORE):
         raise Conflict("This check has already been decided.")
 
@@ -456,6 +460,10 @@ def decide(
 def request_more_information(
     verification: Verification, *, note: str, decided_by=None, management_actor=None
 ):
+    if verification.kind == VerificationKind.PROVIDER_CREDENTIALS:
+        from apps.passport.provider import guard_review
+
+        verification = guard_review(verification)
     if not note:
         raise ValidationFailed("Say exactly what is missing. The person will see this message.")
 

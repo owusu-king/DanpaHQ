@@ -117,6 +117,7 @@ function ProviderMoreScreen() {
     {
       key: "business",
       items: [
+        ...only(!can || can.manage_team, { key: "provider-passport", icon: "shield-checkmark-outline", label: "Provider Passport", onPress: go("/(app)/provider-passport") }),
         { key: "team", icon: "people-outline", label: "Team", onPress: go("/(app)/team") },
         ...only(billing, { key: "settlement", icon: "card-outline", label: "Settlement account", onPress: go("/(app)/payout-account") }),
         ...only(billing, { key: "billing", icon: "pricetag-outline", label: "Plan & billing", onPress: go("/(app)/billing") }),

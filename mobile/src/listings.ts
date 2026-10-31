@@ -190,6 +190,7 @@ export function formatMinor(minor: number, currency = "GHS"): string {
  * absent. They are released when a viewing is confirmed.
  */
 export type ListingDetail = Listing & {
+  provider_passports?: import("./providerPassport").PublicProviderCredential[];
   gallery: {
     id: string;
     file_id: string;

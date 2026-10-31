@@ -49,24 +49,21 @@ test("trust reassures without dominating", () => {
   // Four stamps under "Know who you're dealing with" used to sit in the middle
   // of the page, with a paragraph under them.
   for (const source of [web(), mobile()]) {
-    assert.match(source, /Verified rental/);
+    assert.match(source, /Verified rental|ListingProviderCard/);
     assert.doesNotMatch(source, /Know who you.{0,3}re dealing with/);
     assert.doesNotMatch(source, /trust_stamps\.phone/);
   }
   assert.match(mobile(), /expandedTrust/);
 });
 
-test("web states the verification rather than hiding it behind a control", () => {
-  // Whether to trust a listing is the question the reader arrived with. A
-  // disclosure made them open something to find out, which is the wrong trade
-  // for three stamps and one line.
-  assert.doesNotMatch(web(), /<details className="listing-trust">/);
-  assert.match(web(), /<section className="listing-trust"/);
-  assert.match(web(), /className="listing-trust-stamps"/);
-  // The shield, from the shared set, so the mark means one thing product-wide.
-  assert.match(web(), /<Icon name="verification" \/>/);
-  const css = read("web/src/styles/listing-workspace.css");
-  assert.match(css, /\.listing-trust-title \.portal-icon \{ width: 16px/);
+test("web exposes provider and rental checks in the provider card", () => {
+  assert.match(web(), /<ListingProviderCard listing=\{listing\}/);
+  const card = read("web/src/components/listings/ListingProviderCard.tsx");
+  assert.match(card, /Property provider/);
+  assert.match(card, /View Profile/);
+  assert.match(card, /checkList/);
+  assert.match(card, /<ModalSheet open=\{profileOpen\}/);
+  assert.doesNotMatch(card, /href="\/provider-passport/);
 });
 
 test("applying leads, and a viewing request is asked for rather than sent", () => {

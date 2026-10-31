@@ -53,12 +53,11 @@
 
 .listing-photos { position: relative; display: grid; animation: ws-rise var(--motion-duration-slow) var(--ws-enter) both; }
 
-/* A preview, not the exploration.
-   The Unit's own photograph leads and two more give immediate context; the rest
-   is one click away. Height is capped rather than proportional — a 16/9 mosaic
-   across a 76rem page stands 680px tall and takes a laptop's whole first
-   screen before a word has been read. */
-.listing-gallery { display: grid; grid-template-columns: 2fr 1fr; grid-template-rows: repeat(2, 1fr); gap: 6px; height: clamp(14rem, 36vh, 23rem); border-radius: 1.25rem; overflow: hidden; box-shadow: 0 22px 44px -30px rgba(33, 26, 21, .55), 0 0 0 1px rgba(33, 26, 21, .05); }
+/* A large lead image with four supporting views when available. */
+.listing-gallery { display: grid; grid-template-columns: 2fr 1fr 1fr; grid-template-rows: repeat(2, minmax(0, 1fr)); gap: 6px; height: clamp(22rem, 46vh, 31rem); border-radius: 1.25rem; overflow: hidden; box-shadow: 0 22px 44px -30px rgba(33, 26, 21, .55), 0 0 0 1px rgba(33, 26, 21, .05); }
+.listing-gallery[data-count="2"], .listing-gallery[data-count="3"] { grid-template-columns: 2fr 1fr; }
+.listing-gallery[data-count="2"] > button:last-child { grid-row: span 2; }
+.listing-gallery[data-count="4"] > button:last-child { grid-column: 2 / 4; }
 .listing-gallery > button { position: relative; padding: 0; background: var(--color-field-100); border: 0; cursor: pointer; overflow: hidden; }
 .listing-gallery > button:first-child { grid-row: span 2; }
 .listing-gallery > button::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 60%, rgba(15, 24, 20, .18)); opacity: 0; transition: opacity var(--motion-duration-base) var(--ws-ease); }
@@ -66,6 +65,7 @@
 .listing-gallery > button:hover img { transform: scale(1.035); }
 .listing-gallery > button:hover::after { opacity: 1; }
 .listing-gallery-solo { grid-template-columns: 1fr; grid-template-rows: 1fr; }
+.listing-gallery-solo > button:first-child { grid-row: auto; }
 
 .listing-gallery-empty {
   display: grid;
@@ -136,13 +136,13 @@
    list item (the sale page's) reads as a tile too. */
 /* Compact facts keep the listing itself and its actions in focus. */
 .listing-facts { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
-.listing-facts li { display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 100%; padding: 6px 9px; color: var(--color-ink-800); font-size: .75rem; background: var(--listing-glass); border: 1px solid var(--color-field-200); border-radius: 8px; }
+.listing-facts li { display: inline-flex; align-items: center; gap: 8px; min-width: 0; max-width: 100%; min-height: 38px; padding: 8px 12px; color: var(--color-ink-800); font-size: .8125rem; background: color-mix(in srgb, var(--color-kola-50) 70%, #fff); border: 1px solid color-mix(in srgb, var(--color-kola-600) 14%, #fff); border-radius: 8px; }
 .listing-fact-mark { display: inline-flex; flex: 0 0 auto; color: var(--color-kola-600); }
-.listing-fact-mark .portal-icon { width: 14px; height: 14px; color: inherit; }
+.listing-fact-mark .portal-icon { width: 16px; height: 16px; color: inherit; }
 .listing-fact-copy { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px; min-width: 0; }
-.listing-fact-copy small { color: var(--color-ink-500); font-size: .6875rem; }
+.listing-fact-copy small { color: var(--color-ink-600); font-size: .75rem; }
 .listing-fact-copy small::after { content: ":"; }
-.listing-fact-copy strong { color: var(--color-ink-900); font-size: .75rem; font-weight: 600; overflow-wrap: anywhere; }
+.listing-fact-copy strong { color: var(--color-ink-900); font-size: .875rem; font-weight: 600; overflow-wrap: anywhere; }
 
 /* --- sections: glass on the canvas ----------------------------------------------------- */
 
@@ -233,6 +233,24 @@
 /* The location section is the shared component; here it sits as one more pane. */
 .listing-location .listing-location-map { border-radius: var(--radius-md); overflow: hidden; }
 
+/* A property-scoped entry into the existing Danpa Intel conversation. */
+.listing-ask { display: flex; align-items: center; gap: 8px; width: 100%; max-width: 36rem; min-width: 0; min-height: 40px; margin: 0; padding: 4px 6px 4px 12px; border: 1px solid var(--color-field-300); border-radius: 22px; background: #fff; }
+.listing-ask:focus-within { border-color: var(--color-kola-600); outline: 2px solid var(--color-kola-50); outline-offset: 2px; }
+.listing-ask input { flex: 1; width: 0; min-width: 0; min-height: 30px; padding: 0; border: 0; border-radius: 0; background: transparent; color: var(--color-ink-900); font: inherit; font-size: .875rem; outline: none; box-shadow: none; }
+.listing-ask input:focus, .listing-ask input:focus-visible { outline: none; box-shadow: none; }
+.listing-ask button { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; gap: 6px; min-height: 28px; border: 0; font: inherit; font-size: .75rem; font-weight: 600; cursor: pointer; }
+.listing-ask-send { width: 28px; padding: 5px; border-radius: 50%; background: var(--color-kola-600); color: #fff; }
+.listing-ask-send svg { width: 18px; height: 18px; }
+.listing-ask-send:disabled { opacity: .45; cursor: default; }
+.listing-ask-continue { padding: 4px 6px; border-radius: 6px; background: transparent; color: var(--color-kola-800); white-space: nowrap; }
+.listing-ask-continue:hover { text-decoration: underline; text-underline-offset: 3px; }
+.listing-ask button:focus-visible { outline: 2px solid var(--color-kola-600); outline-offset: 3px; }
+
+.listing-discovery-tools { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.listing-discovery-tools > .listing-ask { flex: 1; }
+.listing-discovery-tools > .listing-secondary { flex: 0 0 auto; gap: 8px; margin-left: auto; }
+.listing-discovery-tools .listing-secondary > button { flex: 0 0 auto; position: relative; min-height: 40px; padding: 8px 12px; border: 1px solid var(--color-field-200); border-radius: 8px; background: #fff; box-shadow: none; font-size: .8125rem; line-height: 1.4; }
+
 /* --- the decision panel ------------------------------------------------------------- */
 
 /* It follows down the page because the decision is the point of the page — but
@@ -302,19 +320,17 @@
 .listing-terms dt { color: var(--color-ink-500); font-size: .875rem; }
 .listing-terms dd { margin: 0; color: var(--color-ink-900); font-size: .875rem; font-weight: 650; text-align: right; font-variant-numeric: tabular-nums; }
 
-/* The money to move in: the lease wizard's receipt, so the sum a tenant will
-   hand over looks like the same sum on the agreement later. */
-.listing-receipt { display: grid; gap: 4px; padding: var(--space-4); color: var(--color-ink-900); background: color-mix(in srgb, var(--color-kola-50) 55%, #fff); border: 1px solid color-mix(in srgb, var(--color-kola-600) 12%, #fff); border-radius: var(--radius-lg); }
+/* The actual move-in total, kept in one compact row. */
+.listing-receipt { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px 12px; padding: 12px 16px; color: var(--color-ink-900); background: color-mix(in srgb, var(--color-kola-50) 55%, #fff); border: 1px solid color-mix(in srgb, var(--color-kola-600) 12%, #fff); border-radius: 10px; }
 .listing-receipt > small { color: var(--color-kola-800); font-size: .6875rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
-.listing-receipt > strong { font-family: var(--font-display); font-size: 1.625rem; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
-.listing-receipt .listing-terms { gap: 6px; margin-top: var(--space-2); padding: var(--space-3) 0 0; background: none; border-top: 1px solid var(--color-field-200); border-radius: 0; box-shadow: none; }
-.listing-receipt .listing-terms dt { color: var(--color-ink-700); font-size: .8125rem; }
-.listing-receipt .listing-terms dt em { margin-left: 4px; color: var(--color-ink-500); font-size: .75rem; font-style: normal; }
-.listing-receipt .listing-terms dd { color: var(--color-ink-900); font-size: .8125rem; }
+.listing-receipt > strong { font-family: var(--font-display); font-size: 1.375rem; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -.02em; overflow-wrap: anywhere; }
 
 /* --- actions --- */
 
 .listing-actions { display: grid; gap: var(--space-2); }
+.listing-actions.is-rental { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.listing-actions.is-rental > .listing-secondary, .listing-actions.is-rental > .listing-confirm { grid-column: 1 / -1; }
+.listing-actions.is-rental:has(.listing-confirm) > .btn-primary { grid-column: 1 / -1; }
 .listing-actions .btn { min-height: 44px; padding: 6px 12px; gap: 6px; border-radius: 8px; font-size: .8125rem; font-weight: 650; line-height: 1.4; white-space: normal; }
 .listing-actions .btn .portal-icon { width: 16px; height: 16px; color: inherit; }
 
@@ -462,6 +478,46 @@ ul.listing-trust-stamps { display: grid; gap: 2px; padding: var(--space-1); back
 .listing-check-what { color: var(--color-ink-800); font-size: .8125rem; font-weight: 600; }
 .listing-check-state { color: var(--check-tone); font-size: .75rem; font-weight: 650; }
 
+/* Public provider card: the same quiet surface and green verification accents
+   as the listing, with provider identity separate from this rental's checks. */
+.listing-provider { min-width: 0; padding: 18px; background: #fff; border: 1px solid var(--color-field-200); border-radius: 14px; }
+.listing-provider-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
+.listing-provider-badge { display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; border-radius: 20px; background: var(--color-kola-50); color: var(--color-kola-600); font-size: .6875rem; font-weight: 600; line-height: 1.4; }
+.listing-provider .portal-icon, .listing-provider-modal .portal-icon { width: 17px; height: 17px; flex: 0 0 auto; color: inherit; }
+.listing-provider-badge .portal-icon { width: 13px; height: 13px; }
+.listing-provider-people { display: grid; gap: 16px; margin-top: 0; }
+.listing-provider-heading + .listing-provider-summary { margin-top: 12px; }
+.listing-provider-summary { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; }
+.listing-provider-summary .listing-provider-avatar { flex-basis: 40px; height: 40px; border-radius: 10px; }
+.listing-provider-summary .listing-provider-person { gap: 10px; }
+.listing-provider-summary .listing-provider-person strong { font-size: .875rem; }
+.listing-provider-summary .listing-provider-person p { font-size: .6875rem; }
+.listing-provider-person { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.listing-provider-avatar { display: grid; place-items: center; flex: 0 0 48px; height: 48px; border-radius: 12px; background: var(--color-kola-50); color: var(--color-kola-600); }
+.listing-provider-avatar .portal-icon { width: 25px; height: 25px; }
+.listing-provider-person > div { min-width: 0; }
+.listing-provider-person strong { display: block; color: var(--color-ink-900); font-size: .9375rem; font-weight: 650; line-height: 1.4; overflow-wrap: anywhere; }
+.listing-provider-person p { margin: 3px 0 0; color: var(--color-ink-600); font-size: .75rem; line-height: 1.5; }
+.listing-provider-verification { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--color-field-200); }
+.listing-provider-caption { margin: 0; color: var(--color-ink-500); font-size: .6875rem; line-height: 1.6; }
+.listing-provider-checks { display: grid; gap: 8px; margin: 10px 0 0; padding: 0; list-style: none; }
+.listing-provider-checks li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 8px; min-height: 32px; color: var(--color-ink-800); font-size: .75rem; line-height: 1.45; }
+.listing-provider-checks li > .portal-icon { color: var(--color-kola-600); }
+.listing-provider-status { max-width: 7rem; padding: 3px 7px; border-radius: 20px; background: var(--color-field-100); color: var(--color-ink-600); font-size: .6875rem; font-weight: 600; text-align: center; }
+.listing-provider-checks [data-state="verified"] .listing-provider-status { color: var(--color-kola-600); background: var(--color-kola-50); }
+.listing-provider-checks [data-state="pending"] .listing-provider-status { color: var(--color-harmattan-600); background: var(--color-harmattan-100); }
+.listing-provider-checks [data-state="expired"] .listing-provider-status { color: var(--color-laterite-600); background: var(--color-laterite-100); }
+.listing-provider-profile { display: inline-flex; align-items: center; justify-content: flex-end; gap: 6px; max-width: 6.5rem; min-height: 44px; padding: 4px; border: 0; border-radius: 6px; background: transparent; color: var(--color-kola-800); font: inherit; font-size: .75rem; font-weight: 600; line-height: 1.5; text-align: right; cursor: pointer; }
+.listing-provider-profile > span { flex: 0 0 auto; }
+.listing-provider-profile:hover { text-decoration: underline; text-underline-offset: 3px; }
+.listing-provider-profile:focus-visible { outline: 2px solid var(--color-kola-600); outline-offset: 3px; }
+.listing-provider-profile-body { min-width: 0; }
+.listing-provider-profile-body > .listing-provider-people { margin: 0; }
+.listing-provider-profile-body > .listing-provider-caption { margin-top: 16px; }
+.listing-provider-credentials { display: grid; gap: 12px; margin-top: 20px; padding: 14px; border-radius: 10px; background: var(--color-kola-50); color: var(--color-kola-800); font-size: .75rem; overflow-wrap: anywhere; }
+.listing-provider-credentials strong { font-weight: 600; }
+.listing-provider-credentials p { margin: 4px 0 0; font-size: .6875rem; }
+
 /* --- related --------------------------------------------------------------------------- */
 
 /* A curated continuation of discovery, separated from the decision panel so
@@ -557,12 +613,17 @@ ul.listing-trust-stamps { display: grid; gap: 2px; padding: var(--space-1); back
 @media (max-width: 640px) {
   .listing { gap: var(--space-4); padding-top: 0; }
   .listing::before { inset: 10rem 0 0; }
-  .listing-gallery { grid-template-columns: 1fr; grid-template-rows: 1fr; height: clamp(13rem, 34vh, 17rem); border-radius: 1rem; }
+  .listing-gallery, .listing-gallery[data-count] { grid-template-columns: 1fr; grid-template-rows: 1fr; height: clamp(16rem, 42vh, 22rem); border-radius: 1rem; }
   .listing-gallery > button:not(:first-child) { display: none; }
   .listing-gallery > button:first-child { grid-row: auto; }
   .listing-gallery-all { right: var(--space-2); bottom: var(--space-2); min-height: 2.25rem; padding: 0 var(--space-3); }
   .listing-head h1 { font-size: 1.5rem; }
-  .listing-facts li { padding: 6px 9px; gap: 6px; }
+  .listing-discovery-tools { gap: 8px; }
+  .listing-discovery-tools > .listing-secondary { gap: 6px; }
+  .listing-discovery-tools .listing-secondary > button { width: 38px; padding: 8px; }
+  .listing-discovery-tools .listing-action-label { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .listing-location-where strong { overflow-wrap: anywhere; }
+  .listing-facts li { padding: 8px 10px; gap: 8px; }
   .listing-section { padding: var(--space-4); }
   .listing-panel { padding: var(--space-4); border-radius: var(--radius-lg); }
   .listing-skeleton-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }

@@ -61,6 +61,7 @@ function salePage(origin, unavailable = false) {
     "@/components/PageTitle": { usePageTitle() {} }, "@/components/Button": { Button: "Button" },
     "@/lib/session": { useSession: () => ({ state: { status: "signed_out" } }) },
     "@/lib/exploreReturn": navigation, "@/lib/sales": { saleFacts: () => [] },
+    "@/lib/propertyIntel": compile("./propertyIntel.ts"),
   });
   return { tree: SalePage(), auth };
 }

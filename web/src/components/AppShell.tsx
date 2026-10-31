@@ -47,10 +47,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   );
 }
 
-/** The public assistant never mounts while a session is restoring or signed in. */
+/** Detail pages mount their own property-scoped assistant for guests and members. */
 function PublicIntel({ pathname }: { pathname: string }) {
   const { state } = useSession();
-  return state.status === "signed_out" && !isPortalRoute(pathname) ? <DanpaIntel /> : null;
+  return state.status === "signed_out" && !isPortalRoute(pathname) && pathname !== "/record/listing" && pathname !== "/record/sale" ? <DanpaIntel /> : null;
 }
 
 /** Screens that carry their own full-page layout and want no header at all. */

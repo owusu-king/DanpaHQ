@@ -53,7 +53,7 @@ export function GraReport({ organizationId, organizationName, properties = [] }:
   return <>
     <Button label="Generate financial report" variant="secondary" onPress={() => setOpen(true)} />
     <Modal visible={open} animationType="slide" presentationStyle="pageSheet" onRequestClose={close}>
-      <ModalSafeArea><SafeBottom render={bottom => <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: space[5], paddingBottom: bottom + space[6], gap: space[4] }}>
+      <ModalSafeArea><SafeBottom render={bottom => <View style={{ flex: 1 }}><ScrollView style={{ flex: 1 }} keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: space[5], gap: space[4] }}>
         <Type variant="title1" accessibilityRole="header">Property financial report</Type>
         <Type variant="caption">A statement of income, expenses, outstanding charges and net rental income. CSV exports the raw supporting records.</Type>
         <Select label="Report format" value={input.format ?? "pdf"} disabled={busy} options={[{ value: "pdf", label: "PDF financial statement" }, { value: "csv", label: "CSV raw data" }]} onChange={format => setInput(current => ({ ...current, format }))} />
@@ -67,8 +67,9 @@ export function GraReport({ organizationId, organizationName, properties = [] }:
         <Type variant="caption">Outstanding balances are current at generation for charges due within the period. Taxpayer details are used only for this report. Tax calculation and filing remain separate.</Type>
         <Button label="GRA return requirements" variant="quiet" onPress={() => { void Linking.openURL("https://gra.gov.gh/domestic-tax/returns/").catch(() => setError("Could not open GRA guidance.")); }} />
         {error ? <Notice tone="error" title={error} /> : null}
-        <View style={{ gap: space[2] }}><Button label={input.format === "pdf" ? "Generate and save PDF" : "Export CSV data"} busy={busy} busyLabel="Generating…" onPress={() => void generate()} /><Button label="Close" variant="quiet" onPress={close} /></View>
-      </ScrollView>} /></ModalSafeArea>
+      </ScrollView>
+        <View style={{ flexShrink: 0, paddingHorizontal: space[5], paddingTop: space[4], paddingBottom: Math.max(bottom, space[4]), borderTopWidth: 1, borderTopColor: "#e6e3dd", backgroundColor: "#fff", gap: space[2] }}><Button label={input.format === "pdf" ? "Generate and save PDF" : "Export CSV data"} busy={busy} busyLabel="Generating…" onPress={() => void generate()} /><Button label="Close" variant="quiet" onPress={close} /></View>
+      </View>} /></ModalSafeArea>
     </Modal>
   </>;
 }

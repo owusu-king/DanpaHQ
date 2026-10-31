@@ -177,6 +177,7 @@ class SaleCardSerializer(serializers.ModelSerializer):
 class SaleDetailSerializer(SaleCardSerializer):
     """One property for sale, whole."""
 
+    provider_passports = serializers.SerializerMethodField()
     gallery = serializers.SerializerMethodField()
     landmark = serializers.SerializerMethodField()
     features = serializers.SerializerMethodField()
@@ -193,8 +194,14 @@ class SaleDetailSerializer(SaleCardSerializer):
             "features",
             "amenities",
             "my_enquiry_id",
+            "provider_passports",
         ]
         read_only_fields = fields
+
+    def get_provider_passports(self, obj):
+        from apps.passport.provider import public_for_property
+
+        return public_for_property(obj.property)
 
     def get_gallery(self, obj) -> list[dict]:
         return sale_photos(obj)

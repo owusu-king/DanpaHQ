@@ -15,6 +15,7 @@
 export const BRAND = "DanpaHQ";
 
 const TITLES: Record<string, string> = {
+  "/provider-passport": "Provider Passport",
   "/": "Home",
   "/how-it-works": "How it works",
 

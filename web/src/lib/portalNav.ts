@@ -123,7 +123,10 @@ export function portalSections(
           ] as PortalItem[],
         }]
         : []),
-      ACCOUNT_SECTION,
+      { ...ACCOUNT_SECTION, items: [
+        ...(!access || access.can.manage_team ? [{ href: "/provider-passport", label: "Provider Passport", icon: "passport", hint: "Provider credentials and property authority" } as PortalItem] : []),
+        ...ACCOUNT_SECTION.items,
+      ] },
     ];
   }
 
@@ -262,6 +265,7 @@ export function activeHref(sections: PortalSection[], pathname: string): string 
  * that from the session, not from the path.
  */
 const PORTAL_PREFIXES = [
+  "/provider-passport",
   "/home",
   "/settings",
   "/apply",

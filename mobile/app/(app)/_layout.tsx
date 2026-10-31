@@ -75,6 +75,7 @@ export default function AppLayout() {
       <Stack.Screen name="provider-application" options={{ title: "Tenancy request" }} />
       <Stack.Screen name="leases" options={{ title: "Agreements" }} />
       <Stack.Screen name="passport" options={{ title: "Housing Passport" }} />
+      <Stack.Screen name="provider-passport" options={{ title: "Provider Passport" }} />
       <Stack.Screen name="agreement/[id]" options={{ title: "Agreement" }} />
       <Stack.Screen name="provider-lease" options={{ title: "Agreement" }} />
       <Stack.Screen name="lease-builder" options={{ title: "Prepare agreement" }} />

@@ -74,7 +74,10 @@ export function portalSections(me, portfolioName, access) {
           ],
         }]
         : []),
-      ACCOUNT_SECTION,
+      { ...ACCOUNT_SECTION, items: [
+        ...(!access || access.can.manage_team ? [{ href: "/provider-passport", label: "Provider Passport", icon: "passport", hint: "Provider credentials and property authority" }] : []),
+        ...ACCOUNT_SECTION.items,
+      ] },
     ];
   }
 
@@ -154,6 +157,7 @@ export function activeHref(sections, pathname) {
 }
 
 const PORTAL_PREFIXES = [
+  "/provider-passport",
   "/home",
   "/settings",
   "/apply",

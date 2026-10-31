@@ -104,6 +104,13 @@ class ReviewerVerificationSerializer(VerificationSerializer):
         read_only_fields = fields
 
     def get_subject_label(self, obj) -> str:
+        if obj.subject_type == "organisation" and obj.kind == "provider_credentials":
+            from apps.organization.models import Organization
+
+            organization = Organization.objects.filter(id=obj.subject_id).first()
+            return (
+                f"{organization.name} — Provider Passport" if organization else "Provider Passport"
+            )
         if obj.subject_type == "user":
             from apps.identity.models import User
 
@@ -131,6 +138,26 @@ class ReviewerVerificationSerializer(VerificationSerializer):
         return f"{obj.subject_type}:{obj.subject_id}"
 
     def get_subject_context(self, obj) -> dict | None:
+        if obj.subject_type == "organisation" and obj.kind == "provider_credentials":
+            from apps.organization.models import Organization
+            from apps.passport import provider
+
+            organization = Organization.objects.filter(id=obj.subject_id).first()
+            if not organization:
+                return None
+            passport = provider.draft(organization)
+            person = provider.representative(organization, passport)
+            return {
+                **(obj.provider_response or {}).get("credentials", {}),
+                **provider.identity(person, organization),
+                "submission_current": bool(
+                    passport
+                    and passport.verification_id == obj.id
+                    and provider.matches(organization, passport)
+                ),
+                "scope": ("Provider credentials only. Property authority and condition "
+                          "require separate reviews."),
+            }
         if obj.subject_type == "user":
             return self._user_context(obj)
         if obj.subject_type != "provider_application":

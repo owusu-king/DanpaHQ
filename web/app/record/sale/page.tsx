@@ -22,6 +22,8 @@ import { useAuthDialog } from "@/components/auth/AuthDialog";
 import { usePageTitle } from "@/components/PageTitle";
 import { Button } from "@/components/Button";
 import { Notice } from "@/components/Notice";
+import { PropertyAsk } from "@/components/listings/PropertyAsk";
+import { saleIntelContext } from "@/lib/propertyIntel";
 import { Icon } from "@/components/portal/icons";
 import { ApiFailure } from "@/lib/api";
 import { getSale, saleFacts, startEnquiry, type SaleDetail, type SalePhoto } from "@/lib/sales";
@@ -111,8 +113,8 @@ export default function SalePage() {
 
       {photos.length ? (
         <div className="listing-photos">
-          <div className={`listing-gallery${photos.length === 1 ? " listing-gallery-solo" : ""}`}>
-            {photos.slice(0, 3).map((photo, index) => (
+          <div className={`listing-gallery${photos.length === 1 ? " listing-gallery-solo" : ""}`} data-count={Math.min(photos.length, 5)}>
+            {photos.slice(0, 5).map((photo, index) => (
               <button
                 key={photo.id}
                 type="button"
@@ -134,6 +136,8 @@ export default function SalePage() {
       ) : (
         <div className="listing-gallery-empty"><span className="type-caption">Photos pending</span></div>
       )}
+
+      <PropertyAsk property={saleIntelContext(sale)} />
 
       <div className="listing-body">
         <div className="listing-main">
@@ -250,6 +254,7 @@ export default function SalePage() {
               <Icon name="verification" />
               Verified for sale
             </p>
+            {sale.provider_passports?.map(passport => <p className="type-caption" key={passport.name}>{passport.name} · Provider Passport verified</p>)}
             <p className="type-caption">
               Our team read the title and checked the seller may sell it. Still have a lawyer search the title before you pay anything.
             </p>

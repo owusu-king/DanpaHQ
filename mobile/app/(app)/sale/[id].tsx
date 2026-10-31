@@ -192,6 +192,7 @@ export default function SaleScreen() {
             </View>
             <View style={{ flex: 1, gap: 2 }}>
               <Type variant="bodyStrong" style={{ color: theme.color.kola["800"] }}>Verified for sale</Type>
+              {sale.provider_passports?.map(passport => <Type variant="captionStrong" key={passport.name}>{passport.name} · Provider Passport verified</Type>)}
               <Type variant="caption" style={styles.muted}>
                 Our team read the title and checked the seller may sell it. Still have a lawyer search the title before you pay.
               </Type>

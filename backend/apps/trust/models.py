@@ -71,6 +71,7 @@ class VerificationKind(models.TextChoices):
     #: corrects — a provider is approved once and then claims properties, each
     #: of which is reviewed separately under PROPERTY_AUTHORITY.
     PROVIDER = "provider", "Approved to operate as a property provider"
+    PROVIDER_CREDENTIALS = "provider_credentials", "Provider Passport credentials"
     #: The same shape for tradespeople: may this account quote for and take on
     #: jobs at all. Approval opens the artisan experience and nothing else; it
     #: says nothing about the quality of anybody's work (`apps.artisan`).
@@ -126,6 +127,7 @@ VALIDITY_DAYS: dict[str, int | None] = {
     # never told about. It ends by revocation, which is a decision someone makes
     # and has to record a reason for.
     VerificationKind.PROVIDER: None,
+    VerificationKind.PROVIDER_CREDENTIALS: 365,
     # For the same reason as a provider: an artisan midway through a job must
     # not lose access on an anniversary. It ends by suspension or revocation.
     VerificationKind.ARTISAN: None,

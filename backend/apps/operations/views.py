@@ -649,8 +649,58 @@ class ProvidersView(ManagementAPIView):
                     "recorded_at": _iso(check.history_activity),
                 }
             )
+        from apps.organization.models import Organization
+
+        passport_probe = list(
+            Verification.objects.filter(
+                subject_type="organisation", kind=VerificationKind.PROVIDER_CREDENTIALS
+            )
+            .select_related("submitted_by")
+            .order_by("-updated_at", "-id")[: limit + 1]
+        )
+        organizations = {
+            str(row.id): row
+            for row in Organization.objects.filter(
+                id__in=[check.subject_id for check in passport_probe]
+            )
+        }
+        for check in passport_probe[:limit]:
+            organization = organizations.get(check.subject_id)
+            results.append(
+                {
+                    "id": str(check.id),
+                    "subject_type": "provider_passport",
+                    "review_kind": "provider_credentials",
+                    "review_label": "Provider Passport",
+                    "status_scope": "provider_passport_review",
+                    "person_label": "Submitted by",
+                    "applicant_id": str(check.submitted_by_id or ""),
+                    "applicant": check.submitted_by.display_name
+                    if check.submitted_by
+                    else "Account unavailable",
+                    "phone": "",
+                    "relationship": "",
+                    "relationship_label": "Provider credentials",
+                    "title": organization.name if organization else "Portfolio unavailable",
+                    "property_type": organization.organization_type if organization else "",
+                    "locality": "",
+                    "region": "",
+                    "status": check.status,
+                    "status_label": check.get_status_display(),
+                    "verification_id": str(check.id),
+                    "decision_note": check.decision_note,
+                    "submitted_at": _iso(check.created_at),
+                    "reviewed_at": _iso(check.decided_at),
+                    "recorded_at": _iso(check.updated_at),
+                }
+            )
         results.sort(key=lambda row: (row["recorded_at"], row["id"]), reverse=True)
-        has_more = len(property_probe) > limit or len(unit_probe) > limit or len(results) > limit
+        has_more = (
+            len(property_probe) > limit
+            or len(unit_probe) > limit
+            or len(passport_probe) > limit
+            or len(results) > limit
+        )
         # This endpoint serves a bounded recent-record window. Apply filters to
         # the same displayed states and window as the client, never to raw
         # application statuses that differ from package states.
@@ -709,6 +759,15 @@ def _review_subject(verification) -> tuple[str, str, str]:
             label = unit.label or unit.space_type.replace("_", " ").capitalize()
             return f"space:{unit.id}", f"{label} — {unit.property.title}", ""
 
+    if verification.subject_type == "organisation" and verification.kind == "provider_credentials":
+        from apps.organization.models import Organization
+
+        organization = Organization.objects.filter(id=verification.subject_id).first()
+        return (
+            f"organisation:{verification.subject_id}",
+            f"{organization.name} — Provider Passport" if organization else "Provider Passport",
+            "",
+        )
     return f"{verification.subject_type}:{verification.subject_id}", "", ""
 
 

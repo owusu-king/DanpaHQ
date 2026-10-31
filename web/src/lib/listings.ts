@@ -87,6 +87,7 @@ export function requestPublicViewing(listingId: string) {
  * a page.
  */
 export type ListingDetail = Listing & {
+  provider_passports?: import("./providerPassport").PublicProviderCredential[];
   gallery: Array<{
     id: string;
     file_id: string;

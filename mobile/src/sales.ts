@@ -68,6 +68,7 @@ export type SalePhoto = {
 };
 
 export type SaleDetail = SaleCard & {
+  provider_passports?: import("./providerPassport").PublicProviderCredential[];
   description: string;
   lease_years_remaining: number | null;
   gallery: SalePhoto[];

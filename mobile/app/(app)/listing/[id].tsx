@@ -369,6 +369,7 @@ export default function ListingDetailScreen() {
             {expandedTrust ? (
               <View style={styles.stamps}>
                 <Stamp state={listing.trust_stamps.identity.state} what="Identity" />
+                {listing.provider_passports?.map(passport => <Stamp key={passport.name} state="verified" what={`${passport.name} · Provider Passport`} />)}
                 <Stamp state={place.authority.state} what={listing.provider_label} />
                 <Stamp state={rentable.verification.checked ? "verified" : "unverified"} what="This space" />
                 <Type variant="caption" style={styles.muted}>
