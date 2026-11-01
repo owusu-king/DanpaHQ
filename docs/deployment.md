@@ -62,7 +62,7 @@ Use one column throughout setup. Create separate databases, Redis, buckets and a
 
 2. Use the **Web** client ID for API `GOOGLE_OAUTH_CLIENT_ID`, Pages `NEXT_PUBLIC_GOOGLE_CLIENT_ID`, and mobile `GOOGLE_OAUTH_CLIENT_ID`.
 3. Use the **iOS** client ID for mobile `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID`. Do not substitute it for the Web ID.
-4. Maps use Leaflet and configurable public HTTPS XYZ tiles on web and mobile. No Google Maps/Places key or billing setup is needed. Configure the matching `NEXT_PUBLIC_MAP_TILE_*` and `EXPO_PUBLIC_MAP_TILE_*` values from [free maps](free-maps.md), with the tile provider's required attribution. Rebuild clients after changing build inputs. The community OSM default is for light development, with no guaranteed capacity or SLA.
+4. Maps use Leaflet and configurable public HTTPS XYZ tiles on web and mobile. No Google Maps/Places key or billing setup is needed. Configure matching `NEXT_PUBLIC_MAP_TILE_*` and `EXPO_PUBLIC_MAP_TILE_*` fallbacks as described in [Maps and Ghana reference data](#8-maps-and-ghana-reference-data), with the provider's required attribution. Rebuild clients after changing build inputs. The community OSM default is for light development, with no guaranteed capacity or SLA.
 
 Keep Android OAuth client IDs in Google Cloud. Google Sign-In configuration remains separate from maps.
 
@@ -194,7 +194,7 @@ npx eas-cli project:info
 | `EXPO_PUBLIC_EAS_PROJECT_ID` | Existing project UUID | Same UUID | Plain text |
 | `GOOGLE_OAUTH_CLIENT_ID` | Web OAuth ID accepted by staging API | Copy `build.production.env` value from `eas.json` | Plain text |
 | `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID` | iOS OAuth ID registered for `com.danpahq.app` | Copy `build.production.env` value from `eas.json` | Plain text |
-| `EXPO_PUBLIC_MAP_TILE_URL`, `EXPO_PUBLIC_MAP_TILE_ATTRIBUTION`, `EXPO_PUBLIC_MAP_TILE_ATTRIBUTION_URL` | Public tile URL and matching credits; see free-maps.md | Same, using the chosen provider | Plain text (never private keys) |
+| `EXPO_PUBLIC_MAP_TILE_URL`, `EXPO_PUBLIC_MAP_TILE_ATTRIBUTION`, `EXPO_PUBLIC_MAP_TILE_ATTRIBUTION_URL` | Public tile URL and matching credits; see §8 | Same, using the chosen provider | Plain text (never private keys) |
 | `GOOGLE_SERVICES_JSON` | Existing matching Firebase Android file, if push is used | Same matching file | Secret **file** |
 
 3. To save/check API values by CLI:
@@ -350,3 +350,56 @@ npx eas-cli update --channel production --environment production --message "Desc
 | Web release fails | Cloudflare Pages → previous deployment → **Rollback** |
 | API release fails | Disable auto-deploy; Render → schema-compatible previous deployment → **Rollback**; migrations are not reverted |
 | Mobile release fails | Issue a corrective build; current apps do not support OTA rollback |
+
+## 8. Maps and Ghana reference data
+
+**Map configuration.** Management → System → Configuration → Maps (`/management/configuration?section=maps`) controls rendering, public HTTPS XYZ tile URL and attribution/copyright link. `/api/v1/map/config/` exposes only public values; overrides take precedence over client defaults. New map instances cache configuration for at most one minute; mounted maps keep their current provider. Reload/restart updated clients for immediate application. Old binaries need the supporting JS update.
+
+Optional build fallbacks use these suffixes with both `NEXT_PUBLIC_MAP_TILE_` and `EXPO_PUBLIC_MAP_TILE_`: `URL=https://tile.openstreetmap.org/{z}/{x}/{y}.png`, `ATTRIBUTION=© OpenStreetMap contributors`, `ATTRIBUTION_URL=https://www.openstreetmap.org/copyright`. Never put private credentials in public settings. Native Google login/FCM credentials remain separate; do not remove them with obsolete Google Maps keys.
+
+Leaflet is BSD-licensed. The [OSMF tile policy](https://operations.osmfoundation.org/policies/tiles/) requires visible attribution, identification/referrers, normal caching and no bulk/offline scraping. Commercial data rights do not guarantee community tile capacity: under 100 daily map views is an early-development estimate, not a quota or SLA. Select a host against measured tile requests and its current terms before production. [Geoapify](https://www.geoapify.com/pricing-details/) was researched as an optional commercial free-tier alternative, not activated; recheck pricing/attribution before choosing it. Standard OSM tiles do not provide satellite imagery; imagery requires separate licensing/provider configuration.
+
+**Reference sources and credits.** The packaged [snapshot and licence notice](../backend/data/geography/README.md), [manifest](../backend/data/geography/manifest.json) and crosswalk retain source identities, checksums and attribution:
+
+| Obtained source | Licence and limitations |
+|---|---|
+| [GSS Census Atlas](https://statsbank.statsghana.gov.gh/censusatlas/), [direct archive](https://statsbank.statsghana.gov.gh/assets/geofiles.zip) | Corroborated 261 districts, including Guan in Oti; geometry not imported/redistributed because an explicit licence was not found. |
+| [GSS via OCHA/HDX](https://data.humdata.org/dataset/cod-ab-gha) | CC BY 3.0 IGO; 16 regions, 260 district polygons valid 8 March 2021, reviewed 30 October 2025. Publication date is not boundary vintage. |
+| [GeoNames Ghana](https://download.geonames.org/export/dump/GH.zip), [fields](https://download.geonames.org/export/dump/readme.txt) | [CC BY 4.0](https://www.geonames.org/export/); populated places/aliases/points and point-only Guan supplement; excludes historical/abandoned/destroyed settlements. |
+| [Geofabrik Ghana / OSM](https://download.geofabrik.de/africa/ghana.html) | [ODbL 1.0](https://www.openstreetmap.org/copyright); named place nodes/aliases/points, not area-only place features. |
+
+The combined derived reference database is offered under ODbL 1.0 with original source licences retained. Preserve client credits and `/api/v1/geo/dataset/`, which excludes private addresses and user-entered text. The 28 October 2026 local import recorded **16 regions, 261 districts (260 polygons), 24,105 canonical localities, 9,876 aliases and 25,282 source locality identities**; not a fresh production count. It found no invalid coordinates/inconsistent parents/exact duplicate groups, but 49 localities had unknown parents and 699 same-name pairs within 1 km needed review. Those pairs are not proven duplicates. Guan has no imported polygon; most parents are inferred against 2021 boundaries. Coverage is not exhaustive/current administrative verification.
+
+**Repeatable rollout/update.** Back up the target database; run normal migrations first. From the repository root with the local services available:
+
+```sh
+docker compose exec -T api python manage.py migrate --noinput
+docker compose exec -T api python manage.py import_ghana_locations --dry-run
+docker compose exec -T api python manage.py import_ghana_locations
+docker compose exec -T api python manage.py audit_ghana_locations
+docker compose exec -T api python manage.py refresh_listing_locations
+```
+
+Normal import/`seed_geo` uses the packaged snapshot offline. For a source refresh, stage a candidate with `import_ghana_locations --download --snapshot /app/data/geography/candidate.json.gz --dry-run`, review its licences/vintage/checksum/counts, then import with `--snapshot /app/data/geography/candidate.json.gz` and run `audit_ghana_locations --show-candidates`. Dry-run avoids DB writes but can download/build a candidate. `--build-snapshot` reuses cached raw archives; `--data-dir` changes that cache. Promote the reviewed snapshot and matching manifest together. Preserve old IDs/user-created records; set `import_locked=True` before manually curating imported parents/aliases.
+
+`refresh_listing_locations` recomputes derived rental/sale points only, not private coordinates/addresses; repeat runs are safe. `--resolve-places` was removed. Saved Property pins take precedence; reference-locality fallback is explicitly approximate. Never move a verified Property pin automatically to fix a named-area mismatch; use the authorized review/support workflow. A location without usable coordinates stays unmapped and remains in unbounded list results.
+
+## 9. Legal, tax and device release checks
+
+**Financial reports.** PDF statements and CSV schedules support preparation, not filing or tax advice. Guidance preserved from the 29 October 2026 research: [GRA Returns](https://gra.gov.gh/domestic-tax/returns/), [Rent Tax](https://gra.gov.gh/portfolio/rent-tax/), and [Withholding Tax practice note §4.2.3](https://gra.gov.gh/wp-content/uploads/2020/09/Practice-Note-on-Withholding-of-Tax.pdf). Recheck before a tax-policy release. Individual investment rent and a letting business are not interchangeable; taxpayer type alone cannot establish liability. Reconcile actual receipts/refunds/expenses, ownership, residency, withholding certificates/payments, allowable deductions, capital allowances, reliefs and other income. No blanket tax rate, invented tax credits, official GRA upload/filing receipt or guaranteed compliance is supplied. Accounting boundaries are in [ADR §8](adr.md#8-additional-domain-contracts).
+
+**Lease legal review.** The consolidated clause brief remains a product/legal draft (research checkpoint 27 August 2026), not approved contract wording. Preserve immutable template/legal-policy versions, structured terms, the document shown, content/hash scope, final PDF hash, acceptance evidence and supersession links. Production offers require `LeaseTemplate.review_status=approved_for_production`; development templates remain marked `requires_ghana_legal_review`. Ghana-qualified counsel must resolve:
+
+| Review area | Questions/requirements retained |
+|---|---|
+| Parties, premises, term and money | Legal contracting landlord/agent capacity; exact Property/Unit/Bed/address/inventory; counsel-approved calendar end dates rather than approximate 30-day months; lawful rent/frequency, advance-rent decision table and block-versus-warning policy; receipt particulars/stamping; deposit custody, deductions and return timing. |
+| Duties and use | Provider/tenant repair and safety duties, utilities/meters/shared charges, permitted occupants/use, guests, consent to alterations/assignment/subletting, fair wear, quiet enjoyment, entry notices/emergencies. Do not invent notice periods or permit unlawful disconnection/self-help. |
+| Ending and disputes | Lawful renewal/termination/possession grounds and notices; Rent Control/court rights, mediation/forum, electronic-notice delivery/receipt. Ending an app record is not legal eviction. |
+| Formalities and evidence | Whether Act 772 immovable-property exclusions affect tenancy; signature/witness/notarial sufficiency, stamping, registration and transaction certificates by term/party type. Describe in-app events as recorded acceptance unless counsel approves stronger claims. |
+| Privacy and amendments | Minimum party/occupant data, minors, lawful retention/access/redaction, custom-clause prohibitions/precedence and severability; material changes create a new immutable version and renewed acceptance, never rewrite an offered/accepted agreement. |
+
+Source map, to be reverified by counsel: [Rent Act 220 / Parliament](https://repository.parliament.gh/items/7ed7ce4b-e397-405a-892d-e9aa3a962195), [GhaLII version/amendment caveat](https://ghalii.org/akn/gh/act/1963/220/eng@1971-12-31), [November 2025 Rent Bill update](https://mwhwr.gov.gh/rent-dialogue-convened-to-address-emerging-issues-in-revised-bill/), [Electronic Transactions Act 772](https://ghalii.org/akn/gh/act/2008/772/eng@2020-12-29), [Stamp Duty Act 689](https://ghalii.org/akn/gh/act/2005/689/eng@2005-06-03), [Land Act 1036](https://ghalii.org/akn/gh/act/2020/1036/eng@2020-12-23), [Data Protection Act 843](https://ghalii.org/akn/gh/act/2012/843/eng@2012-05-18), [Real Estate Agency Act 1047](https://ghalii.org/akn/gh/act/2020/1047/eng@2020-12-29). The brief specifically flags Act 220 ss. 17, 22, 25(5), 27 and 33 and Act 772 record-integrity/retention/acceptance provisions; a proposed bill is never treated as enacted law.
+
+**Verification limits.** Historical task test counts are not current release evidence; retain exact-commit CI and logs. Prior SDK 57 checks reported native-directory/app-config sync and Expo patch-version warnings; rerun Expo Doctor/dependency checks before a native release rather than assuming old recommendations still apply. An earlier Android assembly failed under local paging/memory pressure; JavaScript exports do not establish a working APK/IPA. Windows cannot verify native iOS assembly. Do not regenerate native directories over custom work.
+
+On physical Android/iOS and an SDK-compatible Expo Go, check map pin/marker positioning through resize/reload/background resume, locality selection and ambiguous/missing-coordinate searches, map-area/reset/URL behavior, credits and offline tiles. Use a phone-reachable API, not computer `localhost`; native Google sign-in needs an installed build. Verify guest prompt dismissal, draft/create/edit/re-check/approval/explicit republish, verified-field locking, image/document selection and protected downloads, PDF save/share/temp cleanup, large text and safe-area/footer clearance. Full native builds and these device interactions remain release checks even where browser, API, type and bundle tests passed.

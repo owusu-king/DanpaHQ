@@ -1,7 +1,7 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useFocusEffect, useRouter } from "expo-router";
 import { Fragment, useCallback, useState } from "react";
-import { Pressable, RefreshControl, StyleSheet, View } from "react-native";
+import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from "react-native";
 import Svg, { Circle, Defs, Line, LinearGradient, Path, Rect, Stop } from "react-native-svg";
 
 import { useAuth } from "@/auth";
@@ -238,6 +238,16 @@ function ProviderHome() {
   ].sort((a, b) => b.at.localeCompare(a.at)).slice(0, 3);
 
   const go = (to: Href) => router.push(to as never);
+  const me = state.status === "signed_in" ? state.me : null;
+  const context = me?.contexts.find((row) => row.type === "organization" && row.id === activeContext)
+    ?? me?.contexts.find((row) => row.type === "organization");
+  const can = context?.access?.can;
+  const shortcuts: { label: string; icon: keyof typeof Ionicons.glyphMap; to: Href; visible: boolean }[] = [
+    { label: "Find artisans", icon: "hammer-outline", to: "/(app)/artisans", visible: true },
+    { label: "Leases", icon: "reader-outline", to: "/(app)/leases", visible: !can || can.operate_properties || can.view_finances },
+    { label: "Maintenance", icon: "construct-outline", to: "/(app)/maintenance", visible: can?.operate_properties ?? true },
+    { label: "Passport", icon: "shield-checkmark-outline", to: "/(app)/provider-passport", visible: can?.manage_team ?? true },
+  ];
 
   // A Portfolio with nothing in it gets a beginning, not a screen of zeroes.
   if (!loading && !summary && !error) {
@@ -339,6 +349,22 @@ function ProviderHome() {
           </View>
         </Section>
       ) : null}
+
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.shortcuts}>
+        {shortcuts.filter((item) => item.visible).map((item) => (
+          <Pressable
+            key={item.label}
+            accessibilityRole="link"
+            accessibilityLabel={item.label === "Passport" ? "Provider Passport" : item.label}
+            onPress={() => go(item.to)}
+            {...pressableFeedback(PRESSED)}
+            style={({ pressed }) => [styles.shortcut, pressed && { backgroundColor: PRESSED }]}
+          >
+            <Ionicons name={item.icon} size={22} color={KOLA_DEEP} />
+            <Type variant="bodyStrong" style={styles.shortcutLabel}>{item.label}</Type>
+          </Pressable>
+        ))}
+      </ScrollView>
 
       {activity.length ? (
         <Section title="Recent activity" link={{ label: "Updates", onPress: () => go("/(app)/notifications") }}>
@@ -763,6 +789,28 @@ function whenLabel(value: string, openedAt: number) {
 }
 
 const styles = StyleSheet.create({
+  shortcuts: {
+    gap: 10,
+    paddingVertical: 2,
+  },
+  shortcut: {
+    minHeight: 62,
+    minWidth: 142,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: RULE,
+    backgroundColor: WHITE,
+  },
+  shortcutLabel: {
+    color: INK,
+    fontSize: 14,
+    lineHeight: 20,
+  },
   noUnits: {
     gap: 4,
     marginTop: 4,

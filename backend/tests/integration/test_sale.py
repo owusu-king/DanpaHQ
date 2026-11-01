@@ -830,3 +830,48 @@ class TestEnquiries:
             f"/api/v1/sales/{verified_land.sale.id}/enquiries/", {"message": "Hi"}, format="json"
         )
         assert own.status_code == 403
+
+
+class TestSavedSales:
+    path = "/api/v1/me/saved-sales/"
+
+    def test_authentication_required(self, api):
+        for response in (
+            api.get(self.path),
+            api.post(self.path, {}, format="json"),
+            api.delete(self.path, {}, format="json"),
+        ):
+            assert response.status_code in (401, 403)
+
+    def test_save_is_idempotent_private_and_removable(self, api, verified_land, buyer, stranger):
+        payload = {"sale_id": str(verified_land.sale.id)}
+        api.force_authenticate(user=buyer)
+        assert api.post(self.path, payload, format="json").status_code == 201
+        assert api.post(self.path, payload, format="json").status_code == 200
+        rows = api.get(self.path).data
+        assert len(rows) == 1
+        assert rows[0]["sale"]["id"] == payload["sale_id"]
+        assert "street" not in rows[0]["sale"]
+        api.force_authenticate(user=stranger)
+        assert api.get(self.path).data == []
+        assert api.delete(self.path, payload, format="json").status_code == 204
+        api.force_authenticate(user=buyer)
+        assert len(api.get(self.path).data) == 1
+        assert api.delete(self.path, payload, format="json").status_code == 204
+        assert api.get(self.path).data == []
+
+    def test_unpublished_sales_are_hidden_and_cannot_be_saved(self, api, verified_land, buyer):
+        sale = verified_land.sale
+        payload = {"sale_id": str(sale.id)}
+        api.force_authenticate(user=buyer)
+        assert api.post(self.path, payload, format="json").status_code == 201
+        sale.status = "withdrawn"
+        sale.save(update_fields=["status"])
+        assert api.get(self.path).data == []
+        assert api.post(self.path, payload, format="json").status_code == 404
+        assert api.delete(self.path, payload, format="json").status_code == 204
+
+    def test_invalid_sale_id(self, api, buyer):
+        api.force_authenticate(user=buyer)
+        assert api.post(self.path, {"sale_id": "invalid"}, format="json").status_code == 422
+        assert api.post(self.path, {"sale_id": str(uuid.uuid4())}, format="json").status_code == 404

@@ -3,7 +3,7 @@
 Property management and tenancy software for Ghana, with a web app and Android/iOS apps.
 
 Ghana reference locations, source licences, import/update commands and coverage
-checks are documented in [Ghana locations](docs/ghana-locations.md).
+checks are documented in [Deployment: Ghana reference data](docs/deployment.md#8-maps-and-ghana-reference-data).
 
 DanpaHQ covers rental/sale discovery, property and provider verification, viewings, applications, agreements, tenancy records, rent/payments, maintenance, artisans and Housing Passport sharing. One account supports multiple experiences; the backend controls access.
 
@@ -54,7 +54,7 @@ Use the same Wi-Fi network as your computer. The API address is normally inferre
 
 **Google sign-in needs an installed native development build**, rather than Expo Go. Start it with `npm start -- --dev-client --lan`. Local Android builds use `npm run android` with Android SDK/JDK installed; local iOS builds need macOS/Xcode and `npm run ios`. See [Google setup](mobile/GOOGLE_SIGN_IN.md) and [release builds](docs/deployment.md).
 
-For local Google authentication, set root `.env` `GOOGLE_OAUTH_CLIENT_ID`; iOS also needs `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID`. Recreate `web` and `api` after changing their environment, and restart Metro. Google Cloud must allow the web origin. Maps use Leaflet with configurable public tiles; no Google Maps key is needed. See [map setup and usage limits](docs/free-maps.md).
+For local Google authentication, set root `.env` `GOOGLE_OAUTH_CLIENT_ID`; iOS also needs `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID`. Recreate `web` and `api` after changing their environment, and restart Metro. Google Cloud must allow the web origin. Maps use Leaflet with configurable public tiles; no Google Maps key is needed. See [map setup and usage limits](docs/deployment.md#8-maps-and-ghana-reference-data).
 
 ## Everyday commands
 
@@ -91,7 +91,7 @@ For an intentional schema change, generate/review migrations with `python manage
 The production domains are **danpahq.com** and **api.danpahq.com**. Repository features and passing local tests do not establish production readiness. Follow [deployment.md](docs/deployment.md) for services, environment variables, OAuth, releases, verification and rollback.
 
 - Verify physical Android/iOS authentication, SMS/email, maps, uploads/scanner failures, tenancy journeys and database/object backup restoration. Keep live payments disabled until provider flows and reconciliation are verified. Review dependency advisories; do not force incompatible Expo upgrades/downgrades. Backend mypy and some OpenAPI request schemas have outstanding gaps.
-- Production integrations need configured Google, Arkesel, Resend, Cloudmersive and Paystack credentials. SMS defaults to `null` until configured. Native enquiry message push uses Expo when explicitly enabled and provisioned; see [deployment §5.1](docs/deployment.md#51-native-message-push). Other notification kinds remain inbox/SMS. Scanning currently limits files to **3,500,000 bytes**.
+- Production integrations need configured Google, Arkesel, Resend, Cloudmersive and Paystack credentials. SMS defaults to `null` until configured. Native enquiry message push uses Expo when explicitly enabled and provisioned; see [deployment §5.1](docs/deployment.md#51-native-property-interest-push--optional). Other notification kinds remain inbox/SMS. Scanning currently limits files to **3,500,000 bytes**.
 - Legal approval is required for production agreements and rent/advance policies. Acceptance records are not certified legal e-signatures. Review amendment dates, replacement schedules and commercial part-payment rules.
 - There is no integrated NIA lookup, biometric liveness or carrier SIM-swap feed. Property condition evidence does not automatically expire or prove authenticity. Lost-phone recovery, complete erasure, retention/processor terms and security-reporting ownership need operational decisions.
 - Refund records are not a complete approval/reversal/accounting workflow. Artisan payment records are not escrow. Independent security sign-off, monitoring, access reviews and restore evidence remain operator responsibilities. Preserve encryption/signing keys and keep database-owner credentials out of runtime services.
@@ -109,7 +109,7 @@ Inspect existing source and callers; preserve backend permissions, integer-money
 
 ## Documentation
 
-[Architecture and ERD](docs/adr.md) · [Design](docs/uxdesign.md) · [Deployment](docs/deployment.md) · [Agent context](docs/ai-context.md) · [Google sign-in](mobile/GOOGLE_SIGN_IN.md) · [Lease review](docs/lease_clause.md) · [Investment terms](docs/investment_terms.md)
+[Architecture and ERD](docs/adr.md) · [Design](docs/uxdesign.md) · [Deployment](docs/deployment.md) · [Agent context](docs/ai-context.md) · [Google sign-in](mobile/GOOGLE_SIGN_IN.md) · [Lease review](docs/deployment.md#9-legal-tax-and-device-release-checks) · [Investment terms](docs/investment_terms.md)
 
 ## Licence
 

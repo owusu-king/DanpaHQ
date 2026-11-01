@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ListingCard } from "@/components/listings/ListingCard";
+import { SavedSales } from "@/components/sales/SavedSales";
 import { Icon } from "@/components/portal/icons";
 import { FilterMenu, PanelSearch, PanelState, WorkspaceHead, gridKeyNavigation } from "@/components/workspace/Workspace";
 import { ApiFailure } from "@/lib/api";
@@ -134,7 +135,8 @@ export default function SavedPage() {
         actions={kept.length ? <Link href="/rentals" className="ws-action"><Icon name="explore" />Find more</Link> : null}
       />
 
-      <section className="ws-panel is-canvas saved-panel" aria-label="Saved places" aria-busy={loading || undefined}>
+      <SavedSales />
+      <section className="ws-panel is-canvas saved-panel" aria-label="Saved rentals" aria-busy={loading || undefined}>
         {showOrder || showSearch ? (
           <div className="ws-panel-head">
             <div className="ws-panel-tools">
@@ -181,7 +183,7 @@ export default function SavedPage() {
           <div className="saved-state">
             <PanelState
               icon="saved"
-              title="Nothing saved yet"
+              title="No saved rentals yet"
               body="Tap the heart on a rental while you look and it waits here, so you can compare a shortlist instead of trying to remember."
               action={<Link href="/rentals" className="ws-action is-primary"><Icon name="explore" />Explore rentals</Link>}
             />

@@ -205,7 +205,7 @@
   .portal-nav[data-glide] .portal-nav-tile.is-current,
   .portal-nav[data-glide][data-hover] .portal-nav-tile.is-hover { transition: opacity 120ms linear; }
 }
-.portal-nav-section { display: grid; gap: var(--space-1); }
+.portal-nav-section { display: grid; gap: 2px; }
 
 .portal-nav-title {
   padding: 0 var(--space-2);
@@ -222,13 +222,14 @@
   position: relative;
   display: flex;
   align-items: center;
-  gap: var(--space-3);
-  min-height: 2.5rem;
-  padding: var(--space-2) var(--space-3);
+  gap: .625rem;
+  min-height: 2.25rem;
+  padding: 0 .625rem;
   border-radius: var(--radius-md);
   color: var(--color-ink-700);
   font-size: 0.875rem;
-  font-weight: 500;
+  font-weight: 400;
+  line-height: 1.25;
   text-decoration: none;
   transition:
     color 200ms var(--rail-ease),
@@ -239,10 +240,9 @@
 
 .portal-nav-label { flex: 1; min-width: 0; }
 
-/* 20px in a 20px box, never scaled up when the labels go. An oversized glyph
-   is the commonest way a collapsed rail starts looking like a toolbar. */
+/* Navigation uses compact 18px icons in both expanded and collapsed rails. */
 .portal-icon { flex: none; width: 20px; height: 20px; color: var(--color-ink-500); }
-.portal-nav-link .portal-icon { transition: color 200ms var(--rail-ease), transform 320ms var(--rail-spring); }
+.portal-nav-link .portal-icon { width: 18px; height: 18px; transition: color 200ms var(--rail-ease), transform 320ms var(--rail-spring); }
 .portal-nav-link:hover { color: var(--color-ink-900); }
 .portal-nav-link:hover .portal-icon { color: var(--color-ink-800); transform: translateX(1px) scale(1.06); }
 .portal-nav-link[aria-current="page"] .portal-icon { color: var(--color-kola-600); }
@@ -253,7 +253,7 @@
 
 .portal-nav-link[aria-current="page"] {
   color: var(--color-kola-800);
-  font-weight: 600;
+  font-weight: 500;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -318,7 +318,7 @@
   gap: 0;
 }
 
-.portal.is-collapsed .portal-nav-section { gap: var(--space-1); }
+.portal.is-collapsed .portal-nav-section { gap: 2px; }
 .portal.is-collapsed .portal-nav { gap: var(--space-4); }
 
 /* --- tooltips, collapsed only ---------------------------------------------

@@ -26,6 +26,18 @@ from django.db import models
 from apps.core.models import BaseModel
 
 
+class SavedSale(BaseModel):
+    """A buyer's private shortlist, independent of rental listings."""
+
+    user = models.ForeignKey("identity.User", on_delete=models.CASCADE, related_name="saved_sales")
+    sale = models.ForeignKey("SaleListing", on_delete=models.CASCADE, related_name="saved_by")
+
+    class Meta:
+        db_table = "sale_saved"
+        ordering = ("-created_at",)
+        constraints = [models.UniqueConstraint(fields=["user", "sale"], name="sale_unique_saved")]
+
+
 class SaleStatus(models.TextChoices):
     """Where the seller has put it. Verification decides the rest."""
 

@@ -14,7 +14,7 @@ import { saleDetailPath } from "@/lib/exploreReturn";
  * house's rooms, a commercial building's use and floor area, land's size.
  * Every card here is verified; that is what put it on the page.
  */
-export function SaleCard({ sale, returnTo = "/rentals" }: { sale: Sale; returnTo?: string }) {
+export function SaleCard({ sale, returnTo = "/rentals", savedAction }: { sale: Sale; returnTo?: string; savedAction?: React.ReactNode }) {
   const where = [sale.locality_name, sale.district_name].filter(Boolean).join(", ");
   const href = saleDetailPath(sale.id, returnTo) as never;
   const facts = saleFacts(sale);
@@ -35,6 +35,7 @@ export function SaleCard({ sale, returnTo = "/rentals" }: { sale: Sale; returnTo
           )}
         </Link>
         <span className="sale-card-kind">For sale · {sale.kind_label}</span>
+        {savedAction}
       </div>
 
       <div className="listing-card-body">

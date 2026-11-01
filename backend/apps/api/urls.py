@@ -587,6 +587,7 @@ occupancy_patterns = [
 
 # Properties for sale: public discovery, the seller's controls and enquiries.
 sale_patterns = [
+    path("me/saved-sales/", sale_views.SavedSalesView.as_view(), name="saved-sales"),
     path("sales/", sale_views.SaleSearchView.as_view(), name="sales"),
     path("sales/<uuid:pk>/", sale_views.SaleDetailView.as_view(), name="sale-detail"),
     path(

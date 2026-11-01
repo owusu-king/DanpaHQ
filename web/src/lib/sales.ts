@@ -98,6 +98,15 @@ export type SaleFilters = {
 
 export type SalePage = { results: SaleCard[]; next: string | null };
 
+export type SavedSale = { id: string; created_at: string; sale: SaleCard };
+export const listSavedSales = () => authedFetch<SavedSale[]>("/me/saved-sales/");
+export const saveSale = (saleId: string) => authedFetch<void>("/me/saved-sales/", {
+  method: "POST", body: JSON.stringify({ sale_id: saleId }),
+});
+export const unsaveSale = (saleId: string) => authedFetch<void>("/me/saved-sales/", {
+  method: "DELETE", body: JSON.stringify({ sale_id: saleId }),
+});
+
 export async function searchSales(filters: SaleFilters = {}): Promise<SalePage> {
   const query = new URLSearchParams();
   for (const [key, value] of Object.entries(filters)) {

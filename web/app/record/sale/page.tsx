@@ -26,7 +26,7 @@ import { PropertyAsk } from "@/components/listings/PropertyAsk";
 import { saleIntelContext } from "@/lib/propertyIntel";
 import { Icon } from "@/components/portal/icons";
 import { ApiFailure } from "@/lib/api";
-import { getSale, saleFacts, startEnquiry, type SaleDetail, type SalePhoto } from "@/lib/sales";
+import { getSale, listSavedSales, saveSale, unsaveSale, saleFacts, startEnquiry, type SaleDetail, type SalePhoto } from "@/lib/sales";
 import { useSession } from "@/lib/session";
 import { exploreReturnPath, saleDetailPath } from "@/lib/exploreReturn";
 
@@ -49,6 +49,12 @@ export default function SalePage() {
   const [busy, setBusy] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [lightbox, setLightbox] = useState<number | null>(null);
+  const [savedId, setSavedId] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saveReady, setSaveReady] = useState(false);
+  const [shareFeedback, setShareFeedback] = useState<"shared" | "copied" | null>(null);
+  const [actionError, setActionError] = useState("");
+  const saved = savedId === id;
   usePageTitle(sale ? sale.headline || `${sale.kind_label} for sale` : null);
 
   useEffect(() => {
@@ -63,6 +69,19 @@ export default function SalePage() {
       });
     return () => { current = false; };
   }, [id, signedIn, state.status]);
+
+  useEffect(() => {
+    let current = true;
+    setSavedId(null);
+    setSaveReady(false);
+    setActionError("");
+    if (signedIn) {
+      void listSavedSales().then(rows => {
+        if (current) { setSavedId(rows.some(row => row.sale.id === id) ? id : null); setSaveReady(true); }
+      }).catch(() => { if (current) setActionError("Could not load your saved properties. Refresh to try again."); });
+    }
+    return () => { current = false; };
+  }, [id, signedIn]);
 
   if (error && !sale) {
     return (
@@ -89,6 +108,37 @@ export default function SalePage() {
   ].filter(Boolean) as string[];
   const longDescription = sale.description.length > 420;
   const next = saleDetailPath(sale.id, returnTo);
+
+  async function toggleSave() {
+    if (!signedIn) { openAuth("sign-in", { next }); return; }
+    if (saving || !saveReady) return;
+    setSaving(true);
+    setActionError("");
+    try {
+      await (saved ? unsaveSale(sale!.id) : saveSale(sale!.id));
+      setSavedId(saved ? null : sale!.id);
+    } catch (cause) {
+      setActionError(cause instanceof ApiFailure ? cause.error.message : "Could not update your saved properties.");
+    } finally { setSaving(false); }
+  }
+
+  async function shareSale() {
+    setActionError("");
+    try {
+      const url = window.location.href;
+      if (navigator.share) {
+        await navigator.share({ title: sale!.headline || "Property for sale on Danpa HQ", url });
+        setShareFeedback("shared");
+      } else {
+        await navigator.clipboard.writeText(url);
+        setShareFeedback("copied");
+      }
+      window.setTimeout(() => setShareFeedback(null), 2000);
+    } catch (cause) {
+      if (cause instanceof DOMException && cause.name === "AbortError") return;
+      setActionError("We could not open sharing. Please try again.");
+    }
+  }
 
   async function send() {
     if (!signedIn) {
@@ -137,7 +187,19 @@ export default function SalePage() {
         <div className="listing-gallery-empty"><span className="type-caption">Photos pending</span></div>
       )}
 
-      <PropertyAsk property={saleIntelContext(sale)} />
+      <div className="listing-discovery-tools">
+        <PropertyAsk property={saleIntelContext(sale)} />
+        <div className="listing-secondary">
+          <Button variant="quiet" aria-pressed={saved} busy={saving} disabled={signedIn && !saveReady} onClick={() => void toggleSave()}>
+            <Icon name="bookmark" /><span className="listing-action-label">{saved ? "Saved" : "Save"}</span>
+          </Button>
+          <Button variant="quiet" onClick={() => void shareSale()}>
+            <Icon name="share" /><span className="listing-action-label">{shareFeedback === "shared" ? "Shared" : shareFeedback === "copied" ? "Link copied" : "Share"}</span>
+          </Button>
+        </div>
+      </div>
+
+      {actionError ? <Notice tone="error" title={actionError} /> : null}
 
       <div className="listing-body">
         <div className="listing-main">

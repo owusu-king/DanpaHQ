@@ -1,7 +1,7 @@
 # Ghana reference geography
 
 This is the full obtained reference snapshot, not sample data. See
-[implementation and verification](../../../docs/ghana-locations.md).
+[import instructions and coverage](../../../docs/deployment.md#8-maps-and-ghana-reference-data).
 
 The combined derived reference database is available under the
 [Open Database License 1.0](https://opendatacommons.org/licenses/odbl/1-0/).
