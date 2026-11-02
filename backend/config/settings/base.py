@@ -202,6 +202,8 @@ EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", "")
 EMAIL_USE_TLS = env("EMAIL_USE_TLS", "true").lower() == "true"
 EMAIL_TIMEOUT = env("EMAIL_TIMEOUT", 10, cast=int)
 RESEND_API_KEY = env("RESEND_API_KEY", "")
+RESEND_SENDER_EMAIL = env("RESEND_SENDER_EMAIL", "")
+RESEND_SENDER_NAME = env("RESEND_SENDER_NAME", "Danpa HQ")
 DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", "Danpa HQ <no-reply@danpahq.com>")
 # The floor under a part payment, in pesewas. It exists because the receiving
 # Portfolio bears the processor's transaction fee, so unbounded micro-payments

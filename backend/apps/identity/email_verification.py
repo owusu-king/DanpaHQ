@@ -133,9 +133,10 @@ def start_email_verification(*, user, raw_email: str) -> EmailVerification:
     subject, body = messages.email_verification(code)
     try:
         # Verification is user-requested security mail, independent of alert opt-outs.
+        selected = value("NOTIFICATION_EMAIL_BACKEND", "")
         connection = (
-            get_connection("apps.identity.email_backend.BrevoEmailBackend")
-            if value("NOTIFICATION_EMAIL_BACKEND", "") == "brevo" else None
+            get_connection(f"apps.identity.email_backend.{selected.title()}EmailBackend")
+            if selected in {"brevo", "resend"} else None
         )
         send_mail(
             subject, body, settings.DEFAULT_FROM_EMAIL, [email],

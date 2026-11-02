@@ -92,7 +92,7 @@ if FILE_SCAN_MODE == "cloudmersive" and not CLOUDMERSIVE_API_KEY:
     raise ImproperlyConfigured("Set CLOUDMERSIVE_API_KEY to enable Cloudmersive scanning.")
 
 # Render Free blocks SMTP egress. Use a transactional HTTPS provider instead.
-EMAIL_BACKEND = env("EMAIL_BACKEND", "apps.identity.email_backend.ResendEmailBackend")
+EMAIL_BACKEND = env("EMAIL_BACKEND", "apps.identity.email_backend.ManagementEmailBackend")
 RESEND_API_KEY = env("RESEND_API_KEY", "")
 if EMAIL_BACKEND in {
     "django.core.mail.backends.console.EmailBackend",

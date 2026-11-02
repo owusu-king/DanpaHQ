@@ -35,7 +35,12 @@
       }
     },
     "plugins": [
-      ["expo-notifications", { "defaultChannel": "messages" }],
+      [
+        "expo-notifications",
+        {
+          "defaultChannel": "messages"
+        }
+      ],
       "expo-router",
       "expo-secure-store",
       "expo-localization",
@@ -68,7 +73,17 @@
       "typedRoutes": true
     },
     "extra": {
-      "//apiUrl": "Left unset on purpose. src/api.ts picks 10.0.2.2 for an Android emulator and localhost for an iOS simulator; set EXPO_PUBLIC_API_URL to your machine's LAN address to run on a real phone."
-    }
+      "//apiUrl": "Left unset on purpose. src/api.ts picks 10.0.2.2 for an Android emulator and localhost for an iOS simulator; set EXPO_PUBLIC_API_URL to your machine's LAN address to run on a real phone.",
+      "mapTiles": {},
+      "googleSignIn": {
+        "webClientId": "82384865108-idsg1udb15n7h8l48js23v72fohi7kmm.apps.googleusercontent.com",
+        "iosClientId": "82384865108-db7h0hhj36pkcngflprflm6dhaldl8dt.apps.googleusercontent.com"
+      },
+      "router": {},
+      "eas": {
+        "projectId": "8292a827-b1db-4b95-bece-15adeab97ba3"
+      }
+    },
+    "owner": "kingowusu"
   }
 }

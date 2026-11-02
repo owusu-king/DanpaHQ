@@ -82,12 +82,9 @@ services:
       - key: CLOUDMERSIVE_API_KEY
         sync: false
 
-      # Transactional email is sent through HTTPS. Verify danpahq.com with Resend,
-      # then provide its HTTPS API key before syncing this Blueprint.
+      # Select/configure Brevo or Resend in Management > Configuration > Email delivery.
       - key: EMAIL_BACKEND
-        value: apps.identity.email_backend.ResendEmailBackend
-      - key: RESEND_API_KEY
-        sync: false
+        value: apps.identity.email_backend.ManagementEmailBackend
       - key: DEFAULT_FROM_EMAIL
         value: Danpa HQ <no-reply@danpahq.com>
 

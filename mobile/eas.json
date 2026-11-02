@@ -1,3 +1,4 @@
+
 {
   "cli": {
     "version": ">= 16.0.0",
@@ -8,7 +9,9 @@
       "distribution": "internal",
       "environment": "preview",
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://api-staging.danpahq.com/api/v1"
+        "EXPO_PUBLIC_API_URL": "https://api-staging.danpahq.com/api/v1",
+        "GOOGLE_OAUTH_CLIENT_ID": "82384865108-idsg1udb15n7h8l48js23v72fohi7kmm.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "82384865108-db7h0hhj36pkcngflprflm6dhaldl8dt.apps.googleusercontent.com"
       },
       "android": {
         "buildType": "apk"
@@ -19,7 +22,7 @@
       "distribution": "internal",
       "environment": "preview",
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://api.danpahq.com/api/v1",
+        "EXPO_PUBLIC_API_URL": "https://api-staging.danpahq.com/api/v1",
         "GOOGLE_OAUTH_CLIENT_ID": "82384865108-idsg1udb15n7h8l48js23v72fohi7kmm.apps.googleusercontent.com",
         "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "82384865108-db7h0hhj36pkcngflprflm6dhaldl8dt.apps.googleusercontent.com"
       },

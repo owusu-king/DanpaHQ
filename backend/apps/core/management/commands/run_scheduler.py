@@ -18,6 +18,12 @@ SCHEDULER_LOCK = 0x44414E50414851
 class Command(BaseCommand):
     help = "Run one active scheduler, including during overlapping Render deployments."
 
+    def add_arguments(self, parser):
+        parser.add_argument(
+            "--in-process", action="store_true",
+            help="Run beat in this process while retaining the same database lease.",
+        )
+
     def handle(self, *args, **options):
         stopped = threading.Event()
         previous = {}
@@ -33,6 +39,9 @@ class Command(BaseCommand):
                         break
                     stopped.wait(2)
                 if stopped.is_set():
+                    return
+                if options.get("in_process"):
+                    run_inline(lease, stopped, str(Path(state) / "schedule"))
                     return
                 child = subprocess.Popen(  # noqa: S603 -- fixed executable and arguments
                     [sys.executable, "-m", "celery", "-A", "config", "beat", "-l", "info",
@@ -55,6 +64,21 @@ class Command(BaseCommand):
 
 def acquire(lease):
     return lease.execute("SELECT pg_try_advisory_lock(%s)", [SCHEDULER_LOCK]).fetchone()[0]
+
+
+def run_inline(lease, stopped, schedule_filename):
+    from functools import partial
+
+    from celery.beat import Service
+
+    from apps.core.scheduling import LeasedScheduler
+    from config.celery import app
+
+    app.loader.import_default_modules()
+    Service(
+        app=app, max_interval=2, schedule_filename=schedule_filename,
+        scheduler_cls=partial(LeasedScheduler, lease=lease, stopped=stopped),
+    ).start()
 
 
 def stop_child(child):

@@ -16,6 +16,31 @@ supervisor = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(supervisor)
 
 
+def test_standard_profile_retains_the_existing_process_layout(monkeypatch):
+    monkeypatch.delenv("RENDER_RUNTIME_PROFILE", raising=False)
+    worker, scheduler, api = supervisor.commands()
+    assert "--pool=solo" not in worker
+    assert "--in-process" not in scheduler
+    assert api[api.index("--threads") + 1] == "4"
+
+
+def test_free_staging_uses_one_request_and_no_extra_worker_or_beat_child(monkeypatch):
+    monkeypatch.setenv("RENDER_RUNTIME_PROFILE", "staging-free")
+    monkeypatch.setenv("DJANGO_SETTINGS_MODULE", "config.settings.staging")
+    worker, scheduler, api = supervisor.commands()
+    assert "--pool=solo" in worker
+    assert "--in-process" in scheduler
+    assert api[api.index("--threads") + 1] == "1"
+    assert "default,payments,notifications,media" in worker
+
+
+def test_free_profile_is_rejected_for_production(monkeypatch):
+    monkeypatch.setenv("RENDER_RUNTIME_PROFILE", "staging-free")
+    monkeypatch.setenv("DJANGO_SETTINGS_MODULE", "config.settings.production")
+    with pytest.raises(ValueError, match="only permitted with staging"):
+        supervisor.commands()
+
+
 @pytest.mark.parametrize("failed", [0, 1, 2])
 def test_failure_of_any_essential_process_stops_all_children(monkeypatch, failed):
     children = []

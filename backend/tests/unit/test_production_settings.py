@@ -139,6 +139,15 @@ def test_resend_requires_a_key():
     assert "RESEND_API_KEY" in result.stderr
 
 
+def test_management_email_can_bootstrap_without_a_deployment_provider_key():
+    result = load(
+        RENDER_EXTERNAL_HOSTNAME="danpahq-api.onrender.com",
+        EMAIL_BACKEND="apps.identity.email_backend.ManagementEmailBackend",
+        RESEND_API_KEY="",
+    )
+    assert result.returncode == 0, result.stderr
+
+
 @pytest.mark.parametrize("key", ["OTP_PEPPER", "ACCESS_TOKEN_KEY", "PASSPORT_SHARE_PEPPER"])
 def test_blank_signing_secrets_stop_the_deploy(key):
     result = load(RENDER_EXTERNAL_HOSTNAME="danpahq-api.onrender.com", **{key: "  "})

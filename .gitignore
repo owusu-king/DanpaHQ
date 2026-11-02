@@ -31,11 +31,23 @@ build/
 .env.*
 !.env.example
 !.env.sample
+# Named local environment files (for example staging-owner.env).
+*.env
+*.env.*
+!*.env.example
+!*.env.sample
 
 # Local secret/config files
 *.secret
 *.secret.*
 credentials.json
+client_secret*.json
+oauth-client-secret*.json
+.netrc
+_netrc
+.pypirc
+.dev.vars
+.dev.vars.*
 # Provider service-account downloads and local credential stores.
 *-firebase-adminsdk-*.json
 *service-account*.json
@@ -46,6 +58,8 @@ serviceAccount*.json
 id_rsa
 id_ecdsa
 id_ed25519
+id_dsa
+*.ppk
 google-services.json
 GoogleService-Info.plist
 *.jks

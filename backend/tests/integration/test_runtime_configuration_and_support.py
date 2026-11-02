@@ -69,11 +69,12 @@ def test_brevo_configuration_is_encrypted_masked_and_used_without_restart(
     assert post.call_args.kwargs["json"]["sender"]["email"] == "alerts@example.com"
 
 
-def test_brevo_sender_address_is_validated_and_support_cannot_set_credentials():
+@pytest.mark.parametrize("provider", ["BREVO", "RESEND"])
+def test_email_sender_address_is_validated_and_support_cannot_set_credentials(provider):
     _, client = management_client(email="brevo-validation@example.com")
     response = client.patch(
         "/api/v1/management/configuration/",
-        {"updates": [{"key": "BREVO_SENDER_EMAIL", "value": "not-an-email"}]},
+        {"updates": [{"key": f"{provider}_SENDER_EMAIL", "value": "not-an-email"}]},
         format="json",
     )
     assert response.status_code == 422
@@ -83,7 +84,7 @@ def test_brevo_sender_address_is_validated_and_support_cannot_set_credentials():
     assert (
         support.patch(
             "/api/v1/management/configuration/",
-            {"updates": [{"key": "BREVO_API_KEY", "value": "secret"}]},
+            {"updates": [{"key": f"{provider}_API_KEY", "value": "secret"}]},
             format="json",
         ).status_code
         == 403

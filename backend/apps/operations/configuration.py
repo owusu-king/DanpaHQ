@@ -162,10 +162,22 @@ FIELDS = (
         "NOTIFICATION_EMAIL_BACKEND",
         "Email delivery",
         "Email provider",
-        "Brevo sends alerts and verification codes. Otherwise verification uses the deployment "
-        "email backend.",
+        "The selected provider sends alerts and verification codes. Otherwise verification "
+        "uses the deployment email backend.",
         kind="choice",
-        choices=(("", "Deployment default (alerts off)"), ("brevo", "Brevo")),
+        choices=(("", "Deployment default (alerts off)"), ("brevo", "Brevo"), ("resend", "Resend")),
+    ),
+    ConfigurationField(
+        "RESEND_API_KEY", "Email delivery", "Resend API key",
+        "Saved encrypted and never shown again.", secret=True, max_length=500,
+    ),
+    ConfigurationField(
+        "RESEND_SENDER_EMAIL", "Email delivery", "Resend sender email",
+        "An address authorized to send from a verified Resend domain.", max_length=254,
+    ),
+    ConfigurationField(
+        "RESEND_SENDER_NAME", "Email delivery", "Resend sender name",
+        "The name recipients see, for example Danpa HQ.", max_length=80,
     ),
     ConfigurationField(
         "BREVO_API_KEY",
@@ -178,14 +190,14 @@ FIELDS = (
     ConfigurationField(
         "BREVO_SENDER_EMAIL",
         "Email delivery",
-        "Sender email",
+        "Brevo sender email",
         "An address verified and authorized to send transactional email in Brevo.",
         max_length=254,
     ),
     ConfigurationField(
         "BREVO_SENDER_NAME",
         "Email delivery",
-        "Sender name",
+        "Brevo sender name",
         "The name recipients see, for example Danpa HQ.",
         max_length=80,
     ),
@@ -313,7 +325,7 @@ def _normalise(field: ConfigurationField, raw: Any) -> str:
         and not all(token in text for token in ("{z}", "{x}", "{y}"))
     ):
         raise ValidationFailed("The tile URL must contain {z}, {x} and {y}.")
-    if field.key == "BREVO_SENDER_EMAIL" and text:
+    if field.key in {"BREVO_SENDER_EMAIL", "RESEND_SENDER_EMAIL"} and text:
         try:
             validate_email(text)
         except ValidationError as exc:

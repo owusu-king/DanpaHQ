@@ -11,7 +11,7 @@ Use one column throughout setup. Create separate databases, Redis, buckets and a
 | Git branch | `staging` | `main` |
 | Website | `https://staging.danpahq.com` | `https://danpahq.com` |
 | API | `https://api-staging.danpahq.com` | `https://api.danpahq.com` |
-| Render Blueprint | [`render.staging.yaml`](../render.staging.yaml) | [`render.yaml`](../render.yaml) |
+| Blueprint / manual settings reference | [`render.staging.yaml`](../render.staging.yaml) (Free) | [`render.yaml`](../render.yaml) (paid) |
 | Render API service | `danpahq-api-staging` | `danpahq-api` |
 | R2 bucket | `danpahq-media-staging` | `danpahq-media` |
 | GitHub environment | `staging` | `production` |
@@ -45,10 +45,11 @@ Use one column throughout setup. Create separate databases, Redis, buckets and a
 
 5. Click **Save**. Confirm the policy appears under Settings. Do not enable public access.
 
-### Email and file scanning
+### Email delivery and file scanning
 
-1. In **Resend**, verify the sender domain and create an API key. Save `RESEND_API_KEY`.
-2. In **Cloudmersive**, create an API key. Save `CLOUDMERSIVE_API_KEY`. Current upload limit: **3,500,000 bytes**.
+1. Choose **Brevo or Resend** for account-verification emails and opted-in alerts. Authorize the sender/domain and obtain its transactional API key. Configure the provider, key and sender in **Management → Configuration → Email delivery** after the API is running; see [Email delivery setup](#email-delivery-setup-brevo-and-resend).
+2. Render Blueprints and owner templates use `EMAIL_BACKEND=apps.identity.email_backend.ManagementEmailBackend`. Provider credentials are not required to start the API, but email sending fails until a usable provider is configured. The selected provider's keys are encrypted in Management; no unused Resend key is required when choosing Brevo.
+3. In **Cloudmersive**, create an API key. Save `CLOUDMERSIVE_API_KEY`. Current upload limit: **3,500,000 bytes**.
 
 ### Google login and free-first maps
 
@@ -68,11 +69,54 @@ Keep Android OAuth client IDs in Google Cloud. Google Sign-In configuration rema
 
 ## 2. Deploy the API — repeat for staging and production
 
-### A. Create Render services
+### A. Create Render services — choose one route
+
+**What is already automated:** `render.yaml` and `render.staging.yaml` each declare the API **and** Redis-compatible Key Value service. When connected as a [Render Blueprint](https://render.com/docs/infrastructure-as-code), Render creates/manages both, supplies literal environment values, generates the declared secrets, and wires `REDIS_URL` using `fromService`. You do **not** create Redis or copy those generated settings manually on that route. Only `sync: false` credentials need initial input. [Blueprint environment rules](https://render.com/docs/blueprint-spec#setting-environment-variables)
+
+| Component | What it actually does |
+|---|---|
+| Render Blueprint + the selected YAML | Provisions both services and their declared runtime configuration. Staging requests Free API/Key Value and the small staging profile; production retains API `1c-2g` and Key Value `256mb`. Review existing services before a plan change; Free Key Value has no persistence. [Compute plans](https://render.com/docs/compute-plans) |
+| `.github/workflows/ci.yml` + `render-migrate.sh` | Runs checks, migrations, runtime-database provisioning, seeds and first-admin bootstrap with the GitHub owner secret. It does **not** create Render services or copy GitHub secrets into Render. |
+| `render-start.sh` + `render-supervise.py` | Starts the API, worker and scheduler inside the existing Web Service; it does not provision Redis or read a Blueprint. |
+| Render **New → Web Service**, without a Blueprint | Creates that service only; the manual settings below are needed because this route does not apply the YAML. No alternative Render API/CLI provisioning or secret-sync automation exists in this repository. |
+
+For the least manual setup, use the existing YAML/Blueprint route below. For **no Blueprint**, use the manual route. Select the staging YAML for Free compute; the production YAML still requests paid instances.
+
+#### Free manual setup — no Blueprint
+
+Create **one Web Service plus one Key Value instance**, not two Web Services. **New → Web Service does not automatically create Key Value.** Keep Supabase and R2 from §1; no Render Postgres is needed. The YAML files above are settings references only; do not apply them for this route.
+
+1. **Render → New → Key Value**: use `danpahq-redis-staging` or `danpahq-redis`, choose **Frankfurt**, **Free**, and maxmemory policy **noeviction**. Keep external access disabled; copy its **Internal URL** for runtime `REDIS_URL`. [Key Value setup](https://render.com/docs/key-value)
+2. **Render → New → Web Service → connect this repository**. Use the matching environment's branch/name above and these Docker settings:
+
+   | Field | Value |
+   |---|---|
+   | Region / instance | Frankfurt / **Free** |
+   | Language | Docker |
+   | Root Directory | Leave blank (repository root) |
+   | Dockerfile Path | `./backend/Dockerfile` |
+   | Docker Build Context Directory | `./backend` |
+   | Docker Command | `sh scripts/render-start.sh` |
+   | Health Check Path | `/healthz` |
+   | Auto-Deploy | After CI Checks Pass |
+
+   For Free **staging**, also set `DJANGO_SETTINGS_MODULE=config.settings.staging` and `RENDER_RUNTIME_PROFILE=staging-free` in the Web Service's environment. The Docker command runs the API, worker and scheduler together; do not create paid Background Worker/Cron services. [Web Service setup](https://render.com/docs/web-services), [Docker settings](https://render.com/docs/docker)
+3. Under **Environment**, enter every runtime `envVars` setting from the matching YAML: copy literal `value` entries, fill `sync: false` entries, replace the Redis `fromService` reference with the Internal URL, and generate a separate random secret for each `generateValue: true` entry. Use 50+ random characters for `DJANGO_SECRET_KEY`; preserve existing secrets when reusing a deployment. The YAML's empty integrations group needs no setup. Use runtime database credentials from §1; **never import the owner-env file into Render**.
+4. Create the service, then add the API custom domain/DNS as in the paid route below. Complete **§2 B GitHub release** with matching application secrets before expecting a healthy API. Initial startup can fail until that release provisions/migrates the database; no Render shell or pre-deploy migration command is needed. Keep the owner release on GitHub and never enable public Redis access just for it.
+
+Free-tier limits: the web service sleeps after 15 idle minutes, pausing this app's worker/scheduler too. Free Key Value loses queued/cache data on restart; only one is available per workspace, so two isolated staging/production stores cannot both be free there. Usage limits apply; this is a light-traffic staging option, not reliable production scheduling. [Render free-instance limits](https://render.com/docs/free)
+
+The `staging-free` profile uses one synchronous web request, a sequential Celery `solo` worker, and beat inside the existing lease-holding scheduler process. The same PostgreSQL overlap lock is checked before each scheduling tick; lease failure stops scheduling. Queues, Redis sessions, Argon2 and required MFA remain enabled. Production rejects this profile and keeps its existing process layout. Solo tasks cannot use prefork time-limit/child-recycling protections; long tasks delay other background work. Large uploads/reports or higher concurrency can still exceed Free capacity. [Celery concurrency](https://docs.celeryq.dev/en/v5.4.0/userguide/concurrency/)
+
+Local verification (1 November 2026): an isolated Linux container capped at **512 MiB, no swap and 0.1 CPU** peaked at **446.8 MiB** through real Argon2 password rejection/login, MFA QR enrollment/code confirmation, authenticated admin navigation and scheduled outbox execution. The database/account were disposable synthetic fixtures; production security settings and runtime database grants were used. This is not an endurance/heavy-upload test or a verified Render deployment. The focused supervisor/scheduler/database/admin/MFA suite passed 73 tests; detailed local probe artifacts are under ignored `tmp/free-staging/`.
+
+Deploy the profile code before setting the new environment variable. For an existing manually created staging service, save the two staging values above and redeploy; no database/password changes are needed. Keep its runtime `POSTGRES_*` and `REDIS_URL`, and keep owner/bootstrap credentials only in GitHub. Moving existing Redis to Free may lose queued/cache data; review that change separately rather than deleting/recreating a live store blindly.
+
+#### YAML / Blueprint setup
 
 1. Commit/push the selected environment's configuration before connecting Render.
 2. Open **Render → New → Blueprint → this repository**.
-3. Select the branch and Blueprint path from the environment table. Review the price before applying: the Blueprint creates a paid API service and Redis.
+3. Select the branch and Blueprint path from the environment table. Review the plan summary before applying: staging requests Free API/Key Value; production requests paid instances. A workspace can have only one Free Key Value instance.
 4. Keep **After CI Checks Pass** enabled and one service instance. Keep Redis policy `noeviction`.
 5. Fill the requested variables:
 
@@ -85,7 +129,7 @@ Keep Android OAuth client IDs in Google Cloud. Google Sign-In configuration rema
 | `DATABASE_RUNTIME_ROLE` | `grp_app` |
 | `DJANGO_SECRET_KEY` | Independent random value of at least 50 characters |
 | `S3_ENDPOINT_URL`, `S3_ACCESS_KEY`, `S3_SECRET_KEY` | Selected R2 credentials |
-| `RESEND_API_KEY`, `CLOUDMERSIVE_API_KEY` | Selected provider credentials |
+| `CLOUDMERSIVE_API_KEY` | Selected file-scanning credentials |
 | `GOOGLE_OAUTH_CLIENT_ID` | Selected Web OAuth client ID |
 
 6. Apply the Blueprint. Save generated application secrets securely; GitHub needs matching values below. Preserve them on future releases.
@@ -126,13 +170,20 @@ Use the selected environment's API and Management website.
 4. For phone verification, configure `SMS_BACKEND=arkesel`, `ARKESEL_API_KEY`, approved `ARKESEL_SENDER_ID`, and the intended `ARKESEL_SANDBOX` mode. Production delivery uses `false`; `null` sends nothing.
 5. Back up `RUNTIME_CONFIG_ENCRYPTION_KEY`. For emergency admin MFA recovery only, use a trusted shell: `python manage.py enroll_admin_mfa --surface django --email <email> --reset` (`--surface management` for Management).
 
-### Optional Brevo email alerts
+### Email delivery setup: Brevo and Resend
 
-1. In Brevo, authenticate the sender domain/address, enable transactional sending, and create an **API key**, not an SMTP key.
-2. Open **Management → Configuration → Email delivery**. Enter `BREVO_API_KEY`, `BREVO_SENDER_EMAIL`, `BREVO_SENDER_NAME`; select **Brevo**.
-3. Keep Resend configured: current deployment templates still require `RESEND_API_KEY`. For Brevo-only deployment, set `EMAIL_BACKEND=apps.identity.email_backend.BrevoEmailBackend` in both owner/runtime environments and configure Brevo before opening verification workflows.
-4. Verify an account email. Enable **Email alerts** and its topic switches. Trigger an eligible reminder; confirm delivery in Brevo and the inbox.
-5. Disable alerts and repeat: no alert email. Account-verification email must still work. Keep workers/scheduler running; Brevo failures do not automatically fall back to Resend.
+1. Open **Management → Configuration → Email delivery** as an Operations Admin. Select **Brevo** or **Resend**; enter that provider's API key, verified sender email and sender name. Brevo requires an API key, not an SMTP key.
+2. Save the configuration. Secrets are encrypted and masked; Support cannot change them. The next delivery uses the saved selection without restarting the API or workers. Configure staging and production separately.
+3. Verify an account email. Enable the account's **Email alerts** and topic switches, trigger an eligible reminder, and confirm acceptance in the selected provider and receipt in the inbox.
+4. Disable alerts and repeat: no alert email. Requested account-verification codes must still work. Keep workers/scheduler running. Provider failures do not silently switch to another provider.
+
+| Arrangement | Configuration and behavior |
+|---|---|
+| Brevo selected | `BREVO_API_KEY`, `BREVO_SENDER_EMAIL`, `BREVO_SENDER_NAME` control verification and opted-in alerts. |
+| Resend selected | `RESEND_API_KEY`, `RESEND_SENDER_EMAIL`, `RESEND_SENDER_NAME` control verification and opted-in alerts. |
+| Deployment default selected | Alerts are off; verification uses `EMAIL_BACKEND`. The managed backend preserves the legacy Resend fallback when no provider is selected; without credentials, delivery fails explicitly. Local console/test backends remain available in development/tests. |
+
+Existing deployments pinned to `ResendEmailBackend` must change `EMAIL_BACKEND` to `apps.identity.email_backend.ManagementEmailBackend` in Render and their GitHub owner-env secret once, then deploy this version. Subsequent provider/key/sender changes belong entirely in Management. Optional environment fallbacks remain supported; retain existing keys during migration until email delivery is verified. Never put credentials in source or public client variables. This guide does not establish which provider is selected in a running environment.
 
 ### Payments
 
