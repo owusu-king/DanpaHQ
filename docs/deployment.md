@@ -31,6 +31,8 @@ Use one column throughout setup. Create separate databases, Redis, buckets and a
 4. Open **Connect → Session pooler**. Save the host and project reference. Use database `postgres`, port `5432`, SSL `require`.
 5. Choose a different password for runtime role `grp_app`. GitHub creates this role during the first release.
 
+PostGIS/other required extensions may live in `extensions` or another schema. Provisioning discovers their schemas, grants runtime `USAGE` and sets the role's database search path; Django repeats the path setup on each new connection for pooled sessions. Keep application tables in `public`; no extension move or additional environment variable is needed. If marker requests return 500 with `function st_x(extensions.geometry) does not exist`, release this connection/provisioning fix and restart Render connections. [Supabase PostGIS](https://supabase.com/docs/guides/database/extensions/postgis)
+
 Owner provisioning also fills missing RLS policies on Django-managed tables that already have RLS enabled: access is granted only to the backend runtime role, with migration history SELECT-only. Existing custom policies are preserved; audit remains append-only. No `BYPASSRLS`, owner runtime login or public/client policy is needed. Commit and push the provisioning fix so GitHub's owner release repairs the policies before Render redeploys. Runtime startup rejects RLS tables lacking an applicable SELECT policy; conditional/custom policies still need separate review. PostgreSQL otherwise hides all rows when RLS has no applicable policy. [Row security](https://www.postgresql.org/docs/17/ddl-rowsecurity.html)
 
 ### Cloudflare R2 files

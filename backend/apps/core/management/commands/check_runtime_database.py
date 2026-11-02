@@ -65,4 +65,13 @@ class Command(BaseCommand):
                     f"Row security on {blocked[0]} has no runtime SELECT policy; "
                     "rerun owner provisioning or review existing custom policies."
                 )
+            cursor.execute(
+                "SELECT to_regproc('postgis_lib_version') IS NOT NULL, "
+                "to_regproc('similarity') IS NOT NULL"
+            )
+            if not all(cursor.fetchone()):
+                raise CommandError(
+                    "Database extension functions are not visible; rerun owner "
+                    "provisioning and restart runtime connections."
+                )
         self.stdout.write(self.style.SUCCESS("Runtime database privileges verified."))

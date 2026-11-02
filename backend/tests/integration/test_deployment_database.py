@@ -177,6 +177,37 @@ def test_provisioning_preserves_existing_custom_rls_policies(settings, monkeypat
         assert cursor.fetchall() == [("custom_access", "false")]
 
 
+def test_nonpublic_extensions_are_granted_and_resolved_on_connections(settings, monkeypatch):
+    from django.db.backends.signals import connection_created
+
+    # pg_trgm is relocatable, unlike PostGIS. Exercise real extension discovery
+    # and function resolution without moving PostGIS or touching another DB.
+    with connection.cursor() as cursor:
+        cursor.execute("CREATE SCHEMA danpahq_test_extensions")
+        cursor.execute("ALTER EXTENSION pg_trgm SET SCHEMA danpahq_test_extensions")
+    provision(settings, monkeypatch)
+    with connection.cursor() as cursor:
+        cursor.execute(
+            "SELECT unnest(s.setconfig) FROM pg_db_role_setting s "
+            "JOIN pg_roles r ON r.oid=s.setrole "
+            "WHERE r.rolname=%s AND s.setdatabase="
+            "(SELECT oid FROM pg_database WHERE datname=current_database())", [ROLE],
+        )
+        assert any("danpahq_test_extensions" in row[0] for row in cursor.fetchall())
+    with as_runtime(), connection.cursor() as cursor:
+        cursor.execute("SELECT has_schema_privilege(current_user, "
+                       "'danpahq_test_extensions', 'USAGE'), "
+                       "has_schema_privilege(current_user, 'danpahq_test_extensions', 'CREATE')")
+        assert cursor.fetchone() == (True, False)
+        cursor.execute("SET LOCAL search_path TO public")
+        with pytest.raises(CommandError, match="extension functions are not visible"):
+            call_command("check_runtime_database", stdout=StringIO())
+        connection_created.send(sender=type(connection), connection=connection)
+        cursor.execute("SELECT similarity('map', 'map')")
+        assert cursor.fetchone()[0] == 1
+        call_command("check_runtime_database", stdout=StringIO())
+
+
 def test_migration_history_is_read_only_for_runtime_but_owner_can_record(settings, monkeypatch):
     from django.db.migrations.recorder import MigrationRecorder
 

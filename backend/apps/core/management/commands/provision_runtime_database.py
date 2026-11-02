@@ -9,6 +9,8 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import connection, transaction
 from psycopg import sql
 
+from apps.core.database import extension_search_path
+
 
 class Command(BaseCommand):
     help = "Provision a least-privilege runtime role, then protect the audit log."
@@ -67,6 +69,17 @@ class Command(BaseCommand):
             ))
             cursor.execute(sql.SQL("GRANT USAGE ON SCHEMA public TO {}").format(
                 sql.Identifier(role),
+            ))
+            schemas = extension_search_path(cursor)
+            for extension_schema in schemas[1:]:
+                cursor.execute(sql.SQL("GRANT USAGE ON SCHEMA {} TO {}").format(
+                    sql.Identifier(extension_schema), sql.Identifier(role),
+                ))
+            cursor.execute(sql.SQL(
+                "ALTER ROLE {} IN DATABASE {} SET search_path TO {}"
+            ).format(
+                sql.Identifier(role), sql.Identifier(database),
+                sql.SQL(", ").join(sql.Identifier(name) for name in schemas),
             ))
             tables = set(connection.introspection.django_table_names(only_existing=True))
             tables.add("django_migrations")
