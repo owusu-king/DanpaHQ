@@ -31,6 +31,8 @@ Use one column throughout setup. Create separate databases, Redis, buckets and a
 4. Open **Connect → Session pooler**. Save the host and project reference. Use database `postgres`, port `5432`, SSL `require`.
 5. Choose a different password for runtime role `grp_app`. GitHub creates this role during the first release.
 
+Owner provisioning also fills missing RLS policies on Django-managed tables that already have RLS enabled: access is granted only to the backend runtime role, with migration history SELECT-only. Existing custom policies are preserved; audit remains append-only. No `BYPASSRLS`, owner runtime login or public/client policy is needed. Commit and push the provisioning fix so GitHub's owner release repairs the policies before Render redeploys. Runtime startup rejects RLS tables lacking an applicable SELECT policy; conditional/custom policies still need separate review. PostgreSQL otherwise hides all rows when RLS has no applicable policy. [Row security](https://www.postgresql.org/docs/17/ddl-rowsecurity.html)
+
 ### Cloudflare R2 files
 
 1. Open **R2 Object Storage → Create bucket**. Use the bucket name from the environment table. Keep it private.
@@ -397,6 +399,8 @@ npx eas-cli update --channel production --environment production --message "Desc
 | Runtime will not start | Check GitHub database release, settings/secrets and runtime role permissions; use `scripts/render-start.sh` |
 | Upload stays pending | Check worker, selected R2 bucket/CORS, Cloudmersive key/quota and file size |
 | Google mobile login fails | Check Web ID matches API, iOS callback ID, Android package and actual signing SHA-1 |
+| Admin email/password rejected | Admin accepts email only (case-insensitive), not phone. Check the owner-release bootstrap result: `Superuser exists; bootstrap skipped.` means new `DJANGO_SUPERUSER_*` values did not update the existing account. Verify that the expected superuser is active, staff, email-verified and belongs to the same database as the runtime. Use an authorized password-reset procedure for an existing account; do not recreate it, overwrite it through bootstrap or disable MFA. |
+| Admin password matches as owner but login fails | Compare row visibility using the runtime role. RLS enabled without policies can hide `identity_user` and other application tables despite SQL grants. Rerun the updated `provision_runtime_database` in the isolated GitHub owner release; preserve RLS and audit protections rather than switching Render to the owner role. |
 | Mobile reaches wrong API | Confirm profile and embedded API; build/install the correct artifact |
 | Web release fails | Cloudflare Pages → previous deployment → **Rollback** |
 | API release fails | Disable auto-deploy; Render → schema-compatible previous deployment → **Rollback**; migrations are not reverted |

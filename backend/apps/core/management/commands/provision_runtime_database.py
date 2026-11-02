@@ -78,6 +78,7 @@ class Command(BaseCommand):
                 cursor.execute(sql.SQL("GRANT {} ON TABLE {} TO {}").format(
                     sql.SQL(privileges), sql.Identifier("public", table), sql.Identifier(role),
                 ))
+                self._allow_runtime_rows(cursor, table, role)
                 for sequence in connection.introspection.get_sequences(cursor, table):
                     cursor.execute(sql.SQL("GRANT USAGE, SELECT ON SEQUENCE {} TO {}").format(
                         sql.Identifier("public", sequence["name"]), sql.Identifier(role),
@@ -93,6 +94,29 @@ class Command(BaseCommand):
             self._restrict_migration_history(cursor, role)
             call_command("harden_database", app_role=role, stdout=self.stdout)
         self.stdout.write(self.style.SUCCESS(f"Runtime grants configured for {role}."))
+
+    def _allow_runtime_rows(self, cursor, table, role):
+        # Supabase may enable RLS without policies. Grants alone then expose no
+        # rows to Django's non-owner connection. Only fill that empty-policy gap;
+        # preserve custom policies and the separately hardened audit boundary.
+        if table == "audit_log":
+            return
+        cursor.execute(
+            "SELECT c.relrowsecurity, EXISTS(SELECT 1 FROM pg_policy p "
+            "WHERE p.polrelid=c.oid) FROM pg_class c "
+            "JOIN pg_namespace n ON n.oid=c.relnamespace "
+            "WHERE n.nspname='public' AND c.relname=%s", [table],
+        )
+        enabled, has_policies = cursor.fetchone()
+        if not enabled or has_policies:
+            return
+        command = "SELECT" if table == "django_migrations" else "ALL"
+        cursor.execute(sql.SQL(
+            "CREATE POLICY danpahq_runtime_access ON {} FOR {} TO {} USING (true){}"
+        ).format(
+            sql.Identifier("public", table), sql.SQL(command), sql.Identifier(role),
+            sql.SQL("" if command == "SELECT" else " WITH CHECK (true)"),
+        ))
 
 
     def _restrict_migration_history(self, cursor, role):

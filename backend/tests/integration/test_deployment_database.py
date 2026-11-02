@@ -101,14 +101,80 @@ def assert_read_only_ledger():
 
 
 @contextmanager
-def as_runtime():
+def as_runtime(role=ROLE):
     with connection.cursor() as cursor:
-        cursor.execute(sql.SQL("SET LOCAL ROLE {}").format(sql.Identifier(ROLE)))
+        cursor.execute(sql.SQL("SET LOCAL ROLE {}").format(sql.Identifier(role)))
     try:
         yield
     finally:
         with connection.cursor() as cursor:
             cursor.execute("RESET ROLE")
+
+
+def test_empty_rls_policies_are_repaired_for_backend_login_and_crud(settings, monkeypatch):
+    from django.contrib.auth import get_user_model
+
+    from apps.identity.admin_auth import AdminEmailBackend
+
+    users = get_user_model().objects
+    admin = users.create_superuser(
+        phone="+233241234567", email="rls-admin@example.com", password="test-admin-password",
+    )
+    provision(settings, monkeypatch)
+    with connection.cursor() as cursor:
+        cursor.execute("ALTER TABLE identity_user ENABLE ROW LEVEL SECURITY")
+        cursor.execute("ALTER TABLE identity_user FORCE ROW LEVEL SECURITY")
+    with as_runtime():
+        assert AdminEmailBackend.check_primary(admin.email, "test-admin-password") is None
+        with pytest.raises(CommandError, match="no runtime SELECT policy"):
+            call_command("check_runtime_database", stdout=StringIO())
+
+    for _ in range(2):
+        provision(settings, monkeypatch)
+    with as_runtime():
+        assert AdminEmailBackend.check_primary(admin.email, "test-admin-password") == admin
+        user = users.create_user(phone="+233201234567", password="test-user-password")
+        assert users.filter(pk=user.pk).update(email="rls-user@example.com") == 1
+        # Test SQL row permissions directly: account closure is a separate
+        # soft-delete flow, and ORM cascades must not rewrite audit actors.
+        with connection.cursor() as cursor:
+            cursor.execute("DELETE FROM identity_user WHERE id=%s", [user.pk])
+            assert cursor.rowcount == 1
+        assert not users.filter(pk=user.pk).exists()
+        call_command("check_runtime_database", stdout=StringIO())
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT relrowsecurity, relforcerowsecurity FROM pg_class "
+                       "WHERE oid='identity_user'::regclass")
+        assert cursor.fetchone() == (True, True)
+        cursor.execute("CREATE ROLE danpahq_test_untrusted NOLOGIN")
+        cursor.execute("GRANT USAGE ON SCHEMA public TO danpahq_test_untrusted")
+        cursor.execute("GRANT SELECT ON identity_user TO danpahq_test_untrusted")
+    with as_runtime("danpahq_test_untrusted"):
+        assert not users.filter(pk=admin.pk).exists()
+
+
+def test_rls_migration_history_remains_read_only(settings, monkeypatch):
+    with connection.cursor() as cursor:
+        cursor.execute("ALTER TABLE django_migrations ENABLE ROW LEVEL SECURITY")
+    provision(settings, monkeypatch)
+    assert_read_only_ledger()
+    with as_runtime(), connection.cursor() as cursor:
+        cursor.execute("SELECT count(*) FROM django_migrations")
+        assert cursor.fetchone()[0] > 0
+        call_command("check_runtime_database", stdout=StringIO())
+
+
+def test_provisioning_preserves_existing_custom_rls_policies(settings, monkeypatch):
+    provision(settings, monkeypatch)
+    with connection.cursor() as cursor:
+        cursor.execute("ALTER TABLE identity_user ENABLE ROW LEVEL SECURITY")
+        cursor.execute("CREATE POLICY custom_access ON identity_user "
+                       "FOR SELECT TO danpahq_test_runtime USING (false)")
+    provision(settings, monkeypatch)
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT policyname, qual FROM pg_policies "
+                       "WHERE schemaname='public' AND tablename='identity_user'")
+        assert cursor.fetchall() == [("custom_access", "false")]
 
 
 def test_migration_history_is_read_only_for_runtime_but_owner_can_record(settings, monkeypatch):
