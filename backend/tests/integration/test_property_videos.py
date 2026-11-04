@@ -232,6 +232,9 @@ def test_forged_duration_is_checked_again_after_decoding(tmp_path, monkeypatch):
 def test_signed_local_playback_supports_byte_ranges(landlord, settings, tmp_path):
     settings.STORAGE_BACKEND = "local"
     settings.LOCAL_STORAGE_ROOT = str(tmp_path)
+    # CI's S3 environment uses a different public storage URL. Keep this local
+    # playback test on the actual Django route regardless of that environment.
+    settings.LOCAL_STORAGE_BASE_URL = "http://testserver/api/v1/storage"
     reset_storage()
     storage = get_storage()
     file = ready(landlord)
@@ -241,12 +244,16 @@ def test_signed_local_playback_supports_byte_ranges(landlord, settings, tmp_path
 
     parsed = urlsplit(signed)
     path = f"{parsed.path}?{parsed.query}"
-    response = APIClient().get(path, HTTP_RANGE="bytes=2-5")
+    client = APIClient()
+    response = client.get(path, HTTP_RANGE="bytes=2-5")
     assert response.status_code == 206
     assert response.content == b"2345"
     assert response["Content-Type"] == "video/mp4"
     assert response["Content-Range"] == "bytes 2-5/10"
-    assert APIClient().get(path, HTTP_RANGE="bytes=50-").status_code == 416
+    assert client.get(path, HTTP_RANGE="bytes=50-").status_code == 416
+    assert client.get(
+        path.replace("signature=", "signature=tampered"), HTTP_RANGE="bytes=2-5",
+    ).status_code == 403
 
 
 def test_failed_scan_can_retry_the_same_upload(
