@@ -103,7 +103,7 @@ export default function PreferencesSettingsPage() {
     <>
       {error ? <Notice tone="error" title={error} /> : null}
 
-      <SettingsCard title="Channels" description="Switches save automatically." className="prefs-card">
+      <SettingsCard title="Channels" className="prefs-card">
         <ul className="prefs-channels">
           <li className="prefs-channel is-fixed">
             <ChannelHead icon="updates" name="In-app updates" />
@@ -194,7 +194,6 @@ export default function PreferencesSettingsPage() {
       <SettingsCard
         title="Alerts"
         className="prefs-card"
-        description="All activity stays in Updates."
         action={<span className="prefs-count"><strong>{onCount}</strong> of {topics.length} on</span>}
       >
         <ul className="prefs-alerts">

@@ -398,7 +398,7 @@ function ReplacementTimes({
           ))}
         </RecordPanel>
       ) : (
-        <Notice tone="info" title="Those times have passed" body="Offer another time to keep the Viewing moving." />
+        <Notice tone="info" title="Those times have passed" />
       )}
     </View>
   );
@@ -510,9 +510,6 @@ function CancelAppointmentForm({
     <View style={styles.section}>
       <GroupLabel>Cancel appointment</GroupLabel>
       <RecordPanel style={styles.formPanel}>
-        <Type variant="caption" style={styles.formNote}>
-          Could a different time work? Rescheduling keeps the Viewing alive.
-        </Type>
         <Choice
           label="Reason"
           value={reason}

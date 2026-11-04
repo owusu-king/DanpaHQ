@@ -397,7 +397,6 @@ export function ExploreMap({
       {failed ? (
         <div className="explore-map-failed" role="status">
           <strong>The map could not load right now.</strong>
-          <span>Your search is unchanged, and the rentals are still listed.</span>
         </div>
       ) : null}
       {previewNode && previewAt && preview ? createPortal(preview, previewNode) : null}

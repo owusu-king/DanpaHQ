@@ -91,7 +91,6 @@ export function TenantAgreementsScreen() {
           <Empty
             icon="document-text-outline"
             title="No agreements yet"
-            hint="When a landlord sends one, it waits here for you. Nothing binds you until you accept."
             action={<QuietAction icon="compass-outline" label="Explore homes" onPress={() => router.push("/(app)/(tabs)/explore" as never)} />}
           />
         )) : (
@@ -99,7 +98,7 @@ export function TenantAgreementsScreen() {
             {lanes.decide.length ? (
               <Section title="Needs your decision" tone={LATERITE} rows={lanes.decide} lane="decide" onOpen={open} />
             ) : lanes.home.length || lanes.finalising.length ? (
-              <Calm text="Nothing to decide. A new agreement from a landlord shows here first." />
+              <Calm text="Nothing to decide." />
             ) : null}
             {lanes.home.length ? <Section title={lanes.home.length === 1 ? "Your home" : "Your homes"} rows={lanes.home} lane="home" onOpen={open} /> : null}
             {lanes.finalising.length ? <Section title="Being finalised" rows={lanes.finalising} lane="finalising" onOpen={open} /> : null}

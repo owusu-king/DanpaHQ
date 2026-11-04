@@ -12,7 +12,6 @@ import { Panel } from "@/components/billing/BillingSurfaces";
 import { useHomeDensity } from "@/components/home/plinth";
 import {
   FAINT,
-  Footnote,
   GroupLabel,
   HARMATTAN,
   KOLA,
@@ -119,7 +118,6 @@ export default function TenantPaymentsScreen() {
 
   const [lead, ...restDue] = dueRows;
   const outstanding = dueRows.reduce((total, row) => total + row.charge.outstanding_minor, 0);
-  const unavailable = dueRows.some((row) => !row.account.ledger.digital_payment.available && !row.intent);
   // Paid means it counts: a claim still waiting for confirmation is not the last payment.
   const latest = history.find((row) => row.payment.is_confirmed || row.payment.evidence === "PSP_CONFIRMED");
 
@@ -162,7 +160,6 @@ export default function TenantPaymentsScreen() {
           <Empty
             icon="wallet-outline"
             title="No rent account yet"
-            hint="Payments appear here once an agreement sets a rent schedule."
             action={<QuietAction icon="document-text-outline" label="Your agreements" onPress={() => router.push("/(app)/leases" as never)} />}
           />
         ) : null}
@@ -174,7 +171,6 @@ export default function TenantPaymentsScreen() {
             ) : (
               <Calm text={latest ? `All paid up. Your last payment was ${paidAmount(latest.payment)} on ${shortDate(latest.payment.paid_on)}.` : "All paid up. Nothing is due on any of your homes."} />
             )}
-            {unavailable ? <Footnote>Pay rent explains anything a home still needs before it can be paid online.</Footnote> : null}
 
             {confirmationRows.length ? (
               <View style={styles.section}>
@@ -210,7 +206,7 @@ export default function TenantPaymentsScreen() {
                   ) : null}
                 </Panel>
               ) : (
-                <Empty compact icon="receipt-outline" title="No payments yet" hint="Each payment you make shows here with its receipt." />
+                <Empty compact icon="receipt-outline" title="No payments yet" />
               )}
             </View>
 

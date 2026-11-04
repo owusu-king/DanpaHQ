@@ -1,7 +1,7 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { StatusBar } from "expo-status-bar";
-import { useEffect, useRef } from "react";
-import { Animated, Easing, Pressable, StyleSheet, Text, View } from "react-native";
+import { useEffect, useState } from "react";
+import { Animated, useAnimatedValue, Easing, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Circle, Defs, RadialGradient, Stop } from "react-native-svg";
 
@@ -53,13 +53,15 @@ export function WelcomeIntro({
   const reduceMotion = useReduceMotion();
 
   // Arrival, in order: mark, name, words, action, ways on.
-  const [markIn, nameIn, wordsIn, actionIn, waysIn] = useRef(
-    [0, 1, 2, 3, 4].map(() => new Animated.Value(0)) as [Animated.Value, Animated.Value, Animated.Value, Animated.Value, Animated.Value],
-  ).current;
-  const breath = useRef(new Animated.Value(0)).current;
-  const hums = useRef(ACCENT.map(() => new Animated.Value(0))).current;
-  const sheen = useRef(new Animated.Value(0)).current;
-  const drift = useRef(new Animated.Value(0)).current;
+  const markIn = useAnimatedValue(0);
+  const nameIn = useAnimatedValue(0);
+  const wordsIn = useAnimatedValue(0);
+  const actionIn = useAnimatedValue(0);
+  const waysIn = useAnimatedValue(0);
+  const breath = useAnimatedValue(0);
+  const [hums] = useState(() => ACCENT.map(() => new Animated.Value(0)));
+  const sheen = useAnimatedValue(0);
+  const drift = useAnimatedValue(0);
 
   useEffect(() => {
     const arrive = [markIn, nameIn, wordsIn, actionIn, waysIn];
@@ -112,7 +114,8 @@ export function WelcomeIntro({
     ]);
 
     glow.start();
-    entrance.start(() => {
+    entrance.start(({ finished }) => {
+      if (!finished) return;
       breathe.start();
       hum.start();
       shine.start();

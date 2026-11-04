@@ -17,6 +17,7 @@
 /* --- the frame around a value ---------------------------------------------- */
 
 .field { display: grid; gap: var(--space-2); min-width: 0; }
+.field :is(input, textarea, select) { max-width: 100%; }
 .field-label { color: var(--color-ink-700); }
 .field-hint { color: var(--color-ink-500); }
 .field-error { color: var(--color-laterite-600); }

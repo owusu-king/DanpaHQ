@@ -83,7 +83,6 @@ export default function TenancyPage() {
             <PanelState
               icon="home"
               title="This tenancy isn’t one of yours"
-              body="It may have ended, or the link may be wrong."
               action={<Link href="/home" className="ws-action is-primary">Back to Home</Link>}
             />
           )}

@@ -144,7 +144,7 @@ export function DanpaIntel({ context, storageKey, controlledOpen, onOpenChange, 
           remember(`${vertical}-${horizontal}`);
         }}>
         <IntelMark />
-        <span id={id + "-entry"} className="sr-only">Your AI guide to housing information and services. Drag to move, or use Alt and arrow keys to choose a corner.</span>
+        <span id={id + "-entry"} className="sr-only">Drag to move, or use Alt and arrow keys to choose a corner.</span>
       </button>
     </Popover.Trigger>, document.body) : null}
     <Popover.Portal>

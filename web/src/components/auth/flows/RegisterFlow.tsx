@@ -362,26 +362,26 @@ export function RegisterFlow({ params, go: show, close, land }: AuthFlowProps) {
   const heading = {
     role: {
       title: "How will you use Danpa HQ?",
-      description: "Choose how you’ll use Danpa HQ. You can add another account later.",
+      description: "",
     },
     method: {
       title: applyingAsArtisan ? "Create your artisan account" : "How would you like to continue?",
-      description: applyingAsArtisan ? "Create your account, then submit your work for review." : "Continue with Google or phone.",
+      description: "",
     },
     details: googleTicket
-      ? { title: "Complete your profile", description: "Google filled what it could. Check it and add the missing details." }
+      ? { title: "Complete your profile", description: "" }
       : createsHere
-        ? { title: "Almost there", description: "Your number is confirmed. Check the details below to finish." }
-      : { title: "Tell us about you", description: "Your basic details." },
+        ? { title: "Almost there", description: "" }
+      : { title: "Tell us about you", description: "" },
     phone: needsAgreement ? {
       title: "Provider agreement",
-      description: "Review and accept the agreement before continuing.",
+      description: "",
     } : createsHere ? {
       title: "Complete your account",
-      description: "Your provider agreement is accepted. You can now finish creating your account.",
+      description: "",
     } : {
       title: "Confirm your number",
-      description: "It is how you sign in and how we reach you. We'll text a six-digit code.",
+      description: "",
     },
     code: {
       title: "Enter the code",
@@ -498,7 +498,6 @@ export function RegisterFlow({ params, go: show, close, land }: AuthFlowProps) {
               Continue with phone
             </Button>
             {error ? <Notice tone="error" title={error} /> : null}
-            <p className="auth-aside">Google accounts can add and verify a phone later from Security settings.</p>
           </div>
         ) : null}
 

@@ -22,7 +22,6 @@ test("mobile Payments supports scale and opens a focused rent account", () => {
   // Tenant payment and provider settlement are different financial facts.
   assert.match(list, /summary\.money\.awaiting_settlement_minor/);
   assert.match(list, /summary\.money\.settled_net_minor/);
-  assert.match(list, /Property owners bear Paystack’s transaction fee/);
   assert.match(layout, /name="rent-account"/);
 });
 

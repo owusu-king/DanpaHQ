@@ -36,7 +36,6 @@ export default function ProvidersPage() {
     <>
       <PageHeader
         title="Verification records"
-        description="Latest property submission statuses and individual unit review records. Claimed ownership roles are separate from review types."
         actions={can("view_verifications") ? <Link className="management-button" href="/management/verifications">Open the queue</Link> : null}
       />
       <Panel title="Verification records" meta={resource.data ? countMeta(rows.length, all.length, ["record", "records"]) : undefined}>

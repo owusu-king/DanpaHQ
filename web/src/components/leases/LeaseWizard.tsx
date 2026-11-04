@@ -483,7 +483,6 @@ function PartiesStep({ spec }: { spec: LeaseSpec }) {
         {ctx.sourceLabel ? <span className="lw-chip">{ctx.sourceLabel}</span> : null}
       </div>
 
-      <p className="lw-quiet"><Icon name="lock" />Taken from verified accounts and the request. Nothing to re-enter.</p>
     </div>
   );
 }

@@ -204,12 +204,11 @@ export default function BillingPage() {
         <Notice
           tone="info"
           title="Plan & billing is kept to the Portfolio's owner, administrators and accountants"
-          body="Ask the Portfolio owner if you need to know what this Portfolio is on."
         />
       ) : null}
 
       {view.status === "empty" ? (
-        <Notice tone="info" title="No Portfolio yet" body="A plan belongs to a Portfolio. Create one and it starts on Free." />
+        <Notice tone="info" title="No Portfolio yet" />
       ) : null}
 
       {view.status === "ready" ? (

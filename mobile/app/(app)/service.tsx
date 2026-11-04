@@ -51,25 +51,29 @@ export default function ServiceScreen() {
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState("");
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (signal?: AbortSignal) => {
     if (!service) return;
-    try {
-      const [details, purchases] = await Promise.all([
-        detailsFor(service.id),
-        listRecentPurchases(),
-      ]);
+    await Promise.all([
+      detailsFor(service.id),
+      listRecentPurchases(),
+    ]).then(([details, purchases]) => {
+      if (signal?.aborted) return;
       setSaved(details);
       setRecent(purchases.filter((row) => row.serviceId === service.id));
       setError("");
-    } catch {
+    }).catch(() => {
+      if (signal?.aborted) return;
       setError("We could not read your saved details on this device.");
-    } finally {
+    }).finally(() => {
+      if (signal?.aborted) return;
       setLoaded(true);
-    }
+    });
   }, [service]);
 
   useEffect(() => {
-    void load();
+    const controller = new AbortController();
+    void load(controller.signal);
+    return () => controller.abort();
   }, [load]);
 
   if (!service) {

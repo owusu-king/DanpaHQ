@@ -1026,7 +1026,9 @@ def process_webhook(*, provider_name: str, raw_body: bytes, headers) -> PaymentI
     try:
         return _process_verified_event(webhook=webhook, event=event)
     except (Conflict, NotFound, ValidationFailed) as exc:
-        ProviderWebhook.objects.filter(id=webhook.id).update(
+        ProviderWebhook.objects.filter(id=webhook.id).exclude(
+            status=WebhookStatus.PROCESSED
+        ).update(
             status=WebhookStatus.FAILED,
             processed_at=timezone.now(),
             error_message=exc.message[:500],
@@ -1110,11 +1112,15 @@ def _process_verified_event(
         raise ValidationFailed("The provider confirmed a payment without a completion time.")
 
     if event.status in ("pending", "processing"):
-        intent.status = IntentStatus.PROCESSING
-        intent.save(update_fields=["status", "updated_at"])
+        if intent.status in OPEN_INTENT_STATUSES:
+            intent.status = IntentStatus.PROCESSING
+            intent.save(update_fields=["status", "updated_at"])
         _finish_provider_evidence(webhook)
         return intent
     if event.status == "failed":
+        if intent.status == IntentStatus.SUCCEEDED:
+            _finish_provider_evidence(webhook)
+            return intent
         # One failure row per provider transaction. A provider that retries
         # the same failure callback must not accumulate rows.
         if not intent.transactions.filter(

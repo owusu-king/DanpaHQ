@@ -99,9 +99,8 @@ export default function HomePage() {
 
   if (me.capabilities.active_workspace === "artisan") {
     return <>
-      <PageHeader title="Your artisan account" description="Your verification status" />
+      <PageHeader title="Your artisan account" />
       <p className="type-body-strong">{me.capabilities.artisan.status === "pending" ? "Your verification is under review" : "Review your verification details"}</p>
-      <p>We’ll notify you when there is an update. Workspace tools open after approval.</p>
       <Link href="/artisan">View verification</Link>
     </>;
   }
@@ -297,7 +296,6 @@ function TenantHome({ me }: { me: Me }) {
               <div className="home-inventory-link">
                 <span>
                   <strong>Have an access code?</strong>
-                  <small>Your landlord can give you one for a place you already live in.</small>
                 </span>
                 {/* A small modal, not a page (owner, 2026-10-05). */}
                 <JoinHomeButton className="home-primary-action is-compact">
@@ -339,7 +337,6 @@ function TenantHome({ me }: { me: Me }) {
                   <span aria-hidden="true">✓</span>
                   <p>
                     <strong>Nothing is waiting on you.</strong>
-                    <small>Rent, agreements and viewings are all up to date.</small>
                   </p>
                 </div>
               )}
@@ -352,7 +349,6 @@ function TenantHome({ me }: { me: Me }) {
               <div>
                 <p className="home-eyebrow">Coming up</p>
                 <h2 id="tenant-schedule-title">What happens next</h2>
-                <p>Rent dates and confirmed viewings, in the order they arrive.</p>
               </div>
               <Link href="/viewings" className="home-widget-link">
                 All viewings
@@ -379,7 +375,6 @@ function TenantHome({ me }: { me: Me }) {
             ) : (
               <p className="home-chart-empty">
                 <strong>Nothing scheduled.</strong>
-                <small>Rent dates and confirmed viewings appear here as they are set.</small>
               </p>
             )}
             <StreetElevation />
@@ -771,7 +766,6 @@ function NoTenancy({
             <h2>Find your next home</h2>
           </div>
           <div className="tenant-start-body">
-            <p>Search properties across Ghana, with the owner and the address checked before the listing goes up.</p>
             <Link href="/rentals" className="home-primary-action">Explore rentals</Link>
           </div>
         </section>
@@ -781,7 +775,6 @@ function NoTenancy({
             <h2>Have an access code?</h2>
           </div>
           <div className="tenant-start-body">
-            <p>Your landlord can give you one for the place you already live in. It links this account to that home.</p>
             <JoinHomeButton className="home-widget-link">
               Join a home
               <Chevron />
@@ -1031,7 +1024,6 @@ function ProviderHome({ me, activeContext }: { me: Me; activeContext: string | n
           <div className="home-hero-head">
             <p className="home-eyebrow">{organizations[0]?.name ?? "Your Portfolio"}</p>
             <h1>{greetPerson(me.preferred_name || me.first_name || "")}</h1>
-            <p className="home-hero-line">Add the first place you manage to begin.</p>
           </div>
         </section>
         {error ? <Notice tone="error" title={error} /> : null}
@@ -1043,18 +1035,10 @@ function ProviderHome({ me, activeContext }: { me: Me; activeContext: string | n
             // cannot take: assignment is the owner's decision, not theirs.
             <>
               <h2>Nothing is assigned to you yet</h2>
-              <p className="type-body">
-                You are in {portfolioContext?.label ?? "this Portfolio"}. The Properties you may
-                operate appear here as soon as an owner or administrator assigns them to you.
-              </p>
             </>
           ) : (
             <>
               <h2>Your Portfolio starts here</h2>
-              <p className="type-body">
-                Add your first Property and Danpa HQ will help you organize its Units, tenants,
-                agreements and rent.
-              </p>
               {canAddProperty ? (
                 <p><Link href={next.href as never} className="btn btn-primary home-start-action">{next.label}<span aria-hidden="true">→</span></Link></p>
               ) : (
@@ -1121,7 +1105,6 @@ function ProviderHome({ me, activeContext }: { me: Me; activeContext: string | n
             <div className="home-widget-head">
               <div>
                 <h2 id="home-agenda-title">Coming up</h2>
-                <p>Confirmed viewings, rent due and leases ending in the next 30 days.</p>
               </div>
               <Link href="/viewings" className="home-widget-link">
                 Viewings
@@ -1173,7 +1156,7 @@ function ProviderHome({ me, activeContext }: { me: Me; activeContext: string | n
             ) : (
               <div className="home-all-clear">
                 <span aria-hidden="true"><Icon name="check" /></span>
-                <p><strong>Nothing is waiting on you.</strong><small>Applications, rent, agreements and Property checks are up to date.</small></p>
+                <p><strong>Nothing is waiting on you.</strong></p>
               </div>
             )}
             {attention.length > 6 ? <p className="home-more">{attention.length - 6} more in their workspaces</p> : null}
@@ -1256,7 +1239,7 @@ function Agenda({ items }: { items: AgendaItem[] }) {
     return (
       <div className="home-agenda-empty">
         <span aria-hidden="true"><Icon name="viewings" /></span>
-        <p><strong>A clear month ahead.</strong><small>No confirmed viewings, rent dates or lease ends in the next 30 days.</small></p>
+        <p><strong>A clear month ahead.</strong></p>
       </div>
     );
   }

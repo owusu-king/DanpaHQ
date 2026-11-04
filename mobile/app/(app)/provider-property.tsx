@@ -160,7 +160,6 @@ export default function ProviderPropertyScreen() {
               <Notice
                 tone="success"
                 title="Property created"
-                body="It is private in your Portfolio. Finish its setup, then submit it for verification when you are ready."
               />
             ) : null}
 

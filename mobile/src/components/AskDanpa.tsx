@@ -32,34 +32,12 @@ export function AskDanpaSurface({ onSupport }: { onSupport?: () => void } = {}) 
         <Text style={styles.status}>Coming soon</Text>
       </View>
 
-      <View style={[styles.introduction, compact ? styles.introductionCompact : null]}>
-        <Text style={styles.eyebrow}>HOUSING INTELLIGENCE</Text>
-        <Type variant="title1" style={styles.headline}>A clearer view of your housing.</Type>
-        <Type variant="body" style={styles.description}>
-          Danpa HQ’s future housing intelligence. A place to make sense of your housing information and consider what comes next.
-        </Type>
-      </View>
 
-      <View style={styles.directions}>
-        <Text style={styles.directionLabel}>LOOKING AHEAD</Text>
-        <View accessible style={styles.direction}>
-          <Ionicons name="reader-outline" size={20} color={theme.color.kola["800"]} accessible={false} />
-          <View style={styles.directionText}>
-            <Type variant="bodyStrong" style={styles.directionTitle}>Understand the details</Type>
-            <Type variant="body" style={styles.directionBody}>Clearer context for the housing information you keep here.</Type>
-          </View>
-        </View>
-        <View accessible style={[styles.direction, styles.directionRuled]}>
-          <Ionicons name="navigate-outline" size={20} color={theme.color.kola["800"]} accessible={false} />
-          <View style={styles.directionText}>
-            <Type variant="bodyStrong" style={styles.directionTitle}>Find the next step</Type>
-            <Type variant="body" style={styles.directionBody}>Thoughtful help with relevant housing tasks.</Type>
-          </View>
-        </View>
-      </View>
+
+
       {onSupport ? <Pressable accessibilityRole="button" accessibilityLabel="Support Tickets" onPress={onSupport} style={({ pressed }) => [styles.support, pressed ? styles.pressedPaper : null]}>
         <Ionicons name="headset-outline" size={22} color={theme.color.kola["800"]} accessible={false} />
-        <View style={styles.directionText}><Type variant="bodyStrong">Support Tickets</Type><Type variant="caption" style={styles.directionBody}>Get help from Management. View your tickets and replies.</Type></View>
+        <View style={styles.directionText}><Type variant="bodyStrong">Support Tickets</Type></View>
         <Ionicons name="chevron-forward" size={18} color={theme.color.kola["800"]} accessible={false} />
       </Pressable> : null}
     </View>

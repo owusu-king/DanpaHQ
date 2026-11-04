@@ -166,7 +166,6 @@ export function VerificationPanel({
         <Notice
           tone="info"
           title="With our team"
-          body="We’ll tell you the outcome."
         />
       ) : (
         <p className="type-caption" style={{ margin: 0 }}>

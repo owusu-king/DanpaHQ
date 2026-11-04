@@ -162,7 +162,6 @@ export function SaleDetailsForm({
       <section className="sale-form-group" aria-label="What buyers read">
         <Field
           label="Headline"
-          hint="What it is and where."
           maxLength={160}
           value={headline}
           disabled={locked("headline")}

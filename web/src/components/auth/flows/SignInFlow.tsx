@@ -130,7 +130,6 @@ export function SignInFlow({ params, go, close, land }: AuthFlowProps) {
   return (
     <AuthModal
       title="Sign in"
-      description="Continue with Google or your email or phone number."
       onClose={close}
       footer={(
         <>

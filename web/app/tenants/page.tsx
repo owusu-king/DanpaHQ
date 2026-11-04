@@ -257,7 +257,6 @@ function ProviderTenants() {
               </span>
             </nav>
           )}
-          summary="Share temporary access codes for verified, available Units."
           actions={<Link href="/units" className="ws-action">See all Units<Icon name="units" /></Link>}
         />
         <section className="ws-panel" aria-label="Units ready to share" aria-busy={loading || undefined}>
@@ -274,7 +273,6 @@ function ProviderTenants() {
       <WorkspaceHead
         icon="users"
         title="Tenants"
-        summary="Manage current and past tenancies, tenant details and rent accounts."
         actions={portfolio ? (
           <button type="button" className="ws-action" onClick={() => chooseView("access")}>
             <Icon name="verification" />Private access
@@ -310,7 +308,6 @@ function ProviderTenants() {
           <PanelState
             icon="properties"
             title="Add a Property first"
-            body="Tenant operations begin with a Unit. Add the first Property in your Danpa HQ Portfolio."
             action={<Link href={"/record/property-new" as never} className="btn btn-secondary btn-sm">Add Property</Link>}
           />
         ) : null}
@@ -319,7 +316,6 @@ function ProviderTenants() {
           <PanelState
             icon="users"
             title="No tenancies yet"
-            body="Approved requests appear here after an agreement is accepted and activated."
             action={<Link href="/applications" className="btn btn-quiet btn-sm">Review tenancy requests</Link>}
           />
         ) : null}
@@ -328,7 +324,6 @@ function ProviderTenants() {
           <PanelState
             icon="users"
             title={query.trim() ? `Nobody matches “${query.trim()}”` : filter === "archive" ? "Nobody has moved out yet" : "No tenancies in this view"}
-            body="Change the search or the filter to see the rest of your tenancies."
             action={<Button variant="quiet" size="sm" onClick={() => { setQuery(""); setFilter("all"); }}>Show all tenancies</Button>}
           />
         ) : null}

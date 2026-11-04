@@ -382,6 +382,7 @@ REST_FRAMEWORK = {
         "google_auth": "30/min",
         "payment": "20/min",
         "payment_webhook": "120/min",
+        "push_registration": "60/min",
         "access_code_user": "10/min",
         "access_code_ip": "30/min",
         "viewing_checkin_user": "12/min",
@@ -528,6 +529,8 @@ IDEMPOTENCY_TTL_HOURS = env("IDEMPOTENCY_TTL_HOURS", 24, cast=int)
 SMS_BACKEND = env("SMS_BACKEND", "console")
 EXPO_PUSH_ENABLED = env("EXPO_PUSH_ENABLED", False, cast=bool)
 EXPO_ACCESS_TOKEN = env("EXPO_ACCESS_TOKEN", "")
+FCM_PUSH_ENABLED = env("FCM_PUSH_ENABLED", False, cast=bool)
+FIREBASE_SERVICE_ACCOUNT_JSON = env("FIREBASE_SERVICE_ACCOUNT_JSON", "")
 NOTIFICATION_EMAIL_BACKEND = env("NOTIFICATION_EMAIL_BACKEND", "")
 BREVO_API_KEY = env("BREVO_API_KEY", "")
 BREVO_SENDER_EMAIL = env("BREVO_SENDER_EMAIL", "")

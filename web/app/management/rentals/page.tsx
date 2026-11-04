@@ -35,7 +35,6 @@ export default function RentalsPage() {
     <>
       <PageHeader
         title="Rentals"
-        description="The application and lease context needed to answer customer questions. Read-only for Support Admins."
       />
       <Panel
         title={isLeases ? "Recent leases" : "Recent applications"}

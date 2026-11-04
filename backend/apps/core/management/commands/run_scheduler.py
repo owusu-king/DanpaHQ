@@ -19,9 +19,14 @@ class Command(BaseCommand):
     help = "Run one active scheduler, including during overlapping Render deployments."
 
     def add_arguments(self, parser):
-        parser.add_argument(
-            "--in-process", action="store_true",
-            help="Run beat in this process while retaining the same database lease.",
+        mode = parser.add_mutually_exclusive_group()
+        mode.add_argument(
+            "--in-process", action="store_true", default=True,
+            help="Run beat in the lease-holding process (default).",
+        )
+        mode.add_argument(
+            "--subprocess", action="store_false", dest="in_process",
+            help="Use the legacy separate beat process, retaining the same lease checks.",
         )
 
     def handle(self, *args, **options):
@@ -40,7 +45,7 @@ class Command(BaseCommand):
                     stopped.wait(2)
                 if stopped.is_set():
                     return
-                if options.get("in_process"):
+                if options.get("in_process", True):
                     run_inline(lease, stopped, str(Path(state) / "schedule"))
                     return
                 child = subprocess.Popen(  # noqa: S603 -- fixed executable and arguments

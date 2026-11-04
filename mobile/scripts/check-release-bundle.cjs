@@ -23,7 +23,7 @@ for (const root of roots) {
     throw new Error("The decoder was not found; review the export before trusting this check.");
   }
   const forbidden = sources.filter(source =>
-    /\/node_modules\/(?:node-forge|zod|@expo\/code-signing-certificates|@expo\/cli)\//.test(source)
+    /\/node_modules\/(?:node-forge|zod|@grpc\/grpc-js|@expo\/code-signing-certificates|@expo\/cli)\//.test(source)
     // Expo uses this small module loader in native apps; it is not the CLI's
     // certificate processing or schema-validation code.
     && !source.endsWith("/node_modules/@expo/cli/build/metro-require/require.js"));

@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, KeyRound, Search, ShieldHalf, UserRound } from "lucide-react";
+import { Check, ShieldHalf } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { AuthModal } from "@/components/auth/AuthModal";
@@ -67,7 +67,6 @@ export function WelcomeFlow({ close, land }: AuthFlowProps) {
     <AuthModal
       eyebrow="Account created"
       title={provider ? (name ? `Welcome, ${name}` : "Welcome to Danpa HQ") : name ? `You're in, ${name}` : "You're in"}
-      description={applyingAsArtisan ? "Your account is ready. Next, tell us about your artisan work." : provider ? "Your provider account is ready." : "Your tenant account is ready."}
       onClose={() => leave(arrival.next ?? home)}
     >
       <div className="auth-step" style={provider ? ({ "--hue": "var(--color-lagoon-600)" } as React.CSSProperties) : undefined}>
@@ -85,7 +84,6 @@ export function WelcomeFlow({ close, land }: AuthFlowProps) {
                 <span className="auth-verify-badge" aria-hidden="true"><ShieldHalf /></span>
                 <span>
                   <strong>{needsPhone ? "Complete your provider application" : "Pending Approval"}</strong>
-                  <small>{needsPhone ? "Verify your phone by OTP, then submit your application for management review." : "Management will review your provider account. Each property is verified separately."}</small>
                 </span>
               </div>
               {!needsPhone ? <VerificationTrack stops={providerStops("pending", true)} /> : null}
@@ -97,20 +95,6 @@ export function WelcomeFlow({ close, land }: AuthFlowProps) {
           </>
         ) : (
           <>
-            <ul className="auth-next">
-              <li>
-                <span className="auth-next-icon" aria-hidden="true"><Search /></span>
-                <span><strong>Find a place</strong><small>Browse, save and ask to view homes</small></span>
-              </li>
-              <li>
-                <span className="auth-next-icon" aria-hidden="true"><KeyRound /></span>
-                <span><strong>Already renting?</strong><small>Join your home with the code from your provider</small></span>
-              </li>
-              <li>
-                <span className="auth-next-icon" aria-hidden="true"><UserRound /></span>
-                <span><strong>Your profile</strong><small>Add an email and the rest whenever you like</small></span>
-              </li>
-            </ul>
             <Button className="auth-submit" onClick={() => leave(arrival.next ?? home)}>
               {arrival.next ? "Continue" : "Go to Home"}
             </Button>

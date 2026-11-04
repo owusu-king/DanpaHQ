@@ -186,7 +186,7 @@ export function ForgotPasswordFlow({ params, go, close, land }: AuthFlowProps) {
           {noAccount ? (
             <>
               <p className="auth-note">
-                <strong>No account for that number.</strong> Check the number above, or create an account to get started.
+                <strong>No account for that number.</strong>
               </p>
               <a
                 href={authHref("register", { phone: phone.trim() })}
@@ -237,7 +237,7 @@ export function ForgotPasswordFlow({ params, go, close, land }: AuthFlowProps) {
             }}
             error={fieldError}
             autoComplete="new-password"
-            hint={`At least ${MIN_PASSWORD_LENGTH} characters. Not all digits, and not your own number.`}
+            hint={`Use at least ${MIN_PASSWORD_LENGTH} characters. Avoid an all-digit password or your phone number.`}
           />
           {error ? <Notice tone="error" title={error} /> : null}
           <Button type="submit" className="auth-submit" busy={busy} busyLabel="Saving…">

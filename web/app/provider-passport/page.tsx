@@ -34,7 +34,7 @@ export default function ProviderPassportPage() {
   const id = activeContext?.replace(/^organization:/, "");
   const organization = organizations?.find(row => row.id === (selected || id)) ?? organizations?.[0];
   return <div className="ws-page provider-passport">
-    <WorkspaceHead icon="passport" title="Provider Passport" summary="Your provider credentials, in one place." />
+    <WorkspaceHead icon="passport" title="Provider Passport" />
     {error ? <><Notice tone="error" title={error} /><Button variant="secondary" onClick={() => setRetry(value => value + 1)}>Try again</Button></> : null}
     {!organizations && !error ? <PanelSkeleton rows={4} /> : null}
     {organizations && !organization ? <Notice title="No Passport to manage" body="Available to approved Portfolio owners and administrators." /> : null}
@@ -88,7 +88,7 @@ function PassportEditor({ organization }: { organization: Organization }) {
   const reviewing = ["submitted", "under_review"].includes(passport.status);
   const verified = passport.status === "verified";
   const submitLabel = verified && !dirty ? "Verified" : ["needs_more_info", "rejected"].includes(passport.status) ? "Resubmit for review" : "Submit for review";
-  const submissionHint = dirty ? "Save your changes before submitting." : reviewing ? "Your credentials are with the review team." : verified ? "Changes to credentials require a new review." : passport.missing.length ? `${passport.missing.length} requirement${passport.missing.length === 1 ? "" : "s"} to complete.` : "Your Passport is ready for review.";
+  const submissionHint = dirty ? "Save your changes before submitting." : verified ? "Changes to credentials require a new review." : "";
   const requirement = (field: string, fallback: string) => {
     const personal: Record<string, [string, string]> = {
       legal_name: ["Complete legal name", "/settings"],
@@ -117,7 +117,7 @@ function PassportEditor({ organization }: { organization: Organization }) {
         {passport.missing.length ? <ul>{passport.missing.map(item => {
           const step = requirement(item.field, item.message);
           return <li key={item.field}><Link href={step.href as never} title={item.message}><span className="pp-step-dot" /><span>{step.label}</span><span aria-hidden="true">↗</span></Link></li>;
-        })}</ul> : <p>{reviewing ? "We’ll review your credentials and supporting documents." : verified ? "Reviewed provider credentials can appear on your public listings." : "Submit your saved credentials and documents when you’re ready."}</p>}
+        })}</ul> : null}
         {reviewing ? <Button variant="secondary" size="sm" disabled={busy} onClick={() => setRetry(value => value + 1)}>Refresh status</Button> : null}
       </section>
     </div>
@@ -127,7 +127,7 @@ function PassportEditor({ organization }: { organization: Organization }) {
         <div className="pp-paper">
           <section className="pp-section" id="passport-credentials" aria-labelledby="passport-credentials-title">
             <header className="pp-section-head"><span className="pp-section-number">01</span><div><h2 id="passport-credentials-title">Provider credentials</h2><p>{passport.category_label}</p></div>{!passport.editable ? <span className="pp-private"><Icon name="lock" />In review</span> : null}</header>
-            <form className="pp-form" onSubmit={event => { event.preventDefault(); void run(() => saveProviderPassport(organization.id, form), "Credentials saved.", true); }}>
+            <form className="pp-form" onSubmit={event => { event.preventDefault(); void run(() => saveProviderPassport(organization.id, form), "", true); }}>
               <Select label="Responsible representative" value={form.representative_id} disabled={locked} onChange={value => set("representative_id", value)} options={passport.representatives.map(person => [person.id, person.name] as const)} />
               <Field label="Representative’s role" maxLength={100} value={form.representative_role} disabled={locked} onChange={event => set("representative_role", event.target.value)} />
               {passport.category !== "property_company" ? <div className="pp-form-full"><Check label="Registered business" checked={form.registered_business} disabled={locked} onChange={value => set("registered_business", value)} /></div> : null}
@@ -144,14 +144,13 @@ function PassportEditor({ organization }: { organization: Organization }) {
               const required = kind.value === "business_certificate" && business;
               return <div className="pp-document-group" key={kind.value}>
                 <div className="pp-document-head"><span className="pp-document-icon"><Icon name="leases" /></span><div><h3>{kind.label}</h3><span className="pp-document-meta">{required ? "Required" : "Optional"}{documents.length ? ` · ${documents.length} attached` : ""}</span></div>
-                  <label className="btn btn-secondary btn-sm pp-upload"><Icon name="upload" />{documents.length ? "Add file" : "Upload"}<input type="file" aria-label={`Upload ${kind.label}`} accept="application/pdf,image/jpeg,image/png" disabled={locked} onChange={event => { const file = event.target.files?.[0]; event.target.value = ""; if (file) void run(async () => { const stored = await uploadFile(file, "property_document"); if (!stored.is_usable) throw new Error(stored.rejection_reason || stored.status_message || "This upload is still being checked. Try again shortly."); return addPassportDocument(organization.id, stored.id, kind.value); }, "Document attached."); }} /></label>
+                  <label className="btn btn-secondary btn-sm pp-upload"><Icon name="upload" />{documents.length ? "Add file" : "Upload"}<input type="file" aria-label={`Upload ${kind.label}`} accept="application/pdf,image/jpeg,image/png" disabled={locked} onChange={event => { const file = event.target.files?.[0]; event.target.value = ""; if (file) void run(async () => { const stored = await uploadFile(file, "property_document"); if (!stored.is_usable) throw new Error(stored.rejection_reason || stored.status_message || "This upload is still being checked. Try again shortly."); return addPassportDocument(organization.id, stored.id, kind.value); }, ""); }} /></label>
                 </div>
                 {documents.map(document => <div className="pp-file" key={document.id}><span>{document.filename}</span><div><Button variant="quiet" size="sm" onClick={() => void view(document.download_path)}>View</Button><Button variant="quiet" size="sm" aria-label={`Remove ${document.filename}`} disabled={locked} onClick={() => setRemoving(document.id)}><Icon name="trash" /></Button></div></div>)}
               </div>;
             })}</div>
-            <p className="pp-note">Business credentials only. Ownership and management documents stay with each property.</p>
           </section>
-          <div className="pp-submit"><div><p>{submissionHint}</p><small>Verified credentials may appear on listings. Documents stay private.</small></div><Button disabled={locked || dirty || Boolean(passport.missing.length) || verified} busy={busy} onClick={() => void run(() => submitProviderPassport(organization.id), "Passport submitted for review.")}>{submitLabel}</Button></div>
+          <div className="pp-submit"><div>{submissionHint ? <p>{submissionHint}</p> : null}<small>Verified credentials may appear on listings. Documents stay private.</small></div><Button disabled={locked || dirty || Boolean(passport.missing.length) || verified} busy={busy} onClick={() => void run(() => submitProviderPassport(organization.id), "Passport submitted for review.")}>{submitLabel}</Button></div>
         </div>
       </div>
 
@@ -181,7 +180,7 @@ function PassportEditor({ organization }: { organization: Organization }) {
       {!passport.properties.length ? <p className="pp-empty">No linked properties.</p> : <div className="pp-property-list">{passport.properties.map(property => <Link className="pp-property" key={property.id} href={`/record/property?id=${property.id}`}><span className="pp-property-name"><strong>{property.name}</strong><small>{({ owner: "Owner", manager: "Property manager", listing_agent: "Listing agent" } as Record<string, string>)[property.relationship] ?? humanize(property.relationship)}</small></span><span className="pp-property-checks"><span data-verified={property.authority_verified}><Icon name={property.authority_verified ? "check" : "info"} />Authority {property.authority_verified ? "verified" : "not verified"}</span><span data-verified={property.property_verified}><Icon name={property.property_verified ? "check" : "info"} />Property {property.property_verified ? "verified" : "not verified"}</span></span><span className="pp-property-open" aria-hidden="true">↗</span></Link>)}</div>}
     </section>
     {passport.history.length ? <details className="pp-paper pp-history"><summary><span>Recent review history<span className="pp-count">{passport.history.length}</span></span><Icon name="chevron-down" /></summary><ol>{passport.history.map(review => <li key={review.id}><div><span className="pp-history-status">{PASSPORT_STATUS[review.status] ?? humanize(review.status)}</span><time dateTime={review.submitted_at}>Submitted {new Date(review.submitted_at).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}</time></div>{review.decision_note ? <p>{review.decision_note}</p> : null}</li>)}</ol></details> : null}
-    <ModalSheet open={Boolean(removing)} onClose={() => { if (!busy) setRemoving(null); }} title="Remove document?" icon="passport" size="sm"><p>Previous review evidence is retained. A verified Passport will need review again.</p><div className="compact-form-actions"><Button variant="quiet" disabled={busy} onClick={() => setRemoving(null)}>Cancel</Button><Button busy={busy} onClick={() => { if (removing) void run(() => removePassportDocument(organization.id, removing), "Document removed."); }}>Remove document</Button></div></ModalSheet>
+    <ModalSheet open={Boolean(removing)} onClose={() => { if (!busy) setRemoving(null); }} title="Remove document?" icon="passport" size="sm"><p>Previous review evidence is retained. A verified Passport will need review again.</p><div className="compact-form-actions"><Button variant="quiet" disabled={busy} onClick={() => setRemoving(null)}>Cancel</Button><Button busy={busy} onClick={() => { if (removing) void run(() => removePassportDocument(organization.id, removing), ""); }}>Remove document</Button></div></ModalSheet>
   </>;
 }
 

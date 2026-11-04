@@ -218,7 +218,10 @@ test("iOS floats a glass capsule over the page, and every tab clears it", () => 
   // It moves like the system bar: a drag scrubs, the lozenge is a stiff lead
   // and a soft trail so it stretches as it travels, it swells under a finger,
   // and colour follows its position rather than a timer.
-  assert.match(glass, /PanResponder\.create\(/);
+  assert.match(glass, /const responder = usePanResponder\(\{/);
+  const gesture = code(read("src/usePanResponder.ts"));
+  assert.match(gesture, /const \[responder\] = useState\(createResponder\)/);
+  assert.match(gesture, /PanResponder\.create\(/);
   assert.match(glass, /Animated\.parallel\(\[spring\(lead, target, LEAD\), spring\(trail, target, TRAIL\)\]\)/);
   assert.match(glass, /transform: \[\{ translateX: centre \}, \{ scaleX: stretch \}, \{ scaleY: thin \}, \{ scale: swell \}\]/);
   assert.match(glass, /inputRange: \[\(position - 1\) \* cell, position \* cell, \(position \+ 1\) \* cell\]/);

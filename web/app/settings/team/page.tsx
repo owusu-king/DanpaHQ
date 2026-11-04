@@ -234,7 +234,6 @@ export default function TeamPage() {
         </header>
         <Empty
           title="Your Portfolio is on its way"
-          body="Danpa HQ gives you your Portfolio when your provider verification is approved, and your Team lives inside it. Nothing to set up."
           action={
             <div className="team-empty-actions">
               <Link href="/provider" className="button-link">See your verification status</Link>
@@ -279,7 +278,6 @@ export default function TeamPage() {
         <Notice
           tone="info"
           title="Verify your identity to change who may operate this Portfolio"
-          body="Inviting somebody, changing a role or assigning a Property decides who reaches your tenants and your money, so Danpa HQ confirms who you are first. You can still see the roster and end somebody's access."
         />
       ) : null}
 
@@ -287,7 +285,7 @@ export default function TeamPage() {
         <Notice
           tone="info"
           title={`You are ${roleArticle(organization.current_user_role)} in this Portfolio`}
-          body="Owners and administrators manage membership, so the roster is not shown to you. The Properties you may operate appear throughout the Portfolio, and the backend checks your scope on every action."
+          body="Owners and administrators manage membership."
         />
       ) : null}
 
@@ -301,7 +299,6 @@ export default function TeamPage() {
               <span aria-hidden="true"> · </span>
               {organization.activities.map((value) => ACTIVITIES.find(([key]) => key === value)?.[1] ?? value).join(", ") || "No activities set"}
             </p>
-            <small>The name your tenants, agreements and receipts carry.</small>
           </div>
           <button type="button" className="team-quiet-action" onClick={() => setEditingDetails(true)}>Edit details</button>
         </section>
@@ -322,7 +319,6 @@ export default function TeamPage() {
           >
             <Field
               label="Portfolio name"
-              hint="What your tenants, agreements and receipts will carry."
               value={details.name}
               onChange={(event) => setDetails({ ...details, name: event.target.value })}
             />
@@ -418,7 +414,7 @@ export default function TeamPage() {
                 ))}
               </ul>
             ) : (
-              <Empty title="No matching member" body="Try another name or number." />
+              <Empty title="No matching member" />
             )}
           </Section>
 
@@ -806,7 +802,6 @@ function MemberDialog({
               <Notice
                 tone="info"
                 title="This is the Portfolio's owner"
-                body="Ownership carries the Portfolio's verification, its plan and its settlement account, so it is transferred deliberately rather than changed from this roster."
               />
             ) : canGrant ? (
               <>
@@ -895,7 +890,7 @@ function PropertyScope({
   disabled?: boolean;
 }) {
   if (properties.length === 0) {
-    return <p className="type-caption">No Property is in this Portfolio yet, so there is nothing to assign.</p>;
+    return <p className="team-scope-empty">No Properties yet.</p>;
   }
   return (
     <fieldset className="team-properties">

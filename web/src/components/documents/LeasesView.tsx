@@ -133,14 +133,12 @@ export function LeasesView({
           <PanelState
             icon="leases"
             title="No leases yet"
-            body="Agreements you prepare from approved tenancy requests appear here, from draft to signed."
             action={<Link href={"/applications" as never} className="ws-action is-primary"><Icon name="applications" />Open tenancy requests</Link>}
           />
         ) : !loading && !visible.length ? (
           <PanelState
             icon="leases"
             title={query ? "No matching leases" : stage === "send" ? "Nothing to send" : stage === "current" ? "No current leases" : "No lease history yet"}
-            body={query ? "Try a different tenant, Property or Unit." : stage === "send" ? "Drafts you prepare wait here until you send them." : stage === "current" ? "Sent, accepted and active agreements appear here." : "Declined, withdrawn and ended agreements stay here as records."}
           />
         ) : !loading ? (
           <ul className="docs-lease-rows">

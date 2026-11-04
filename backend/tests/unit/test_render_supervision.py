@@ -16,11 +16,11 @@ supervisor = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(supervisor)
 
 
-def test_standard_profile_retains_the_existing_process_layout(monkeypatch):
+def test_standard_profile_retains_worker_isolation_and_web_concurrency(monkeypatch):
     monkeypatch.delenv("RENDER_RUNTIME_PROFILE", raising=False)
     worker, scheduler, api = supervisor.commands()
     assert "--pool=solo" not in worker
-    assert "--in-process" not in scheduler
+    assert scheduler[-1] == "run_scheduler"
     assert api[api.index("--threads") + 1] == "4"
 
 
@@ -29,7 +29,7 @@ def test_free_staging_uses_one_request_and_no_extra_worker_or_beat_child(monkeyp
     monkeypatch.setenv("DJANGO_SETTINGS_MODULE", "config.settings.staging")
     worker, scheduler, api = supervisor.commands()
     assert "--pool=solo" in worker
-    assert "--in-process" in scheduler
+    assert scheduler[-1] == "run_scheduler"
     assert api[api.index("--threads") + 1] == "1"
     assert "default,payments,notifications,media" in worker
 

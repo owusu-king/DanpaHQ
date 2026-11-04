@@ -109,7 +109,6 @@ export default function ManagementBillingPage() {
     <>
       <PageHeader
         title="Billing"
-        description="What each Portfolio is on, what it is actually using, and where it sits over its plan. Downgrading never removes a customer's properties, tenants or records."
       />
 
       <Panel title="Portfolios" busy={refreshing} meta={data ? `${rows.length} shown` : undefined}>

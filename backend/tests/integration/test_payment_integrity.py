@@ -37,6 +37,7 @@ from apps.lease import services as lease_services
 from apps.payments import reconciliation
 from apps.payments import services as payment_services
 from apps.payments.models import (
+    IntentStatus,
     PaymentAllocation,
     PaymentTransaction,
     ProviderWebhook,
@@ -134,6 +135,25 @@ def _paid(user, charge):
 def _counts(result: dict) -> tuple[int, int, int]:
     """(ageing, breached, acknowledged) — the three an alerting test is about."""
     return result["ageing"], result["breached"], result["acknowledged"]
+
+
+@pytest.mark.parametrize("status", ["pending", "processing", "failed"])
+def test_delayed_provider_status_cannot_reopen_paid_intent(user, obligation, status):
+    _, charge = obligation
+    intent = _paid(user, charge)
+    body, headers = _signed(
+        _success_payload(
+            intent, transaction_id="old_attempt", event_id=f"late_{status}",
+            event_type=f"payment.{status}", status=status,
+        )
+    )
+    payment_services.process_webhook(provider_name="memory", raw_body=body, headers=headers)
+    intent.refresh_from_db()
+    charge.refresh_from_db()
+    assert intent.status == IntentStatus.SUCCEEDED
+    assert charge.status == ChargeStatus.PAID
+    assert intent.transactions.count() == 1
+    assert ProviderWebhook.objects.get(event_id=f"late_{status}").status == WebhookStatus.PROCESSED
 
 
 class TestFinancialRecordsAreAppendOnlyAtTheEngine:

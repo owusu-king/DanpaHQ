@@ -62,10 +62,11 @@
 .leases-search input:focus-visible, .leases-filters button:focus-visible, .lease-row:focus-visible { outline: 3px solid var(--color-lagoon-600); outline-offset: 2px; }
 @media (max-width: 900px) {
   .lease-row { grid-template-columns: minmax(0, 1fr) minmax(9rem, auto) 1.5rem; }
-  .lease-row-terms { display: none; }
-  .lease-row-date { grid-column: 1; }
-  .lease-row-state { grid-column: 2; grid-row: 1 / span 2; }
-  .lease-row-arrow { grid-column: 3; grid-row: 1 / span 2; }
+  .lease-row-person { grid-column: 1; grid-row: 1; }
+  .lease-row-terms { display: block; grid-column: 1; grid-row: 2; }
+  .lease-row-date { grid-column: 1; grid-row: 3; }
+  .lease-row-state { grid-column: 2; grid-row: 1 / span 3; }
+  .lease-row-arrow { grid-column: 3; grid-row: 1 / span 3; }
 }
 @media (max-width: 600px) {
   .leases-search { width: 100%; }
@@ -73,8 +74,9 @@
   .leases-overview > div + div { padding-left: 0; border-left: 0; border-top: var(--border-hairline) solid var(--color-field-200); }
   .lease-row { grid-template-columns: minmax(0, 1fr) 1.5rem; gap: var(--space-2); min-height: 88px; padding: var(--space-3) 0; }
   .lease-row-person strong { white-space: normal; }
-  .lease-row-state, .lease-row-date { grid-column: 1; grid-row: auto; }
-  .lease-row-arrow { grid-column: 2; grid-row: 1 / span 3; }
+  .lease-row-state { grid-column: 1; grid-row: 4; }
+  .lease-row-date { grid-column: 1; grid-row: 3; }
+  .lease-row-arrow { grid-column: 2; grid-row: 1 / span 4; }
   .lease-record-money, .lease-record-facts { grid-template-columns: 1fr; gap: var(--space-3); }
 }
 @media (prefers-reduced-motion: reduce) { .lease-row { transition: none; } }

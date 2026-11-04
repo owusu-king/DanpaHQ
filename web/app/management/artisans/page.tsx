@@ -144,7 +144,6 @@ export default function ArtisansPage() {
     <>
       <PageHeader
         title="Artisans"
-        description="Every artisan application and where it stands. Applications are decided in the verification queue; suspend or reinstate approved artisans here."
       />
       <Panel title="Certificates to check" meta={certificates.data ? `${waiting.length} waiting` : undefined}>
         <ResourceState loading={certificates.loading} error={certificates.error} onRetry={certificates.reload} rows={2} />
@@ -230,7 +229,7 @@ export default function ArtisansPage() {
           <div className="management-form">
             <label>
               Reason the artisan will read
-              <textarea value={declineNote} onChange={(event) => setDeclineNote(event.target.value)} placeholder="Say what was wrong and what they can send instead." disabled={deciding !== ""} />
+              <textarea value={declineNote} onChange={(event) => setDeclineNote(event.target.value)} placeholder="Explain what needs to change." disabled={deciding !== ""} />
               <small>Required.</small>
             </label>
             <Feedback error={error} />

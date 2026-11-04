@@ -41,6 +41,7 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { state, activeContext } = useSession();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const menuButton = useRef<HTMLButtonElement>(null);
   const [unread, setUnread] = useState(0);
   // The enquiries inbox opens over whatever page is showing, from Enquiries or
   // from anywhere that calls `openEnquiries()` (a notification, a sale page).
@@ -114,7 +115,7 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
-  useLayoutEffect(() => { setDrawerOpen(false); }, [pathname]);
+  useLayoutEffect(() => { setDrawerOpen(false); }, [pathname, activeContext]);
 
   useEffect(() => {
     const desktop = window.matchMedia("(min-width: 48rem)");
@@ -126,6 +127,7 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!drawerOpen) return;
     const onKey = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || (event.target as Element | null)?.closest("dialog[open]")) return;
       if (event.key === "Escape") {
         setDrawerOpen(false);
         return;
@@ -134,6 +136,7 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
       const drawer = document.querySelector<HTMLElement>("#portal-drawer");
       const focusable = drawer
         ? Array.from(drawer.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])'))
+          .filter((element) => element.getClientRects().length > 0)
         : [];
       const first = focusable.at(0);
       const last = focusable.at(-1);
@@ -154,8 +157,8 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
     // Focus follows the drawer in and comes back out with it. Without this a
     // keyboard user opens the navigation and is still tabbing through the page
     // underneath, which is the same as the drawer not having opened.
-    const opener = document.activeElement as HTMLElement | null;
-    document.querySelector<HTMLElement>("#portal-drawer a")?.focus({ preventScroll: true });
+    const opener = menuButton.current;
+    document.querySelector<HTMLElement>(".portal-drawer-close")?.focus({ preventScroll: true });
 
     return () => {
       window.removeEventListener("keydown", onKey);
@@ -268,8 +271,10 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
             <button
               type="button"
               className="portal-menu-button"
+              ref={menuButton}
               aria-expanded={drawerOpen}
               aria-controls="portal-drawer"
+              aria-haspopup="dialog"
               onClick={() => setDrawerOpen(true)}
             >
               <span aria-hidden="true" style={{ display: "grid", gap: 4, width: 18 }}>
@@ -284,7 +289,7 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
 
           <div className="portal-header-actions">
             {artisansEntry(me) ? (
-              <Link href={"/artisans" as never} className="portal-header-support" aria-label="Artisans" aria-current={pathname === "/artisans" ? "page" : undefined}
+              <Link href={"/artisans" as never} className="portal-header-support" aria-label="Artisans" title="Artisans" aria-current={pathname === "/artisans" ? "page" : undefined}
               >
                 <Icon name="hammer" />
                 <span className="portal-header-support-label" aria-hidden="true">Artisans</span>
@@ -357,19 +362,27 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
             onClick={() => setDrawerOpen(false)}
           />
           <div id="portal-drawer" className="portal-drawer" role="dialog" aria-modal="true" aria-label="Navigation">
-            <PortalBrand me={me} collapsed={false} />
+            <div className="portal-drawer-head">
+              <PortalBrand me={me} collapsed={false} onNavigate={() => setDrawerOpen(false)} />
+              <button
+                type="button"
+                className="portal-drawer-close"
+                aria-label="Close navigation"
+                onClick={() => setDrawerOpen(false)}
+              >
+                <Icon name="close" />
+              </button>
+            </div>
             <PortalNav
               sections={sections}
               current={current}
               unread={unread}
               collapsed={false}
-              withHints
+              onNavigate={() => setDrawerOpen(false)}
             />
-            {!isProviderSpace ? (
-              <div className="portal-rail-foot">
-                <AccountMenu me={me} collapsed={false} />
-              </div>
-            ) : null}
+            <div className="portal-rail-foot">
+              <AccountMenu me={me} collapsed={false} />
+            </div>
           </div>
         </>
       ) : null}
@@ -379,9 +392,11 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
 
 const RULE: React.CSSProperties = { height: 2, borderRadius: 1, background: "currentColor" };
 
-function PortalBrand({ me, collapsed }: { me: Me; collapsed: boolean }) {
+function PortalBrand({
+  me, collapsed, onNavigate,
+}: { me: Me; collapsed: boolean; onNavigate?: () => void }) {
   return (
-    <Link href="/home" className="portal-brand" aria-label="Danpa HQ — home">
+    <Link href="/home" className="portal-brand" aria-label="Danpa HQ — home" onClick={onNavigate}>
       <span className="portal-brand-mark" aria-hidden="true">DH</span>
       <span className="portal-brand-text">
         <strong>Danpa HQ</strong>
@@ -407,13 +422,13 @@ function PortalNav({
   current,
   unread,
   collapsed,
-  withHints = false,
+  onNavigate,
 }: {
   sections: PortalSection[];
   current: string | null;
   unread: number;
   collapsed: boolean;
-  withHints?: boolean;
+  onNavigate?: () => void;
 }) {
   const nav = useRef<HTMLElement>(null);
   const glide = useGlide(nav, {
@@ -451,6 +466,7 @@ function PortalNav({
               className="portal-nav-link"
               aria-current={current === item.href ? "page" : undefined}
               title={collapsed ? item.label : undefined}
+              onClick={onNavigate}
             >
               <Icon name={item.icon} />
               {/*
@@ -461,9 +477,6 @@ function PortalNav({
               */}
               <span className={`portal-nav-label${collapsed ? " sr-only" : ""}`}>
                 {item.label}
-                {withHints && item.hint ? (
-                  <span className="portal-nav-hint">{item.hint}</span>
-                ) : null}
               </span>
               {item.href === "/updates" && unread > 0 ? (
                 <span

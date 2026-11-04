@@ -201,6 +201,15 @@ def notify(
 
     transaction.on_commit(lambda: send_email_alert(notification.id), robust=True)
     if message_sender is not None:
+        from django.conf import settings
+
+        if settings.FCM_PUSH_ENABLED:
+            from apps.core.events import DomainEvent
+            from apps.outbox.services import emit
+
+            emit(
+                DomainEvent("notification.push_requested.v1", "notification", str(notification.id))
+            )
         from .push import send_message_alert
 
         transaction.on_commit(

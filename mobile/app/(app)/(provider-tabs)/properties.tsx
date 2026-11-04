@@ -109,7 +109,7 @@ function ProviderPropertiesScreen() {
   // decides which Properties they see.
   const assignedOnly = portfolioAccess ? portfolioAccess.scope !== "portfolio_wide" : false;
 
-  const [organizations, setOrganizations] = useState<Organization[]>([]);
+  const [, setOrganizations] = useState<Organization[]>([]);
   const [organizationId, setOrganizationId] = useState("");
   const [properties, setProperties] = useState<ManagedProperty[]>([]);
   const [filter, setFilter] = useState<PropertyFilter>("all");
@@ -147,8 +147,6 @@ function ProviderPropertiesScreen() {
   }, [activeContext]);
 
   useFocusEffect(useCallback(() => { void load(); }, [load]));
-
-  const currentPortfolio = organizations.find((organization) => organization.id === organizationId);
 
   const counts = useMemo(() => {
     const tally: Record<PropertyFilter, number> = { all: properties.length, verified: 0, review: 0, attention: 0, setup: 0 };
@@ -248,16 +246,12 @@ function ProviderPropertiesScreen() {
             <EmptyState
               icon={FILTER_ICON[filter]}
               title={query.trim() ? "Nothing matches that" : `No Property is ${FILTER_LABEL[filter].toLocaleLowerCase("en-GH")}`}
-              hint={query.trim() ? "Try a shorter search, or clear the filter." : "Clear the filter to see the rest."}
             />
           ) : (
             <EmptyState
               icon="business-outline"
               hero
               title={assignedOnly ? "No Property is assigned to you" : "No Properties yet"}
-              hint={assignedOnly
-                ? `An owner or administrator of ${currentPortfolio?.name ?? "this Portfolio"} decides which Properties you operate.`
-                : "Add the first Property in this Portfolio."}
               action={canCreateProperty ? (
                 <View style={styles.add}><PrimaryAction icon="add" label="Add Property" onPress={add} /></View>
               ) : undefined}

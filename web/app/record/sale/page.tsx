@@ -87,7 +87,7 @@ export default function SalePage() {
     return (
       <main className="listing">
         <p><Link href={returnTo as never} className="listing-back">← Keep looking</Link></p>
-        <Notice tone="error" title={error} body="It may have been sold or taken off the market." />
+        <Notice tone="error" title={error} />
       </main>
     );
   }

@@ -147,7 +147,6 @@ export default function SupportPage() {
   return <>
     <PageHeader
       title="Support"
-      description="Read and answer customer tickets. Property buyer and seller enquiries stay private to those participants."
       actions={<button type="button" className="management-button primary" onClick={() => { setShowNew(true); setError(""); }}>New case</button>}
     />
     <Panel title="Support queue" meta={resource.data ? countMeta(rows.length, all.length, ["case", "cases"]) : undefined}>
@@ -274,7 +273,6 @@ export default function SupportPage() {
           <label>
             Customer account ID
             <input name="user_id" placeholder="Optional" disabled={busy} className="management-mono" />
-            <small>Link the case to a consumer account by its ID, when you have it.</small>
           </label>
           <label>
             Opening message

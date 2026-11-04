@@ -32,6 +32,8 @@ def send_message_alert(notification_id, sender_name: str) -> None:
         headers["Authorization"] = f"Bearer {settings.EXPO_ACCESS_TOKEN}"
     for device in signed_in_devices(notification.user).exclude(push_token=""):
         token = device.push_token
+        if not token.startswith(("ExpoPushToken[", "ExponentPushToken[")):
+            continue
         try:
             response = requests.post(
                 "https://exp.host/--/api/v2/push/send",
@@ -44,7 +46,7 @@ def send_message_alert(notification_id, sender_name: str) -> None:
                     ),
                     "body": (
                         notification.body if notification.kind == "sale.enquiry_received"
-                        else "Open Danpa HQ to read your message."
+                        else ""
                     ),
                     "sound": "default",
                     "channelId": "messages",

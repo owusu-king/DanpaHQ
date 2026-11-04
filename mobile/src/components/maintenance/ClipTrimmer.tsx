@@ -1,6 +1,7 @@
 import { useVideoPlayer, VideoView, type VideoPlayer } from "expo-video";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { PanResponder, StyleSheet, View, type AccessibilityActionEvent, type LayoutChangeEvent } from "react-native";
+import { useEffect, useRef, useState } from "react";
+import { StyleSheet, View, type AccessibilityActionEvent, type LayoutChangeEvent } from "react-native";
+import { usePanResponder } from "@/usePanResponder";
 
 import { QuietAct, Pill } from "@/components/record/RecordSurfaces";
 import { Type, space } from "@/components/ui";
@@ -37,9 +38,7 @@ export function ClipTrimmer({
   const latest = Math.max(0, durationMs - span);
   const [startMs, setStartMs] = useState(0);
   const [trackWidth, setTrackWidth] = useState(0);
-  // What the gesture and the player read between renders.
-  const live = useRef({ startMs: 0, trackWidth: 0 });
-  useEffect(() => { live.current = { startMs, trackWidth }; }, [startMs, trackWidth]);
+  const origin = useRef(0);
   const endMs = startMs + span;
 
   const player = useVideoPlayer(uri, (created) => {
@@ -52,13 +51,24 @@ export function ClipTrimmer({
   useEffect(() => { seek(player, startMs, true); }, [player, startMs]);
   useEffect(() => {
     const subscription = player.addListener("timeUpdate", ({ currentTime }) => {
-      const { startMs: from } = live.current;
-      if (currentTime >= (from + span) / 1000) seek(player, from, false);
+      if (currentTime >= (startMs + span) / 1000) seek(player, startMs, false);
     });
     return () => subscription.remove();
-  }, [player, span]);
+  }, [player, span, startMs]);
 
-  const responder = useMemo(() => dragResponder(live, durationMs, latest, setStartMs), [durationMs, latest]);
+  const responder = usePanResponder({
+    onStartShouldSetPanResponder: () => true,
+    onPanResponderGrant: () => {
+      origin.current = (startMs / durationMs) * trackWidth;
+    },
+    onPanResponderMove: (_, gesture) => {
+      const width = Math.max(1, trackWidth);
+      const at = Math.round(((origin.current + gesture.dx) / width) * durationMs / 100) * 100;
+      setStartMs(Math.min(latest, Math.max(0, at)));
+    },
+    // Keep the drag even when the finger leaves the track.
+    onPanResponderTerminationRequest: () => false,
+  });
 
   const adjust = (event: AccessibilityActionEvent) => {
     const step = event.nativeEvent.actionName === "increment" ? 500 : -500;
@@ -85,7 +95,7 @@ export function ClipTrimmer({
           accessibilityValue={{ text: `${clock(startMs)} to ${clock(endMs)}` }}
           accessibilityActions={[{ name: "increment" }, { name: "decrement" }]}
           onAccessibilityAction={adjust}
-          {...responder.panHandlers}
+          {...responder}
         >
           <View style={[styles.window, { left, width: Math.max(width, 24) }]} />
         </View>
@@ -103,33 +113,6 @@ export function ClipTrimmer({
       </View>
     </View>
   );
-}
-
-/**
- * Dragging the window. The touch is claimed at its start and never handed back
- * mid-drag; the origin lives in this closure, not in render state.
- */
-function dragResponder(
-  live: { current: { startMs: number; trackWidth: number } },
-  durationMs: number,
-  latest: number,
-  setStartMs: (ms: number) => void,
-) {
-  let origin = 0;
-  return PanResponder.create({
-    onStartShouldSetPanResponder: () => true,
-    onPanResponderGrant: () => {
-      const { startMs: from, trackWidth: width } = live.current;
-      origin = (from / durationMs) * width;
-    },
-    onPanResponderMove: (_, gesture) => {
-      const width = Math.max(1, live.current.trackWidth);
-      const at = Math.round(((origin + gesture.dx) / width) * durationMs / 100) * 100;
-      setStartMs(Math.min(latest, Math.max(0, at)));
-    },
-    // A window keeps its drag, however far the finger strays from the track.
-    onPanResponderTerminationRequest: () => false,
-  });
 }
 
 /** Move the player; kept outside the component, where the player is not render state. */

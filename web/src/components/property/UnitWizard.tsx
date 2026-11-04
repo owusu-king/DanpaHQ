@@ -40,11 +40,11 @@ type StepKey = "details" | "amenities" | "photos" | "review";
 type Commit = () => Promise<boolean>;
 type CommitRef = { current: Commit | null };
 
-const STEPS: { key: StepKey; label: string; hint: string; icon: IconName }[] = [
-  { key: "details", label: "The Unit", hint: "What it is, what it is called, and its rooms.", icon: "units" },
-  { key: "amenities", label: "Amenities", hint: "What this Unit has of its own.", icon: "amenities" },
-  { key: "photos", label: "Photos", hint: "The main view, then one of each amenity.", icon: "photos" },
-  { key: "review", label: "Review", hint: "Check it over, then send it for checking.", icon: "eye" },
+const STEPS: { key: StepKey; label: string; icon: IconName }[] = [
+  { key: "details", label: "The Unit", icon: "units" },
+  { key: "amenities", label: "Amenities", icon: "amenities" },
+  { key: "photos", label: "Photos", icon: "photos" },
+  { key: "review", label: "Review", icon: "eye" },
 ];
 
 const SPACE_GLYPHS: Record<string, IconName> = {
@@ -451,9 +451,6 @@ function DetailsStep({
         />
       </label>
 
-      {chosen?.accepts_bed_spaces ? (
-        <p className="lw-quiet"><Icon name="bed" />Let it whole, or add its beds once it is saved.</p>
-      ) : null}
     </div>
   );
 }
@@ -463,7 +460,6 @@ function AmenitiesStep({ unitId, commitRef }: { unitId: string; commitRef: Commi
   useCommit(commitRef, async () => (save.current ? save.current() : true));
   return (
     <div className="cw-form">
-      <p className="lw-quiet"><Icon name="photos" />Each one you choose is photographed next.</p>
       <SpaceAmenities scope="unit" id={unitId} submitRef={save} />
     </div>
   );
@@ -518,7 +514,7 @@ function ReviewStep({
       {sent ? (
         <p className="lw-quiet"><Icon name="verification" />{unit.verification.state_label}</p>
       ) : ready ? (
-        <p className="lw-quiet"><Icon name="lock" />We compare the photos with these details. Nobody can request it until it passes.</p>
+        null
       ) : waitingOnProperty ? (
         <p className="cw-missing">{permitted?.message || "The property is checked first. The Unit waits privately until then."}</p>
       ) : outstanding ? (

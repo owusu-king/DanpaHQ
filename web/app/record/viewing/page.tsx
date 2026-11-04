@@ -122,7 +122,6 @@ function HostViewing() {
           <PanelState
             icon="viewings"
             title="This viewing isn’t on your agenda"
-            body="It may have been withdrawn, or it belongs to a Property you no longer host."
             action={<Link href="/viewings" className="btn btn-quiet btn-sm">Back to Viewings</Link>}
           />
         </section>
@@ -219,7 +218,6 @@ function TenantViewing() {
           <PanelState
             icon="viewings"
             title="Viewing not found"
-            body="It may have been withdrawn, or the listing is no longer available. Your other viewings are still on the schedule."
             action={<Link href="/viewings" className="ws-action is-primary">Back to Viewings</Link>}
           />
         )}

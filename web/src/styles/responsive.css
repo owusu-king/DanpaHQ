@@ -1,0 +1,70 @@
+/* Shared small-screen interaction rules. Page layouts stay in their own files. */
+@media (max-width: 47.99rem), (pointer: coarse) {
+  /* A readable field also prevents iOS from zooming the page on focus. */
+  .field-shell input.field-input,
+  .select-shell select.select-control,
+  .field textarea,
+  .auth-panel input,
+  .art-form .art-select select,
+  .art-discovery-toolbar .field-input,
+  .ws-search input,
+  .rent-field select,
+  .rent-portfolio-select select,
+  .management-app .management-search input,
+  .management-app .management-field :is(input, select, textarea),
+  .management-drawer .management-field :is(input, select, textarea),
+  .management-app .management-form :is(input, select, textarea),
+  .management-drawer .management-form :is(input, select, textarea),
+  .settings-profile-form select.select-control,
+  .settings-profile-form textarea.profile-textarea,
+  .management-login-card :is(input, select) { font-size: 1rem; }
+
+  .btn, .btn.btn-sm, .portal .btn, .auth-panel .btn, .doc-modal .btn,
+  .auth-close,
+  .auth-side-option,
+  .settings-photo .settings-upload,
+  .payments-tab,
+  .payment-chip,
+  .step-link,
+  .count-stepper-control button,
+  .yes-no button,
+  .management-app .management-button,
+  .management-drawer .management-button,
+  .management-app .management-tabs button { min-height: 2.75rem; }
+
+  .auth-close { width: 2.75rem; }
+  .management-app .management-icon-button, .management-drawer .management-icon-button { width: 2.75rem; height: 2.75rem; }
+  .btn { white-space: normal; line-height: 1.35; padding-block: .625rem; }
+  .control { min-height: 2.75rem; }
+  [data-slot="dropdown-menu-item"], [data-slot="dropdown-menu-checkbox-item"], [data-slot="dropdown-menu-radio-item"] { min-height: 2.75rem; }
+}
+
+@media (max-width: 47.99rem) {
+  .site-header { padding-top: max(.75rem, env(safe-area-inset-top)); padding-inline: max(1rem, env(safe-area-inset-left)) max(1rem, env(safe-area-inset-right)); }
+  .portal .portal-main {
+    padding-inline: max(1rem, env(safe-area-inset-left)) max(1rem, env(safe-area-inset-right));
+    padding-bottom: max(2rem, env(safe-area-inset-bottom));
+  }
+  .portal .portal-main :is(.field, .select-shell, fieldset) { min-width: 0; }
+  .auth-layer { height: 100dvh; }
+  .auth-panel { max-height: 100%; overflow-y: auto; overscroll-behavior: contain; }
+  .auth-role-body { white-space: normal; }
+  .auth-foot a { display: inline-flex; align-items: center; min-height: 2.75rem; }
+  .step-actions { gap: .5rem 1rem; }
+  .record-section-head { flex-wrap: wrap; }
+  .record-section, .record-support-grid > .workspace-section { overflow-wrap: anywhere; }
+  .doc-modal[open] :is(.doc-modal-foot, .lw-foot) { padding-bottom: max(.75rem, env(safe-area-inset-bottom)); }
+  .cw-location-layout { gap: 1rem; }
+  .cw-map-canvas { height: clamp(12rem, 36dvh, 18rem); }
+  [data-slot="sheet-content"] { max-width: 100vw; max-height: 100dvh; overflow-y: auto; overscroll-behavior: contain; padding-bottom: env(safe-area-inset-bottom); }
+  [data-slot="sheet-content"][data-sheet-side="right"],
+  [data-slot="sheet-content"][data-sheet-side="left"] { height: 100dvh; }
+  [data-slot="sheet-content"][data-state="open"],
+  [data-slot="sheet-content"][data-state="closed"] { animation-duration: 180ms; }
+  [data-slot="sheet-content"] > [data-slot="sheet-header"] { flex: none; padding-top: max(1.25rem, env(safe-area-inset-top)); padding-right: 3.5rem; }
+  [data-slot="sheet-content"] > button[data-slot="sheet-close"] { display: grid; place-items: center; width: 2.75rem; height: 2.75rem; top: max(.5rem, env(safe-area-inset-top)); right: max(.5rem, env(safe-area-inset-right)); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-slot="sheet-content"][data-state] { animation: none; transition: none; }
+}

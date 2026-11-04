@@ -29,7 +29,6 @@ def commands():
     ]
     if small:
         result[0].extend(["--pool=solo", "--without-gossip", "--without-mingle"])
-        result[1].append("--in-process")
     return result
 
 

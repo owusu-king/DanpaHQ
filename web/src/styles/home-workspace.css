@@ -1055,6 +1055,15 @@
 .tenant-home .home-row { padding: 9px 8px; }
 .tenant-home .home-chart-empty { padding: var(--space-5) var(--space-4); }
 .tenant-home .tenant-schedule-body { grid-template-columns: minmax(0, 1fr) minmax(0, 14rem); gap: var(--space-6); }
+@container provider-home (max-width: 58rem) {
+  .tenant-home .tenant-schedule-body { grid-template-columns: minmax(0, 1fr); gap: var(--space-4); }
+}
+@container provider-home (max-width: 40rem) {
+  .tenant-home .home-greeting { gap: var(--space-3); padding-bottom: var(--space-4); }
+  .tenant-home .home-greeting-aside { justify-items: start; }
+  .tenant-home .home-greeting-when { text-align: left; }
+  .tenant-home .home-finance-chart, .tenant-home .home-panel, .tenant-home .home-pulse, .tenant-home .home-attention-panel { border-radius: 10px; box-shadow: none; }
+}
 /* Rows inherited the page's 25px line height, which doubled their height
    around two short lines; lists set their own. */
 .tenant-home .home-attention-list,

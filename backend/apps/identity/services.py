@@ -787,6 +787,12 @@ def _establish_session(
             revoked_reason="device_signed_in_again",
         )
 
+    if device and device.push_token:
+        # A fresh sign-in rechecks OS permission and registers for its new
+        # session. Refresh rotation keeps the existing device registration.
+        device.push_token = ""
+        device.save(update_fields=["push_token"])
+
     session, refresh_token = _open_session(
         user=user, device=device, ip_address=ip_address, user_agent=user_agent,
         mfa_device_id=mfa_proof.credential_id,

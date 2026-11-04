@@ -1,6 +1,6 @@
 # Deploy Danpa HQ
 
-Use this order: **create services → add secrets → deploy API → deploy web → build mobile → test**.
+Use Git, Node.js 22 and npm for the clients. Use Docker for local backend checks. Create the provider services and configure GitHub, Render, Cloudflare Pages and EAS before releasing.
 
 ## Environment values
 
@@ -84,14 +84,14 @@ Keep Android OAuth client IDs in Google Cloud. Google Sign-In configuration rema
 | `render-start.sh` + `render-supervise.py` | Starts the API, worker and scheduler inside the existing Web Service; it does not provision Redis or read a Blueprint. |
 | Render **New → Web Service**, without a Blueprint | Creates that service only; the manual settings below are needed because this route does not apply the YAML. No alternative Render API/CLI provisioning or secret-sync automation exists in this repository. |
 
-For the least manual setup, use the existing YAML/Blueprint route below. For **no Blueprint**, use the manual route. Select the staging YAML for Free compute; the production YAML still requests paid instances.
+Use the production Blueprint for the paid release configuration. For staging, use the staging Blueprint or the manual route below.
 
-#### Free manual setup — no Blueprint
+#### Free staging setup without a Blueprint
 
 Create **one Web Service plus one Key Value instance**, not two Web Services. **New → Web Service does not automatically create Key Value.** Keep Supabase and R2 from §1; no Render Postgres is needed. The YAML files above are settings references only; do not apply them for this route.
 
-1. **Render → New → Key Value**: use `danpahq-redis-staging` or `danpahq-redis`, choose **Frankfurt**, **Free**, and maxmemory policy **noeviction**. Keep external access disabled; copy its **Internal URL** for runtime `REDIS_URL`. [Key Value setup](https://render.com/docs/key-value)
-2. **Render → New → Web Service → connect this repository**. Use the matching environment's branch/name above and these Docker settings:
+1. **Render → New → Key Value**. Name it `danpahq-redis-staging`, choose **Frankfurt**, **Free**, and maxmemory policy **noeviction**. Keep external access disabled and copy its **Internal URL** for runtime `REDIS_URL`. [Key Value setup](https://render.com/docs/key-value)
+2. **Render → New → Web Service → connect this repository**. Use branch `staging`, service name `danpahq-api-staging` and these Docker settings:
 
    | Field | Value |
    |---|---|
@@ -110,7 +110,9 @@ Create **one Web Service plus one Key Value instance**, not two Web Services. **
 
 Free-tier limits: the web service sleeps after 15 idle minutes, pausing this app's worker/scheduler too. Free Key Value loses queued/cache data on restart; only one is available per workspace, so two isolated staging/production stores cannot both be free there. Usage limits apply; this is a light-traffic staging option, not reliable production scheduling. [Render free-instance limits](https://render.com/docs/free)
 
-The `staging-free` profile uses one synchronous web request, a sequential Celery `solo` worker, and beat inside the existing lease-holding scheduler process. The same PostgreSQL overlap lock is checked before each scheduling tick; lease failure stops scheduling. Queues, Redis sessions, Argon2 and required MFA remain enabled. Production rejects this profile and keeps its existing process layout. Solo tasks cannot use prefork time-limit/child-recycling protections; long tasks delay other background work. Large uploads/reports or higher concurrency can still exceed Free capacity. [Celery concurrency](https://docs.celeryq.dev/en/v5.4.0/userguide/concurrency/)
+The shared `run_scheduler` command now runs beat inside the PostgreSQL lease-holding process by default for every caller, removing the extra Django-loaded launcher process in staging and production. The same overlap lock is checked before each scheduling tick; lease failure stops scheduling. `--in-process` remains accepted; `--subprocess` explicitly restores the legacy launcher for troubleshooting. Local Compose already starts beat directly in one process. Production retains its prefork worker isolation/timeouts and four web threads. These child processes serve concurrency/isolation and are not duplicate task execution.
+
+The staging-only `staging-free` profile additionally uses one synchronous web request and a sequential Celery `solo` worker. Queues, Redis sessions, Argon2 and required MFA remain enabled; production rejects this profile. Solo tasks cannot use prefork time-limit/child-recycling protections, and long tasks delay other background work. Large uploads/reports or higher concurrency can still exceed Free capacity. [Celery concurrency](https://docs.celeryq.dev/en/v5.4.0/userguide/concurrency/)
 
 Local verification (1 November 2026): an isolated Linux container capped at **512 MiB, no swap and 0.1 CPU** peaked at **446.8 MiB** through real Argon2 password rejection/login, MFA QR enrollment/code confirmation, authenticated admin navigation and scheduled outbox execution. The database/account were disposable synthetic fixtures; production security settings and runtime database grants were used. This is not an endurance/heavy-upload test or a verified Render deployment. The focused supervisor/scheduler/database/admin/MFA suite passed 73 tests; detailed local probe artifacts are under ignored `tmp/free-staging/`.
 
@@ -250,7 +252,8 @@ npx eas-cli project:info
 | `GOOGLE_OAUTH_CLIENT_ID` | Web OAuth ID accepted by staging API | Copy `build.production.env` value from `eas.json` | Plain text |
 | `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID` | iOS OAuth ID registered for `com.danpahq.app` | Copy `build.production.env` value from `eas.json` | Plain text |
 | `EXPO_PUBLIC_MAP_TILE_URL`, `EXPO_PUBLIC_MAP_TILE_ATTRIBUTION`, `EXPO_PUBLIC_MAP_TILE_ATTRIBUTION_URL` | Public tile URL and matching credits; see §8 | Same, using the chosen provider | Plain text (never private keys) |
-| `GOOGLE_SERVICES_JSON` | Existing matching Firebase Android file, if push is used | Same matching file | Secret **file** |
+| `GOOGLE_SERVICES_JSON` | Staging Firebase Android config | Production Firebase Android config | Secret **file** |
+| `GOOGLE_SERVICES_PLIST` | Staging Firebase iOS config | Production Firebase iOS config | Secret **file** |
 
 3. To save/check API values by CLI:
 
@@ -267,12 +270,15 @@ npx eas-cli env:list production
 
 ### C. Build and install staging
 
+Complete the staging Firebase configuration in §5.1 before building for push verification.
+
 1. From the repository root, select and check the source:
 
 ```powershell
 git switch staging
 git status --short
 Set-Location .\mobile
+npm ci
 npm test
 npm run typecheck
 npm run lint
@@ -293,7 +299,7 @@ npx eas-cli build --platform ios --profile staging
 | Profile | Connects to | Output |
 |---|---|---|
 | `staging` | Staging API; EAS environment `preview` | Internal APK / ad hoc IPA |
-| `preview` (legacy) | **Production API**, despite its name | Internal production test build |
+| `preview` | Staging API; EAS environment `preview` | Internal APK / ad hoc IPA |
 | `production` | Production API; EAS environment `production` | Store AAB / IPA |
 
 ### D. Build and submit production
@@ -323,54 +329,38 @@ npx eas-cli submit --platform ios --profile production --id $iosProductionBuildI
 
 5. Complete existing store account/credential prompts. Test through Play testing / TestFlight, then approve review/public release in the store consoles. Production builds retain remote signing and automatic version increments.
 
-### 5.1 Native property-interest push — optional
+### 5.1 Enable Firebase push
 
-1. Download `google-services.json` for existing Firebase app `com.danpahq.app`. Upload the file and project UUID:
+1. In Firebase Console, use separate staging and production projects. In each, enable the Firebase Cloud Messaging API and register Android and Apple apps as `com.danpahq.app`. Download that project's `google-services.json` and `GoogleService-Info.plist`. Enable Push Notifications for the Apple App ID and upload the matching APNs authentication key in Firebase → Project settings → Cloud Messaging. The signed IPA needs an APNs entitlement. [Firebase Apple setup](https://firebase.google.com/docs/cloud-messaging/ios/client).
+2. From `mobile/`, upload both files to the matching EAS environment. Repeat with the other Firebase project's files for the other EAS environment. Verify both variable names in the listing. [EAS file variables](https://docs.expo.dev/eas/environment-variables/manage/).
 
 ```powershell
-$pushGoogleServices = (Resolve-Path (Read-Host 'Full path to google-services.json')).Path
-foreach ($pushEnvironment in 'preview', 'production') {
-    npx eas-cli env:set $pushEnvironment --name EXPO_PUBLIC_EAS_PROJECT_ID --value $env:EXPO_PUBLIC_EAS_PROJECT_ID --type string --visibility plaintext --scope project --non-interactive
-    npx eas-cli env:set $pushEnvironment --name GOOGLE_SERVICES_JSON --value $pushGoogleServices --type file --visibility secret --scope project --non-interactive
-}
-npx eas-cli credentials --platform android
-npx eas-cli credentials --platform ios
+$pushEnvironment = Read-Host 'EAS environment (preview or production)'
+$androidConfig = (Resolve-Path (Read-Host 'Full path to google-services.json')).Path
+$iosConfig = (Resolve-Path (Read-Host 'Full path to GoogleService-Info.plist')).Path
+npx eas-cli env:set $pushEnvironment --name GOOGLE_SERVICES_JSON --value $androidConfig --type file --visibility secret --scope project --non-interactive
+npx eas-cli env:set $pushEnvironment --name GOOGLE_SERVICES_PLIST --value $iosConfig --type file --visibility secret --scope project --non-interactive
+npx eas-cli env:list $pushEnvironment
 ```
 
-2. Android: **Google Service Account → Push Notifications (FCM V1)**. Use the matching Firebase service-account key and enable Cloud Messaging API. iOS: **Push Notifications → APNs key**. Preserve existing valid credentials shared by this package/EAS project. [Credential instructions](https://docs.expo.dev/push-notifications/fcm-credentials/).
-3. In the selected Render API service, set `EXPO_PUSH_ENABLED=true`. Set `EXPO_ACCESS_TOKEN` only for Expo Enhanced Push Security. Redeploy after the database release.
-4. Build a new installed app with the chosen profile. Enable phone notification permission, **Push notifications**, and the **Enquiries** topic.
-5. Sign in as seller; background the app. From a fresh buyer/property pair, express sales-property interest. Confirm a push and tap-through to its record.
-6. Disable push and repeat with another fresh pair: no new push; enquiry/in-app notification still exists. Keep staging device tokens in the staging database. Already queued pushes cannot be recalled.
+3. In the selected Render API service, set `FIREBASE_SERVICE_ACCOUNT_JSON` to the full JSON for a dedicated service account in that Firebase project with `cloudmessaging.messages.create` permission. Store this value only in the backend environment shared by the API, worker and scheduler. After the database release applies `notifications.0002_pushdelivery`, set `FCM_PUSH_ENABLED=true` and redeploy. Verify `/readyz` and worker startup. Keep any existing Expo push credentials and flag until the installed builds that use them retire. [Firebase Admin credentials](https://firebase.google.com/docs/admin/setup), [FCM IAM permissions](https://docs.cloud.google.com/iam/docs/roles-permissions/firebasecloudmessaging).
+4. Build and install §5 C on physical Android and iOS phones. Sign in to the same seller account on both, allow OS notifications and enable **Push notifications** and **Enquiries**. From another account, express interest in a sale. Verify both phones receive one generic alert and the tap opens the correct enquiry from foreground, background and cold start. Repeat with a new enquiry after token rotation or reinstall.
+5. Deny permission, disable the topic, and sign out or switch accounts in separate runs. Generate a fresh event each time. Verify delivery stops for the affected installation and Updates still has the correct record. Complete these checks on staging before §5 D. If FCM fails, check project matching, Android's JSON, iOS provisioning/APNs and worker logs for `FCM initialization failed` or `FCM send failed`. Set `FCM_PUSH_ENABLED=false` and redeploy to suspend FCM while investigating.
+6. On a shared phone, sign out while online so the API can revoke the installation. Local offline sign-out cannot revoke a server session. Queued alerts can still appear after sign-out. FCM lock-screen text is generic and the app checks the signed-in recipient before opening an enquiry.
 
 ### 5.2 Mobile changes and EAS Update
 
-**EAS Update is currently disabled:** no `expo-updates`, update URL/runtime/channel configuration, and Android updates are disabled. Use new builds for mobile code, assets and embedded API-variable changes. Compatible backend-only changes need no mobile build.
-
-| Change | New native build required? |
-|---|---|
-| Any mobile change with today's setup | Yes |
-| Native library/SDK, permissions, plugin, signing, scheme, Firebase/Maps native settings, store version | Always |
-| JS/assets after a future OTA setup | No, only if native runtime matches |
-
-To enable OTA later:
-
-1. Run `npx expo install expo-updates`, then `npx eas-cli update:configure` against the existing project.
-2. Review update URL/runtime policy and native Android/iOS settings. Set channels: `staging` profile → `staging`; `production` → `production`; legacy `preview` → its own production-test channel.
-3. Build/install new compatible binaries. Follow [Expo setup](https://docs.expo.dev/eas-update/getting-started/) and [runtime rules](https://docs.expo.dev/eas-update/runtime-versions/).
-4. Only after that setup, publish using the matching channel **and** EAS environment:
-
-```powershell
-# Staging only
-npx eas-cli update --channel staging --environment preview --message "Describe the staging change"
-# Separately approved production source only
-npx eas-cli update --channel production --environment production --message "Describe the approved production change"
-```
-
-5. Keep update branches/channels separate. Never repoint production to staging or republish staging's bundle to production. Rebundle approved production source with production variables: EAS Update does not read profile `env` from `eas.json`.
-6. Restrict production publishing. Verify API, channel, environment, runtime and source SHA; reopen the installed app as required and check API requests before expanding rollout. [EAS environment rules](https://docs.expo.dev/eas/environment-variables/usage/).
+EAS Update is disabled. Follow §5 C or §5 D to rebuild after mobile source, asset, native configuration or embedded environment changes. Confirm the installed artifact has the expected source SHA and API.
 
 ## 6. Test and release
+
+From PowerShell, probe the environment you just released. Expect HTTP 200 for `/healthz` and `status=ok` with the selected environment for `/readyz`.
+
+```powershell
+$apiOrigin = 'https://api-staging.danpahq.com' # Production uses https://api.danpahq.com
+(Invoke-WebRequest "$apiOrigin/healthz").StatusCode
+Invoke-RestMethod "$apiOrigin/readyz"
+```
 
 ### Staging checklist
 
@@ -385,7 +375,7 @@ npx eas-cli update --channel production --environment production --message "Desc
 
 ### Production release checklist
 
-1. Back up database/files; confirm restore procedure and compatibility with running code.
+1. Complete the backup and isolated recovery drill in §7 before releasing. Keep the database and object snapshots together so stored object keys resolve.
 2. Merge **staging → main**. Wait for **Release checks → Production database release → Render** and the Pages build. Resolve failures before proceeding.
 3. Verify `https://api.danpahq.com/readyz` returns `status=ok`, `environment=production` and test the production website.
 4. Check runtime database permissions with `check_runtime_database`; keep owner credentials isolated. Do not run destructive privilege probes on production.
@@ -396,9 +386,14 @@ npx eas-cli update --channel production --environment production --message "Desc
 
 ## 7. Roll back or diagnose
 
+1. In Supabase **Database → Backups**, record the restore point for the selected environment. On plans without managed backups, export a logical backup using Supabase CLI. Restore to an access-restricted recovery project with outbound integrations disconnected. Provision its runtime role using the owner release script with recovery credentials. [Supabase backup and restore](https://supabase.com/docs/guides/platform/backups).
+2. Copy the matching R2 bucket to a private recovery location using an S3-compatible client. Keep each object's key intact. Restore into an isolated bucket, configure its staging CORS policy and verify an authorized download through the restored API. [R2 copy commands](https://developers.cloudflare.com/r2/examples/rclone/).
+3. Roll back code first for a release regression. Restore data only after determining the recovery point and pausing writes, including scheduled jobs. Verify `/readyz`, runtime database access and the restored object keys before resuming.
+
 | Problem | Action |
 |---|---|
 | Runtime will not start | Check GitHub database release, settings/secrets and runtime role permissions; use `scripts/render-start.sh` |
+| Celery exits with a Redis transport `VersionMismatch` | Rebuild the API image from the pinned `backend/requirements.txt` and confirm the worker connects to the Render Key Value instance |
 | Upload stays pending | Check worker, selected R2 bucket/CORS, Cloudmersive key/quota and file size |
 | Google mobile login fails | Check Web ID matches API, iOS callback ID, Android package and actual signing SHA-1 |
 | Admin email/password rejected | Admin accepts email only (case-insensitive), not phone. Check the owner-release bootstrap result: `Superuser exists; bootstrap skipped.` means new `DJANGO_SUPERUSER_*` values did not update the existing account. Verify that the expected superuser is active, staff, email-verified and belongs to the same database as the runtime. Use an authorized password-reset procedure for an existing account; do not recreate it, overwrite it through bootstrap or disable MFA. |

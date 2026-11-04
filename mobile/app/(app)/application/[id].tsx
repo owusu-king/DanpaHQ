@@ -1,6 +1,6 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Dimensions, Image, Pressable, StyleSheet, ScrollView, View } from "react-native";
 
 import { ApiFailure } from "@/api";
@@ -51,7 +51,7 @@ export default function ApplicationRecordScreen() {
   const [told, setTold] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
-  const width = useRef(Dimensions.get("window").width).current;
+  const [width] = useState(() => Dimensions.get("window").width);
   // Without a bar the page itself must clear Android's navigation buttons.
   const openBottom = useSafeBottom(space[8]);
 

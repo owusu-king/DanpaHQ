@@ -161,7 +161,6 @@ test("actionable applications lead without inventing lifecycle meaning", () => {
   // The existing meaning layer still owns every bucket. The UI only ranks its
   // output, so an offered agreement leads and history remains last.
   assert.match(body, /action: 0,\s*open: 1,\s*approved: 2,\s*past: 3/);
-  assert.match(body, /summary="Follow your rental applications from request to agreement\."/);
   assert.doesNotMatch(body, /status_display/);
 
   // An agreement waiting for them is lifted above the list, in the unfiltered

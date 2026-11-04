@@ -108,8 +108,7 @@ test("the page is the shared workspace, read as an agenda", () => {
     at = found;
   }
 
-  // The header explains the page; stage counts stay with their filters.
-  assert.match(body, /summary="Manage viewing requests, arrange visits and record attendance\."/);
+  // The header names the page; stage counts stay with their filters.
   assert.match(body, /count: counts\[value\]/);
   assert.doesNotMatch(body, /viewings-overview/);
   assert.doesNotMatch(css(), /\.viewings-overview/);
@@ -126,7 +125,7 @@ test("the page is the shared workspace, read as an agenda", () => {
   assert.doesNotMatch(css(), /\.viewings-controls/);
 });
 
-test("viewing totals stay available without replacing the page description", () => {
+test("viewing totals stay available with their filters", () => {
   // The cards say what happened; the pills say what stage the work is at.
   // Saying the same number twice on one screen is how a page stops being read.
   const body = code(meaning());
@@ -140,7 +139,6 @@ test("viewing totals stay available without replacing the page description", () 
   }
 
   assert.doesNotMatch(providerHalf(), /viewingTotals\(all\)/);
-  assert.match(providerHalf(), /summary="Manage viewing requests, arrange visits and record attendance\."/);
 });
 
 test("leaving a viewing and coming back lands where you left", () => {

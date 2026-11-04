@@ -14,6 +14,7 @@ from django.contrib.auth.backends import BaseBackend
 from django.contrib.auth.forms import AuthenticationForm
 from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
+from django.utils.crypto import salted_hmac
 
 from apps.core.context import get_context
 from apps.core.exceptions import ProviderUnavailable
@@ -156,8 +157,9 @@ class AdminEmailAuthenticationForm(AuthenticationForm):
             by_address = count_attempt(
                 f"admin-login:ip:{address}", window=window, scope="admin_login"
             )
+            email_key = salted_hmac("admin-login-email", email, algorithm="sha256").hexdigest()
             by_email = count_attempt(
-                f"admin-login:email:{email}", window=window, scope="admin_login"
+                f"admin-login:email:{email_key}", window=window, scope="admin_login"
             )
         except ProviderUnavailable as exc:
             raise ValidationError(

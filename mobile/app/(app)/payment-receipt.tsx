@@ -73,7 +73,6 @@ export default function PaymentReceiptScreen() {
       <View style={{ gap: space[1] }}>
         <Type variant="label">PAYMENT RECORD</Type>
         <Type variant="display2" accessibilityRole="header">Payment receipt</Type>
-        <Type variant="body">Your confirmed payment record, ready whenever you need it.</Type>
       </View>
 
       {!receipt && !error ? <Type variant="caption">Loading receipt…</Type> : null}

@@ -302,11 +302,10 @@ export default function ProviderApplicationsScreen() {
           <Empty
             icon="document-text-outline"
             title="No tenancy requests yet"
-            hint="People who apply to a listing, or ask with a Unit's access code, appear here."
             action={<QuietAction icon="people-outline" label="Tenants" onPress={() => router.push("/(app)/(provider-tabs)/tenants" as never)} />}
           />
         ) : needle ? (
-          <Empty icon="search-outline" title="No matching requests" hint="Try a different person, Property or Unit." />
+          <Empty icon="search-outline" title="No matching requests" />
         ) : null}
       />
     </IndexGround>
@@ -517,7 +516,7 @@ function RequestRow({ item, seenBefore, onOpen, onDecide, onStep }: {
 
 /** Nothing waits on the provider: say so plainly, and let the rest follow. */
 function CaughtUp() {
-  return <Calm text="No decisions or agreements wait on you. New applications will appear here first." />;
+  return <Calm text="No decisions or agreements wait on you." />;
 }
 
 /** Settled requests, in one line until they are wanted. */

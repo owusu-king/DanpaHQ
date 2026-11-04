@@ -59,7 +59,6 @@ test("the index is the shared workspace, with controls that earn their space", (
   assert.match(body, /<WorkspaceHead\s+icon="leases"\s+title="Agreements"/);
   assert.ok(body.indexOf("<SegmentedControl") < body.indexOf('className="ws-panel agreements-panel"'), "the stages lead the panel");
   assert.doesNotMatch(body, /agreements-overview|agreements-filters|AgreementCount|<select|role="menuitemradio"/);
-  assert.match(body, /summary="Review tenancy offers and keep your signed agreements together\."/);
   assert.match(body, /showSearch = \(leases\?\.length \?\? 0\) > 5 \|\| Boolean\(query\)/);
   assert.match(body, /showFilter = new Set\(rows\.map\(\(row\) => row\.state\.stage\)\)\.size > 1 \|\| filter !== "all"/);
   assert.match(body, /search\.get\("show"\)/);

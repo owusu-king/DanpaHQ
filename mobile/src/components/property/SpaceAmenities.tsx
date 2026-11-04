@@ -58,23 +58,25 @@ export function SpaceAmenities({
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
 
-  const load = useCallback(async () => {
-    try {
-      const data =
-        scope === "unit" ? await getUnitAmenities(id) : await getPropertyAmenities(id);
+  const load = useCallback(async (signal?: AbortSignal) => {
+    await (scope === "unit" ? getUnitAmenities(id) : getPropertyAmenities(id)).then((data) => {
+      if (signal?.aborted) return;
       setOptions(data.options);
       setChosen(new Set(data.chosen.map((row) => row.id)));
       setLoaded(true);
       setError("");
-    } catch (cause) {
+    }).catch((cause) => {
+      if (signal?.aborted) return;
       setError(
         cause instanceof ApiFailure ? cause.error.message : "Could not load the amenities.",
       );
-    }
+    });
   }, [scope, id]);
 
   useEffect(() => {
-    void load();
+    const controller = new AbortController();
+    void load(controller.signal);
+    return () => controller.abort();
   }, [load]);
 
   // Ordered by category so related things sit together, without a heading

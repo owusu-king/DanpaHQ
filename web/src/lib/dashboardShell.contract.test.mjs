@@ -21,6 +21,19 @@ test("dashboard navigation suppresses horizontal scrolling", () => {
   assert.match(managementCss, /\.management-sidebar nav\s*\{[^}]*overflow-x:\s*hidden/s);
 });
 
+test("a collapsed desktop rail cannot collapse the mobile navigation", () => {
+  const css = code(read("web/src/styles/portal.css"));
+  const railOnlyRules = css.matchAll(
+    /([^{}]*\.portal\.is-collapsed[^{}]*\.portal-(?:brand-text|brand|nav-link|nav-section|nav)\s*)\{/g,
+  );
+  let rules = 0;
+  for (const [ , selector] of railOnlyRules) {
+    assert.match(selector, /\.portal-rail\s/);
+    rules++;
+  }
+  assert.ok(rules > 0);
+});
+
 test("shared workspaces reclaim desktop width as their sidebars collapse", () => {
   const portalCss = code(read("web/src/styles/portal.css"));
   const managementCss = code(read("web/src/styles/management.css"));

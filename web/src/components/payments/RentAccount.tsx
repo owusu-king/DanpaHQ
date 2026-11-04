@@ -136,7 +136,6 @@ export function RentAccountDetail({
           <span className="ra-panel-mark" aria-hidden="true"><Icon name="payments" /></span>
           <div>
             <h2 id="ra-due">What is due <span>{ledger.charges.length}</span></h2>
-            <p>Each amount keeps its purpose and due date.</p>
           </div>
           {ledger.permissions.record_payment ? (
             <Button variant="secondary" aria-haspopup="dialog" onClick={() => setRecording(true)}>
@@ -208,7 +207,6 @@ export function RentAccountDetail({
           <span className="ra-panel-mark" aria-hidden="true"><Icon name="details" /></span>
           <div>
             <h2 id="ra-history">Payment history <span>{ledger.payments.length}</span></h2>
-            <p>Every record, newest first, with how it was paid and where it stands.</p>
           </div>
         </header>
         {history.length ? (
@@ -561,7 +559,6 @@ export function RecordPaymentForm({
         <Notice
           tone="info"
           title="Nothing is owed right now"
-          body="A payment is recorded against an amount due. When the next charge is raised, you can record money received for it here."
         />
         <div className="rent-actions">
           <Button variant="secondary" onClick={onCancel}>Close</Button>

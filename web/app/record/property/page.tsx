@@ -134,7 +134,6 @@ export default function PropertyDetailPage() {
   const locationSection = (
     <RecordSection title="Location">
           <dl className="record-fields"><Fact icon="pin" label="Address" value={fullAddress || "Not recorded"} />{address?.digital_address ? <Fact icon="map" label="Digital address" value={address.digital_address} /> : null}{address?.landmark ? <Fact icon="landmark" label="Landmark" value={address.landmark} /> : null}</dl>
-          <p className="record-hint">{selling ? "The public sale marker uses this property’s location." : "Units inherit this property’s location."}</p>
         </RecordSection>
   );
 
@@ -160,7 +159,6 @@ export default function PropertyDetailPage() {
           <h2 className="record-action-title">Property management</h2>
           <dl className="record-metrics"><div><dt>Units</dt><dd>{units.length}</dd></div><div><dt>Occupied</dt><dd>{units.filter((unit) => unit.availability.state === "occupied").length}</dd></div><div><dt>Available</dt><dd>{units.filter((unit) => unit.availability.state === "available").length}</dd></div></dl>
           {primary ? <div className="record-action-group"><Link href={primary.href as never} className="btn btn-primary" onClick={inPlace(() => setSheet({ kind: "unit" }))}><Icon name="plus" />{primary.label}</Link></div> : null}
-          {property.verification.review_state === "verified" ? <p className="record-hint">Verified details are locked. Each Unit has its own review and publication.</p> : null}
         </>}
       </RecordHero>
 
@@ -186,7 +184,6 @@ export default function PropertyDetailPage() {
         {units.length === 0 ? (
           <Empty
             title="No Units yet"
-            body="Add a room, flat, shop or other space to rent."
           />
         ) : (
           <ul className="record-unit-list" aria-label={`Units at ${property.title}`}>

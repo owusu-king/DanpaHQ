@@ -96,10 +96,6 @@ export function PublicHome({
         <Type variant="display3" style={styles.headline}>
           {`Find a place\nyou can trust.`}
         </Type>
-        <Type variant="body" style={styles.line}>
-          Browse freely. Your number is only needed when you want us to remember
-          or send something.
-        </Type>
       </View>
 
       <HeroAct icon="search" label="Search rentals" onPress={onExplore} />

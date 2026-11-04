@@ -40,7 +40,7 @@ export default function BillingPaymentScreen() {
   const [sheet, setSheet] = useState<SubscriptionCheckout | null>(null);
   const [closed, setClosed] = useState(false);
   const [slow, setSlow] = useState(false);
-  const opened = useRef(false);
+  const [opened, setOpened] = useState(false);
   const known = useRef(false);
 
   const check = useCallback(
@@ -76,9 +76,13 @@ export default function BillingPaymentScreen() {
   );
 
   const pendingId = checkout && PENDING.includes(checkout.status) ? checkout.id : null;
+  const [previousPoll, setPreviousPoll] = useState({ pendingId, organizationId, checkoutId });
+  if (previousPoll.pendingId !== pendingId || previousPoll.organizationId !== organizationId || previousPoll.checkoutId !== checkoutId) {
+    setPreviousPoll({ pendingId, organizationId, checkoutId });
+    if (pendingId) setSlow(false);
+  }
   useEffect(() => {
     if (!pendingId) return;
-    setSlow(false);
     let ticks = 0;
     const timer = setInterval(() => {
       ticks += 1;
@@ -91,12 +95,10 @@ export default function BillingPaymentScreen() {
   }, [pendingId, check]);
 
   // Straight from the review, the secure checkout opens by itself — once.
-  useEffect(() => {
-    if (params.open !== "1" || opened.current || !checkout || !PENDING.includes(checkout.status)) return;
-    if (!safeCheckoutUrl(checkout)) return;
-    opened.current = true;
+  if (params.open === "1" && !opened && checkout && pendingId && safeCheckoutUrl(checkout)) {
+    setOpened(true);
     setSheet(checkout);
-  }, [checkout, params.open]);
+  }
 
   function returned() {
     setSheet(null);

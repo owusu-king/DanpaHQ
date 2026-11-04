@@ -268,13 +268,13 @@ function MapExplore({
   const [dismissedError, setDismissedError] = useState("");
   const areaSearchProgress = useRef<AreaSearchProgress | null>(null);
   const [selection, setSelection] = useState<Selection | null>(null);
-  const [preview, setPreview] = useState<Listing[]>([]);
+  const [fetchedPreview, setFetchedPreview] = useState<{ selection: Selection; rows: Listing[] } | null>(null);
   const [previewIndex, setPreviewIndex] = useState(0);
   const [visited, setVisited] = useState<ReadonlySet<string>>(new Set());
   const markerRequest = useRef(0);
   const summaryRequest = useRef(0);
   const viewRef = useRef<MapMove | null>(null);
-  const extentFitted = useRef(false);
+  const [extentFitted, setExtentFitted] = useState(false);
 
   // Map or list. A build without a map is only ever the list.
   const [listOpen, setListOpen] = useState(!showMap);
@@ -473,51 +473,51 @@ function MapExplore({
     return () => clearTimeout(timer);
   }, [view, showMap, fetchMarkers]);
 
-  // A new search is a new set of rentals: whatever was selected may not be in
-  // it, and what the map shows now is what the results describe.
-  useEffect(() => {
+  // A different rental query invalidates the selected marker and map movement.
+  const [previousFilters, setPreviousFilters] = useState(filters);
+  if (previousFilters !== filters) {
+    setPreviousFilters(filters);
     setSelection(null);
     setUserMoved(false);
-  }, [filters]);
+  }
 
-  // A chosen place: the map goes there, even when it is the place chosen last time.
-  useEffect(() => {
-    if (area) setFit({ key: `area:${area.ref}:${Date.now()}`, bounds: area.bounds });
-  }, [area]);
-
-  // Arriving with no place, the map shows where this search's rentals are — once.
-  useEffect(() => {
-    if (extentFitted.current || area || bbox || !extent) return;
-    extentFitted.current = true;
+  // With no chosen place, fit the first extent returned for the search.
+  if (!extentFitted && !area && !bbox && extent) {
+    setExtentFitted(true);
     setFit({ key: "extent", bounds: extent });
-  }, [extent, area, bbox]);
+  }
 
-  // What a selected marker shows: the loaded cards first, the API for the rest.
-  useEffect(() => {
-    if (!selection) {
-      setPreview([]);
-      return;
-    }
+  // Use loaded cards when possible and ask the API for missing marker details.
+  const knownPreview = useMemo(() => {
+    if (!selection) return [];
     const known = new Map((listings ?? []).map((row) => [row.id, row]));
-    const found = selection.ids.flatMap((id) => known.get(id) ?? []);
-    if (found.length === selection.ids.length) {
-      setPreview(found);
-      return;
-    }
+    return selection.ids.flatMap((id) => known.get(id) ?? []);
+  }, [selection, listings]);
+  const needsPreview = selection !== null && knownPreview.length !== selection.ids.length;
+  const preview = needsPreview
+    ? fetchedPreview?.selection === selection ? fetchedPreview.rows : []
+    : knownPreview;
+  useEffect(() => {
+    if (!selection || !needsPreview) return;
     let live = true;
     getListingsById(selection.ids)
-      .then((rows) => { if (live) setPreview(rows); })
-      .catch(() => { if (live) setPreview([]); });
+      .then((rows) => { if (live) setFetchedPreview({ selection, rows }); })
+      .catch(() => { if (live) setFetchedPreview({ selection, rows: [] }); });
     return () => { live = false; };
-  }, [selection, listings]);
+  }, [selection, needsPreview, knownPreview]);
 
   // The list covers everything below the hero. It fades over the map rather
   // than sliding up it: the two views are switched, not dragged between.
   const listHeight = Math.max(0, screenHeight - controlsHeight);
   useEffect(() => {
     const toValue = listOpen ? 1 : 0;
-    if (reduceMotion) listFade.setValue(toValue);
-    else Animated.timing(listFade, { toValue, duration: 180, useNativeDriver: true }).start();
+    if (reduceMotion) {
+      listFade.setValue(toValue);
+      return;
+    }
+    const fade = Animated.timing(listFade, { toValue, duration: 180, useNativeDriver: true });
+    fade.start();
+    return () => fade.stop();
   }, [listOpen, listFade, reduceMotion]);
 
   // Everything the sheet holds, counted once for the Filters button. Place is
@@ -705,7 +705,7 @@ function MapExplore({
     locationLookup.current?.abort();
     markerRequest.current += 1;
     summaryRequest.current += 1;
-    extentFitted.current = false;
+    setExtentFitted(false);
     setExtent(null);
     setFit(null);
     setMapFeedback(null);
@@ -718,8 +718,10 @@ function MapExplore({
     editPlace(row.name);
     Keyboard.dismiss();
     const target = locationSearchArea(row);
-    if (target) setArea(target);
-    else setMapFeedback({ message: "This location has no map coordinates yet. You can still search its listings by name.", tone: "danger" });
+    if (target) {
+      setArea(target);
+      setFit({ key: `area:${target.ref}:${Date.now()}`, bounds: target.bounds });
+    } else setMapFeedback({ message: "This location has no map coordinates yet. You can still search its listings by name.", tone: "danger" });
   }
 
   async function submitLocation(query: string) {
@@ -743,7 +745,7 @@ function MapExplore({
     markerRequest.current += 1;
     summaryRequest.current += 1;
     setMapFeedback(null);
-    extentFitted.current = false;
+    setExtentFitted(false);
     setExtent(null);
     setFit(null);
     setArea(null);
@@ -780,7 +782,7 @@ function MapExplore({
   // Filters, not place: the search bar keeps the one clear for that.
   function clearFilters() {
     setBbox(null);
-    extentFitted.current = false;
+    setExtentFitted(false);
     setExtent(null);
     setFit(area ? { key: `clear:${Date.now()}`, bounds: area.bounds } : null);
     setPropertyType(""); setSpaceType(""); setBedrooms("");
@@ -1135,16 +1137,8 @@ function MapExplore({
             }
             ListEmptyComponent={
               items === null || resultBusy || resultError ? null : (
-                // Guidance only: the one Clear all sits just above, beside the count.
                 <View style={{ paddingVertical: space[8], gap: space[2] }}>
                   <Type variant="bodyStrong">Nothing matches yet</Type>
-                  <Type variant="caption">
-                    {mode === "buy"
-                      ? "Try a higher budget, another kind of property, or a wider area."
-                      : mode === "all"
-                        ? "Try a nearby area, or a shorter search."
-                        : "Try a wider rent, a longer advance, or a nearby area."}
-                  </Type>
                   <Button label="Adjust filters" onPress={() => setFiltersOpen(true)} />
                   <Button label="Clear Filters" variant="quiet" onPress={() => { clearPlace(); clearFilters(); setSaleChoices(NO_SALE_CHOICES); }} />
                 </View>
@@ -1492,10 +1486,12 @@ function FilterSheet({
   // applies" and "is not smooth"). One sheet, its cards swapped in place —
   // never one native sheet closing while another opens.
   const [draft, setDraft] = useState<ExploreMode>(mode);
-  useEffect(() => {
-    if (!visible) setOpen(null);
-    else setDraft(mode);
-  }, [visible, mode]);
+  const [previous, setPrevious] = useState({ visible, mode });
+  if (previous.visible !== visible || previous.mode !== mode) {
+    setPrevious({ visible, mode });
+    if (visible) setDraft(mode);
+    else setOpen(null);
+  }
   const clear = draft === "buy" ? saleClear : draft === "all" ? allClear : { can: canClear, onClear };
   const applyLabel = draft === mode
     ? resultLabel

@@ -1,12 +1,11 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
-  Animated,
+  Animated, useAnimatedValue,
   Easing,
   Keyboard,
   KeyboardAvoidingView,
   Modal,
-  PanResponder,
   Platform,
   Pressable,
   ScrollView,
@@ -16,6 +15,7 @@ import {
   type LayoutChangeEvent,
   type PanResponderGestureState,
 } from "react-native";
+import { usePanResponder } from "@/usePanResponder";
 
 import { ModalSafeArea, SafeInsets } from "@/components/sheet/ModalSafeArea";
 import { SHEET_GROUND, SheetScope } from "@/components/sheet/SheetParts";
@@ -98,45 +98,60 @@ export function BottomSheet({ visible, onClose, title, hideTitle = false, closeL
   const { height: windowHeight } = useWindowDimensions();
   const reduceMotion = useReduceMotion();
 
-  const [mounted, setMounted] = useState(false);
+  const [mounted, setMounted] = useState(visible);
+  const [wasVisible, setWasVisible] = useState(visible);
   const [height, setHeight] = useState(0);
   const [dragging, setDragging] = useState(false);
   const [keyboardUp, setKeyboardUp] = useState(false);
   /** A field in this sheet has had the keyboard since it opened. */
   const [typing, setTyping] = useState(false);
 
-  const translate = useRef(new Animated.Value(windowHeight)).current;
+  const translate = useAnimatedValue(windowHeight);
   const dragBase = useRef(0);
   const releaseSpeed = useRef(0);
   const opening = useRef(false);
+  const measured = useRef(false);
   // Read by gestures and effects that must not restart whenever these change.
   const travel = useRef(windowHeight);
-  travel.current = height || windowHeight;
   const isMounted = useRef(mounted);
-  isMounted.current = mounted;
   const still = useRef(reduceMotion);
-  still.current = reduceMotion;
-  const close = useRef(onClose);
-  close.current = onClose;
+  useLayoutEffect(() => {
+    travel.current = height || windowHeight;
+    isMounted.current = mounted;
+    still.current = reduceMotion;
+  }, [height, windowHeight, mounted, reduceMotion]);
 
-  useEffect(() => {
+  if (wasVisible !== visible) {
+    setWasVisible(visible);
+    if (visible) setMounted(true);
+    else {
+      setTyping(false);
+      setKeyboardUp(false);
+    }
+  }
+
+  useLayoutEffect(() => {
     if (visible) {
       releaseSpeed.current = 0;
-      if (isMounted.current) {
+      if (measured.current) {
         // Opened again while it was still falling: it rises from where it is.
-        Animated.timing(translate, {
+        const rise = Animated.timing(translate, {
           toValue: 0,
           duration: still.current ? 0 : motion.duration.slow,
           easing: Easing.bezier(...motion.easing.enter),
           useNativeDriver: true,
-        }).start();
+        });
+        rise.start();
+        return () => rise.stop();
       } else {
         // Held below the edge until its height is known; `measure` starts the rise.
         opening.current = true;
         translate.setValue(travel.current);
-        setMounted(true);
       }
-      return;
+      return () => {
+        opening.current = false;
+        translate.stopAnimation();
+      };
     }
     if (!isMounted.current) return;
     let cancelled = false;
@@ -154,7 +169,10 @@ export function BottomSheet({ visible, onClose, title, hideTitle = false, closeL
         useNativeDriver: true,
       });
       fall.start(({ finished }) => {
-        if (finished) setMounted(false);
+        if (finished && !cancelled) {
+          measured.current = false;
+          setMounted(false);
+        }
       });
     });
     return () => {
@@ -165,11 +183,7 @@ export function BottomSheet({ visible, onClose, title, hideTitle = false, closeL
 
   // Watched only while the sheet is up; a fresh opening starts un-typed.
   useEffect(() => {
-    if (!visible) {
-      setTyping(false);
-      setKeyboardUp(false);
-      return;
-    }
+    if (!visible) return;
     const shown = Keyboard.addListener(Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow", () => {
       setKeyboardUp(true);
       setTyping(true);
@@ -196,6 +210,7 @@ export function BottomSheet({ visible, onClose, title, hideTitle = false, closeL
   const measure = (event: LayoutChangeEvent) => {
     const next = Math.round(event.nativeEvent.layout.height);
     if (next !== height) setHeight(next);
+    measured.current = true;
     if (!opening.current) return;
     opening.current = false;
     travel.current = next;
@@ -208,52 +223,50 @@ export function BottomSheet({ visible, onClose, title, hideTitle = false, closeL
     }).start();
   };
 
-  const grab = useMemo(() => {
-    const settle = (gesture: PanResponderGestureState) => {
-      setDragging(false);
-      const position = dragBase.current + gesture.dy;
-      const letGo = Math.min(travel.current * DISMISS_SHARE, DISMISS_DISTANCE);
-      if (position > letGo || (gesture.vy > DISMISS_VELOCITY && gesture.dy > 0)) {
-        releaseSpeed.current = Math.max(0, gesture.vy);
-        close.current();
-        return;
-      }
-      // Not far enough and not fast enough: home, carrying the finger's speed.
-      Animated.spring(translate, {
-        toValue: 0,
-        velocity: gesture.vy * 1000,
-        overshootClamping: true,
-        useNativeDriver: true,
-      }).start();
-    };
-    const vertical = (gesture: PanResponderGestureState) =>
-      Math.abs(gesture.dy) > DRAG_SLOP && Math.abs(gesture.dy) > Math.abs(gesture.dx);
-    return PanResponder.create({
-        // The handle owns a touch from the moment it lands, as Explore's grabber
-        // does. Waiting to take it on the first move left a touch with no owner
-        // to take it from, and inside the sheet's modal on a phone the drag then
-        // never began. The close button, deeper in the same row, still claims
-        // its own tap first; a drag that starts on it is taken on the move.
-        onStartShouldSetPanResponder: () => true,
-        onMoveShouldSetPanResponderCapture: (_, gesture) => vertical(gesture),
-        onPanResponderGrant: () => {
-          Keyboard.dismiss();
-          setDragging(true);
-          dragBase.current = 0;
-          translate.stopAnimation((value) => {
-            dragBase.current = value;
-          });
-        },
-        onPanResponderMove: (_, gesture) => {
-          const next = dragBase.current + gesture.dy;
-          translate.setValue(next >= 0 ? next : -OVERPULL * (1 - Math.exp(next / OVERPULL)));
-        },
-        // Once the sheet is moving, nothing inside it may take the drag away.
-        onPanResponderTerminationRequest: () => false,
-        onPanResponderRelease: (_, gesture) => settle(gesture),
-        onPanResponderTerminate: (_, gesture) => settle(gesture),
+  const settle = (gesture: PanResponderGestureState) => {
+    setDragging(false);
+    const position = dragBase.current + gesture.dy;
+    const letGo = Math.min(travel.current * DISMISS_SHARE, DISMISS_DISTANCE);
+    if (position > letGo || (gesture.vy > DISMISS_VELOCITY && gesture.dy > 0)) {
+      releaseSpeed.current = Math.max(0, gesture.vy);
+      onClose();
+      return;
+    }
+    // Not far enough and not fast enough: home, carrying the finger's speed.
+    Animated.spring(translate, {
+      toValue: 0,
+      velocity: gesture.vy * 1000,
+      overshootClamping: true,
+      useNativeDriver: true,
+    }).start();
+  };
+  const vertical = (gesture: PanResponderGestureState) =>
+    Math.abs(gesture.dy) > DRAG_SLOP && Math.abs(gesture.dy) > Math.abs(gesture.dx);
+  const grab = usePanResponder({
+    // The handle owns a touch from the moment it lands, as Explore's grabber
+    // does. Waiting to take it on the first move left a touch with no owner
+    // to take it from, and inside the sheet's modal on a phone the drag then
+    // never began. The close button, deeper in the same row, still claims
+    // its own tap first; a drag that starts on it is taken on the move.
+    onStartShouldSetPanResponder: () => true,
+    onMoveShouldSetPanResponderCapture: (_, gesture) => vertical(gesture),
+    onPanResponderGrant: () => {
+      Keyboard.dismiss();
+      setDragging(true);
+      dragBase.current = 0;
+      translate.stopAnimation((value) => {
+        dragBase.current = value;
       });
-  }, [translate]);
+    },
+    onPanResponderMove: (_, gesture) => {
+      const next = dragBase.current + gesture.dy;
+      translate.setValue(next >= 0 ? next : -OVERPULL * (1 - Math.exp(next / OVERPULL)));
+    },
+    // Once the sheet is moving, nothing inside it may take the drag away.
+    onPanResponderTerminationRequest: () => false,
+    onPanResponderRelease: (_, gesture) => settle(gesture),
+    onPanResponderTerminate: (_, gesture) => settle(gesture),
+  });
 
   const scrim = useMemo(
     () => translate.interpolate({
@@ -302,7 +315,7 @@ export function BottomSheet({ visible, onClose, title, hideTitle = false, closeL
                     {/* The handle: the whole width of the sheet's top, and the one
                         place a drag moves it. Without a title, the close button
                         shares its row. */}
-                    <View collapsable={false} style={[styles.handle, hideTitle ? styles.handleWithClose : null]} {...grab.panHandlers}>
+                    <View collapsable={false} style={[styles.handle, hideTitle ? styles.handleWithClose : null]} {...grab}>
                       <View style={styles.grabber} />
                       {hideTitle ? <View style={styles.handleClose}><Pressable
                             accessibilityRole="button"

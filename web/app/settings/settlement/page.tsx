@@ -145,7 +145,7 @@ function PayoutAccountContent() {
       const next = await refreshPayoutVerification(organizationId, profileId);
       setState(next);
       if (next.profiles.find((row) => row.id === profileId)?.status !== "verified") {
-        setStatusNote("Paystack still reports this settlement account as not verified. Confirm it under Subaccounts in the same Paystack mode, then check again.");
+        setStatusNote("Account verification is pending. Check Subaccounts in Paystack using the same mode, then try again.");
       }
     } catch (cause) {
       setError(cause instanceof ApiFailure ? cause.error.message : "Could not check verification with Paystack.");
@@ -177,15 +177,14 @@ function PayoutAccountContent() {
 
   return <SettingsCard
     title="Settlement account"
-    description="Where Paystack sends rent, after fees."
     className="settings-settlement"
     action={state && mayManage && state.profiles.length ? <Button variant="secondary" size="sm" onClick={() => setShowSetup((value) => !value)}>{showSetup ? "Close" : "Add account"}</Button> : undefined}
   >
     {error ? <Notice tone="error" title={error} /> : null}
     {organizations === null ? <LoadingRows rows={3} /> : null}
-    {organizations?.length === 0 ? <Empty title="Create a Portfolio first" body="A settlement account belongs to a Portfolio, not an individual team member." /> : null}
+    {organizations?.length === 0 ? <Empty title="Create a Portfolio first" /> : null}
     {organizations && organizations.length > 1 ? <Select label="Portfolio" value={organizationId} onChange={setOrganizationId} options={organizations.map((row) => [row.id, row.name] as const)} /> : null}
-    {organization && !mayManage ? <Notice tone="warning" title="Owner or admin access required" body="Only a Portfolio owner or admin can change where rent is settled." /> : null}
+    {organization && !mayManage ? <Notice tone="warning" title="Owner or admin access required" /> : null}
     {organizationId && mayManage && state === null && !error ? <LoadingRows rows={3} /> : null}
 
     {state && mayManage ? <>
@@ -198,21 +197,21 @@ function PayoutAccountContent() {
             {profile.status === "verified" && !profile.is_active ? <Button variant="secondary" busy={busy === `activate:${profile.id}`} onClick={() => void selectAccount(profile.id)}>Use this account</Button> : null}
             {removeCandidate === profile.id ? <div className="payout-remove-confirm"><p>Remove from future use?</p><Button variant="secondary" busy={busy === `remove:${profile.id}`} onClick={() => void removeAccount(profile.id)}>Yes, remove</Button><button type="button" onClick={() => setRemoveCandidate("")}>Keep account</button></div> : <button className="payout-remove-link" type="button" onClick={() => setRemoveCandidate(profile.id)}>Remove</button>}
           </div>
-        </article>)}</div> : <Empty title="No receiving account yet" body="Add a bank or Mobile Money account, then verify it with Paystack." />}
+        </article>)}</div> : <Empty title="No receiving account yet" />}
       </section>
       {state.profiles.length > 0 && !state.active_profile ? <Notice tone="warning" title="Choose an account for new payments" body="Online rent payments remain unavailable until a verified account is selected." /> : null}
       {statusNote ? <Notice tone="info" title="Settlement account updated" body={statusNote} /> : null}
-      {checking ? <Notice tone="info" title="Checking with Paystack" body="The first request may have completed. Danpa HQ is finding that exact setup before allowing another attempt." /> : null}
+      {checking ? <Notice tone="info" title="Checking with Paystack" body="Your request may have completed. Wait for this check before retrying." /> : null}
       {!checking && (showSetup || state.profiles.length === 0) ? <section className="payout-setup" aria-labelledby="payout-setup-title">
         <h3 id="payout-setup-title" className="settings-subhead">Add a receiving account</h3>
         <div className="payout-methods" role="group" aria-label="Settlement account type">
           {(["bank", "mobile_money"] as const).map((value) => <button key={value} type="button" aria-pressed={method === value} onClick={() => { setMethod(value); setAccountNumber(""); setResolved(null); }}>{value === "bank" ? "Bank account" : "Mobile Money"}</button>)}
         </div>
         <Select label={method === "bank" ? "Bank" : "Network"} value={bankCode} onChange={(value) => { setBankCode(value); setResolved(null); }} options={institutionOptions} />
-        <Field label={method === "bank" ? "Account number" : "Mobile Money number"} value={accountNumber} onChange={(event) => { setAccountNumber(event.target.value.replace(/\s/g, "")); setResolved(null); }} inputMode="numeric" autoComplete="off" hint="Used only to create the Paystack subaccount. Danpa HQ does not retain this number." />
+        <Field label={method === "bank" ? "Account number" : "Mobile Money number"} value={accountNumber} onChange={(event) => { setAccountNumber(event.target.value.replace(/\s/g, "")); setResolved(null); }} inputMode="numeric" autoComplete="off" hint="Used to set up payouts. Danpa HQ does not store this number." />
         {method === "bank" && !resolved ? <Button variant="secondary" busy={busy === "resolve"} disabled={!bankCode || !accountNumber.trim()} onClick={() => void confirmAccount()}>Confirm account</Button> : null}
         {resolved ? <div className="payout-confirmed"><span aria-hidden="true">✓</span><div><strong>{resolved.account_name}</strong><p>{selectedInstitution?.name} · {resolved.masked_account}</p></div></div> : null}
-        {(method === "mobile_money" || resolved) ? <div className="payout-save"><Button busy={busy === "save"} disabled={!bankCode || !accountNumber.trim()} onClick={() => void saveAccount()}>Add receiving account</Button><p className="type-caption">Property owners bear Paystack’s transaction fee. Adding or switching an account does not redirect payments already in progress.</p></div> : null}
+        {(method === "mobile_money" || resolved) ? <div className="payout-save"><Button busy={busy === "save"} disabled={!bankCode || !accountNumber.trim()} onClick={() => void saveAccount()}>Add receiving account</Button><p className="type-caption">Property owners pay Paystack’s transaction fee. A Danpa HQ platform charge may also apply. Payments in progress still go to the original account.</p></div> : null}
       </section> : null}
     </> : null}
   </SettingsCard>;

@@ -46,7 +46,7 @@ function NewSpace() {
 
   return (
     <div className="ws-page lease-wizard-page">
-      <WorkspaceHead icon="units" title={search.get("unitId") ? "Unit setup" : "Add Unit"} summary="Saved as you go." />
+      <WorkspaceHead icon="units" title={search.get("unitId") ? "Unit setup" : "Add Unit"} />
       <UnitWizardModal
         open
         propertyId={propertyId}

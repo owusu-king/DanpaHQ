@@ -160,7 +160,7 @@ export function ProviderMaintenanceScreen() {
               </View>
             );
           }
-          if (entry.kind === "calm") return <Calm text="Nothing waits to be started or fixed. New reports arrive here with the tenant's photo." />;
+          if (entry.kind === "calm") return <Calm text="Nothing waits to be started or fixed." />;
           return (
             <ListRow first={entry.first} last={entry.last}>
               {entry.first ? null : <View style={styles.rule} />}
@@ -172,10 +172,9 @@ export function ProviderMaintenanceScreen() {
           <Empty
             icon="construct-outline"
             title="No repairs reported"
-            hint="When a tenant reports a problem it arrives here with their photo, and you are notified."
           />
         ) : needle ? (
-          <Empty icon="search-outline" title="No matching repairs" hint="Try another tenant, Property, Unit or problem." />
+          <Empty icon="search-outline" title="No matching repairs" />
         ) : null}
       />
     </IndexGround>

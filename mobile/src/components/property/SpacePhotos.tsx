@@ -45,26 +45,29 @@ export function SpacePhotos({
   const [busySlot, setBusySlot] = useState("");
   const [error, setError] = useState("");
 
-  const load = useCallback(async () => {
-    try {
-      const [progress, stored] = await Promise.all([
-        getVerification("unit", unitId),
-        listUnitPhotos(unitId),
-      ]);
+  const load = useCallback(async (signal?: AbortSignal) => {
+    await Promise.all([
+      getVerification("unit", unitId),
+      listUnitPhotos(unitId),
+    ]).then(([progress, stored]) => {
+      if (signal?.aborted) return;
       // An approved check returns no slots — there is nothing left to ask for —
       // so the photographs themselves become the list.
       setSlots(progress.slots);
       setPhotos(stored.photos);
       setError("");
-    } catch (cause) {
+    }).catch((cause) => {
+      if (signal?.aborted) return;
       setError(
         cause instanceof ApiFailure ? cause.error.message : "Could not load the photos.",
       );
-    }
+    });
   }, [unitId]);
 
   useEffect(() => {
-    void load();
+    const controller = new AbortController();
+    void load(controller.signal);
+    return () => controller.abort();
   }, [load]);
 
   async function add(slotKey: string) {

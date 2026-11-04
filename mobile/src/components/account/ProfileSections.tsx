@@ -385,16 +385,17 @@ export function EmailSheet({
   // offered as-is, so confirming it is one tap. Only *opening* resets it: the
   // account refreshes the moment a code is confirmed, and resetting on that
   // would throw the person back to the address instead of showing the tick.
-  const currentRef = useRef(current);
-  currentRef.current = current;
-  useEffect(() => {
-    if (!visible) return;
-    setStep("address");
-    setEmail(currentRef.current ?? "");
-    setStarted(null);
-    setCode("");
-    setError("");
-  }, [visible]);
+  const [wasVisible, setWasVisible] = useState(false);
+  if (wasVisible !== visible) {
+    setWasVisible(visible);
+    if (visible) {
+      setStep("address");
+      setEmail(current ?? "");
+      setStarted(null);
+      setCode("");
+      setError("");
+    }
+  }
 
   useEffect(() => {
     if (step !== "code") return;

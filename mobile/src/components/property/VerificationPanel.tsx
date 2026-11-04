@@ -58,20 +58,23 @@ export function VerificationPanel({
     report.current = onState;
   });
 
-  const load = useCallback(async () => {
-    try {
-      const next = await getVerification(subject, id);
+  const load = useCallback(async (signal?: AbortSignal) => {
+    await getVerification(subject, id).then((next) => {
+      if (signal?.aborted) return;
       setState(next);
       report.current?.(next);
-    } catch (cause) {
+    }).catch((cause) => {
+      if (signal?.aborted) return;
       setError(
         cause instanceof ApiFailure ? cause.error.message : "Could not load this check.",
       );
-    }
+    });
   }, [subject, id]);
 
   useEffect(() => {
-    void load();
+    const controller = new AbortController();
+    void load(controller.signal);
+    return () => controller.abort();
   }, [load]);
 
   async function removePhoto(slotKey: string) {
@@ -162,7 +165,6 @@ export function VerificationPanel({
         <Notice
           tone="info"
           title="With our team"
-          body="We will let you know the outcome. There is nothing more to do here."
         />
       ) : (
         <Type variant="caption">

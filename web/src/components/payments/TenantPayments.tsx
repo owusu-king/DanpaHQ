@@ -132,7 +132,6 @@ export function TenantPaymentsWorkspace() {
     <WorkspaceHead
       icon="payments"
       title="Payments"
-      summary="Keep track of rent due, payments and receipts."
       actions={single ? <Link className="ws-action" href={accountHref(single) as never}><Icon name="details" />Rent account</Link> : null}
     />
 
@@ -143,10 +142,10 @@ export function TenantPaymentsWorkspace() {
     {none ? (
       <section className="ws-panel" aria-label="Payments">
         {error ? (
-          <PanelState tone="error" icon="warning" title="Payments didn’t load" body={`${error} Check your connection and try again.`}
+          <PanelState tone="error" icon="warning" title="Payments didn’t load" body={error}
             action={<button type="button" className="ws-action" disabled={retrying} onClick={() => void retry()}>{retrying ? "Retrying…" : "Try again"}</button>} />
         ) : (
-          <PanelState icon="payments" title="No rent account yet" body="Once you accept an agreement, its rent schedule appears here — what is due, when, and every payment you make."
+          <PanelState icon="payments" title="No rent account yet"
             action={<Link href="/leases" className="ws-action is-primary"><Icon name="leases" />See your agreements</Link>} />
         )}
       </section>
@@ -159,9 +158,6 @@ export function TenantPaymentsWorkspace() {
           eyebrow={next.charge.is_overdue ? `Overdue · ${next.charge.days_overdue} day${next.charge.days_overdue === 1 ? "" : "s"}` : `Next due · ${formatDate(next.charge.due_on)}`}
           title={next.charge.kind_display}
           detail={[next.account.tenancy.property.title, tenancyLabel(next.account.tenancy)].filter(Boolean).join(" · ")}
-          hint={next.account.ledger.digital_payment.available
-            ? "You review the amount and choose how to pay before anything is charged."
-            : "Open it to see the amount and anything this home still needs before you can pay online."}
           icon="payments"
           more={{ count: dueRows.filter((row) => !row.intent).length - 1, onShow: () => setView("due") }}
           onOpen={() => router.push(payHref(next) as never)}
@@ -220,15 +216,14 @@ export function TenantPaymentsWorkspace() {
         {dueRows.length ? <div className="payments-ledger">
           <LedgerHead columns={["Rent item", "Standing", "Due", "Amount"]} />
           <ul className="rent-list">{dueRows.map((row, index) => <DueRowItem key={row.charge.id} row={row} order={index} />)}</ul>
-        </div> : <PanelState icon="check" title="You’re paid up" body="New rent items appear here with what they are for and when they are due." />}
-        {dueRows.some((row) => !row.account.ledger.digital_payment.available && !row.intent) ? <p className="rent-readiness-note"><Icon name="info" /><span>Choose Pay rent to review the amount and current payment availability. Danpa HQ will explain anything this home still needs before checkout can begin.</span></p> : null}
+        </div> : <PanelState icon="check" title="You’re paid up" />}
       </section> : null}
 
       {view === "history" ? <section id="tenant-payment-history" role="tabpanel" aria-labelledby="tenant-payment-history-tab" className="ws-panel payments-panel">
         {history.length ? <div className="payments-ledger">
           <LedgerHead columns={["Payment", "Status", "Method and date", "Amount"]} />
           <ul className="rent-list">{history.map((row, index) => <HistoryRowItem key={row.payment.id} row={row} order={index} onReceipt={setReceiptOpen} />)}</ul>
-        </div> : <PanelState icon="details" title="No payments yet" body="Processor-confirmed and mutually confirmed payments stay here, each with its receipt." />}
+        </div> : <PanelState icon="details" title="No payments yet" />}
         {unsuccessful.length ? <section className="ws-group tenant-attempts" aria-labelledby="tenant-attempts-heading">
           <h2 className="ws-group-heading" id="tenant-attempts-heading">Unsuccessful attempts<span>{unsuccessful.length}</span></h2>
           <p className="tenant-attempts-note">These attempts did not mark rent as paid.</p>

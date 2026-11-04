@@ -288,7 +288,7 @@ test("the Android screen sheet moves without Reanimated and closes every way", (
   const sheet = code(read("src/components/sheet/ScreenSheet.tsx"));
   assert.doesNotMatch(sheet, /react-native-reanimated|react-native-gesture-handler|react-native-worklets|react-native-screens/);
   assert.match(sheet, /useNativeDriver: true/);
-  assert.match(sheet, /\{\.\.\.grab\.panHandlers\}/);
+  assert.match(sheet, /\{\.\.\.grab\}/);
   assert.match(sheet, /BackHandler\.addEventListener\("hardwareBackPress", \(\) => \{\s*dismiss\(\);\s*return true;/);
   assert.match(sheet, /accessibilityLabel=\{closeLabel\} onPress=\{\(\) => dismiss\(\)\}/);
   assert.match(sheet, /onAccessibilityEscape=\{\(\) => dismiss\(\)\}/);

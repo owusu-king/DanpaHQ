@@ -11,3 +11,4 @@ class NotificationsConfig(AppConfig):
         # Without this the events are dispatched to nobody and the product is
         # silent again.
         from . import handlers  # noqa
+        from . import firebase_push  # noqa

@@ -54,22 +54,25 @@ export default function AgreementScreen() {
   const [loadError, setLoadError] = useState("");
   const pageBottom = useSafeBottom(space[8]);
 
-  const load = useCallback(async () => {
-    try {
-      const mine = await listMyLeases();
+  const load = useCallback(async (signal?: AbortSignal) => {
+    await listMyLeases().then((mine) => {
+      if (signal?.aborted) return;
       const found = mine.find((row) => row.id === id) ?? null;
       setLease(found);
       setMissing(found === null);
-    } catch (cause) {
+    }).catch((cause) => {
+      if (signal?.aborted) return;
       setMissing(true);
       setLoadError(
         cause instanceof ApiFailure ? cause.error.message : "We could not open that agreement.",
       );
-    }
+    });
   }, [id]);
 
   useEffect(() => {
-    void load();
+    const controller = new AbortController();
+    void load(controller.signal);
+    return () => controller.abort();
   }, [load]);
   useEffect(() => {
     if (

@@ -52,26 +52,32 @@ export default function SaleScreen() {
   const [busy, setBusy] = useState(false);
   const [photoIndex, setPhotoIndex] = useState(0);
   const [zoomed, setZoomed] = useState(false);
-  const width = useRef(Dimensions.get("window").width).current;
+  const [width] = useState(() => Dimensions.get("window").width);
   const heroScroll = useRef<ScrollView>(null);
   const viewerScroll = useRef<ScrollView>(null);
 
+  const status = state.status;
+  const [previousRequest, setPreviousRequest] = useState({ id, status });
+  if (previousRequest.id !== id || previousRequest.status !== status) {
+    setPreviousRequest({ id, status });
+    if (id && status !== "loading") setLoadError("");
+  }
+
   useEffect(() => {
-    if (!id || state.status === "loading") return;
+    if (!id || status === "loading") return;
     let current = true;
-    setLoadError("");
     getSale(id)
       .then((value) => { if (current) setSale(value); })
       .catch((cause) => {
         if (current) setLoadError(cause instanceof ApiFailure ? cause.error.message : "We could not open that property.");
       });
     return () => { current = false; };
-  }, [id, signedIn, state.status]);
+  }, [id, status]);
 
   if (loadError && !sale) {
     return (
       <View style={{ padding: space[5] }}>
-        <Notice tone="error" title={loadError} body="It may have been sold or taken off the market." />
+        <Notice tone="error" title={loadError} />
       </View>
     );
   }

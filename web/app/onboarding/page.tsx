@@ -63,9 +63,6 @@ function OnboardingContent() {
     <div style={{ maxWidth: "38rem", margin: "0 auto", padding: "var(--space-12) var(--space-5)" }}>
       <p className="type-label">STEP 1 OF 2</p>
       <h1 className="type-display-2">What&apos;s your name?</h1>
-      <p className="type-body" style={{ color: "var(--color-ink-700)" }}>
-        This creates your basic profile. We will not ask for identity documents here.
-      </p>
       <div style={{ display: "grid", gap: "var(--space-4)", margin: "var(--space-6) 0" }}>
         <Field label="First name" value={firstName} onChange={(event) => setFirstName(event.target.value)} autoFocus />
         <Field label="Last name" value={lastName} onChange={(event) => setLastName(event.target.value)} />

@@ -624,7 +624,6 @@ export function ListingBrowser() {
         <PageHeader
           // The top bar already names the page; the masthead says what it is for.
           title="Find your next place"
-          description="Verified rentals, approved to list."
         />
       </header>
     ) : null}
@@ -686,7 +685,6 @@ export function ListingBrowser() {
           {listings?.length === 0 && !querying && !error ? (
             <div className="explore-empty">
               <p className="type-body-strong">Nothing matches yet</p>
-              <p className="type-caption">Try a wider rent, a longer advance, or a nearby area.</p>
               <button type="button" className="explore-clear-all" onClick={() => update({ ...withoutFilters(query), ...NO_LOCATION })}>Clear search and filters</button>
             </div>
           ) : null}

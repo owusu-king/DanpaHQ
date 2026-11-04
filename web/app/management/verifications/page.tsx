@@ -118,7 +118,6 @@ export default function VerificationPage() {
   return <>
     <PageHeader
       title="Verification queue"
-      description="Examine each submission and its evidence, then make one decision. A verified property has passed both the authority-document and condition-photo checks."
     />
     <Panel title="Awaiting review" meta={resource.data ? `${rows.length} ${rows.length === 1 ? "submission" : "submissions"}` : undefined}>
       <ResourceState loading={resource.loading} error={resource.error} onRetry={resource.reload} />
@@ -139,7 +138,7 @@ export default function VerificationPage() {
           })}</tbody>
         </DataTable>
       ) : resource.data ? (
-        <Empty icon="verification" title="The queue is clear" message="New submissions appear here as soon as they are sent." />
+        <Empty icon="verification" title="The queue is clear" />
       ) : null}
     </Panel>
 
@@ -188,7 +187,6 @@ export default function VerificationPage() {
                     <button type="button" onClick={() => void openEvidence(item, evidence)}>
                       <Icon name={/\.(jpe?g|png|webp|heic)$/i.test(evidence.filename) ? "photos" : "leases"} />
                       <span>{evidence.filename || humanize(evidence.evidence_type)}</span>
-                      <small>Opens in a new tab</small>
                     </button>
                   </li>
                 ))}
@@ -207,7 +205,7 @@ export default function VerificationPage() {
               </label>
               <label>
                 Internal review note
-                <textarea value={internalNote} onChange={(event) => setInternalNote(event.target.value)} placeholder="Risk signals or corroborating checks. Never copy passwords or one-time codes." disabled={busy !== null} />
+                <textarea value={internalNote} onChange={(event) => setInternalNote(event.target.value)} placeholder="Record risks or evidence. Leave out passwords and one-time codes." disabled={busy !== null} />
                 <small>Seen only by Management.</small>
               </label>
               <Feedback error={error} />

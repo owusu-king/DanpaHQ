@@ -172,7 +172,7 @@ export default function ProviderViewingsScreen() {
             );
           }
           if (entry.kind === "day") return <Type variant="label" style={[styles.day, entry.first ? null : styles.dayGap]}>{entry.title.toUpperCase()}</Type>;
-          if (entry.kind === "free") return <Empty compact icon="calendar-clear-outline" title={entry.title} hint="Nothing is booked for this day." />;
+          if (entry.kind === "free") return <Empty compact icon="calendar-clear-outline" title={entry.title} />;
           if (entry.kind === "more") {
             return (
               <ListRow first={false} last>
@@ -194,7 +194,7 @@ export default function ProviderViewingsScreen() {
               </View>
             );
           }
-          if (entry.kind === "calm") return <Calm text="No requests to answer or check-ins to do. New requests will appear here first." />;
+          if (entry.kind === "calm") return <Calm text="No requests or check-ins." />;
           return (
             <ListRow first={entry.first} last={entry.last}>
               {entry.first ? null : <View style={[styles.rule, entry.agenda ? styles.agendaRule : null]} />}
@@ -208,11 +208,10 @@ export default function ProviderViewingsScreen() {
           <Empty
             icon="calendar-outline"
             title="No viewings yet"
-            hint="When somebody asks to see one of your places, the request arrives here."
             action={<QuietAction icon="business-outline" label="Your Properties" onPress={() => router.push("/(app)/(provider-tabs)/properties" as never)} />}
           />
         ) : needle ? (
-          <Empty icon="search-outline" title="No matching viewings" hint="Try another tenant, Property or location." />
+          <Empty icon="search-outline" title="No matching viewings" />
         ) : null}
       />
     </IndexGround>

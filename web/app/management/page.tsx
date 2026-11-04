@@ -46,12 +46,12 @@ export default function ManagementDashboard() {
           {queues.length ? (
             <Panel title="Waiting on the team">
               <ul className="management-queues">
-                {queues.map(([key, label, hint, href]) => {
+                {queues.map(([key, label, , href]) => {
                   const count = counts[key] ?? 0;
                   return (
                     <li key={key}>
                       <Link href={href as never} className={`management-queue ${count ? "is-waiting" : "is-clear"}`}>
-                        <span><strong>{label}</strong><small>{hint}</small></span>
+                        <span><strong>{label}</strong></span>
                         <span className="management-queue-count">{count ? count.toLocaleString("en-GH") : "Clear"}</span>
                         <Icon name="chevron-down" />
                       </Link>
@@ -86,7 +86,6 @@ function EmptyRole() {
   return (
     <div className="management-empty">
       <span className="management-empty-mark" aria-hidden="true"><Icon name="home" /></span>
-      <p>Your role has no queues on this overview. Use the sidebar to reach the pages it allows.</p>
     </div>
   );
 }

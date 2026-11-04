@@ -1,6 +1,5 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { useRef } from "react";
-import { Animated, Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { Animated, useAnimatedValue, Image, Pressable, StyleSheet, Text, View } from "react-native";
 
 import { radius, space } from "@/components/ui";
 import { isAndroid } from "@/platform";
@@ -45,7 +44,7 @@ export function HeaderCircleButton({
   /** Unread work behind this button. Shown as a count, capped at 9+. */
   badge?: number;
 }) {
-  const scale = useRef(new Animated.Value(1)).current;
+  const scale = useAnimatedValue(1);
 
   const press = (toValue: number) =>
     Animated.spring(scale, { toValue, speed: 34, bounciness: 2, useNativeDriver: true }).start();

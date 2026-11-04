@@ -70,7 +70,7 @@ export default function ListingDetailScreen() {
   const [zoomed, setZoomed] = useState(false);
   const [browsingPhotos, setBrowsingPhotos] = useState(false);
   const [expandedTrust, setExpandedTrust] = useState(false);
-  const width = useRef(Dimensions.get("window").width).current;
+  const [width] = useState(() => Dimensions.get("window").width);
   // Under 380pt the two acts stack rather than squeezing their labels onto two lines.
   const narrow = width < 380;
   const insets = useSafeAreaInsets();
@@ -84,12 +84,17 @@ export default function ListingDetailScreen() {
     requestSignIn(next);
   }
 
-  useEffect(() => {
-    let current = true;
+  const [previousId, setPreviousId] = useState(id);
+  if (previousId !== id) {
+    setPreviousId(id);
     setListing(null);
     setRelated(null);
     setLoadError("");
     setPhotoIndex(0);
+  }
+
+  useEffect(() => {
+    let current = true;
     getListingDetail(id)
       .then((value) => { if (current) setListing(value); })
       .catch((cause) =>

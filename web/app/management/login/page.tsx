@@ -38,11 +38,7 @@ export default function ManagementLoginPage() {
         </div>
         <div>
           <h1>Keep rental operations accountable.</h1>
-          <p>
-            Review people and properties carefully, help customers quickly, and leave a clear record of every sensitive decision.
-          </p>
         </div>
-        <small>Consumer phone sessions and Django Super Admin sessions cannot enter this portal.</small>
       </section>
       <section className="management-login-card-wrap" aria-label="Management sign in">
         <div className="management-login-card">

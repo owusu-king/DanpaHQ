@@ -142,7 +142,7 @@ export function YouPage({
 
         {searching ? (
           needle ? (
-            found.length ? <Card items={found} /> : <Empty icon="search-outline" title="Nothing by that name" hint="Try another word, like Security or Viewings." />
+            found.length ? <Card items={found} /> : <Empty icon="search-outline" title="No results" />
           ) : null
         ) : (
           <>

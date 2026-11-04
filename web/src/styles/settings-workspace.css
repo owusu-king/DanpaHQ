@@ -817,19 +817,25 @@
 @media (max-width: 900px) {
   /* The grouped index becomes one scrolling row of chips on the same glass. */
   .settings-shell { grid-template-columns: minmax(0, 1fr); gap: var(--space-4); }
-  .settings-index { position: relative; top: auto; display: flex; gap: 2px; padding: 4px; overflow-x: auto; scrollbar-width: none; }
+  .settings-index { position: relative; top: auto; display: flex; gap: 2px; padding: 4px; overflow-x: auto; scrollbar-width: thin; scroll-padding-inline: .5rem; overscroll-behavior-x: contain; border-radius: 8px; background: var(--color-field-0); backdrop-filter: none; box-shadow: 0 0 0 1px var(--color-field-200); }
   .settings-index::-webkit-scrollbar { display: none; }
   .settings-who { display: none; }
   .settings-group { display: contents; }
   .settings-group-title { display: none; }
   .settings-group ul { display: flex; gap: 2px; }
-  .settings-link { min-width: max-content; min-height: 2.25rem; padding: 4px 12px 4px 6px; gap: var(--space-2); }
+  .settings-link { min-width: max-content; min-height: 2.75rem; padding: 4px 12px 4px 6px; gap: var(--space-2); }
   .settings-link-mark { width: 18px; height: 18px; }
   .settings-link-mark .portal-icon { width: 18px; height: 18px; }
   /* A strip of tabs has no edge to print the rule on; the tile marks the page. */
 }
 
 @media (max-width: 600px) {
+  .settings-card { border-radius: 10px; box-shadow: 0 0 0 1px var(--color-field-200); }
+  .settings-card .btn { min-height: 2.75rem; }
+  .prefs-channel.is-editable { grid-template-columns: minmax(0, 1fr) 2.75rem; gap: .5rem; padding-block: .75rem; }
+  .prefs-channel.is-editable .prefs-channel-editor { grid-column: 1 / -1; grid-row: 2; }
+  .prefs-card .prefs-channel-editor .prefs-number-field input { min-height: 2.75rem; font-size: 1rem; }
+  .prefs-card .prefs-channel-editor .prefs-number-save, .prefs-card .prefs-channel-editor .prefs-number-saved { height: 2.75rem; top: 0; right: 0; font-size: .75rem; }
   .settings-card-head,
   .verification-heading { padding: var(--space-4) var(--space-4) var(--space-3); }
   .settings-card-body,

@@ -97,7 +97,7 @@ export function SaleExplore({
   const [next, setNext] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [querying, setQuerying] = useState(false);
+
   const [error, setError] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [menu, setMenu] = useState<Menu | null>(null);
@@ -120,25 +120,29 @@ export function SaleExplore({
   };
   const key = JSON.stringify(filters);
 
-  const load = useCallback(async () => {
+  const [query, setQuery] = useState({ key, pending: true });
+  if (query.key !== key) setQuery({ key, pending: true });
+  const querying = query.pending || refreshing;
+  const load = useCallback(() => {
     const id = ++request.current;
-    setQuerying(true);
-    try {
-      const page = await searchSales(JSON.parse(key) as SaleFilters);
+    return searchSales(JSON.parse(key) as SaleFilters).then((page) => {
       if (id !== request.current) return;
       setSales(page.results);
       setNext(page.next);
       setError("");
-    } catch (cause) {
+    }).catch((cause) => {
       if (id !== request.current) return;
       setSales((current) => current ?? []);
       setError(cause instanceof ApiFailure ? cause.error.message : "We could not load properties for sale.");
-    } finally {
-      if (id === request.current) setQuerying(false);
-    }
+    }).finally(() => {
+      if (id === request.current) setQuery({ key, pending: false });
+    });
   }, [key]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    void load();
+    return () => { request.current += 1; };
+  }, [load]);
 
   const refinements = [kind, budget, tenure, kind === "residential" ? bedrooms : ""].filter(Boolean).length;
   const count = sales?.length ?? 0;
@@ -221,7 +225,6 @@ export function SaleExplore({
           sales === null || querying || error ? null : (
             <View style={{ paddingVertical: space[8], gap: space[2] }}>
               <Type variant="bodyStrong">Nothing for sale matches yet</Type>
-              <Type variant="caption">Try a higher budget, another kind of property, or a wider area.</Type>
               <Button label="Clear search and filters" onPress={() => { setText(""); clearFilters(); }} />
             </View>
           )

@@ -67,9 +67,6 @@ test("the coming-soon surface has clear future copy and no pretend composer or a
   const surface = app.AskDanpaSurface();
   assert.match(text(surface), /Danpa Intel/);
   assert.match(text(surface), /Coming soon/);
-  assert.match(text(surface), /future housing intelligence/);
-  assert.match(text(surface), /Understand the details/);
-  assert.match(text(surface), /Find the next step/);
   assert.equal(nodes(surface).filter((node) => ["TextInput", "Pressable"].includes(node.type)).length, 0);
 });
 

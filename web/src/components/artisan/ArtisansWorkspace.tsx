@@ -171,7 +171,6 @@ export function ArtisansWorkspace() {
   return (
     <div className="ws-page artisans-workspace">
       <WorkspaceHead icon="hammer" title={top ? VIEW_TITLE[top.kind] : "Artisans"}
-        summary="Find skilled help, manage quote requests and keep your work records together."
         path={top ? <button type="button" className="art-link" onClick={nav.back}>← Back to artisans</button> : undefined}
         actions={becomeLabel && !top ? <Link className="art-application-entry" href={"/artisan" as never}>{becomeLabel}<ChevronRight aria-hidden="true" /></Link> : undefined}
       />
@@ -184,7 +183,7 @@ export function ArtisansWorkspace() {
           ) : (
             <div className="art-work-layout">
               <aside className="art-directory-aside" aria-label="Work options">
-                <h2>Your work</h2><p>Review quotes, follow each job and revisit completed work.</p>
+                <h2>Your work</h2>
                 <button type="button" className="ws-action" onClick={() => nav.push({ kind: "post" })}><Plus aria-hidden="true" /> Post a job</button>
               </aside>
               <div className="art-work-content"><Work tab={tab} onOpenJob={(id) => nav.push({ kind: "job", id })} /></div>
@@ -261,7 +260,7 @@ function Find({ initialTrade, onOpen }: { initialTrade?: string; onOpen: (id: st
       </div>
       </aside>
       <section className="art-directory-results" aria-label="Matching artisans">
-      <div className="art-directory-heading"><div><h2>Find an artisan</h2><p>Browse approved artisans and explore their experience.</p></div>{result ? <span>{result.results.length} available</span> : null}</div>
+      <div className="art-directory-heading"><div><h2>Find an artisan</h2></div>{result ? <span>{result.results.length} available</span> : null}</div>
 
       <div className="art-discovery-toolbar" role="group" aria-label="Search filters">
         <DistrictPicker selected={area} onChange={setArea} max={1} label="Area" chosenLabel="Area" placeholder="Search by area" search />
@@ -312,11 +311,6 @@ function Find({ initialTrade, onOpen }: { initialTrade?: string; onOpen: (id: st
         <PanelState
           icon="hammer"
           title="No artisans match yet"
-          body={
-            trade || district || certified
-              ? "Try another trade or area, or include artisans without a certificate."
-              : "Approved artisans appear here as they join Danpa HQ."
-          }
         />
       )}
       </section>
@@ -481,7 +475,7 @@ function Profile({
             ))}
           </div>
         ) : (
-          <p className="art-bio is-quiet">No reviews yet. Reviews come from customers after a confirmed job.</p>
+          <p className="art-bio is-quiet">No reviews yet.</p>
         )}
       </section>
 
@@ -615,7 +609,6 @@ function QuoteAsk({
       <button type="button" className="ws-action is-primary art-post-button" onClick={post}>
         <Plus aria-hidden="true" /> Post a new job for {first}
       </button>
-      <small className="art-post-note">For a repair on a rented home, open it in Maintenance and choose Find an artisan.</small>
     </div>
   );
 }
@@ -655,10 +648,9 @@ function Work({
       <PanelState
         icon="receipt"
         title="No quote requests yet"
-        body="Post a job for work at home, or invite an artisan from a repair."
       />
     ) : (
-      <PanelState icon="wrench" title="No artisan jobs yet" body="Work an artisan was chosen for stays here, with its price." />
+      <PanelState icon="wrench" title="No artisan jobs yet" />
     );
   }
   return (

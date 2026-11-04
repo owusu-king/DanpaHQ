@@ -186,7 +186,7 @@ function CompactLifecycle({
     <div className="attention-band">
       <div>
         <h2>Finish setting up this Property</h2>
-        <p>{complete} of {required.length} required steps complete. Everything is saved as you go.</p>
+        <p>{complete} of {required.length} required steps complete.</p>
       </div>
       <div className="attention-band-actions">
         {edit?.allowed ? <Link href={`/record/property-setup?propertyId=${property.id}` as never} className="btn btn-primary" onClick={onSetup ? inPlace(onSetup) : undefined}>Continue setup</Link> : null}
@@ -270,7 +270,6 @@ export function PropertyMore({ property }: { property: Property }) {
             <div><dt>Status</dt><dd>{property.verification.review_state_label}</dd></div>
             {property.verification.submitted_at ? <div><dt>Submitted</dt><dd>{on(property.verification.submitted_at)}</dd></div> : null}
             {property.verification.decided_at ? <div><dt>Decided</dt><dd>{on(property.verification.decided_at)}</dd></div> : null}
-            <div><dt>Package</dt><dd>Property details, authority document, photographs and amenities</dd></div>
           </dl>
           {property.verification.decision_note ? <Notice tone="info" title="Review note" body={property.verification.decision_note} /> : null}
       </div>
@@ -304,7 +303,7 @@ function DangerZone({ property }: { property: Property }) {
     <div><h3>{act === "delete" ? "Delete property" : "Archive property"}</h3><p className="pd-note">{decision.message}</p></div>
     <Button variant={act === "delete" ? "destructive" : "secondary"} onClick={() => setOpen(true)}>{act === "delete" ? "Delete property" : "Archive property"}</Button>
     <TypedConfirmation open={open} onClose={() => setOpen(false)} title={act === "delete" ? "Delete Property" : "Archive Property"}
-      description={act === "delete" ? "This permanently deletes the property. This action cannot be undone." : "Remove this property from your workspace while keeping its records."}
+      description={act === "delete" ? "Permanently delete this Property?" : "Remove this property from your workspace while keeping its records."}
       phrase={act === "delete" ? property.title : undefined} confirmLabel={act === "delete" ? "Delete permanently" : "Archive property"} destructive={act === "delete"} reasonRequired={act !== "delete"}
       onConfirm={async reason => {
         if (act === "delete") await deleteProperty(property.id, reason || "Deleted after confirming the full property name.");
@@ -335,10 +334,6 @@ function StillCreating({
         <h2 id="setup" className="type-title-2" style={{ margin: 0 }}>
           Finish creating this property
         </h2>
-        <p className="type-caption" style={{ margin: 0, maxWidth: "58ch" }}>
-          Everything you have done so far is saved. Nothing has been sent to
-          anybody — verification is a separate step you take afterwards.
-        </p>
       </div>
 
       <SetupProgress steps={steps} />
@@ -431,8 +426,6 @@ function WithReviewer({
           {verification.submitted_at
             ? `Sent on ${on(verification.submitted_at)}. `
             : ""}
-          There is nothing here waiting on you. You can keep adding spaces inside
-          it — none of them wait on this.
         </p>
       </div>
 

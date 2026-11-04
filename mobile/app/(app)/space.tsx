@@ -355,9 +355,6 @@ function WhatIsNext({
     return (
       <RecordPanel style={styles.next}>
         <StandingLine tone="good" line="Someone lives here" />
-        <Type variant="caption" style={{ color: theme.color.ink["700"] }}>
-          Danpa HQ takes no new requests for it while it is let. The tenancy, its rent and its end are managed from Tenants.
-        </Type>
         <View style={{ flexDirection: "row" }}>
           <Pill label="Open Tenants" icon="people-outline" onPress={() => router.push({ pathname: "/(app)/(provider-tabs)/tenants", params: { unitId: unit.id, scopeLabel: `${unit.label} · ${unit.property.title}` } } as never)} />
         </View>
@@ -691,10 +688,6 @@ function Beds({ unit, onChanged }: { unit: UnitDetail; onChanged: () => Promise<
 
   return (
     <View style={{ gap: space[3] }}>
-      <Type variant="caption">
-        A room can be let whole, or bed by bed. Adding beds does not commit you to
-        either — it makes both possible.
-      </Type>
       {unit.beds.length ? (
         unit.beds.map((bed) => (
           <Type key={bed.id} variant="body">
@@ -798,7 +791,6 @@ function ComposeListing({ unitId, listing, onDone, onBusyChange }: { unitId: str
         <Notice
           tone="info"
           title={`A tenant needs GH₵${((rentMinor * months) / 100).toLocaleString("en-GH")} on day one`}
-          body="This is the number that decides whether somebody can take the space, so it is said up front rather than discovered at the viewing."
         />
       ) : null}
 

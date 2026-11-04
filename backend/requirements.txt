@@ -11,6 +11,9 @@ psycopg[binary,pool]==3.2.3
 redis==5.2.1
 
 celery==5.4.0
+# Keep the broker transport compatible with redis-py 5.2. Kombu 5.7
+# requires redis-py 6.1+ at worker startup.
+kombu==5.4.2
 # No django-celery-beat: the schedule is code (`CELERY_BEAT_SCHEDULE`), not
 # database rows, and nothing registers its app or DatabaseScheduler. Beat runs
 # with the default file-backed scheduler, which means exactly one beat replica
@@ -31,6 +34,7 @@ requests==2.34.2
 # Google Identity Services ID-token verification (signature, issuer, audience,
 # and expiry). Kept server-side; the browser receives no secret.
 google-auth==2.62.0
+firebase-admin==7.1.0
 # Runtime secrets entered in Management are encrypted before database storage.
 cryptography==50.0.2
 

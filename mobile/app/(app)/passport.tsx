@@ -68,28 +68,35 @@ function Passport() {
   const [notice, setNotice] = useState<PageNotice | null>(null);
   const [showPast, setShowPast] = useState(false);
 
-  const loadPassport = useCallback(async () => {
-    try {
-      const next = await getMyPassport();
+  const loadPassport = useCallback(async (signal?: AbortSignal) => {
+    await getMyPassport().then((next) => {
+      if (signal?.aborted) return;
       setPassport(next);
       setError("");
-    } catch (cause) {
+    }).catch((cause) => {
+      if (signal?.aborted) return;
       setError(cause instanceof ApiFailure ? cause.error.message : "Your passport didn’t load.");
-    }
+    });
   }, []);
 
-  const loadShares = useCallback(async () => {
-    try {
-      const next = await listPassportShares();
+  const loadShares = useCallback(async (signal?: AbortSignal) => {
+    await listPassportShares().then((next) => {
+      if (signal?.aborted) return;
       setShares(next);
       setSharesError("");
-    } catch (cause) {
+    }).catch((cause) => {
+      if (signal?.aborted) return;
       setShares((current) => current ?? []);
       setSharesError(cause instanceof ApiFailure ? cause.error.message : "Your links didn’t load.");
-    }
+    });
   }, []);
 
-  useEffect(() => { void loadPassport(); void loadShares(); }, [loadPassport, loadShares]);
+  useEffect(() => {
+    const controller = new AbortController();
+    void loadPassport(controller.signal);
+    void loadShares(controller.signal);
+    return () => controller.abort();
+  }, [loadPassport, loadShares]);
 
   // A notice says what just happened, then gets out of the way.
   useEffect(() => {
@@ -167,7 +174,7 @@ function Passport() {
             crossed={false}
             icon="cloud-offline-outline"
             title="Your passport didn’t load"
-            hint={`${error} Check your connection and try again.`}
+            hint={error}
             action={<Button variant="secondary" label="Try again" busy={retrying} busyLabel="Retrying…" onPress={() => void retry()} />}
           />
         ) : !passport ? (
@@ -214,7 +221,6 @@ function Passport() {
                     <Fold
                       icon="home-outline"
                       title="Past homes"
-                      summary="Ended tenancies, each with its rent record"
                       count={record.past.length}
                       open={showPast}
                       onToggle={() => setShowPast((value) => !value)}
@@ -237,7 +243,6 @@ function Passport() {
                 <Empty
                   icon="home-outline"
                   title="No tenancies on Danpa HQ yet"
-                  hint="When you and a landlord accept a tenancy agreement here, it joins your passport with its rent record. Nothing missing counts against you."
                   action={<Act primary icon="compass-outline" label="Explore rentals" onPress={() => router.push("/(app)/(tabs)/explore" as never)} />}
                   compact
                 />

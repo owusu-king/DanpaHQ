@@ -1,5 +1,5 @@
-import { useEffect, useRef } from "react";
-import { Animated, StyleSheet, View } from "react-native";
+import { useEffect } from "react";
+import { Animated, useAnimatedValue, StyleSheet, View } from "react-native";
 
 import { ph, useHomeDensity } from "@/components/home/plinth";
 import { motion } from "@/components/ui";
@@ -21,7 +21,7 @@ import { useReduceMotion } from "@/motion";
  */
 export function HomeSkeleton() {
   const density = useHomeDensity();
-  const pulse = useRef(new Animated.Value(0.45)).current;
+  const pulse = useAnimatedValue(0.45);
   const reduceMotion = useReduceMotion();
 
   useEffect(() => {

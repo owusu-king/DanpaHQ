@@ -195,7 +195,6 @@ export default function PhoneScreen() {
         <Notice
           tone="warning"
           title="The app could not reach the server"
-          body={`It tried ${unreachable}. If you are on a real phone, start Expo with EXPO_PUBLIC_API_URL set to your computer's address on this network, and check the two are on the same Wi-Fi.`}
         />
       ) : null}
 

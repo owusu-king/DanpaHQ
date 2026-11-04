@@ -40,7 +40,6 @@ test("confirmed web payments lead to the durable receipt", () => {
   assert.match(returned, /`\/payments\?receipt=\$\{intent\.receipt_id\}`/);
   const paymentsApi = read("web/src/lib/payments.ts");
   assert.match(returned, /intent\.receipt_id/);
-  assert.match(returned, /Provider settlement is tracked separately/i);
   assert.match(receipt, /getPaymentReceipt/);
   assert.match(receipt, /snapshot\.tenant\.name/);
   assert.match(receipt, /snapshot\.obligation\.period_start/);

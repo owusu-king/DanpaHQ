@@ -353,6 +353,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [clearLocal, persistSession]);
 
   const getToken = useCallback(async () => {
+    if (signedOut.current) return null;
     // Refresh a minute early: a token that expires mid-request produces a
     // spurious sign-out on a slow connection.
     if (accessToken.current && Date.now() < expiresAt.current - 60_000) {
@@ -492,7 +493,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [state, persistSession]);
 
   const signOut = useCallback(async () => {
-    const token = accessToken.current;
+    signedOut.current = true;
+    // A refresh already sent to the API may have revoked the old session.
+    // Revoke its successor using the rotated credential before local cleanup.
+    const rotated = await refreshInFlight.current?.catch(() => null);
+    const token = rotated ?? accessToken.current;
     if (token) void apiFetch("/auth/sign-out/", { method: "POST", token, anonymous: true }).catch(() => undefined);
     // A resolved photo URL outliving the session is a leak, and on a shared
     // handset the next person would load the last one's picture.

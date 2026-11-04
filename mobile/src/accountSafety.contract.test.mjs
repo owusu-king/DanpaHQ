@@ -88,7 +88,6 @@ test("each setting saves on its own, and a refusal puts the switch back", () => 
   assert.match(source, /setPreferences\(previous\);/);
   assert.match(source, /setError\(cause instanceof ApiFailure \? cause\.error\.message : "That setting did not save\."\);/);
   assert.match(source, /<GroupLabel>What Danpa HQ may send<\/GroupLabel>/);
-  assert.match(source, /<Footnote>Decisions always appear in Updates\. These control what else is sent\.<\/Footnote>/);
   assert.match(source, /\{!preferences && !error \? <PreferencesSkeleton \/> : null\}/);
   assert.match(between(source, "function PreferencesSkeleton(", "const styles = StyleSheet.create("), /accessibilityRole="progressbar" accessibilityLabel="Loading your notification settings"/);
   assert.match(source, /<IndexGround>/);

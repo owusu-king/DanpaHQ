@@ -183,9 +183,8 @@ def on_viewing_requested(event) -> None:
     notify(
         user=host,
         kind="viewing.requested",
-        title="Someone wants to see your place",
-        body=f"{viewing.tenant.display_name} asked to view {viewing.listing.headline}. "
-        "Offer them some times.",
+        title="New viewing request",
+        body=f"{viewing.tenant.display_name} asked to view {viewing.listing.headline}.",
         dedupe_key=_key(event, host.id),
         target_type="viewing",
         target_id=viewing.id,
@@ -200,10 +199,9 @@ def on_slots_offered(event) -> None:
     notify(
         user=viewing.tenant,
         kind="viewing.slots_offered",
-        title="Times offered for a viewing",
+        title="Viewing times available",
         body=(
-            f"{viewing.listing.headline} in {_where(viewing.listing)}. "
-            "Pick a time that works. Danpa HQ viewings are free."
+            f"{viewing.listing.headline} in {_where(viewing.listing)}. Viewings are free."
         ),
         dedupe_key=_key(event, viewing.tenant_id),
         target_type="viewing",
@@ -225,8 +223,7 @@ def on_viewing_confirmed(event) -> None:
         user=viewing.tenant,
         kind="viewing.confirmed",
         title=f"Viewing confirmed for {when}",
-        body=f"{viewing.listing.headline} in {_where(viewing.listing)}. "
-        "You can now see each other's numbers in the app.",
+        body=f"{viewing.listing.headline} in {_where(viewing.listing)}.",
         dedupe_key=_key(event, viewing.tenant_id),
         target_type="viewing",
         target_id=viewing.id,
@@ -427,7 +424,7 @@ def on_viewing_checked_in(event) -> None:
             user=person,
             kind="viewing.checked_in",
             title="Viewing checked in",
-            body=f"Attendance at {viewing.listing.headline} was securely verified.",
+            body=f"Attendance at {viewing.listing.headline} was verified.",
             dedupe_key=_key(event, person.id),
             target_type="viewing",
             target_id=viewing.id,
@@ -457,7 +454,7 @@ def on_tenancy_request_created(event) -> None:
         title="A tenant requested this home",
         body=(
             f"{tenancy_request.requester.display_name} requested the home after their "
-            "checked-in viewing. Review it in Tenants."
+            "checked-in viewing."
         ),
         dedupe_key=_key(event, host.id),
         target_type="property_join_request",
@@ -575,7 +572,7 @@ def on_lease_offered(event) -> None:
     notify(
         user=lease.tenant,
         kind="lease.offered",
-        title="You have a tenancy agreement to look at",
+        title="Tenancy agreement ready to review",
         body=f"{lease.unit.property.title or 'A place'} in {_where_unit(lease.unit)}: "
         f"{total} to move in, {lease.advance_months} months advance.{warning}",
         dedupe_key=_key(event, lease.tenant_id),
@@ -931,8 +928,8 @@ def on_payment_succeeded(event) -> None:
         kind="payment.succeeded",
         title="A tenant payment was confirmed",
         body=(
-            f"{amount} from {payment.intent.tenant.display_name}. Settlement is tracked "
-            "separately and is not yet claimed as complete."
+            f"{amount} from {payment.intent.tenant.display_name}. "
+            "Payout settlement is tracked separately."
         ),
         dedupe_key=_key(event, lease.landlord_id),
         target_type="lease",
@@ -957,7 +954,7 @@ def on_payment_failed(event) -> None:
         title="Your payment was not completed",
         body=(
             f"No confirmed payment was recorded for {intent.lease.unit.property.title}. "
-            "You can try again with a new payment attempt."
+            "You can try paying again."
         ),
         dedupe_key=_key(event, intent.tenant_id),
         target_type="lease",
@@ -1220,7 +1217,7 @@ def on_artisan_application_decided(event) -> None:
             title="You are approved as an artisan",
             body=(
                 "Switch to the artisan experience from your account menu to see quote "
-                "requests. Everything else on your account is unchanged."
+                "requests."
             ),
             dedupe_key=_key(event, person.id),
             target_type="artisan_application",
@@ -1291,7 +1288,7 @@ def on_artisan_reinstated(event) -> None:
         user=person,
         kind="artisan.reinstated",
         title="Your artisan account is active again",
-        body="You can send quotes and take on new jobs again.",
+        body="",
         dedupe_key=_key(event, person.id),
         target_type="artisan_application",
         target_id=event.aggregate_id,
@@ -1385,7 +1382,7 @@ def on_quote_invited(event) -> None:
         user=invitation.artisan.user,
         kind="artisan.quote_invited",
         title=f"New quote request: {what}",
-        body=f"Somebody in {area} would like a quote. Open it to see the job and send your price.",
+        body=f"Somebody in {area} would like a quote.",
         dedupe_key=_key(event, invitation.artisan.user_id),
         target_type="artisan_invitation",
         target_id=invitation.id,
@@ -1513,7 +1510,7 @@ def on_direct_job_cancelled(event) -> None:
         user=artisan,
         kind="artisan.job_cancelled",
         title="A job was cancelled",
-        body=f"{job.owner.display_name} cancelled “{job.title}”. You do not need to go.",
+        body=f"{job.owner.display_name} cancelled “{job.title}”.",
         dedupe_key=_key(event, artisan.id),
         target_type="artisan_invitation",
         target_id=event.payload.get("invitation_id"),
@@ -1599,7 +1596,7 @@ def _tell_artisan_confirmed(event, invitation, where: str) -> None:
         user=invitation.artisan.user,
         kind="artisan.work_confirmed",
         title="Your work was confirmed done",
-        body=f"The work on {where} is confirmed done. It now counts on your profile.",
+        body=f"The work on {where} is confirmed done.",
         dedupe_key=_key(event, invitation.artisan.user_id),
         target_type="artisan_invitation",
         target_id=invitation.id,
@@ -1693,7 +1690,7 @@ def on_artisan_reviewed(event) -> None:
         user=written.artisan.user,
         kind="artisan.reviewed",
         title="A customer reviewed your work",
-        body=f"“{written.text[:120]}” It now shows on your profile.",
+        body=written.text[:120],
         dedupe_key=_key(event, written.artisan.user_id),
         target_type="artisan_invitation",
         target_id=written.invitation_id,

@@ -411,7 +411,7 @@ export function ProblemReport({
     return (
       <View style={styles.sent}>
         <Type variant="caption" style={{ color: KOLA_DEEP }}>
-          Sent to Danpa HQ&apos;s team with what you attached and the job as it stands. They may contact you.
+          Report sent.
         </Type>
       </View>
     );

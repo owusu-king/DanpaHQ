@@ -111,14 +111,13 @@ export default function PaymentReturnPage() {
   const unsuccessful = intent && ["failed", "expired"].includes(intent.status);
   return (
     <div className="payment-journey payment-status-page">
-      <PageHeader title={intent?.status === "succeeded" ? "Payment confirmed" : "Payment status"} description={intent ? `${intent.property_title} · ${intent.unit_label}` : "Confirming securely with the payment processor."} />
+      <PageHeader title={intent?.status === "succeeded" ? "Payment confirmed" : "Payment status"} description={intent ? `${intent.property_title} · ${intent.unit_label}` : "Checking payment status…"} />
       {loading ? <LoadingRows rows={3} /> : null}
       {error ? <Notice tone="error" title={error} /> : null}
       {intent?.status === "succeeded" ? (
         <>
           <div className="payment-status-mark is-success" aria-hidden="true">✓</div>
           <p className="payment-status-amount">{intent.amount_formatted}</p>
-          <p className="type-caption">Your rent account has been updated. Provider settlement is tracked separately.</p>
           <div className="rent-actions">
             {intent.receipt_id ? <Link className="payment-link-button" href={`/payments?receipt=${intent.receipt_id}` as never}>View receipt</Link> : null}
             <Link className="payment-secondary-link" href={`/record/payment?leaseId=${intent.lease_id}&mode=tenant` as never}>Rent account</Link>

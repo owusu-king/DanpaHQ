@@ -33,7 +33,6 @@ function NewProperty() {
       <WorkspaceHead
         icon="properties"
         title={selling ? "Sell a property" : "New property"}
-        summary="Saved as you go. Private until you send it for checking."
       />
       <section className="ws-panel creation-frame property-creation-frame">
         <PropertyWizard

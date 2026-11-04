@@ -255,10 +255,6 @@ function ProviderHome() {
       <HomeHeroScroll title={`Good day, ${name}`} padding={density.pagePadding} gap={density.sectionGap}>
         <View style={[dash.card, { gap: space[3] }]}>
           <Type variant="title2" accessibilityRole="header" style={{ color: INK }}>Your Portfolio starts here</Type>
-          <Type variant="caption" style={{ color: MUTED }}>
-            Add your first Property and Danpa HQ will help you organize its Units, tenants,
-            agreements and rent.
-          </Type>
           <Button label="Add first Property" onPress={() => router.push("/(app)/private-property" as never)} />
         </View>
       </HomeHeroScroll>
@@ -701,7 +697,7 @@ function RentCollection({ collection }: { collection: PortfolioSummary["rent_col
         </>
       ) : (
         <View style={{ marginTop: space[3] }}>
-          <Empty icon="bar-chart-outline" title="No rent scheduled yet" hint="Collection appears once a lease is active." compact ground={CARD} />
+          <Empty icon="bar-chart-outline" title="No rent scheduled yet" compact ground={CARD} />
         </View>
       )}
     </View>

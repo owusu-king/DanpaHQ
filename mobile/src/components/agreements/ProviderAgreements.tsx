@@ -177,7 +177,7 @@ export function ProviderAgreementsScreen() {
               </View>
             );
           }
-          if (entry.kind === "calm") return <Calm text="Nothing to send or confirm. Drafts and accepted agreements will wait here for you." />;
+          if (entry.kind === "calm") return <Calm text="Nothing to send or confirm." />;
           return (
             <ListRow first={entry.first} last={entry.last}>
               {entry.first ? null : <View style={styles.rule} />}
@@ -189,11 +189,10 @@ export function ProviderAgreementsScreen() {
           <Empty
             icon="document-text-outline"
             title="No agreements yet"
-            hint="Prepare one from an accepted tenancy request. It waits here until you send it."
             action={<QuietAction icon="mail-open-outline" label="Open tenancy requests" onPress={() => router.push("/(app)/provider-applications" as never)} />}
           />
         ) : needle ? (
-          <Empty icon="search-outline" title="No matching agreements" hint="Try a different tenant, Property or Unit." />
+          <Empty icon="search-outline" title="No matching agreements" />
         ) : null}
       />
     </IndexGround>

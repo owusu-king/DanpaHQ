@@ -1,10 +1,10 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import * as ImagePicker from "expo-image-picker";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  Animated,
+  Animated, useAnimatedValue,
   Image,
   KeyboardAvoidingView,
   Pressable,
@@ -153,16 +153,15 @@ export default function ProfileScreen() {
   // once, when the account first arrives, and never again — a later refresh must
   // not overwrite what somebody is typing. Without this, the fields opened empty,
   // and saving from there sent empty names and switched the data saver off.
-  const seeded = useRef(me !== null);
-  useEffect(() => {
-    if (!me || seeded.current) return;
-    seeded.current = true;
+  const [seeded, setSeeded] = useState(me !== null);
+  if (me && !seeded) {
+    setSeeded(true);
     setFirstName(me.first_name);
     setLastName(me.last_name);
     setPreferredName(me.preferred_name);
     setBio(me.profile?.bio ?? "");
     setDataSaver(me.data_saver);
-  }, [me]);
+  }
 
   useEffect(() => {
     let live = true;
@@ -192,9 +191,14 @@ export default function ProfileScreen() {
 
   const avatarEndpoint = me?.profile?.avatar_url ?? null;
 
+  const [previousAvatarEndpoint, setPreviousAvatarEndpoint] = useState(avatarEndpoint);
+  if (previousAvatarEndpoint !== avatarEndpoint) {
+    setPreviousAvatarEndpoint(avatarEndpoint);
+    setPhotoUri(null);
+  }
+
   useEffect(() => {
     let live = true;
-    setPhotoUri(null);
     if (!avatarEndpoint) return;
 
     resolvePhotoUrl(avatarEndpoint).then((url) => {
@@ -491,9 +495,6 @@ export default function ProfileScreen() {
                 <YesNoRow label="Pets" value={tenant.has_pets} onChange={(value) => editTenant("has_pets", value)} />
                 <YesNoRow label="Smoker" value={tenant.smoker} onChange={(value) => editTenant("smoker", value)} />
               </GlassPanel>
-              <Type variant="caption" style={styles.footnote}>
-                Helps a provider read your application. Leave anything you would rather not say.
-              </Type>
             </View>
           ) : null}
 
@@ -716,7 +717,7 @@ function SaveButton({
   onPress: () => void;
 }) {
   const reduceMotion = useReduceMotion();
-  const scale = useRef(new Animated.Value(1)).current;
+  const scale = useAnimatedValue(1);
   const animate = (toValue: number) => {
     if (reduceMotion) {
       scale.setValue(toValue);

@@ -26,7 +26,6 @@ test("mobile checkout is a dedicated journey with a server-authoritative return"
   assert.match(status, /PaystackCheckoutModal/);
   assert.match(modal, /from "react-native-webview"/);
   assert.match(modal, /isPaymentReturnUrl/);
-  assert.match(modal, /Danpa HQ confirms the result with Paystack/i);
   assert.match(api, /hostname\.endsWith\("\.paystack\.com"\)/);
   assert.match(api, /pathname\.replace\(\/\\\/\$\//);
 });
@@ -36,7 +35,6 @@ test("mobile payment success keeps settlement distinct and opens a receipt scree
   const receipt = read("mobile/app/(app)/payment-receipt.tsx");
   const documents = read("mobile/src/paymentDocuments.ts");
   const layout = read("mobile/app/(app)/_layout.tsx");
-  assert.match(status, /Provider settlement is tracked separately/i);
   assert.match(status, /intent\.receipt_id/);
   assert.match(receipt, /getPaymentReceipt/);
   assert.match(receipt, /snapshot\.tenant\.name/);

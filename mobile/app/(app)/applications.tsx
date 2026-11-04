@@ -114,7 +114,6 @@ export default function ApplicationsScreen() {
             <Empty
               icon="document-text-outline"
               title="No applications yet"
-              hint="Apply for a place, and where it stands shows here."
               action={<QuietAction icon="compass-outline" label="Explore homes" onPress={() => router.push("/(app)/(tabs)/explore" as never)} />}
             />
           )
@@ -133,7 +132,7 @@ export default function ApplicationsScreen() {
 
             {lanes.action.length ? (
               <Section title="Ready for you" tone={LATERITE} rows={lanes.action} leases={leases} onOpen={open} onAgreement={review} />
-            ) : moving ? <Calm text="Nothing needs you. When an agreement is ready, it shows here first." /> : null}
+            ) : moving ? <Calm text="Nothing needs you." /> : null}
             {lanes.open.length ? <Section title="Being considered" rows={lanes.open} leases={leases} onOpen={open} onAgreement={review} /> : null}
             {lanes.approved.length ? <Section title="Approved" rows={lanes.approved} leases={leases} onOpen={open} onAgreement={review} /> : null}
             {lanes.past.length ? (

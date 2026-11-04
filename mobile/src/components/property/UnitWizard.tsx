@@ -32,11 +32,11 @@ type StepKey = "details" | "amenities" | "photos" | "review";
 type Commit = () => Promise<boolean>;
 type CommitRef = { current: Commit | null };
 
-const STEPS: { key: StepKey; label: string; hint: string; icon: Glyph }[] = [
-  { key: "details", label: "The Unit", hint: "What it is, what it is called, and its rooms.", icon: "key-outline" },
-  { key: "amenities", label: "Amenities", hint: "What this Unit has of its own.", icon: "sparkles-outline" },
-  { key: "photos", label: "Photos", hint: "The main view, then one of each amenity.", icon: "images-outline" },
-  { key: "review", label: "Review", hint: "Check it over, then send it for checking.", icon: "eye-outline" },
+const STEPS: { key: StepKey; label: string; icon: Glyph }[] = [
+  { key: "details", label: "The Unit", icon: "key-outline" },
+  { key: "amenities", label: "Amenities", icon: "sparkles-outline" },
+  { key: "photos", label: "Photos", icon: "images-outline" },
+  { key: "review", label: "Review", icon: "eye-outline" },
 ];
 
 export function UnitWizard({
@@ -354,7 +354,6 @@ function DetailsStep({
         />
       </View>
 
-      {chosen?.accepts_bed_spaces ? <Footnote>Let it whole, or add its beds once it is saved.</Footnote> : null}
     </>
   );
 }
@@ -364,7 +363,6 @@ function AmenitiesStep({ unitId, commitRef }: { unitId: string; commitRef: Commi
   useCommit(commitRef, async () => (saveRef.current ? saveRef.current() : true));
   return (
     <>
-      <Footnote>Each one you choose is photographed next.</Footnote>
       <SpaceAmenities scope="unit" id={unitId} submitRef={saveRef} />
     </>
   );
@@ -421,7 +419,7 @@ function ReviewStep({
       {sent ? (
         <Footnote>{unit.verification.state_label}</Footnote>
       ) : ready ? (
-        <Footnote>We compare the photos with these details. Nobody can request it until it passes.</Footnote>
+        null
       ) : waitingOnProperty ? (
         <Type variant="caption" style={styles.missing}>
           {permitted?.message || "The property is checked first. The Unit waits privately until then."}

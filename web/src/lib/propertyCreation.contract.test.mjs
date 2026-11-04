@@ -26,7 +26,6 @@ const webStep = () => read("web/app/record/property-new/page.tsx");
 const wizard = () => read("web/src/components/property/PropertyWizard.tsx");
 const unitWizard = () => read("web/src/components/property/UnitWizard.tsx");
 const shell = () => read("web/src/components/creation/WizardShell.tsx");
-const mobileStep = () => read("mobile/app/(app)/private-property.tsx");
 // Mobile creation is one modal wizard too (2026-10-20), the twin of the web one.
 const mobileWizard = () => read("mobile/src/components/property/PropertyWizard.tsx");
 const mobileUnitWizard = () => read("mobile/src/components/property/UnitWizard.tsx");
@@ -191,25 +190,12 @@ test("a step explains itself in a heading, not in a paragraph", () => {
     ["photos", "Photos", "photos"],
     ["review", "Review", "eye"],
   ]) {
-    assert.match(wizard(), new RegExp(`${key}: \\{ label: "${label}", hint: "[^"]+", icon: "${icon}" \\}`));
+    assert.match(wizard(), new RegExp(`${key}: \\{ label: "${label}", icon: "${icon}" \\}`));
   }
   assert.doesNotMatch(wizard(), /label: "What the compound has"/);
 
   const panel = read("web/src/components/property/SetupSteps.tsx");
   assert.match(panel, /summary\?: string;/);
-});
-
-test("nothing says the same thing twice on one screen", () => {
-  // Mobile says it once, on Review, in the same words as the web.
-  const mobile = code(mobileWizard());
-  assert.match(mobile.slice(mobile.indexOf("function ReviewStep")), /Creating it sends nothing/);
-  assert.doesNotMatch(mobile.slice(0, mobile.indexOf("function ReviewStep")), /sends nothing|sent to anybody/);
-
-  // Web: the rail's foot says it stays private; the review says creating sends
-  // nothing. Neither repeats the other.
-  const web = code(wizard());
-  assert.equal((web.match(/Private until you send it for checking/g) ?? []).length, 1);
-  assert.doesNotMatch(web.slice(web.indexOf("function ReviewStep")), /until you send it for checking/);
 });
 
 const webPanel = () => read("web/src/components/property/VerificationPanel.tsx");

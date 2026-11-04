@@ -81,12 +81,10 @@ export default function TenantSetupScreen() {
       <View style={{ gap: space[2] }}>
         <Type variant="label">YOUR HOMES</Type>
         <Type variant="display2">Add a home</Type>
-        <Type variant="body">Enter the access code shared by the provider. It identifies one verified private Unit and lets you send a tenancy request.</Type>
       </View>
 
       <Surface style={{ gap: space[3] }}>
         <Type variant="title2">I have a Unit access code</Type>
-        <Type variant="caption">A code never creates a tenancy. Request approval, review the lease offer, then accept it to activate the tenancy.</Type>
         <Field
           label="Unit access code"
           value={accessCode}

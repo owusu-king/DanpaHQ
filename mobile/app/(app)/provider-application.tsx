@@ -56,30 +56,46 @@ export default function ProviderApplicationDetailScreen() {
   const [error, setError] = useState("");
   const pageBottom = useSafeBottom(space[8]);
 
-  const load = useCallback(async () => {
-    if (!id || !kind) return;
-    setLoading(true);
-    try {
+  const [previousRequest, setPreviousRequest] = useState({ id, kind, organizationId });
+  if (previousRequest.id !== id || previousRequest.kind !== kind || previousRequest.organizationId !== organizationId) {
+    setPreviousRequest({ id, kind, organizationId });
+    if (id && kind) setLoading(true);
+  }
+
+  const load = useCallback((signal?: AbortSignal) => {
+    if (!id || !kind) return Promise.resolve();
+    const read = async () => {
       if (kind === "application") {
         const [nextApplication, leases] = await Promise.all([getApplication(id), listGrantedLeases()]);
-        setApplication(nextApplication); setRequest(null);
-        setLease(leases.find((row) => row.application === id) ?? null);
-        setNote(nextApplication.decision_note ?? "");
-      } else {
-        if (!organizationId) throw new Error("Portfolio missing");
-        const summary = await getPortfolioSummary(organizationId);
-        const nextRequest = summary.tenancy_requests.find((row) => row.id === id) ?? null;
-        if (!nextRequest) throw new Error("Request missing");
-        setRequest(nextRequest); setApplication(null); setLease(null);
-        setNote(nextRequest.decision_note ?? "");
+        return { application: nextApplication, request: null, lease: leases.find((row) => row.application === id) ?? null };
       }
+      if (!organizationId) throw new Error("Portfolio missing");
+      const summary = await getPortfolioSummary(organizationId);
+      const nextRequest = summary.tenancy_requests.find((row) => row.id === id);
+      if (!nextRequest) throw new Error("Request missing");
+      return { application: null, request: nextRequest, lease: null };
+    };
+
+    return read().then((next) => {
+      if (signal?.aborted) return;
+      setApplication(next.application);
+      setRequest(next.request);
+      setLease(next.lease);
+      setNote(next.application?.decision_note ?? next.request?.decision_note ?? "");
       setError("");
-    } catch (cause) {
+    }).catch((cause) => {
+      if (signal?.aborted) return;
       setError(cause instanceof ApiFailure ? cause.error.message : "Could not load this tenancy request.");
-    } finally { setLoading(false); }
+    }).finally(() => {
+      if (!signal?.aborted) setLoading(false);
+    });
   }, [id, kind, organizationId]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    const controller = new AbortController();
+    void load(controller.signal);
+    return () => controller.abort();
+  }, [load]);
 
   async function run(work: () => Promise<unknown>) {
     setBusy(true); setError("");
@@ -229,7 +245,7 @@ export default function ProviderApplicationDetailScreen() {
                       advanceMonths={application.advance_months_offered}
                       leaseId={lease?.id ?? null}
                       leaseStatus={lease?.status ?? null}
-                      onChanged={load}
+                      onChanged={() => load()}
                     />
                   ) : (
                     <RequestLeaseActions
@@ -239,7 +255,7 @@ export default function ProviderApplicationDetailScreen() {
                       tenantId={request!.requester_id}
                       leaseId={request!.lease_id}
                       leaseStatus={request!.lease_status}
-                      onChanged={load}
+                      onChanged={() => load()}
                     />
                   )}
                 </RecordPanel>

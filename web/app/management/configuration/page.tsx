@@ -63,7 +63,6 @@ export default function ConfigurationPage() {
     <>
       <PageHeader
         title="Configuration"
-        description="The runtime values the application is designed to change safely. Deployment settings remain the fallback, and saved secrets are never shown again."
       />
       {tabs.length ? <Tabs label="Configuration sections" tabs={tabs} active={active} onChange={setSection} /> : null}
       <div className="management-configuration">

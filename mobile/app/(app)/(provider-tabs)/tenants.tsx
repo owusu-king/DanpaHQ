@@ -219,7 +219,7 @@ function ProviderTenantsScreen() {
             {scope ? <ScopeChip label={scopeName} unit={scope.kind === "unit"} onClear={clearScope} /> : null}
             {scope && !all.length ? (
               // Not an all-clear: an empty Unit is work to do, so it carries the Unit, not a tick.
-              <Calm icon={scope.kind === "unit" ? "key-outline" : "business-outline"} text={scope.kind === "unit" ? "Nobody lives here yet. Share it privately below, or list it on Explore." : "Nobody lives in this Property yet."} />
+              <Calm icon={scope.kind === "unit" ? "key-outline" : "business-outline"} text={scope.kind === "unit" ? "Nobody lives here yet." : "Nobody lives in this Property yet."} />
             ) : null}
             {all.length ? (
               <Briefing
@@ -301,18 +301,16 @@ function ProviderTenantsScreen() {
           <Empty
             icon="people-outline"
             title={scope.kind === "unit" ? "Nobody lives here yet" : "No tenants in this Property yet"}
-            hint="People appear here once an agreement is accepted and their tenancy begins."
             action={<QuietAction icon="people-outline" label="Show every tenant" onPress={clearScope} />}
           />
         ) : nothingAtAll ? (
           <Empty
             icon="people-outline"
             title="No tenants yet"
-            hint="People appear here once an agreement is accepted and their tenancy begins."
             action={<QuietAction icon="mail-open-outline" label="Open tenancy requests" onPress={() => router.push("/(app)/provider-applications" as never)} />}
           />
         ) : needle ? (
-          <Empty icon="search-outline" title="No matching tenants" hint="Try another name, Property, Unit or bed." />
+          <Empty icon="search-outline" title="No matching tenants" />
         ) : null}
       />
     </IndexGround>

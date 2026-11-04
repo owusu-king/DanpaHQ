@@ -621,7 +621,25 @@
 }
 
 @container provider-home (max-width: 36rem) {
-  .home-portfolio-rings { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px 12px; }
+  .home-provider .home-hero { border-radius: 12px; box-shadow: none; background: var(--color-field-0); border: 1px solid var(--color-field-200); }
+  .home-side { grid-template-columns: minmax(0, 1fr); }
+  .home-provider .home-panel, .home-provider .home-attention-panel { border-radius: 10px; box-shadow: none; }
+  .home-portfolio-rings { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0; }
+  .home-portfolio-ring { justify-items: start; text-align: left; padding: 14px 10px; gap: 4px; border-radius: 0; }
+  .home-portfolio-ring:nth-child(even) { border-left: 1px solid var(--color-field-200); padding-left: 20px; }
+  .home-portfolio-ring:nth-child(n + 3) { border-top: 1px solid var(--color-field-200); }
+  .home-portfolio-dial { width: 100%; aspect-ratio: auto; justify-items: start; }
+  .home-portfolio-dial svg, .home-portfolio-reading > span { display: none; }
+  .home-portfolio-reading { position: static; width: 100%; justify-items: start; }
+  .home-portfolio-dial strong { font-size: 1.75rem; line-height: 1.2; }
+  .home-portfolio-ring small { font-size: .75rem; }
+  .home-provider .home-finance-chart { border-radius: 10px; box-shadow: none; }
+  .home-provider .home-finance-metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-bottom: 16px; }
+  .home-provider .home-finance-metrics strong { font-size: clamp(1.125rem, 5cqi, 1.5rem); overflow-wrap: anywhere; }
+  .home-provider .home-finance-actions { flex-wrap: wrap; gap: 8px; width: 100%; justify-content: space-between; }
+  .home-provider .home-period-toggle button, .home-provider .home-widget-link { min-height: 44px; }
+  .home-provider .home-chart-wrap:has(.home-chart-empty) .home-chart { display: none; }
+  .home-provider .home-chart-empty { margin: 0; padding: 24px 12px; font-size: .875rem; }
   .home-portfolio-dial, .home-skeleton-ring { width: clamp(6rem, 25cqi, 8rem); }
   .home-portfolio-dial strong { font-size: 1.875rem; }
 }

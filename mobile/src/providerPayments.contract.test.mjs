@@ -89,7 +89,6 @@ test("counts come from the server, and payment and settlement stay different fac
   // Money on its way is named as such, and never counted as paid out.
   assert.match(source, /summary\.money\.awaiting_settlement_minor > 0 \? \{ text: `\$\{formatMinor\(summary\.money\.awaiting_settlement_minor\)\} on its way`/);
   assert.match(source, /summary: `\$\{formatMinor\(summary\.money\.settled_net_minor\)\} after \$\{formatMinor\(summary\.money\.settled_fee_minor\)\} in fees`/);
-  assert.match(source, /Property owners bear Paystack’s transaction fee/);
 
   const row = between(source, "function SettlementRow(", "function ExpenseRow(");
   assert.match(row, />Paid<\/Type>/);

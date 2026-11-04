@@ -28,7 +28,6 @@ export default function AuditLogsPage() {
     <>
       <PageHeader
         title="Audit log"
-        description="Sensitive Management actions, append-only and chained per record. Use a request ID to find an entry in the server logs."
       />
       <Panel title="Most recent entries" meta={resource.data ? countMeta(rows.length, all.length, ["entry", "entries"]) : undefined}>
         <Toolbar>

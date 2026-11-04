@@ -170,7 +170,7 @@ export function NextMoves({ moves, calm }: { moves: Move[]; calm: { title: strin
   if (!lead) {
     return (
       <View style={dash.card}>
-        <Empty icon="checkmark-done-outline" title={calm.title} hint={calm.hint} crossed={false} done compact ground={CARD} />
+        <Empty icon="checkmark-done-outline" title={calm.title} crossed={false} done compact ground={CARD} />
       </View>
     );
   }

@@ -86,7 +86,6 @@ function ProviderRequest() {
         <>
           <PageHeader
             title="Request not found"
-            description="It may have been withdrawn, or it belongs to a Portfolio other than the one you are in. Switching Portfolio from the account menu opens that Portfolio's requests."
           />
           <p className="type-caption">
             <Link href="/applications">Back to tenancy requests</Link>
@@ -170,7 +169,6 @@ function TenantApplication() {
           <PanelState
             icon="applications"
             title="Application not found"
-            body="It may have been withdrawn, or the listing is no longer available. Your other applications are still on the list."
             action={<Link href="/applications" className="ws-action is-primary">Back to Applications</Link>}
           />
         )}

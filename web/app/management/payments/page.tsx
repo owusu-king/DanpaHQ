@@ -138,7 +138,6 @@ export default function PaymentOperationsPage() {
     <>
       <PageHeader
         title="Payments"
-        description="Compare Danpa HQ’s immutable payment record with the provider’s evidence. Closing an exception records a decision; it never rewrites money."
       />
       {resource.loading || resource.error ? (
         <Panel><ResourceState loading={resource.loading} error={resource.error} onRetry={resource.reload} /></Panel>
@@ -208,11 +207,12 @@ export default function PaymentOperationsPage() {
 
               {can("reconcile_payments") && ["open", "investigating"].includes(selected.status) ? (
                 <Section title="Decision">
+                  <p className="management-hint">Closing an exception records your decision without changing payments.</p>
                   {decision ? (
                     <div className="management-form" style={{ padding: 0 }}>
                       <label>
                         Investigation note
-                        <textarea value={note} maxLength={500} onChange={(event) => setNote(event.target.value)} disabled={busy} placeholder="Record what you checked and why this state is correct." />
+                        <textarea value={note} maxLength={500} onChange={(event) => setNote(event.target.value)} disabled={busy} placeholder="What did you check, and what did you find?" />
                         <small>Required. {note.length ? `${note.length} / 500` : "Kept with the exception and in the audit log."}</small>
                       </label>
                       <Feedback error={error} />

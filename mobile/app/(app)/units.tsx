@@ -306,7 +306,6 @@ export default function UnitsScreen() {
             <EmptyState
               icon={VIEW_ICON[view]}
               title={query.trim() ? "Nothing matches that" : `No Unit is ${VIEW_LABEL[view].toLocaleLowerCase("en-GH")}`}
-              hint="Clear what is on to see the rest."
               action={<View style={styles.add}><QuietAction icon="close-circle-outline" label="Clear filters" onPress={clearAll} /></View>}
             />
           ) : (
@@ -314,7 +313,6 @@ export default function UnitsScreen() {
               icon="grid-outline"
               hero
               title="No Units yet"
-              hint="A Unit is the space you let: a flat, a room, a shop."
               action={<View style={styles.add}><PrimaryAction icon="add" label="Add Unit" onPress={addUnit} /></View>}
             />
           )

@@ -269,7 +269,7 @@ export function NextUp({
   title: string;
   /** Muted after the title: the Unit and place. */
   detail?: string;
-  hint: string;
+  hint?: string;
   photoUrl?: string | null;
   icon: IconName;
   /** Others like it, and how to see them all. */
@@ -299,9 +299,9 @@ export function NextUp({
           <button type="button" className="ws-next-more" onClick={more.onShow}>
             and {more.count} more waiting for you
           </button>
-        ) : (
+        ) : hint ? (
           <span className="ws-next-hint">{hint}</span>
-        )}
+        ) : null}
       </span>
       {action.href ? (
         <Link href={action.href as never} className="ws-next-action">{action.label}{arrow}</Link>

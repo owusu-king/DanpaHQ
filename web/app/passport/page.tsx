@@ -104,7 +104,6 @@ function Passport({ photoUrl }: { photoUrl?: string | null }) {
       <WorkspaceHead
         icon="passport"
         title="Housing Passport"
-        summary="View and share your verified tenancy and rent payment history."
         actions={passport ? (
           <button type="button" className="ws-action is-primary" aria-haspopup="dialog" onClick={() => setSharing(true)}>
             <Icon name="share" />Share passport
@@ -118,7 +117,7 @@ function Passport({ photoUrl }: { photoUrl?: string | null }) {
             tone="error"
             icon="warning"
             title="Your passport didn’t load"
-            body={`${error} Check your connection and try again.`}
+            body={error}
             action={<button type="button" className="ws-action" disabled={retrying} onClick={() => void retry()}>{retrying ? "Retrying…" : "Try again"}</button>}
           />
         </section>
@@ -153,7 +152,6 @@ function Passport({ photoUrl }: { photoUrl?: string | null }) {
                 <PanelState
                   icon="home"
                   title="No tenancies on Danpa HQ yet"
-                  body="When you and a landlord accept a tenancy agreement here, it joins your passport with its rent record. Nothing missing counts against you."
                   action={<Link href="/rentals" className="ws-action is-primary"><Icon name="explore" />Explore rentals</Link>}
                 />
               )}

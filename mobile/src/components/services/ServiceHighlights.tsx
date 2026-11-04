@@ -1,7 +1,7 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useIsFocused } from "expo-router";
-import { useEffect, useRef, useState } from "react";
-import { AccessibilityInfo, Animated, AppState, Easing, Platform, Pressable, StyleSheet, View } from "react-native";
+import { useEffect, useState } from "react";
+import { AccessibilityInfo, Animated, useAnimatedValue, AppState, Easing, Platform, Pressable, StyleSheet, View } from "react-native";
 
 import { Type, motion, space } from "@/components/ui";
 import { useReduceMotion } from "@/motion";
@@ -36,7 +36,7 @@ export function ServiceHighlights() {
   const [paused, setPaused] = useState(false);
   const [foreground, setForeground] = useState(AppState.currentState === "active");
   const [screenReader, setScreenReader] = useState(false);
-  const opacity = useRef(new Animated.Value(1)).current;
+  const opacity = useAnimatedValue(1);
   const playing = focused && foreground && !paused && !reduceMotion && !screenReader;
   const highlight = HIGHLIGHTS[current] ?? HIGHLIGHTS[0];
 

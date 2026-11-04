@@ -21,7 +21,6 @@ export function ProfitLoss({ report, organizationId, organizationName = "", prop
       <View style={{ flexDirection: "row" }}>{["Month", "Rent received", "Refunds", "Expenses", "Fees", "Profit / loss"].map(label => <Type key={label} variant="captionStrong" style={{ width: 130, padding: space[3] }}>{label}</Type>)}</View>
       {ledger.monthly.map(row => <View key={row.period} style={{ flexDirection: "row", borderTopWidth: 1, borderTopColor: theme.color.field["200"] }}>{[row.period, money(row.revenue_minor), money(row.refunds_minor), money(row.expenses_minor), money(row.fees_minor), money(row.profit_minor)].map((value, index) => <Type key={index} variant="caption" style={{ width: 130, padding: space[3] }}>{value}</Type>)}</View>)}
     </View></ScrollView>
-    {!ledger.monthly.length ? <Type variant="caption">Your ledger begins with confirmed rent or a recorded expense.</Type> : null}
     <Type variant="caption">Payouts are transfers, not additional income. Completed refunds reduce the original rent-receipt month. Expenses include recorded property costs and settled processing fees.</Type>
   </View>;
 }

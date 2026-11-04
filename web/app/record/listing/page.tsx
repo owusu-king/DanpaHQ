@@ -119,7 +119,7 @@ export default function PublicListingPage() {
           <PanelState
             icon="listings"
             title="This rental isn’t available"
-            body={`${error} It may have been taken or withdrawn — there are others like it in Explore.`}
+            body={error}
             action={<Link href="/rentals" className="ws-action is-primary"><Icon name="explore" />Back to Explore</Link>}
           />
         </section>

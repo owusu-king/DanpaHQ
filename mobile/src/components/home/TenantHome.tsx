@@ -717,7 +717,6 @@ function NoTenancy({
             <Well icon="key-outline" tone="harmattan" size={44} />
             <View style={{ flex: 1, minWidth: 0 }}>
               <Type variant="bodyStrong" accessibilityRole="header" style={dash.leadTitle}>Have an access code?</Type>
-              <Type variant="caption" style={dash.rowLine}>Your landlord can give you one for the place you live in.</Type>
             </View>
           </View>
           <Button label="Join a home" variant="secondary" onPress={onJoin} />

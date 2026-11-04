@@ -73,7 +73,6 @@ export default function UsersPage() {
     <>
       <PageHeader
         title="Users"
-        description="Tenants, landlords and agents: their onboarding and phone state, and account action when it is needed."
         actions={can("manage_configuration") ? <Link className="management-button" href="/management/configuration?section=mfa">Two-factor settings</Link> : null}
       />
       <Panel title="Accounts" meta={resource.data ? countMeta(rows.length, all.length, ["account", "accounts"]) : undefined}>
@@ -141,7 +140,7 @@ export default function UsersPage() {
               </p>
               <label>
                 Decision note
-                <textarea value={reason} onChange={(event) => setReason(event.target.value)} placeholder="The customer-safe operational reason, kept in the audit log." disabled={busy} />
+                <textarea value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Enter a reason suitable for the customer and audit log." disabled={busy} />
               </label>
               <Feedback error={error} />
             </div>

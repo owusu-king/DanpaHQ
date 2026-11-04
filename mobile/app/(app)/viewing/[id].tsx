@@ -74,21 +74,26 @@ export default function ViewingScreen() {
   // clearance. Without one the page itself must not run under the navigation.
   const openBottom = useSafeBottom(space[8]);
 
-  const load = useCallback(async () => {
-    try {
-      const mine = await listMyViewings();
+  const load = useCallback(async (signal?: AbortSignal) => {
+    await listMyViewings().then((mine) => {
+      if (signal?.aborted) return;
       const found = mine.find((row) => row.id === id) ?? null;
       setViewing(found);
       setMissing(found === null);
-    } catch (cause) {
+    }).catch((cause) => {
+      if (signal?.aborted) return;
       setMissing(true);
       setLoadError(
         cause instanceof ApiFailure ? cause.error.message : "We could not open that viewing.",
       );
-    }
+    });
   }, [id]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    const controller = new AbortController();
+    void load(controller.signal);
+    return () => controller.abort();
+  }, [load]);
 
   async function run(work: () => Promise<unknown>) {
     setBusy(true);
@@ -531,9 +536,6 @@ function CancelAppointment({
     <View style={styles.section}>
       <GroupLabel>Cancel this viewing</GroupLabel>
       <RecordPanel style={styles.formPanel}>
-        <Type variant="caption" style={styles.formNote}>
-          If another time would work, suggest one instead — that keeps the appointment alive.
-        </Type>
         <Choice
           label="Why"
           value={reason}

@@ -142,7 +142,6 @@ export default function ReportsPage() {
   return <>
     <PageHeader
       title="Reports"
-      description="Triage reported people, properties, listings and artisan work. Send approval or moderation decisions to Operations when they are needed."
     />
     <Panel title="Reported issues" meta={resource.data ? countMeta(rows.length, all.length, ["report", "reports"]) : undefined}>
       <Toolbar>

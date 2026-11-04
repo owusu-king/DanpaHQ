@@ -4,13 +4,13 @@ import { BottomTabBarHeightCallbackContext, type BottomTabBarProps } from "expo-
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
-  PanResponder,
   StyleSheet,
   Text,
   View,
   type AccessibilityActionEvent,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { usePanResponder } from "@/usePanResponder";
 
 import { isHiddenFromBar } from "@/components/nav/tabRoutes";
 import { radius, space } from "@/components/ui";
@@ -76,7 +76,7 @@ const spring = (value: Animated.Value, toValue: number, config: SpringShape) =>
  * - **Colour follows the lozenge**, not a timer: each glyph and name fills in
  *   by how close the lozenge is, so a jump across three tabs lights each in turn.
  *
- * Built on React Native's own Animated and PanResponder, every animation on the
+ * Built on React Native's own Animated and every animation on the
  * native driver — no Reanimated or Gesture Handler. With those added, the app
  * froze at its launch screen in Expo Go on an iPhone 17 Pro Max (2026-10-13).
  *
@@ -160,79 +160,69 @@ export function GlassTabBar({ state, descriptors, navigation }: BottomTabBarProp
     [focusedPosition, navigation, settleTo, state.index, visible],
   );
 
-  // The responder is made once; the latest of everything it needs is read
-  // through this ref, so a re-render never swaps the gesture mid-drag.
-  const live = useRef({ cell, count, focusedPosition, reduceMotion, select, settleTo });
-  useEffect(() => {
-    live.current = { cell, count, focusedPosition, reduceMotion, select, settleTo };
-  });
-
-  const [responder] = useState(() => {
-    const moveTo = (pageX: number, follow: boolean) => {
-      const { cell: width, count: tabs, reduceMotion: still } = live.current;
-      if (!width) return;
-      const max = width * (tabs - 1);
-      let target = pageX - rowLeft.current - width / 2;
-      // Past either end the lozenge gives a little, then holds.
-      if (target < 0) target = -Math.sqrt(-target) * 2.4;
-      else if (target > max) target = max + Math.sqrt(target - max) * 2.4;
-      if (still) {
-        lead.setValue(target);
-        trail.setValue(target);
-      } else if (follow) {
-        lead.setValue(target);
-        spring(trail, target, TRAIL).start();
-      } else {
-        Animated.parallel([spring(lead, target, LEAD), spring(trail, target, TRAIL)]).start();
+  const moveTo = (pageX: number, follow: boolean) => {
+    const width = cell;
+    const tabs = count;
+    if (!width) return;
+    const max = width * (tabs - 1);
+    let target = pageX - rowLeft.current - width / 2;
+    // Past either end the lozenge gives a little, then holds.
+    if (target < 0) target = -Math.sqrt(-target) * 2.4;
+    else if (target > max) target = max + Math.sqrt(target - max) * 2.4;
+    if (reduceMotion) {
+      lead.setValue(target);
+      trail.setValue(target);
+    } else if (follow) {
+      lead.setValue(target);
+      spring(trail, target, TRAIL).start();
+    } else {
+      Animated.parallel([spring(lead, target, LEAD), spring(trail, target, TRAIL)]).start();
+    }
+    const position = Math.min(tabs - 1, Math.max(0, Math.round(target / width)));
+    if (hovered.current !== position) {
+      if (hovered.current !== -1 && hapticsPolicy.onSelection) {
+        void import("expo-haptics")
+          .then((haptics) => haptics.selectionAsync())
+          .catch(() => null);
       }
-      const position = Math.min(tabs - 1, Math.max(0, Math.round(target / width)));
-      if (hovered.current !== position) {
-        if (hovered.current !== -1 && hapticsPolicy.onSelection) {
-          void import("expo-haptics")
-            .then((haptics) => haptics.selectionAsync())
-            .catch(() => null);
-        }
-        hovered.current = position;
-      }
-    };
+      hovered.current = position;
+    }
+  };
 
-    const release = (open: boolean) => {
-      const { reduceMotion: still, select: choose, settleTo: settle, focusedPosition: home } = live.current;
-      if (still) lift.setValue(0);
-      else spring(lift, 0, LIFT_OUT).start();
-      const position = hovered.current;
+  const release = (open: boolean) => {
+    if (reduceMotion) lift.setValue(0);
+    else spring(lift, 0, LIFT_OUT).start();
+    const position = hovered.current;
+    hovered.current = -1;
+    if (open && position >= 0) {
+      // Settle first, so the lozenge is already landing as the page changes.
+      settleTo(position);
+      select(position);
+    } else {
+      // Taken away mid-drag — a call, a sheet: go home, open nothing.
+      settleTo(focusedPosition);
+    }
+  };
+  const responder = usePanResponder({
+    onStartShouldSetPanResponder: () => true,
+    onMoveShouldSetPanResponder: () => true,
+    onPanResponderTerminationRequest: () => false,
+    onPanResponderGrant: (event) => {
       hovered.current = -1;
-      if (open && position >= 0) {
-        // Settle first, so the lozenge is already landing as the page changes.
-        settle(position);
-        choose(position);
-      } else {
-        // Taken away mid-drag — a call, a sheet: go home, open nothing.
-        settle(home);
+      // A direct tap never crosses into a second tab, so give its initial
+      // selection the same tactile tick that a drag receives while crossing.
+      if (hapticsPolicy.onSelection) {
+        void import("expo-haptics")
+          .then((haptics) => haptics.selectionAsync())
+          .catch(() => null);
       }
-    };
-
-    return PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: () => true,
-      onPanResponderTerminationRequest: () => false,
-      onPanResponderGrant: (event) => {
-        hovered.current = -1;
-        // A direct tap never crosses into a second tab, so give its initial
-        // selection the same tactile tick that a drag receives while crossing.
-        if (hapticsPolicy.onSelection) {
-          void import("expo-haptics")
-            .then((haptics) => haptics.selectionAsync())
-            .catch(() => null);
-        }
-        if (live.current.reduceMotion) lift.setValue(1);
-        else spring(lift, 1, LIFT_IN).start();
-        moveTo(event.nativeEvent.pageX, false);
-      },
-      onPanResponderMove: (event) => moveTo(event.nativeEvent.pageX, true),
-      onPanResponderRelease: () => release(true),
-      onPanResponderTerminate: () => release(false),
-    });
+      if (reduceMotion) lift.setValue(1);
+      else spring(lift, 1, LIFT_IN).start();
+      moveTo(event.nativeEvent.pageX, false);
+    },
+    onPanResponderMove: (event) => moveTo(event.nativeEvent.pageX, true),
+    onPanResponderRelease: () => release(true),
+    onPanResponderTerminate: () => release(false),
   });
 
   // The lozenge's centre, and how far its two edges have pulled apart.
@@ -275,7 +265,7 @@ export function GlassTabBar({ state, descriptors, navigation }: BottomTabBarProp
               rowLeft.current = x;
             });
           }}
-          {...responder.panHandlers}
+          {...responder}
         >
           {cell > 0 ? (
             <Animated.View

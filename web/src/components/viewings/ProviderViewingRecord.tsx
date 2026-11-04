@@ -265,7 +265,7 @@ function CancelAppointmentForm({ busy, onBack, onCancel }: { busy: boolean; onBa
   const [note, setNote] = useState("");
   return (
     <section className="vr-panel is-danger">
-      <Notice tone="info" title="Could a new time work?" body="Rescheduling keeps it active." />
+      <Notice tone="info" title="Could a new time work?" />
       <label className="vr-select">Reason
         <select value={reason} onChange={(event) => setReason(event.target.value as ViewingCancellationReason)}>
           <option value="schedule_conflict">Schedule conflict</option>

@@ -9,7 +9,7 @@ import { confirmsExactly } from "@/lib/confirmation";
 import { ModalSheet } from "./ModalSheet";
 
 export function TypedConfirmation({ open, onClose, title, description, phrase, confirmationPrompt, confirmLabel, destructive = false, reasonRequired = false, onConfirm }: {
-  open: boolean; onClose: () => void; title: string; description: string;
+  open: boolean; onClose: () => void; title: string; description?: string;
   phrase?: string; confirmationPrompt?: ReactNode; confirmLabel: string; destructive?: boolean; reasonRequired?: boolean;
   onConfirm: (reason: string) => Promise<void>;
 }) {
@@ -19,7 +19,7 @@ export function TypedConfirmation({ open, onClose, title, description, phrase, c
 }
 
 function ConfirmationForm({ description, phrase, confirmationPrompt, confirmLabel, destructive, reasonRequired, onConfirm, close }: {
-  description: string; phrase?: string; confirmationPrompt?: ReactNode; confirmLabel: string; destructive: boolean; reasonRequired: boolean;
+  description?: string; phrase?: string; confirmationPrompt?: ReactNode; confirmLabel: string; destructive: boolean; reasonRequired: boolean;
   onConfirm: (reason: string) => Promise<void>; close: () => void;
 }) {
   const [value, setValue] = useState("");
@@ -35,7 +35,7 @@ function ConfirmationForm({ description, phrase, confirmationPrompt, confirmLabe
     catch (cause) { setError(cause instanceof ApiFailure ? cause.error.message : "That could not be completed. Please try again."); }
     finally { setBusy(false); }
   }}>
-    <p className={destructive ? "danger-confirmation-warning" : "pd-note"}>{description}</p>
+    {description ? <p className={destructive ? "danger-confirmation-warning" : "pd-note"}>{description}</p> : null}
     {phrase !== undefined ? <Field label={destructive ? <>Type <strong>{phrase}</strong> to confirm deletion</> : confirmationPrompt ?? "Confirmation"} hint={destructive || confirmationPrompt !== undefined ? undefined : phrase ? `Type ${phrase} exactly, including capital letters.` : "Name this property before deleting it."} value={value} onChange={event => setValue(event.target.value)} autoComplete="off" autoCapitalize="none" spellCheck={false} disabled={busy} /> : null}
     {reasonRequired ? <Field label="Reason" hint="Recorded in the audit history." value={reason} maxLength={400} onChange={event => setReason(event.target.value)} disabled={busy} /> : null}
     {error ? <Notice tone="error" title={error} /> : null}

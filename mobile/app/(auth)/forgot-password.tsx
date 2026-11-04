@@ -195,7 +195,6 @@ export default function ForgotPasswordScreen() {
               <Notice
                 tone="info"
                 title="No account for that number"
-                body="Nothing to reset here yet. Create an account to get started, or check the number above."
               />
               <AuthAction
                 label="Create an account"

@@ -92,13 +92,6 @@ export function ContractsView({
 
   return (
     <div className="docs-contracts">
-      <ol className="docs-guide" aria-label="How an agreement is made">
-        <GuideStep n={1} title="Approve a request" body="Its tenant and home carry into the agreement." />
-        <GuideStep n={2} title="Prepare it" body="Set rent, term and duties; add your terms from a template." />
-        <GuideStep n={3} title="Send it" body="The tenant reads and accepts it from their account." />
-        <GuideStep n={4} title="It’s executed" body="Both acceptances are recorded and the wording locks." />
-      </ol>
-
       {error && !data ? (
         <section className="ws-panel" aria-label="Contracts">
           <PanelState tone="error" icon="warning" title="Contracts didn’t load" body={error}
@@ -118,7 +111,6 @@ export function ContractsView({
             <div className="ws-panel-head">
               <div className="docs-panel-title">
                 <h2 id="docs-templates-title">Your terms templates</h2>
-                <p>Reusable additional terms, filled with the agreement’s facts.</p>
               </div>
               {templates.length > 4 ? (
                 <PanelSearch label="Search templates" placeholder="Search templates" value={query} onChange={setQuery} />
@@ -174,7 +166,7 @@ export function ContractsView({
             closeLabel="Close clauses"
           >
             <p className="docs-clauses-note">
-              Danpa HQ writes these clauses and keeps them the same for every Portfolio. The <mark className="docs-ph">highlighted</mark> parts are the facts you set when you prepare an agreement.
+              The <mark className="docs-ph">highlighted</mark> parts are the facts you set when you prepare an agreement.
             </p>
             <ol className="docs-clauses">
               {data.agreement.clauses.map((clause) => (
@@ -224,15 +216,6 @@ export function ContractsView({
         </>
       ) : null}
     </div>
-  );
-}
-
-function GuideStep({ n, title, body }: { n: number; title: string; body: string }) {
-  return (
-    <li className="docs-guide-step">
-      <span className="docs-guide-n" aria-hidden="true">{n}</span>
-      <span><strong>{title}</strong><small>{body}</small></span>
-    </li>
   );
 }
 

@@ -39,7 +39,7 @@ export function ProviderTermsConsent({ value, onChange, presentation = "modal" }
           onScroll={({ nativeEvent: e }) => { if (e.layoutMeasurement.height > 0 && e.contentSize.height > 0 && e.contentOffset.y + e.layoutMeasurement.height >= e.contentSize.height - 8) setViewed(key); }}>
           <Type variant="body" selectable style={{ lineHeight: 26 }}>{policy.text}</Type>
         </ScrollView>
-        <Type variant="caption" style={styles.muted}>{ready ? "Agreement viewed. You can now accept it." : "Read to the end of the agreement to enable acceptance."}</Type>
+        {!ready ? <Type variant="caption" style={styles.muted}>Read to the end of the agreement to enable acceptance.</Type> : null}
         <Button label="Refresh terms" variant="quiet" onPress={() => void load()} />
       </> : <Pressable accessibilityRole="button" accessibilityLabel="Read Provider Terms and Conditions" onPress={() => setReading(true)} style={styles.read}>
         <View style={{ flex: 1, gap: 2 }}><Type variant="bodyStrong">Provider agreement</Type><Type variant="caption" style={styles.muted}>{ready ? "Agreement viewed" : "Read the full agreement to continue"}</Type></View>
@@ -68,7 +68,7 @@ function AgreementReader({ policy, ready, onViewed, onClose, onReload }: { polic
       onScroll={({ nativeEvent: e }) => { if (e.contentSize.height > 0 && e.layoutMeasurement.height > 0 && e.contentOffset.y + e.layoutMeasurement.height >= e.contentSize.height - 8) onViewed(); }}>
       <Type variant="body" selectable style={{ lineHeight: 27 }}>{policy.text}</Type>
     </ScrollView>
-    <View style={[styles.readerFoot, { paddingBottom: Math.max(insets.bottom, space[4]) }]}><Type variant="caption" style={styles.muted}>{ready ? "You can now accept the agreement." : "Scroll to the end to enable acceptance."}</Type><Button label="Return to application" disabled={!ready} onPress={onClose} /><Button label="Refresh terms" variant="quiet" onPress={onReload} /></View>
+    <View style={[styles.readerFoot, { paddingBottom: Math.max(insets.bottom, space[4]) }]}>{!ready ? <Type variant="caption" style={styles.muted}>Scroll to the end to enable acceptance.</Type> : null}<Button label="Return to application" disabled={!ready} onPress={onClose} /><Button label="Refresh terms" variant="quiet" onPress={onReload} /></View>
   </View>;
 }
 const styles = StyleSheet.create({

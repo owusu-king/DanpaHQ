@@ -95,7 +95,6 @@ export default function ListingsPage() {
   return <>
     <PageHeader
       title="Listings"
-      description="Move a provider’s submission into public discovery, or take a risky listing out of it. Only Operations Admins can moderate."
     />
     <Panel title="Listing inventory" meta={resource.data ? countMeta(rows.length, all.length, ["listing", "listings"]) : undefined}>
       <Toolbar>
@@ -180,7 +179,7 @@ export default function ListingsPage() {
             <textarea
               value={note}
               onChange={(event) => setNote(event.target.value)}
-              placeholder={needsNote ? "The reason and the next step." : "Optional note for the record."}
+              placeholder={needsNote ? "Explain why and what happens next." : "Optional note for the record."}
               disabled={busy}
             />
             <small>{needsNote ? "Required for this decision." : "Optional for an approval."}</small>

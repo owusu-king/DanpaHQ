@@ -488,7 +488,6 @@ export function IdentitySection({
         <Notice
           tone="success"
           title="Identity verified"
-          body="Nothing further is needed. This check carries to every property you manage."
         />
       </section>
     );
@@ -500,7 +499,6 @@ export function IdentitySection({
         <Notice
           tone="info"
           title="With our review team"
-          body="You will be told the outcome. There is nothing further to send unless we ask."
         />
       </section>
     );
@@ -525,7 +523,6 @@ export function IdentitySection({
         label="Document number (optional)"
         value={nationalId}
         onChange={(event) => setNationalId(event.target.value)}
-        hint="Helps the reviewer match the document to the register."
       />
       <label className="type-caption" style={{ display: "grid", gap: "var(--space-2)" }}>
         <span style={{ color: "var(--color-ink-700)" }}>Photo or scan</span>

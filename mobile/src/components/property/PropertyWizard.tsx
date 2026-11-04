@@ -66,14 +66,14 @@ type StepKey = "basics" | "details" | "sale" | "documents" | "amenities" | "phot
 type Commit = () => Promise<boolean>;
 type CommitRef = { current: Commit | null };
 
-const LOOK: Record<StepKey, { label: string; hint: string; icon: Glyph }> = {
-  basics: { label: "The property", hint: "Its name, what kind it is, and where.", icon: "home-outline" },
-  details: { label: "Details", hint: "Water, power and the compound.", icon: "options-outline" },
-  sale: { label: "Sale details", hint: "The price, the tenure and what is for sale.", icon: "cash-outline" },
-  documents: { label: "Documents", hint: "What shows it is yours.", icon: "document-text-outline" },
-  amenities: { label: "Amenities", hint: "What the whole compound shares.", icon: "sparkles-outline" },
-  photos: { label: "Photos", hint: "The front and the wider area. The rest is optional.", icon: "images-outline" },
-  review: { label: "Review", hint: "Check it over, then create it.", icon: "eye-outline" },
+const LOOK: Record<StepKey, { label: string; icon: Glyph }> = {
+  basics: { label: "The property", icon: "home-outline" },
+  details: { label: "Details", icon: "options-outline" },
+  sale: { label: "Sale details", icon: "cash-outline" },
+  documents: { label: "Documents", icon: "document-text-outline" },
+  amenities: { label: "Amenities", icon: "sparkles-outline" },
+  photos: { label: "Photos", icon: "images-outline" },
+  review: { label: "Review", icon: "eye-outline" },
 };
 
 export function PropertyWizard({
@@ -118,24 +118,32 @@ export function PropertyWizard({
     void loadPropertyVocabulary().then(setVocabulary).catch(() => setVocabulary(null));
   }, []);
 
-  const load = useCallback(async (propertyId: string) => {
-    const [prop, progress, amenityState] = await Promise.all([
+  const load = useCallback((propertyId: string, signal?: AbortSignal) => {
+    return Promise.all([
       getProperty(propertyId),
       getVerification("property", propertyId),
       getPropertyAmenities(propertyId),
-    ]);
-    setSale(prop.purpose === "sale" ? await getSellerSale(propertyId) : null);
-    setProperty(prop);
-    setPhotos(progress);
-    setAmenities(amenityState.chosen);
-    return prop;
+    ]).then(async ([prop, progress, amenityState]) => {
+      const sale = prop.purpose === "sale" ? await getSellerSale(propertyId) : null;
+      if (!signal?.aborted) {
+        setSale(sale);
+        setProperty(prop);
+        setPhotos(progress);
+        setAmenities(amenityState.chosen);
+      }
+      return prop;
+    });
   }, []);
 
   useEffect(() => {
     if (!initialId) return;
-    load(initialId).catch((cause) =>
-      setError(cause instanceof ApiFailure ? cause.error.message : "Could not load this property."),
-    );
+    const controller = new AbortController();
+    void load(initialId, controller.signal).catch((cause) => {
+      if (!controller.signal.aborted) {
+        setError(cause instanceof ApiFailure ? cause.error.message : "Could not load this property.");
+      }
+    });
+    return () => controller.abort();
   }, [initialId, load]);
 
   const setup = useMemo<SetupStep[]>(() => {
@@ -266,7 +274,6 @@ export function PropertyWizard({
         <Notice
           tone="info"
           title="This property is with our team or verified"
-          body="Its details are fixed while that stands."
         />
       ) : null}
 
@@ -473,9 +480,6 @@ function NewPropertyStep({
       {missing.type ? <Type variant="caption" style={styles.missing}>{missing.type}</Type> : null}
 
       <View style={styles.group}>
-        {organizations && organizations.length === 0 ? (
-          <Footnote>This goes into your Danpa HQ Portfolio.</Footnote>
-        ) : null}
         {organizations && organizations.length > 1 ? (
           <Select
             label="Portfolio"
@@ -658,7 +662,7 @@ function DocumentsStep({
   if (document === "verified") return <Notice tone="success" title={`Confirmed as yours to ${verb}`} />;
   if (withTeam) return <Notice tone="info" title="Your claim is with our team" />;
   if (recorded) {
-    return <Notice tone="success" title="Document saved" body="Nobody sees it until you send the property for checking." />;
+    return <Notice tone="success" title="Document saved" />;
   }
   return (
     <AuthorityClaim
@@ -677,7 +681,6 @@ function AmenitiesStep({ propertyId, commitRef }: { propertyId: string; commitRe
   useCommit(commitRef, async () => (saveRef.current ? saveRef.current() : true));
   return (
     <>
-      <Footnote>Each one you choose can be photographed next.</Footnote>
       <SpaceAmenities scope="property" id={propertyId} submitRef={saveRef} />
     </>
   );
@@ -769,13 +772,7 @@ function ReviewStep({
         <Type variant="caption" style={styles.missing}>
           {`Finish ${outstanding.map((row) => LOOK[row.key as StepKey]?.label.toLowerCase() ?? row.title).join(", ")} to create it.`}
         </Type>
-      ) : (
-        <Footnote>
-          {property.purpose === "sale"
-            ? "Creating it sends nothing. Once verified, buyers find it straight away."
-            : "Creating it sends nothing. Ask for checking from the property."}
-        </Footnote>
-      )}
+      ) : null}
     </>
   );
 }

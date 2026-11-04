@@ -262,7 +262,6 @@ export default function UnitsPage() {
       <WorkspaceHead
         icon="units"
         title="Units"
-        summary="Manage your rentable spaces, availability and listing details."
         actions={hasUnits ? (
           <AddUnitButton className="ws-action" onChanged={() => void load()}>
             <PlusGlyph />Add Unit
@@ -334,7 +333,6 @@ export default function UnitsPage() {
           <PanelState
             icon="units"
             title="No Units yet"
-            body="Units are the rentable spaces inside a Property — a room, a flat, a shop."
             action={(
               <span className="units-empty-actions">
                 <AddUnitButton className="btn btn-secondary btn-sm" onChanged={() => void load()}>Add Unit</AddUnitButton>
@@ -348,7 +346,6 @@ export default function UnitsPage() {
           <PanelState
             icon="units"
             title={query.trim() ? `No Unit matches “${query.trim()}”` : "No matching Unit"}
-            body="Try another name, Property or filter."
             action={<Button variant="quiet" size="sm" onClick={clearFilters}>Clear filters</Button>}
           />
         ) : null}

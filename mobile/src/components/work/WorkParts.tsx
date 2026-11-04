@@ -29,11 +29,11 @@ import { theme } from "@/theme";
 export type BriefingPart = { text: string; tone: string; strong?: boolean };
 
 /** One sentence about the reader's own work, then the facts that qualify it. */
-export function Briefing({ title, figure, parts, trailing }: {
+export function Briefing({ title, figure, parts = [], trailing }: {
   title: string;
   /** A large figure above the sentence, where one number is the point. */
   figure?: string;
-  parts: BriefingPart[];
+  parts?: BriefingPart[];
   trailing?: ReactNode;
 }) {
   return (
@@ -117,7 +117,7 @@ export function MoreRow({ label, onPress }: { label: string; onPress: () => void
 /** Everything done, in one line until it is wanted. */
 export function Fold({ title, summary, count, open, onToggle, icon = "archive-outline" }: {
   title: string;
-  summary: string;
+  summary?: string;
   count: number;
   open: boolean;
   onToggle: () => void;
@@ -127,7 +127,7 @@ export function Fold({ title, summary, count, open, onToggle, icon = "archive-ou
     <Pressable
       accessibilityRole="button"
       aria-expanded={open}
-      accessibilityLabel={`${title}: ${count}. ${summary}.`}
+      accessibilityLabel={`${title}: ${count}${summary ? `. ${summary}` : ""}.`}
       onPress={onToggle}
       {...pressableFeedback(PRESSED)}
       style={({ pressed }) => [styles.fold, pressed ? { backgroundColor: PRESSED } : null]}
@@ -135,7 +135,7 @@ export function Fold({ title, summary, count, open, onToggle, icon = "archive-ou
       <Ionicons name={icon} size={16} color={MUTED} />
       <View style={styles.foldText}>
         <Type variant="bodyStrong" style={styles.foldTitle}>{title}</Type>
-        <Type variant="caption" style={styles.foldSummary}>{summary}</Type>
+        {summary ? <Type variant="caption" style={styles.foldSummary}>{summary}</Type> : null}
       </View>
       <Type variant="captionStrong" style={{ color: MUTED }}>{count}</Type>
       <Ionicons name={open ? "chevron-up" : "chevron-down"} size={16} color={MUTED} />

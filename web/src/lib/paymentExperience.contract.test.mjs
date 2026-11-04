@@ -30,6 +30,5 @@ test("landlord Payments keeps tenant payment and provider settlement distinct", 
   assert.match(page, /Awaiting settlement/);
   assert.match(page, /Settled to you/);
   assert.match(page, /Fees deducted/);
-  assert.match(page, /Property owners bear Paystack’s transaction fee/);
   assert.match(page, /Tenant paid, settlement pending/);
 });

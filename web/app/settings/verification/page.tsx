@@ -119,7 +119,6 @@ export default function VerificationSettingsPage() {
       <header className="verification-heading">
         <div>
           <h2 id="verification-title">Verification</h2>
-          <p>See what Danpa HQ has confirmed and continue only the checks that need you.</p>
         </div>
         {payload ? (
           <div className="verification-meter" role="img" aria-label={`${confirmed} of ${states.length} checks confirmed`}>

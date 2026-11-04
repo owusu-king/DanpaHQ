@@ -7,7 +7,7 @@ import { useAuth } from "@/auth";
 import { Bone } from "@/components/billing/BillingParts";
 import { Fact, LinkRow, RecordPanel } from "@/components/record/RecordSurfaces";
 import { BottomSheet } from "@/components/sheet/BottomSheet";
-import { Field, Notice, space } from "@/components/ui";
+import { Field, Notice, Type, space } from "@/components/ui";
 import { listOrganizationProperties, listOrganizations, type ManagedProperty } from "@/organizations";
 
 /** Above this many, finding the right Property is a task of its own. */
@@ -130,12 +130,9 @@ export function PropertyChoices({ choices, onChosen }: { choices: Choices; onCho
         </RecordPanel>
       ) : (
         <RecordPanel>
-          <Fact
-            wide
-            first
-            label={query ? "No matching Property" : "Nothing can take a Unit yet"}
-            value={query ? "Try another name." : "Confirm a Property as yours to let first."}
-          />
+          {query ? <Type variant="body">No matching Property</Type> : (
+            <Fact wide first label="Nothing can take a Unit yet" value="Confirm a Property as yours to let first." />
+          )}
         </RecordPanel>
       )}
       {!query && !all.length ? (
