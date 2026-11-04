@@ -1,5 +1,7 @@
 "use client";
 
+import { VideoPlayer } from "@/components/property/WalkthroughVideo";
+import type { WalkthroughVideo } from "@/lib/propertyVideo";
 import { useState } from "react";
 
 import {
@@ -165,10 +167,10 @@ export default function VerificationPage() {
           </>
         ) : undefined}
       >
-        {first.subject_context && Object.keys(first.subject_context).length ? (
+        {first.subject_context && Object.keys(first.subject_context).some(key => key !== "video") ? (
           <Section title="Submission">
             <Facts>
-              {Object.entries(first.subject_context).map(([key, value]) => (
+              {Object.entries(first.subject_context).filter(([key]) => key !== "video").map(([key, value]) => (
                 <Fact key={key} label={humanize(key)}>{value === null || value === "" ? "—" : String(value)}</Fact>
               ))}
             </Facts>
@@ -180,6 +182,7 @@ export default function VerificationPage() {
             {item.verification.kind === "provider" && item.verification.method === "management_approval" ? <p className="management-hint">Review this provider account and its recorded terms acceptance. Registration does not require identity documents; approval does not verify a property or a biometric identity.</p> : null}
             {item.verification.kind === "provider_credentials" ? <p className="management-hint">Review the submitted provider credentials and documents. Identity and contact checks must be current; approval does not verify ownership, management authority or the condition of any property.</p> : null}
             {item.verification.method_label ? <p className="management-hint">{item.verification.method_label}</p> : null}
+            <VideoPlayer video={item.verification.subject_context?.video as WalkthroughVideo | null | undefined} label="Submitted video" />
             {item.verification.evidence.length ? (
               <ul className="management-file-list">
                 {item.verification.evidence.map((evidence) => (

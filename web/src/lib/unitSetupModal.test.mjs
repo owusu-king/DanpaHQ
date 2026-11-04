@@ -152,7 +152,7 @@ test("resuming never shows a creation form while the saved Unit is loading or ha
   const jsx = (type, props) => ({ type, props });
   for (const saved of [null, { ...unit(), id: "another-unit" }, { ...unit(), property: { id: "another-property" } }, unit()]) {
     let cursor = 0;
-    const values = [{ id: "property-1" }, saved, "details", false, "Could not reopen this Unit."];
+    const values = [{ id: "property-1" }, saved, "details", false, false, "Could not reopen this Unit."];
     const exports = compile(source, {
       "react/jsx-runtime": { jsx, jsxs: jsx },
       react: { useEffect() {}, useCallback: (fn) => fn, useRef: (current) => ({ current }), useState: () => [values[cursor++], () => {}] },

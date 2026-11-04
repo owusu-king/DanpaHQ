@@ -1,5 +1,6 @@
 "use client";
 
+import { VideoPlayer } from "@/components/property/WalkthroughVideo";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -253,6 +254,8 @@ export default function PublicListingPage() {
         </div>
       )}
 
+      <VideoPlayer video={listing.space.video} label="Unit video" caption />
+      <VideoPlayer video={listing.property_context.video} label="Property video" caption />
       <div className="listing-discovery-tools">
         <PropertyAsk property={rentalIntelContext(listing)} />
         {!taken ? (

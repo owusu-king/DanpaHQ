@@ -21,6 +21,7 @@ import { Button } from "@/components/Button";
 import { Notice } from "@/components/Notice";
 import { ApiFailure } from "@/lib/api";
 import { uploadFile } from "@/lib/console";
+import { WalkthroughUpload } from "./WalkthroughVideo";
 import {
   attachEvidence,
   getVerification,
@@ -39,6 +40,7 @@ export function VerificationPanel({
   onState,
   onChanged,
   submitRef,
+  onMediaBusy,
 }: {
   subject: Subject;
   id: string;
@@ -46,6 +48,7 @@ export function VerificationPanel({
   /** False when something above owns the submit button — see the setup flow's
    *  review step, where the photos and the ownership document go together. */
   showSubmit?: boolean;
+  onMediaBusy?: (busy: boolean) => void;
   onState?: (state: VerificationProgress | null) => void;
   onChanged?: () => void;
   /** Filled with this panel's submit, so a shared button can call it. */
@@ -55,6 +58,7 @@ export function VerificationPanel({
   const [error, setError] = useState("");
   const [busySlot, setBusySlot] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [videoBusy, setVideoBusy] = useState(false);
 
   // Held in a ref rather than depended on: a caller passing an inline arrow
   // would otherwise change `load` on every render, and the effect below would
@@ -162,6 +166,7 @@ export function VerificationPanel({
 
   return (
     <div style={{ display: "grid", gap: "var(--space-4)", minWidth: 0 }}>
+      {subject === "property" ? <WalkthroughUpload subject="property" id={id} editable={Boolean(state.editable)} onBusy={value => { setVideoBusy(value); onMediaBusy?.(value); }} /> : null}
       {state.submitted ? (
         <Notice
           tone="info"
@@ -219,7 +224,7 @@ export function VerificationPanel({
 
       {state.submitted || !showSubmit ? null : (
         <div>
-          <Button onClick={submit} busy={submitting} disabled={!state.can_submit}>
+          <Button onClick={submit} busy={submitting} disabled={videoBusy || !state.can_submit}>
             Send for review
           </Button>
         </div>

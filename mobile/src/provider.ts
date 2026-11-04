@@ -121,6 +121,7 @@ export type PropertySaleSummary = {
 };
 
 export type Property = {
+  video?: import("@/propertyVideo").WalkthroughVideo | null;
   id: string;
   created_at: string;
   title: string;
@@ -327,6 +328,7 @@ export type IssuedAccessCode = AccessCodeState & { code: string };
 
 /** One space, with every photograph and the property it sits in. */
 export type UnitDetail = Unit & {
+  video?: import("@/propertyVideo").WalkthroughVideo | null;
   media: SpacePhoto[];
   beds: Bed[];
   property: {

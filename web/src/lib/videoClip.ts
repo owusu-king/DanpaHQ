@@ -52,7 +52,14 @@ export function videoDuration(source: Blob): Promise<number> {
     const video = document.createElement("video");
     video.preload = "metadata";
     video.muted = true;
+    let finished = false;
+    const timer = setTimeout(() => done(null), 10_000);
     const done = (value: number | null) => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timer);
+      video.removeAttribute("src");
+      video.load();
       URL.revokeObjectURL(url);
       if (value === null) reject(new Error("We could not read that video. Try another file."));
       else resolve(value);

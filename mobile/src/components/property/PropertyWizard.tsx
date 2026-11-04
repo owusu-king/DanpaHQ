@@ -103,6 +103,7 @@ export function PropertyWizard({
   const [vocabulary, setVocabulary] = useState<PropertyVocabulary | null>(null);
   const [step, setStep] = useState<StepKey>("basics");
   const [busy, setBusy] = useState(false);
+  const [mediaBusy, setMediaBusy] = useState(false);
   const [error, setError] = useState("");
   // Before the record exists the outline follows what is being chosen: a sale
   // adds its own step and land has no details or amenities.
@@ -194,17 +195,19 @@ export function PropertyWizard({
       key,
       ...LOOK[key],
       done: row.status === "done" && !row.terminal,
-      reachable: !busy && (Boolean(id) || key === "basics"),
+      reachable: !busy && !mediaBusy && (Boolean(id) || key === "basics"),
     };
   });
 
   function go(key: StepKey) {
+    if (mediaBusy) return;
     setError("");
     commitRef.current = null;
     setStep(key);
   }
 
   async function advance() {
+    if (mediaBusy) return;
     setBusy(true);
     setError("");
     try {
@@ -252,7 +255,7 @@ export function PropertyWizard({
       footer={
         <>
           {at > 0 ? (
-            <QuietAct label="Back" icon="chevron-back" disabled={busy} onPress={() => go(keys[at - 1]!)} />
+            <QuietAct label="Back" icon="chevron-back" disabled={busy || mediaBusy} onPress={() => go(keys[at - 1]!)} />
           ) : null}
           {locked ? (
             <Pill label="Close" grow onPress={onClose} />
@@ -262,7 +265,7 @@ export function PropertyWizard({
               icon={shown === "review" ? "checkmark" : "arrow-forward"}
               busy={busy}
               busyLabel="Saving"
-              disabled={shown === "review" && !settled && outstanding.length > 0}
+              disabled={mediaBusy || (shown === "review" && !settled && outstanding.length > 0)}
               grow
               onPress={() => void advance()}
             />
@@ -322,6 +325,7 @@ export function PropertyWizard({
           subject="property"
           id={property.id}
           title="This property"
+          onMediaBusy={setMediaBusy}
           showSubmit={false}
           onState={setPhotos}
         />

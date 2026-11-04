@@ -111,6 +111,7 @@ export function PropertyWizard({
   const [vocabulary, setVocabulary] = useState<PropertyVocabulary | null>(null);
   const [step, setStep] = useState<StepKey>("basics");
   const [busy, setBusy] = useState(false);
+  const [mediaBusy, setMediaBusy] = useState(false);
   const [error, setError] = useState("");
   // Before the record exists the outline follows what is being chosen: a sale
   // adds its own step and land has no details or amenities.
@@ -200,17 +201,19 @@ export function PropertyWizard({
       ...LOOK[key],
       summary: railSummary(key, row, property, amenities),
       done: row.status === "done" && !row.terminal,
-      reachable: Boolean(id) && !busy ? true : key === "basics",
+      reachable: !mediaBusy && (Boolean(id) && !busy ? true : key === "basics"),
     };
   });
 
   function go(key: StepKey) {
+    if (mediaBusy) return;
     setError("");
     commitRef.current = null;
     setStep(key);
   }
 
   async function advance() {
+    if (mediaBusy) return;
     setBusy(true);
     setError("");
     try {
@@ -246,7 +249,7 @@ export function PropertyWizard({
   const footer = (
     <>
       {at > 0 ? (
-        <Button variant="quiet" disabled={busy} onClick={() => go(keys[at - 1]!)}>
+        <Button variant="quiet" disabled={busy || mediaBusy} onClick={() => go(keys[at - 1]!)}>
           Back
         </Button>
       ) : null}
@@ -258,7 +261,7 @@ export function PropertyWizard({
         <Button
           busy={busy}
           busyLabel="Saving…"
-          disabled={shown === "review" && !settled && outstanding.length > 0}
+          disabled={mediaBusy || (shown === "review" && !settled && outstanding.length > 0)}
           onClick={() => void advance()}
         >
           {primary}
@@ -335,6 +338,7 @@ export function PropertyWizard({
           subject="property"
           id={property.id}
           title="This property"
+          onMediaBusy={setMediaBusy}
           showSubmit={false}
           onState={setPhotos}
           onChanged={onChanged}

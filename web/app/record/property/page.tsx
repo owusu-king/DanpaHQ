@@ -1,6 +1,7 @@
 "use client";
 
 
+import { VideoPlayer } from "@/components/property/WalkthroughVideo";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
@@ -162,6 +163,7 @@ export default function PropertyDetailPage() {
         </>}
       </RecordHero>
 
+      <VideoPlayer video={property.video} label="Property video" />
       <div className="record-detail-grid">
         <div className="record-side-sections">
         {land ? <div className="record-side-sections">{locationSection}{property.notes ? <RecordSection title="Description"><p className="record-description">{property.notes}</p></RecordSection> : null}</div> : <RecordSection title="Overview" actions={edit?.allowed ? <Button type="button" variant="quiet" onClick={() => setSheet({ kind: "property" })}><Icon name="pencil" />Edit</Button> : undefined}>

@@ -6,6 +6,7 @@ import { ApiFailure } from "@/api";
 import { ActionBar, Pill } from "@/components/record/RecordSurfaces";
 import { Notice, Type, radius, space } from "@/components/ui";
 import { uploadImage } from "@/provider";
+import { WalkthroughUpload } from "./WalkthroughVideo";
 import { theme } from "@/theme";
 import {
   attachEvidence,
@@ -34,6 +35,7 @@ export function VerificationPanel({
   showSubmit = true,
   onState,
   submitRef,
+  onMediaBusy,
 }: {
   subject: Subject;
   id: string;
@@ -41,6 +43,7 @@ export function VerificationPanel({
   /** False when something above owns the submit button — see the property
    *  screen, where the photographs and the ownership document go together. */
   showSubmit?: boolean;
+  onMediaBusy?: (busy: boolean) => void;
   onState?: (state: VerificationProgress | null) => void;
   /** Filled with this panel's submit, so a shared button can call it. */
   submitRef?: { current: (() => Promise<void>) | null };
@@ -49,6 +52,7 @@ export function VerificationPanel({
   const [error, setError] = useState("");
   const [busySlot, setBusySlot] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [videoBusy, setVideoBusy] = useState(false);
 
   // Held in a ref rather than depended on: a caller passing an inline arrow
   // would otherwise change `load` every render and the effect would refetch
@@ -161,6 +165,7 @@ export function VerificationPanel({
 
   return (
     <View style={{ gap: space[3] }}>
+      {subject === "property" ? <WalkthroughUpload subject="property" id={id} editable={Boolean(state.editable)} onBusy={value => { setVideoBusy(value); onMediaBusy?.(value); }} /> : null}
       {state.submitted ? (
         <Notice
           tone="info"
@@ -240,7 +245,7 @@ export function VerificationPanel({
             icon="shield-checkmark-outline"
             busy={submitting}
             busyLabel="Sending"
-            disabled={!state.can_submit}
+            disabled={videoBusy || !state.can_submit}
             grow
             onPress={submit}
           />

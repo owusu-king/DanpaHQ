@@ -1,3 +1,4 @@
+import { VideoPlayer } from "@/components/property/WalkthroughVideo";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import * as Linking from "expo-linking";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -306,6 +307,8 @@ export default function ListingDetailScreen() {
           landlord's own words, then the building around it. Each is one white
           card on the ivory page, so the eye can find a section by its shape.
         */}
+      <VideoPlayer video={listing.space.video} label="Unit video" caption />
+      <VideoPlayer video={listing.property_context.video} label="Property video" caption />
         <View style={styles.page}>
           <View style={styles.identity}>
             <Type variant="display2" accessibilityRole="header">{listing.headline}</Type>

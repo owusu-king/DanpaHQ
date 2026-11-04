@@ -81,6 +81,7 @@ export function UnitWizard({
   const [unit, setUnit] = useState<UnitDetail | null>(null);
   const [step, setStep] = useState<StepKey>("details");
   const [busy, setBusy] = useState(false);
+  const [mediaBusy, setMediaBusy] = useState(false);
   const [error, setError] = useState("");
   const commitRef = useRef<Commit | null>(null);
   const created = useRef<UnitDetail | null>(null);
@@ -123,12 +124,14 @@ export function UnitWizard({
   const sent = unit ? !unit.verification.editable : false;
 
   function go(key: StepKey) {
+    if (mediaBusy) return;
     setError("");
     commitRef.current = null;
     setStep(key);
   }
 
   async function advance() {
+    if (mediaBusy) return;
     setBusy(true);
     setError("");
     try {
@@ -173,7 +176,7 @@ export function UnitWizard({
         : row.key === "amenities" ? Boolean(unit) && at > 1
           : row.key === "photos" ? photosDone
             : false,
-    reachable: !busy && (row.key === "details" || Boolean(unit)),
+    reachable: !busy && !mediaBusy && (row.key === "details" || Boolean(unit)),
     summary:
       row.key === "details" ? unit?.label
         : row.key === "amenities" && unit ? (unit.amenities.length ? `${unit.amenities.length} chosen` : undefined)
@@ -196,14 +199,14 @@ export function UnitWizard({
       footer={
         <>
           {at > 0 ? (
-            <Button variant="quiet" disabled={busy} onClick={() => go(STEPS[at - 1]!.key)}>Back</Button>
+            <Button variant="quiet" disabled={busy || mediaBusy} onClick={() => go(STEPS[at - 1]!.key)}>Back</Button>
           ) : null}
           <span className="lw-foot-spacer" />
 
           {step === "review" && ready && !sent ? (
             <Button variant="quiet" disabled={busy} onClick={() => unit && onFinished(unit)}>Not yet</Button>
           ) : null}
-          <Button busy={busy} busyLabel={step === "review" && ready ? "Sending…" : "Saving…"} onClick={() => void advance()}>
+          <Button disabled={mediaBusy} busy={busy} busyLabel={step === "review" && ready ? "Sending…" : "Saving…"} onClick={() => void advance()}>
             {primary}
           </Button>
         </>
@@ -224,7 +227,7 @@ export function UnitWizard({
       {step === "amenities" && unit ? <AmenitiesStep unitId={unit.id} commitRef={commitRef} /> : null}
 
       {step === "photos" && unit ? (
-        <SpacePhotos unitId={unit.id} editable={unit.verification.editable} onChanged={async () => { onChanged?.(); await reload(); }} />
+        <SpacePhotos onMediaBusy={setMediaBusy} unitId={unit.id} editable={unit.verification.editable} onChanged={async () => { onChanged?.(); await reload(); }} />
       ) : null}
 
       {step === "review" && unit ? <ReviewStep unit={unit} ready={ready} sent={sent} onGo={go} /> : null}

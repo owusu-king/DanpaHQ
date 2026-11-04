@@ -178,6 +178,7 @@ class SaleDetailSerializer(SaleCardSerializer):
     """One property for sale, whole."""
 
     provider_passports = serializers.SerializerMethodField()
+    video = serializers.SerializerMethodField()
     gallery = serializers.SerializerMethodField()
     landmark = serializers.SerializerMethodField()
     features = serializers.SerializerMethodField()
@@ -190,6 +191,7 @@ class SaleDetailSerializer(SaleCardSerializer):
             "description",
             "lease_years_remaining",
             "gallery",
+            "video",
             "landmark",
             "features",
             "amenities",
@@ -197,6 +199,10 @@ class SaleDetailSerializer(SaleCardSerializer):
             "provider_passports",
         ]
         read_only_fields = fields
+
+    def get_video(self, obj):
+        from apps.files.videos import video_payload
+        return video_payload(obj.property, public=True)
 
     def get_provider_passports(self, obj):
         from apps.passport.provider import public_for_property

@@ -13,6 +13,7 @@
  * The exact address is not here either — only the area.
  */
 
+import { VideoPlayer } from "@/components/property/WalkthroughVideo";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -187,6 +188,7 @@ export default function SalePage() {
         <div className="listing-gallery-empty"><span className="type-caption">Photos pending</span></div>
       )}
 
+      <VideoPlayer video={sale.video} label="Property video" />
       <div className="listing-discovery-tools">
         <PropertyAsk property={saleIntelContext(sale)} />
         <div className="listing-secondary">

@@ -160,6 +160,19 @@ class ReviewerVerificationSerializer(VerificationSerializer):
             }
         if obj.subject_type == "user":
             return self._user_context(obj)
+        if obj.subject_type in {"property", "space"}:
+            from apps.files.models import StoredFile
+            from apps.files.videos import playback_payload, video_payload
+            from apps.property.models import Property, Unit
+
+            if "walkthrough_file_id" in (obj.provider_response or {}):
+                file = StoredFile.objects.filter(
+                    pk=obj.provider_response["walkthrough_file_id"],
+                ).first()
+                return {"video": playback_payload(file)}
+            model = Property if obj.subject_type == "property" else Unit
+            subject = model.objects.select_related("video").filter(id=obj.subject_id).first()
+            return {"video": video_payload(subject)} if subject else None
         if obj.subject_type != "provider_application":
             return None
         from apps.property.models import PropertyProviderApplication

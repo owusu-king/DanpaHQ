@@ -202,6 +202,7 @@ export type ListingDetail = Listing & {
     download_url: string | null;
   }[];
   space: {
+    video?: import("@/propertyVideo").WalkthroughVideo | null;
     id: string;
     label: string;
     space_type: string;
@@ -222,6 +223,7 @@ export type ListingDetail = Listing & {
     verification: { state: string; state_label: string; checked: boolean };
   };
   property_context: {
+    video?: import("@/propertyVideo").WalkthroughVideo | null;
     id: string;
     title: string;
     property_type: string;

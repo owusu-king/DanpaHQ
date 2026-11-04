@@ -19,6 +19,7 @@
  *   than after it.
  */
 
+import { VideoPlayer } from "@/components/property/WalkthroughVideo";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
@@ -159,6 +160,7 @@ export default function SpaceWorkspacePage() {
 
       </RecordSection>
 
+      <VideoPlayer video={space.video} label="Unit video" />
       <div className="record-detail-grid is-unit-record">
       <section className="record-section" aria-labelledby="unit-manage-heading">
         <h2 id="unit-manage-heading" className="record-section-title">Unit details</h2>

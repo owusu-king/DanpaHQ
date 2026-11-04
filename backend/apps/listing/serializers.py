@@ -423,7 +423,9 @@ class ListingDetailSerializer(ListingSerializer):
 
         unit = obj.unit
         check = snapshot(unit)
+        from apps.files.videos import video_payload
         return {
+            "video": video_payload(unit, public=True),
             "id": str(unit.id),
             "label": unit.label,
             "space_type": unit.space_type,
@@ -468,7 +470,9 @@ class ListingDetailSerializer(ListingSerializer):
 
         prop = obj.unit.property
         address = prop.address
+        from apps.files.videos import video_payload
         return {
+            "video": video_payload(prop, public=True),
             "id": str(prop.id),
             "title": prop.title,
             "property_type": prop.property_type,

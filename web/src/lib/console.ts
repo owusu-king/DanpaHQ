@@ -69,6 +69,7 @@ export function createAddress(input: {
 // --- property ----------------------------------------------------------------
 
 export type Property = {
+  video?: import("./propertyVideo").WalkthroughVideo | null;
   id: string;
   title: string;
   property_type: string;
@@ -489,6 +490,7 @@ export type IssuedAccessCode = AccessCodeState & { code: string };
 
 /** One space, with every photograph and the property it sits in. */
 export type UnitDetail = Unit & {
+  video?: import("./propertyVideo").WalkthroughVideo | null;
   media: SpacePhoto[];
   beds: Bed[];
   property: {

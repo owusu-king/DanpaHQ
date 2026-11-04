@@ -86,8 +86,11 @@ me_patterns = [
     path("me/email/", identity_views.EmailView.as_view(), name="me-email"),
     path("me/email/verify/", identity_views.VerifyEmailView.as_view(), name="me-email-verify"),
     path("me/workspace/", identity_views.WorkspaceView.as_view(), name="me-workspace"),
-    path("provider-registration-policy/", identity_views.ProviderRegistrationPolicyView.as_view(),
-         name="provider-registration-policy"),
+    path(
+        "provider-registration-policy/",
+        identity_views.ProviderRegistrationPolicyView.as_view(),
+        name="provider-registration-policy",
+    ),
     path(
         "me/provider-verification/",
         identity_views.ProviderVerificationView.as_view(),
@@ -250,6 +253,12 @@ property_patterns = [
         property_views.UnitAccessCodeRevokeView.as_view(),
         name="unit-access-code-revoke",
     ),
+    path(
+        "properties/<uuid:pk>/video/",
+        property_views.WalkthroughVideoView.as_view(),
+        name="property-video",
+    ),
+    path("units/<uuid:pk>/video/", property_views.UnitVideoView.as_view(), name="unit-video"),
     path("units/<uuid:pk>/photos/", property_views.UnitMediaView.as_view(), name="unit-photos"),
     path(
         "units/<uuid:pk>/photos/<uuid:media_pk>/",

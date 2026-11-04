@@ -31,6 +31,7 @@ export type EvidenceSlot = {
 export type VerificationProgress = {
   policy_version: string;
   status: string;
+  editable?: boolean;
   verification_id: string | null;
   /** True once a reviewer has been asked to look. */
   submitted: boolean;

@@ -9,6 +9,7 @@
  * otherwise — so nothing here decides that.
  */
 
+import { VideoPlayer } from "@/components/property/WalkthroughVideo";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
@@ -158,6 +159,7 @@ export default function SaleScreen() {
           </View>
         )}
 
+      <VideoPlayer video={sale.video} label="Property video" />
         <View style={styles.page}>
           <View style={styles.identity}>
             <Type variant="display2" accessibilityRole="header">

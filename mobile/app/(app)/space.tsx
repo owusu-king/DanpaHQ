@@ -1,3 +1,4 @@
+import { VideoPlayer } from "@/components/property/WalkthroughVideo";
 import { RecordHeader, RecordHero, RecordFacts, RecordSection } from "@/components/property/RecordDetail";
 import { LocationPicker, pinFromAddress } from "@/components/property/LocationPicker";
 /**
@@ -138,6 +139,7 @@ export default function SpaceScreen() {
         <RecordHero photo={photo} title={unit.label || "Unit"} onPhotoPress={() => setSheet("photos")}>
           <WhatIsNext unit={unit} listing={listing} onChanged={load} />
         </RecordHero>
+      <VideoPlayer video={unit.video} label="Unit video" />
         <RecordSection title="Overview"><RecordFacts rows={[{ label: "Type", value: unit.space_type_label }, { label: "Size", value: size || "Not recorded" }, { label: "Furnished", value: unit.is_furnished ? "Yes" : "No" }]} /></RecordSection>
         <RecordSection title="Location">
           <Type variant="body">{[unit.property.address?.locality_name, unit.property.address?.district_name].filter(Boolean).join(", ") || unit.property.title}</Type>

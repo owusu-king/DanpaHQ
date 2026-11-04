@@ -68,6 +68,16 @@ LIMITS: dict[str, PurposeLimits] = {
         content_types=frozenset({"image/jpeg", "image/png", "image/heic", "application/pdf"}),
         human="a photo or PDF up to 8MB",
     ),
+    "property_video": PurposeLimits(
+        max_bytes=30 * MB,
+        content_types=frozenset({"video/mp4", "video/quicktime", "video/webm"}),
+        human="an MP4, MOV or WebM video up to 10 seconds and 30MB",
+    ),
+    "unit_video": PurposeLimits(
+        max_bytes=30 * MB,
+        content_types=frozenset({"video/mp4", "video/quicktime", "video/webm"}),
+        human="an MP4, MOV or WebM video up to 10 seconds and 30MB",
+    ),
     "property_photo": PurposeLimits(
         max_bytes=12 * MB,
         content_types=frozenset({"image/jpeg", "image/png", "image/webp", "image/heic"}),
@@ -149,6 +159,9 @@ def effective_max_bytes(purpose: str) -> int:
     from django.conf import settings
 
     allowed = LIMITS[purpose].max_bytes
+    # These source videos are transcoded below the scan limit before scanning.
+    if purpose in {"property_video", "unit_video"}:
+        return allowed
     if getattr(settings, "FILE_SCAN_MODE", "strict") == "cloudmersive":
         from .scanner import CLOUDMERSIVE_MAX_BYTES
 

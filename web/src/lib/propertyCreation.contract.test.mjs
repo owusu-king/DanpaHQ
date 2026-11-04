@@ -96,7 +96,7 @@ test("mobile creation keeps the compact journey without the desktop step block",
   assert.match(code(read("web/app/record/space-new/page.tsx")), /<UnitWizard/);
   assert.match(code(wizard()), /<WizardShell/);
   // The rail jumps between steps once the record exists to hold them.
-  assert.match(code(wizard()), /reachable: Boolean\(id\) && !busy \? true : key === "basics"/);
+  assert.match(code(wizard()), /reachable: !mediaBusy && \(Boolean\(id\) && !busy \? true : key === "basics"\)/);
   assert.match(shell(), /aria-current=\{item\.key === step\.key \? "step" : undefined\}/);
 });
 

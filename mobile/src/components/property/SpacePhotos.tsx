@@ -13,6 +13,7 @@
 
 import * as ImagePicker from "expo-image-picker";
 import { useCallback, useEffect, useState } from "react";
+import { WalkthroughUpload } from "./WalkthroughVideo";
 import { View } from "react-native";
 
 import { ApiFailure } from "@/api";
@@ -34,11 +35,13 @@ export function SpacePhotos({
   unitId,
   editable,
   onChanged,
+  onMediaBusy,
 }: {
   unitId: string;
   /** False while a reviewer holds it, or once it has been approved. */
   editable: boolean;
   onChanged?: () => void | Promise<void>;
+  onMediaBusy?: (busy: boolean) => void;
 }) {
   const [slots, setSlots] = useState<EvidenceSlot[]>([]);
   const [photos, setPhotos] = useState<SpacePhoto[]>([]);
@@ -125,6 +128,7 @@ export function SpacePhotos({
 
   return (
     <View style={{ gap: space[3] }}>
+      <WalkthroughUpload subject="unit" id={unitId} editable={editable} onBusy={onMediaBusy} />
       {error ? <Notice tone="error" title={error} /> : null}
       {editable ? <Type variant="caption">The main view and each selected amenity need a photo. The two context views are optional.</Type> : null}
 

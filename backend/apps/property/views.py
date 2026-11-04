@@ -479,6 +479,44 @@ class SpaceRecheckView(APIView):
         return Response(UnitDetailSerializer(unit, context={"user": request.user}).data)
 
 
+class WalkthroughVideoView(APIView):
+    permission_classes = [IsAuthenticated, IsPhoneVerified]
+    subject_kind = "property"
+
+    def subject(self, request, pk):
+        if self.subject_kind == "unit":
+            subject = spaces.get_space_or_404(pk, request.user)
+            services.assert_can_manage(subject.property, request.user)
+        else:
+            subject = services.get_property_or_404(pk, request.user)
+            services.assert_can_manage(subject, request.user)
+        return subject
+
+    def get(self, request, pk):
+        from apps.files.videos import video_payload
+        return Response(video_payload(self.subject(request, pk)))
+
+    def put(self, request, pk):
+        from rest_framework import serializers
+
+        from apps.files.videos import video_payload
+
+        from .videos import set_video
+
+        file_id = serializers.UUIDField().run_validation(request.data.get("file_id"))
+        subject = set_video(subject=self.subject(request, pk), user=request.user, file_id=file_id)
+        return Response(video_payload(subject))
+
+    def delete(self, request, pk):
+        from .videos import set_video
+        set_video(subject=self.subject(request, pk), user=request.user, file_id=None)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class UnitVideoView(WalkthroughVideoView):
+    subject_kind = "unit"
+
+
 class PropertyMediaView(APIView):
     permission_classes = [IsAuthenticated, IsPhoneVerified]
 
