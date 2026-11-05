@@ -314,10 +314,10 @@ export function listMyViewings() {
   return authedFetch<MyViewing[]>("/me/viewings/");
 }
 
-export function confirmMyViewingSlot(viewingId: string, slotId: string) {
+export function confirmMyViewingSlot(viewingId: string, slotId: string, acceptedFeeMinor = 0) {
   return authedFetch<MyViewing>(`/viewings/${viewingId}/confirm/`, {
     method: "POST",
-    body: JSON.stringify({ slot_id: slotId }),
+    body: JSON.stringify({ slot_id: slotId, accepted_fee_minor: acceptedFeeMinor }),
     ...idempotentMutation(),
   });
 }

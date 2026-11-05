@@ -71,6 +71,7 @@ test("the provider's step is on the row, and the steps of signing are drawn", ()
   assert.deepEqual(["draft", "offered", "tenant_accepted", "awaiting_activation", "active"].map((status) => stepsDone({ status })), [1, 2, 3, 3, 4]);
   assert.equal(signingLine(lease("awaiting_activation")), "Accepted — waiting for the first payment");
   assert.equal(signingLine({ status: "awaiting_activation", activation_requirement: "lease_accepted" }), "Accepted — waiting to activate");
+  assert.equal(signingLine({ status: "awaiting_activation", activation_requirement: "initial_payment", upfront_payment_enabled: false }), "Accepted — waiting to activate");
 
   const row = between(provider(), "function AgreementRow(", "function shortDate(");
   assert.match(row, /<Segments total=\{SIGNING_STEPS\.length\} done=\{stepsDone\(lease\)\} tone=\{look\.ink\} \/>/);

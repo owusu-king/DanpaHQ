@@ -185,8 +185,10 @@ def offer_slots(
     request: ViewingRequest,
     user,
     slots: list[dict],
+    viewing_fee_minor: int | None = None,
 ) -> ViewingRequest:
-    """Offer free viewing times. Danpa HQ has no viewing-fee concept."""
+    """Offer viewing times with management-authorized pricing."""
+    request.refresh_from_db(from_queryset=ViewingRequest.objects.select_for_update())
     assert_host(request, user)
     from apps.billing import enforcement as billing
 
@@ -209,6 +211,9 @@ def offer_slots(
 
     now = timezone.now()
     cleaned = _validated_slots(slots, now=now)
+    from .fees import quote
+
+    quote(request, viewing_fee_minor)
 
     # Re-offering replaces the previous times rather than adding to them, so the
     # tenant is never choosing from a list where half the entries are stale.
@@ -231,6 +236,7 @@ def offer_slots(
             "status",
             "responded_by",
             "responded_at",
+            "fee_minor", "fee_collection", "fee_policy",
             "updated_at",
         ]
     )
@@ -241,7 +247,8 @@ def offer_slots(
         aggregate_id=request.id,
         actor=user,
         changes={"status": [previous, request.status]},
-        metadata={"slots": len(cleaned), "viewing_is_free": True},
+        metadata={"slots": len(cleaned), "viewing_is_free": request.fee_minor == 0,
+                  "fee_minor": request.fee_minor, "fee_collection": request.fee_collection},
     )
     emit(
         DomainEvent(
@@ -251,7 +258,7 @@ def offer_slots(
             {
                 "tenant_id": str(request.tenant_id),
                 "slots": len(cleaned),
-                "viewing_is_free": True,
+                "viewing_is_free": request.fee_minor == 0,
             },
         )
     )
@@ -360,8 +367,11 @@ def withdraw(*, request: ViewingRequest, user, note: str = "") -> ViewingRequest
 
 
 @transaction.atomic
-def confirm_slot(*, request: ViewingRequest, user, slot_id) -> ViewingRequest:
+def confirm_slot(
+    *, request: ViewingRequest, user, slot_id, accepted_fee_minor=None
+) -> ViewingRequest:
     """The counterparty accepts an offered time and creates an immutable appointment."""
+    request.refresh_from_db(from_queryset=ViewingRequest.objects.select_for_update())
     if request.status != ViewingStatus.OFFERED:
         raise Conflict("There are no times to choose from yet.")
     from apps.billing import enforcement as billing
@@ -381,6 +391,16 @@ def confirm_slot(*, request: ViewingRequest, user, slot_id) -> ViewingRequest:
         assert_host(request, user)
     else:
         assert_tenant(request, user)
+
+    from .fees import policy, quote
+
+    previous_fee = request.fee_minor
+    if not request.confirmed_at and policy()["mode"] == "disabled":
+        # No fee has been accepted yet. Turning fees off must not leave a tenant
+        # unable to confirm a time because of a now-hidden, unaccepted quote.
+        quote(request, None)
+    if not request.confirmed_at and request.fee_minor and accepted_fee_minor != request.fee_minor:
+        raise Conflict("Review and accept the quoted viewing fee before confirming this time.")
 
     now = timezone.now()
     previous = request.status
@@ -411,6 +431,7 @@ def confirm_slot(*, request: ViewingRequest, user, slot_id) -> ViewingRequest:
             "responded_by",
             "responded_at",
             "current_appointment",
+            "fee_minor", "fee_collection", "fee_policy",
             "updated_at",
         ]
     )
@@ -426,6 +447,8 @@ def confirm_slot(*, request: ViewingRequest, user, slot_id) -> ViewingRequest:
             "contacts_released": True,
             "appointment_id": str(appointment.id),
             "appointment_sequence": appointment.sequence,
+            "fee_minor": request.fee_minor,
+            "previous_quoted_fee_minor": previous_fee,
         },
     )
     emit(

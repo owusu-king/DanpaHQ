@@ -62,6 +62,7 @@ def freeze_terms(lease: Lease) -> dict:
     return {
         "schema_version": TERMS_SCHEMA_VERSION,
         "lease_id": str(lease.id),
+        "activation_requirement": lease.activation_requirement,
         "property": {
             "id": str(prop.id),
             "title": prop.title,

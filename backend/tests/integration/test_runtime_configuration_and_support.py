@@ -10,6 +10,51 @@ PASSWORD = "correct-horse-battery-staple"
 
 
 @override_settings(RUNTIME_CONFIGURATION_ENABLED=True)
+def test_management_can_set_fee_modes_and_upfront_gate_with_atomic_limits():
+    from apps.operations.configuration import value
+
+    _, client = management_client(email="fee-policy@example.com")
+    updates = [
+        {"key": "LEASE_ACTIVATION_REQUIREMENT", "value": "initial_payment"},
+        {"key": "VIEWING_FEE_MODE", "value": "provider"},
+        {"key": "VIEWING_FEE_COLLECTION", "value": "direct"},
+        {"key": "VIEWING_FEE_MIN_MINOR", "value": 1000},
+        {"key": "VIEWING_FEE_MAX_MINOR", "value": 5000},
+    ]
+    response = client.patch(
+        "/api/v1/management/configuration/", {"updates": updates}, format="json"
+    )
+    assert response.status_code == 200, response.data
+    assert value("VIEWING_FEE_MIN_MINOR") == 1000
+    response = client.patch(
+        "/api/v1/management/configuration/",
+        {
+            "updates": [
+                {"key": "VIEWING_FEE_MIN_MINOR", "value": 6000},
+                {"key": "VIEWING_FEE_COLLECTION", "value": "platform"},
+            ]
+        },
+        format="json",
+    )
+    assert response.status_code == 422
+    assert value("VIEWING_FEE_MIN_MINOR") == 1000
+    assert value("VIEWING_FEE_COLLECTION") == "direct"
+    response = client.patch(
+        "/api/v1/management/configuration/",
+        {
+            "updates": [
+                {"key": "LEASE_ACTIVATION_REQUIREMENT", "value": "disabled"},
+                {"key": "VIEWING_FEE_MODE", "value": "disabled"},
+            ]
+        },
+        format="json",
+    )
+    assert response.status_code == 200, response.data
+    assert value("LEASE_ACTIVATION_REQUIREMENT") == "disabled"
+    assert value("VIEWING_FEE_MODE") == "disabled"
+
+
+@override_settings(RUNTIME_CONFIGURATION_ENABLED=True)
 def test_brevo_configuration_is_encrypted_masked_and_used_without_restart(
     user,
     monkeypatch,

@@ -101,10 +101,12 @@ def test_acceptance_activates_one_linked_tenancy_and_occupancy(landlord, user, u
     assert occupancy.lease_id == lease.id
 
 
-def test_future_payment_gate_pauses_after_acceptance_until_confirmed(landlord, user, unit):
+def test_payment_gate_pauses_after_acceptance_until_money_is_confirmed(landlord, user, unit):
+    from apps.core.exceptions import Conflict
     from apps.lease import services
     from apps.lease.models import LeaseActivationRequirement, LeaseStatus
     from apps.occupancy.models import Occupancy
+    from apps.rent import services as rent
     from apps.tenancy.models import Tenancy
 
     lease = _draft(
@@ -119,6 +121,24 @@ def test_future_payment_gate_pauses_after_acceptance_until_confirmed(landlord, u
     assert lease.status == LeaseStatus.AWAITING_ACTIVATION
     assert not Tenancy.objects.filter(tenant=user, unit=unit).exists()
     assert not Occupancy.objects.filter(user=user, unit=unit).exists()
+
+    with pytest.raises(Conflict):
+        services.activate_lease(
+            lease=lease,
+            actor=landlord,
+            satisfied_requirement=LeaseActivationRequirement.INITIAL_PAYMENT,
+        )
+    for charge in lease.charges.filter(due_on=lease.starts_on):
+        payment = rent.record_payment(
+            lease=lease,
+            user=user,
+            data={
+                "charge_id": charge.id,
+                "amount_minor": charge.amount_minor,
+                "paid_on": date.today(),
+            },
+        )
+        rent.confirm_payment(payment=payment, user=landlord)
 
     lease = services.activate_lease(
         lease=lease,

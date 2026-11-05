@@ -349,7 +349,7 @@ class TestOrganizationAuthorization:
             user=first_tenant,
             data={
                 "charge_id": first_charge.id,
-                "amount_minor": 10000,
+                "amount_minor": first_charge.outstanding_minor,
                 "paid_on": timezone.localdate(),
                 "method": "momo",
             },
@@ -377,7 +377,7 @@ class TestOrganizationAuthorization:
                 "tenant_name": first_tenant.display_name,
                 "property_title": "Legon Hostel",
                 "unit_label": "Room 12",
-                "amount_minor": 10000,
+                "amount_minor": first_charge.outstanding_minor,
                 "currency": "GHS",
                 "status": "claimed",
                 "paid_on": timezone.localdate().isoformat(),
@@ -487,7 +487,7 @@ class TestOrganizationAuthorization:
             user=tenant,
             data={
                 "charge_id": charge.id,
-                "amount_minor": 50000,
+                "amount_minor": charge.outstanding_minor,
                 "paid_on": timezone.localdate() - timedelta(days=30),
                 "method": "momo",
             },
@@ -830,8 +830,10 @@ class TestOrganizationAuthorization:
         lease = lease_services.offer_lease(lease=lease, user=owner)
         lease = lease_services.accept_lease(lease=lease, user=tenant)
 
+        charge = rent_services.build_schedule(lease)[0]
         payment_data = {
-            "amount_minor": 100000,
+            "charge_id": charge.id,
+            "amount_minor": charge.outstanding_minor,
             "paid_on": timezone.localdate(),
             "method": "momo",
         }

@@ -87,7 +87,7 @@ export default function PaymentStatusScreen() {
           <View accessibilityElementsHidden style={{ width: 48, height: 48, borderRadius: 24, borderWidth: 1, borderColor: theme.color.kola["600"], alignItems: "center", justifyContent: "center" }}><Type variant="title1" style={{ color: theme.color.kola["600"] }}>✓</Type></View>
           <Type variant="display2">{intent.amount_formatted}</Type>
           {intent.receipt_id ? <Button label="View receipt" onPress={() => router.push({ pathname: "/(app)/payment-receipt", params: { receiptId: intent.receipt_id } } as never)} /> : null}
-          <Button label="Rent account" variant="secondary" onPress={() => router.replace({ pathname: "/(app)/rent-account", params: { leaseId: intent.lease_id, mode: "tenant" } } as never)} />
+          <Button label={intent.viewing_id ? "Viewing" : "Rent account"} variant="secondary" onPress={() => router.replace(intent.viewing_id ? { pathname: "/(app)/viewing/[id]", params: { id: intent.viewing_id } } as never : { pathname: "/(app)/rent-account", params: { leaseId: intent.lease_id, mode: "tenant" } } as never)} />
         </>
       ) : pending ? (
         <>
@@ -98,10 +98,10 @@ export default function PaymentStatusScreen() {
         </>
       ) : unsuccessful ? (
         <>
-          <Notice tone="warning" title={intent.status === "expired" ? "Payment attempt expired" : "Payment was not completed"} body={intent.failure_message || "No rent was marked paid. You can safely try again."} />
+          <Notice tone="warning" title={intent.status === "expired" ? "Payment attempt expired" : "Payment was not completed"} body={intent.failure_message || "No confirmed payment was recorded. You can safely try again."} />
           <Button label="Try again" busy={checking} onPress={() => void retry()} />
         </>
-      ) : intent?.status === "cancelled" ? <Notice tone="info" title="Payment was cancelled" body="No rent was marked paid." /> : null}
+      ) : intent?.status === "cancelled" ? <Notice tone="info" title="Payment was cancelled" body="No confirmed payment was recorded." /> : null}
       <PaystackCheckoutModal
         intent={checkoutIntent}
         onClose={() => {

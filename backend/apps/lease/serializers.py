@@ -58,6 +58,7 @@ class StructuredTermsSerializer(serializers.Serializer):
 
 
 class LeaseSerializer(serializers.ModelSerializer):
+    upfront_payment_enabled = serializers.SerializerMethodField()
     status_display = serializers.CharField(source="get_status_display", read_only=True)
 
     unit_label = serializers.CharField(source="unit.label", read_only=True)
@@ -90,6 +91,7 @@ class LeaseSerializer(serializers.ModelSerializer):
             "status",
             "status_display",
             "activation_requirement",
+            "upfront_payment_enabled",
             "unit",
             "unit_label",
             "bed",
@@ -144,6 +146,15 @@ class LeaseSerializer(serializers.ModelSerializer):
 
     def get_rent_formatted(self, obj) -> str | None:
         return self._money(obj.rent_minor, obj.rent_currency)
+
+    def get_upfront_payment_enabled(self, obj):
+        from apps.operations.configuration import value
+
+        if "upfront_payment_enabled" not in self.context:
+            self.context["upfront_payment_enabled"] = (
+                value("LEASE_ACTIVATION_REQUIREMENT", "disabled") != "disabled"
+            )
+        return self.context["upfront_payment_enabled"]
 
     def get_move_in_total_formatted(self, obj) -> str | None:
         return self._money(obj.move_in_total_minor, obj.rent_currency)

@@ -25,6 +25,185 @@ from apps.viewing.models import (
 
 pytestmark = pytest.mark.django_db
 
+
+def test_disabled_viewing_fees_are_hidden_and_cannot_start_collection(
+    settings, user, landlord, live_listing
+):
+    from apps.payments.viewing_fees import create_intent
+    from apps.viewing.fees import record_direct
+    from apps.viewing.serializers import ViewingRequestSerializer
+
+    settings.VIEWING_FEE_MODE = "disabled"
+    viewing = services.request_viewing(listing=live_listing, tenant=user)
+    with pytest.raises(ValidationFailed):
+        services.offer_slots(request=viewing, user=landlord, slots=_slots(), viewing_fee_minor=100)
+    viewing = services.offer_slots(request=viewing, user=landlord, slots=_slots())
+    payload = ViewingRequestSerializer(viewing).data
+    assert payload["fee"] is None and payload["fee_policy"]["mode"] == "disabled"
+    assert viewing.fee_minor == 0
+    # Turning the feature off hides an existing quote without erasing its price.
+    viewing.fee_minor = 2500
+    viewing.confirmed_at = timezone.now()
+    viewing.save(update_fields=["fee_minor", "confirmed_at"])
+    assert ViewingRequestSerializer(viewing).data["fee"] is None
+    with pytest.raises(Conflict, match="disabled"):
+        create_intent(viewing=viewing, user=user, payment_method="mobile_money")
+    with pytest.raises(Conflict, match="disabled"):
+        record_direct(viewing=viewing, user=user)
+    viewing.refresh_from_db()
+    assert viewing.fee_minor == 2500
+
+
+def test_disabling_fees_before_confirmation_removes_an_unaccepted_quote(
+    settings, user, landlord, live_listing
+):
+    settings.VIEWING_FEE_MODE = "fixed"
+    settings.VIEWING_FEE_FIXED_MINOR = 2500
+    viewing = services.request_viewing(listing=live_listing, tenant=user)
+    viewing = services.offer_slots(request=viewing, user=landlord, slots=_slots())
+    assert viewing.fee_minor == 2500
+    settings.VIEWING_FEE_MODE = "disabled"
+    viewing = services.confirm_slot(
+        request=viewing, user=user, slot_id=viewing.slots.first().id, accepted_fee_minor=0
+    )
+    assert viewing.confirmed_at and viewing.fee_minor == 0
+    assert viewing.fee_policy["mode"] == "disabled"
+
+
+@pytest.mark.parametrize(
+    "mode,requested,expected", [("free", None, 0), ("fixed", None, 2500), ("provider", 1500, 1500)]
+)
+def test_management_viewing_prices_are_quoted_and_accepted(
+    settings, user, landlord, live_listing, mode, requested, expected
+):
+    settings.VIEWING_FEE_MODE = mode
+    settings.VIEWING_FEE_FIXED_MINOR = 2500
+    settings.VIEWING_FEE_MIN_MINOR = 1000
+    settings.VIEWING_FEE_MAX_MINOR = 3000
+    viewing = services.request_viewing(listing=live_listing, tenant=user)
+    viewing = services.offer_slots(
+        request=viewing, user=landlord, slots=_slots(), viewing_fee_minor=requested
+    )
+    assert viewing.fee_minor == expected
+    if expected:
+        with pytest.raises(Conflict):
+            services.confirm_slot(request=viewing, user=user, slot_id=viewing.slots.first().id)
+    viewing = services.confirm_slot(
+        request=viewing, user=user, slot_id=viewing.slots.first().id, accepted_fee_minor=expected
+    )
+    assert viewing.confirmed_at
+    settings.VIEWING_FEE_FIXED_MINOR = 9000
+    viewing.refresh_from_db()
+    assert viewing.fee_minor == expected
+
+
+@pytest.mark.parametrize("requested", [None, 999, 3001])
+def test_management_provider_fee_limits_are_enforced(
+    settings, user, landlord, live_listing, requested
+):
+    settings.VIEWING_FEE_MODE = "provider"
+    settings.VIEWING_FEE_MIN_MINOR = 1000
+    settings.VIEWING_FEE_MAX_MINOR = 3000
+    viewing = services.request_viewing(listing=live_listing, tenant=user)
+    with pytest.raises(ValidationFailed):
+        services.offer_slots(
+            request=viewing, user=landlord, slots=_slots(), viewing_fee_minor=requested
+        )
+    assert not viewing.slots.exists()
+
+
+def test_direct_viewing_fee_needs_counterparty_confirmation(settings, user, landlord, live_listing):
+    from apps.viewing.fees import record_direct
+
+    settings.VIEWING_FEE_MODE = "fixed"
+    settings.VIEWING_FEE_FIXED_MINOR = 2500
+    settings.VIEWING_FEE_COLLECTION = "direct"
+    viewing = services.request_viewing(listing=live_listing, tenant=user)
+    viewing = services.offer_slots(request=viewing, user=landlord, slots=_slots())
+    viewing = services.confirm_slot(
+        request=viewing, user=user, slot_id=viewing.slots.first().id, accepted_fee_minor=2500
+    )
+    viewing = record_direct(viewing=viewing, user=user)
+    assert viewing.fee_paid_at is None
+    settings.VIEWING_FEE_MODE = "disabled"
+    with pytest.raises(Conflict):
+        record_direct(viewing=viewing, user=user, confirm=True)
+    viewing = record_direct(viewing=viewing, user=landlord, confirm=True)
+    assert viewing.fee_paid_at and viewing.fee_payment_source == "party_confirmation"
+
+
+def test_platform_viewing_fee_is_verified_once_with_ledger_receipt_and_no_rent(
+    settings, user, landlord, live_listing
+):
+    from apps.payments import services as payments
+    from apps.payments.models import PaymentIntent, PaymentTransaction
+    from apps.payments.providers import ProviderPaymentState
+    from apps.payments.serializers import PaymentIntentSerializer
+    from apps.payments.viewing_fees import create_intent
+    from apps.rent.models import RentCharge, RentPayment
+
+    settings.VIEWING_FEE_MODE = "fixed"
+    settings.VIEWING_FEE_FIXED_MINOR = 2500
+    viewing = services.request_viewing(listing=live_listing, tenant=user)
+    viewing = services.offer_slots(request=viewing, user=landlord, slots=_slots())
+    viewing = services.confirm_slot(
+        request=viewing, user=user, slot_id=viewing.slots.first().id, accepted_fee_minor=2500
+    )
+    with pytest.raises(PermissionDenied):
+        create_intent(viewing=viewing, user=landlord, payment_method="mobile_money")
+    intent = create_intent(viewing=viewing, user=user, payment_method="mobile_money")
+    assert create_intent(viewing=viewing, user=user, payment_method="mobile_money").id == intent.id
+    assert PaymentIntentSerializer(intent).data["obligation_kind"] == "viewing_fee"
+    settings.VIEWING_FEE_MODE = "disabled"
+    state = ProviderPaymentState(
+        found=True,
+        provider_transaction_id="viewing-tx-1",
+        status="succeeded",
+        amount_minor=2500,
+        currency="GHS",
+        payment_method="mobile_money",
+        occurred_at=timezone.now(),
+    )
+    payments.apply_provider_state(
+        intent=intent, state=state, requested_by=user, evidence_source="provider_query"
+    )
+    payments.apply_provider_state(
+        intent=intent, state=state, requested_by=user, evidence_source="provider_query"
+    )
+    assert PaymentTransaction.objects.filter(intent=intent).count() == 1
+    tx = PaymentTransaction.objects.get(intent=intent)
+    assert tx.allocations.get().viewing_id == viewing.id
+    assert tx.ledger_entries.count() == 2
+    assert bytes(tx.receipt.final_pdf).startswith(b"%PDF")
+    assert payments.get_receipt_or_404(tx.receipt.id, user=user).id == tx.receipt.id
+    assert not RentCharge.objects.exists() and not RentPayment.objects.exists()
+    viewing.refresh_from_db()
+    assert viewing.fee_paid_at and viewing.fee_payment_source == "psp"
+    assert PaymentIntent.objects.get(pk=intent.pk).status == "succeeded"
+
+
+def test_two_provider_representatives_cannot_confirm_their_own_fee_claim(
+    settings, user, landlord, agent, live_listing
+):
+    from apps.viewing.fees import record_direct
+
+    settings.VIEWING_FEE_MODE = "fixed"
+    settings.VIEWING_FEE_FIXED_MINOR = 2500
+    settings.VIEWING_FEE_COLLECTION = "direct"
+    prop = live_listing.unit.property
+    prop.managed_by = agent
+    prop.save(update_fields=["managed_by", "updated_at"])
+    viewing = services.request_viewing(listing=live_listing, tenant=user)
+    viewing = services.offer_slots(request=viewing, user=landlord, slots=_slots())
+    viewing = services.confirm_slot(
+        request=viewing, user=user, slot_id=viewing.slots.first().id, accepted_fee_minor=2500
+    )
+    viewing = record_direct(viewing=viewing, user=landlord)
+    with pytest.raises(Conflict):
+        record_direct(viewing=viewing, user=agent, confirm=True)
+    assert record_direct(viewing=viewing, user=user, confirm=True).fee_paid_at
+
+
 JPEG = b"\xff\xd8\xff\xe0" + b"\x00" * 60
 
 
@@ -699,6 +878,61 @@ class TestAudit:
 
 
 class TestApi:
+    def test_fee_policy_and_checkout_over_http(self, settings, tenant_api, host_api, live_listing):
+        settings.VIEWING_FEE_MODE = "fixed"
+        settings.VIEWING_FEE_FIXED_MINOR = 2500
+        asked = tenant_api.post(
+            "/api/v1/me/viewings/", {"listing_id": str(live_listing.id)}, format="json"
+        )
+        pk = asked.data["id"]
+        offered = host_api.post(
+            f"/api/v1/viewings/{pk}/offer/",
+            {
+                "slots": [{"starts_at": (timezone.now() + timedelta(days=1)).isoformat()}],
+            },
+            format="json",
+        )
+        assert offered.status_code == 200, offered.data
+        assert offered.data["fee"]["amount_minor"] == 2500
+        slot = offered.data["slots"][0]["id"]
+        assert (
+            tenant_api.post(
+                f"/api/v1/viewings/{pk}/confirm/", {"slot_id": slot}, format="json"
+            ).status_code
+            == 409
+        )
+        confirmed = tenant_api.post(
+            f"/api/v1/viewings/{pk}/confirm/",
+            {
+                "slot_id": slot,
+                "accepted_fee_minor": 2500,
+            },
+            format="json",
+        )
+        assert confirmed.status_code == 200, confirmed.data
+        bad = tenant_api.post(
+            "/api/v1/payments/intents/",
+            {
+                "viewing_id": pk,
+                "payment_method": "mobile_money",
+                "amount_minor": 1,
+            },
+            format="json",
+            HTTP_IDEMPOTENCY_KEY="bad-viewing-price",
+        )
+        assert bad.status_code == 422
+        created = tenant_api.post(
+            "/api/v1/payments/intents/",
+            {
+                "viewing_id": pk,
+                "payment_method": "mobile_money",
+            },
+            format="json",
+            HTTP_IDEMPOTENCY_KEY="viewing-fee-checkout",
+        )
+        assert created.status_code == 201, created.data
+        assert created.json()["viewing_id"] == pk and created.data["amount_minor"] == 2500
+
     @pytest.fixture
     def tenant_api(self, user, sms, sign_in_as):
         client = APIClient()

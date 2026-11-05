@@ -948,17 +948,18 @@ def on_payment_failed(event) -> None:
     )
     if intent is None:
         return
+    unit = intent.viewing.listing.unit if intent.is_viewing else intent.lease.unit
     notify(
         user=intent.tenant,
         kind="payment.failed",
         title="Your payment was not completed",
         body=(
-            f"No confirmed payment was recorded for {intent.lease.unit.property.title}. "
+            f"No confirmed payment was recorded for {unit.property.title}. "
             "You can try paying again."
         ),
         dedupe_key=_key(event, intent.tenant_id),
-        target_type="lease",
-        target_id=intent.lease_id,
+        target_type="viewing" if intent.is_viewing else "lease",
+        target_id=intent.viewing_id if intent.is_viewing else intent.lease_id,
     )
 
 

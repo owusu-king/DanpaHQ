@@ -357,7 +357,7 @@ class TestRentMutationsReplayInsteadOfDuplicating:
         payload = {
             "lease_id": str(lease.id),
             "charge_id": str(charge.id),
-            "amount_minor": 50000,
+            "amount_minor": charge.outstanding_minor,
             "paid_on": date.today().isoformat(),
             "method": "cash",
         }
@@ -401,69 +401,41 @@ class TestRentMutationsReplayInsteadOfDuplicating:
         assert ObligationAdjustment.objects.get().amount_minor == 25000
 
 
-class TestTheTwoRailsAgreeOnPartPayment:
-    """A part payment was recordable in cash and refused through checkout.
+class TestFullRentPayments:
+    def test_retry_cannot_initiate_a_historical_partial_intent(self, landlord, user, obligation):
+        from apps.payments.models import PaymentIntent
+        from apps.payments.providers import MemoryPaymentProvider
 
-    `rent.record_payment` has always accepted part of an outstanding charge —
-    a tenant who brings two thirds of the advance gets it recorded. Digital
-    checkout demanded the whole balance. The same two thirds was therefore
-    acceptable if handed over in a stairwell and refused if it went through the
-    processor, which pushed exactly the payments Danpa HQ most wants on-platform
-    off it. One rule now, enforced on the server for both.
-    """
+        lease, charge = obligation
+        intent = PaymentIntent.objects.create(
+            tenant=user, lease=lease, obligation=charge,
+            amount_minor=charge.outstanding_minor // 2, amount_currency=charge.amount_currency,
+            status=IntentStatus.FAILED, payment_method="mobile_money", provider="memory",
+            client_reference="historical-partial", expires_at=timezone.now() + timedelta(hours=1),
+        )
+        with (
+            patch.object(MemoryPaymentProvider, "initiate") as initiate,
+            pytest.raises(ValidationFailed, match="Partial rent payments"),
+        ):
+            payment_services.retry_intent(intent=intent, user=user)
+        initiate.assert_not_called()
+        intent.refresh_from_db()
+        assert intent.status == IntentStatus.FAILED
+        assert not intent.attempts.exists()
 
-    def test_a_part_payment_settles_part_of_the_charge(self, landlord, user, obligation):
+    @pytest.mark.parametrize("fraction", [2, 3, 4])
+    def test_partial_checkout_is_refused_without_creating_financial_records(
+        self, landlord, user, obligation, fraction
+    ):
         _, charge = obligation
-        full = charge.outstanding_minor
-        part = full // 3
-
-        intent = payment_services.create_intent(
-            obligation=charge, user=user, payment_method="mobile_money", amount_minor=part
-        )
-        assert intent.amount_minor == part
-
-        body, headers = _signed(_success_payload(intent))
-        payment_services.process_webhook(provider_name="memory", raw_body=body, headers=headers)
-
-        charge.refresh_from_db()
-        assert charge.status == ChargeStatus.PART_PAID
-        assert charge.amount_paid_minor == part
-        assert charge.outstanding_minor == full - part
-
-        # The whole financial record, at the part amount — not a lesser event.
-        allocation = PaymentAllocation.objects.get()
-        assert allocation.amount_minor == part
-        transaction_row = PaymentTransaction.objects.get()
-        assert transaction_row.amount_minor == part
-        assert transaction_row.ledger_entries.count() == 2
-        assert transaction_row.receipt.breakdown["payment"]["amount_minor"] == part
-
-    def test_two_part_payments_settle_the_charge_exactly_once(self, landlord, user, obligation):
-        _, charge = obligation
-        full = charge.outstanding_minor
-        first = full // 4
-
-        intent = payment_services.create_intent(
-            obligation=charge, user=user, payment_method="mobile_money", amount_minor=first
-        )
-        body, headers = _signed(_success_payload(intent, transaction_id="psp_part_1"))
-        payment_services.process_webhook(provider_name="memory", raw_body=body, headers=headers)
-
-        charge.refresh_from_db()
-        second = payment_services.create_intent(
-            obligation=charge, user=user, payment_method="mobile_money"
-        )
-        assert second.amount_minor == full - first
-        body, headers = _signed(
-            _success_payload(second, transaction_id="psp_part_2", event_id="evt_2")
-        )
-        payment_services.process_webhook(provider_name="memory", raw_body=body, headers=headers)
-
-        charge.refresh_from_db()
-        assert charge.status == ChargeStatus.PAID
-        assert charge.amount_paid_minor == full
-        assert charge.outstanding_minor == 0
-        assert sum(row.amount_minor for row in PaymentAllocation.objects.all()) == full
+        with pytest.raises(ValidationFailed, match="Partial rent payments"):
+            payment_services.create_intent(
+                obligation=charge, user=user, payment_method="mobile_money",
+                amount_minor=charge.outstanding_minor // fraction,
+            )
+        assert not charge.payment_intents.exists()
+        assert not PaymentTransaction.objects.exists()
+        assert not PaymentAllocation.objects.exists()
 
     def test_a_part_payment_can_never_exceed_what_is_outstanding(self, landlord, user, obligation):
         _, charge = obligation
@@ -485,7 +457,7 @@ class TestTheTwoRailsAgreeOnPartPayment:
         the floor, so settling the whole remaining balance is always allowed.
         """
         _, charge = obligation
-        with pytest.raises(ValidationFailed, match="part payment must be at least"):
+        with pytest.raises(ValidationFailed, match="Partial rent payments"):
             payment_services.create_intent(
                 obligation=charge, user=user, payment_method="mobile_money", amount_minor=1
             )
@@ -501,42 +473,26 @@ class TestTheTwoRailsAgreeOnPartPayment:
         )
         assert intent.amount_minor == 900
 
-    def test_the_amount_a_landlord_could_record_is_the_amount_a_tenant_could_pay(
-        self, landlord, user, obligation
+    @pytest.mark.parametrize("payer", ["provider", "tenant"])
+    def test_both_parties_are_refused_partial_external_records(
+        self, landlord, user, obligation, payer
     ):
-        """The invariant the disagreement violated, stated directly."""
         lease, charge = obligation
-        part = charge.outstanding_minor // 2
+        with pytest.raises(ValidationFailed, match="Partial rent payments"):
+            rent_services.record_payment(
+                lease=lease, user=landlord if payer == "provider" else user,
+                data={"charge_id": str(charge.id),
+                      "amount_minor": charge.outstanding_minor // 2,
+                      "paid_on": date.today(), "method": "cash"},
+            )
+        assert not RentPayment.objects.exists()
 
-        # The external rail accepts it...
-        payment = rent_services.record_payment(
-            lease=lease,
-            user=landlord,
-            data={
-                "charge_id": str(charge.id),
-                "amount_minor": part,
-                "paid_on": date.today(),
-                "method": "cash",
-            },
-        )
-        assert payment.amount_minor == part
-
-        # ...and so does the digital one, for the balance that is left.
-        charge.refresh_from_db()
-        intent = payment_services.create_intent(
-            obligation=charge,
-            user=user,
-            payment_method="mobile_money",
-            amount_minor=part,
-        )
-        assert intent.amount_minor == part
-
-    def test_a_pending_part_payment_cannot_overpay_a_shrunken_obligation(
+    def test_a_pending_payment_cannot_overpay_a_shrunken_obligation(
         self, landlord, user, obligation
     ):
         """A waiver landing mid-flight must not let the payment overshoot."""
         lease, charge = obligation
-        part = charge.outstanding_minor // 2
+        part = charge.outstanding_minor
         intent = payment_services.create_intent(
             obligation=charge, user=user, payment_method="mobile_money", amount_minor=part
         )
@@ -562,7 +518,7 @@ class TestTheTwoRailsAgreeOnPartPayment:
         lease, charge = obligation
         availability = payment_services.digital_payment_availability(lease=lease, user=user)
         assert availability["available"] is True
-        assert availability["allows_partial"] is True
+        assert availability["allows_partial"] is False
         assert availability["minimum_part_minor"] == 5000
         assert availability["outstanding_minor"] == charge.outstanding_minor
         assert availability["currency"] == charge.amount_currency
@@ -664,7 +620,7 @@ class TestOneAuthorityForCollectionReadiness:
                 user=landlord,
                 data={
                     "charge_id": str(charge.id),
-                    "amount_minor": 1000,
+                    "amount_minor": charge.outstanding_minor,
                     "paid_on": date.today(),
                     "method": "cash",
                 },

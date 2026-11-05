@@ -13,6 +13,7 @@
  */
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 
 import { Button } from "@/components/Button";
 import { Check } from "@/components/Check";
@@ -59,7 +60,7 @@ export function AgreementSheet({
   const [shown, setShown] = useState<Lease | null>(lease);
   if (lease && lease !== shown) setShown(lease);
   const current = lease ?? shown;
-  const charges = useCharges(lease?.status === "active" ? lease.id : null);
+  const charges = useCharges(lease && ["active", "awaiting_activation"].includes(lease.status) ? lease.id : null);
   if (!current) return null;
   const state = standing(current);
 
@@ -195,7 +196,9 @@ export function AgreementRecord({
         <p className="rq-decision-note"><Icon name="chat" /><span><small>Recorded reason</small>{lease.decline_reason}</span></p>
       ) : null}
 
-      {lease.status === "active" && charges.length ? <RentSchedule charges={charges} /> : null}
+      {(lease.upfront_payment_enabled !== false && lease.activation_requirement === "initial_payment") ? <Notice tone="info" title="Activation requires confirmed upfront payment" body="After both parties accept, all agreed upfront rent, deposit and fees must be independently confirmed before this tenancy activates." /> : null}
+      {lease.status === "awaiting_activation" && (lease.upfront_payment_enabled !== false && lease.activation_requirement === "initial_payment") ? <Link href={`/record/payment?leaseId=${lease.id}&mode=tenant` as never}>Review and pay upfront charges</Link> : null}
+      {["active", "awaiting_activation"].includes(lease.status) && charges.length ? <RentSchedule charges={charges} /> : null}
 
       <AgreementDocumentSection lease={lease} rendered={rendered} terms={terms} reading={state.decisionOpen} />
 

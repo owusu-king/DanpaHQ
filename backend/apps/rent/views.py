@@ -93,6 +93,11 @@ class LeaseChargesView(APIView):
         charges = RentCharge.objects.filter(lease=lease).prefetch_related(
             "adjustments__actor", "payments"
         )
+        if (
+            lease.status == "awaiting_activation"
+            and lease.activation_requirement == "initial_payment"
+        ):
+            charges = charges.filter(due_on=lease.starts_on)
         payments = RentPayment.objects.filter(lease=lease).select_related(
             "recorded_by",
             "confirmed_by",

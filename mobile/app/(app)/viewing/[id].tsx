@@ -1,6 +1,7 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
+import { ViewingFee } from "@/components/record/ViewingFee";
 import { Image, Linking, StyleSheet, ScrollView, View } from "react-native";
 
 import { ApiFailure } from "@/api";
@@ -155,6 +156,7 @@ export default function ViewingScreen() {
         </RecordPanel>
 
         {actionError ? <Notice tone="error" title={actionError} /> : null}
+        <ViewingFee viewing={viewing} tenant onChanged={load} />
 
         {focused ? (
           mode === "reschedule" ? (
@@ -370,7 +372,7 @@ function ChooseTime({
             tone="action"
             label={whenLabel(slot.starts_at) ?? "A time"}
             detail={slot.note || undefined}
-            onPress={() => { if (!busy) void run(() => confirmSlot(viewing.id, slot.id)); }}
+            onPress={() => { if (!busy) void run(() => confirmSlot(viewing.id, slot.id, viewing.fee?.amount_minor ?? 0)); }}
           />
         ))}
       </RecordPanel>

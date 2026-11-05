@@ -98,6 +98,23 @@ def signed_event(intent, *, event_id="evt-1", amount_minor=None, status="succeed
     return raw, {"X-Payment-Signature": signature}
 
 
+def test_verified_upfront_payments_activate_only_after_rent_and_deposit(
+    settings, landlord, user, unit
+):
+    settings.LEASE_ACTIVATION_REQUIREMENT = "initial_payment"
+    lease = active_lease(landlord, user, unit)
+    assert lease.status == "awaiting_activation"
+    charges = list(lease.charges.filter(due_on=lease.starts_on).order_by("created_at"))
+    assert len(charges) == 2
+    for index, charge in enumerate(charges):
+        intent = services.create_intent(obligation=charge, user=user, payment_method="mobile_money")
+        raw, headers = signed_event(intent, event_id=f"initial-{index}")
+        services.process_webhook(provider_name="memory", raw_body=raw, headers=headers)
+        lease.refresh_from_db()
+        assert lease.status == ("active" if index == len(charges) - 1 else "awaiting_activation")
+    assert lease.tenancy_id
+
+
 class TestIntentBoundary:
     def test_amount_is_derived_from_the_obligation(self, landlord, user, unit):
         _, obligation = obligation_for(landlord, user, unit)
@@ -412,9 +429,9 @@ class TestPaymentApi:
             "available": True,
             "reason": "",
             "methods": ["mobile_money", "card", "bank_transfer"],
-            # The part-payment terms travel with the offer, so a client never
+            # The payment terms travel with the offer, so a client never
             # has to infer the rule the server will enforce.
-            "allows_partial": True,
+            "allows_partial": False,
             "minimum_part_minor": 5000,
             "outstanding_minor": 900000,
             "currency": "GHS",

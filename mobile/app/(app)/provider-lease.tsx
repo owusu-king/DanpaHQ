@@ -69,13 +69,13 @@ export default function ProviderLeaseScreen() {
 
   useFocusEffect(useCallback(() => { void load(); }, [load]));
 
-  async function act(action: "offer" | "confirm" | "cancel" | "end") {
+  async function act(action: "offer" | "confirm" | "activate" | "cancel" | "end") {
     if (!lease) return;
     setBusy(true);
     setError("");
     try {
       if (action === "offer") await offerLease(lease.id);
-      else if (action === "confirm") await leaseAction(lease.id, "confirm");
+      else if (action === "confirm" || action === "activate") await leaseAction(lease.id, action);
       else if (action === "cancel") await cancelLease(lease.id, reason.trim());
       else await endLease(lease.id, reason.trim(), true);
       setConfirmation(null);
@@ -392,13 +392,15 @@ export default function ProviderLeaseScreen() {
 }
 
 /** The one act the status is waiting on, if there is one. */
-function primaryAct(lease: Lease): { action: "offer" | "confirm"; label: string; icon: "send-outline" | "checkmark-done-outline" } | null {
+function primaryAct(lease: Lease): { action: "offer" | "confirm" | "activate"; label: string; icon: "send-outline" | "checkmark-done-outline" } | null {
   if (lease.status === "draft" || lease.status === "ready") {
     return { action: "offer", label: "Send agreement", icon: "send-outline" };
   }
   if (lease.status === "tenant_accepted") {
+    if (lease.activation_requirement === "initial_payment") return { action: "confirm", label: "Confirm agreement", icon: "checkmark-done-outline" };
     return { action: "confirm", label: "Confirm and activate", icon: "checkmark-done-outline" };
   }
+  if (lease.status === "awaiting_activation" && (lease.upfront_payment_enabled !== false && lease.activation_requirement === "initial_payment")) return { action: "activate", label: "Check payment and activate", icon: "checkmark-done-outline" };
   return null;
 }
 

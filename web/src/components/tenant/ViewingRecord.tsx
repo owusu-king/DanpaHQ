@@ -12,6 +12,7 @@ import { Icon } from "@/components/portal/icons";
 import { useToast } from "@/components/toast/Toaster";
 import { Countdown, countsDown, useNow } from "@/components/viewings/Countdown";
 import { ViewingDirections } from "@/components/viewings/ViewingDirections";
+import { ViewingFee } from "@/components/viewings/ViewingFee";
 import { ModalSheet } from "@/components/workspace/ModalSheet";
 import { ApiFailure } from "@/lib/api";
 import {
@@ -159,6 +160,7 @@ export function ViewingRecord({ viewing, onChanged }: { viewing: MyViewing; onCh
 
   return (
     <div className="vr viewing-detail tenant-vr">
+      <ViewingFee viewing={viewing} tenant onChanged={onChanged} />
       {/* When, where it stands and where it is: one card, read at a glance. */}
       <section className="vr-hero" data-tone={tone} aria-label="Viewing">
         <div className="vr-when">
@@ -362,7 +364,7 @@ function ChooseTime({ viewing, busy, run }: { viewing: MyViewing; busy: boolean;
           busy={busy}
           busyLabel="Confirming…"
           disabled={!selected}
-          onClick={() => void run(() => confirmMyViewingSlot(viewing.id, selected), "Viewing confirmed")}
+          onClick={() => void run(() => confirmMyViewingSlot(viewing.id, selected, viewing.fee?.amount_minor ?? 0), "Viewing confirmed")}
         ><Icon name="check" />Confirm this time</Button>
       </div>
       <p className="vr-panel-body">The landlord&apos;s number is released once a time is set.</p>

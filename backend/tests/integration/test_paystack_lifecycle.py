@@ -785,44 +785,17 @@ class TestFailureRetryAndAbandonment:
         assert fresh.status == IntentStatus.PENDING
 
 
-class TestPartialPayment:
-    def test_two_part_payments_settle_the_charge_exactly(self, live, landlord, user, obligation):
-        """ADR 0031, over the Paystack rail rather than the sandbox adapter."""
+class TestFullPaymentRequired:
+    def test_partial_payment_never_reaches_paystack(self, live, landlord, user, obligation):
         _, charge = obligation
-        full = charge.outstanding_minor
-        first_part = full // 4
-
-        first = payment_services.create_intent(
-            obligation=charge,
-            user=user,
-            payment_method="mobile_money",
-            amount_minor=first_part,
-        )
-        assert (
-            next(c for c in live.calls if c["path"] == "/transaction/initialize")["json"]["amount"]
-            == first_part
-        )
-        row = live.charge(first.provider_reference, amount=first_part, id=800001)
-        body, headers = signed(charge_event(row))
-        payment_services.process_webhook(provider_name="paystack", raw_body=body, headers=headers)
-
-        charge.refresh_from_db()
-        assert charge.status == ChargeStatus.PART_PAID
-        assert charge.outstanding_minor == full - first_part
-
-        second = payment_services.create_intent(
-            obligation=charge, user=user, payment_method="mobile_money"
-        )
-        assert second.amount_minor == full - first_part
-        row = live.charge(second.provider_reference, amount=second.amount_minor, id=800002)
-        body, headers = signed(charge_event(row))
-        payment_services.process_webhook(provider_name="paystack", raw_body=body, headers=headers)
-
-        charge.refresh_from_db()
-        assert charge.status == ChargeStatus.PAID
-        assert charge.outstanding_minor == 0
-        assert sum(a.amount_minor for a in PaymentAllocation.objects.all()) == full
-        assert LedgerEntry.objects.count() == 4
+        with pytest.raises(ValidationFailed, match="Partial rent payments"):
+            payment_services.create_intent(
+                obligation=charge, user=user, payment_method="mobile_money",
+                amount_minor=charge.outstanding_minor // 4,
+            )
+        assert not any(call["path"] == "/transaction/initialize" for call in live.calls)
+        assert not PaymentIntent.objects.exists()
+        assert not PaymentAllocation.objects.exists()
 
 
 class TestSettlementImport:

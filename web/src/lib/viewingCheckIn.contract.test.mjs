@@ -7,8 +7,7 @@ import { fileURLToPath } from "node:url";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const read = (relative) => readFileSync(resolve(root, relative), "utf8");
 
-test("web viewing attendance uses a free QR/code check-in before completion", () => {
-  const page = read("web/app/viewings/page.tsx");
+test("web viewing attendance uses QR/code check-in before completion with separate fee disclosure", () => {
   // The provider's record left the split pane for `/viewings/<viewingId>`.
   // Everything these assertions protect went with it and none of it changed.
   const providerRecord = read("web/src/components/viewings/ProviderViewingRecord.tsx");
@@ -33,10 +32,8 @@ test("web viewing attendance uses a free QR/code check-in before completion", ()
     meaning.indexOf("\n}", meaning.indexOf("export function providerViewingView")),
   );
   assert.match(routing, /viewing\.status === "checked_in"/);
-  // Free, on every surface the workflow now touches.
-  for (const source of [page, record, providerRecord]) {
-    assert.doesNotMatch(source, /viewing_fee/);
-  }
+  assert.match(record, /<ViewingFee viewing=\{viewing\} tenant/);
+  assert.match(providerRecord, /<ViewingFee viewing=\{viewing\} tenant=\{false\}/);
   assert.match(api, /\/check-in\//);
 });
 test("tenant viewing refreshes while a QR check-in is active", () => {

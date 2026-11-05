@@ -215,6 +215,11 @@ class LeaseActionView(APIView):
             )
         elif action == "confirm":
             lease = services.confirm_lease(lease=lease, user=request.user, request=request)
+        elif action == "activate":
+            services.assert_landlord_side(lease, request.user)
+            lease = services.activate_lease(
+                lease=lease, actor=request.user, satisfied_requirement="initial_payment"
+            )
         else:
             raise NotFound("Unknown action.")
 

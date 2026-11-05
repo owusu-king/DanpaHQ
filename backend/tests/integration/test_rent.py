@@ -364,13 +364,35 @@ class TestRentRemindersArePaid:
 
 
 class TestRecordingAPayment:
+    def test_tenant_cannot_bypass_full_payment_validation_without_an_obligation(
+        self, landlord, user, unit
+    ):
+        lease = _active_lease(landlord, user, unit)
+        with pytest.raises(ValidationFailed, match="Choose the outstanding obligation"):
+            services.record_payment(
+                lease=lease, user=user, data={"amount_minor": 1000, "paid_on": date.today()}
+            )
+
+    def test_currency_must_match_the_obligation(self, landlord, user, unit):
+        lease = _active_lease(landlord, user, unit)
+        charge = services.build_schedule(lease)[0]
+        with pytest.raises(ValidationFailed, match="currency must match"):
+            services.record_payment(
+                lease=lease, user=user,
+                data={"charge_id": charge.id, "amount_minor": charge.outstanding_minor,
+                      "amount_currency": "USD", "paid_on": date.today()},
+            )
+        assert not charge.payments.exists()
+
     def test_either_party_can_record_one(self, landlord, user, unit):
         lease = _active_lease(landlord, user, unit)
+        charge = services.build_schedule(lease)[0]
         payment = services.record_payment(
             lease=lease,
             user=user,
             data={
-                "amount_minor": 900000,
+                "charge_id": charge.id,
+                "amount_minor": charge.amount_minor,
                 "paid_on": date.today(),
                 "method": "momo",
                 "reference": "MP240814.1234.A56789",
@@ -402,6 +424,28 @@ class TestRecordingAPayment:
 
 
 class TestConfirmation:
+    def test_stale_confirmation_cannot_override_a_dispute(self, landlord, user, unit):
+        from apps.rent.models import RentPayment
+
+        _, charge, payment = self._claimed(landlord, user, unit)
+        stale = RentPayment.objects.get(pk=payment.pk)
+        services.dispute_payment(payment=payment, user=landlord, reason="Not received")
+        with pytest.raises(Conflict):
+            services.confirm_payment(payment=stale, user=landlord)
+        charge.refresh_from_db()
+        assert charge.outstanding_minor == charge.amount_minor
+
+    def test_stale_dispute_recomputes_the_confirmed_balance(self, landlord, user, unit):
+        from apps.rent.models import RentPayment
+
+        _, charge, payment = self._claimed(landlord, user, unit)
+        stale = RentPayment.objects.get(pk=payment.pk)
+        services.confirm_payment(payment=payment, user=landlord)
+        services.dispute_payment(payment=stale, user=landlord, reason="Reversed")
+        charge.refresh_from_db()
+        assert charge.amount_paid_minor == 0
+        assert charge.status == ChargeStatus.DUE
+
     def _claimed(self, landlord, tenant, unit):
         lease = _active_lease(landlord, tenant, unit)
         charge = services.build_schedule(lease)[0]
@@ -439,19 +483,18 @@ class TestConfirmation:
         assert charge.status == ChargeStatus.DUE
         assert charge.outstanding_minor == charge.amount_minor
 
-    def test_a_part_payment_leaves_the_rest_outstanding(self, landlord, user, unit):
+    def test_a_part_payment_is_refused(self, landlord, user, unit):
         lease = _active_lease(landlord, user, unit)
         charge = services.build_schedule(lease)[0]
-        payment = services.record_payment(
-            lease=lease,
-            user=user,
-            data={"amount_minor": 300000, "paid_on": date.today(), "charge_id": charge.id},
-        )
-        services.confirm_payment(payment=payment, user=landlord)
-
+        with pytest.raises(ValidationFailed, match="Partial rent payments"):
+            services.record_payment(
+                lease=lease, user=user,
+                data={"amount_minor": 300000, "paid_on": date.today(), "charge_id": charge.id},
+            )
         charge.refresh_from_db()
-        assert charge.status == ChargeStatus.PART_PAID
-        assert charge.outstanding_minor == charge.amount_minor - 300000
+        assert charge.status == ChargeStatus.DUE
+        assert charge.outstanding_minor == charge.amount_minor
+        assert not charge.payments.exists()
 
     def test_confirming_twice_is_refused(self, landlord, user, unit):
         _, _, payment = self._claimed(landlord, user, unit)
@@ -643,10 +686,15 @@ class TestDispute:
 
     def test_you_cannot_dispute_your_own_record(self, landlord, user, unit):
         lease = _active_lease(landlord, user, unit)
+        charge = services.build_schedule(lease)[0]
         payment = services.record_payment(
             lease=lease,
             user=user,
-            data={"amount_minor": 1000, "paid_on": date.today()},
+            data={
+                "charge_id": charge.id,
+                "amount_minor": charge.amount_minor,
+                "paid_on": date.today(),
+            },
         )
         with pytest.raises(PermissionDenied):
             services.dispute_payment(payment=payment, user=user)
@@ -833,7 +881,7 @@ class TestPostTenancyBalance:
             user=user,
             data={
                 "charge_id": charge.id,
-                "amount_minor": 10000,
+                "amount_minor": charge.outstanding_minor,
                 "paid_on": timezone.localdate(),
                 "method": "cash",
             },
@@ -1007,7 +1055,7 @@ class TestWhatTheProviderIsToldTheyAreOwed:
         lease = _canonical_lease(landlord, user, space)
         charges = _settle(lease)
         charge = next(row for row in charges if row.outstanding_minor > 0)
-        amount = min(50000, charge.outstanding_minor)
+        amount = charge.outstanding_minor
         payment = services.record_payment(
             lease=lease,
             user=user,
@@ -1105,17 +1153,15 @@ class TestWhatTheProviderIsToldTheyAreOwed:
         )
         assert charge is not None
 
-        payment = services.record_payment(
-            lease=lease,
-            user=user,
-            data={
-                "amount_minor": charge.amount_minor // 3,
-                "paid_on": date.today(),
-                "charge_id": charge.id,
-                "method": "momo",
-            },
+        from apps.rent.models import RentPayment
+
+        RentPayment.objects.create(
+            lease=lease, charge=charge, recorded_by=user, confirmed_by=landlord,
+            amount_minor=charge.amount_minor // 3, amount_currency=charge.amount_currency,
+            paid_on=date.today(), method="momo", status=PaymentStatus.CONFIRMED,
+            confirmed_at=timezone.now(),
         )
-        services.confirm_payment(payment=payment, user=landlord)
+        services._resettle(charge)
 
         lease_services.end_lease(lease=lease, user=landlord, confirmed=True)
         _dispatch()
@@ -1296,7 +1342,11 @@ class TestRentalHistory:
         claimed = services.record_payment(
             lease=lease,
             user=user,
-            data={"amount_minor": 100000, "paid_on": date.today(), "charge_id": charge.id},
+            data={
+                "amount_minor": charge.amount_minor,
+                "paid_on": date.today(),
+                "charge_id": charge.id,
+            },
         )
         history = services.rental_history(user=user)
         assert history["payments_confirmed"] == 0
@@ -1305,7 +1355,7 @@ class TestRentalHistory:
         services.confirm_payment(payment=claimed, user=landlord)
         history = services.rental_history(user=user)
         assert history["payments_confirmed"] == 1
-        assert history["total_confirmed_minor"] == 100000
+        assert history["total_confirmed_minor"] == charge.amount_minor
 
     def test_it_distinguishes_on_time_from_late(self, landlord, user, unit):
         lease = _active_lease(landlord, user, unit)

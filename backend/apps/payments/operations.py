@@ -132,11 +132,12 @@ def _who_and_what(intent) -> dict:
             "portfolio": invoice.billing_account.organization.name,
             "description": f"{invoice.plan.name} subscription · {invoice.number}",
         }
+    unit = intent.viewing.listing.unit if intent.is_viewing else intent.lease.unit
     return {
         "purpose": intent.purpose,
         "tenant": intent.tenant.display_name,
-        "property": intent.lease.unit.property.title,
-        "unit": intent.lease.unit.label,
+        "property": unit.property.title,
+        "unit": unit.label,
         "portfolio": "",
         "description": "",
     }

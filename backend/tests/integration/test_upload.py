@@ -297,6 +297,44 @@ class TestDownload:
 
 
 class TestRetention:
+    def test_abandoned_uploaded_bytes_are_purged_without_touching_live_uploads(
+        self, user, memory_storage, monkeypatch
+    ):
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from apps.files import services
+        from apps.files.storage import StorageError
+        from apps.files.tasks import purge_expired_files
+
+        abandoned, _ = services.reserve_upload(
+            user=user, purpose="avatar", filename="abandoned.jpg",
+            content_type="image/jpeg", size_bytes=100_000,
+        )
+        live, _ = services.reserve_upload(
+            user=user, purpose="avatar", filename="live.jpg",
+            content_type="image/jpeg", size_bytes=100_000,
+        )
+        _write_jpeg(memory_storage, abandoned.storage_key)
+        _write_jpeg(memory_storage, live.storage_key)
+        StoredFile.objects.filter(pk=abandoned.pk).update(
+            upload_expires_at=timezone.now() - timedelta(minutes=1)
+        )
+        expire_abandoned_uploads()
+        with monkeypatch.context() as unavailable:
+            def fail_delete(**kwargs):
+                raise StorageError("Storage temporarily unavailable")
+
+            unavailable.setattr(memory_storage, "delete", fail_delete)
+            assert purge_expired_files() == {"purged": 0, "failed": 1}
+        assert memory_storage.exists(key=abandoned.storage_key)
+        assert purge_expired_files()["purged"] == 1
+        assert not memory_storage.exists(key=abandoned.storage_key)
+        assert memory_storage.exists(key=live.storage_key)
+        abandoned.refresh_from_db()
+        assert abandoned.deleted_at is not None
+
     def test_expired_reservations_are_swept(self, user):
         from datetime import timedelta
 

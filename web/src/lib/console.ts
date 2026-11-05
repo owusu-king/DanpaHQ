@@ -1627,6 +1627,8 @@ export type ViewingDirections = {
 };
 
 export type Viewing = {
+  fee?: { amount_minor: number; currency: string; collection: "platform" | "direct"; status: "free" | "unpaid" | "claimed" | "paid"; claimed_by: "tenant" | "host" | null } | null;
+  fee_policy?: { mode: "disabled" | "free" | "fixed" | "provider"; collection: "platform" | "direct"; fixed_minor: number; minimum_minor: number; maximum_minor: number; currency: string };
   id: string;
   status:
     | "requested"
@@ -1735,6 +1737,7 @@ export function listHostViewings(openOnly = false, scope?: PortfolioScope) {
 export function offerSlots(
   viewingId: string,
   input: {
+    viewing_fee_minor?: number;
     slots: { starts_at: string; duration_minutes?: number; note?: string }[];
   },
 ) {
@@ -1939,6 +1942,7 @@ export type Lease = {
   workflow_version: "legacy" | "canonical_v1";
   status: "draft" | "ready" | "offered" | "tenant_accepted" | "awaiting_activation" | "active" | "declined" | "cancelled" | "ended";
   status_display: string;
+  upfront_payment_enabled?: boolean;
   activation_requirement: "lease_accepted" | "initial_payment";
   unit: string;
   listing: string | null;
@@ -2103,7 +2107,7 @@ export function draftLease(input: {
 
 export function leaseAction(
   id: string,
-  action: "ready" | "offer" | "review" | "accept" | "decline" | "confirm" | "cancel" | "end",
+  action: "ready" | "offer" | "review" | "accept" | "decline" | "confirm" | "activate" | "cancel" | "end",
   reason = "",
   confirmed = false,
 ) {

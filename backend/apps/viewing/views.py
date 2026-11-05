@@ -188,7 +188,18 @@ class ViewingActionView(APIView):
             request=viewing,
             user=request.user,
             slots=payload.validated_data["slots"],
+            viewing_fee_minor=payload.validated_data.get("viewing_fee_minor"),
         )
+
+    def _record_fee(self, request, viewing):
+        from .fees import record_direct
+
+        return record_direct(viewing=viewing, user=request.user)
+
+    def _confirm_fee(self, request, viewing):
+        from .fees import record_direct
+
+        return record_direct(viewing=viewing, user=request.user, confirm=True)
 
     def _reschedule(self, request, viewing):
         payload = OfferSlotsSerializer(data=request.data)
@@ -215,7 +226,8 @@ class ViewingActionView(APIView):
         payload = ConfirmSlotSerializer(data=request.data)
         payload.is_valid(raise_exception=True)
         return services.confirm_slot(
-            request=viewing, user=request.user, slot_id=payload.validated_data["slot_id"]
+            request=viewing, user=request.user, slot_id=payload.validated_data["slot_id"],
+            accepted_fee_minor=payload.validated_data.get("accepted_fee_minor"),
         )
 
     def _cancel(self, request, viewing):

@@ -279,8 +279,7 @@ def record_payment(*, lease, user, data: dict) -> RentPayment:
     if data["paid_on"] > timezone.now().date():
         raise ValidationFailed("That date is in the future.")
 
-    is_provider = str(lease.tenant_id) != str(user.id)
-    if is_provider and not data.get("charge_id"):
+    if not data.get("charge_id"):
         raise ValidationFailed("Choose the outstanding obligation this payment belongs to.")
 
     charge = None
@@ -297,6 +296,12 @@ def record_payment(*, lease, user, data: dict) -> RentPayment:
             raise Conflict("That obligation no longer has an outstanding balance.")
         if int(amount_minor) > charge.outstanding_minor:
             raise Conflict("That payment would exceed the obligation's outstanding balance.")
+        if int(amount_minor) < charge.outstanding_minor:
+            raise ValidationFailed(
+                "Partial rent payments are not allowed. Record the full outstanding balance."
+            )
+        if data.get("amount_currency", lease.rent_currency or "GHS") != charge.amount_currency:
+            raise ValidationFailed("The payment currency must match the obligation.")
 
     evidence_file = None
     if data.get("evidence_file_id"):
@@ -364,6 +369,7 @@ def confirm_payment(*, payment: RentPayment, user) -> RentPayment:
     This is the line that makes the record worth anything: a receipt is two
     people agreeing, not one person asserting.
     """
+    payment = RentPayment.objects.select_for_update().get(pk=payment.pk)
     lease = payment.lease
     assert_party(lease, user)
     assert_payment_capability_if_provider(lease, user)
@@ -437,12 +443,16 @@ def confirm_payment(*, payment: RentPayment, user) -> RentPayment:
             },
         )
     )
+    from apps.lease.services import activate_after_initial_payment
+
+    activate_after_initial_payment(lease)
     return payment
 
 
 @transaction.atomic
 def dispute_payment(*, payment: RentPayment, user, reason: str = "") -> RentPayment:
     """Say it did not happen, or not like that. Never deletes the claim."""
+    payment = RentPayment.objects.select_for_update().get(pk=payment.pk)
     lease = payment.lease
     assert_party(lease, user)
     assert_payment_capability_if_provider(lease, user)
@@ -583,6 +593,9 @@ def apply_confirmed_payment(payment: RentPayment) -> None:
     if payment.status != PaymentStatus.CONFIRMED or payment.charge_id is None:
         raise ValidationFailed("Only a confirmed payment tied to a charge can settle it.")
     _resettle(payment.charge)
+    from apps.lease.services import activate_after_initial_payment
+
+    activate_after_initial_payment(payment.lease)
 
 
 @transaction.atomic

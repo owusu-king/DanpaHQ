@@ -23,7 +23,9 @@ def _check(fn) -> dict:
     # Broad on purpose: a readiness probe reports whatever went wrong rather
     # than crashing on an error nobody predicted. It is surfaced in the payload.
     except Exception as exc:
-        status, detail = "error", str(exc)[:200]
+        # This endpoint is public. Driver errors can contain connection details
+        # and credentials; only expose the failure class to the probe caller.
+        status, detail = "error", type(exc).__name__
     return {
         "status": status,
         "latency_ms": round((time.monotonic() - started) * 1000, 2),

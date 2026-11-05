@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import timedelta
 
 from celery import shared_task
 from django.conf import settings
@@ -71,6 +72,12 @@ def expire_abandoned_uploads() -> dict:
         upload_status=UploadStatus.AWAITING_UPLOAD, upload_expires_at__lt=now
     )
     expired = stale.update(upload_status=UploadStatus.EXPIRED, updated_at=now)
+    # An expired reservation may already have bytes in storage even though the
+    # client never completed it. Put these on the existing retryable purge path,
+    # including reservations expired by an earlier version of this task.
+    StoredFile.objects.filter(upload_status=UploadStatus.EXPIRED).update(
+        retain_until=timezone.localdate() - timedelta(days=1),
+    )
     return {"expired": expired}
 
 

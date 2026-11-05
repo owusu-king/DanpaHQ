@@ -273,6 +273,8 @@ class PaystackPaymentProvider(PaymentProvider):
                 if subscription
                 else {
                     "danpahq_intent_id": str(intent.id),
+                    "danpahq_purpose": getattr(intent, "purpose", "rent_obligation"),
+                    "danpahq_viewing_id": str(getattr(intent, "viewing_id", "") or ""),
                     "danpahq_obligation_id": str(intent.obligation_id),
                     "danpahq_lease_id": str(intent.lease_id),
                 }

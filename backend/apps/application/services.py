@@ -74,6 +74,7 @@ def conclude_for_lease(lease) -> None:
     )
 
 
+@transaction.atomic
 def submit_application(*, listing, tenant, data: dict) -> RentalApplication:
     from apps.listing.models import Listing, ListingStatus
     from apps.occupancy.services import unit_is_occupied
@@ -184,6 +185,7 @@ def start_review(*, application: RentalApplication, user) -> RentalApplication:
     Small, but it is the difference between waiting and waiting in silence,
     which is most of what applicants complain about.
     """
+    application.refresh_from_db(from_queryset=RentalApplication.objects.select_for_update())
     assert_host(application, user)
     assert_current(application)
     if application.status != ApplicationStatus.SUBMITTED:
@@ -214,6 +216,7 @@ def start_review(*, application: RentalApplication, user) -> RentalApplication:
 def decide(
     *, application: RentalApplication, user, accept: bool, note: str = ""
 ) -> RentalApplication:
+    application.refresh_from_db(from_queryset=RentalApplication.objects.select_for_update())
     assert_host(application, user)
     assert_current(application)
     if not application.is_open:
@@ -255,6 +258,7 @@ def decide(
 
 @transaction.atomic
 def withdraw(*, application: RentalApplication, user, note: str = "") -> RentalApplication:
+    application.refresh_from_db(from_queryset=RentalApplication.objects.select_for_update())
     if str(application.tenant_id) != str(user.id):
         raise PermissionDenied("Only the applicant can withdraw an application.")
     assert_current(application)

@@ -166,6 +166,7 @@ class PaymentPurpose(models.TextChoices):
     """
 
     RENT_OBLIGATION = "rent_obligation", "Rent obligation"
+    VIEWING_FEE = "viewing_fee", "Viewing fee"
     SUBSCRIPTION_INVOICE = "subscription_invoice", "Danpa HQ subscription"
 
 
@@ -180,6 +181,10 @@ class PaymentIntent(BaseModel):
 
     purpose = models.CharField(
         max_length=24, choices=PaymentPurpose.choices, default=PaymentPurpose.RENT_OBLIGATION
+    )
+    viewing = models.ForeignKey(
+        "viewing.ViewingRequest", null=True, blank=True, on_delete=models.PROTECT,
+        related_name="fee_intents",
     )
     tenant = models.ForeignKey(
         "identity.User",
@@ -264,6 +269,10 @@ class PaymentIntent(BaseModel):
         ]
         constraints = [
             models.UniqueConstraint(
+                fields=["viewing"], condition=models.Q(status__in=OPEN_INTENT_STATUSES),
+                name="payments_one_open_intent_viewing",
+            ),
+            models.UniqueConstraint(
                 fields=["obligation"],
                 condition=models.Q(status__in=OPEN_INTENT_STATUSES),
                 name="payments_one_open_intent_per_obligation",
@@ -284,6 +293,7 @@ class PaymentIntent(BaseModel):
                         lease__isnull=False,
                         obligation__isnull=False,
                         billing_invoice__isnull=True,
+                        viewing__isnull=True,
                     )
                     | models.Q(
                         purpose="subscription_invoice",
@@ -292,6 +302,11 @@ class PaymentIntent(BaseModel):
                         tenant__isnull=True,
                         lease__isnull=True,
                         obligation__isnull=True,
+                        viewing__isnull=True,
+                    )
+                    | models.Q(
+                        purpose="viewing_fee", viewing__isnull=False, tenant__isnull=False,
+                        lease__isnull=True, obligation__isnull=True, billing_invoice__isnull=True,
                     )
                 ),
                 name="payments_intent_settles_one_kind_of_obligation",
@@ -305,6 +320,10 @@ class PaymentIntent(BaseModel):
     @property
     def is_subscription(self) -> bool:
         return self.purpose == PaymentPurpose.SUBSCRIPTION_INVOICE
+
+    @property
+    def is_viewing(self) -> bool:
+        return self.purpose == PaymentPurpose.VIEWING_FEE
 
     @property
     def payer_id(self):
@@ -593,6 +612,10 @@ class PaymentAllocation(BaseModel):
     transaction = models.ForeignKey(
         PaymentTransaction, on_delete=models.PROTECT, related_name="allocations"
     )
+    viewing = models.ForeignKey(
+        "viewing.ViewingRequest", null=True, blank=True, on_delete=models.PROTECT,
+        related_name="fee_allocations",
+    )
     obligation = models.ForeignKey(
         "rent.RentCharge",
         null=True,
@@ -634,8 +657,15 @@ class PaymentAllocation(BaseModel):
             ),
             models.CheckConstraint(
                 condition=(
-                    models.Q(obligation__isnull=False, billing_invoice__isnull=True)
-                    | models.Q(obligation__isnull=True, billing_invoice__isnull=False)
+                    models.Q(
+                        obligation__isnull=False, billing_invoice__isnull=True,
+                        viewing__isnull=True)
+                    | models.Q(
+                        obligation__isnull=True, billing_invoice__isnull=False,
+                        viewing__isnull=True)
+                    | models.Q(
+                        obligation__isnull=True, billing_invoice__isnull=True,
+                        viewing__isnull=False)
                 ),
                 name="payments_allocation_exactly_one_obligation",
             ),

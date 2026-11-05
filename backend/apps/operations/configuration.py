@@ -43,6 +43,42 @@ class ConfigurationField:
 
 FIELDS = (
     ConfigurationField(
+        "LEASE_ACTIVATION_REQUIREMENT", "Leases and viewings", "Lease activation",
+        "Disabled hides upfront activation controls. New agreements activate after both accept. "
+        "Existing agreed payment conditions are preserved.",
+        kind="choice", choices=(("disabled", "Disabled — hide upfront payment activation"),
+                                ("lease_accepted", "Both parties accept"),
+                                ("initial_payment", "Both accept and upfront payment confirmed")),
+    ),
+    ConfigurationField(
+        "VIEWING_FEE_MODE", "Leases and viewings", "Viewing fee policy",
+        "Disabled hides fees and stops new collection. Free shows a Free label. "
+        "Existing agreed fees and payment records are preserved.",
+        kind="choice", choices=(("disabled", "Disabled — hide viewing fees"),
+                                ("free", "Free"), ("fixed", "Standard fee"),
+                                ("provider", "Provider sets fee within limits")),
+    ),
+    ConfigurationField(
+        "VIEWING_FEE_COLLECTION", "Leases and viewings", "Viewing fee collection",
+        "Collect through Danpa HQ checkout or pay the provider directly.",
+        kind="choice", choices=(
+            ("platform", "Danpa HQ checkout"), ("direct", "Pay provider directly")),
+    ),
+    ConfigurationField(
+        "VIEWING_FEE_FIXED_MINOR", "Leases and viewings", "Standard viewing fee (pesewas)",
+        "100 pesewas = GH₵1. Used for the standard fee policy.",
+        kind="integer", minimum=0, maximum=100000000,
+    ),
+    ConfigurationField(
+        "VIEWING_FEE_MIN_MINOR", "Leases and viewings", "Minimum provider viewing fee (pesewas)",
+        "Lower limit when providers set their fee.", kind="integer", minimum=0, maximum=100000000,
+    ),
+    ConfigurationField(
+        "VIEWING_FEE_MAX_MINOR", "Leases and viewings", "Maximum provider viewing fee (pesewas)",
+        "Upper limit when providers set their fee. Zero permits only free viewings.",
+        kind="integer", minimum=0, maximum=100000000,
+    ),
+    ConfigurationField(
         "PAYMENT_BACKEND",
         "Payments",
         "Payment provider",
@@ -418,6 +454,9 @@ def apply_updates(*, updates: list[dict], actor: ManagementUser) -> dict:
                 ]
             },
         )
+
+    if value("VIEWING_FEE_MIN_MINOR", 0) > value("VIEWING_FEE_MAX_MINOR", 0):
+        raise ValidationFailed("The minimum viewing fee cannot exceed the maximum.")
 
     # Providers cache their adapter instances. Forget them after a successful
     # transaction so the very next operation observes the new selection.

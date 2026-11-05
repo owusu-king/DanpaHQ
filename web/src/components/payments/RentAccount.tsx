@@ -543,7 +543,7 @@ export function RecordPaymentForm({
   const openCharges = charges.filter((charge) => charge.outstanding_minor > 0);
   const [chargeId, setChargeId] = useState(openCharges[0]?.id ?? "");
   const selected = openCharges.find((charge) => charge.id === chargeId);
-  const [amount, setAmount] = useState(selected ? String(selected.outstanding_minor / 100) : "");
+  const amount = selected ? String(selected.outstanding_minor / 100) : "";
   const [paidOn, setPaidOn] = useState(new Date().toISOString().slice(0, 10));
   const [method, setMethod] = useState<RentPayment["method"]>("momo");
   const [reference, setReference] = useState("");
@@ -580,8 +580,6 @@ export function RecordPaymentForm({
           value={chargeId}
           onChange={(event) => {
             setChargeId(event.target.value);
-            const charge = openCharges.find((row) => row.id === event.target.value);
-            if (charge) setAmount(String(charge.outstanding_minor / 100));
           }}
         >
           {openCharges.map((charge) => (
@@ -596,7 +594,8 @@ export function RecordPaymentForm({
           label="Amount"
           prefix="GH₵"
           value={amount}
-          onChange={(event) => setAmount(event.target.value.replace(/[^0-9.]/g, ""))}
+          readOnly
+          hint="The full outstanding balance must be recorded."
           inputMode="decimal"
         />
         <Field
@@ -652,6 +651,9 @@ export function RecordPaymentForm({
             const amountMinor = Math.round(Number(amount) * 100);
             if (!Number.isFinite(amountMinor) || amountMinor <= 0) {
               return setError("Enter a valid amount.");
+            }
+            if (amountMinor !== selected?.outstanding_minor) {
+              return setError("Record the full outstanding balance. Partial rent payments are not allowed.");
             }
             setBusy(true);
             setError("");
