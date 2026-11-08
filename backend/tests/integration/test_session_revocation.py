@@ -11,6 +11,30 @@ from apps.identity.models import Session
 pytestmark = pytest.mark.django_db
 
 
+@pytest.mark.parametrize(
+    "claims",
+    [
+        {"sub": "not-a-uuid"},
+        {"sub": None},
+        {"sid": []},
+        {"sid": None},
+        {"roles": "landlord"},
+        {"roles": [{}]},
+    ],
+)
+def test_malformed_signed_access_claims_are_unauthorized(user, sign_in_as, settings, claims):
+    from apps.core.crypto import sign_payload, verify_payload
+
+    signed_in = sign_in_as(user=user)
+    key = settings.ACCESS_TOKEN_KEY or settings.SECRET_KEY
+    payload = verify_payload(signed_in["access_token"], key=key)
+    payload.update(claims)
+    token = sign_payload(payload, key=key, ttl_seconds=60)
+    api = APIClient()
+    api.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
+    assert api.get("/api/v1/me/").status_code == 401
+
+
 @pytest.mark.parametrize("reason", ["user_signed_out", "password_reset", "device_revoked"])
 def test_revoked_access_token_cannot_read_or_mutate(user, sign_in_as, reason):
     api = APIClient()

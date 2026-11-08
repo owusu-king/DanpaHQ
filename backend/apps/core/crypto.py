@@ -153,10 +153,16 @@ def verify_payload(token: str, *, key: str, now: int | None = None) -> dict:
     except (ValueError, UnicodeDecodeError) as exc:
         raise TokenInvalid("Unreadable token payload.") from exc
 
+    if not isinstance(body, dict):
+        raise TokenInvalid("The token payload must be an object.")
+    expires = body.get("exp")
+    issued = body.get("iat")
+    if type(expires) is not int or type(issued) is not int:
+        raise TokenInvalid("The token timestamps are not valid.")
     current = int(time.time()) if now is None else now
-    if current >= body.get("exp", 0):
+    if current >= expires:
         raise TokenExpired("Token has expired.")
-    if body.get("iat", 0) > current + 60:  # tolerate a minute of clock skew
+    if issued > current + 60:  # tolerate a minute of clock skew
         raise TokenInvalid("Token is not valid yet.")
 
     return body

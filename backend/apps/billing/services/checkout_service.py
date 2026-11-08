@@ -202,7 +202,10 @@ def quote(*, organization, plan_code: str, interval: str, now=None) -> Quote:
             direction=DOWNGRADE,
             list_price_minor=list_price or 0,
             effective="period_end" if paid_period else "now",
-            effective_at=subscription.current_period_end if paid_period else now,
+            effective_at=(
+                subscription.current_period_end
+                if paid_period and subscription is not None else now
+            ),
             over_limit=over,
             resource_choice=resource_access_service.downgrade_choice(
                 organization=organization, plan=plan
@@ -230,7 +233,10 @@ def quote(*, organization, plan_code: str, interval: str, now=None) -> Quote:
         if direction == UPGRADE
         else 0
     )
-    start = _renewal_start(subscription, now) if direction == RENEWAL else now
+    start = (
+        _renewal_start(subscription, now)
+        if direction == RENEWAL and subscription is not None else now
+    )
     blocked_code = blocked_reason = ""
     if list_price - credit <= 0:
         blocked_code = "credit_exceeds_price"
@@ -319,8 +325,9 @@ def _prepare_invoice(*, organization, user, plan_code: str, interval: str) -> Bi
     account = BillingAccount.objects.select_for_update().get(id=account.id)
     subscription = live_subscription(organization=organization, lock=True)
     if subscription is None:
-        subscription_service.ensure_free_subscription(organization=organization, actor=user)
-        subscription = live_subscription(organization=organization, lock=True)
+        subscription = subscription_service.ensure_free_subscription(
+            organization=organization, actor=user
+        )
 
     offer = quote(organization=organization, plan_code=plan_code, interval=interval, now=now)
     if offer.blocked_reason:
@@ -492,8 +499,9 @@ def change_plan_without_payment(
     account = BillingAccount.objects.select_for_update().get(id=account.id)
     subscription = live_subscription(organization=organization, lock=True)
     if subscription is None:
-        subscription_service.ensure_free_subscription(organization=organization, actor=user)
-        subscription = live_subscription(organization=organization, lock=True)
+        subscription = subscription_service.ensure_free_subscription(
+            organization=organization, actor=user
+        )
 
     offer = quote(
         organization=organization, plan_code=plan_code, interval=subscription.billing_interval
@@ -564,7 +572,11 @@ def keep_current_plan(*, organization, user) -> Subscription | None:
         subscription.cancel_at_period_end or subscription.scheduled_plan_id
     ):
         return subscription
-    target = "FREE" if subscription.cancel_at_period_end else subscription.scheduled_plan.code
+    scheduled_plan = subscription.scheduled_plan
+    target = (
+        "FREE" if subscription.cancel_at_period_end
+        else scheduled_plan.code if scheduled_plan is not None else ""
+    )
     subscription.cancel_at_period_end = False
     subscription.scheduled_plan = None
     subscription.save(update_fields=["cancel_at_period_end", "scheduled_plan", "updated_at"])

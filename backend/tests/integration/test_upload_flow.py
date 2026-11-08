@@ -231,6 +231,27 @@ class TestCompleteUpload:
 
 
 class TestFileDownload:
+    def test_pending_private_file_is_hidden_from_other_users(
+        self, api, storage, landlord, sign_in_as
+    ):
+        reservation = api.post(
+            "/api/v1/files/uploads/",
+            {
+                "purpose": "payment_evidence",
+                "filename": "receipt.jpg",
+                "content_type": "image/jpeg",
+                "size_bytes": 100,
+            },
+            format="json",
+        )
+        assert reservation.status_code == 201
+        url = f"/api/v1/files/{reservation.data['file_id']}/download/"
+        other_client = APIClient()
+        sign_in_as(other_client, user=landlord, device_fingerprint="landlord-device")
+
+        assert other_client.get(url).status_code == 404
+        assert api.get(url).status_code == 409
+
     def test_owner_gets_a_signed_url(self, api, storage):
         # Reserve + write + complete
         r = api.post(

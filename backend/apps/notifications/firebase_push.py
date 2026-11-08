@@ -27,9 +27,13 @@ def firebase_app():
     if settings.FIREBASE_SERVICE_ACCOUNT_JSON:
         credential = credentials.Certificate(json.loads(settings.FIREBASE_SERVICE_ACCOUNT_JSON))
     try:
-        return firebase_admin.get_app("danpa-push")
+        app = firebase_admin.get_app("danpa-push")
     except ValueError:
-        return firebase_admin.initialize_app(credential, {"httpTimeout": 10}, name="danpa-push")
+        app = firebase_admin.initialize_app(credential, {"httpTimeout": 10}, name="danpa-push")
+    # Application Default Credentials loads the mounted secret lazily. Resolve
+    # it before recording delivery claims so a configuration failure can retry.
+    app.credential.get_credential()
+    return app
 
 
 class PushUnavailable(RuntimeError):

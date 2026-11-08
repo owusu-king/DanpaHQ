@@ -33,6 +33,7 @@ from __future__ import annotations
 
 from calendar import monthrange
 from datetime import date, timedelta
+from typing import TYPE_CHECKING
 
 from django.db import models
 from django.utils import timezone
@@ -199,6 +200,10 @@ class Lease(BaseModel):
     )
 
     # --- the terms, snapshotted -----------------------------------------------
+    if TYPE_CHECKING:
+        rent_minor: int
+        rent_currency: str
+
     rent = MoneyField()
     rent_period = models.CharField(max_length=8, default="monthly")
     advance_months = models.PositiveSmallIntegerField(default=0)

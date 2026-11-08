@@ -144,7 +144,8 @@ def _who_and_what(intent) -> dict:
 
 
 def _exception_row(row: ReconciliationException) -> dict:
-    intent = row.intent or (row.transaction.intent if row.transaction_id else None)
+    transaction_row = row.transaction
+    intent = row.intent or (transaction_row.intent if transaction_row is not None else None)
     return {
         "id": str(row.id),
         "kind": row.kind,

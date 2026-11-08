@@ -22,6 +22,8 @@ import json
 
 from django.utils import timezone
 
+from apps.core.exceptions import ValidationFailed
+
 from . import advance_policy
 from .models import (
     TERMS_SCHEMA_VERSION,
@@ -73,7 +75,7 @@ def freeze_terms(lease: Lease) -> dict:
             "unit_label": lease.unit.label,
             "space_type": lease.unit.space_type,
             "bed_id": str(lease.bed_id) if lease.bed_id else None,
-            "bed_label": lease.bed.label if lease.bed_id else None,
+            "bed_label": lease.bed.label if lease.bed is not None else None,
         },
         "parties": {
             "landlord": {
@@ -104,7 +106,7 @@ def freeze_terms(lease: Lease) -> dict:
                 "version": lease.template.version,
                 "review_status": lease.template.review_status,
             }
-            if lease.template_id
+            if lease.template is not None
             else None
         ),
     }
@@ -148,6 +150,8 @@ def execute_offer(*, lease: Lease, actor, evidence: dict | None = None) -> Lease
         "advance_threshold_months": assessment.threshold_months,
     }
     if lease.workflow_version == LeaseWorkflow.CANONICAL:
+        if lease.template is None:
+            raise ValidationFailed("A canonical agreement requires its template.")
         from .documents import render_agreement
 
         rendered, rendered_text = render_agreement(

@@ -132,7 +132,7 @@ export default function AgreementScreen() {
 
       <View style={styles.section}>
         {(lease.upfront_payment_enabled !== false && lease.activation_requirement === "initial_payment") ? <Notice tone="info" title="Activation requires confirmed upfront payment" body="After both parties accept, all agreed upfront rent, deposit and fees must be independently confirmed." /> : null}
-        {lease.status === "awaiting_activation" && (lease.upfront_payment_enabled !== false && lease.activation_requirement === "initial_payment") ? <Button label="Review and pay upfront charges" onPress={() => router.push({ pathname: "/(app)/rent-account", params: { leaseId: lease.id, mode: "tenant" } } as never)} /> : null}
+        {lease.status === "awaiting_activation" ? <Button label="View payment obligations" onPress={() => router.push({ pathname: "/(app)/rent-account", params: { leaseId: lease.id, mode: "tenant" } } as never)} /> : null}
         <GroupLabel>What it costs</GroupLabel>
         <RecordPanel>
           <Lead label="Move-in total" value={money(terms.moveInTotalMinor, terms.rentCurrency)} />

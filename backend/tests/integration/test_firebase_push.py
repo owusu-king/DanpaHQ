@@ -3,11 +3,16 @@
 import json
 from unittest.mock import Mock
 
+import firebase_admin
 import pytest
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
 from django.db import transaction
 from firebase_admin import messaging
+from google.auth.exceptions import DefaultCredentialsError
 from rest_framework.test import APIClient
 
+from apps.notifications.firebase_push import firebase_app
 from apps.notifications.models import Notification, PushDelivery
 from apps.notifications.services import notify, preferences_for
 from apps.outbox.models import OutboxEvent
@@ -15,6 +20,40 @@ from apps.outbox.tasks import dispatch_pending
 
 pytestmark = pytest.mark.django_db
 EVENT = "notification.push_requested.v1"
+
+
+def test_application_default_credentials_load_the_mounted_file(settings, monkeypatch, tmp_path):
+    settings.FIREBASE_SERVICE_ACCOUNT_JSON = ""
+    secret_file = tmp_path / "firebase.json"
+    monkeypatch.setenv("GOOGLE_APPLICATION_CREDENTIALS", str(secret_file))
+    firebase_app.cache_clear()
+    try:
+        with pytest.raises(DefaultCredentialsError):
+            firebase_app()
+
+        key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        secret_file.write_text(
+            json.dumps(
+                {
+                    "type": "service_account",
+                    "project_id": "danpa-test",
+                    "client_email": "push@danpa-test.iam.gserviceaccount.com",
+                    "token_uri": "https://oauth2.googleapis.com/token",
+                    "private_key": key.private_bytes(
+                        serialization.Encoding.PEM,
+                        serialization.PrivateFormat.PKCS8,
+                        serialization.NoEncryption(),
+                    ).decode(),
+                }
+            ),
+            encoding="utf-8",
+        )
+        app = firebase_app()
+        assert app.project_id == "danpa-test"
+        assert firebase_app() is app
+    finally:
+        firebase_admin.delete_app(firebase_admin.get_app("danpa-push"))
+        firebase_app.cache_clear()
 
 
 @pytest.fixture

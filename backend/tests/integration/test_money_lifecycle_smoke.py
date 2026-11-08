@@ -74,6 +74,9 @@ def active_lease(landlord, user, unit):
     )
     lease_services.offer_lease(lease=lease, user=landlord)
     lease = lease_services.accept_lease(lease=lease, user=user)
+    from tests.payment_helpers import legacy_active_lease
+
+    legacy_active_lease(lease)
     rent_services.build_schedule(lease)
     return lease
 
@@ -353,6 +356,9 @@ def test_an_ended_tenancy_still_refuses_a_brand_new_schedule(landlord, user, uni
     )
     lease_services.offer_lease(lease=lease, user=landlord)
     lease = lease_services.accept_lease(lease=lease, user=user)
+    from tests.payment_helpers import legacy_active_lease
+
+    legacy_active_lease(lease)
     RentCharge.objects.filter(lease=lease).delete()
     lease_services.end_lease(lease=lease, user=landlord, confirmed=True)
     lease.refresh_from_db()

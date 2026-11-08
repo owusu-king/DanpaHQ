@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from django.db import models
 from django.utils import timezone
 
@@ -224,6 +226,10 @@ class PaymentIntent(BaseModel):
         on_delete=models.PROTECT,
         related_name="+",
     )
+    if TYPE_CHECKING:
+        amount_minor: int
+        amount_currency: str
+
     amount = MoneyField()
     status = models.CharField(
         max_length=16, choices=IntentStatus.choices, default=IntentStatus.CREATED
@@ -353,6 +359,10 @@ class PaymentTransaction(BaseModel):
     )
     provider = models.CharField(max_length=40)
     provider_transaction_id = models.CharField(max_length=120)
+    if TYPE_CHECKING:
+        amount_minor: int
+        amount_currency: str
+
     amount = MoneyField()
     payment_method = models.CharField(max_length=20, choices=DigitalPaymentMethod.choices)
     status = models.CharField(max_length=16, choices=TransactionStatus.choices)
@@ -397,6 +407,10 @@ class LedgerEntry(BaseModel):
     line_number = models.PositiveSmallIntegerField()
     account_reference = models.CharField(max_length=160)
     direction = models.CharField(max_length=8, choices=LedgerDirection.choices)
+    if TYPE_CHECKING:
+        amount_minor: int
+        amount_currency: str
+
     amount = MoneyField()
     description = models.CharField(max_length=240)
     occurred_at = models.DateTimeField()
@@ -494,8 +508,20 @@ class Settlement(BaseModel):
     provider_subaccount_id = models.CharField(max_length=80, blank=True)
     provider = models.CharField(max_length=40)
     provider_settlement_reference = models.CharField(max_length=120, blank=True)
+    if TYPE_CHECKING:
+        gross_amount_minor: int
+        gross_amount_currency: str
+
     gross_amount = MoneyField()
+    if TYPE_CHECKING:
+        fee_amount_minor: int
+        fee_amount_currency: str
+
     fee_amount = MoneyField()
+    if TYPE_CHECKING:
+        net_amount_minor: int
+        net_amount_currency: str
+
     net_amount = MoneyField()
     status = models.CharField(
         max_length=16, choices=SettlementStatus.choices, default=SettlementStatus.PENDING
@@ -633,6 +659,10 @@ class PaymentAllocation(BaseModel):
         on_delete=models.PROTECT,
         related_name="allocations",
     )
+    if TYPE_CHECKING:
+        amount_minor: int
+        amount_currency: str
+
     amount = MoneyField()
     allocated_at = models.DateTimeField()
     #: Free-form, for a human reading a reconciliation later.
@@ -815,6 +845,10 @@ class Refund(BaseModel):
     transaction = models.ForeignKey(
         PaymentTransaction, on_delete=models.PROTECT, related_name="refunds"
     )
+    if TYPE_CHECKING:
+        amount_minor: int
+        amount_currency: str
+
     amount = MoneyField()
     reason = models.CharField(max_length=300)
     status = models.CharField(

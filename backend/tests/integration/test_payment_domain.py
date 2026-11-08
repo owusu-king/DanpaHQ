@@ -132,6 +132,9 @@ def obligation(landlord, user, portfolio):
     )
     lease = lease_services.offer_lease(lease=lease, user=landlord)
     lease = lease_services.accept_lease(lease=lease, user=user)
+    from tests.payment_helpers import legacy_active_lease
+
+    legacy_active_lease(lease)
     charges = rent_services.build_schedule(lease)
     return lease, charges[0]
 

@@ -156,6 +156,6 @@ class Tenancy(BaseModel):
     @_py_property
     def space_label(self) -> str:
         """What to call the place, at the level it was actually let."""
-        if self.bed_id:
+        if self.bed is not None:
             return f"{self.bed.label}, {self.unit.label}"
         return self.unit.label

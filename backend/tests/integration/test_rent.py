@@ -100,7 +100,9 @@ def _active_lease(landlord, tenant, unit, **overrides):
     terms.update(overrides)
     lease = lease_services.draft_lease(user=landlord, unit=unit, tenant=tenant, data=terms)
     lease = lease_services.offer_lease(lease=lease, user=landlord)
-    return lease_services.accept_lease(lease=lease, user=tenant)
+    from tests.payment_helpers import legacy_active_lease
+
+    return legacy_active_lease(lease_services.accept_lease(lease=lease, user=tenant))
 
 
 class TestTheSchedule:
@@ -957,10 +959,18 @@ class TestPostTenancyBalance:
             landlord,
             user,
             unit,
-            starts_on=timezone.localdate() - timedelta(days=400),
+            starts_on=timezone.localdate(),
             advance_months=1,
             term_months=12,
         )
+        from apps.lease.models import Lease
+
+        Lease.objects.filter(pk=lease.pk).update(
+            starts_on=timezone.localdate() - timedelta(days=400),
+            ends_on=timezone.localdate() - timedelta(days=35),
+        )
+        lease.refresh_from_db()
+        RentCharge.objects.filter(lease=lease).delete()
         assert lease.ends_on < timezone.localdate()
         with pytest.raises(Conflict):
             services.build_schedule(lease)
@@ -1016,7 +1026,9 @@ def _accept_and_confirm(lease, landlord, tenant):
     lease = lease_services.offer_lease(lease=lease, user=landlord)
     lease_services.record_tenant_review(lease=lease, user=tenant)
     lease = lease_services.accept_lease(lease=lease, user=tenant, acknowledged=True)
-    return lease_services.confirm_lease(lease=lease, user=landlord)
+    from tests.payment_helpers import legacy_active_lease
+
+    return legacy_active_lease(lease_services.confirm_lease(lease=lease, user=landlord))
 
 
 def _dispatch():
@@ -1312,6 +1324,9 @@ class TestWhatTheProviderIsToldTheyAreOwed:
         lease_services.record_tenant_review(lease=lease, user=user)
         lease = lease_services.accept_lease(lease=lease, user=user, acknowledged=True)
         lease = lease_services.confirm_lease(lease=lease, user=landlord)
+        from tests.payment_helpers import legacy_active_lease
+
+        legacy_active_lease(lease)
         _settle(lease)
 
         amendment = lease_services.amend_lease(
@@ -1322,6 +1337,7 @@ class TestWhatTheProviderIsToldTheyAreOwed:
         lease_services.record_tenant_review(lease=amendment, user=user)
         amendment = lease_services.accept_lease(lease=amendment, user=user, acknowledged=True)
         amendment = lease_services.confirm_lease(lease=amendment, user=landlord)
+        legacy_active_lease(amendment)
         _dispatch()
         _settle(amendment)
 
@@ -1541,3 +1557,36 @@ class TestPostTenancyApi:
         account = next(row for row in included.data if row["lease"]["id"] == str(lease.id))
         assert account["status"] == "ended"
         assert account["rent"]["outstanding_count"] > 0
+
+
+def test_provider_colleagues_cannot_confirm_their_own_partys_claim(
+    landlord, user, agent, portfolio, approve_provider
+):
+    from apps.organization.models import MembershipRole, OrganizationMembership
+
+    organization, space = portfolio
+    OrganizationMembership.objects.create(
+        organization=organization, user=agent, role=MembershipRole.ADMIN,
+        joined_at=timezone.now(),
+    )
+    approve_provider(agent, space.property)
+    lease = lease_services.draft_lease(
+        user=landlord, unit=space, tenant=user,
+        data={"rent_minor": 10000, "advance_months": 1, "term_months": 1,
+              "starts_on": date.today()},
+    )
+    lease_services.offer_lease(lease=lease, user=landlord)
+    lease_services.accept_lease(lease=lease, user=user)
+    charge = lease.charges.get()
+    payment = services.record_payment(
+        lease=lease, user=landlord,
+        data={"charge_id": charge.id, "amount_minor": charge.amount_minor,
+              "paid_on": date.today()},
+    )
+    with pytest.raises(PermissionDenied, match="other party"):
+        services.confirm_payment(payment=payment, user=agent)
+    lease.refresh_from_db()
+    assert lease.status == "awaiting_activation" and lease.tenancy_id is None
+    services.confirm_payment(payment=payment, user=user)
+    lease.refresh_from_db()
+    assert lease.status == "active" and lease.tenancy_id is not None

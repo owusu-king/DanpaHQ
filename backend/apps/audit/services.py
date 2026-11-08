@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Any
+from uuid import UUID
 
 from django.db import connection, transaction
 
@@ -68,7 +69,7 @@ def record(
     *,
     action: str,
     aggregate_type: str,
-    aggregate_id: str,
+    aggregate_id: str | UUID,
     actor=None,
     actor_role: str = "",
     management_actor=None,

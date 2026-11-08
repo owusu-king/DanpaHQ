@@ -374,7 +374,7 @@ def confirm_payment(*, payment: RentPayment, user) -> RentPayment:
     assert_party(lease, user)
     assert_payment_capability_if_provider(lease, user)
 
-    if str(payment.recorded_by_id) == str(user.id):
+    if payment.recorded_by_tenant == (str(lease.tenant_id) == str(user.id)):
         raise PermissionDenied(
             "The other party has to confirm this, not the person who recorded it."
         )
@@ -590,9 +590,10 @@ def apply_confirmed_payment(payment: RentPayment) -> None:
     The digital-payment context owns provider verification; rent remains the
     one owner of charge settlement arithmetic.
     """
-    if payment.status != PaymentStatus.CONFIRMED or payment.charge_id is None:
+    charge = payment.charge
+    if payment.status != PaymentStatus.CONFIRMED or charge is None:
         raise ValidationFailed("Only a confirmed payment tied to a charge can settle it.")
-    _resettle(payment.charge)
+    _resettle(charge)
     from apps.lease.services import activate_after_initial_payment
 
     activate_after_initial_payment(payment.lease)

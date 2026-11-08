@@ -88,7 +88,7 @@ def _import_item(
     transaction_row = settlement.transaction
     intent = transaction_row.intent
     currency = item.currency or batch.currency
-    problems = {}
+    problems: dict[str, dict[str, int | str | None]] = {}
     if item.amount_minor != transaction_row.amount_minor:
         problems["amount_minor"] = {
             "danpahq": transaction_row.amount_minor,

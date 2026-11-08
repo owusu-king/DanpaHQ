@@ -9,25 +9,28 @@ const fromCli = createRequire(require.resolve("@expo/cli/package.json"));
 const query = fromRouter("query-string");
 
 test("patched Expo tooling preserves plugin input and output validation", () => {
-  const { PluginSchema, DevToolsPluginOutputSchema } = fromCli("./build/src/start/server/DevToolsPlugin.schema.js");
-  const { createMCPDevToolsExtensionSchema } = fromCli("./build/src/start/server/createMCPDevToolsExtensionSchema.js");
-  const plugin = PluginSchema.parse({
+  const { PluginSchema, DevToolsPluginOutputSchema } = fromCli("./build/src/start/server/devtools/DevToolsPlugin.schema.js");
+  const { createMCPDevToolsExtensionSchema } = fromCli("./build/src/start/server/mcp/createMCPDevToolsExtensionSchema.js");
+  const { validate } = fromCli("@expo/schema-utils");
+  const { z } = fromCli("zod");
+  const plugin = {
     packageName: "test-plugin", packageRoot: "/test-plugin",
     cliExtensions: { description: "Test commands", entryPoint: "commands.js", commands: [
       { name: "inspect", title: "Inspect", environments: ["mcp"], parameters: [
         { name: "count", type: "number" }, { name: "confirmed", type: "confirm" },
       ] },
     ] },
-  });
-  const schema = createMCPDevToolsExtensionSchema(plugin);
+  };
+  validate(PluginSchema, plugin);
+  const schema = createMCPDevToolsExtensionSchema(plugin, z);
   assert.equal(schema.safeParse({ command: "inspect", count: 2, confirmed: false }).success, true);
   for (const input of [
     { command: "unknown" }, { command: "inspect", count: "2" },
     { command: "inspect", confirmed: "yes" }, { command: "inspect", extra: "unexpected" },
   ]) assert.equal(schema.safeParse(input).success, false);
-  assert.equal(PluginSchema.safeParse({ packageName: "", packageRoot: "/test" }).success, false);
-  assert.equal(DevToolsPluginOutputSchema.safeParse([{ type: "text", text: "Done", level: "info" }]).success, true);
-  assert.equal(DevToolsPluginOutputSchema.safeParse([{ type: "image", url: "invalid" }]).success, false);
+  assert.throws(() => validate(PluginSchema, { packageName: "", packageRoot: "/test" }));
+  assert.doesNotThrow(() => validate(DevToolsPluginOutputSchema, [{ type: "text", text: "Done", level: "info" }]));
+  assert.throws(() => validate(DevToolsPluginOutputSchema, [{ type: "image", url: "invalid" }]));
 });
 
 test("oversized constrained collections cannot exhaust Expo tooling memory", () => {

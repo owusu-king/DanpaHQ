@@ -52,7 +52,12 @@ from .models import (
     TransactionStatus,
     WebhookStatus,
 )
-from .providers import UnhandledProviderEvent, VerifiedProviderEvent, get_payment_provider
+from .providers import (
+    PaymentProvider,
+    UnhandledProviderEvent,
+    VerifiedProviderEvent,
+    get_payment_provider,
+)
 from .receipts import (
     build_external_snapshot,
     build_snapshot,
@@ -192,7 +197,7 @@ def digital_payment_availability(*, lease, user) -> dict:
 
     if lease.status not in (LeaseStatus.ACTIVE, LeaseStatus.ENDED) and not (
         lease.status == LeaseStatus.AWAITING_ACTIVATION
-        and lease.activation_requirement == "initial_payment" and lease.both_accepted
+        and lease.both_accepted
     ):
         return _unavailable("Online payment starts after the agreement is active.")
     charges = RentCharge.objects.filter(
@@ -297,7 +302,7 @@ def _reserve_intent(
 
     if lease.status not in (LeaseStatus.ACTIVE, LeaseStatus.ENDED) and not (
         lease.status == LeaseStatus.AWAITING_ACTIVATION
-        and lease.activation_requirement == "initial_payment" and lease.both_accepted
+        and lease.both_accepted
         and obligation.due_on == lease.starts_on
     ):
         raise Conflict("Digital payment can only start for an active or ended agreement.")
@@ -1046,7 +1051,9 @@ def process_webhook(*, provider_name: str, raw_body: bytes, headers) -> PaymentI
         raise
 
 
-def _confirm_with_provider(*, provider, event: VerifiedProviderEvent) -> VerifiedProviderEvent:
+def _confirm_with_provider(
+    *, provider: PaymentProvider, event: VerifiedProviderEvent
+) -> VerifiedProviderEvent:
     """Cross-check a callback against the provider's own record.
 
     A forged callback cannot reach here — the signature is checked first — but a
@@ -1054,9 +1061,8 @@ def _confirm_with_provider(*, provider, event: VerifiedProviderEvent) -> Verifie
     provider bug. Asking costs one request and removes an entire class of "the
     webhook said so" incident.
 
-    Skipped, not failed, when the provider cannot answer: an adapter without a
-    query operation is a real and supported case, and reconciliation covers the
-    same ground on a slower clock.
+    A verification outage leaves the webhook available for retry. Only the
+    in-memory test provider can rely on a signed event without a query result.
     """
     if event.status != "succeeded":
         # Only success grants value, so only success needs the second opinion.
@@ -1064,15 +1070,20 @@ def _confirm_with_provider(*, provider, event: VerifiedProviderEvent) -> Verifie
     try:
         state = provider.query_payment(provider_reference=event.provider_reference)
     except (ProviderUnavailable, NotImplementedError):
-        return event
+        if provider.name == "memory":
+            return event
+        raise ProviderUnavailable("Payment verification is temporarily unavailable.") from None
     if not state.found:
         raise Conflict("The provider has no record of that payment; it needs reconciliation.")
     if state.status != "succeeded":
         raise Conflict("The provider's own record does not show that payment as successful.")
-    if state.amount_minor and state.amount_minor != event.amount_minor:
+    require_match = provider.name == "paystack"
+    if (require_match or state.amount_minor) and state.amount_minor != event.amount_minor:
         raise Conflict("The callback amount does not match the provider's record.")
-    if state.currency and state.currency != event.currency:
+    if (require_match or state.currency) and state.currency != event.currency:
         raise Conflict("The callback currency does not match the provider's record.")
+    if require_match and state.provider_transaction_id != event.provider_transaction_id:
+        raise Conflict("The callback transaction does not match the provider's record.")
     return event
 
 
@@ -1086,8 +1097,9 @@ def _process_verified_event(
     requested_by=None,
 ) -> PaymentIntent:
     if webhook is not None:
-        webhook = ProviderWebhook.objects.select_for_update().get(id=webhook.id)
-        provider_name = webhook.provider
+        locked_webhook = ProviderWebhook.objects.select_for_update().get(id=webhook.id)
+        webhook = locked_webhook
+        provider_name = locked_webhook.provider
     if not provider_name:
         raise ValidationFailed("The provider evidence has no payment provider.")
     intent = (
@@ -1188,6 +1200,8 @@ def _process_verified_event(
         return intent
     if event.status != "succeeded":
         raise ValidationFailed("That provider payment state requires reconciliation.")
+    if event.occurred_at is None:
+        raise ValidationFailed("The provider confirmed a payment without a completion time.")
 
     if intent.status == IntentStatus.SUCCEEDED:
         existing = intent.transactions.filter(status=TransactionStatus.SUCCEEDED).first()
@@ -1406,11 +1420,12 @@ def expire_due_intents() -> int:
 
 
 def _rent_method(payment_method: str) -> str:
-    return {
+    methods: dict[str, str] = {
         DigitalPaymentMethod.MOBILE_MONEY: "momo",
         DigitalPaymentMethod.CARD: "other",
         DigitalPaymentMethod.BANK_TRANSFER: "bank",
-    }[payment_method]
+    }
+    return methods[payment_method]
 
 
 def _create_ledger(transaction_row: PaymentTransaction) -> None:
@@ -1499,12 +1514,17 @@ def create_external_receipt(payment: RentPayment) -> Receipt:
 
 
 def _create_pending_settlement(transaction_row: PaymentTransaction) -> Settlement:
+    intent = transaction_row.intent
+    if intent.is_viewing:
+        beneficiary_id = intent.metadata["provider_user_id"]
+    else:
+        lease = intent.lease
+        if lease is None:
+            raise ValidationFailed("A rent settlement requires its lease.")
+        beneficiary_id = lease.landlord_id
     row = Settlement(
         transaction=transaction_row,
-        beneficiary_id=(
-            transaction_row.intent.metadata["provider_user_id"]
-            if transaction_row.intent.is_viewing else transaction_row.intent.lease.landlord_id
-        ),
+        beneficiary_id=beneficiary_id,
         beneficiary_organization=transaction_row.intent.beneficiary_organization,
         payout_profile=transaction_row.intent.payout_profile,
         provider_subaccount_reference=transaction_row.intent.provider_subaccount_reference,
@@ -1543,10 +1563,13 @@ def _intent_event_payload(intent: PaymentIntent) -> dict:
     if intent.is_viewing:
         return {"tenant_id": str(intent.tenant_id), "viewing_id": str(intent.viewing_id)}
     if intent.is_subscription:
+        invoice = intent.billing_invoice
+        if invoice is None:
+            raise ValidationFailed("A subscription payment requires its invoice.")
         return {
             "purpose": intent.purpose,
             "billing_invoice_id": str(intent.billing_invoice_id),
-            "organization_id": str(intent.billing_invoice.billing_account.organization_id),
+            "organization_id": str(invoice.billing_account.organization_id),
             "initiated_by_id": str(intent.initiated_by_id),
         }
     return {"tenant_id": str(intent.tenant_id), "lease_id": str(intent.lease_id)}

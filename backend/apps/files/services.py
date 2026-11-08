@@ -449,11 +449,11 @@ def issue_download(*, user, stored: StoredFile, reason: str = "") -> object:
     audited, because "who looked at this person's Ghana Card" is a question the
     Data Protection Act expects an answer to.
     """
-    if not stored.is_usable:
-        raise Conflict("That file is not ready yet.")
-
     if not can_read(user=user, stored=stored):
         raise NotFound("We could not find that file.")
+
+    if not stored.is_usable:
+        raise Conflict("That file is not ready yet.")
 
     ttl = SENSITIVE_DOWNLOAD_TTL_SECONDS if stored.is_sensitive else DOWNLOAD_TTL_SECONDS
     presigned = get_storage().presign_download(

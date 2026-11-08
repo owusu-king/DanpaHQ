@@ -513,6 +513,37 @@ class TestWrongEvidence:
 
 
 class TestRedeliveryAndOrdering:
+    def test_success_waits_for_provider_verification_after_a_timeout(
+        self, live, landlord, user, obligation, monkeypatch
+    ):
+        _, charge = obligation
+        intent = payment_services.create_intent(
+            obligation=charge, user=user, payment_method="mobile_money"
+        )
+        row = live.charge(intent.provider_reference, amount=charge.amount_minor)
+        body, headers = signed(charge_event(row))
+
+        def unavailable(*args, **kwargs):
+            raise requests_module.Timeout
+
+        with monkeypatch.context() as patch:
+            patch.setattr("apps.payments.paystack.requests.request", unavailable)
+            with pytest.raises(ProviderUnavailable):
+                payment_services.process_webhook(
+                    provider_name="paystack", raw_body=body, headers=headers
+                )
+        intent.refresh_from_db()
+        assert intent.status != IntentStatus.SUCCEEDED
+        assert not PaymentTransaction.objects.exists()
+        assert not PaymentAllocation.objects.exists()
+
+        payment_services.process_webhook(provider_name="paystack", raw_body=body, headers=headers)
+        payment_services.process_webhook(provider_name="paystack", raw_body=body, headers=headers)
+        intent.refresh_from_db()
+        assert intent.status == IntentStatus.SUCCEEDED
+        assert PaymentTransaction.objects.count() == 1
+        assert PaymentAllocation.objects.count() == 1
+
     def test_a_redelivered_webhook_changes_nothing(self, live, landlord, user, obligation):
         """Checklist: redeliver from the dashboard; the second changes nothing."""
         _, charge = obligation
@@ -557,6 +588,28 @@ class TestRedeliveryAndOrdering:
 
         assert PaymentTransaction.objects.filter(status=TransactionStatus.SUCCEEDED).count() == 1
         assert PaymentAllocation.objects.count() == 1
+
+    @pytest.mark.parametrize(
+        ("field", "value"),
+        [("reference", "different-reference"), ("amount", 0), ("currency", ""), ("channel", "")],
+    )
+    def test_refresh_requires_complete_paystack_success_evidence(
+        self, live, landlord, user, obligation, field, value
+    ):
+        _, charge = obligation
+        intent = payment_services.create_intent(
+            obligation=charge, user=user, payment_method="mobile_money"
+        )
+        row = live.charge(intent.provider_reference, amount=charge.amount_minor)
+        row[field] = value
+
+        with pytest.raises(ProviderUnavailable):
+            payment_services.refresh_intent_from_provider(intent=intent, user=user)
+
+        intent.refresh_from_db()
+        assert intent.status != IntentStatus.SUCCEEDED
+        assert not intent.transactions.exists()
+        assert not PaymentAllocation.objects.exists()
 
     def test_a_stale_pending_callback_cannot_demote_a_settled_payment(
         self, live, landlord, user, obligation

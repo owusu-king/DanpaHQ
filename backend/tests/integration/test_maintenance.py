@@ -54,6 +54,9 @@ def tenancy(landlord, user, unit):
     )
     lease = lease_services.offer_lease(lease=lease, user=landlord)
     lease = lease_services.accept_lease(lease=lease, user=user)
+    from tests.payment_helpers import confirm_initial_payment
+
+    confirm_initial_payment(lease)
     lease.refresh_from_db()
     assert lease.tenancy is not None and lease.tenancy.status == "active"
     return lease.tenancy
@@ -362,6 +365,12 @@ class TestThePortfolioList:
         lease = lease_services.accept_lease(
             lease=lease_services.offer_lease(lease=lease, user=landlord), user=agent
         )
+        from tests.payment_helpers import confirm_initial_payment
+
+        confirm_initial_payment(lease)
+        from tests.payment_helpers import confirm_initial_payment
+
+        confirm_initial_payment(lease)
         lease.refresh_from_db()
         services.submit_request(
             user=agent,

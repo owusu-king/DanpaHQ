@@ -83,7 +83,7 @@ def test_tenancy_service_rejects_a_draft_or_mismatched_activation_lease(landlord
         )
 
 
-def test_acceptance_activates_one_linked_tenancy_and_occupancy(landlord, user, unit):
+def test_confirmed_payment_activates_one_linked_tenancy_and_occupancy(landlord, user, unit):
     from apps.lease import services
     from apps.lease.models import LeaseStatus
     from apps.occupancy.models import OccupancyStatus
@@ -92,6 +92,10 @@ def test_acceptance_activates_one_linked_tenancy_and_occupancy(landlord, user, u
     lease = services.offer_lease(lease=_draft(landlord, user, unit), user=landlord)
     lease = services.accept_lease(lease=lease, user=user)
 
+    assert lease.status == LeaseStatus.AWAITING_ACTIVATION
+    from tests.payment_helpers import confirm_initial_payment
+
+    confirm_initial_payment(lease)
     assert lease.status == LeaseStatus.ACTIVE
     tenancy = lease.tenancy
     assert tenancy.status == TenancyStatus.ACTIVE

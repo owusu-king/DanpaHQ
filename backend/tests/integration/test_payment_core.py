@@ -57,7 +57,7 @@ def unit(landlord, address, approve_provider):
     return Unit.objects.create(property=prop, label="Flat 2", bedrooms=1, bathrooms=1)
 
 
-def active_lease(landlord, tenant, unit):
+def active_lease(landlord, tenant, unit, *, historical=True):
     lease = lease_services.draft_lease(
         user=landlord,
         unit=unit,
@@ -71,7 +71,10 @@ def active_lease(landlord, tenant, unit):
         },
     )
     lease_services.offer_lease(lease=lease, user=landlord)
-    return lease_services.accept_lease(lease=lease, user=tenant)
+    from tests.payment_helpers import legacy_active_lease
+
+    lease = lease_services.accept_lease(lease=lease, user=tenant)
+    return legacy_active_lease(lease) if historical else lease
 
 
 def obligation_for(landlord, tenant, unit):
@@ -102,7 +105,7 @@ def test_verified_upfront_payments_activate_only_after_rent_and_deposit(
     settings, landlord, user, unit
 ):
     settings.LEASE_ACTIVATION_REQUIREMENT = "initial_payment"
-    lease = active_lease(landlord, user, unit)
+    lease = active_lease(landlord, user, unit, historical=False)
     assert lease.status == "awaiting_activation"
     charges = list(lease.charges.filter(due_on=lease.starts_on).order_by("created_at"))
     assert len(charges) == 2

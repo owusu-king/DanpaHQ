@@ -343,7 +343,7 @@ class PaystackPaymentProvider(PaymentProvider):
             headers.get("X-Paystack-Signature") or headers.get("x-paystack-signature") or ""
         )
         expected = hmac.new(self._secret_key().encode(), raw_body, hashlib.sha512).hexdigest()
-        if not supplied or not hmac.compare_digest(supplied, expected):
+        if not hmac.compare_digest(supplied.encode(), expected.encode()):
             raise PermissionDenied("The payment callback signature is invalid.")
 
         try:
@@ -418,13 +418,27 @@ class PaystackPaymentProvider(PaymentProvider):
             return ProviderPaymentState(found=False)
         data = body.get("data") or {}
         raw_status = str(data.get("status") or "")
+        status = STATUS_MAP.get(raw_status.lower(), "")
+        amount = data.get("amount")
+        currency = str(data.get("currency") or "").upper()
+        payment_method = CHANNEL_TO_METHOD.get(str(data.get("channel") or "").lower(), "")
+        if status == "succeeded" and (
+            data.get("reference") != provider_reference
+            or type(amount) is not int
+            or amount <= 0
+            or not currency
+            or not payment_method
+        ):
+            raise ProviderUnavailable(
+                "Paystack returned incomplete or mismatched payment evidence."
+            )
         return ProviderPaymentState(
             found=True,
             provider_transaction_id=str(data.get("id") or ""),
-            status=STATUS_MAP.get(raw_status.lower(), ""),
-            amount_minor=int(data.get("amount") or 0),
-            currency=str(data.get("currency") or "").upper(),
-            payment_method=CHANNEL_TO_METHOD.get(str(data.get("channel") or "").lower(), ""),
+            status=status,
+            amount_minor=int(amount or 0),
+            currency=currency,
+            payment_method=payment_method,
             occurred_at=parse_datetime(str(data.get("paid_at") or "")),
             raw_status=raw_status,
         )

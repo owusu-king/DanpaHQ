@@ -165,10 +165,10 @@ class LocalStorageBackend(StorageBackend):
 
     def __init__(self, root: Path | None = None, base_url: str | None = None):
         self.root = Path(
-            root or getattr(settings, "LOCAL_STORAGE_ROOT", settings.BASE_DIR / "media")
+            root or getattr(settings, "LOCAL_STORAGE_ROOT", None) or settings.BASE_DIR / "media"
         )
         self.base_url = (
-            base_url or getattr(settings, "LOCAL_STORAGE_BASE_URL", "/storage")
+            base_url or getattr(settings, "LOCAL_STORAGE_BASE_URL", None) or "/storage"
         ).rstrip("/")
         self.root.mkdir(parents=True, exist_ok=True)
 

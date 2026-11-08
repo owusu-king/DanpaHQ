@@ -44,10 +44,9 @@ class ConfigurationField:
 FIELDS = (
     ConfigurationField(
         "LEASE_ACTIVATION_REQUIREMENT", "Leases and viewings", "Lease activation",
-        "Disabled hides upfront activation controls. New agreements activate after both accept. "
-        "Existing agreed payment conditions are preserved.",
+        "Controls visibility of upfront activation prompts. The full agreed initial payment "
+        "must be confirmed before a tenancy activates, even when prompts are hidden.",
         kind="choice", choices=(("disabled", "Disabled — hide upfront payment activation"),
-                                ("lease_accepted", "Both parties accept"),
                                 ("initial_payment", "Both accept and upfront payment confirmed")),
     ),
     ConfigurationField(

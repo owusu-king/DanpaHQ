@@ -273,7 +273,7 @@ class TestWhoAcceptedAndWhen:
         assert parties == {AcceptanceParty.LANDLORD, AcceptanceParty.TENANT}
         assert execution.verify(agreement)["fully_accepted"] is True
         assert agreement.executed_at is not None
-        assert lease.status == LeaseStatus.ACTIVE
+        assert lease.status == LeaseStatus.AWAITING_ACTIVATION
 
     def test_each_party_accepted_the_same_words(self, hostel, landlord, registered):
         from apps.lease import services
@@ -312,7 +312,7 @@ class TestWhoAcceptedAndWhen:
         services.accept_lease(lease=lease, user=tenant)
         lease.refresh_from_db()
 
-        assert lease.status == LeaseStatus.ACTIVE
+        assert lease.status == LeaseStatus.AWAITING_ACTIVATION
 
 
 class TestTheAdvancePolicy:
@@ -439,6 +439,9 @@ class TestLettingABedClosesAUnitListing:
         )
         services.offer_lease(lease=lease, user=landlord)
         services.accept_lease(lease=lease, user=lease.tenant)
+        from tests.payment_helpers import confirm_initial_payment
+
+        confirm_initial_payment(lease)
 
         application.refresh_from_db()
         listing.refresh_from_db()

@@ -56,7 +56,7 @@ class VerifiedProviderEvent:
     amount_minor: int
     currency: str
     payment_method: str
-    occurred_at: datetime
+    occurred_at: datetime | None
     raw_status: str = ""
 
 
@@ -403,7 +403,10 @@ def get_payment_provider(name: str | None = None) -> PaymentProvider:
         # Entries are either a class or a callable returning one, so an adapter
         # with heavier imports can stay out of the module graph until used.
         _instance = factory()() if not isinstance(factory, type) else factory()
-    return _instance
+    provider = _instance
+    if provider is None:
+        raise ProviderUnavailable("The configured payment provider is unavailable.")
+    return provider
 
 
 def reset_payment_provider() -> None:

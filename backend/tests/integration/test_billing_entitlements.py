@@ -298,6 +298,9 @@ class TestDowngradeNeverDeletesAnything:
         )
         lease_services.offer_lease(lease=lease, user=landlord)
         lease = lease_services.accept_lease(lease=lease, user=user)
+        from tests.payment_helpers import confirm_initial_payment
+
+        confirm_initial_payment(lease)
         charges = rent_services.build_schedule(lease)
         assert charges
 

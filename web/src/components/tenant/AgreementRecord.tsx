@@ -197,7 +197,7 @@ export function AgreementRecord({
       ) : null}
 
       {(lease.upfront_payment_enabled !== false && lease.activation_requirement === "initial_payment") ? <Notice tone="info" title="Activation requires confirmed upfront payment" body="After both parties accept, all agreed upfront rent, deposit and fees must be independently confirmed before this tenancy activates." /> : null}
-      {lease.status === "awaiting_activation" && (lease.upfront_payment_enabled !== false && lease.activation_requirement === "initial_payment") ? <Link href={`/record/payment?leaseId=${lease.id}&mode=tenant` as never}>Review and pay upfront charges</Link> : null}
+      {lease.status === "awaiting_activation" ? <Link href={`/record/payment?leaseId=${lease.id}&mode=tenant` as never}>View payment obligations</Link> : null}
       {["active", "awaiting_activation"].includes(lease.status) && charges.length ? <RentSchedule charges={charges} /> : null}
 
       <AgreementDocumentSection lease={lease} rendered={rendered} terms={terms} reading={state.decisionOpen} />

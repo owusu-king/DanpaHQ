@@ -15,6 +15,7 @@ from rest_framework.test import APIClient
 from apps.core.exceptions import Conflict, NotFound, PermissionDenied, ValidationFailed
 from apps.lease import services
 from apps.lease.models import LeaseStatus
+from tests.payment_helpers import confirm_initial_payment
 
 pytestmark = pytest.mark.django_db
 
@@ -104,18 +105,19 @@ def test_management_initial_payment_gate_requires_every_upfront_charge(
     assert len(rent.build_schedule(lease)) == 4
 
 
-def test_disabled_upfront_activation_is_hidden_and_new_leases_use_acceptance(
+def test_disabled_upfront_prompts_do_not_bypass_initial_payment(
     settings, landlord, user, unit
 ):
     from apps.lease.serializers import LeaseSerializer
 
     settings.LEASE_ACTIVATION_REQUIREMENT = "disabled"
     lease = services.draft_lease(user=landlord, unit=unit, tenant=user, data=TERMS)
-    assert lease.activation_requirement == "lease_accepted"
+    assert lease.activation_requirement == "initial_payment"
     assert LeaseSerializer(lease).data["upfront_payment_enabled"] is False
     services.offer_lease(lease=lease, user=landlord)
     lease = services.accept_lease(lease=lease, user=user)
-    assert lease.status == LeaseStatus.ACTIVE
+    assert lease.status == LeaseStatus.AWAITING_ACTIVATION
+    assert lease.charges.exists()
 
 
 @pytest.fixture
@@ -141,7 +143,7 @@ class TestDrafting:
         with pytest.raises(Conflict):
             services.cancel_lease(lease=stale, user=landlord)
         stale.refresh_from_db()
-        assert stale.status == LeaseStatus.ACTIVE
+        assert stale.status == LeaseStatus.AWAITING_ACTIVATION
 
     def test_a_stale_draft_cannot_offer_a_cancelled_lease(self, landlord, user, unit):
         from apps.lease.models import Lease
@@ -226,7 +228,7 @@ class TestCanonicalAgreementBuilder:
         assert "Activation after upfront payment" in lease.agreement.rendered_text
         services.record_tenant_review(lease=lease, user=user)
         lease = services.accept_lease(lease=lease, user=user, acknowledged=True)
-        assert not lease.charges.exists()
+        assert lease.charges.exists()
         lease = services.confirm_lease(lease=lease, user=landlord)
         assert lease.status == LeaseStatus.AWAITING_ACTIVATION
         with pytest.raises(Conflict):
@@ -293,6 +295,7 @@ class TestCanonicalAgreementBuilder:
         assert not hasattr(lease, "occupancy")
 
         lease = services.confirm_lease(lease=lease, user=landlord)
+        confirm_initial_payment(lease)
         assert lease.status == LeaseStatus.ACTIVE
         agreement.refresh_from_db()
         assert agreement.executed_at is not None
@@ -323,7 +326,7 @@ def _accepted(landlord, user, unit):
     lease = services.offer_lease(lease=lease, user=landlord)
     services.record_tenant_review(lease=lease, user=user)
     lease = services.accept_lease(lease=lease, user=user, acknowledged=True)
-    return services.confirm_lease(lease=lease, user=landlord)
+    return confirm_initial_payment(services.confirm_lease(lease=lease, user=landlord))
 
 
 class TestTheAgreementOutlivesItsTemplate:
@@ -523,6 +526,7 @@ class TestAmendment:
         services.record_tenant_review(lease=amendment, user=user)
         amendment = services.accept_lease(lease=amendment, user=user, acknowledged=True)
         amendment = services.confirm_lease(lease=amendment, user=landlord)
+        confirm_initial_payment(amendment)
         assert amendment.status == LeaseStatus.ACTIVE
         assert amendment.agreement.acceptances.count() == 2
 
@@ -544,6 +548,7 @@ class TestAmendment:
         services.record_tenant_review(lease=amendment, user=user)
         amendment = services.accept_lease(lease=amendment, user=user, acknowledged=True)
         amendment = services.confirm_lease(lease=amendment, user=landlord)
+        confirm_initial_payment(amendment)
 
         # One home, one relationship, successive agreements over it.
         amendment.refresh_from_db()
@@ -624,8 +629,10 @@ class TestAcceptance:
 
         lease = services.accept_lease(lease=lease, user=user)
         assert lease.both_accepted
+        assert lease.status == LeaseStatus.AWAITING_ACTIVATION
+        assert lease.activated_at is None
+        confirm_initial_payment(lease)
         assert lease.status == LeaseStatus.ACTIVE
-        assert lease.activated_at is not None
 
     def test_the_landlord_cannot_accept_on_the_tenants_behalf(self, landlord, user, unit):
         lease = services.draft_lease(user=landlord, unit=unit, tenant=user, data=dict(TERMS))
@@ -689,6 +696,7 @@ class TestGoingLiveClosesTheMarket:
             user=landlord, unit=unit, tenant=user, data=dict(TERMS), listing=live_listing
         )
         services.accept_lease(lease=services.offer_lease(lease=lease, user=landlord), user=user)
+        confirm_initial_payment(lease)
 
         listing = Listing.objects.get(id=live_listing.id)
         assert listing.status == ListingStatus.WITHDRAWN
@@ -707,6 +715,7 @@ class TestGoingLiveClosesTheMarket:
             user=landlord, unit=unit, tenant=user, data=dict(TERMS), listing=live_listing
         )
         services.accept_lease(lease=services.offer_lease(lease=lease, user=landlord), user=user)
+        confirm_initial_payment(lease)
 
         unit.refresh_from_db()
         live_listing.refresh_from_db()
@@ -760,6 +769,7 @@ class TestGoingLiveClosesTheMarket:
             listing=live_listing,
         )
         services.accept_lease(lease=services.offer_lease(lease=lease, user=landlord), user=user)
+        confirm_initial_payment(lease)
 
         other.refresh_from_db()
         assert other.status == ApplicationStatus.REJECTED
@@ -775,6 +785,7 @@ class TestEnding:
         lease = services.accept_lease(
             lease=services.offer_lease(lease=lease, user=landlord), user=user
         )
+        confirm_initial_payment(lease)
         with pytest.raises(Conflict):
             services.cancel_lease(lease=lease, user=landlord)
 
@@ -789,6 +800,7 @@ class TestEnding:
         lease = services.accept_lease(
             lease=services.offer_lease(lease=lease, user=landlord), user=user
         )
+        confirm_initial_payment(lease)
         lease = services.end_lease(lease=lease, user=user, reason="Moving out", confirmed=True)
         assert lease.status == LeaseStatus.ENDED
 
@@ -797,6 +809,7 @@ class TestEnding:
         lease = services.accept_lease(
             lease=services.offer_lease(lease=lease, user=landlord), user=user
         )
+        confirm_initial_payment(lease)
         services.end_lease(lease=lease, user=landlord, confirmed=True)
 
         again = services.draft_lease(user=landlord, unit=unit, tenant=agent, data=dict(TERMS))
@@ -807,6 +820,7 @@ class TestEnding:
         lease = services.accept_lease(
             lease=services.offer_lease(lease=lease, user=landlord), user=user
         )
+        confirm_initial_payment(lease)
 
         with pytest.raises(ValidationFailed):
             services.end_lease(lease=lease, user=landlord, reason="Tenant moved out")
@@ -843,9 +857,10 @@ class TestAudit:
         lease = services.accept_lease(
             lease=services.offer_lease(lease=lease, user=landlord), user=user
         )
+        confirm_initial_payment(lease)
 
         entries = AuditLog.objects.filter(aggregate_type="lease", aggregate_id=str(lease.id))
-        assert entries.count() == 4  # drafted, offered, accepted/awaiting, activated
+        assert entries.count() == 5  # acceptance and payment-gated activation are separate records
         ok, broken = verify_chain("lease", str(lease.id))
         assert ok, broken
 
@@ -893,7 +908,7 @@ class TestApi:
         assert mine.data[0]["exceeds_statutory_advance"] is True
 
         accepted = tenant.post(f"/api/v1/leases/{lease_id}/accept/", {}, format="json")
-        assert accepted.data["status"] == "active"
+        assert accepted.data["status"] == "awaiting_activation"
         assert accepted.data["both_accepted"] is True
 
     def test_a_tenant_cannot_see_a_provider_draft_before_it_is_offered(
