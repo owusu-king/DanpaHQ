@@ -23,7 +23,7 @@ from django.db import transaction
 
 from apps.property.models import Amenity, AmenityCategory, AmenityScope, RentableSpaceType
 
-RESIDENTIAL_INTERIORS = [
+RESIDENTIAL_INTERIORS: list[str] = [
     RentableSpaceType.APARTMENT,
     RentableSpaceType.HOUSE,
     RentableSpaceType.STUDIO,

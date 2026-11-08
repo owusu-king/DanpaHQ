@@ -338,7 +338,7 @@ class ViewingRequestSerializer(serializers.ModelSerializer):
 
         alleged = resolution.alleged_absent_party if resolution else None
         viewer_role = None
-        if participant:
+        if participant and user is not None:
             viewer_role = "tenant" if obj.tenant_id == user.id else "host"
         return {
             "state": state,

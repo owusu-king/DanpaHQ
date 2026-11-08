@@ -379,7 +379,8 @@ def artisan_reported_fixed(
     artisan the payer approved.
     """
     request = _locked(request)
-    if request.assigned_artisan_id is None or request.assigned_artisan.user_id != user.id:
+    assigned_artisan = request.assigned_artisan
+    if assigned_artisan is None or assigned_artisan.user_id != user.id:
         raise PermissionDenied("Only the artisan doing this repair can report it done.")
     if request.status not in (MaintenanceStatus.IN_PROGRESS, MaintenanceStatus.REOPENED):
         raise Conflict("This repair is not waiting on the work.")

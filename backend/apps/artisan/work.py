@@ -220,9 +220,10 @@ def artisan_view(invitation: QuoteInvitation) -> dict:
     if invitation.direct_job_id:
         return _artisan_job_view(invitation)
     request = invitation.maintenance_request
+    assert request is not None  # The invitation has exactly one subject.
     state = _invitation_state(invitation, request)
     unlocked = state in ("assigned", "completed")
-    view = {
+    view: dict[str, object] = {
         "id": str(invitation.id),
         "state": state,
         "invited_at": invitation.invited_at,
@@ -251,6 +252,7 @@ def artisan_view(invitation: QuoteInvitation) -> dict:
     view["work"] = _finish_block(request, invitation, pays=False, money=True)
     address = request.property.address
     approved = request.assigned_quote
+    approver = approved.decided_by if approved is not None else None
     view["job"] = {
         "address": {
             "line": str(address),
@@ -265,9 +267,7 @@ def artisan_view(invitation: QuoteInvitation) -> dict:
             "phone": format_national(request.tenant.phone) if request.tenant.phone else "",
             "role": "Tenant, on site",
         },
-        "approved_by": approved.decided_by.display_name
-        if approved and approved.decided_by_id
-        else "",
+        "approved_by": approver.display_name if approver is not None else "",
         "approved_at": approved.decided_at if approved else None,
         "price_on_record": _quote(approved) if approved else None,
         "history": [
@@ -310,9 +310,10 @@ def _job_history(job: DirectJob) -> list[dict]:
 
 def _artisan_job_view(invitation: QuoteInvitation) -> dict:
     job = invitation.direct_job
+    assert job is not None  # The caller selected the direct-job subject.
     state = _invitation_state(invitation, job)
     unlocked = state in ("assigned", "completed")
-    view = {
+    view: dict[str, object] = {
         "id": str(invitation.id),
         "state": state,
         "invited_at": invitation.invited_at,
@@ -569,7 +570,8 @@ def customer_overview(user) -> dict:
         .distinct()
         .order_by("-status_changed_at")[:100]
     )
-    requests, records = [], []
+    requests: list[dict] = []
+    records: list[dict] = []
     for request in rows:
         summary = {
             "request": {

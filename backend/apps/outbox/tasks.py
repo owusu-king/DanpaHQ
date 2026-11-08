@@ -8,6 +8,7 @@ twice, which is what makes this safe to scale horizontally.
 from __future__ import annotations
 
 import logging
+from datetime import timedelta
 
 from celery import shared_task
 from django.db import transaction
@@ -48,7 +49,7 @@ def reclaim_stale_processing() -> int:
     ``failed`` — so they re-enter through the same backoff and dead-letter rules
     as any other retry rather than looping instantly.
     """
-    cutoff = timezone.now() - timezone.timedelta(minutes=STALE_PROCESSING_MINUTES)
+    cutoff = timezone.now() - timedelta(minutes=STALE_PROCESSING_MINUTES)
     with transaction.atomic():
         stale = list(
             OutboxEvent.objects.select_for_update(skip_locked=True).filter(
@@ -115,7 +116,7 @@ def dispatch_pending() -> dict[str, int]:
                 )
             else:
                 event.status = OutboxStatus.FAILED
-                event.available_at = timezone.now() + timezone.timedelta(
+                event.available_at = timezone.now() + timedelta(
                     seconds=event.backoff_seconds()
                 )
             event.save(

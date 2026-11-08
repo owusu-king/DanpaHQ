@@ -92,7 +92,7 @@ class ReceiptSerializer(serializers.ModelSerializer):
     payment_method = serializers.SerializerMethodField()
     provider = serializers.SerializerMethodField()
     provider_transaction_id = serializers.SerializerMethodField()
-    source = serializers.SerializerMethodField()
+    source = serializers.SerializerMethodField()  # type: ignore[assignment]
     evidence = serializers.SerializerMethodField()
     snapshot = serializers.SerializerMethodField()
     final_document_available = serializers.SerializerMethodField()

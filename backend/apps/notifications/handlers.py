@@ -13,6 +13,7 @@ module: everything depends on it, it depends on nothing above it.
 from __future__ import annotations
 
 import logging
+from uuid import UUID
 
 from apps.outbox.tasks import subscribe
 
@@ -21,7 +22,7 @@ from .services import notify
 logger = logging.getLogger("notifications")
 
 
-def _key(event, user_id: str) -> str:
+def _key(event, user_id: str | UUID) -> str:
     """One notification per event per recipient, however often it is retried."""
     return f"{event.id}:{user_id}"
 

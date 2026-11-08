@@ -20,6 +20,7 @@ from apps.core.exceptions import Conflict, ValidationFailed
 from apps.outbox.services import emit
 
 from .models import (
+    PHONE_VERIFICATION_VALIDITY_DAYS,
     VALIDITY_DAYS,
     EvidenceType,
     ReviewQueueEntry,
@@ -33,7 +34,7 @@ from .models import (
 
 #: Agents and landlords are reviewed first: an unverified agent can take money
 #: from many tenants, so the blast radius of a slow review is larger.
-PRIORITY_BY_KIND = {
+PRIORITY_BY_KIND: dict[str, int] = {
     VerificationKind.AGENCY: 10,
     VerificationKind.COMPANY: 20,
     VerificationKind.OWNERSHIP: 20,
@@ -128,7 +129,7 @@ def prime_subject_verifications(*, subject_type: str, subject_ids, rows) -> None
     """Seed ``current_for`` and ``trust_summary`` from one batched read."""
     from apps.core.memo import prime
 
-    grouped = {str(subject_id): [] for subject_id in subject_ids}
+    grouped: dict[str, list[Verification]] = {str(subject_id): [] for subject_id in subject_ids}
     for row in rows:
         grouped.setdefault(row.subject_id, []).append(row)
 
@@ -637,7 +638,7 @@ def record_phone_verification(user, *, challenge_id: str) -> Verification:
         status=VerificationStatus.APPROVED,
         submitted_by=user,
         decided_at=timezone.now(),
-        expires_at=timezone.now() + timedelta(days=VALIDITY_DAYS[VerificationKind.PHONE]),
+        expires_at=timezone.now() + timedelta(days=PHONE_VERIFICATION_VALIDITY_DAYS),
     )
     VerificationEvidence.objects.create(
         verification=verification,

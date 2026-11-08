@@ -71,7 +71,7 @@ class Grant:
     """
 
     key: str
-    value: object | None
+    value: bool | int | str | None
     is_unlimited: bool
     source: str  # "override" | "plan" | "default"
     plan_code: str

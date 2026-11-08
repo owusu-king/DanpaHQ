@@ -6,8 +6,6 @@ password and a fresh authenticator or recovery code. These credentials remain
 separate from consumer authentication.
 """
 
-from typing import ClassVar
-
 from django import forms
 from django.contrib.auth import authenticate, get_user_model
 from django.contrib.auth.backends import BaseBackend
@@ -100,7 +98,7 @@ class AdminEmailBackend(BaseBackend):
 
 
 class AdminEmailAuthenticationForm(AuthenticationForm):
-    error_messages: ClassVar[dict[str, str]] = {
+    error_messages = {  # noqa: RUF012
         **AuthenticationForm.error_messages,
         "invalid_login": (
             "Please enter a correct admin email and password. Passwords are case-sensitive."

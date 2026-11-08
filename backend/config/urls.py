@@ -19,7 +19,7 @@ def _superadmin_only(request):
 
 # Django Admin is the Super Admin system. Even a previously issued non-super
 # staff session cannot enter it after this boundary is deployed.
-admin.site.has_permission = _superadmin_only
+admin.site.has_permission = _superadmin_only  # type: ignore[method-assign]
 
 urlpatterns = [
     path("", root, name="api-root"),

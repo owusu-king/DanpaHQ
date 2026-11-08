@@ -36,10 +36,10 @@ logger = logging.getLogger("core.throttling")
 
 #: One line per scope per process. A cache outage is thousands of failures a
 #: minute and the log is no more useful for having all of them.
-_reported: set[str] = set()
+_reported: set[str | None] = set()
 
 
-def _report(scope: str, cause: Exception, *, fail_open: bool) -> None:
+def _report(scope: str | None, cause: Exception, *, fail_open: bool) -> None:
     if scope in _reported:
         return
     _reported.add(scope)
@@ -49,7 +49,7 @@ def _report(scope: str, cause: Exception, *, fail_open: bool) -> None:
     )
 
 
-def _unavailable(scope: str, cause: Exception) -> ProviderUnavailable:
+def _unavailable(scope: str | None, cause: Exception) -> ProviderUnavailable:
     return ProviderUnavailable(
         "We cannot check this right now. Try again shortly.",
         details={"reason": "rate_limit_unavailable", "scope": scope},

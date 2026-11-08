@@ -70,7 +70,7 @@ def archived_resources_for(*, actor) -> dict:
     # log already owns that fact and its reason. Read the newest archive entry
     # for every currently inactive Unit in one query.
     space_ids = [str(unit.id) for unit in space_rows]
-    archive_entries: dict[str, object] = {}
+    archive_entries: dict[str, AuditLog] = {}
     for entry in AuditLog.objects.filter(
         aggregate_type="space",
         aggregate_id__in=space_ids,

@@ -31,10 +31,15 @@ outstanding slots named, until the required ones are filled.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from django.db import transaction
 
 from apps.core.exceptions import Conflict, PermissionDenied, ValidationFailed
 from apps.core.policy import enforce
+
+if TYPE_CHECKING:
+    from apps.property.models import Property
 
 from . import evidence_policy, services
 from .models import (
@@ -117,7 +122,7 @@ def cover_photographs(property_ids) -> dict[str, object]:
     return {key: file for key, (_, file) in best.items()}
 
 
-def _describe(subject) -> tuple[str, str, object]:
+def _describe(subject) -> tuple[str, str, Property]:
     """Which review this subject takes, and what to look it up by.
 
     Duck-typed on the presence of a `space_type`, because that is the field that

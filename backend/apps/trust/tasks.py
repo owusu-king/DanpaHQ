@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import timedelta
 
 from celery import shared_task
 from django.utils import timezone
@@ -77,7 +78,7 @@ def expire_verifications() -> dict[str, int]:
 @shared_task(name="trust.warn_expiring_verifications")
 def warn_expiring_verifications() -> dict[str, int]:
     now = timezone.now()
-    horizon = now + timezone.timedelta(days=EXPIRY_WARNING_DAYS)
+    horizon = now + timedelta(days=EXPIRY_WARNING_DAYS)
 
     warned = 0
     upcoming = Verification.objects.filter(

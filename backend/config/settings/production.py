@@ -4,8 +4,6 @@ Everything here fails to start rather than starting insecurely. A missing secret
 should stop a deploy, not produce a running service with a default key.
 """
 
-from django.core.exceptions import ImproperlyConfigured
-
 from .base import *
 from .base import env
 

@@ -1,7 +1,5 @@
 """Operations Admin policy controls. Enrollment secrets never cross this boundary."""
 
-from typing import ClassVar
-
 from django.db.models import Q
 from rest_framework import serializers
 from rest_framework.response import Response
@@ -49,7 +47,7 @@ def _row(user, kind):
 
 class MFAConfigurationView(ManagementAPIView):
     required_capability = Capability.MANAGE_CONFIGURATION
-    http_method_names: ClassVar = ["get", "patch", "head", "options"]
+    http_method_names = ["get", "patch", "head", "options"]  # noqa: RUF012
 
     def _accounts(self, kind):
         from apps.identity.models import User

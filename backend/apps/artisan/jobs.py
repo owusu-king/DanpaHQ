@@ -154,7 +154,7 @@ def cancel_job(*, user, job_id) -> DirectJob:
                 "artisan.job_cancelled.v1",
                 "artisan_direct_job",
                 str(job.id),
-                {"user_id": str(job.assigned_artisan.user_id), "invitation_id": str(held.id)},
+                {"user_id": str(held.artisan.user_id), "invitation_id": str(held.id)},
             )
         )
     return job

@@ -43,7 +43,7 @@ class PassportInput(serializers.Serializer):
 class DocumentInput(serializers.Serializer):
     file_id = serializers.UUIDField()
     evidence_type = serializers.ChoiceField(
-        choices=ProviderPassportDocument._meta.get_field("evidence_type").choices
+        choices=ProviderPassportDocument._meta.get_field("evidence_type").choices or ()
     )
 
 

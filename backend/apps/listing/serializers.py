@@ -201,7 +201,8 @@ class ListingSerializer(serializers.ModelSerializer):
     def _card_media_items(self, obj) -> list[dict]:
         cache = getattr(self, "_card_media_cache", None)
         if cache is None:
-            cache = self._card_media_cache = {}
+            self._card_media_cache: dict[str, list[dict]] = {}
+            cache = self._card_media_cache
         key = str(obj.id)
         if key in cache:
             return cache[key]
@@ -257,7 +258,8 @@ class ListingSerializer(serializers.ModelSerializer):
     def _public_trust(self, obj) -> dict:
         cache = getattr(self, "_public_trust_cache", None)
         if cache is None:
-            cache = self._public_trust_cache = {}
+            self._public_trust_cache: dict[str, dict] = {}
+            cache = self._public_trust_cache
         key = str(obj.id)
         if key in cache:
             return cache[key]
@@ -411,7 +413,8 @@ class ListingDetailSerializer(ListingSerializer):
     def _verified_property_photos(self, obj) -> list[dict]:
         cache = getattr(self, "_verified_property_photo_cache", None)
         if cache is None:
-            cache = self._verified_property_photo_cache = {}
+            self._verified_property_photo_cache: dict[str, list[dict]] = {}
+            cache = self._verified_property_photo_cache
         key = str(obj.id)
         if key not in cache:
             cache[key] = _verified_property_photo_items(obj)

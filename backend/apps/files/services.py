@@ -66,7 +66,7 @@ SENSITIVE_PURPOSES = frozenset(
 
 #: How long an identity document is kept after it is uploaded. Long enough to
 #: defend a verification decision, short enough to honour data minimisation.
-RETENTION_DAYS = {
+RETENTION_DAYS: dict[str, int] = {
     FilePurpose.IDENTITY_DOCUMENT: 400,
     FilePurpose.PROPERTY_VIDEO: 7,
     FilePurpose.UNIT_VIDEO: 7,

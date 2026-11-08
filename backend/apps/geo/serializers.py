@@ -119,7 +119,8 @@ class LocalitySerializer(serializers.ModelSerializer):
 
 class LocationReferenceSerializer(LocalitySerializer):
     sources = serializers.SerializerMethodField()
-    label = serializers.SerializerMethodField()
+    # DRF's metaclass removes declared fields before constructing the serializer.
+    label = serializers.SerializerMethodField()  # type: ignore[assignment]
 
     class Meta(LocalitySerializer.Meta):
         fields = [*LocalitySerializer.Meta.fields, "sources", "label"]
@@ -200,7 +201,7 @@ class AddressPlaceSerializer(serializers.Serializer):
     reference = serializers.RegexField(r"^[A-Za-z0-9_-]{1,300}$", max_length=300)
     session = serializers.UUIDField(required=False)
     name = serializers.CharField(max_length=160)
-    context = serializers.CharField(max_length=160, required=False, allow_blank=True)
+    context = serializers.CharField(max_length=160, required=False, allow_blank=True)  # type: ignore[assignment]
 
 
 class CreateAddressSerializer(serializers.Serializer):

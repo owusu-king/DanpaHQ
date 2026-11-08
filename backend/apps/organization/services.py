@@ -1356,7 +1356,7 @@ def invitation_by_token(*, invitation_id, token: str) -> OrganizationInvitation:
 #: "No longer pending" was the whole of what four different endings used to say,
 #: and a client with one sentence for all of them cannot tell somebody whether to
 #: wait, ask again, or look at the account they are signed in as.
-INVITATION_REFUSALS = {
+INVITATION_REFUSALS: dict[str, str] = {
     OrganizationInvitationStatus.EXPIRED: (
         "That Portfolio invitation expired. Ask them to send a new one."
     ),

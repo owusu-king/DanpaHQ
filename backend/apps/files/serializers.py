@@ -34,7 +34,10 @@ class PresignedUploadSerializer(serializers.Serializer):
     url = serializers.CharField()
     method = serializers.CharField()
     headers = serializers.DictField(child=serializers.CharField(), required=False)
-    fields = serializers.DictField(child=serializers.CharField(), required=False)
+    # This is an API field; DRF keeps the instance's BindingDict separately.
+    fields = serializers.DictField(  # type: ignore[assignment]
+        child=serializers.CharField(), required=False
+    )
     expires_in = serializers.IntegerField()
     max_bytes = serializers.IntegerField()
 

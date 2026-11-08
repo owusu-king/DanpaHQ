@@ -10,7 +10,7 @@ domain module and the module graph stays acyclic - see ADR 0002.
 
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from django.conf import settings
 from django.db import transaction
@@ -51,7 +51,7 @@ CREDENTIAL_LIFETIME = timedelta(minutes=15)
 MAX_CODE_ATTEMPTS = 5
 
 
-def check_in_window(request: ViewingRequest) -> tuple[timezone.datetime, timezone.datetime]:
+def check_in_window(request: ViewingRequest) -> tuple[datetime, datetime]:
     if request.confirmed_slot is None:
         raise Conflict("Choose a viewing time before using check-in.")
     opens_at = request.confirmed_slot.starts_at - CHECK_IN_OPENS_BEFORE
@@ -706,6 +706,7 @@ def validate_check_in(
             )
             error = _check_in_error()
         else:
+            assert session is not None  # A missing session sets the rejection reason above.
             session.used_at = now
             session.used_by = user
             session.save(update_fields=["used_at", "used_by", "updated_at"])
@@ -750,6 +751,7 @@ def validate_check_in(
             checked_in = locked
     if error is not None:
         raise error
+    assert checked_in is not None
     return checked_in
 
 

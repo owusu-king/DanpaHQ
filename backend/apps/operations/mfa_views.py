@@ -1,5 +1,3 @@
-from typing import ClassVar
-
 from django.conf import settings
 from rest_framework import serializers
 from rest_framework.permissions import AllowAny
@@ -26,8 +24,8 @@ def no_store(response):
 
 
 class MFALoginView(APIView):
-    authentication_classes: ClassVar[list] = []
-    permission_classes: ClassVar[list] = [AllowAny]
+    authentication_classes: list = []
+    permission_classes = [AllowAny]
     surface = "consumer"
 
     def post(self, request):

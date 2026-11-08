@@ -182,7 +182,7 @@ def prepare_property_list_rows(rows) -> list:
         .prefetch_related("evidence")
         .order_by("-created_at")
     )
-    grouped = {key: [] for key in by_id}
+    grouped: dict[str, list[Verification]] = {key: [] for key in by_id}
     for verification in verification_rows:
         grouped.setdefault(verification.subject_id, []).append(verification)
 

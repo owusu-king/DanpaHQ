@@ -8,6 +8,8 @@ is not here either; buyers ask through an enquiry (owner, 2026-09-28).
 
 from __future__ import annotations
 
+from typing import cast
+
 from rest_framework import serializers
 
 from apps.core.money import Money
@@ -235,7 +237,7 @@ class SaleDetailSerializer(SaleCardSerializer):
         rows = obj.property.property_amenities.filter(removed_at__isnull=True).select_related(
             "amenity"
         )
-        return PropertyAmenitySerializer(rows, many=True).data
+        return cast(list[dict], PropertyAmenitySerializer(rows, many=True).data)
 
     def get_my_enquiry_id(self, obj) -> str | None:
         """The reader's own conversation about this property, if they have started one."""
@@ -457,11 +459,12 @@ class EnquiryDetailSerializer(EnquirySerializer):
         read_only_fields = fields
 
     def get_messages(self, obj) -> list[dict]:
-        return EnquiryMessageSerializer(
+        data = EnquiryMessageSerializer(
             obj.messages.select_related("author"),
             many=True,
             context={"user": self._user(), "enquiry": obj},
         ).data
+        return cast(list[dict], data)
 
 
 class StartEnquirySerializer(serializers.Serializer):

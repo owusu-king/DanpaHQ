@@ -1307,7 +1307,7 @@ def select_onboarding_intent(*, user, intent: str):
     # which made a dropdown selection the whole of the check. It now grants
     # nothing: the intent is recorded, and provider standing is decided by the
     # verification that exists to decide it.
-    roles_by_intent = {
+    roles_by_intent: dict[str, list[Role]] = {
         Intent.FIND_PROPERTY: [],
         Intent.CURRENT_TENANT: [Role.TENANT],
         Intent.MANAGE_PROPERTY: [],

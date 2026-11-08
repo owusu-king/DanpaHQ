@@ -24,6 +24,8 @@ their status, jobs completed here, reviews — and lets the reader decide.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from django.contrib.postgres.fields import ArrayField
 from django.db import models
 from django.utils import timezone
@@ -248,6 +250,8 @@ class Quote(BaseModel):
 
     invitation = models.ForeignKey(QuoteInvitation, on_delete=models.PROTECT, related_name="quotes")
     price = MoneyField()
+    if TYPE_CHECKING:
+        price_minor: int
     scope = models.TextField(max_length=1000)
     #: ``[{"item": str, "quantity": str, "cost_minor": int | None}]``, all optional.
     materials = models.JSONField(default=list, blank=True)
