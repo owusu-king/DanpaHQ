@@ -72,8 +72,9 @@ def deliver_push(event) -> None:
 
         app = firebase_app()
     except Exception as exc:
-        logger.warning("FCM initialization failed", extra={"error": type(exc).__name__})
-        raise PushUnavailable("FCM initialization failed") from None
+        error = type(exc).__name__
+        logger.warning("FCM initialization failed", extra={"error": error})
+        raise PushUnavailable(f"FCM initialization failed ({error})") from None
 
     retry = False
     for device_id, token in candidates:

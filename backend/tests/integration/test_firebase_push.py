@@ -110,6 +110,29 @@ def test_outbox_fans_out_to_live_devices_and_replay_skips_previous_sends(
     assert send.call_count == 2
 
 
+def test_initialization_failure_retries_without_recording_secret_details(
+    user, sign_in_as, send, monkeypatch
+):
+    client = APIClient()
+    sign_in_as(client, user=user)
+    assert register(client, user, "phone").status_code == 200
+    note = message(user)
+    init = Mock(side_effect=PermissionError("private credential path"))
+    monkeypatch.setattr("apps.notifications.firebase_push.firebase_app", init)
+
+    assert dispatch_pending()["failed"] == 1
+    event = OutboxEvent.objects.get(name=EVENT)
+    assert event.status == "failed"
+    assert event.last_error == "PushUnavailable: FCM initialization failed (PermissionError)"
+    assert not PushDelivery.objects.filter(notification=note).exists()
+    send.assert_not_called()
+
+    init.side_effect = None
+    OutboxEvent.objects.filter(pk=event.pk).update(available_at=event.created_at)
+    assert dispatch_pending()["failed"] == 0
+    send.assert_called_once()
+
+
 def test_quota_retry_and_unregistered_token_cleanup(user, sign_in_as, send):
     client = APIClient()
     device = sign_in_as(client, user=user)["device"]

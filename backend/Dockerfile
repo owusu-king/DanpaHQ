@@ -38,9 +38,20 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
  && python -m pip install --no-cache-dir --upgrade "pip==${PIP_VERSION}" \
  && useradd --create-home --uid 10001 app
 
+# Render makes mounted runtime secret files readable to group 1000.
+RUN groupadd --gid 1000 render-secrets && usermod --append --groups render-secrets app
+
 COPY --from=builder /install /usr/local
 WORKDIR /app
-COPY --chown=app:app . /app
+# Render also places secret files at the build context root. Copy only the
+# application files and directories so arbitrary secret filenames stay out.
+COPY --chown=app:app manage.py pyproject.toml requirements.txt requirements-dev.txt ./
+COPY --chown=app:app apps/ ./apps/
+COPY --chown=app:app config/ ./config/
+COPY --chown=app:app data/ ./data/
+COPY --chown=app:app scripts/ ./scripts/
+COPY --chown=app:app templates/ ./templates/
+COPY --chown=app:app tests/ ./tests/
 
 RUN mkdir -p /app/staticfiles \
     && chown -R app:app /app/staticfiles
