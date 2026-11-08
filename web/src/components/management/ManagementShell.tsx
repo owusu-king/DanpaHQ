@@ -194,14 +194,37 @@ export function ManagementShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!open) return;
     navRef.current?.querySelector<HTMLElement>("a, button")?.focus();
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") closeMenu(true);
+      if (event.defaultPrevented || (event.target as Element | null)?.closest("dialog[open]")) return;
+      if (event.key === "Escape") {
+        if (document.querySelector('#management-sidebar .management-account-trigger[aria-expanded="true"]')) return;
+        closeMenu(true);
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const items = Array.from(
+        document.querySelectorAll<HTMLElement>(
+          '#management-sidebar a[href], #management-sidebar button:not([disabled]), #management-sidebar [tabindex]:not([tabindex="-1"])',
+        ),
+      ).filter((element) => element.getClientRects().length > 0);
+      const first = items.at(0);
+      const last = items.at(-1);
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last?.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first?.focus();
+      }
     };
     const wide = window.matchMedia("(min-width: 801px)");
     const onWide = () => { if (wide.matches) setOpen(false); };
     document.addEventListener("keydown", onKey);
     wide.addEventListener("change", onWide);
     return () => {
+      document.body.style.overflow = previousOverflow;
       document.removeEventListener("keydown", onKey);
       wide.removeEventListener("change", onWide);
     };
@@ -236,7 +259,13 @@ export function ManagementShell({ children }: { children: React.ReactNode }) {
       className={`management-app${isCollapsed ? " is-collapsed" : ""}`}
       data-ready={collapsed === null ? undefined : "true"}
     >
-      <aside id="management-sidebar" className={`management-sidebar ${open ? "is-open" : ""}`}>
+      <aside
+        id="management-sidebar"
+        className={`management-sidebar ${open ? "is-open" : ""}`}
+        role={open ? "dialog" : undefined}
+        aria-modal={open || undefined}
+        aria-label="Management navigation"
+      >
         <button
           type="button"
           className="management-collapse"
@@ -300,7 +329,15 @@ export function ManagementShell({ children }: { children: React.ReactNode }) {
           />
         </div>
       </aside>
-      {open ? <div className="management-scrim" aria-hidden="true" onClick={() => closeMenu(false)} /> : null}
+      {open ? (
+        <button
+          type="button"
+          className="management-scrim"
+          aria-label="Close navigation"
+          tabIndex={-1}
+          onClick={() => closeMenu(true)}
+        />
+      ) : null}
       <div className="management-workspace" inert={open || undefined}>
         <header className="management-mobile-header">
           <button
@@ -310,6 +347,7 @@ export function ManagementShell({ children }: { children: React.ReactNode }) {
             onClick={() => setOpen(true)}
             aria-expanded={open}
             aria-controls="management-sidebar"
+            aria-haspopup="dialog"
           >
             <svg viewBox="0 0 20 20" width="20" height="20" aria-hidden="true" focusable="false">
               <path d="M3.5 6h13M3.5 10h13M3.5 14h13" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />

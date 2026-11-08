@@ -197,6 +197,7 @@ def draft_lease(
         template = canonical_template()
 
     lease = Lease(
+        activation_requirement=LeaseActivationRequirement.INITIAL_PAYMENT,
         workflow_version=workflow,
         template=template,
         unit=unit,
@@ -260,6 +261,7 @@ BUILDER_FIELDS = (
 @transaction.atomic
 def update_draft(*, lease: Lease, user, data: dict) -> Lease:
     """Update only negotiable fields before an offer has a counterparty."""
+    lease.refresh_from_db(from_queryset=Lease.objects.select_for_update())
     assert_landlord_side(lease, user)
     if lease.workflow_version != LeaseWorkflow.CANONICAL:
         raise Conflict("This older draft does not use the guided agreement builder.")
@@ -312,6 +314,7 @@ def amend_lease(*, lease: Lease, user, data: dict) -> Lease:
     the current wording; the old lease keeps its own version recorded on its own
     snapshot.
     """
+    lease.refresh_from_db(from_queryset=Lease.objects.select_for_update())
     assert_landlord_side(lease, user)
     # An amendment is a new agreement over a new period. The running agreement
     # continues untouched; a replacement waits for plan capacity.
@@ -349,7 +352,7 @@ def amend_lease(*, lease: Lease, user, data: dict) -> Lease:
         application=lease.application,
         listing=lease.listing,
         tenancy=lease.tenancy,
-        activation_requirement=lease.activation_requirement,
+        activation_requirement=LeaseActivationRequirement.INITIAL_PAYMENT,
     )
     # Everything carries over, so an amendment that changes the rent does not
     # quietly drop the utilities, the occupants or the custom terms.
@@ -370,7 +373,9 @@ def amend_lease(*, lease: Lease, user, data: dict) -> Lease:
         metadata={
             "amends_lease_id": str(lease.id),
             "amends_content_hash": getattr(lease.agreement, "content_hash", ""),
-            "template_version": amendment.template.version,
+            "template_version": (
+                amendment.template.version if amendment.template is not None else ""
+            ),
             "unit_id": str(lease.unit_id),
         },
     )
@@ -403,11 +408,15 @@ def _assert_builder_complete(lease: Lease) -> None:
 
 @transaction.atomic
 def ready_lease(*, lease: Lease, user) -> Lease:
+    lease.refresh_from_db(from_queryset=Lease.objects.select_for_update())
     assert_landlord_side(lease, user)
     if lease.workflow_version != LeaseWorkflow.CANONICAL:
         raise Conflict("This older agreement does not have a Ready checkpoint.")
     if lease.status != LeaseStatus.DRAFT:
         raise Conflict("Only a draft can be marked ready.")
+    template = lease.template
+    if template is None:
+        raise ValidationFailed("A canonical agreement requires its template.")
     _assert_builder_complete(lease)
     lease.status = LeaseStatus.READY
     lease.ready_at = timezone.now()
@@ -419,9 +428,9 @@ def ready_lease(*, lease: Lease, user) -> Lease:
         actor=user,
         changes={"status": [LeaseStatus.DRAFT, LeaseStatus.READY]},
         metadata={
-            "template_code": lease.template.code,
-            "template_version": lease.template.version,
-            "legal_review_status": lease.template.review_status,
+            "template_code": template.code,
+            "template_version": template.version,
+            "legal_review_status": template.review_status,
         },
     )
     return lease
@@ -430,6 +439,7 @@ def ready_lease(*, lease: Lease, user) -> Lease:
 @transaction.atomic
 def offer_lease(*, lease: Lease, user, request=None) -> Lease:
     """Send it to the tenant. This is the landlord's acceptance."""
+    lease.refresh_from_db(from_queryset=Lease.objects.select_for_update())
     assert_landlord_side(lease, user)
     # An offer already sent before a restriction can still be accepted — it
     # counts as running. A new one waits for plan capacity.
@@ -446,7 +456,10 @@ def offer_lease(*, lease: Lease, user, request=None) -> Lease:
     if (
         lease.workflow_version == LeaseWorkflow.CANONICAL
         and getattr(settings, "LEASE_TEMPLATE_REQUIRE_APPROVAL", False)
-        and lease.template.review_status != TemplateReviewStatus.APPROVED
+        and (
+            lease.template is None
+            or lease.template.review_status != TemplateReviewStatus.APPROVED
+        )
     ):
         raise ValidationFailed(
             "This agreement template still requires Ghana-qualified legal approval."
@@ -503,6 +516,7 @@ def offer_lease(*, lease: Lease, user, request=None) -> Lease:
 @transaction.atomic
 def record_tenant_review(*, lease: Lease, user) -> Lease:
     """Record the first deliberate opening of the complete frozen offer."""
+    lease.refresh_from_db(from_queryset=Lease.objects.select_for_update())
     assert_tenant(lease, user)
     if lease.status not in (LeaseStatus.OFFERED, LeaseStatus.TENANT_ACCEPTED):
         return lease
@@ -532,12 +546,13 @@ def accept_lease(
     acknowledged: bool = False,
     request=None,
 ) -> Lease:
-    """The tenant's acceptance. The second one activates the agreement.
+    """Accept the agreement and create its authoritative payment obligations.
 
     Who may accept, and when, is decided by `lease.policies` rather than here,
     so the same answer serves this service and the permitted-actions payload
     the client renders from. See ADR 0021.
     """
+    lease.refresh_from_db(from_queryset=Lease.objects.select_for_update())
     enforce(can_accept_offer(actor=user, target=lease), confirmed=confirmed)
 
     lease.tenant_accepted_at = timezone.now()
@@ -568,6 +583,9 @@ def accept_lease(
         previous = lease.status
         lease.status = LeaseStatus.TENANT_ACCEPTED
         lease.save(update_fields=["status", "tenant_accepted_at", "updated_at"])
+        from apps.rent.services import build_schedule
+
+        build_schedule(lease)
         record(
             action=AuditAction.UPDATE,
             aggregate_type="lease",
@@ -600,12 +618,11 @@ def accept_lease(
             changes={"status": [previous, LeaseStatus.AWAITING_ACTIVATION]},
             metadata={"activation_requirement": lease.activation_requirement},
         )
-        if lease.activation_requirement == LeaseActivationRequirement.LEASE_ACCEPTED:
-            lease = activate_lease(
-                lease=lease,
-                actor=user,
-                satisfied_requirement=LeaseActivationRequirement.LEASE_ACCEPTED,
-            )
+        from apps.rent.services import build_schedule
+
+        build_schedule(lease)
+        activate_after_initial_payment(lease)
+        lease.refresh_from_db()
     else:  # pragma: no cover - offered always carries the landlord's acceptance
         lease.save(update_fields=["tenant_accepted_at", "updated_at"])
     return lease
@@ -614,6 +631,7 @@ def accept_lease(
 @transaction.atomic
 def confirm_lease(*, lease: Lease, user, request=None) -> Lease:
     """Provider's final acceptance after the tenant has accepted the frozen offer."""
+    lease.refresh_from_db(from_queryset=Lease.objects.select_for_update())
     assert_landlord_side(lease, user)
     if lease.workflow_version != LeaseWorkflow.CANONICAL:
         raise Conflict("This older agreement was confirmed when it was sent.")
@@ -660,22 +678,59 @@ def confirm_lease(*, lease: Lease, user, request=None) -> Lease:
             "activation_requirement": lease.activation_requirement,
         },
     )
-    if lease.activation_requirement == LeaseActivationRequirement.LEASE_ACCEPTED:
-        lease = activate_lease(
-            lease=lease,
-            actor=user,
-            satisfied_requirement=LeaseActivationRequirement.LEASE_ACCEPTED,
-        )
+    from apps.rent.services import build_schedule
+
+    build_schedule(lease)
+    activate_after_initial_payment(lease)
+    lease.refresh_from_db()
     return lease
+
+
+def initial_payment_satisfied(lease: Lease) -> bool:
+    from django.db.models import Sum
+
+    from apps.rent.models import PaymentStatus, RentCharge
+
+    charges = list(RentCharge.objects.filter(lease=lease, due_on=lease.starts_on))
+    required = lease.move_in_total_minor
+    if not charges or sum(charge.amount_minor for charge in charges) != required:
+        return False
+    for charge in charges:
+        paid = charge.payments.filter(
+            status=PaymentStatus.CONFIRMED, amount_currency=charge.amount_currency
+        ).aggregate(total=Sum("amount_minor"))["total"] or 0
+        if paid < charge.amount_minor:
+            return False
+    return True
+
+
+@transaction.atomic
+def activate_after_initial_payment(lease: Lease) -> None:
+    """Preserve confirmed money even if authority or occupancy needs attention."""
+    lease = Lease.objects.select_for_update().get(pk=lease.pk)
+    if (
+        lease.status != LeaseStatus.AWAITING_ACTIVATION
+        or not initial_payment_satisfied(lease)
+    ):
+        return
+    try:
+        with transaction.atomic():
+            activate_lease(
+                lease=lease, actor=None,
+                satisfied_requirement=lease.activation_requirement,
+            )
+    except (Conflict, PermissionDenied, ValidationFailed):
+        record(
+            action=AuditAction.UPDATE, aggregate_type="lease", aggregate_id=lease.id,
+            actor=None, metadata={"event": "paid_activation_requires_review"},
+        )
 
 
 @transaction.atomic
 def activate_lease(*, lease: Lease, actor, satisfied_requirement: str) -> Lease:
     """Activate an accepted agreement after its configured gate is satisfied.
 
-    Today acceptance is the only configured production gate. Payment Core can
-    later select ``initial_payment`` and call this same boundary from a trusted
-    payment-confirmed event without changing lease acceptance or tenancy code.
+    Payment-gated agreements require independently confirmed upfront obligations.
     """
     from apps.property.capabilities import PropertyCapability, assert_property_capability
 
@@ -686,6 +741,8 @@ def activate_lease(*, lease: Lease, actor, satisfied_requirement: str) -> Lease:
         raise Conflict("This agreement has not been accepted by both parties.")
     if satisfied_requirement != lease.activation_requirement:
         raise Conflict("The required activation condition has not been confirmed.")
+    if not initial_payment_satisfied(lease):
+        raise Conflict("The full agreed upfront rent, deposit and fees have not been confirmed.")
 
     # Authority may be revoked after an offer but before tenant acceptance.
     assert_property_capability(
@@ -814,6 +871,7 @@ def _close_out_the_market(lease: Lease, *, actor) -> None:
 def decline_lease(*, lease: Lease, user, reason: str = "", confirmed: bool = True) -> Lease:
     # The policy requires a reason here: the landlord reads it, and it is often
     # the difference between a lost tenant and a revised offer.
+    lease.refresh_from_db(from_queryset=Lease.objects.select_for_update())
     enforce(
         can_decline_offer(actor=user, target=lease),
         reason=reason,
@@ -857,6 +915,7 @@ def decline_lease(*, lease: Lease, user, reason: str = "", confirmed: bool = Tru
 @transaction.atomic
 def cancel_lease(*, lease: Lease, user, reason: str = "") -> Lease:
     """Withdraw an agreement before it is live. Never after."""
+    lease.refresh_from_db(from_queryset=Lease.objects.select_for_update())
     assert_landlord_side(lease, user)
     if lease.status not in (LeaseStatus.DRAFT, LeaseStatus.READY, LeaseStatus.OFFERED):
         raise Conflict("An agreement that is already live cannot be cancelled. End it instead.")
@@ -897,6 +956,7 @@ def cancel_lease(*, lease: Lease, user, reason: str = "") -> Lease:
 @transaction.atomic
 def end_lease(*, lease: Lease, user, reason: str = "", confirmed: bool = False) -> Lease:
     """Close a live tenancy. Either party; the record says who."""
+    lease.refresh_from_db(from_queryset=Lease.objects.select_for_update())
     if str(lease.tenant_id) == str(user.id):
         assert_tenant(lease, user)
     else:

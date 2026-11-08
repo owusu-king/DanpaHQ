@@ -54,7 +54,7 @@ export function WorkList({
   onChanged,
 }: {
   rows: ArtisanInvitation[] | null;
-  empty: { icon: "receipt" | "wrench"; title: string; body: string };
+  empty: { icon: "receipt" | "wrench"; title: string; body?: string };
   onChanged: () => void | Promise<void>;
 }) {
   const [openId, setOpenId] = useDeepLinkedModal("invitation");

@@ -216,6 +216,30 @@ class TestPatchCannotSkipTheCode:
         assert member.is_email_verified is False
 
 
+def test_verification_uses_management_resend_without_deployment_credentials(
+    api, member, settings, monkeypatch,
+):
+    from unittest.mock import Mock
+
+    from tests.integration.test_managed_email import configure
+    from tests.integration.test_runtime_configuration_and_support import management_client
+
+    settings.RUNTIME_CONFIGURATION_ENABLED = True
+    settings.RESEND_API_KEY = ""
+    _, client = management_client(email="resend-verification-config@example.com")
+    assert configure(client, "resend").status_code == 200
+    post = Mock(return_value=Mock(json=lambda: {"id": "accepted"}))
+    monkeypatch.setattr("apps.identity.email_backend.requests.post", post)
+    response = start(api, "New@Example.com")
+    assert response.status_code == 201, response.data
+    assert post.call_args.args[0] == "https://api.resend.com/emails"
+    payload = post.call_args.kwargs["json"]
+    assert payload["from"] == "Danpa HQ <resend@example.com>"
+    assert payload["to"] == ["new@example.com"]
+    code = payload["text"].split()[0]
+    assert confirm(api, response.data["verification_id"], code).status_code == 200
+
+
 @pytest.fixture
 def management_brevo(settings, monkeypatch):
     from unittest.mock import Mock

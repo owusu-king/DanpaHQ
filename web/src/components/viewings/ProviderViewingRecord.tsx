@@ -23,7 +23,9 @@ import { Field } from "@/components/Field";
 import { Notice } from "@/components/Notice";
 import { Icon } from "@/components/portal/icons";
 import { ViewingDirections } from "@/components/viewings/ViewingDirections";
+import { ViewingFee } from "@/components/viewings/ViewingFee";
 import { ApiFailure } from "@/lib/api";
+import { formatMoney } from "@/lib/money";
 import {
   cancelViewingAppointment,
   offerSlots,
@@ -137,6 +139,7 @@ export function ProviderViewingRecord({ viewing, onChanged }: { viewing: Viewing
         <ConfirmOfferedSlot viewing={viewing} busy={busy} onConfirm={(slotId) => run(() => confirmMyViewingSlot(viewing.id, slotId))} />
       ) : null}
 
+      <ViewingFee viewing={viewing} tenant={false} onChanged={onChanged} />
       <AttendanceResolutionPanel viewing={viewing} busy={busy} run={run} />
 
       {declining ? (
@@ -160,6 +163,7 @@ export function ProviderViewingRecord({ viewing, onChanged }: { viewing: Viewing
 
       {offering ? (
         <OfferTimes
+          feePolicy={viewing.fee_policy}
           purpose={rescheduling ? "reschedule" : "offer"}
           busy={busy}
           onCancel={() => { setOffering(false); setRescheduling(false); }}
@@ -265,7 +269,7 @@ function CancelAppointmentForm({ busy, onBack, onCancel }: { busy: boolean; onBa
   const [note, setNote] = useState("");
   return (
     <section className="vr-panel is-danger">
-      <Notice tone="info" title="Could a new time work?" body="Rescheduling keeps it active." />
+      <Notice tone="info" title="Could a new time work?" />
       <label className="vr-select">Reason
         <select value={reason} onChange={(event) => setReason(event.target.value as ViewingCancellationReason)}>
           <option value="schedule_conflict">Schedule conflict</option>
@@ -370,19 +374,23 @@ function ProviderManualCheckIn({ viewing, onChanged }: { viewing: Viewing; onCha
 }
 
 function OfferTimes({
+  feePolicy,
   onCancel,
   onOffer,
   purpose = "offer",
   busy: parentBusy = false,
 }: {
+  feePolicy?: Viewing["fee_policy"];
   onCancel: () => void;
   onOffer: (input: {
+    viewing_fee_minor?: number;
     slots: { starts_at: string }[];
   }) => Promise<void>;
   purpose?: "offer" | "reschedule";
   busy?: boolean;
 }) {
   const [times, setTimes] = useState<string[]>([""]);
+  const [fee, setFee] = useState("");
   const [busy, setBusy] = useState(false);
   const panel = useRef<HTMLElement>(null);
 
@@ -447,18 +455,20 @@ function OfferTimes({
           </button>
         ) : null}
 
-        <p className="vr-hint is-quiet"><Icon name="shield" />Viewings are always free for tenants</p>
+        {purpose === "offer" && feePolicy?.mode === "provider" ? <Field label="Viewing fee (GH₵)" type="number" min={feePolicy.minimum_minor / 100} max={feePolicy.maximum_minor / 100} step="0.01" value={fee} onChange={(event) => setFee(event.target.value)} hint={`Management permits ${formatMoney({ minor: feePolicy.minimum_minor, currency: "GHS" })} to ${formatMoney({ minor: feePolicy.maximum_minor, currency: "GHS" })}.`} /> : null}
+        {feePolicy?.mode !== "disabled" ? <p className="vr-hint is-quiet"><Icon name="shield" />{purpose === "reschedule" ? "The agreed fee stays the same; rescheduling adds no fee." : feePolicy?.mode === "fixed" ? `Standard viewing fee: ${formatMoney({ minor: feePolicy.fixed_minor, currency: "GHS" })}` : feePolicy?.mode === "provider" ? "The tenant sees the fee before confirming a time." : "Viewings are free under the current management policy."}</p> : null}
       </section>
 
       <div className="vr-actions is-offer">
         <Button
           busy={busy || parentBusy}
           busyLabel="Sending…"
-          disabled={filled.length === 0}
+          disabled={filled.length === 0 || (purpose === "offer" && feePolicy?.mode === "provider" && (!fee || !Number.isFinite(Number(fee)) || Math.round(Number(fee) * 100) < feePolicy.minimum_minor || Math.round(Number(fee) * 100) > feePolicy.maximum_minor))}
           onClick={async () => {
             setBusy(true);
             try {
               await onOffer({
+                ...(purpose === "offer" && feePolicy?.mode === "provider" ? { viewing_fee_minor: Math.round(Number(fee) * 100) } : {}),
                 slots: filled.map((value) => ({
                   starts_at: new Date(value).toISOString(),
                 })),

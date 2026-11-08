@@ -27,7 +27,7 @@ export type WizardStep = {
   key: string;
   label: string;
   /** One line under the step's title. */
-  hint: string;
+  hint?: string;
   icon: Glyph;
   done: boolean;
   /** Whether pressing it on the strip opens it. */
@@ -90,7 +90,7 @@ export function WizardFrame({
         <View style={styles.head}>
           <Type variant="label" style={styles.count}>{`STEP ${at + 1} OF ${steps.length}`}</Type>
           <Type variant="title2" accessibilityRole="header" style={styles.title}>{step.label}</Type>
-          <Type variant="caption" style={styles.hint}>{step.hint}</Type>
+          {step.hint ? <Type variant="caption" style={styles.hint}>{step.hint}</Type> : null}
         </View>
       </View>
 

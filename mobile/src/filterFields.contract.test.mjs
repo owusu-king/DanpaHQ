@@ -49,7 +49,7 @@ test("the sheet asks in seven compact rows: a range, dropdowns, a segmented choi
 
   // One dropdown open at a time, and none left open when the sheet comes back.
   assert.match(body, /const toggle = \(field: FilterMenu\) => setOpen\(\(current\) => \(current === field \? null : field\)\);/);
-  assert.match(body, /if \(!visible\) setOpen\(null\);/);
+  assert.match(body, /if \(visible\) setDraft\(mode\);\s*else setOpen\(null\);/);
   assert.match(body, /onPropertyTypeChange\(value\);\s*setOpen\(null\);/);
 });
 
@@ -64,8 +64,8 @@ test("rent is one range between a minimum and a maximum", () => {
   // A thumb owns its drag, and the two never cross.
   assert.match(source, /onStartShouldSetPanResponder: \(\) => true/);
   assert.match(source, /onPanResponderTerminationRequest: \(\) => false/);
-  assert.match(source, /\[Math\.min\(index, latest\[1\] - 1\), latest\[1\]\]/);
-  assert.match(source, /\[latest\[0\], Math\.max\(index, latest\[0\] \+ 1\)\]/);
+  assert.match(source, /\[Math\.min\(index, latest\.current\[1\] - 1\), latest\.current\[1\]\]/);
+  assert.match(source, /\[latest\.current\[0\], Math\.max\(index, latest\.current\[0\] \+ 1\)\]/);
 
   // Android keeps the thumb a real view, so the list cannot intercept its drag,
   // and two thumbs at one end never trap each other.
@@ -75,7 +75,7 @@ test("rent is one range between a minimum and a maximum", () => {
 
   // The search runs once, when the thumb is let go, not at every stop it passes.
   assert.match(source, /onPanResponderRelease: \(\) => settle\(\)/);
-  assert.match(source, /commit\.current\(amountAt\(latest\[0\], 0\), amountAt\(latest\[1\], LAST\)\)/);
+  assert.match(source, /onChange\(amountAt\(latest\.current\[0\], 0\), amountAt\(latest\.current\[1\], LAST\)\)/);
 
   // Each thumb is an adjustable that a screen reader steps one stop at a time.
   assert.match(source, /accessibilityRole="adjustable"/);

@@ -3,12 +3,12 @@ import { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, ScrollView, StyleSheet, Switch, View } from "react-native";
 
 import { ApiFailure } from "@/api";
+import { useMe } from "@/auth";
 import { IndexGround } from "@/components/account/IndexRows";
 import { Bone } from "@/components/billing/BillingParts";
 import { Panel } from "@/components/billing/BillingSurfaces";
 import { useHomeDensity } from "@/components/home/plinth";
 import {
-  Footnote,
   GroupLabel,
   INK,
   KOLA,
@@ -38,22 +38,29 @@ import { registerMessagePush } from "@/messagePush";
  * one decision. The line about Updates is a footnote, not a paragraph.
  */
 export default function NotificationSettingsScreen() {
+  const { id: userId } = useMe();
   const density = useHomeDensity();
   const pageBottom = useSafeBottom(space[12]);
   const [preferences, setPreferences] = useState<NotificationPreferences | null>(null);
   const [saving, setSaving] = useState<keyof NotificationPreferences | null>(null);
   const [error, setError] = useState("");
 
-  const load = useCallback(async () => {
-    try {
-      setPreferences(await getNotificationPreferences());
+  const load = useCallback(async (signal?: AbortSignal) => {
+    await getNotificationPreferences().then((value) => {
+      if (signal?.aborted) return;
+      setPreferences(value);
       setError("");
-    } catch (cause) {
+    }).catch((cause) => {
+      if (signal?.aborted) return;
       setError(cause instanceof ApiFailure ? cause.error.message : "Could not load your notification settings.");
-    }
+    });
   }, []);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    const controller = new AbortController();
+    void load(controller.signal);
+    return () => controller.abort();
+  }, [load]);
 
   async function set(key: "sms_enabled" | "push_enabled" | "sms_important_only" | "email_enabled", value: boolean) {
     if (!preferences) return;
@@ -72,11 +79,11 @@ export default function NotificationSettingsScreen() {
     }
     if (key === "push_enabled" && value) {
       try {
-        if (!(await registerMessagePush(true))) {
-          setError("Push alerts need notification permission on this phone and a configured native build.");
+        if (!(await registerMessagePush(true, userId))) {
+          setError("Check notification permissions for Danpa HQ in your phone settings.");
         }
       } catch {
-        setError("Could not register this phone for push alerts. Reopen the app to try again.");
+        setError("Could not enable push alerts. Reopen the app to try again.");
       }
     }
   }
@@ -129,7 +136,6 @@ export default function NotificationSettingsScreen() {
                 onChange={(value) => void set("email_enabled", value)}
               />
             </Panel>
-            <Footnote>Decisions always appear in Updates. These control what else is sent.</Footnote>
           </View>
         ) : null}
       </ScrollView>

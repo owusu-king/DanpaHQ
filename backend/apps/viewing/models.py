@@ -3,8 +3,8 @@
 Phase 2 ends with a tenant finding a room. This is what happens next, and it is
 where several specifically Ghanaian problems live:
 
-* **Free attendance.** Danpa HQ viewings are free. Scheduling must never become
-  a payment or fee-collection surface.
+* **Agreed pricing.** Management controls whether viewings are free or carry a
+  disclosed fee, and how that fee is collected.
 * **Wasted journeys.** A viewing that does not happen costs a tenant a fare and
   most of a day. Both no-shows are recorded against the request, so a pattern of
   them is visible rather than folklore.
@@ -102,6 +102,14 @@ class AttendanceResolutionStatus(models.TextChoices):
 
 
 class ViewingRequest(BaseModel):
+    fee_minor = models.PositiveBigIntegerField(default=0)
+    fee_collection = models.CharField(max_length=12, default="platform")
+    fee_policy = models.JSONField(default=dict, blank=True)
+    fee_claimed_by = models.ForeignKey(
+        "identity.User", null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    fee_paid_at = models.DateTimeField(null=True, blank=True)
+    fee_payment_source = models.CharField(max_length=24, blank=True)
     listing = models.ForeignKey(
         "listing.Listing", on_delete=models.PROTECT, related_name="viewing_requests"
     )

@@ -121,7 +121,7 @@ export function ArtisanProfile({ id, forRequest, onNavigate }: { id: string; for
               </Type>
             </View>
           )) : (
-            <Type variant="caption" style={{ color: MUTED }}>No reviews yet. Reviews come from customers after a confirmed job.</Type>
+            <Type variant="caption" style={{ color: MUTED }}>No reviews yet.</Type>
           )}
         </View>
       </View>
@@ -201,7 +201,6 @@ function QuoteAsk({ artisan, onNavigate }: { artisan: PublicArtisan; onNavigate?
           } as never)
         }
       />
-      <Type variant="caption" style={{ color: MUTED }}>For a repair on a rented home, open it in Maintenance and choose Find an artisan.</Type>
     </View>
   );
 }

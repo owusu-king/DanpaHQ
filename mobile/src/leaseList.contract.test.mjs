@@ -36,7 +36,6 @@ const between = (source, start, end) => {
 };
 const screen = () => code(read("app/(app)/leases.tsx"));
 const provider = () => code(read("src/components/agreements/ProviderAgreements.tsx"));
-const kit = () => code(read("src/components/portfolio/PortfolioList.tsx"));
 const work = () => code(read("src/components/work/WorkParts.tsx"));
 const meaning = () => code(read("src/providerLeaseMeaning.ts"));
 const tenant = () => code(read("src/components/agreements/TenantAgreements.tsx"));
@@ -72,6 +71,7 @@ test("the provider's step is on the row, and the steps of signing are drawn", ()
   assert.deepEqual(["draft", "offered", "tenant_accepted", "awaiting_activation", "active"].map((status) => stepsDone({ status })), [1, 2, 3, 3, 4]);
   assert.equal(signingLine(lease("awaiting_activation")), "Accepted — waiting for the first payment");
   assert.equal(signingLine({ status: "awaiting_activation", activation_requirement: "lease_accepted" }), "Accepted — waiting to activate");
+  assert.equal(signingLine({ status: "awaiting_activation", activation_requirement: "initial_payment", upfront_payment_enabled: false }), "Accepted — waiting to activate");
 
   const row = between(provider(), "function AgreementRow(", "function shortDate(");
   assert.match(row, /<Segments total=\{SIGNING_STEPS\.length\} done=\{stepsDone\(lease\)\} tone=\{look\.ink\} \/>/);
@@ -151,7 +151,7 @@ test("nothing yet is the page's own glyph, struck, with one way on", () => {
   assert.match(provider(), /<Empty\s+icon="document-text-outline"\s+title="No agreements yet"/);
   assert.match(provider(), /label="Open tenancy requests" onPress=\{\(\) => router\.push\("\/\(app\)\/provider-applications" as never\)\}/);
   assert.match(provider(), /<Empty icon="search-outline" title="No matching agreements"/);
-  assert.match(tenant(), /<Empty\s+icon="document-text-outline"\s+title="No agreements yet"\s+hint="When a landlord sends one, it waits here for you\. Nothing binds you until you accept\."/);
+  assert.match(tenant(), /<Empty\s+icon="document-text-outline"\s+title="No agreements yet"\s+action=/);
 });
 
 test("both readers keep everything the page could do", () => {

@@ -1,12 +1,12 @@
 # yaml-language-server: $schema=https://render.com/schema/render.yaml.json
-# One supervised service + Redis. Applying this provisions paid resources.
+# Free staging: serialized API/worker + in-process leased scheduler, with Free Key Value.
 # See the staging setup in docs/deployment.md. Owner/bootstrap secrets live only in GitHub.
 # Staging database release must pass before Render auto-deploys staging.
 services:
   - type: web
     name: danpahq-api-staging
     runtime: docker
-    plan: 1c-2g
+    plan: free
     region: frankfurt
     numInstances: 1
     branch: staging
@@ -23,6 +23,8 @@ services:
         value: config.settings.staging
       - key: ENVIRONMENT
         value: staging
+      - key: RENDER_RUNTIME_PROFILE
+        value: staging-free
       - key: ALLOWED_HOSTS
         value: api-staging.danpahq.com
       - key: CSRF_TRUSTED_ORIGINS
@@ -82,12 +84,9 @@ services:
       - key: CLOUDMERSIVE_API_KEY
         sync: false
 
-      # Transactional email is sent through HTTPS. Verify danpahq.com with Resend,
-      # then provide its HTTPS API key before syncing this Blueprint.
+      # Select/configure Brevo or Resend in Management > Configuration > Email delivery.
       - key: EMAIL_BACKEND
-        value: apps.identity.email_backend.ResendEmailBackend
-      - key: RESEND_API_KEY
-        sync: false
+        value: apps.identity.email_backend.ManagementEmailBackend
       - key: DEFAULT_FROM_EMAIL
         value: Danpa HQ <no-reply@danpahq.com>
 
@@ -124,7 +123,7 @@ services:
 
   - type: keyvalue
     name: danpahq-redis-staging
-    plan: 256mb
+    plan: free
     region: frankfurt
     maxmemoryPolicy: noeviction
     ipAllowList: []

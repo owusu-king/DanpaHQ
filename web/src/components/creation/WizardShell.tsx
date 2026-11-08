@@ -22,7 +22,7 @@ export type WizardStep = {
   key: string;
   label: string;
   /** One line under the stage title. */
-  hint: string;
+  hint?: string;
   icon: IconName;
   /** What was chosen there, said back on the rail. */
   summary?: string;
@@ -90,7 +90,7 @@ export function WizardShell({
         <header className="lw-stage-head">
           <span className="lw-stage-count">Step {at + 1} of {steps.length}</span>
           <h3 id="wizard-step-title">{step.label}</h3>
-          <p>{step.hint}</p>
+          {step.hint ? <p>{step.hint}</p> : null}
           <span className="lw-progress" aria-hidden="true">
             <i style={{ width: `${((at + 1) / steps.length) * 100}%` }} />
           </span>

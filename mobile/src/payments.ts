@@ -5,9 +5,11 @@ export type ReceiptPaymentMethod = DigitalPaymentMethod | "MOBILE_MONEY" | "CARD
 export type PaymentIntentStatus = "created" | "pending" | "processing" | "succeeded" | "failed" | "expired" | "cancelled";
 
 export type PaymentIntent = {
+  viewing_id?: string | null;
+  purpose?: "rent_obligation" | "viewing_fee";
   id: string;
-  lease_id: string;
-  obligation_id: string;
+  lease_id: string | null;
+  obligation_id: string | null;
   obligation_kind: string;
   property_title: string;
   unit_label: string;
@@ -44,7 +46,7 @@ export type PaymentReceipt = {
 };
 
 export type ReceiptSnapshot = {
-  schema_version: "danpahq.payment_receipt.v1";
+  schema_version: "danpahq.payment_receipt.v1" | "danpahq.viewing_receipt.v1";
   receipt_number: string;
   issued_at: string;
   tenant: { account_id: string; name: string };
@@ -121,6 +123,13 @@ export function createPaymentIntent(
       payment_method: paymentMethod,
       ...(amountMinor === undefined ? {} : { amount_minor: amountMinor }),
     },
+    ...idempotentMutation(),
+  });
+}
+
+export function createViewingFeeIntent(viewingId: string, paymentMethod: DigitalPaymentMethod) {
+  return apiFetch<PaymentIntent>("/payments/intents/", {
+    method: "POST", body: { viewing_id: viewingId, payment_method: paymentMethod },
     ...idempotentMutation(),
   });
 }

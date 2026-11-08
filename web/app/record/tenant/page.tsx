@@ -101,7 +101,6 @@ export default function ProviderTenancyPage() {
             <PanelState
               icon="users"
               title="This tenancy isn’t in your Portfolios"
-              body="It may have ended, or it belongs to a Portfolio you no longer operate."
               action={<Link href="/tenants" className="ws-action is-primary">Back to Tenants</Link>}
             />
           )}

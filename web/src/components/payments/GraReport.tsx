@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { Button } from "@/components/Button";
 import { Field } from "@/components/Field";
 import { Notice } from "@/components/Notice";
@@ -8,6 +8,7 @@ import { ModalSheet } from "@/components/workspace/ModalSheet";
 import { generateRentTaxReport, type RentTaxReportInput } from "@/lib/rentTaxReport";
 
 export function GraReport({ organizationId, organizationName, properties = [] }: { organizationId: string; organizationName: string; properties?: { id: string; title: string }[] }) {
+  const formId = useId();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -61,8 +62,9 @@ export function GraReport({ organizationId, organizationName, properties = [] }:
 
   return <>
     <Button variant="secondary" onClick={() => setOpen(true)}>Generate financial report</Button>
-    <ModalSheet open={open} onClose={close} title="Property financial report" icon="reports" size="sm" className="compact-action-sheet">
-      <form className="compact-form" onSubmit={event => void generate(event)}>
+    <ModalSheet open={open} onClose={close} title="Property financial report" icon="reports" size="sm" className="compact-action-sheet financial-report-sheet"
+      footer={requestClose => <><Button type="button" variant="quiet" onClick={requestClose}>Cancel</Button><Button type="submit" form={formId} busy={busy} busyLabel="Generating…">{input.format === "pdf" ? "Download PDF report" : "Export CSV data"}</Button></>}>
+      <form id={formId} className="compact-form" onSubmit={event => void generate(event)}>
         <p className="record-hint">A financial statement with income, expenses, outstanding charges and net rental income. Choose CSV for raw supporting records.</p>
         <label className="lw-field"><span className="lw-label">Report format</span><select aria-label="Report format" className="select-control" value={input.format} disabled={busy} onChange={event => setInput(current => ({ ...current, format: event.target.value as "pdf" | "csv" }))}><option value="pdf">PDF financial statement</option><option value="csv">CSV raw data</option></select></label>
         <label className="lw-field"><span className="lw-label">Property</span><select aria-label="Property" className="select-control" value={input.property_id ?? ""} disabled={busy} onChange={event => setInput(current => ({ ...current, property_id: event.target.value || undefined }))}><option value="">All authorised properties</option>{properties.map(property => <option key={property.id} value={property.id}>{property.title}</option>)}</select></label>
@@ -78,7 +80,6 @@ export function GraReport({ organizationId, organizationName, properties = [] }:
         <Field label="Tax office" hint="Optional for a draft" value={input.tax_office} maxLength={120} disabled={busy} onChange={event => setInput(current => ({ ...current, tax_office: event.target.value }))} />
         <p className="type-caption">Outstanding balances are current at generation for charges due within the period. Taxpayer details are used only for this download. Tax calculation and filing remain separate. <a href="https://gra.gov.gh/domestic-tax/returns/" target="_blank" rel="noreferrer">GRA return requirements</a></p>
         {error ? <Notice tone="error" title={error} /> : null}
-        <div className="compact-form-actions"><Button type="button" variant="quiet" onClick={close}>Cancel</Button><Button type="submit" busy={busy} busyLabel="Generating…">{input.format === "pdf" ? "Download PDF report" : "Export CSV data"}</Button></div>
       </form>
     </ModalSheet>
   </>;

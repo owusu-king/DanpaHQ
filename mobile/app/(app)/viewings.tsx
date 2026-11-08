@@ -100,7 +100,6 @@ export default function ViewingsScreen() {
             <Empty
               icon="calendar-outline"
               title="No viewings yet"
-              hint="Ask to see a place and the landlord offers you times."
               action={<QuietAction icon="compass-outline" label="Explore homes" onPress={() => router.push("/(app)/(tabs)/explore" as never)} />}
             />
           )
@@ -116,7 +115,7 @@ export default function ViewingsScreen() {
                 </Panel>
               </View>
             ) : lanes.next || lanes.later.length || lanes.waiting.length ? (
-              <Calm text="Nothing waits on you. A landlord’s offer of times shows here first." />
+              <Calm text="Nothing waits on you." />
             ) : null}
 
             {byDay.length ? (

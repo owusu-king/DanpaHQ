@@ -104,6 +104,21 @@ def test_incorrect_admin_password_is_rejected(client):
 
     assert response.status_code == 200
     assert "_auth_user_id" not in client.session
+    error = str(response.context["form"].non_field_errors())
+    assert "correct admin email and password" in error
+    assert "Passwords are case-sensitive" in error
+    assert "phone" not in error
+    assert "both fields" not in error
+
+
+def test_admin_login_rejects_a_phone_even_with_the_correct_password(client):
+    staff = make_staff(superuser=True)
+    response = client.post(
+        reverse("admin:login"), {"username": staff.phone, "password": ADMIN_PASSWORD},
+    )
+    assert response.status_code == 200
+    assert "username" in response.context["form"].errors
+    assert "_auth_user_id" not in client.session
 
 
 def test_unknown_admin_email_is_rejected_with_the_generic_failure_and_a_dummy_hash(client):

@@ -65,25 +65,34 @@ export function AllExplore({
     return () => clearTimeout(timer);
   }, [text]);
 
-  async function load(query: string) {
-    const id = ++request.current;
+  const [previousQuery, setPreviousQuery] = useState(q);
+  if (previousQuery !== q) {
+    setPreviousQuery(q);
     setListings(null);
     setSales(null);
     setError("");
-    const filters = query ? { q: query } : {};
-    const [rent, sale] = await Promise.allSettled([searchListings(filters), searchSales(filters)]);
-    if (id !== request.current) return;
-    setListings(rent.status === "fulfilled" ? rent.value.results : []);
-    setNextListings(rent.status === "fulfilled" ? rent.value.next : null);
-    setSales(sale.status === "fulfilled" ? sale.value.results : []);
-    setNextSales(sale.status === "fulfilled" ? sale.value.next : null);
-    const failed = [rent, sale].find((row) => row.status === "rejected") as PromiseRejectedResult | undefined;
-    setError(failed
-      ? failed.reason instanceof ApiFailure ? failed.reason.error.message : "Some places could not be loaded."
-      : "");
   }
 
-  useEffect(() => { void load(q); }, [q]);
+  function load(query: string) {
+    const id = ++request.current;
+    const filters = query ? { q: query } : {};
+    return Promise.allSettled([searchListings(filters), searchSales(filters)]).then(([rent, sale]) => {
+      if (id !== request.current) return;
+      setListings(rent.status === "fulfilled" ? rent.value.results : []);
+      setNextListings(rent.status === "fulfilled" ? rent.value.next : null);
+      setSales(sale.status === "fulfilled" ? sale.value.results : []);
+      setNextSales(sale.status === "fulfilled" ? sale.value.next : null);
+      const failed = [rent, sale].find((row) => row.status === "rejected") as PromiseRejectedResult | undefined;
+      setError(failed
+        ? failed.reason instanceof ApiFailure ? failed.reason.error.message : "Some places could not be loaded."
+        : "");
+    });
+  }
+
+  useEffect(() => {
+    void load(q);
+    return () => { request.current += 1; };
+  }, [q]);
 
   async function loadMore() {
     if (loadingMore || !(nextListings || nextSales)) return;
@@ -138,7 +147,7 @@ export function AllExplore({
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={async () => { setRefreshing(true); await load(q); setRefreshing(false); }}
+            onRefresh={async () => { setRefreshing(true); setListings(null); setSales(null); setError(""); await load(q); setRefreshing(false); }}
             tintColor={theme.color.kola["600"]}
           />
         }
@@ -170,8 +179,7 @@ export function AllExplore({
         ListEmptyComponent={
           items === null || error ? null : (
             <View style={{ paddingVertical: space[8], gap: space[2] }}>
-              <Type variant="bodyStrong">{q ? "No places match your search" : "New places will appear here"}</Type>
-              <Type variant="caption">{q ? "Try a nearby area, or a shorter search." : "There are no verified places to browse right now. Check back soon."}</Type>
+              <Type variant="bodyStrong">{q ? "No places match your search" : "No places yet"}</Type>
               {q ? <Button label="Clear search" onPress={() => setText("")} /> : null}
             </View>
           )

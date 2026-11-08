@@ -14,7 +14,7 @@ import { View } from "react-native";
 
 import { ApiFailure } from "@/api";
 import { Select } from "@/components/form/Select";
-import { ActionBar, Footnote, GroupLabel, Pill, RecordPanel, Fact } from "@/components/record/RecordSurfaces";
+import { ActionBar, GroupLabel, Pill, RecordPanel, Fact } from "@/components/record/RecordSurfaces";
 import { Chip, Field, Notice, space } from "@/components/ui";
 import {
   COMMERCIAL_USES,
@@ -294,13 +294,11 @@ export function SaleDetailsForm({
 
       {error ? <Notice tone="error" title={error} /> : null}
 
-      {nothingOpen ? (
-        <Footnote>Nothing here can change until our team finishes.</Footnote>
-      ) : submitRef ? null : (
+      {!nothingOpen && !submitRef ? (
         <ActionBar>
           <Pill label={saveLabel} icon="checkmark" busy={busy} busyLabel="Saving" grow onPress={() => void save()} />
         </ActionBar>
-      )}
+      ) : null}
     </View>
   );
 }

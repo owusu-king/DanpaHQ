@@ -132,18 +132,20 @@ def _who_and_what(intent) -> dict:
             "portfolio": invoice.billing_account.organization.name,
             "description": f"{invoice.plan.name} subscription · {invoice.number}",
         }
+    unit = intent.viewing.listing.unit if intent.is_viewing else intent.lease.unit
     return {
         "purpose": intent.purpose,
         "tenant": intent.tenant.display_name,
-        "property": intent.lease.unit.property.title,
-        "unit": intent.lease.unit.label,
+        "property": unit.property.title,
+        "unit": unit.label,
         "portfolio": "",
         "description": "",
     }
 
 
 def _exception_row(row: ReconciliationException) -> dict:
-    intent = row.intent or (row.transaction.intent if row.transaction_id else None)
+    transaction_row = row.transaction
+    intent = row.intent or (transaction_row.intent if transaction_row is not None else None)
     return {
         "id": str(row.id),
         "kind": row.kind,

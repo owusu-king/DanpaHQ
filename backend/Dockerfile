@@ -5,9 +5,11 @@
 #   INSTALL_DEV=true  also installs requirements-dev.txt (pytest, ruff, mypy).
 #                     docker-compose.yml sets this; production builds do not.
 
+ARG PIP_VERSION=26.2.2
 FROM python:3.12-slim-bookworm AS builder
 
 ARG INSTALL_DEV=false
+ARG PIP_VERSION
 ENV PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -15,12 +17,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /build
 COPY requirements.txt requirements-dev.txt ./
-RUN pip install --prefix=/install -r requirements.txt \
+RUN python -m pip install --upgrade "pip==${PIP_VERSION}" \
+ && pip install --prefix=/install -r requirements.txt \
  && if [ "$INSTALL_DEV" = "true" ]; then \
       pip install --prefix=/install -r requirements-dev.txt; \
     fi
 
 FROM python:3.12-slim-bookworm AS runtime
+ARG PIP_VERSION
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
@@ -30,7 +34,8 @@ ENV PYTHONUNBUFFERED=1 \
 # import. Map search runs on PostGIS (ADR 0033); without them the app cannot
 # start, so they belong to the runtime image rather than a dev extra.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      libpq5 curl gdal-bin fonts-dejavu-core && rm -rf /var/lib/apt/lists/* \
+      libpq5 curl gdal-bin fonts-dejavu-core ffmpeg && rm -rf /var/lib/apt/lists/* \
+ && python -m pip install --no-cache-dir --upgrade "pip==${PIP_VERSION}" \
  && useradd --create-home --uid 10001 app
 
 COPY --from=builder /install /usr/local

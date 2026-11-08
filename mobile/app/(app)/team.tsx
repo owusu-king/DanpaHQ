@@ -259,7 +259,7 @@ export default function TeamScreen() {
                 tone="lagoon"
                 icon="eye-outline"
                 title={`You are ${roleArticle(organization.current_user_role)} here`}
-                body="Owners and administrators manage membership. Your assigned Property scope is checked on every action."
+                body="Owners and administrators manage membership."
               />
             ) : null}
 
@@ -268,7 +268,6 @@ export default function TeamScreen() {
                 tone="laterite"
                 icon="shield-outline"
                 title="Verify your identity to change access"
-                body="Inviting somebody or changing a role decides who reaches your tenants and your money. You can still see the roster and end access."
               />
             ) : null}
 
@@ -337,23 +336,19 @@ export default function TeamScreen() {
               icon="business-outline"
               hero
               title="Your Portfolio is on its way"
-              hint="Danpa HQ gives you your Portfolio when your provider verification is approved, and your Team lives inside it. Nothing to set up."
+              hint="Your Team becomes available after provider approval."
               action={<View style={styles.emptyAction}><QuietAction icon="shield-checkmark-outline" label="See your verification" onPress={() => router.push("/(app)/provider" as never)} /></View>}
             />
           ) : query.trim() ? (
-            <EmptyState icon="search-outline" title="No matching member" hint="Try another name or number." />
+            <EmptyState icon="search-outline" title="No matching member" />
           ) : canManage ? (
             <EmptyState
               icon="people-outline"
               hero
               title="You operate this Portfolio alone"
-              hint="Invite a manager, an accountant or staff, and decide which Properties each of them may touch."
             />
           ) : null
         }
-        ListFooterComponent={canManage && rows.length ? (
-          <Footnote>A role decides what somebody may do; assigned Properties decide where. Open anyone to change either.</Footnote>
-        ) : null}
       />
 
       <BottomSheet
@@ -609,7 +604,6 @@ function DetailsSheet({
         </View>
         <Field
           label="Portfolio name"
-          hint="What your tenants, agreements and receipts will carry."
           value={details.name}
           onChangeText={(value) => onChange({ ...details, name: value })}
         />

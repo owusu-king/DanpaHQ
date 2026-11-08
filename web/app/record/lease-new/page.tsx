@@ -62,7 +62,7 @@ function LeaseBuilder() {
 
   return (
     <div className="ws-page lease-wizard-page">
-      <WorkspaceHead icon="leases" title="Tenancy agreement" summary="Terms, rent and duties, then send it to the tenant." />
+      <WorkspaceHead icon="leases" title="Tenancy agreement" />
       <section className="ws-panel lease-wizard-frame">
         <LeaseWizard spec={spec} onExit={leave} exitLabel="Cancel" onDone={() => router.push("/documents?view=leases" as never)} />
       </section>

@@ -117,6 +117,7 @@ function ProviderMoreScreen() {
     {
       key: "business",
       items: [
+        ...only(!can || can.manage_team, { key: "provider-passport", icon: "shield-checkmark-outline", label: "Provider Passport", onPress: go("/(app)/provider-passport") }),
         { key: "team", icon: "people-outline", label: "Team", onPress: go("/(app)/team") },
         ...only(billing, { key: "settlement", icon: "card-outline", label: "Settlement account", onPress: go("/(app)/payout-account") }),
         ...only(billing, { key: "billing", icon: "pricetag-outline", label: "Plan & billing", onPress: go("/(app)/billing") }),
@@ -165,7 +166,6 @@ function ProviderMoreScreen() {
     />
     <BottomSheet visible={rentConfirmation} onClose={() => { if (!switching) setRentConfirmation(false); }} title="Create Renting Account" closeLabel="Cancel account creation">
       <View style={{ gap: space[4] }}>
-        <Type variant="body">Create a tenant account to apply for homes and manage your tenancies. Your other accounts stay unchanged.</Type>
         <View style={{ gap: space[2] }}>
           <Field label="Confirmation" accessibilityHint="Type TENANT to confirm your account creation" value={rentText} onChangeText={setRentText} autoCapitalize="none" autoCorrect={false} editable={!switching} />
           <Type variant="caption">Type <Type variant="caption" style={{ fontWeight: "700" }}>TENANT</Type> to confirm your account creation</Type>

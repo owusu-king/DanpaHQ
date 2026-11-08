@@ -39,6 +39,9 @@
 .auth-panel {
   position: relative;
   width: min(100%, 26.5rem);
+  max-height: calc(100dvh - 3rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   color: var(--color-ink-900);
   background: var(--color-field-0);
   border: var(--border-hairline) solid rgb(22 17 14 / 8%);

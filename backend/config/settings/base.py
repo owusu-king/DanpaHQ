@@ -202,6 +202,8 @@ EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", "")
 EMAIL_USE_TLS = env("EMAIL_USE_TLS", "true").lower() == "true"
 EMAIL_TIMEOUT = env("EMAIL_TIMEOUT", 10, cast=int)
 RESEND_API_KEY = env("RESEND_API_KEY", "")
+RESEND_SENDER_EMAIL = env("RESEND_SENDER_EMAIL", "")
+RESEND_SENDER_NAME = env("RESEND_SENDER_NAME", "Danpa HQ")
 DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", "Danpa HQ <no-reply@danpahq.com>")
 # The floor under a part payment, in pesewas. It exists because the receiving
 # Portfolio bears the processor's transaction fee, so unbounded micro-payments
@@ -380,6 +382,7 @@ REST_FRAMEWORK = {
         "google_auth": "30/min",
         "payment": "20/min",
         "payment_webhook": "120/min",
+        "push_registration": "60/min",
         "access_code_user": "10/min",
         "access_code_ip": "30/min",
         "viewing_checkin_user": "12/min",
@@ -526,6 +529,8 @@ IDEMPOTENCY_TTL_HOURS = env("IDEMPOTENCY_TTL_HOURS", 24, cast=int)
 SMS_BACKEND = env("SMS_BACKEND", "console")
 EXPO_PUSH_ENABLED = env("EXPO_PUSH_ENABLED", False, cast=bool)
 EXPO_ACCESS_TOKEN = env("EXPO_ACCESS_TOKEN", "")
+FCM_PUSH_ENABLED = env("FCM_PUSH_ENABLED", False, cast=bool)
+FIREBASE_SERVICE_ACCOUNT_JSON = env("FIREBASE_SERVICE_ACCOUNT_JSON", "")
 NOTIFICATION_EMAIL_BACKEND = env("NOTIFICATION_EMAIL_BACKEND", "")
 BREVO_API_KEY = env("BREVO_API_KEY", "")
 BREVO_SENDER_EMAIL = env("BREVO_SENDER_EMAIL", "")
@@ -610,3 +615,10 @@ PROVIDER_TERMS_TEXT = env("PROVIDER_TERMS_TEXT", DEFAULT_PROVIDER_TERMS)
 PROVIDER_IDENTITY_POLICY = env(
     "PROVIDER_IDENTITY_POLICY", "apps.identity.assurance.ManagementApprovalPolicy"
 )
+
+LEASE_ACTIVATION_REQUIREMENT = "disabled"
+VIEWING_FEE_MODE = "disabled"
+VIEWING_FEE_COLLECTION = "platform"
+VIEWING_FEE_FIXED_MINOR = 0
+VIEWING_FEE_MIN_MINOR = 0
+VIEWING_FEE_MAX_MINOR = 0

@@ -104,16 +104,16 @@ export default function SharedPassportPage() {
             </footer>
           </>
         ) : phase.kind === "expired" ? (
-          <LinkState icon="clock" title="This link has expired" body="Housing Passport links stop working on the date they were set to. Ask the tenant to send you a new one." />
+          <LinkState icon="clock" title="This link has expired" />
         ) : phase.kind === "revoked" ? (
-          <LinkState icon="lock" title="This link was withdrawn" body="The tenant has stopped sharing their passport through this link. Nothing from it is available any more." />
+          <LinkState icon="lock" title="This link was withdrawn" />
         ) : phase.kind === "invalid" ? (
           <LinkState icon="link" crossed title="This link doesn’t open a passport" body="Check that the whole link was copied, or ask the tenant to send it again." />
         ) : phase.kind === "error" ? (
           <LinkState
             icon="warning"
             title="The passport didn’t open"
-            body={`${phase.message} Check your connection and try again.`}
+            body={phase.message}
             action={<button type="button" className="ws-action is-primary" onClick={() => setAttempt((value) => value + 1)}>Try again</button>}
           />
         ) : null}
@@ -131,7 +131,7 @@ function LinkState({
 }: {
   icon: IconName;
   title: string;
-  body: string;
+  body?: string;
   crossed?: boolean;
   action?: React.ReactNode;
 }) {
@@ -144,7 +144,7 @@ function LinkState({
         ) : null}
       </span>
       <h1>{title}</h1>
-      <p>{body}</p>
+      {body ? <p>{body}</p> : null}
       {action ?? <Link href="/" className="ws-action">Go to Danpa HQ</Link>}
     </section>
   );

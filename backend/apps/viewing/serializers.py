@@ -79,6 +79,8 @@ class ContactSerializer(serializers.Serializer):
 
 
 class ViewingRequestSerializer(serializers.ModelSerializer):
+    fee = serializers.SerializerMethodField()
+    fee_policy = serializers.SerializerMethodField()
     slots = ViewingSlotSerializer(many=True, read_only=True)
     status_display = serializers.SerializerMethodField()
 
@@ -120,6 +122,7 @@ class ViewingRequestSerializer(serializers.ModelSerializer):
     class Meta:
         model = ViewingRequest
         fields = [
+            "fee", "fee_policy",
             "id",
             "status",
             "status_display",
@@ -160,6 +163,20 @@ class ViewingRequestSerializer(serializers.ModelSerializer):
             "updated_at",
         ]
         read_only_fields = fields
+
+    def get_fee(self, obj):
+        from .fees import details
+
+        if self.get_fee_policy(obj)["mode"] == "disabled":
+            return None
+        return details(obj)
+
+    def get_fee_policy(self, obj):
+        from .fees import policy
+
+        if "viewing_fee_policy" not in self.context:
+            self.context["viewing_fee_policy"] = policy()
+        return self.context["viewing_fee_policy"]
 
     def get_status_display(self, obj) -> str:
         if obj.status == ViewingStatus.CONFIRMED and self.get_check_in(obj)["state"] == "ready":
@@ -389,17 +406,18 @@ class SlotInputSerializer(serializers.Serializer):
 
 class OfferSlotsSerializer(serializers.Serializer):
     slots = SlotInputSerializer(many=True)
+    viewing_fee_minor = serializers.IntegerField(required=False, min_value=0, max_value=100000000)
 
     def validate(self, attrs):
-        if "viewing_fee_minor" in self.initial_data or "viewing_fee_note" in self.initial_data:
+        if "viewing_fee_note" in self.initial_data:
             raise serializers.ValidationError(
-                "Danpa HQ viewings are free. Viewing fees cannot be added."
-            )
+                "Fee notes cannot override management's pricing policy.")
         return attrs
 
 
 class ConfirmSlotSerializer(serializers.Serializer):
     slot_id = serializers.UUIDField()
+    accepted_fee_minor = serializers.IntegerField(required=False, min_value=0)
 
 
 class NoteSerializer(serializers.Serializer):

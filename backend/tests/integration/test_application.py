@@ -22,6 +22,20 @@ from apps.idempotency.models import IdempotencyKey, IdempotencyStatus
 pytestmark = pytest.mark.django_db
 
 
+@pytest.mark.django_db(transaction=True)
+def test_submission_without_idempotency_header_owns_its_transaction(user, live_listing, sign_in_as):
+    api = APIClient()
+    sign_in_as(api, user=user)
+    assert not connection.in_atomic_block
+    response = api.post(
+        "/api/v1/me/applications/",
+        {"listing_id": str(live_listing.id), "advance_months_offered": 6},
+        format="json",
+    )
+    assert response.status_code == 201, response.data
+    assert RentalApplication.objects.filter(tenant=user, unit=live_listing.unit).count() == 1
+
+
 @pytest.fixture
 def address(db):
     from apps.geo.models import Address, District, Locality, Region
@@ -283,6 +297,24 @@ class TestApplying:
 
 
 class TestDeciding:
+    def test_a_stale_review_cannot_reopen_a_decided_application(self, user, landlord, live_listing):
+        application = services.submit_application(listing=live_listing, tenant=user, data={})
+        stale = RentalApplication.objects.get(pk=application.pk)
+        services.decide(application=application, user=landlord, accept=False)
+        with pytest.raises(Conflict):
+            services.start_review(application=stale, user=landlord)
+        stale.refresh_from_db()
+        assert stale.status == ApplicationStatus.REJECTED
+
+    def test_a_stale_decision_cannot_override_withdrawal(self, user, landlord, live_listing):
+        application = services.submit_application(listing=live_listing, tenant=user, data={})
+        stale = RentalApplication.objects.get(pk=application.pk)
+        services.withdraw(application=application, user=user)
+        with pytest.raises(Conflict):
+            services.decide(application=stale, user=landlord, accept=True)
+        stale.refresh_from_db()
+        assert stale.status == ApplicationStatus.WITHDRAWN
+
     def test_a_superseded_historical_application_cannot_be_decided(
         self, user, landlord, live_listing
     ):

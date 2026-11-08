@@ -14,7 +14,6 @@ export function CreateRentingAccount({ menu = false, onCreated }: { menu?: boole
     </button>
     <TypedConfirmation open={open} onClose={() => setOpen(false)} title="Create Renting Account" phrase="TENANT"
       confirmationPrompt={<>Type <strong>TENANT</strong> to confirm your account creation</>} confirmLabel="Create account"
-      description="Create a tenant account to apply for homes and manage your tenancies. Your other accounts stay unchanged."
       onConfirm={async () => { await chooseWorkspace("tenant", "TENANT"); await refresh(); onCreated?.(); }} />
   </>;
 }

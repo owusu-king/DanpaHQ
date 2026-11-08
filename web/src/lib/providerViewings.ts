@@ -154,9 +154,3 @@ export function viewingEmptyTitle(view: ProviderViewingView) {
   if (view === "upcoming") return "No upcoming visits";
   return "No viewing history yet";
 }
-
-export function viewingEmptyBody(view: ProviderViewingView) {
-  if (view === "action") return "New requests, ready check-ins and attendance responses appear here.";
-  if (view === "upcoming") return "Offered and confirmed viewing times appear here.";
-  return "Completed, cancelled and declined viewings remain available here.";
-}

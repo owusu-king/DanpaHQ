@@ -190,6 +190,7 @@ export function formatMinor(minor: number, currency = "GHS"): string {
  * absent. They are released when a viewing is confirmed.
  */
 export type ListingDetail = Listing & {
+  provider_passports?: import("./providerPassport").PublicProviderCredential[];
   gallery: {
     id: string;
     file_id: string;
@@ -201,6 +202,7 @@ export type ListingDetail = Listing & {
     download_url: string | null;
   }[];
   space: {
+    video?: import("@/propertyVideo").WalkthroughVideo | null;
     id: string;
     label: string;
     space_type: string;
@@ -221,6 +223,7 @@ export type ListingDetail = Listing & {
     verification: { state: string; state_label: string; checked: boolean };
   };
   property_context: {
+    video?: import("@/propertyVideo").WalkthroughVideo | null;
     id: string;
     title: string;
     property_type: string;

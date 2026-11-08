@@ -78,7 +78,7 @@ export default function ProviderPaymentsPage() {
 function PaymentsLoading() {
   return (
     <div className="ws-page rent-workspace payments-page">
-      <WorkspaceHead icon="payments" title="Finance" summary="Track rent due, tenant payments, expenses and settlements." />
+      <WorkspaceHead icon="payments" title="Finance" />
       <section className="ws-panel" aria-busy="true" aria-label="Finance"><PanelSkeleton rows={5} round /></section>
     </div>
   );
@@ -235,7 +235,6 @@ function ProviderPaymentsContent() {
     <WorkspaceHead
       icon="payments"
       title="Finance"
-      summary="Track rent due, tenant payments, expenses and settlements."
       actions={summary ? (
         <>
           <button type="button" className="ws-action is-red-outline" onClick={() => setRecording(true)}><PlusGlyph />Record expense</button>
@@ -256,7 +255,7 @@ function ProviderPaymentsContent() {
 
     {organizations?.length === 0 ? (
       <section className="ws-panel" aria-label="Finance">
-        <PanelState icon="properties" title="Add a Property first" body="Rent records belong to a tenancy in your Portfolio." action={<Link href="/properties" className="btn btn-quiet btn-sm">Open Properties</Link>} />
+        <PanelState icon="properties" title="Add a Property first" action={<Link href="/properties" className="btn btn-quiet btn-sm">Open Properties</Link>} />
       </section>
     ) : null}
 
@@ -323,7 +322,7 @@ function ProviderPaymentsContent() {
         {visibleTenants.length ? <div className="payments-ledger">
           <LedgerHead columns={["Tenant", "Standing", "Next due", "Outstanding"]} />
           <ul className="rent-list">{visibleTenants.map((tenant) => <RentBalanceRow key={tenant.occupancy_id} tenant={tenant} onPeek={() => setOpenDueId(tenant.lease_id ?? "")} />)}</ul>
-        </div> : <PanelState icon="users" title={query ? "No matching balances" : "No balances in this view"} body={query ? "Try another tenant, Property or Unit." : "Choose another balance status."} action={query || balanceFilter !== "all" ? <Button variant="quiet" size="sm" onClick={() => setParams({ q: "", show: "" })}>Show all balances</Button> : undefined} />}
+        </div> : <PanelState icon="users" title={query ? "No matching balances" : "No balances in this view"} action={query || balanceFilter !== "all" ? <Button variant="quiet" size="sm" onClick={() => setParams({ q: "", show: "" })}>Show all balances</Button> : undefined} />}
       </section> : null}
 
       {view === "records" ? <section id="payment-records" role="tabpanel" aria-labelledby="payment-records-tab" className="ws-panel payments-panel">
@@ -331,29 +330,27 @@ function ProviderPaymentsContent() {
           <PanelSearch label="Search payment records" placeholder="Search payment records" value={query} onChange={setQuery} />
           <p className="ws-range"><strong>{visiblePayments.length}</strong> {visiblePayments.length === 1 ? "record" : "records"}</p>
         </div>
-        <p className="rent-section-intro">{summary.money.payment_records_awaiting_you > 0 ? "Records waiting on you come first, followed by the most recent activity. " : "The most recent records are shown here. "}Open one to see it in full and respond.</p>
         {visiblePayments.length ? <div className="payments-ledger">
           <LedgerHead columns={["Tenant", "Status", "Method and date", "Amount"]} />
           <ul className="rent-list">{visiblePayments.map((payment) => <PaymentRecordRow key={payment.id} payment={payment} onPeek={() => setOpenRecordId(payment.id)} />)}</ul>
-        </div> : <PanelState icon="details" title={query ? "No matching records" : "No payment records yet"} body={query ? "Try another tenant, Property or payment method." : "Confirmed and tenant-recorded payments appear here."} />}
+        </div> : <PanelState icon="details" title={query ? "No matching records" : "No payment records yet"} />}
         {summary.verification.payments_ready < summary.verification.properties_total ? <p className="rent-readiness-note"><Icon name="info" /><span>Online rent collection is not ready for every Property. It needs identity, Property authority and a Portfolio settlement account the payment provider has verified. Recording money you were paid directly is unaffected.</span></p> : null}
       </section> : null}
 
       {view === "payouts" ? <section id="settlement-history" role="tabpanel" aria-labelledby="settlement-history-tab" className="ws-panel payments-panel settlement-history">
         <dl className="settlement-overview"><SettlementFigure label="Paid online" value={summary.money.online_paid_minor} /><SettlementFigure label="Awaiting settlement" value={summary.money.awaiting_settlement_minor} tone="waiting" /><SettlementFigure label="Settled to you" value={summary.money.settled_net_minor} tone="settled" /><SettlementFigure label="Fees deducted" value={summary.money.settled_fee_minor} /></dl>
         {summary.money.awaiting_settlement_minor > 0 || summary.money.settlement_attention_minor > 0 ? <div className="settlement-notices">
-          {summary.money.awaiting_settlement_minor > 0 ? <Notice tone="info" title="Payout in progress" body={`${ghs(summary.money.awaiting_settlement_minor)} has been paid by tenants and is waiting for Paystack's settlement batch. Final fee and net appear only after confirmation.`} /> : null}
+          {summary.money.awaiting_settlement_minor > 0 ? <Notice tone="info" title="Payout in progress" body={`${ghs(summary.money.awaiting_settlement_minor)} paid by tenants. Final fees and net payout appear after settlement.`} /> : null}
           {summary.money.settlement_attention_minor > 0 ? <Notice tone="error" title="A payout needs review" body="Danpa HQ has not counted it as settled. The payment record remains intact while the settlement is reconciled." /> : null}
         </div> : null}
         <div className="ws-panel-head payments-panel-head is-inline">
           <PanelSearch label="Search payouts" placeholder="Search payouts" value={query} onChange={setQuery} />
           {canManagePayouts ? <div className="payout-manage"><Link className="ws-action" href={`/settings/settlement?organization=${organizationId}` as never}><Icon name="verification" />Manage settlement account</Link></div> : null}
         </div>
-        <p className="rent-section-intro">Property owners bear Paystack’s transaction fee. Each completed payout shows the final amount after that fee and Danpa HQ’s configured platform charge.</p>
         {visibleSettlements.length ? <div className="payments-ledger">
           <LedgerHead columns={["Tenant", "Status", "Progress", "Amount"]} />
           <ul className="rent-list">{visibleSettlements.map((settlement) => <SettlementRow key={settlement.id} settlement={settlement} />)}</ul>
-        </div> : <PanelState icon="payments" title={query ? "No matching payouts" : "No online payouts yet"} body={query ? "Try another tenant, Property or status." : "Paystack-confirmed rent and settlement progress will appear here."} />}
+        </div> : <PanelState icon="payments" title={query ? "No matching payouts" : "No online payouts yet"} />}
       </section> : null}
 
       {view === "expenses" ? <ExpensesSection expenses={expenses} onRecord={() => setRecording(true)} /> : null}
@@ -492,7 +489,7 @@ function ExpensesSection({ expenses, onRecord }: { expenses: PropertyExpense[]; 
       <div><strong>{expense.category_display}</strong><span>{expense.property_title}</span></div>
       <span>{formatDate(expense.incurred_on)}{expense.note ? ` · ${expense.note}` : ""}</span>
       <strong className="expense-amount">{expense.amount_formatted}</strong>
-    </li>)}</ul> : <PanelState icon="reports" title="No expenses recorded" body="Property expenses you record appear here." action={<Button variant="quiet" size="sm" onClick={onRecord}>Record the first expense</Button>} />}
+    </li>)}</ul> : <PanelState icon="reports" title="No expenses recorded" action={<Button variant="quiet" size="sm" onClick={onRecord}>Record the first expense</Button>} />}
   </section>;
 }
 
@@ -568,7 +565,7 @@ function RecordPaymentDialog({ open, tenants, initialTenant = null, onClose, onD
       {error ? <div className="record-payment-error"><Notice tone="error" title={error} /><Button variant="quiet" size="sm" onClick={() => setAttempt((value) => value + 1)}>Try again</Button></div> : null}
       {!ledger && !error ? <PanelSkeleton rows={3} /> : null}
       {ledger && !ledger.permissions.record_payment ? <Notice tone="info" title="Receiving actions are locked" body="Current identity and approved Property authority are required before a provider can record external money received. Paystack setup is not required." /> : null}
-      {ledger && ledger.permissions.record_payment && !ledger.charges.some((charge) => charge.outstanding_minor > 0) ? <Notice tone="info" title="Nothing is due on this account" body="Every scheduled charge is paid. A payment can be recorded once a charge is open." /> : null}
+      {ledger && ledger.permissions.record_payment && !ledger.charges.some((charge) => charge.outstanding_minor > 0) ? <Notice tone="info" title="Nothing is due on this account" /> : null}
       {ledger && ledger.permissions.record_payment && ledger.charges.some((charge) => charge.outstanding_minor > 0) && chosen.lease_id ? (
         <RecordPaymentForm leaseId={chosen.lease_id} charges={ledger.charges} onCancel={close} onDone={() => onDone(chosen)} />
       ) : null}

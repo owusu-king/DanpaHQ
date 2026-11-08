@@ -119,11 +119,6 @@ export default function PortfolioInvitationsScreen() {
         <Notice
           tone="info"
           title="No Portfolio invitation is waiting"
-          body={
-            answered.length
-              ? "The ones below have already been answered or have run out."
-              : "An owner or administrator invites you by your mobile number, and it appears here."
-          }
         />
       ) : null}
 

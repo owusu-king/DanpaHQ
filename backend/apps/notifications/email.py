@@ -5,7 +5,9 @@ from __future__ import annotations
 import logging
 
 import requests
+from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
+from django.core.mail import EmailMessage, get_connection
 from django.utils import timezone
 from django.utils.html import format_html
 
@@ -35,14 +37,28 @@ def send_email_alert(notification_id) -> None:
         )
 
     try:
-        if value("NOTIFICATION_EMAIL_BACKEND", "") != "brevo":
+        provider = value("NOTIFICATION_EMAIL_BACKEND", "")
+        if provider not in {"brevo", "resend"}:
+            return
+        footer = "Open Danpa HQ for details. Change email alerts in Settings > Preferences."
+        if provider == "resend":
+            connection = get_connection("apps.identity.email_backend.ResendEmailBackend")
+            sent = EmailMessage(
+                notification.title, f"{notification.body}\n\n{footer}",
+                settings.DEFAULT_FROM_EMAIL, [user.email], connection=connection,
+            ).send()
+            if sent != 1:
+                failed("Resend did not confirm acceptance")
+                return
+            Notification.objects.filter(id=notification.id).update(
+                email_sent_at=timezone.now(), email_failed_reason=""
+            )
             return
         api_key = str(value("BREVO_API_KEY", "")).strip()
         sender = str(value("BREVO_SENDER_EMAIL", "")).strip()
         if not api_key or not sender:
             failed("Brevo API key or sender is not configured")
             return
-        footer = "Open Danpa HQ for details. Change email alerts in Settings > Preferences."
         response = requests.post(
             "https://api.brevo.com/v3/smtp/email",
             headers={"api-key": api_key, "Accept": "application/json"},
@@ -66,7 +82,9 @@ def send_email_alert(notification_id) -> None:
         if not isinstance(receipt, dict) or not receipt.get("messageId"):
             failed("Brevo did not confirm acceptance")
             return
-    except (requests.RequestException, ValueError, TypeError, ImproperlyConfigured) as exc:
+    except (
+        requests.RequestException, ValueError, TypeError, RuntimeError, ImproperlyConfigured
+    ) as exc:
         # Provider response bodies and exception messages can contain keys or addresses.
         failed(type(exc).__name__)
         return

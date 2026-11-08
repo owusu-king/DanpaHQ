@@ -32,11 +32,11 @@ type StepKey = "details" | "amenities" | "photos" | "review";
 type Commit = () => Promise<boolean>;
 type CommitRef = { current: Commit | null };
 
-const STEPS: { key: StepKey; label: string; hint: string; icon: Glyph }[] = [
-  { key: "details", label: "The Unit", hint: "What it is, what it is called, and its rooms.", icon: "key-outline" },
-  { key: "amenities", label: "Amenities", hint: "What this Unit has of its own.", icon: "sparkles-outline" },
-  { key: "photos", label: "Photos", hint: "The main view, then one of each amenity.", icon: "images-outline" },
-  { key: "review", label: "Review", hint: "Check it over, then send it for checking.", icon: "eye-outline" },
+const STEPS: { key: StepKey; label: string; icon: Glyph }[] = [
+  { key: "details", label: "The Unit", icon: "key-outline" },
+  { key: "amenities", label: "Amenities", icon: "sparkles-outline" },
+  { key: "photos", label: "Photos", icon: "images-outline" },
+  { key: "review", label: "Review", icon: "eye-outline" },
 ];
 
 export function UnitWizard({
@@ -57,6 +57,7 @@ export function UnitWizard({
   const [step, setStep] = useState<StepKey>("details");
   const [visited, setVisited] = useState<Set<StepKey>>(new Set());
   const [busy, setBusy] = useState(false);
+  const [mediaBusy, setMediaBusy] = useState(false);
   const [error, setError] = useState("");
   const commitRef = useRef<Commit | null>(null);
   const created = useRef<UnitDetail | null>(null);
@@ -96,12 +97,14 @@ export function UnitWizard({
   const sent = unit ? !unit.verification.editable : false;
 
   function go(key: StepKey) {
+    if (mediaBusy) return;
     setError("");
     commitRef.current = null;
     setStep(key);
   }
 
   async function advance() {
+    if (mediaBusy) return;
     setBusy(true);
     setError("");
     try {
@@ -144,7 +147,7 @@ export function UnitWizard({
         : row.key === "amenities" ? Boolean(unit) && (visited.has("amenities") || unit!.amenities.length > 0)
           : row.key === "photos" ? Boolean(unit) && unit!.verification.required_outstanding === 0
             : false,
-    reachable: !busy && (row.key === "details" || Boolean(unit)),
+    reachable: !busy && !mediaBusy && (row.key === "details" || Boolean(unit)),
   }));
 
   const primary =
@@ -160,10 +163,11 @@ export function UnitWizard({
       footer={
         <>
           {at > 0 ? (
-            <QuietAct label="Back" icon="chevron-back" disabled={busy} onPress={() => go(STEPS[at - 1]!.key)} />
+            <QuietAct label="Back" icon="chevron-back" disabled={busy || mediaBusy} onPress={() => go(STEPS[at - 1]!.key)} />
           ) : null}
           <Pill
             label={primary}
+            disabled={mediaBusy}
             icon={step === "review" ? (ready && !sent ? "shield-checkmark-outline" : "checkmark") : "arrow-forward"}
             busy={busy}
             busyLabel={step === "review" && ready ? "Sending" : "Saving"}
@@ -188,7 +192,7 @@ export function UnitWizard({
       {step === "amenities" && unit ? <AmenitiesStep unitId={unit.id} commitRef={commitRef} /> : null}
 
       {step === "photos" && unit ? (
-        <SpacePhotos unitId={unit.id} editable={unit.verification.editable} onChanged={async () => { await reload(); }} />
+        <SpacePhotos onMediaBusy={setMediaBusy} unitId={unit.id} editable={unit.verification.editable} onChanged={async () => { await reload(); }} />
       ) : null}
 
       {step === "review" && unit ? <ReviewStep unit={unit} ready={ready} sent={sent} onGo={go} /> : null}
@@ -354,7 +358,6 @@ function DetailsStep({
         />
       </View>
 
-      {chosen?.accepts_bed_spaces ? <Footnote>Let it whole, or add its beds once it is saved.</Footnote> : null}
     </>
   );
 }
@@ -364,7 +367,6 @@ function AmenitiesStep({ unitId, commitRef }: { unitId: string; commitRef: Commi
   useCommit(commitRef, async () => (saveRef.current ? saveRef.current() : true));
   return (
     <>
-      <Footnote>Each one you choose is photographed next.</Footnote>
       <SpaceAmenities scope="unit" id={unitId} submitRef={saveRef} />
     </>
   );
@@ -421,7 +423,7 @@ function ReviewStep({
       {sent ? (
         <Footnote>{unit.verification.state_label}</Footnote>
       ) : ready ? (
-        <Footnote>We compare the photos with these details. Nobody can request it until it passes.</Footnote>
+        null
       ) : waitingOnProperty ? (
         <Type variant="caption" style={styles.missing}>
           {permitted?.message || "The property is checked first. The Unit waits privately until then."}

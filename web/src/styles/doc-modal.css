@@ -184,6 +184,23 @@ button.tenancy-link { width: 100%; font: inherit; text-align: left; background: 
   .doc-modal.is-sm { inset: 0; width: 100vw; height: 100dvh; max-height: none; margin: 0; border: 0; border-radius: 0; }
   .doc-modal::backdrop { inset: 0; }
   .doc-modal-body { padding: var(--space-4); }
+  .doc-modal-head {
+    flex: none;
+    flex-wrap: wrap;
+    gap: .5rem;
+    padding: max(.75rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right)) .75rem max(1rem, env(safe-area-inset-left));
+    background: var(--color-field-0);
+  }
+  .doc-modal-title h2 { white-space: normal; overflow-wrap: anywhere; line-height: 1.3; }
+  .doc-modal-close, .doc-modal-back { width: 2.75rem; height: 2.75rem; }
+  .doc-modal .doc-modal-head-action { order: 1; flex-basis: 100%; text-align: right; }
+  .doc-modal .doc-modal-head-action :is(a, button) { display: inline-flex; align-items: center; min-height: 2.75rem; }
+  .doc-modal-foot {
+    flex: none;
+    padding: .75rem max(1rem, env(safe-area-inset-right)) max(.75rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
+  }
+  .doc-modal-foot > .btn { flex: 1 1 auto; min-height: 2.75rem; white-space: normal; line-height: 1.3; padding-block: .625rem; }
+  .doc-modal-foot-note { flex-basis: 100%; }
   .doc-modal[open] { animation: modal-sheet-in var(--modal-sheet-duration) var(--modal-spring) both; }
   .doc-modal.is-closing { animation: modal-sheet-out var(--modal-close-duration) var(--motion-easing-exit) forwards; }
 }

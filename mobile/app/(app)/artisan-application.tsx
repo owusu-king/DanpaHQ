@@ -171,9 +171,6 @@ export default function ArtisanApplicationScreen() {
                       <View style={styles.sent}>
                         <SuccessMark tone={KOLA} />
                         <Type variant="title2" style={{ textAlign: "center" }}>Application sent</Type>
-                        <Type variant="caption" style={styles.centerMuted}>
-                          It is with our team. Your account carries on exactly as it was meanwhile.
-                        </Type>
                       </View>
                     ) : null}
                     {application.decision_note ? (

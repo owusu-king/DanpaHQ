@@ -175,7 +175,6 @@ function TenantLeases() {
       <WorkspaceHead
         icon="leases"
         title="Agreements"
-        summary="Review tenancy offers and keep your signed agreements together."
       />
 
       {unfilteredView && waiting[0] && first ? (
@@ -183,7 +182,7 @@ function TenantLeases() {
           eyebrow={waiting[0].state.line}
           title={first.propertyTitle}
           detail={[first.unitLabel, waiting[0].lease.locality_name].filter(Boolean).join(" · ")}
-          hint={`${first.landlordName} sent this on ${onDate(waiting[0].lease.created_at)}. Read it, then accept or decline.`}
+          hint={`${first.landlordName} sent this on ${onDate(waiting[0].lease.created_at)}`}
           icon="leases"
           more={{ count: waiting.length - 1, onShow: () => chooseFilter("action") }}
           onOpen={() => open(waiting[0]!.lease)}
@@ -220,14 +219,13 @@ function TenantLeases() {
             tone="error"
             icon="warning"
             title="Agreements didn’t load"
-            body={`${error} Check your connection and try again.`}
+            body={error}
             action={<button type="button" className="ws-action" disabled={retrying} onClick={() => void retry()}>{retrying ? "Retrying…" : "Try again"}</button>}
           />
         ) : none ? (
           <PanelState
             icon="leases"
             title="No agreement yet"
-            body="When a landlord accepts your application and sends an agreement, it waits here for you to read and answer."
             action={<Link href="/applications" className="ws-action is-primary"><Icon name="applications" />See your applications</Link>}
           />
         ) : visible.length ? (
@@ -254,7 +252,6 @@ function TenantLeases() {
           <PanelState
             icon="explore"
             title={`Nothing matches “${query.trim()}”`}
-            body="Try another Property, Unit or landlord."
             action={<button type="button" className="ws-action" onClick={() => setParams({ q: "" })}>Clear search</button>}
           />
         ) : (
@@ -320,17 +317,16 @@ function AgreementGroup({
 }
 
 function AgreementFilterEmpty({ filter, onShowAll }: { filter: AgreementFilter; onShowAll: () => void }) {
-  const copy: Record<AgreementFilter, { title: string; body: string }> = {
-    all: { title: "No agreements here", body: "Your agreements will appear here." },
-    action: { title: "Nothing needs you", body: "You have answered every agreement sent to you." },
-    active: { title: "No current agreements", body: "Accepted agreements will stay easy to find here." },
-    past: { title: "No agreement history", body: "Ended or declined agreements will remain available here." },
+  const copy: Record<AgreementFilter, { title: string }> = {
+    all: { title: "No agreements here" },
+    action: { title: "Nothing needs you" },
+    active: { title: "No current agreements" },
+    past: { title: "No agreement history" },
   };
   return (
     <PanelState
       icon={filter === "action" ? "check" : "leases"}
       title={copy[filter].title}
-      body={copy[filter].body}
       action={filter === "all" ? undefined : <button type="button" className="ws-action" onClick={onShowAll}>Show all agreements</button>}
     />
   );

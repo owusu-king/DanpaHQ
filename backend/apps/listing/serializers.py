@@ -323,12 +323,24 @@ class ListingDetailSerializer(ListingSerializer):
     which is what this page is for.
     """
 
+    provider_passports = serializers.SerializerMethodField()
     space = serializers.SerializerMethodField()
     property_context = serializers.SerializerMethodField()
     gallery = serializers.SerializerMethodField()
 
     class Meta(ListingSerializer.Meta):
-        fields = [*ListingSerializer.Meta.fields, "gallery", "space", "property_context"]
+        fields = [
+            *ListingSerializer.Meta.fields,
+            "gallery",
+            "space",
+            "property_context",
+            "provider_passports",
+        ]
+
+    def get_provider_passports(self, obj):
+        from apps.passport.provider import public_for_property
+
+        return public_for_property(obj.unit.property)
 
     def get_gallery(self, obj) -> list[dict]:
         """One ordered public gallery without copying any stored file.
@@ -411,7 +423,9 @@ class ListingDetailSerializer(ListingSerializer):
 
         unit = obj.unit
         check = snapshot(unit)
+        from apps.files.videos import video_payload
         return {
+            "video": video_payload(unit, public=True),
             "id": str(unit.id),
             "label": unit.label,
             "space_type": unit.space_type,
@@ -456,7 +470,9 @@ class ListingDetailSerializer(ListingSerializer):
 
         prop = obj.unit.property
         address = prop.address
+        from apps.files.videos import video_payload
         return {
+            "video": video_payload(prop, public=True),
             "id": str(prop.id),
             "title": prop.title,
             "property_type": prop.property_type,

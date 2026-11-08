@@ -862,7 +862,9 @@ def get_property_or_404(pk, user) -> Property:
         Property.objects.filter(id=pk)
         # Down to region: the serializer names the whole chain, and without this
         # every property read is four queries instead of one.
-        .select_related("address__locality__district__region", "address__locality__region", "owner")
+        .select_related(
+            "address__locality__district__region", "address__locality__region", "owner", "video"
+        )
         .first()
     )
     if prop is None or prop.deleted_at is not None:

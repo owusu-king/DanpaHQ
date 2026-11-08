@@ -66,6 +66,9 @@ def _let(landlord, tenant, unit, **overrides):
     lease = lease_services.draft_lease(user=landlord, unit=unit, tenant=tenant, data=terms)
     lease = lease_services.offer_lease(lease=lease, user=landlord)
     lease = lease_services.accept_lease(lease=lease, user=tenant)
+    from tests.payment_helpers import legacy_active_lease
+
+    legacy_active_lease(lease)
     lease.refresh_from_db()
     return lease
 

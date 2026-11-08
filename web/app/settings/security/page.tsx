@@ -82,7 +82,6 @@ export default function SecuritySettingsPage() {
         id="phone-verification"
         className="settings-security-card"
         title="Phone verification"
-        description="For verification, check-ins and SMS. Optional until required."
       >
         <PhoneVerificationSection />
       </SettingsCard>

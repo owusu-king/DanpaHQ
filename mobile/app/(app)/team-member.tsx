@@ -76,14 +76,14 @@ export default function TeamMemberScreen() {
   const [notice, setNotice] = useState("");
   const [removing, setRemoving] = useState(false);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (signal?: AbortSignal) => {
     if (!organizationId || !membershipId) return;
-    try {
-      const [members, propertyRows, assignmentRows] = await Promise.all([
-        listPortfolioMembers(organizationId),
-        listOrganizationProperties(organizationId),
-        listPortfolioAssignments(organizationId),
-      ]);
+    await Promise.all([
+      listPortfolioMembers(organizationId),
+      listOrganizationProperties(organizationId),
+      listPortfolioAssignments(organizationId),
+    ]).then(([members, propertyRows, assignmentRows]) => {
+      if (signal?.aborted) return;
       const found = members.find((row) => row.id === membershipId) ?? null;
       const mine = assignmentRows
         .filter((row) => row.membership_id === membershipId)
@@ -95,12 +95,17 @@ export default function TeamMemberScreen() {
       setRole(found?.role ?? "staff");
       setScope(mine);
       setError("");
-    } catch (cause) {
+    }).catch((cause) => {
+      if (signal?.aborted) return;
       setError(cause instanceof ApiFailure ? cause.error.message : "Could not load this member.");
-    }
+    });
   }, [organizationId, membershipId]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    const controller = new AbortController();
+    void load(controller.signal);
+    return () => controller.abort();
+  }, [load]);
 
   if (!member) {
     return (
@@ -201,7 +206,6 @@ export default function TeamMemberScreen() {
               <RecordPanel>
                 <Fact wide first label="Owner" value="Holds this Portfolio, its verification, its plan and the account rent settles into." />
               </RecordPanel>
-              <Footnote>Ownership is transferred deliberately rather than changed from the roster.</Footnote>
             </>
           ) : (
             <RoleChoice value={role} onChange={(value) => setRole(value as PortfolioMember["role"])} disabled={busy} />

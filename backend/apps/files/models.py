@@ -25,6 +25,8 @@ from apps.core.models import SoftDeleteModel
 class FilePurpose(models.TextChoices):
     IDENTITY_DOCUMENT = "identity_document", "Identity document"
     PROPERTY_PHOTO = "property_photo", "Property photo"
+    PROPERTY_VIDEO = "property_video", "Property video"
+    UNIT_VIDEO = "unit_video", "Unit video"
     PROPERTY_DOCUMENT = "property_document", "Property document"
     LEASE_DOCUMENT = "lease_document", "Lease document"
     PAYMENT_EVIDENCE = "payment_evidence", "Payment evidence"

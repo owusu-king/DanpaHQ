@@ -16,6 +16,10 @@ sees. What this module owns is only what exists nowhere else:
   is shown as disputed to the tenant and to anyone they have shared it with.
 
 Nothing here scores anyone. Absence of a record is absence, not evidence.
+
+ProviderPassport stores only a Portfolio's editable credential draft and document
+bindings. Its identity is still the existing person; reviewed submissions and
+decisions belong to trust.Verification, not a second identity or property system.
 """
 
 from __future__ import annotations
@@ -114,3 +118,47 @@ class PassportCorrection(BaseModel):
 
     def __str__(self) -> str:
         return f"correction of {self.record_type} {self.record_id} by {self.owner_id}"
+
+
+class ProviderPassport(BaseModel):
+    """Portfolio credentials only; identity and property authority retain their owners."""
+
+    organization = models.OneToOneField(
+        "organization.Organization", on_delete=models.CASCADE, related_name="provider_passport"
+    )
+    representative = models.ForeignKey("identity.User", on_delete=models.PROTECT, related_name="+")
+    representative_role = models.CharField(max_length=100, blank=True)
+    registered_business = models.BooleanField(default=False)
+    registration_number = models.CharField(max_length=100, blank=True)
+    contact_email = models.EmailField(blank=True)
+    contact_phone = models.CharField(max_length=32, blank=True)
+    revision = models.PositiveIntegerField(default=1)
+    verification = models.ForeignKey(
+        "trust.Verification", null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+
+    class Meta:
+        db_table = "passport_provider"
+
+
+class ProviderPassportDocument(BaseModel):
+    passport = models.ForeignKey(
+        ProviderPassport, on_delete=models.CASCADE, related_name="documents"
+    )
+    evidence_type = models.CharField(
+        max_length=32,
+        choices=[
+            ("business_certificate", "Business registration"),
+            ("agency_licence", "Agency licence"),
+            ("authorization_letter", "Representative authorization"),
+        ],
+    )
+    file = models.ForeignKey("files.StoredFile", on_delete=models.PROTECT, related_name="+")
+
+    class Meta:
+        db_table = "passport_provider_document"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["passport", "file"], name="provider_passport_unique_file"
+            )
+        ]

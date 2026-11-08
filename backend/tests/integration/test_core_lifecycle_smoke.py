@@ -457,11 +457,11 @@ def test_provider_to_tenant_core_lifecycle(sms, lifecycle_storage):
         HTTP_IDEMPOTENCY_KEY="smoke-lease-accept",
     )
     assert accepted_lease.status_code == 200, accepted_lease.data
-    assert accepted_lease.data["status"] == "active"
-    assert Tenancy.objects.filter(leases__id=lease_id, tenant_id=tenant_payload["id"]).exists()
-    assert Occupancy.objects.filter(lease_id=lease_id, user_id=tenant_payload["id"]).exists()
+    assert accepted_lease.data["status"] == "awaiting_activation"
+    assert not Tenancy.objects.filter(leases__id=lease_id, tenant_id=tenant_payload["id"]).exists()
+    assert not Occupancy.objects.filter(lease_id=lease_id, user_id=tenant_payload["id"]).exists()
     tenancies = tenant_api.get("/api/v1/me/tenancies/")
-    assert any(row["lease"]["id"] == lease_id for row in tenancies.data)
+    assert not any(row["lease"]["id"] == lease_id for row in tenancies.data)
 
     dispatch = dispatch_pending()
     assert dispatch["failed"] == 0, list(
@@ -490,3 +490,10 @@ def test_provider_to_tenant_core_lifecycle(sms, lifecycle_storage):
     assert confirmed_payment.data["status"] == "confirmed"
     history = tenant_api.get("/api/v1/me/rental-history/")
     assert history.data["payments_confirmed"] == 1
+    from apps.lease.models import Lease
+    from tests.payment_helpers import confirm_initial_payment
+
+    lease = confirm_initial_payment(Lease.objects.get(pk=lease_id))
+    assert lease.status == "active"
+    assert Tenancy.objects.filter(leases__id=lease_id, tenant_id=tenant_payload["id"]).exists()
+    assert Occupancy.objects.filter(lease_id=lease_id, user_id=tenant_payload["id"]).exists()

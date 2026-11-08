@@ -83,7 +83,7 @@ def test_tenancy_service_rejects_a_draft_or_mismatched_activation_lease(landlord
         )
 
 
-def test_acceptance_activates_one_linked_tenancy_and_occupancy(landlord, user, unit):
+def test_confirmed_payment_activates_one_linked_tenancy_and_occupancy(landlord, user, unit):
     from apps.lease import services
     from apps.lease.models import LeaseStatus
     from apps.occupancy.models import OccupancyStatus
@@ -92,6 +92,10 @@ def test_acceptance_activates_one_linked_tenancy_and_occupancy(landlord, user, u
     lease = services.offer_lease(lease=_draft(landlord, user, unit), user=landlord)
     lease = services.accept_lease(lease=lease, user=user)
 
+    assert lease.status == LeaseStatus.AWAITING_ACTIVATION
+    from tests.payment_helpers import confirm_initial_payment
+
+    confirm_initial_payment(lease)
     assert lease.status == LeaseStatus.ACTIVE
     tenancy = lease.tenancy
     assert tenancy.status == TenancyStatus.ACTIVE
@@ -101,10 +105,12 @@ def test_acceptance_activates_one_linked_tenancy_and_occupancy(landlord, user, u
     assert occupancy.lease_id == lease.id
 
 
-def test_future_payment_gate_pauses_after_acceptance_until_confirmed(landlord, user, unit):
+def test_payment_gate_pauses_after_acceptance_until_money_is_confirmed(landlord, user, unit):
+    from apps.core.exceptions import Conflict
     from apps.lease import services
     from apps.lease.models import LeaseActivationRequirement, LeaseStatus
     from apps.occupancy.models import Occupancy
+    from apps.rent import services as rent
     from apps.tenancy.models import Tenancy
 
     lease = _draft(
@@ -119,6 +125,24 @@ def test_future_payment_gate_pauses_after_acceptance_until_confirmed(landlord, u
     assert lease.status == LeaseStatus.AWAITING_ACTIVATION
     assert not Tenancy.objects.filter(tenant=user, unit=unit).exists()
     assert not Occupancy.objects.filter(user=user, unit=unit).exists()
+
+    with pytest.raises(Conflict):
+        services.activate_lease(
+            lease=lease,
+            actor=landlord,
+            satisfied_requirement=LeaseActivationRequirement.INITIAL_PAYMENT,
+        )
+    for charge in lease.charges.filter(due_on=lease.starts_on):
+        payment = rent.record_payment(
+            lease=lease,
+            user=user,
+            data={
+                "charge_id": charge.id,
+                "amount_minor": charge.amount_minor,
+                "paid_on": date.today(),
+            },
+        )
+        rent.confirm_payment(payment=payment, user=landlord)
 
     lease = services.activate_lease(
         lease=lease,

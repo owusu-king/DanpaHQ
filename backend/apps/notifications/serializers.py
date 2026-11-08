@@ -129,7 +129,12 @@ class MarkReadSerializer(serializers.Serializer):
     ids = serializers.ListField(child=serializers.UUIDField(), required=False, allow_empty=True)
 
 
-class PushTokenSerializer(serializers.Serializer):
+class RemovePushTokenSerializer(serializers.Serializer):
+    recipient_id = serializers.UUIDField(required=False)
+
+
+class PushTokenSerializer(RemovePushTokenSerializer):
     token = serializers.RegexField(
-        r"^(?:ExpoPushToken|ExponentPushToken)\[[A-Za-z0-9_-]+\]$", max_length=255
+        r"\A(?:(?:ExpoPushToken|ExponentPushToken)\[[A-Za-z0-9_-]+\]|fcm:[A-Za-z0-9_:-]+)\Z",
+        max_length=255,
     )

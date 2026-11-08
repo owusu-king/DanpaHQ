@@ -10,14 +10,26 @@ from contextlib import suppress
 
 
 def commands():
-    return [
+    profile = os.environ.get("RENDER_RUNTIME_PROFILE", "standard")
+    if profile not in {"standard", "staging-free"}:
+        raise ValueError("RENDER_RUNTIME_PROFILE must be standard or staging-free.")
+    small = profile == "staging-free"
+    if small and os.environ.get("DJANGO_SETTINGS_MODULE") != "config.settings.staging":
+        raise ValueError(
+            "The staging-free runtime profile is only permitted with staging settings."
+        )
+    result = [
         [sys.executable, "-m", "celery", "-A", "config", "worker",
          "-Q", "default,payments,notifications,media", "--concurrency=1", "-l", "info"],
         [sys.executable, "manage.py", "run_scheduler"],
         [sys.executable, "-m", "gunicorn", "config.wsgi:application",
          "--bind", f"0.0.0.0:{os.environ.get('PORT', '8000')}",
-         "--workers", "1", "--threads", "4", "--timeout", "60", "--access-logfile", "-"],
+         "--workers", "1", "--threads", "1" if small else "4",
+         "--timeout", "60", "--access-logfile", "-"],
     ]
+    if small:
+        result[0].extend(["--pool=solo", "--without-gossip", "--without-mingle"])
+    return result
 
 
 def signal_group(child, sig):

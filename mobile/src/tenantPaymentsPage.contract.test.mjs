@@ -51,7 +51,6 @@ test("every due item keeps its one action: pay it, or check a payment already co
   const look = between(source, "function dueLook(", "function PaymentItem(");
   assert.match(look, /status: `\$\{days\} overdue\$\{part\}`/);
   assert.match(look, /status: "Confirming payment"/);
-  assert.match(source, /Pay rent explains anything a home still needs before it can be paid online\./);
 });
 
 test("a payment the landlord recorded waits for the tenant to confirm or dispute", () => {

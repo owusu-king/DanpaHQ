@@ -9,6 +9,7 @@
  * otherwise — so nothing here decides that.
  */
 
+import { VideoPlayer } from "@/components/property/WalkthroughVideo";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
@@ -52,26 +53,32 @@ export default function SaleScreen() {
   const [busy, setBusy] = useState(false);
   const [photoIndex, setPhotoIndex] = useState(0);
   const [zoomed, setZoomed] = useState(false);
-  const width = useRef(Dimensions.get("window").width).current;
+  const [width] = useState(() => Dimensions.get("window").width);
   const heroScroll = useRef<ScrollView>(null);
   const viewerScroll = useRef<ScrollView>(null);
 
+  const status = state.status;
+  const [previousRequest, setPreviousRequest] = useState({ id, status });
+  if (previousRequest.id !== id || previousRequest.status !== status) {
+    setPreviousRequest({ id, status });
+    if (id && status !== "loading") setLoadError("");
+  }
+
   useEffect(() => {
-    if (!id || state.status === "loading") return;
+    if (!id || status === "loading") return;
     let current = true;
-    setLoadError("");
     getSale(id)
       .then((value) => { if (current) setSale(value); })
       .catch((cause) => {
         if (current) setLoadError(cause instanceof ApiFailure ? cause.error.message : "We could not open that property.");
       });
     return () => { current = false; };
-  }, [id, signedIn, state.status]);
+  }, [id, status]);
 
   if (loadError && !sale) {
     return (
       <View style={{ padding: space[5] }}>
-        <Notice tone="error" title={loadError} body="It may have been sold or taken off the market." />
+        <Notice tone="error" title={loadError} />
       </View>
     );
   }
@@ -152,6 +159,7 @@ export default function SaleScreen() {
           </View>
         )}
 
+      <VideoPlayer video={sale.video} label="Property video" />
         <View style={styles.page}>
           <View style={styles.identity}>
             <Type variant="display2" accessibilityRole="header">
@@ -192,6 +200,7 @@ export default function SaleScreen() {
             </View>
             <View style={{ flex: 1, gap: 2 }}>
               <Type variant="bodyStrong" style={{ color: theme.color.kola["800"] }}>Verified for sale</Type>
+              {sale.provider_passports?.map(passport => <Type variant="captionStrong" key={passport.name}>{passport.name} · Provider Passport verified</Type>)}
               <Type variant="caption" style={styles.muted}>
                 Our team read the title and checked the seller may sell it. Still have a lawyer search the title before you pay.
               </Type>

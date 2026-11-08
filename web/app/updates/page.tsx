@@ -171,7 +171,6 @@ export default function UpdatesPage() {
       <WorkspaceHead
         icon="updates"
         title="Updates"
-        summary="Follow important alerts and recent activity across your workspace."
         actions={unread > 0 ? (
           <Button
             className="updates-mark-all"
@@ -213,7 +212,6 @@ export default function UpdatesPage() {
           <PanelState
             icon="check"
             title="You’re all caught up"
-            body="New viewing, application, agreement and payment updates appear here. Alerts clear once read. Your activity history stays."
           />
         ) : null}
 

@@ -35,7 +35,7 @@ function InterestRecord({ id }: { id: string }) {
       <Fact label="Interest recorded" value={new Date(record.created_at).toLocaleDateString("en-GH")} />
       <Fact label="Status" value={record.sale.status === "sold" ? "Property sold" : record.status} />
       <LinkRow icon="business-outline" label="View property" onPress={() => record.role === "seller" ? router.push({ pathname: "/(app)/provider-property", params: { propertyId: record.sale.property_id } }) : router.push({ pathname: "/(app)/sale/[id]", params: { id: record.sale.id } })} />
-    </RecordPanel><Type variant="body">{record.role === "buyer" ? "Your interest has been recorded for the seller." : "This buyer has expressed interest in your property."}</Type>
+    </RecordPanel>
     {record.messages[0] ? <><Type variant="bodyStrong">Original enquiry note</Type><Type variant="body">{record.messages[0].body}</Type></> : null}
     </> : !error ? <Type variant="body" accessibilityRole="progressbar">Loading interest…</Type> : null}
   </ScrollView></IndexGround>;

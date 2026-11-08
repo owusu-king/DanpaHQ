@@ -101,9 +101,7 @@ function Documents() {
       <WorkspaceHead
         icon="leases"
         title="Documents"
-        summary={view === "contracts" ? (
-          "Your agreement and the terms you reuse in it"
-        ) : totals ? (
+        summary={view === "contracts" ? null : totals ? (
           <>
             <strong>{totals.total} {totals.total === 1 ? "lease" : "leases"}</strong>
             <span className="ws-summary-sep" aria-hidden="true">·</span>
@@ -111,7 +109,7 @@ function Documents() {
             <span className="ws-summary-sep" aria-hidden="true">·</span>
             {totals.awaiting} awaiting tenant
           </>
-        ) : "Every agreement you have granted"}
+        ) : null}
         actions={view === "contracts" ? (
           <button type="button" className="ws-action is-primary" aria-haspopup="dialog" disabled={!organizationId} onClick={() => setCreating(true)}>
             <Icon name="plus" />New template

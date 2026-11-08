@@ -30,7 +30,6 @@ type Review = {
   /** A word or two for the pill. */
   status: string;
   title: string;
-  body: string;
   /** Where each of the three steps stands. */
   steps: [StepState, StepState, StepState];
   /** The verification link's wording in this state. */
@@ -44,7 +43,6 @@ const REVIEWS: Record<string, Review> = {
     icon: "handset",
     status: "Phone not verified",
     title: "Verify your phone to continue",
-    body: "A code sent to your phone confirms it is yours. Then you can send your application for review.",
     steps: ["current", "todo", "todo"],
     act: "Verify your phone",
   },
@@ -53,7 +51,6 @@ const REVIEWS: Record<string, Review> = {
     icon: "passport",
     status: "Not started",
     title: "Send one document to begin",
-    body: "One identity document starts your review. It confirms who you are and that you may let property here.",
     steps: ["current", "todo", "todo"],
     act: "Start verification",
   },
@@ -62,7 +59,6 @@ const REVIEWS: Record<string, Review> = {
     icon: "clock",
     status: "In review",
     title: "Your review is under way",
-    body: "Our team is checking what you sent. There is nothing more to do: we will tell you the moment it is decided.",
     steps: ["done", "current", "todo"],
     act: "See your verification",
   },
@@ -71,7 +67,6 @@ const REVIEWS: Record<string, Review> = {
     icon: "info",
     status: "Something needed",
     title: "We need one more thing",
-    body: "Your verification says what is missing. Send it and the review carries on from where it stopped.",
     steps: ["done", "blocked", "todo"],
     act: "Send what is missing",
   },
@@ -80,7 +75,6 @@ const REVIEWS: Record<string, Review> = {
     icon: "warning",
     status: "Not approved",
     title: "Your review was not approved",
-    body: "The note on your verification says why. Put it right and send it again.",
     steps: ["done", "blocked", "todo"],
     act: "Read the note",
   },
@@ -89,7 +83,6 @@ const REVIEWS: Record<string, Review> = {
     icon: "warning",
     status: "Withdrawn",
     title: "Your approval was withdrawn",
-    body: "The note on your verification says what happened and what to do next.",
     steps: ["done", "blocked", "todo"],
     act: "Read the note",
   },
@@ -98,7 +91,6 @@ const REVIEWS: Record<string, Review> = {
     icon: "passport",
     status: "Expired",
     title: "Your approval has expired",
-    body: "Send a current document and your property tools open again once it is checked.",
     steps: ["done", "blocked", "todo"],
     act: "Renew verification",
   },
@@ -141,7 +133,6 @@ export function ProviderReview({ me }: { me: Me }) {
     }, 30000);
     return () => { live = false; clearInterval(timer); };
   }, [refresh, status]);
-  const name = me.preferred_name?.trim() || me.first_name?.trim();
   // What the team wrote back, when they asked for something or said no.
   const note = review.tone === "waiting" ? "" : me.provider_readiness?.decision_note || me.provider_readiness?.identity_decision_note || "";
 
@@ -158,10 +149,6 @@ export function ProviderReview({ me }: { me: Me }) {
 
         <p className="review-eyebrow">Provider review</p>
         <h1 id="review-title" className="review-title">{review.title}</h1>
-        <p className="review-body">
-          {name ? `${name}, ` : ""}
-          {name ? review.body.charAt(0).toLowerCase() + review.body.slice(1) : review.body}
-        </p>
         <p className="review-status" role="status">
           <span className="review-status-dot" />
           {review.status}
@@ -185,7 +172,6 @@ export function ProviderReview({ me }: { me: Me }) {
               </span>
               <span className="review-step-text">
                 <strong>{step.title}</strong>
-                <small>{step.line}</small>
               </span>
               <span className="sr-only">, {STEP_WORD[state]}</span>
             </li>

@@ -104,3 +104,20 @@ class TestLongSecrets:
         token = random_token()
         assert hash_token(token) == hash_token(token)
         assert hash_token(token) != hash_token(random_token())
+
+
+@pytest.mark.parametrize(
+    "body", [None, [], "text", {"iat": 1, "exp": "later"}, {"iat": True, "exp": 9999999999}]
+)
+def test_signed_malformed_payloads_fail_closed(body):
+    import base64
+    import hashlib
+    import hmac
+    import json
+
+    encoded = base64.urlsafe_b64encode(json.dumps(body).encode()).rstrip(b"=").decode()
+    signed = f"v1.{encoded}"
+    digest = hmac.new(b"test-key", signed.encode(), hashlib.sha256).digest()
+    signature = base64.urlsafe_b64encode(digest).rstrip(b"=").decode()
+    with pytest.raises(TokenInvalid):
+        verify_payload(f"{signed}.{signature}", key="test-key")

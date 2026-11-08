@@ -33,6 +33,7 @@ from __future__ import annotations
 
 from calendar import monthrange
 from datetime import date, timedelta
+from typing import TYPE_CHECKING
 
 from django.db import models
 from django.utils import timezone
@@ -126,9 +127,8 @@ class LeaseTemplate(BaseModel):
 class LeaseActivationRequirement(models.TextChoices):
     """The event that is allowed to turn an accepted lease into a tenancy.
 
-    Only acceptance is enforced today. ``INITIAL_PAYMENT`` is deliberately a
-    reserved seam for Payment Core: choosing it leaves the agreement accepted
-    but inactive until a trusted payment event explicitly activates it.
+    Management selects the default for new agreements. Payment-gated agreements
+    remain inactive until all upfront obligations are independently confirmed.
     """
 
     LEASE_ACCEPTED = "lease_accepted", "Lease accepted"
@@ -200,6 +200,10 @@ class Lease(BaseModel):
     )
 
     # --- the terms, snapshotted -----------------------------------------------
+    if TYPE_CHECKING:
+        rent_minor: int
+        rent_currency: str
+
     rent = MoneyField()
     rent_period = models.CharField(max_length=8, default="monthly")
     advance_months = models.PositiveSmallIntegerField(default=0)
@@ -334,7 +338,9 @@ class Lease(BaseModel):
     def move_in_total_minor(self) -> int:
         """Everything due on day one, in pesewas."""
         rent = self.rent_minor or 0
-        return rent * (self.advance_months + self.deposit_months + self.agency_fee_months)
+        return rent * (
+            (self.advance_months or self.term_months) + self.deposit_months + self.agency_fee_months
+        )
 
     @property
     def advance_total_minor(self) -> int:

@@ -13,6 +13,7 @@
 
 import * as ImagePicker from "expo-image-picker";
 import { useCallback, useEffect, useState } from "react";
+import { WalkthroughUpload } from "./WalkthroughVideo";
 import { View } from "react-native";
 
 import { ApiFailure } from "@/api";
@@ -34,37 +35,42 @@ export function SpacePhotos({
   unitId,
   editable,
   onChanged,
+  onMediaBusy,
 }: {
   unitId: string;
   /** False while a reviewer holds it, or once it has been approved. */
   editable: boolean;
   onChanged?: () => void | Promise<void>;
+  onMediaBusy?: (busy: boolean) => void;
 }) {
   const [slots, setSlots] = useState<EvidenceSlot[]>([]);
   const [photos, setPhotos] = useState<SpacePhoto[]>([]);
   const [busySlot, setBusySlot] = useState("");
   const [error, setError] = useState("");
 
-  const load = useCallback(async () => {
-    try {
-      const [progress, stored] = await Promise.all([
-        getVerification("unit", unitId),
-        listUnitPhotos(unitId),
-      ]);
+  const load = useCallback(async (signal?: AbortSignal) => {
+    await Promise.all([
+      getVerification("unit", unitId),
+      listUnitPhotos(unitId),
+    ]).then(([progress, stored]) => {
+      if (signal?.aborted) return;
       // An approved check returns no slots — there is nothing left to ask for —
       // so the photographs themselves become the list.
       setSlots(progress.slots);
       setPhotos(stored.photos);
       setError("");
-    } catch (cause) {
+    }).catch((cause) => {
+      if (signal?.aborted) return;
       setError(
         cause instanceof ApiFailure ? cause.error.message : "Could not load the photos.",
       );
-    }
+    });
   }, [unitId]);
 
   useEffect(() => {
-    void load();
+    const controller = new AbortController();
+    void load(controller.signal);
+    return () => controller.abort();
   }, [load]);
 
   async function add(slotKey: string) {
@@ -122,6 +128,7 @@ export function SpacePhotos({
 
   return (
     <View style={{ gap: space[3] }}>
+      <WalkthroughUpload subject="unit" id={unitId} editable={editable} onBusy={onMediaBusy} />
       {error ? <Notice tone="error" title={error} /> : null}
       {editable ? <Type variant="caption">The main view and each selected amenity need a photo. The two context views are optional.</Type> : null}
 

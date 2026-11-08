@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from uuid import UUID
+
 from django.conf import settings
 from django.utils import timezone
 from drf_spectacular.extensions import OpenApiAuthenticationExtension
@@ -28,17 +30,7 @@ REGISTRATION_EXEMPT_PATHS = frozenset(
 
 
 class AccessTokenAuthentication(BaseAuthentication):
-    """Validates a bearer token without a database read on the happy path.
-
-    The session is *not* loaded per request. That is the point of a short-lived
-    signed token: 15 minutes of staleness in exchange for no round trip on every
-    call, which matters on connections where the database is the cheap part and
-    the network is not.
-
-    The exception is revocation-sensitive requests. Anything that moves money or
-    changes access re-checks the session explicitly through
-    ``require_live_session`` below.
-    """
+    """Validate the signed token and its live session on every request."""
 
     keyword = "Bearer"
 
@@ -57,9 +49,24 @@ class AccessTokenAuthentication(BaseAuthentication):
         except TokenError as exc:
             raise AuthenticationFailed("That sign-in is not valid.") from exc
 
-        user = User.objects.filter(id=payload.get("sub"), is_active=True).first()
+        try:
+            subject = UUID(payload["sub"])
+            session_id = UUID(payload["sid"])
+        except (KeyError, TypeError, ValueError, AttributeError) as exc:
+            raise AuthenticationFailed("That sign-in is not valid.") from exc
+        roles = payload.get("roles", [])
+        if not isinstance(roles, list) or any(not isinstance(role, str) for role in roles):
+            raise AuthenticationFailed("That sign-in is not valid.")
+
+        user = User.objects.filter(
+            id=subject,
+            is_active=True,
+            sessions__id=session_id,
+            sessions__revoked_at__isnull=True,
+            sessions__expires_at__gt=timezone.now(),
+        ).first()
         if user is None:
-            raise AuthenticationFailed("That account is no longer active.")
+            raise AuthenticationFailed("Your session has ended. Sign in again.")
 
         from apps.operations.mfa import session_valid
 
@@ -77,8 +84,8 @@ class AccessTokenAuthentication(BaseAuthentication):
         ):
             raise AuthenticationFailed("Finish setting up your account first.")
 
-        request.session_id = payload.get("sid")
-        request.token_roles = set(payload.get("roles", []))
+        request.session_id = session_id
+        request.token_roles = set(roles)
         return (user, token)
 
     def authenticate_header(self, request):
@@ -93,7 +100,13 @@ def require_live_session(request) -> Session:
     that touches money.
     """
     session_id = getattr(request, "session_id", None)
-    session = Session.objects.filter(id=session_id).select_related("user", "device").first()
+    if not isinstance(session_id, str | UUID):
+        raise AuthenticationFailed("Your session has ended. Sign in again.")
+    session = (
+        Session.objects.filter(id=session_id, user=request.user)
+        .select_related("user", "device")
+        .first()
+    )
 
     if session is None or not session.is_active:
         raise AuthenticationFailed("Your session has ended. Sign in again.")

@@ -29,7 +29,6 @@ export default function AddUnitPage() {
     <div className="units-workspace">
       <PageHeader
         title="Add Unit"
-        description="Choose its Property."
         actions={<Link href={"/units" as never}>Back to Units</Link>}
       />
       <PropertyChoices choices={choices} />

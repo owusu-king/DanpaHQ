@@ -1,6 +1,5 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { useRef } from "react";
-import { Animated, Pressable, View } from "react-native";
+import { Animated, useAnimatedValue, Pressable, View } from "react-native";
 
 import { ph, Register, useHomeDensity } from "@/components/home/plinth";
 import { Type, space } from "@/components/ui";
@@ -65,7 +64,7 @@ export function HomeShortcuts({ shortcuts }: { shortcuts: Shortcut[] }) {
 
 function ShortcutTile({ shortcut }: { shortcut: Shortcut }) {
   const density = useHomeDensity();
-  const scale = useRef(new Animated.Value(1)).current;
+  const scale = useAnimatedValue(1);
 
   const press = (toValue: number) =>
     Animated.spring(scale, { toValue, speed: 34, bounciness: 2, useNativeDriver: true }).start();

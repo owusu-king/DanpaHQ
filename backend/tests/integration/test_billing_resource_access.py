@@ -116,7 +116,9 @@ def _active_lease(landlord, tenant, unit):
     from apps.lease import services as lease_services
 
     lease = lease_services.offer_lease(lease=_draft(landlord, tenant, unit), user=landlord)
-    return lease_services.accept_lease(lease=lease, user=tenant)
+    from tests.payment_helpers import confirm_initial_payment
+
+    return confirm_initial_payment(lease_services.accept_lease(lease=lease, user=tenant))
 
 
 def _to_free(portfolio, landlord, keep_active=None):
@@ -377,6 +379,9 @@ class TestWhatAlreadyRuns:
         # An offer in a tenant's hands counts as running.
         assert state_of(prop=prop) == AccessState.WIND_DOWN
         lease = lease_services.accept_lease(lease=lease, user=user)
+        from tests.payment_helpers import confirm_initial_payment
+
+        confirm_initial_payment(lease)
         assert lease.status == "active"
 
 

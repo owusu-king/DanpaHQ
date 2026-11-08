@@ -38,7 +38,6 @@ export function SpaceTenantAccess({
         <Notice
           tone="info"
           title="This Unit has not been checked yet"
-          body="Send its photographs for review. A private access code becomes available once the Unit is verified."
         />
       ) : null}
       <UnitPrivateAccess

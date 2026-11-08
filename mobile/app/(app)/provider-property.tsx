@@ -1,3 +1,4 @@
+import { VideoPlayer } from "@/components/property/WalkthroughVideo";
 import { RecordHeader, RecordHero, RecordFacts, RecordSection, RecordUnitRow } from "@/components/property/RecordDetail";
 import { LocationPicker, pinFromAddress } from "@/components/property/LocationPicker";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
@@ -160,7 +161,6 @@ export default function ProviderPropertyScreen() {
               <Notice
                 tone="success"
                 title="Property created"
-                body="It is private in your Portfolio. Finish its setup, then submit it for verification when you are ready."
               />
             ) : null}
 
@@ -184,6 +184,7 @@ export default function ProviderPropertyScreen() {
               </View>}
             </RecordHero>
             {!land || property.notes ? <RecordSection title={land ? "Description" : "Overview"}>{!land ? <RecordFacts rows={[{ label: "Type", value: propertyTypeLabel(property.property_type) }, { label: "Water", value: property.water_source_label }, { label: "Power", value: property.power_meter_label }, { label: "Compound", value: property.compound_label }]} /> : null}{property.notes ? <Type variant="body">{property.notes}</Type> : null}</RecordSection> : null}
+      <VideoPlayer video={property.video} label="Property video" />
             <RecordSection title="Location">
               <Type variant="body">{fullAddress || "Address not recorded"}</Type>
               {property.address.digital_address ? <Type variant="caption">{property.address.digital_address}</Type> : null}

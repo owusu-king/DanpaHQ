@@ -57,7 +57,7 @@ def unit(landlord, address, approve_provider):
     return Unit.objects.create(property=prop, label="Flat 2", bedrooms=1, bathrooms=1)
 
 
-def active_lease(landlord, tenant, unit):
+def active_lease(landlord, tenant, unit, *, historical=True):
     lease = lease_services.draft_lease(
         user=landlord,
         unit=unit,
@@ -71,7 +71,10 @@ def active_lease(landlord, tenant, unit):
         },
     )
     lease_services.offer_lease(lease=lease, user=landlord)
-    return lease_services.accept_lease(lease=lease, user=tenant)
+    from tests.payment_helpers import legacy_active_lease
+
+    lease = lease_services.accept_lease(lease=lease, user=tenant)
+    return legacy_active_lease(lease) if historical else lease
 
 
 def obligation_for(landlord, tenant, unit):
@@ -96,6 +99,23 @@ def signed_event(intent, *, event_id="evt-1", amount_minor=None, status="succeed
         settings.PAYMENT_TEST_WEBHOOK_SECRET.encode(), raw, hashlib.sha256
     ).hexdigest()
     return raw, {"X-Payment-Signature": signature}
+
+
+def test_verified_upfront_payments_activate_only_after_rent_and_deposit(
+    settings, landlord, user, unit
+):
+    settings.LEASE_ACTIVATION_REQUIREMENT = "initial_payment"
+    lease = active_lease(landlord, user, unit, historical=False)
+    assert lease.status == "awaiting_activation"
+    charges = list(lease.charges.filter(due_on=lease.starts_on).order_by("created_at"))
+    assert len(charges) == 2
+    for index, charge in enumerate(charges):
+        intent = services.create_intent(obligation=charge, user=user, payment_method="mobile_money")
+        raw, headers = signed_event(intent, event_id=f"initial-{index}")
+        services.process_webhook(provider_name="memory", raw_body=raw, headers=headers)
+        lease.refresh_from_db()
+        assert lease.status == ("active" if index == len(charges) - 1 else "awaiting_activation")
+    assert lease.tenancy_id
 
 
 class TestIntentBoundary:
@@ -412,9 +432,9 @@ class TestPaymentApi:
             "available": True,
             "reason": "",
             "methods": ["mobile_money", "card", "bank_transfer"],
-            # The part-payment terms travel with the offer, so a client never
+            # The payment terms travel with the offer, so a client never
             # has to infer the rule the server will enforce.
-            "allows_partial": True,
+            "allows_partial": False,
             "minimum_part_minor": 5000,
             "outstanding_minor": 900000,
             "currency": "GHS",

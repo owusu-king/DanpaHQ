@@ -109,7 +109,7 @@ export function ArtisanHome({ me }: { me: Me }) {
           {invitations === null ? <PanelSkeleton rows={2} /> : newInvites.length ? (
             <HomeCount count={newInvites.length} label={newInvites.length === 1 ? "invitation waiting for your quote" : "invitations waiting for your quote"} href="/artisan/requests" />
           ) : (
-            <PanelState icon="receipt" title="No invitations yet" body="When a tenant or property provider asks you to quote, it appears here." />
+            <PanelState icon="receipt" title="No invitations yet" />
           )}
         </section>
 
@@ -122,7 +122,7 @@ export function ArtisanHome({ me }: { me: Me }) {
           {jobs === null ? <PanelSkeleton rows={2} /> : activeJobs.length ? (
             <HomeCount count={activeJobs.length} label={activeJobs.length === 1 ? "job under way" : "jobs under way"} href="/artisan/jobs" />
           ) : (
-            <PanelState icon="wrench" title="No active jobs" body="A job starts here once a customer approves your quote." />
+            <PanelState icon="wrench" title="No active jobs" />
           )}
         </section>
       </div>
@@ -153,13 +153,13 @@ export function ArtisanRequestsPage() {
           <WorkspaceHead
             icon="receipt"
             title="Requests"
-            summary={rows === null ? null : waiting ? <><strong>{waiting} waiting for your quote</strong></> : "Quote invitations, and the quotes you send in reply."}
+            summary={rows === null ? null : waiting ? <><strong>{waiting} waiting for your quote</strong></> : null}
           />
           <SuspendedNotice me={me} />
           <WorkList
             rows={rows}
             onChanged={reload}
-            empty={{ icon: "receipt", title: "No quote invitations yet", body: "You see the area and the problem. The address opens only if your quote is approved." }}
+            empty={{ icon: "receipt", title: "No quote invitations yet" }}
           />
         </div>
       )}
@@ -173,12 +173,12 @@ export function ArtisanJobsPage() {
     <ArtisanOnly>
       {(me) => (
         <div className="ws-page">
-          <WorkspaceHead icon="wrench" title="Jobs" summary="Work a customer approved, with the address, contact and history." />
+          <WorkspaceHead icon="wrench" title="Jobs" />
           <SuspendedNotice me={me} />
           <WorkList
             rows={rows}
             onChanged={reload}
-            empty={{ icon: "wrench", title: "No jobs yet", body: "A job appears here once a customer approves your quote." }}
+            empty={{ icon: "wrench", title: "No jobs yet" }}
           />
         </div>
       )}
@@ -220,7 +220,6 @@ export function ArtisanProfilePage() {
           <WorkspaceHead
             icon="hammer"
             title="My Profile"
-            summary="What customers will see about you: facts, not ratings."
             actions={application?.profile && !editing ? (
               <button type="button" className="ws-action is-primary" onClick={() => { setEditing(true); setSaved(false); }}>
                 <Icon name="pencil" />

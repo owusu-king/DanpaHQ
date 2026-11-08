@@ -41,7 +41,7 @@ function PropertySetup() {
   const back = () => router.push(`/record/property?id=${propertyId}` as never);
   return (
     <div className="ws-page lease-wizard-page">
-      <WorkspaceHead icon="properties" title="Property setup" summary="Saved as you go." />
+      <WorkspaceHead icon="properties" title="Property setup" />
       <section className="ws-panel creation-frame">
         <PropertyWizard
           propertyId={propertyId}

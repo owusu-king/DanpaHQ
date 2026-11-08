@@ -12,7 +12,6 @@ import { ListingCard } from "@/components/listings/ListingCard";
 import {
   EDGE,
   EmptyState,
-  Footnote,
   GLASS,
   INK,
   KOLA,
@@ -46,21 +45,25 @@ export default function SavedScreen() {
   const [error, setError] = useState("");
   const [refreshing, setRefreshing] = useState(false);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (signal?: AbortSignal) => {
     if (!signedIn) return;
-    try {
-      setItems(await listSaved());
+    await listSaved().then((value) => {
+      if (signal?.aborted) return;
+      setItems(value);
       setError("");
-    } catch (cause) {
+    }).catch((cause) => {
+      if (signal?.aborted) return;
       setError(
         cause instanceof ApiFailure ? cause.error.message : "We could not load your shortlist.",
       );
       setItems([]);
-    }
+    });
   }, [signedIn]);
 
   useEffect(() => {
-    void load();
+    const controller = new AbortController();
+    void load(controller.signal);
+    return () => controller.abort();
   }, [load]);
 
   const removeSaved = useCallback(async (listingId: string) => {
@@ -124,9 +127,6 @@ export default function SavedScreen() {
             ) : null}
           </View>
         )}
-        ListFooterComponent={items?.length ? (
-          <Footnote>The heart on a card takes it off this list. Three or four kept here are easy to compare.</Footnote>
-        ) : null}
         ListEmptyComponent={
           items === null ? (
             <ShortlistSkeleton />
@@ -135,7 +135,6 @@ export default function SavedScreen() {
               icon="bookmark-outline"
               hero
               title="Nothing saved yet"
-              hint="Save anything you are considering, and compare them here before you spend a day travelling to viewings."
               action={<View style={styles.emptyAction}><QuietAction icon="compass-outline" label="Explore homes" onPress={() => router.push("/(app)/(tabs)/explore" as never)} /></View>}
             />
           )

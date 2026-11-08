@@ -74,6 +74,13 @@ class TestWebhookAuthenticity:
         with pytest.raises(PermissionDenied):
             PaystackPaymentProvider().verify_webhook(raw_body=body, headers={})
 
+    def test_a_non_ascii_signature_is_refused(self):
+        body, _ = _signed(_charge())
+        with pytest.raises(PermissionDenied):
+            PaystackPaymentProvider().verify_webhook(
+                raw_body=body, headers={"X-Paystack-Signature": "é"}
+            )
+
     def test_a_callback_signed_with_the_wrong_key_is_refused(self):
         body, headers = _signed(_charge(), key="sk_test_" + "9" * 32)
         with pytest.raises(PermissionDenied):
@@ -211,6 +218,7 @@ class TestOutboundCalls:
             "status": True,
             "data": {
                 "id": 302961,
+                "reference": "rmp_abc123",
                 "status": "success",
                 "amount": 150000,
                 "currency": "GHS",

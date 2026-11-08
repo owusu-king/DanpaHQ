@@ -219,7 +219,6 @@ export default function ApplyPage() {
       <Notice
         tone="info"
         title="This is an application, not a tenancy"
-        body="The provider can review, accept or decline it. A tenancy and lease begin only through their own later steps."
       />
 
       <form onSubmit={submit} style={FORM} noValidate>
@@ -254,7 +253,7 @@ export default function ApplyPage() {
           <h2 className="type-title-2" style={{ margin: 0 }}>About your situation</h2>
           <Field label="Occupation" error={errors.occupation} value={occupation} onChange={(event) => setOccupation(event.target.value)} maxLength={120} />
           <Field label="Employer" error={errors.employer} value={employer} onChange={(event) => setEmployer(event.target.value)} maxLength={160} />
-          <Select label="Monthly income range" value={incomeBand} onChange={setIncomeBand} options={INCOME_BANDS} hint={errors.income_band || "Optional. A range avoids collecting an exact salary."} />
+          <Select label="Monthly income range" value={incomeBand} onChange={setIncomeBand} options={INCOME_BANDS} hint={errors.income_band || "Optional. Select a range."} />
         </section>
 
         <section style={SECTION}>

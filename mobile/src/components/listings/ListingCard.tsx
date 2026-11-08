@@ -1,5 +1,5 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   Image,
   Pressable,
@@ -72,9 +72,7 @@ export function ListingCard({
   ].filter(Boolean).join(". ");
 
   // A card that stops swiping shows its first photograph, so its dots start there again.
-  useEffect(() => {
-    if (!photoSwipe) setActivePhoto(0);
-  }, [photoSwipe]);
+  if (!photoSwipe && activePhoto !== 0) setActivePhoto(0);
 
   function updatePhoto(event: NativeSyntheticEvent<NativeScrollEvent>) {
     if (!mediaWidth) return;

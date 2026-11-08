@@ -4,7 +4,7 @@
  * shaped like Rent's so the two sides read as one Explore.
  */
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import { SegmentedField, SelectField } from "@/components/filters/FilterFields";
 import { BottomSheet } from "@/components/sheet/BottomSheet";
@@ -101,13 +101,6 @@ export function SaleFilterSheet({
   onChange: (patch: Partial<SaleChoices>) => void;
   resultLabel: string;
 }) {
-  // One dropdown open at a time, and none left open when the sheet comes back.
-  const [menu, setMenu] = useState<Menu | null>(null);
-  useEffect(() => {
-    if (!visible) setMenu(null);
-  }, [visible]);
-  const toggle = (next: Menu) => setMenu((current) => (current === next ? null : next));
-
   return (
     <BottomSheet
       visible={visible}

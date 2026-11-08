@@ -59,7 +59,7 @@ export function ProviderTermsConsent({ value, onChange, presentation = "inline",
         <p className="provider-consent-version">Terms and Conditions · Version {policy.version}</p>
         <div key={key} ref={reader} role="region" aria-label="Provider agreement text" tabIndex={0} className="provider-consent-reader" onScroll={checkEnd}>{policy.text}</div><button type="button" className="auth-inline" onClick={() => void load()}>Refresh terms</button>
       </div>}
-      <p className="provider-consent-hint" role="status">{ready ? "Agreement viewed. You can now accept it." : "Read to the end of the agreement to enable acceptance."}</p>
+      {!ready ? <p className="provider-consent-hint" role="status">Read to the end of the agreement to enable acceptance.</p> : null}
       <Check label="I accept the Provider Terms and Conditions." disabled={!ready} checked={ready && value?.digest === policy.digest && value.version === policy.version} onChange={(checked) => onChange(checked && ready ? { version: policy.version, digest: policy.digest } : null)} />
     </> : !error ? <p role="status">Loading provider agreement…</p> : null}
     {error ? <><p role="alert">{error}</p><button type="button" className="auth-inline" onClick={() => void load()}>Try again</button></> : null}

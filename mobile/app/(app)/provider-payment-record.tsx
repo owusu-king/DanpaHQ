@@ -52,7 +52,6 @@ export default function ProviderPaymentRecordScreen() {
   const { leaseId = "" } = useLocalSearchParams<{ leaseId?: string }>();
   const [ledger, setLedger] = useState<LeaseLedger | null>(null);
   const [chargeId, setChargeId] = useState("");
-  const [amount, setAmount] = useState("");
   const [paidOn, setPaidOn] = useState(new Date().toISOString().slice(0, 10));
   const [method, setMethod] = useState<RentPayment["method"]>("momo");
   const [reference, setReference] = useState("");
@@ -69,8 +68,8 @@ export default function ProviderPaymentRecordScreen() {
       const next = await getLeaseLedger(leaseId);
       setLedger(next);
       const first = next.charges.find((charge) => charge.outstanding_minor > 0);
-      setChargeId((current) => current || first?.id || "");
-      setAmount((current) => current || (first ? String(first.outstanding_minor / 100) : ""));
+      setChargeId((current) => next.charges.some((charge) => charge.id === current && charge.outstanding_minor > 0)
+        ? current : first?.id || "");
       setError("");
     } catch (cause) {
       setError(cause instanceof ApiFailure ? cause.error.message : "We could not prepare this payment record.");
@@ -80,11 +79,16 @@ export default function ProviderPaymentRecordScreen() {
   useFocusEffect(useCallback(() => { void load(); }, [load]));
 
   const openCharges = useMemo(() => ledger?.charges.filter((charge) => charge.outstanding_minor > 0) ?? [], [ledger]);
+  const selectedCharge = openCharges.find((charge) => charge.id === chargeId);
+  const amount = selectedCharge ? String(selectedCharge.outstanding_minor / 100) : "";
   const ready = Boolean(openCharges.length && chargeId && amount && paidOn);
 
   async function save() {
     const amountMinor = Math.round(Number(amount) * 100);
     if (!Number.isFinite(amountMinor) || amountMinor <= 0) return setError("Enter a valid amount.");
+    if (amountMinor !== openCharges.find((charge) => charge.id === chargeId)?.outstanding_minor) {
+      return setError("Record the full outstanding balance. Partial rent payments are not allowed.");
+    }
     setBusy(true);
     setError("");
     try {
@@ -153,7 +157,6 @@ export default function ProviderPaymentRecordScreen() {
                   selected={chargeId === charge.id}
                   onPress={() => {
                     setChargeId(charge.id);
-                    setAmount(String(charge.outstanding_minor / 100));
                   }}
                 />
               ))}
@@ -170,7 +173,7 @@ export default function ProviderPaymentRecordScreen() {
           <RecordPanel style={styles.formPanel}>
             <View style={styles.pair}>
               <View style={styles.pairField}>
-                <Field label="Amount (GH₵)" value={amount} onChangeText={setAmount} keyboardType="decimal-pad" />
+                <Field label="Amount (GH₵)" value={amount} editable={false} hint="The full outstanding balance must be recorded." />
               </View>
               <View style={styles.pairField}>
                 <Field label="Date received" hint="YYYY-MM-DD" value={paidOn} onChangeText={setPaidOn} />

@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 
 import type { OrganizationPortfolio } from "@/lib/console";
@@ -10,16 +10,31 @@ type Collection = OrganizationPortfolio["rent_collection"];
 type Point = Collection["monthly"][number];
 type Period = "monthly" | "yearly";
 
-const WIDTH = 920;
+const DEFAULT_WIDTH = 920;
 const HEIGHT = 276;
 const LEFT = 54;
 const RIGHT = 78;
 const TOP = 22;
 const BOTTOM = 34;
-const PLOT_WIDTH = WIDTH - LEFT - RIGHT;
 const PLOT_HEIGHT = HEIGHT - TOP - BOTTOM;
 
 export function ProviderFinanceChart({ collection }: { collection: Collection }) {
+  const chartRef = useRef<HTMLDivElement>(null);
+  const [chartWidth, setChartWidth] = useState(DEFAULT_WIDTH);
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart) return;
+    const observer = new ResizeObserver(([entry]) => {
+      if (!entry) return;
+      const width = entry.contentRect.width;
+      // Keep labels readable on a phone instead of scaling a desktop plot down.
+      setChartWidth(width < 480 ? Math.max(360, Math.round(width)) : DEFAULT_WIDTH);
+    });
+    observer.observe(chart);
+    return () => observer.disconnect();
+  }, []);
+  const WIDTH = chartWidth;
+  const PLOT_WIDTH = WIDTH - LEFT - RIGHT;
   const [period, setPeriod] = useState<Period>("monthly");
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const gradientId = useId().replaceAll(":", "");
@@ -67,7 +82,6 @@ export function ProviderFinanceChart({ collection }: { collection: Collection })
         <div>
           <p className="home-eyebrow">Rent collection</p>
           <h2 id="home-finance-chart-title">Confirmed received and still outstanding</h2>
-          <p>Grouped by payment date and obligation due date.</p>
         </div>
         <div className="home-finance-actions">
           <div className="home-period-toggle" data-period={period} aria-label="Chart period">
@@ -115,7 +129,7 @@ export function ProviderFinanceChart({ collection }: { collection: Collection })
         </div>
       </div>
 
-      <div className="home-chart-wrap" onPointerLeave={() => setActiveIndex(null)}>
+      <div ref={chartRef} className="home-chart-wrap" onPointerLeave={() => setActiveIndex(null)}>
         <svg
           className="home-chart"
           viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
@@ -166,6 +180,7 @@ export function ProviderFinanceChart({ collection }: { collection: Collection })
                   x={x(index)}
                   y={HEIGHT - 9}
                   textAnchor="middle"
+                  visibility={index % Math.max(1, Math.ceil(42 / step)) === 0 || index === points.length - 1 ? undefined : "hidden"}
                 >
                   {label}
                 </text>

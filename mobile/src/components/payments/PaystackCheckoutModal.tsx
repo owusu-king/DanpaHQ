@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import {
   ActivityIndicator,
   Modal,
@@ -22,7 +22,6 @@ type Props = {
   intent: ProviderCheckout | null;
   onClose: () => void;
   onCheckoutReturn: () => void;
-  /** What a confirmed payment updates, for the sentence under the checkout. */
   settles?: string;
 };
 
@@ -32,7 +31,7 @@ type Props = {
  * checkout and lets the Payments API verify the intent server-side. Rent and a
  * Danpa HQ subscription share it, because they share the Payments Core.
  */
-export function PaystackCheckoutModal({ intent, onClose, onCheckoutReturn, settles = "your rent" }: Props) {
+export function PaystackCheckoutModal({ intent, onClose, onCheckoutReturn }: Props) {
   const checkoutUrl = intent ? safeCheckoutUrl(intent) : null;
   const webView = useRef<WebView>(null);
   const [progress, setProgress] = useState(0);
@@ -40,12 +39,14 @@ export function PaystackCheckoutModal({ intent, onClose, onCheckoutReturn, settl
   const [canGoBack, setCanGoBack] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
 
-  useEffect(() => {
+  const [previousIntentId, setPreviousIntentId] = useState(intent?.id);
+  if (previousIntentId !== intent?.id) {
+    setPreviousIntentId(intent?.id);
     setProgress(0);
     setLoadError("");
     setCanGoBack(false);
     setReloadKey(0);
-  }, [intent?.id]);
+  }
 
   if (!intent || !checkoutUrl) return null;
 
@@ -159,12 +160,6 @@ export function PaystackCheckoutModal({ intent, onClose, onCheckoutReturn, settl
           )}
         </View>
 
-        <View style={styles.footer}>
-          <Ionicons name="shield-checkmark-outline" size={16} color={theme.color.ink["500"]} />
-          <Type variant="caption" style={styles.footerCopy}>
-            Danpa HQ confirms the result with Paystack before updating {settles}.
-          </Type>
-        </View>
       </SafeAreaView>
       </ModalSafeArea>
     </Modal>
@@ -258,21 +253,6 @@ const styles = StyleSheet.create({
   },
   retryLabel: {
     color: theme.color.field["0"],
-  },
-  footer: {
-    minHeight: 50,
-    paddingHorizontal: space[4],
-    paddingVertical: space[3],
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: space[2],
-    backgroundColor: theme.color.field["50"],
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: theme.color.field["200"],
-  },
-  footerCopy: {
-    flexShrink: 1,
   },
   pressed: {
     opacity: 0.72,

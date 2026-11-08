@@ -7,13 +7,6 @@ import { fileURLToPath } from "node:url";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const read = (relative) => readFileSync(resolve(root, relative), "utf8").replaceAll("\r\n", "\n");
 const code = (source) => source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*/g, "");
-const between = (source, start, end) => {
-  const at = source.indexOf(start);
-  assert.notEqual(at, -1, `${start} is missing`);
-  const stop = source.indexOf(end, at + start.length);
-  assert.notEqual(stop, -1, `${end} is missing after ${start}`);
-  return source.slice(at, stop);
-};
 
 const ROWS = "mobile/src/components/account/IndexRows.tsx";
 const YOU = "mobile/src/components/account/YouParts.tsx";
@@ -147,7 +140,7 @@ test("each card is white and plain, and search reaches every row", () => {
 
   // Search filters every row on the page by name, and says so when none match.
   assert.match(you, /sections\.flatMap\(\(section\) => section\.items\)\.filter\(\(item\) => item\.label\.toLocaleLowerCase\("en-GH"\)\.includes\(needle\)\)/);
-  assert.match(you, /<Empty icon="search-outline" title="Nothing by that name"/);
+  assert.match(you, /<Empty icon="search-outline" title="No results"/);
   assert.match(you, /<IndexGround>/);
 
   // Role gating survives the move to data: a row a role would refuse is not listed.

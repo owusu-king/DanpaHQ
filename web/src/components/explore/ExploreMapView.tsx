@@ -381,7 +381,6 @@ export function ExploreMapView({
         {listings?.length === 0 && !querying ? (
           <div className="explore-map-empty-list">
             <p className="type-body-strong">No available rentals {areaName}.</p>
-            <p className="type-caption">Zoom out and search this area, clear a filter, or try a nearby place.</p>
             <button type="button" className="explore-clear-all" onClick={onClearFilters}>Clear Filters</button>
           </div>
         ) : null}
@@ -392,7 +391,6 @@ export function ExploreMapView({
           <div className="explore-map-frame">
             <div className="explore-map-failed" role="status">
               <strong>The map is not available here yet.</strong>
-              <span>Every rental in this search is still in the list.</span>
               {setupHint ? <span>{setupHint}</span> : null}
             </div>
           </div>
@@ -432,7 +430,6 @@ export function ExploreMapView({
             {configFailed ? (
               <div className="explore-map-failed" role="status">
                 <strong>The map could not load right now.</strong>
-                <span>Your search is unchanged, and the rentals are still listed.</span>
               </div>
             ) : <div className="explore-map-loading" aria-hidden="true" />}
           </div>
@@ -457,7 +454,6 @@ export function ExploreMapView({
         {noneHere && !mapFailed ? (
           <div className="explore-map-empty" role="status">
             <strong>No available rentals {areaName}.</strong>
-            <span>The map stays here; widen the search to see more.</span>
             <div>
               {view ? (
                 <button

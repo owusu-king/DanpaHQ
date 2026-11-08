@@ -277,7 +277,6 @@ function PropertiesContent() {
       <WorkspaceHead
         icon="properties"
         title="Properties"
-        summary="Organize the properties you manage and the spaces within them."
       />
 
       {provider && !canCreateProperty ? (
@@ -357,11 +356,7 @@ function PropertiesContent() {
                   ? "No Property is assigned to you"
                   : organizations.length ? "No Properties yet" : "Add your first Property"
               }
-              body={
-                assignedOnly
-                  ? `An owner or administrator of ${activeOrganization?.name ?? "this Portfolio"} decides which Properties you operate. The ones assigned to you appear here.`
-                  : next.reason
-              }
+              body={assignedOnly ? undefined : next.reason || undefined}
             />
           ) : (
             // The first Property is added from the same card every later one is,
@@ -369,7 +364,6 @@ function PropertiesContent() {
             <div className="ws-canvas properties-canvas">
               <div className="properties-first">
                 <h2>{organizations.length ? "No Properties yet" : "Add your first Property"}</h2>
-                <p>{next.reason}</p>
               </div>
               <ul className="property-grid">
                 <li className="property-card-item"><AddPropertyCard href={next.href} onClick={openCreate} /></li>
@@ -382,7 +376,6 @@ function PropertiesContent() {
           <PanelState
             icon="properties"
             title={searching ? `No Property matches “${query.trim()}”` : "No Property in this view"}
-            body={searching ? "Try another name or area." : "Change the filters to see the rest of this Portfolio."}
             action={<Button variant="quiet" size="sm" onClick={() => { setQuery(""); setStage("all"); setPurpose("any"); }}>Show all Properties</Button>}
           />
         ) : null}
@@ -437,7 +430,7 @@ function PropertiesContent() {
 
 export default function PropertiesPage() {
   return (
-    <Suspense fallback={<div className="ws-page properties-workspace"><WorkspaceHead icon="properties" title="Properties" summary="Organize the properties you manage and the spaces within them." /><section className="ws-panel is-canvas" aria-busy="true"><PropertyCardsSkeleton /></section></div>}>
+    <Suspense fallback={<div className="ws-page properties-workspace"><WorkspaceHead icon="properties" title="Properties" /><section className="ws-panel is-canvas" aria-busy="true"><PropertyCardsSkeleton /></section></div>}>
       <PropertiesContent />
     </Suspense>
   );
@@ -594,7 +587,6 @@ function AddPropertyCard({
       </span>
       <span className="property-add-plus" aria-hidden="true"><PlusGlyph /></span>
       <strong>Add a Property</strong>
-      <small>A compound, hostel, apartment block or house</small>
     </Link>
   );
 }

@@ -1,6 +1,6 @@
 import type { BottomTabBarProps } from "expo-router/tabs";
-import { useEffect, useMemo, useRef } from "react";
-import { Animated, Easing, Pressable, StyleSheet, Text, View } from "react-native";
+import { useEffect, useMemo } from "react";
+import { Animated, useAnimatedValue, Easing, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { GlassTabBar } from "@/components/nav/GlassTabBar";
@@ -106,8 +106,8 @@ type TabItemProps = {
 
 function TabItem({ route, position, count, focused, options, navigation }: TabItemProps) {
   const reduceMotion = useReduceMotion();
-  const focusProgress = useRef(new Animated.Value(focused ? 1 : 0)).current;
-  const pressScale = useRef(new Animated.Value(1)).current;
+  const focusProgress = useAnimatedValue(focused ? 1 : 0);
+  const pressScale = useAnimatedValue(1);
   const resting = useMemo(() => focusProgress.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }), [focusProgress]);
   const widen = useMemo(() => focusProgress.interpolate({ inputRange: [0, 1], outputRange: [0.55, 1] }), [focusProgress]);
   const label =
@@ -118,7 +118,7 @@ function TabItem({ route, position, count, focused, options, navigation }: TabIt
         : route.name;
 
   useEffect(() => {
-    Animated.timing(focusProgress, {
+    const animation = Animated.timing(focusProgress, {
       toValue: focused ? 1 : 0,
       // Arriving is worth watching; leaving should get out of the way.
       duration: reduceMotion ? 0 : focused ? motion.duration.base : motion.duration.fast,
@@ -126,7 +126,9 @@ function TabItem({ route, position, count, focused, options, navigation }: TabIt
         ...(focused ? motion.easing.enter : motion.easing.exit),
       ),
       useNativeDriver: true,
-    }).start();
+    });
+    animation.start();
+    return () => animation.stop();
   }, [focusProgress, focused, reduceMotion]);
 
   const animatePress = (toValue: number) => {

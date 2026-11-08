@@ -4,7 +4,7 @@ import dynamic from "next/dynamic";
 import { useEffect, useRef } from "react";
 
 import { Icon } from "@/components/portal/icons";
-import type { Listing } from "@/lib/console";
+import type { ListingDetail } from "@/lib/listings";
 
 const LocationMap = dynamic(
   () => import("./ListingLocationMap").then((module) => module.ListingLocationMap),
@@ -25,7 +25,7 @@ const LocationMap = dynamic(
  * already happened on an empty page; the section makes it again once it exists.
  */
 export function ListingLocation({ listing, where, landmark }: {
-  listing: Listing;
+  listing: ListingDetail;
   where: string;
   landmark: string;
 }) {
@@ -60,7 +60,7 @@ export function ListingLocation({ listing, where, landmark }: {
       </h2>
       <p className="listing-location-where">
         <Icon name="pin" />
-        <span>{where || "Ghana"}{landmark ? ` · near ${landmark}` : ""}</span>
+        <span>{listing.property_context.title ? <><strong>{listing.property_context.title}</strong><span aria-hidden="true"> | </span></> : null}{where || "Ghana"}{landmark ? ` · near ${landmark}` : ""}</span>
       </p>
       {location ? (
         <LocationMap

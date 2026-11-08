@@ -74,6 +74,9 @@ def active_lease(landlord, user, unit):
     )
     lease_services.offer_lease(lease=lease, user=landlord)
     lease = lease_services.accept_lease(lease=lease, user=user)
+    from tests.payment_helpers import legacy_active_lease
+
+    legacy_active_lease(lease)
     rent_services.build_schedule(lease)
     return lease
 
@@ -111,11 +114,11 @@ def test_money_flows_from_checkout_to_closing_balance(
     advance = next(row for row in schedule.data["charges"] if row["kind"] == "advance")
     availability = schedule.data["digital_payment"]
     assert availability["available"] is True, availability
-    assert availability["allows_partial"] is True
+    assert availability["allows_partial"] is False
     assert availability["outstanding_minor"] == advance["outstanding_minor"]
 
-    # --- a part payment, priced by the server and never by the client --------
-    part = advance["outstanding_minor"] // 2
+    # --- full payment, priced by the server and never by the client --------
+    paid_amount = advance["outstanding_minor"]
     overreach = tenant_api.post(
         "/api/v1/payments/intents/",
         {
@@ -133,20 +136,20 @@ def test_money_flows_from_checkout_to_closing_balance(
         {
             "obligation_id": advance["id"],
             "payment_method": "mobile_money",
-            "amount_minor": part,
+            "amount_minor": paid_amount,
         },
         format="json",
         HTTP_IDEMPOTENCY_KEY="money-smoke-intent-001",
     )
     assert intent.status_code == 201, intent.data
-    assert intent.data["amount_minor"] == part
+    assert intent.data["amount_minor"] == paid_amount
 
     replay = tenant_api.post(
         "/api/v1/payments/intents/",
         {
             "obligation_id": advance["id"],
             "payment_method": "mobile_money",
-            "amount_minor": part,
+            "amount_minor": paid_amount,
         },
         format="json",
         HTTP_IDEMPOTENCY_KEY="money-smoke-intent-001",
@@ -166,7 +169,7 @@ def test_money_flows_from_checkout_to_closing_balance(
 
     body, signature = _signed_callback(
         intent.data["provider_reference"],
-        amount_minor=part,
+        amount_minor=paid_amount,
         currency=intent.data["amount_currency"],
         secret=settings.PAYMENT_TEST_WEBHOOK_SECRET,
     )
@@ -193,13 +196,13 @@ def test_money_flows_from_checkout_to_closing_balance(
     transaction_row = PaymentTransaction.objects.get(status="succeeded")
     allocation = PaymentAllocation.objects.get()
     assert allocation.transaction_id == transaction_row.id
-    assert allocation.amount_minor == part
+    assert allocation.amount_minor == paid_amount
 
     lines = list(LedgerEntry.objects.filter(transaction=transaction_row))
     assert len(lines) == 2
     debits = sum(row.amount_minor for row in lines if row.direction == LedgerDirection.DEBIT)
     credits = sum(row.amount_minor for row in lines if row.direction == LedgerDirection.CREDIT)
-    assert debits == credits == part
+    assert debits == credits == paid_amount
 
     # Paid is not settled, and the product must never conflate the two.
     settlement = Settlement.objects.get(transaction=transaction_row)
@@ -225,9 +228,9 @@ def test_money_flows_from_checkout_to_closing_balance(
 
     # --- the obligation moved by exactly the amount that arrived ------------
     charge = RentCharge.objects.get(id=advance["id"])
-    assert charge.status == ChargeStatus.PART_PAID
-    assert charge.amount_paid_minor == part
-    assert charge.outstanding_minor == advance["outstanding_minor"] - part
+    assert charge.status == ChargeStatus.PAID
+    assert charge.amount_paid_minor == paid_amount
+    assert charge.outstanding_minor == advance["outstanding_minor"] - paid_amount
 
     # --- ending the tenancy resolves the future, never the debt -------------
     lease_services.end_lease(lease=active_lease, user=landlord, confirmed=True)
@@ -236,8 +239,8 @@ def test_money_flows_from_checkout_to_closing_balance(
     assert dispatch_pending()["failed"] == 0
 
     charge.refresh_from_db()
-    assert charge.status == ChargeStatus.PART_PAID, "incurred arrears survive the end"
-    assert charge.outstanding_minor > 0
+    assert charge.status == ChargeStatus.PAID, "paid history survives the end"
+    assert charge.outstanding_minor == 0
 
     unrun = RentCharge.objects.filter(lease=active_lease, due_on__gt=date.today())
     assert unrun.exists(), "the fixture's term should leave later periods to close"
@@ -251,7 +254,7 @@ def test_money_flows_from_checkout_to_closing_balance(
     summary = ledger.data["financial_summary"]
     assert summary["is_post_tenancy"] is True
 
-    # Every charge already incurred survives, not only the part-paid one: the
+    # Every charge already incurred survives, not only the paid one: the
     # deposit fell due on move-in day too, and a tenancy ending does not forgive
     # it. Cancelled future periods contribute nothing.
     surviving = [
@@ -262,6 +265,8 @@ def test_money_flows_from_checkout_to_closing_balance(
     assert summary["outstanding_balance_minor"] == sum(row.outstanding_minor for row in surviving)
     assert charge.outstanding_minor in [row.outstanding_minor for row in surviving]
 
+    # Close a separate unpaid obligation without changing the paid advance.
+    charge = RentCharge.objects.get(lease=active_lease, kind="deposit")
     remaining = charge.outstanding_minor
     waiver = provider_api.post(
         f"/api/v1/rent/charges/{charge.id}/waive/",
@@ -276,14 +281,12 @@ def test_money_flows_from_checkout_to_closing_balance(
     assert waiver.status_code == 200, waiver.data
 
     charge.refresh_from_db()
-    # Money was received *and* the remainder released, so neither word alone is
-    # true: it is not `paid`, and it is not purely `waived`.
-    assert charge.status == ChargeStatus.ADJUSTED
+    assert charge.status == ChargeStatus.WAIVED
     assert charge.outstanding_minor == 0
 
     closing = tenant_api.get(f"/api/v1/leases/{lease_id}/charges/").data["financial_summary"]
     assert closing["waived_minor"] == remaining
-    # The waiver released this charge and nothing else; the deposit is still owed.
+    # The waiver released only the deposit; the paid advance is unchanged.
     assert closing["outstanding_balance_minor"] == sum(
         row.outstanding_minor
         for row in RentCharge.objects.filter(lease=active_lease)
@@ -353,6 +356,9 @@ def test_an_ended_tenancy_still_refuses_a_brand_new_schedule(landlord, user, uni
     )
     lease_services.offer_lease(lease=lease, user=landlord)
     lease = lease_services.accept_lease(lease=lease, user=user)
+    from tests.payment_helpers import legacy_active_lease
+
+    legacy_active_lease(lease)
     RentCharge.objects.filter(lease=lease).delete()
     lease_services.end_lease(lease=lease, user=landlord, confirmed=True)
     lease.refresh_from_db()

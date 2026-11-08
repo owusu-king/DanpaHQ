@@ -58,15 +58,14 @@ export default function ManagementProfilePage() {
     <div className="management-narrow">
       <PageHeader
         title="Profile and security"
-        description="Your role is assigned by a Super Admin. Changing your password signs out every Management session, including this one."
       />
       <Panel title="Your details">
         <form className="management-form" onSubmit={saveProfile}>
           <div className="management-form-grid">
             <label>First name<input value={firstName} onChange={(event) => setFirstName(event.target.value)} autoComplete="given-name" disabled={busy === "profile"} /></label>
             <label>Last name<input value={lastName} onChange={(event) => setLastName(event.target.value)} autoComplete="family-name" disabled={busy === "profile"} /></label>
-            <label>Work email<input value={user.email} disabled /><small>Set by a Super Admin.</small></label>
-            <label>Role<input value={user.role_label} disabled /><small>Set by a Super Admin.</small></label>
+            <label>Work email<input value={user.email} disabled /></label>
+            <label>Role<input value={user.role_label} disabled /></label>
           </div>
           <Feedback error={profileError} />
           <div className="management-form-actions">
@@ -83,6 +82,7 @@ export default function ManagementProfilePage() {
             <label>Confirm new password<input name="confirm_password" type="password" autoComplete="new-password" minLength={10} required disabled={busy === "password"} /></label>
           </div>
           <p className="management-hint">At least 10 characters. Common and numbers-only passwords are refused.</p>
+          <p className="management-hint">Changing your password signs you out of all Management sessions.</p>
           <Feedback error={passwordError} />
           <div className="management-form-actions">
             <button type="submit" className="management-button primary" disabled={busy !== ""}>{busy === "password" ? "Changing…" : "Change password and sign out everywhere"}</button>

@@ -48,4 +48,30 @@ class Command(BaseCommand):
                 raise CommandError(
                     "Runtime migration history must be SELECT-only; rerun owner provisioning."
                 )
+            tables = set(connection.introspection.django_table_names(only_existing=True))
+            tables.add("django_migrations")
+            cursor.execute(
+                "SELECT c.relname FROM pg_class c "
+                "JOIN pg_namespace n ON n.oid=c.relnamespace "
+                "WHERE n.nspname='public' AND c.relname=ANY(%s) AND c.relrowsecurity "
+                "AND NOT EXISTS(SELECT 1 FROM pg_policy p WHERE p.polrelid=c.oid "
+                "AND p.polpermissive AND p.polcmd IN ('r', '*') "
+                "AND (0=ANY(p.polroles) OR current_user::regrole::oid=ANY(p.polroles))) "
+                "ORDER BY c.relname LIMIT 1", [sorted(tables)],
+            )
+            blocked = cursor.fetchone()
+            if blocked:
+                raise CommandError(
+                    f"Row security on {blocked[0]} has no runtime SELECT policy; "
+                    "rerun owner provisioning or review existing custom policies."
+                )
+            cursor.execute(
+                "SELECT to_regproc('postgis_lib_version') IS NOT NULL, "
+                "to_regproc('similarity') IS NOT NULL"
+            )
+            if not all(cursor.fetchone()):
+                raise CommandError(
+                    "Database extension functions are not visible; rerun owner "
+                    "provisioning and restart runtime connections."
+                )
         self.stdout.write(self.style.SUCCESS("Runtime database privileges verified."))

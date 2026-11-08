@@ -6,13 +6,12 @@ import {
   isValidElement,
   useContext,
   useId,
-  useRef,
   useState,
   type ReactNode,
 } from "react";
 import {
   ActivityIndicator,
-  Animated,
+  Animated, useAnimatedValue,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -298,7 +297,7 @@ export function IndexActions({ children }: { children: ReactNode }) {
 /** Home and More answer a press with the same restrained spring. */
 function usePressSpring() {
   const reduceMotion = useReduceMotion();
-  const scale = useRef(new Animated.Value(1)).current;
+  const scale = useAnimatedValue(1);
   const animate = (toValue: number) => {
     if (reduceMotion) {
       scale.setValue(toValue);

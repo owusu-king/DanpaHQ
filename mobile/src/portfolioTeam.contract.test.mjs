@@ -150,8 +150,7 @@ test("a mobile first Property files into the Portfolio the account already has",
 
   assert.match(property, /createPersonalPortfolioProperty/);
   // The Portfolio is not created here. It was provisioned when this account's
-  // provider access was approved, and the form says where the Property goes.
-  assert.match(property, /This goes into your Danpa HQ Portfolio/);
+  // provider access was approved.
   assert.doesNotMatch(property, /Portfolio starts here/);
   assert.doesNotMatch(property, /propertyTypes\s*\.filter/);
   assert.match(properties, /label="Add Property"/);

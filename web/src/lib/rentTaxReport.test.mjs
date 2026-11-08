@@ -36,6 +36,7 @@ function screen(generateRentTaxReport) {
   const { GraReport } = compile("../components/payments/GraReport.tsx", {
     "react/jsx-runtime": { jsx, jsxs: jsx },
     react: {
+      useId() { return "financial-report-form"; },
       useEffect() {}, useRef(initial) { return refs[refCursor++] ??= { current: initial }; },
       useState(initial) {
         const index = cursor++;

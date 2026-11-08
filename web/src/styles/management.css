@@ -481,7 +481,7 @@
 
 /* ── Tables ──────────────────────────────────────────────────────────── */
 
-.management-table-wrap { width: 100%; overflow-x: auto; }
+.management-table-wrap { width: 100%; min-width: 0; overflow-x: auto; container: management-table / inline-size; }
 .management-table-wrap table { width: 100%; min-width: 48rem; border-collapse: collapse; }
 .management-table-wrap td { overflow-wrap: anywhere; }
 .management-table-wrap th,
@@ -1071,17 +1071,39 @@ html:has(.management-drawer[open]) { overflow: hidden; }
   .management-app { display: block; }
   .management-sidebar {
     position: fixed;
-    left: 0;
-    width: min(18rem, 86vw);
-    transform: translateX(-102%);
-    transition: transform var(--motion-duration-base) var(--motion-easing-standard);
-    overflow-x: hidden;
+    top: max(.5rem, env(safe-area-inset-top));
+    bottom: max(.5rem, env(safe-area-inset-bottom));
+    left: max(.5rem, env(safe-area-inset-left));
+    height: auto;
+    max-height: calc(100dvh - 1rem);
+    width: min(21rem, calc(100vw - 1.5rem));
+    padding: .75rem;
+    border-radius: 1.25rem;
+    box-shadow: 0 24px 64px -24px rgb(16 26 23 / 30%);
+    transform: translateX(calc(-100% - 1rem));
+    visibility: hidden;
+    transition: transform var(--motion-duration-base) var(--motion-easing-standard),
+                visibility var(--motion-duration-base);
   }
-  .management-sidebar.is-open { transform: translateX(0); }
+  .management-sidebar.is-open { transform: translateX(0); visibility: visible; }
+  .management-sidebar nav { padding: 1rem .25rem; overscroll-behavior: contain; }
+  .management-brand { min-height: 4.25rem; padding: 0 .25rem .75rem .5rem; }
   .management-collapse { display: none; }
-  .management-drawer-close { display: grid; }
+  .management-drawer-close {
+    display: grid;
+    width: 2.75rem;
+    height: 2.75rem;
+    border: 1px solid var(--m-rail-line);
+    border-radius: 50%;
+    color: #fff;
+  }
   .management-nav-item,
-  .management-nav-child { min-height: 2.75rem; }
+  .management-nav-child { min-height: 3rem; border-radius: .75rem; }
+  .management-nav-item { padding: .625rem .875rem; gap: .875rem; font-size: .9375rem; }
+  .management-nav { gap: .25rem; }
+  .management-sidebar-note { flex: none; }
+  .management-account-panel { max-height: calc(100dvh - 7rem); overflow-y: auto; overscroll-behavior: contain; }
+  .management-account-action { min-height: 3rem; }
   .management-mobile-header {
     position: sticky;
     top: 0;
@@ -1109,7 +1131,7 @@ html:has(.management-drawer[open]) { overflow: hidden; }
     cursor: pointer;
   }
   .management-mobile-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; text-align: center; }
-  .management-scrim { position: fixed; inset: 0; z-index: 25; background: rgb(22 17 14 / 40%); }
+  .management-scrim { position: fixed; inset: 0; z-index: 25; border: 0; padding: 0; background: rgb(16 26 23 / 32%); }
   .management-main { padding: 1.25rem 1rem 4rem; }
   .management-page-header { align-items: stretch; flex-direction: column; gap: 1rem; margin-bottom: 1.25rem; }
   .management-page-header h1 { font-size: 1.375rem; }
@@ -1126,7 +1148,7 @@ html:has(.management-drawer[open]) { overflow: hidden; }
 }
 
 /* On a phone a table row becomes a labelled stack; nothing scrolls sideways. */
-@media (max-width: 720px) {
+@container management-table (max-width: 48rem) {
   .management-table-wrap table { min-width: 0; }
   .management-table-wrap thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
   .management-table-wrap tbody,
@@ -1135,7 +1157,7 @@ html:has(.management-drawer[open]) { overflow: hidden; }
   .management-table-wrap tbody tr { padding: .75rem 1rem; border-bottom: 1px solid var(--m-line); }
   .management-table-wrap tbody tr:last-child { border-bottom: 0; }
   .management-table-wrap tbody tr:hover td { background: transparent; }
-  .management-table-wrap td { display: grid; grid-template-columns: 7rem minmax(0, 1fr); gap: 0 .75rem; padding: .3125rem 0; border: 0; }
+  .management-table-wrap td { display: grid; grid-template-columns: minmax(5rem, 30%) minmax(0, 1fr); gap: .125rem .75rem; padding: .375rem 0; border: 0; white-space: normal; overflow-wrap: anywhere; }
   .management-table-wrap td::before { content: attr(data-label); grid-column: 1; grid-row: 1 / span 6; color: var(--m-muted); font-size: .75rem; padding-top: 1px; }
   .management-table-wrap td[data-label] > * { grid-column: 2; }
   .management-table-wrap td > .management-status { justify-self: start; }
@@ -1143,11 +1165,22 @@ html:has(.management-drawer[open]) { overflow: hidden; }
   .management-table-wrap td:not([data-label])::before { display: none; }
   .management-table-wrap td.is-end { text-align: left; padding-top: .5rem; }
   .management-table-wrap td.is-end .management-actions { justify-content: flex-start; }
-  .management-drawer-header { padding: 1rem 1rem .875rem 1.25rem; }
+}
+
+@media (max-width: 720px) {
+  .management-drawer-header { flex: none; padding: max(1rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right)) .875rem max(1rem, env(safe-area-inset-left)); }
   .management-drawer-body { padding: 1rem 1.25rem 1.25rem; }
   .management-drawer-footer { padding: .75rem 1.25rem calc(.75rem + env(safe-area-inset-bottom)); }
   .management-drawer-footer .management-button { flex: 1 1 auto; }
   .management-drawer-footer .management-spacer { display: none; }
+  .management-panel-title { flex-wrap: wrap; gap: .5rem; }
+  .management-search-form { flex-wrap: wrap; }
+  .management-search-form .management-search { min-width: 0; flex-basis: 12rem; }
+  .management-mobile-header { padding-top: env(safe-area-inset-top); min-height: calc(3.5rem + env(safe-area-inset-top)); }
+  .management-main { padding-inline: max(1rem, env(safe-area-inset-left)) max(1rem, env(safe-area-inset-right)); }
+  .management-drawer-footer { flex: none; }
+  .management-notice-region { bottom: max(1rem, env(safe-area-inset-bottom)); }
+  .management-notice button { flex: none; width: 2.75rem; height: 2.75rem; }
 }
 
 @media (pointer: coarse) {

@@ -24,6 +24,8 @@ out. Monthly invoicing would be a foreign shape imposed on the market.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from django.db import models
 from django.utils import timezone
 
@@ -132,6 +134,10 @@ class PropertyExpense(BaseModel):
         on_delete=models.PROTECT,
         related_name="expenses",
     )
+    if TYPE_CHECKING:
+        amount_minor: int
+        amount_currency: str
+
     amount = MoneyField()
     category = models.CharField(
         max_length=20, choices=ExpenseCategory.choices, default=ExpenseCategory.OTHER
@@ -159,6 +165,10 @@ class RentCharge(BaseModel):
     lease = models.ForeignKey("lease.Lease", on_delete=models.PROTECT, related_name="charges")
     kind = models.CharField(max_length=16, choices=ChargeKind.choices)
 
+    if TYPE_CHECKING:
+        amount_minor: int
+        amount_currency: str
+
     amount = MoneyField()
     due_on = models.DateField()
     #: What the money buys. Null for a deposit or a fee, which buy no period.
@@ -167,6 +177,10 @@ class RentCharge(BaseModel):
 
     status = models.CharField(max_length=16, choices=ChargeStatus.choices, default=ChargeStatus.DUE)
     #: Only ever the sum of confirmed payments. A claim does not settle a debt.
+    if TYPE_CHECKING:
+        amount_paid_minor: int | None
+        amount_paid_currency: str | None
+
     amount_paid = MoneyField(null=True)
     settled_at = models.DateTimeField(null=True, blank=True)
     waived_reason = models.CharField(max_length=200, blank=True)
@@ -270,6 +284,10 @@ class ObligationAdjustment(BaseModel):
         related_name="adjustments",
     )
     kind = models.CharField(max_length=16, choices=ObligationAdjustmentKind.choices)
+    if TYPE_CHECKING:
+        amount_minor: int
+        amount_currency: str
+
     amount = MoneyField()
     reason = models.CharField(max_length=300)
     actor = models.ForeignKey(
@@ -353,6 +371,10 @@ class RentPayment(BaseModel):
     charge = models.ForeignKey(
         RentCharge, null=True, blank=True, on_delete=models.PROTECT, related_name="payments"
     )
+
+    if TYPE_CHECKING:
+        amount_minor: int
+        amount_currency: str
 
     amount = MoneyField()
     paid_on = models.DateField()

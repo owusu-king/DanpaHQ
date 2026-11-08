@@ -20,7 +20,6 @@ from apps.core.exceptions import (
     ProviderUnavailable,
     ValidationFailed,
 )
-from apps.core.money import Money
 from apps.operations.configuration import value as configuration_value
 from apps.outbox.services import emit
 from apps.rent.models import (
@@ -53,7 +52,12 @@ from .models import (
     TransactionStatus,
     WebhookStatus,
 )
-from .providers import UnhandledProviderEvent, VerifiedProviderEvent, get_payment_provider
+from .providers import (
+    PaymentProvider,
+    UnhandledProviderEvent,
+    VerifiedProviderEvent,
+    get_payment_provider,
+)
 from .receipts import (
     build_external_snapshot,
     build_snapshot,
@@ -81,18 +85,7 @@ def _minimum_part_minor() -> int:
 
 
 def resolve_payable_amount(*, obligation: RentCharge, requested_minor: int | None) -> int:
-    """How much of this obligation this intent is for.
-
-    One rule for both rails. `rent.record_payment` has always accepted a part
-    payment of an outstanding charge — a tenant who brings two thirds of the
-    advance in cash gets it recorded — while digital checkout demanded the whole
-    balance. The same two thirds was therefore recordable if it was handed over
-    in a stairwell and refused if it went through the processor, which pushed
-    exactly the payments Danpa HQ most wants on-platform off it.
-
-    The bounds are the ones the external rail already enforces: positive, and no
-    more than is outstanding. Overpayment stays impossible.
-    """
+    """A new rent payment must settle the entire outstanding obligation."""
     outstanding = obligation.outstanding_minor
     if outstanding <= 0:
         raise Conflict("That obligation is already settled.")
@@ -103,12 +96,9 @@ def resolve_payable_amount(*, obligation: RentCharge, requested_minor: int | Non
         raise ValidationFailed("Enter the amount you want to pay.")
     if amount > outstanding:
         raise Conflict("That is more than this obligation still owes.")
-    minimum = _minimum_part_minor()
-    if amount < outstanding and amount < minimum:
+    if amount < outstanding:
         raise ValidationFailed(
-            "A part payment must be at least "
-            f"{Money(minimum, obligation.amount_currency)}, "
-            "or the whole remaining balance."
+            "Partial rent payments are not allowed. Pay the full outstanding balance."
         )
     return amount
 
@@ -118,12 +108,20 @@ def get_intent_or_404(pk, *, user) -> PaymentIntent:
     # billing, is read through billing's own endpoints, and has no tenant or
     # lease to authorise against here.
     intent = (
-        PaymentIntent.objects.filter(id=pk, purpose=PaymentPurpose.RENT_OBLIGATION)
-        .select_related("lease__unit__property", "tenant", "obligation")
+        PaymentIntent.objects.filter(
+            id=pk, purpose__in=(PaymentPurpose.RENT_OBLIGATION, PaymentPurpose.VIEWING_FEE))
+        .select_related(
+            "lease__unit__property", "tenant", "obligation", "viewing__listing__unit__property"
+        )
         .first()
     )
     if intent is None:
         raise NotFound("We could not find that payment attempt.")
+    if intent.is_viewing:
+        from apps.viewing.services import assert_participant
+
+        assert_participant(intent.viewing, user)
+        return intent
     if str(intent.tenant_id) != str(user.id) and not intent.lease.unit.property.is_managed_by(user):
         raise PermissionDenied("You do not have access to that payment attempt.")
     return intent
@@ -131,7 +129,7 @@ def get_intent_or_404(pk, *, user) -> PaymentIntent:
 
 def intents_for(*, user):
     return PaymentIntent.objects.filter(tenant=user).select_related(
-        "lease__unit__property", "obligation"
+        "lease__unit__property", "obligation", "viewing__listing__unit__property"
     )
 
 
@@ -150,6 +148,11 @@ def get_receipt_or_404(pk, *, user) -> Receipt:
     if receipt is None:
         raise NotFound("We could not find that receipt.")
     intent = receipt.transaction.intent if receipt.transaction_id else None
+    if intent is not None and intent.is_viewing:
+        from apps.viewing.services import assert_participant
+
+        assert_participant(intent.viewing, user)
+        return receipt
     if intent is not None and intent.is_subscription:
         # A Portfolio's receipt for its plan. Readable by whoever may read that
         # Portfolio's invoices, and indistinguishable from a missing receipt to
@@ -192,16 +195,18 @@ def digital_payment_availability(*, lease, user) -> dict:
         return _unavailable()
     from apps.lease.models import LeaseStatus
 
-    if lease.status not in (LeaseStatus.ACTIVE, LeaseStatus.ENDED):
+    if lease.status not in (LeaseStatus.ACTIVE, LeaseStatus.ENDED) and not (
+        lease.status == LeaseStatus.AWAITING_ACTIVATION
+        and lease.both_accepted
+    ):
         return _unavailable("Online payment starts after the agreement is active.")
-    charge = (
-        RentCharge.objects.filter(
-            lease=lease,
-            status__in=(ChargeStatus.DUE, ChargeStatus.PART_PAID),
-        )
-        .order_by("due_on", "created_at")
-        .first()
+    charges = RentCharge.objects.filter(
+        lease=lease,
+        status__in=(ChargeStatus.DUE, ChargeStatus.PART_PAID),
     )
+    if lease.status == LeaseStatus.AWAITING_ACTIVATION:
+        charges = charges.filter(due_on=lease.starts_on)
+    charge = charges.order_by("due_on", "created_at").first()
     if charge is None or charge.outstanding_minor <= 0:
         return _unavailable()
     try:
@@ -218,9 +223,7 @@ def digital_payment_availability(*, lease, user) -> dict:
         "available": True,
         "reason": "",
         "methods": list(DigitalPaymentMethod.values),
-        # The part-payment contract, so a client can offer the same choice the
-        # off-platform record already offers instead of guessing at the rule.
-        "allows_partial": True,
+        "allows_partial": False,
         "minimum_part_minor": _minimum_part_minor(),
         "outstanding_minor": charge.outstanding_minor,
         "currency": charge.amount_currency,
@@ -297,7 +300,11 @@ def _reserve_intent(
         raise PermissionDenied("Only the tenant who owes this can start its digital payment.")
     from apps.lease.models import LeaseStatus
 
-    if lease.status not in (LeaseStatus.ACTIVE, LeaseStatus.ENDED):
+    if lease.status not in (LeaseStatus.ACTIVE, LeaseStatus.ENDED) and not (
+        lease.status == LeaseStatus.AWAITING_ACTIVATION
+        and lease.both_accepted
+        and obligation.due_on == lease.starts_on
+    ):
         raise Conflict("Digital payment can only start for an active or ended agreement.")
     if payment_method not in DigitalPaymentMethod.values:
         raise ValidationFailed("Choose a supported digital payment method.")
@@ -739,6 +746,13 @@ def _open_retry(*, intent_id, user) -> None:
         from apps.billing.services import checkout_service
 
         checkout_service.assert_open_for_new_attempt(intent.billing_invoice)
+    elif intent.is_viewing:
+        from .viewing_fees import assert_payable
+
+        assert_payable(intent.viewing)
+    else:
+        obligation = RentCharge.objects.select_for_update().get(pk=intent.obligation_id)
+        resolve_payable_amount(obligation=obligation, requested_minor=intent.amount_minor)
 
     _conclude_attempt(intent, AttemptStatus.ABANDONED, code="superseded_by_retry")
 
@@ -1026,7 +1040,9 @@ def process_webhook(*, provider_name: str, raw_body: bytes, headers) -> PaymentI
     try:
         return _process_verified_event(webhook=webhook, event=event)
     except (Conflict, NotFound, ValidationFailed) as exc:
-        ProviderWebhook.objects.filter(id=webhook.id).update(
+        ProviderWebhook.objects.filter(id=webhook.id).exclude(
+            status=WebhookStatus.PROCESSED
+        ).update(
             status=WebhookStatus.FAILED,
             processed_at=timezone.now(),
             error_message=exc.message[:500],
@@ -1035,7 +1051,9 @@ def process_webhook(*, provider_name: str, raw_body: bytes, headers) -> PaymentI
         raise
 
 
-def _confirm_with_provider(*, provider, event: VerifiedProviderEvent) -> VerifiedProviderEvent:
+def _confirm_with_provider(
+    *, provider: PaymentProvider, event: VerifiedProviderEvent
+) -> VerifiedProviderEvent:
     """Cross-check a callback against the provider's own record.
 
     A forged callback cannot reach here — the signature is checked first — but a
@@ -1043,9 +1061,8 @@ def _confirm_with_provider(*, provider, event: VerifiedProviderEvent) -> Verifie
     provider bug. Asking costs one request and removes an entire class of "the
     webhook said so" incident.
 
-    Skipped, not failed, when the provider cannot answer: an adapter without a
-    query operation is a real and supported case, and reconciliation covers the
-    same ground on a slower clock.
+    A verification outage leaves the webhook available for retry. Only the
+    in-memory test provider can rely on a signed event without a query result.
     """
     if event.status != "succeeded":
         # Only success grants value, so only success needs the second opinion.
@@ -1053,15 +1070,20 @@ def _confirm_with_provider(*, provider, event: VerifiedProviderEvent) -> Verifie
     try:
         state = provider.query_payment(provider_reference=event.provider_reference)
     except (ProviderUnavailable, NotImplementedError):
-        return event
+        if provider.name == "memory":
+            return event
+        raise ProviderUnavailable("Payment verification is temporarily unavailable.") from None
     if not state.found:
         raise Conflict("The provider has no record of that payment; it needs reconciliation.")
     if state.status != "succeeded":
         raise Conflict("The provider's own record does not show that payment as successful.")
-    if state.amount_minor and state.amount_minor != event.amount_minor:
+    require_match = provider.name == "paystack"
+    if (require_match or state.amount_minor) and state.amount_minor != event.amount_minor:
         raise Conflict("The callback amount does not match the provider's record.")
-    if state.currency and state.currency != event.currency:
+    if (require_match or state.currency) and state.currency != event.currency:
         raise Conflict("The callback currency does not match the provider's record.")
+    if require_match and state.provider_transaction_id != event.provider_transaction_id:
+        raise Conflict("The callback transaction does not match the provider's record.")
     return event
 
 
@@ -1075,8 +1097,9 @@ def _process_verified_event(
     requested_by=None,
 ) -> PaymentIntent:
     if webhook is not None:
-        webhook = ProviderWebhook.objects.select_for_update().get(id=webhook.id)
-        provider_name = webhook.provider
+        locked_webhook = ProviderWebhook.objects.select_for_update().get(id=webhook.id)
+        webhook = locked_webhook
+        provider_name = locked_webhook.provider
     if not provider_name:
         raise ValidationFailed("The provider evidence has no payment provider.")
     intent = (
@@ -1110,11 +1133,15 @@ def _process_verified_event(
         raise ValidationFailed("The provider confirmed a payment without a completion time.")
 
     if event.status in ("pending", "processing"):
-        intent.status = IntentStatus.PROCESSING
-        intent.save(update_fields=["status", "updated_at"])
+        if intent.status in OPEN_INTENT_STATUSES:
+            intent.status = IntentStatus.PROCESSING
+            intent.save(update_fields=["status", "updated_at"])
         _finish_provider_evidence(webhook)
         return intent
     if event.status == "failed":
+        if intent.status == IntentStatus.SUCCEEDED:
+            _finish_provider_evidence(webhook)
+            return intent
         # One failure row per provider transaction. A provider that retries
         # the same failure callback must not accumulate rows.
         if not intent.transactions.filter(
@@ -1173,6 +1200,8 @@ def _process_verified_event(
         return intent
     if event.status != "succeeded":
         raise ValidationFailed("That provider payment state requires reconciliation.")
+    if event.occurred_at is None:
+        raise ValidationFailed("The provider confirmed a payment without a completion time.")
 
     if intent.status == IntentStatus.SUCCEEDED:
         existing = intent.transactions.filter(status=TransactionStatus.SUCCEEDED).first()
@@ -1189,12 +1218,14 @@ def _process_verified_event(
             evidence_source=evidence_source,
             requested_by=requested_by,
         )
+    if intent.is_viewing:
+        from .viewing_fees import settle
+
+        return settle(intent=intent, event=event, webhook=webhook)
 
     obligation = RentCharge.objects.select_for_update().get(id=intent.obligation_id)
-    # An upper bound, not an equality. A part payment is deliberately less than
-    # the balance; what must never happen is money arriving against an
-    # obligation that has since shrunk below it — a waiver, or another payment
-    # landing first — because posting it would overpay the charge.
+    # Already-issued intents are evidence, including historical partial payments.
+    # Never discard money received; refuse overpayment for manual reconciliation.
     if intent.amount_minor > obligation.outstanding_minor:
         raise Conflict(
             "The obligation changed while this payment was pending; reconcile it manually."
@@ -1342,6 +1373,8 @@ def _cancel_competing_intents(winner: PaymentIntent) -> None:
     rows = PaymentIntent.objects.select_for_update().filter(status__in=OPEN_INTENT_STATUSES)
     if winner.is_subscription:
         rows = rows.filter(billing_invoice_id=winner.billing_invoice_id)
+    elif winner.is_viewing:
+        rows = rows.filter(viewing_id=winner.viewing_id)
     else:
         rows = rows.filter(obligation_id=winner.obligation_id)
     for intent in rows.exclude(id=winner.id):
@@ -1387,11 +1420,12 @@ def expire_due_intents() -> int:
 
 
 def _rent_method(payment_method: str) -> str:
-    return {
+    methods: dict[str, str] = {
         DigitalPaymentMethod.MOBILE_MONEY: "momo",
         DigitalPaymentMethod.CARD: "other",
         DigitalPaymentMethod.BANK_TRANSFER: "bank",
-    }[payment_method]
+    }
+    return methods[payment_method]
 
 
 def _create_ledger(transaction_row: PaymentTransaction) -> None:
@@ -1400,6 +1434,9 @@ def _create_ledger(transaction_row: PaymentTransaction) -> None:
     if intent.is_subscription:
         settled = f"subscription_invoice:{intent.billing_invoice_id}"
         description = "Provider-confirmed Danpa HQ subscription payment"
+    elif intent.is_viewing:
+        settled = f"viewing_fee:{intent.viewing_id}"
+        description = "Provider-confirmed viewing fee"
     else:
         settled = f"rent_obligation:{intent.obligation_id}"
         description = "Provider-confirmed rent obligation payment"
@@ -1477,9 +1514,17 @@ def create_external_receipt(payment: RentPayment) -> Receipt:
 
 
 def _create_pending_settlement(transaction_row: PaymentTransaction) -> Settlement:
+    intent = transaction_row.intent
+    if intent.is_viewing:
+        beneficiary_id = intent.metadata["provider_user_id"]
+    else:
+        lease = intent.lease
+        if lease is None:
+            raise ValidationFailed("A rent settlement requires its lease.")
+        beneficiary_id = lease.landlord_id
     row = Settlement(
         transaction=transaction_row,
-        beneficiary=transaction_row.intent.lease.landlord,
+        beneficiary_id=beneficiary_id,
         beneficiary_organization=transaction_row.intent.beneficiary_organization,
         payout_profile=transaction_row.intent.payout_profile,
         provider_subaccount_reference=transaction_row.intent.provider_subaccount_reference,
@@ -1515,11 +1560,16 @@ def _assert_payer(intent: PaymentIntent, user) -> None:
 
 def _intent_event_payload(intent: PaymentIntent) -> dict:
     """Who an intent's events are about. Rent payloads are unchanged."""
+    if intent.is_viewing:
+        return {"tenant_id": str(intent.tenant_id), "viewing_id": str(intent.viewing_id)}
     if intent.is_subscription:
+        invoice = intent.billing_invoice
+        if invoice is None:
+            raise ValidationFailed("A subscription payment requires its invoice.")
         return {
             "purpose": intent.purpose,
             "billing_invoice_id": str(intent.billing_invoice_id),
-            "organization_id": str(intent.billing_invoice.billing_account.organization_id),
+            "organization_id": str(invoice.billing_account.organization_id),
             "initiated_by_id": str(intent.initiated_by_id),
         }
     return {"tenant_id": str(intent.tenant_id), "lease_id": str(intent.lease_id)}

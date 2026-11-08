@@ -18,6 +18,7 @@ import {
   RecordPanel,
 } from "@/components/record/RecordSurfaces";
 import { TimeOffer } from "@/components/record/TimeOffer";
+import { ViewingFee } from "@/components/record/ViewingFee";
 import { BottomSheet } from "@/components/sheet/BottomSheet";
 import { Choice, Field, Notice, Type, space } from "@/components/ui";
 import { destructiveConfirmStyle, useSafeBottom } from "@/platform";
@@ -59,6 +60,7 @@ export default function ProviderViewingScreen() {
   const [busy, setBusy] = useState(false);
   const [exits, setExits] = useState(false);
   const [mode, setMode] = useState<Mode>("idle");
+  const [fee, setFee] = useState("");
   // Without a bar the page itself must clear Android's navigation buttons.
   const openBottom = useSafeBottom(space[8]);
 
@@ -130,11 +132,15 @@ export default function ProviderViewingScreen() {
 
         {error ? <Notice tone="error" title={error} body="Some information may be out of date. Try again." /> : null}
         {actionError ? <Notice tone="error" title={actionError} /> : null}
+        <ViewingFee viewing={viewing} tenant={false} onChanged={load} />
 
         {focused ? (
           mode === "cancel" ? (
             <CancelAppointmentForm busy={busy} onBack={() => setMode("idle")} onSubmit={(input) => run(() => cancelViewing(viewing.id, input))} />
           ) : (
+            <View style={{ gap: space[3] }}>
+            {mode === "offer" && viewing.fee_policy?.mode === "provider" ? <Field label="Viewing fee (GH₵)" keyboardType="decimal-pad" value={fee} onChangeText={setFee} hint={`Management permits GH₵${(viewing.fee_policy.minimum_minor / 100).toFixed(2)} to GH₵${(viewing.fee_policy.maximum_minor / 100).toFixed(2)}.`} /> : null}
+            {mode === "offer" && viewing.fee_policy?.mode === "fixed" ? <Type variant="body">Standard viewing fee: GH₵{(viewing.fee_policy.fixed_minor / 100).toFixed(2)}</Type> : null}
             <TimeOffer
               title={mode === "reschedule" ? "Offer a different time" : "Offer a viewing time"}
               verb="Offer"
@@ -142,10 +148,17 @@ export default function ProviderViewingScreen() {
               busy={busy}
               backLabel="Not now"
               onBack={() => setMode("idle")}
-              onSubmit={(slots) =>
-                void run(() => mode === "reschedule" ? rescheduleViewing(viewing.id, slots) : offerViewingSlots(viewing.id, { slots }))
-              }
+              onSubmit={(slots) => {
+                const pricing = viewing.fee_policy;
+                const minor = Math.round(Number(fee) * 100);
+                if (mode === "offer" && pricing?.mode === "provider" && (!fee || !Number.isSafeInteger(minor) || minor < pricing.minimum_minor || minor > pricing.maximum_minor)) {
+                  setActionError("Enter a viewing fee within management's limits.");
+                  return;
+                }
+                void run(() => mode === "reschedule" ? rescheduleViewing(viewing.id, slots) : offerViewingSlots(viewing.id, { slots, ...(pricing?.mode === "provider" ? { viewing_fee_minor: minor } : {}) }));
+              }}
             />
+            </View>
           )
         ) : (
           <>
@@ -224,7 +237,7 @@ export default function ProviderViewingScreen() {
               {!viewing.confirmed_starts_at && viewing.actions.can_decline ? (
                 <Footnote>
                   Offer a time and {viewing.tenant_name.split(" ")[0]} confirms one — that becomes the appointment.
-                  Danpa HQ Viewings are free, and a tenant is never charged to attend.
+                  {viewing.fee_policy?.mode && viewing.fee_policy.mode !== "disabled" ? "Management controls the viewing fee and collection method." : null}
                 </Footnote>
               ) : null}
             </View>
@@ -398,7 +411,7 @@ function ReplacementTimes({
           ))}
         </RecordPanel>
       ) : (
-        <Notice tone="info" title="Those times have passed" body="Offer another time to keep the Viewing moving." />
+        <Notice tone="info" title="Those times have passed" />
       )}
     </View>
   );
@@ -510,9 +523,6 @@ function CancelAppointmentForm({
     <View style={styles.section}>
       <GroupLabel>Cancel appointment</GroupLabel>
       <RecordPanel style={styles.formPanel}>
-        <Type variant="caption" style={styles.formNote}>
-          Could a different time work? Rescheduling keeps the Viewing alive.
-        </Type>
         <Choice
           label="Reason"
           value={reason}

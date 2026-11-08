@@ -16,12 +16,24 @@ staticfiles/
 # Runtime/release credentials are injected, never copied into the image.
 .env
 .env.*
+*.env
+*.env.*
 **/.env
 **/.env.*
+**/*.env
+**/*.env.*
 production-owner.env.example
+staging-owner.env.example
 **/*.secret
 **/*.secret.*
 **/credentials.json
+**/client_secret*.json
+**/oauth-client-secret*.json
+**/.netrc
+**/_netrc
+**/.pypirc
+**/.dev.vars
+**/.dev.vars.*
 **/*-firebase-adminsdk-*.json
 **/*service-account*.json
 **/*service_account*.json
@@ -41,6 +53,8 @@ production-owner.env.example
 **/id_rsa
 **/id_ecdsa
 **/id_ed25519
+**/id_dsa
+**/*.ppk
 
 # Local metadata, database exports and recovery artefacts.
 .git

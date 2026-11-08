@@ -44,7 +44,7 @@ This is an existing Django/DRF modular monolith with PostgreSQL/PostGIS, Redis/C
 3. Keep external calls outside long database transactions. Return the established error envelope; distinguish validation, authorization, connectivity and server failure. Do not swallow errors or expose stack traces.
 4. Review migrations for old-client/running-version compatibility. Preserve applied history; stage destructive changes and backfills deliberately. Never use volume deletion or production data edits as routine troubleshooting.
 5. Verify the changed behavior and failure path, then review the diff for regressions, duplication, permission gaps and unrelated changes. Do not remove failing tests to obtain a green result.
-6. Update the appropriate existing guide, not a new status/ADR/design collection. Report outcome, files, executed checks and unresolved limitations. Distinguish not run, blocked, failed and passed; never infer production readiness from local tests.
+6. Keep `docs/` limited to `adr.md`, `ai-context.md`, `deployment.md`, `investment_terms.md` and `uxdesign.md`. Update the appropriate existing guide; do not create task reports, audits, handoff notes or new status/ADR/design collections unless explicitly requested. Keep durable decisions, source credits, commands and unresolved limitations concise; use Git history and CI for historical changes/results. Report executed checks honestly; distinguish not run, blocked, failed and passed.
 
 ## 5. Verification and release boundaries
 

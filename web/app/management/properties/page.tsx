@@ -28,7 +28,6 @@ export default function PropertiesPage() {
     <>
       <PageHeader
         title="Properties"
-        description="The verified physical properties behind rental listings, and how many people are authorised to manage each."
       />
       <Panel title="Verified properties" meta={resource.data ? countMeta(rows.length, all.length, ["property", "properties"]) : undefined}>
         <Toolbar>

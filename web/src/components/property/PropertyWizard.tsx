@@ -61,14 +61,14 @@ import { getVerification, type VerificationProgress } from "@/lib/verification";
 type StepKey = "basics" | "details" | "sale" | "documents" | "amenities" | "photos" | "review";
 type Commit = () => Promise<boolean>;
 
-const LOOK: Record<StepKey, { label: string; hint: string; icon: IconName }> = {
-  basics: { label: "The property", hint: "Its name, what kind it is, and where.", icon: "home" },
-  details: { label: "Details", hint: "Water, power and the compound.", icon: "details" },
-  sale: { label: "Sale details", hint: "The price, the tenure and what is for sale.", icon: "payments" },
-  documents: { label: "Documents", hint: "What shows it is yours.", icon: "leases" },
-  amenities: { label: "Amenities", hint: "What the whole compound shares.", icon: "amenities" },
-  photos: { label: "Photos", hint: "The front and the wider area. The rest is optional.", icon: "photos" },
-  review: { label: "Review", hint: "Check it over, then create it.", icon: "eye" },
+const LOOK: Record<StepKey, { label: string; icon: IconName }> = {
+  basics: { label: "The property", icon: "home" },
+  details: { label: "Details", icon: "details" },
+  sale: { label: "Sale details", icon: "payments" },
+  documents: { label: "Documents", icon: "leases" },
+  amenities: { label: "Amenities", icon: "amenities" },
+  photos: { label: "Photos", icon: "photos" },
+  review: { label: "Review", icon: "eye" },
 };
 
 const TYPE_GLYPHS: Record<string, IconName> = {
@@ -111,6 +111,7 @@ export function PropertyWizard({
   const [vocabulary, setVocabulary] = useState<PropertyVocabulary | null>(null);
   const [step, setStep] = useState<StepKey>("basics");
   const [busy, setBusy] = useState(false);
+  const [mediaBusy, setMediaBusy] = useState(false);
   const [error, setError] = useState("");
   // Before the record exists the outline follows what is being chosen: a sale
   // adds its own step and land has no details or amenities.
@@ -200,17 +201,19 @@ export function PropertyWizard({
       ...LOOK[key],
       summary: railSummary(key, row, property, amenities),
       done: row.status === "done" && !row.terminal,
-      reachable: Boolean(id) && !busy ? true : key === "basics",
+      reachable: !mediaBusy && (Boolean(id) && !busy ? true : key === "basics"),
     };
   });
 
   function go(key: StepKey) {
+    if (mediaBusy) return;
     setError("");
     commitRef.current = null;
     setStep(key);
   }
 
   async function advance() {
+    if (mediaBusy) return;
     setBusy(true);
     setError("");
     try {
@@ -246,7 +249,7 @@ export function PropertyWizard({
   const footer = (
     <>
       {at > 0 ? (
-        <Button variant="quiet" disabled={busy} onClick={() => go(keys[at - 1]!)}>
+        <Button variant="quiet" disabled={busy || mediaBusy} onClick={() => go(keys[at - 1]!)}>
           Back
         </Button>
       ) : null}
@@ -258,7 +261,7 @@ export function PropertyWizard({
         <Button
           busy={busy}
           busyLabel="Saving…"
-          disabled={shown === "review" && !settled && outstanding.length > 0}
+          disabled={mediaBusy || (shown === "review" && !settled && outstanding.length > 0)}
           onClick={() => void advance()}
         >
           {primary}
@@ -281,14 +284,12 @@ export function PropertyWizard({
       steps={railSteps}
       current={shown}
       onGo={(key) => go(key as StepKey)}
-      railFoot={<><Icon name="lock" />Private until you send it for checking</>}
       footer={footer}
     >
       {locked && property ? (
         <Notice
           tone="info"
           title="This property is with our team or verified"
-          body="Its details are fixed while that stands. Open the property to see where it is."
         />
       ) : null}
 
@@ -337,6 +338,7 @@ export function PropertyWizard({
           subject="property"
           id={property.id}
           title="This property"
+          onMediaBusy={setMediaBusy}
           showSubmit={false}
           onState={setPhotos}
           onChanged={onChanged}
@@ -742,7 +744,7 @@ function DocumentsStep({
   return (
     <div className="cw-form">
       {recorded ? (
-        <Notice tone="success" title="Document saved" body="Nobody sees it until you send the property for checking." />
+        <Notice tone="success" title="Document saved" />
       ) : (
         <AuthorityClaim
           propertyId={property.id}
@@ -762,7 +764,6 @@ function AmenitiesStep({ propertyId, commitRef }: { propertyId: string; commitRe
   useCommit(commitRef, async () => (save.current ? save.current() : true));
   return (
     <div className="cw-form">
-      <p className="lw-quiet"><Icon name="photos" />Each one you choose can be photographed next.</p>
       <SpaceAmenities scope="property" id={propertyId} submitRef={save} />
     </div>
   );
@@ -859,14 +860,7 @@ function ReviewStep({
         <p className="cw-missing">
           Finish {outstanding.map((row) => LOOK[row.key as StepKey]?.label.toLowerCase() ?? row.title).join(", ")} to create it.
         </p>
-      ) : (
-        <p className="lw-quiet">
-          <Icon name="lock" />
-          {property.purpose === "sale"
-            ? "Creating it sends nothing. Once verified, buyers find it straight away."
-            : "Creating it sends nothing. Ask for checking from the property."}
-        </p>
-      )}
+      ) : null}
       {settled ? (
         <p className="lw-quiet">
           Send it back from <Link href={`/record/property?id=${property.id}` as never}>the property</Link> when you are ready.

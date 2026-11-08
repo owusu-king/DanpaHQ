@@ -100,7 +100,7 @@ class IncomeBand(models.TextChoices):
     PREFER_NOT = "prefer_not_to_say", "Prefer not to say"
 
 
-class UserManager(BaseUserManager):
+class UserManager(BaseUserManager["User"]):
     use_in_migrations = True
 
     def create_user(self, phone: str | None = None, password: str | None = None, **extra):

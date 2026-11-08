@@ -213,6 +213,7 @@
 .doc-modal.is-sm.property-edit-sheet { width: min(42rem, calc(100vw - var(--modal-area-left, 0px) - 2rem)); }
 .compact-action-sheet .doc-modal-head { padding: 16px 20px; }
 .compact-action-sheet .doc-modal-body { padding: 16px 20px; overflow-y: auto; }
+.financial-report-sheet .doc-modal-foot { flex-shrink: 0; background: var(--color-field-0); }
 .compact-form, .compact-form-fields { display: grid; min-width: 0; gap: 16px; }
 .compact-form-fields { margin: 0; padding: 0; border: 0; }
 .compact-form-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }

@@ -13,6 +13,8 @@ can do. See ADR 0032.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from django.db import models
 
 from apps.core.fields import MoneyField
@@ -47,7 +49,15 @@ class Plan(BaseModel):
     #: Integer minor units, per ADR 0006. A price is money and obeys the same
     #: rule every other amount in this codebase obeys: never a float, always
     #: carrying its currency.
+    if TYPE_CHECKING:
+        monthly_price_minor: int
+        monthly_price_currency: str
+
     monthly_price = MoneyField()
+    if TYPE_CHECKING:
+        annual_price_minor: int | None
+        annual_price_currency: str | None
+
     annual_price = MoneyField(null=True)
 
     is_active = models.BooleanField(default=True)

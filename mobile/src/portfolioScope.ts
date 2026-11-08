@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useState } from "react";
 
 /**
  * Take a Portfolio's data off the screen the moment that Portfolio is left.
@@ -16,10 +16,10 @@ import { useRef } from "react";
  * screen, so it stays and the reload refreshes it in place.
  */
 export function useBlankOnPortfolioSwitch(activeContext: string | null, blank: () => void): void {
-  const shown = useRef(activeContext);
-  if (shown.current === activeContext) return;
+  const [shown, setShown] = useState(activeContext);
+  if (shown === activeContext) return;
   // Adjusting this screen's own state while it renders, so the switch and the
   // blank land in the same frame; an effect would paint the old figures once.
-  shown.current = activeContext;
+  setShown(activeContext);
   blank();
 }

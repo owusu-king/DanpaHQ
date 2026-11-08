@@ -24,5 +24,6 @@ test("provider scan and manual code share the server validation function", () =>
   assert.match(provider, /validate\(\{ code \}\)/);
   assert.match(provider, /validateViewingCheckIn\(viewingId, input\)/);
   assert.match(viewing, /viewing\.status === "checked_in"/);
-  assert.doesNotMatch(viewing, /viewing_fee/);
+  assert.match(viewing, /<ViewingFee viewing=\{viewing\}/);
+  assert.doesNotMatch(provider, /viewing_fee/);
 });

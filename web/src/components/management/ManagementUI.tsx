@@ -190,7 +190,7 @@ export function DataTable({ children, label }: { children: React.ReactNode; labe
     if (!table) return;
     const headCells = Array.from(table.querySelectorAll<HTMLElement>("thead th"));
     const shape = `${label}:${headCells.length}`;
-    const stacked = window.matchMedia("(max-width: 720px)").matches;
+    const stacked = (table.parentElement?.clientWidth ?? window.innerWidth) <= 768;
     if (heldFor.current !== shape && !stacked && table.tBodies[0]?.rows.length) {
       table.style.tableLayout = "auto";
       headCells.forEach((cell) => { cell.style.width = ""; });
@@ -214,7 +214,7 @@ export function DataTable({ children, label }: { children: React.ReactNode; labe
 }
 
 /** An absence, drawn as the subject's own glyph struck through. */
-export function Empty({ message, icon = "archive", title }: { message: string; icon?: IconName; title?: string }) {
+export function Empty({ message, icon = "archive", title }: { message?: string; icon?: IconName; title?: string }) {
   return (
     <div className="management-empty">
       <span className="management-empty-mark" aria-hidden="true">
@@ -225,7 +225,7 @@ export function Empty({ message, icon = "archive", title }: { message: string; i
         </svg>
       </span>
       {title ? <strong>{title}</strong> : null}
-      <p>{message}</p>
+      {message ? <p>{message}</p> : null}
     </div>
   );
 }

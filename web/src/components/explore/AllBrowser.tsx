@@ -253,7 +253,7 @@ export function AllBrowser() {
     <>
       {signedIn ? (
         <header className="explore-portal-masthead">
-          <PageHeader title="Find your next place" description="To rent or to buy, every one verified." />
+          <PageHeader title="Find your next place" />
         </header>
       ) : null}
       <div className={`explore${signedIn ? " explore-portal" : ""}`}>
@@ -314,7 +314,6 @@ export function AllBrowser() {
             {items?.length === 0 && !querying && !error ? (
               <div className="explore-empty">
                 <p className="type-body-strong">Nothing matches yet</p>
-                <p className="type-caption">Try a nearby area, or fewer filters.</p>
                 <button type="button" className="explore-clear-all" onClick={() => update({ ...NO_LOCATION, propertyType: "", bedrooms: "" })}>Clear search and filters</button>
               </div>
             ) : null}

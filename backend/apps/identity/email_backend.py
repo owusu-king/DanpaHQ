@@ -2,20 +2,47 @@
 
 from __future__ import annotations
 
+from email.utils import formataddr
+
 import requests
-from django.conf import settings
 from django.core.mail.backends.base import BaseEmailBackend
 
 RESEND_URL = "https://api.resend.com/emails"
+
+PROVIDER_BACKENDS = {
+    "brevo": "apps.identity.email_backend.BrevoEmailBackend",
+    "resend": "apps.identity.email_backend.ResendEmailBackend",
+}
+
+
+class ManagementEmailBackend(BaseEmailBackend):
+    """Resolve Management's selection on each send, without restarting workers."""
+
+    def send_messages(self, email_messages):
+        from django.core.mail import get_connection
+
+        from apps.operations.configuration import value
+
+        if not email_messages:
+            return 0
+        provider = value("NOTIFICATION_EMAIL_BACKEND", "")
+        # Preserve legacy Resend environment credentials when no override is selected.
+        backend = PROVIDER_BACKENDS.get(provider, PROVIDER_BACKENDS["resend"])
+        connection = get_connection(backend, fail_silently=self.fail_silently)
+        return connection.send_messages(email_messages)
 
 
 class ResendEmailBackend(BaseEmailBackend):
     """Django email backend for Resend; never log addresses, codes or API keys."""
 
     def send_messages(self, email_messages):
+        from apps.operations.configuration import value
+
         if not email_messages:
             return 0
-        api_key = getattr(settings, "RESEND_API_KEY", "")
+        api_key = str(value("RESEND_API_KEY", "")).strip()
+        sender = str(value("RESEND_SENDER_EMAIL", "")).strip()
+        sender_name = str(value("RESEND_SENDER_NAME", "Danpa HQ")).strip()
         if not api_key:
             if self.fail_silently:
                 return 0
@@ -28,7 +55,7 @@ class ResendEmailBackend(BaseEmailBackend):
                     continue
                 raise ValueError("The Resend email backend does not support attachments")
             payload = {
-                "from": message.from_email,
+                "from": formataddr((sender_name, sender)) if sender else message.from_email,
                 "to": list(message.to),
                 "subject": message.subject,
                 "text": message.body,

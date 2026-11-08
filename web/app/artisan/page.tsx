@@ -107,7 +107,7 @@ export default function ArtisanApplicationPage() {
       <div className="art-apply-layout">
         <div className="art-apply-main">
           {justSent && status === "pending" ? (
-            <Notice tone="success" title="Application sent" body="We'll let you know the outcome. Your account carries on as it was." />
+            <Notice tone="success" title="Application sent" />
           ) : null}
           {application?.decision_note ? (
             <Notice tone={status === "needs_more_info" ? "warning" : "error"} title="From the review" body={application.decision_note} />

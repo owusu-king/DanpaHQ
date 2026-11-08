@@ -54,6 +54,8 @@ export type ViewingCancellationReason =
   | "other";
 
 export type Viewing = {
+  fee?: { amount_minor: number; currency: string; collection: "platform" | "direct"; status: "free" | "unpaid" | "claimed" | "paid"; claimed_by: "tenant" | "host" | null } | null;
+  fee_policy?: { mode: "disabled" | "free" | "fixed" | "provider"; collection: "platform" | "direct"; fixed_minor: number; minimum_minor: number; maximum_minor: number; currency: string };
   id: string;
   status: ViewingStatus;
   status_display: string;
@@ -166,10 +168,10 @@ export function requestViewing(input: {
   });
 }
 
-export function confirmSlot(viewingId: string, slotId: string) {
+export function confirmSlot(viewingId: string, slotId: string, acceptedFeeMinor = 0) {
   return apiFetch<Viewing>(`/viewings/${viewingId}/confirm/`, {
     method: "POST",
-    body: { slot_id: slotId },
+    body: { slot_id: slotId, accepted_fee_minor: acceptedFeeMinor },
     ...idempotentMutation(),
   });
 }
@@ -177,6 +179,7 @@ export function confirmSlot(viewingId: string, slotId: string) {
 export function offerViewingSlots(
   viewingId: string,
   input: {
+    viewing_fee_minor?: number;
     slots: { starts_at: string; duration_minutes?: number; note?: string }[];
   },
 ) {

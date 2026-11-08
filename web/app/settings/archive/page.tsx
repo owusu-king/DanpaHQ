@@ -69,7 +69,6 @@ export default function ArchivePage() {
     <>
       <SettingsCard
         title="Archive"
-        description="Properties and spaces you put away. Restoring brings them back into your working portfolio."
         action={archive && count ? <span className="prefs-count"><strong>{count}</strong> archived</span> : null}
       >
         {error ? <Notice tone="error" title={error} /> : null}
@@ -83,7 +82,6 @@ export default function ArchivePage() {
           <div className="archive-empty">
             <span className="archive-empty-mark" aria-hidden="true"><Icon name="archive" /></span>
             <strong>Your archive is empty</strong>
-            <span>Properties and spaces you archive stay here, out of the working portfolio.</span>
             <Link href="/properties" className="ws-action">Back to Properties</Link>
           </div>
         ) : null}

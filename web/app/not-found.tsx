@@ -31,13 +31,6 @@ export default function NotFound() {
             </h1>
           </Reveal>
 
-          <Reveal delay={0.12}>
-            <p className="mx-auto mt-6 max-w-[42ch] text-lg leading-relaxed text-muted-foreground">
-              The link may be broken, or the page may have moved. You can still
-              browse verified rentals without an account.
-            </p>
-          </Reveal>
-
           <Reveal delay={0.18}>
             <div className="mt-10 flex flex-col justify-center gap-3 sm:flex-row">
               <Button

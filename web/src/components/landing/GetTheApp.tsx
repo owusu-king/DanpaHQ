@@ -70,9 +70,6 @@ export function AppOffer({ compact = false }: { compact?: boolean }) {
       {compact ? null : (
         <div className="grid gap-1">
           <p className="font-display text-base font-semibold tracking-[-0.01em]">Danpa HQ on your phone</p>
-          <p className="text-sm leading-relaxed text-muted-foreground">
-            Search verified homes, pay rent and follow every request, wherever you are.
-          </p>
         </div>
       )}
       <div className={cn("grid gap-2.5", compact ? "grid-cols-1" : "grid-cols-2")}>

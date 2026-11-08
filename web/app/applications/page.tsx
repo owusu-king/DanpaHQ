@@ -209,7 +209,6 @@ function TenantApplications() {
       <WorkspaceHead
         icon="applications"
         title="Applications"
-        summary="Follow your rental applications from request to agreement."
         actions={none || loading ? null : (
           <Link href="/rentals" className="ws-action"><Icon name="explore" />Find rentals</Link>
         )}
@@ -220,7 +219,6 @@ function TenantApplications() {
           eyebrow={ready[0]!.standing.line}
           title={ready[0]!.application.property_title || ready[0]!.application.listing_headline}
           detail={[ready[0]!.application.unit_label, ready[0]!.application.locality_name].filter(Boolean).join(" · ")}
-          hint="The landlord has sent your tenancy agreement to read and sign."
           photoUrl={ready[0]!.application.photo_url}
           icon="leases"
           more={{ count: ready.length - 1, onShow: () => chooseFilter("action") }}
@@ -259,14 +257,13 @@ function TenantApplications() {
             tone="error"
             icon="warning"
             title="Applications didn’t load"
-            body={`${error} Check your connection and try again.`}
+            body={error}
             action={<button type="button" className="ws-action" disabled={retrying} onClick={() => void retry()}>{retrying ? "Retrying…" : "Try again"}</button>}
           />
         ) : none ? (
           <PanelState
             icon="applications"
             title="Your rental journey starts here"
-            body="When you apply for a rental, you can follow it here — from the landlord reading it to the agreement you sign."
             action={<Link href="/rentals" className="ws-action is-primary"><Icon name="explore" />Explore rentals</Link>}
           />
         ) : visible.length ? (
@@ -293,7 +290,6 @@ function TenantApplications() {
           <PanelState
             icon="explore"
             title={`Nothing matches “${query.trim()}”`}
-            body="Try another Property, Unit or place."
             action={<button type="button" className="ws-action" onClick={() => setParams({ q: "" })}>Clear search</button>}
           />
         ) : (
@@ -365,18 +361,17 @@ function ApplicationGroup({
 }
 
 function ApplicationFilterEmpty({ filter, onShowAll }: { filter: ApplicationFilter; onShowAll: () => void }) {
-  const copy: Record<ApplicationFilter, { title: string; body: string }> = {
-    all: { title: "No applications here", body: "Your applications will appear here." },
-    action: { title: "Nothing needs you", body: "You are up to date on every application." },
-    open: { title: "Nothing in progress", body: "No application is waiting for a decision." },
-    approved: { title: "No approvals yet", body: "Approved applications will stay easy to find here." },
-    past: { title: "No application history", body: "Closed applications will remain available here." },
+  const copy: Record<ApplicationFilter, { title: string }> = {
+    all: { title: "No applications here" },
+    action: { title: "Nothing needs you" },
+    open: { title: "Nothing in progress" },
+    approved: { title: "No approvals yet" },
+    past: { title: "No application history" },
   };
   return (
     <PanelState
       icon={filter === "action" ? "check" : "applications"}
       title={copy[filter].title}
-      body={copy[filter].body}
       action={filter === "all" ? undefined : <button type="button" className="ws-action" onClick={onShowAll}>Show all applications</button>}
     />
   );
@@ -520,7 +515,6 @@ function ProviderApplications() {
       <WorkspaceHead
         icon="applications"
         title="Tenancy requests"
-        summary="Review requests to rent and prepare agreements for accepted tenants."
       />
 
       <dl className="requests-overview" aria-busy={loading || undefined}>
@@ -582,7 +576,6 @@ function ProviderApplications() {
           <PanelState
             icon="applications"
             title="No tenancy requests yet"
-            body="Applications against your listings and direct requests to join a Unit both arrive here."
             action={<Link href={"/units" as never} className="ws-action is-primary"><Icon name="units" />Open Units</Link>}
           />
         ) : visible.length ? (
@@ -595,7 +588,6 @@ function ProviderApplications() {
           <PanelState
             icon="applications"
             title={query ? "No matching requests" : stage === "action" ? "Nothing needs a decision" : stage === "agreement" ? "No agreements to prepare" : stage === "history" ? "No request history yet" : "No tenancy requests yet"}
-            body={query ? "Try a different person, Property or Unit." : stage === "action" ? "New public applications and private tenancy requests appear here." : stage === "agreement" ? "Accepted requests move here until their agreement is sent." : stage === "history" ? "Settled requests remain available as a record." : "Applications against your listings and direct requests to join a Unit both arrive here."}
           />
         )}
       </section>

@@ -164,7 +164,6 @@ export default function ArtisansScreen() {
         <View style={styles.page}>
           <View key={tab} style={[styles.column, profileId && styles.hidden]} aria-hidden={Boolean(profileId)}>
             <View style={styles.intro}>
-              <Type variant="caption" style={styles.introText}>Skilled help for your home, from approved artisans.</Type>
               {becomeLabel && !params.request ? <Pressable accessibilityRole="link" onPress={() => openRecord("/(app)/artisan-application" as never)} style={styles.applicationLink}><Type variant="captionStrong" style={styles.applicationLabel}>{becomeLabel}</Type><Ionicons name="arrow-forward" size={15} color={KOLA} /></Pressable> : null}
             </View>
             {params.request ? <View style={styles.forRequest}><Type variant="caption" style={{ color: theme.color.ink["700"] }}>{params.mode === "suggest" ? "Suggesting an artisan for " : "Asking artisans to quote for "}<Type variant="captionStrong">{params.label}</Type>. Open a profile to {params.mode === "suggest" ? "suggest them." : "ask them."}</Type></View> : null}
@@ -298,7 +297,6 @@ function Find({ initialTrade, onOpen }: { initialTrade: string; onOpen: (id: str
             ground={WHITE}
             icon="hammer-outline"
             title="No artisans match yet"
-            hint={trade || district || certified ? "Try another trade or area, or include artisans without a certificate." : "Approved artisans appear here as they join Danpa HQ."}
           />
         </View>
       )}
@@ -442,9 +440,9 @@ function Work({ tab, onNavigate }: { tab: "requests" | "records"; onNavigate: (h
       <View style={{ gap: space[3] }}>
         <View style={styles.card}>
           {tab === "requests" ? (
-            <Empty ground={WHITE} icon="document-text-outline" title="No quote requests yet" hint="Post a job for work at home, or invite an artisan from a repair." />
+            <Empty ground={WHITE} icon="document-text-outline" title="No quote requests yet" />
           ) : (
-            <Empty ground={WHITE} icon="construct-outline" title="No artisan jobs yet" hint="Work an artisan was chosen for stays here, with its price." />
+            <Empty ground={WHITE} icon="construct-outline" title="No artisan jobs yet" />
           )}
         </View>
         {tab === "requests" ? post : null}

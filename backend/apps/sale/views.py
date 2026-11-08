@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from django.db.models import Q
-from rest_framework import status
+from rest_framework import serializers, status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -13,6 +13,7 @@ from apps.core.pagination import StandardCursorPagination
 from apps.identity.permissions import IsPhoneVerified
 
 from . import services
+from .models import SavedSale
 from .read_models import public_sales
 from .serializers import (
     EnquiryDetailSerializer,
@@ -27,6 +28,46 @@ from .serializers import (
 )
 
 _RELATED = ("property__address__locality__district__region", "property__address__locality__region")
+
+
+class SaveSaleSerializer(serializers.Serializer):
+    sale_id = serializers.UUIDField()
+
+
+class SavedSalesView(APIView):
+    """Private shortlists expose only sales that are still public."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        rows = SavedSale.objects.filter(
+            user=request.user, sale__in=public_sales()
+        ).select_related("sale", *[f"sale__{path}" for path in _RELATED])
+        return Response([
+            {
+                "id": str(row.id),
+                "created_at": row.created_at,
+                "sale": SaleCardSerializer(row.sale).data,
+            }
+            for row in rows
+        ])
+
+    def post(self, request):
+        payload = SaveSaleSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+        sale = public_sales().filter(id=payload.validated_data["sale_id"]).first()
+        if sale is None:
+            raise NotFound("That property is no longer available.")
+        _, created = SavedSale.objects.get_or_create(user=request.user, sale=sale)
+        return Response(status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
+
+    def delete(self, request):
+        payload = SaveSaleSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+        SavedSale.objects.filter(
+            user=request.user, sale_id=payload.validated_data["sale_id"]
+        ).delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 def _filtered(data: dict):

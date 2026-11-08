@@ -187,7 +187,6 @@ export default function BillingScreen() {
             tone="lagoon"
             icon="lock-closed-outline"
             title="Plan & billing is kept to the Portfolio's owner, administrators and accountants"
-            body="Ask the Portfolio owner if you need to know what this Portfolio is on."
           />
         ) : null}
 
@@ -196,7 +195,6 @@ export default function BillingScreen() {
             hero
             icon="briefcase-outline"
             title="No Portfolio yet"
-            hint="A plan belongs to a Portfolio. Create one and it starts on Free."
           />
         ) : null}
 

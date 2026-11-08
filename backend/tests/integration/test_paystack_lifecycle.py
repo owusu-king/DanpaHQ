@@ -513,6 +513,37 @@ class TestWrongEvidence:
 
 
 class TestRedeliveryAndOrdering:
+    def test_success_waits_for_provider_verification_after_a_timeout(
+        self, live, landlord, user, obligation, monkeypatch
+    ):
+        _, charge = obligation
+        intent = payment_services.create_intent(
+            obligation=charge, user=user, payment_method="mobile_money"
+        )
+        row = live.charge(intent.provider_reference, amount=charge.amount_minor)
+        body, headers = signed(charge_event(row))
+
+        def unavailable(*args, **kwargs):
+            raise requests_module.Timeout
+
+        with monkeypatch.context() as patch:
+            patch.setattr("apps.payments.paystack.requests.request", unavailable)
+            with pytest.raises(ProviderUnavailable):
+                payment_services.process_webhook(
+                    provider_name="paystack", raw_body=body, headers=headers
+                )
+        intent.refresh_from_db()
+        assert intent.status != IntentStatus.SUCCEEDED
+        assert not PaymentTransaction.objects.exists()
+        assert not PaymentAllocation.objects.exists()
+
+        payment_services.process_webhook(provider_name="paystack", raw_body=body, headers=headers)
+        payment_services.process_webhook(provider_name="paystack", raw_body=body, headers=headers)
+        intent.refresh_from_db()
+        assert intent.status == IntentStatus.SUCCEEDED
+        assert PaymentTransaction.objects.count() == 1
+        assert PaymentAllocation.objects.count() == 1
+
     def test_a_redelivered_webhook_changes_nothing(self, live, landlord, user, obligation):
         """Checklist: redeliver from the dashboard; the second changes nothing."""
         _, charge = obligation
@@ -557,6 +588,28 @@ class TestRedeliveryAndOrdering:
 
         assert PaymentTransaction.objects.filter(status=TransactionStatus.SUCCEEDED).count() == 1
         assert PaymentAllocation.objects.count() == 1
+
+    @pytest.mark.parametrize(
+        ("field", "value"),
+        [("reference", "different-reference"), ("amount", 0), ("currency", ""), ("channel", "")],
+    )
+    def test_refresh_requires_complete_paystack_success_evidence(
+        self, live, landlord, user, obligation, field, value
+    ):
+        _, charge = obligation
+        intent = payment_services.create_intent(
+            obligation=charge, user=user, payment_method="mobile_money"
+        )
+        row = live.charge(intent.provider_reference, amount=charge.amount_minor)
+        row[field] = value
+
+        with pytest.raises(ProviderUnavailable):
+            payment_services.refresh_intent_from_provider(intent=intent, user=user)
+
+        intent.refresh_from_db()
+        assert intent.status != IntentStatus.SUCCEEDED
+        assert not intent.transactions.exists()
+        assert not PaymentAllocation.objects.exists()
 
     def test_a_stale_pending_callback_cannot_demote_a_settled_payment(
         self, live, landlord, user, obligation
@@ -785,44 +838,17 @@ class TestFailureRetryAndAbandonment:
         assert fresh.status == IntentStatus.PENDING
 
 
-class TestPartialPayment:
-    def test_two_part_payments_settle_the_charge_exactly(self, live, landlord, user, obligation):
-        """ADR 0031, over the Paystack rail rather than the sandbox adapter."""
+class TestFullPaymentRequired:
+    def test_partial_payment_never_reaches_paystack(self, live, landlord, user, obligation):
         _, charge = obligation
-        full = charge.outstanding_minor
-        first_part = full // 4
-
-        first = payment_services.create_intent(
-            obligation=charge,
-            user=user,
-            payment_method="mobile_money",
-            amount_minor=first_part,
-        )
-        assert (
-            next(c for c in live.calls if c["path"] == "/transaction/initialize")["json"]["amount"]
-            == first_part
-        )
-        row = live.charge(first.provider_reference, amount=first_part, id=800001)
-        body, headers = signed(charge_event(row))
-        payment_services.process_webhook(provider_name="paystack", raw_body=body, headers=headers)
-
-        charge.refresh_from_db()
-        assert charge.status == ChargeStatus.PART_PAID
-        assert charge.outstanding_minor == full - first_part
-
-        second = payment_services.create_intent(
-            obligation=charge, user=user, payment_method="mobile_money"
-        )
-        assert second.amount_minor == full - first_part
-        row = live.charge(second.provider_reference, amount=second.amount_minor, id=800002)
-        body, headers = signed(charge_event(row))
-        payment_services.process_webhook(provider_name="paystack", raw_body=body, headers=headers)
-
-        charge.refresh_from_db()
-        assert charge.status == ChargeStatus.PAID
-        assert charge.outstanding_minor == 0
-        assert sum(a.amount_minor for a in PaymentAllocation.objects.all()) == full
-        assert LedgerEntry.objects.count() == 4
+        with pytest.raises(ValidationFailed, match="Partial rent payments"):
+            payment_services.create_intent(
+                obligation=charge, user=user, payment_method="mobile_money",
+                amount_minor=charge.outstanding_minor // 4,
+            )
+        assert not any(call["path"] == "/transaction/initialize" for call in live.calls)
+        assert not PaymentIntent.objects.exists()
+        assert not PaymentAllocation.objects.exists()
 
 
 class TestSettlementImport:

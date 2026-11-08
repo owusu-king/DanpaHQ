@@ -134,6 +134,10 @@ class StorageBackend(ABC):
         """
 
     @abstractmethod
+    def write(self, *, key: str, data: bytes) -> None:
+        """Write server-generated playback bytes; never a client-selected key."""
+
+    @abstractmethod
     def delete(self, *, key: str) -> None:
         """Remove an object. Used by retention jobs and failed-upload cleanup."""
 
@@ -161,10 +165,10 @@ class LocalStorageBackend(StorageBackend):
 
     def __init__(self, root: Path | None = None, base_url: str | None = None):
         self.root = Path(
-            root or getattr(settings, "LOCAL_STORAGE_ROOT", settings.BASE_DIR / "media")
+            root or getattr(settings, "LOCAL_STORAGE_ROOT", None) or settings.BASE_DIR / "media"
         )
         self.base_url = (
-            base_url or getattr(settings, "LOCAL_STORAGE_BASE_URL", "/storage")
+            base_url or getattr(settings, "LOCAL_STORAGE_BASE_URL", None) or "/storage"
         ).rstrip("/")
         self.root.mkdir(parents=True, exist_ok=True)
 
@@ -262,8 +266,7 @@ class LocalStorageBackend(StorageBackend):
             return handle.read(length) if length else handle.read()
 
     def write(self, *, key: str, data: bytes) -> None:
-        """Used by the local upload receiver. Not part of the abstract contract:
-        with S3 the client writes directly and Django never sees the bytes."""
+        """Used by the local receiver and by video preparation."""
         path = self.path_for(key)
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(data)
@@ -483,6 +486,14 @@ class S3StorageBackend(StorageBackend):
         except Exception as exc:
             raise ObjectNotFound(key) from exc
         return response["Body"].read()
+
+    def write(self, *, key: str, data: bytes) -> None:
+        try:
+            self.client.put_object(
+                Bucket=self.bucket, Key=key, Body=data, ContentType="video/mp4",
+            )
+        except Exception as exc:
+            raise StorageError("Could not store the prepared video.") from exc
 
     def delete(self, *, key):
         try:

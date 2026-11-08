@@ -123,7 +123,7 @@ class StaleWrite(Conflict):
     """
 
     code = "stale_write"
-    message = "Someone else changed this while you were working. Reload and try again."
+    message = "This changed while you were working. Reload and try again."
 
 
 class RateLimited(DomainError):

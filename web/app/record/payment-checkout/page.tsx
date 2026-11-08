@@ -114,7 +114,7 @@ export default function PaymentCheckoutPage() {
   return (
     <div className="payment-journey">
       <Link className="payment-back" href={`/record/payment?leaseId=${leaseId}&mode=tenant` as never}>← Rent account</Link>
-      <PageHeader title="Review payment" description="Confirm the obligation and choose how to pay." />
+      <PageHeader title="Review payment" />
       {loading ? <LoadingRows rows={3} /> : null}
       {error ? <Notice tone="error" title={error} /> : null}
       {!loading && ledger && charge ? (
@@ -165,7 +165,6 @@ export default function PaymentCheckoutPage() {
               Continue securely
             </Button>
           ) : null}
-          <p className="payment-trust-note type-caption">Danpa HQ confirms payment with the processor. A browser return alone never marks rent as paid.</p>
         </>
       ) : null}
       {!loading && ledger && !charge ? <Notice tone="error" title="This charge is no longer available." /> : null}

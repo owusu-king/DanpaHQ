@@ -743,9 +743,18 @@
 
 @media (max-width: 760px) {
   .ws-page { gap: var(--space-5); padding-top: 0; }
+  .ws-title { flex-basis: 12rem; }
+  .ws-head-actions { gap: .5rem; }
+  .ws-action { min-height: 2.75rem; white-space: normal; line-height: 1.3; padding-block: .5rem; }
+  .ws-panel-head { flex-wrap: wrap; }
+  .ws-panel-tools { flex-wrap: wrap; max-width: 100%; }
   .ws-segment-row { scroll-margin-top: 4.5rem; }
   .ws-segments { width: 100%; }
   .ws-segment { flex: 1 1 auto; padding-inline: var(--space-3); }
+  .ws-segments { scroll-padding-inline: .25rem; overscroll-behavior-x: contain; }
+  .ws-segment { min-height: 2.75rem; }
+  .ws-filter, .ws-search, .ws-pagination button { min-height: 2.75rem; }
+  .ws-pagination { flex-wrap: wrap; gap: .5rem; }
   .ws-panel { border-radius: var(--radius-md); }
   .ws-panel-head { padding: var(--space-2) var(--space-3); border-radius: var(--radius-md) var(--radius-md) 0 0; }
   .ws-panel-body { padding: var(--space-4) var(--space-1) var(--space-3); }
@@ -756,14 +765,12 @@
   .ws-head h1 { font-size: 1.375rem; }
   .ws-title-mark { width: 2.25rem; height: 2.25rem; }
   .ws-segment { padding-inline: var(--space-2); }
-  .ws-filter span { display: none; }
-  .ws-filter .portal-icon:last-child { display: none; }
-  .ws-filter { padding: 0 var(--space-2); }
+  .ws-filter { padding-inline: var(--space-3); }
   .ws-pagination > div { width: 100%; justify-content: space-between; }
 }
 
 @media (max-width: 360px) {
-  .ws-segment-count { display: none; }
+  .ws-segment { padding-inline: 8px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -30,15 +30,15 @@ test("only the handle drags it, as WhatsApp's sheets do", () => {
   // One responder, on the handle: the full width of the sheet's top, a thumb's
   // height, and — when there is no title — the close button's row too (owner,
   // 2026-09-28). It claims any vertical drag that starts there.
-  assert.match(source, /const grab = useMemo\(\(\) => \{/);
+  assert.match(source, /const grab = usePanResponder\(\{/);
   assert.match(source, /onMoveShouldSetPanResponderCapture: \(_, gesture\) => vertical\(gesture\)/);
   // It owns the touch from the moment it lands, as Explore's grabber does. Taken
   // only on the first move, a handle with nothing under the finger to take it
   // from never began a drag inside the sheet's modal on a phone (owner,
   // 2026-09-28: "all the other filters don't allow handle swipe down").
   assert.match(source, /onStartShouldSetPanResponder: \(\) => true,/);
-  assert.equal((source.match(/\{\.\.\.grab\.panHandlers\}/g) ?? []).length, 1);
-  assert.match(source, /<View collapsable=\{false\} style=\{\[styles\.handle, hideTitle \? styles\.handleWithClose : null\]\} \{\.\.\.grab\.panHandlers\}>/);
+  assert.equal((source.match(/\{\.\.\.grab\}/g) ?? []).length, 1);
+  assert.match(source, /<View collapsable=\{false\} style=\{\[styles\.handle, hideTitle \? styles\.handleWithClose : null\]\} \{\.\.\.grab\}>/);
   assert.match(source, /const HANDLE_HEIGHT = 28;/);
 
   // The body never drags the sheet: a drag there scrolls or works the control
@@ -66,7 +66,7 @@ test("it lets go past a quarter of itself or on a flick, and otherwise returns",
   assert.match(source, /const DISMISS_VELOCITY = 0\.8;/);
   assert.match(source, /const letGo = Math\.min\(travel\.current \* DISMISS_SHARE, DISMISS_DISTANCE\);/);
   assert.match(source, /if \(position > letGo \|\| \(gesture\.vy > DISMISS_VELOCITY && gesture\.dy > 0\)\) \{/);
-  assert.match(source, /close\.current\(\);/);
+  assert.match(source, /releaseSpeed\.current = Math\.max\(0, gesture\.vy\);\s*onClose\(\);/);
 
   // Short of that it springs home carrying the finger's speed, and never past home.
   assert.match(source, /Animated\.spring\(translate, \{\s*toValue: 0,\s*velocity: gesture\.vy \* 1000,\s*overshootClamping: true,/);
@@ -84,7 +84,7 @@ test("the sheet rises and falls itself, over a scrim that follows it", () => {
   // It falls from wherever the finger left it, at least as fast as the finger
   // was going, and is only unmounted once it has gone.
   assert.match(source, /const speed = Math\.max\(releaseSpeed\.current, travel\.current \/ motion\.duration\.base\);/);
-  assert.match(source, /if \(finished\) setMounted\(false\);/);
+  assert.match(source, /if \(finished && !cancelled\) \{\s*measured\.current = false;\s*setMounted\(false\);/);
 
   // Motion is offered, never imposed.
   assert.match(source, /useReduceMotion\(\)/);
@@ -132,7 +132,7 @@ test("a stray tap on the scrim never throws away what was being typed", () => {
   assert.match(press, /if \(typing\) return;\s*onClose\(\);/);
   assert.match(source, /onPress=\{pressScrim\}/);
   // A fresh opening starts un-typed, and the deliberate ways out still close it.
-  assert.match(source, /if \(!visible\) \{\s*setTyping\(false\);/);
+  assert.match(source, /if \(wasVisible !== visible\) \{\s*setWasVisible\(visible\);\s*if \(visible\) setMounted\(true\);\s*else \{\s*setTyping\(false\);/);
   assert.match(source, /onRequestClose=\{onClose\}/);
   assert.match(source, /onAccessibilityEscape=\{onClose\}/);
 });

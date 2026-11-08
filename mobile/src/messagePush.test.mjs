@@ -8,9 +8,12 @@ const require = createRequire(import.meta.url);
 const ts = require("typescript");
 const source = readFileSync(new URL("./messagePush.native.tsx", import.meta.url), "utf8");
 const thread = "01234567-89ab-cdef-0123-456789abcdef";
-const flush = async () => { for (let n = 0; n < 25; n++) await Promise.resolve(); };
+const flush = () => new Promise((resolve) => setImmediate(resolve));
 
-function harness({ enabled = true, granted = true, askGrants = true, expoGo = false, physical = true } = {}) {
+function harness({
+  enabled = true, granted = true, askGrants = true, expoGo = false, physical = true,
+  platform = "android",
+} = {}) {
   const calls = [];
   const effects = [];
   const listeners = {};
@@ -21,7 +24,10 @@ function harness({ enabled = true, granted = true, askGrants = true, expoGo = fa
     setNotificationChannelAsync: async () => calls.push("channel"),
     getPermissionsAsync: async () => ({ granted, canAskAgain: true }),
     requestPermissionsAsync: async () => { calls.push("permission"); return { granted: askGrants }; },
-    getExpoPushTokenAsync: async (options) => { calls.push(options); return { data: "ExpoPushToken[phone]" }; },
+    getDevicePushTokenAsync: async () => {
+      calls.push("read-native-token");
+      return { data: "installation:phone" };
+    },
     setNotificationHandler: (handler) => { listeners.foreground = handler.handleNotification; },
     addNotificationResponseReceivedListener: (fn) => { listeners.tap = fn; return { remove() {} }; },
     addPushTokenListener: (fn) => { listeners.token = fn; return { remove() {} }; },
@@ -35,16 +41,22 @@ function harness({ enabled = true, granted = true, askGrants = true, expoGo = fa
     "expo-device": { isDevice: physical }, "expo-notifications": sdk,
     "react": { useEffect: (effect) => effects.push(effect), useRef: (value) => ({ current: value }) },
     "expo-router": { useRouter: () => ({ push: (route) => routes.push(route) }) },
-    "react-native": { Platform: { OS: "android" }, AppState: {
+    "react-native": { Platform: { OS: platform }, AppState: {
       addEventListener: (_event, fn) => { listeners.state = fn; return { remove() {} }; },
     } },
+    "@react-native-firebase/messaging": {
+      getMessaging: () => ({}),
+      setAPNSToken: async (_messaging, token) => calls.push({ apns: token }),
+      getToken: async () => "ios-fcm-token",
+      onTokenRefresh: (_messaging, listener) => { listeners.token = listener; return () => {}; },
+    },
     "@/api": { apiFetch: async (path, options) => calls.push({ path, ...options }) },
     "@/notifications": { getNotificationPreferences: async () => ({ push_enabled: enabled }) },
   };
   const exports = {};
   vm.runInNewContext(ts.transpileModule(source, { compilerOptions: {
     module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022,
-  } }).outputText, { exports, console, require: (name) => {
+  } }).outputText, { exports, console, AbortController, require: (name) => {
     assert.ok(name in imports, `Unexpected dependency ${name}`);
     return imports[name];
   } });
@@ -54,19 +66,27 @@ function harness({ enabled = true, granted = true, askGrants = true, expoGo = fa
   } };
 }
 
-test("explicit enable creates Android channel, requests permission and registers the Expo token", async () => {
+test("explicit enable creates Android channel, requests permission and registers the FCM token", async () => {
   const app = harness({ granted: false });
-  assert.equal(await app.registerMessagePush(true), true);
+  assert.equal(await app.registerMessagePush(true, "recipient"), true);
   assert.ok(app.calls.indexOf("channel") < app.calls.indexOf("permission"));
   assert.equal(app.calls.at(-1).path, "/me/push-token/");
   assert.equal(app.calls.at(-1).method, "PUT");
-  assert.equal(app.calls.at(-1).body.token, "ExpoPushToken[phone]");
+  assert.equal(app.calls.at(-1).body.token, "fcm:installation:phone");
+  assert.equal(app.calls.at(-1).body.recipient_id, "recipient");
 });
 
 test("disabled preference never requests permission or registers a token", async () => {
   const app = harness({ enabled: false });
   assert.equal(await app.registerMessagePush(true), false);
   assert.equal(app.calls.length, 0);
+});
+
+test("iOS registers the FCM token after linking the APNs token", async () => {
+  const app = harness({ platform: "ios" });
+  assert.equal(await app.registerMessagePush(true, "recipient"), true);
+  assert.equal(app.calls[1].apns, "installation:phone");
+  assert.equal(app.calls[2].body.token, "fcm:ios-fcm-token");
 });
 
 test("denied or revoked OS permission removes registration without prompting on foreground", async () => {
@@ -117,8 +137,11 @@ test("token rotation and foreground resume refresh backend registration", async 
   app.mount("recipient");
   await flush();
   const before = app.calls.filter((call) => call.method === "PUT").length;
-  app.listeners.token();
+  const reads = app.calls.filter((call) => call === "read-native-token").length;
+  app.listeners.token({ data: "rotated:phone" });
   await flush();
+  assert.equal(app.calls.at(-1).body.token, "fcm:rotated:phone");
+  assert.equal(app.calls.filter((call) => call === "read-native-token").length, reads);
   app.listeners.state("active");
   await flush();
   assert.equal(app.calls.filter((call) => call.method === "PUT").length, before + 2);

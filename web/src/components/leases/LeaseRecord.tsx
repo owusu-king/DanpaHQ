@@ -53,7 +53,7 @@ export function LeaseRecord({
   const money = terms?.money;
   const term = terms?.term;
 
-  async function act(action: "offer" | "confirm" | "cancel" | "end") {
+  async function act(action: "offer" | "confirm" | "activate" | "cancel" | "end") {
     setBusy(true);
     setError("");
     try {
@@ -277,9 +277,10 @@ export function LeaseRecord({
             ) : null}
             {lease.status === "tenant_accepted" ? (
               <Button busy={busy} busyLabel="Confirming…" onClick={() => void act("confirm")}>
-                Confirm and activate tenancy
+                {lease.activation_requirement === "initial_payment" ? "Confirm agreement" : "Confirm and activate tenancy"}
               </Button>
             ) : null}
+            {lease.status === "awaiting_activation" && (lease.upfront_payment_enabled !== false && lease.activation_requirement === "initial_payment") ? <Button busy={busy} onClick={() => void act("activate")}>Check payment and activate</Button> : null}
             {lease.status === "offered" ? (
               <Button variant="quiet" disabled={busy} onClick={() => setConfirmation("cancel")}>
                 Withdraw offer

@@ -16,7 +16,8 @@ from .models import (
 
 
 class CreatePaymentIntentSerializer(serializers.Serializer):
-    obligation_id = serializers.UUIDField()
+    obligation_id = serializers.UUIDField(required=False)
+    viewing_id = serializers.UUIDField(required=False)
     payment_method = serializers.ChoiceField(choices=DigitalPaymentMethod.choices)
     #: How much of the obligation to pay, in the currency subunit. Omitted means
     #: the whole outstanding balance, which is what every current client sends.
@@ -24,18 +25,26 @@ class CreatePaymentIntentSerializer(serializers.Serializer):
     #: balance and never treats it as the price.
     amount_minor = serializers.IntegerField(required=False, allow_null=True, min_value=1)
 
+    def validate(self, attrs):
+        if bool(attrs.get("obligation_id")) == bool(attrs.get("viewing_id")):
+            raise serializers.ValidationError("Choose one rent obligation or viewing fee.")
+        if attrs.get("viewing_id") and attrs.get("amount_minor") is not None:
+            raise serializers.ValidationError("Viewing fees are priced by the server.")
+        return attrs
+
 
 class PaymentIntentSerializer(serializers.ModelSerializer):
     amount_formatted = serializers.SerializerMethodField()
-    obligation_kind = serializers.CharField(source="obligation.kind", read_only=True)
-    property_title = serializers.CharField(source="lease.unit.property.title", read_only=True)
-    unit_label = serializers.CharField(source="lease.unit.label", read_only=True)
+    obligation_kind = serializers.SerializerMethodField()
+    property_title = serializers.SerializerMethodField()
+    unit_label = serializers.SerializerMethodField()
     receipt_id = serializers.SerializerMethodField()
 
     class Meta:
         model = PaymentIntent
         fields = [
             "id",
+            "purpose", "viewing_id",
             "lease_id",
             "obligation_id",
             "obligation_kind",
@@ -61,6 +70,16 @@ class PaymentIntentSerializer(serializers.ModelSerializer):
 
     def get_amount_formatted(self, obj) -> str:
         return str(Money(obj.amount_minor, obj.amount_currency))
+
+    def get_obligation_kind(self, obj):
+        return "viewing_fee" if obj.is_viewing else obj.obligation.kind
+
+    def get_property_title(self, obj):
+        unit = obj.viewing.listing.unit if obj.is_viewing else obj.lease.unit
+        return unit.property.title
+
+    def get_unit_label(self, obj):
+        return (obj.viewing.listing.unit if obj.is_viewing else obj.lease.unit).label
 
     def get_receipt_id(self, obj) -> str | None:
         transaction = obj.transactions.filter(status="succeeded").first()
@@ -123,7 +142,9 @@ class ReceiptSerializer(serializers.ModelSerializer):
         return bool(obj.final_pdf)
 
     def get_snapshot(self, obj) -> dict | None:
-        if obj.breakdown.get("schema_version") != "danpahq.payment_receipt.v1":
+        if obj.breakdown.get("schema_version") not in (
+            "danpahq.payment_receipt.v1", "danpahq.viewing_receipt.v1"
+        ):
             return None
         return obj.breakdown
 

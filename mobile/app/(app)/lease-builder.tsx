@@ -249,10 +249,6 @@ export default function LeaseBuilderScreen() {
         <Type variant="display2" accessibilityRole="header">
           Prepare the tenancy agreement
         </Type>
-        <Type variant="caption">
-          Known identities and rental details stay attached to the accepted request. You only set
-          the negotiable terms.
-        </Type>
       </View>
       <Checkpoint step={step} />
       <View style={{ gap: space[1] }}>
@@ -266,13 +262,11 @@ export default function LeaseBuilderScreen() {
       {step === 0 ? (
         <Known
           title="Parties are already known"
-          body="The provider comes from your current Danpa HQ account. The tenant comes from the accepted request. Both identities are copied into the frozen agreement."
         />
       ) : null}
       {step === 1 ? (
         <Known
           title="The home stays connected"
-          body="The selected Property, Unit and any bed remain linked to the approved request. No address or unit details need to be typed again."
         />
       ) : null}
       {step === 2 ? (
@@ -478,11 +472,10 @@ function Checkpoint({ step }: { step: number }) {
     </View>
   );
 }
-function Known({ title, body }: { title: string; body: string }) {
+function Known({ title }: { title: string }) {
   return (
     <Surface style={{ gap: space[2], borderRadius: 2 }}>
       <Type variant="title2">{title}</Type>
-      <Type variant="body">{body}</Type>
     </Surface>
   );
 }

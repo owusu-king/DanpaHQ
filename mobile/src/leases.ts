@@ -13,6 +13,7 @@ export type Lease = {
   workflow_version: "legacy" | "canonical_v1";
   status: "draft" | "ready" | "offered" | "tenant_accepted" | "awaiting_activation" | "active" | "declined" | "cancelled" | "ended";
   status_display: string;
+  upfront_payment_enabled?: boolean;
   activation_requirement: "lease_accepted" | "initial_payment";
   unit: string;
   listing: string | null;
@@ -361,7 +362,7 @@ export function updateLease(id: string, input: Partial<{
   });
 }
 
-export function leaseAction(id: string, action: "ready" | "offer" | "review" | "confirm") {
+export function leaseAction(id: string, action: "ready" | "offer" | "review" | "confirm" | "activate") {
   return apiFetch<Lease>(`/leases/${id}/${action}/`, {
     method: "POST", body: {}, ...idempotentMutation(),
   });

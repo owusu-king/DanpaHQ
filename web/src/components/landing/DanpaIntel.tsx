@@ -6,6 +6,7 @@ import { Popover } from "radix-ui";
 import { ArrowUp, X } from "lucide-react";
 
 import { IntelMark } from "@/components/IntelMark";
+import { propertyIntelReply, readPropertyChat, type IntelMessage, type IntelProperty } from "@/lib/propertyIntel";
 
 
 const POSITION_KEY = "danpa-intel-corner";
@@ -15,12 +16,38 @@ type Corner = typeof CORNERS[number];
 const GREETING = "Hey, I am Danpa Intel. The most capable Ghana's rental and property managment system. Once you have an account, I will meet you in your workspace to unleash my full capabilities.";
 const WORKSPACE_NOTE = "I'll meet you at your workspace.";
 
-/** A local greeting exchange; the workspace assistant is integrated separately. */
-export function DanpaIntel() {
+/** The existing local chat, optionally scoped to one public listing. */
+export function DanpaIntel({ context, storageKey, controlledOpen, onOpenChange, request, onConversationChange }: {
+  context?: IntelProperty; storageKey?: string; controlledOpen?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  request?: { token: number; text: string } | null;
+  onConversationChange?: (hasMessages: boolean) => void;
+} = {}) {
   const id = useId();
-  const [open, setOpen] = useState(false);
+  const [localOpen, setLocalOpen] = useState(false);
+  const open = controlledOpen ?? localOpen;
+  function setOpen(next: boolean) { if (onOpenChange) onOpenChange(next); else setLocalOpen(next); }
   const [draft, setDraft] = useState("");
-  const [messages, setMessages] = useState<{ role: "user" | "assistant"; text: string }[]>([]);
+  const [messages, setMessages] = useState<IntelMessage[]>([]);
+  const [loaded, setLoaded] = useState(!storageKey);
+  const appliedRequest = useRef<number | null>(null);
+  useEffect(() => {
+    if (!storageKey) return;
+    try { setMessages(readPropertyChat(sessionStorage.getItem(storageKey))); } catch { setMessages([]); }
+    setLoaded(true);
+  }, [storageKey]);
+  useEffect(() => {
+    if (!loaded) return;
+    if (storageKey) { try { sessionStorage.setItem(storageKey, JSON.stringify(messages)); } catch { /* Chat still works in memory. */ } }
+    onConversationChange?.(messages.length > 0);
+  }, [messages, loaded, storageKey, onConversationChange]);
+  useEffect(() => {
+    if (!loaded || !context || !request || appliedRequest.current === request.token) return;
+    appliedRequest.current = request.token;
+    const text = request.text.trim().slice(0, 500);
+    if (!text) return;
+    setMessages(current => [...current, { role: "user" as const, text }, { role: "assistant" as const, text: propertyIntelReply(context) }].slice(-40));
+  }, [context, request, loaded]);
   const messageArea = useRef<HTMLElement>(null);
   const input = useRef<HTMLTextAreaElement>(null);
   const [mounted, setMounted] = useState(false);
@@ -47,12 +74,15 @@ export function DanpaIntel() {
 
   function send() {
     const text = draft.trim();
-    if (!text) return;
-    setMessages((current) => [
-      ...current,
-      { role: "user", text },
-      { role: "assistant", text: current.length ? WORKSPACE_NOTE : GREETING },
-    ]);
+    if (!text || !loaded) return;
+    setMessages((current) => {
+      const next: IntelMessage[] = [
+        ...current,
+        { role: "user", text },
+        { role: "assistant", text: context ? propertyIntelReply(context) : current.length ? WORKSPACE_NOTE : GREETING },
+      ];
+      return context ? next.slice(-40) : next;
+    });
     setDraft("");
     input.current?.focus({ preventScroll: true });
   }
@@ -114,7 +144,7 @@ export function DanpaIntel() {
           remember(`${vertical}-${horizontal}`);
         }}>
         <IntelMark />
-        <span id={id + "-entry"} className="sr-only">Your AI guide to housing information and services. Drag to move, or use Alt and arrow keys to choose a corner.</span>
+        <span id={id + "-entry"} className="sr-only">Drag to move, or use Alt and arrow keys to choose a corner.</span>
       </button>
     </Popover.Trigger>, document.body) : null}
     <Popover.Portal>
@@ -123,13 +153,13 @@ export function DanpaIntel() {
         <span className="intel-identity" aria-hidden="true"><IntelMark /></span>
         <div className="intel-header-copy">
           <div className="intel-title-row"><h2 id={id + "-title"}>Danpa Intel</h2></div>
-          <p id={id + "-description"}>Your AI housing assistant.</p>
+          <p id={id + "-description"}>{context ? context.title : "Your AI housing assistant."}</p>
         </div>
         <Popover.Close className="intel-close" aria-label="Close Danpa Intel"><X aria-hidden="true" /></Popover.Close>
       </header>
       <section ref={messageArea} className="intel-messages" aria-label="Message area">
         {!messages.length ? (
-          <p className="intel-message is-assistant intel-welcome">Hello. How can I help you?</p>
+          <p className="intel-message is-assistant intel-welcome">{context ? `Questions about ${context.title} stay in this chat.` : "Hello. How can I help you?"}</p>
         ) : null}
         <div className="intel-transcript" role="log" aria-label="Conversation" aria-live="polite" aria-relevant="additions">
           {messages.map((message, index) => (
@@ -150,9 +180,9 @@ export function DanpaIntel() {
               }
             }}
             aria-label="Message Danpa Intel" aria-describedby={id + "-input-hint"} placeholder="Chat here…" />
-          <button type="submit" disabled={!draft.trim()} aria-label="Send message"><ArrowUp aria-hidden="true" /></button>
+          <button type="submit" disabled={!draft.trim() || !loaded} aria-label="Send message"><ArrowUp aria-hidden="true" /></button>
         </div>
-        <p id={id + "-input-hint"}>{WORKSPACE_NOTE}</p>
+        <p id={id + "-input-hint"}>{context ? "Listing details only · Live AI replies are not connected." : WORKSPACE_NOTE}</p>
       </form>
     </Popover.Content>
     </Popover.Portal>

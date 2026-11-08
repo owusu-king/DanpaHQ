@@ -60,19 +60,24 @@ export default function NotificationsScreen() {
   const [showOlder, setShowOlder] = useState(false);
 
   // A reload keeps what is on screen; a failed refresh says so above it.
-  const load = useCallback(async () => {
-    try {
-      const page = await listNotificationHistory();
+  const load = useCallback(async (signal?: AbortSignal) => {
+    await listNotificationHistory().then((page) => {
+      if (signal?.aborted) return;
       setItems(page.results);
       setUnread(page.unread_count);
       setError("");
-    } catch (cause) {
+    }).catch((cause) => {
+      if (signal?.aborted) return;
       setError(cause instanceof ApiFailure ? cause.error.message : "We could not load your updates.");
       setItems((current) => current ?? []);
-    }
+    });
   }, []);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    const controller = new AbortController();
+    void load(controller.signal);
+    return () => controller.abort();
+  }, [load]);
 
   const isProvider = state.status === "signed_in"
     && state.me.capabilities.active_workspace === "provider"

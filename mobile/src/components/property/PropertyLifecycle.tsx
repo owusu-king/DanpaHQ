@@ -202,7 +202,6 @@ function CompactLifecycle({ property, steps, onChanged }: { property: Property; 
       <LifecycleCard
         tone="action"
         status={reviewState === "withdrawn" ? "Submission returned to you" : "Ready for verification"}
-        body="Verify the Property before its Units can be advertised or shared with prospective tenants."
       >
         {submit?.allowed ? (
           <View style={styles.acts}>
@@ -234,25 +233,22 @@ function CompactLifecycle({ property, steps, onChanged }: { property: Property; 
           <Type variant="bodyStrong" style={styles.nextTitle}>{next.title}</Type>
           <Type variant="caption" style={styles.body}>{next.detail ? `${next.summary} ${next.detail}.` : next.summary}</Type>
         </View>
-      ) : (
-        <Type variant="caption" style={styles.body}>Every step is filled in. Review it and finish creating it.</Type>
-      )}
+      ) : null}
       {edit?.allowed ? (
         <View style={styles.acts}>
           <Pill label={next ? "Continue setup" : "Review and finish"} icon="arrow-forward" grow onPress={openSetup} />
         </View>
       ) : null}
-      <Type variant="caption" style={styles.saved}>Everything is saved as you go.</Type>
     </RecordPanel>
   );
 }
 
 /** The card every verification state is drawn in: its status, one sentence, and its acts. */
-function LifecycleCard({ tone, status, body, children }: { tone: RecordTone; status: string; body: string; children?: ReactNode }) {
+function LifecycleCard({ tone, status, body, children }: { tone: RecordTone; status: string; body?: string; children?: ReactNode }) {
   return (
     <RecordPanel style={styles.card}>
       <StandingLine tone={tone} line={status} />
-      <Type variant="caption" style={styles.body}>{body}</Type>
+      {body ? <Type variant="caption" style={styles.body}>{body}</Type> : null}
       {children}
     </RecordPanel>
   );
@@ -421,10 +417,6 @@ function StillCreating({ property, steps }: { property: Property; steps: SetupSt
       <View style={{ gap: space[1] }}>
         <Type variant="label">BEING CREATED</Type>
         <Type variant="title2">Finish creating this property</Type>
-        <Type variant="caption">
-          Everything you have done so far is saved. Nothing has been sent to
-          anybody — verification is a separate step you take afterwards.
-        </Type>
       </View>
 
       <SetupProgress steps={steps} />
@@ -527,8 +519,6 @@ function WithReviewer({
       </Type>
       <Type variant="caption">
         {verification.submitted_at ? `Sent on ${on(verification.submitted_at)}. ` : ""}
-        There is nothing here waiting on you. You can keep adding spaces inside it —
-        none of them wait on this.
       </Type>
 
       {error ? <Notice tone="error" title={error} /> : null}

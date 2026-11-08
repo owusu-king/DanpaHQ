@@ -1,5 +1,6 @@
 "use client";
 
+import { VideoPlayer } from "@/components/property/WalkthroughVideo";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -8,8 +9,11 @@ import { useAuthDialog } from "@/components/auth/AuthDialog";
 import { usePageTitle } from "@/components/PageTitle";
 import { Button } from "@/components/Button";
 import { Notice } from "@/components/Notice";
+import { PropertyAsk } from "@/components/listings/PropertyAsk";
+import { rentalIntelContext } from "@/lib/propertyIntel";
 import { Icon, type IconName } from "@/components/portal/icons";
 import { ListingCard } from "@/components/listings/ListingCard";
+import { ListingProviderCard } from "@/components/listings/ListingProviderCard";
 import { ListingLocation } from "@/components/listings/ListingLocation";
 import { EntityPath } from "@/components/property/WorkspacePatterns";
 import { PanelState } from "@/components/workspace/Workspace";
@@ -26,7 +30,6 @@ import {
 import { useSession } from "@/lib/session";
 import { listMyApplications, listMyViewings, listSavedListings } from "@/lib/tenant";
 import { onDate } from "@/lib/time";
-import { STATE_LABEL, type TrustState } from "@/lib/trust";
 
 /**
  * The page a tenant decides on.
@@ -117,7 +120,7 @@ export default function PublicListingPage() {
           <PanelState
             icon="listings"
             title="This rental isn’t available"
-            body={`${error} It may have been taken or withdrawn — there are others like it in Explore.`}
+            body={error}
             action={<Link href="/rentals" className="ws-action is-primary"><Icon name="explore" />Back to Explore</Link>}
           />
         </section>
@@ -136,12 +139,16 @@ export default function PublicListingPage() {
     ? listing.available_from
     : null;
 
-  // The four things a tenant compares rentals on, each a tile with its glyph.
+  // Unit essentials and shared property utilities, together at a glance.
   const facts: Array<{ icon: IconName; label: string; value: string }> = [
     { icon: "properties", label: "Type", value: space.space_type_label },
     { icon: "bed", label: "Bedrooms", value: space.bedrooms === 0 ? "Single room" : String(space.bedrooms) },
     ...(space.bathrooms ? [{ icon: "bath" as const, label: "Bathrooms", value: String(space.bathrooms) }] : []),
     { icon: "sofa", label: "Furnishing", value: space.is_furnished ? "Furnished" : "Unfurnished" },
+    { icon: "water", label: "Water", value: place.features.water_source_label },
+    { icon: "power", label: "Power", value: place.features.power_meter_label },
+    { icon: "home", label: "Compound", value: place.features.compound_label },
+    ...place.amenities.map(row => ({ icon: "amenities" as const, label: "Shared", value: row.name })),
   ];
 
   // The space's own amenities and its private features are one list to a
@@ -156,31 +163,10 @@ export default function PublicListingPage() {
     Boolean(name) && all.findIndex((other) => other?.toLowerCase() === name!.toLowerCase()) === index,
   );
 
-  const utilities: Array<{ kind: string; icon: IconName; label: string; value: string; quiet?: boolean }> = [
-    { kind: "water", icon: "water", label: "Water", value: place.features.water_source_label },
-    { kind: "power", icon: "power", label: "Power", value: place.features.power_meter_label },
-    { kind: "compound", icon: "home", label: "Compound", value: place.features.compound_label },
-  ];
-
-  // What it costs to move in, line by line. The backend's total is the sum of
-  // these months of rent, so each line is the rent times its months.
   const cedis = (minor: number) => `GH₵${(minor / 100).toLocaleString("en-GH")}`;
   const months = (count: number) => `${count} month${count === 1 ? "" : "s"}`;
-  const rentMinor = listing.rent_minor;
-  const moveIn = [
-    { label: "Advance", detail: listing.advance_label, months: listing.advance_months },
-    { label: "Deposit", detail: months(listing.caution_months), months: listing.caution_months },
-    { label: "Agency fee", detail: months(listing.agency_fee_months), months: listing.agency_fee_months },
-  ].filter((row) => row.months > 0);
 
   const longDescription = space.description.length > 320;
-  const verified = space.verification.checked && place.authority.state === "verified";
-  const checks: Array<{ what: string; state: TrustState }> = [
-    { what: "Identity", state: listing.trust_stamps.identity.state },
-    { what: listing.trust_stamps.relationship === "owner" ? "Ownership" : "Authority to let", state: place.authority.state },
-    { what: "This space", state: space.verification.checked ? "verified" : "unverified" },
-  ];
-
   // Over this page, from state; signed in, the person comes back to it.
   function requireAccount(next: string) {
     openAuth("sign-in", { workspace: "tenant", next });
@@ -237,12 +223,11 @@ export default function PublicListingPage() {
     <main className="listing">
       <ListingPath headline={listing.headline} />
 
-      {/* A preview, not the exploration. Three photographs at a capped height,
-          and one plainly named way into the rest. */}
+      {/* One lead photograph and up to four supporting views. */}
       {photos.length ? (
         <div className="listing-photos">
-          <div className={`listing-gallery${photos.length === 1 ? " listing-gallery-solo" : ""}`}>
-            {photos.slice(0, 3).map((photo, index) => (
+          <div className={`listing-gallery${photos.length === 1 ? " listing-gallery-solo" : ""}`} data-count={Math.min(photos.length, 5)}>
+            {photos.slice(0, 5).map((photo, index) => (
               <button
                 key={photo.id}
                 type="button"
@@ -269,16 +254,41 @@ export default function PublicListingPage() {
         </div>
       )}
 
+      <VideoPlayer video={listing.space.video} label="Unit video" caption />
+      <VideoPlayer video={listing.property_context.video} label="Property video" caption />
+      <div className="listing-discovery-tools">
+        <PropertyAsk property={rentalIntelContext(listing)} />
+        {!taken ? (
+          <div className="listing-secondary">
+            <Button
+              variant="quiet"
+              aria-pressed={saved}
+              onClick={() => void toggleSave()}
+            >
+              <Icon name="bookmark" />
+              <span className="listing-action-label">{saved ? "Saved" : "Save"}</span>
+            </Button>
+            <Button
+              variant="quiet"
+              onClick={() => void shareListing()}
+            >
+              <Icon name="share" />
+              <span className="listing-action-label">{shareFeedback === "shared" ? "Shared" : shareFeedback === "copied" ? "Link copied" : "Share"}</span>
+            </Button>
+          </div>
+        ) : null}
+      </div>
+
       <div className="listing-body">
         <div className="listing-main">
           <header className="listing-head">
             <h1>{listing.headline}</h1>
-            <p><Icon name="pin" /><span>{where || "Ghana"}{place.landmark ? ` · near ${place.landmark}` : ""}</span></p>
+            <p><Icon name="pin" /><span>{[where, place.region_name].filter(Boolean).join(", ") || "Ghana"}{place.property_type_label ? ` | ${place.property_type_label}` : ""}</span></p>
           </header>
 
           <ul className="listing-facts" aria-label="At a glance">
             {facts.map((fact) => (
-              <li key={fact.label}>
+              <li key={`${fact.label}:${fact.value}`}>
                 <span className="listing-fact-mark" aria-hidden="true"><Icon name={fact.icon} /></span>
                 <span className="listing-fact-copy"><small>{fact.label}</small><strong>{fact.value}</strong></span>
               </li>
@@ -308,30 +318,6 @@ export default function PublicListingPage() {
             </section>
           ) : null}
 
-          <section className="listing-section listing-where">
-            <SectionTitle icon="city">The property</SectionTitle>
-            <p className="listing-where-name">
-              <strong>{place.title}</strong>
-              <span>{place.property_type_label}{place.region_name ? ` · ${place.region_name}` : ""}</span>
-            </p>
-            {/* The Ghana facts that decide what living here costs and feels
-                like. Each is one choice from a fixed set, so each is one tile. */}
-            <dl className="listing-utilities">
-              {utilities.map((row) => (
-                <div key={row.kind} data-kind={row.kind} data-quiet={row.quiet || undefined}>
-                  <span className="listing-utility-mark" aria-hidden="true"><Icon name={row.icon} /></span>
-                  <dt>{row.label}</dt>
-                  <dd>{row.value}</dd>
-                </div>
-              ))}
-            </dl>
-            {place.amenities.length ? (
-              <ul className="listing-tags is-shared" aria-label="Shared on the property">
-                {place.amenities.map((row) => <li key={row.id} className="listing-tag">{row.name}</li>)}
-              </ul>
-            ) : null}
-          </section>
-
           <ListingLocation listing={listing} where={where} landmark={place.landmark} />
         </div>
 
@@ -352,7 +338,7 @@ export default function PublicListingPage() {
           {taken ? (
             <p className="listing-taken"><Icon name="info" />This place has been taken. Keep looking for something similar.</p>
           ) : (
-            <div className="listing-actions">
+            <div className="listing-actions is-rental">
               {/* Applying leads. It is the thing this page exists to produce,
                   and it was the secondary button under a viewing request. */}
               <Button
@@ -401,70 +387,17 @@ export default function PublicListingPage() {
                 >Request a viewing</Button>
               )}
 
-              <div className="listing-secondary">
-                {/* `aria-pressed` is the toggle's real state, and it is what
-                    fills the bookmark — so the mark and the announcement come
-                    from one source rather than drifting apart. */}
-                <Button
-                  variant="quiet"
-                  aria-pressed={saved}
-                  onClick={() => void toggleSave()}
-                >
-                  <Icon name="bookmark" />
-                  {saved ? "Saved" : "Save"}
-                </Button>
-                <Button
-                  variant="quiet"
-                  onClick={() => void shareListing()}
-                >
-                  <Icon name="share" />
-                  {shareFeedback === "shared" ? "Shared" : shareFeedback === "copied" ? "Link copied" : "Share"}
-                </Button>
-              </div>
+
             </div>
           )}
 
           <div className="listing-receipt">
             <small>To move in</small>
             <strong>{cedis(listing.total_move_in_minor)}</strong>
-            <dl className="listing-terms">
-              {moveIn.map((row) => (
-                <div key={row.label}>
-                  <dt>{row.label} <em>{row.detail}</em></dt>
-                  <dd>{rentMinor !== null ? cedis(rentMinor * row.months) : row.detail}</dd>
-                </div>
-              ))}
-            </dl>
           </div>
 
-          {/* Stated, not hidden behind a disclosure. Three checks and one
-              line is short enough to read at a glance, and a dropdown made the
-              reader open something to find out whether to trust the listing —
-              which is the question they came with. */}
-          <section className="listing-trust" data-verified={verified || undefined} aria-labelledby="listing-trust-title">
-            <p className="listing-trust-title" id="listing-trust-title">
-              <span className="listing-trust-seal" aria-hidden="true"><Icon name="verification" /></span>
-              <span>
-                <strong>{verified ? "Verified rental" : "Verification"}</strong>
-                <small>
-                  {listing.trust_stamps.relationship === "owner"
-                    ? "Listed by its owner"
-                    : "Listed by an authorized representative"}
-                </small>
-              </span>
-            </p>
-            <ul className="listing-trust-stamps">
-              {checks.map((check) => (
-                <li key={check.what} className="listing-check" data-state={check.state}>
-                  <span className="listing-check-mark" aria-hidden="true">
-                    <Icon name={check.state === "verified" ? "check" : check.state === "pending" ? "clock" : check.state === "expired" ? "warning" : "info"} />
-                  </span>
-                  <span className="listing-check-what">{check.what}</span>
-                  <span className="listing-check-state">{STATE_LABEL[check.state]}</span>
-                </li>
-              ))}
-            </ul>
-          </section>
+          <ListingProviderCard listing={listing} />
+
         </aside>
 
         {/* Keep discovery inside the same grid as the decision panel. This gives

@@ -3,7 +3,7 @@ import { createContext, useCallback, useContext, useState, type ReactNode } from
 import { View } from "react-native";
 
 import { BottomSheet } from "@/components/sheet/BottomSheet";
-import { Button, Type, space } from "@/components/ui";
+import { Button, space } from "@/components/ui";
 
 const GuestSignIn = createContext<(next?: string) => void>(() => undefined);
 
@@ -19,7 +19,6 @@ export function GuestSignInProvider({ children }: { children: ReactNode }) {
       {children}
       <BottomSheet visible={next !== null} onClose={close} title="Sign in to continue" closeLabel="Keep browsing">
         <View style={{ gap: space[4], padding: space[4] }}>
-          <Type>Sign in to apply, request a viewing, or access your account. Your place is saved.</Type>
           <Button label="Sign in" onPress={() => {
             const destination = next;
             close();

@@ -83,6 +83,14 @@ test("an expired bearer token is refreshed once and the request is replayed", ()
   assert.match(apiSource, /retriedAfterUnauthorized/);
 });
 
+test("logout uses the in-flight refresh successor before clearing local credentials", () => {
+  const logout = source.match(/const signOut = useCallback\([\s\S]*?\}, \[clearLocal, router\]\);/)?.[0];
+  assert.ok(logout);
+  assert.match(logout, /signedOut\.current = true;[\s\S]*await refreshInFlight\.current/);
+  assert.match(logout, /const token = rotated \?\? accessToken\.current/);
+  assert.match(logout, /"\/auth\/sign-out\/"[\s\S]*\btoken\b[\s\S]*await clearLocal\(\)/);
+});
+
 test("authorization and throttling responses do not erase a valid session", () => {
   const refreshMe = source.match(/const refreshMe[\s\S]*?useEffect\(\(\) =>/i)?.[0];
   assert.ok(refreshMe, "refreshMe must remain visible to this contract");

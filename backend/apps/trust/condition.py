@@ -861,6 +861,8 @@ def submit_for_review(*, subject, actor) -> Verification:
     serializer so that no caller can reach the queue around it. The refusal names
     the outstanding slots: "incomplete" tells somebody nothing they can act on.
     """
+    # Serialize submission with video edits: a queued check must hold the same media.
+    subject = type(subject).objects.select_for_update().get(pk=subject.pk)
     assert_may_review(subject=subject, user=actor)
     assert_property_is_ready(subject)
 
@@ -877,6 +879,11 @@ def submit_for_review(*, subject, actor) -> Verification:
         missing = ", ".join(slot.label.lower() for slot in outstanding)
         raise ValidationFailed(f"Add {len(outstanding)} more before submitting: {missing}.")
 
+    review.provider_response = {
+        **(review.provider_response or {}),
+        "walkthrough_file_id": str(subject.video_id) if subject.video_id else None,
+    }
+    review.save(update_fields=["provider_response", "updated_at"])
     ReviewQueueEntry.objects.create(
         verification=review,
         priority=services.PRIORITY_BY_KIND.get(review.kind, 50),

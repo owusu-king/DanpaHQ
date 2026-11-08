@@ -95,7 +95,6 @@ export default function AccountDeletionsPage() {
     <>
       <PageHeader
         title="Account deletions"
-        description="People who asked for their account and data to be deleted. Check what stands in the way, then delete or decline with a reason."
       />
 
       <Panel title="Requests" busy={resource.refreshing} meta={resource.data ? `${rows.length} ${rows.length === 1 ? "request" : "requests"}` : undefined}>
@@ -174,7 +173,7 @@ export default function AccountDeletionsPage() {
               )}
               <label>
                 Note
-                <textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="Required to decline: it is sent to the person." disabled={busy} />
+                <textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="Required to decline. The requester receives this reason." disabled={busy} />
               </label>
               <Feedback error={error} />
             </div>

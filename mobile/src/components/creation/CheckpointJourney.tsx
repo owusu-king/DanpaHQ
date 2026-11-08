@@ -1,6 +1,6 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { useEffect, useRef } from "react";
-import { Animated, Pressable, View } from "react-native";
+import { useEffect } from "react";
+import { Animated, useAnimatedValue, Pressable, View } from "react-native";
 
 import { Type, space } from "@/components/ui";
 import { useReduceMotion } from "@/motion";
@@ -63,17 +63,19 @@ export function CheckpointJourney({
   const start = Math.max(0, Math.min(currentIndex - 1, checkpoints.length - 3));
   const nearby = checkpoints.slice(start, Math.min(checkpoints.length, Math.max(3, currentIndex + 2)));
   const complete = checkpoints.filter((checkpoint) => checkpoint.state === "completed").length;
-  const entrance = useRef(new Animated.Value(1)).current;
+  const entrance = useAnimatedValue(1);
   const reduceMotion = useReduceMotion();
   const currentKey = checkpoints[currentIndex]?.key;
 
   useEffect(() => {
     entrance.setValue(reduceMotion ? 1 : 0.94);
-    Animated.timing(entrance, {
+    const animation = Animated.timing(entrance, {
       toValue: 1,
       duration: reduceMotion ? 0 : 180,
       useNativeDriver: true,
-    }).start();
+    });
+    animation.start();
+    return () => animation.stop();
   }, [currentKey, entrance, reduceMotion]);
 
   // A progressbar that collapses its children is right until the children are

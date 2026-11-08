@@ -53,7 +53,6 @@ export default function WelcomeScreen() {
         <AuthMark />
         <AuthHeading
           title={name ? `Welcome, ${name}` : "Welcome to Danpa HQ"}
-          line="Your provider account is created."
         />
 
         <SuccessMark tone={LAGOON} />
@@ -66,9 +65,6 @@ export default function WelcomeScreen() {
               </View>
               <View style={{ flex: 1, gap: 2 }}>
                 <Type variant="bodyStrong">{needsPhone ? "Complete your provider application" : "Pending Approval"}</Type>
-                <Type variant="caption" style={styles.muted}>
-                  {needsPhone ? "Verify your phone by OTP, then submit your application for management review." : "Management will review your provider account. Each property is verified separately."}
-                </Type>
               </View>
             </View>
 
@@ -103,48 +99,13 @@ export default function WelcomeScreen() {
       <AuthMark />
       <AuthHeading
         title={name ? `You're in, ${name}` : "You're in"}
-        line="Your tenant account is ready."
       />
 
       <SuccessMark tone={KOLA} />
 
-      <Rise index={1}>
-        <View style={styles.card}>
-          <Next icon="search" label="Find a place" detail="Browse, save and ask to view homes" />
-          <View style={styles.rule} />
-          <Next icon="key-outline" label="Already renting?" detail="Join your home with the code from your provider" />
-          <View style={styles.rule} />
-          <Next icon="person-circle-outline" label="Your profile" detail="Add an email and the rest whenever you like" />
-        </View>
-      </Rise>
 
       <AuthAction label="Go to Home" onPress={() => leave(home)} />
     </AuthScene>
-  );
-}
-
-/** A thing they can do now, said in one line under its name. */
-function Next({
-  icon,
-  label,
-  detail,
-}: {
-  icon: keyof typeof Ionicons.glyphMap;
-  label: string;
-  detail: string;
-}) {
-  return (
-    <View style={styles.next}>
-      <View style={[styles.badge, { backgroundColor: theme.color.kola["50"] }]}>
-        <Ionicons name={icon} size={18} color={KOLA} />
-      </View>
-      <View style={{ flex: 1, gap: 1 }}>
-        <Type variant="bodyStrong">{label}</Type>
-        <Type variant="caption" style={styles.muted}>
-          {detail}
-        </Type>
-      </View>
-    </View>
   );
 }
 
@@ -167,19 +128,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
-  },
-  muted: {
-    color: theme.color.ink["700"],
-  },
-  next: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: space[3],
-  },
-  rule: {
-    height: StyleSheet.hairlineWidth,
-    marginLeft: 48,
-    backgroundColor: alpha(theme.color.kola["900"], 0.08),
   },
   track: {
     paddingLeft: space[1],

@@ -417,12 +417,17 @@ class UnitDetailSerializer(UnitSerializer):
     and duplicating them onto the space would let the two disagree.
     """
 
+    video = serializers.SerializerMethodField()
     media = UnitMediaSerializer(many=True, read_only=True)
     property = serializers.SerializerMethodField()
     beds = serializers.SerializerMethodField()
 
     class Meta(UnitSerializer.Meta):
-        fields = [*UnitSerializer.Meta.fields, "media", "property", "beds"]
+        fields = [*UnitSerializer.Meta.fields, "media", "property", "beds", "video"]
+
+    def get_video(self, obj):
+        from apps.files.videos import video_payload
+        return video_payload(obj)
 
     def get_property(self, obj) -> dict:
         prop = obj.property
@@ -565,6 +570,7 @@ class PropertySerializer(serializers.ModelSerializer):
     verification = serializers.SerializerMethodField()
     #: What the compound has, as distinct from what any one space inside it has.
     amenities = serializers.SerializerMethodField()
+    video = serializers.SerializerMethodField()
     cover_url = serializers.SerializerMethodField()
     #: For a property for sale, where its sale stands; `None` for letting.
     sale = serializers.SerializerMethodField()
@@ -596,6 +602,7 @@ class PropertySerializer(serializers.ModelSerializer):
             "amenities_confirmed_at",
             "amenities",
             "cover_url",
+            "video",
             "unit_count",
             "bed_count",
             "occupied_unit_count",
@@ -618,6 +625,10 @@ class PropertySerializer(serializers.ModelSerializer):
             "unit_count",
             "created_at",
         ]
+
+    def get_video(self, obj):
+        from apps.files.videos import video_payload
+        return video_payload(obj)
 
     def get_sale(self, obj) -> dict | None:
         """A summary a property row can show; the whole record is `/properties/<id>/sale/`."""

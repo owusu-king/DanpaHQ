@@ -26,7 +26,7 @@ test("reconciliation decisions never present themselves as financial repairs", (
   const page = read("web/app/management/payments/page.tsx");
   const service = read("backend/apps/payments/reconciliation.py");
 
-  assert.match(page, /never rewrites money/i);
+  assert.match(page, /without changing payments/i);
   assert.match(page, /Compared evidence/);
   assert.match(page, /Investigation note/);
   assert.doesNotMatch(page, /refundPayment|allocatePayment|updateRent|markSettled/);

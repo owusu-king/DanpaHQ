@@ -76,7 +76,7 @@ test("whoever is proposing times may propose the several the backend accepts", (
   assert.match(provider, /!viewing\.actions\.can_confirm_slot && viewing\.slots\.length/);
 
   // Both viewing records use it, and hand the whole list to the endpoint.
-  assert.match(read("app/(app)/provider-viewing.tsx"), /offerViewingSlots\(viewing\.id, \{ slots \}\)/);
+  assert.match(read("app/(app)/provider-viewing.tsx"), /offerViewingSlots\(viewing\.id, \{ slots,/);
   assert.match(read("app/(app)/provider-viewing.tsx"), /rescheduleViewing\(viewing\.id, slots\)/);
   assert.match(read("app/(app)/viewing/[id].tsx"), /rescheduleViewing\(viewing\.id, slots\)/);
 });

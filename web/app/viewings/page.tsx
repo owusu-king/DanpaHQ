@@ -30,7 +30,6 @@ import {
   providerViewingSort,
   providerViewingSummary,
   providerViewingView,
-  viewingEmptyBody,
   viewingEmptyTitle,
   viewingSearchText,
   type ProviderViewingFilter,
@@ -182,7 +181,6 @@ function TenantViewings() {
       <WorkspaceHead
         icon="viewings"
         title="Viewings"
-        summary="Arrange property visits and keep track of your viewing schedule."
         actions={none || loading ? null : (
           <Link href="/rentals" className="ws-action"><Icon name="explore" />Find rentals</Link>
         )}
@@ -193,7 +191,6 @@ function TenantViewings() {
           eyebrow={firstAction.state.line}
           title={firstAction.viewing.property_title || firstAction.viewing.listing_headline}
           detail={[firstAction.viewing.unit_label, placeOf(firstAction.viewing)].filter(Boolean).join(" · ")}
-          hint={firstAction.viewing.status === "offered" ? "The landlord offered times. Pick the one that suits you." : "This viewing is waiting for your answer."}
           photoUrl={firstAction.viewing.photo_url}
           icon="viewings"
           more={{ count: counts.action - 1, onShow: () => chooseFilter("action") }}
@@ -233,14 +230,13 @@ function TenantViewings() {
             tone="error"
             icon="warning"
             title="Viewings didn’t load"
-            body={`${error} Check your connection and try again.`}
+            body={error}
             action={<button type="button" className="ws-action" disabled={retrying} onClick={() => void retry()}>{retrying ? "Retrying…" : "Try again"}</button>}
           />
         ) : none ? (
           <PanelState
             icon="viewings"
             title="No viewings yet"
-            body="When you ask to see a rental, the appointment appears here — with the time, the way in and a countdown when it is close."
             action={<Link href="/rentals" className="ws-action is-primary"><Icon name="explore" />Explore rentals</Link>}
           />
         ) : visible.length ? (
@@ -266,7 +262,6 @@ function TenantViewings() {
           <PanelState
             icon="explore"
             title={`Nothing matches “${query.trim()}”`}
-            body="Try another Property, Unit or place."
             action={<button type="button" className="ws-action" onClick={() => setParams({ q: "" })}>Clear search</button>}
           />
         ) : (
@@ -371,17 +366,16 @@ function ViewingGroup({
 }
 
 function TenantViewingFilterEmpty({ filter, onShowAll }: { filter: ViewingFilter; onShowAll: () => void }) {
-  const copy: Record<ViewingFilter, { title: string; body: string }> = {
-    all: { title: "No viewings here", body: "Your viewing requests will appear here." },
-    upcoming: { title: "No upcoming visits", body: "Confirmed visits and requests waiting for a time will appear here." },
-    action: { title: "Nothing needs you", body: "You are up to date on every viewing." },
-    past: { title: "No viewing history", body: "Completed and cancelled visits will remain available here." },
+  const copy: Record<ViewingFilter, { title: string }> = {
+    all: { title: "No viewings here" },
+    upcoming: { title: "No upcoming visits" },
+    action: { title: "Nothing needs you" },
+    past: { title: "No viewing history" },
   };
   return (
     <PanelState
       icon={filter === "action" ? "check" : "viewings"}
       title={copy[filter].title}
-      body={copy[filter].body}
       action={filter === "all" ? undefined : <button type="button" className="ws-action" onClick={onShowAll}>Show all viewings</button>}
     />
   );
@@ -611,7 +605,6 @@ function ProviderViewings() {
       <WorkspaceHead
         icon="viewings"
         title="Viewings"
-        summary="Manage viewing requests, arrange visits and record attendance."
       />
 
       {loading || all.length ? (
@@ -663,7 +656,6 @@ function ProviderViewings() {
           <PanelState
             icon="viewings"
             title="No viewings yet"
-            body="When someone asks to see one of your listings, the request appears here for you to offer times."
             action={<Link href="/properties" className="btn btn-quiet btn-sm">Review your Properties</Link>}
           />
         ) : null}
@@ -672,7 +664,6 @@ function ProviderViewings() {
           <PanelState
             icon={query ? "explore" : "check"}
             title={query ? `Nothing matches “${query.trim()}”` : viewingEmptyTitle(view === "all" ? "upcoming" : view)}
-            body={query ? "Try another tenant, listing or place." : viewingEmptyBody(view === "all" ? "upcoming" : view)}
             action={query ? (
               <Button variant="quiet" size="sm" onClick={() => setParams({ q: "" })}>Clear search</Button>
             ) : view === "action" && counts.upcoming ? (

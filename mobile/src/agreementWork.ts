@@ -79,7 +79,7 @@ export function nextAct(lease: Pick<Lease, "status">): { label: "Send agreement"
 }
 
 /** Where it stands, said as the next thing that happens. */
-export function signingLine(lease: Pick<Lease, "status" | "activation_requirement">): string {
+export function signingLine(lease: Pick<Lease, "status" | "activation_requirement" | "upfront_payment_enabled">): string {
   switch (lease.status) {
     case "draft":
       return "Draft — not sent yet";
@@ -90,7 +90,7 @@ export function signingLine(lease: Pick<Lease, "status" | "activation_requiremen
     case "tenant_accepted":
       return "Tenant accepted — confirm to start";
     case "awaiting_activation":
-      return lease.activation_requirement === "initial_payment" ? "Accepted — waiting for the first payment" : "Accepted — waiting to activate";
+      return lease.upfront_payment_enabled !== false && lease.activation_requirement === "initial_payment" ? "Accepted — waiting for the first payment" : "Accepted — waiting to activate";
     case "active":
       return "Running";
     case "declined":

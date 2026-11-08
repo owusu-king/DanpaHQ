@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react";
-import { Animated, Easing, StyleSheet, Text, View } from "react-native";
+import { useEffect, useState } from "react";
+import { Animated, useAnimatedValue, Easing, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { motion, space } from "@/components/ui";
@@ -26,7 +26,7 @@ const PATIENCE_MS = 8000;
 export function LaunchScreen() {
   const insets = useSafeAreaInsets();
   const reduceMotion = useReduceMotion();
-  const beats = useRef([0, 1, 2].map(() => new Animated.Value(0))).current;
+  const [beats] = useState(() => [0, 1, 2].map(() => new Animated.Value(0)));
   const [slow, setSlow] = useState(false);
 
   useEffect(() => {
@@ -106,14 +106,14 @@ export function LaunchScreen() {
  */
 export function LaunchCurtain({ settled }: { settled: boolean }) {
   const reduceMotion = useReduceMotion();
-  const opacity = useRef(new Animated.Value(1)).current;
+  const opacity = useAnimatedValue(1);
   const [lifted, setLifted] = useState(false);
+  if (!settled && lifted) setLifted(false);
 
   useEffect(() => {
     if (!settled) {
       opacity.stopAnimation();
       opacity.setValue(1);
-      setLifted(false);
       return;
     }
     const lift = Animated.timing(opacity, {

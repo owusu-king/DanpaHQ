@@ -248,6 +248,9 @@ class TestWhoSeesTheTenantsPhoto:
         )
         lease = lease_services.offer_lease(lease=lease, user=landlord)
         lease_services.accept_lease(lease=lease, user=user)
+        from tests.payment_helpers import confirm_initial_payment
+
+        confirm_initial_payment(lease)
         return prop
 
     def _photo_of(self, person):

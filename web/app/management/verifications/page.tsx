@@ -1,5 +1,7 @@
 "use client";
 
+import { VideoPlayer } from "@/components/property/WalkthroughVideo";
+import type { WalkthroughVideo } from "@/lib/propertyVideo";
 import { useState } from "react";
 
 import {
@@ -118,7 +120,6 @@ export default function VerificationPage() {
   return <>
     <PageHeader
       title="Verification queue"
-      description="Examine each submission and its evidence, then make one decision. A verified property has passed both the authority-document and condition-photo checks."
     />
     <Panel title="Awaiting review" meta={resource.data ? `${rows.length} ${rows.length === 1 ? "submission" : "submissions"}` : undefined}>
       <ResourceState loading={resource.loading} error={resource.error} onRetry={resource.reload} />
@@ -139,7 +140,7 @@ export default function VerificationPage() {
           })}</tbody>
         </DataTable>
       ) : resource.data ? (
-        <Empty icon="verification" title="The queue is clear" message="New submissions appear here as soon as they are sent." />
+        <Empty icon="verification" title="The queue is clear" />
       ) : null}
     </Panel>
 
@@ -166,10 +167,10 @@ export default function VerificationPage() {
           </>
         ) : undefined}
       >
-        {first.subject_context && Object.keys(first.subject_context).length ? (
+        {first.subject_context && Object.keys(first.subject_context).some(key => key !== "video") ? (
           <Section title="Submission">
             <Facts>
-              {Object.entries(first.subject_context).map(([key, value]) => (
+              {Object.entries(first.subject_context).filter(([key]) => key !== "video").map(([key, value]) => (
                 <Fact key={key} label={humanize(key)}>{value === null || value === "" ? "—" : String(value)}</Fact>
               ))}
             </Facts>
@@ -179,7 +180,9 @@ export default function VerificationPage() {
         {selected.items.map((item) => (
           <Section key={item.id} title={item.verification.kind_label} aside={<Status value={item.verification.status} />}>
             {item.verification.kind === "provider" && item.verification.method === "management_approval" ? <p className="management-hint">Review this provider account and its recorded terms acceptance. Registration does not require identity documents; approval does not verify a property or a biometric identity.</p> : null}
+            {item.verification.kind === "provider_credentials" ? <p className="management-hint">Review the submitted provider credentials and documents. Identity and contact checks must be current; approval does not verify ownership, management authority or the condition of any property.</p> : null}
             {item.verification.method_label ? <p className="management-hint">{item.verification.method_label}</p> : null}
+            <VideoPlayer video={item.verification.subject_context?.video as WalkthroughVideo | null | undefined} label="Submitted video" />
             {item.verification.evidence.length ? (
               <ul className="management-file-list">
                 {item.verification.evidence.map((evidence) => (
@@ -187,7 +190,6 @@ export default function VerificationPage() {
                     <button type="button" onClick={() => void openEvidence(item, evidence)}>
                       <Icon name={/\.(jpe?g|png|webp|heic)$/i.test(evidence.filename) ? "photos" : "leases"} />
                       <span>{evidence.filename || humanize(evidence.evidence_type)}</span>
-                      <small>Opens in a new tab</small>
                     </button>
                   </li>
                 ))}
@@ -206,7 +208,7 @@ export default function VerificationPage() {
               </label>
               <label>
                 Internal review note
-                <textarea value={internalNote} onChange={(event) => setInternalNote(event.target.value)} placeholder="Risk signals or corroborating checks. Never copy passwords or one-time codes." disabled={busy !== null} />
+                <textarea value={internalNote} onChange={(event) => setInternalNote(event.target.value)} placeholder="Record risks or evidence. Leave out passwords and one-time codes." disabled={busy !== null} />
                 <small>Seen only by Management.</small>
               </label>
               <Feedback error={error} />

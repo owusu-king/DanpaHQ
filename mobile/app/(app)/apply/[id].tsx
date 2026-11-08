@@ -40,17 +40,26 @@ export default function ApplyScreen() {
   const [error, setError] = useState("");
   const [loadError, setLoadError] = useState("");
 
-  const load = useCallback(() => {
-    setLoadError("");
-    setListing(null);
+  const load = useCallback((signal?: AbortSignal) => {
     getListing(id)
-      .then(setListing)
-      .catch((cause) => setLoadError(
-        cause instanceof ApiFailure ? cause.error.message : "We could not open this listing.",
-      ));
+      .then((value) => { if (!signal?.aborted) setListing(value); })
+      .catch((cause) => {
+        if (!signal?.aborted) setLoadError(cause instanceof ApiFailure ? cause.error.message : "We could not open this listing.");
+      });
   }, [id]);
 
-  useEffect(() => { load(); }, [load]);
+  const [previousId, setPreviousId] = useState(id);
+  if (previousId !== id) {
+    setPreviousId(id);
+    setLoadError("");
+    setListing(null);
+  }
+
+  useEffect(() => {
+    const controller = new AbortController();
+    load(controller.signal);
+    return () => controller.abort();
+  }, [load]);
 
   const asked = listing?.advance_months ?? 0;
   const offered = Number(advance || 0);
@@ -96,7 +105,7 @@ export default function ApplyScreen() {
     return (
       <View style={{ padding: space[5], gap: space[3] }}>
         <Notice tone="error" title={loadError} />
-        <Button label="Try again" variant="secondary" onPress={load} />
+        <Button label="Try again" variant="secondary" onPress={() => { setLoadError(""); setListing(null); load(); }} />
         <Button label="Back to rentals" variant="quiet" onPress={() => router.replace("/(app)/search")} />
       </View>
     );
@@ -134,7 +143,6 @@ export default function ApplyScreen() {
           <Notice
             tone="warning"
             title={`That is ${shortfall} month${shortfall === 1 ? "" : "s"} short of what they asked`}
-            body="You can still apply. Say in your message how you would cover the rest — landlords here do negotiate, and being straight about it beats agreeing and then failing at signing."
           />
         ) : advance ? (
           <Notice
@@ -155,7 +163,6 @@ export default function ApplyScreen() {
 
       <View style={{ gap: space[3] }}>
         <Type variant="title2">Your rental context</Type>
-        <Type variant="caption">Optional details help the provider assess the application without collecting an exact salary.</Type>
         <Field label="Preferred move-in date" hint="YYYY-MM-DD" value={moveInFrom} onChangeText={setMoveInFrom} />
         <Field label="Occupation" value={occupation} onChangeText={setOccupation} />
         <Field label="Employer" value={employer} onChangeText={setEmployer} />
@@ -176,9 +183,6 @@ export default function ApplyScreen() {
 
       <View style={{ gap: space[3] }}>
         <Type variant="title2">Someone who will vouch for you</Type>
-        <Type variant="caption">
-          Optional, but most landlords ask. Someone who knows you and will pick up the phone.
-        </Type>
         <Field label="Their name" value={guarantorName} onChangeText={setGuarantorName} />
         <Field
           label="Their number"

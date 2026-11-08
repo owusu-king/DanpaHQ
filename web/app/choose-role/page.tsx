@@ -59,9 +59,6 @@ function ChooseRoleContent() {
     <div style={{ maxWidth: "38rem", margin: "0 auto", padding: "var(--space-12) var(--space-5)" }}>
       <p className="type-label">STEP 2 OF 2</p>
       <h1 className="type-display-2">What are you here to do?</h1>
-      <p className="type-body" style={{ color: "var(--color-ink-700)" }}>
-        This opens the experience you need now. It does not permanently define your account.
-      </p>
       <div style={{ display: "grid", gap: "var(--space-3)", margin: "var(--space-6) 0" }}>
         {OPTIONS.map(([value, title, body]) => (
           <button

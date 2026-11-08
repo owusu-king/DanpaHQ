@@ -2,13 +2,13 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { useMemo, useRef, useState } from "react";
 import {
   LayoutAnimation,
-  PanResponder,
   Pressable,
   StyleSheet,
   Switch,
   View,
   type AccessibilityActionEvent,
 } from "react-native";
+import { usePanResponder } from "@/usePanResponder";
 
 import { Type, motion, radius, space } from "@/components/ui";
 import { useReduceMotion } from "@/motion";
@@ -101,47 +101,8 @@ export function PriceRange({
   const [low, high] = drag?.range ?? committed;
   const [usable, setUsable] = useState(0);
 
-  // Read inside the responders, which are made once.
-  const live = useRef({ low, high, usable });
-  live.current = { low, high, usable };
-  const commit = useRef(onChange);
-  commit.current = onChange;
-
-  const responders = useMemo(() => {
-    const responder = (thumb: Thumb) => {
-      let origin = 0;
-      let latest: [number, number] = [0, LAST];
-      const settle = () => {
-        setDrag(null);
-        commit.current(amountAt(latest[0], 0), amountAt(latest[1], LAST));
-      };
-      return PanResponder.create({
-        onStartShouldSetPanResponder: () => true,
-        onPanResponderGrant: () => {
-          const current = live.current;
-          latest = [current.low, current.high];
-          origin = ((thumb === "low" ? current.low : current.high) / LAST) * current.usable;
-          setDrag({ thumb, range: latest });
-        },
-        onPanResponderMove: (_, gesture) => {
-          const width = Math.max(1, live.current.usable);
-          const index = Math.round((clamp(origin + gesture.dx, 0, width) / width) * LAST);
-          const next: [number, number] = thumb === "low"
-            ? [Math.min(index, latest[1] - 1), latest[1]]
-            : [latest[0], Math.max(index, latest[0] + 1)];
-          if (next[0] === latest[0] && next[1] === latest[1]) return;
-          latest = next;
-          setDrag({ thumb, range: next });
-          tick();
-        },
-        // A thumb keeps its drag, however far it strays from the track.
-        onPanResponderTerminationRequest: () => false,
-        onPanResponderRelease: () => settle(),
-        onPanResponderTerminate: () => settle(),
-      });
-    };
-    return { low: responder("low"), high: responder("high") };
-  }, []);
+  const lowThumb = usePriceThumb("low", low, high, usable, onChange, setDrag);
+  const highThumb = usePriceThumb("high", low, high, usable, onChange, setDrag);
 
   const adjust = (thumb: Thumb, event: AccessibilityActionEvent) => {
     const step = event.nativeEvent.actionName === "increment" ? 1 : -1;
@@ -169,7 +130,7 @@ export function PriceRange({
     const edge = thumb === "low" ? 0 : LAST;
     return (
       <View
-        {...responders[thumb].panHandlers}
+        {...(thumb === "low" ? lowThumb : highThumb)}
         accessible
         accessibilityRole="adjustable"
         accessibilityLabel={thumb === "low" ? "Minimum rent" : "Maximum rent"}
@@ -544,3 +505,42 @@ const styles = StyleSheet.create({
     color: theme.color.ink["700"],
   },
 });
+
+function usePriceThumb(
+  thumb: Thumb,
+  low: number,
+  high: number,
+  usable: number,
+  onChange: (min: string, max: string) => void,
+  setDrag: (drag: { thumb: Thumb; range: [number, number] } | null) => void,
+) {
+  const origin = useRef(0);
+  const latest = useRef<[number, number]>([0, LAST]);
+  const settle = () => {
+    setDrag(null);
+    onChange(amountAt(latest.current[0], 0), amountAt(latest.current[1], LAST));
+  };
+  return usePanResponder({
+    onStartShouldSetPanResponder: () => true,
+    onPanResponderGrant: () => {
+      latest.current = [low, high];
+      origin.current = ((thumb === "low" ? low : high) / LAST) * usable;
+      setDrag({ thumb, range: latest.current });
+    },
+    onPanResponderMove: (_, gesture) => {
+      const width = Math.max(1, usable);
+      const index = Math.round((clamp(origin.current + gesture.dx, 0, width) / width) * LAST);
+      const next: [number, number] = thumb === "low"
+        ? [Math.min(index, latest.current[1] - 1), latest.current[1]]
+        : [latest.current[0], Math.max(index, latest.current[0] + 1)];
+      if (next[0] === latest.current[0] && next[1] === latest.current[1]) return;
+      latest.current = next;
+      setDrag({ thumb, range: next });
+      tick();
+    },
+    // A thumb keeps its drag, however far it strays from the track.
+    onPanResponderTerminationRequest: () => false,
+    onPanResponderRelease: () => settle(),
+    onPanResponderTerminate: () => settle(),
+  });
+}

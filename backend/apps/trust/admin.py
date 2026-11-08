@@ -51,7 +51,7 @@ class VerificationAdmin(admin.ModelAdmin):
     inlines = [EvidenceInline]
     actions = ("approve_through_workflow", "reject_through_workflow")
 
-    @admin.action(description="Approve selected checks through the audited workflow")
+    @admin.action(description="Approve selected checks")
     def approve_through_workflow(self, request, queryset):
         completed = 0
         for verification in queryset:
@@ -79,7 +79,7 @@ class VerificationAdmin(admin.ModelAdmin):
             if not verification.decision_note.strip():
                 self.message_user(
                     request,
-                    f"{verification}: add an actionable decision note before rejecting.",
+                    f"{verification}: explain what needs to change before rejecting.",
                     level=messages.ERROR,
                 )
                 continue

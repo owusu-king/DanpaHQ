@@ -36,7 +36,7 @@ test("the account rent arrives in leads, and what is missing when there is none"
   assert.match(card, /\{profile\.institution\} · \{profile\.status_display\}/);
   assert.match(card, /accessibilityLabel=\{`In use: \$\{profile\.account_name\}, \$\{profile\.institution\}, \$\{profile\.masked_account\}, \$\{profile\.status_display\}`\}/);
 
-  assert.match(source, /<Footnote>Paystack sends rent to this account after its fee\. Payments already in progress are never redirected\.<\/Footnote>/);
+  assert.match(source, /<Footnote>Receive online rent payments here\.<\/Footnote>/);
   assert.match(source, /\{state\.profiles\.length > 0 && !state\.active_profile \? \(\s*<Notice tone="warning" title="Choose an account for new payments"/);
   assert.doesNotMatch(source, /variant="display2"|PAYOUT DESTINATION/);
 });
@@ -76,14 +76,14 @@ test("adding one is a panel opened on request, and the number is never kept", ()
   assert.match(source, /label=\{method === "bank" \? "Find your bank" : "Find your network"\}/);
   assert.match(source, /accessibilityRole="radio"\s*aria-checked=\{bankCode === institution\.code\}/);
   assert.match(source, /accessibilityLabel=\{`Change \$\{method === "bank" \? "bank" : "network"\}, currently \$\{selectedInstitution\?\.name\}`\}/);
-  assert.match(source, /hint="Used only to create the Paystack subaccount\. Danpa HQ does not retain this number\."/);
+  assert.match(source, /hint="Used to set up payouts\. Danpa HQ does not store this number\."/);
   assert.match(source, /setAccountNumber\(value\.replace\(\/\\s\/g, ""\)\); setResolved\(null\);/);
 
   // Confirm, then save: a bank account is named back before it is added.
   assert.match(source, /\{method === "bank" && bankCode && !resolved \? \(\s*<Button label="Confirm account" variant="secondary" busy=\{busy === "resolve"\} disabled=\{!accountNumber\.trim\(\)\}/);
   assert.match(source, /\{\(method === "mobile_money" && bankCode\) \|\| resolved \? \(/);
   assert.match(source, /<Button label="Add receiving account" busy=\{busy === "save"\} disabled=\{!accountNumber\.trim\(\)\} onPress=\{\(\) => void saveAccount\(\)\} \/>/);
-  assert.match(source, /Property owners bear Paystack’s transaction fee\./);
+  assert.match(source, /Property owners pay Paystack’s transaction fee\. A Danpa HQ platform charge may also apply\./);
   assert.match(source, /setAccountNumber\(""\); setResolved\(null\); setShowSetup\(false\);/);
 });
 

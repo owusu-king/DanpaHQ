@@ -25,18 +25,24 @@ export default function ViewingCheckInScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
-  const load = useCallback(async () => {
-    try {
-      const item = (await listMyViewings()).find((candidate) => candidate.id === viewingId);
+  const load = useCallback(async (signal?: AbortSignal) => {
+    await listMyViewings().then((viewings) => {
+      if (signal?.aborted) return;
+      const item = viewings.find((candidate) => candidate.id === viewingId);
       if (!item) throw new Error("not_found");
       setViewing(item);
       setError("");
-    } catch (cause) {
+    }).catch((cause) => {
+      if (signal?.aborted) return;
       setError(cause instanceof ApiFailure ? cause.error.message : "We could not open this check-in.");
-    }
+    });
   }, [viewingId]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    const controller = new AbortController();
+    void load(controller.signal);
+    return () => controller.abort();
+  }, [load]);
 
   async function issue() {
     if (!viewingId) return;

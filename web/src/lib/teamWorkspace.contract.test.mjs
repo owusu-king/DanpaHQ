@@ -53,7 +53,7 @@ test("Property scope is settled as a set, not one request per tick", () => {
 test("a scoped role is told why the roster is absent, not shown an empty one", () => {
   const team = read("web/app/settings/team/page.tsx");
 
-  assert.match(team, /the roster is not shown to you/);
+  assert.match(team, /Owners and administrators manage membership/);
 
   // Listing members is owner/admin only, so Team is the only surface that reads
   // the roster at all — nothing else can turn that refusal into a count.

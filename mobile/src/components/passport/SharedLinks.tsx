@@ -60,7 +60,6 @@ export function SharedLinks({
             icon="link-outline"
             ground={theme.color.field["0"]}
             title="Not shared with anyone"
-            hint="Make a read-only link for a landlord you’re applying to."
             action={<Act primary icon="share-outline" label="Share" onPress={onShare} />}
           />
         </View>

@@ -157,6 +157,14 @@ def render_agreement(*, lease, template, terms: dict) -> tuple[dict, str]:
                 }
             )
 
+    if terms.get("activation_requirement") == "initial_payment":
+        sections.append({
+            "id": "payment_activation", "title": "Activation after upfront payment",
+            "kind": "standard",
+            "body": "After both parties accept, this agreement activates only when the full "
+                    "agreed upfront rent, deposit and fees are independently confirmed. "
+                    "A recorded payment awaiting confirmation does not activate the tenancy.",
+        })
     reference = reference_for(lease)
     document = {
         "title": template.title,

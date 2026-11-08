@@ -26,8 +26,15 @@ def stored_file(data):
     )
 
 
-@pytest.mark.parametrize("verdict,expected", [(True, True), (False, False)])
-def test_explicit_verdict(monkeypatch, settings, verdict, expected):
+@pytest.mark.parametrize(
+    "payload,expected",
+    [
+        ({"CleanResult": True, "FoundViruses": None}, True),
+        ({"CleanResult": True, "FoundViruses": []}, True),
+        ({"CleanResult": False, "FoundViruses": [{"VirusName": "EICAR"}]}, False),
+    ],
+)
+def test_explicit_verdict(monkeypatch, settings, payload, expected):
     data = b"test image bytes"
     settings.CLOUDMERSIVE_API_KEY = "test-key"
     monkeypatch.setattr(scanner, "get_storage", lambda: MemoryObject(data))
@@ -38,7 +45,7 @@ def test_explicit_verdict(monkeypatch, settings, verdict, expected):
         assert files["inputFile"][0] == "upload.jpg"
         assert files["inputFile"][1] == data
         assert timeout[0] > 0 and timeout[1] > 0
-        return SimpleNamespace(raise_for_status=lambda: None, json=lambda: {"CleanResult": verdict})
+        return SimpleNamespace(raise_for_status=lambda: None, json=lambda: payload)
 
     monkeypatch.setattr(scanner.requests, "post", post)
     assert scanner.scan_with_cloudmersive(stored_file(data)) is expected

@@ -1,6 +1,6 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { useEffect, useRef, type ReactNode } from "react";
-import { Animated, Easing, Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
+import { useEffect, type ReactNode } from "react";
+import { Animated, useAnimatedValue, Easing, Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
 
 import { motion, space } from "@/components/ui";
 import { useReduceMotion } from "@/motion";
@@ -50,7 +50,7 @@ export function Rise({
   style?: StyleProp<ViewStyle>;
 }) {
   const reduce = useReduceMotion();
-  const progress = useRef(new Animated.Value(0)).current;
+  const progress = useAnimatedValue(0);
 
   useEffect(() => {
     const run = Animated.timing(progress, {
@@ -88,7 +88,7 @@ export function Rise({
  */
 export function Shake({ signal, children }: { signal: unknown; children: ReactNode }) {
   const reduce = useReduceMotion();
-  const offset = useRef(new Animated.Value(0)).current;
+  const offset = useAnimatedValue(0);
 
   useEffect(() => {
     if (!signal || reduce) return;
@@ -127,8 +127,8 @@ export function RoleCard({
   onPress: () => void;
 }) {
   const reduce = useReduceMotion();
-  const on = useRef(new Animated.Value(selected ? 1 : 0)).current;
-  const press = useRef(new Animated.Value(0)).current;
+  const on = useAnimatedValue(selected ? 1 : 0);
+  const press = useAnimatedValue(0);
 
   useEffect(() => {
     const run = Animated.timing(on, {
@@ -215,9 +215,9 @@ const ROLE_INK = theme.color.ink["900"];
  */
 export function SuccessMark({ tone = KOLA }: { tone?: string }) {
   const reduce = useReduceMotion();
-  const disc = useRef(new Animated.Value(reduce ? 1 : 0)).current;
-  const mark = useRef(new Animated.Value(reduce ? 1 : 0)).current;
-  const ring = useRef(new Animated.Value(reduce ? 1 : 0)).current;
+  const disc = useAnimatedValue(reduce ? 1 : 0);
+  const mark = useAnimatedValue(reduce ? 1 : 0);
+  const ring = useAnimatedValue(reduce ? 1 : 0);
 
   useEffect(() => {
     if (reduce) return;
@@ -271,7 +271,7 @@ export function SuccessMark({ tone = KOLA }: { tone?: string }) {
  */
 export function PendingPulse({ color = theme.color.gold["600"] }: { color?: string }) {
   const reduce = useReduceMotion();
-  const pulse = useRef(new Animated.Value(0)).current;
+  const pulse = useAnimatedValue(0);
 
   useEffect(() => {
     if (reduce) return;
@@ -414,7 +414,7 @@ const styles = StyleSheet.create({
  */
 export function FieldEdge({ focused, wrong }: { focused: boolean; wrong: boolean }) {
   const reduce = useReduceMotion();
-  const lit = useRef(new Animated.Value(focused || wrong ? 1 : 0)).current;
+  const lit = useAnimatedValue(focused || wrong ? 1 : 0);
 
   useEffect(() => {
     const run = Animated.timing(lit, {

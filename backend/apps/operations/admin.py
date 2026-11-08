@@ -43,8 +43,7 @@ class ManagementUserChangeForm(forms.ModelForm):
         required=False,
         help_text=(
             "Leave blank to keep the current password. "
-            "If a new password is set, the user will be required "
-            "to change it on their next login."
+            "If set, the user must change it at their next sign-in."
         ),
     )
 

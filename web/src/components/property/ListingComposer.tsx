@@ -74,7 +74,6 @@ export function ListingComposer({
         <div style={{ display: "grid", gap: "var(--space-4)" }}>
           <Field
             label="Headline"
-            hint="Lead with the detail that helps someone recognize the home."
             placeholder="Chamber and hall in East Legon, prepaid meter"
             value={headline}
             maxLength={160}
@@ -112,7 +111,7 @@ export function ListingComposer({
       </section>
 
       </fieldset>
-      {error ? <Notice tone="error" title={error} body="Your listing details are still here. Review them and try again." /> : null}
+      {error ? <Notice tone="error" title={error} /> : null}
       <div><Button type="submit" busy={busy} busyLabel="Publishing…" disabled={!headline.trim() || !description.trim() || rentMinor <= 0}>Publish to Explore</Button></div>
     </form>
   );

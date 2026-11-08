@@ -52,7 +52,7 @@ test("the head summarises, tools earn their space, and every state is designed",
   assert.match(body, /<WorkspaceHead\s+icon="saved"\s+title="Saved"/);
   assert.match(body, /const showOrder = kept\.length > 1;/);
   assert.match(body, /const showSearch = kept\.length > 6 \|\| Boolean\(query\);/);
-  assert.match(body, /title="Nothing saved yet"/);
+  assert.match(body, /title="No saved rentals yet"/);
   assert.match(body, /tone="error"/);
   assert.match(body, /No longer available/);
 });

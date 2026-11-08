@@ -313,7 +313,7 @@ export function ArtisanApplicationForm({
             {attempted && missing.id ? <Missing text="Add a photo of your ID." /> : null}
           </Step>
         ) : mode === "edit" ? null : (
-          <Notice tone="success" title="Your ID is already on file" body="Danpa HQ checked your identity before, so there is nothing to upload here." />
+          <Notice tone="success" title="Your ID is already on file" />
         )}
       </Rise>
 

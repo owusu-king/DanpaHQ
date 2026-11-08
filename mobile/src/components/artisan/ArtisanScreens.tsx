@@ -148,7 +148,7 @@ export function ArtisanHomeScreen() {
         {invitations === null ? <ActivityIndicator color={AMBER} /> : newInvites ? (
           <Count count={newInvites} label={newInvites === 1 ? "invitation waiting for your quote" : "invitations waiting for your quote"} />
         ) : (
-          <Empty compact ground={WHITE} icon="document-text-outline" title="No invitations yet" hint="When a tenant or property provider asks you to quote, it appears here." />
+          <Empty compact ground={WHITE} icon="document-text-outline" title="No invitations yet" />
         )}
       </Card>
 
@@ -162,7 +162,7 @@ export function ArtisanHomeScreen() {
         {jobs === null ? <ActivityIndicator color={KOLA} /> : activeJobs ? (
           <Count count={activeJobs} label={activeJobs === 1 ? "job under way" : "jobs under way"} />
         ) : (
-          <Empty compact ground={WHITE} icon="construct-outline" title="No active jobs" hint="A job starts here once a customer approves your quote." />
+          <Empty compact ground={WHITE} icon="construct-outline" title="No active jobs" />
         )}
       </Card>
     </Page>
@@ -177,12 +177,12 @@ export function ArtisanRequestsScreen() {
     <Page>
       <Briefing
         title="Quote invitations"
-        parts={waiting ? [{ text: `${waiting} waiting for your quote`, tone: AMBER, strong: true }] : [{ text: "and the quotes you send in reply", tone: theme.color.ink["500"] }]}
+        parts={waiting ? [{ text: `${waiting} waiting for your quote`, tone: AMBER, strong: true }] : []}
       />
       <SuspendedNotice me={me} />
       <WorkRows
         rows={rows}
-        empty={{ icon: "document-text-outline", title: "No quote invitations yet", hint: "You see the area and the problem. The address opens only if your quote is approved." }}
+        empty={{ icon: "document-text-outline", title: "No quote invitations yet" }}
       />
     </Page>
   );
@@ -193,11 +193,11 @@ export function ArtisanJobsScreen() {
   const rows = useWork(listMyJobs);
   return (
     <Page>
-      <Briefing title="Jobs" parts={[{ text: "work a customer approved, with the address and contact", tone: theme.color.ink["500"] }]} />
+      <Briefing title="Jobs" />
       <SuspendedNotice me={me} />
       <WorkRows
         rows={rows}
-        empty={{ icon: "construct-outline", title: "No jobs yet", hint: "A job appears here once a customer approves your quote." }}
+        empty={{ icon: "construct-outline", title: "No jobs yet" }}
       />
     </Page>
   );
@@ -229,7 +229,7 @@ function WorkRows({
   empty,
 }: {
   rows: ArtisanInvitation[] | null;
-  empty: { icon: keyof typeof Ionicons.glyphMap; title: string; hint: string };
+  empty: { icon: keyof typeof Ionicons.glyphMap; title: string; hint?: string };
 }) {
   const router = useRouter();
   if (rows === null) return <ActivityIndicator color={AMBER} style={{ paddingVertical: space[8] }} />;

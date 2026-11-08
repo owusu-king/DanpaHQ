@@ -21,6 +21,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.core.exceptions import NotFound
+from apps.idempotency.services import idempotent_mutation
 
 # IsPhoneVerified is imported inside classes to keep the module-level graph acyclic.
 from . import services, storage
@@ -57,6 +58,7 @@ class ReserveUploadView(APIView):
 
         return [IsAuthenticated, IsPhoneVerified]
 
+    @idempotent_mutation(resource_type="file", resource_id_path=("file_id",))
     def post(self, request):
         payload = ReserveUploadSerializer(data=request.data)
         payload.is_valid(raise_exception=True)
@@ -220,12 +222,25 @@ def local_download(request, key: str):
     inline = request.query_params.get("disposition") == "inline"
     stored = StoredFile.objects.filter(storage_key=key).first()
     is_image = bool(stored and (stored.content_type or "").startswith("image/"))
-    is_guide_media = bool(stored and stored.is_usable and (
-        (stored.purpose == "guide_video" and stored.content_type in {"video/mp4", "video/webm"})
-        or (stored.purpose == "guide_captions" and stored.content_type == "text/vtt")
-    ))
+    is_guide_media = bool(
+        stored
+        and stored.is_usable
+        and (
+            (stored.purpose == "guide_video" and stored.content_type in {"video/mp4", "video/webm"})
+            or (stored.purpose == "guide_captions" and stored.content_type == "text/vtt")
+        )
+    )
 
-    if inline and (is_image or is_guide_media):
+    is_walkthrough = bool(
+        stored
+        and stored.is_usable
+        and not stored.is_sensitive
+        and stored.purpose in {"property_video", "unit_video"}
+        and stored.content_type == "video/mp4"
+        and stored.metadata.get("video_validated")
+    )
+
+    if inline and (is_image or is_guide_media or is_walkthrough):
         response = HttpResponse(data, content_type=stored.content_type)
         response["Content-Disposition"] = "inline"
     else:
@@ -233,6 +248,33 @@ def local_download(request, key: str):
         filename = request.query_params.get("filename")
         if filename:
             response["Content-Disposition"] = f'attachment; filename="{filename}"'
+
+    # Byte ranges let native and browser players seek without downloading twice.
+    if inline and (is_guide_media or is_walkthrough) and stored.content_type.startswith("video/"):
+        response["Accept-Ranges"] = "bytes"
+        requested = request.headers.get("Range", "")
+        if requested:
+            import re
+
+            match = re.fullmatch(r"bytes=(\d*)-(\d*)", requested) if len(requested) <= 80 else None
+            if match is None or not any(match.groups()):
+                response = HttpResponse(status=416)
+            else:
+                start, end = match.groups()
+                first = int(start) if start else max(0, len(data) - int(end))
+                last = min(int(end), len(data) - 1) if start and end else len(data) - 1
+                if first > last or first >= len(data):
+                    response = HttpResponse(status=416)
+                else:
+                    response = HttpResponse(
+                        data[first : last + 1], status=206, content_type=stored.content_type
+                    )
+                    response["Content-Disposition"] = "inline"
+                    response["Content-Range"] = f"bytes {first}-{last}/{len(data)}"
+                    response["Accept-Ranges"] = "bytes"
+            if response.status_code == 416:
+                response["Content-Range"] = f"bytes */{len(data)}"
+        response["Content-Length"] = str(len(response.content))
 
     # Never let a proxy or browser keep a copy of a signed private object.
     response["Cache-Control"] = "private, no-store"

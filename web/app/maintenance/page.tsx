@@ -55,7 +55,7 @@ export default function MaintenancePage() {
 function Loading() {
   return (
     <div className="ws-page maintenance-workspace">
-      <WorkspaceHead icon="wrench" title="Maintenance" summary="Manage reported repairs and follow each request through to completion." />
+      <WorkspaceHead icon="wrench" title="Maintenance" />
       <section className="ws-panel" aria-busy="true" aria-label="Maintenance"><PanelSkeleton rows={4} /></section>
     </div>
   );
@@ -125,7 +125,6 @@ function TenantMaintenance() {
       <WorkspaceHead
         icon="wrench"
         title="Maintenance"
-        summary="Report problems in your home and follow the progress of repairs."
         actions={canReport ? (
           <button type="button" className="ws-action is-primary" onClick={() => setReporting("1")}><Icon name="plus" />Report a problem</button>
         ) : null}
@@ -136,7 +135,6 @@ function TenantMaintenance() {
           eyebrow="Confirm the fix"
           title={firstAsking.category_display}
           detail={firstAsking.place.unit_label}
-          hint="Your landlord says it is fixed. Tell them whether it is."
           photoUrl={firstAsking.photo?.url}
           icon="wrench"
           more={asking.length > 1 ? { count: asking.length - 1, onShow: () => set({ show: "" }) } : undefined}
@@ -166,11 +164,11 @@ function TenantMaintenance() {
           <PanelState
             icon="wrench"
             title="Nothing reported"
-            body={canReport ? "A leak, a fault, a broken lock — report it with a photo and your landlord is told at once." : "Once your tenancy is active you can report problems here."}
+            body={canReport ? undefined : "Once your tenancy is active you can report problems here."}
             action={canReport ? <button type="button" className="ws-action is-primary" onClick={() => setReporting("1")}><Icon name="plus" />Report a problem</button> : null}
           />
         ) : !shown.length ? (
-          <PanelState icon={stage === "open" ? "check" : "wrench"} title={stage === "open" ? "Nothing open" : "Nothing completed yet"} body={stage === "open" ? "Every request you made has been confirmed fixed." : "Requests you confirm as fixed are kept here."} />
+          <PanelState icon={stage === "open" ? "check" : "wrench"} title={stage === "open" ? "Nothing open" : "Nothing completed yet"} />
         ) : (
           <RequestRows rows={shown} side="tenant" onOpen={(id) => setOpenId(id)} />
         )}
@@ -252,7 +250,6 @@ function ProviderMaintenance() {
       <WorkspaceHead
         icon="wrench"
         title="Maintenance"
-        summary="Manage reported repairs and follow each request through to completion."
       />
 
       {firstWaiting ? (
@@ -261,7 +258,7 @@ function ProviderMaintenance() {
           eyebrow={firstWaiting.status === "reopened" ? "Reopened by the tenant" : "New request"}
           title={firstWaiting.category_display}
           detail={`${firstWaiting.tenant.name} · ${firstWaiting.place.unit_label}`}
-          hint={`Reported ${onDate(firstWaiting.created_at)}. Start the work when someone is on it.`}
+          hint={`Reported ${onDate(firstWaiting.created_at)}`}
           photoUrl={firstWaiting.photo?.url}
           icon="wrench"
           more={waiting.length > 1 ? { count: waiting.length - 1, onShow: () => set({ show: "" }) } : undefined}
@@ -290,12 +287,11 @@ function ProviderMaintenance() {
         ) : error && !requests.length ? (
           <PanelState tone="error" icon="warning" title="Maintenance didn’t load" body={error} action={<button type="button" className="ws-action" onClick={() => void load()}>Try again</button>} />
         ) : !requests.length ? (
-          <PanelState icon="wrench" title="No maintenance requests" body="When a tenant reports a problem it arrives here with their photo, and you are notified." />
+          <PanelState icon="wrench" title="No maintenance requests" />
         ) : !shown.length ? (
           <PanelState
             icon={stage === "new" ? "check" : "wrench"}
             title={{ new: "Nothing new", working: "Nothing in progress", asking: "Nobody to wait on", completed: "Nothing completed yet" }[stage]}
-            body={{ new: "Every request has been started.", working: "Start a new request and it moves here.", asking: "Fixes you report wait here for the tenant to confirm.", completed: "Repairs tenants confirm are kept here." }[stage]}
           />
         ) : (
           <RequestRows rows={shown} side="provider" onOpen={(id) => setOpenId(id)} />

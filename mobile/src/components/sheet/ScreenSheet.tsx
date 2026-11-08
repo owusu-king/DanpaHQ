@@ -4,7 +4,6 @@ import {
   BackHandler,
   Easing,
   Keyboard,
-  PanResponder,
   Pressable,
   StyleSheet,
   View,
@@ -13,6 +12,7 @@ import {
   type PanResponderGestureState,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { usePanResponder } from "@/usePanResponder";
 
 import { motion } from "@/components/ui";
 import { useReduceMotion } from "@/motion";
@@ -122,39 +122,37 @@ export function ScreenSheet({ ref, onClose, closeLabel, ground, children }: Scre
     }).start();
   };
 
-  const grab = useMemo(() => {
-    const settle = (gesture: PanResponderGestureState) => {
-      const position = dragBase.current + gesture.dy;
-      const letGo = Math.min(travel.current * DISMISS_SHARE, DISMISS_DISTANCE);
-      if (position > letGo || (gesture.vy > DISMISS_VELOCITY && gesture.dy > 0)) {
-        dismiss(Math.max(0, gesture.vy));
-        return;
-      }
-      Animated.spring(translate, {
-        toValue: 0,
-        velocity: gesture.vy * 1000,
-        overshootClamping: true,
-        useNativeDriver: true,
-      }).start();
-    };
-    return PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onPanResponderGrant: () => {
-        Keyboard.dismiss();
-        dragBase.current = 0;
-        translate.stopAnimation((value) => {
-          dragBase.current = value;
-        });
-      },
-      onPanResponderMove: (_, gesture) => {
-        const next = dragBase.current + gesture.dy;
-        translate.setValue(next >= 0 ? next : -OVERPULL * (1 - Math.exp(next / OVERPULL)));
-      },
-      onPanResponderTerminationRequest: () => false,
-      onPanResponderRelease: (_, gesture) => settle(gesture),
-      onPanResponderTerminate: (_, gesture) => settle(gesture),
-    });
-  }, [dismiss, translate]);
+  const settle = (gesture: PanResponderGestureState) => {
+    const position = dragBase.current + gesture.dy;
+    const letGo = Math.min(travel.current * DISMISS_SHARE, DISMISS_DISTANCE);
+    if (position > letGo || (gesture.vy > DISMISS_VELOCITY && gesture.dy > 0)) {
+      dismiss(Math.max(0, gesture.vy));
+      return;
+    }
+    Animated.spring(translate, {
+      toValue: 0,
+      velocity: gesture.vy * 1000,
+      overshootClamping: true,
+      useNativeDriver: true,
+    }).start();
+  };
+  const grab = usePanResponder({
+    onStartShouldSetPanResponder: () => true,
+    onPanResponderGrant: () => {
+      Keyboard.dismiss();
+      dragBase.current = 0;
+      translate.stopAnimation((value) => {
+        dragBase.current = value;
+      });
+    },
+    onPanResponderMove: (_, gesture) => {
+      const next = dragBase.current + gesture.dy;
+      translate.setValue(next >= 0 ? next : -OVERPULL * (1 - Math.exp(next / OVERPULL)));
+    },
+    onPanResponderTerminationRequest: () => false,
+    onPanResponderRelease: (_, gesture) => settle(gesture),
+    onPanResponderTerminate: (_, gesture) => settle(gesture),
+  });
 
   const scrim = useMemo(
     () => translate.interpolate({
@@ -178,7 +176,7 @@ export function ScreenSheet({ ref, onClose, closeLabel, ground, children }: Scre
           style={[styles.sheet, { backgroundColor: ground, transform: [{ translateY: translate }] }]}
         >
           {children}
-          <View collapsable={false} style={styles.handle} {...grab.panHandlers}>
+          <View collapsable={false} style={styles.handle} {...grab}>
             <View style={styles.grabber} />
           </View>
         </Animated.View>

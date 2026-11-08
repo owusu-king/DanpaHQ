@@ -17,6 +17,8 @@ model refuses it and so does the database.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from django.db import models
 from django.db.models import F, Q
 
@@ -61,10 +63,22 @@ class BillingInvoice(BaseModel):
     billing_interval = models.CharField(max_length=12, choices=BillingInterval.choices)
 
     #: The plan's price for this interval at issue.
+    if TYPE_CHECKING:
+        list_price_minor: int
+        list_price_currency: str
+
     list_price = MoneyField()
     #: Already-paid, unused time on the previous plan, taken off the list price.
+    if TYPE_CHECKING:
+        credit_minor: int
+        credit_currency: str
+
     credit = MoneyField()
     #: What is charged. Always the list price less the credit, always positive.
+    if TYPE_CHECKING:
+        amount_minor: int
+        amount_currency: str
+
     amount = MoneyField()
 
     status = models.CharField(

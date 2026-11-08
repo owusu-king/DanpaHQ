@@ -11,7 +11,6 @@ import { SheetPrimaryButton } from "@/components/sheet/SheetParts";
 import { useHomeDensity } from "@/components/home/plinth";
 import {
   EmptyState,
-  Footnote,
   GroupLabel,
   HARMATTAN,
   InfoNote,
@@ -165,13 +164,9 @@ export default function ArchiveScreen() {
               icon="file-tray-outline"
               hero
               title="Your archive is empty"
-              hint="A Property or Unit you take out of your working portfolio waits here with its history, ready to restore."
             />
           )
         }
-        ListFooterComponent={total ? (
-          <Footnote>Archiving keeps a resource and its history. Restoring is possible only while its current lifecycle allows it.</Footnote>
-        ) : null}
       />
 
       <BottomSheet

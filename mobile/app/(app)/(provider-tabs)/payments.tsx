@@ -13,7 +13,6 @@ import { Panel } from "@/components/billing/BillingSurfaces";
 import { shortDate, useHomeDensity } from "@/components/home/plinth";
 import {
   FAINT,
-  Footnote,
   GroupLabel,
   HARMATTAN,
   INK,
@@ -233,7 +232,6 @@ function ProviderPaymentsScreen() {
           if (entry.kind === "payoutNote") {
             return (
               <View style={styles.note}>
-                <Footnote>Property owners bear Paystack’s transaction fee. A payout is counted as yours once it is settled.</Footnote>
                 {canManagePayouts && organizationId ? <QuietAction icon="card-outline" label="Manage settlement account" onPress={() => router.push({ pathname: "/(app)/payout-account", params: { organizationId } } as never)} /> : null}
               </View>
             );
@@ -253,7 +251,7 @@ function ProviderPaymentsScreen() {
             );
           }
           if (entry.kind === "noExpenses") {
-            return <Empty compact icon="receipt-outline" title="No expenses recorded" hint="Repairs, utilities and levies you pay for a Property can be kept here. Recording one moves no money." />;
+            return <Empty compact icon="receipt-outline" title="No expenses recorded" />;
           }
           if (entry.kind === "recordExpense") {
             return <View style={styles.record}><ExpenseAction label="Record expense" onPress={() => setShowExpense(true)} /></View>;
@@ -272,13 +270,12 @@ function ProviderPaymentsScreen() {
           <Empty
             icon="wallet-outline"
             title="No rent to track yet"
-            hint="Balances, payments and payouts appear here once a tenancy is running."
             action={<ExpenseAction label="Record an expense" onPress={() => setShowExpense(true)} />}
           />
         ) : needle ? (
-          <Empty icon="search-outline" title="No matching payments" hint="Try another tenant, Property, Unit or method." />
+          <Empty icon="search-outline" title="No matching payments" />
         ) : summary && !loading ? (
-          <Empty compact icon="wallet-outline" title={financeView === "balances" ? "No rent due" : financeView === "records" ? "No payment records yet" : financeView === "payouts" ? "No payouts yet" : "No expenses recorded"} hint="Records will appear here when there is activity in this part of Finance." />
+          <Empty compact icon="wallet-outline" title={financeView === "balances" ? "No rent due" : financeView === "records" ? "No payment records yet" : financeView === "payouts" ? "No payouts yet" : "No expenses recorded"} />
         ) : null}
         ListFooterComponent={financeView !== "pnl" && summary && !needle && summary.verification.payments_ready < summary.verification.properties_total ? (
           <View style={styles.labelGap}>

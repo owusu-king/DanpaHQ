@@ -84,6 +84,9 @@ def _let(landlord, unit, tenant, bed=None, **terms):
     )
     services.offer_lease(lease=lease, user=landlord)
     services.accept_lease(lease=lease, user=tenant)
+    from tests.payment_helpers import confirm_initial_payment
+
+    confirm_initial_payment(lease)
     lease.refresh_from_db()
     return lease
 

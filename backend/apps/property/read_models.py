@@ -110,6 +110,7 @@ def property_list_queryset(queryset, *, user):
 
     return (
         queryset.select_related(
+            "video",
             "address__locality__district__region",
             "address__locality__region",
             "owner",

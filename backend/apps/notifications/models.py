@@ -25,6 +25,8 @@ from django.db import models
 
 from apps.core.models import BaseModel
 
+FCM_TOKEN_PREFIX = "fcm:"  # noqa: S105 - stored provider discriminator, not a credential
+
 
 class NotificationChannel(models.TextChoices):
     IN_APP = "in_app", "In the app"
@@ -81,6 +83,23 @@ class Notification(BaseModel):
     @property
     def is_read(self) -> bool:
         return self.read_at is not None
+
+
+class PushDelivery(models.Model):
+    """A durable send claim. A provider timeout can leave acceptance unknown."""
+
+    notification = models.ForeignKey(Notification, on_delete=models.CASCADE)
+    device = models.ForeignKey("identity.Device", on_delete=models.CASCADE)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["notification", "device"], name="unique_notification_push_device"
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.notification_id} for {self.device_id}"
 
 
 class NotificationKey(models.Model):

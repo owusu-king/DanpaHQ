@@ -1,3 +1,4 @@
+import { VideoPlayer } from "@/components/property/WalkthroughVideo";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import * as Linking from "expo-linking";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -70,7 +71,7 @@ export default function ListingDetailScreen() {
   const [zoomed, setZoomed] = useState(false);
   const [browsingPhotos, setBrowsingPhotos] = useState(false);
   const [expandedTrust, setExpandedTrust] = useState(false);
-  const width = useRef(Dimensions.get("window").width).current;
+  const [width] = useState(() => Dimensions.get("window").width);
   // Under 380pt the two acts stack rather than squeezing their labels onto two lines.
   const narrow = width < 380;
   const insets = useSafeAreaInsets();
@@ -84,12 +85,17 @@ export default function ListingDetailScreen() {
     requestSignIn(next);
   }
 
-  useEffect(() => {
-    let current = true;
+  const [previousId, setPreviousId] = useState(id);
+  if (previousId !== id) {
+    setPreviousId(id);
     setListing(null);
     setRelated(null);
     setLoadError("");
     setPhotoIndex(0);
+  }
+
+  useEffect(() => {
+    let current = true;
     getListingDetail(id)
       .then((value) => { if (current) setListing(value); })
       .catch((cause) =>
@@ -301,6 +307,8 @@ export default function ListingDetailScreen() {
           landlord's own words, then the building around it. Each is one white
           card on the ivory page, so the eye can find a section by its shape.
         */}
+      <VideoPlayer video={listing.space.video} label="Unit video" caption />
+      <VideoPlayer video={listing.property_context.video} label="Property video" caption />
         <View style={styles.page}>
           <View style={styles.identity}>
             <Type variant="display2" accessibilityRole="header">{listing.headline}</Type>
@@ -369,6 +377,7 @@ export default function ListingDetailScreen() {
             {expandedTrust ? (
               <View style={styles.stamps}>
                 <Stamp state={listing.trust_stamps.identity.state} what="Identity" />
+                {listing.provider_passports?.map(passport => <Stamp key={passport.name} state="verified" what={`${passport.name} · Provider Passport`} />)}
                 <Stamp state={place.authority.state} what={listing.provider_label} />
                 <Stamp state={rentable.verification.checked ? "verified" : "unverified"} what="This space" />
                 <Type variant="caption" style={styles.muted}>

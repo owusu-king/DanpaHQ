@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ListingCard } from "@/components/listings/ListingCard";
+import { SavedSales } from "@/components/sales/SavedSales";
 import { Icon } from "@/components/portal/icons";
 import { FilterMenu, PanelSearch, PanelState, WorkspaceHead, gridKeyNavigation } from "@/components/workspace/Workspace";
 import { ApiFailure } from "@/lib/api";
@@ -130,11 +131,11 @@ export default function SavedPage() {
       <WorkspaceHead
         icon="saved"
         title="Saved"
-        summary="Keep your shortlisted places together and revisit your favourites."
         actions={kept.length ? <Link href="/rentals" className="ws-action"><Icon name="explore" />Find more</Link> : null}
       />
 
-      <section className="ws-panel is-canvas saved-panel" aria-label="Saved places" aria-busy={loading || undefined}>
+      <SavedSales />
+      <section className="ws-panel is-canvas saved-panel" aria-label="Saved rentals" aria-busy={loading || undefined}>
         {showOrder || showSearch ? (
           <div className="ws-panel-head">
             <div className="ws-panel-tools">
@@ -173,7 +174,7 @@ export default function SavedPage() {
               tone="error"
               icon="warning"
               title="Your shortlist didn’t load"
-              body={`${error} Check your connection and try again.`}
+              body={error}
               action={<button type="button" className="ws-action" disabled={retrying} onClick={() => void retry()}>{retrying ? "Retrying…" : "Try again"}</button>}
             />
           </div>
@@ -181,8 +182,7 @@ export default function SavedPage() {
           <div className="saved-state">
             <PanelState
               icon="saved"
-              title="Nothing saved yet"
-              body="Tap the heart on a rental while you look and it waits here, so you can compare a shortlist instead of trying to remember."
+              title="No saved rentals yet"
               action={<Link href="/rentals" className="ws-action is-primary"><Icon name="explore" />Explore rentals</Link>}
             />
           </div>
@@ -218,7 +218,6 @@ export default function SavedPage() {
                   <Link href="/rentals" className="saved-more-link">
                     <span className="saved-more-mark" aria-hidden="true"><Icon name="explore" /></span>
                     <strong>Keep looking</strong>
-                    <span>Save a few more to compare rent, advance and area side by side.</span>
                   </Link>
                 </li>
               ) : null}
@@ -229,7 +228,6 @@ export default function SavedPage() {
             <PanelState
               icon="explore"
               title={`Nothing matches “${query.trim()}”`}
-              body="Try another name or area."
               action={<button type="button" className="ws-action" onClick={() => setQuery("")}>Clear search</button>}
             />
           </div>

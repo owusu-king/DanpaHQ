@@ -43,6 +43,41 @@ class ConfigurationField:
 
 FIELDS = (
     ConfigurationField(
+        "LEASE_ACTIVATION_REQUIREMENT", "Leases and viewings", "Lease activation",
+        "Controls visibility of upfront activation prompts. The full agreed initial payment "
+        "must be confirmed before a tenancy activates, even when prompts are hidden.",
+        kind="choice", choices=(("disabled", "Disabled — hide upfront payment activation"),
+                                ("initial_payment", "Both accept and upfront payment confirmed")),
+    ),
+    ConfigurationField(
+        "VIEWING_FEE_MODE", "Leases and viewings", "Viewing fee policy",
+        "Disabled hides fees and stops new collection. Free shows a Free label. "
+        "Existing agreed fees and payment records are preserved.",
+        kind="choice", choices=(("disabled", "Disabled — hide viewing fees"),
+                                ("free", "Free"), ("fixed", "Standard fee"),
+                                ("provider", "Provider sets fee within limits")),
+    ),
+    ConfigurationField(
+        "VIEWING_FEE_COLLECTION", "Leases and viewings", "Viewing fee collection",
+        "Collect through Danpa HQ checkout or pay the provider directly.",
+        kind="choice", choices=(
+            ("platform", "Danpa HQ checkout"), ("direct", "Pay provider directly")),
+    ),
+    ConfigurationField(
+        "VIEWING_FEE_FIXED_MINOR", "Leases and viewings", "Standard viewing fee (pesewas)",
+        "100 pesewas = GH₵1. Used for the standard fee policy.",
+        kind="integer", minimum=0, maximum=100000000,
+    ),
+    ConfigurationField(
+        "VIEWING_FEE_MIN_MINOR", "Leases and viewings", "Minimum provider viewing fee (pesewas)",
+        "Lower limit when providers set their fee.", kind="integer", minimum=0, maximum=100000000,
+    ),
+    ConfigurationField(
+        "VIEWING_FEE_MAX_MINOR", "Leases and viewings", "Maximum provider viewing fee (pesewas)",
+        "Upper limit when providers set their fee. Zero permits only free viewings.",
+        kind="integer", minimum=0, maximum=100000000,
+    ),
+    ConfigurationField(
         "PAYMENT_BACKEND",
         "Payments",
         "Payment provider",
@@ -162,10 +197,22 @@ FIELDS = (
         "NOTIFICATION_EMAIL_BACKEND",
         "Email delivery",
         "Email provider",
-        "Brevo sends alerts and verification codes. Otherwise verification uses the deployment "
-        "email backend.",
+        "The selected provider sends alerts and verification codes. Otherwise verification "
+        "uses the deployment email backend.",
         kind="choice",
-        choices=(("", "Deployment default (alerts off)"), ("brevo", "Brevo")),
+        choices=(("", "Deployment default (alerts off)"), ("brevo", "Brevo"), ("resend", "Resend")),
+    ),
+    ConfigurationField(
+        "RESEND_API_KEY", "Email delivery", "Resend API key",
+        "Saved encrypted and never shown again.", secret=True, max_length=500,
+    ),
+    ConfigurationField(
+        "RESEND_SENDER_EMAIL", "Email delivery", "Resend sender email",
+        "An address authorized to send from a verified Resend domain.", max_length=254,
+    ),
+    ConfigurationField(
+        "RESEND_SENDER_NAME", "Email delivery", "Resend sender name",
+        "The name recipients see, for example Danpa HQ.", max_length=80,
     ),
     ConfigurationField(
         "BREVO_API_KEY",
@@ -178,14 +225,14 @@ FIELDS = (
     ConfigurationField(
         "BREVO_SENDER_EMAIL",
         "Email delivery",
-        "Sender email",
+        "Brevo sender email",
         "An address verified and authorized to send transactional email in Brevo.",
         max_length=254,
     ),
     ConfigurationField(
         "BREVO_SENDER_NAME",
         "Email delivery",
-        "Sender name",
+        "Brevo sender name",
         "The name recipients see, for example Danpa HQ.",
         max_length=80,
     ),
@@ -313,7 +360,7 @@ def _normalise(field: ConfigurationField, raw: Any) -> str:
         and not all(token in text for token in ("{z}", "{x}", "{y}"))
     ):
         raise ValidationFailed("The tile URL must contain {z}, {x} and {y}.")
-    if field.key == "BREVO_SENDER_EMAIL" and text:
+    if field.key in {"BREVO_SENDER_EMAIL", "RESEND_SENDER_EMAIL"} and text:
         try:
             validate_email(text)
         except ValidationError as exc:
@@ -406,6 +453,9 @@ def apply_updates(*, updates: list[dict], actor: ManagementUser) -> dict:
                 ]
             },
         )
+
+    if value("VIEWING_FEE_MIN_MINOR", 0) > value("VIEWING_FEE_MAX_MINOR", 0):
+        raise ValidationFailed("The minimum viewing fee cannot exceed the maximum.")
 
     # Providers cache their adapter instances. Forget them after a successful
     # transaction so the very next operation observes the new selection.

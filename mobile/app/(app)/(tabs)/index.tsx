@@ -45,9 +45,8 @@ function DiscoveryHome() {
   const pageBottom = space[12] + useFloatingTabBarClearance();
   const { providerError } = useLocalSearchParams<{ providerError?: string }>();
   const { state, refreshMe } = useAuth();
-  const [workspaceBusy, setWorkspaceBusy] = useState(false);
   const [workspaceError, setWorkspaceError] = useState(providerError ?? "");
-  const [providerRequested, setProviderRequested] = useState(false);
+  const [providerRequest, setProviderRequest] = useState<"waiting" | "sign-in" | "open" | null>(null);
   const [tenancies, setTenancies] = useState<Tenancy[]>([]);
   const [leases, setLeases] = useState<Lease[]>([]);
   const [applications, setApplications] = useState<RentalApplication[]>([]);
@@ -116,56 +115,54 @@ function DiscoveryHome() {
 
   useFocusEffect(useCallback(() => { void loadTenantHome(); }, [loadTenantHome]));
 
-  const openListingWorkspace = useCallback(async () => {
+  const canOpenProvider = state.status === "signed_in"
+    && state.me.capabilities.available_workspaces.includes("provider");
+  const providerAccessError = "This account is registered as a tenant. Provider accounts are created at sign-up, and "
+    + "a Portfolio owner can invite you into their Team.";
+
+  if (providerRequest === "waiting" && state.status !== "loading") {
+    setProviderRequest(state.status === "signed_out" ? "sign-in" : canOpenProvider ? "open" : null);
+    if (state.status === "signed_in" && !canOpenProvider) setWorkspaceError(providerAccessError);
+    if (canOpenProvider) setWorkspaceError("");
+  }
+
+  const openListingWorkspace = () => {
     if (state.status === "loading") {
-      setProviderRequested(true);
-      return;
-    }
-    setProviderRequested(false);
-    if (state.status === "signed_out") {
-      // Sign in, not sign up. Most people tapping this already have an account,
-      // and the sign-in screen is the one place that offers both.
+      setProviderRequest("waiting");
+    } else if (state.status === "signed_out") {
       router.push({ pathname: "/(auth)/sign-in", params: { workspace: "provider" } });
-      return;
+    } else if (canOpenProvider) {
+      setWorkspaceError("");
+      setProviderRequest("open");
+    } else {
+      setWorkspaceError(providerAccessError);
     }
-    if (state.status !== "signed_in") return;
+  };
 
-    // A signed-in tenant cannot become a provider by pressing this. Say so here
-    // rather than sending a request the backend will refuse — but ask the
-    // backend's question, not a narrower one: somebody invited into a Portfolio
-    // has no provider journey of their own and still belongs in the workspace.
-    if (!state.me.capabilities.available_workspaces.includes("provider")) {
-      setWorkspaceError(
-        "This account is registered as a tenant. Provider accounts are created at sign-up, and "
-        + "a Portfolio owner can invite you into their Team.",
-      );
-      return;
-    }
+  // A queued tap can reach sign-in once session restoration finishes.
+  useEffect(() => {
+    if (providerRequest !== "sign-in") return;
+    router.push({ pathname: "/(auth)/sign-in", params: { workspace: "provider" } });
+  }, [providerRequest, router]);
 
-    setWorkspaceBusy(true);
-    setWorkspaceError("");
-    try {
-      // Ask for the provider experience and go where the backend says that
-      // lands. It is the verification screen until standing is approved, and
-      // jumping straight to the provider tabs was a promise the API would then
-      // refuse.
-      const me = await chooseWorkspace("provider");
-      await refreshMe();
-      router.replace(resolveEntryRoute(me) as never);
-    } catch (cause) {
-      setWorkspaceError(
-        cause instanceof ApiFailure ? cause.error.message : "Could not open property tools.",
-      );
-    } finally {
-      setWorkspaceBusy(false);
-    }
-  }, [refreshMe, router, state]);
+  useFocusEffect(useCallback(() => {
+    setProviderRequest((request) => request === "sign-in" ? null : request);
+  }, []));
 
   useEffect(() => {
-    if (providerRequested && state.status !== "loading") {
-      void openListingWorkspace();
-    }
-  }, [openListingWorkspace, providerRequested, state.status]);
+    if (providerRequest !== "open") return;
+    let live = true;
+    void chooseWorkspace("provider").then(async (me) => {
+      if (!live) return;
+      await refreshMe();
+      if (live) router.replace(resolveEntryRoute(me) as never);
+    }).catch((cause) => {
+      if (live) setWorkspaceError(cause instanceof ApiFailure ? cause.error.message : "Could not open property tools.");
+    }).finally(() => {
+      if (live) setProviderRequest(null);
+    });
+    return () => { live = false; };
+  }, [providerRequest, refreshMe, router]);
 
   if (tenantMode) {
     const home = rankHomes(tenancies)[0];
@@ -253,7 +250,7 @@ function DiscoveryHome() {
               ? "Open property tools"
               : "I own or manage property"
           }
-          providerBusy={workspaceBusy || providerRequested}
+          providerBusy={providerRequest === "open" || providerRequest === "waiting"}
           providerBusyLabel={
             state.status === "loading" ? "Checking your session…" : "Opening…"
           }

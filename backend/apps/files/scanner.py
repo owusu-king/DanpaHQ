@@ -48,8 +48,9 @@ def scan_with_cloudmersive(stored) -> bool:
 
     if not isinstance(verdict, dict) or type(verdict.get("CleanResult")) is not bool:
         raise ScanError("Malware scanner response has no definitive verdict")
-    found = verdict.get("FoundViruses", [])
-    if not isinstance(found, list):
+    # Cloudmersive returns null for the threat list on a clean scan.
+    found = verdict.get("FoundViruses")
+    if found is not None and not isinstance(found, list):
         raise ScanError("Malware scanner response has an invalid threat list")
     if found and verdict["CleanResult"]:
         raise ScanError("Malware scanner returned contradictory verdicts")

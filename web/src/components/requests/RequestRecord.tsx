@@ -177,7 +177,6 @@ export function RequestRecord({
           <Notice
             tone="warning"
             title="Decline this request?"
-            body="They will see it was not accepted."
           />
           <Field
             label={request ? "Reason (optional)" : "Note to the applicant (optional)"}

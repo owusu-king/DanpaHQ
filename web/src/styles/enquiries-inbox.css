@@ -504,6 +504,9 @@
 
 @media (max-width: 47.99rem) {
   .inbox { inset: 0; width: 100vw; height: 100dvh; margin: 0; border-radius: 0; border: 0; }
+  .inbox-head { padding-top: max(1rem, env(safe-area-inset-top)); }
+  .inbox-composer { padding-bottom: max(.75rem, env(safe-area-inset-bottom)); }
+  .inbox-icon-button, .inbox-send, .inbox-close-list, .inbox-back { min-width: 44px; min-height: 44px; }
   .inbox::backdrop { inset: 0; }
   .inbox[open] { animation: modal-sheet-in var(--modal-sheet-duration) var(--modal-spring) both; }
   .inbox.is-closing { animation: modal-sheet-out var(--modal-close-duration) var(--motion-easing-exit) forwards; }

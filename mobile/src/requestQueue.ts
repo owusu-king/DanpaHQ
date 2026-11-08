@@ -157,7 +157,8 @@ export function standingLine(item: RequestItem): string {
   if (lease === "offered") return "Tenant is reviewing the agreement";
   if (lease === "tenant_accepted") return "Tenant accepted — confirm to start";
   if (lease === "awaiting_activation") {
-    const requirement = item.kind === "application" ? item.lease?.activation_requirement : null;
+    const requirement = item.kind === "application" && item.lease?.upfront_payment_enabled !== false
+      ? item.lease?.activation_requirement : null;
     return requirement === "initial_payment" ? "Waiting for the first payment" : "Waiting for activation";
   }
   if (lease === "active") return "Moved in";

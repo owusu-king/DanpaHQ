@@ -80,7 +80,7 @@ test("signed PUT keeps both the actual bytes and the reserved JPEG MIME", async 
   const h = harness({ method: "PUT" });
   await h.api.uploadImage({ uri: h.prepared.uri }, "property_document");
   assert.deepEqual(Array.from(h.transfers[0].encoded.body), Array.from(bytes));
-  assert.equal(h.transfers[0].encoded.overriddenHeaders[0][1], "image/jpeg");
+  assert.equal(new Headers(h.transfers[0].encoded.defaultHeaders).get("content-type"), "image/jpeg");
   assert.equal(h.transfers[0].options.headers["Content-Type"], "image/jpeg");
 });
 

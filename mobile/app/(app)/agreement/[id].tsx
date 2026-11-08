@@ -19,7 +19,7 @@ import {
   StandingLine,
   type RecordTone,
 } from "@/components/record/RecordSurfaces";
-import { Field, Notice, Type, space } from "@/components/ui";
+import { Button, Field, Notice, Type, space } from "@/components/ui";
 import { acceptLease, declineLease, leaseAction, listMyLeases, type Lease } from "@/leases";
 import { printLeaseDocument, shareLeaseDocument } from "@/leaseDocuments";
 import { useSafeBottom } from "@/platform";
@@ -54,22 +54,25 @@ export default function AgreementScreen() {
   const [loadError, setLoadError] = useState("");
   const pageBottom = useSafeBottom(space[8]);
 
-  const load = useCallback(async () => {
-    try {
-      const mine = await listMyLeases();
+  const load = useCallback(async (signal?: AbortSignal) => {
+    await listMyLeases().then((mine) => {
+      if (signal?.aborted) return;
       const found = mine.find((row) => row.id === id) ?? null;
       setLease(found);
       setMissing(found === null);
-    } catch (cause) {
+    }).catch((cause) => {
+      if (signal?.aborted) return;
       setMissing(true);
       setLoadError(
         cause instanceof ApiFailure ? cause.error.message : "We could not open that agreement.",
       );
-    }
+    });
   }, [id]);
 
   useEffect(() => {
-    void load();
+    const controller = new AbortController();
+    void load(controller.signal);
+    return () => controller.abort();
   }, [load]);
   useEffect(() => {
     if (
@@ -128,6 +131,8 @@ export default function AgreementScreen() {
       ) : null}
 
       <View style={styles.section}>
+        {(lease.upfront_payment_enabled !== false && lease.activation_requirement === "initial_payment") ? <Notice tone="info" title="Activation requires confirmed upfront payment" body="After both parties accept, all agreed upfront rent, deposit and fees must be independently confirmed." /> : null}
+        {lease.status === "awaiting_activation" ? <Button label="View payment obligations" onPress={() => router.push({ pathname: "/(app)/rent-account", params: { leaseId: lease.id, mode: "tenant" } } as never)} /> : null}
         <GroupLabel>What it costs</GroupLabel>
         <RecordPanel>
           <Lead label="Move-in total" value={money(terms.moveInTotalMinor, terms.rentCurrency)} />

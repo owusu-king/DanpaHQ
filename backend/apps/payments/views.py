@@ -41,6 +41,16 @@ class PaymentIntentListCreateView(APIView):
     def post(self, request):
         payload = CreatePaymentIntentSerializer(data=request.data)
         payload.is_valid(raise_exception=True)
+        if payload.validated_data.get("viewing_id"):
+            from apps.viewing.services import get_request_or_404
+
+            from .viewing_fees import create_intent
+
+            intent = create_intent(
+                viewing=get_request_or_404(payload.validated_data["viewing_id"]),
+                user=request.user, payment_method=payload.validated_data["payment_method"],
+            )
+            return Response(PaymentIntentSerializer(intent).data, status=status.HTTP_201_CREATED)
         obligation = RentCharge.objects.filter(id=payload.validated_data["obligation_id"]).first()
         if obligation is None:
             raise NotFound("We could not find that payment obligation.")

@@ -133,7 +133,6 @@ test("the collection stays calm and discloses more on request", () => {
   assert.match(body, /rows\.slice\(0, limit\)/);
   assert.match(body, /className="tenant-viewing-load-more"/);
   assert.match(body, /initialLimit=\{8\}/);
-  assert.match(body, /summary="Arrange property visits and keep track of your viewing schedule\."/);
 });
 
 test("a reminder still points straight at one appointment", () => {

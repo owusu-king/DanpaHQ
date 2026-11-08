@@ -21,6 +21,20 @@ def test_readiness_reports_each_dependency(client):
     assert set(body["checks"]) == {"database", "cache"}
 
 
+def test_readiness_does_not_expose_dependency_error_contents(client, monkeypatch):
+    from apps.core import health
+
+    def failed_database():
+        raise RuntimeError("postgresql://private-user:private-password@internal-host/database")
+
+    monkeypatch.setattr(health, "_check_database", failed_database)
+    response = client.get("/readyz")
+    assert response.status_code == 503
+    assert response.json()["checks"]["database"]["detail"] == "RuntimeError"
+    assert b"private-password" not in response.content
+    assert b"internal-host" not in response.content
+
+
 def test_every_response_carries_a_request_id(client):
     response = client.get("/api/v1/meta/")
     assert response["X-Request-ID"]

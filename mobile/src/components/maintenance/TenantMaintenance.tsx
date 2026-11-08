@@ -139,7 +139,7 @@ export function TenantMaintenanceScreen() {
               </View>
             );
           }
-          if (entry.kind === "calm") return <Calm text="Nothing is waiting on your landlord. If something breaks, report it below with a photo." />;
+          if (entry.kind === "calm") return <Calm text="Nothing is waiting on your landlord." />;
           return (
             <ListRow first={entry.first} last={entry.last}>
               {entry.first ? null : <View style={styles.rule} />}
@@ -151,9 +151,7 @@ export function TenantMaintenanceScreen() {
           <Empty
             icon="construct-outline"
             title="Nothing reported"
-            hint={canReport
-              ? "A leak, a fault, a broken lock — report it with a photo and your landlord is told at once."
-              : "Once your tenancy is active you can report problems here."}
+            hint={canReport ? undefined : "Once your tenancy is active you can report problems here."}
           />
         ) : null}
       />

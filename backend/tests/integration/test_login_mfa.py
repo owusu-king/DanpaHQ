@@ -244,7 +244,8 @@ def test_django_password_first_enrollment_qr_and_recovery_ack(settings):
     pending = response.context_data["form"].mfa_challenge
     assert pending["stage"] == "enroll" and b"<svg" in response.content
     assert b'<details class="mfa-manual">' in response.content
-    assert b"This adds the same account as scanning." in response.content
+    assert b'class="mfa-key"' in response.content
+    assert pending["secret"].encode() in response.content
     assert b'class="errorlist nonfield"' not in response.content
     assert "_auth_user_id" not in client.session
     invalid = client.post(url, {

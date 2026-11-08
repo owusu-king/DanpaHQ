@@ -151,7 +151,7 @@ export default function PayoutAccountScreen() {
       const next = await refreshPayoutVerification(organizationId, profileId);
       setState(next);
       if (next.profiles.find((row) => row.id === profileId)?.status !== "verified") {
-        setStatusNote("Paystack still reports this settlement account as not verified. Confirm it under Subaccounts in the same Paystack mode, then check again.");
+        setStatusNote("Account verification is pending. Check Subaccounts in Paystack using the same mode, then try again.");
       }
     } catch (cause) {
       setError(cause instanceof ApiFailure ? cause.error.message : "Could not check verification with Paystack.");
@@ -194,7 +194,7 @@ export default function PayoutAccountScreen() {
         {state && mayManage ? (
           <>
             <InUse profile={active} saved={state.profiles.length} />
-            <Footnote>Paystack sends rent to this account after its fee. Payments already in progress are never redirected.</Footnote>
+            <Footnote>Receive online rent payments here.</Footnote>
 
             {state.profiles.length > 0 && !state.active_profile ? (
               <Notice tone="warning" title="Choose an account for new payments" body="Online rent payments remain unavailable until a verified account is selected." />
@@ -229,13 +229,6 @@ export default function PayoutAccountScreen() {
                     ) : null}
                   </View>
                 ))}
-                {!state.profiles.length ? (
-                  <View style={styles.none}>
-                    <Type variant="caption" style={rowStyles.rowSub}>
-                      Add a bank or Mobile Money account, then verify it with Paystack.
-                    </Type>
-                  </View>
-                ) : null}
               </Panel>
               {!showSetup && state.profiles.length ? (
                 <View style={styles.addRow}>
@@ -245,7 +238,7 @@ export default function PayoutAccountScreen() {
             </View>
 
             {checking ? (
-              <Notice tone="info" title="Checking with Paystack" body="The first request may have completed. Danpa HQ is finding that exact setup before allowing another attempt." />
+              <Notice tone="info" title="Checking with Paystack" body="Your request may have completed. Wait for this check before retrying." />
             ) : showSetup || state.profiles.length === 0 ? (
               <View style={styles.section}>
                 <GroupLabel>Add an account</GroupLabel>
@@ -312,7 +305,7 @@ export default function PayoutAccountScreen() {
                       keyboardType="number-pad"
                       autoComplete="off"
                       textContentType="none"
-                      hint="Used only to create the Paystack subaccount. Danpa HQ does not retain this number."
+                      hint="Used to set up payouts. Danpa HQ does not store this number."
                     />
                   ) : null}
 
@@ -336,8 +329,8 @@ export default function PayoutAccountScreen() {
                     <View style={styles.save}>
                       <Button label="Add receiving account" busy={busy === "save"} disabled={!accountNumber.trim()} onPress={() => void saveAccount()} />
                       <Type variant="caption" style={rowStyles.rowSub}>
-                        Property owners bear Paystack’s transaction fee. Adding or switching an account does not
-                        redirect payments already in progress.
+                        Property owners pay Paystack’s transaction fee. A Danpa HQ platform charge may also apply.
+                        Payments in progress still go to the original account.
                       </Type>
                     </View>
                   ) : null}

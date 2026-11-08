@@ -69,13 +69,13 @@ test("a session that arrives after the screen fills the fields once, and never o
   // curtain, before the account is known. The fields opened empty, and a save
   // from there sent empty names and switched the data saver off.
   assert.match(source, /const \[dataSaver, setDataSaver\] = useState\(me\?\.data_saver \?\? false\);/);
-  assert.match(source, /const seeded = useRef\(me !== null\);/);
+  assert.match(source, /const \[seeded, setSeeded\] = useState\(me !== null\);/);
   assert.match(
     source,
-    /if \(!me \|\| seeded\.current\) return;\s*seeded\.current = true;\s*setFirstName\(me\.first_name\);\s*setLastName\(me\.last_name\);\s*setPreferredName\(me\.preferred_name\);\s*setBio\(me\.profile\?\.bio \?\? ""\);\s*setDataSaver\(me\.data_saver\);\s*\}, \[me\]\);/,
+    /if \(me && !seeded\) \{\s*setSeeded\(true\);\s*setFirstName\(me\.first_name\);\s*setLastName\(me\.last_name\);\s*setPreferredName\(me\.preferred_name\);\s*setBio\(me\.profile\?\.bio \?\? ""\);\s*setDataSaver\(me\.data_saver\);\s*\}/,
   );
   // Hooks run before the screen can return early, or React's order breaks.
-  assert.match(between(source, "export default function ProfileScreen()", "if (!me) return null;"), /const seeded = useRef/);
+  assert.match(between(source, "export default function ProfileScreen()", "if (!me) return null;"), /const \[seeded, setSeeded\] = useState/);
 
   // "Saved" answers the last save: an edit after it is not saved yet.
   assert.match(source, /const edit = \(set: \(value: string\) => void\) => \(value: string\) => \{\s*setSaved\(false\);\s*set\(value\);\s*\};/);

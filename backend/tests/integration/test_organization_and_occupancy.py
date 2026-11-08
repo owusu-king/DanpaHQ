@@ -333,7 +333,9 @@ class TestOrganizationAuthorization:
                 },
             )
             lease = lease_services.offer_lease(lease=lease, user=owner)
-            return lease_services.accept_lease(lease=lease, user=tenant)
+            from tests.payment_helpers import legacy_active_lease
+
+            return legacy_active_lease(lease_services.accept_lease(lease=lease, user=tenant))
 
         first_lease = activate(first_tenant, first_bed, 100000)
         second_lease = activate(second_tenant, second_bed, 120000)
@@ -349,7 +351,7 @@ class TestOrganizationAuthorization:
             user=first_tenant,
             data={
                 "charge_id": first_charge.id,
-                "amount_minor": 10000,
+                "amount_minor": first_charge.outstanding_minor,
                 "paid_on": timezone.localdate(),
                 "method": "momo",
             },
@@ -364,11 +366,12 @@ class TestOrganizationAuthorization:
         assert rows[str(second_bed.id)]["tenancy_id"] == str(second_lease.tenancy_id)
         assert rows[str(first_bed.id)]["rent"] == {
             "status": "overdue",
-            "outstanding_minor": 25000,
+            "outstanding_minor": 12 * 100000 + 25000,
             "overdue_minor": 25000,
             "next_due_on": (timezone.localdate() - timedelta(days=1)).isoformat(),
         }
-        assert rows[str(second_bed.id)]["rent"]["status"] == "current"
+        assert rows[str(second_bed.id)]["rent"]["status"] == "outstanding"
+        assert rows[str(second_bed.id)]["rent"]["outstanding_minor"] == 12 * 120000
         assert isinstance(rows[str(first_bed.id)]["can_record_payment"], bool)
         assert result["recent_payments"] == [
             {
@@ -377,7 +380,7 @@ class TestOrganizationAuthorization:
                 "tenant_name": first_tenant.display_name,
                 "property_title": "Legon Hostel",
                 "unit_label": "Room 12",
-                "amount_minor": 10000,
+                "amount_minor": first_charge.outstanding_minor,
                 "currency": "GHS",
                 "status": "claimed",
                 "paid_on": timezone.localdate().isoformat(),
@@ -487,7 +490,7 @@ class TestOrganizationAuthorization:
             user=tenant,
             data={
                 "charge_id": charge.id,
-                "amount_minor": 50000,
+                "amount_minor": charge.outstanding_minor,
                 "paid_on": timezone.localdate() - timedelta(days=30),
                 "method": "momo",
             },
@@ -830,8 +833,10 @@ class TestOrganizationAuthorization:
         lease = lease_services.offer_lease(lease=lease, user=owner)
         lease = lease_services.accept_lease(lease=lease, user=tenant)
 
+        charge = rent_services.build_schedule(lease)[0]
         payment_data = {
-            "amount_minor": 100000,
+            "charge_id": charge.id,
+            "amount_minor": charge.outstanding_minor,
             "paid_on": timezone.localdate(),
             "method": "momo",
         }
@@ -1051,6 +1056,9 @@ class TestPrivateTenantAccess:
         )
         first_lease = lease_services.offer_lease(lease=first_lease, user=owner)
         lease_services.accept_lease(lease=first_lease, user=tenant)
+        from tests.payment_helpers import confirm_initial_payment
+
+        confirm_initial_payment(first_lease)
 
         # Access codes are revoked on occupancy, but the allocation boundary
         # must still refuse the exact same space if credential verification is
@@ -1101,6 +1109,7 @@ class TestPrivateTenantAccess:
         )
         second_lease = lease_services.offer_lease(lease=second_lease, user=owner)
         lease_services.accept_lease(lease=second_lease, user=tenant)
+        confirm_initial_payment(second_lease)
         active_occupancies = Occupancy.objects.filter(
             user=tenant, property=prop, ended_at__isnull=True
         )

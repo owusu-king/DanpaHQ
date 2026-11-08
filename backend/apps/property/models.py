@@ -187,6 +187,10 @@ class Property(SoftDeleteModel):
         on_delete=models.SET_NULL,
         related_name="properties_created",
     )
+    video = models.OneToOneField(
+        "files.StoredFile", null=True, blank=True, on_delete=models.PROTECT,
+        related_name="property_video_of",
+    )
     title = models.CharField(
         max_length=120,
         help_text="Internal label. Not what tenants see — the listing has its own headline.",
@@ -415,6 +419,10 @@ class Unit(BaseModel):
     """
 
     property = models.ForeignKey(Property, on_delete=models.CASCADE, related_name="units")
+    video = models.OneToOneField(
+        "files.StoredFile", null=True, blank=True, on_delete=models.PROTECT,
+        related_name="unit_video_of",
+    )
 
     label = models.CharField(
         max_length=40,

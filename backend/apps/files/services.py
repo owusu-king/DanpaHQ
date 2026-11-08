@@ -66,7 +66,11 @@ SENSITIVE_PURPOSES = frozenset(
 
 #: How long an identity document is kept after it is uploaded. Long enough to
 #: defend a verification decision, short enough to honour data minimisation.
-RETENTION_DAYS = {FilePurpose.IDENTITY_DOCUMENT: 400}
+RETENTION_DAYS = {
+    FilePurpose.IDENTITY_DOCUMENT: 400,
+    FilePurpose.PROPERTY_VIDEO: 7,
+    FilePurpose.UNIT_VIDEO: 7,
+}
 
 
 def _extension_for(content_type: str) -> str:
@@ -143,7 +147,7 @@ def reserve_upload(
             raise Conflict(
                 "Uploads are temporarily unavailable while security scanning is configured."
             )
-        if size_bytes > CLOUDMERSIVE_MAX_BYTES:
+        if size_bytes > CLOUDMERSIVE_MAX_BYTES and purpose not in {"property_video", "unit_video"}:
             raise ValidationFailed("This upload must be smaller than 3.5 MB for security scanning.")
 
     normalised_type = content_type.split(";")[0].strip().lower()
@@ -248,6 +252,17 @@ def _complete_upload(*, user, file_id) -> StoredFile:
         # that a file exists but is not theirs is an information leak.
         raise NotFound("We could not find that upload.")
 
+    if stored.upload_status == UploadStatus.UPLOADED and stored.purpose in {
+        "property_video", "unit_video"
+    }:
+        if stored.scan_status == ScanStatus.FAILED:
+            from .tasks import scan_file
+
+            stored.scan_status = ScanStatus.PENDING
+            stored.save(update_fields=["scan_status", "updated_at"])
+            transaction.on_commit(lambda: scan_file.delay(str(stored.id)))
+        return stored
+
     if stored.upload_status == UploadStatus.READY:
         return stored  # idempotent: a retried request must not fail
 
@@ -275,7 +290,8 @@ def _complete_upload(*, user, file_id) -> StoredFile:
             actual_size=actual_size,
             declared_content_type=stored.declared_content_type,
         )
-        if getattr(settings, "FILE_SCAN_MODE", "strict") == "cloudmersive":
+        if (getattr(settings, "FILE_SCAN_MODE", "strict") == "cloudmersive"
+                and stored.purpose not in {"property_video", "unit_video"}):
             from .scanner import CLOUDMERSIVE_MAX_BYTES
 
             if actual_size > CLOUDMERSIVE_MAX_BYTES:
@@ -293,6 +309,22 @@ def _complete_upload(*, user, file_id) -> StoredFile:
     full = storage.read(key=stored.storage_key, length=actual_size + 1)
     if len(full) != actual_size:
         raise _UploadRejected("The file changed during validation. Upload it again.")
+    if stored.purpose in {"property_video", "unit_video"}:
+        from .videos import prepare_video
+
+        try:
+            full, metadata = prepare_video(full)
+        except FileValidationError as exc:
+            raise _UploadRejected(str(exc)) from exc
+        original_key = stored.storage_key
+        stored.storage_key = f"{original_key}.prepared.mp4"
+        storage.write(key=stored.storage_key, data=full)
+        transaction.on_commit(lambda: storage.delete(key=original_key))
+        stored.metadata = metadata
+        stored.original_filename = "video.mp4"
+        detected = "video/mp4"
+        actual_size = len(full)
+
     checksum = hashlib.sha256(full).hexdigest()
 
     stored.content_type = detected
@@ -303,6 +335,9 @@ def _complete_upload(*, user, file_id) -> StoredFile:
     stored.save(
         update_fields=[
             "content_type",
+            "storage_key",
+            "metadata",
+            "original_filename",
             "size_bytes",
             "checksum_sha256",
             "upload_status",
@@ -414,11 +449,11 @@ def issue_download(*, user, stored: StoredFile, reason: str = "") -> object:
     audited, because "who looked at this person's Ghana Card" is a question the
     Data Protection Act expects an answer to.
     """
-    if not stored.is_usable:
-        raise Conflict("That file is not ready yet.")
-
     if not can_read(user=user, stored=stored):
         raise NotFound("We could not find that file.")
+
+    if not stored.is_usable:
+        raise Conflict("That file is not ready yet.")
 
     ttl = SENSITIVE_DOWNLOAD_TTL_SECONDS if stored.is_sensitive else DOWNLOAD_TTL_SECONDS
     presigned = get_storage().presign_download(
@@ -456,6 +491,20 @@ def can_read(*, user, stored: StoredFile) -> bool:
 
     if stored.is_owned_by(user):
         return True
+
+    # Provider credentials use the capability-protected management evidence
+    # route, or their Portfolio's private document route. A legacy support role
+    # alone must not grant access to these identity/business documents.
+    from apps.passport.models import ProviderPassportDocument
+    from apps.trust.models import VerificationEvidence
+
+    if stored.purpose == FilePurpose.PROPERTY_DOCUMENT and (
+        ProviderPassportDocument.objects.filter(file=stored).exists()
+        or VerificationEvidence.objects.filter(
+            file=stored, verification__kind="provider_credentials"
+        ).exists()
+    ):
+        return False
 
     from apps.operations.models import ManagementUser
 

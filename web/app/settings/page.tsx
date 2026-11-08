@@ -47,7 +47,7 @@ export default function ProfileSettingsPage() {
         </Link>
       ) : null}
 
-      <SettingsCard title="Photo" description="Shown to landlords, agents and your team. Initials are used until you add one.">
+      <SettingsCard title="Photo" description="Shown to landlords, agents and your team.">
         <PhotoSection name={me.display_name} photoUrl={me.profile?.avatar_url ?? null} onSaved={refresh} />
       </SettingsCard>
 

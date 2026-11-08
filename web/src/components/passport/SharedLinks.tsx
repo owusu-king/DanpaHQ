@@ -52,7 +52,7 @@ export function SharedLinks({
       ) : !live.length ? (
         <div className="passport-links-empty">
           <span className="passport-links-empty-mark" aria-hidden="true"><Icon name="link" /></span>
-          <p><strong>Not shared with anyone</strong><span>Make a read-only link for a landlord you’re applying to.</span></p>
+          <p><strong>Not shared with anyone</strong></p>
           <button type="button" className="ws-action is-primary" onClick={onShare}><Icon name="share" />Share</button>
         </div>
       ) : (

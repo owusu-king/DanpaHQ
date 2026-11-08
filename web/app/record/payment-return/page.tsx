@@ -111,17 +111,16 @@ export default function PaymentReturnPage() {
   const unsuccessful = intent && ["failed", "expired"].includes(intent.status);
   return (
     <div className="payment-journey payment-status-page">
-      <PageHeader title={intent?.status === "succeeded" ? "Payment confirmed" : "Payment status"} description={intent ? `${intent.property_title} · ${intent.unit_label}` : "Confirming securely with the payment processor."} />
+      <PageHeader title={intent?.status === "succeeded" ? "Payment confirmed" : "Payment status"} description={intent ? `${intent.property_title} · ${intent.unit_label}` : "Checking payment status…"} />
       {loading ? <LoadingRows rows={3} /> : null}
       {error ? <Notice tone="error" title={error} /> : null}
       {intent?.status === "succeeded" ? (
         <>
           <div className="payment-status-mark is-success" aria-hidden="true">✓</div>
           <p className="payment-status-amount">{intent.amount_formatted}</p>
-          <p className="type-caption">Your rent account has been updated. Provider settlement is tracked separately.</p>
           <div className="rent-actions">
             {intent.receipt_id ? <Link className="payment-link-button" href={`/payments?receipt=${intent.receipt_id}` as never}>View receipt</Link> : null}
-            <Link className="payment-secondary-link" href={`/record/payment?leaseId=${intent.lease_id}&mode=tenant` as never}>Rent account</Link>
+            <Link className="payment-secondary-link" href={(intent.viewing_id ? `/record/viewing?viewingId=${intent.viewing_id}` : `/record/payment?leaseId=${intent.lease_id}&mode=tenant`) as never}>{intent.viewing_id ? "Viewing" : "Rent account"}</Link>
           </div>
         </>
       ) : pending ? (
@@ -135,13 +134,13 @@ export default function PaymentReturnPage() {
         </>
       ) : unsuccessful ? (
         <>
-          <Notice tone="warning" title={intent.status === "expired" ? "Payment attempt expired" : "Payment was not completed"} body={intent.failure_message || "No rent was marked paid. You can safely try again."} />
+          <Notice tone="warning" title={intent.status === "expired" ? "Payment attempt expired" : "Payment was not completed"} body={intent.failure_message || "No confirmed payment was recorded. You can safely try again."} />
           <Button busy={checking} onClick={() => void retry()}>Try again</Button>
         </>
       ) : intent?.status === "cancelled" ? (
-        <Notice tone="info" title="Payment was cancelled" body="No rent was marked paid." />
+        <Notice tone="info" title="Payment was cancelled" body="No confirmed payment was recorded." />
       ) : null}
-      {intent ? <Link className="payment-back" href={`/record/payment?leaseId=${intent.lease_id}&mode=tenant` as never}>← Back to rent account</Link> : <Link className="payment-back" href="/home">← Back home</Link>}
+      {intent ? <Link className="payment-back" href={(intent.viewing_id ? `/record/viewing?viewingId=${intent.viewing_id}` : `/record/payment?leaseId=${intent.lease_id}&mode=tenant`) as never}>← Back to {intent.viewing_id ? "viewing" : "rent account"}</Link> : <Link className="payment-back" href="/home">← Back home</Link>}
     </div>
   );
 }

@@ -15,6 +15,7 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
+import { WalkthroughUpload } from "./WalkthroughVideo";
 
 import { EvidenceTile } from "./VerificationPanel";
 import { Notice } from "@/components/Notice";
@@ -33,11 +34,13 @@ export function SpacePhotos({
   unitId,
   editable,
   onChanged,
+  onMediaBusy,
 }: {
   unitId: string;
   /** False while a reviewer holds it, or once it has been approved. */
   editable: boolean;
   onChanged?: () => void | Promise<void>;
+  onMediaBusy?: (busy: boolean) => void;
 }) {
   const [slots, setSlots] = useState<EvidenceSlot[]>([]);
   const [photos, setPhotos] = useState<SpacePhoto[]>([]);
@@ -111,6 +114,7 @@ export function SpacePhotos({
 
   return (
     <div style={{ display: "grid", gap: "var(--space-4)" }}>
+      <WalkthroughUpload subject="unit" id={unitId} editable={editable} onBusy={onMediaBusy} />
       {error ? <Notice tone="error" title={error} /> : null}
       {editable ? <p className="type-caption">The main view and each selected amenity need a photo. The two context views are optional.</p> : null}
 

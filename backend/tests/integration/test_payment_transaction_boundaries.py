@@ -75,6 +75,9 @@ def obligation(landlord, user, unit):
     )
     lease_services.offer_lease(lease=lease, user=landlord)
     lease = lease_services.accept_lease(lease=lease, user=user)
+    from tests.payment_helpers import legacy_active_lease
+
+    legacy_active_lease(lease)
     return lease, rent_services.build_schedule(lease)[0]
 
 
@@ -258,16 +261,23 @@ class TestAnAmbiguousProviderResponseIsRecoverable:
                 obligation=charge, user=user, payment_method="mobile_money"
             )
 
-        part = charge.outstanding_minor // 2
+        lease, charge = obligation
+        lease_services.end_lease(lease=lease, user=landlord, confirmed=True)
+        rent_services.adjust_obligation(
+            charge=charge, user=landlord, kind="waiver",
+            amount_minor=charge.outstanding_minor // 2, reason="Agreed move-out adjustment",
+        )
+        charge.refresh_from_db()
+        remaining = charge.outstanding_minor
         with patch.object(MemoryPaymentProvider, "initiate", Recorder()):
             replacement = payment_services.create_intent(
                 obligation=charge,
                 user=user,
                 payment_method="mobile_money",
-                amount_minor=part,
+                amount_minor=remaining,
             )
 
-        assert replacement.amount_minor == part
+        assert replacement.amount_minor == remaining
         superseded = PaymentIntent.objects.exclude(id=replacement.id).get(obligation=charge)
         assert superseded.status == IntentStatus.CANCELLED
         assert superseded.failure_code == "superseded_before_initiation"
@@ -276,14 +286,20 @@ class TestAnAmbiguousProviderResponseIsRecoverable:
         self, landlord, user, obligation
     ):
         """Two open checkouts for one charge is the thing the gate prevents."""
-        _, charge = obligation
+        lease, charge = obligation
         payment_services.create_intent(obligation=charge, user=user, payment_method="mobile_money")
+        lease_services.end_lease(lease=lease, user=landlord, confirmed=True)
+        rent_services.adjust_obligation(
+            charge=charge, user=landlord, kind="waiver",
+            amount_minor=charge.outstanding_minor // 2, reason="Agreed move-out adjustment",
+        )
+        charge.refresh_from_db()
         with pytest.raises(Conflict, match="already open"):
             payment_services.create_intent(
                 obligation=charge,
                 user=user,
                 payment_method="mobile_money",
-                amount_minor=charge.outstanding_minor // 2,
+                amount_minor=charge.outstanding_minor,
             )
 
     def test_a_callback_that_overtakes_initiation_is_not_written_over(

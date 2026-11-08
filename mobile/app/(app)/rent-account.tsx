@@ -203,7 +203,7 @@ export default function RentAccountScreen() {
             </RecordPanel>
           ) : (
             <RecordPanel>
-              <Fact wide first label="Nothing scheduled" value="Charges appear here as they are raised against this agreement." />
+              <Type variant="body">Nothing scheduled.</Type>
             </RecordPanel>
           )}
           {tenantMode && !ledger.digital_payment.available ? (

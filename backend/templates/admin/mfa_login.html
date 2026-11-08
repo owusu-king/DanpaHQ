@@ -26,7 +26,7 @@
     <div class="mfa-qr" role="img" aria-label="Scan this QR code to add Danpa HQ to your authenticator">{{ form.mfa_challenge.qr_svg|safe }}</div>
     <details class="mfa-manual">
       <summary>Can’t scan the QR code?</summary>
-      <p>Choose <strong>Enter a setup key</strong> in your authenticator. This adds the same account as scanning.</p>
+      <p>Choose <strong>Enter a setup key</strong> in your authenticator.</p>
       <span class="mfa-key-label">Setup key</span>
       <code class="mfa-key">{{ form.mfa_challenge.secret }}</code>
     </details>
@@ -41,7 +41,7 @@
     <div class="mfa-heading">
       <span class="mfa-step">Authenticator connected</span>
       <h2>Save your recovery codes</h2>
-      <p>Keep these somewhere private. Each works once if you lose your authenticator.</p>
+      <p>Store these privately. Each code works once if you lose your authenticator.</p>
     </div>
     {% if form.mfa_challenge.recovery_codes %}
     <ul class="mfa-recovery" aria-label="Recovery codes">

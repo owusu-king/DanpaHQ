@@ -102,7 +102,6 @@ function ProviderLease() {
         <>
           <PageHeader
             title="Agreement not found"
-            description="It may belong to a Portfolio you no longer manage."
           />
           <p className="type-caption">
             <Link href="/leases">Back to Leases</Link>
@@ -185,7 +184,6 @@ function TenantAgreement() {
           <PanelState
             icon="leases"
             title="Agreement not found"
-            body="It may have been withdrawn, or it was never sent to you. Your other agreements are still on the list."
             action={<Link href="/leases" className="ws-action is-primary">Back to Agreements</Link>}
           />
         )}

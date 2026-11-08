@@ -99,7 +99,6 @@ function PortfolioInvitationContent() {
       <div>
         <PageHeader
           title="You are in"
-          description="Your Portfolio is now in the workspace switcher, and the role decides what it opens."
         />
         <JoinedPanel member={joined} onOpen={() => router.push("/home" as never)} />
       </div>
@@ -117,7 +116,6 @@ function PortfolioInvitationContent() {
     <div>
       <PageHeader
         title="Portfolio invitations"
-        description="Review who invited you, the role they are offering, and which Properties are in scope. Nothing is granted until you accept."
       />
       {error ? <Notice tone="error" title={error} /> : null}
       {rows === null ? <LoadingRows rows={2} /> : null}
@@ -125,11 +123,6 @@ function PortfolioInvitationContent() {
         <Notice
           tone="info"
           title="No Portfolio invitation is waiting"
-          body={
-            answered.length
-              ? "The ones below have already been answered or have run out."
-              : "An owner or administrator invites you by your mobile number, and it appears here."
-          }
         />
       ) : null}
 

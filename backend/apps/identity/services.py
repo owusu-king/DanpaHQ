@@ -21,6 +21,7 @@ shape this file:
 from __future__ import annotations
 
 from datetime import timedelta
+from uuid import UUID
 
 from django.conf import settings
 from django.contrib.auth.hashers import make_password
@@ -787,6 +788,12 @@ def _establish_session(
             revoked_reason="device_signed_in_again",
         )
 
+    if device and device.push_token:
+        # A fresh sign-in rechecks OS permission and registers for its new
+        # session. Refresh rotation keeps the existing device registration.
+        device.push_token = ""
+        device.save(update_fields=["push_token"])
+
     session, refresh_token = _open_session(
         user=user, device=device, ip_address=ip_address, user_agent=user_agent,
         mfa_device_id=mfa_proof.credential_id,
@@ -1365,7 +1372,10 @@ def select_onboarding_role(*, user, role: str | None = None, intent: str | None 
     if intent == "both":
         select_onboarding_intent(user=user, intent="find_property")
         return select_onboarding_intent(user=user, intent="manage_property")
-    return select_onboarding_intent(user=user, intent=legacy.get(intent or role, intent or role))
+    selected = intent or role
+    if selected is None:
+        raise ValidationFailed("Choose how you will use Danpa HQ.")
+    return select_onboarding_intent(user=user, intent=legacy.get(selected, selected))
 
 
 @transaction.atomic
@@ -1840,7 +1850,11 @@ def complete_password_reset(*, reset_token: str, new_password: str) -> User:
     if payload.get("act") != "password_reset":
         raise PermissionDenied("That token does not authorise a password reset.")
 
-    user = User.objects.filter(id=payload.get("sub")).first()
+    try:
+        subject = UUID(payload["sub"])
+    except (KeyError, TypeError, ValueError, AttributeError) as exc:
+        raise PermissionDenied("That reset is not valid. Start again.") from exc
+    user = User.objects.filter(id=subject).first()
     if user is None or not user.is_active:
         raise PermissionDenied("That account is not available.")
 

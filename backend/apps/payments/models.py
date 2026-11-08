@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from django.db import models
 from django.utils import timezone
 
@@ -166,6 +168,7 @@ class PaymentPurpose(models.TextChoices):
     """
 
     RENT_OBLIGATION = "rent_obligation", "Rent obligation"
+    VIEWING_FEE = "viewing_fee", "Viewing fee"
     SUBSCRIPTION_INVOICE = "subscription_invoice", "Danpa HQ subscription"
 
 
@@ -180,6 +183,10 @@ class PaymentIntent(BaseModel):
 
     purpose = models.CharField(
         max_length=24, choices=PaymentPurpose.choices, default=PaymentPurpose.RENT_OBLIGATION
+    )
+    viewing = models.ForeignKey(
+        "viewing.ViewingRequest", null=True, blank=True, on_delete=models.PROTECT,
+        related_name="fee_intents",
     )
     tenant = models.ForeignKey(
         "identity.User",
@@ -219,6 +226,10 @@ class PaymentIntent(BaseModel):
         on_delete=models.PROTECT,
         related_name="+",
     )
+    if TYPE_CHECKING:
+        amount_minor: int
+        amount_currency: str
+
     amount = MoneyField()
     status = models.CharField(
         max_length=16, choices=IntentStatus.choices, default=IntentStatus.CREATED
@@ -264,6 +275,10 @@ class PaymentIntent(BaseModel):
         ]
         constraints = [
             models.UniqueConstraint(
+                fields=["viewing"], condition=models.Q(status__in=OPEN_INTENT_STATUSES),
+                name="payments_one_open_intent_viewing",
+            ),
+            models.UniqueConstraint(
                 fields=["obligation"],
                 condition=models.Q(status__in=OPEN_INTENT_STATUSES),
                 name="payments_one_open_intent_per_obligation",
@@ -284,6 +299,7 @@ class PaymentIntent(BaseModel):
                         lease__isnull=False,
                         obligation__isnull=False,
                         billing_invoice__isnull=True,
+                        viewing__isnull=True,
                     )
                     | models.Q(
                         purpose="subscription_invoice",
@@ -292,6 +308,11 @@ class PaymentIntent(BaseModel):
                         tenant__isnull=True,
                         lease__isnull=True,
                         obligation__isnull=True,
+                        viewing__isnull=True,
+                    )
+                    | models.Q(
+                        purpose="viewing_fee", viewing__isnull=False, tenant__isnull=False,
+                        lease__isnull=True, obligation__isnull=True, billing_invoice__isnull=True,
                     )
                 ),
                 name="payments_intent_settles_one_kind_of_obligation",
@@ -305,6 +326,10 @@ class PaymentIntent(BaseModel):
     @property
     def is_subscription(self) -> bool:
         return self.purpose == PaymentPurpose.SUBSCRIPTION_INVOICE
+
+    @property
+    def is_viewing(self) -> bool:
+        return self.purpose == PaymentPurpose.VIEWING_FEE
 
     @property
     def payer_id(self):
@@ -334,6 +359,10 @@ class PaymentTransaction(BaseModel):
     )
     provider = models.CharField(max_length=40)
     provider_transaction_id = models.CharField(max_length=120)
+    if TYPE_CHECKING:
+        amount_minor: int
+        amount_currency: str
+
     amount = MoneyField()
     payment_method = models.CharField(max_length=20, choices=DigitalPaymentMethod.choices)
     status = models.CharField(max_length=16, choices=TransactionStatus.choices)
@@ -378,6 +407,10 @@ class LedgerEntry(BaseModel):
     line_number = models.PositiveSmallIntegerField()
     account_reference = models.CharField(max_length=160)
     direction = models.CharField(max_length=8, choices=LedgerDirection.choices)
+    if TYPE_CHECKING:
+        amount_minor: int
+        amount_currency: str
+
     amount = MoneyField()
     description = models.CharField(max_length=240)
     occurred_at = models.DateTimeField()
@@ -475,8 +508,20 @@ class Settlement(BaseModel):
     provider_subaccount_id = models.CharField(max_length=80, blank=True)
     provider = models.CharField(max_length=40)
     provider_settlement_reference = models.CharField(max_length=120, blank=True)
+    if TYPE_CHECKING:
+        gross_amount_minor: int
+        gross_amount_currency: str
+
     gross_amount = MoneyField()
+    if TYPE_CHECKING:
+        fee_amount_minor: int
+        fee_amount_currency: str
+
     fee_amount = MoneyField()
+    if TYPE_CHECKING:
+        net_amount_minor: int
+        net_amount_currency: str
+
     net_amount = MoneyField()
     status = models.CharField(
         max_length=16, choices=SettlementStatus.choices, default=SettlementStatus.PENDING
@@ -593,6 +638,10 @@ class PaymentAllocation(BaseModel):
     transaction = models.ForeignKey(
         PaymentTransaction, on_delete=models.PROTECT, related_name="allocations"
     )
+    viewing = models.ForeignKey(
+        "viewing.ViewingRequest", null=True, blank=True, on_delete=models.PROTECT,
+        related_name="fee_allocations",
+    )
     obligation = models.ForeignKey(
         "rent.RentCharge",
         null=True,
@@ -610,6 +659,10 @@ class PaymentAllocation(BaseModel):
         on_delete=models.PROTECT,
         related_name="allocations",
     )
+    if TYPE_CHECKING:
+        amount_minor: int
+        amount_currency: str
+
     amount = MoneyField()
     allocated_at = models.DateTimeField()
     #: Free-form, for a human reading a reconciliation later.
@@ -634,8 +687,15 @@ class PaymentAllocation(BaseModel):
             ),
             models.CheckConstraint(
                 condition=(
-                    models.Q(obligation__isnull=False, billing_invoice__isnull=True)
-                    | models.Q(obligation__isnull=True, billing_invoice__isnull=False)
+                    models.Q(
+                        obligation__isnull=False, billing_invoice__isnull=True,
+                        viewing__isnull=True)
+                    | models.Q(
+                        obligation__isnull=True, billing_invoice__isnull=False,
+                        viewing__isnull=True)
+                    | models.Q(
+                        obligation__isnull=True, billing_invoice__isnull=True,
+                        viewing__isnull=False)
                 ),
                 name="payments_allocation_exactly_one_obligation",
             ),
@@ -785,6 +845,10 @@ class Refund(BaseModel):
     transaction = models.ForeignKey(
         PaymentTransaction, on_delete=models.PROTECT, related_name="refunds"
     )
+    if TYPE_CHECKING:
+        amount_minor: int
+        amount_currency: str
+
     amount = MoneyField()
     reason = models.CharField(max_length=300)
     status = models.CharField(

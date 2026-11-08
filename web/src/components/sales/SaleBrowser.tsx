@@ -344,7 +344,7 @@ export function SaleBrowser() {
     {/* As on Rent: the title scrolls away, only the console sticks. */}
     {signedIn ? (
       <header className="explore-portal-masthead">
-        <PageHeader title="Buy a property" description="Verified for sale, the title checked by our team." />
+        <PageHeader title="Buy a property" />
       </header>
     ) : null}
     <div className={`explore${signedIn ? " explore-portal" : ""}`}>
@@ -382,7 +382,6 @@ export function SaleBrowser() {
         {sales?.length === 0 && !querying && !error ? (
           <div className="explore-empty">
             <p className="type-body-strong">Nothing for sale matches yet</p>
-            <p className="type-caption">Try a higher budget, another kind of property, or a wider area.</p>
             <button type="button" className="explore-clear-all" onClick={() => { update({ q: "", kind: "", price_max: "", bedrooms_min: "", tenure: "", sort: "" }); }}>Clear search and filters</button>
           </div>
         ) : null}

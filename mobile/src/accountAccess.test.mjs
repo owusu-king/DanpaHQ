@@ -103,7 +103,7 @@ test("Explore distinguishes loading, failed requests, and an empty search", () =
   assert.equal(explore({ loading: true }).ListEmptyComponent, null);
   assert.equal(explore({ error: "Offline" }).ListEmptyComponent, null);
   const empty = explore({ query: "Accra" }).ListEmptyComponent;
-  assert.equal(empty.props.children[2].props.label, "Clear search");
+  assert.equal(empty.props.children.find(child => child?.type === "Button").props.label, "Clear search");
 });
 
 
