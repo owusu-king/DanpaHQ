@@ -84,6 +84,7 @@ export type ApiRequestInit = RequestInit & {
   timeoutMs?: number;
   idempotencyKey?: string;
   maxAttempts?: number;
+  sameOrigin?: boolean;
 };
 
 /** Opt one protected mutation into safe retry with a fresh logical-request key. */
@@ -95,7 +96,8 @@ export async function apiFetch<T>(
   path: string,
   init: ApiRequestInit = {},
 ): Promise<T> {
-  const { timeoutMs = DEFAULT_TIMEOUT_MS, idempotencyKey, maxAttempts, signal: caller, ...rest } = init;
+  const { timeoutMs = DEFAULT_TIMEOUT_MS, idempotencyKey, maxAttempts, sameOrigin = false, signal: caller, ...rest } = init;
+  const base = sameOrigin ? "/api" : BASE_URL;
   const method = (rest.method ?? "GET").toUpperCase();
   const attempts = maxAttempts ?? (method === "GET" ? 3 : 1);
   const id = requestId();
@@ -112,10 +114,10 @@ export async function apiFetch<T>(
     caller?.addEventListener("abort", follow, { once: true });
 
     try {
-      const response = await fetch(`${BASE_URL}${path}`, {
+      const response = await fetch(`${base}${path}`, {
         ...rest,
         signal: controller.signal,
-        credentials: "include",
+        credentials: sameOrigin ? "omit" : "include",
         headers: {
           "Content-Type": "application/json",
           "X-Request-ID": id,

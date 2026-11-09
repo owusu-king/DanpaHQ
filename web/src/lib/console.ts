@@ -10,6 +10,7 @@
 
 import { apiFetch, idempotentMutation } from "./api";
 import { authedBlob, authedFetch } from "./auth";
+import { API_BASE_URL } from "./apiBase";
 import { preparePhotoUpload } from "./preparePhotoUpload";
 import type { SpaceQuestions } from "./propertyTypes";
 
@@ -1327,6 +1328,16 @@ export type PortfolioHomeSummary = Pick<
 > & { tenants: PortfolioHomeTenant[] };
 
 export function getOrganizationHome(organizationId: string) {
+  if (
+    typeof window !== "undefined"
+    && window.location.origin === "https://staging.danpahq.com"
+    && API_BASE_URL === "https://api-staging.danpahq.com/api/v1"
+  ) {
+    return authedFetch<PortfolioHomeSummary>(`/portfolio-home/${encodeURIComponent(organizationId)}`, {
+      cache: "no-store",
+      sameOrigin: true,
+    });
+  }
   return authedFetch<PortfolioHomeSummary>(`/organizations/${organizationId}/portfolio/?view=home`, { cache: "no-store" });
 }
 
