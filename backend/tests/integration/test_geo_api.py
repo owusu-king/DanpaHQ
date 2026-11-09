@@ -76,6 +76,7 @@ class TestCreatingAnAddress:
         assert response.status_code == 201
         assert response.data["locality_name"] == "Osu"
         assert response.data["region_name"] == "Greater Accra"
+        assert response.data["digital_address"] == ""
 
     def test_a_landmark_is_kept_verbatim(self, api, accra):
         _, _, osu = accra
@@ -87,15 +88,25 @@ class TestCreatingAnAddress:
         )
         assert response.data["landmark"] == landmark
 
-    def test_a_digital_address_is_normalised(self, api, accra):
+    @pytest.mark.parametrize(
+        ("raw", "canonical"),
+        [
+            ("ga5430125", "GA-543-0125"),
+            ("er - 0254 - 2310", "ER-0254-2310"),
+            ("AKW-0254-23100", "AKW-0254-23100"),
+            ("", ""),
+            (None, ""),
+        ],
+    )
+    def test_a_digital_address_is_normalised(self, api, accra, raw, canonical):
         _, _, osu = accra
         response = api.post(
             "/api/v1/geo/addresses/",
-            {"locality_id": str(osu.id), "digital_address": "ga5430125"},
+            {"locality_id": str(osu.id), "digital_address": raw},
             format="json",
         )
         assert response.status_code == 201
-        assert response.data["digital_address"] == "GA-543-0125"
+        assert response.data["digital_address"] == canonical
 
     def test_a_malformed_digital_address_is_a_clear_error_not_a_crash(self, api, accra):
         _, _, osu = accra

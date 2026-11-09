@@ -26,14 +26,22 @@ REGION_LETTERS: dict[str, str] = {
     "C": "Central",
     "E": "Eastern",
     "G": "Greater Accra",
+    "H": "Ahafo",
+    "M": "North East",
     "N": "Northern",
+    "O": "Oti",
+    "S": "Savannah",
+    "T": "Bono East",
     "U": "Upper East",
     "X": "Upper West",
     "V": "Volta",
     "W": "Western",
+    "Y": "Western North",
 }
 
-_PATTERN = re.compile(r"^([A-Z])([A-Z0-9])-(\d{3})-(\d{4,5})$")
+_PREFIX = r"([A-Z])([A-Z0-9][A-Z]?)"
+_PATTERN = re.compile(rf"{_PREFIX}-([0-9]{{3,4}})-([0-9]{{4,5}})")
+_COMPACT = re.compile(rf"{_PREFIX}([0-9]{{7,9}})")
 
 
 class DigitalAddressError(ValueError):
@@ -58,16 +66,23 @@ def normalise_digital_address(raw: str) -> DigitalAddress:
     if not raw or not raw.strip():
         raise DigitalAddressError("Enter a GhanaPost GPS address.")
 
-    candidate = re.sub(r"[\s_]+", "-", raw.strip().upper())
-    candidate = re.sub(r"-{2,}", "-", candidate)
-    # Accept an unpunctuated run of characters too: GA5430125
-    if "-" not in candidate and len(candidate) in (9, 10):
-        candidate = f"{candidate[:2]}-{candidate[2:5]}-{candidate[5:]}"
+    candidate = re.sub(r"[-\s_\u2010-\u2014\u2212]+", "-", raw.strip().upper())
+    # An eight-digit run can mean 3+5 or 4+4. Preserve the intended address
+    # by asking for separators instead of guessing where that run splits.
+    compact = _COMPACT.fullmatch(candidate)
+    if compact:
+        region, district, digits = compact.groups()
+        if len(digits) == 8:
+            raise DigitalAddressError(
+                "Use the hyphens from your GhanaPost GPS address, for example ER-0254-2310."
+            )
+        split = 3 if len(digits) == 7 else 4
+        candidate = f"{region}{district}-{digits[:split]}-{digits[split:]}"
 
-    match = _PATTERN.match(candidate)
+    match = _PATTERN.fullmatch(candidate)
     if not match:
         raise DigitalAddressError(
-            "That does not look like a GhanaPost GPS address. They look like GA-543-0125."
+            "Enter a GhanaPost GPS address like GA-543-0125 or ER-0254-2310, or leave it blank."
         )
 
     region_letter, district, area, unique = match.groups()

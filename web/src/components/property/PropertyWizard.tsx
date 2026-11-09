@@ -509,7 +509,7 @@ function NewPropertyStep({
       place_context: city.trim(),
       latitude: pin?.latitude ?? null,
       longitude: pin?.longitude ?? null,
-      digital_address: digitalAddress || undefined,
+      digital_address: digitalAddress.trim() || undefined,
       street: street || undefined,
       landmark: landmark || undefined,
     };
@@ -603,7 +603,7 @@ function NewPropertyStep({
       </div>
 
       <div className="lw-grid cw-grid-3">
-        <Field label="GhanaPost GPS" hint="Optional" value={digitalAddress} onChange={(event) => setDigitalAddress(event.target.value)} />
+        <Field label="GhanaPost GPS" hint="Optional" placeholder="ER-0254-2310" value={digitalAddress} onChange={(event) => setDigitalAddress(event.target.value)} />
         <Field label="Street" hint="Optional" value={street} onChange={(event) => setStreet(event.target.value)} />
         <Field label="Landmark" hint="Optional" value={landmark} onChange={(event) => setLandmark(event.target.value)} />
       </div>

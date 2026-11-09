@@ -442,7 +442,7 @@ function NewPropertyStep({
       place_context: city.trim(),
       latitude: pin?.latitude ?? null,
       longitude: pin?.longitude ?? null,
-      digital_address: digitalAddress || undefined,
+      digital_address: digitalAddress.trim() || undefined,
       street: street || undefined,
       landmark: landmark || undefined,
     };
@@ -536,7 +536,7 @@ function NewPropertyStep({
         onShowArea={(row) => { const area = referenceArea(row); if (area) setAreaFocus({ latitude: area.lat, longitude: area.lng }); }} />
         <Field label="City or district (optional)" value={city} onChangeText={(text) => { setCity(text); setLocation(null); setPin(null); setAreaFocus(null); }} />
         <LocationPicker value={pin} onChange={setPin} focus={areaFocus} />
-        <Field label="GhanaPost GPS (optional)" placeholder="GA-492-1234" value={digitalAddress} onChangeText={setDigitalAddress} autoCapitalize="characters" />
+        <Field label="GhanaPost GPS (optional)" placeholder="ER-0254-2310" value={digitalAddress} onChangeText={setDigitalAddress} autoCapitalize="characters" />
         <Field label="Street (optional)" placeholder="Nii Tetteh Street" value={street} onChangeText={setStreet} />
         <Field label="Landmark (optional)" placeholder="Opposite the Baptist church" value={landmark} onChangeText={setLandmark} />
       </View>

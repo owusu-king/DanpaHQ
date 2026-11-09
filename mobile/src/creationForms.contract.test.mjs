@@ -59,7 +59,7 @@ test("an example belongs in the box, not in a line beneath it", () => {
     assert.doesNotMatch(read(path), /\bhint="/, `${path} still explains its fields underneath them`);
   }
   assert.match(read(WIZARDS.property), /"Adom Court"/);
-  assert.match(read(WIZARDS.property), /placeholder="GA-492-1234"/);
+  assert.match(read(WIZARDS.property), /label="GhanaPost GPS \(optional\)"/);
   assert.match(read(WIZARDS.unit), /placeholder="e\.g\. Flat A, Room 3"/);
   // Counts are steppers, so the floor reads "Ground" rather than asking for 0.
   assert.match(read(WIZARDS.unit), /value === 0 \? "Ground"/);
