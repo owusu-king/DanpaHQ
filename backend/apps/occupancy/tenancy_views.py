@@ -55,16 +55,18 @@ class MyTenanciesView(APIView):
         )
         from apps.rent.models import RentCharge
 
-        adjustments = "adjustments__actor" if include_ledger else "adjustments"
-
         tenancies = [(row, _display_lease(row)) for row in rows]
         lease_ids = {lease.id for _, lease in tenancies if lease is not None}
+        charges = RentCharge.objects.filter(lease_id__in=lease_ids)
+        if include_ledger:
+            from apps.rent.services import with_disputed_payment
+
+            charges = with_disputed_payment(charges.prefetch_related("adjustments__actor"))
+        else:
+            charges = charges.prefetch_related("adjustments")
+
         charges_by_lease: dict = {}
-        for charge in (
-            RentCharge.objects.filter(lease_id__in=lease_ids)
-            .order_by("due_on", "kind")
-            .prefetch_related(adjustments)
-        ):
+        for charge in charges:
             charges_by_lease.setdefault(charge.lease_id, []).append(charge)
 
         portfolio = [
@@ -80,7 +82,7 @@ def _add_ledgers(request, tenancies, charges_by_lease, portfolio) -> None:
     from apps.lease.models import LeaseStatus
     from apps.rent.models import RentPayment
     from apps.rent.serializers import RentChargeSerializer, RentPaymentSerializer
-    from apps.rent.views import ledger_payments
+    from apps.rent.services import ledger_payments
 
     owned_leases = {
         lease.id for _, lease in tenancies

@@ -1550,7 +1550,7 @@ class TestPostTenancyApi:
         from apps.property.models import Unit
 
         lease, charge = self._ended(landlord, user, unit)
-        services.record_payment(
+        payment = services.record_payment(
             lease=lease,
             user=landlord,
             data={
@@ -1559,6 +1559,7 @@ class TestPostTenancyApi:
                 "paid_on": date.today(),
             },
         )
+        services.dispute_payment(payment=payment, user=user, reason="Amount disputed")
         second_unit = Unit.objects.create(
             property=unit.property, label="Flat B", bedrooms=1, bathrooms=1
         )
@@ -1584,11 +1585,20 @@ class TestPostTenancyApi:
             assert account["ledger"] == {
                 "charges": detail.data["charges"], "payments": detail.data["payments"]
             }
-        assert len(accounts[str(lease.id)]["ledger"]["payments"]) == 1
+        first_ledger = accounts[str(lease.id)]["ledger"]
+        assert len(first_ledger["payments"]) == 1
+        disputed_charge = next(
+            row for row in first_ledger["charges"] if row["id"] == str(charge.id)
+        )
+        assert disputed_charge["has_dispute"] is True
+        assert disputed_charge["effective_status"] == "disputed"
         assert not accounts[str(second_lease.id)]["ledger"]["payments"]
-        for table in ("rent_charge", "rent_obligation_adjustment", "rent_payment"):
+        # The charges statement includes a dispute EXISTS subquery on rent_payment.
+        # It and the batched payment SELECT are the only SQL statements touching that table.
+        expected = {"rent_charge": 1, "rent_obligation_adjustment": 1, "rent_payment": 2}
+        for table, total in expected.items():
             count = sum(f'FROM "{table}"' in query["sql"] for query in portfolio_queries)
-            assert count == 1, table
+            assert count == total, table
 
         outsider = signed_in(landlord, "not-the-tenant")
         assert outsider.get("/api/v1/me/tenancies/?include_ended=1&include_ledger=1").data == []
