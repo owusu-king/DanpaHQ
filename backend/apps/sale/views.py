@@ -18,6 +18,7 @@ from .read_models import public_sales
 from .serializers import (
     EnquiryDetailSerializer,
     EnquirySerializer,
+    ProposeCallSerializer,
     ReplySerializer,
     SaleCardSerializer,
     SaleDetailSerializer,
@@ -201,7 +202,11 @@ class SaleEnquiryStartView(APIView):
                 "Verify your phone to send a message, or submit interest without one."
             )
         enquiry = services.start_enquiry(
-            sale_id=pk, buyer=request.user, body=payload.validated_data["message"]
+            sale_id=pk,
+            buyer=request.user,
+            body=payload.validated_data["message"],
+            contact_phone=payload.validated_data.get("contact_phone", ""),
+            contact_email=payload.validated_data.get("contact_email", ""),
         )
         return Response(
             EnquiryDetailSerializer(enquiry, context={"user": request.user}).data,
@@ -251,7 +256,20 @@ class EnquiryDetailView(APIView):
     def get(self, request, pk):
         enquiry = services.enquiry_for(enquiry_id=pk, user=request.user)
         services.mark_enquiry_read(enquiry=enquiry, user=request.user)
-        enquiry.refresh_from_db()
+        return Response(EnquiryDetailSerializer(enquiry, context={"user": request.user}).data)
+
+
+class EnquiryProposeCallView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        payload = ProposeCallSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+        enquiry = services.propose_call(
+            enquiry_id=pk,
+            user=request.user,
+            proposed_call_at=payload.validated_data["proposed_call_at"],
+        )
         return Response(EnquiryDetailSerializer(enquiry, context={"user": request.user}).data)
 
 

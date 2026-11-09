@@ -107,7 +107,7 @@ export default function HomePage() {
   if (!inProvider && !me.capabilities.tenant.workspace_access) {
     return <><PageHeader title="Explore Danpa HQ" /><Link href="/rentals">Explore properties</Link></>;
   }
-  return inProvider ? <ProviderHome me={me} activeContext={activeContext} /> : <TenantHome me={me} />;
+  return inProvider ? <ProviderHome me={me} activeContext={activeContext} /> : <TenantHome key={me.id} me={me} />;
 }
 
 /* --- tenant ------------------------------------------------------------- */
@@ -140,34 +140,31 @@ function TenantHome({ me }: { me: Me }) {
   const [viewings, setViewings] = useState<MyViewing[]>([]);
   const [leases, setLeases] = useState<Lease[]>([]);
   const [joinRequests, setJoinRequests] = useState<MyJoinRequest[]>([]);
+  const [detailsLoading, setDetailsLoading] = useState(true);
   const [error, setError] = useState("");
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([
-      listMyTenancies(),
+    void listMyTenancies()
+      .then((rows) => { if (!cancelled) setTenancies(rows); })
+      .catch((cause) => {
+        if (cancelled) return;
+        setTenancies([]);
+        setError(cause instanceof ApiFailure ? cause.error.message : "We could not load your home right now.");
+      });
+    void Promise.all([
       listMyApplications().catch(() => [] as MyApplication[]),
       listMyViewings().catch(() => [] as MyViewing[]),
       listMyLeases().catch(() => [] as Lease[]),
       listMyJoinRequests().catch(() => [] as MyJoinRequest[]),
     ])
-      .then(([rows, apps, views, agreements, requests]) => {
+      .then(([apps, views, agreements, requests]) => {
         if (cancelled) return;
-        setTenancies(rows);
         setApplications(apps);
         setViewings(views);
         setLeases(agreements);
         setJoinRequests(requests);
-        setError("");
-      })
-      .catch((cause) => {
-        if (cancelled) return;
-        setTenancies([]);
-        setError(
-          cause instanceof ApiFailure
-            ? cause.error.message
-            : "We could not load your home right now.",
-        );
+        setDetailsLoading(false);
       });
     return () => { cancelled = true; };
   }, []);
@@ -228,7 +225,7 @@ function TenantHome({ me }: { me: Me }) {
         <div className="home-greeting-copy">
           <p className="home-eyebrow">{leadHome ? leadHome.property.title : "Your rentals"}</p>
           <h1>{greetPerson(me.preferred_name || me.first_name || "")}</h1>
-          <p>{tenantSummary(needs.length, homes.length, upcoming.length)}</p>
+          <p>{detailsLoading || tenancies === null ? "Your rental overview" : tenantSummary(needs.length, homes.length, upcoming.length)}</p>
         </div>
         <div className="home-greeting-aside">
           <DraftedElevation />
@@ -288,7 +285,7 @@ function TenantHome({ me }: { me: Me }) {
                   />
                   <TenantFact
                     label={plural(activeLeases, "Active agreement", "Active agreements")}
-                    value={String(activeLeases)}
+                    value={detailsLoading ? "Loading…" : String(activeLeases)}
                     figure
                   />
                 </div>
@@ -307,11 +304,11 @@ function TenantHome({ me }: { me: Me }) {
               </div>
             </section>
 
-            <section className="home-attention-panel" data-clear={needs.length === 0} aria-labelledby="tenant-attention-title">
+            <section className="home-attention-panel" data-clear={!detailsLoading && needs.length === 0} aria-busy={detailsLoading} aria-labelledby="tenant-attention-title">
               <div className="home-widget-head">
                 <h2 id="tenant-attention-title">Needs attention</h2>
                 <span className="home-widget-count">
-                  {needs.length ? `${needs.length} ${plural(needs.length, "item", "items")}` : "All clear"}
+                  {detailsLoading ? "Loading…" : needs.length ? `${needs.length} ${plural(needs.length, "item", "items")}` : "All clear"}
                 </span>
               </div>
               {needs.length ? (
@@ -332,7 +329,7 @@ function TenantHome({ me }: { me: Me }) {
                     </li>
                   ))}
                 </ul>
-              ) : (
+              ) : detailsLoading ? null : (
                 <div className="home-all-clear">
                   <span aria-hidden="true">✓</span>
                   <p>
@@ -374,7 +371,7 @@ function TenantHome({ me }: { me: Me }) {
               </ol>
             ) : (
               <p className="home-chart-empty">
-                <strong>Nothing scheduled.</strong>
+                <strong>{detailsLoading ? "Checking your schedule…" : "Nothing scheduled."}</strong>
               </p>
             )}
             <StreetElevation />

@@ -43,9 +43,12 @@
 
 /* The public page of one property for sale. */
 .sale-eyebrow { display: inline-block; margin-bottom: var(--space-2); padding: 3px 12px; border-radius: 999px; background: var(--color-kola-600); color: #fff; font-size: .75rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
-.sale-enquiry { display: grid; gap: var(--space-2); }
-.sale-enquiry textarea { width: 100%; padding: var(--space-3); border-radius: var(--radius-sm); border: var(--border-hairline) solid var(--color-field-300); background: var(--color-field-0); color: var(--color-ink-900); font: inherit; resize: vertical; }
+.sale-enquiry { display: grid; gap: var(--space-4); }
+.doc-modal.sale-interest-dialog { background: var(--color-field-0); }
+.sale-interest-dialog .doc-modal-title h2 { white-space: normal; }
 .sale-enquiry p { margin: 0; }
+.sale-enquiry-privacy { display: flex; align-items: flex-start; gap: var(--space-2); color: var(--color-kola-800); background: var(--color-field-100); padding: var(--space-3); border-radius: var(--radius-sm); }
+.sale-enquiry-privacy svg { flex: 0 0 1.125rem; }
 
 /* Explore: Rent or Buy, and the Buy side's bar. */
 .explore-mode { display: inline-flex; justify-self: start; gap: 4px; padding: 4px; border-radius: var(--radius-pill, 999px); background: var(--color-field-0); border: var(--border-hairline) solid color-mix(in oklab, var(--color-kola-600) 22%, var(--color-field-200)); box-shadow: var(--shadow-lifted); }

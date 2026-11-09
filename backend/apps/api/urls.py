@@ -635,6 +635,11 @@ sale_patterns = [
         sale_views.EnquiryReplyView.as_view(),
         name="sale-enquiry-reply",
     ),
+    path(
+        "sale-enquiries/<uuid:pk>/call/",
+        sale_views.EnquiryProposeCallView.as_view(),
+        name="sale-enquiry-propose-call",
+    ),
 ]
 
 listing_patterns = [

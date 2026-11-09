@@ -330,7 +330,7 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
           open={inbox.open}
           request={inbox.request}
           canSell={canSell}
-          onClose={() => setInbox((current) => ({ ...current, open: false }))}
+          onClose={() => setInbox({ open: false, request: {} })}
         />
 
         <main id="main" tabIndex={-1} className="portal-main" key={activeContext ?? "no-context"}>

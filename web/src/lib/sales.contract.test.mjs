@@ -53,9 +53,9 @@ test("a sale's title and land's site plan go up typed, beside the relationship d
 
 test("a buyer records interest without a message or seller phone number", () => {
   const page = code(read("web/app/record/sale/page.tsx"));
-  assert.match(page, /await startEnquiry\(sale!\.id\)/);
+  assert.match(page, /await startEnquiry\(sale\.id, /);
   assert.doesNotMatch(page, /tel:|phone_number|seller_phone/);
-  // An existing conversation is reopened rather than started twice.
+  // An existing interest record is opened rather than created twice.
   assert.match(page, /sale\.my_enquiry_id \? \(/);
 });
 
@@ -104,7 +104,10 @@ test("Danpa Intel replaces chat while notification addresses open read-only inte
   assert.match(inbox, /Original enquiry note/);
   assert.doesNotMatch(inbox, /replyToEnquiry|inbox-reply|Write a message|onProperty|Properties<\/button>/);
   const interest = inbox.slice(inbox.indexOf("function InterestRecords"), inbox.indexOf("function SupportInboxFrame"));
-  assert.doesNotMatch(interest, /textarea|input|replyTo|phone|email/);
+  assert.doesNotMatch(interest, /textarea|input|replyTo/);
+  assert.match(interest, /Buyer contact details/);
+  assert.match(interest, /href=\{`tel:/);
+  assert.match(interest, /href=\{`mailto:/);
   assert.match(inbox, /createSupportCase/);
   assert.match(inbox, /replyToSupportCase/);
   assert.match(inbox, /Back to Danpa Intel/);
@@ -114,7 +117,8 @@ test("sales cards and client registration express interest without a composer", 
   for (const file of ["web/app/record/sale/page.tsx", "mobile/app/(app)/sale/[id].tsx"]) {
     const source = code(read(file));
     assert.match(source, /Express interest/);
-    assert.match(source, /startEnquiry\(sale!\.id\)/);
+    assert.match(source, /Share your contact details/);
+    assert.match(source, /startEnquiry\(sale\.id, \{ contact_phone: phone\.trim\(\), contact_email: email\.trim\(\) \}\)/);
     assert.doesNotMatch(source, /setMessage|Your message to|sale-enquiry-message/);
   }
   for (const file of ["web/src/lib/sales.ts", "mobile/src/sales.ts"]) {

@@ -56,6 +56,7 @@ function DiscoveryHome() {
   const [recentActivity, setRecentActivity] = useState<Notification[]>([]);
   const [homeError, setHomeError] = useState("");
   const [homeLoading, setHomeLoading] = useState(true);
+  const [detailsLoading, setDetailsLoading] = useState(true);
 
   const me = state.status === "signed_in" ? state.me : null;
   const displayName = me?.preferred_name || me?.first_name || "";
@@ -70,50 +71,48 @@ function DiscoveryHome() {
    */
   const tenantMode = Boolean(me);
 
-  const loadTenantHome = useCallback(async () => {
+  useFocusEffect(useCallback(() => {
     if (!tenantMode) {
       setTenancies([]);
       setLeases([]);
       setUnreadNotifications(0);
       setRecentActivity([]);
       setHomeLoading(false);
+      setDetailsLoading(true);
       return;
     }
+    let live = true;
     setHomeLoading(true);
-    try {
-      // Every tenancy, whole. This used to fetch occupancies and leases
-      // separately and then keep whichever occupancy came first, which is how a
-      // tenant renting two places lost sight of one of them.
-      //
-      // The rest is what Home needs to answer "does anything need me" without
-      // the tenant opening four screens to find out.
-      const [homes, agreements, apps, views, requests, updates] = await Promise.all([
-        listMyTenancies(),
-        listMyLeases().catch(() => [] as Lease[]),
-        listMyApplications().catch(() => [] as RentalApplication[]),
-        listMyViewings().catch(() => [] as Viewing[]),
-        listMyJoinRequests().catch(() => [] as MyJoinRequest[]),
-        // One read, two jobs: the unread count on the Updates shortcut and
-        // the recent-activity feed. Tolerant like the rest — neither is worth
-        // failing somebody's rent summary over.
-        listNotifications().catch(() => ({ unread_count: 0, results: [] })),
-      ]);
+    setDetailsLoading(true);
+    void listMyTenancies().then((homes) => {
+      if (!live) return;
       setTenancies(homes);
+      setHomeError("");
+    }).catch(() => {
+      if (live) setHomeError("Could not refresh your homes and rent details.");
+    }).finally(() => {
+      if (live) setHomeLoading(false);
+    });
+    void Promise.all([
+      listMyLeases().catch(() => [] as Lease[]),
+      listMyApplications().catch(() => [] as RentalApplication[]),
+      listMyViewings().catch(() => [] as Viewing[]),
+      listMyJoinRequests().catch(() => [] as MyJoinRequest[]),
+    ]).then(([agreements, apps, views, requests]) => {
+      if (!live) return;
       setLeases(agreements);
       setApplications(apps);
       setViewings(views);
       setJoinRequests(requests);
+      setDetailsLoading(false);
+    });
+    void listNotifications().catch(() => ({ unread_count: 0, results: [] })).then((updates) => {
+      if (!live) return;
       setUnreadNotifications(updates.unread_count);
       setRecentActivity(updates.results);
-      setHomeError("");
-    } catch {
-      setHomeError("Could not refresh your homes and rent details.");
-    } finally {
-      setHomeLoading(false);
-    }
-  }, [tenantMode]);
-
-  useFocusEffect(useCallback(() => { void loadTenantHome(); }, [loadTenantHome]));
+    });
+    return () => { live = false; };
+  }, [tenantMode]));
 
   const canOpenProvider = state.status === "signed_in"
     && state.me.capabilities.available_workspaces.includes("provider");
@@ -195,6 +194,7 @@ function DiscoveryHome() {
           joinRequests={joinRequests}
           error={homeError}
           loading={homeLoading}
+          detailsLoading={detailsLoading}
           unreadNotifications={unreadNotifications}
           recentActivity={recentActivity}
           onNotifications={() => router.push("/(app)/notifications" as never)}

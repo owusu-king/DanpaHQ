@@ -3,8 +3,7 @@
  * `/sales/[id]`, shaped like the rental page beside it: photographs, what it is
  * and where, the seller's words, the building, then one decision bar.
  *
- * The bar's act is an enquiry, never a phone number (owner, 2026-09-28): the
- * seller's contact stays private and interest is recorded without a chat. The
+ * The bar opens an enquiry where the buyer can share callback details. The
  * page is only reachable while the sale is public — the backend answers 404
  * otherwise — so nothing here decides that.
  */
@@ -29,8 +28,10 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import { ApiFailure } from "@/api";
 import { useAuth } from "@/auth";
 import { Fact, GroupLabel, RecordPanel } from "@/components/record/RecordSurfaces";
+import { BottomSheet } from "@/components/sheet/BottomSheet";
 import { ModalSafeArea } from "@/components/sheet/ModalSafeArea";
-import { Button, Notice, Type, space } from "@/components/ui";
+import { Button, Field, Notice, Type, space } from "@/components/ui";
+import { fieldErrorsFrom, summaryErrorFrom, type FieldErrors } from "@/formErrors";
 import { rememberOnboardingIntent } from "@/onboardingIntent";
 import { useSafeBottom } from "@/platform";
 import { getSale, saleFacts, startEnquiry, type SaleDetail } from "@/sales";
@@ -49,6 +50,9 @@ export default function SaleScreen() {
   const [sale, setSale] = useState<SaleDetail | null>(null);
   const [loadError, setLoadError] = useState("");
   const [error, setError] = useState("");
+  const [errors, setErrors] = useState<FieldErrors>({});
+  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
   const [writing, setWriting] = useState(false);
   const [busy, setBusy] = useState(false);
   const [photoIndex, setPhotoIndex] = useState(0);
@@ -103,13 +107,18 @@ export default function SaleScreen() {
   }
 
   async function send() {
+    if (!signedIn || busy || !sale || !phone.trim() || !email.trim()) return;
     setBusy(true);
     setError("");
+    setErrors({});
     try {
-      const enquiry = await startEnquiry(sale!.id);
+      const enquiry = await startEnquiry(sale.id, { contact_phone: phone.trim(), contact_email: email.trim() });
+      setWriting(false);
       router.replace({ pathname: "/(app)/enquiry/[id]", params: { id: enquiry.id } });
     } catch (cause) {
-      setError(cause instanceof ApiFailure ? cause.error.message : "We could not send your enquiry.");
+      const fields = fieldErrorsFrom(cause);
+      setErrors(fields);
+      setError(summaryErrorFrom(cause, fields));
     } finally {
       setBusy(false);
     }
@@ -244,22 +253,6 @@ export default function SaleScreen() {
       </ScrollView>
 
       <View style={[styles.bar, { paddingBottom: Math.max(insets.bottom, space[3]) }]}>
-        {writing ? (
-          <View style={{ gap: space[2] }}>
-            <Type variant="body">Let {sale.seller_label} know you are interested in this property.</Type>
-            {state.status === "signed_in" && !state.me.is_phone_verified && state.me.email ? <Type variant="caption">{state.me.is_email_verified ? "We’ll send updates by email." : "Verify your email to receive updates there."}</Type> : null}
-            <Type variant="caption" style={styles.muted}>Your name is shared. Your phone number stays private.</Type>
-            {error ? <Notice tone="error" title={error} /> : null}
-            <View style={{ flexDirection: "row", gap: space[2] }}>
-              <View style={{ flex: 1 }}>
-                <Button label="Not now" variant="secondary" disabled={busy} onPress={() => setWriting(false)} />
-              </View>
-              <View style={{ flex: 2 }}>
-                <Button label="Confirm interest" busy={busy} busyLabel="Sending" onPress={() => void send()} />
-              </View>
-            </View>
-          </View>
-        ) : (
           <View style={styles.barRow}>
             <View style={{ flex: 1 }}>
               <Type variant="title2" numberOfLines={1}>{sale.price_formatted ?? "Price on request"}</Type>
@@ -275,13 +268,36 @@ export default function SaleScreen() {
                 <Button
                   label="Express interest"
                   icon={<Ionicons name="heart-outline" size={18} color={theme.color.field["0"]} />}
-                  onPress={() => (signedIn ? setWriting(true) : void signIn())}
+                  onPress={() => {
+                    if (state.status !== "signed_in") { void signIn(); return; }
+                    setPhone(state.me.is_phone_verified ? state.me.phone_display : "");
+                    setEmail(state.me.is_email_verified ? state.me.email ?? "" : "");
+                    setError("");
+                    setErrors({});
+                    setWriting(true);
+                  }}
                 />
               )}
             </View>
           </View>
-        )}
       </View>
+
+      <BottomSheet visible={writing} title="Share your contact details" closeLabel="Close contact form" dismissible={!busy} onClose={() => setWriting(false)}
+        footer={<Button label="Send interest" busy={busy} busyLabel="Sending…" disabled={!phone.trim() || !email.trim()} onPress={() => void send()} />}>
+        <View style={{ gap: space[4] }}>
+          <Type variant="bodyStrong">{sale.headline || `${sale.kind_label} for sale`}</Type>
+          <Type variant="body">Send your phone and email to {sale.seller_label} so they can follow up about this property.</Type>
+          <Field label="Phone number" value={phone} onChangeText={setPhone} error={errors.contact_phone}
+            keyboardType="phone-pad" autoComplete="tel" placeholder="024 123 4567 or +233…" maxLength={40} editable={!busy} />
+          <Field label="Email address" value={email} onChangeText={setEmail} error={errors.contact_email}
+            keyboardType="email-address" autoComplete="email" autoCapitalize="none" autoCorrect={false} placeholder="you@example.com" maxLength={254} editable={!busy} />
+          <View style={styles.trust}>
+            <Ionicons name="shield-checkmark-outline" size={18} color={theme.color.kola["800"]} />
+            <Type variant="caption" style={{ flex: 1 }}>Your contact details are shared privately with the provider for this listing.</Type>
+          </View>
+          {error ? <Notice tone="error" title={error} /> : null}
+        </View>
+      </BottomSheet>
 
       <Modal visible={zoomed} animationType="fade" onRequestClose={() => setZoomed(false)}>
         <ModalSafeArea>
