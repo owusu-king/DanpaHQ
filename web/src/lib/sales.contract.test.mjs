@@ -62,10 +62,11 @@ test("a buyer records interest without a message or seller phone number", () => 
 test("Explore offers Rent and Buy, and Buy keeps its search in the address bar", () => {
   const page = code(read("web/app/rentals/page.tsx"));
   assert.match(page, /if \(asked === "buy"\) return <SaleBrowser \/>;/);
-  // All is the default, and shows both sides at once — with the filters both
-  // answer and a map holding both (owner, 2026-10-05).
+  // All shows either result as soon as it arrives and can put both on the map.
   const all = code(read("web/src/components/explore/AllBrowser.tsx"));
-  assert.match(all, /Promise\.allSettled\(\[\s*searchListingsFor\(new URLSearchParams\(search\), controller\.signal\),\s*searchSales\(/);
+  assert.match(all, /searchListingsFor\(new URLSearchParams\(search\), controller\.signal\)\.then\(\(rent\) => \{\s*if \(!current\(\)\) return;\s*setListings\(rent\.results\)/);
+  assert.match(all, /searchSales\([^\n]+controller\.signal\)\.then\(\(sale\) => \{\s*if \(!current\(\)\) return;\s*setSales\(sale\.results\)/);
+  assert.match(all, /listings \|\| sales \? merge\(listings \?\? \[\], sales \?\? \[\]\)/);
   assert.match(all, /<ExploreMapView[\s\S]{0,900}sales=\{sales\}/);
   assert.match(all, /\.sort\(\(a, b\) => b\.at\.localeCompare\(a\.at\)\)/);
   // Rent keeps its side through every filter change.

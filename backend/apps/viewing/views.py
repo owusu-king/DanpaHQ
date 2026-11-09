@@ -39,7 +39,7 @@ BASE_SELECT = (
     "tenant",
     "confirmed_slot",
     "responded_by",
-    "current_appointment",
+    "current_appointment__attendance_resolution",
 )
 
 

@@ -108,13 +108,13 @@ export const unsaveSale = (saleId: string) => authedFetch<void>("/me/saved-sales
   method: "DELETE", body: JSON.stringify({ sale_id: saleId }),
 });
 
-export async function searchSales(filters: SaleFilters = {}): Promise<SalePage> {
+export async function searchSales(filters: SaleFilters = {}, signal?: AbortSignal): Promise<SalePage> {
   const query = new URLSearchParams();
   for (const [key, value] of Object.entries(filters)) {
     if (value !== undefined && value !== "") query.set(key, String(value));
   }
   const suffix = query.size ? `?${query.toString()}` : "";
-  const page = await apiFetch<Page<SaleCard>>(`/sales/${suffix}`);
+  const page = await apiFetch<Page<SaleCard>>(`/sales/${suffix}`, { signal });
   return { results: page.results, next: page.next };
 }
 

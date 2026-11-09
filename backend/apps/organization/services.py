@@ -512,8 +512,8 @@ def properties_in_scope(*, user, organization=None):
 PAST_TENANTS_SHOWN = 200
 
 
-def portfolio_summary(*, organization: Organization, user) -> dict:
-    """One scoped read model for the mobile owner/manager daily workspace."""
+def portfolio_summary(*, organization: Organization, user, home_only: bool = False) -> dict:
+    """Read the scoped Portfolio, with a smaller projection for Home."""
     from apps.lease.models import Lease, LeaseStatus
     from apps.occupancy.models import (
         JoinRequestStatus,
@@ -532,14 +532,15 @@ def portfolio_summary(*, organization: Organization, user) -> dict:
         RentPayment,
     )
 
-    properties = properties_for_organization_member(
-        organization=organization, user=user
-    ).select_related("address__locality")
+    properties = properties_for_organization_member(organization=organization, user=user)
+    if home_only:
+        properties = properties.only("id", "title", "created_at")
+    else:
+        properties = properties.select_related("address__locality")
     property_rows = list(properties)
     property_ids = [row.id for row in property_rows]
-    units = Unit.objects.filter(property_id__in=property_ids, is_active=True).select_related(
-        "property"
-    )
+    units = Unit.objects.filter(property_id__in=property_ids, is_active=True)
+    units = units.only("id") if home_only else units.select_related("property")
     unit_rows = list(units)
     unit_ids = [row.id for row in unit_rows]
     occupancies = list(
@@ -563,10 +564,12 @@ def portfolio_summary(*, organization: Organization, user) -> dict:
         ).values_list("unit_id", flat=True)
     )
     leases = list(
-        Lease.objects.filter(unit_id__in=unit_ids).select_related("tenant", "unit__property")
+        Lease.objects.filter(unit_id__in=unit_ids).values_list("id", "status")
     )
-    lease_ids = [row.id for row in leases]
-    charges = list(RentCharge.objects.filter(lease_id__in=lease_ids))
+    lease_ids = [lease_id for lease_id, _ in leases]
+    charges = list(
+        RentCharge.objects.filter(lease_id__in=lease_ids).prefetch_related("adjustments")
+    )
     payments = RentPayment.objects.filter(lease_id__in=lease_ids)
     today = timezone.localdate()
     outstanding = sum(row.outstanding_minor for row in charges)
@@ -591,32 +594,28 @@ def portfolio_summary(*, organization: Organization, user) -> dict:
         "transaction__intent__tenant",
         "transaction__intent__lease__unit__property",
     )
-    online_paid_total = settlements.aggregate(total=Sum("transaction__amount_minor"))["total"] or 0
-    settled_totals = settlements.filter(status=SettlementStatus.SETTLED).aggregate(
-        gross=Sum("gross_amount_minor"),
-        fees=Sum("fee_amount_minor"),
-        net=Sum("net_amount_minor"),
+    settled = Q(status=SettlementStatus.SETTLED)
+    settlement_totals = settlements.aggregate(
+        online=Sum("transaction__amount_minor"),
+        gross=Sum("gross_amount_minor", filter=settled),
+        fees=Sum("fee_amount_minor", filter=settled),
+        net=Sum("net_amount_minor", filter=settled),
+        awaiting=Sum(
+            "gross_amount_minor",
+            filter=Q(status__in=[SettlementStatus.PENDING, SettlementStatus.PROCESSING]),
+        ),
+        attention=Sum(
+            "gross_amount_minor",
+            filter=Q(status__in=[SettlementStatus.FAILED, SettlementStatus.REVERSED]),
+        ),
     )
-    awaiting_settlement_total = (
-        settlements.filter(
-            status__in=[SettlementStatus.PENDING, SettlementStatus.PROCESSING]
-        ).aggregate(total=Sum("gross_amount_minor"))["total"]
-        or 0
-    )
-    settlement_attention_total = (
-        settlements.filter(
-            status__in=[SettlementStatus.FAILED, SettlementStatus.REVERSED]
-        ).aggregate(total=Sum("gross_amount_minor"))["total"]
-        or 0
-    )
-    recent_settlements = list(settlements.order_by("-transaction__paid_at", "-created_at")[:20])
     expense_total = (
         PropertyExpense.objects.filter(
             organization=organization, property_id__in=property_ids
         ).aggregate(total=Sum("amount_minor"))["total"]
         or 0
     )
-    payment_rows = payments.select_related("lease__tenant", "lease__unit__property", "recorded_by")
+    payment_rows = payments.select_related("lease__tenant", "lease__unit__property")
     #: A claim the other side recorded is work this user still owes an answer to.
     #: It must never fall off the list because ten newer records exist, so the
     #: awaiting set is taken whole and merged with the recent window.
@@ -627,11 +626,20 @@ def portfolio_summary(*, organization: Organization, user) -> dict:
     recent_payments = awaiting_payments + [
         row for row in payment_rows[:10] if row.id not in awaiting_ids
     ]
-    tenancy_request_rows = list(
-        PropertyJoinRequest.objects.filter(
-            property_id__in=property_ids,
-            status__in={JoinRequestStatus.PENDING, JoinRequestStatus.APPROVED},
-        ).select_related("requester", "property", "unit", "bed", "lease")
+    join_requests = PropertyJoinRequest.objects.filter(property_id__in=property_ids)
+    tenancy_request_rows = (
+        []
+        if home_only
+        else list(
+            join_requests.filter(
+                status__in={JoinRequestStatus.PENDING, JoinRequestStatus.APPROVED}
+            ).select_related("requester", "property", "unit", "bed", "lease")
+        )
+    )
+    pending_requests = (
+        join_requests.filter(status=JoinRequestStatus.PENDING).count()
+        if home_only
+        else sum(row.status == JoinRequestStatus.PENDING for row in tenancy_request_rows)
     )
 
     charges_by_lease: dict[object, list] = {}
@@ -693,22 +701,6 @@ def portfolio_summary(*, organization: Organization, user) -> dict:
 
     tenant_rows = [tenant_row(row) for row in occupancies]
 
-    # Past tenants, for the Tenants page's Archive (owner, 2026-10-05). Ended
-    # allocations in these properties, most recent first, each with whatever
-    # rent is still owed on its lease — a tenant who left owing is still worth
-    # finding. Capped: an archive is looked through, not reported on.
-    past_occupancies = list(
-        Occupancy.objects.filter(property_id__in=property_ids, status=OccupancyStatus.ENDED)
-        .select_related(
-            "user", "user__profile__avatar", "property", "unit", "bed", "tenancy", "lease"
-        )
-        .order_by("-ended_at", "-created_at")[:PAST_TENANTS_SHOWN]
-    )
-    past_lease_ids = {row.lease_id for row in past_occupancies if row.lease_id}
-    past_lease_ids -= set(charges_by_lease)
-    for charge in RentCharge.objects.filter(lease_id__in=past_lease_ids):
-        charges_by_lease.setdefault(charge.lease_id, []).append(charge)
-    past_tenant_rows = [tenant_row(row) for row in past_occupancies]
     tenant_rows.sort(
         key=lambda row: (
             row["property_title"].casefold(),
@@ -736,6 +728,90 @@ def portfolio_summary(*, organization: Organization, user) -> dict:
     ]
     activities.sort(key=lambda row: row["at"], reverse=True)
 
+    payload: dict = {
+        "organization": {"id": str(organization.id), "name": organization.name},
+        "counts": {
+            "properties": len(property_rows),
+            "units": len(unit_rows),
+            "occupied_units": len(occupied_unit_ids),
+            "vacant_units": max(len(unit_rows) - len(occupied_unit_ids), 0),
+            "active_tenants": len(occupancies),
+            "active_leases": sum(status == LeaseStatus.ACTIVE for _, status in leases),
+            # Compatibility for installed clients. New invitations cannot be
+            # created and the retirement migration revokes any that were open.
+            "pending_invitations": 0,
+            "pending_join_requests": pending_requests,
+            "maintenance_alerts": None,
+        },
+        "rent_collection": rent_collection,
+        "money": {
+            "outstanding_minor": outstanding,
+            "overdue_minor": overdue,
+            "confirmed_received_minor": confirmed_total,
+            # PSP-confirmed tenant payment and provider payout are deliberately
+            # separate. A tenant can have paid while Paystack still owes the
+            # Portfolio its batch settlement.
+            "online_paid_minor": settlement_totals["online"] or 0,
+            "settled_gross_minor": settlement_totals["gross"] or 0,
+            "settled_fee_minor": settlement_totals["fees"] or 0,
+            "settled_net_minor": settlement_totals["net"] or 0,
+            "awaiting_settlement_minor": settlement_totals["awaiting"] or 0,
+            "settlement_attention_minor": settlement_totals["attention"] or 0,
+            "expenses_minor": expense_total,
+            #: Every claim still waiting for the other party to agree it.
+            "pending_payment_records": RentPayment.objects.filter(
+                lease_id__in=lease_ids, status=PaymentStatus.CLAIMED
+            ).count(),
+            #: Only the claims this user owes an answer to. A record the user
+            #: made themselves is waiting on the counterparty, not on them, and
+            #: counting it as their work overstates what they have to do.
+            "payment_records_awaiting_you": len(awaiting_payments),
+        },
+        "tenants": tenant_rows,
+        "recent_payments": [
+            {
+                "id": str(payment.id),
+                "lease_id": str(payment.lease_id),
+                "tenant_name": payment.lease.tenant.display_name,
+                "property_title": payment.lease.unit.property.title,
+                "unit_label": payment.lease.unit.label or "Unit",
+                "amount_minor": payment.amount_minor,
+                "currency": payment.amount_currency,
+                "status": payment.status,
+                "paid_on": payment.paid_on.isoformat(),
+                "method_display": payment.get_method_display(),
+                "recorded_by_tenant": payment.recorded_by_tenant,
+                "awaiting_you": payment.status == PaymentStatus.CLAIMED
+                and str(payment.recorded_by_id) != str(user.id),
+                "verification_source": payment.verification_source,
+                "source": payment.payment_source,
+                "evidence": payment.payment_evidence,
+            }
+            for payment in recent_payments
+        ],
+        "recent_activity": activities[:8],
+    }
+    if home_only:
+        return payload
+
+    # Past tenants, for the Tenants page's Archive (owner, 2026-10-05). Ended
+    # allocations in these properties, most recent first, each with whatever
+    # rent is still owed on its lease — a tenant who left owing is still worth
+    # finding. Capped: an archive is looked through, not reported on.
+    past_occupancies = list(
+        Occupancy.objects.filter(property_id__in=property_ids, status=OccupancyStatus.ENDED)
+        .select_related(
+            "user", "user__profile__avatar", "property", "unit", "bed", "tenancy", "lease"
+        )
+        .order_by("-ended_at", "-created_at")[:PAST_TENANTS_SHOWN]
+    )
+    past_lease_ids = {row.lease_id for row in past_occupancies if row.lease_id}
+    past_lease_ids -= set(charges_by_lease)
+    for charge in RentCharge.objects.filter(lease_id__in=past_lease_ids).prefetch_related(
+        "adjustments"
+    ):
+        charges_by_lease.setdefault(charge.lease_id, []).append(charge)
+    past_tenant_rows = [tenant_row(row) for row in past_occupancies]
     # One cache across the whole portfolio: the answers that do not vary by
     # property (is there a payment rail, which of this member's Portfolios hold
     # a verified destination) are resolved once rather than per row.
@@ -823,48 +899,9 @@ def portfolio_summary(*, organization: Organization, user) -> dict:
         ),
         settlements=settlements,
     )
-    return {
+    recent_settlements = settlements.order_by("-transaction__paid_at", "-created_at")[:20]
+    payload.update({
         "profit_loss": profit_loss,
-        "organization": {"id": str(organization.id), "name": organization.name},
-        "counts": {
-            "properties": len(property_rows),
-            "units": len(unit_rows),
-            "occupied_units": len(occupied_unit_ids),
-            "vacant_units": max(len(unit_rows) - len(occupied_unit_ids), 0),
-            "active_tenants": len(occupancies),
-            "active_leases": sum(row.status == LeaseStatus.ACTIVE for row in leases),
-            # Compatibility for installed clients. New invitations cannot be
-            # created and the retirement migration revokes any that were open.
-            "pending_invitations": 0,
-            "pending_join_requests": sum(
-                row["status"] == JoinRequestStatus.PENDING for row in tenancy_requests
-            ),
-            "maintenance_alerts": None,
-        },
-        "rent_collection": rent_collection,
-        "money": {
-            "outstanding_minor": outstanding,
-            "overdue_minor": overdue,
-            "confirmed_received_minor": confirmed_total,
-            # PSP-confirmed tenant payment and provider payout are deliberately
-            # separate. A tenant can have paid while Paystack still owes the
-            # Portfolio its batch settlement.
-            "online_paid_minor": online_paid_total,
-            "settled_gross_minor": settled_totals["gross"] or 0,
-            "settled_fee_minor": settled_totals["fees"] or 0,
-            "settled_net_minor": settled_totals["net"] or 0,
-            "awaiting_settlement_minor": awaiting_settlement_total,
-            "settlement_attention_minor": settlement_attention_total,
-            "expenses_minor": expense_total,
-            #: Every claim still waiting for the other party to agree it.
-            "pending_payment_records": RentPayment.objects.filter(
-                lease_id__in=lease_ids, status=PaymentStatus.CLAIMED
-            ).count(),
-            #: Only the claims this user owes an answer to. A record the user
-            #: made themselves is waiting on the counterparty, not on them, and
-            #: counting it as their work overstates what they have to do.
-            "payment_records_awaiting_you": len(awaiting_payments),
-        },
         "verification": {
             "tenant_access_ready": sum(row["tenant_access"]["allowed"] for row in capability_rows),
             "payments_ready": sum(row["payment_collection"]["allowed"] for row in capability_rows),
@@ -872,29 +909,7 @@ def portfolio_summary(*, organization: Organization, user) -> dict:
         },
         "tenancy_requests": tenancy_requests,
         "tenant_access": tenant_access,
-        "tenants": tenant_rows,
         "past_tenants": past_tenant_rows,
-        "recent_payments": [
-            {
-                "id": str(payment.id),
-                "lease_id": str(payment.lease_id),
-                "tenant_name": payment.lease.tenant.display_name,
-                "property_title": payment.lease.unit.property.title,
-                "unit_label": payment.lease.unit.label or "Unit",
-                "amount_minor": payment.amount_minor,
-                "currency": payment.amount_currency,
-                "status": payment.status,
-                "paid_on": payment.paid_on.isoformat(),
-                "method_display": payment.get_method_display(),
-                "recorded_by_tenant": payment.recorded_by_tenant,
-                "awaiting_you": payment.status == PaymentStatus.CLAIMED
-                and str(payment.recorded_by_id) != str(user.id),
-                "verification_source": payment.verification_source,
-                "source": payment.payment_source,
-                "evidence": payment.payment_evidence,
-            }
-            for payment in recent_payments
-        ],
         "recent_settlements": [
             {
                 "id": str(settlement.id),
@@ -929,8 +944,8 @@ def portfolio_summary(*, organization: Organization, user) -> dict:
             }
             for settlement in recent_settlements
         ],
-        "recent_activity": activities[:8],
-    }
+    })
+    return payload
 
 
 def owned_portfolio(user) -> Organization | None:

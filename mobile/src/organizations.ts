@@ -45,6 +45,7 @@ export type ManagedProperty = {
   /** The one photograph a row shows. The Property's own if it has one, else a
    *  photograph from one of its Units — nothing uploads Property photos yet. */
   cover_url: string | null;
+  cover_thumbnail_url?: string | null;
   address: { locality_name: string; district_name: string };
 };
 
@@ -473,6 +474,15 @@ export function createPersonalPortfolioProperty(input: {
   purpose?: "letting" | "sale";
 }) {
   return apiFetch<ManagedProperty>("/portfolio/properties/", { method: "POST", body: input });
+}
+
+export type PortfolioHomeSummary = Pick<
+  PortfolioSummary,
+  "organization" | "counts" | "money" | "rent_collection" | "recent_payments" | "recent_activity"
+>;
+
+export function getPortfolioHome(organizationId: string) {
+  return apiFetch<PortfolioHomeSummary>(`/organizations/${organizationId}/portfolio/?view=home`);
 }
 
 export function getPortfolioSummary(organizationId: string) {

@@ -440,3 +440,55 @@ class TestThePropertyRowFindsAPhotograph:
             if name != "cover_url":
                 serializer.child.fields.pop(name)
         assert all(row["cover_url"] for row in serializer.data)
+
+
+def test_property_card_preview_is_small_cached_and_bound_to_its_file(
+    client, landlord, live_listing, monkeypatch, sign_in_as
+):
+    from io import BytesIO
+
+    from PIL import Image
+    from rest_framework.test import APIClient
+
+    from apps.files import thumbnails
+    from apps.files.storage import get_storage
+    from apps.property.models import PropertyMedia
+
+    cover = _file(landlord, "large-front.jpg")
+    image = Image.effect_noise((1200, 900), 100)
+    data = BytesIO()
+    image.save(data, format="JPEG", quality=95)
+    cover.size_bytes = len(data.getvalue())
+    cover.save(update_fields=["size_bytes"])
+    get_storage().write(key=cover.storage_key, data=data.getvalue())
+    PropertyMedia.objects.create(property=live_listing.unit.property, file=cover, kind="exterior")
+
+    api = APIClient()
+    sign_in_as(api, user=landlord)
+    properties = api.get("/api/v1/properties/")
+    assert properties.status_code == 200
+    row = next(row for row in properties.data if row["id"] == str(live_listing.unit.property_id))
+    url = row["cover_thumbnail_url"]
+    assert "large-front.jpg" in row["cover_url"]
+    response = client.get(url)
+    assert response.status_code == 200
+    assert response["Cache-Control"] == "private, no-store"
+    assert response["Content-Type"] == "image/jpeg"
+    assert len(response.content) < cover.size_bytes // 5
+    with Image.open(BytesIO(response.content)) as preview:
+        assert preview.size == (320, 240)
+
+    def unexpected_resize(file):
+        pytest.fail("a repeat request should use the cached thumbnail")
+
+    monkeypatch.setattr(thumbnails, "_resize", unexpected_resize)
+    assert client.get(url).content == response.content
+    assert client.get(url.split("?")[0]).status_code == 404
+    other = _file(landlord, "other.jpg")
+    assert client.get(url.replace(str(cover.pk), str(other.pk), 1)).status_code == 404
+    monkeypatch.setattr(thumbnails, "INLINE_TTL_SECONDS", -1)
+    assert client.get(url).status_code == 404
+    monkeypatch.setattr(thumbnails, "INLINE_TTL_SECONDS", 300)
+    cover.is_sensitive = True
+    cover.save(update_fields=["is_sensitive"])
+    assert client.get(url).status_code == 404

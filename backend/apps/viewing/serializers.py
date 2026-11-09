@@ -58,16 +58,16 @@ class ViewingAppointmentSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = fields
 
-    def _role(self, obj, user) -> str | None:
-        if user is None:
+    def _role(self, obj, user_id) -> str | None:
+        if user_id is None:
             return None
-        return "tenant" if user.id == obj.viewing.tenant_id else "host"
+        return "tenant" if user_id == obj.viewing.tenant_id else "host"
 
     def get_rescheduled_by(self, obj) -> str | None:
-        return self._role(obj, obj.rescheduled_by)
+        return self._role(obj, obj.rescheduled_by_id)
 
     def get_cancelled_by(self, obj) -> str | None:
-        return self._role(obj, obj.cancelled_by)
+        return self._role(obj, obj.cancelled_by_id)
 
 
 class ContactSerializer(serializers.Serializer):
@@ -164,6 +164,14 @@ class ViewingRequestSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = fields
 
+    def _viewer_manages(self, obj, user) -> bool:
+        prop = obj.listing.unit.property
+        access = self.context.setdefault("viewing_property_access", {})
+        key = (user.id, prop.id)
+        if key not in access:
+            access[key] = prop.is_managed_by(user)
+        return access[key]
+
     def get_fee(self, obj):
         from .fees import details
 
@@ -224,7 +232,7 @@ class ViewingRequestSerializer(serializers.ModelSerializer):
                 "phone": host.phone,
                 "role": "Landlord or agent",
             }
-        if not obj.listing.unit.property.is_managed_by(user):
+        if not self._viewer_manages(obj, user):
             return None
         return {
             "name": obj.tenant.display_name,
@@ -247,7 +255,7 @@ class ViewingRequestSerializer(serializers.ModelSerializer):
             return None
 
         viewer_is_tenant = str(obj.tenant_id) == str(user.id)
-        viewer_is_host = obj.listing.unit.property.is_managed_by(user)
+        viewer_is_host = self._viewer_manages(obj, user)
         if not viewer_is_tenant and not viewer_is_host:
             return None
 
@@ -285,7 +293,7 @@ class ViewingRequestSerializer(serializers.ModelSerializer):
                 state = "closed"
         viewer_is_tenant = bool(user and user.is_authenticated and obj.tenant_id == user.id)
         viewer_is_host = bool(
-            user and user.is_authenticated and obj.listing.unit.property.is_managed_by(user)
+            user and user.is_authenticated and self._viewer_manages(obj, user)
         )
         return {
             "state": state,
@@ -312,7 +320,7 @@ class ViewingRequestSerializer(serializers.ModelSerializer):
         participant = bool(
             user
             and user.is_authenticated
-            and (obj.tenant_id == user.id or obj.listing.unit.property.is_managed_by(user))
+            and (obj.tenant_id == user.id or self._viewer_manages(obj, user))
         )
         resolution = None
         appointment = obj.current_appointment
@@ -367,7 +375,7 @@ class ViewingRequestSerializer(serializers.ModelSerializer):
         if user is None or not user.is_authenticated:
             return {}
         tenant = obj.tenant_id == user.id
-        host = obj.listing.unit.property.is_managed_by(user)
+        host = self._viewer_manages(obj, user)
         participant = tenant or host
         proposal = next((slot for slot in obj.slots.all() if not slot.is_past), None)
         proposed_by_tenant = bool(proposal and proposal.proposed_by_id == obj.tenant_id)

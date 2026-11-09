@@ -18,11 +18,10 @@ import {
   listReceivedApplications,
   listGrantedLeases,
   listHostViewings,
-  getOrganizationPortfolio,
-  type Organization,
-  type OrganizationPortfolio,
+  getOrganizationHome,
+  type PortfolioHomeSummary,
+  type PortfolioHomeTenant,
   type Property,
-  type ProviderTenant,
   type RentalApplication,
   type Viewing,
 } from "@/lib/console";
@@ -107,7 +106,7 @@ export default function HomePage() {
   if (!inProvider && !me.capabilities.tenant.workspace_access) {
     return <><PageHeader title="Explore Danpa HQ" /><Link href="/rentals">Explore properties</Link></>;
   }
-  return inProvider ? <ProviderHome me={me} activeContext={activeContext} /> : <TenantHome key={me.id} me={me} />;
+  return inProvider ? <ProviderHome key={me.id + (activeContext ?? "")} me={me} activeContext={activeContext} /> : <TenantHome key={me.id} me={me} />;
 }
 
 /* --- tenant ------------------------------------------------------------- */
@@ -141,6 +140,7 @@ function TenantHome({ me }: { me: Me }) {
   const [leases, setLeases] = useState<Lease[]>([]);
   const [joinRequests, setJoinRequests] = useState<MyJoinRequest[]>([]);
   const [detailsLoading, setDetailsLoading] = useState(true);
+  const [detailsFailed, setDetailsFailed] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -152,20 +152,20 @@ function TenantHome({ me }: { me: Me }) {
         setTenancies([]);
         setError(cause instanceof ApiFailure ? cause.error.message : "We could not load your home right now.");
       });
+    async function section<T>(request: Promise<T>, apply: (rows: T) => void) {
+      try {
+        const rows = await request;
+        if (!cancelled) apply(rows);
+      } catch {
+        if (!cancelled) setDetailsFailed(true);
+      }
+    }
     void Promise.all([
-      listMyApplications().catch(() => [] as MyApplication[]),
-      listMyViewings().catch(() => [] as MyViewing[]),
-      listMyLeases().catch(() => [] as Lease[]),
-      listMyJoinRequests().catch(() => [] as MyJoinRequest[]),
-    ])
-      .then(([apps, views, agreements, requests]) => {
-        if (cancelled) return;
-        setApplications(apps);
-        setViewings(views);
-        setLeases(agreements);
-        setJoinRequests(requests);
-        setDetailsLoading(false);
-      });
+      section(listMyApplications(), setApplications),
+      section(listMyViewings(), setViewings),
+      section(listMyLeases(), setLeases),
+      section(listMyJoinRequests(), setJoinRequests),
+    ]).then(() => { if (!cancelled) setDetailsLoading(false); });
     return () => { cancelled = true; };
   }, []);
 
@@ -225,7 +225,7 @@ function TenantHome({ me }: { me: Me }) {
         <div className="home-greeting-copy">
           <p className="home-eyebrow">{leadHome ? leadHome.property.title : "Your rentals"}</p>
           <h1>{greetPerson(me.preferred_name || me.first_name || "")}</h1>
-          <p>{detailsLoading || tenancies === null ? "Your rental overview" : tenantSummary(needs.length, homes.length, upcoming.length)}</p>
+          <p>{detailsLoading || detailsFailed || tenancies === null ? "Your rental overview" : tenantSummary(needs.length, homes.length, upcoming.length)}</p>
         </div>
         <div className="home-greeting-aside">
           <DraftedElevation />
@@ -304,11 +304,11 @@ function TenantHome({ me }: { me: Me }) {
               </div>
             </section>
 
-            <section className="home-attention-panel" data-clear={!detailsLoading && needs.length === 0} aria-busy={detailsLoading} aria-labelledby="tenant-attention-title">
+            <section className="home-attention-panel" data-clear={!detailsLoading && !detailsFailed && needs.length === 0} aria-busy={detailsLoading} aria-labelledby="tenant-attention-title">
               <div className="home-widget-head">
                 <h2 id="tenant-attention-title">Needs attention</h2>
                 <span className="home-widget-count">
-                  {detailsLoading ? "Loading…" : needs.length ? `${needs.length} ${plural(needs.length, "item", "items")}` : "All clear"}
+                  {detailsLoading ? "Loading…" : needs.length ? `${needs.length} ${plural(needs.length, "item", "items")}` : detailsFailed ? "Unavailable" : "All clear"}
                 </span>
               </div>
               {needs.length ? (
@@ -329,7 +329,7 @@ function TenantHome({ me }: { me: Me }) {
                     </li>
                   ))}
                 </ul>
-              ) : detailsLoading ? null : (
+              ) : detailsLoading || detailsFailed ? null : (
                 <div className="home-all-clear">
                   <span aria-hidden="true">✓</span>
                   <p>
@@ -371,7 +371,7 @@ function TenantHome({ me }: { me: Me }) {
               </ol>
             ) : (
               <p className="home-chart-empty">
-                <strong>{detailsLoading ? "Checking your schedule…" : "Nothing scheduled."}</strong>
+                <strong>{detailsLoading ? "Checking your schedule…" : detailsFailed ? "Schedule unavailable." : "Nothing scheduled."}</strong>
               </p>
             )}
             <StreetElevation />
@@ -886,75 +886,68 @@ function ProviderHome({ me, activeContext }: { me: Me; activeContext: string | n
   ) ?? me.contexts.find((context) => context.type === "organization") ?? null;
   const access = portfolioContext?.access ?? null;
   const [properties, setProperties] = useState<Property[]>([]);
-  const [organizations, setOrganizations] = useState<Organization[]>([]);
+  const [organization, setOrganization] = useState<{ id: string; name: string } | null>(null);
   const [applications, setApplications] = useState<RentalApplication[]>([]);
   const [viewings, setViewings] = useState<Viewing[]>([]);
   const [grantedLeases, setGrantedLeases] = useState<Lease[]>([]);
-  const [portfolio, setPortfolio] = useState<OrganizationPortfolio | null>(null);
+  const [portfolio, setPortfolio] = useState<PortfolioHomeSummary | null>(null);
   const [enquiries, setEnquiries] = useState<Enquiry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [detailsLoading, setDetailsLoading] = useState(true);
+  const [detailsFailed, setDetailsFailed] = useState(false);
   const [error, setError] = useState("");
-  // Enquiries belong to whoever operates the Properties that are for sale.
+  const selectedId = portfolioContext?.id === activeContext ? portfolioContext?.organization_id : undefined;
+  const selectedName = portfolioContext?.label;
   const readsEnquiries = access ? access.can.operate_properties : true;
 
   useEffect(() => {
-    // Nothing operational exists before approval, and every one of these calls
-    // would be refused. Asking anyway would fill the console with errors that
-    // are not the person's problem.
-    if (!provider.workspace_access) {
-      setLoading(false);
-      return;
-    }
+    if (!provider.workspace_access) return;
     let cancelled = false;
-    listOrganizations()
-      .then(async (orgs) => {
+    async function section<T>(request: Promise<T>, apply: (result: T) => void) {
+      try {
+        const value = await request;
+        if (!cancelled) apply(value);
+      } catch {
+        if (!cancelled) setDetailsFailed(true);
+      }
+    }
+
+    async function load() {
+      try {
+        const selected = selectedId
+          ? { id: selectedId, name: selectedName ?? "Your Portfolio" }
+          : (await listOrganizations())[0];
         if (cancelled) return;
-        const preferredId = activeContext?.startsWith("organization:")
-          ? activeContext.slice("organization:".length)
-          : "";
-        const organization = orgs.find((row) => row.id === preferredId) ?? orgs[0];
-        if (!organization) return { orgs, props: [], apps: [], views: [], leases: [], summary: null, talks: [] };
-        // Each list is asked for this Portfolio, so nothing is sifted here.
-        // Home used to fetch every Unit purely to filter three account-wide
-        // lists by hand — and viewings by *Property title*, which two
-        // Properties can share, so a viewing could be dropped, or kept against
-        // the wrong building entirely.
-        const scope = { organization: organization.id };
-        const [props, apps, views, leases, summary, talks] = await Promise.all([
-          listOrganizationProperties(organization.id).catch(() => [] as Property[]),
-          listReceivedApplications(true, scope).catch(() => [] as RentalApplication[]),
-          listHostViewings(true, scope).catch(() => [] as Viewing[]),
-          listGrantedLeases(scope).catch(() => [] as Lease[]),
-          getOrganizationPortfolio(organization.id).catch(() => null),
-          readsEnquiries ? listEnquiries("seller").catch(() => [] as Enquiry[]) : Promise.resolve([] as Enquiry[]),
-        ]);
-        return { orgs, props, apps, views, leases, summary, talks };
-      })
-      .then((result) => {
-        if (!result || cancelled) return;
-        const { orgs, props, apps, views, leases, summary, talks } = result;
-        if (cancelled) return;
-        setProperties(props);
-        setOrganizations(orgs);
-        setApplications(apps);
-        setViewings(views);
-        setGrantedLeases(leases);
-        setPortfolio(summary);
-        setEnquiries(talks);
-        setError("");
-      })
-      .catch((cause) => {
-        if (!cancelled) {
-          setError(
-            cause instanceof ApiFailure
-              ? cause.error.message
-              : "We could not load your Portfolio right now.",
-          );
+        setOrganization(selected ?? null);
+        if (!selected) {
+          setDetailsLoading(false);
+          return;
         }
-      })
-      .finally(() => { if (!cancelled) setLoading(false); });
+
+        const overview = getOrganizationHome(selected.id);
+        const scope = { organization: selected.id };
+        // Each section can render as soon as its own response arrives.
+        void Promise.all([
+          section(listOrganizationProperties(selected.id), setProperties),
+          section(listReceivedApplications(true, scope), setApplications),
+          section(listHostViewings(true, scope), setViewings),
+          section(listGrantedLeases(scope), setGrantedLeases),
+          readsEnquiries ? section(listEnquiries("seller"), setEnquiries) : undefined,
+        ]).then(() => { if (!cancelled) setDetailsLoading(false); });
+
+        const summary = await overview;
+        if (!cancelled) setPortfolio(summary);
+      } catch (cause) {
+        if (!cancelled) {
+          setError(cause instanceof ApiFailure ? cause.error.message : "We could not load your Portfolio right now.");
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    void load();
     return () => { cancelled = true; };
-  }, [activeContext, provider.workspace_access, readsEnquiries]);
+  }, [selectedId, selectedName, provider.workspace_access, readsEnquiries]);
 
   if (!provider.workspace_access) {
     // A waiting room rather than a notice; every review state has its own words there.
@@ -964,8 +957,8 @@ function ProviderHome({ me, activeContext }: { me: Me; activeContext: string | n
   const canAddProperty = provider.can_create_property || Boolean(access?.can.create_properties);
   const next = propertyNextStep({
     canCreateProperty: canAddProperty,
-    hasWorkspace: organizations.length > 0,
-    organizationId: organizations[0]?.id ?? "",
+    hasWorkspace: organization !== null,
+    organizationId: organization?.id ?? "",
   });
 
   const money = portfolio?.money;
@@ -1013,13 +1006,18 @@ function ProviderHome({ me, activeContext }: { me: Me; activeContext: string | n
     );
   }
 
+  if (error && !portfolio) {
+    return <div className="home-workspace home-provider"><Notice tone="error" title={error} /></div>;
+  }
+
+  const propertyCount = counts?.properties ?? properties.length;
   // A Portfolio with nothing in it gets a beginning, not a wall of zeroes.
-  if (properties.length === 0) {
+  if (propertyCount === 0) {
     return (
       <div className="home-workspace home-provider">
         <section className="home-hero is-empty">
           <div className="home-hero-head">
-            <p className="home-eyebrow">{organizations[0]?.name ?? "Your Portfolio"}</p>
+            <p className="home-eyebrow">{organization?.name ?? "Your Portfolio"}</p>
             <h1>{greetPerson(me.preferred_name || me.first_name || "")}</h1>
           </div>
         </section>
@@ -1060,17 +1058,19 @@ function ProviderHome({ me, activeContext }: { me: Me; activeContext: string | n
             {todayLabel()}
           </p>
           <h1 id="home-hero-title">{greetPerson(me.preferred_name || me.first_name || "")}</h1>
-          <p className="home-hero-line" data-tone={attention.length ? "attention" : "clear"}>
+          <p className="home-hero-line" data-tone={attention.length ? "attention" : detailsLoading || detailsFailed ? undefined : "clear"}>
             <i aria-hidden="true" />
             {attention.length
-              ? `${attention.length} ${plural(attention.length, "item needs", "items need")} your attention across ${properties.length} ${plural(properties.length, "Property", "Properties")}.`
-              : `Your ${properties.length} ${plural(properties.length, "Property is", "Properties are")} operating normally.`}
+              ? `${attention.length} ${plural(attention.length, "item needs", "items need")} your attention across ${propertyCount} ${plural(propertyCount, "Property", "Properties")}.`
+              : detailsLoading ? "Checking what needs attention…"
+                : detailsFailed ? "Some Portfolio details are unavailable."
+                : `Your ${propertyCount} ${plural(propertyCount, "Property is", "Properties are")} operating normally.`}
           </p>
         </div>
 
         <div className="home-pulse" aria-label="Portfolio overview">
           <div className="home-portfolio-rings">
-            <PortfolioRing label="Properties" value={properties.length} href="/properties" note="In your portfolio" tone="inventory" />
+            <PortfolioRing label="Properties" value={propertyCount} href="/properties" note="In your portfolio" tone="inventory" />
             <PortfolioRing label="Rentable Units" value={unitCount} href="/units" note={unitCount ? `${occupancy}% occupied` : "No units yet"} share={unitCount ? occupied / unitCount : 0} tone="occupancy" />
             <PortfolioRing label="Active tenancies" value={counts?.active_tenants ?? 0} href="/tenants" note="Current tenancies" tone="tenancies" />
             <PortfolioRing label="Vacant Units" value={available} href="/units" note={unitCount ? `${Math.round(available / unitCount * 100)}% of rentable units` : "No units yet"} share={unitCount ? available / unitCount : 0} tone="vacancy" />
@@ -1110,7 +1110,7 @@ function ProviderHome({ me, activeContext }: { me: Me; activeContext: string | n
                 </svg>
               </Link>
             </div>
-            <Agenda items={agenda} />
+            {detailsLoading && !agenda.length ? <LoadingRows /> : <Agenda items={agenda} />}
           </section>
 
           <section className="home-panel home-activity-panel" aria-labelledby="home-activity-title">
@@ -1128,11 +1128,11 @@ function ProviderHome({ me, activeContext }: { me: Me; activeContext: string | n
         </div>
 
         <aside className="home-side" aria-label="Needs you">
-          <section className="home-attention-panel" data-clear={attention.length === 0} aria-labelledby="provider-attention-title">
+          <section className="home-attention-panel" data-clear={!detailsLoading && !detailsFailed && attention.length === 0} aria-busy={detailsLoading} aria-labelledby="provider-attention-title">
             <div className="home-widget-head">
               <h2 id="provider-attention-title">Needs attention</h2>
               <span className="home-widget-count">
-                {attention.length ? <CountUp value={attention.length} /> : "All clear"}
+                {attention.length ? <CountUp value={attention.length} /> : detailsLoading ? "Loading…" : detailsFailed ? "Unavailable" : "All clear"}
               </span>
             </div>
             {attention.length ? (
@@ -1150,7 +1150,7 @@ function ProviderHome({ me, activeContext }: { me: Me; activeContext: string | n
                   </li>
                 ))}
               </ul>
-            ) : (
+            ) : detailsLoading || detailsFailed ? null : (
               <div className="home-all-clear">
                 <span aria-hidden="true"><Icon name="check" /></span>
                 <p><strong>Nothing is waiting on you.</strong></p>
@@ -1171,7 +1171,7 @@ function ProviderHome({ me, activeContext }: { me: Me; activeContext: string | n
 }
 
 /** The next 30 days, from what the backend has dated. */
-function agendaOf(viewings: Viewing[], tenants: ProviderTenant[]): AgendaItem[] {
+function agendaOf(viewings: Viewing[], tenants: PortfolioHomeTenant[]): AgendaItem[] {
   const now = new Date();
   const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const horizon = new Date(start.getTime() + 31 * 86_400_000);
@@ -1495,7 +1495,7 @@ function RecentActivity({
   portfolio,
   leases,
 }: {
-  portfolio: OrganizationPortfolio | null;
+  portfolio: PortfolioHomeSummary | null;
   leases: Lease[];
 }) {
   // What happened, where it happened, and what it was worth. Split into three

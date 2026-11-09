@@ -57,6 +57,7 @@ function DiscoveryHome() {
   const [homeError, setHomeError] = useState("");
   const [homeLoading, setHomeLoading] = useState(true);
   const [detailsLoading, setDetailsLoading] = useState(true);
+  const [detailsFailed, setDetailsFailed] = useState(false);
 
   const me = state.status === "signed_in" ? state.me : null;
   const displayName = me?.preferred_name || me?.first_name || "";
@@ -70,11 +71,15 @@ function DiscoveryHome() {
    * active; the tab itself is the tenant side.
    */
   const tenantMode = Boolean(me);
+  const tenantId = me?.id;
 
   useFocusEffect(useCallback(() => {
-    if (!tenantMode) {
+    if (!tenantId) {
       setTenancies([]);
       setLeases([]);
+      setApplications([]);
+      setViewings([]);
+      setJoinRequests([]);
       setUnreadNotifications(0);
       setRecentActivity([]);
       setHomeLoading(false);
@@ -84,6 +89,7 @@ function DiscoveryHome() {
     let live = true;
     setHomeLoading(true);
     setDetailsLoading(true);
+    setDetailsFailed(false);
     void listMyTenancies().then((homes) => {
       if (!live) return;
       setTenancies(homes);
@@ -93,26 +99,27 @@ function DiscoveryHome() {
     }).finally(() => {
       if (live) setHomeLoading(false);
     });
+    async function section<T>(request: Promise<T>, apply: (rows: T) => void) {
+      try {
+        const rows = await request;
+        if (live) apply(rows);
+      } catch {
+        if (live) setDetailsFailed(true);
+      }
+    }
     void Promise.all([
-      listMyLeases().catch(() => [] as Lease[]),
-      listMyApplications().catch(() => [] as RentalApplication[]),
-      listMyViewings().catch(() => [] as Viewing[]),
-      listMyJoinRequests().catch(() => [] as MyJoinRequest[]),
-    ]).then(([agreements, apps, views, requests]) => {
-      if (!live) return;
-      setLeases(agreements);
-      setApplications(apps);
-      setViewings(views);
-      setJoinRequests(requests);
-      setDetailsLoading(false);
-    });
+      section(listMyLeases(), setLeases),
+      section(listMyApplications(), setApplications),
+      section(listMyViewings(), setViewings),
+      section(listMyJoinRequests(), setJoinRequests),
+    ]).then(() => { if (live) setDetailsLoading(false); });
     void listNotifications().catch(() => ({ unread_count: 0, results: [] })).then((updates) => {
       if (!live) return;
       setUnreadNotifications(updates.unread_count);
       setRecentActivity(updates.results);
     });
     return () => { live = false; };
-  }, [tenantMode]));
+  }, [tenantId]));
 
   const canOpenProvider = state.status === "signed_in"
     && state.me.capabilities.available_workspaces.includes("provider");
@@ -195,6 +202,7 @@ function DiscoveryHome() {
           error={homeError}
           loading={homeLoading}
           detailsLoading={detailsLoading}
+          detailsFailed={detailsFailed}
           unreadNotifications={unreadNotifications}
           recentActivity={recentActivity}
           onNotifications={() => router.push("/(app)/notifications" as never)}

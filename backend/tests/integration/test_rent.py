@@ -1544,7 +1544,25 @@ class TestPostTenancyApi:
     def test_tenant_payment_portfolio_can_explicitly_include_ended_accounts(
         self, signed_in, landlord, user, unit
     ):
-        lease, _ = self._ended(landlord, user, unit)
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        from apps.property.models import Unit
+
+        lease, charge = self._ended(landlord, user, unit)
+        services.record_payment(
+            lease=lease,
+            user=landlord,
+            data={
+                "charge_id": charge.id,
+                "amount_minor": charge.outstanding_minor,
+                "paid_on": date.today(),
+            },
+        )
+        second_unit = Unit.objects.create(
+            property=unit.property, label="Flat B", bedrooms=1, bathrooms=1
+        )
+        second_lease, _ = self._ended(landlord, user, second_unit)
         api = signed_in(user, "tenant-ended-portfolio")
 
         assert all(
@@ -1552,11 +1570,28 @@ class TestPostTenancyApi:
             for row in api.get("/api/v1/me/tenancies/").data
             if row["lease"]
         )
-        included = api.get("/api/v1/me/tenancies/?include_ended=1")
+        with CaptureQueriesContext(connection) as queries:
+            included = api.get("/api/v1/me/tenancies/?include_ended=1&include_ledger=1")
+        portfolio_queries = list(queries)
         assert included.status_code == 200
-        account = next(row for row in included.data if row["lease"]["id"] == str(lease.id))
-        assert account["status"] == "ended"
-        assert account["rent"]["outstanding_count"] > 0
+        accounts = {row["lease"]["id"]: row for row in included.data}
+        for ended in (lease, second_lease):
+            account = accounts[str(ended.id)]
+            assert account["status"] == "ended"
+            assert account["rent"]["outstanding_count"] > 0
+            detail = api.get(f"/api/v1/leases/{ended.id}/charges/")
+            assert detail.status_code == 200
+            assert account["ledger"] == {
+                "charges": detail.data["charges"], "payments": detail.data["payments"]
+            }
+        assert len(accounts[str(lease.id)]["ledger"]["payments"]) == 1
+        assert not accounts[str(second_lease.id)]["ledger"]["payments"]
+        for table in ("rent_charge", "rent_obligation_adjustment", "rent_payment"):
+            count = sum(f'FROM "{table}"' in query["sql"] for query in portfolio_queries)
+            assert count == 1, table
+
+        outsider = signed_in(landlord, "not-the-tenant")
+        assert outsider.get("/api/v1/me/tenancies/?include_ended=1&include_ledger=1").data == []
 
 
 def test_provider_colleagues_cannot_confirm_their_own_partys_claim(

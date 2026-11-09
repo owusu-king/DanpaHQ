@@ -411,7 +411,7 @@ function PropertyRow({ property, onOpen }: { property: ManagedProperty; onOpen: 
       {...pressableFeedback(PRESSED)}
       style={({ pressed }) => [rowStyles.row, pressed ? { backgroundColor: PRESSED } : null]}
     >
-      <Thumb uri={property.cover_url} size={56} />
+      <Thumb uri={property.cover_thumbnail_url ?? property.cover_url} size={56} />
       <View style={rowStyles.rowBody}>
         <Type variant="bodyStrong" numberOfLines={1} style={rowStyles.rowTitle}>
           {property.title || "Untitled Property"}

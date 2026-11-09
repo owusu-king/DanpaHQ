@@ -107,6 +107,7 @@ export type Property = {
   /** The one photograph a row shows. The Property's own if it has one, else a
    *  photograph from one of its Units — nothing uploads Property photos yet. */
   cover_url: string | null;
+  cover_thumbnail_url?: string | null;
   capabilities: Record<string, { allowed: boolean; state: string; missing: string[] }>;
   /** What this person may do to this property, decided by the backend. The page
    *  renders these; hiding one the API refuses is a courtesy, not the boundary. */
@@ -1317,6 +1318,17 @@ export type OrganizationPortfolio = {
   /** Ended tenancies, most recent first — the Tenants page's Archive. Absent from an older API. */
   past_tenants?: ProviderTenant[];
 };
+
+export type PortfolioHomeTenant = Omit<ProviderTenant, "can_record_payment">;
+
+export type PortfolioHomeSummary = Pick<
+  OrganizationPortfolio,
+  "organization" | "counts" | "money" | "rent_collection" | "recent_payments" | "recent_activity"
+> & { tenants: PortfolioHomeTenant[] };
+
+export function getOrganizationHome(organizationId: string) {
+  return authedFetch<PortfolioHomeSummary>(`/organizations/${organizationId}/portfolio/?view=home`, { cache: "no-store" });
+}
 
 export function getOrganizationPortfolio(organizationId: string) {
   return authedFetch<OrganizationPortfolio>(

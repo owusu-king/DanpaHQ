@@ -293,7 +293,9 @@ class OrganizationPropertyView(APIView):
         # The mobile Properties tab, reading the same serializer.
         with memoized():
             return Response(
-                PropertySerializer(rows, many=True, context={"user": request.user}).data
+                PropertySerializer(
+                    rows, many=True, context={"user": request.user, "request": request}
+                ).data
             )
 
     def post(self, request, pk):
@@ -328,7 +330,11 @@ class OrganizationPortfolioView(APIView):
     def get(self, request, pk):
         organization = services.get_organization_or_404(pk, request.user)
         response = Response(
-            services.portfolio_summary(organization=organization, user=request.user)
+            services.portfolio_summary(
+                organization=organization,
+                user=request.user,
+                home_only=request.query_params.get("view") == "home",
+            )
         )
         response["Cache-Control"] = "private, no-store"
         return response

@@ -574,6 +574,7 @@ class PropertySerializer(serializers.ModelSerializer):
     amenities = serializers.SerializerMethodField()
     video = serializers.SerializerMethodField()
     cover_url = serializers.SerializerMethodField()
+    cover_thumbnail_url = serializers.SerializerMethodField()
     #: For a property for sale, where its sale stands; `None` for letting.
     sale = serializers.SerializerMethodField()
     #: The three facts in words, so no client keeps its own copy of the labels.
@@ -604,6 +605,7 @@ class PropertySerializer(serializers.ModelSerializer):
             "amenities_confirmed_at",
             "amenities",
             "cover_url",
+            "cover_thumbnail_url",
             "video",
             "unit_count",
             "bed_count",
@@ -640,7 +642,11 @@ class PropertySerializer(serializers.ModelSerializer):
         from apps.sale.models import SaleListing
         from apps.sale.read_models import is_public
 
-        sale = SaleListing.objects.filter(property=obj).first()
+        sale = (
+            obj._property_list_sale
+            if hasattr(obj, "_property_list_sale")
+            else SaleListing.objects.filter(property=obj).first()
+        )
         if sale is None:
             return None
         return {
@@ -651,7 +657,11 @@ class PropertySerializer(serializers.ModelSerializer):
             "price_formatted": str(Money(sale.price_minor, sale.currency))
             if sale.price_minor
             else None,
-            "is_public": is_public(sale),
+            "is_public": (
+                obj._property_list_sale_public
+                if hasattr(obj, "_property_list_sale_public")
+                else is_public(sale)
+            ),
         }
 
     def get_condition_state(self, obj) -> str:
@@ -682,6 +692,19 @@ class PropertySerializer(serializers.ModelSerializer):
         return cached
 
     def get_cover_url(self, obj) -> str | None:
+        from apps.files.photos import inline_image_url
+
+        return inline_image_url(self._cover_file(obj))
+
+    def get_cover_thumbnail_url(self, obj) -> str | None:
+        from apps.files.thumbnails import thumbnail_url
+
+        request = self.context.get("request")
+        if request is None:
+            return None
+        return thumbnail_url(self._cover_file(obj), request=request)
+
+    def _cover_file(self, obj):
         """The one photograph a Property row shows — of the building itself.
 
         Its own media first. `PropertyMedia` is where a Property's photographs
@@ -705,18 +728,17 @@ class PropertySerializer(serializers.ModelSerializer):
         them, and `inline_image_url` refuses any file whose purpose is not
         `property_photo` regardless.
         """
-        from apps.files.photos import inline_image_url
+        from apps.files.photos import is_renderable_photo
 
         own = sorted(
             (row for row in obj.media.all() if row.kind in ("exterior", "interior")),
             key=lambda row: (row.kind != "exterior", row.sort_order, row.created_at),
         )
         for row in own:
-            url = inline_image_url(row.file)
-            if url is not None:
-                return url
+            if is_renderable_photo(row.file):
+                return row.file
 
-        return inline_image_url(self._cover_files().get(str(obj.id)))
+        return self._cover_files().get(str(obj.id))
 
     def get_amenities(self, obj) -> list:
         rows = getattr(obj, "_property_list_amenities", None)

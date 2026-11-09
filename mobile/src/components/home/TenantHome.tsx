@@ -84,6 +84,7 @@ export function TenantHome({
   joinRequests,
   loading,
   detailsLoading,
+  detailsFailed,
   error,
   onJoin,
   onExplore,
@@ -103,6 +104,7 @@ export function TenantHome({
   joinRequests: MyJoinRequest[];
   loading: boolean;
   detailsLoading: boolean;
+  detailsFailed: boolean;
   error: string;
   onJoin: () => void;
   onExplore: () => void;
@@ -277,8 +279,10 @@ export function TenantHome({
       ) : null}
 
       <Section title="Your next move" meta={needs.length ? `${needs.length} waiting` : undefined}>
-        {detailsLoading && needs.length === 0 ? (
-          <Type variant="caption" accessibilityLiveRegion="polite">Checking what needs your attention…</Type>
+        {(detailsLoading || detailsFailed) && needs.length === 0 ? (
+          <Type variant="caption" accessibilityLiveRegion="polite">
+            {detailsLoading ? "Checking what needs your attention…" : "Some rental details are unavailable."}
+          </Type>
         ) : <NextMoves
           moves={needs.map((item) => ({
             key: item.id,
