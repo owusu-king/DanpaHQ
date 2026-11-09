@@ -334,18 +334,9 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
         />
 
         <main id="main" tabIndex={-1} className="portal-main" key={activeContext ?? "no-context"}>
-          {!me.is_phone_verified && pathname !== "/rentals" ? (
-            <aside className="portal-phone-reminder" aria-label="Phone verification reminder">
-              <span>
-                <strong>Add a verified phone when you’re ready.</strong>
-                <small>It is needed for phone-sensitive actions and SMS alerts, not for browsing your account.</small>
-              </span>
-              <Link href={"/settings/security#phone-verification" as never}>Verify phone</Link>
-            </aside>
-          ) : null}
           {state.stale ? (
             <p className="portal-stale" role="status">
-              Showing your last confirmed details — we could not reach the service just now.
+              Showing your last confirmed details. We couldn’t refresh your account right now.
             </p>
           ) : null}
           {children}

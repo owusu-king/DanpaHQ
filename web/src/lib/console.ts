@@ -1566,17 +1566,22 @@ export async function uploadFile(file: File, purpose: string): Promise<StoredFil
   }
   body.append("file", prepared);
 
-  const upload = await fetch(reservation.url, {
-    method: reservation.method || "POST",
-    body: reservation.method === "PUT" ? prepared : body,
-    headers: reservation.method === "PUT" ? { "Content-Type": prepared.type } : undefined,
-  });
-
-  if (!upload.ok) {
-    throw new Error(
-      `Storage refused the upload (${upload.status}). The file may be larger than allowed.`,
-    );
+  const deadline = AbortSignal.timeout(120_000);
+  let upload: Response;
+  try {
+    upload = await fetch(reservation.url, {
+      method: reservation.method || "POST",
+      body: reservation.method === "PUT" ? prepared : body,
+      headers: reservation.method === "PUT" ? { ...reservation.headers, "Content-Type": prepared.type } : undefined,
+      signal: deadline,
+    });
+  } catch {
+    throw new Error(deadline.aborted ? "Sending the file timed out. Try again." : "Couldn’t connect to file storage. Try again.");
   }
+
+  if (upload.status === 413) throw new Error("File storage rejected the size. Choose a smaller file.");
+  if (upload.status === 429) throw new Error("File storage is busy. Wait a moment and retry.");
+  if (!upload.ok) throw new Error(`File storage did not accept the upload (HTTP ${upload.status}). Try again.`);
 
   let stored = await authedFetch<StoredFile>(`/files/uploads/${reservation.file_id}/complete/`, {
     method: "POST",
@@ -1584,8 +1589,8 @@ export async function uploadFile(file: File, purpose: string): Promise<StoredFil
   });
   // Scanning is asynchronous. Poll the private metadata endpoint briefly so a
   // fast scanner does not force the person to choose the same file again.
-  for (let attempt = 0; attempt < 20 && !stored.is_usable && !stored.rejection_reason; attempt++) {
-    await new Promise((resolve) => setTimeout(resolve, 750));
+  for (let attempt = 0; attempt < 10 && !stored.is_usable && !stored.rejection_reason && stored.scan_status !== "failed" && stored.upload_status !== "expired"; attempt++) {
+    await new Promise((resolve) => setTimeout(resolve, Math.min(1000 * (attempt + 1), 3000)));
     stored = await authedFetch<StoredFile>(`/files/${reservation.file_id}/`);
   }
   return stored;

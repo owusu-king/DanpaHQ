@@ -121,6 +121,18 @@ class TestAxesSurviveBulkWrites:
 
 
 class TestSpaceTypeDiscovery:
+    def test_listing_cards_batch_trust_for_a_full_page(
+        self, api, landlord, approve_provider, django_assert_max_num_queries,
+    ):
+        for index in range(20):
+            _listing(landlord, approve_provider, space_type="apartment", label=f"Flat {index}")
+        # Warm the Django route and application configuration.
+        assert api.get("/api/v1/listings/").status_code == 200
+        with django_assert_max_num_queries(8):
+            response = api.get("/api/v1/listings/")
+        assert len(response.data["results"]) == 20
+        assert all(row["provider_label"] == "Verified owner" for row in response.data["results"])
+
     def test_a_bed_space_can_be_searched_for(self, api, landlord, approve_provider):
         _listing(landlord, approve_provider, space_type="bed_space", label="Bed 1")
         _listing(landlord, approve_provider, space_type="apartment", label="Flat 2")

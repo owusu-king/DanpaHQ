@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import { GoogleIdentityButton } from "@/components/auth/GoogleIdentityButton";
+import { authedFetch } from "@/lib/auth";
 import { Button } from "@/components/Button";
 import { Field } from "@/components/Field";
 import { Notice } from "@/components/Notice";
@@ -19,7 +21,7 @@ import {
 } from "@/lib/console";
 import { fieldErrorsFrom, summaryErrorFrom, type FieldErrors } from "@/lib/formErrors";
 import { ARTISAN_STATUS_LOOK } from "@/lib/artisan";
-import type { Capabilities } from "@/lib/session";
+import { useSession, type Capabilities } from "@/lib/session";
 
 const MIN_PASSWORD_LENGTH = 8;
 
@@ -322,7 +324,8 @@ export function ProfileSection({
 }
 
 /** Change a known password. The current one is required even inside a session. */
-export function PasswordSection() {
+export function PasswordSection({ hasPassword }: { hasPassword: boolean }) {
+  const { refresh } = useSession();
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
   const [busy, setBusy] = useState(false);
@@ -330,8 +333,8 @@ export function PasswordSection() {
   const [summary, setSummary] = useState("");
   const [done, setDone] = useState(false);
 
-  async function submit(event: React.FormEvent) {
-    event.preventDefault();
+  async function save(credential?: string) {
+    if (busy) return;
     if (next.length < MIN_PASSWORD_LENGTH) {
       setErrors({ new_password: `Use at least ${MIN_PASSWORD_LENGTH} characters.` });
       return;
@@ -341,7 +344,12 @@ export function PasswordSection() {
     setSummary("");
     setDone(false);
     try {
-      await changePassword(current, next);
+      if (credential) {
+        await authedFetch("/me/password/google/", {
+          method: "POST", body: JSON.stringify({ credential, new_password: next }),
+        });
+        await refresh();
+      } else await changePassword(current, next);
       setCurrent("");
       setNext("");
       setDone(true);
@@ -355,16 +363,16 @@ export function PasswordSection() {
   }
 
   return (
-    <form onSubmit={submit} className="settings-security-form">
+    <form onSubmit={(event) => { event.preventDefault(); if (hasPassword) void save(); }} className="settings-security-form">
       <div className="settings-fields-2">
-        <Field
+        {hasPassword ? <Field
           label="Current password"
           type="password"
           value={current}
           onChange={(event) => setCurrent(event.target.value)}
           error={errors.current_password}
           autoComplete="current-password"
-        />
+        /> : null}
         <Field
           label="New password"
           type="password"
@@ -381,11 +389,14 @@ export function PasswordSection() {
       {done ? (
         <Notice
           tone="success"
-          title="Password changed"
+          title="Password saved"
           body="Your other devices have been signed out."
         />
       ) : null}
-      <Button type="submit" size="sm" busy={busy}>Change password</Button>
+      {hasPassword ? <Button type="submit" size="sm" busy={busy}>Change password</Button> : <>
+        <p className="type-caption">Confirm your linked Google account to enable password sign-in.</p>
+        <GoogleIdentityButton busy={busy || next.length < MIN_PASSWORD_LENGTH} onCredential={save} />
+      </>}
     </form>
   );
 }

@@ -23,6 +23,8 @@ export type UploadedFile = {
   is_usable: boolean;
   status_message: string;
   rejection_reason: string;
+  scan_status?: string;
+  upload_status?: string;
 };
 
 export async function uploadImage(
@@ -55,12 +57,14 @@ export async function uploadImage(
   });
 
   const response = await transferUpload(reservation, prepared);
-  if (!response.ok) throw new Error("Storage refused the document upload.");
+  if (response.status === 413) throw new Error("File storage rejected the size. Choose a smaller file.");
+  if (response.status === 429) throw new Error("File storage is busy. Wait a moment and retry.");
+  if (!response.ok) throw new Error(`File storage refused the upload${response.status ? ` (HTTP ${response.status})` : ""}. Try again.`);
   let stored = await apiFetch<UploadedFile>(`/files/uploads/${reservation.file_id}/complete/`, {
     method: "POST",
   });
-  for (let attempt = 0; attempt < 20 && !stored.is_usable && !stored.rejection_reason; attempt++) {
-    await new Promise((resolve) => setTimeout(resolve, 750));
+  for (let attempt = 0; attempt < 10 && !stored.is_usable && !stored.rejection_reason && stored.scan_status !== "failed" && stored.upload_status !== "expired"; attempt++) {
+    await new Promise((resolve) => setTimeout(resolve, Math.min(1000 * (attempt + 1), 3000)));
     stored = await apiFetch<UploadedFile>(`/files/${reservation.file_id}/`);
   }
   return stored;

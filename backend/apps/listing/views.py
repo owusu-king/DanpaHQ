@@ -136,8 +136,11 @@ class MyListingsView(APIView):
     def get(self, request):
         listings = (
             Listing.objects.filter(created_by=request.user)
-            .select_related("unit__property")
-            .prefetch_related("media__file", "unit__media__file")
+            .select_related(
+                "unit__property__address__locality__district",
+                "unit__property__address__locality__region",
+            )
+            .prefetch_related("media__file", "unit__media__file", "highlighted_amenities")
             .order_by("-created_at")
         )
         response = Response(ListingSerializer(listings, many=True).data)

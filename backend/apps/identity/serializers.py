@@ -11,6 +11,8 @@ Two rules run through this file:
 
 from __future__ import annotations
 
+from uuid import UUID
+
 from rest_framework import serializers
 
 from apps.core.phone import PhoneNumberError, format_national, mask, normalise_ghana_msisdn
@@ -127,6 +129,10 @@ class GoogleSignInSerializer(DeviceContextSerializer):
 
 class GoogleCredentialSerializer(serializers.Serializer):
     credential = serializers.CharField(trim_whitespace=False, max_length=10_000)
+
+
+class SetGooglePasswordSerializer(GoogleCredentialSerializer):
+    new_password = serializers.CharField(trim_whitespace=False, max_length=128)
 
 
 class CompleteRegistrationSerializer(DeviceContextSerializer):
@@ -410,6 +416,7 @@ class MeSerializer(serializers.ModelSerializer):
     registration_state = serializers.CharField(read_only=True)
     authentication_methods = serializers.SerializerMethodField()
     google_linked = serializers.SerializerMethodField()
+    has_password = serializers.BooleanField(source="has_usable_password", read_only=True)
 
     class Meta:
         model = User
@@ -438,6 +445,7 @@ class MeSerializer(serializers.ModelSerializer):
             "registration_state",
             "authentication_methods",
             "google_linked",
+            "has_password",
             "capabilities",
             "onboarding_state",
             "available_contexts",
@@ -473,12 +481,16 @@ class MeSerializer(serializers.ModelSerializer):
         methods = []
         if obj.has_usable_password() and obj.phone:
             methods.append("phone")
-        if obj.external_identities.filter(provider="google").exists():
+        if self.get_google_linked(obj):
             methods.append("google")
         return methods
 
     def get_google_linked(self, obj) -> bool:
-        return obj.external_identities.filter(provider="google").exists()
+        if not hasattr(self, "_google_links"):
+            self._google_links: dict[UUID, bool] = {}
+        if obj.pk not in self._google_links:
+            self._google_links[obj.pk] = obj.external_identities.filter(provider="google").exists()
+        return self._google_links[obj.pk]
 
     def get_roles(self, obj) -> list[str]:
         return sorted(obj.roles)

@@ -422,6 +422,31 @@ class TestWithdrawing:
         assert again.id != first.id
 
 
+@pytest.mark.parametrize("contact", ["email", "unverified_phone", "verified_phone", "legacy"])
+def test_application_accepts_email_or_existing_verified_phone(user, live_listing, contact):
+    from tests.conftest import TEST_PASSWORD
+
+    if contact != "legacy":
+        user.email = "applicant@example.com"
+        user.is_email_verified = True
+    if contact == "email":
+        user.phone = None
+    user.is_phone_verified = contact in {"verified_phone", "legacy"}
+    if not user.is_phone_verified:
+        user.phone_verified_at = None
+    user.save()
+    api = APIClient()
+    signed_in = api.post("/api/v1/auth/sign-in/", {
+        "identifier": user.email or user.phone, "password": TEST_PASSWORD, "platform": "android",
+    }, format="json")
+    assert signed_in.status_code == 200, signed_in.data
+    api.credentials(HTTP_AUTHORIZATION=f"Bearer {signed_in.data['access_token']}")
+    applied = api.post("/api/v1/me/applications/", {
+        "listing_id": str(live_listing.id), "advance_months_offered": 6,
+    }, format="json")
+    assert applied.status_code == 201, applied.data
+
+
 class TestApi:
     @pytest.fixture
     def signed_in(self, sms, sign_in_as):

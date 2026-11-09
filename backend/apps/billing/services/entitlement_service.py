@@ -112,16 +112,15 @@ def _plan_values(plan: Plan) -> dict[str, PlanEntitlement]:
     """Plan values, cached briefly.
 
     A plan's packaging changes rarely and is read on nearly every write, so this
-    is the one thing worth caching. Keyed on the plan and invalidated by time
-    only — a limit raised through the admin is visible within the window, and
-    the window is short enough that nobody notices except under load.
+    is the one thing worth caching. Management publishes a new plan revision
+    with the entitlement changes so new requests never use its previous cache.
 
     Through `apps.core.cache`, because this is a saved query and nothing more.
     Reading Django's cache directly meant an unreachable Redis raised from here,
     and since every entitlement resolves through this function, a cache outage
     turned Plan & billing — and every limit check behind it — into a 500.
     """
-    key = f"billing:plan-values:{plan.pk}"
+    key = f"billing:plan-values:{plan.pk}:{plan.updated_at.isoformat()}"
     cached = cache_get(key)
     if cached is not None:
         return cached

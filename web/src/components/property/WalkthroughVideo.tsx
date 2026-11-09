@@ -15,6 +15,7 @@ export function WalkthroughUpload({ subject, id, editable, onBusy }: { subject: 
   const [saved, setSaved] = useState<WalkthroughVideo | null>(null);
   const [preview, setPreview] = useState("");
   const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState("");
   const [error, setError] = useState("");
   const [retryAvailable, setRetryAvailable] = useState(false);
   const retry = useRef<(() => Promise<string>) | null>(null);
@@ -28,32 +29,36 @@ export function WalkthroughUpload({ subject, id, editable, onBusy }: { subject: 
     if (running.current) return;
     running.current = true; setBusy(true); onBusy?.(true); setError("");
     try { await run(); } catch (cause) { setError(cause instanceof ApiFailure ? cause.error.message : cause instanceof Error ? cause.message : "Video upload failed. Try again."); }
-    finally { running.current = false; setBusy(false); onBusy?.(false); }
+    finally { running.current = false; setBusy(false); setProgress(""); onBusy?.(false); }
   }
   async function save() {
     const fileId = await retry.current!();
+    setProgress("Saving video…");
     const next = await authedFetch<WalkthroughVideo>(videoPath(subject, id), { method: "PUT", body: JSON.stringify({ file_id: fileId }) });
     version.current++; setSaved(next); setPreview(""); retry.current = null; setRetryAvailable(false);
   }
   async function choose(file?: File) {
     if (!file) return;
     await act(async () => {
+      setPreview(""); retry.current = null; setRetryAvailable(false);
+      setProgress("Checking selected video…");
       await validateVideo(file);
-      setPreview(URL.createObjectURL(file)); retry.current = videoUpload(file, subject); setRetryAvailable(true);
+      setPreview(URL.createObjectURL(file)); retry.current = videoUpload(file, subject, setProgress); setRetryAvailable(true);
       await save();
     });
   }
   if (!editable && !saved && !preview && !error) return null;
   return <div style={{ display: "grid", gap: "var(--space-2)", minWidth: 0 }}>
     <strong className="type-body-strong">Video (optional)</strong>
-    <span className="type-caption">Up to 10 seconds · 30MB · MP4, MOV or WebM</span>
+    <span className="type-caption">Up to 15 seconds · 30MB · MP4, MOV or WebM</span>
     {preview ? <video src={preview} controls playsInline preload="metadata" aria-label="Video preview" style={{ width: "100%", maxHeight: 280 }} /> : <VideoPlayer video={saved} label={`${subject === "property" ? "Property" : "Unit"} video`} />}
+    {progress ? <p role="status" className="type-caption">{progress}</p> : null}
     {error ? <p role="alert" className="type-caption">{error}</p> : null}
     {editable ? <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-2)" }}>
       <input ref={input} type="file" accept="video/mp4,video/quicktime,video/webm,.mp4,.mov,.webm" hidden onChange={event => { void choose(event.target.files?.[0]); event.target.value = ""; }} />
       <button className="btn btn-secondary" type="button" disabled={busy} onClick={() => input.current?.click()}>{busy ? "Uploading…" : preview || saved ? "Replace video" : "Add video"}</button>
       {error && retryAvailable ? <button className="btn btn-secondary" type="button" disabled={busy} onClick={() => void act(save)}>Retry</button> : null}
-      {preview || saved ? <button className="btn btn-quiet" type="button" disabled={busy} onClick={() => void act(async () => { await authedFetch(videoPath(subject, id), { method: "DELETE" }); version.current++; setSaved(null); setPreview(""); retry.current = null; setRetryAvailable(false); })}>Remove video</button> : null}
+      {preview ? <button className="btn btn-quiet" type="button" disabled={busy} onClick={() => { setPreview(""); retry.current = null; setRetryAvailable(false); setError(""); }}>Discard selected video</button> : saved ? <button className="btn btn-quiet" type="button" disabled={busy} onClick={() => void act(async () => { await authedFetch(videoPath(subject, id), { method: "DELETE" }); version.current++; setSaved(null); setPreview(""); retry.current = null; setRetryAvailable(false); })}>Remove video</button> : null}
     </div> : null}
   </div>;
 }

@@ -6,6 +6,7 @@ import { Alert, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { apiFetch, ApiFailure } from "@/api";
 import { useAuth } from "@/auth";
 import { IndexGround } from "@/components/account/IndexRows";
+import { PasswordSettings } from "@/components/account/PasswordSettings";
 import { SignInMethods } from "@/components/account/SignInMethods";
 import { Bone } from "@/components/billing/BillingParts";
 import { Panel, Pill } from "@/components/billing/BillingSurfaces";
@@ -155,6 +156,7 @@ export default function SecurityScreen() {
         {status ? <StatusPanel status={status} devices={devices?.length ?? 0} /> : null}
 
         <SignInMethods />
+        <PasswordSettings />
 
         <View style={styles.section}>
           <GroupLabel count={devices?.length}>Devices signed in</GroupLabel>

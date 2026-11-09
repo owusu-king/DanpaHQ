@@ -14,7 +14,21 @@ Everything defaults to denied. A view that forgets a permission class inherits
 
 from __future__ import annotations
 
+from django.core.exceptions import ValidationError
+from django.core.validators import validate_email
 from rest_framework.permissions import SAFE_METHODS, BasePermission
+
+from apps.core.exceptions import ValidationFailed
+
+
+def require_property_request_contact(user):
+    """Keep existing verified phone accounts eligible; email alone is enough."""
+    if user.phone and user.is_phone_verified:
+        return
+    try:
+        validate_email(user.email)
+    except ValidationError as exc:
+        raise ValidationFailed("Add a valid email address to continue.") from exc
 
 
 class HasRole(BasePermission):
@@ -39,8 +53,7 @@ class HasRole(BasePermission):
 class IsPhoneVerified(BasePermission):
     """Gate actions that require a proven number.
 
-    Browsing does not need this. Anything that creates an obligation - applying
-    for a property, listing one, messaging a landlord - does.
+    Use this only on operations that specifically require a verified number.
     """
 
     message = "Confirm your phone number first."

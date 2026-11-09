@@ -47,6 +47,7 @@ from apps.core.exceptions import (
     DomainError,
     PermissionDenied,
     RateLimited,
+    SessionEnded,
     ValidationFailed,
 )
 from apps.core.phone import format_national, normalise_ghana_msisdn
@@ -220,7 +221,7 @@ def start_challenge(
         existing = User.objects.filter(phone=phone).first()
         # Staff recover through the operations sign-in, so this surface has no
         # account for them and says so rather than confirming the number.
-        if existing is None or existing.is_staff:
+        if existing is None or existing.is_staff or not existing.is_phone_verified:
             raise NoAccount()
         # `password_required` is a real member who predates passwords: sign-in
         # sends them here to set one, so this is the door that has to open.
@@ -232,6 +233,7 @@ def start_challenge(
             raise PermissionDenied(
                 "This account is closed. Contact support if you think that is wrong."
             )
+        user = existing
 
     hour_ago = timezone.now() - timedelta(hours=1)
     sends_phone = AuthChallenge.objects.filter(phone=phone, created_at__gte=hour_ago).count()
@@ -1055,10 +1057,15 @@ def rotate_session(
     reuse_detected = False
 
     with transaction.atomic():
-        session = Session.objects.select_for_update().filter(refresh_token_hash=token_hash).first()
+        session = (
+            Session.objects.select_for_update(of=("self",))
+            .select_related("user")
+            .filter(refresh_token_hash=token_hash)
+            .first()
+        )
 
-        if session is None:
-            raise PermissionDenied("Your session has ended. Sign in again.")
+        if session is None or not session.user.is_active:
+            raise SessionEnded()
 
         if session.revoked_at is not None or session.rotated_at is not None:
             revoked = Session.objects.filter(
@@ -1083,13 +1090,13 @@ def rotate_session(
             reuse_detected = True
 
         elif not session.is_active:
-            raise PermissionDenied("Your session has expired. Sign in again.")
+            raise SessionEnded("Your session has expired. Sign in again.")
 
         else:
             from apps.operations.mfa import session_valid
 
             if not session_valid(session.user, session.mfa_device_id):
-                raise PermissionDenied("Sign in again with your authenticator.")
+                raise SessionEnded("Sign in again with your authenticator.")
             if session.device_id is None and device_fingerprint:
                 # Upgrade a live session created by an older web build. Revoke
                 # indistinguishable legacy rows (and any older row already
@@ -1143,7 +1150,7 @@ def rotate_session(
 
     if reuse_detected:
         # Raised after the revocation has committed.
-        raise PermissionDenied("For your security we signed you out everywhere. Sign in again.")
+        raise SessionEnded("For your security we ended this session. Sign in again.")
 
     return {
         "session": successor,
@@ -1771,6 +1778,9 @@ def sign_in_with_password(
         make_password(password)
         raise generic
     user = matches[0]
+    if "@" not in identifier and not user.is_phone_verified:
+        make_password(password)
+        raise generic
     if not user.has_usable_password():
         make_password(password)
         if "@" in identifier:
@@ -1852,18 +1862,31 @@ def complete_password_reset(*, reset_token: str, new_password: str) -> User:
 
     try:
         subject = UUID(payload["sub"])
+        challenge_id = UUID(payload["cha"])
     except (KeyError, TypeError, ValueError, AttributeError) as exc:
         raise PermissionDenied("That reset is not valid. Start again.") from exc
-    user = User.objects.filter(id=subject).first()
+    challenge = (
+        AuthChallenge.objects.select_for_update()
+        .filter(id=challenge_id, purpose=ChallengePurpose.RECOVER_ACCOUNT,
+                status=ChallengeStatus.VERIFIED)
+        .first()
+    )
+    if challenge is None:
+        raise PermissionDenied("That reset was already used. Start again.")
+    user = User.objects.select_for_update().filter(id=subject).first()
     if user is None or not user.is_active:
         raise PermissionDenied("That account is not available.")
+    if user.phone != challenge.phone or challenge.user_id not in {None, user.id}:
+        raise PermissionDenied("That reset is no longer valid. Start again.")
 
     _validate_password(new_password, user=user, field="new_password")
+    challenge.status = ChallengeStatus.CANCELLED
+    challenge.save(update_fields=["status", "updated_at"])
     user.set_password(new_password)
     user.save(update_fields=["password", "updated_at"])
 
     sign_out_everywhere(user=user, reason="password_reset")
-    get_sms_provider().send(to=user.phone, body=messages.password_changed())
+    transaction.on_commit(lambda: notify_password_changed(user), robust=True)
     record(
         action=AuditAction.PASSWORD_CHANGE,
         aggregate_type="user",
@@ -1899,6 +1922,10 @@ def change_password(*, user, current_password: str, new_password: str, except_se
     _validate_password(new_password, user=user, field="new_password")
 
     with transaction.atomic():
+        locked = User.objects.select_for_update().get(pk=user.pk)
+        if locked.password != user.password:
+            raise Conflict("Your password changed on another device. Try again.")
+        user = locked
         user.set_password(new_password)
         user.save(update_fields=["password", "updated_at"])
 
@@ -1913,7 +1940,33 @@ def change_password(*, user, current_password: str, new_password: str, except_se
             actor=user,
             metadata={"method": "change"},
         )
-    get_sms_provider().send(to=user.phone, body=messages.password_changed())
+    transaction.on_commit(lambda: notify_password_changed(user), robust=True)
+    return user
+
+
+def notify_password_changed(user):
+    if user.phone and user.is_phone_verified:
+        get_sms_provider().send(to=user.phone, body=messages.password_changed())
+
+
+@transaction.atomic
+def set_google_password(*, user, subject: str, new_password: str, except_session):
+    user = User.objects.select_for_update().get(pk=user.pk)
+    if user.is_staff or not user.is_active or not user.external_identities.filter(
+        provider=ExternalIdentityProvider.GOOGLE, subject=subject,
+    ).exists():
+        raise PermissionDenied("Confirm the Google account already linked to this account.")
+    if user.has_usable_password():
+        raise Conflict("A password is already set. Use Change password.")
+    _validate_password(new_password, user=user, field="new_password")
+    user.set_password(new_password)
+    user.save(update_fields=["password", "updated_at"])
+    sign_out_everywhere(user=user, except_session=except_session, reason="password_enabled")
+    record(
+        action=AuditAction.PASSWORD_CHANGE, aggregate_type="user", aggregate_id=user.id,
+        actor=user, metadata={"method": "google_confirmation"},
+    )
+    transaction.on_commit(lambda: notify_password_changed(user), robust=True)
     return user
 
 

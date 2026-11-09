@@ -1,29 +1,16 @@
-<style>
-@page { size: Letter; margin: 0.42in; }
-@media print {
-  body { font-family: Arial, sans-serif; font-size: 9pt; line-height: 1.13; color: #111; }
-  h1 { font-size: 15pt; margin: 0 0 2pt; }
-  h2 { font-size: 10pt; margin: 5pt 0 2pt; }
-  p { margin: 2pt 0; }
-  table { width: 100%; border-collapse: collapse; margin: 3pt 0; }
-  th, td { border: 0.5pt solid #888; padding: 2pt 3pt; vertical-align: top; }
-  ol { margin: 2pt 0 2pt 16pt; padding: 0; }
-  li { margin: 1.5pt 0; }
-}
-</style>
-
 # PRELIMINARY EQUITY INVESTMENT AGREEMENT
 
 **Ghana | Private selected-investor transaction | Draft for Ghanaian counsel review**  
-**Date:** [DD MONTH YYYY]  
+**Date:**  8 NOVEMBER 2026  
 This non-public preliminary draft records proposed terms only. It is not a public offer, legal opinion, guarantee, or confirmation of regulatory compliance.
 
 ## Parties and Company
 
 | Item | Required information |
 |---|---|
-| Company | **[FULL REGISTERED LEGAL NAME, INCLUDING "LIMITED"]**, a Ghana private company limited by shares; ORC No. **[INSERT]**; TIN **[INSERT]**; registered office **[INSERT]**; incorporation date **[INSERT]** (the **Company**). Product/brand: **Danpa HQ**. |
-| Founder | **[FULL LEGAL NAME, ID/REGISTRATION NO., ADDRESS, NATIONALITY]** (the **Founder**). |
+| Company | **GENTECH CONSULT**, a Ghana private company limited by shares; ORC No. **BN950061221**; TIN **P006138416X**; registered office **ASOKWA KUMASI**; incorporation date **7TH DECEMBER 2021** (the **Company**). Product/brand: **Danpa HQ**. |
+| Founder | **KING OWUSU, GHA-718150542-1, 10965 SOUTH GESSNER RD. HOUSTON TEXAS 77071, GHANAIAN]** (the **Founder**). |
+
 | Investor | **[FULL LEGAL NAME/ENTITY NAME, ID/REGISTRATION NO., ADDRESS, NATIONALITY]** (the **Investor**). |
 
 ## Business Opportunity
@@ -55,4 +42,5 @@ Danpa HQ is a Ghana-focused rental operating platform for tenants, landlords, ag
 | For the Company - only after incorporation and authority | Investor |
 |---|---|
 | Name: **[AUTHORIZED REPRESENTATIVE]**<br>Title: **[INSERT]**<br>Signature: ____________________ Date: __________ | Name: **[INVESTOR / AUTHORIZED SIGNATORY]**<br>Title (if entity): **[INSERT / N/A]**<br>Signature: ____________________ Date: __________ |
+
 

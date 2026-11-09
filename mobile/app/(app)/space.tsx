@@ -741,7 +741,8 @@ function ComposeListing({ unitId, listing, onDone, onBusyChange }: { unitId: str
   const [description, setDescription] = useState(listing?.description ?? "");
   const [rent, setRent] = useState(listing?.rent_minor != null ? String(listing.rent_minor / 100) : "");
   const [advance, setAdvance] = useState(String(listing?.advance_months ?? 6));
-  const [deposit, setDeposit] = useState(String(listing?.caution_months ?? 0));
+  const [deposit, setDeposit] = useState(listing?.caution_months ? String(listing.caution_months) : "");
+  const [hasDeposit, setHasDeposit] = useState(Boolean(listing?.caution_months));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -749,7 +750,10 @@ function ComposeListing({ unitId, listing, onDone, onBusyChange }: { unitId: str
   const savedId = useRef(listing?.id ?? null);
   const published = useRef(false);
   const rentMinor = Math.round(Number(rent || 0) * 100);
-  const months = Number(advance || 0) + Number(deposit || 0) + (listing?.agency_fee_months ?? 0);
+  const separateDeposit = hasDeposit ? Number(deposit) : 0;
+  const depositInvalid = hasDeposit && (!Number.isInteger(separateDeposit) || separateDeposit < 1 || separateDeposit > 12);
+  const monthlyMinor = listing?.rent_period === "yearly" ? Math.floor(rentMinor / 12) : rentMinor;
+  const months = Number(advance || 0) + separateDeposit + (listing?.agency_fee_months ?? 0);
   const advanceError = !Number.isInteger(Number(advance || 0)) || Number(advance || 0) < 0 || Number(advance || 0) > 36
     ? "Enter an advance between 0 and 36 months."
     : "";
@@ -781,18 +785,20 @@ function ComposeListing({ unitId, listing, onDone, onBusyChange }: { unitId: str
         onChangeText={setAdvance}
         keyboardType="number-pad"
       />
-      <Field
+      {!listing ? <Button variant="quiet" label={hasDeposit ? "Remove separate deposit" : "Add a separate deposit"} disabled={busy} onPress={() => setHasDeposit(!hasDeposit)} /> : null}
+      {hasDeposit ? <Field
         editable={!listing && !busy}
-        label="Deposit (months)"
+        label="Separate deposit (months)"
+        error={depositInvalid ? "Enter a deposit from 1 to 12 months." : undefined}
         value={deposit}
         onChangeText={setDeposit}
         keyboardType="number-pad"
-      />
+      /> : <Type variant="caption">The advance is counted once. No separate deposit is due.</Type>}
 
-      {rentMinor > 0 ? (
+      {rentMinor > 0 && !depositInvalid ? (
         <Notice
           tone="info"
-          title={`A tenant needs GH₵${((rentMinor * months) / 100).toLocaleString("en-GH")} on day one`}
+          title={`A tenant needs GH₵${((monthlyMinor * months) / 100).toLocaleString("en-GH")} on day one`}
         />
       ) : null}
 
@@ -801,7 +807,7 @@ function ComposeListing({ unitId, listing, onDone, onBusyChange }: { unitId: str
       <Button
         label="Publish to Explore"
         busy={busy}
-        disabled={!headline.trim() || !description.trim() || rentMinor <= 0 || Boolean(advanceError)}
+        disabled={!headline.trim() || !description.trim() || rentMinor <= 0 || Boolean(advanceError) || depositInvalid}
         onPress={async () => {
           if (pending.current) return;
           pending.current = true;
@@ -815,7 +821,7 @@ function ComposeListing({ unitId, listing, onDone, onBusyChange }: { unitId: str
               headline,
               description,
               advance_months: Number(advance || 0),
-              caution_months: Number(deposit || 0),
+              caution_months: separateDeposit,
               minimum_lease_months: 6,
             });
             savedId.current = created.id;

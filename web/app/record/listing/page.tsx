@@ -394,6 +394,7 @@ export default function PublicListingPage() {
           <div className="listing-receipt">
             <small>To move in</small>
             <strong>{cedis(listing.total_move_in_minor)}</strong>
+            {listing.caution_months ? <small>Includes {listing.caution_months} {listing.caution_months === 1 ? "month" : "months"} as a separate deposit.</small> : null}
           </div>
 
           <ListingProviderCard listing={listing} />

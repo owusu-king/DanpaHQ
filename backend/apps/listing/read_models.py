@@ -39,13 +39,11 @@ def public_listings() -> QuerySet[Listing]:
             status=ListingStatus.ACTIVE, moderation_state="approved",
             publication_state="published", availability_state="available",
         )
-        .annotate(unit_is_occupied=Exists(active_occupancy))
-        .filter(unit_is_occupied=False)
+        .filter(~Exists(active_occupancy))
         # A unit above its Portfolio's plan allowance takes no new tenants, so it
         # is offered to nobody. The listing itself is left exactly as it was, and
         # is back in discovery the moment the unit is deliberately reactivated.
-        .annotate(unit_is_restricted=billing.restricted_unit_exists("unit_id"))
-        .filter(unit_is_restricted=False)
+        .filter(~billing.restricted_unit_exists("unit_id"))
     )
 
 

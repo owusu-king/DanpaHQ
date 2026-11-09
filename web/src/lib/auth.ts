@@ -20,7 +20,7 @@ let expiresAt = 0;
 let inFlight: Promise<string> | null = null;
 let generation = 0;
 let loggedOut = false;
-const LOGOUT_KEY = "session.logged_out";
+export const SESSION_LOGOUT_KEY = "session.logged_out";
 
 /** Lets the session provider react when a later token rotation proves the
  * session has ended. The access-token module has no React dependency, and the
@@ -28,7 +28,7 @@ const LOGOUT_KEY = "session.logged_out";
 export const SESSION_INVALID_EVENT = "danpahq:session-invalid";
 
 function sessionEnded(): boolean {
-  try { return loggedOut || window.localStorage.getItem(LOGOUT_KEY) === "1"; }
+  try { return loggedOut || window.localStorage.getItem(SESSION_LOGOUT_KEY) === "1"; }
   catch { return loggedOut; }
 }
 
@@ -37,29 +37,17 @@ function endedError() {
 }
 
 /**
- * The API responses that specifically mean the consumer session cannot be
- * restored.
- *
- * This is deliberately narrower than "any 4xx". In particular, the refresh
- * endpoint's no-cookie contract is `422 validation_failed` with no field
- * errors, while a malformed device payload is the same status and code with
- * `details.fields`. The latter is a client defect and must remain diagnosable.
+ * Only an explicit session response can sign someone out. A rejected bearer
+ * on a protected endpoint can be stale and does not invalidate the cookie.
  */
 export function isSessionRefusal(cause: unknown): boolean {
-  if (!(cause instanceof ApiFailure)) return false;
-  const code = cause.error.code;
-  if (cause.status === 401) {
-    return ["signed_out", "not_authenticated", "authentication_failed"].includes(code);
-  }
-  if (cause.status === 403) return code === "permission_denied";
-  return cause.status === 422
-    && code === "validation_failed"
-    && Object.keys(cause.error.details).length === 0;
+  return cause instanceof ApiFailure && cause.status === 401
+    && ["signed_out", "session_ended"].includes(cause.error.code);
 }
 
 function invalidateSession() {
   loggedOut = true;
-  try { window.localStorage.setItem(LOGOUT_KEY, "1"); } catch { /* memory still protects this tab */ }
+  try { window.localStorage.setItem(SESSION_LOGOUT_KEY, "1"); } catch { /* memory still protects this tab */ }
   clearAccessToken();
   window.dispatchEvent(new Event(SESSION_INVALID_EVENT));
 }
@@ -69,7 +57,7 @@ export async function endSession() {
   const token = accessToken;
   generation += 1;
   loggedOut = true;
-  try { window.localStorage.setItem(LOGOUT_KEY, "1"); } catch { /* memory still protects this tab */ }
+  try { window.localStorage.setItem(SESSION_LOGOUT_KEY, "1"); } catch { /* memory still protects this tab */ }
   clearAccessToken();
   // Let any cookie rotation finish before the final cookie deletion.
   await inFlight?.catch(() => undefined);
@@ -81,7 +69,7 @@ export async function endSession() {
 export function setAccessToken(token: string, expiresInSeconds: number) {
   generation += 1;
   loggedOut = false;
-  try { window.localStorage.removeItem(LOGOUT_KEY); } catch { /* storage optional */ }
+  try { window.localStorage.removeItem(SESSION_LOGOUT_KEY); } catch { /* storage optional */ }
   accessToken = token;
   expiresAt = Date.now() + expiresInSeconds * 1000;
 }
@@ -104,12 +92,19 @@ async function refresh(): Promise<string> {
   if (inFlight) return inFlight;
   const started = generation;
 
-  inFlight = (async () => {
+  inFlight = Promise.resolve().then(async () => {
     try {
-      const result = await apiFetch<{ access_token: string; expires_in: number }>(
-        "/auth/refresh/",
-        { method: "POST", body: JSON.stringify(getWebDeviceContext()) },
-      );
+      const rotate = () => {
+        if (started !== generation || sessionEnded()) throw endedError();
+        return apiFetch<{ access_token: string; expires_in: number }>(
+          "/auth/refresh/",
+          { method: "POST", body: JSON.stringify(getWebDeviceContext()) },
+        );
+      };
+      // The HttpOnly cookie is shared across tabs. Hold the lock until the
+      // browser has received its replacement; the server still detects reuse.
+      const locks = typeof navigator !== "undefined" ? navigator.locks : undefined;
+      const result = await (locks ? locks.request("danpahq:refresh", rotate) : rotate());
       if (started !== generation || sessionEnded()) {
         if (sessionEnded()) await apiFetch("/auth/sign-out/", {
           method: "POST", body: JSON.stringify({}),
@@ -131,7 +126,7 @@ async function refresh(): Promise<string> {
     } finally {
       inFlight = null;
     }
-  })();
+  });
 
   return inFlight;
 }
@@ -139,9 +134,8 @@ async function refresh(): Promise<string> {
 /**
  * The current access token, rotating it if it is near expiry.
  *
- * Throws rather than returning null, so the *reason* survives: a 4xx from the
- * refresh means signed out, an unreachable service means we do not know, and
- * those two must not arrive looking the same.
+ * Throws rather than returning null so an ended session and a failed request
+ * remain distinguishable.
  */
 export async function getAccessToken(): Promise<string> {
   if (sessionEnded()) throw endedError();
@@ -151,8 +145,10 @@ export async function getAccessToken(): Promise<string> {
 }
 
 /** Rotate now, whatever the clock says. Single-flight, like every refresh. */
-export async function forceRefresh(): Promise<string> {
-  return refresh();
+export async function forceRefresh(rejectedToken?: string): Promise<string> {
+  if (sessionEnded()) throw endedError();
+  return rejectedToken && accessToken && rejectedToken !== accessToken
+    ? accessToken : refresh();
 }
 
 /**
@@ -171,7 +167,9 @@ export async function forceRefresh(): Promise<string> {
  * stale token should not surface as a failure the person has to act on.
  */
 export async function authedFetch<T>(path: string, init: ApiRequestInit = {}): Promise<T> {
+  const started = generation;
   const token = await getAccessToken();
+  if (started !== generation) throw endedError();
 
   const send = (bearer: string) =>
     apiFetch<T>(path, {
@@ -182,16 +180,8 @@ export async function authedFetch<T>(path: string, init: ApiRequestInit = {}): P
   try {
     return await send(token);
   } catch (cause) {
-    if (!(cause instanceof ApiFailure) || cause.status !== 401) throw cause;
-    try {
-      return await send(await forceRefresh());
-    } catch (refreshCause) {
-      // If rotation itself says the session ended, the original 401 remains the
-      // clearest result. A network failure, server fault or malformed refresh
-      // request is different information and must not be hidden behind it.
-      if (isSessionRefusal(refreshCause)) throw cause;
-      throw refreshCause;
-    }
+    if (!(cause instanceof ApiFailure) || cause.status !== 401 || started !== generation) throw cause;
+    return send(await forceRefresh(token));
   }
 }
 
@@ -201,8 +191,9 @@ export async function authedBlob(path: string): Promise<Blob> {
     credentials: "include",
     headers: { Authorization: `Bearer ${bearer}`, "X-Client": "web" },
   });
-  let response = await send(await getAccessToken());
-  if (response.status === 401) response = await send(await forceRefresh());
+  const token = await getAccessToken();
+  let response = await send(token);
+  if (response.status === 401) response = await send(await forceRefresh(token));
   if (!response.ok) {
     throw new ApiFailure(
       { code: "document_unavailable", message: "The final document is not available.", details: {}, requestId: "" },

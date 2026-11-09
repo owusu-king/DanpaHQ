@@ -50,6 +50,19 @@ def api():
     return APIClient()
 
 
+def test_google_tenant_can_express_interest_without_phone(api, verified_land, monkeypatch):
+    from tests.integration.test_google_auth import register_google
+
+    api.force_authenticate(user=None)
+    created = register_google(api, monkeypatch)
+    assert created.status_code == 201, created.data
+    assert not created.data["user"]["is_phone_verified"]
+    api.credentials(HTTP_AUTHORIZATION=f"Bearer {created.data['access_token']}")
+    response = api.post(f"/api/v1/sales/{verified_land.sale.id}/enquiries/", {}, format="json")
+    assert response.status_code == 201, response.data
+    assert api.get(f"/api/v1/sale-enquiries/{response.data['id']}/").status_code == 200
+
+
 @pytest.fixture
 def seller(db):
     from apps.identity.models import Role, User
@@ -566,7 +579,7 @@ class TestEnquiries:
         preference = preferences_for(seller)
         preference.push_enabled = push_enabled
         preference.email_enabled = email_enabled
-        preference.alerts = {topic: False for topic in muted_topics}
+        preference.alerts = dict.fromkeys(muted_topics, False)
         preference.save()
         phone = Device.objects.create(
             user=seller, fingerprint="seller-interest-phone", platform="android",

@@ -3,6 +3,7 @@ from django.urls import path
 from . import guide_views, views
 from .mfa_configuration import MFAConfigurationView
 from .mfa_views import ManagementMFALoginView
+from .plan_configuration_views import PlanConfigurationDetailView, PlanConfigurationView
 
 urlpatterns = [
     path("how-it-works/", guide_views.GuideContentView.as_view()),
@@ -112,6 +113,14 @@ urlpatterns = [
         name="management-support-message",
     ),
     path("configuration/", views.ConfigurationView.as_view(), name="management-configuration"),
+    path(
+        "configuration/plans/", PlanConfigurationView.as_view(),
+        name="management-plan-configuration",
+    ),
+    path(
+        "configuration/plans/<str:code>/", PlanConfigurationDetailView.as_view(),
+        name="management-plan-configuration-detail",
+    ),
     path("rentals/", views.RentalsView.as_view(), name="management-rentals"),
     path("payments/", views.PaymentOperationsView.as_view(), name="management-payments"),
     path(

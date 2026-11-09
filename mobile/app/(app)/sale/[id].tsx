@@ -247,6 +247,7 @@ export default function SaleScreen() {
         {writing ? (
           <View style={{ gap: space[2] }}>
             <Type variant="body">Let {sale.seller_label} know you are interested in this property.</Type>
+            {state.status === "signed_in" && !state.me.is_phone_verified && state.me.email ? <Type variant="caption">{state.me.is_email_verified ? "We’ll send updates by email." : "Verify your email to receive updates there."}</Type> : null}
             <Type variant="caption" style={styles.muted}>Your name is shared. Your phone number stays private.</Type>
             {error ? <Notice tone="error" title={error} /> : null}
             <View style={{ flexDirection: "row", gap: space[2] }}>

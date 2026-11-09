@@ -41,10 +41,9 @@ function PortalGateContent() {
   if (state.status === "unavailable") {
     return (
       <div className="portal-gate">
-        <h1>We could not reach the service</h1>
+        <h1>We couldn’t confirm your session</h1>
         <p>
-          This is almost certainly a connection problem rather than anything to do
-          with your account — you have not been signed out. Try again in a moment.
+          You haven’t been signed out. Try again in a moment.
         </p>
         <div className="portal-gate-actions">
           <button

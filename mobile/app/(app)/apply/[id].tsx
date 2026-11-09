@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { ScrollView, View } from "react-native";
 
 import { ApiFailure } from "@/api";
+import { useAuth } from "@/auth";
 import { submitApplication, type IncomeBand } from "@/applications";
 import { Button, Choice, Field, Notice, Surface, Type, space } from "@/components/ui";
 import { useSafeBottom } from "@/platform";
@@ -24,6 +25,7 @@ export default function ApplyScreen() {
   const pageBottom = useSafeBottom(space[8]);
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const { state } = useAuth();
 
   const [listing, setListing] = useState<Listing | null>(null);
   const [advance, setAdvance] = useState("");
@@ -211,6 +213,7 @@ export default function ApplyScreen() {
 
       {error ? <Notice tone="error" title={error} /> : null}
 
+      {state.status === "signed_in" && !state.me.is_phone_verified && state.me.email ? <Type variant="caption">{state.me.is_email_verified ? "We’ll send updates by email." : "Verify your email to receive updates there."}</Type> : null}
       <Button
         label="Send application"
         busy={busy}

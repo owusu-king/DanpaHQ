@@ -72,9 +72,9 @@ export default function SecuritySettingsPage() {
 
   return (
     <>
-      {state.status === "signed_in" && state.me.authentication_methods.includes("phone") ? (
+      {state.status === "signed_in" && (state.me.has_password || state.me.google_linked || state.me.authentication_methods.includes("phone")) ? (
         <SettingsCard className="settings-security-card" title="Password" description="8+ characters. Avoid all digits or your phone number.">
-          <PasswordSection />
+          <PasswordSection hasPassword={state.me.has_password ?? state.me.authentication_methods.includes("phone")} />
         </SettingsCard>
       ) : null}
 

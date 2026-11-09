@@ -80,14 +80,14 @@ test("unit save notification follows successful commit, not a failed validation"
   const output = ts.transpileModule('async function advance() {' + advanceSource + '}', { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
   for (const valid of [false, true]) {
     const calls = [];
-    const advance = new Function("mediaBusy", "setBusy", "setError", "commitRef", "onChanged", "reload", "step", "STEPS", "at", "go", output + '; return advance;')(
+    const advance = new Function("mediaBusy", "setBusy", "setError", "commitRef", "onChanged", "reload", "step", "STEPS", "at", "go", "created", "unit", output + '; return advance;')(
       false, () => {}, message => { if (message) throw new Error(message); },
       { current: async () => { calls.push("commit"); return valid; } },
       () => calls.push("changed"), async () => { calls.push("reload"); return {}; },
-      "details", [{ key: "details" }, { key: "amenities" }], 0, key => calls.push(key),
+      "details", [{ key: "details" }, { key: "amenities" }], 0, key => calls.push(key), { current: {} }, null,
     );
     await advance();
-    assert.deepEqual(calls, valid ? ["commit", "changed", "reload", "amenities"] : ["commit"]);
+    assert.deepEqual(calls, valid ? ["commit", "changed", "amenities"] : ["commit"]);
   }
 });
 

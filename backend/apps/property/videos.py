@@ -9,6 +9,7 @@ from apps.audit.models import AuditAction
 from apps.audit.services import record
 from apps.core.exceptions import Conflict, NotFound, PermissionDenied, ValidationFailed
 from apps.files.models import StoredFile
+from apps.files.videos import MAX_DURATION_MS
 from apps.trust import condition
 
 from . import services, spaces
@@ -44,9 +45,9 @@ def set_video(*, subject, user, file_id):
             or file.is_sensitive
             or not file.is_usable
             or not file.metadata.get("video_validated")
-            or not 0 < file.metadata.get("duration_ms", 0) <= 10_000
+            or not 0 < file.metadata.get("duration_ms", 0) <= MAX_DURATION_MS
         ):
-            raise ValidationFailed("Choose a checked video of 10 seconds or less.")
+            raise ValidationFailed("Choose a checked video of 15 seconds or less.")
         if model.objects.filter(video=file).exclude(pk=subject.pk).exists():
             raise Conflict("This video is already attached to another record.")
     if subject.video_id == (file.pk if file else None):

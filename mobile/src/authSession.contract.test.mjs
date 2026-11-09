@@ -79,7 +79,7 @@ test("the client uses the server-provided access-token lifetime", () => {
 
 test("an expired bearer token is refreshed once and the request is replayed", () => {
   assert.match(apiSource, /response\.status === 401/);
-  assert.match(apiSource, /authTokenProvider\(true\)/);
+  assert.match(apiSource, /authTokenProvider\(true, token\)/);
   assert.match(apiSource, /retriedAfterUnauthorized/);
 });
 
@@ -87,18 +87,18 @@ test("logout uses the in-flight refresh successor before clearing local credenti
   const logout = source.match(/const signOut = useCallback\([\s\S]*?\}, \[clearLocal, router\]\);/)?.[0];
   assert.ok(logout);
   assert.match(logout, /signedOut\.current = true;[\s\S]*await refreshInFlight\.current/);
-  assert.match(logout, /const token = rotated \?\? accessToken\.current/);
+  assert.match(logout, /const token = rotated \?\? unsavedRotation\.current\?\.access_token \?\? accessToken\.current/);
   assert.match(logout, /"\/auth\/sign-out\/"[\s\S]*\btoken\b[\s\S]*await clearLocal\(\)/);
 });
 
 test("authorization and throttling responses do not erase a valid session", () => {
   const refreshMe = source.match(/const refreshMe[\s\S]*?useEffect\(\(\) =>/i)?.[0];
   assert.ok(refreshMe, "refreshMe must remain visible to this contract");
-  assert.match(refreshMe, /cause\.status === 401/);
+  assert.match(refreshMe, /isRefreshRefusal\(cause\)/);
   assert.doesNotMatch(refreshMe, /cause\.status >= 400/);
 
   const refusal = source.match(/function isRefreshRefusal[\s\S]*?\n\}/)?.[0];
   assert.ok(refusal, "refresh refusal classification must remain explicit");
-  assert.match(refusal, /\[400, 401, 403, 422\]/);
+  assert.match(refusal, /status === 401 && cause\.error\.code === "session_ended"/);
   assert.doesNotMatch(refusal, /status >= 400/);
 });

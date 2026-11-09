@@ -291,6 +291,7 @@ export default function SalePage() {
             ) : writing ? (
               <div className="sale-enquiry">
                 <p>Let {sale.seller_label} know you are interested in this property. Your name is shared; your phone number stays private.</p>
+                {state.status === "signed_in" && !state.me.is_phone_verified && state.me.email ? <p>{state.me.is_email_verified ? "We’ll send updates by email." : "Verify your email to receive updates there."}</p> : null}
                 <div className="listing-confirm-actions">
                   <Button busy={busy} busyLabel="Sending…" onClick={() => void send()}>
                     Confirm interest

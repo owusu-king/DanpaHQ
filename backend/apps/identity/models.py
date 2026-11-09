@@ -289,14 +289,14 @@ class User(AbstractBaseUser, PermissionsMixin):
         Phone accounts prove their number and set a password; federated
         accounts hold a verified external identity and may add a phone later.
         """
-        has_federated_identity = self.external_identities.exists()
-        if self.phone and not self.is_phone_verified and not has_federated_identity:
+        if (self.phone and not self.is_phone_verified and not self.is_email_verified
+                and not self.external_identities.exists()):
             return "phone_required"
         if not self.account_type:
             return "account_type_required"
         if not (self.first_name.strip() and self.last_name.strip()):
             return "profile_required"
-        if not self.has_usable_password() and not has_federated_identity:
+        if not self.has_usable_password() and not self.external_identities.exists():
             return "password_required"
         return "complete"
 

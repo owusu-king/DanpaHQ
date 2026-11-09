@@ -29,7 +29,7 @@ test("a provider under review waits in a waiting room, not behind a notice (owne
 
   // A seal, the three steps of the journey, and two doors: the verification and renting meanwhile.
   assert.match(room, /className="review-seal"/);
-  assert.match(room, /\{ title: "Documents sent"[\s\S]*\{ title: "Review"[\s\S]*\{ title: "Property tools open"/);
+  assert.match(room, /\{ title: "Application"[\s\S]*\{ title: "Review"[\s\S]*\{ title: "Property tools open"/);
   assert.match(room, /<Link href="\/provider" className="review-door is-primary">/);
   assert.match(room, /<Link href="\/rentals" className="review-door">/);
   // No promise about how long a review takes.
@@ -42,7 +42,7 @@ test("a provider under review waits in a waiting room, not behind a notice (owne
   // A phone that is not confirmed comes before any review state, as on /provider.
   assert.match(room, /const review = !me\.is_phone_verified\s*\? REVIEWS\.phone!/);
   // Home makes the check /provider used to: every 30 seconds, and the session reloads only when the review has moved.
-  assert.match(room, /setInterval\(\(\) => \{\s*getProviderStanding\(\)/);
+  assert.match(room, /setInterval\(\(\) => \{\s*if \(document\.hidden\) return;\s*getProviderStanding\(\)/);
   assert.match(room, /if \(standing\.workspace_access \|\| standing\.verification_status !== status\) void refresh\(\);/);
   assert.match(room, /\}, 30000\);/);
 

@@ -37,7 +37,7 @@ const VISITED_KEY = "installation.visited";
 /** Only these responses mean the refresh credential itself was refused.
  * Throttling, timeouts and unrelated client errors must never erase a session. */
 function isRefreshRefusal(cause: unknown): cause is ApiFailure {
-  return cause instanceof ApiFailure && [400, 401, 403, 422].includes(cause.status);
+  return cause instanceof ApiFailure && cause.status === 401 && cause.error.code === "session_ended";
 }
 
 export type TrustState = "verified" | "pending" | "unverified" | "expired";
@@ -125,6 +125,7 @@ export type Me = {
   phone_display: string;
   is_phone_verified: boolean;
   google_linked?: boolean;
+  has_password?: boolean;
   authentication_methods?: ("phone" | "google")[];
   /** On the account only once its code was confirmed — or given at sign-up, unconfirmed. */
   email?: string | null;
@@ -242,6 +243,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const accessToken = useRef<string | null>(null);
   const expiresAt = useRef<number>(0);
   const refreshInFlight = useRef<Promise<string | null> | null>(null);
+  const unsavedRotation = useRef<{
+    access_token: string; refresh_token: string; expiresAt: number;
+  } | null>(null);
   const generation = useRef(0);
   const signedOut = useRef(false);
   const persistence = useRef<Promise<void>>(Promise.resolve());
@@ -261,6 +265,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     generation.current += 1;
     signedOut.current = true;
     accessToken.current = null;
+    unsavedRotation.current = null;
     expiresAt.current = 0;
     setActiveContextState(null);
     clearRegistrationDraft();
@@ -303,32 +308,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // had signed in. Signing in then works for as long as the access token
         // is fresh, because `signIn` sets it directly — and breaks the first
         // time it needs renewing, which is why it looked sporadic.
-        const refreshToken = await secure.get(REFRESH_KEY);
-        if (!refreshToken) return null;
-
-        const result = await apiFetch<{
-          access_token: string;
-          refresh_token: string;
-          expires_in: number;
-        }>("/auth/refresh/", {
-          method: "POST",
-          // The refresh token is the credential for this endpoint. Asking the
-          // API client to add an access token would call getToken(), which calls
-          // this function again and makes the single-flight promise wait on
-          // itself forever.
-          anonymous: true,
-          body: { refresh_token: refreshToken },
-        });
+        let rotation = unsavedRotation.current;
+        if (!rotation) {
+          const refreshToken = await secure.get(REFRESH_KEY);
+          if (!refreshToken) return null;
+          const result = await apiFetch<{
+            access_token: string; refresh_token: string; expires_in: number;
+          }>("/auth/refresh/", {
+            method: "POST",
+            // The refresh credential is sufficient; asking for a bearer here
+            // would wait on this very promise.
+            anonymous: true,
+            body: { refresh_token: refreshToken },
+          });
+          if (started !== generation.current) return null;
+          rotation = { ...result, expiresAt: Date.now() + result.expires_in * 1000 };
+          unsavedRotation.current = rotation;
+        }
 
         // Persist the rotated credential before publishing the access token.
         // If secure storage fails, no request should proceed as though the
         // rotation were safely committed on the handset.
         if (started !== generation.current) return null;
-        await persistSession([[REFRESH_KEY, result.refresh_token]]);
+        await persistSession([[REFRESH_KEY, rotation.refresh_token]]);
         if (started !== generation.current) return null;
-        accessToken.current = result.access_token;
-        expiresAt.current = Date.now() + result.expires_in * 1000;
-        return result.access_token;
+        unsavedRotation.current = null;
+        accessToken.current = rotation.access_token;
+        expiresAt.current = rotation.expiresAt;
+        return rotation.access_token;
       } catch (cause) {
         // A refused refresh means the session is genuinely over - revoked,
         // expired, or reuse-detected. Anything else (offline, or a keychain
@@ -375,8 +382,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [state.status, getToken]);
 
   useEffect(() => {
-    setAuthTokenProvider((forceRefresh = false) => (
-      forceRefresh ? refreshAccessToken() : getToken()
+    setAuthTokenProvider((forceRefresh = false, rejectedToken) => (
+      forceRefresh && (rejectedToken === undefined || rejectedToken === accessToken.current) ? refreshAccessToken() : getToken()
     ));
     return () => setAuthTokenProvider(null);
   }, [getToken, refreshAccessToken]);
@@ -402,10 +409,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setState({ status: "signed_in", me });
     } catch (cause) {
       if (started !== generation.current || signedOut.current) return;
-      // 403 is an authorization decision, not proof that authentication ended.
-      // A stale access-token 401 has already received one forced refresh in the
-      // API client; only a remaining 401 is a session-level refusal here.
-      if (cause instanceof ApiFailure && cause.status === 401) {
+      if (isRefreshRefusal(cause)) {
         await clearLocal();
         return;
       }
@@ -468,6 +472,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signIn = useCallback<AuthContextValue["signIn"]>(async (tokens, preferredContext) => {
     generation.current += 1;
     signedOut.current = false;
+    unsavedRotation.current = null;
     accessToken.current = tokens.access_token;
     expiresAt.current = Date.now() + (tokens.expires_in ?? 15 * 60) * 1000;
     await persistSession([[REFRESH_KEY, tokens.refresh_token], [ME_SNAPSHOT_KEY, JSON.stringify(tokens.user)]]);
@@ -497,7 +502,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // A refresh already sent to the API may have revoked the old session.
     // Revoke its successor using the rotated credential before local cleanup.
     const rotated = await refreshInFlight.current?.catch(() => null);
-    const token = rotated ?? accessToken.current;
+    const token = rotated ?? unsavedRotation.current?.access_token ?? accessToken.current;
     if (token) void apiFetch("/auth/sign-out/", { method: "POST", token, anonymous: true }).catch(() => undefined);
     // A resolved photo URL outliving the session is a leak, and on a shared
     // handset the next person would load the last one's picture.

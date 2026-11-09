@@ -81,6 +81,43 @@ def register_google(api, monkeypatch, value=None, account_type="tenant", **heade
     )
 
 
+def test_google_password_setup_requires_the_linked_subject_and_keeps_the_identity(monkeypatch, sms):
+    api = APIClient()
+    created = register_google(api, monkeypatch)
+    assert created.status_code == 201
+    api.credentials(HTTP_AUTHORIZATION=f"Bearer {created.data['access_token']}")
+    body = {"credential": "verified-by-test-double", "new_password": TEST_PASSWORD}
+    stub_google(monkeypatch, claims(subject="someone-else"))
+    refused = api.post("/api/v1/me/password/google/", body, format="json")
+    assert refused.status_code == 403
+    assert not api.get("/api/v1/me/").data["has_password"]
+
+    stub_google(monkeypatch, claims())
+    changed = api.post("/api/v1/me/password/google/", body, format="json")
+    assert changed.status_code == 200, changed.data
+    me = api.get("/api/v1/me/")
+    assert me.data["has_password"] and me.data["google_linked"]
+    assert api.post("/api/v1/me/password/google/", body, format="json").status_code == 409
+
+    phone = api.post("/api/v1/me/phone/", {"phone": "0204567890"}, format="json")
+    assert phone.status_code == 201, phone.data
+    confirmed = api.post("/api/v1/me/phone/verify/", {
+        "challenge_id": phone.data["challenge_id"], "code": code_from(sms),
+    }, format="json")
+    assert confirmed.status_code == 200, confirmed.data
+    assert api.post("/api/v1/auth/sign-out/", {}, format="json").status_code == 204
+    api.credentials()
+
+    for identifier in ("ama@example.com", "0204567890"):
+        signed_in = api.post("/api/v1/auth/sign-in/", {
+            "identifier": identifier, "password": TEST_PASSWORD, "platform": "android",
+        }, format="json")
+        assert signed_in.status_code == 200, signed_in.data
+        assert signed_in.data["user"]["id"] == created.data["user"]["id"]
+    assert start_google(api, monkeypatch).data["user"]["id"] == created.data["user"]["id"]
+    assert User.objects.count() == 1
+
+
 def test_artisan_google_ticket_preserves_type_without_granting_tenant(monkeypatch):
     from apps.identity.models import Role
 

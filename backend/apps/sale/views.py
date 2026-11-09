@@ -8,9 +8,9 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.core.exceptions import NotFound
+from apps.core.exceptions import NotFound, PermissionDenied
 from apps.core.pagination import StandardCursorPagination
-from apps.identity.permissions import IsPhoneVerified
+from apps.identity.permissions import IsPhoneVerified, require_property_request_contact
 
 from . import services
 from .models import SavedSale
@@ -190,11 +190,16 @@ class PropertySaleStatusView(APIView):
 class SaleEnquiryStartView(APIView):
     """POST /sales/<id>/enquiries/ — a buyer asks the seller about a property."""
 
-    permission_classes = [IsAuthenticated, IsPhoneVerified]
+    permission_classes = [IsAuthenticated]
 
     def post(self, request, pk):
+        require_property_request_contact(request.user)
         payload = StartEnquirySerializer(data=request.data)
         payload.is_valid(raise_exception=True)
+        if payload.validated_data["message"] and not request.user.is_phone_verified:
+            raise PermissionDenied(
+                "Verify your phone to send a message, or submit interest without one."
+            )
         enquiry = services.start_enquiry(
             sale_id=pk, buyer=request.user, body=payload.validated_data["message"]
         )

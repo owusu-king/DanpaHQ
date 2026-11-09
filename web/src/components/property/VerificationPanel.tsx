@@ -92,7 +92,7 @@ export function VerificationPanel({
     try {
       const stored = await uploadFile(file, "property_photo");
       if (!stored.is_usable) {
-        setError(stored.rejection_reason || "That photo could not be accepted.");
+        setError(stored.rejection_reason || stored.status_message || "That photo could not be accepted.");
         return;
       }
       const next = await attachEvidence(subject, id, {
@@ -104,7 +104,7 @@ export function VerificationPanel({
       onChanged?.();
     } catch (cause) {
       setError(
-        cause instanceof ApiFailure ? cause.error.message : "Could not add that photo.",
+        cause instanceof Error ? cause.message : "Could not add that photo.",
       );
     } finally {
       setBusySlot("");

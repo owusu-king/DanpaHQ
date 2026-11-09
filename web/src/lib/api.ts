@@ -44,7 +44,17 @@ const DEFAULT_TIMEOUT_MS = 12_000;
  * The same set mobile uses. A 4xx is deliberately absent — the server has
  * answered, and asking again will get the same answer.
  */
-const RETRYABLE_STATUS = new Set([408, 429, 500, 502, 503, 504]);
+const RETRYABLE_STATUS = new Set([502, 503, 504]);
+
+function fallbackError(status: number) {
+  if (status === 408 || status === 504) return { code: "request_timeout", message: "The request timed out. Try again." };
+  if (status === 502 || status === 503) return { code: "service_unavailable", message: "Danpa HQ is temporarily unavailable. Try again shortly." };
+  if (status >= 500) return { code: "server_error", message: "Danpa HQ couldn’t complete this request. Try again shortly." };
+  if (status === 429) return { code: "rate_limited", message: "Too many requests. Wait a moment and try again." };
+  if (status === 401) return { code: "not_authenticated", message: "Sign in to continue." };
+  if (status === 403) return { code: "permission_denied", message: "Your account can’t perform this action." };
+  return { code: "request_failed", message: "That request did not work. Try again." };
+}
 
 /** Network failure. Not a status, so it needs its own name. */
 const UNREACHABLE = 0;
@@ -115,18 +125,25 @@ export async function apiFetch<T>(
         },
       });
 
-      const body = response.status === 204 ? null : await response.json().catch(() => null);
-
+      if (response.status === 204) return null as T;
+      const body = await response.json().catch((cause: unknown) => {
+        if (controller.signal.aborted) throw cause;
+        if (response.ok) throw new ApiFailure({
+          code: "invalid_response", message: "Danpa HQ returned an unexpected response. Try again.", details: {}, requestId: id,
+        }, response.status);
+        return null;
+      });
       if (response.ok) return body as T;
 
       // The wire envelope is snake_case; ApiError is the camelCase shape the
       // rest of the app uses. Naming the wire type separately is what stops the
       // two drifting into each other.
       const envelope = (body as { error?: ApiErrorEnvelope } | null)?.error;
+      const fallback = fallbackError(response.status);
       lastError = new ApiFailure(
         {
-          code: envelope?.code ?? "request_failed",
-          message: envelope?.message ?? "That request did not work. Try again.",
+          code: envelope?.code ?? fallback.code,
+          message: envelope?.message ?? fallback.message,
           details: envelope?.details ?? {},
           requestId: envelope?.request_id ?? id,
         },
@@ -141,15 +158,16 @@ export async function apiFetch<T>(
         const offline = typeof navigator !== "undefined" && navigator.onLine === false;
         lastError = new ApiFailure(
           {
-            code: offline ? "offline" : "network_error",
+            code: offline ? "offline" : controller.signal.aborted ? "request_timeout" : "network_error",
             message: offline
-              ? "You are offline. We will retry when your connection is back."
-              : "We could not reach the service. Check your connection and try again.",
+              ? "You’re offline. Reconnect and try again."
+              : controller.signal.aborted ? "The request timed out. Try again." : "Couldn’t connect to Danpa HQ. Try again shortly.",
             details: {},
             requestId: id,
           },
           UNREACHABLE,
         );
+        throw lastError;
       }
     } finally {
       clearTimeout(timer);
@@ -162,7 +180,7 @@ export async function apiFetch<T>(
   throw lastError ?? new ApiFailure(
     {
       code: "network_error",
-      message: "We could not reach the service. Check your connection and try again.",
+      message: "Couldn’t connect to Danpa HQ. Try again shortly.",
       details: {},
       requestId: id,
     },

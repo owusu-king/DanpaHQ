@@ -157,7 +157,7 @@ export default function ApplyPage() {
     return <main style={SHELL}><p className="type-caption">Preparing your application…</p></main>;
   }
   if (state.status === "unavailable") {
-    return <main style={SHELL}><Notice tone="error" title="We could not confirm your session." body="Check your connection and try again." /></main>;
+    return <main style={SHELL}><Notice tone="error" title="We could not confirm your session." body="Try again in a moment." /></main>;
   }
   if (state.status === "signed_in" && !state.me.capabilities.tenant.workspace_access) {
     return <main style={SHELL}><h1 className="type-title-2">Apply with a renting account</h1><p className="type-body">Create your own renting account to continue with this application.</p><CreateRentingAccount /></main>;
@@ -193,6 +193,7 @@ export default function ApplyPage() {
         <p className="type-body" style={{ maxWidth: "55ch" }}>
           Applying does not create a tenancy or lease. You can follow the provider&apos;s response in Applications.
         </p>
+        {state.status === "signed_in" && !state.me.is_phone_verified && state.me.email ? <p>{state.me.is_email_verified ? "We’ll send updates by email." : "Verify your email to receive updates there."}</p> : null}
         <div style={ACTIONS}>
           <Link href="/applications" className="type-body-strong">View application status →</Link>
           <Link href={`/record/listing?id=${listing.id}` as never} className="type-caption">Back to the rental</Link>
