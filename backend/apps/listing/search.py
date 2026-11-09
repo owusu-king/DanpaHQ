@@ -208,7 +208,7 @@ def map_features(
         GROUP BY gx, gy
         ORDER BY listings DESC, gx, gy
         LIMIT %s
-    """  # noqa: S608 - ORM SQL with separately bound parameters
+    """
     params = [
         *matched_params,
         cell,
