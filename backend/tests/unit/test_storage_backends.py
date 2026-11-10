@@ -157,6 +157,28 @@ class TestMemoryBackend:
 # is right — but it is a policy about *our* code, and nothing here can fix a
 # library's internals. Narrowed to that one module so the rest still bites.
 @pytest.mark.filterwarnings("ignore::DeprecationWarning:botocore.auth")
+@pytest.mark.parametrize(
+    "code,missing", [("NoSuchKey", True), ("AccessDenied", False), ("503", False)],
+)
+def test_s3_distinguishes_a_missing_object_from_storage_failure(code, missing, settings):
+    from unittest.mock import Mock
+
+    from botocore.exceptions import ClientError
+
+    from apps.files.storage import S3StorageBackend, StorageError
+
+    settings.AWS_STORAGE_BUCKET_NAME = "test"
+    storage = S3StorageBackend()
+    storage._client = Mock()
+    for method, operation in (("stat", "head_object"), ("read", "get_object")):
+        getattr(storage._client, operation).side_effect = ClientError(
+            {"Error": {"Code": code}}, operation,
+        )
+        with pytest.raises(StorageError) as caught:
+            getattr(storage, method)(key="file")
+        assert isinstance(caught.value, ObjectNotFound) is missing
+
+
 class TestS3PresigningHost:
     """A presigned GET is signed over the host; a presigned POST is not.
 

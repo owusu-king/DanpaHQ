@@ -480,7 +480,9 @@ class TestApi:
         read = api.post("/api/v1/me/notifications/read/", {}, format="json")
         assert read.data["unread_count"] == 0
 
-    def test_full_history_pages_without_crossing_accounts(self, api, user, landlord):
+    def test_full_history_pages_without_crossing_accounts(
+        self, api, user, landlord, django_assert_max_num_queries
+    ):
         # Same kind and target must remain distinct historical events.
         notes = [
             Notification(
@@ -496,6 +498,11 @@ class TestApi:
         ]
         Notification.objects.bulk_create(notes)
         _note(landlord, "viewing.confirmed", "private-other")
+        with django_assert_max_num_queries(3):
+            badge = api.get("/api/v1/me/notifications/?view=badge")
+        assert badge.status_code == 200
+        assert badge.data == {"unread_count": 115, "results": [], "next_cursor": None}
+        assert badge["Cache-Control"] == "private, no-store"
         mark_read(user=user)
         first = api.get("/api/v1/me/notifications/")
         assert len(first.data["results"]) == 100
@@ -592,18 +599,24 @@ class TestStaleNotificationsAgeOut:
         )
         return note
 
-    def test_reading_the_list_ages_out_only_the_old(self, api, sign_in_as, user):
+    @pytest.mark.parametrize("view", ["", "?view=badge"])
+    def test_reading_updates_ages_out_only_the_old(self, api, sign_in_as, user, view):
         old = self._make(user, days_old=20, key="old")
         fresh = self._make(user, days_old=2, key="fresh")
         sign_in_as(api, user=user)
 
-        response = api.get("/api/v1/me/notifications/")
-
+        response = api.get(f"/api/v1/me/notifications/{view}")
         assert response.status_code == 200
         assert response.data["unread_count"] == 1
-        unread = {row["id"] for row in response.data["results"] if not row["is_read"]}
-        assert unread == {str(fresh.id)}
-        assert str(old.id) not in unread
+        old.refresh_from_db()
+        assert old.read_at is not None
+        fresh.refresh_from_db()
+        assert fresh.read_at is None
+        if view:
+            assert response.data["results"] == []
+        else:
+            unread = {row["id"] for row in response.data["results"] if not row["is_read"]}
+            assert unread == {str(fresh.id)}
 
     def test_an_old_alert_waits_for_explicit_acknowledgement(self, user):
         from apps.notifications.services import age_out

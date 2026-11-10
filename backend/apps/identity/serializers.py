@@ -11,6 +11,8 @@ Two rules run through this file:
 
 from __future__ import annotations
 
+from uuid import UUID
+
 from rest_framework import serializers
 
 from apps.core.phone import PhoneNumberError, format_national, mask, normalise_ghana_msisdn
@@ -94,12 +96,9 @@ class DeviceContextSerializer(serializers.Serializer):
     os_version = serializers.CharField(required=False, allow_blank=True, max_length=40)
 
 
-class PasswordSignInSerializer(DeviceContextSerializer):
+class PasswordIdentifierSerializer(DeviceContextSerializer):
     identifier = serializers.CharField(required=False, max_length=254)
     phone = PhoneField(required=False)
-    #: No max_length. Truncating a long passphrase silently would change the
-    #: credential the person thinks they set.
-    password = serializers.CharField(trim_whitespace=False)
 
     def validate(self, attrs):
         if not attrs.get("identifier") and not attrs.get("phone"):
@@ -118,6 +117,10 @@ class PasswordSignInSerializer(DeviceContextSerializer):
             raise serializers.ValidationError({"identifier": exc.detail}) from exc
         attrs["identifier"] = identifier
         return attrs
+
+
+class PasswordSignInSerializer(PasswordIdentifierSerializer):
+    password = serializers.CharField(trim_whitespace=False)
 
 
 class GoogleSignInSerializer(DeviceContextSerializer):
@@ -164,9 +167,8 @@ class CompleteRegistrationSerializer(DeviceContextSerializer):
     password = serializers.CharField(trim_whitespace=False, required=False, allow_blank=True)
 
 
-class StartPasswordResetSerializer(serializers.Serializer):
-    phone = PhoneField()
-    device_fingerprint = serializers.CharField(required=False, allow_blank=True, max_length=128)
+class StartPasswordResetSerializer(PasswordIdentifierSerializer):
+    pass
 
 
 class VerifyPasswordResetSerializer(serializers.Serializer):
@@ -182,6 +184,14 @@ class VerifyPasswordResetSerializer(serializers.Serializer):
 
 class CompletePasswordResetSerializer(DeviceContextSerializer):
     reset_token = serializers.CharField()
+    new_password = serializers.CharField(trim_whitespace=False)
+
+
+class StartPasswordCreationSerializer(serializers.Serializer):
+    channel = serializers.ChoiceField(choices=["sms", "email"])
+
+
+class CreatePasswordSerializer(VerifyPasswordResetSerializer):
     new_password = serializers.CharField(trim_whitespace=False)
 
 
@@ -410,6 +420,7 @@ class MeSerializer(serializers.ModelSerializer):
     registration_state = serializers.CharField(read_only=True)
     authentication_methods = serializers.SerializerMethodField()
     google_linked = serializers.SerializerMethodField()
+    has_password = serializers.BooleanField(source="has_usable_password", read_only=True)
 
     class Meta:
         model = User
@@ -438,6 +449,7 @@ class MeSerializer(serializers.ModelSerializer):
             "registration_state",
             "authentication_methods",
             "google_linked",
+            "has_password",
             "capabilities",
             "onboarding_state",
             "available_contexts",
@@ -473,12 +485,16 @@ class MeSerializer(serializers.ModelSerializer):
         methods = []
         if obj.has_usable_password() and obj.phone:
             methods.append("phone")
-        if obj.external_identities.filter(provider="google").exists():
+        if self.get_google_linked(obj):
             methods.append("google")
         return methods
 
     def get_google_linked(self, obj) -> bool:
-        return obj.external_identities.filter(provider="google").exists()
+        if not hasattr(self, "_google_links"):
+            self._google_links: dict[UUID, bool] = {}
+        if obj.pk not in self._google_links:
+            self._google_links[obj.pk] = obj.external_identities.filter(provider="google").exists()
+        return self._google_links[obj.pk]
 
     def get_roles(self, obj) -> list[str]:
         return sorted(obj.roles)
@@ -524,6 +540,13 @@ class MeSerializer(serializers.ModelSerializer):
         )
 
     def get_contexts(self, obj) -> list[dict]:
+        if not hasattr(self, "_workspace_contexts"):
+            self._workspace_contexts: dict[UUID, list[dict]] = {}
+        if obj.pk not in self._workspace_contexts:
+            self._workspace_contexts[obj.pk] = self._build_contexts(obj)
+        return self._workspace_contexts[obj.pk]
+
+    def _build_contexts(self, obj) -> list[dict]:
         consumer_roles = {Role.TENANT, Role.LANDLORD, Role.AGENT, Role.PROPERTY_MANAGER}
         if obj.is_staff and not (obj.roles & consumer_roles):
             return []
@@ -618,6 +641,10 @@ class MeSerializer(serializers.ModelSerializer):
             return {"mobile": "/(app)/restricted", "web": "/restricted"}
 
         capabilities = self.get_capabilities(obj)
+        if capabilities["registration_state"] == "password_required" and (
+            obj.is_phone_verified or obj.is_email_verified
+        ):
+            return {"mobile": "/(app)/security", "web": "/settings/security"}
         if capabilities["registration_state"] != "complete":
             return {"mobile": "/(auth)/register", "web": "/register"}
 

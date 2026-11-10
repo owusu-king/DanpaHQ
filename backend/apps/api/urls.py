@@ -76,6 +76,14 @@ me_patterns = [
         name="me-registration",
     ),
     path("me/password/", identity_views.ChangePasswordView.as_view(), name="me-password"),
+    path(
+        "me/password/create/code/", identity_views.StartPasswordCreationView.as_view(),
+        name="me-password-create-code",
+    ),
+    path(
+        "me/password/create/", identity_views.CreatePasswordView.as_view(),
+        name="me-password-create",
+    ),
     path("me/google/", identity_views.GoogleLinkView.as_view(), name="me-google"),
     path("me/phone/", identity_views.PhoneVerificationView.as_view(), name="me-phone"),
     path(
@@ -630,6 +638,11 @@ sale_patterns = [
         "sale-enquiries/<uuid:pk>/messages/",
         sale_views.EnquiryReplyView.as_view(),
         name="sale-enquiry-reply",
+    ),
+    path(
+        "sale-enquiries/<uuid:pk>/call/",
+        sale_views.EnquiryProposeCallView.as_view(),
+        name="sale-enquiry-propose-call",
     ),
 ]
 

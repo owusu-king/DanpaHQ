@@ -45,7 +45,7 @@ from .serializers import (
 CLAIM_MINUTES = 30
 
 
-class OperationsSessionOnly:
+class OperationsSessionOnly(APIView):
     """Keep reviewer actions outside the consumer bearer-token boundary.
 
     Operations users authenticate through the separately provisioned Django
@@ -202,7 +202,7 @@ class PublicTrustView(APIView):
         return Response(PublicUserSerializer(user).data)
 
 
-class ReviewQueueView(OperationsSessionOnly, APIView):
+class ReviewQueueView(OperationsSessionOnly):
     """GET /trust/review/queue/ — work waiting for a reviewer."""
 
     permission_classes = [IsAuthenticated, CanReviewVerifications]
@@ -221,7 +221,7 @@ class ReviewQueueView(OperationsSessionOnly, APIView):
         return Response(ReviewQueueSerializer(entries[:100], many=True).data)
 
 
-class ClaimReviewView(OperationsSessionOnly, APIView):
+class ClaimReviewView(OperationsSessionOnly):
     """POST /trust/review/<id>/claim/ — take an item so nobody duplicates it."""
 
     permission_classes = [IsAuthenticated, CanReviewVerifications]
@@ -245,7 +245,7 @@ class ClaimReviewView(OperationsSessionOnly, APIView):
         return Response(ReviewQueueSerializer(entry).data)
 
 
-class DecideVerificationView(OperationsSessionOnly, APIView):
+class DecideVerificationView(OperationsSessionOnly):
     """POST /trust/review/verifications/<id>/decide/"""
 
     permission_classes = [IsAuthenticated, CanReviewVerifications]
@@ -272,7 +272,7 @@ class DecideVerificationView(OperationsSessionOnly, APIView):
         return Response(ReviewerVerificationSerializer(verification).data)
 
 
-class RequestMoreInfoView(OperationsSessionOnly, APIView):
+class RequestMoreInfoView(OperationsSessionOnly):
     permission_classes = [IsAuthenticated, CanReviewVerifications]
 
     def post(self, request, pk):
@@ -288,7 +288,7 @@ class RequestMoreInfoView(OperationsSessionOnly, APIView):
         return Response(ReviewerVerificationSerializer(verification).data)
 
 
-class RevokeVerificationView(OperationsSessionOnly, APIView):
+class RevokeVerificationView(OperationsSessionOnly):
     permission_classes = [IsAuthenticated, CanReviewVerifications]
 
     def post(self, request, pk):

@@ -34,7 +34,10 @@ class PresignedUploadSerializer(serializers.Serializer):
     url = serializers.CharField()
     method = serializers.CharField()
     headers = serializers.DictField(child=serializers.CharField(), required=False)
-    fields = serializers.DictField(child=serializers.CharField(), required=False)
+    # This is an API field; DRF keeps the instance's BindingDict separately.
+    fields = serializers.DictField(  # type: ignore[assignment]
+        child=serializers.CharField(), required=False
+    )
     expires_in = serializers.IntegerField()
     max_bytes = serializers.IntegerField()
 
@@ -72,13 +75,21 @@ class StoredFileSerializer(serializers.ModelSerializer):
     def get_status_message(self, obj) -> str:
         """One line, written for the person waiting on the upload."""
         if obj.scan_status == ScanStatus.FAILED:
-            return (
-                "Security scanning is unavailable. This file was not released; "
-                "please try again later."
+            if obj.rejection_reason:
+                return obj.rejection_reason
+            return {
+                "rate_or_quota_limit": "The safety checker hit its request limit. Try again later.",
+                "provider_timeout": "The safety check timed out. Try again shortly.",
+                "storage_read_failed": "The safety checker could not read the file. Try again.",
+                "storage_seal_failed": "Storage could not release the checked file. Try again.",
+                "queue_unavailable": "The safety check could not start. Try again shortly.",
+            }.get(
+                obj.metadata.get("scan_failure"),
+                "The file safety check could not finish. Try again shortly.",
             )
         return {
             "awaiting_upload": "Waiting for the file.",
-            "uploaded": "Checking the file. This usually takes a few seconds.",
+            "uploaded": "Checking the file.",
             "ready": "Ready.",
             "rejected": obj.rejection_reason or "This file was not accepted.",
             "expired": "This upload took too long. Start again.",

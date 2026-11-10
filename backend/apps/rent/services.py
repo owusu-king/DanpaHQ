@@ -8,10 +8,12 @@ the two look alike.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from datetime import timedelta
+from uuid import UUID
 
 from django.db import transaction
-from django.db.models import Q, Sum
+from django.db.models import Exists, OuterRef, Q, QuerySet, Sum
 from django.utils import timezone
 
 from apps.audit.models import AuditAction
@@ -36,6 +38,26 @@ from .models import (
 #: Ghanaian tenancies are paid in blocks, not monthly instalments. A 30-day
 #: month is the approximation the lease already uses for its end date.
 DAYS_PER_MONTH = 30
+
+
+def with_disputed_payment(charges: QuerySet[RentCharge]) -> QuerySet[RentCharge]:
+    return charges.annotate(
+        _has_disputed_payment=Exists(
+            RentPayment.objects.filter(charge_id=OuterRef("pk"), status=PaymentStatus.DISPUTED)
+        )
+    )
+
+
+def ledger_payments(lease_ids: Iterable[UUID]) -> QuerySet[RentPayment]:
+    return RentPayment.objects.filter(lease_id__in=lease_ids).select_related(
+        "lease",
+        "recorded_by",
+        "confirmed_by",
+        "charge",
+        "evidence_file",
+        "external_receipt",
+        "provider_transaction__receipt",
+    )
 
 
 def record_artisan_payment(*, prop, user, amount_minor: int, note: str) -> PropertyExpense | None:

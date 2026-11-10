@@ -13,6 +13,7 @@ module: everything depends on it, it depends on nothing above it.
 from __future__ import annotations
 
 import logging
+from uuid import UUID
 
 from apps.outbox.tasks import subscribe
 
@@ -21,7 +22,7 @@ from .services import notify
 logger = logging.getLogger("notifications")
 
 
-def _key(event, user_id: str) -> str:
+def _key(event, user_id: str | UUID) -> str:
     """One notification per event per recipient, however often it is retried."""
     return f"{event.id}:{user_id}"
 
@@ -691,6 +692,35 @@ def on_sale_enquiry_received(event) -> None:
             target_id=enquiry.id,
             message_sender=enquiry.buyer.display_name,
         )
+
+
+@subscribe("sale.call_proposed.v1")
+def on_sale_call_proposed(event) -> None:
+    from django.utils.dateparse import parse_datetime
+
+    enquiry = _enquiry(event.aggregate_id)
+    if (
+        enquiry is None
+        or enquiry.status != "open"
+        or enquiry.sale.status != "active"
+        or enquiry.proposed_call_at != parse_datetime(event.payload["proposed_call_at"])
+    ):
+        return
+    headline = enquiry.sale.headline or "the property"
+    title = (
+        "New time proposed for your property call"
+        if event.payload["rescheduled"] else "Property call time proposed"
+    )
+    notify(
+        user=enquiry.buyer,
+        kind="sale.call_proposed",
+        title=title,
+        body=f"Open your interest to see when the provider can call about {headline}.",
+        dedupe_key=_key(event, enquiry.buyer_id),
+        target_type="sale_enquiry",
+        target_id=enquiry.id,
+        message_sender="Property provider",
+    )
 
 
 @subscribe("sale.enquiry_replied.v1")

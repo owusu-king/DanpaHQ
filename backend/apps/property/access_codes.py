@@ -253,10 +253,11 @@ def resolve(raw: str) -> Unit:
 
 def verify(unit: Unit, raw: str) -> bool:
     """Constant-time verification against a Unit already named by the request."""
-    if not _usable(unit):
+    code_hash = unit.access_code_hash
+    if code_hash is None or not _usable(unit):
         return False
     try:
         normalized = canonical(raw)
     except NotFound:
         normalized = "INVALID"
-    return verify_secret(normalized, unit.access_code_hash, pepper=_pepper())
+    return verify_secret(normalized, code_hash, pepper=_pepper())

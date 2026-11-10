@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import { authedFetch } from "@/lib/auth";
 import { Button } from "@/components/Button";
 import { Field } from "@/components/Field";
 import { Notice } from "@/components/Notice";
@@ -19,7 +20,7 @@ import {
 } from "@/lib/console";
 import { fieldErrorsFrom, summaryErrorFrom, type FieldErrors } from "@/lib/formErrors";
 import { ARTISAN_STATUS_LOOK } from "@/lib/artisan";
-import type { Capabilities } from "@/lib/session";
+import { useSession, type Capabilities } from "@/lib/session";
 
 const MIN_PASSWORD_LENGTH = 8;
 
@@ -321,17 +322,40 @@ export function ProfileSection({
   );
 }
 
-/** Change a known password. The current one is required even inside a session. */
-export function PasswordSection() {
+export function PasswordSection({ hasPassword }: { hasPassword: boolean }) {
+  const { state, refresh } = useSession();
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
+  const [proof, setProof] = useState<{ id: string; channel: "sms" | "email" } | null>(null);
+  const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [errors, setErrors] = useState<FieldErrors>({});
   const [summary, setSummary] = useState("");
   const [done, setDone] = useState(false);
 
-  async function submit(event: React.FormEvent) {
-    event.preventDefault();
+  const me = state.status === "signed_in" ? state.me : null;
+  const phone = me?.is_phone_verified ? me.phone_display : "";
+  const email = me?.is_email_verified ? me.email : "";
+
+  async function sendCode(channel: "sms" | "email") {
+    if (busy) return;
+    setBusy(true);
+    setSummary("");
+    try {
+      const result = await authedFetch<{ challenge_id: string }>("/me/password/create/code/", {
+        method: "POST", body: JSON.stringify({ channel }),
+      });
+      setCode("");
+      setProof({ id: result.challenge_id, channel });
+    } catch (cause) {
+      setSummary(summaryErrorFrom(cause, fieldErrorsFrom(cause)));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function save() {
+    if (busy || (!hasPassword && (!proof || code.length !== 6))) return;
     if (next.length < MIN_PASSWORD_LENGTH) {
       setErrors({ new_password: `Use at least ${MIN_PASSWORD_LENGTH} characters.` });
       return;
@@ -341,7 +365,18 @@ export function PasswordSection() {
     setSummary("");
     setDone(false);
     try {
-      await changePassword(current, next);
+      if (hasPassword) {
+        await changePassword(current, next);
+      } else if (proof) {
+        await authedFetch("/me/password/create/", {
+          method: "POST", body: JSON.stringify({
+            challenge_id: proof.id, code, new_password: next,
+          }),
+        });
+        setProof(null);
+        setCode("");
+        await refresh();
+      } else return;
       setCurrent("");
       setNext("");
       setDone(true);
@@ -355,16 +390,38 @@ export function PasswordSection() {
   }
 
   return (
-    <form onSubmit={submit} className="settings-security-form">
+    <form onSubmit={(event) => { event.preventDefault(); void save(); }} className="settings-security-form">
+      {!hasPassword && !done ? (
+        <>
+          <p className="type-caption">{proof
+            ? `Enter the code sent to ${proof.channel === "sms" ? phone : email}.`
+            : phone || email
+              ? "Choose a verified contact to receive a code."
+              : "Verify a phone number or email on your account first."}</p>
+          {proof ? (
+            <Field label="Six-digit code" value={code} inputMode="numeric"
+              autoComplete="one-time-code" maxLength={6} required error={errors.code}
+              onChange={(event) => setCode(event.target.value.replace(/\D/g, ""))} />
+          ) : null}
+          <div className="settings-fields-2">
+            {phone ? <Button type="button" variant="secondary" size="sm" disabled={busy}
+              onClick={() => void sendCode("sms")}>{proof?.channel === "sms" ? "Resend text" : "Send code by text"}</Button> : null}
+            {email ? <Button type="button" variant="secondary" size="sm" disabled={busy}
+              onClick={() => void sendCode("email")}>{proof?.channel === "email" ? "Resend email" : "Send code by email"}</Button> : null}
+          </div>
+        </>
+      ) : null}
+      {hasPassword || proof ? (
       <div className="settings-fields-2">
-        <Field
+        {hasPassword ? <Field
           label="Current password"
           type="password"
           value={current}
           onChange={(event) => setCurrent(event.target.value)}
           error={errors.current_password}
           autoComplete="current-password"
-        />
+          required
+        /> : null}
         <Field
           label="New password"
           type="password"
@@ -375,17 +432,20 @@ export function PasswordSection() {
           }}
           error={errors.new_password}
           autoComplete="new-password"
+          required
         />
       </div>
+      ) : null}
       {summary ? <Notice tone="error" title={summary} /> : null}
       {done ? (
         <Notice
           tone="success"
-          title="Password changed"
+          title="Password saved"
           body="Your other devices have been signed out."
         />
       ) : null}
-      <Button type="submit" size="sm" busy={busy}>Change password</Button>
+      {hasPassword || proof ? <Button type="submit" size="sm" busy={busy}
+        disabled={!hasPassword && code.length !== 6}>{hasPassword ? "Change password" : "Create password"}</Button> : null}
     </form>
   );
 }

@@ -223,7 +223,7 @@ def open_share(token: str) -> tuple[PassportShare, dict]:
 # --- corrections -----------------------------------------------------------------
 
 
-_CATEGORY = {
+_CATEGORY: dict[str, str] = {
     CorrectionRecord.IDENTITY: "verification",
     CorrectionRecord.TENANCY: "lease",
     CorrectionRecord.PAYMENTS: "payment",

@@ -672,6 +672,18 @@ class TestWebRefreshCookie:
         assert refreshed.data["access_token"]
         assert "refresh_token" not in refreshed.data
 
+    def test_foreign_origin_cannot_rotate_the_browser_cookie(self, sms):
+        client, signed_in = self._register_as("web", sms)
+        refused = client.post(
+            "/api/v1/auth/refresh/", {}, format="json",
+            HTTP_X_CLIENT="web", HTTP_ORIGIN="https://foreign.example",
+        )
+        assert refused.status_code == 403
+        assert client.cookies["danpahq_refresh"].value == signed_in.cookies["danpahq_refresh"].value
+        assert client.post(
+            "/api/v1/auth/refresh/", {}, format="json", HTTP_X_CLIENT="web",
+        ).status_code == 200
+
     def test_a_native_client_still_gets_the_token_in_the_body(self, sms):
         """Mobile has the Keychain and the Keystore, which beat a cookie."""
         _, response = self._register_as("mobile", sms)
@@ -682,9 +694,9 @@ class TestWebRefreshCookie:
         from rest_framework.test import APIClient
 
         response = APIClient().post("/api/v1/auth/refresh/", {}, format="json", HTTP_X_CLIENT="web")
-        assert response.status_code == 422
-        assert response.data["error"]["code"] == "validation_failed"
-        assert response.data["error"]["message"] == "Sign in again."
+        assert response.status_code == 401
+        assert response.data["error"]["code"] == "session_ended"
+        assert response.data["error"]["message"] == "Your session has ended. Sign in again."
         assert response.data["error"]["details"] == {}
 
     def test_a_browser_with_an_invalid_refresh_cookie_is_refused_as_an_ended_session(self):
@@ -694,6 +706,6 @@ class TestWebRefreshCookie:
         client.cookies["danpahq_refresh"] = "not-a-real-refresh-token"
         response = client.post("/api/v1/auth/refresh/", {}, format="json", HTTP_X_CLIENT="web")
 
-        assert response.status_code == 403
-        assert response.data["error"]["code"] == "permission_denied"
+        assert response.status_code == 401
+        assert response.data["error"]["code"] == "session_ended"
         assert response.data["error"]["message"] == "Your session has ended. Sign in again."

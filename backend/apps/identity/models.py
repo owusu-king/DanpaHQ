@@ -72,6 +72,7 @@ class ChallengePurpose(models.TextChoices):
     STEP_UP = "step_up", "Confirm a sensitive action"
     CHANGE_PHONE = "change_phone", "Change phone number"
     RECOVER_ACCOUNT = "recover_account", "Recover account"
+    CREATE_PASSWORD = "create_password", "Create password"
 
 
 class ChallengeStatus(models.TextChoices):
@@ -197,7 +198,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     objects = UserManager()
 
     USERNAME_FIELD = "phone"
-    REQUIRED_FIELDS: list[str] = ["email"]
+    REQUIRED_FIELDS = ["email"]
 
     class Meta:
         db_table = "identity_user"
@@ -289,14 +290,14 @@ class User(AbstractBaseUser, PermissionsMixin):
         Phone accounts prove their number and set a password; federated
         accounts hold a verified external identity and may add a phone later.
         """
-        has_federated_identity = self.external_identities.exists()
-        if self.phone and not self.is_phone_verified and not has_federated_identity:
+        if (self.phone and not self.is_phone_verified and not self.is_email_verified
+                and not self.external_identities.exists()):
             return "phone_required"
         if not self.account_type:
             return "account_type_required"
         if not (self.first_name.strip() and self.last_name.strip()):
             return "profile_required"
-        if not self.has_usable_password() and not has_federated_identity:
+        if not self.has_usable_password() and not self.external_identities.exists():
             return "password_required"
         return "complete"
 
@@ -403,7 +404,7 @@ class UserIntent(models.Model):
 
 
 class AuthChallenge(models.Model):
-    """One OTP challenge: a code sent to a number for a stated purpose.
+    """One OTP challenge sent to a phone or email for a stated purpose.
 
     Never stores the code. Only a peppered HMAC of it, so a database dump does
     not yield a million-guess-wide secret, and the pepper lives in the secret
@@ -416,12 +417,14 @@ class AuthChallenge(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid7, editable=False)
 
-    phone = PhoneNumberField(db_index=True)
+    phone = PhoneNumberField(blank=True, db_index=True)
+    email = models.EmailField(blank=True, default="")
     #: Null for sign-up: we do not create the account until the number is proven.
     user = models.ForeignKey(
         User, null=True, blank=True, on_delete=models.CASCADE, related_name="auth_challenges"
     )
     purpose = models.CharField(max_length=32, choices=ChallengePurpose.choices)
+    session_family_id = models.UUIDField(null=True, blank=True)
 
     code_hash = models.CharField(max_length=64)
     code_salt = models.CharField(max_length=32)

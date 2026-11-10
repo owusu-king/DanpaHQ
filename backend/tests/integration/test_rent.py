@@ -1544,7 +1544,26 @@ class TestPostTenancyApi:
     def test_tenant_payment_portfolio_can_explicitly_include_ended_accounts(
         self, signed_in, landlord, user, unit
     ):
-        lease, _ = self._ended(landlord, user, unit)
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        from apps.property.models import Unit
+
+        lease, charge = self._ended(landlord, user, unit)
+        payment = services.record_payment(
+            lease=lease,
+            user=landlord,
+            data={
+                "charge_id": charge.id,
+                "amount_minor": charge.outstanding_minor,
+                "paid_on": date.today(),
+            },
+        )
+        services.dispute_payment(payment=payment, user=user, reason="Amount disputed")
+        second_unit = Unit.objects.create(
+            property=unit.property, label="Flat B", bedrooms=1, bathrooms=1
+        )
+        second_lease, _ = self._ended(landlord, user, second_unit)
         api = signed_in(user, "tenant-ended-portfolio")
 
         assert all(
@@ -1552,11 +1571,37 @@ class TestPostTenancyApi:
             for row in api.get("/api/v1/me/tenancies/").data
             if row["lease"]
         )
-        included = api.get("/api/v1/me/tenancies/?include_ended=1")
+        with CaptureQueriesContext(connection) as queries:
+            included = api.get("/api/v1/me/tenancies/?include_ended=1&include_ledger=1")
+        portfolio_queries = list(queries)
         assert included.status_code == 200
-        account = next(row for row in included.data if row["lease"]["id"] == str(lease.id))
-        assert account["status"] == "ended"
-        assert account["rent"]["outstanding_count"] > 0
+        accounts = {row["lease"]["id"]: row for row in included.data}
+        for ended in (lease, second_lease):
+            account = accounts[str(ended.id)]
+            assert account["status"] == "ended"
+            assert account["rent"]["outstanding_count"] > 0
+            detail = api.get(f"/api/v1/leases/{ended.id}/charges/")
+            assert detail.status_code == 200
+            assert account["ledger"] == {
+                "charges": detail.data["charges"], "payments": detail.data["payments"]
+            }
+        first_ledger = accounts[str(lease.id)]["ledger"]
+        assert len(first_ledger["payments"]) == 1
+        disputed_charge = next(
+            row for row in first_ledger["charges"] if row["id"] == str(charge.id)
+        )
+        assert disputed_charge["has_dispute"] is True
+        assert disputed_charge["effective_status"] == "disputed"
+        assert not accounts[str(second_lease.id)]["ledger"]["payments"]
+        # The charges statement includes a dispute EXISTS subquery on rent_payment.
+        # It and the batched payment SELECT are the only SQL statements touching that table.
+        expected = {"rent_charge": 1, "rent_obligation_adjustment": 1, "rent_payment": 2}
+        for table, total in expected.items():
+            count = sum(f'FROM "{table}"' in query["sql"] for query in portfolio_queries)
+            assert count == total, table
+
+        outsider = signed_in(landlord, "not-the-tenant")
+        assert outsider.get("/api/v1/me/tenancies/?include_ended=1&include_ledger=1").data == []
 
 
 def test_provider_colleagues_cannot_confirm_their_own_partys_claim(

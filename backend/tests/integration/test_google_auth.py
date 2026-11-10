@@ -81,6 +81,50 @@ def register_google(api, monkeypatch, value=None, account_type="tenant", **heade
     )
 
 
+def test_google_account_creates_a_danpa_password_with_email_otp(monkeypatch, sms, mailoutbox):
+    api = APIClient()
+    created = register_google(api, monkeypatch)
+    assert created.status_code == 201
+    api.credentials(HTTP_AUTHORIZATION=f"Bearer {created.data['access_token']}")
+    body = {"credential": "verified-by-test-double", "new_password": TEST_PASSWORD}
+    refused = api.post("/api/v1/me/password/google/", body, format="json")
+    assert refused.status_code == 404
+    assert api.post("/api/v1/me/password/create/", body, format="json").status_code in (400, 422)
+    assert not api.get("/api/v1/me/").data["has_password"]
+
+    requested = api.post("/api/v1/me/password/create/code/", {"channel": "email"}, format="json")
+    assert requested.status_code == 201, requested.data
+    assert mailoutbox[-1].to == ["ama@example.com"]
+    code = mailoutbox[-1].body.split()[0]
+    changed = api.post("/api/v1/me/password/create/", {
+        "challenge_id": requested.data["challenge_id"], "code": code, "new_password": TEST_PASSWORD,
+    }, format="json")
+    assert changed.status_code == 200, changed.data
+    me = api.get("/api/v1/me/")
+    assert me.data["has_password"] and me.data["google_linked"]
+    assert api.post(
+        "/api/v1/me/password/create/code/", {"channel": "email"}, format="json"
+    ).status_code == 409
+
+    phone = api.post("/api/v1/me/phone/", {"phone": "0204567890"}, format="json")
+    assert phone.status_code == 201, phone.data
+    confirmed = api.post("/api/v1/me/phone/verify/", {
+        "challenge_id": phone.data["challenge_id"], "code": code_from(sms),
+    }, format="json")
+    assert confirmed.status_code == 200, confirmed.data
+    assert api.post("/api/v1/auth/sign-out/", {}, format="json").status_code == 204
+    api.credentials()
+
+    for identifier in ("ama@example.com", "0204567890"):
+        signed_in = api.post("/api/v1/auth/sign-in/", {
+            "identifier": identifier, "password": TEST_PASSWORD, "platform": "android",
+        }, format="json")
+        assert signed_in.status_code == 200, signed_in.data
+        assert signed_in.data["user"]["id"] == created.data["user"]["id"]
+    assert start_google(api, monkeypatch).data["user"]["id"] == created.data["user"]["id"]
+    assert User.objects.count() == 1
+
+
 def test_artisan_google_ticket_preserves_type_without_granting_tenant(monkeypatch):
     from apps.identity.models import Role
 

@@ -163,7 +163,7 @@ class Address(SoftDeleteModel):
     # separate from the property's private latitude/longitude.
     place_latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     place_longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
-    digital_address = DigitalAddressField(blank=True, db_index=True)
+    digital_address = DigitalAddressField(max_length=14, blank=True, db_index=True)
     street = models.CharField(max_length=160, blank=True)
     house_number = models.CharField(max_length=32, blank=True)
     landmark = models.CharField(
@@ -196,17 +196,20 @@ class Address(SoftDeleteModel):
 
     @property
     def locality_label(self) -> str:
-        return self.locality.name if self.locality_id else self.place_name
+        locality = self.locality
+        return locality.name if locality is not None else self.place_name
 
     @property
     def district_label(self) -> str:
-        if self.locality_id:
-            return self.locality.district_label
+        locality = self.locality
+        if locality is not None:
+            return locality.district_label
         return self.place_context.split(",", 1)[0].strip()
 
     @property
     def region_label(self) -> str:
-        return self.locality.region_label if self.locality_id else ""
+        locality = self.locality
+        return locality.region_label if locality is not None else ""
 
     @property
     def location_status(self) -> str:

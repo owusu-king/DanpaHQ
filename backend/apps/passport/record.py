@@ -243,6 +243,7 @@ def _tenancy(tenancy, *, payments: bool, amounts: bool, corrections: dict, audie
     )
     address = getattr(tenancy.property, "address", None)
 
+    credential: dict[str, str | date | None]
     if tenancy.status == "pending_lease" or opened is None:
         credential = {
             "status": "pending",

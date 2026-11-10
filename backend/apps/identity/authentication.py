@@ -81,6 +81,10 @@ class AccessTokenAuthentication(BaseAuthentication):
             not user.is_staff
             and not user.is_registration_complete
             and request.path not in REGISTRATION_EXEMPT_PATHS
+            and not (
+                request.path in {"/api/v1/me/password/create/", "/api/v1/me/password/create/code/"}
+                and user.registration_state == "password_required"
+            )
         ):
             raise AuthenticationFailed("Finish setting up your account first.")
 

@@ -95,6 +95,12 @@ class PermissionDenied(DomainError):
     message = "You do not have access to this."
 
 
+class SessionEnded(PermissionDenied):
+    code = "session_ended"
+    status_code = 401
+    message = "Your session has ended. Sign in again."
+
+
 class Conflict(DomainError):
     """The request is refused by the current state of things.
 

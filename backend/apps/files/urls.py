@@ -13,7 +13,7 @@ from __future__ import annotations
 from django.conf import settings
 from django.urls import path
 
-from . import views
+from . import thumbnails, views
 
 app_name = "files"
 
@@ -23,6 +23,7 @@ urlpatterns = [
     path("files/uploads/<uuid:pk>/complete/", views.CompleteUploadView.as_view(), name="complete"),
     path("files/<uuid:pk>/", views.FileDetailView.as_view(), name="detail"),
     path("files/<uuid:pk>/download/", views.FileDownloadView.as_view(), name="download"),
+    path("files/<uuid:pk>/thumbnail/", thumbnails.download_thumbnail, name="file-thumbnail"),
 ]
 
 # Local-backend receiver. Mounted separately and only when needed, so there

@@ -8,9 +8,13 @@ is not here either; buyers ask through an enquiry (owner, 2026-09-28).
 
 from __future__ import annotations
 
+import re
+from typing import cast
+
 from rest_framework import serializers
 
 from apps.core.money import Money
+from apps.core.phone import PhoneNumberError, normalise_ghana_msisdn
 
 from .models import SaleEnquiry, SaleEnquiryMessage, SaleListing
 
@@ -235,7 +239,7 @@ class SaleDetailSerializer(SaleCardSerializer):
         rows = obj.property.property_amenities.filter(removed_at__isnull=True).select_related(
             "amenity"
         )
-        return PropertyAmenitySerializer(rows, many=True).data
+        return cast(list[dict], PropertyAmenitySerializer(rows, many=True).data)
 
     def get_my_enquiry_id(self, obj) -> str | None:
         """The reader's own conversation about this property, if they have started one."""
@@ -395,6 +399,7 @@ class EnquirySerializer(serializers.ModelSerializer):
             "status",
             "sale",
             "buyer_name",
+            "proposed_call_at",
             "unread",
             "last_message",
             "last_message_mine",
@@ -431,6 +436,10 @@ class EnquirySerializer(serializers.ModelSerializer):
         return bool(obj.last_message_at and (read_at is None or read_at < obj.last_message_at))
 
     def _latest_message(self, obj):
+        if hasattr(obj, "preview_body"):
+            return {"body": obj.preview_body, "author_id": obj.preview_author_id} if (
+                obj.preview_body is not None
+            ) else None
         if not hasattr(self, "_preview_messages"):
             self._preview_messages = {}
         if obj.pk not in self._preview_messages:
@@ -453,20 +462,50 @@ class EnquiryDetailSerializer(EnquirySerializer):
     messages = serializers.SerializerMethodField()
 
     class Meta(EnquirySerializer.Meta):
-        fields = [*EnquirySerializer.Meta.fields, "messages"]
+        fields = [*EnquirySerializer.Meta.fields, "messages", "contact_phone", "contact_email"]
         read_only_fields = fields
 
     def get_messages(self, obj) -> list[dict]:
-        return EnquiryMessageSerializer(
+        data = EnquiryMessageSerializer(
             obj.messages.select_related("author"),
             many=True,
             context={"user": self._user(), "enquiry": obj},
         ).data
+        return cast(list[dict], data)
 
 
 class StartEnquirySerializer(serializers.Serializer):
     message = serializers.CharField(max_length=2000, required=False, default="")
+    contact_phone = serializers.CharField(max_length=40, required=False)
+    contact_email = serializers.EmailField(max_length=254, required=False)
+
+    def validate_contact_phone(self, value):
+        phone = re.sub(r"[ ()-]", "", value)
+        if phone.startswith("00"):
+            phone = "+" + phone[2:]
+        if re.fullmatch(r"[0-9]+", phone) or re.fullmatch(r"\+233[0-9]+", phone):
+            try:
+                return normalise_ghana_msisdn(phone, mobile_only=False)
+            except PhoneNumberError as exc:
+                raise serializers.ValidationError(str(exc)) from exc
+        if not re.fullmatch(r"\+[1-9][0-9]{7,14}", phone):
+            raise serializers.ValidationError(
+                "Enter a Ghana phone number or include your country code."
+            )
+        return phone
+
+    def validate(self, attrs):
+        # Older installed clients sent neither field. New submissions share both.
+        if "contact_phone" in attrs and "contact_email" not in attrs:
+            raise serializers.ValidationError({"contact_email": "Enter your email address."})
+        if "contact_email" in attrs and "contact_phone" not in attrs:
+            raise serializers.ValidationError({"contact_phone": "Enter your phone number."})
+        return attrs
 
 
 class ReplySerializer(serializers.Serializer):
     message = serializers.CharField(max_length=2000)
+
+
+class ProposeCallSerializer(serializers.Serializer):
+    proposed_call_at = serializers.DateTimeField()

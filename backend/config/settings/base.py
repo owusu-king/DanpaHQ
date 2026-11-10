@@ -10,16 +10,15 @@ from __future__ import annotations
 import os
 from datetime import timedelta
 from pathlib import Path
+from typing import Any
+
+from django.core.exceptions import ImproperlyConfigured
 
 from apps.identity.provider_terms import DEFAULT_PROVIDER_TERMS, DEFAULT_PROVIDER_TERMS_VERSION
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 APP_VERSION = os.environ.get("APP_VERSION", "0.1.0")
 ENVIRONMENT = os.environ.get("ENVIRONMENT", "local")
-
-
-class ImproperlyConfigured(Exception):
-    pass
 
 
 def env(key: str, default=None, *, required: bool = False, cast=str):
@@ -378,6 +377,7 @@ REST_FRAMEWORK = {
         "anon": "60/min",
         "user": "600/min",
         "otp": "5/hour",
+        "otp_send_ip": "20/hour",
         "otp_verify": "30/hour",
         "google_auth": "30/min",
         "payment": "20/min",
@@ -481,7 +481,7 @@ FILE_UPLOAD_MAX_MEMORY_SIZE = 5 * 1024 * 1024
 DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024
 
 STATIC_URL = "/static/"
-STATIC_ROOT = BASE_DIR / "staticfiles"
+STATIC_ROOT: Path | None = BASE_DIR / "staticfiles"
 
 # --- Storage backend ---------------------------------------------------------
 # "s3"    — S3-compatible object storage (MinIO locally, real S3 in production).
@@ -588,7 +588,7 @@ SECURE_CONTENT_TYPE_NOSNIFF = True
 SECURE_REFERRER_POLICY = "strict-origin-when-cross-origin"
 
 # --- Logging ----------------------------------------------------------------
-LOGGING = {
+LOGGING: dict[str, Any] = {
     "version": 1,
     "disable_existing_loggers": False,
     "formatters": {

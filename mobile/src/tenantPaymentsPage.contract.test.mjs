@@ -87,8 +87,8 @@ test("nothing yet, nothing paid and signed out each say the right thing", () => 
 
 test("everything the page could do is still there", () => {
   const source = screen();
-  assert.match(source, /listMyTenancies\(true\)/);
-  assert.match(source, /getLeaseLedger\(tenancy\.lease!\.id\)/);
+  assert.match(source, /listTenantRentAccounts\(\)/);
+  assert.doesNotMatch(source, /getLeaseLedger/);
   assert.match(source, /listPaymentIntents\(\)/);
   assert.match(source, /refreshControl=\{<RefreshControl refreshing=\{refreshing\}/);
   assert.match(source, /useFocusEffect\(useCallback\(\(\) => \{ void load\(\); \}, \[load\]\)\);/);

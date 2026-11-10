@@ -500,6 +500,7 @@ function PropertyCard({
         </span>
         <div className="property-card-heading">
           <Link
+            prefetch={false}
             href={`/record/property?id=${property.id}` as never}
             className="property-card-link"
             data-property-id={property.id}
@@ -545,7 +546,7 @@ function PropertyCard({
             </svg>
           </span>
           {canAddUnit ? (
-            <Link href={`/record/space-new?propertyId=${property.id}` as never} className="property-card-action" onClick={inPlace(onAddUnit)}>
+            <Link prefetch={false} href={`/record/space-new?propertyId=${property.id}` as never} className="property-card-action" onClick={inPlace(onAddUnit)}>
               <PlusGlyph />Add Unit
             </Link>
           ) : null}
@@ -560,7 +561,7 @@ function PropertyCard({
           {/* Signed media URLs are supplied at runtime by the API and are not
               stable Next image-loader resources. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          {property.cover_url ? <img src={property.cover_url} alt="" loading="lazy" /> : <Icon name="properties" />}
+          {property.cover_url ? <img src={property.cover_thumbnail_url ?? property.cover_url} alt="" loading="lazy" decoding="async" /> : <Icon name="properties" />}
         </span>
       </div>
     </li>
@@ -578,7 +579,7 @@ function AddPropertyCard({
   onClick?: (event: React.MouseEvent<HTMLAnchorElement>) => void;
 }) {
   return (
-    <Link href={href as never} className="property-add" onClick={onClick}>
+    <Link href={href as never} prefetch={false} className="property-add" onClick={onClick}>
       <span className="property-add-ghost" aria-hidden="true">
         <span className="property-add-ghost-line is-title" />
         <span className="property-add-ghost-line" />

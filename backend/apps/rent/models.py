@@ -259,6 +259,9 @@ class RentCharge(BaseModel):
 
     @property
     def has_dispute(self) -> bool:
+        annotated = getattr(self, "_has_disputed_payment", None)
+        if annotated is not None:
+            return bool(annotated)
         return self.payments.filter(status=PaymentStatus.DISPUTED).exists()
 
     @property
@@ -461,11 +464,12 @@ class RentPayment(BaseModel):
                 "card": "CARD",
                 "bank_transfer": "BANK_TRANSFER",
             }.get(transaction.payment_method, "OTHER")
-        return {
+        channels: dict[str, str] = {
             PaymentMethod.MOMO: "MOBILE_MONEY",
             PaymentMethod.BANK: "BANK_TRANSFER",
             PaymentMethod.CASH: "CASH",
-        }.get(self.method, "OTHER")
+        }
+        return channels.get(self.method, "OTHER")
 
     @property
     def payment_evidence(self) -> str:

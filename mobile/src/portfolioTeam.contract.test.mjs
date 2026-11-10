@@ -102,8 +102,10 @@ test("switching Portfolio leaves nothing of the last one on screen", () => {
   // that moment the figures on screen are the ones the person just switched
   // away from, sitting under the new Portfolio's name.
   assert.match(code(read("mobile/src/portfolioScope.ts")), /export function useBlankOnPortfolioSwitch/);
+  const home = code(read("mobile/app/(app)/(provider-tabs)/index.tsx"));
+  assert.match(home, /const scopeKey = .*accountId.*selectedId/);
+  assert.match(home, /useBlankOnPortfolioSwitch\(scopeKey, \(\) => \{/);
   for (const screen of [
-    "mobile/app/(app)/(provider-tabs)/index.tsx",
     "mobile/app/(app)/(provider-tabs)/properties.tsx",
     "mobile/app/(app)/provider-applications.tsx",
   ]) {

@@ -4,7 +4,7 @@ import { CheckCircle2, Clock3, ShieldCheck } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/Button";
-import { openEnquiries } from "@/components/enquiries/EnquiriesInbox";
+import { openEnquiries } from "@/components/enquiries/enquiryEvents";
 import { PhoneVerificationSection } from "@/components/account/IdentitySecurity";
 import { Notice } from "@/components/Notice";
 import { ProviderTermsConsent, type AcceptedProviderTerms } from "@/components/auth/ProviderTermsConsent";
@@ -62,12 +62,12 @@ export default function ProviderStandingPage() {
         <span className={`provider-application-mark${pending ? " is-pending" : ""}`} aria-hidden="true">{approved ? <CheckCircle2 /> : pending ? <Clock3 /> : <ShieldCheck />}</span>
         <p className="provider-application-eyebrow">Danpa HQ / Provider account</p>
         <h1 id="provider-application-title">{standing ? title : "Provider approval"}</h1>
-        <p>{needsPhone ? "Verify your phone by OTP before submitting for review." : pending ? "Your application is with Management. Your provider tools will open once it is approved." : approved ? "Your provider workspace is ready. Each property is verified separately." : status === "needs_more_info" ? "Review Management’s note and update your profile." : "Review the provider agreement, then submit your application."}</p>
+        <p>{needsPhone ? "Verify your phone by OTP before submitting for review." : pending ? "Your application is with Management. Your provider tools will open once it is approved." : approved ? "Your provider workspace is ready. Each property is verified separately." : status === "needs_more_info" ? "Review Management’s note and update your profile." : null}</p>
       </header>
       {error ? <><Notice tone="error" title={error} /><Button variant="quiet" onClick={() => void load()}>Try again</Button></> : null}
       {standing?.decision_note ? <Notice tone="info" title="From Management" body={standing.decision_note} /> : null}
       {needsPhone ? <section className="provider-application-form" aria-label="Verify phone"><PhoneVerificationSection /></section> : pending ? <ol className="provider-application-progress" aria-label="Application progress"><li><CheckCircle2 /><span>Profile complete</span></li><li><CheckCircle2 /><span>Phone verified</span></li><li className="is-current"><Clock3 /><span>In review</span></li></ol> : null}
-      {canSubmit ? <section className="provider-application-form" aria-label="Provider agreement"><ProviderTermsConsent value={terms} onChange={setTerms} presentation="page" reading={readingAgreement} onReadingChange={setReadingAgreement} />{!showingAgreement ? <Button disabled={!terms} busy={busy} onClick={() => void submit()}>Request approval</Button> : null}</section> : null}
+      {canSubmit ? <section className="provider-application-form" aria-label="Provider agreement"><ProviderTermsConsent value={terms} onChange={setTerms} presentation="page" reading={readingAgreement} onReadingChange={setReadingAgreement} />{!showingAgreement ? <Button disabled={!terms} busy={busy} onClick={() => void submit()}>Begin verification</Button> : null}</section> : null}
       {approved ? <Button onClick={async () => { await chooseWorkspace("provider"); await refresh(); router.replace("/home"); }}>Open provider workspace</Button> : pending ? <p className="provider-application-note">Each property is verified separately.</p> : null}
       <footer className="provider-application-footer"><Link href="/settings">Your Profile</Link><button type="button" onClick={() => openEnquiries({ view: "support" })}>Support Tickets</button></footer>
     </article>

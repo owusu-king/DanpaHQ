@@ -60,7 +60,7 @@ test("mobile payment attention counts only the claims the provider still owes", 
 });
 
 test("mobile tenant Payments keeps ended rent accounts reachable", () => {
-  assert.match(read("mobile/app/(app)/tenant-payments.tsx"), /listMyTenancies\(true\)/);
+  assert.match(read("mobile/app/(app)/tenant-payments.tsx"), /listTenantRentAccounts\(\)/);
   assert.match(read("mobile/src/tenancy.ts"), /include_ended=1/);
 });
 

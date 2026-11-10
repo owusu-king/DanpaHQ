@@ -180,7 +180,8 @@ def revoke_session(*, session: ManagementSession, reason: str) -> None:
 def change_password(*, user: ManagementUser, current_password: str, new_password: str) -> None:
     if not user.check_password(current_password):
         raise ValidationFailed("Your current password is not correct.")
-    validate_password(new_password, user=user)
+    # Django's validators accept user-like models; the stubs require AUTH_USER_MODEL.
+    validate_password(new_password, user=user)  # type: ignore[arg-type]
     user.set_password(new_password)
     user.must_change_password = False
     user.save(update_fields=["password", "must_change_password", "updated_at"])
@@ -247,7 +248,9 @@ def _post_support_message(
         sender=(SupportMessageSender.MANAGEMENT if from_management else SupportMessageSender.USER),
         author_user=None if from_management else user,
         author_management=management_actor,
-        author_label=management_actor.display_name if from_management else user.display_name,
+        author_label=(
+            management_actor.display_name if management_actor is not None else user.display_name
+        ),
         body=_support_body(body),
     )
     case.last_message_at = now

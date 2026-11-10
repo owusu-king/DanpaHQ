@@ -285,10 +285,9 @@ def available_amenities(*, scope: str, space_type: str = "") -> list[Amenity]:
     elif scope == AmenityScope.PROPERTY:
         rows = rows.filter(scope__in=[AmenityScope.PROPERTY, AmenityScope.BOTH])
 
-    rows = list(rows)
     if scope == AmenityScope.UNIT and space_type:
-        rows = [row for row in rows if row.applies_to_space_type(space_type)]
-    return rows
+        return [row for row in rows if row.applies_to_space_type(space_type)]
+    return list(rows)
 
 
 @transaction.atomic

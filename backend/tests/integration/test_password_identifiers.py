@@ -22,6 +22,8 @@ def login(identifier=None, **fields):
 @pytest.mark.parametrize("identifier", ["  AMA@EXAMPLE.COM  ", "0201234567", "+233201234567"])
 def test_both_identifiers_open_the_existing_account_and_refresh_session(account_type, identifier):
     user = make_account("0201234567", email="ama@example.com", account_type=account_type)
+    user.is_email_verified = True
+    user.save(update_fields=["is_email_verified"])
     before = User.objects.count()
     response = login(identifier, device_fingerprint="same-installation")
     assert response.status_code == 200, response.data
@@ -43,6 +45,7 @@ def test_legacy_phone_payload_still_works(user):
 
 def test_password_account_with_only_email_can_sign_in(user):
     user.email = "ama@example.com"
+    user.is_email_verified = True
     user.phone = None
     user.is_phone_verified = False
     user.phone_verified_at = None
@@ -74,7 +77,8 @@ def test_conflicting_identifiers_are_rejected(user):
 
 def test_wrong_and_unknown_email_credentials_are_indistinguishable(user):
     user.email = "ama@example.com"
-    user.save(update_fields=["email"])
+    user.is_email_verified = True
+    user.save(update_fields=["email", "is_email_verified"])
     wrong = login("ama@example.com", password="incorrect")
     unknown = login("unknown@example.com", password="incorrect")
     assert wrong.status_code == unknown.status_code == 403
@@ -84,7 +88,8 @@ def test_wrong_and_unknown_email_credentials_are_indistinguishable(user):
 
 def test_ambiguous_legacy_email_never_selects_or_merges_an_account(user):
     user.email = "ama@example.com"
-    user.save(update_fields=["email"])
+    user.is_email_verified = True
+    user.save(update_fields=["email", "is_email_verified"])
     make_account("0241234567", email="AMA@example.com")
     before = User.objects.count()
     assert login("Ama@example.com").status_code == 403
@@ -92,9 +97,10 @@ def test_ambiguous_legacy_email_never_selects_or_merges_an_account(user):
     assert not Session.objects.exists()
 
 
-@pytest.mark.parametrize("state", ["staff", "inactive", "unfinished", "passwordless"])
+@pytest.mark.parametrize("state", ["staff", "inactive", "unfinished", "passwordless", "unverified"])
 def test_email_cannot_bypass_account_restrictions(user, state):
     user.email = "ama@example.com"
+    user.is_email_verified = state != "unverified"
     if state == "staff":
         user.is_staff = True
     elif state == "inactive":
@@ -102,7 +108,7 @@ def test_email_cannot_bypass_account_restrictions(user, state):
     elif state == "unfinished":
         user.first_name = ""
         user.last_name = ""
-    else:
+    elif state == "passwordless":
         user.set_unusable_password()
     user.save()
     assert login("ama@example.com").status_code == 403

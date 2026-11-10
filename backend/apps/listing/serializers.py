@@ -1,5 +1,6 @@
 from uuid import UUID
 
+from django.db.models import Q
 from rest_framework import serializers
 
 from apps.core.money import Money
@@ -42,6 +43,42 @@ class ListingMediaSerializer(serializers.ModelSerializer):
             # never enters this branch — enforced again when media is attached.
             return inline_image_url(obj.file)
         return viewable_url(obj.file, obj.file_id)
+
+
+class ListingListSerializer(serializers.ListSerializer):
+    def to_representation(self, data):
+        from apps.core.memo import memoized
+        from apps.property.models import PropertyRelationship
+        from apps.trust.models import SubjectType, Verification
+        from apps.trust.services import prime_subject_verifications
+
+        rows = list(data)
+        if not rows:
+            return []
+        people = {str(row.created_by_id) for row in rows}
+        properties = {str(row.unit.property_id) for row in rows}
+        relationships = {}
+        for property_id, user_id, kind in PropertyRelationship.objects.filter(
+            property_id__in=properties, user_id__in=people, ended_at__isnull=True,
+            authority_verified_at__isnull=False,
+        ).order_by("-authority_verified_at").values_list(
+            "property_id", "user_id", "relationship_type",
+        ):
+            relationships.setdefault((property_id, user_id), kind)
+        self.child.page_relationships = relationships
+
+        verifications = list(Verification.objects.filter(
+            Q(subject_type=SubjectType.USER, subject_id__in=people)
+            | Q(subject_type=SubjectType.PROPERTY, subject_id__in=properties)
+        ))
+        with memoized():
+            subjects = ((SubjectType.USER, people), (SubjectType.PROPERTY, properties))
+            for subject_type, ids in subjects:
+                prime_subject_verifications(
+                    subject_type=subject_type, subject_ids=ids,
+                    rows=(row for row in verifications if row.subject_type == subject_type),
+                )
+            return super().to_representation(rows)
 
 
 class ListingSerializer(serializers.ModelSerializer):
@@ -96,6 +133,7 @@ class ListingSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Listing
+        list_serializer_class = ListingListSerializer
         fields = [
             # unit is here so a console can group listings under the unit they
             # advertise without a second call per listing.
@@ -201,7 +239,8 @@ class ListingSerializer(serializers.ModelSerializer):
     def _card_media_items(self, obj) -> list[dict]:
         cache = getattr(self, "_card_media_cache", None)
         if cache is None:
-            cache = self._card_media_cache = {}
+            self._card_media_cache: dict[str, list[dict]] = {}
+            cache = self._card_media_cache
         key = str(obj.id)
         if key in cache:
             return cache[key]
@@ -257,7 +296,8 @@ class ListingSerializer(serializers.ModelSerializer):
     def _public_trust(self, obj) -> dict:
         cache = getattr(self, "_public_trust_cache", None)
         if cache is None:
-            cache = self._public_trust_cache = {}
+            self._public_trust_cache: dict[str, dict] = {}
+            cache = self._public_trust_cache
         key = str(obj.id)
         if key in cache:
             return cache[key]
@@ -266,19 +306,21 @@ class ListingSerializer(serializers.ModelSerializer):
         from apps.trust.models import SubjectType, VerificationKind
         from apps.trust.services import trust_summary
 
-        relationship = (
-            PropertyRelationship.objects.filter(
-                property=obj.unit.property,
-                user=obj.created_by,
-                ended_at__isnull=True,
-                authority_verified_at__isnull=False,
-            )
-            .order_by("-authority_verified_at")
-            .first()
-        )
+        relationships = getattr(self, "page_relationships", None)
+        if relationships is None:
+            relationship_type = (
+                PropertyRelationship.objects.filter(
+                    property_id=obj.unit.property_id,
+                    user_id=obj.created_by_id,
+                    ended_at__isnull=True,
+                    authority_verified_at__isnull=False,
+                ).order_by("-authority_verified_at").values_list("relationship_type", flat=True)
+                .first()
+            ) or ""
+        else:
+            relationship_type = relationships.get((obj.unit.property_id, obj.created_by_id), "")
         person = trust_summary(SubjectType.USER, obj.created_by_id)
         prop = trust_summary(SubjectType.PROPERTY, obj.unit.property_id)
-        relationship_type = relationship.relationship_type if relationship else ""
         labels = {
             "owner": "Verified owner",
             "agent": "Authorized agent",
@@ -411,7 +453,8 @@ class ListingDetailSerializer(ListingSerializer):
     def _verified_property_photos(self, obj) -> list[dict]:
         cache = getattr(self, "_verified_property_photo_cache", None)
         if cache is None:
-            cache = self._verified_property_photo_cache = {}
+            self._verified_property_photo_cache: dict[str, list[dict]] = {}
+            cache = self._verified_property_photo_cache
         key = str(obj.id)
         if key not in cache:
             cache[key] = _verified_property_photo_items(obj)

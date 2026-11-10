@@ -21,6 +21,13 @@
 .interest-facts { margin-block: 1.5rem; }
 .interest-facts > div { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .5rem; padding-block: .75rem; border-bottom: 1px solid var(--color-field-200); }
 .interest-facts dd { margin: 0; }
+.interest-contact { margin: .5rem 0 0; display: grid; gap: .4rem; }
+.interest-contact > div { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .25rem 1rem; }
+.interest-contact dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.interest-contact a { color: var(--color-kola-800); text-underline-offset: .18em; }
+.interest-call, .interest-call form { display: grid; gap: var(--space-3); }
+.interest-call > .btn { justify-self: start; }
+.interest-call-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .interest-note { white-space: pre-wrap; overflow-wrap: anywhere; }
 
 .ask-danpa-identity .inbox-icon-button { min-width: 44px; min-height: 44px; }

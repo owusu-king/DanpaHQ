@@ -9,7 +9,7 @@ Both:     ``GET /maintenance/<id>/`` and the four moves on it; the service decid
 
 from __future__ import annotations
 
-from rest_framework import status
+from rest_framework import serializers, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -111,7 +111,7 @@ def _permissions(found, user) -> dict:
 
 class _ActionView(APIView):
     permission_classes = [IsAuthenticated]
-    payload_class = NoteSerializer
+    payload_class: type[serializers.Serializer] = NoteSerializer
 
     def act(self, found, user, data):  # pragma: no cover - overridden
         raise NotImplementedError

@@ -50,7 +50,10 @@ class AliveQuerySet(SoftDeleteQuerySet):
         )
 
 
-class AliveManager(models.Manager.from_queryset(AliveQuerySet)):
+_AliveManagerBase = models.Manager.from_queryset(AliveQuerySet)
+
+
+class AliveManager(_AliveManagerBase):
     """Default manager: hides soft-deleted rows.
 
     ``Model.objects`` is filtered. ``Model.all_objects`` is not. Anything that
@@ -79,7 +82,8 @@ class SoftDeleteModel(BaseModel):
     deleted_at = models.DateTimeField(null=True, blank=True, db_index=True)
     deleted_reason = models.CharField(max_length=200, blank=True)
 
-    objects = AliveManager()
+    # Django installs each concrete model's manager on the class.
+    objects = AliveManager()  # type: ignore[misc]
     all_objects = models.Manager.from_queryset(SoftDeleteQuerySet)()
 
     class Meta:

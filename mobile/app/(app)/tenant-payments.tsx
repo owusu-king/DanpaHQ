@@ -27,15 +27,14 @@ import {
 } from "@/components/portfolio/PortfolioList";
 import { Act, Acts, Calm, Empty, Fold, MoreRow } from "@/components/work/WorkParts";
 import { Notice, Type, radius, space } from "@/components/ui";
-import { getLeaseLedger, type LeaseLedger, type RentCharge, type RentPayment } from "@/leases";
+import { type RentCharge, type RentPayment } from "@/leases";
 import { formatMinor } from "@/listings";
 import { listPaymentIntents, paymentMethodLabel, type PaymentIntent } from "@/payments";
 import { pressableFeedback, useSafeBottom } from "@/platform";
 import { alpha } from "@/shell";
-import { listMyTenancies, tenancyLabel, type Tenancy } from "@/tenancy";
+import { listTenantRentAccounts, tenancyLabel, type Tenancy, type TenantRentAccount as Account } from "@/tenancy";
 import { theme } from "@/theme";
 
-type Account = { tenancy: Tenancy; ledger: LeaseLedger };
 type DueRow = { account: Account; charge: RentCharge; intent: PaymentIntent | null };
 type HistoryRow = { account: Account; payment: RentPayment; receiptId: string | null };
 
@@ -78,15 +77,7 @@ export default function TenantPaymentsScreen() {
   const load = useCallback(async () => {
     if (!signedIn) return;
     try {
-      const [tenancies, paymentIntents] = await Promise.all([
-        listMyTenancies(true),
-        listPaymentIntents(),
-      ]);
-      const withLease = tenancies.filter((tenancy) => tenancy.lease?.id);
-      const rows = await Promise.all(withLease.map(async (tenancy) => ({
-        tenancy,
-        ledger: await getLeaseLedger(tenancy.lease!.id),
-      })));
+      const [rows, paymentIntents] = await Promise.all([listTenantRentAccounts(), listPaymentIntents()]);
       setAccounts(rows);
       setIntents(paymentIntents);
       setError("");

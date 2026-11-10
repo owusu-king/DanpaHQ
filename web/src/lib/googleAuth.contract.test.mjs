@@ -37,6 +37,5 @@ test("Security keeps phone verification without a Google linking control", () =>
   assert.doesNotMatch(security, /GoogleIdentityButton|GoogleLinkSection|\/me\/google\//);
   assert.match(security, /\/me\/phone\//);
   assert.match(security, /\/me\/phone\/verify\//);
-  assert.match(shell, /settings\/security#phone-verification/);
-  assert.match(shell, /!me\.is_phone_verified/);
+  assert.doesNotMatch(shell, /portal-phone-reminder/);
 });

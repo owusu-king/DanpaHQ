@@ -102,8 +102,9 @@ class VerificationMethod(models.TextChoices):
 #: reassigned; an identity check ages because documents expire and faces change;
 #: an agency licence ages because licences lapse. None means it does not expire
 #: on its own, only on revocation.
+PHONE_VERIFICATION_VALIDITY_DAYS = 365
 VALIDITY_DAYS: dict[str, int | None] = {
-    VerificationKind.PHONE: 365,
+    VerificationKind.PHONE: PHONE_VERIFICATION_VALIDITY_DAYS,
     VerificationKind.IDENTITY: 730,
     VerificationKind.SELFIE_MATCH: 365,
     VerificationKind.ADDRESS: 365,
@@ -189,7 +190,8 @@ class Verification(BaseModel):
         "self", null=True, blank=True, on_delete=models.SET_NULL, related_name="superseded_by"
     )
 
-    objects = models.Manager.from_queryset(VerificationQuerySet)()
+    # This model replaces the abstract model's manager with its domain queryset.
+    objects = models.Manager.from_queryset(VerificationQuerySet)()  # type: ignore[misc, assignment]
 
     class Meta:
         db_table = "trust_verification"

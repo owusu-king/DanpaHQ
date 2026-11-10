@@ -163,6 +163,8 @@ def property_list_queryset(queryset, *, user):
 
 def prepare_property_list_rows(rows) -> list:
     """Load generic verification subjects once and attach them to each row."""
+    from apps.sale.models import SaleListing
+    from apps.sale.read_models import public_sales
     from apps.trust.models import SubjectType, Verification
     from apps.trust.services import prime_subject_verifications
 
@@ -182,11 +184,20 @@ def prepare_property_list_rows(rows) -> list:
         .prefetch_related("evidence")
         .order_by("-created_at")
     )
-    grouped = {key: [] for key in by_id}
+    grouped: dict[str, list[Verification]] = {key: [] for key in by_id}
     for verification in verification_rows:
         grouped.setdefault(verification.subject_id, []).append(verification)
 
+    for_sale = [prop.pk for prop in prepared if prop.is_for_sale]
+    sales = {
+        sale.property_id: sale for sale in SaleListing.objects.filter(property_id__in=for_sale)
+    }
+    public_properties = set(
+        public_sales().filter(property_id__in=sales).values_list("property_id", flat=True)
+    )
     for key, prop in by_id.items():
+        prop._property_list_sale = sales.get(prop.pk)
+        prop._property_list_sale_public = prop.pk in public_properties
         prop._property_list_verifications = grouped.get(key, [])
         try:
             application = prop.provider_application

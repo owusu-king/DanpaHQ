@@ -53,19 +53,20 @@ test("a sale's title and land's site plan go up typed, beside the relationship d
 
 test("a buyer records interest without a message or seller phone number", () => {
   const page = code(read("web/app/record/sale/page.tsx"));
-  assert.match(page, /await startEnquiry\(sale!\.id\)/);
+  assert.match(page, /await startEnquiry\(sale\.id, /);
   assert.doesNotMatch(page, /tel:|phone_number|seller_phone/);
-  // An existing conversation is reopened rather than started twice.
+  // An existing interest record is opened rather than created twice.
   assert.match(page, /sale\.my_enquiry_id \? \(/);
 });
 
 test("Explore offers Rent and Buy, and Buy keeps its search in the address bar", () => {
   const page = code(read("web/app/rentals/page.tsx"));
   assert.match(page, /if \(asked === "buy"\) return <SaleBrowser \/>;/);
-  // All is the default, and shows both sides at once — with the filters both
-  // answer and a map holding both (owner, 2026-10-05).
+  // All shows either result as soon as it arrives and can put both on the map.
   const all = code(read("web/src/components/explore/AllBrowser.tsx"));
-  assert.match(all, /Promise\.allSettled\(\[\s*searchListingsFor\(new URLSearchParams\(search\), controller\.signal\),\s*searchSales\(/);
+  assert.match(all, /searchListingsFor\(new URLSearchParams\(search\), controller\.signal\)\.then\(\(rent\) => \{\s*if \(!current\(\)\) return;\s*setListings\(rent\.results\)/);
+  assert.match(all, /searchSales\([^\n]+controller\.signal\)\.then\(\(sale\) => \{\s*if \(!current\(\)\) return;\s*setSales\(sale\.results\)/);
+  assert.match(all, /listings \|\| sales \? merge\(listings \?\? \[\], sales \?\? \[\]\)/);
   assert.match(all, /<ExploreMapView[\s\S]{0,900}sales=\{sales\}/);
   assert.match(all, /\.sort\(\(a, b\) => b\.at\.localeCompare\(a\.at\)\)/);
   // Rent keeps its side through every filter change.
@@ -104,7 +105,10 @@ test("Danpa Intel replaces chat while notification addresses open read-only inte
   assert.match(inbox, /Original enquiry note/);
   assert.doesNotMatch(inbox, /replyToEnquiry|inbox-reply|Write a message|onProperty|Properties<\/button>/);
   const interest = inbox.slice(inbox.indexOf("function InterestRecords"), inbox.indexOf("function SupportInboxFrame"));
-  assert.doesNotMatch(interest, /textarea|input|replyTo|phone|email/);
+  assert.doesNotMatch(interest, /textarea|input|replyTo/);
+  assert.match(interest, /Buyer contact details/);
+  assert.match(interest, /href=\{`tel:/);
+  assert.match(interest, /href=\{`mailto:/);
   assert.match(inbox, /createSupportCase/);
   assert.match(inbox, /replyToSupportCase/);
   assert.match(inbox, /Back to Danpa Intel/);
@@ -114,7 +118,8 @@ test("sales cards and client registration express interest without a composer", 
   for (const file of ["web/app/record/sale/page.tsx", "mobile/app/(app)/sale/[id].tsx"]) {
     const source = code(read(file));
     assert.match(source, /Express interest/);
-    assert.match(source, /startEnquiry\(sale!\.id\)/);
+    assert.match(source, /Share your contact details/);
+    assert.match(source, /startEnquiry\(sale\.id, \{ contact_phone: phone\.trim\(\), contact_email: email\.trim\(\) \}\)/);
     assert.doesNotMatch(source, /setMessage|Your message to|sale-enquiry-message/);
   }
   for (const file of ["web/src/lib/sales.ts", "mobile/src/sales.ts"]) {

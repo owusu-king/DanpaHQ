@@ -6,6 +6,9 @@ proving who someone is, or part of letting them see and control that.
 
 from __future__ import annotations
 
+import logging
+from uuid import uuid4
+
 from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
@@ -16,12 +19,21 @@ from rest_framework.views import APIView
 from rest_framework.viewsets import ViewSet
 
 from apps.core.context import get_context
-from apps.core.exceptions import Conflict, NotFound, PermissionDenied, ValidationFailed
+from apps.core.exceptions import (
+    Conflict,
+    NotFound,
+    PermissionDenied,
+    RateLimited,
+    SessionEnded,
+    ValidationFailed,
+)
 
 from . import services
 from .authentication import require_live_session
+from .email_verification import EmailDelivery
 from .models import (
     AgentProfile,
+    ChallengePurpose,
     Device,
     LandlordProfile,
     Profile,
@@ -39,6 +51,7 @@ from .serializers import (
     CompletePasswordResetSerializer,
     CompleteRegistrationSerializer,
     ConfirmPhoneVerificationSerializer,
+    CreatePasswordSerializer,
     DeviceContextSerializer,
     DeviceSerializer,
     GoogleCredentialSerializer,
@@ -49,6 +62,7 @@ from .serializers import (
     ProfileSerializer,
     SessionSerializer,
     StartChallengeSerializer,
+    StartPasswordCreationSerializer,
     StartPasswordResetSerializer,
     StartPhoneVerificationSerializer,
     StartProviderVerificationSerializer,
@@ -59,8 +73,10 @@ from .serializers import (
 from .services import REFRESH_TOKEN_TTL_DAYS
 from .throttling import (
     GoogleAuthThrottle,
+    OtpSendIPThrottle,
     OtpVerifyThrottle,
     PasswordIdentifierThrottle,
+    PasswordResetIdentifierThrottle,
     PhoneNumberThrottle,
 )
 
@@ -116,7 +132,8 @@ class VerifyChallengeView(APIView):
         ctx = get_context()
 
         challenge = services.verify_challenge(
-            challenge_id=data["challenge_id"], code=data["code"], ip_address=ctx.ip_address
+            challenge_id=data["challenge_id"], code=data["code"], ip_address=ctx.ip_address,
+            purposes=services.PHONE_ENTRY_PURPOSES,
         )
 
         result = services.complete_sign_in(
@@ -208,11 +225,17 @@ class RefreshView(APIView):
     """
 
     permission_classes = [AllowAny]
+    authentication_classes = []
 
     def post(self, request):
-        token = request.data.get("refresh_token") or request.COOKIES.get(REFRESH_COOKIE)
+        token = request.data.get("refresh_token")
+        if not token and _is_browser(request):
+            origin = request.headers.get("Origin")
+            if origin and origin not in settings.CORS_ALLOWED_ORIGINS:
+                raise PermissionDenied("This site cannot refresh your session.")
+            token = request.COOKIES.get(REFRESH_COOKIE)
         if not token:
-            raise ValidationFailed("Sign in again.")
+            raise SessionEnded()
         payload = DeviceContextSerializer(data=request.data)
         payload.is_valid(raise_exception=True)
         data = payload.validated_data
@@ -334,17 +357,11 @@ class GoogleSignInView(APIView):
 
 
 class StartPasswordResetView(APIView):
-    """POST /auth/password-reset — send a recovery code.
-
-    Refuses an unregistered number with NO_ACCOUNT before anything is sent. It
-    used to answer identically either way and let the code step discover there
-    was no account, which spent an SMS and a wait to deliver a dead end. The
-    enumeration this gives up is the trade already made for sign-up, and the
-    per-number and per-IP throttles bound it the same way.
-    """
+    """Send a recovery code to a verified phone or email, if eligible."""
 
     permission_classes = [AllowAny]
-    throttle_classes = [PhoneNumberThrottle]
+    authentication_classes = []
+    throttle_classes = [PasswordResetIdentifierThrottle, OtpSendIPThrottle]
 
     def post(self, request):
         payload = StartPasswordResetSerializer(data=request.data)
@@ -352,25 +369,38 @@ class StartPasswordResetView(APIView):
         data = payload.validated_data
         ctx = get_context()
 
-        challenge = services.start_challenge(
-            raw_phone=data["phone"],
-            purpose="recover_account",
-            ip_address=ctx.ip_address,
-            device_fingerprint=data.get("device_fingerprint", ""),
-        )
         from apps.core.phone import format_national
 
+        identifier = data["identifier"]
+        if "phone" in data:
+            # Installed clients still use the original phone-only contract.
+            challenge = services.start_challenge(
+                raw_phone=identifier, purpose=ChallengePurpose.RECOVER_ACCOUNT,
+                ip_address=ctx.ip_address, device_fingerprint=data.get("device_fingerprint", ""),
+            )
+        else:
+            try:
+                challenge = services.start_password_reset(
+                    identifier=identifier, ip_address=ctx.ip_address,
+                    device_fingerprint=data.get("device_fingerprint", ""),
+                )
+            except RateLimited:
+                # Public throttles still apply to every identifier. Don't
+                # expose the per-account challenge state to anonymous callers.
+                challenge = None
+            except (EmailDelivery, services.OtpDelivery):
+                logging.getLogger(__name__).warning("Password recovery code delivery failed")
+                challenge = None
         return Response(
-            ChallengeIssuedSerializer(
-                {
-                    "challenge_id": challenge.id,
-                    "phone_display": format_national(challenge.phone),
-                    "expires_in": CODE_TTL_SECONDS,
-                    "resend_in": resend_delay(challenge.send_count),
-                    "attempts_allowed": MAX_VERIFY_ATTEMPTS,
-                }
-            ).data,
+            {
+                "challenge_id": str(challenge.id if challenge else uuid4()),
+                "phone_display": "" if "@" in identifier else format_national(identifier),
+                "expires_in": CODE_TTL_SECONDS,
+                "resend_in": resend_delay(challenge.send_count if "phone" in data else 1),
+                "attempts_allowed": MAX_VERIFY_ATTEMPTS,
+            },
             status=status.HTTP_201_CREATED,
+            headers={"Cache-Control": "no-store"},
         )
 
 
@@ -378,10 +408,11 @@ class VerifyPasswordResetView(APIView):
     """POST /auth/password-reset/verify — trade the code for a reset token.
 
     Returns a token that authorises exactly one password change and no session,
-    so proving the number never becomes a way to read the account.
+    so proving a contact never becomes a way to read the account.
     """
 
     permission_classes = [AllowAny]
+    authentication_classes = []
     throttle_classes = [OtpVerifyThrottle]
 
     def post(self, request):
@@ -389,16 +420,22 @@ class VerifyPasswordResetView(APIView):
         payload.is_valid(raise_exception=True)
         ctx = get_context()
 
-        token = services.verify_password_reset(
-            challenge_id=payload.validated_data["challenge_id"],
-            code=payload.validated_data["code"],
-            ip_address=ctx.ip_address,
-        )
+        try:
+            token = services.verify_password_reset(
+                challenge_id=payload.validated_data["challenge_id"],
+                code=payload.validated_data["code"],
+                ip_address=ctx.ip_address,
+            )
+        except (services.ChallengeFailed, PermissionDenied) as exc:
+            raise services.ChallengeFailed(
+                "That code is invalid or expired. Try again or request a new code."
+            ) from exc
         return Response(
             {
                 "reset_token": token,
                 "expires_in": services.PASSWORD_RESET_TOKEN_TTL_SECONDS,
-            }
+            },
+            headers={"Cache-Control": "no-store"},
         )
 
 
@@ -406,6 +443,8 @@ class CompletePasswordResetView(APIView):
     """POST /auth/password-reset/complete — set the new password and sign in."""
 
     permission_classes = [AllowAny]
+    authentication_classes = []
+    throttle_classes = [OtpVerifyThrottle]
 
     def post(self, request):
         payload = CompletePasswordResetSerializer(data=request.data)
@@ -417,9 +456,7 @@ class CompletePasswordResetView(APIView):
             reset_token=data["reset_token"],
             new_password=data["new_password"],
         )
-        # Straight into a session: the person just proved the number and set the
-        # credential, and making them immediately retype it would be friction
-        # with nothing behind it.
+        # Run the normal session and MFA checks after the credential is set.
         result = services._establish_session(
             user=user,
             created=False,
@@ -460,6 +497,41 @@ class ChangePasswordView(APIView):
             except_session=require_live_session(request),
         )
         return Response({"changed": True})
+
+
+class StartPasswordCreationView(APIView):
+    permission_classes = [IsAuthenticated]
+    throttle_classes = [OtpSendIPThrottle]
+
+    def post(self, request):
+        payload = StartPasswordCreationSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+        challenge = services.start_password_creation(
+            user=request.user, session=require_live_session(request),
+            channel=payload.validated_data["channel"], ip_address=get_context().ip_address,
+        )
+        return Response(
+            {
+                "challenge_id": str(challenge.id),
+                "expires_in": CODE_TTL_SECONDS,
+                "resend_in": resend_delay(challenge.send_count),
+            },
+            status=status.HTTP_201_CREATED,
+            headers={"Cache-Control": "no-store"},
+        )
+
+
+class CreatePasswordView(APIView):
+    permission_classes = [IsAuthenticated]
+    throttle_classes = [OtpVerifyThrottle]
+
+    def post(self, request):
+        payload = CreatePasswordSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+        services.create_password(
+            user=request.user, session=require_live_session(request), **payload.validated_data,
+        )
+        return Response({"created": True})
 
 
 class WorkspaceView(APIView):

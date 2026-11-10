@@ -2,21 +2,18 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Button } from "@/components/Button";
+import { Field } from "@/components/Field";
 import { Icon } from "@/components/portal/icons";
 import { ApiFailure } from "@/lib/api";
 import { messagePreview, recentConversations } from "@/lib/conversationPreview";
 import { aimModalFrom, holdModalInWorkspace, isBackdropClick } from "@/lib/modalOrigin";
-import { getEnquiry, listEnquiries, type Enquiry, type EnquiryDetail } from "@/lib/sales";
+import { getEnquiry, listEnquiries, proposeEnquiryCall, type Enquiry, type EnquiryDetail } from "@/lib/sales";
 import { createSupportCase, getSupportCase, listSupportCases, replyToSupportCase,
   type SupportCase, type SupportCaseDetail, type SupportCategory, type SupportMessage } from "@/lib/support";
+import type { EnquiriesRequest } from "./enquiryEvents";
 import "./askDanpa.css";
 
-export type EnquirySide = "buyer" | "seller";
-export type EnquiriesRequest = { id?: string; side?: EnquirySide; view?: "support" };
-export const OPEN_ENQUIRIES = "danpahq:open-enquiries";
-export function openEnquiries(request: EnquiriesRequest = {}) {
-  window.dispatchEvent(new CustomEvent<EnquiriesRequest>(OPEN_ENQUIRIES, { detail: request }));
-}
 const REFRESH_MS = 20_000;
 const CLOSE_MS = 140;
 
@@ -69,16 +66,20 @@ function DanpaMark() {
 function InterestRecords({ request, canSell, onClose }: { request: EnquiriesRequest; canSell: boolean; onClose: () => void }) {
   const [rows, setRows] = useState<Enquiry[] | null>(null);
   const [selected, setSelected] = useState(request.id ?? null);
-  const [record, setRecord] = useState<EnquiryDetail | null>(null);
+  const [record, setRecord] = useState<EnquiryDetail | null>(request.record ?? null);
+  const initialRecordId = useRef(request.record?.id);
   const [error, setError] = useState("");
+  const needsList = !selected && rows === null;
   useEffect(() => {
+    if (!needsList) return;
     let live = true;
     void listEnquiries(request.side ?? (canSell ? "all" : "buyer")).then((data) => { if (live) setRows(data); })
       .catch(() => { if (live) setError("Could not load property interests."); });
     return () => { live = false; };
-  }, [canSell, request.side]);
+  }, [canSell, needsList, request.side]);
   useEffect(() => {
     if (!selected) return;
+    if (selected === initialRecordId.current) return;
     let live = true;
     setRecord(null); setError("");
     void getEnquiry(selected).then((data) => { if (live) { setRecord(data); setRows((current) => current?.map((row) => row.id === data.id ? { ...row, unread: false } : row) ?? null); } })
@@ -88,11 +89,69 @@ function InterestRecords({ request, canSell, onClose }: { request: EnquiriesRequ
   return <section className="ask-danpa-surface interest-records">
     <header className="ask-danpa-identity"><h2 id="inbox-title">Property interests</h2><button type="button" className="inbox-icon-button" aria-label="Close property interests" onClick={onClose}><Icon name="close" /></button></header>
     {error ? <p role="alert">{error}</p> : null}
-    {selected ? <><button type="button" className="quiet-link" onClick={() => setSelected(null)}>All property interests</button>
-      {record ? <><h3>{record.sale.headline || "Property for sale"}</h3><dl className="interest-facts"><div><dt>Buyer</dt><dd>{record.buyer_name}</dd></div><div><dt>Interest recorded</dt><dd>{new Date(record.created_at).toLocaleDateString("en-GH")}</dd></div><div><dt>Status</dt><dd>{record.sale.status === "sold" ? "Property sold" : record.status}</dd></div></dl><p>{record.role === "buyer" ? "Your interest has been recorded for the seller." : "This buyer has expressed interest in your property."}</p>
+    {selected ? <><button type="button" className="quiet-link" onClick={() => {
+      initialRecordId.current = undefined;
+      setError("");
+      setSelected(null);
+    }}>All property interests</button>
+      {record?.id === selected ? <><h3>{record.sale.headline || "Property for sale"}</h3><dl className="interest-facts"><div><dt>Buyer</dt><dd>{record.buyer_name}</dd></div><div><dt>Interest recorded</dt><dd>{new Date(record.created_at).toLocaleDateString("en-GH")}</dd></div><div><dt>Status</dt><dd>{record.sale.status === "sold" ? "Property sold" : record.status === "closed" ? "Closed" : record.proposed_call_at ? "Accepted" : "Awaiting provider response"}</dd></div></dl>
+        <InterestCall key={record.id} record={record} onUpdated={(updated) => {
+          setRecord((current) => current?.id === updated.id ? updated : current);
+          setRows(null);
+        }} />
+        {record.contact_phone && record.contact_email ? <div className="ask-danpa-direction">
+          <strong>{record.role === "seller" ? "Buyer contact details" : "Contact details you shared"}</strong>
+          <dl className="interest-contact">
+            <div><dt>Phone</dt><dd>{record.role === "seller" ? <a href={`tel:${record.contact_phone}`}>{record.contact_phone}</a> : record.contact_phone}</dd></div>
+            <div><dt>Email</dt><dd>{record.role === "seller" ? <a href={`mailto:${encodeURIComponent(record.contact_email).replace(/%40/g, "@")}`}>{record.contact_email}</a> : record.contact_email}</dd></div>
+          </dl>
+        </div> : null}
         {record.messages[0] ? <div className="ask-danpa-direction"><strong>Original enquiry note</strong><p className="interest-note">{record.messages[0].body}</p></div> : null}
         <Link href={(record.role === "seller" ? `/record/property?id=${record.sale.property_id}` : `/record/sale?id=${record.sale.id}`) as never} onClick={onClose} className="quiet-link">View property →</Link></> : !error ? <p role="status">Loading interest…</p> : null}</>
       : rows ? rows.length ? <ul className="interest-list">{rows.map((row) => <li key={row.id}><button type="button" onClick={() => setSelected(row.id)}><strong>{row.sale.headline || "Property for sale"}</strong><span>{row.role === "seller" ? row.buyer_name : "Your interest"} · {shortWhen(row.created_at)}{row.unread ? " · New" : ""}</span></button></li>)}</ul> : <p>No property interests yet.</p> : !error ? <p role="status">Loading property interests…</p> : null}
+  </section>;
+}
+
+function InterestCall({ record, onUpdated }: { record: EnquiryDetail; onUpdated: (record: EnquiryDetail) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const canPropose = record.role === "seller" && record.status === "open" && record.sale.status === "active";
+  const proposed = record.proposed_call_at ? new Date(record.proposed_call_at) : null;
+  if (!proposed && !canPropose) return null;
+
+  return <section className="ask-danpa-direction interest-call" aria-label="Property call">
+    {proposed ? <div role="status">
+      <strong>Proposed call time</strong>
+      <p><time dateTime={record.proposed_call_at ?? undefined}>{proposed.toLocaleString("en-GH", {
+        dateStyle: "long", timeStyle: "short", timeZone: "UTC",
+      })}</time> · Ghana time</p>
+    </div> : null}
+    {canPropose && (editing ? <form onSubmit={async (event) => {
+      event.preventDefault();
+      if (busy) return;
+      setBusy(true);
+      setError("");
+      try {
+        onUpdated(await proposeEnquiryCall(record.id, `${value}:00Z`));
+        setEditing(false);
+      } catch (cause) {
+        setError(cause instanceof ApiFailure ? cause.error.message : "Could not send the call time. Try again.");
+      } finally { setBusy(false); }
+    }}>
+      <Field label="Call date and time" hint="Ghana time (GMT)" type="datetime-local" required value={value}
+        min={new Date().toISOString().slice(0, 16)} onChange={(event) => setValue(event.target.value)} disabled={busy} />
+      {error ? <p role="alert">{error}</p> : null}
+      <div className="interest-call-actions">
+        <Button type="submit" busy={busy} busyLabel="Sending…">{proposed ? "Send new time" : "Accept and send time"}</Button>
+        <Button type="button" variant="quiet" disabled={busy} onClick={() => setEditing(false)}>Cancel</Button>
+      </div>
+    </form> : <Button type="button" variant="secondary" onClick={() => {
+      setValue(proposed && proposed.getTime() > Date.now() ? proposed.toISOString().slice(0, 16) : "");
+      setError("");
+      setEditing(true);
+    }}>{proposed ? "Offer a different time" : "Accept interest and offer a call time"}</Button>)}
   </section>;
 }
 

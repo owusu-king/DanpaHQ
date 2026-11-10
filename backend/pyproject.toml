@@ -88,6 +88,12 @@ module = "apps.core.money"
 disallow_untyped_defs = true
 strict_equality = true
 
+# These installed libraries do not expose typing metadata for the APIs used here.
+# Keep the exception limited to the third-party imports, not application code.
+[[tool.mypy.overrides]]
+module = ["boto3", "botocore.*", "celery.*", "firebase_admin", "reportlab.*"]
+ignore_missing_imports = true
+
 [tool.django-stubs]
 django_settings_module = "config.settings.test"
 

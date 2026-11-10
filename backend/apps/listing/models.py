@@ -24,6 +24,8 @@ Ghana-specific listing fields:
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING, ClassVar
+
 from django.contrib.gis.db.models import PointField
 from django.contrib.postgres.indexes import GistIndex
 from django.db import models
@@ -168,6 +170,9 @@ class Listing(SoftDeleteModel):
 
     # --- rent ----------------------------------------------------------------
     rent = MoneyField()
+    if TYPE_CHECKING:
+        rent_minor: int
+        rent_currency: str
     rent_period = models.CharField(
         max_length=8, choices=RentPeriod.choices, default=RentPeriod.MONTHLY
     )
@@ -272,7 +277,7 @@ class Listing(SoftDeleteModel):
     #: A withdrawn or draft row cannot say what review had decided, so it reads
     #: as not-reviewed — the safe direction, since claiming an approval that may
     #: never have happened would put unreviewed work in front of the public.
-    _STATUS_TO_AXES = {
+    _STATUS_TO_AXES: ClassVar[dict[str, tuple[str, str, str]]] = {
         ListingStatus.DRAFT: ("not_reviewed", "draft", "available"),
         ListingStatus.PENDING_REVIEW: ("pending", "published", "available"),
         ListingStatus.ACTIVE: ("approved", "published", "available"),
@@ -328,8 +333,9 @@ class Listing(SoftDeleteModel):
             )
         super().save(*args, **kwargs)
 
-    objects = models.Manager.from_queryset(ListingAliveQuerySet)()
-    all_objects = models.Manager.from_queryset(ListingQuerySet)()
+    # Keep the domain querysets for both the filtered and unfiltered manager.
+    objects = models.Manager.from_queryset(ListingAliveQuerySet)()  # type: ignore[misc, assignment]
+    all_objects = models.Manager.from_queryset(ListingQuerySet)()  # type: ignore[misc, assignment]
 
     class Meta:
         db_table = "listing_listing"

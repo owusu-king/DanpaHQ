@@ -76,7 +76,11 @@ class ResourceRestricted(DomainError):
 
 
 #: How restrictive each state is, for a unit that inherits its property's.
-_SEVERITY = {AccessState.FULL: 0, AccessState.WIND_DOWN: 1, AccessState.READ_ONLY: 2}
+_SEVERITY: dict[str, int] = {
+    AccessState.FULL: 0,
+    AccessState.WIND_DOWN: 1,
+    AccessState.READ_ONLY: 2,
+}
 
 #: More than any Portfolio could choose from in one request.
 _MAX_IDS = 1000

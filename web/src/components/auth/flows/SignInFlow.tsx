@@ -12,7 +12,6 @@ import { Button } from "@/components/Button";
 import { Field } from "@/components/Field";
 import { Notice } from "@/components/Notice";
 import { apiFetch, ApiFailure } from "@/lib/api";
-import { setAccessToken } from "@/lib/auth";
 import { getWebDeviceContext } from "@/lib/device";
 import { fieldErrorsFrom, type FieldErrors } from "@/lib/formErrors";
 import { resolveWebEntry } from "@/lib/navigation";
@@ -34,7 +33,7 @@ import { useSession, type Me } from "@/lib/session";
  * applying for a home.
  */
 export function SignInFlow({ params, go, close, land }: AuthFlowProps) {
-  const { refresh } = useSession();
+  const { completeSignIn } = useSession();
   const safeNext = safeInternalPath(params.next ?? null);
 
   const [identifier, setIdentifier] = useState(params.phone ?? "");
@@ -44,8 +43,9 @@ export function SignInFlow({ params, go, close, land }: AuthFlowProps) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
-  async function enterWorkspace(me: Me) {
-    await refresh();
+  function enterWorkspace(result: { access_token: string; expires_in?: number; user: Me }) {
+    completeSignIn(result);
+    const me = result.user;
     land(safeNext ?? resolveWebEntry(me));
   }
 
@@ -69,8 +69,7 @@ export function SignInFlow({ params, go, close, land }: AuthFlowProps) {
         }),
       });
       if (isMFAChallenge(result)) { setMfa(result); setPassword(""); return; }
-      setAccessToken(result.access_token, result.expires_in);
-      await enterWorkspace(result.user);
+      enterWorkspace(result);
     } catch (cause) {
       const fields = fieldErrorsFrom(cause);
       setFieldErrors(fields);
@@ -111,8 +110,11 @@ export function SignInFlow({ params, go, close, land }: AuthFlowProps) {
         return;
       }
       if (!result.access_token || !result.user) throw new Error("Incomplete Google response");
-      setAccessToken(result.access_token, result.expires_in ?? 0);
-      await enterWorkspace(result.user);
+      enterWorkspace({
+        access_token: result.access_token,
+        expires_in: result.expires_in,
+        user: result.user,
+      });
     } catch (cause) {
       setError(cause instanceof ApiFailure ? cause.error.message : "Could not sign you in with Google.");
     } finally {
@@ -123,7 +125,7 @@ export function SignInFlow({ params, go, close, land }: AuthFlowProps) {
   if (mfa) return <AuthModal title={mfa.stage === "enroll" ? "Set up two-factor authentication" : "Two-factor authentication"} onClose={close}>
     <MFAStep<{ access_token: string; expires_in: number; user: Me }> initial={mfa}
       request={(body) => apiFetch("/auth/mfa/", { method: "POST", body: JSON.stringify(body) })}
-      onComplete={async (result) => { setAccessToken(result.access_token, result.expires_in); await enterWorkspace(result.user); setMfa(null); }}
+      onComplete={(result) => { enterWorkspace(result); setMfa(null); }}
       onCancel={() => setMfa(null)} />
   </AuthModal>;
 

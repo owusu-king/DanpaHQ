@@ -160,7 +160,8 @@ def _approve_property(management: APIClient, *, property_id: str) -> dict:
     return decided.data
 
 
-def test_provider_to_tenant_core_lifecycle(sms, lifecycle_storage):
+@pytest.mark.parametrize("digital_address", ["ER-0254-2310", None])
+def test_provider_to_tenant_core_lifecycle(sms, lifecycle_storage, digital_address):
     """Provider registration through confirmed rent record, over current APIs."""
     from apps.geo.models import District, Locality, Region
     from apps.identity.models import User
@@ -225,7 +226,7 @@ def test_provider_to_tenant_core_lifecycle(sms, lifecycle_storage):
             "locality_id": str(locality.id),
             "street": "Oxford Street",
             "house_number": "12",
-            "digital_address": "GA-123-4567",
+            **({"digital_address": digital_address} if digital_address else {}),
             "landmark": "Beside the pharmacy",
             "latitude": "5.556020",
             "longitude": "-0.182740",
@@ -247,6 +248,7 @@ def test_provider_to_tenant_core_lifecycle(sms, lifecycle_storage):
         format="json",
     )
     assert created.status_code == 201, created.data
+    assert created.data["address"]["digital_address"] == (digital_address or "")
     property_id = created.data["id"]
     assert created.data["verification"]["review_state"] == "not_submitted"
 

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import cast
+
 from rest_framework import serializers
 
 from apps.core.money import Money
@@ -75,7 +77,8 @@ class RentChargeSerializer(serializers.ModelSerializer):
         return _money(obj.outstanding_minor, obj.amount_currency)
 
     def get_adjustments(self, obj) -> list[dict]:
-        return ObligationAdjustmentSerializer(obj.adjustments.all(), many=True).data
+        data = ObligationAdjustmentSerializer(obj.adjustments.all(), many=True).data
+        return cast(list[dict], data)
 
 
 class ObligationAdjustmentSerializer(serializers.ModelSerializer):
@@ -113,7 +116,7 @@ class RentPaymentSerializer(serializers.ModelSerializer):
     is_confirmed = serializers.BooleanField(read_only=True)
     #: Whether the person reading this is the one who still has to answer.
     awaiting_you = serializers.SerializerMethodField()
-    source = serializers.CharField(source="payment_source", read_only=True)
+    source = serializers.CharField(source="payment_source", read_only=True)  # type: ignore[assignment]
     channel = serializers.CharField(source="payment_channel", read_only=True)
     provider = serializers.CharField(source="payment_provider", read_only=True)
     evidence = serializers.CharField(source="payment_evidence", read_only=True)

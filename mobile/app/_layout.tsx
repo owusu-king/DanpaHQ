@@ -95,6 +95,9 @@ function entryRedirect(
   }
 
   const destination = resolveEntryRoute(session.me, activeContext);
+  if (session.me.registration_state !== "complete" && destination === "/(app)/security") {
+    return group === "(app)" && screen === "security" ? null : destination;
+  }
   // An unfinished registration is the one state that pins someone to a
   // screen. Everything else is a destination they can navigate away from.
   const expectedAuthScreen = destination.endsWith("/register") ? "register" : null;

@@ -11,7 +11,7 @@ from apps.core.exceptions import NotFound
 from apps.idempotency.services import idempotent_mutation
 
 from . import services
-from .models import PropertyExpense, RentCharge, RentPayment
+from .models import PropertyExpense, RentCharge
 from .serializers import (
     ObligationAdjustmentRequestSerializer,
     PropertyExpenseSerializer,
@@ -90,19 +90,12 @@ class LeaseChargesView(APIView):
 
     def get(self, request, pk):
         lease = _lease_or_404(pk, request.user)
-        charges = RentCharge.objects.filter(lease=lease).prefetch_related(
-            "adjustments__actor", "payments"
+        charges = services.with_disputed_payment(
+            RentCharge.objects.filter(lease=lease).prefetch_related("adjustments__actor")
         )
         if lease.status == "awaiting_activation":
             charges = charges.filter(due_on=lease.starts_on)
-        payments = RentPayment.objects.filter(lease=lease).select_related(
-            "recorded_by",
-            "confirmed_by",
-            "charge",
-            "evidence_file",
-            "external_receipt",
-            "provider_transaction__receipt",
-        )
+        payments = services.ledger_payments([lease.id])
         permissions = _obligation_permissions(lease=lease, user=request.user)
         prop = lease.unit.property
         address = getattr(prop, "address", None)

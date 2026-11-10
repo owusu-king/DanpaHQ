@@ -1,6 +1,6 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useFocusEffect, useRouter } from "expo-router";
-import { Fragment, useCallback, useState } from "react";
+import { Fragment, useCallback, useLayoutEffect, useRef, useState } from "react";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from "react-native";
 import Svg, { Circle, Defs, Line, LinearGradient, Path, Rect, Stop } from "react-native-svg";
 
@@ -41,11 +41,11 @@ import { listReceivedApplications } from "@/applications";
 import { listGrantedLeases, type Lease } from "@/leases";
 import { listReceivedViewings, type Viewing } from "@/viewings";
 import {
-  getPortfolioSummary,
+  getPortfolioHome,
   listOrganizations,
   listOrganizationProperties,
   type ManagedProperty,
-  type PortfolioSummary,
+  type PortfolioHomeSummary,
 } from "@/organizations";
 import { hapticsPolicy, pressableFeedback } from "@/platform";
 import { useBlankOnPortfolioSwitch } from "@/portfolioScope";
@@ -92,7 +92,7 @@ function ProviderHome() {
   const router = useRouter();
   const density = useHomeDensity();
   const { activeContext, state } = useAuth();
-  const [summary, setSummary] = useState<PortfolioSummary | null>(null);
+  const [summary, setSummary] = useState<PortfolioHomeSummary | null>(null);
   const [properties, setProperties] = useState<ManagedProperty[]>([]);
   const [viewings, setViewings] = useState<Viewing[]>([]);
   const [applications, setApplications] = useState(0);
@@ -101,69 +101,88 @@ function ProviderHome() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
+  const [detailsLoading, setDetailsLoading] = useState(true);
+  const [detailsFailed, setDetailsFailed] = useState(false);
+  const requestVersion = useRef(0);
+  const me = state.status === "signed_in" ? state.me : null;
+  const selectedId = me?.contexts.find((row) => row.type === "organization" && row.id === activeContext)
+    ?.organization_id;
+  const accountId = me?.id;
   const [openedAt] = useState(() => Date.now());
 
   // Home is every figure about one Portfolio at once, so it is the screen where
   // the previous Portfolio's occupancy, money and attention list would sit
   // longest under the new one's name. Switching empties it back to its skeleton.
-  useBlankOnPortfolioSwitch(activeContext, () => {
+  const scopeKey = `${accountId ?? ""}:${selectedId ?? ""}`;
+  useLayoutEffect(() => () => { requestVersion.current += 1; }, [scopeKey]);
+  useBlankOnPortfolioSwitch(scopeKey, () => {
     setSummary(null);
     setProperties([]);
     setViewings([]);
     setApplications(0);
     setLeases([]);
+    setUnreadEnquiries(0);
+    setError("");
+    setDetailsFailed(false);
+    setDetailsLoading(true);
     setLoading(true);
   });
 
   const load = useCallback(async () => {
+    if (!accountId) return;
+    const version = ++requestVersion.current;
+    const current = () => version === requestVersion.current;
     setLoading(true);
+    setDetailsLoading(true);
+    setDetailsFailed(false);
+    setError("");
+
+    async function section<T>(request: Promise<T>, apply: (result: T) => void) {
+      try {
+        const result = await request;
+        if (current()) apply(result);
+      } catch {
+        if (current()) setDetailsFailed(true);
+      }
+    }
+
     try {
-      const organizations = await listOrganizations();
-      const preferred = activeContext?.startsWith("organization:")
-        ? activeContext.slice("organization:".length)
-        : "";
-      const organization = organizations.find((row) => row.id === preferred) ?? organizations[0];
-      if (!organization) {
+      const organizationId = selectedId ?? (await listOrganizations())[0]?.id;
+      if (!current()) return;
+      if (!organizationId) {
         setSummary(null);
-        setProperties([]);
-        setViewings([]);
-        setApplications(0);
-        setLeases([]);
-        setUnreadEnquiries(0);
-        setError("");
+        setDetailsLoading(false);
         return;
       }
-      // Every figure here is about one Portfolio, so the Portfolio is resolved
-      // first and each list is asked for it. Fetching the enquiries first meant
-      // Home counted viewings, tenancy requests and agreements from every
-      // Portfolio the account belonged to against one Portfolio's Properties.
-      const scope = { organization: organization.id };
-      const [enquiries, next, propertyRows] = await Promise.all([
-        Promise.allSettled([
-          listReceivedViewings(true, scope),
-          listReceivedApplications(true, scope),
-          listGrantedLeases(scope),
-          // Buyers asking about what this account is selling (owner, 2026-09-29).
-          listEnquiries("seller"),
-        ]),
-        getPortfolioSummary(organization.id),
-        listOrganizationProperties(organization.id),
-      ]);
-      setViewings(enquiries[0].status === "fulfilled" ? enquiries[0].value : []);
-      setApplications(enquiries[1].status === "fulfilled" ? enquiries[1].value.length : 0);
-      setLeases(enquiries[2].status === "fulfilled" ? enquiries[2].value : []);
-      setUnreadEnquiries(enquiries[3].status === "fulfilled" ? enquiries[3].value.filter((row) => row.unread).length : 0);
-      setSummary(next);
-      setProperties(propertyRows);
-      setError("");
-    } catch {
-      setError("Could not refresh your Portfolio.");
-    } finally {
-      setLoading(false);
-    }
-  }, [activeContext]);
 
-  useFocusEffect(useCallback(() => { void load(); }, [load]));
+      const scope = { organization: organizationId };
+      const overview = getPortfolioHome(organizationId)
+        .then((summary) => { if (current()) setSummary(summary); })
+        .catch(() => { if (current()) setError("Could not refresh your Portfolio."); })
+        .finally(() => { if (current()) setLoading(false); });
+      const details = Promise.all([
+        section(listReceivedViewings(true, scope), setViewings),
+        section(listReceivedApplications(true, scope), (rows) => setApplications(rows.length)),
+        section(listGrantedLeases(scope), setLeases),
+        section(listOrganizationProperties(organizationId), setProperties),
+        section(listEnquiries("seller"), (rows) => setUnreadEnquiries(rows.filter((row) => row.unread).length)),
+      ]).then(() => { if (current()) setDetailsLoading(false); });
+      // Pull-to-refresh waits for its spinner, while the overview renders independently.
+      await Promise.all([overview, details]);
+    } catch {
+      if (current()) {
+        setError("Could not refresh your Portfolio.");
+        setDetailsLoading(false);
+      }
+    } finally {
+      if (current()) setLoading(false);
+    }
+  }, [accountId, selectedId]);
+
+  useFocusEffect(useCallback(() => {
+    void load();
+    return () => { requestVersion.current += 1; };
+  }, [load]));
 
   const name = state.status === "signed_in"
     ? state.me.preferred_name || state.me.first_name || "there"
@@ -238,7 +257,6 @@ function ProviderHome() {
   ].sort((a, b) => b.at.localeCompare(a.at)).slice(0, 3);
 
   const go = (to: Href) => router.push(to as never);
-  const me = state.status === "signed_in" ? state.me : null;
   const context = me?.contexts.find((row) => row.type === "organization" && row.id === activeContext)
     ?? me?.contexts.find((row) => row.type === "organization");
   const can = context?.access?.can;
@@ -265,6 +283,15 @@ function ProviderHome() {
     return (
       <HomeHeroScroll title={`Good day, ${name}`} padding={density.pagePadding} gap={density.sectionGap}>
         <ProviderDashboardSkeleton />
+      </HomeHeroScroll>
+    );
+  }
+
+  if (error && !summary) {
+    return (
+      <HomeHeroScroll title={`Good day, ${name}`} padding={density.pagePadding} gap={density.sectionGap}>
+        <Notice tone="error" title={error} />
+        <Button label="Try again" onPress={() => void load()} />
       </HomeHeroScroll>
     );
   }
@@ -303,10 +330,14 @@ function ProviderHome() {
       {error ? <Notice tone="error" title={error} /> : null}
 
       <Section title="Your next move" meta={moves.length ? `${moves.length} waiting` : undefined}>
-        <NextMoves
+        {!moves.length && (detailsLoading || detailsFailed || error) ? (
+          <Type variant="caption" accessibilityLiveRegion="polite">
+            {detailsLoading ? "Checking what needs attention…" : "Some Portfolio details are unavailable."}
+          </Type>
+        ) : <NextMoves
           moves={moves.map((move) => ({ ...move, onPress: () => go(move.to) }))}
           calm={{ title: "Nothing is waiting on you", hint: "Rent, requests and agreements are up to date." }}
-        />
+        />}
       </Section>
 
       <Section title="Overview">
@@ -496,7 +527,7 @@ function shortMoney(minor: number): string {
  * rather than twelve: twelve labels on a 360px screen is a smear, and the
  * yearly view is one tap away.
  */
-function RentCollection({ collection }: { collection: PortfolioSummary["rent_collection"] | null }) {
+function RentCollection({ collection }: { collection: PortfolioHomeSummary["rent_collection"] | null }) {
   const density = useHomeDensity();
   const [period, setPeriod] = useState<"monthly" | "yearly">("monthly");
   const [active, setActive] = useState<number | null>(null);

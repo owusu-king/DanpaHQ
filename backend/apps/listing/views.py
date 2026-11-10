@@ -37,15 +37,7 @@ class ListingSearchView(APIView):
 
         # One definition of the search for the list and the map: see `search`.
         area = search.resolve_area(data)
-        qs = (
-            search.filtered_listings(data, area)
-            .select_related(
-                "unit__property__address__locality__district",
-                "unit__property__address__locality__region",
-                "created_by",
-            )
-            .prefetch_related("media__file", "unit__media__file", "highlighted_amenities")
-        )
+        qs = read_models.with_listing_cards(search.filtered_listings(data, area))
 
         # The cursor *is* the ordering, so a sort choice has to move the
         # paginator with it. Every option ends in `-created_at` so the cursor
@@ -136,8 +128,11 @@ class MyListingsView(APIView):
     def get(self, request):
         listings = (
             Listing.objects.filter(created_by=request.user)
-            .select_related("unit__property")
-            .prefetch_related("media__file", "unit__media__file")
+            .select_related(
+                "unit__property__address__locality__district",
+                "unit__property__address__locality__region",
+            )
+            .prefetch_related("media__file", "unit__media__file", "highlighted_amenities")
             .order_by("-created_at")
         )
         response = Response(ListingSerializer(listings, many=True).data)

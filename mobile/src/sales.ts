@@ -207,6 +207,7 @@ export type EnquiryMessage = {
 };
 
 export type Enquiry = {
+  proposed_call_at?: string | null;
   id: string;
   role: "buyer" | "seller";
   status: "open" | "closed";
@@ -226,12 +227,13 @@ export type Enquiry = {
   created_at: string;
 };
 
-export type EnquiryDetail = Enquiry & { messages: EnquiryMessage[] };
+export type EnquiryDetail = Enquiry & { messages: EnquiryMessage[]; contact_phone?: string; contact_email?: string };
+export type EnquiryContact = { contact_phone: string; contact_email: string };
 
-export function startEnquiry(saleId: string): Promise<EnquiryDetail> {
+export function startEnquiry(saleId: string, contact: EnquiryContact): Promise<EnquiryDetail> {
   return apiFetch<EnquiryDetail>(`/sales/${saleId}/enquiries/`, {
     method: "POST",
-    body: {},
+    body: contact,
   });
 }
 
@@ -242,6 +244,13 @@ export function listEnquiries(as: "buyer" | "seller" | "all"): Promise<Enquiry[]
 
 export function getEnquiry(id: string): Promise<EnquiryDetail> {
   return apiFetch<EnquiryDetail>(`/sale-enquiries/${id}/`);
+}
+
+export function proposeEnquiryCall(id: string, proposedCallAt: string): Promise<EnquiryDetail> {
+  return apiFetch<EnquiryDetail>(`/sale-enquiries/${id}/call/`, {
+    method: "POST",
+    body: { proposed_call_at: proposedCallAt },
+  });
 }
 
 export function replyToEnquiry(id: string, message: string): Promise<EnquiryDetail> {

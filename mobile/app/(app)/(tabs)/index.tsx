@@ -56,6 +56,8 @@ function DiscoveryHome() {
   const [recentActivity, setRecentActivity] = useState<Notification[]>([]);
   const [homeError, setHomeError] = useState("");
   const [homeLoading, setHomeLoading] = useState(true);
+  const [detailsLoading, setDetailsLoading] = useState(true);
+  const [detailsFailed, setDetailsFailed] = useState(false);
 
   const me = state.status === "signed_in" ? state.me : null;
   const displayName = me?.preferred_name || me?.first_name || "";
@@ -69,51 +71,55 @@ function DiscoveryHome() {
    * active; the tab itself is the tenant side.
    */
   const tenantMode = Boolean(me);
+  const tenantId = me?.id;
 
-  const loadTenantHome = useCallback(async () => {
-    if (!tenantMode) {
+  useFocusEffect(useCallback(() => {
+    if (!tenantId) {
       setTenancies([]);
       setLeases([]);
+      setApplications([]);
+      setViewings([]);
+      setJoinRequests([]);
       setUnreadNotifications(0);
       setRecentActivity([]);
       setHomeLoading(false);
+      setDetailsLoading(true);
       return;
     }
+    let live = true;
     setHomeLoading(true);
-    try {
-      // Every tenancy, whole. This used to fetch occupancies and leases
-      // separately and then keep whichever occupancy came first, which is how a
-      // tenant renting two places lost sight of one of them.
-      //
-      // The rest is what Home needs to answer "does anything need me" without
-      // the tenant opening four screens to find out.
-      const [homes, agreements, apps, views, requests, updates] = await Promise.all([
-        listMyTenancies(),
-        listMyLeases().catch(() => [] as Lease[]),
-        listMyApplications().catch(() => [] as RentalApplication[]),
-        listMyViewings().catch(() => [] as Viewing[]),
-        listMyJoinRequests().catch(() => [] as MyJoinRequest[]),
-        // One read, two jobs: the unread count on the Updates shortcut and
-        // the recent-activity feed. Tolerant like the rest — neither is worth
-        // failing somebody's rent summary over.
-        listNotifications().catch(() => ({ unread_count: 0, results: [] })),
-      ]);
+    setDetailsLoading(true);
+    setDetailsFailed(false);
+    void listMyTenancies().then((homes) => {
+      if (!live) return;
       setTenancies(homes);
-      setLeases(agreements);
-      setApplications(apps);
-      setViewings(views);
-      setJoinRequests(requests);
+      setHomeError("");
+    }).catch(() => {
+      if (live) setHomeError("Could not refresh your homes and rent details.");
+    }).finally(() => {
+      if (live) setHomeLoading(false);
+    });
+    async function section<T>(request: Promise<T>, apply: (rows: T) => void) {
+      try {
+        const rows = await request;
+        if (live) apply(rows);
+      } catch {
+        if (live) setDetailsFailed(true);
+      }
+    }
+    void Promise.all([
+      section(listMyLeases(), setLeases),
+      section(listMyApplications(), setApplications),
+      section(listMyViewings(), setViewings),
+      section(listMyJoinRequests(), setJoinRequests),
+    ]).then(() => { if (live) setDetailsLoading(false); });
+    void listNotifications().catch(() => ({ unread_count: 0, results: [] })).then((updates) => {
+      if (!live) return;
       setUnreadNotifications(updates.unread_count);
       setRecentActivity(updates.results);
-      setHomeError("");
-    } catch {
-      setHomeError("Could not refresh your homes and rent details.");
-    } finally {
-      setHomeLoading(false);
-    }
-  }, [tenantMode]);
-
-  useFocusEffect(useCallback(() => { void loadTenantHome(); }, [loadTenantHome]));
+    });
+    return () => { live = false; };
+  }, [tenantId]));
 
   const canOpenProvider = state.status === "signed_in"
     && state.me.capabilities.available_workspaces.includes("provider");
@@ -195,6 +201,8 @@ function DiscoveryHome() {
           joinRequests={joinRequests}
           error={homeError}
           loading={homeLoading}
+          detailsLoading={detailsLoading}
+          detailsFailed={detailsFailed}
           unreadNotifications={unreadNotifications}
           recentActivity={recentActivity}
           onNotifications={() => router.push("/(app)/notifications" as never)}

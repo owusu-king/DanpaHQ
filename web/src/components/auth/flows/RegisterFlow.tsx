@@ -326,6 +326,7 @@ export function RegisterFlow({ params, go: show, close, land }: AuthFlowProps) {
         registration_ticket?: string;
         access_token?: string;
         expires_in?: number;
+        user?: Me;
       }>("/auth/verify/", {
         method: "POST",
         body: JSON.stringify({ challenge_id: challengeId, code: value.trim(), ...getWebDeviceContext() }),
@@ -337,10 +338,14 @@ export function RegisterFlow({ params, go: show, close, land }: AuthFlowProps) {
         return;
       }
       if (result.access_token) {
-        // An account left unfinished before tickets: it comes back with a
-        // session, and finishing it is the details step.
         setAccessToken(result.access_token, result.expires_in ?? 0);
         await refresh();
+        if (result.user && resolveWebEntry(result.user) === "/settings/security") {
+          land("/settings/security");
+          return;
+        }
+        // An account left unfinished before tickets returns with a session
+        // so it can finish entering its details.
         await createAccount("");
         return;
       }

@@ -217,14 +217,25 @@ export function PropertyWizard({
     setBusy(true);
     setError("");
     try {
-      const ok = commitRef.current ? await commitRef.current() : true;
+      // The record may already exist if only the follow-up read failed.
+      const alreadyCreated = shown === "basics" && !property && createdId.current;
+      const ok = alreadyCreated || !commitRef.current || await commitRef.current();
       if (!ok) return;
       onChanged?.();
       const current = id ?? createdId.current;
-      if (current) await load(current);
       if (shown === "review") {
         if (current) onFinished(current);
         return;
+      }
+      if (current) {
+        if (shown === "basics" && !property) await load(current);
+        else if (shown === "amenities") {
+          const [updated, selection] = await Promise.all([getProperty(current), getPropertyAmenities(current)]);
+          setProperty(updated);
+          setAmenities(selection.chosen);
+        } else if (shown === "basics" || shown === "details" || shown === "photos") {
+          setProperty(await getProperty(current));
+        }
       }
       const next = keys[at + 1];
       if (next) go(next);
@@ -327,7 +338,11 @@ export function PropertyWizard({
           saleKind={property.purpose === "sale" ? (sale?.kind ?? null) : null}
           onReady={setDocumentReady}
           commitRef={commitRef}
-          reload={() => { onChanged?.(); return load(property.id); }}
+          reload={async () => {
+            const next = await getProperty(property.id);
+            setProperty(next);
+            return next;
+          }}
         />
       ) : null}
 
@@ -467,6 +482,7 @@ function NewPropertyStep({
   const [street, setStreet] = useState("");
   const [landmark, setLandmark] = useState("");
   const [missing, setMissing] = useState<Record<string, string>>({});
+  const savedAddress = useRef<{ fingerprint: string; id: string } | null>(null);
 
   useEffect(() => {
     void listOrganizations()
@@ -488,16 +504,21 @@ function NewPropertyStep({
     if (!query.trim()) problems.place = "Enter the town or neighbourhood.";
     setMissing(problems);
     if (Object.keys(problems).length) return false;
-    const address = await createAddress({
+    const addressInput = {
       ...(location ? { locality_id: location.id } : { place_name: query.trim() }),
       place_context: city.trim(),
       latitude: pin?.latitude ?? null,
       longitude: pin?.longitude ?? null,
-      digital_address: digitalAddress || undefined,
+      digital_address: digitalAddress.trim() || undefined,
       street: street || undefined,
       landmark: landmark || undefined,
-    });
-    const input = { title: title.trim(), property_type: propertyType, address_id: address.id, purpose };
+    };
+    const fingerprint = JSON.stringify(addressInput);
+    if (savedAddress.current?.fingerprint !== fingerprint) {
+      const address = await createAddress(addressInput);
+      savedAddress.current = { fingerprint, id: address.id };
+    }
+    const input = { title: title.trim(), property_type: propertyType, address_id: savedAddress.current.id, purpose };
     const created = organizationId
       ? await createPrivateProperty(organizationId, input)
       : await createPersonalPortfolioProperty(input);
@@ -582,7 +603,7 @@ function NewPropertyStep({
       </div>
 
       <div className="lw-grid cw-grid-3">
-        <Field label="GhanaPost GPS" hint="Optional" value={digitalAddress} onChange={(event) => setDigitalAddress(event.target.value)} />
+        <Field label="GhanaPost GPS" hint="Optional" placeholder="ER-0254-2310" value={digitalAddress} onChange={(event) => setDigitalAddress(event.target.value)} />
         <Field label="Street" hint="Optional" value={street} onChange={(event) => setStreet(event.target.value)} />
         <Field label="Landmark" hint="Optional" value={landmark} onChange={(event) => setLandmark(event.target.value)} />
       </div>

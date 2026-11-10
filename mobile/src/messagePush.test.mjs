@@ -1,14 +1,40 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, statSync } from "node:fs";
 import { createRequire } from "node:module";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 import vm from "node:vm";
 
 const require = createRequire(import.meta.url);
 const ts = require("typescript");
-const source = readFileSync(new URL("./messagePush.native.tsx", import.meta.url), "utf8");
+const nativeModule = new URL("./messagePush.native.ts", import.meta.url);
+const source = readFileSync(nativeModule, "utf8");
 const thread = "01234567-89ab-cdef-0123-456789abcdef";
 const flush = () => new Promise((resolve) => setImmediate(resolve));
+
+test("Expo Metro selects native push on Android and iOS and the fallback on web", () => {
+  const { resolve } = require("metro-resolver");
+  const { getDefaultConfig } = require("expo/metro-config");
+  const { sourceExts, assetExts } = getDefaultConfig(fileURLToPath(new URL("../", import.meta.url))).resolver;
+  const context = {
+    originModulePath: fileURLToPath(import.meta.url),
+    sourceExts,
+    assetExts: new Set(assetExts),
+    getPackageForModule: () => null,
+    fileSystemLookup(path) {
+      const stat = statSync(path, { throwIfNoEntry: false });
+      if (!stat) return { exists: false };
+      return { exists: true, type: stat.isDirectory() ? "d" : "f", realPath: path };
+    },
+  };
+
+  for (const platform of ["android", "ios", "web"]) {
+    const isNative = platform !== "web";
+    const expected = isNative ? nativeModule : new URL("./messagePush.ts", import.meta.url);
+    const result = resolve({ ...context, preferNativePlatform: isNative }, "./messagePush", platform);
+    assert.equal(result.filePath, fileURLToPath(expected), platform);
+  }
+});
 
 function harness({
   enabled = true, granted = true, askGrants = true, expoGo = false, physical = true,

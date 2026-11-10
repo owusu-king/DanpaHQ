@@ -93,7 +93,7 @@ test("browser FormData uploads use real file bytes too", async () => {
 
 test("a refused storage upload is never completed or approved", async () => {
   const h = harness({ status: 403 });
-  await assert.rejects(h.api.uploadImage({ uri: h.prepared.uri }, "property_document"), /Storage refused/);
+  await assert.rejects(h.api.uploadImage({ uri: h.prepared.uri }, "property_document"), /File storage refused/);
   assert.equal(h.calls.length, 1);
 });
 
@@ -134,10 +134,19 @@ test("native PUT uses binary content and preserves signed headers; refused trans
   let sent;
   class File { async upload(url, options) { sent = { url, options }; return { status: 403 }; } }
   const native = compile("./uploadTransfer.native.ts", { "expo-file-system": { File, UploadType: { MULTIPART: 1, BINARY_CONTENT: 0 } } });
-  const result = await native.transferUpload({ url: "https://storage.test/private", method: "PUT", headers: { "x-amz-checksum-sha256": "signed-checksum" } }, { uri: "file:///proof.jpg", mime: "image/jpeg" });
+  const signal = new AbortController().signal;
+  const progress = [];
+  const result = await native.transferUpload(
+    { url: "https://storage.test/private", method: "PUT", headers: { "x-amz-checksum-sha256": "signed-checksum" } },
+    { uri: "file:///proof.jpg", mime: "image/jpeg" },
+    { signal, onProgress: (...bytes) => progress.push(bytes) },
+  );
   assert.equal(result.ok, false);
   assert.equal(sent.options.uploadType, 0);
   assert.equal(sent.options.headers["Content-Type"], "image/jpeg");
   assert.equal(sent.options.headers["x-amz-checksum-sha256"], "signed-checksum");
   assert.equal(sent.options.parameters, undefined);
+  assert.equal(sent.options.signal, signal);
+  sent.options.onProgress({ bytesSent: 3, totalBytes: 7 });
+  assert.deepEqual(progress, [[3, 7]]);
 });

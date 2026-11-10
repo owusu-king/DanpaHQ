@@ -9,21 +9,21 @@ from django.urls import reverse
 from django.utils import timezone
 from rest_framework.test import APIClient
 
-from apps.core.crypto import sign_payload
 from apps.core.exceptions import PermissionDenied
 from apps.identity.models import ExternalIdentity, Session
 from apps.operations import login_mfa, mfa
 from apps.operations.models import AdminAuthenticator, ManagementSession, MFAChallenge
 from tests.conftest import TEST_PASSWORD, make_account
 from tests.integration.test_admin_mfa import PASSWORD, principal
-from tests.integration.test_google_auth import claims, start_google
+from tests.integration.test_google_auth import claims, code_from, start_google
 
 pytestmark = pytest.mark.django_db
 
 
 def member(policy="required", account_type="tenant"):
     return make_account(
-        "0500000088", email="member@example.com", mfa_policy=policy, account_type=account_type
+        "0500000088", email="member@example.com", is_email_verified=True,
+        mfa_policy=policy, account_type=account_type,
     )
 
 
@@ -209,7 +209,8 @@ def test_policy_enforcement_rejects_old_access_and_refresh_tokens():
         },
         format="json",
     )
-    assert response.status_code == 403
+    assert response.status_code == 401
+    assert response.data["error"]["code"] == "session_ended"
 
 
 def test_management_password_first_enrollment_and_session_cookie(settings):
@@ -292,19 +293,21 @@ def test_pending_token_rejected_after_enrollment_was_reset():
         )
 
 
-def test_password_recovery_does_not_bypass_existing_second_factor(settings):
+def test_password_recovery_does_not_bypass_existing_second_factor(sms):
     user = member()
     secret = mfa.new_secret()
     mfa.enroll(user=user, secret=secret, code=mfa.totp(secret), allow_consumer=True)
-    reset = sign_payload(
-        {"sub": str(user.pk), "act": "password_reset"},
-        key=settings.ACCESS_TOKEN_KEY or settings.SECRET_KEY,
-        ttl_seconds=60,
-    )
-    response = APIClient().post(
+    api = APIClient()
+    started = api.post("/api/v1/auth/password-reset/", {"phone": user.phone}, format="json")
+    assert started.status_code == 201
+    verified = api.post("/api/v1/auth/password-reset/verify/", {
+        "challenge_id": started.data["challenge_id"], "code": code_from(sms),
+    }, format="json")
+    assert verified.status_code == 200
+    response = api.post(
         "/api/v1/auth/password-reset/complete/",
         {
-            "reset_token": reset,
+            "reset_token": verified.data["reset_token"],
             "new_password": "another-secure-test-password",
             "platform": "web",
         },

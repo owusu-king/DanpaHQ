@@ -16,7 +16,7 @@
 import { Hammer } from "lucide-react";
 import { useEffect, useState } from "react";
 
-import { openArtisans } from "@/components/artisan/ArtisansWorkspace";
+import { openArtisans } from "@/components/artisan/artisanNavigation";
 import { ProblemReport, WorkFinish } from "@/components/artisan/WorkFinish";
 import { Notice } from "@/components/Notice";
 import { useToast } from "@/components/toast/Toaster";

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from datetime import timedelta
-from typing import ClassVar
 
 from django.conf import settings
 from django.db import transaction
@@ -64,13 +63,13 @@ def _client_ip(request):
 
 
 class ManagementAPIView(APIView):
-    authentication_classes: ClassVar[list] = [ManagementSessionAuthentication]
-    permission_classes: ClassVar[list] = [IsAuthenticated, HasManagementCapability]
+    authentication_classes = [ManagementSessionAuthentication]
+    permission_classes = [IsAuthenticated, HasManagementCapability]
 
 
 class LoginView(APIView):
-    authentication_classes: ClassVar[list] = []
-    permission_classes: ClassVar[list] = [AllowAny]
+    authentication_classes: list = []
+    permission_classes = [AllowAny]
 
     def post(self, request):
         origin = request.headers.get("Origin")
@@ -1802,7 +1801,7 @@ def _headline_limits() -> list[str]:
 class MyAccountDeletionView(APIView):
     """GET/POST/DELETE /me/account-deletion/ - ask for deletion, see it, withdraw it."""
 
-    permission_classes: ClassVar = [IsAuthenticated]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
         from . import deletion

@@ -83,6 +83,8 @@ export function TenantHome({
   leases,
   joinRequests,
   loading,
+  detailsLoading,
+  detailsFailed,
   error,
   onJoin,
   onExplore,
@@ -101,6 +103,8 @@ export function TenantHome({
   leases: Lease[];
   joinRequests: MyJoinRequest[];
   loading: boolean;
+  detailsLoading: boolean;
+  detailsFailed: boolean;
   error: string;
   onJoin: () => void;
   onExplore: () => void;
@@ -245,6 +249,7 @@ export function TenantHome({
       <Section title="Overview">
         <Overview
           owed={owed}
+          detailsLoading={detailsLoading}
           homes={tenancies.length}
           agreements={activeLeases}
           applications={applications.length}
@@ -274,7 +279,11 @@ export function TenantHome({
       ) : null}
 
       <Section title="Your next move" meta={needs.length ? `${needs.length} waiting` : undefined}>
-        <NextMoves
+        {(detailsLoading || detailsFailed) && needs.length === 0 ? (
+          <Type variant="caption" accessibilityLiveRegion="polite">
+            {detailsLoading ? "Checking what needs your attention…" : "Some rental details are unavailable."}
+          </Type>
+        ) : <NextMoves
           moves={needs.map((item) => ({
             key: item.id,
             title: item.title,
@@ -285,7 +294,7 @@ export function TenantHome({
             onPress: () => open(item),
           }))}
           calm={{ title: "Nothing is waiting on you", hint: "Rent, agreements and viewings are up to date." }}
-        />
+        />}
       </Section>
 
       {upcoming.length ? (
@@ -395,6 +404,7 @@ export function rankHomes(homes: Tenancy[]): Tenancy[] {
  */
 function Overview({
   owed,
+  detailsLoading,
   homes,
   agreements,
   applications,
@@ -406,6 +416,7 @@ function Overview({
   onViewings,
 }: {
   owed: Owed;
+  detailsLoading: boolean;
   homes: number;
   agreements: number;
   applications: number;
@@ -444,9 +455,10 @@ function Overview({
           <Type variant="captionStrong" style={[styles.pillText, { color: TONE[state.tone].ink }]}>{state.text}</Type>
         </View>
       </View>
-      {applications ? <View style={[dash.rule, { marginLeft: 0, marginTop: space[4] }]} /> : null}
-      {applications ? <ApplicationDial total={applications} accepted={accepted} onPress={onApplications} /> : null}
-      <StatCells>
+      {detailsLoading ? <Type variant="caption" accessibilityLiveRegion="polite">Loading agreement and application details…</Type> : <>
+        {applications ? <View style={[dash.rule, { marginLeft: 0, marginTop: space[4] }]} /> : null}
+        {applications ? <ApplicationDial total={applications} accepted={accepted} onPress={onApplications} /> : null}
+        <StatCells>
         <Cell label={plural(homes, "Home", "Homes")} value={homes} onPress={onHomes} />
         <CellRule />
         <Cell label={plural(agreements, "Agreement", "Agreements")} value={agreements} onPress={onAgreements} />
@@ -454,7 +466,8 @@ function Overview({
         <Cell label={plural(applications, "Application", "Applications")} value={applications} onPress={onApplications} />
         <CellRule />
         <Cell label={plural(viewings, "Viewing", "Viewings")} value={viewings} onPress={onViewings} />
-      </StatCells>
+        </StatCells>
+      </>}
     </View>
   );
 }

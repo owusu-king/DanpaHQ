@@ -5,8 +5,7 @@
  *
  * The same shape as a rental's page — photographs, then what it is, then where —
  * with the price and one action in the panel beside it. The action is an
- * enquiry, never a phone number: the seller's contact stays private, and the
- * conversation happens in Enquiries (owner, 2026-09-28).
+ * private enquiry: buyers choose what contact details to share with the seller.
  *
  * Everything on this page is public only because its verification is current;
  * the backend answers 404 for anything else, so this page never has to decide.
@@ -17,16 +16,20 @@ import { VideoPlayer } from "@/components/property/WalkthroughVideo";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 
 import { useAuthDialog } from "@/components/auth/AuthDialog";
 import { usePageTitle } from "@/components/PageTitle";
 import { Button } from "@/components/Button";
+import { Field } from "@/components/Field";
+import { openEnquiries } from "@/components/enquiries/enquiryEvents";
 import { Notice } from "@/components/Notice";
+import { ModalSheet } from "@/components/workspace/ModalSheet";
 import { PropertyAsk } from "@/components/listings/PropertyAsk";
 import { saleIntelContext } from "@/lib/propertyIntel";
 import { Icon } from "@/components/portal/icons";
 import { ApiFailure } from "@/lib/api";
+import { fieldErrorsFrom, summaryErrorFrom, type FieldErrors } from "@/lib/formErrors";
 import { getSale, listSavedSales, saveSale, unsaveSale, saleFacts, startEnquiry, type SaleDetail, type SalePhoto } from "@/lib/sales";
 import { useSession } from "@/lib/session";
 import { exploreReturnPath, saleDetailPath } from "@/lib/exploreReturn";
@@ -55,6 +58,10 @@ export default function SalePage() {
   const [saveReady, setSaveReady] = useState(false);
   const [shareFeedback, setShareFeedback] = useState<"shared" | "copied" | null>(null);
   const [actionError, setActionError] = useState("");
+  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
+  const [contactError, setContactError] = useState("");
+  const [contactErrors, setContactErrors] = useState<FieldErrors>({});
   const saved = savedId === id;
   usePageTitle(sale ? sale.headline || `${sale.kind_label} for sale` : null);
 
@@ -141,18 +148,21 @@ export default function SalePage() {
     }
   }
 
-  async function send() {
-    if (!signedIn) {
-      openAuth("sign-in", { next });
-      return;
-    }
+  async function send(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!signedIn || busy || !sale) return;
     setBusy(true);
-    setError("");
+    setContactError("");
+    setContactErrors({});
     try {
-      const enquiry = await startEnquiry(sale!.id);
-      router.push(`/record/enquiry?id=${enquiry.id}` as never);
+      const enquiry = await startEnquiry(sale.id, { contact_phone: phone.trim(), contact_email: email.trim() });
+      setSale((current) => current?.id === sale.id ? { ...current, my_enquiry_id: enquiry.id } : current);
+      setWriting(false);
+      openEnquiries({ id: enquiry.id, side: "buyer", record: enquiry });
     } catch (cause) {
-      setError(cause instanceof ApiFailure ? cause.error.message : "We could not send your enquiry.");
+      const fields = fieldErrorsFrom(cause);
+      setContactErrors(fields);
+      setContactError(summaryErrorFrom(cause, fields));
     } finally {
       setBusy(false);
     }
@@ -288,23 +298,17 @@ export default function SalePage() {
               <Button onClick={() => router.push(`/record/enquiry?id=${sale.my_enquiry_id}` as never)}>
                 View your interest
               </Button>
-            ) : writing ? (
-              <div className="sale-enquiry">
-                <p>Let {sale.seller_label} know you are interested in this property. Your name is shared; your phone number stays private.</p>
-                <div className="listing-confirm-actions">
-                  <Button busy={busy} busyLabel="Sending…" onClick={() => void send()}>
-                    Confirm interest
-                  </Button>
-                  <Button variant="quiet" disabled={busy} onClick={() => setWriting(false)}>Not now</Button>
-                </div>
-              </div>
             ) : (
               <Button
                 onClick={() => {
-                  if (!signedIn) {
+                  if (state.status !== "signed_in") {
                     openAuth("sign-in", { next });
                     return;
                   }
+                  setPhone(state.me.is_phone_verified ? state.me.phone_display : "");
+                  setEmail(state.me.is_email_verified ? state.me.email ?? "" : "");
+                  setContactError("");
+                  setContactErrors({});
                   setWriting(true);
                 }}
               >
@@ -326,6 +330,22 @@ export default function SalePage() {
         </aside>
       </div>
 
+      <ModalSheet open={writing} onClose={() => setWriting(false)} dismissible={!busy} closeDisabled={busy}
+        bodyBusy={busy} size="sm" className="sale-interest-dialog" icon="heart" title="Share your contact details" meta={sale.headline || `${sale.kind_label} for sale`}>
+        {(close) => <form className="sale-enquiry" onSubmit={send}>
+          <p className="type-body">Send your phone and email to {sale.seller_label} so they can follow up about this property.</p>
+          <Field label="Phone number" type="tel" autoComplete="tel" placeholder="024 123 4567 or +233…" required maxLength={40}
+            value={phone} onChange={(event) => setPhone(event.target.value)} error={contactErrors.contact_phone} disabled={busy} />
+          <Field label="Email address" type="email" autoComplete="email" placeholder="you@example.com" required maxLength={254}
+            value={email} onChange={(event) => setEmail(event.target.value)} error={contactErrors.contact_email} disabled={busy} />
+          <p className="type-caption sale-enquiry-privacy"><Icon name="shield" /> Your contact details are shared privately with the provider for this listing.</p>
+          {contactError ? <Notice tone="error" title={contactError} /> : null}
+          <div className="listing-confirm-actions">
+            <Button type="submit" busy={busy} busyLabel="Sending…">Send interest</Button>
+            <Button variant="quiet" type="button" disabled={busy} onClick={close}>Not now</Button>
+          </div>
+        </form>}
+      </ModalSheet>
       <Lightbox photos={photos} index={lightbox} onClose={() => setLightbox(null)} onMove={setLightbox} />
     </main>
   );

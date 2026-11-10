@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import timedelta
+
 from celery import shared_task
 from django.utils import timezone
 
@@ -27,11 +29,11 @@ def purge_expired_challenges() -> dict[str, int]:
 
     consumed, _ = AuthChallenge.objects.filter(
         status__in=[ChallengeStatus.VERIFIED, ChallengeStatus.EXPIRED, ChallengeStatus.CANCELLED],
-        expires_at__lte=now - timezone.timedelta(days=1),
+        expires_at__lte=now - timedelta(days=1),
     ).delete()
 
     stale_failed, _ = AuthChallenge.objects.filter(
-        status=ChallengeStatus.FAILED, updated_at__lte=now - timezone.timedelta(days=30)
+        status=ChallengeStatus.FAILED, updated_at__lte=now - timedelta(days=30)
     ).delete()
 
     expired = AuthChallenge.objects.filter(
@@ -52,6 +54,6 @@ def purge_expired_sessions() -> dict[str, int]:
     expired = Session.objects.filter(revoked_at__isnull=True, expires_at__lte=now).update(
         revoked_at=now, revoked_reason="session_expired"
     )
-    cutoff = now - timezone.timedelta(days=90)
+    cutoff = now - timedelta(days=90)
     deleted, _ = Session.objects.filter(expires_at__lte=cutoff).delete()
     return {"deleted": deleted, "marked_expired": expired}

@@ -11,6 +11,7 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import dataclass
+from functools import partial
 
 from django.conf import settings
 
@@ -48,7 +49,7 @@ def verify_google_credential(credential: str) -> GoogleClaims:
 
         payload = id_token.verify_oauth2_token(
             credential,
-            google_requests.Request(),
+            partial(google_requests.Request(), timeout=5),
             client_id,
             clock_skew_in_seconds=GOOGLE_ISSUED_AT_SKEW_SECONDS,
         )

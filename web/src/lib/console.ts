@@ -10,6 +10,7 @@
 
 import { apiFetch, idempotentMutation } from "./api";
 import { authedBlob, authedFetch } from "./auth";
+import { API_BASE_URL } from "./apiBase";
 import { preparePhotoUpload } from "./preparePhotoUpload";
 import type { SpaceQuestions } from "./propertyTypes";
 
@@ -107,6 +108,7 @@ export type Property = {
   /** The one photograph a row shows. The Property's own if it has one, else a
    *  photograph from one of its Units — nothing uploads Property photos yet. */
   cover_url: string | null;
+  cover_thumbnail_url?: string | null;
   capabilities: Record<string, { allowed: boolean; state: string; missing: string[] }>;
   /** What this person may do to this property, decided by the backend. The page
    *  renders these; hiding one the API refuses is a courtesy, not the boundary. */
@@ -1318,6 +1320,27 @@ export type OrganizationPortfolio = {
   past_tenants?: ProviderTenant[];
 };
 
+export type PortfolioHomeTenant = Omit<ProviderTenant, "can_record_payment">;
+
+export type PortfolioHomeSummary = Pick<
+  OrganizationPortfolio,
+  "organization" | "counts" | "money" | "rent_collection" | "recent_payments" | "recent_activity"
+> & { tenants: PortfolioHomeTenant[] };
+
+export function getOrganizationHome(organizationId: string) {
+  if (
+    typeof window !== "undefined"
+    && window.location.origin === "https://staging.danpahq.com"
+    && API_BASE_URL === "https://api-staging.danpahq.com/api/v1"
+  ) {
+    return authedFetch<PortfolioHomeSummary>(`/portfolio-home/${encodeURIComponent(organizationId)}`, {
+      cache: "no-store",
+      sameOrigin: true,
+    });
+  }
+  return authedFetch<PortfolioHomeSummary>(`/organizations/${organizationId}/portfolio/?view=home`, { cache: "no-store" });
+}
+
 export function getOrganizationPortfolio(organizationId: string) {
   return authedFetch<OrganizationPortfolio>(
     `/organizations/${organizationId}/portfolio/`,
@@ -1566,17 +1589,22 @@ export async function uploadFile(file: File, purpose: string): Promise<StoredFil
   }
   body.append("file", prepared);
 
-  const upload = await fetch(reservation.url, {
-    method: reservation.method || "POST",
-    body: reservation.method === "PUT" ? prepared : body,
-    headers: reservation.method === "PUT" ? { "Content-Type": prepared.type } : undefined,
-  });
-
-  if (!upload.ok) {
-    throw new Error(
-      `Storage refused the upload (${upload.status}). The file may be larger than allowed.`,
-    );
+  const deadline = AbortSignal.timeout(120_000);
+  let upload: Response;
+  try {
+    upload = await fetch(reservation.url, {
+      method: reservation.method || "POST",
+      body: reservation.method === "PUT" ? prepared : body,
+      headers: reservation.method === "PUT" ? { ...reservation.headers, "Content-Type": prepared.type } : undefined,
+      signal: deadline,
+    });
+  } catch {
+    throw new Error(deadline.aborted ? "Sending the file timed out. Try again." : "Couldn’t connect to file storage. Try again.");
   }
+
+  if (upload.status === 413) throw new Error("File storage rejected the size. Choose a smaller file.");
+  if (upload.status === 429) throw new Error("File storage is busy. Wait a moment and retry.");
+  if (!upload.ok) throw new Error(`File storage did not accept the upload (HTTP ${upload.status}). Try again.`);
 
   let stored = await authedFetch<StoredFile>(`/files/uploads/${reservation.file_id}/complete/`, {
     method: "POST",
@@ -1584,8 +1612,8 @@ export async function uploadFile(file: File, purpose: string): Promise<StoredFil
   });
   // Scanning is asynchronous. Poll the private metadata endpoint briefly so a
   // fast scanner does not force the person to choose the same file again.
-  for (let attempt = 0; attempt < 20 && !stored.is_usable && !stored.rejection_reason; attempt++) {
-    await new Promise((resolve) => setTimeout(resolve, 750));
+  for (let attempt = 0; attempt < 10 && !stored.is_usable && !stored.rejection_reason && stored.scan_status !== "failed" && stored.upload_status !== "expired"; attempt++) {
+    await new Promise((resolve) => setTimeout(resolve, Math.min(1000 * (attempt + 1), 3000)));
     stored = await authedFetch<StoredFile>(`/files/${reservation.file_id}/`);
   }
   return stored;
@@ -1914,6 +1942,11 @@ export function listNotifications(cursor?: string) {
   return authedFetch<{ unread_count: number; results: Notification[]; next_cursor?: string | null }>(
     `/me/notifications/${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""}`,
   );
+}
+
+export async function getUnreadNotificationCount() {
+  const { unread_count } = await authedFetch<{ unread_count: number }>("/me/notifications/?view=badge");
+  return unread_count;
 }
 
 export async function listNotificationHistory() {

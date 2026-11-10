@@ -29,7 +29,13 @@ from django.utils import timezone
 from apps.audit.models import AuditAction
 from apps.audit.services import record
 from apps.core.events import DomainEvent
-from apps.core.exceptions import Conflict, NotFound, PermissionDenied, ValidationFailed
+from apps.core.exceptions import (
+    Conflict,
+    NotFound,
+    PermissionDenied,
+    ProviderUnavailable,
+    ValidationFailed,
+)
 from apps.core.ids import uuid7
 from apps.outbox.services import emit
 
@@ -66,7 +72,7 @@ SENSITIVE_PURPOSES = frozenset(
 
 #: How long an identity document is kept after it is uploaded. Long enough to
 #: defend a verification decision, short enough to honour data minimisation.
-RETENTION_DAYS = {
+RETENTION_DAYS: dict[str, int] = {
     FilePurpose.IDENTITY_DOCUMENT: 400,
     FilePurpose.PROPERTY_VIDEO: 7,
     FilePurpose.UNIT_VIDEO: 7,
@@ -139,12 +145,14 @@ def reserve_upload(
 
     scan_mode = getattr(settings, "FILE_SCAN_MODE", "strict")
     if scan_mode == "strict":
-        raise Conflict("Uploads are temporarily unavailable while security scanning is configured.")
+        raise ProviderUnavailable(
+            "Uploads are temporarily unavailable while security scanning is configured."
+        )
     if scan_mode == "cloudmersive":
         from .scanner import CLOUDMERSIVE_MAX_BYTES
 
         if not getattr(settings, "CLOUDMERSIVE_API_KEY", ""):
-            raise Conflict(
+            raise ProviderUnavailable(
                 "Uploads are temporarily unavailable while security scanning is configured."
             )
         if size_bytes > CLOUDMERSIVE_MAX_BYTES and purpose not in {"property_video", "unit_video"}:
@@ -164,7 +172,9 @@ def reserve_upload(
         )
     except StorageError as exc:
         logger.exception("presign failed", extra={"event": "upload_presign_failed"})
-        raise Conflict("We could not start that upload. Try again in a moment.") from exc
+        raise ProviderUnavailable(
+            "File storage could not start the upload. Try again shortly."
+        ) from exc
 
     retention = RETENTION_DAYS.get(purpose)
     stored = StoredFile.objects.create(
@@ -211,19 +221,29 @@ def complete_upload(*, user, file_id) -> StoredFile:
     except _UploadRejected as rejection:
         _reject_upload(user=user, file_id=file_id, reason=str(rejection))
         raise ValidationFailed(str(rejection)) from rejection
+    except StorageError as exc:
+        logger.warning("upload storage failed", extra={
+            "event": "upload_storage_failed", "file_id": str(file_id),
+        })
+        raise ProviderUnavailable(
+            "File storage could not finish the upload. Retry the same file."
+        ) from exc
 
 
 @transaction.atomic
 def _reject_upload(*, user, file_id, reason: str) -> None:
     """Mark an upload refused and destroy its bytes. Durable by design."""
     stored = StoredFile.objects.select_for_update().filter(id=file_id).first()
-    if stored is None:
+    if stored is None or stored.upload_status != UploadStatus.AWAITING_UPLOAD:
         return
 
     stored.upload_status = UploadStatus.REJECTED
     stored.rejection_reason = reason[:300]
     stored.scan_status = ScanStatus.FAILED
-    stored.save(update_fields=["upload_status", "rejection_reason", "scan_status", "updated_at"])
+    stored.retain_until = timezone.localdate() - timedelta(days=1)
+    stored.save(update_fields=[
+        "upload_status", "rejection_reason", "scan_status", "retain_until", "updated_at",
+    ])
 
     # Remove the bytes immediately. Keeping a rejected executable around
     # because a row references it would be the whole problem.
@@ -256,11 +276,11 @@ def _complete_upload(*, user, file_id) -> StoredFile:
         "property_video", "unit_video"
     }:
         if stored.scan_status == ScanStatus.FAILED:
-            from .tasks import scan_file
+            from .tasks import dispatch_scan
 
             stored.scan_status = ScanStatus.PENDING
             stored.save(update_fields=["scan_status", "updated_at"])
-            transaction.on_commit(lambda: scan_file.delay(str(stored.id)))
+            transaction.on_commit(lambda: dispatch_scan(str(stored.id)))
         return stored
 
     if stored.upload_status == UploadStatus.READY:
@@ -277,25 +297,24 @@ def _complete_upload(*, user, file_id) -> StoredFile:
     storage = get_storage()
     try:
         actual_size, _etag = storage.stat(key=stored.storage_key)
-        header = storage.read(key=stored.storage_key, length=HEADER_BYTES)
-    except ObjectNotFound as exc:
-        raise Conflict("We have not received that file yet. Finish uploading, then retry.") from exc
-    except StorageError as exc:
-        raise Conflict("We could not read that file. Try uploading it again.") from exc
-
-    try:
+        validate_declared_upload(
+            purpose=stored.purpose, content_type=stored.declared_content_type,
+            size_bytes=actual_size,
+        )
+        if actual_size > effective_max_bytes(stored.purpose):
+            raise FileValidationError("This upload exceeds the scanner's 3.5 MB limit.")
+        # Validate the same bytes that are hashed and sent for scanning. The
+        # upload URL can still be live, so a separate header read can race a
+        # replacement of the object between the header and full-object reads.
+        full = storage.read(key=stored.storage_key, length=actual_size + 1)
+        if len(full) != actual_size:
+            raise FileValidationError("The file changed during validation. Upload it again.")
         detected = validate_uploaded_bytes(
-            purpose=stored.purpose,
-            header=header,
-            actual_size=actual_size,
+            purpose=stored.purpose, header=full[:HEADER_BYTES], actual_size=actual_size,
             declared_content_type=stored.declared_content_type,
         )
-        if (getattr(settings, "FILE_SCAN_MODE", "strict") == "cloudmersive"
-                and stored.purpose not in {"property_video", "unit_video"}):
-            from .scanner import CLOUDMERSIVE_MAX_BYTES
-
-            if actual_size > CLOUDMERSIVE_MAX_BYTES:
-                raise FileValidationError("This upload exceeds the scanner's 3.5 MB limit.")
+    except ObjectNotFound as exc:
+        raise Conflict("We have not received that file yet. Finish uploading, then retry.") from exc
     except FileValidationError as exc:
         # Signal the rejection rather than raising here: this function runs
         # inside a transaction, and raising would roll back the rejected status
@@ -304,11 +323,6 @@ def _complete_upload(*, user, file_id) -> StoredFile:
         # transaction has ended, then raises.
         raise _UploadRejected(str(exc)) from exc
 
-    # The upload URL can still be live: bound the read and reject a replacement
-    # whose length no longer matches the object we just validated.
-    full = storage.read(key=stored.storage_key, length=actual_size + 1)
-    if len(full) != actual_size:
-        raise _UploadRejected("The file changed during validation. Upload it again.")
     if stored.purpose in {"property_video", "unit_video"}:
         from .videos import prepare_video
 
@@ -319,8 +333,8 @@ def _complete_upload(*, user, file_id) -> StoredFile:
         original_key = stored.storage_key
         stored.storage_key = f"{original_key}.prepared.mp4"
         storage.write(key=stored.storage_key, data=full)
-        transaction.on_commit(lambda: storage.delete(key=original_key))
-        stored.metadata = metadata
+        transaction.on_commit(lambda: storage.delete(key=original_key), robust=True)
+        stored.metadata = {**metadata, "source_cleanup_pending": True}
         stored.original_filename = "video.mp4"
         detected = "video/mp4"
         actual_size = len(full)
@@ -364,9 +378,9 @@ def _complete_upload(*, user, file_id) -> StoredFile:
     )
 
     # Scanning is asynchronous; no file is usable before a clean verdict.
-    from .tasks import scan_file
+    from .tasks import dispatch_scan
 
-    transaction.on_commit(lambda: scan_file.delay(str(stored.id)))
+    transaction.on_commit(lambda: dispatch_scan(str(stored.id)))
     return stored
 
 

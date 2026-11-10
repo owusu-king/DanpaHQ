@@ -13,6 +13,7 @@ from rest_framework.views import APIView
 
 from apps.core.exceptions import NotFound
 from apps.idempotency.services import idempotent_mutation
+from apps.identity.permissions import require_property_request_contact
 
 from . import services
 from .models import OPEN_STATUSES, RentalApplication
@@ -43,11 +44,9 @@ class MyApplicationsView(APIView):
 
     @idempotent_mutation(resource_type="rental_application")
     def post(self, request):
-        from apps.identity.permissions import IsPhoneVerified
         from apps.listing.models import Listing
 
-        if not IsPhoneVerified().has_permission(request, self):
-            raise NotFound("Confirm your phone number before applying for a place.")
+        require_property_request_contact(request.user)
 
         payload = SubmitApplicationSerializer(data=request.data)
         payload.is_valid(raise_exception=True)

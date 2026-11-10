@@ -1,3 +1,5 @@
+from typing import cast
+
 from rest_framework import serializers
 
 from .models import (
@@ -212,7 +214,7 @@ def _billing_states(serializer, *, wanted: set[str], key) -> dict:
     cache = getattr(holder, "_billing_state_cache", None)
     if cache is None:
         cache = {"checked": set(), "properties": {}, "units": {}}
-        holder._billing_state_cache = cache
+        setattr(holder, "_billing_state_cache", cache)  # noqa: B010
         instances = holder.instance
         if instances is not None:
             rows = [instances] if isinstance(instances, Model) else list(instances)
@@ -364,7 +366,7 @@ class UnitSerializer(serializers.ModelSerializer):
 
     def get_amenities(self, obj) -> list:
         rows = obj.unit_amenities.filter(removed_at__isnull=True).select_related("amenity")
-        return UnitAmenitySerializer(rows, many=True).data
+        return cast(list[dict], UnitAmenitySerializer(rows, many=True).data)
 
     def get_primary_photo(self, obj) -> dict | None:
         photo = (
@@ -445,13 +447,13 @@ class UnitDetailSerializer(UnitSerializer):
     def get_beds(self, obj) -> list:
         if obj.property.property_type != PropertyType.HOSTEL:
             return []
-        return BedSerializer(obj.beds.filter(is_active=True), many=True).data
+        return cast(list[dict], BedSerializer(obj.beds.filter(is_active=True), many=True).data)
 
 
 class UpdateUnitSerializer(serializers.Serializer):
     """What may be corrected about a space, and within what bounds."""
 
-    label = serializers.CharField(max_length=40, required=False, allow_blank=True)
+    label = serializers.CharField(max_length=40, required=False, allow_blank=True)  # type: ignore[assignment]
     description = serializers.CharField(max_length=1500, required=False, allow_blank=True)
     bedrooms = serializers.IntegerField(min_value=0, max_value=20, required=False)
     bathrooms = serializers.IntegerField(min_value=0, max_value=10, required=False)
@@ -572,6 +574,7 @@ class PropertySerializer(serializers.ModelSerializer):
     amenities = serializers.SerializerMethodField()
     video = serializers.SerializerMethodField()
     cover_url = serializers.SerializerMethodField()
+    cover_thumbnail_url = serializers.SerializerMethodField()
     #: For a property for sale, where its sale stands; `None` for letting.
     sale = serializers.SerializerMethodField()
     #: The three facts in words, so no client keeps its own copy of the labels.
@@ -602,6 +605,7 @@ class PropertySerializer(serializers.ModelSerializer):
             "amenities_confirmed_at",
             "amenities",
             "cover_url",
+            "cover_thumbnail_url",
             "video",
             "unit_count",
             "bed_count",
@@ -638,7 +642,11 @@ class PropertySerializer(serializers.ModelSerializer):
         from apps.sale.models import SaleListing
         from apps.sale.read_models import is_public
 
-        sale = SaleListing.objects.filter(property=obj).first()
+        sale = (
+            obj._property_list_sale
+            if hasattr(obj, "_property_list_sale")
+            else SaleListing.objects.filter(property=obj).first()
+        )
         if sale is None:
             return None
         return {
@@ -649,7 +657,11 @@ class PropertySerializer(serializers.ModelSerializer):
             "price_formatted": str(Money(sale.price_minor, sale.currency))
             if sale.price_minor
             else None,
-            "is_public": is_public(sale),
+            "is_public": (
+                obj._property_list_sale_public
+                if hasattr(obj, "_property_list_sale_public")
+                else is_public(sale)
+            ),
         }
 
     def get_condition_state(self, obj) -> str:
@@ -664,20 +676,35 @@ class PropertySerializer(serializers.ModelSerializer):
         without this the Properties list would carry a query per Property.
         """
         holder = self.parent if isinstance(self.parent, serializers.ListSerializer) else self
-        if not hasattr(holder, "_cover_file_cache"):
+        cached = getattr(holder, "_cover_file_cache", None)
+        if cached is None:
             from apps.trust.condition import cover_photographs
 
             instances = holder.instance
             if instances is None:
                 ids = []
-            elif hasattr(instances, "__iter__"):
-                ids = [row.id for row in instances]
-            else:
+            elif isinstance(instances, Property):
                 ids = [instances.id]
-            holder._cover_file_cache = cover_photographs(ids)
-        return holder._cover_file_cache
+            else:
+                ids = [row.id for row in instances]
+            cached = cover_photographs(ids)
+            setattr(holder, "_cover_file_cache", cached)  # noqa: B010
+        return cached
 
     def get_cover_url(self, obj) -> str | None:
+        from apps.files.photos import inline_image_url
+
+        return inline_image_url(self._cover_file(obj))
+
+    def get_cover_thumbnail_url(self, obj) -> str | None:
+        from apps.files.thumbnails import thumbnail_url
+
+        request = self.context.get("request")
+        if request is None:
+            return None
+        return thumbnail_url(self._cover_file(obj), request=request)
+
+    def _cover_file(self, obj):
         """The one photograph a Property row shows — of the building itself.
 
         Its own media first. `PropertyMedia` is where a Property's photographs
@@ -701,24 +728,23 @@ class PropertySerializer(serializers.ModelSerializer):
         them, and `inline_image_url` refuses any file whose purpose is not
         `property_photo` regardless.
         """
-        from apps.files.photos import inline_image_url
+        from apps.files.photos import is_renderable_photo
 
         own = sorted(
             (row for row in obj.media.all() if row.kind in ("exterior", "interior")),
             key=lambda row: (row.kind != "exterior", row.sort_order, row.created_at),
         )
         for row in own:
-            url = inline_image_url(row.file)
-            if url is not None:
-                return url
+            if is_renderable_photo(row.file):
+                return row.file
 
-        return inline_image_url(self._cover_files().get(str(obj.id)))
+        return self._cover_files().get(str(obj.id))
 
     def get_amenities(self, obj) -> list:
         rows = getattr(obj, "_property_list_amenities", None)
         if rows is None:
             rows = obj.property_amenities.filter(removed_at__isnull=True).select_related("amenity")
-        return PropertyAmenitySerializer(rows, many=True).data
+        return cast(list[dict], PropertyAmenitySerializer(rows, many=True).data)
 
     def get_verification(self, obj) -> dict:
         from .verification import lifecycle

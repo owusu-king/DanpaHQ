@@ -419,12 +419,31 @@ class TestOrganizationAuthorization:
         assert [row["tenancy_id"] for row in past] == [str(second_lease.tenancy_id)]
         assert past[0]["ended_at"]
 
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        portfolio_url = f"/api/v1/organizations/{organization.id}/portfolio/"
+        with CaptureQueriesContext(connection) as full_queries:
+            full = owner_api.get(portfolio_url)
+        with CaptureQueriesContext(connection) as home_queries:
+            home = owner_api.get(f"{portfolio_url}?view=home")
+        assert home.status_code == 200
+        assert home["Cache-Control"] == "private, no-store"
+        for field in ("organization", "counts", "money", "rent_collection", "recent_activity"):
+            assert home.data[field] == full.data[field]
+        assert "past_tenants" not in home.data
+        assert "tenant_access" not in home.data
+        assert "profit_loss" not in home.data
+        assert len(home_queries) < len(full_queries)
+        assert len(home_queries) <= 17
+
         outsider_api = APIClient()
         sign_in_as(outsider_api, user=stranger)
         assert (
             outsider_api.get(f"/api/v1/organizations/{organization.id}/portfolio/").status_code
             == 404
         )
+        assert outsider_api.get(f"{portfolio_url}?view=home").status_code == 404
 
     def test_payment_attention_counts_only_claims_the_provider_still_owes(
         self, address, approve_provider, registered, sign_in_as

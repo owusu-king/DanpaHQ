@@ -221,7 +221,8 @@ def local_download(request, key: str):
     # unrecognised types remain attachments even if the URL asks otherwise.
     inline = request.query_params.get("disposition") == "inline"
     stored = StoredFile.objects.filter(storage_key=key).first()
-    is_image = bool(stored and (stored.content_type or "").startswith("image/"))
+    content_type = stored.content_type if stored is not None else ""
+    is_image = content_type.startswith("image/")
     is_guide_media = bool(
         stored
         and stored.is_usable
@@ -241,7 +242,7 @@ def local_download(request, key: str):
     )
 
     if inline and (is_image or is_guide_media or is_walkthrough):
-        response = HttpResponse(data, content_type=stored.content_type)
+        response = HttpResponse(data, content_type=content_type)
         response["Content-Disposition"] = "inline"
     else:
         response = HttpResponse(data, content_type="application/octet-stream")
@@ -250,7 +251,7 @@ def local_download(request, key: str):
             response["Content-Disposition"] = f'attachment; filename="{filename}"'
 
     # Byte ranges let native and browser players seek without downloading twice.
-    if inline and (is_guide_media or is_walkthrough) and stored.content_type.startswith("video/"):
+    if inline and (is_guide_media or is_walkthrough) and content_type.startswith("video/"):
         response["Accept-Ranges"] = "bytes"
         requested = request.headers.get("Range", "")
         if requested:
@@ -267,7 +268,7 @@ def local_download(request, key: str):
                     response = HttpResponse(status=416)
                 else:
                     response = HttpResponse(
-                        data[first : last + 1], status=206, content_type=stored.content_type
+                        data[first : last + 1], status=206, content_type=content_type
                     )
                     response["Content-Disposition"] = "inline"
                     response["Content-Range"] = f"bytes {first}-{last}/{len(data)}"

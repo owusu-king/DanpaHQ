@@ -55,6 +55,7 @@ test("logout waits for a pending cookie rotation and refuses its late access tok
     : (revoked.push(options.headers.Authorization), Promise.resolve(null)));
   const refreshing = h.api.getAccessToken();
   const refused = assert.rejects(refreshing, { status: 401 });
+  await new Promise(setImmediate);
   const leaving = h.api.endSession();
   finish({ access_token: "late", expires_in: 900 });
   await Promise.all([refused, leaving]);
@@ -86,12 +87,12 @@ test("the no-cookie refresh contract invalidates once and does not loop", async 
   h.request(async () => {
     calls += 1;
     throw new h.ApiFailure(
-      { code: "validation_failed", message: "Sign in again.", details: {}, requestId: "test" },
-      422,
+      { code: "session_ended", message: "Sign in again.", details: {}, requestId: "test" },
+      401,
     );
   });
 
-  await assert.rejects(h.api.getAccessToken(), { status: 422 });
+  await assert.rejects(h.api.getAccessToken(), { status: 401 });
   await assert.rejects(h.api.getAccessToken(), { status: 401 });
   assert.equal(calls, 1, "an ended session must not submit the missing cookie again");
   assert.deepEqual(h.events, ["danpahq:session-invalid"]);
@@ -102,12 +103,12 @@ test("an expired or invalid refresh credential ends the session", async () => {
   const h = harness();
   h.request(async () => {
     throw new h.ApiFailure(
-      { code: "permission_denied", message: "Your session has expired.", details: {}, requestId: "test" },
-      403,
+      { code: "session_ended", message: "Your session has expired.", details: {}, requestId: "test" },
+      401,
     );
   });
 
-  await assert.rejects(h.api.getAccessToken(), { status: 403 });
+  await assert.rejects(h.api.getAccessToken(), { status: 401 });
   await assert.rejects(h.api.getAccessToken(), { status: 401 });
   assert.deepEqual(h.events, ["danpahq:session-invalid"]);
 });

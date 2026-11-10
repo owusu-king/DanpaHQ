@@ -107,7 +107,7 @@ export function SaleDetailsForm({
       await onSaved(next);
       return next;
     } catch (cause) {
-      setError(cause instanceof ApiFailure ? cause.error.message : "Could not save: check your connection and try again.");
+      setError(cause instanceof ApiFailure ? cause.error.message : "Could not save the sale details. Try again.");
       return null;
     } finally {
       setBusy(false);

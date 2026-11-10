@@ -24,7 +24,9 @@ from django.conf import settings
 from django.contrib.gis.db.models.aggregates import Extent
 from django.contrib.gis.geos import Polygon
 from django.db import connection
-from django.db.models import Count, Q, QuerySet
+from django.db.models import Count, Exists, OuterRef, Q, QuerySet
+
+from apps.property.models import UnitAmenity
 
 from . import read_models
 from .models import Listing
@@ -113,10 +115,11 @@ def filtered_listings(data: dict, area: Bounds | None) -> QuerySet[Listing]:
     if data.get("furnished") is not None:
         qs = qs.filter(unit__is_furnished=data["furnished"])
     if data.get("amenity_ids"):
-        qs = qs.filter(
-            unit__unit_amenities__amenity_id__in=data["amenity_ids"],
-            unit__unit_amenities__removed_at__isnull=True,
-        ).distinct()
+        qs = qs.filter(Exists(UnitAmenity.objects.filter(
+            unit_id=OuterRef("unit_id"),
+            amenity_id__in=data["amenity_ids"],
+            removed_at__isnull=True,
+        )))
     if data.get("ids"):
         qs = qs.filter(id__in=data["ids"])
 
@@ -149,16 +152,15 @@ def map_window(data: dict, area: Bounds | None) -> Bounds | None:
 
 def map_summary(qs: QuerySet[Listing]) -> dict:
     """How many rentals the search found, how many can be drawn, and where they are."""
-    counts = qs.aggregate(
-        total=Count("id", distinct=True),
-        mapped=Count("id", filter=Q(public_point__isnull=False), distinct=True),
+    summary = qs.aggregate(
+        total=Count("id"),
+        mapped=Count("public_point"),
+        extent=Extent("public_point"),
     )
-    extent = qs.filter(public_point__isnull=False).aggregate(extent=Extent("public_point"))[
-        "extent"
-    ]
+    extent = summary["extent"]
     return {
-        "total": counts["total"],
-        "unmapped": counts["total"] - counts["mapped"],
+        "total": summary["total"],
+        "unmapped": summary["total"] - summary["mapped"],
         "extent": Bounds(*extent).as_dict() if extent else None,
     }
 

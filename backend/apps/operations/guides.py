@@ -169,7 +169,9 @@ class GuideInput(serializers.Serializer):
 
 class ContentInput(serializers.Serializer):
     revision = serializers.IntegerField(min_value=0)
-    guides = GuideInput(many=True, max_length=10, allow_empty=True)
+    guides: serializers.ListSerializer[GuideInput] = serializers.ListSerializer(
+        child=GuideInput(), max_length=10, allow_empty=True
+    )
 
     def validate_guides(self, guides):
         keys = [item["id"] for item in guides]

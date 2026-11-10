@@ -504,7 +504,8 @@ def approve_quote(*, user, quote_id) -> Quote:
         )
         event = "artisan.quote_approved.v1"
     else:
-        if subject.record.assigned_quote_id != quote.revises_id:
+        previous = quote.revises
+        if previous is None or subject.record.assigned_quote_id != previous.id:
             raise Conflict("This revision is for a price that is no longer on record.")
         quote.status = QuoteStatus.APPROVED
         quote.decided_by, quote.decided_at = user, now
@@ -513,7 +514,7 @@ def approve_quote(*, user, quote_id) -> Quote:
         subject.record_revision(
             quote=quote,
             approver=user,
-            note=f"{_money(quote.revises.price_minor)} → {_money(quote.price_minor)}, "
+            note=f"{_money(previous.price_minor)} → {_money(quote.price_minor)}, "
             f"approved by {user.display_name}. {quote.reason}",
         )
         event = "artisan.revision_approved.v1"
