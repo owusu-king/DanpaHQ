@@ -98,6 +98,9 @@ test("account state and registration outrank every context", () => {
 
   const unfinished = { ...provider(), registration_state: "password_required" };
   assert.equal(resolveWebEntry(unfinished, "discovery"), "/register");
+
+  const legacy = { ...unfinished, entry_routes: { web: "/settings/security" } };
+  assert.equal(resolveWebEntry(legacy, "discovery"), "/settings/security");
 });
 
 test("contexts are matched to the experience they belong to", () => {

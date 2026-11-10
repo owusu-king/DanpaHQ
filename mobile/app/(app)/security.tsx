@@ -69,7 +69,9 @@ type SecurityStatus = {
 export default function SecurityScreen() {
   const density = useHomeDensity();
   const pageBottom = useSafeBottom(space[12]);
-  const { signOut } = useAuth();
+  const { state, signOut } = useAuth();
+  const me = state.status === "signed_in" ? state.me : null;
+  const complete = me?.registration_state === "complete";
   const [devices, setDevices] = useState<Device[] | null>(null);
   const [status, setStatus] = useState<SecurityStatus | null>(null);
   const [error, setError] = useState("");
@@ -90,8 +92,8 @@ export default function SecurityScreen() {
   }, []);
 
   useFocusEffect(useCallback(() => {
-    void load();
-  }, [load]));
+    if (complete) void load();
+  }, [complete, load]));
 
   /** Both actions end the sessions; only one of them bars the handset. */
   async function act(device: Device, path: string, method: "DELETE" | "POST") {
@@ -148,15 +150,24 @@ export default function SecurityScreen() {
     );
   }
 
+  const contentStyle = { paddingHorizontal: density.pagePadding, paddingTop: density.compact ? space[4] : space[5], paddingBottom: pageBottom, gap: density.sectionGap + space[2] };
+  if (!complete) return (
+    <IndexGround>
+      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={contentStyle}>
+        <PasswordSettings key={me?.id} />
+      </ScrollView>
+    </IndexGround>
+  );
+
   return (
     <IndexGround>
-      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingHorizontal: density.pagePadding, paddingTop: density.compact ? space[4] : space[5], paddingBottom: pageBottom, gap: density.sectionGap + space[2] }}>
+      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={contentStyle}>
         {error ? <Notice tone="error" title={error} /> : null}
 
         {status ? <StatusPanel status={status} devices={devices?.length ?? 0} /> : null}
 
         <SignInMethods />
-        <PasswordSettings />
+        <PasswordSettings key={me?.id} />
 
         <View style={styles.section}>
           <GroupLabel count={devices?.length}>Devices signed in</GroupLabel>

@@ -50,6 +50,25 @@ def clean_email(raw: str) -> str:
     return email
 
 
+def send_security_email(*, email: str, subject: str, body: str) -> None:
+    from django.core.mail import get_connection, send_mail
+
+    from apps.operations.configuration import value
+
+    try:
+        selected = value("NOTIFICATION_EMAIL_BACKEND", "")
+        connection = (
+            get_connection(f"apps.identity.email_backend.{selected.title()}EmailBackend")
+            if selected in {"brevo", "resend"} else None
+        )
+        send_mail(
+            subject, body, settings.DEFAULT_FROM_EMAIL, [email],
+            fail_silently=False, connection=connection,
+        )
+    except Exception as exc:
+        raise EmailDelivery() from exc
+
+
 @transaction.atomic
 def start_email_verification(*, user, raw_email: str) -> EmailVerification:
     """Send a code to the address. Asking again for the same one is a resend.
@@ -58,10 +77,6 @@ def start_email_verification(*, user, raw_email: str) -> EmailVerification:
     counter, exactly as on the phone, so "resend" is never a fresh budget of
     guesses. Asking for a different address cancels the earlier request.
     """
-    from django.core.mail import get_connection, send_mail
-
-    from apps.operations.configuration import value
-
     email = clean_email(raw_email)
     if user.email == email and user.is_email_verified:
         raise _field_error("email", "This address is already confirmed on your account.")
@@ -131,19 +146,7 @@ def start_email_verification(*, user, raw_email: str) -> EmailVerification:
         )
 
     subject, body = messages.email_verification(code)
-    try:
-        # Verification is user-requested security mail, independent of alert opt-outs.
-        selected = value("NOTIFICATION_EMAIL_BACKEND", "")
-        connection = (
-            get_connection(f"apps.identity.email_backend.{selected.title()}EmailBackend")
-            if selected in {"brevo", "resend"} else None
-        )
-        send_mail(
-            subject, body, settings.DEFAULT_FROM_EMAIL, [email],
-            fail_silently=False, connection=connection,
-        )
-    except Exception as exc:  # every transport failure is the same answer
-        raise EmailDelivery() from exc
+    send_security_email(email=email, subject=subject, body=body)
 
     record(
         action=AuditAction.UPDATE,

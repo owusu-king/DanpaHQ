@@ -65,18 +65,25 @@ export default function SecuritySettingsPage() {
     }
   }, []);
 
-  useEffect(() => { void load(); void loadDeletion(); }, [load, loadDeletion]);
+  const me = state.status === "signed_in" ? state.me : null;
+  const complete = me?.registration_state === "complete";
+  useEffect(() => {
+    if (complete) { void load(); void loadDeletion(); }
+  }, [complete, load, loadDeletion]);
 
   const pending = deletion?.request?.status === "pending" ? deletion.request : null;
   const declined = deletion?.request?.status === "declined" ? deletion.request : null;
+  const hasPassword = me?.has_password ?? me?.authentication_methods.includes("phone") ?? false;
+  const passwordCard = me ? (
+    <SettingsCard className="settings-security-card" title={hasPassword ? "Change password" : "Create password"} description="8+ characters. Avoid all digits or your phone number.">
+      <PasswordSection key={me.id} hasPassword={hasPassword} />
+    </SettingsCard>
+  ) : null;
+  if (!complete) return passwordCard;
 
   return (
     <>
-      {state.status === "signed_in" && (state.me.has_password || state.me.google_linked || state.me.authentication_methods.includes("phone")) ? (
-        <SettingsCard className="settings-security-card" title="Password" description="8+ characters. Avoid all digits or your phone number.">
-          <PasswordSection hasPassword={state.me.has_password ?? state.me.authentication_methods.includes("phone")} />
-        </SettingsCard>
-      ) : null}
+      {passwordCard}
 
       <SettingsCard
         id="phone-verification"

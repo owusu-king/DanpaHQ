@@ -77,8 +77,12 @@ me_patterns = [
     ),
     path("me/password/", identity_views.ChangePasswordView.as_view(), name="me-password"),
     path(
-        "me/password/google/", identity_views.SetGooglePasswordView.as_view(),
-        name="me-password-google",
+        "me/password/create/code/", identity_views.StartPasswordCreationView.as_view(),
+        name="me-password-create-code",
+    ),
+    path(
+        "me/password/create/", identity_views.CreatePasswordView.as_view(),
+        name="me-password-create",
     ),
     path("me/google/", identity_views.GoogleLinkView.as_view(), name="me-google"),
     path("me/phone/", identity_views.PhoneVerificationView.as_view(), name="me-phone"),

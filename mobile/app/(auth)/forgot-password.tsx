@@ -4,7 +4,7 @@ import { Platform } from "react-native";
 
 import { apiFetch, ApiFailure } from "@/api";
 import { useAuth, type Me } from "@/auth";
-import { DIAL_CODE, TextLink } from "@/components/auth/AuthFields";
+import { TextLink } from "@/components/auth/AuthFields";
 import {
   AuthAction,
   AuthBack,
@@ -17,32 +17,18 @@ import {
   RevealToggle,
 } from "@/components/auth/AuthScene";
 import { Notice } from "@/components/ui";
-import { fieldErrorsFrom, isNoAccount, summaryErrorFrom } from "@/formErrors";
+import { fieldErrorsFrom, summaryErrorFrom } from "@/formErrors";
 import { resolveEntryRoute } from "@/navigation";
-import { phoneInputProps } from "@/platform";
 import { MFASignIn } from "@/components/auth/MFASignIn";
 import { isMFAChallenge, type MFAChallenge } from "@/mfa";
 import type { CreatedSession } from "@/registrationDraft";
 
-/**
- * Recovering a forgotten password.
- *
- * The middle step deliberately does not sign anyone in: proving the number
- * returns a token that authorises exactly one password change and nothing else.
- * If a swapped SIM gets this far it reaches a password change the real owner is
- * told about by SMS, rather than a silent read of the account.
- *
- * Three steps on one screen, and now they are counted. A person who has
- * forgotten their password does not know whether they are one screen from being
- * back in or five; the marks are the cheapest possible answer, and they are the
- * same marks sign-up uses two screens away.
- */
 const MIN_PASSWORD_LENGTH = 8;
 
-type Step = "phone" | "code" | "password";
+type Step = "identifier" | "code" | "password";
 
 const STEPS: Record<Step, { at: number; line: string }> = {
-  phone: { at: 1, line: "Enter the number on your account and we'll text you a code." },
+  identifier: { at: 1, line: "Enter a verified email address or mobile number on your account." },
   code: { at: 2, line: "" },
   password: { at: 3, line: "Choose a new password." },
 };
@@ -51,9 +37,8 @@ export default function ForgotPasswordScreen() {
   const router = useRouter();
   const { signIn, deviceFingerprint } = useAuth();
 
-  const [step, setStep] = useState<Step>("phone");
-  const [phone, setPhone] = useState("");
-  const [phoneDisplay, setPhoneDisplay] = useState("");
+  const [step, setStep] = useState<Step>("identifier");
+  const [identifier, setIdentifier] = useState("");
   const [challengeId, setChallengeId] = useState("");
   const [code, setCode] = useState("");
   const [resetToken, setResetToken] = useState("");
@@ -63,35 +48,36 @@ export default function ForgotPasswordScreen() {
   const [reveal, setReveal] = useState(false);
   const [error, setError] = useState("");
   const [fieldError, setFieldError] = useState("");
-  // Not an error: the number is fine, it simply has no account behind it.
-  const [noAccount, setNoAccount] = useState(false);
 
   async function requestCode() {
     setBusy(true);
     setError("");
     try {
-      const result = await apiFetch<{ challenge_id: string; phone_display: string }>(
+      const result = await apiFetch<{ challenge_id: string }>(
         "/auth/password-reset/",
         {
           method: "POST",
           anonymous: true,
-          body: { phone, device_fingerprint: deviceFingerprint },
+          body: { identifier: identifier.trim(), device_fingerprint: deviceFingerprint },
         },
       );
       setChallengeId(result.challenge_id);
-      setPhoneDisplay(result.phone_display);
+      setCode("");
       setStep("code");
     } catch (cause) {
-      // Answered before any code is sent, so this arrives without the wait it
-      // used to take to find out there was nothing here to reset.
-      if (isNoAccount(cause)) {
-        setNoAccount(true);
-        return;
-      }
       setError(cause instanceof ApiFailure ? cause.error.message : "Could not send the code.");
     } finally {
       setBusy(false);
     }
+  }
+
+  function restart() {
+    setStep("identifier");
+    setCode("");
+    setResetToken("");
+    setPassword("");
+    setError("");
+    setFieldError("");
   }
 
   async function confirmCode() {
@@ -166,50 +152,37 @@ export default function ForgotPasswordScreen() {
     >
       <AuthHeading
         title="Reset your password"
-        line={step === "code" ? `Enter the code we sent to ${phoneDisplay}.` : here.line}
+        line={step === "code" ? `If that contact is verified on your account, we sent a code to ${identifier.trim()}.` : here.line}
       />
 
-      {step === "phone" ? (
+      {step === "identifier" ? (
         <>
           <AuthFields>
             <AuthField
               labelAsPlaceholder
-              label="Mobile number"
-              icon="call-outline"
-              prefix={DIAL_CODE}
-              placeholder="Mobile number"
-              value={phone}
+              label="Email or mobile number"
+              icon="person-outline"
+              placeholder="Email or mobile number"
+              value={identifier}
               onChangeText={(value) => {
-                setPhone(value);
-                setNoAccount(false);
+                setIdentifier(value);
                 if (error) setError("");
               }}
-              maxLength={15}
+              maxLength={254}
+              autoCapitalize="none"
+              autoCorrect={false}
+              autoComplete="username"
               autoFocus
-              {...phoneInputProps}
             />
           </AuthFields>
           {error ? <Notice tone="error" title={error} /> : null}
-          {noAccount ? (
-            <>
-              <Notice
-                tone="info"
-                title="No account for that number"
-              />
-              <AuthAction
-                label="Create an account"
-                onPress={() => router.replace({ pathname: "/(auth)/start", params: { step: "role" } })}
-              />
-            </>
-          ) : (
-            <AuthAction
-              label="Send code"
-              busyLabel="Sending…"
-              onPress={requestCode}
-              busy={busy}
-              disabled={phone.replace(/\D/g, "").length < 9}
-            />
-          )}
+                    <AuthAction
+            label="Send code"
+            busyLabel="Sending…"
+            onPress={requestCode}
+            busy={busy}
+            disabled={!identifier.trim()}
+          />
         </>
       ) : null}
 
@@ -230,7 +203,7 @@ export default function ForgotPasswordScreen() {
             busyLabel="Checking…"
             onPress={confirmCode}
             busy={busy}
-            disabled={code.length < 4}
+            disabled={code.length !== 6}
           />
         </>
       ) : null}
@@ -273,6 +246,7 @@ export default function ForgotPasswordScreen() {
       ) : null}
 
       <AuthFoot>
+        {step !== "identifier" && !busy ? <TextLink label="Start over or resend code" onPress={restart} /> : null}
         <TextLink
           label="Back to sign in"
           muted

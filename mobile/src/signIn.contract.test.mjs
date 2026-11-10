@@ -87,12 +87,9 @@ test("the chosen workspace survives the handoff from the question", () => {
 test("Ghana is the default and a password can be checked", () => {
   assert.match(code(fields()), /export const DIAL_CODE = "\+233";/);
 
-  // Phone-specific screens retain their prefix; password sign-in also accepts email.
-  for (const name of ["phone", "forgot-password"]) {
-    const screen = code(read(`mobile/app/(auth)/${name}.tsx`));
-    assert.match(screen, /prefix=\{DIAL_CODE\}/, `${name} does not use the shared dialling code`);
-    assert.doesNotMatch(screen, /prefix="\+233"/, `${name} hardcodes the dialling code`);
-  }
+  const phone = code(read("mobile/app/(auth)/phone.tsx"));
+  assert.match(phone, /prefix=\{DIAL_CODE\}/);
+  assert.doesNotMatch(phone, /prefix="\+233"/);
 
   const login = code(signIn());
   assert.match(login, /label="Email or Phone"/);
@@ -301,7 +298,6 @@ test("sign in offers recovery and registration while public browsing stays on th
   // Creating an account opens the role question without repeating the introduction.
   assert.match(body, /router\.push\(\{ pathname: "\/\(auth\)\/start", params: \{ step: "role" \} \}\)/);
   assert.match(code(start()), /if \(!choosing && step !== "role"\)/);
-  assert.match(code(read("mobile/app/(auth)/forgot-password.tsx")), /params: \{ step: "role" \}/);
   assert.doesNotMatch(body, /Browse homes without an account|\(tabs\)\/explore/);
   assert.match(code(start()), /\(tabs\)\/explore/);
 });

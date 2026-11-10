@@ -96,12 +96,9 @@ class DeviceContextSerializer(serializers.Serializer):
     os_version = serializers.CharField(required=False, allow_blank=True, max_length=40)
 
 
-class PasswordSignInSerializer(DeviceContextSerializer):
+class PasswordIdentifierSerializer(DeviceContextSerializer):
     identifier = serializers.CharField(required=False, max_length=254)
     phone = PhoneField(required=False)
-    #: No max_length. Truncating a long passphrase silently would change the
-    #: credential the person thinks they set.
-    password = serializers.CharField(trim_whitespace=False)
 
     def validate(self, attrs):
         if not attrs.get("identifier") and not attrs.get("phone"):
@@ -122,6 +119,10 @@ class PasswordSignInSerializer(DeviceContextSerializer):
         return attrs
 
 
+class PasswordSignInSerializer(PasswordIdentifierSerializer):
+    password = serializers.CharField(trim_whitespace=False)
+
+
 class GoogleSignInSerializer(DeviceContextSerializer):
     credential = serializers.CharField(trim_whitespace=False, max_length=10_000)
     account_type = serializers.ChoiceField(choices=AccountType.choices, required=False)
@@ -129,10 +130,6 @@ class GoogleSignInSerializer(DeviceContextSerializer):
 
 class GoogleCredentialSerializer(serializers.Serializer):
     credential = serializers.CharField(trim_whitespace=False, max_length=10_000)
-
-
-class SetGooglePasswordSerializer(GoogleCredentialSerializer):
-    new_password = serializers.CharField(trim_whitespace=False, max_length=128)
 
 
 class CompleteRegistrationSerializer(DeviceContextSerializer):
@@ -170,9 +167,8 @@ class CompleteRegistrationSerializer(DeviceContextSerializer):
     password = serializers.CharField(trim_whitespace=False, required=False, allow_blank=True)
 
 
-class StartPasswordResetSerializer(serializers.Serializer):
-    phone = PhoneField()
-    device_fingerprint = serializers.CharField(required=False, allow_blank=True, max_length=128)
+class StartPasswordResetSerializer(PasswordIdentifierSerializer):
+    pass
 
 
 class VerifyPasswordResetSerializer(serializers.Serializer):
@@ -188,6 +184,14 @@ class VerifyPasswordResetSerializer(serializers.Serializer):
 
 class CompletePasswordResetSerializer(DeviceContextSerializer):
     reset_token = serializers.CharField()
+    new_password = serializers.CharField(trim_whitespace=False)
+
+
+class StartPasswordCreationSerializer(serializers.Serializer):
+    channel = serializers.ChoiceField(choices=["sms", "email"])
+
+
+class CreatePasswordSerializer(VerifyPasswordResetSerializer):
     new_password = serializers.CharField(trim_whitespace=False)
 
 
@@ -637,6 +641,10 @@ class MeSerializer(serializers.ModelSerializer):
             return {"mobile": "/(app)/restricted", "web": "/restricted"}
 
         capabilities = self.get_capabilities(obj)
+        if capabilities["registration_state"] == "password_required" and (
+            obj.is_phone_verified or obj.is_email_verified
+        ):
+            return {"mobile": "/(app)/security", "web": "/settings/security"}
         if capabilities["registration_state"] != "complete":
             return {"mobile": "/(auth)/register", "web": "/register"}
 

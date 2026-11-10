@@ -22,7 +22,8 @@ pytestmark = pytest.mark.django_db
 
 def member(policy="required", account_type="tenant"):
     return make_account(
-        "0500000088", email="member@example.com", mfa_policy=policy, account_type=account_type
+        "0500000088", email="member@example.com", is_email_verified=True,
+        mfa_policy=policy, account_type=account_type,
     )
 
 

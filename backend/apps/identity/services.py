@@ -3,10 +3,8 @@
 Everything that creates, proves or destroys a session lives here. The rules that
 shape this file:
 
-* **Never leak whether an account exists**, except on sign-up and recovery.
-  Those two answer at the number, because the alternative is spending someone an
-  SMS and a wait to tell them what was knowable immediately. Every other purpose
-  behaves identically for a known and an unknown number.
+* **Avoid disclosing whether an account exists.** Sign-up and the older
+  phone-only recovery contract explicitly report this for compatibility.
 * **Never create an account until someone asks to join.** Proving a number is
   not joining: it yields a signed, expiring ticket, and the account is created
   in the same transaction that validates the registration form. Abandon the
@@ -74,6 +72,9 @@ from .risk import RiskSignals, assess
 
 ACCESS_TOKEN_TTL_SECONDS = 15 * 60
 REFRESH_TOKEN_TTL_DAYS = 30
+PHONE_ENTRY_PURPOSES = (
+    ChallengePurpose.CONTINUE, ChallengePurpose.SIGN_IN, ChallengePurpose.SIGN_UP,
+)
 
 
 def signed_in_devices(user):
@@ -182,16 +183,18 @@ def _signing_key() -> str:
 @transaction.atomic
 def start_challenge(
     *,
-    raw_phone: str,
+    raw_phone: str = "",
+    email: str = "",
     purpose: str = ChallengePurpose.CONTINUE,
     ip_address: str | None = None,
     device_fingerprint: str = "",
     user=None,
+    session=None,
 ) -> AuthChallenge:
     """Issue an OTP. Same behaviour whether or not the number has an account,
     except on sign-up — see below.
     """
-    phone = normalise_ghana_msisdn(raw_phone)
+    phone = "" if email else normalise_ghana_msisdn(raw_phone)
 
     # Sign-up is the one purpose that answers differently for a known number.
     #
@@ -217,8 +220,8 @@ def start_challenge(
     # after an SMS, six digits and a wait is a worse way to learn it. The
     # enumeration trade is the one already accepted above, bounded by the same
     # per-number and per-IP throttles.
-    if purpose == ChallengePurpose.RECOVER_ACCOUNT:
-        existing = User.objects.filter(phone=phone).first()
+    if purpose == ChallengePurpose.RECOVER_ACCOUNT and not email:
+        existing = User.objects.select_for_update().filter(phone=phone).first()
         # Staff recover through the operations sign-in, so this surface has no
         # account for them and says so rather than confirming the number.
         if existing is None or existing.is_staff or not existing.is_phone_verified:
@@ -236,27 +239,42 @@ def start_challenge(
         user = existing
 
     hour_ago = timezone.now() - timedelta(hours=1)
-    sends_phone = AuthChallenge.objects.filter(phone=phone, created_at__gte=hour_ago).count()
+    destination = AuthChallenge.objects.filter(email=email) if email else (
+        AuthChallenge.objects.filter(phone=phone)
+    )
+    sends_phone = destination.filter(created_at__gte=hour_ago).aggregate(
+        total=models.Sum("send_count", default=0)
+    )["total"]
     sends_ip = (
-        AuthChallenge.objects.filter(ip_address=ip_address, created_at__gte=hour_ago).count()
+        AuthChallenge.objects.filter(ip_address=ip_address, created_at__gte=hour_ago)
+        .aggregate(total=models.Sum("send_count", default=0))["total"]
         if ip_address
         else 0
     )
 
     live = (
-        AuthChallenge.objects.select_for_update()
-        .filter(phone=phone, purpose=purpose, status=ChallengeStatus.PENDING)
+        destination.select_for_update()
+        .filter(
+            purpose=purpose,
+            status=ChallengeStatus.PENDING,
+            session_family_id=session.family_id if session else None,
+        )
         .order_by("-created_at")
         .first()
     )
 
-    seconds_since = int((timezone.now() - live.last_sent_at).total_seconds()) if live else None
+    now = timezone.now()
+    locked_until = destination.filter(
+        purpose=purpose, locked_until__gt=now
+    ).aggregate(latest=models.Max("locked_until"))["latest"]
+    seconds_since = int((now - live.last_sent_at).total_seconds()) if live else None
     verdict = otp_policy.may_send(
         sends_last_hour_phone=sends_phone,
         sends_last_hour_ip=sends_ip,
         seconds_since_last_send=seconds_since,
         send_count_this_session=live.send_count if live else 0,
-        locked_out_seconds_remaining=live.lockout_seconds_remaining if live else 0,
+        locked_out_seconds_remaining=max(1, int((locked_until - now).total_seconds()))
+        if locked_until else 0,
     )
     if verdict.decision is not Decision.ALLOW:
         raise RateLimited(verdict.message, details={"retry_after": verdict.retry_after_seconds})
@@ -264,7 +282,7 @@ def start_challenge(
     code = random_code(CODE_LENGTH)
     salt = random_token(8)
 
-    if live and live.is_live:
+    if live and live.is_live and (user is None or live.user_id == user.pk):
         # Resend replaces the code on the existing challenge, so the attempt
         # counter carries over. Otherwise five wrong guesses then "resend" would
         # be an unlimited guessing budget.
@@ -285,9 +303,15 @@ def start_challenge(
         )
         challenge = live
     else:
+        if live:
+            live.status = ChallengeStatus.CANCELLED
+            live.save(update_fields=["status", "updated_at"])
         challenge = AuthChallenge.objects.create(
             phone=phone,
+            email=email,
+            channel="email" if email else "sms",
             user=user or User.objects.filter(phone=phone).first(),
+            session_family_id=session.family_id if session else None,
             purpose=purpose,
             code_hash=hash_secret(code, pepper=_pepper(), salt=salt),
             code_salt=salt,
@@ -297,16 +321,25 @@ def start_challenge(
         )
 
     body = messages.BY_PURPOSE.get(purpose, messages.otp_sign_in)(code)
-    result = get_sms_provider().send(to=phone, body=body, reference=str(challenge.id))
-    if not result.accepted:
-        raise OtpDelivery(details={"provider": result.provider})
+    if email:
+        from .email_verification import send_security_email
+
+        send_security_email(
+            email=email, subject=f"{code} is your Danpa HQ security code", body=body,
+        )
+        provider = "email"
+    else:
+        result = get_sms_provider().send(to=phone, body=body, reference=str(challenge.id))
+        if not result.accepted:
+            raise OtpDelivery(details={"provider": result.provider})
+        provider = result.provider
 
     record(
         action=AuditAction.LOGIN,
         aggregate_type="auth_challenge",
         aggregate_id=challenge.id,
         actor=challenge.user,
-        metadata={"purpose": purpose, "sent": True, "provider": result.provider},
+        metadata={"purpose": purpose, "sent": True, "provider": provider},
     )
     return challenge
 
@@ -316,6 +349,9 @@ def verify_challenge(
     challenge_id,
     code: str,
     ip_address: str | None = None,
+    purposes=None,
+    session=None,
+    user_id=None,
 ) -> AuthChallenge:
     """Check a code. Raises with a specific, honest message on every failure.
 
@@ -329,12 +365,25 @@ def verify_challenge(
     failure: ChallengeFailed | None = None
 
     with transaction.atomic():
-        challenge = AuthChallenge.objects.select_for_update().filter(id=challenge_id).first()
+        challenges = AuthChallenge.objects.select_for_update().filter(id=challenge_id)
+        if purposes is not None:
+            challenges = challenges.filter(purpose__in=purposes)
+        if user_id is not None:
+            challenges = challenges.filter(user_id=user_id)
+        if session is not None:
+            challenges = challenges.filter(
+                user_id=session.user_id, session_family_id=session.family_id
+            )
+        challenge = challenges.first()
         if challenge is None:
+            if user_id is not None:
+                raise PermissionDenied("That code does not match this confirmation.")
             raise ChallengeFailed("That code request has expired. Start again.")
 
+        now = timezone.now()
         gate = otp_policy.may_verify(
-            challenge_age_seconds=challenge.age_seconds,
+            challenge_age_seconds=int((now - challenge.last_sent_at).total_seconds())
+            if challenge.expires_at > now else CODE_TTL_SECONDS,
             attempts_used=challenge.attempts,
             already_consumed=challenge.status != ChallengeStatus.PENDING,
         )
@@ -594,9 +643,9 @@ def confirm_phone_verification(*, user, challenge_id, code: str, ip_address: str
         challenge_id=challenge_id,
         code=code,
         ip_address=ip_address,
+        purposes=[ChallengePurpose.CHANGE_PHONE],
+        user_id=user.id,
     )
-    if challenge.purpose != ChallengePurpose.CHANGE_PHONE or challenge.user_id != user.id:
-        raise PermissionDenied("That code does not belong to this account.")
 
     with transaction.atomic():
         locked = User.objects.select_for_update().get(pk=user.pk)
@@ -658,7 +707,10 @@ def complete_sign_in(
     changed — still gets a registration session, so those can be finished rather
     than stranded.
     """
-    if challenge.status != ChallengeStatus.VERIFIED:
+    if (
+        challenge.status != ChallengeStatus.VERIFIED
+        or challenge.purpose not in PHONE_ENTRY_PURPOSES
+    ):
         raise PermissionDenied("Confirm the code before continuing.")
     if challenge.consumed_at and timezone.now() - challenge.consumed_at > timedelta(minutes=10):
         raise PermissionDenied("That confirmation has expired. Start again.")
@@ -1251,9 +1303,10 @@ def require_step_up(*, user, action: str, ip_address: str | None = None) -> Auth
 
 @transaction.atomic
 def confirm_step_up(*, user, challenge_id, code: str, action: str) -> bool:
-    challenge = verify_challenge(challenge_id=challenge_id, code=code)
-    if challenge.user_id != user.id or challenge.purpose != ChallengePurpose.STEP_UP:
-        raise PermissionDenied("That confirmation does not match this action.")
+    verify_challenge(
+        challenge_id=challenge_id, code=code,
+        purposes=[ChallengePurpose.STEP_UP], user_id=user.id,
+    )
 
     record(
         action=AuditAction.PERMISSION_CHANGE,
@@ -1559,7 +1612,11 @@ def complete_registration(
     challenge_id = ""
     google_registration: dict[str, str] | None = None
 
-    if user is None:
+    if user is not None:
+        user = User.objects.select_for_update().get(pk=user.pk)
+        if user.registration_state == "password_required":
+            raise PermissionDenied("Create your password in Settings → Security.")
+    else:
         if google_ticket:
             from .google_identity import open_google_registration_ticket
 
@@ -1577,7 +1634,7 @@ def complete_registration(
             if not ticket:
                 raise PermissionDenied("Confirm your phone number or Google account first.")
             phone, challenge_id = open_registration_ticket(ticket)
-            existing = User.objects.filter(phone=phone).first()
+            existing = User.objects.select_for_update().filter(phone=phone).first()
             if existing is not None:
                 # Someone finished registering on this number between the ticket
                 # being cut and it being spent. Two tabs, usually.
@@ -1652,6 +1709,8 @@ def complete_registration(
     user.last_name = last_name
     user.preferred_name = str(data.get("preferred_name", "")).strip()
     user.date_of_birth = date_of_birth
+    if email != (user.email or "").lower():
+        user.is_email_verified = False
     user.email = email or None
     update_fields = [
         "account_type",
@@ -1660,19 +1719,21 @@ def complete_registration(
         "preferred_name",
         "date_of_birth",
         "email",
+        "is_email_verified",
         "password",
         "updated_at",
     ]
     if google_registration:
         # The Google assertion verifies only the address it carried. If the
         # person edits it here, the replacement follows the normal email-code
-        # flow later. Phone registrations keep any pre-existing verification
-        # state when an older unfinished account is resumed.
+        # flow later. Resumed phone registrations retain verification only for
+        # an unchanged address.
         user.is_email_verified = bool(email and email == google_registration["email"])
-        update_fields.append("is_email_verified")
     if not is_google_registration:
         user.set_password(password)
     user.save(update_fields=update_fields)
+    if not is_google_registration and not created_now:
+        _invalidate_password_proofs(user)
     Profile.objects.get_or_create(user=user)
 
     if google_registration:
@@ -1778,7 +1839,8 @@ def sign_in_with_password(
         make_password(password)
         raise generic
     user = matches[0]
-    if "@" not in identifier and not user.is_phone_verified:
+    verified = user.is_email_verified if "@" in identifier else user.is_phone_verified
+    if not verified:
         make_password(password)
         raise generic
     if not user.has_usable_password():
@@ -1818,20 +1880,72 @@ def sign_in_with_password(
     )
 
 
+def _password_account_available(user: User) -> bool:
+    return (
+        user.is_active
+        and not user.is_staff
+        and user.registration_state in {"complete", "password_required"}
+    )
+
+
+def _verified_password_contact(user: User, channel: str) -> str:
+    if channel == "sms":
+        return (user.phone or "") if user.is_phone_verified else ""
+    if (
+        channel == "email" and user.email and user.is_email_verified
+        and not User.objects.filter(email__iexact=user.email).exclude(pk=user.pk).exists()
+    ):
+        return user.email.strip().lower()
+    return ""
+
+
+def _password_challenge_matches(challenge: AuthChallenge, user: User) -> bool:
+    address = challenge.email if challenge.channel == "email" else challenge.phone
+    return bool(
+        challenge.user_id == user.pk
+        and address
+        and address == _verified_password_contact(user, challenge.channel)
+    )
+
+
+@transaction.atomic
+def start_password_reset(*, identifier: str, ip_address=None, device_fingerprint=""):
+    """Issue recovery only to a unique, verified identifier on an eligible account."""
+    by_email = "@" in identifier
+    lookup = {"email__iexact": identifier} if by_email else {"phone": identifier}
+    users = list(User.objects.select_for_update().filter(**lookup).order_by("pk")[:2])
+    if len(users) != 1:
+        return None
+    user = users[0]
+    if not _password_account_available(user):
+        return None
+    contact = _verified_password_contact(user, "email" if by_email else "sms")
+    if not contact:
+        return None
+    return start_challenge(
+        **({"email": contact} if by_email else {"raw_phone": contact}),
+        user=user,
+        purpose=ChallengePurpose.RECOVER_ACCOUNT,
+        ip_address=ip_address,
+        device_fingerprint=device_fingerprint,
+    )
+
+
 def verify_password_reset(*, challenge_id, code: str, ip_address: str | None = None) -> str:
     """Exchange a recovery code for a short-lived token authorising one reset.
 
-    A token rather than a session: proving the number should let someone set a
-    password and nothing else. If a swapped SIM gets this far, the attacker's
-    reach ends at a password change the real owner is told about by SMS.
+    A token rather than a session: proving a contact authorises only setting a
+    password. A completed reset follows the normal login MFA policy.
     """
-    challenge = verify_challenge(challenge_id=challenge_id, code=code, ip_address=ip_address)
-    if challenge.purpose != ChallengePurpose.RECOVER_ACCOUNT:
-        raise PermissionDenied("That code was not issued for a password reset.")
-
-    user = challenge.user or User.objects.filter(phone=challenge.phone).first()
-    if user is None:
-        raise PermissionDenied("There is no account for that number.")
+    challenge = verify_challenge(
+        challenge_id=challenge_id, code=code, ip_address=ip_address,
+        purposes=[ChallengePurpose.RECOVER_ACCOUNT],
+    )
+    user = challenge.user
+    if not user or not _password_account_available(user) or not _password_challenge_matches(
+        challenge, user
+    ):
+        raise PermissionDenied("That reset is no longer valid. Start again.")
 
     return sign_payload(
         {"sub": str(user.id), "act": "password_reset", "cha": str(challenge.id)},
@@ -1865,25 +1979,22 @@ def complete_password_reset(*, reset_token: str, new_password: str) -> User:
         challenge_id = UUID(payload["cha"])
     except (KeyError, TypeError, ValueError, AttributeError) as exc:
         raise PermissionDenied("That reset is not valid. Start again.") from exc
+    user = User.objects.select_for_update().filter(id=subject).first()
+    if user is None or not _password_account_available(user):
+        raise PermissionDenied("That account is not available.")
     challenge = (
         AuthChallenge.objects.select_for_update()
         .filter(id=challenge_id, purpose=ChallengePurpose.RECOVER_ACCOUNT,
-                status=ChallengeStatus.VERIFIED)
+                user=user, status=ChallengeStatus.VERIFIED)
         .first()
     )
     if challenge is None:
         raise PermissionDenied("That reset was already used. Start again.")
-    user = User.objects.select_for_update().filter(id=subject).first()
-    if user is None or not user.is_active:
-        raise PermissionDenied("That account is not available.")
-    if user.phone != challenge.phone or challenge.user_id not in {None, user.id}:
+    if not _password_challenge_matches(challenge, user):
         raise PermissionDenied("That reset is no longer valid. Start again.")
 
     _validate_password(new_password, user=user, field="new_password")
-    challenge.status = ChallengeStatus.CANCELLED
-    challenge.save(update_fields=["status", "updated_at"])
-    user.set_password(new_password)
-    user.save(update_fields=["password", "updated_at"])
+    _write_password(user, new_password)
 
     sign_out_everywhere(user=user, reason="password_reset")
     transaction.on_commit(lambda: notify_password_changed(user), robust=True)
@@ -1898,6 +2009,21 @@ def complete_password_reset(*, reset_token: str, new_password: str) -> User:
     return user
 
 
+def _write_password(user: User, password: str) -> None:
+    """Called under the user lock so every credential write invalidates older proofs."""
+    user.set_password(password)
+    user.save(update_fields=["password", "updated_at"])
+    _invalidate_password_proofs(user)
+
+
+def _invalidate_password_proofs(user: User) -> None:
+    AuthChallenge.objects.filter(
+        user=user,
+        purpose__in=[ChallengePurpose.CREATE_PASSWORD, ChallengePurpose.RECOVER_ACCOUNT],
+        status__in=[ChallengeStatus.PENDING, ChallengeStatus.VERIFIED],
+    ).update(status=ChallengeStatus.CANCELLED, updated_at=timezone.now())
+
+
 def change_password(*, user, current_password: str, new_password: str, except_session=None) -> User:
     """Change a known password. The old one is required even inside a session.
 
@@ -1906,7 +2032,7 @@ def change_password(*, user, current_password: str, new_password: str, except_se
     """
     if not user.has_usable_password():
         raise PermissionDenied(
-            "This account has no password yet. Use 'Forgot password' to set one."
+            "This account has no password yet. Use Create password."
         )
     if not user.check_password(current_password):
         record(
@@ -1926,8 +2052,7 @@ def change_password(*, user, current_password: str, new_password: str, except_se
         if locked.password != user.password:
             raise Conflict("Your password changed on another device. Try again.")
         user = locked
-        user.set_password(new_password)
-        user.save(update_fields=["password", "updated_at"])
+        _write_password(user, new_password)
 
         # The session doing the changing survives; every other one does not, so
         # a password change doubles as the way to evict a device you no longer
@@ -1947,27 +2072,63 @@ def change_password(*, user, current_password: str, new_password: str, except_se
 def notify_password_changed(user):
     if user.phone and user.is_phone_verified:
         get_sms_provider().send(to=user.phone, body=messages.password_changed())
+    elif user.email and user.is_email_verified:
+        from .email_verification import send_security_email
+
+        send_security_email(
+            email=user.email, subject="Your Danpa HQ password changed",
+            body=messages.password_changed(),
+        )
+
+
+def _check_password_creation(user, session) -> None:
+    if not _password_account_available(user):
+        raise PermissionDenied("This account cannot create a password here.")
+    if user.has_usable_password():
+        raise Conflict("A password is already set. Use Change password.")
+    if not Session.objects.filter(
+        pk=session.pk, user=user, revoked_at__isnull=True, expires_at__gt=timezone.now()
+    ).exists():
+        raise SessionEnded()
 
 
 @transaction.atomic
-def set_google_password(*, user, subject: str, new_password: str, except_session):
+def start_password_creation(*, user, session, channel: str, ip_address=None) -> AuthChallenge:
     user = User.objects.select_for_update().get(pk=user.pk)
-    if user.is_staff or not user.is_active or not user.external_identities.filter(
-        provider=ExternalIdentityProvider.GOOGLE, subject=subject,
-    ).exists():
-        raise PermissionDenied("Confirm the Google account already linked to this account.")
-    if user.has_usable_password():
-        raise Conflict("A password is already set. Use Change password.")
-    _validate_password(new_password, user=user, field="new_password")
-    user.set_password(new_password)
-    user.save(update_fields=["password", "updated_at"])
-    sign_out_everywhere(user=user, except_session=except_session, reason="password_enabled")
-    record(
-        action=AuditAction.PASSWORD_CHANGE, aggregate_type="user", aggregate_id=user.id,
-        actor=user, metadata={"method": "google_confirmation"},
+    _check_password_creation(user, session)
+    contact = _verified_password_contact(user, channel)
+    if not contact:
+        raise PermissionDenied("Choose a verified phone number or email on this account.")
+    return start_challenge(
+        **({"email": contact} if channel == "email" else {"raw_phone": contact}),
+        purpose=ChallengePurpose.CREATE_PASSWORD, user=user, session=session, ip_address=ip_address,
     )
-    transaction.on_commit(lambda: notify_password_changed(user), robust=True)
-    return user
+
+
+def create_password(*, user, session, challenge_id, code: str, new_password: str) -> None:
+    _check_password_creation(user, session)
+    _validate_password(new_password, user=user, field="new_password")
+    # Failed OTP attempts commit in verify_challenge. Recheck both the account
+    # and the consumed proof under the user lock before writing the credential.
+    verify_challenge(
+        challenge_id=challenge_id, code=code, purposes=[ChallengePurpose.CREATE_PASSWORD],
+        session=session,
+    )
+    with transaction.atomic():
+        user = User.objects.select_for_update().get(pk=user.pk)
+        _check_password_creation(user, session)
+        challenge = AuthChallenge.objects.filter(
+            id=challenge_id, status=ChallengeStatus.VERIFIED,
+        ).first()
+        if challenge is None or not _password_challenge_matches(challenge, user):
+            raise PermissionDenied("That confirmation is no longer valid. Ask for a new code.")
+        _write_password(user, new_password)
+        sign_out_everywhere(user=user, except_session=session, reason="password_enabled")
+        record(
+            action=AuditAction.PASSWORD_CHANGE, aggregate_type="user", aggregate_id=user.id,
+            actor=user, metadata={"method": "otp_creation", "channel": challenge.channel},
+        )
+        transaction.on_commit(lambda: notify_password_changed(user), robust=True)
 
 
 # --- provider standing -------------------------------------------------------

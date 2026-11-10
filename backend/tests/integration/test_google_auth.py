@@ -81,23 +81,30 @@ def register_google(api, monkeypatch, value=None, account_type="tenant", **heade
     )
 
 
-def test_google_password_setup_requires_the_linked_subject_and_keeps_the_identity(monkeypatch, sms):
+def test_google_account_creates_a_danpa_password_with_email_otp(monkeypatch, sms, mailoutbox):
     api = APIClient()
     created = register_google(api, monkeypatch)
     assert created.status_code == 201
     api.credentials(HTTP_AUTHORIZATION=f"Bearer {created.data['access_token']}")
     body = {"credential": "verified-by-test-double", "new_password": TEST_PASSWORD}
-    stub_google(monkeypatch, claims(subject="someone-else"))
     refused = api.post("/api/v1/me/password/google/", body, format="json")
-    assert refused.status_code == 403
+    assert refused.status_code == 404
+    assert api.post("/api/v1/me/password/create/", body, format="json").status_code in (400, 422)
     assert not api.get("/api/v1/me/").data["has_password"]
 
-    stub_google(monkeypatch, claims())
-    changed = api.post("/api/v1/me/password/google/", body, format="json")
+    requested = api.post("/api/v1/me/password/create/code/", {"channel": "email"}, format="json")
+    assert requested.status_code == 201, requested.data
+    assert mailoutbox[-1].to == ["ama@example.com"]
+    code = mailoutbox[-1].body.split()[0]
+    changed = api.post("/api/v1/me/password/create/", {
+        "challenge_id": requested.data["challenge_id"], "code": code, "new_password": TEST_PASSWORD,
+    }, format="json")
     assert changed.status_code == 200, changed.data
     me = api.get("/api/v1/me/")
     assert me.data["has_password"] and me.data["google_linked"]
-    assert api.post("/api/v1/me/password/google/", body, format="json").status_code == 409
+    assert api.post(
+        "/api/v1/me/password/create/code/", {"channel": "email"}, format="json"
+    ).status_code == 409
 
     phone = api.post("/api/v1/me/phone/", {"phone": "0204567890"}, format="json")
     assert phone.status_code == 201, phone.data

@@ -11,34 +11,22 @@ import { Field } from "@/components/Field";
 import { Notice } from "@/components/Notice";
 import { apiFetch, ApiFailure } from "@/lib/api";
 import { setAccessToken } from "@/lib/auth";
-import { fieldErrorsFrom, isNoAccount, summaryErrorFrom } from "@/lib/formErrors";
+import { fieldErrorsFrom, summaryErrorFrom } from "@/lib/formErrors";
 import { useSession, type Me } from "@/lib/session";
 import { resolveWebEntry } from "@/lib/navigation";
 import { safeInternalPath } from "@/lib/safeRedirect";
 import { getWebDeviceContext } from "@/lib/device";
 
-/**
- * Recovering a forgotten password.
- *
- * Three steps, and the middle one deliberately does not sign anyone in: proving
- * the number returns a token that authorises exactly one password change and
- * nothing else. If a swapped SIM gets this far, it reaches a password change
- * the real owner is told about by SMS — not a silent read of the account.
- *
- * One view of the auth dialog. Set, the person lands on their dashboard, or
- * where they were heading when they were asked to sign in.
- */
 const MIN_PASSWORD_LENGTH = 8;
 
-type Step = "phone" | "code" | "password";
+type Step = "identifier" | "code" | "password";
 
 export function ForgotPasswordFlow({ params, go, close, land }: AuthFlowProps) {
   const { refresh } = useSession();
   const safeNext = safeInternalPath(params.next ?? null);
 
-  const [step, setStep] = useState<Step>("phone");
-  const [phone, setPhone] = useState("");
-  const [phoneDisplay, setPhoneDisplay] = useState("");
+  const [step, setStep] = useState<Step>("identifier");
+  const [identifier, setIdentifier] = useState("");
   const [challengeId, setChallengeId] = useState("");
   const [code, setCode] = useState("");
   const [resetToken, setResetToken] = useState("");
@@ -47,35 +35,36 @@ export function ForgotPasswordFlow({ params, go, close, land }: AuthFlowProps) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [fieldError, setFieldError] = useState("");
-  // Not an error: the number is fine, it simply has no account behind it.
-  const [noAccount, setNoAccount] = useState(false);
 
   async function requestCode(event: React.FormEvent) {
     event.preventDefault();
     setBusy(true);
     setError("");
     try {
-      const result = await apiFetch<{ challenge_id: string; phone_display: string }>(
+      const result = await apiFetch<{ challenge_id: string }>(
         "/auth/password-reset/",
         {
           method: "POST",
-          body: JSON.stringify({ phone: phone.trim(), ...getWebDeviceContext() }),
+          body: JSON.stringify({ identifier: identifier.trim(), ...getWebDeviceContext() }),
         },
       );
       setChallengeId(result.challenge_id);
-      setPhoneDisplay(result.phone_display);
+      setCode("");
       setStep("code");
     } catch (cause) {
-      // Answered before any code is sent, so this arrives without the wait it
-      // used to take to find out there was nothing here to reset.
-      if (isNoAccount(cause)) {
-        setNoAccount(true);
-        return;
-      }
       setError(cause instanceof ApiFailure ? cause.error.message : "Could not send the code.");
     } finally {
       setBusy(false);
     }
+  }
+
+  function restart() {
+    setStep("identifier");
+    setCode("");
+    setResetToken("");
+    setPassword("");
+    setError("");
+    setFieldError("");
   }
 
   async function confirmCode(event: React.FormEvent) {
@@ -134,7 +123,7 @@ export function ForgotPasswordFlow({ params, go, close, land }: AuthFlowProps) {
     }
   }
 
-  const stepNumber = step === "phone" ? 1 : step === "code" ? 2 : 3;
+  const stepNumber = step === "identifier" ? 1 : step === "code" ? 2 : 3;
 
   if (mfa) return <AuthModal title="Two-factor authentication" onClose={close}>
     <MFAStep<{ access_token: string; expires_in: number; user: Me }> initial={mfa}
@@ -149,10 +138,10 @@ export function ForgotPasswordFlow({ params, go, close, land }: AuthFlowProps) {
       eyebrow={`Step ${stepNumber} of 3`}
       progress={stepNumber / 3}
       title={step === "password" ? "Choose a new password" : "Reset your password"}
-      description={step === "phone"
-        ? "Enter the number on your account and we'll text you a code."
+      description={step === "identifier"
+        ? "Enter a verified email address or mobile number on your account."
         : step === "code"
-          ? <>Enter the code we sent to {phoneDisplay}.</>
+          ? <>If that contact is verified on your account, we sent a code to {identifier.trim()}.</>
           : "Setting it signs you in here, and out everywhere else."}
       onClose={close}
       footer={(
@@ -160,50 +149,30 @@ export function ForgotPasswordFlow({ params, go, close, land }: AuthFlowProps) {
           href={authHref("sign-in", { next: safeNext })}
           onClick={(event) => {
             event.preventDefault();
-            go("sign-in", { phone: phone.trim() || undefined, next: safeNext });
+            go("sign-in", { next: safeNext });
           }}
         >
           Back to sign in
         </a>
       )}
     >
-      {step === "phone" ? (
+      {step === "identifier" ? (
         <form onSubmit={requestCode} className="auth-form">
           <Field
-            label="Mobile number"
-            value={phone}
+            label="Email or mobile number"
+            value={identifier}
             onChange={(event) => {
-              setPhone(event.target.value);
-              setNoAccount(false);
+              setIdentifier(event.target.value);
               if (error) setError("");
             }}
-            inputMode="tel"
-            autoComplete="tel"
-            placeholder="024 123 4567"
+            autoComplete="username"
+            maxLength={254}
             required
           />
           {error ? <Notice tone="error" title={error} /> : null}
-          {noAccount ? (
-            <>
-              <p className="auth-note">
-                <strong>No account for that number.</strong>
-              </p>
-              <a
-                href={authHref("register", { phone: phone.trim() })}
-                className="btn btn-primary auth-submit"
-                onClick={(event) => {
-                  event.preventDefault();
-                  go("register", { phone: phone.trim(), next: safeNext });
-                }}
-              >
-                Create an account
-              </a>
-            </>
-          ) : (
-            <Button type="submit" className="auth-submit" busy={busy} busyLabel="Sending…" disabled={!phone.trim()}>
-              Send code
-            </Button>
-          )}
+          <Button type="submit" className="auth-submit" busy={busy} busyLabel="Sending…" disabled={!identifier.trim()}>
+            Send code
+          </Button>
         </form>
       ) : null}
 
@@ -212,14 +181,14 @@ export function ForgotPasswordFlow({ params, go, close, land }: AuthFlowProps) {
           <Field
             label="Six-digit code"
             value={code}
-            onChange={(event) => setCode(event.target.value)}
+            onChange={(event) => setCode(event.target.value.replace(/\D/g, ""))}
             inputMode="numeric"
             autoComplete="one-time-code"
             maxLength={6}
             required
           />
           {error ? <Notice tone="error" title={error} /> : null}
-          <Button type="submit" className="auth-submit" busy={busy} busyLabel="Checking…" disabled={code.trim().length < 4}>
+          <Button type="submit" className="auth-submit" busy={busy} busyLabel="Checking…" disabled={code.length !== 6}>
             Confirm code
           </Button>
         </form>
@@ -248,6 +217,7 @@ export function ForgotPasswordFlow({ params, go, close, land }: AuthFlowProps) {
           </p>
         </form>
       ) : null}
+      {step !== "identifier" ? <Button type="button" variant="quiet" disabled={busy} onClick={restart}>Start over or resend code</Button> : null}
     </AuthModal>
   );
 }

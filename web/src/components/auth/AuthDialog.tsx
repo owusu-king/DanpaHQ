@@ -159,13 +159,14 @@ export function AuthEntry({ view }: { view: AuthView }) {
       const me = state.me;
       // An account left unfinished finishes itself in the sign-up; the front
       // door would only send it straight back here.
-      if (view === "register" && me.registration_state !== "complete") {
+      const destination = resolveWebEntry(me);
+      if (view === "register" && destination === "/register") {
         open("register", params);
         return;
       }
       // An old welcome link shows the welcome once, over the dashboard.
       if (view === "welcome") open("welcome", params);
-      router.replace((params.next ?? resolveWebEntry(me)) as never);
+      router.replace((destination === "/settings/security" ? destination : params.next ?? destination) as never);
       return;
     }
 
