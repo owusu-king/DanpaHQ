@@ -1944,6 +1944,11 @@ export function listNotifications(cursor?: string) {
   );
 }
 
+export async function getUnreadNotificationCount() {
+  const { unread_count } = await authedFetch<{ unread_count: number }>("/me/notifications/?view=badge");
+  return unread_count;
+}
+
 export async function listNotificationHistory() {
   const first = await listNotifications();
   const results = [...first.results];

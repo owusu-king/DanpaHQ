@@ -11,14 +11,9 @@ import { aimModalFrom, holdModalInWorkspace, isBackdropClick } from "@/lib/modal
 import { getEnquiry, listEnquiries, proposeEnquiryCall, type Enquiry, type EnquiryDetail } from "@/lib/sales";
 import { createSupportCase, getSupportCase, listSupportCases, replyToSupportCase,
   type SupportCase, type SupportCaseDetail, type SupportCategory, type SupportMessage } from "@/lib/support";
+import type { EnquiriesRequest } from "./enquiryEvents";
 import "./askDanpa.css";
 
-export type EnquirySide = "buyer" | "seller";
-export type EnquiriesRequest = { id?: string; side?: EnquirySide; view?: "support"; record?: EnquiryDetail };
-export const OPEN_ENQUIRIES = "danpahq:open-enquiries";
-export function openEnquiries(request: EnquiriesRequest = {}) {
-  window.dispatchEvent(new CustomEvent<EnquiriesRequest>(OPEN_ENQUIRIES, { detail: request }));
-}
 const REFRESH_MS = 20_000;
 const CLOSE_MS = 140;
 

@@ -223,6 +223,34 @@ class TestTheCardFindsThePhotograph:
         assert len({row["file_id"] for row in data["card_media"]}) == 5
         assert data["cover_url"] == data["card_media"][0]["download_url"]
 
+    def test_public_search_loads_unit_and_campaign_photos_in_six_queries(
+        self, client, landlord, live_listing, django_assert_max_num_queries
+    ):
+        from apps.listing.models import ListingMedia
+        from apps.property.models import UnitMedia
+
+        live_listing.moderation_state = "approved"
+        live_listing.publication_state = "published"
+        live_listing.availability_state = "available"
+        live_listing.save(
+            update_fields=["moderation_state", "publication_state", "availability_state"]
+        )
+        unit_photo = _file(landlord, "room.jpg")
+        campaign_photo = _file(landlord, "campaign.jpg")
+        UnitMedia.objects.create(unit=live_listing.unit, file=unit_photo, is_primary=True)
+        ListingMedia.objects.create(listing=live_listing, file=campaign_photo, is_cover=True)
+
+        with django_assert_max_num_queries(6):
+            response = client.get("/api/v1/listings/")
+
+        assert response.status_code == 200
+        card = response.json()["results"][0]
+        assert [row["file_id"] for row in card["card_media"]] == [
+            str(unit_photo.id),
+            str(campaign_photo.id),
+        ]
+        assert "room.jpg" in card["cover_url"]
+
     def test_a_listing_with_no_photographs_anywhere_says_so_honestly(self, live_listing):
         from apps.listing.serializers import ListingSerializer
 

@@ -17,6 +17,7 @@
  * leaves the address on the front door, the way every other modal's link does.
  */
 
+import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   createContext,
@@ -31,10 +32,6 @@ import {
 } from "react";
 
 import { authHref, type AuthParams, type AuthView } from "@/components/auth/authTypes";
-import { ForgotPasswordFlow } from "@/components/auth/flows/ForgotPasswordFlow";
-import { RegisterFlow } from "@/components/auth/flows/RegisterFlow";
-import { SignInFlow } from "@/components/auth/flows/SignInFlow";
-import { WelcomeFlow } from "@/components/auth/flows/WelcomeFlow";
 import { FrontDoor } from "@/components/landing/FrontDoor";
 import { resolveWebEntry } from "@/lib/navigation";
 import { safeInternalPath } from "@/lib/safeRedirect";
@@ -48,10 +45,10 @@ type AuthDialogValue = {
 const AuthDialogContext = createContext<AuthDialogValue | null>(null);
 
 const FLOWS = {
-  "sign-in": SignInFlow,
-  register: RegisterFlow,
-  "forgot-password": ForgotPasswordFlow,
-  welcome: WelcomeFlow,
+  "sign-in": dynamic(() => import("./flows/SignInFlow").then((module) => module.SignInFlow)),
+  register: dynamic(() => import("./flows/RegisterFlow").then((module) => module.RegisterFlow)),
+  "forgot-password": dynamic(() => import("./flows/ForgotPasswordFlow").then((module) => module.ForgotPasswordFlow)),
+  welcome: dynamic(() => import("./flows/WelcomeFlow").then((module) => module.WelcomeFlow)),
 } as const;
 
 export function AuthDialogProvider({ children }: { children: ReactNode }) {

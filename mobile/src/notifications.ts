@@ -37,7 +37,12 @@ export function listNotifications(unreadOnly = false, cursor?: string) {
   );
 }
 
-/** The Updates history follows every page; header badges still need only one. */
+export async function getUnreadNotificationCount() {
+  const { unread_count } = await apiFetch<{ unread_count: number }>("/me/notifications/?view=badge");
+  return unread_count;
+}
+
+/** The Updates history follows every page. */
 export async function listNotificationHistory(): Promise<NotificationPage> {
   const first = await listNotifications();
   const results = [...first.results];

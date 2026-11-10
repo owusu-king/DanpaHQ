@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition } from "react";
 
-import { openArtisans } from "@/components/artisan/ArtisansWorkspace";
+import { openArtisans } from "@/components/artisan/artisanNavigation";
 import { Button } from "@/components/Button";
 import { Icon, type IconName } from "@/components/portal/icons";
 import { useToast } from "@/components/toast/Toaster";

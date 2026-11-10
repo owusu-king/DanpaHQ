@@ -7,7 +7,8 @@ from datetime import date, timedelta
 
 from django.core import signing
 from django.db import transaction
-from django.db.models import Q, QuerySet, Sum
+from django.db.models import Count, Q, QuerySet, Sum
+from django.db.models.functions import TruncMonth
 from django.utils import timezone
 
 from apps.audit.models import AuditAction
@@ -98,13 +99,19 @@ def _rent_collection_series(*, payments, charges: list, today: date) -> dict:
 
     monthly_collected = {value.strftime("%Y-%m"): 0 for value in month_starts}
     yearly_collected = {str(value): 0 for value in years}
-    for row in payments.values("paid_on", "amount_minor"):
-        month_key = row["paid_on"].strftime("%Y-%m")
-        year_key = str(row["paid_on"].year)
+    collected_by_month = (
+        payments.filter(paid_on__gte=date(years[0], 1, 1), paid_on__lt=date(today.year + 1, 1, 1))
+        .order_by()
+        .annotate(month=TruncMonth("paid_on"))
+        .values("month")
+        .annotate(total=Sum("amount_minor"))
+    )
+    for row in collected_by_month:
+        month_key = row["month"].strftime("%Y-%m")
+        year_key = str(row["month"].year)
         if month_key in monthly_collected:
-            monthly_collected[month_key] += row["amount_minor"] or 0
-        if year_key in yearly_collected:
-            yearly_collected[year_key] += row["amount_minor"] or 0
+            monthly_collected[month_key] = row["total"] or 0
+        yearly_collected[year_key] += row["total"] or 0
 
     monthly_outstanding = {value: 0 for value in monthly_collected}
     yearly_outstanding = {value: 0 for value in yearly_collected}
@@ -150,10 +157,13 @@ def active_membership(*, organization: Organization, user) -> OrganizationMember
 
 
 def get_organization_or_404(pk, user=None) -> Organization:
-    organization = Organization.objects.filter(id=pk, is_active=True).first()
+    organizations = Organization.objects.filter(id=pk, is_active=True)
+    if user is not None:
+        organizations = organizations.filter(
+            memberships__user=user, memberships__ended_at__isnull=True
+        )
+    organization = organizations.first()
     if organization is None:
-        raise NotFound("We could not find that organization.")
-    if user is not None and active_membership(organization=organization, user=user) is None:
         raise NotFound("We could not find that organization.")
     return organization
 
@@ -579,7 +589,12 @@ def portfolio_summary(*, organization: Organization, user, home_only: bool = Fal
         if row.status in {ChargeStatus.DUE, ChargeStatus.PART_PAID} and row.due_on < today
     )
     confirmed_payments = payments.filter(status=PaymentStatus.CONFIRMED)
-    confirmed_total = confirmed_payments.aggregate(total=Sum("amount_minor"))["total"] or 0
+    payment_totals = payments.filter(
+        status__in=[PaymentStatus.CONFIRMED, PaymentStatus.CLAIMED]
+    ).aggregate(
+        confirmed=Sum("amount_minor", filter=Q(status=PaymentStatus.CONFIRMED)),
+        claimed=Count("pk", filter=Q(status=PaymentStatus.CLAIMED)),
+    )
     rent_collection = _rent_collection_series(
         payments=confirmed_payments,
         charges=charges,
@@ -747,7 +762,7 @@ def portfolio_summary(*, organization: Organization, user, home_only: bool = Fal
         "money": {
             "outstanding_minor": outstanding,
             "overdue_minor": overdue,
-            "confirmed_received_minor": confirmed_total,
+            "confirmed_received_minor": payment_totals["confirmed"] or 0,
             # PSP-confirmed tenant payment and provider payout are deliberately
             # separate. A tenant can have paid while Paystack still owes the
             # Portfolio its batch settlement.
@@ -759,9 +774,7 @@ def portfolio_summary(*, organization: Organization, user, home_only: bool = Fal
             "settlement_attention_minor": settlement_totals["attention"] or 0,
             "expenses_minor": expense_total,
             #: Every claim still waiting for the other party to agree it.
-            "pending_payment_records": RentPayment.objects.filter(
-                lease_id__in=lease_ids, status=PaymentStatus.CLAIMED
-            ).count(),
+            "pending_payment_records": payment_totals["claimed"],
             #: Only the claims this user owes an answer to. A record the user
             #: made themselves is waiting on the counterparty, not on them, and
             #: counting it as their work overstates what they have to do.

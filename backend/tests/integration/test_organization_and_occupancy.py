@@ -435,6 +435,7 @@ class TestOrganizationAuthorization:
         assert "tenant_access" not in home.data
         assert "profit_loss" not in home.data
         assert len(home_queries) < len(full_queries)
+        assert len(home_queries) <= 17
 
         outsider_api = APIClient()
         sign_in_as(outsider_api, user=stranger)

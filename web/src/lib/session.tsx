@@ -20,6 +20,7 @@ import {
   isSessionRefusal,
   SESSION_INVALID_EVENT,
   SESSION_LOGOUT_KEY,
+  setAccessToken,
 } from "./auth";
 import { shouldRestoreSession, stateAfterFailure, type SessionState } from "./sessionPolicy";
 import { finishAccountWelcome } from "./registration";
@@ -183,6 +184,7 @@ type SessionValue = {
    * did not contain, and the person would land back in whatever they were in.
    */
   refresh: (preferredContext?: string) => Promise<void>;
+  completeSignIn: (result: { access_token: string; expires_in?: number; user: Me }) => void;
   signOut: () => Promise<void>;
   activeContext: string | null;
   setActiveContext: (context: string) => void;
@@ -233,34 +235,45 @@ export function SessionProvider({
   const [activeContext, setActiveContextState] = useState<string | null>(null);
   const generation = useRef(0);
 
+  const applyAccount = useCallback((me: Me, preferredContext?: string) => {
+    let stored: string | null = null;
+    try { stored = window.localStorage.getItem("account.active_context"); }
+    catch { /* Optional preferences must not turn a valid session into an error. */ }
+    const available = validContextIds(me);
+    const context = preferredContext && available.includes(preferredContext)
+      ? preferredContext
+      : stored && available.includes(stored)
+        ? stored
+        : me.default_context_id ?? me.default_context;
+    setActiveContextState(context);
+    if (context) {
+      try { window.localStorage.setItem("account.active_context", context); }
+      catch { /* The selected context is still available in memory. */ }
+    }
+    setState({ status: "signed_in", me });
+    rememberSignedIn(true);
+  }, []);
+
+  const completeSignIn = useCallback((result: { access_token: string; expires_in?: number; user: Me }) => {
+    generation.current += 1;
+    setAccessToken(result.access_token, result.expires_in ?? 0);
+    // The completed sign-in response already carries the current account.
+    applyAccount(result.user);
+  }, [applyAccount]);
+
   const refresh = useCallback(async (preferredContext?: string) => {
     const started = generation.current;
     try {
       const me = await authedFetch<Me>("/me/");
       if (started !== generation.current) return;
-      let stored: string | null = null;
-      try { stored = window.localStorage.getItem("account.active_context"); }
-      catch { /* Optional preferences must not turn a valid session into an error. */ }
-      const available = validContextIds(me);
-      const context = preferredContext && available.includes(preferredContext)
-        ? preferredContext
-        : stored && available.includes(stored)
-          ? stored
-          : me.default_context_id ?? me.default_context;
-      setActiveContextState(context);
-      if (context) {
-        try { window.localStorage.setItem("account.active_context", context); }
-        catch { /* The selected context is still available in memory. */ }
-      }
-      setState({ status: "signed_in", me });
-      rememberSignedIn(true);
+      applyAccount(me, preferredContext);
     } catch (cause) {
       if (started !== generation.current) return;
       if (isSessionRefusal(cause)) clearAccessToken();
       setState((current) => stateAfterFailure(cause, current));
       if (isSessionRefusal(cause)) rememberSignedIn(false);
     }
-  }, []);
+  }, [applyAccount]);
 
   const setActiveContext = useCallback((context: string) => {
     if (state.status !== "signed_in" || !validContextIds(state.me).includes(context)) return;
@@ -328,8 +341,8 @@ export function SessionProvider({
   }, [router]);
 
   const value = useMemo(
-    () => ({ state, refresh, signOut, activeContext, setActiveContext }),
-    [state, refresh, signOut, activeContext, setActiveContext],
+    () => ({ state, refresh, completeSignIn, signOut, activeContext, setActiveContext }),
+    [state, refresh, completeSignIn, signOut, activeContext, setActiveContext],
   );
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;

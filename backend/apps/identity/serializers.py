@@ -536,6 +536,13 @@ class MeSerializer(serializers.ModelSerializer):
         )
 
     def get_contexts(self, obj) -> list[dict]:
+        if not hasattr(self, "_workspace_contexts"):
+            self._workspace_contexts: dict[UUID, list[dict]] = {}
+        if obj.pk not in self._workspace_contexts:
+            self._workspace_contexts[obj.pk] = self._build_contexts(obj)
+        return self._workspace_contexts[obj.pk]
+
+    def _build_contexts(self, obj) -> list[dict]:
         consumer_roles = {Role.TENANT, Role.LANDLORD, Role.AGENT, Role.PROPERTY_MANAGER}
         if obj.is_staff and not (obj.roles & consumer_roles):
             return []

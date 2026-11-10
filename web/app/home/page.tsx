@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { Notice } from "@/components/Notice";
 import { JoinHomeButton } from "@/components/tenant/JoinHome";
-import { openEnquiries } from "@/components/enquiries/EnquiriesInbox";
+import { openEnquiries } from "@/components/enquiries/enquiryEvents";
 import { ProviderFinanceChart } from "@/components/home/ProviderFinanceChart";
 import { ProviderReview } from "@/components/home/ProviderReview";
 import { LoadingRows, PageHeader } from "@/components/portal/PageHeader";

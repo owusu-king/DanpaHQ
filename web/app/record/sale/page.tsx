@@ -22,7 +22,7 @@ import { useAuthDialog } from "@/components/auth/AuthDialog";
 import { usePageTitle } from "@/components/PageTitle";
 import { Button } from "@/components/Button";
 import { Field } from "@/components/Field";
-import { openEnquiries } from "@/components/enquiries/EnquiriesInbox";
+import { openEnquiries } from "@/components/enquiries/enquiryEvents";
 import { Notice } from "@/components/Notice";
 import { ModalSheet } from "@/components/workspace/ModalSheet";
 import { PropertyAsk } from "@/components/listings/PropertyAsk";

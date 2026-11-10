@@ -4,7 +4,7 @@ import { CheckCircle2, Clock3, ShieldCheck } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/Button";
-import { openEnquiries } from "@/components/enquiries/EnquiriesInbox";
+import { openEnquiries } from "@/components/enquiries/enquiryEvents";
 import { PhoneVerificationSection } from "@/components/account/IdentitySecurity";
 import { Notice } from "@/components/Notice";
 import { ProviderTermsConsent, type AcceptedProviderTerms } from "@/components/auth/ProviderTermsConsent";

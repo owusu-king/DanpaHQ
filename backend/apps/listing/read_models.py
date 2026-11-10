@@ -13,6 +13,7 @@ from django.db.models import (
     F,
     IntegerField,
     OuterRef,
+    Prefetch,
     Q,
     QuerySet,
     Value,
@@ -22,7 +23,22 @@ from django.db.models.functions import Abs
 
 from apps.occupancy.models import Occupancy, OccupancyStatus
 
-from .models import Listing, ListingStatus, RentPeriod
+from .models import Listing, ListingMedia, ListingStatus, RentPeriod
+
+
+def with_listing_cards(queryset: QuerySet[Listing]) -> QuerySet[Listing]:
+    """Load card photos with their file metadata in the same relation reads."""
+    from apps.property.models import UnitMedia
+
+    return queryset.select_related(
+        "unit__property__address__locality__district",
+        "unit__property__address__locality__region",
+        "created_by",
+    ).prefetch_related(
+        Prefetch("media", queryset=ListingMedia.objects.select_related("file")),
+        Prefetch("unit__media", queryset=UnitMedia.objects.select_related("file")),
+        "highlighted_amenities",
+    )
 
 
 def public_listings() -> QuerySet[Listing]:
@@ -188,7 +204,7 @@ def related_listings(listing: Listing, *, limit: int = 4) -> QuerySet[Listing]:
             property_amenity_overlap=Value(0, output_field=IntegerField())
         )
 
-    return (
+    return with_listing_cards(
         candidates.annotate(
             location_score=location_score,
             affordability_score=affordability_score,
@@ -205,11 +221,5 @@ def related_listings(listing: Listing, *, limit: int = 4) -> QuerySet[Listing]:
                 output_field=IntegerField(),
             )
         )
-        .select_related(
-            "unit__property__address__locality__district",
-            "unit__property__address__locality__region",
-            "created_by",
-        )
-        .prefetch_related("media__file", "unit__media__file", "highlighted_amenities")
         .order_by("-relevance_score", "rent_distance", "-created_at")[:limit]
     )
