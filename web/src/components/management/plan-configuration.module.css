@@ -1,0 +1,81 @@
+.page { --plan-inset: clamp(.875rem, 2.8vw, 1.75rem); color: var(--m-ink); }
+.page :is(h2, h3, h4, h5, p) { margin: 0; }
+.page p { color: var(--m-ink-2); font-size: .875rem; line-height: 1.55; }
+.header, .section { padding: var(--plan-inset); }
+.header { border-bottom: 1px solid var(--m-line); }
+.header h2 { font-size: clamp(1.25rem, 2.7vw, 1.625rem); line-height: 1.2; letter-spacing: -.03em; }
+.header p, .section > p { max-width: 66ch; margin-top: .4rem; }
+.section + .section { border-top: 1px solid var(--m-line); }
+.section h3 { font-size: 1.05rem; letter-spacing: -.015em; }
+
+.tableWrap { max-width: 100%; overflow-x: auto; border: 1px solid var(--m-line); border-radius: var(--m-radius-sm); }
+.section > .tableWrap, .catalogue > .tableWrap { margin-top: .875rem; }
+.table { border-collapse: collapse; width: 100%; font-size: .875rem; }
+.table th, .table td {
+  padding: .65rem clamp(.375rem, 1.6vw, 1rem);
+  border-bottom: 1px solid var(--m-line);
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+.table tr > :first-child { text-align: left; }
+.table thead th { font-weight: 700; }
+.table thead th:first-child { width: 38%; }
+.table tbody th { font-weight: 550; }
+.table td { font-variant-numeric: tabular-nums; font-weight: 600; }
+.table td[data-muted="true"] { color: var(--m-ink-2); font-weight: 400; }
+.table [data-selected="true"] { background: var(--m-accent-tint); }
+.table tbody:last-child tr:last-child > * { border-bottom: 0; }
+.table .group th {
+  background: var(--m-ground);
+  color: var(--m-ink-2);
+  text-transform: uppercase;
+  font-size: .7rem;
+  font-weight: 700;
+  letter-spacing: .075em;
+}
+.catalogue { margin-top: .625rem; }
+.catalogue summary { width: fit-content; padding: .65rem .125rem; color: var(--m-accent-strong); font-size: .875rem; font-weight: 650; cursor: pointer; }
+
+.picker { padding: 0; margin: 1rem 0; border: 0; }
+.picker legend { margin-bottom: .35rem; color: var(--m-ink-2); font-size: .8rem; font-weight: 600; }
+.picker > div { display: flex; flex-wrap: wrap; gap: .375rem; }
+.picker label {
+  min-height: 2.75rem;
+  gap: .5rem;
+  padding: .5rem .75rem;
+  border: 1px solid var(--m-line);
+  border-radius: var(--m-radius-sm);
+}
+.picker label:has(input:checked) { background: var(--m-accent-tint); border-color: var(--m-accent); color: var(--m-accent-strong); }
+.picker :global(.control-title) { font-size: .875rem; font-weight: 650; }
+
+.section .editor { padding: 1rem 0 0; border-top: 1px solid var(--m-line); }
+.editor h4 { font-size: 1rem; }
+.editGroup > h5 { margin-bottom: .375rem; color: var(--m-ink-2); font-size: .78rem; font-weight: 700; }
+.editGroup > p { margin-bottom: .75rem; }
+.editRow, .toolRow { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem 1.25rem; padding: .75rem 0; border-top: 1px solid var(--m-line); }
+.editRow > :first-child { min-width: 0; flex: 1 1 13rem; }
+.editRow > div > label { font-size: .875rem; font-weight: 650; }
+.editRow p { margin-top: .2rem; font-size: .8rem; }
+.editRow small { display: block; margin-top: .2rem; }
+.limit { display: flex; flex-wrap: wrap; align-items: center; gap: .375rem .75rem; }
+.limit input[type="number"] { width: 7.5rem; }
+.editor .limit label, .editor .toolRow label { display: flex; align-items: center; gap: .5rem; }
+.editor .toolRow label { min-width: 0; flex: 1 1 13rem; }
+.editor .limit :global(.control-title), .editor .toolRow :global(.control-title) { font-size: .875rem; }
+.editor .toolRow :global(.control-title) { font-weight: 650; }
+.reason { max-width: 38rem; }
+.editor .reason textarea { min-height: 4.75rem; }
+.reviewReason { overflow-wrap: anywhere; font-size: .875rem; }
+.reviewReason p { white-space: pre-wrap; }
+.footer, .recovery { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .75rem; }
+.footer { padding-top: .875rem; border-top: 1px solid var(--m-line); }
+.footer > span { color: var(--m-ink-2); font-size: .8rem; }
+.recovery { padding: var(--plan-inset); }
+
+@media (max-width: 34rem) {
+  .table { font-size: .75rem; }
+  .table th, .table td { padding-block: .625rem; }
+  .footer > div { width: 100%; }
+  .footer button { flex: 1 1 auto; min-height: 2.75rem; }
+}

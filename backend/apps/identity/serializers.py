@@ -132,6 +132,10 @@ class GoogleCredentialSerializer(serializers.Serializer):
     credential = serializers.CharField(trim_whitespace=False, max_length=10_000)
 
 
+class SetGooglePasswordSerializer(GoogleCredentialSerializer):
+    new_password = serializers.CharField(trim_whitespace=False, max_length=128)
+
+
 class CompleteRegistrationSerializer(DeviceContextSerializer):
     """Shape only. Every judgement about the *content* belongs to the service.
 

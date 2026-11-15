@@ -2081,6 +2081,30 @@ def notify_password_changed(user):
         )
 
 
+@transaction.atomic
+def set_google_password(*, user, subject: str, new_password: str, except_session):
+    """Keep installed clients working with the linked Google identity proof.
+
+    This is setup only, never a way around the current-password requirement.
+    The caller verifies Google's signature, audience, issuer and expiry first.
+    """
+    user = User.objects.select_for_update().get(pk=user.pk)
+    _check_password_creation(user, except_session)
+    if not user.external_identities.filter(
+        provider=ExternalIdentityProvider.GOOGLE, subject=subject,
+    ).exists():
+        raise PermissionDenied("Confirm the Google account already linked to this account.")
+    _validate_password(new_password, user=user, field="new_password")
+    _write_password(user, new_password)
+    sign_out_everywhere(user=user, except_session=except_session, reason="password_enabled")
+    record(
+        action=AuditAction.PASSWORD_CHANGE, aggregate_type="user", aggregate_id=user.id,
+        actor=user, metadata={"method": "google_confirmation"},
+    )
+    transaction.on_commit(lambda: notify_password_changed(user), robust=True)
+    return user
+
+
 def _check_password_creation(user, session) -> None:
     if not _password_account_available(user):
         raise PermissionDenied("This account cannot create a password here.")

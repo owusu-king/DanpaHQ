@@ -12,6 +12,8 @@ import {
 } from "react";
 
 import { Icon, type IconName } from "@/components/portal/icons";
+import { ErrorNotice } from "@/components/toast/ErrorNotice";
+import { useToast } from "@/components/toast/Toaster";
 import { ManagementFailure, managementFetch } from "@/lib/management";
 
 /* The Management console's kit.
@@ -230,8 +232,9 @@ export function Empty({ message, icon = "archive", title }: { message?: string; 
   );
 }
 
-export function Feedback({ error, success }: { error?: string; success?: string }) {
+export function Feedback({ error, success, inline }: { error?: string; success?: string; inline?: boolean }) {
   if (!error && !success) return null;
+  if (error && !inline) return <ErrorNotice message={error} />;
   return (
     <div role={error ? "alert" : "status"} className={`management-feedback ${error ? "error" : "success"}`}>
       <Icon name={error ? "warning" : "check"} />
@@ -403,19 +406,23 @@ const NoticeContext = createContext<(tone: Notice["tone"], text: string) => void
  * One quiet confirmation at the foot of the screen.
  *
  * Decisions are made in a drawer that closes when they save; a message at the
- * top of a long queue would be out of sight. A confirmation leaves on its own;
- * a failure stays until it is dismissed.
+ * top of a long queue would be out of sight. Failures use the shared dialog.
  */
 export function NoticeProvider({ children }: { children: React.ReactNode }) {
   const [notice, setNotice] = useState<Notice | null>(null);
+  const { toast } = useToast();
   const counter = useRef(0);
   const notify = useCallback((tone: Notice["tone"], text: string) => {
+    if (tone === "error") {
+      toast({ tone, title: text });
+      return;
+    }
     counter.current += 1;
     setNotice({ id: counter.current, tone, text });
-  }, []);
+  }, [toast]);
 
   useEffect(() => {
-    if (!notice || notice.tone === "error") return;
+    if (!notice) return;
     const timer = window.setTimeout(() => setNotice(null), 5000);
     return () => window.clearTimeout(timer);
   }, [notice]);
@@ -425,8 +432,8 @@ export function NoticeProvider({ children }: { children: React.ReactNode }) {
       {children}
       <div className="management-notice-region" aria-live="polite">
         {notice ? (
-          <div key={notice.id} className={`management-notice is-${notice.tone}`} role={notice.tone === "error" ? "alert" : undefined}>
-            <Icon name={notice.tone === "error" ? "warning" : "check"} />
+          <div key={notice.id} className="management-notice is-success">
+            <Icon name="check" />
             <span>{notice.text}</span>
             <button type="button" onClick={() => setNotice(null)} aria-label="Dismiss">
               <Icon name="close" />

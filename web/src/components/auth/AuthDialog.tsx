@@ -164,6 +164,8 @@ export function AuthEntry({ view }: { view: AuthView }) {
         open("register", params);
         return;
       }
+      // Recovery must also work for a signed-in person who forgot their password.
+      if (view === "forgot-password") open("forgot-password", params);
       // An old welcome link shows the welcome once, over the dashboard.
       if (view === "welcome") open("welcome", params);
       router.replace((destination === "/settings/security" ? destination : params.next ?? destination) as never);

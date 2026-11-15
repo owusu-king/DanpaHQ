@@ -5,6 +5,7 @@ import { useState, type ReactNode } from "react";
 import { Button } from "@/components/Button";
 import { Field } from "@/components/Field";
 import { Notice } from "@/components/Notice";
+import { useToast } from "@/components/toast/Toaster";
 import { Select } from "@/components/Select";
 import { ModalSheet } from "@/components/workspace/ModalSheet";
 import { ApiFailure, idempotentMutation } from "@/lib/api";
@@ -60,6 +61,7 @@ export function JoinHomeForm({ onDone }: { onDone?: () => void }) {
   const [bedId, setBedId] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const { toast } = useToast();
   const [sent, setSent] = useState(false);
 
   const selectedUnit = lookup?.units.find((unit) => unit.id === unitId) ?? null;
@@ -81,7 +83,11 @@ export function JoinHomeForm({ onDone }: { onDone?: () => void }) {
       setBedId("");
     } catch (cause) {
       setLookup(null);
-      setError(cause instanceof ApiFailure ? cause.error.message : "Could not check that code: try again.");
+      if (cause instanceof ApiFailure && [400, 404, 422].includes(cause.status)) {
+        setError(cause.error.message);
+      } else {
+        toast({ tone: "error", title: "Couldn’t check the access code", description: cause instanceof ApiFailure ? cause.error.message : "Please try again." });
+      }
     } finally {
       setBusy(false);
     }
@@ -111,7 +117,7 @@ export function JoinHomeForm({ onDone }: { onDone?: () => void }) {
       });
       setSent(true);
     } catch (cause) {
-      setError(cause instanceof ApiFailure ? cause.error.message : "Could not send the request: try again.");
+      toast({ tone: "error", title: "Request wasn’t sent", description: cause instanceof ApiFailure ? cause.error.message : "Please try again." });
     } finally {
       setBusy(false);
     }
@@ -192,7 +198,7 @@ export function JoinHomeForm({ onDone }: { onDone?: () => void }) {
           </>
         ) : null}
 
-        {error ? <Notice tone="error" title={error} /> : null}
+        {error ? <Notice inline tone="error" title={error} /> : null}
 
         <div>
           <Button type="submit" busy={busy} busyLabel={lookup ? "Sending…" : "Checking…"}>

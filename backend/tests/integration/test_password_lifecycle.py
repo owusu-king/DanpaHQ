@@ -1,4 +1,7 @@
+from datetime import timedelta
+
 import pytest
+from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.identity.models import AuthChallenge, Session
@@ -10,6 +13,82 @@ CREATE = "/api/v1/me/password/create/"
 RESET = "/api/v1/auth/password-reset/"
 SIGN_IN = "/api/v1/auth/sign-in/"
 NEW_PASSWORD = "new-correct-horse-battery-staple"
+
+
+@pytest.mark.parametrize("has_password", [False, True])
+def test_provider_password_state_is_authoritative_and_private(has_password):
+    user = make_account("0201234567", account_type="provider", email="provider@example.com")
+    if not has_password:
+        user.set_unusable_password()
+        user.save(update_fields=["password"])
+    api, _ = legacy_session(user, "provider")
+    response = api.get("/api/v1/me/")
+    assert response.status_code == 200
+    assert response.data["has_password"] is has_password
+    assert "password" not in response.data
+    assert user.password not in str(response.data)
+
+
+def test_provider_change_requires_current_password_and_preserves_only_current_session():
+    user = make_account("0201234567", account_type="provider")
+    api, _ = legacy_session(user, "current")
+    other, _ = legacy_session(user, "other")
+    path = "/api/v1/me/password/"
+    assert post(APIClient(), path, current_password=TEST_PASSWORD,
+                new_password=NEW_PASSWORD).status_code == 401
+    assert post(api, path, new_password=NEW_PASSWORD).status_code == 422
+    assert post(api, path, current_password="incorrect",
+                new_password=NEW_PASSWORD).status_code == 403
+    user.refresh_from_db()
+    assert user.check_password(TEST_PASSWORD)
+    assert post(api, path, current_password=TEST_PASSWORD,
+                new_password=NEW_PASSWORD).status_code == 200
+    assert api.get("/api/v1/me/").status_code == 200
+    assert other.get("/api/v1/me/").status_code == 401
+
+
+def test_provider_setup_expired_and_unknown_proofs_are_rejected(sms):
+    from uuid import uuid4
+
+    user = make_account("0201234567", account_type="provider")
+    user.set_unusable_password()
+    user.save(update_fields=["password"])
+    api, _ = legacy_session(user, "setup")
+    assert post(api, CREATE, challenge_id=str(uuid4()), code="123456",
+                new_password=NEW_PASSWORD).status_code >= 400
+    started = post(api, CREATE + "code/", channel="sms")
+    assert started.status_code == 201
+    code = sms.outbox[-1].body.split()[0]
+    AuthChallenge.objects.filter(pk=started.data["challenge_id"]).update(
+        expires_at=timezone.now() - timedelta(seconds=1),
+    )
+    assert post(api, CREATE, challenge_id=started.data["challenge_id"], code=code,
+                new_password=NEW_PASSWORD).status_code >= 400
+    user.refresh_from_db()
+    assert not user.has_usable_password()
+
+
+@pytest.mark.parametrize("invalid", ["malformed", "expired", "wrong_purpose"])
+def test_invalid_reset_tokens_cannot_write_password(user, sms, invalid):
+    from apps.core.crypto import sign_payload, verify_payload
+    from apps.identity.services import _signing_key
+
+    api = APIClient()
+    started = post(api, RESET, identifier=user.phone)
+    verified = post(api, RESET + "verify/", challenge_id=started.data["challenge_id"],
+                    code=sms.outbox[-1].body.split()[0])
+    assert verified.status_code == 200
+    payload = verify_payload(verified.data["reset_token"], key=_signing_key())
+    token = "invalid-token"
+    if invalid == "expired":
+        token = sign_payload(payload, key=_signing_key(), ttl_seconds=-1)
+    elif invalid == "wrong_purpose":
+        token = sign_payload(payload | {"act": "create_password"},
+                             key=_signing_key(), ttl_seconds=300)
+    assert post(api, RESET + "complete/", reset_token=token,
+                new_password=NEW_PASSWORD).status_code == 403
+    user.refresh_from_db()
+    assert user.check_password(TEST_PASSWORD)
 
 
 def post(api, path, **body):

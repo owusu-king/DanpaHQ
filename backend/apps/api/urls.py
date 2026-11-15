@@ -77,6 +77,10 @@ me_patterns = [
     ),
     path("me/password/", identity_views.ChangePasswordView.as_view(), name="me-password"),
     path(
+        "me/password/google/", identity_views.SetGooglePasswordView.as_view(),
+        name="me-password-google",
+    ),
+    path(
         "me/password/create/code/", identity_views.StartPasswordCreationView.as_view(),
         name="me-password-create-code",
     ),

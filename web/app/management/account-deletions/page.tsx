@@ -164,7 +164,7 @@ export default function AccountDeletionsPage() {
           <Section title="Decision">
             <div className="management-form">
               {confirming ? (
-                <Feedback error="Deleting erases their name, phone number, email, photo and identity details, ends every session, and cannot be undone." />
+                <Feedback inline error="Deleting erases their name, phone number, email, photo and identity details, ends every session, and cannot be undone." />
               ) : (
                 <p className="management-hint">
                   Deleting erases their name, phone number, email, photo and identity details, ends every session, and cannot be undone.

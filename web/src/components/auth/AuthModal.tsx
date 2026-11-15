@@ -57,6 +57,8 @@ export function AuthModal({
     const touchFirst = window.matchMedia("(pointer: coarse)").matches;
     (touchFirst ? panel.current : first ?? panel.current)?.focus({ preventScroll: true });
     function onKey(event: KeyboardEvent) {
+      // A native dialog above this auth panel handles its own focus and Escape.
+      if (event.target instanceof Element && event.target.closest("dialog[open]")) return;
       if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); return; }
       // Tab stays inside the dialog.
       if (event.key === "Tab" && panel.current) {

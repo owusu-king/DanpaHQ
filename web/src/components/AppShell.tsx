@@ -30,7 +30,7 @@ import { SessionProvider, useSession } from "@/lib/session";
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   if (pathname.startsWith("/management")) {
-    return children;
+    return <ToastProvider>{children}</ToastProvider>;
   }
 
   return (

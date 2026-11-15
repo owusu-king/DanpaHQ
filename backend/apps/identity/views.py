@@ -61,6 +61,7 @@ from .serializers import (
     PasswordSignInSerializer,
     ProfileSerializer,
     SessionSerializer,
+    SetGooglePasswordSerializer,
     StartChallengeSerializer,
     StartPasswordCreationSerializer,
     StartPasswordResetSerializer,
@@ -497,6 +498,26 @@ class ChangePasswordView(APIView):
             except_session=require_live_session(request),
         )
         return Response({"changed": True})
+
+
+class SetGooglePasswordView(APIView):
+    """Compatibility for installed clients using linked Google confirmation."""
+
+    permission_classes = [IsAuthenticated, IsRegistrationComplete]
+    throttle_classes = [GoogleAuthThrottle]
+
+    def post(self, request):
+        from .google_identity import verify_google_credential
+
+        payload = SetGooglePasswordSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+        claims = verify_google_credential(payload.validated_data["credential"])
+        services.set_google_password(
+            user=request.user, subject=claims.subject,
+            new_password=payload.validated_data["new_password"],
+            except_session=require_live_session(request),
+        )
+        return Response({"changed": True}, headers={"Cache-Control": "no-store"})
 
 
 class StartPasswordCreationView(APIView):

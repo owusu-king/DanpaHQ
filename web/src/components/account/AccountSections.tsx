@@ -6,6 +6,7 @@ import { authedFetch } from "@/lib/auth";
 import { Button } from "@/components/Button";
 import { Field } from "@/components/Field";
 import { Notice } from "@/components/Notice";
+import { AuthLink } from "@/components/auth/AuthDialog";
 import { Avatar } from "@/components/portal/icons";
 import { Select } from "@/components/Select";
 import {
@@ -348,7 +349,8 @@ export function PasswordSection({ hasPassword }: { hasPassword: boolean }) {
       setCode("");
       setProof({ id: result.challenge_id, channel });
     } catch (cause) {
-      setSummary(summaryErrorFrom(cause, fieldErrorsFrom(cause)));
+      // Channel errors have no editable field here; don't silently discard them.
+      setSummary(cause instanceof Error ? cause.message : "Could not send the code. Try again.");
     } finally {
       setBusy(false);
     }
@@ -445,7 +447,10 @@ export function PasswordSection({ hasPassword }: { hasPassword: boolean }) {
         />
       ) : null}
       {hasPassword || proof ? <Button type="submit" size="sm" busy={busy}
-        disabled={!hasPassword && code.length !== 6}>{hasPassword ? "Change password" : "Create password"}</Button> : null}
+        disabled={!hasPassword && code.length !== 6}>{hasPassword ? "Change password" : "Set password"}</Button> : null}
+      {hasPassword ? <AuthLink view="forgot-password" params={{ next: "/settings/security" }}>
+        Forgot your password?
+      </AuthLink> : null}
     </form>
   );
 }

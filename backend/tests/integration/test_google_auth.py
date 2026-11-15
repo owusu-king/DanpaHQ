@@ -81,14 +81,36 @@ def register_google(api, monkeypatch, value=None, account_type="tenant", **heade
     )
 
 
+def test_installed_client_google_password_setup_remains_secure(monkeypatch):
+    api = APIClient()
+    created = register_google(api, monkeypatch, account_type="provider")
+    assert created.status_code == 201
+    api.credentials(HTTP_AUTHORIZATION=f"Bearer {created.data['access_token']}")
+    path = "/api/v1/me/password/google/"
+    body = {"credential": "verified-by-test-double", "new_password": TEST_PASSWORD}
+    assert APIClient().post(path, body, format="json").status_code == 401
+    stub_google(monkeypatch, claims(subject="another-account"))
+    assert api.post(path, body, format="json").status_code == 403
+    assert not api.get("/api/v1/me/").data["has_password"]
+    stub_google(monkeypatch, claims())
+    assert api.post(path, body | {"new_password": "short"}, format="json").status_code == 422
+    changed = api.post(path, body, format="json")
+    assert changed.status_code == 200, changed.data
+    assert api.get("/api/v1/me/").data["has_password"]
+    assert api.post(path, body, format="json").status_code == 409
+    login = APIClient().post("/api/v1/auth/sign-in/", {
+        "identifier": "ama@example.com", "password": TEST_PASSWORD,
+    }, format="json")
+    assert login.status_code == 200, login.data
+    assert start_google(APIClient(), monkeypatch).status_code == 200
+
+
 def test_google_account_creates_a_danpa_password_with_email_otp(monkeypatch, sms, mailoutbox):
     api = APIClient()
     created = register_google(api, monkeypatch)
     assert created.status_code == 201
     api.credentials(HTTP_AUTHORIZATION=f"Bearer {created.data['access_token']}")
     body = {"credential": "verified-by-test-double", "new_password": TEST_PASSWORD}
-    refused = api.post("/api/v1/me/password/google/", body, format="json")
-    assert refused.status_code == 404
     assert api.post("/api/v1/me/password/create/", body, format="json").status_code in (400, 422)
     assert not api.get("/api/v1/me/").data["has_password"]
 

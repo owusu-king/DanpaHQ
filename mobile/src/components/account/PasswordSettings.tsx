@@ -18,7 +18,7 @@ export function PasswordSettings() {
   const [code, setCode] = useState("");
   if (state.status !== "signed_in") return null;
   const me = state.me;
-  const hasPassword = me.has_password ?? me.authentication_methods?.includes("phone");
+  const hasPassword = me.has_password;
   const verifiedPhone = me.is_phone_verified && me.phone_display;
   const verifiedEmail = me.is_email_verified && me.email;
 
@@ -66,8 +66,14 @@ export function PasswordSettings() {
     } finally { setBusy(false); }
   }
 
+  if (typeof hasPassword !== "boolean") return <View style={{ gap: space[3] }}>
+    <Type variant="bodyStrong">Password</Type>
+    <Type variant="caption">We couldn’t confirm whether a password is set. Refresh your account to continue.</Type>
+    <Button variant="secondary" label="Refresh account" onPress={() => void refreshMe()} />
+  </View>;
+
   return <View style={{ gap: space[3] }}>
-    <Type variant="bodyStrong">{hasPassword ? "Change password" : "Create password"}</Type>
+    <Type variant="bodyStrong">{hasPassword ? "Change password" : "Set password"}</Type>
     {hasPassword
       ? <Field label="Current password" secureTextEntry autoComplete="current-password" error={fieldErrors.current_password} value={current} onChangeText={setCurrent} />
       : <>
@@ -81,6 +87,6 @@ export function PasswordSettings() {
     {hasPassword || proof ? <Field label="New password" secureTextEntry autoComplete="new-password" hint="Use at least 8 characters." error={fieldErrors.new_password} value={password} onChangeText={setPassword} /> : null}
     {error ? <Notice tone="error" title={error} /> : null}
     {saved ? <Notice tone="success" title="Password saved" body="Your other devices have been signed out." /> : null}
-    {hasPassword || proof ? <Button label={hasPassword ? "Change password" : "Create password"} busy={busy} disabled={password.length < 8 || (hasPassword ? !current : code.length !== 6)} onPress={() => void submit()} /> : null}
+    {hasPassword || proof ? <Button label={hasPassword ? "Change password" : "Set password"} busy={busy} disabled={password.length < 8 || (hasPassword ? !current : code.length !== 6)} onPress={() => void submit()} /> : null}
   </View>;
 }
