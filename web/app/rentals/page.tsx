@@ -71,9 +71,14 @@ export default function RentalsPage() {
           </Reveal>
         </header>
 
-        <Suspense fallback={<ExploreFallback />}>
-          <Explore />
-        </Suspense>
+        {/* A returning account can still switch to the workspace shell.
+            Mount the catalogue once that choice is known. The public header
+            stays available while session restoration runs. */}
+        {state.status === "loading" ? <ExploreFallback /> : (
+          <Suspense fallback={<ExploreFallback />}>
+            <Explore />
+          </Suspense>
+        )}
       </div>
     </div>
   );
