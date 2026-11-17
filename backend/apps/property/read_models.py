@@ -162,43 +162,38 @@ def property_list_queryset(queryset, *, user):
     )
 
 
-def prepare_property_list_rows(rows) -> list:
-    """Load generic verification subjects once and attach them to each row."""
-    from apps.sale.models import SaleListing
-    from apps.sale.read_models import public_sales
-    from apps.trust.models import SubjectType, Verification
+def prepare_property_reviews(prepared, *, include_photo_files=False) -> None:
+    """Load the evidence and review state for an already scoped collection."""
+    from django.db.models import Prefetch
+
+    from apps.trust.models import SubjectType, Verification, VerificationEvidence
     from apps.trust.services import prime_subject_verifications
 
     from .models import PropertyProviderApplication
 
-    prepared = list(rows)
     if not prepared:
-        return prepared
+        return
 
     by_id = {str(row.pk): row for row in prepared}
+    evidence = (
+        Prefetch("evidence", queryset=VerificationEvidence.objects.select_related("file"))
+        if include_photo_files
+        else "evidence"
+    )
     verification_rows = list(
         Verification.objects.filter(
             subject_type=SubjectType.PROPERTY,
             subject_id__in=by_id,
         )
         .select_related("queue_entry")
-        .prefetch_related("evidence")
+        .prefetch_related(evidence)
         .order_by("-created_at")
     )
     grouped: dict[str, list[Verification]] = {key: [] for key in by_id}
     for verification in verification_rows:
         grouped.setdefault(verification.subject_id, []).append(verification)
 
-    for_sale = [prop.pk for prop in prepared if prop.is_for_sale]
-    sales = {
-        sale.property_id: sale for sale in SaleListing.objects.filter(property_id__in=for_sale)
-    }
-    public_properties = set(
-        public_sales().filter(property_id__in=sales).values_list("property_id", flat=True)
-    )
     for key, prop in by_id.items():
-        prop._property_list_sale = sales.get(prop.pk)
-        prop._property_list_sale_public = prop.pk in public_properties
         prop._property_list_verifications = grouped.get(key, [])
         try:
             application = prop.provider_application
@@ -211,4 +206,106 @@ def prepare_property_list_rows(rows) -> list:
         subject_ids=by_id,
         rows=verification_rows,
     )
+
+
+def prepare_property_list_rows(rows) -> list:
+    from apps.sale.models import SaleListing
+    from apps.sale.read_models import public_sales
+
+    prepared = list(rows)
+    prepare_property_reviews(prepared)
+    for_sale = [prop.pk for prop in prepared if prop.is_for_sale]
+    sales = {
+        sale.property_id: sale for sale in SaleListing.objects.filter(property_id__in=for_sale)
+    }
+    public_properties = set(
+        public_sales().filter(property_id__in=sales).values_list("property_id", flat=True)
+    )
+    for prop in prepared:
+        prop._property_list_sale = sales.get(prop.pk)
+        prop._property_list_sale_public = prop.pk in public_properties
     return prepared
+
+
+def prepare_unit_card_rows(queryset) -> list:
+    """Batch the verification, listing and occupancy facts rendered on Units."""
+    from collections import defaultdict
+
+    from django.db.models import Prefetch
+
+    from apps.listing.models import Listing, ListingStatus, PublicationState
+    from apps.listing.read_models import public_listings
+    from apps.occupancy.services import unit_occupying_allocations
+    from apps.trust.models import SubjectType, Verification, VerificationKind, VerificationStatus
+
+    from .models import UnitAmenity, UnitMedia
+
+    units = list(
+        queryset.select_related("property").prefetch_related(
+            Prefetch("media", queryset=UnitMedia.objects.select_related("file")),
+            Prefetch(
+                "unit_amenities",
+                queryset=UnitAmenity.objects.filter(removed_at__isnull=True).select_related("amenity"),
+            ),
+        )
+    )
+    if not units:
+        return units
+
+    unit_ids = [unit.pk for unit in units]
+    listings = (
+        Listing.objects.filter(unit_id__in=unit_ids)
+        .only("unit_id", "status", "publication_state", "moderation_state", "availability_state")
+        .order_by("unit_id", "-created_at")
+    )
+    latest = {
+        listing.unit_id: listing
+        for listing in listings.exclude(status=ListingStatus.REJECTED).distinct("unit_id")
+    }
+    latest_published = {
+        listing.unit_id: listing
+        for listing in listings.filter(publication_state=PublicationState.PUBLISHED).distinct(
+            "unit_id"
+        )
+    }
+    occupied_ids = set(
+        unit_occupying_allocations()
+        .filter(unit_id__in=unit_ids)
+        .order_by()
+        .values_list("unit_id", flat=True)
+        .distinct()
+    )
+    public_candidates = [
+        row.pk
+        for row in latest.values()
+        if row.unit_id not in occupied_ids
+        and row.publication_state == PublicationState.PUBLISHED
+        and row.derived_status() == ListingStatus.ACTIVE
+    ]
+    public_ids = set(
+        public_listings().filter(pk__in=public_candidates).values_list("pk", flat=True)
+    )
+    reviews = defaultdict(list)
+    for review in (
+        Verification.objects.filter(
+            subject_type=SubjectType.SPACE,
+            kind=VerificationKind.SPACE_CONDITION,
+            subject_id__in=[str(pk) for pk in unit_ids],
+        )
+        .exclude(status=VerificationStatus.SUPERSEDED)
+        .select_related("queue_entry")
+        .prefetch_related("evidence")
+        .order_by("-created_at")
+    ):
+        reviews[review.subject_id].append(review)
+
+    for unit in units:
+        publication = latest.get(unit.pk)
+        unit._unit_card_availability = (unit.pk in occupied_ids, latest_published.get(unit.pk))
+        unit._unit_card_publication = (
+            publication,
+            unit.pk in occupied_ids,
+            publication is not None and publication.pk in public_ids,
+        )
+        unit._condition_reviews = reviews[str(unit.pk)]
+    return units

@@ -461,6 +461,34 @@ def verified_land(api, seller, portfolio, address, upload, reviewer):
 
 
 class TestPublicOnceVerified:
+    def test_search_batches_reviews_and_sellers(
+        self, api, verified_land, seller, portfolio, address, upload, reviewer,
+    ):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        from apps.sale.serializers import SaleCardSerializer
+
+        api.force_authenticate(user=None)
+        detail_card = SaleCardSerializer(verified_land.sale).data
+        with CaptureQueriesContext(connection) as queries:
+            response = api.get("/api/v1/sales/")
+        assert response.status_code == 200
+        assert response.data["results"] == [detail_card]
+        assert detail_card["cover_url"]
+        assert detail_card["seller_label"] == "Esi Estates"
+        assert len(queries) <= 5
+
+        second = _property(_create(api, seller, portfolio, address, kind="land", sale=LAND_DETAILS))
+        _complete(second, seller, upload)
+        _verify(second, seller, reviewer)
+        api.force_authenticate(user=None)
+        with CaptureQueriesContext(connection) as expanded:
+            response = api.get("/api/v1/sales/")
+        assert response.status_code == 200
+        assert len(response.data["results"]) == 2
+        assert len(expanded) == len(queries)
+
     def test_it_is_not_public_before_verification(self, api, seller, portfolio, address, upload):
         prop = _property(_create(api, seller, portfolio, address, kind="land", sale=LAND_DETAILS))
         _complete(prop, seller, upload)

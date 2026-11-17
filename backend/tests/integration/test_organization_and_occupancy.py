@@ -546,6 +546,9 @@ class TestOrganizationAuthorization:
         respect the same scoping as everything else: a member assigned to one
         Property sees that Property's Units, not the Portfolio's.
         """
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
         from apps.organization import services as organization_services
         from apps.property import services as property_services
 
@@ -591,7 +594,8 @@ class TestOrganizationAuthorization:
         assert first["property_title"] == "Legon House"
         for field in ("availability", "verification", "publication", "primary_photo"):
             assert field in first
-        cards = owner_api.get(f"{url}?view=cards")
+        with CaptureQueriesContext(connection) as initial:
+            cards = owner_api.get(f"{url}?view=cards")
         assert cards.status_code == 200
         assert cards["Cache-Control"] == "private, no-store"
         assert len(cards.content) < len(response.content)
@@ -633,6 +637,47 @@ class TestOrganizationAuthorization:
         assert (
             outsider_api.get(f"/api/v1/organizations/{organization.id}/units/").status_code == 404
         )
+
+        for index in range(4):
+            property_services.add_unit(
+                prop=osu, user=owner,
+                data={
+                    "label": f"Additional flat {index}",
+                    "space_type": "apartment",
+                    "bedrooms": 1,
+                },
+            )
+        with CaptureQueriesContext(connection) as expanded:
+            expanded_cards = owner_api.get(f"{url}?view=cards")
+        assert expanded_cards.status_code == 200
+        assert len(expanded_cards.data) == 7
+        assert len(expanded) <= len(initial)
+
+        from apps.listing import services as listing_services
+        from apps.listing.models import ListingStatus
+        from apps.occupancy.models import Occupancy
+
+        occupied, expired = units_by_property["Osu Court"]
+        verify_space(occupied)
+        for unit, status in ((occupied, ListingStatus.ACTIVE), (expired, ListingStatus.EXPIRED)):
+            listing = listing_services.create_listing(
+                user=owner,
+                unit=unit,
+                data={"rent_minor": 150000, "headline": "Fixture flat", "description": "Fixture"},
+            )
+            listing.adopt_status(status)
+            listing.save()
+        Occupancy.objects.create(user=manager, property=osu, unit=occupied)
+
+        full = owner_api.get(url)
+        cards = owner_api.get(f"{url}?view=cards")
+        assert full.status_code == cards.status_code == 200
+        assert cards.data == [{key: row[key] for key in card_fields} for row in full.data]
+        by_id = {row["id"]: row for row in cards.data}
+        assert by_id[str(occupied.pk)]["verification"]["state"] == "verified"
+        assert by_id[str(occupied.pk)]["availability"]["state"] == "occupied"
+        assert by_id[str(occupied.pk)]["publication"]["state"] == "withdrawn"
+        assert by_id[str(expired.pk)]["availability"]["state"] == "expired"
 
     def test_private_property_and_draft_do_not_require_publication_trust(self, address):
         from apps.core.exceptions import PermissionDenied

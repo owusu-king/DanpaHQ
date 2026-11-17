@@ -14,7 +14,7 @@ from apps.identity.permissions import IsPhoneVerified, require_property_request_
 
 from . import services
 from .models import SavedSale
-from .read_models import public_sales
+from .read_models import prepare_sale_cards, public_sales
 from .serializers import (
     EnquiryDetailSerializer,
     EnquirySerializer,
@@ -125,11 +125,14 @@ class SaleSearchView(APIView):
             "price_asc": ("price_minor", "-created_at"),
             "price_desc": ("-price_minor", "-created_at"),
         }[data.get("sort") or "newest"]
-        qs = _filtered(data).order_by(*ordering)
+        qs = _filtered(data).select_related("property__provider_application").defer(
+            "property__address__locality__district__boundary"
+        ).order_by(*ordering)
 
         paginator = StandardCursorPagination()
         paginator.ordering = ordering
         page = paginator.paginate_queryset(qs, request)
+        prepare_sale_cards(page)
         return paginator.get_paginated_response(SaleCardSerializer(page, many=True).data)
 
 

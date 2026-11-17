@@ -1,5 +1,6 @@
 import pytest
-from django.db import transaction
+from django.db import connection, transaction
+from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 
 from apps.core.events import DomainEvent
@@ -8,6 +9,20 @@ from apps.outbox.models import OutboxEvent, OutboxStatus
 from apps.outbox.services import emit
 
 pytestmark = pytest.mark.django_db(transaction=True)
+
+
+def test_idle_dispatch_uses_one_read_and_leaves_future_retries_alone():
+    event = emit(DomainEvent("lease.signed.v1", "lease", "future", {}))
+    OutboxEvent.objects.filter(pk=event.pk).update(
+        status=OutboxStatus.FAILED, available_at=timezone.now() + timezone.timedelta(minutes=1),
+    )
+    with CaptureQueriesContext(connection) as queries:
+        result = tasks.dispatch_pending()
+    assert result == {"published": 0, "failed": 0, "reclaimed": 0}
+    assert len(queries) == 1
+    assert "FOR UPDATE" not in queries[0]["sql"]
+    event.refresh_from_db()
+    assert event.status == OutboxStatus.FAILED
 
 
 def test_event_rolls_back_with_its_transaction():

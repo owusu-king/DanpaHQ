@@ -15,7 +15,7 @@ it happens, with no job to run and no flag to fall out of step (owner,
 
 from __future__ import annotations
 
-from django.db.models import CharField, Exists, OuterRef, QuerySet
+from django.db.models import Case, CharField, Exists, OuterRef, QuerySet, When
 from django.db.models.functions import Cast
 
 from .models import SaleListing, SaleStatus
@@ -50,3 +50,30 @@ def public_sales() -> QuerySet[SaleListing]:
 
 def is_public(sale: SaleListing) -> bool:
     return public_sales().filter(id=sale.id).exists()
+
+
+def prepare_sale_cards(page) -> None:
+    """Batch seller labels and the same verified photographs used by detail."""
+    from apps.organization.models import OrganizationPropertyRelationship
+    from apps.property.read_models import prepare_property_reviews
+
+    properties = {sale.property_id: sale.property for sale in page}
+    if not properties:
+        return
+    prepare_property_reviews(properties.values(), include_photo_files=True)
+    labels = {}
+    relationships = (
+        OrganizationPropertyRelationship.objects.filter(
+            property_id__in=properties, ended_at__isnull=True
+        )
+        .order_by(
+            "property_id",
+            Case(When(authority_verified_at__isnull=False, then=0), default=1),
+            "pk",
+        )
+        .values_list("property_id", "organization__name")
+    )
+    for property_id, name in relationships:
+        labels.setdefault(property_id, name)
+    for property_id, prop in properties.items():
+        prop._sale_seller_label = labels.get(property_id, "Verified seller")

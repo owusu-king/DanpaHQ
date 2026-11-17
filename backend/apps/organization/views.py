@@ -376,6 +376,7 @@ class OrganizationUnitView(APIView):
 
     def get(self, request, pk):
         from apps.property.models import Unit
+        from apps.property.read_models import prepare_unit_card_rows
         from apps.property.serializers import UnitCardSerializer, UnitSerializer
 
         organization = services.get_organization_or_404(pk, request.user)
@@ -389,18 +390,20 @@ class OrganizationUnitView(APIView):
         cards = request.query_params.get("view") == "cards"
         units = (
             Unit.objects.filter(property_id__in=property_ids, is_active=True)
-            .select_related(
-                "property__address__locality__district__region",
-                "property__address__locality__region",
-            )
-            .defer("property__address__locality__district__boundary")
-            .prefetch_related("media__file")
             .order_by("property__title", "label")
         )
-        if not cards:
-            units = units.prefetch_related("unit_amenities__amenity", "beds")
-        serializer = UnitCardSerializer if cards else UnitSerializer
-        response = Response(serializer(units, many=True, context={"user": request.user}).data)
+        if cards:
+            rows = prepare_unit_card_rows(units)
+            serializer = UnitCardSerializer
+        else:
+            rows = units.select_related(
+                "property__address__locality__district__region",
+                "property__address__locality__region",
+            ).defer("property__address__locality__district__boundary").prefetch_related(
+                "media__file", "unit_amenities__amenity", "beds",
+            )
+            serializer = UnitSerializer
+        response = Response(serializer(rows, many=True, context={"user": request.user}).data)
         response["Cache-Control"] = "private, no-store"
         return response
 

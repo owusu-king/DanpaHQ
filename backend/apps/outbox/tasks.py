@@ -12,6 +12,7 @@ from datetime import timedelta
 
 from celery import shared_task
 from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
 
 from .models import OutboxEvent, OutboxStatus
@@ -42,6 +43,17 @@ def subscribe(event_name: str):
     return decorator
 
 
+def _due(now):
+    return Q(status__in=[OutboxStatus.PENDING, OutboxStatus.FAILED], available_at__lte=now)
+
+
+def _abandoned(now):
+    return Q(
+        status=OutboxStatus.PROCESSING,
+        updated_at__lte=now - timedelta(minutes=STALE_PROCESSING_MINUTES),
+    )
+
+
 def reclaim_stale_processing() -> int:
     """Return abandoned claims to the retry path.
 
@@ -49,14 +61,10 @@ def reclaim_stale_processing() -> int:
     ``failed`` — so they re-enter through the same backoff and dead-letter rules
     as any other retry rather than looping instantly.
     """
-    cutoff = timezone.now() - timedelta(minutes=STALE_PROCESSING_MINUTES)
     with transaction.atomic():
         stale_ids = list(
             OutboxEvent.objects.select_for_update(skip_locked=True)
-            .filter(
-                status=OutboxStatus.PROCESSING,
-                updated_at__lte=cutoff,
-            )
+            .filter(_abandoned(timezone.now()))
             .values_list("id", flat=True)[:BATCH_SIZE]
         )
         if not stale_ids:
@@ -76,16 +84,19 @@ def reclaim_stale_processing() -> int:
 
 @shared_task(name="outbox.dispatch_pending")
 def dispatch_pending() -> dict[str, int]:
+    now = timezone.now()
+    # Idle dispatches need neither claim transaction. A concurrent commit after
+    # this snapshot remains visible to the next scheduled tick.
+    if not OutboxEvent.objects.filter(_due(now) | _abandoned(now)).exists():
+        return {"published": 0, "failed": 0, "reclaimed": 0}
+
     published = failed = 0
     reclaimed = reclaim_stale_processing()
 
     with transaction.atomic():
         batch = list(
             OutboxEvent.objects.select_for_update(skip_locked=True)
-            .filter(
-                status__in=[OutboxStatus.PENDING, OutboxStatus.FAILED],
-                available_at__lte=timezone.now(),
-            )
+            .filter(_due(timezone.now()))
             .order_by("created_at")[:BATCH_SIZE]
         )
         ids = [event.id for event in batch]
