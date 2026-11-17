@@ -25,6 +25,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Button } from "@/components/Button";
 import { Field } from "@/components/Field";
 import { Notice } from "@/components/Notice";
+import { useToast } from "@/components/toast/Toaster";
 import { Icon, type IconName } from "@/components/portal/icons";
 import { ModalSheet } from "@/components/workspace/ModalSheet";
 import { ApiFailure } from "@/lib/api";
@@ -180,6 +181,7 @@ export function LeaseWizard({
   const [dirty, setDirty] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const { toast } = useToast();
   const [sent, setSent] = useState<Lease | null>(null);
 
   const structured = useMemo<LeaseStructuredTerms>(() => ({
@@ -268,7 +270,7 @@ export function LeaseWizard({
       setReached(REVIEW);
       setStep(REVIEW);
     } catch (cause) {
-      setError(cause instanceof ApiFailure ? cause.error.message : "We could not prepare the agreement.");
+      toast({ tone: "error", title: "Couldn’t prepare the agreement", description: cause instanceof ApiFailure ? cause.error.message : "Please try again." });
     } finally {
       setBusy(false);
     }
@@ -283,7 +285,7 @@ export function LeaseWizard({
       setSent(offered);
       await onSent?.(offered);
     } catch (cause) {
-      setError(cause instanceof ApiFailure ? cause.error.message : "We could not send the agreement.");
+      toast({ tone: "error", title: "Agreement wasn’t sent", description: cause instanceof ApiFailure ? cause.error.message : "Please try again." });
     } finally {
       setBusy(false);
     }
@@ -380,7 +382,7 @@ export function LeaseWizard({
           {step === REVIEW ? (
             <ReviewStep form={form} lease={lease} document={document} stale={stale} onEdit={go} />
           ) : null}
-          {error ? <Notice tone="error" title={error} /> : null}
+          {error ? <Notice inline tone="error" title={error} /> : null}
         </div>
 
         <footer className="lw-foot">

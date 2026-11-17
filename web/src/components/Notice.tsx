@@ -1,5 +1,7 @@
 "use client";
 
+import { ErrorNotice } from "@/components/toast/ErrorNotice";
+
 /**
  * A short, coloured statement of something the user needs to know.
  *
@@ -11,11 +13,17 @@ export function Notice({
   tone = "info",
   title,
   body,
+  inline = false,
 }: {
   tone?: "info" | "error" | "success" | "warning";
   title: string;
   body?: string;
+  /** Keep field corrections and persistent unavailable states in context. */
+  inline?: boolean;
 }) {
+  if (tone === "error" && !inline) {
+    return <ErrorNotice message={body ?? title} title={body ? title : undefined} />;
+  }
   const palette = {
     info: ["var(--color-lagoon-100)", "var(--color-lagoon-600)"],
     error: ["var(--color-laterite-100)", "var(--color-laterite-600)"],

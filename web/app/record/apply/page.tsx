@@ -2,13 +2,16 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { CreateRentingAccount } from "@/components/portal/CreateRentingAccount";
 import { Button } from "@/components/Button";
 import { Field } from "@/components/Field";
 import { Notice } from "@/components/Notice";
 import { Select } from "@/components/Select";
+import { Icon, type IconName } from "@/components/portal/icons";
+import { useToast } from "@/components/toast/Toaster";
+import styles from "./application.module.css";
 import { ApiFailure } from "@/lib/api";
 import { fieldErrorsFrom, summaryErrorFrom, type FieldErrors } from "@/lib/formErrors";
 import { getPublicListing, type ListingDetail } from "@/lib/listings";
@@ -39,14 +42,15 @@ export default function ApplyPage() {
   const id = useSearchParams().get("id") ?? "";
   const router = useRouter();
   const { state, refresh } = useSession();
+  const { toast } = useToast();
   const [listing, setListing] = useState<ListingDetail | null>(null);
   const [loadError, setLoadError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
   const [errors, setErrors] = useState<FieldErrors>({});
   const [application, setApplication] = useState<MyApplication | null>(null);
   const [switchingWorkspace, setSwitchingWorkspace] = useState(false);
   const [workspaceError, setWorkspaceError] = useState("");
+  const formRef = useRef<HTMLFormElement>(null);
 
   const [advanceMonths, setAdvanceMonths] = useState("");
   const [moveInFrom, setMoveInFrom] = useState("");
@@ -58,6 +62,14 @@ export default function ApplyPage() {
   const [guarantorPhone, setGuarantorPhone] = useState("");
   const [guarantorRelationship, setGuarantorRelationship] = useState("");
   const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    if (!Object.keys(errors).length) return;
+    const invalid = formRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]');
+    const group = invalid?.closest("details");
+    if (group) group.open = true;
+    invalid?.focus();
+  }, [errors]);
 
   useEffect(() => {
     if (state.status === "signed_out") {
@@ -92,23 +104,29 @@ export default function ApplyPage() {
 
   useEffect(() => {
     if (!id) return;
+    let current = true;
+    setLoadError("");
+    setListing(null);
     getPublicListing(id)
       .then((row) => {
+        if (!current) return;
         setListing(row);
         setAdvanceMonths(String(row.advance_months));
       })
       .catch((cause) => {
+        if (!current) return;
         setLoadError(
           cause instanceof ApiFailure
             ? cause.error.message
             : "We could not load this rental.",
         );
       });
+    return () => { current = false; };
   }, [id]);
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
-    if (!listing || state.status !== "signed_in") return;
+    if (!listing || busy || state.status !== "signed_in") return;
 
     const localErrors: FieldErrors = {};
     if (advanceMonths === "") localErrors.advance_months_offered = "Say how many months you can pay.";
@@ -122,12 +140,10 @@ export default function ApplyPage() {
     }
     if (Object.keys(localErrors).length) {
       setErrors(localErrors);
-      setError("");
       return;
     }
 
     setBusy(true);
-    setError("");
     setErrors({});
     try {
       const created = await submitRentalApplication({
@@ -146,8 +162,13 @@ export default function ApplyPage() {
       setApplication(created);
     } catch (cause) {
       const fields = fieldErrorsFrom(cause);
+      // A cross-field or listing-level restriction has no input to attach to.
+      const summary = fields.non_field_errors ?? fields.listing_id;
+      delete fields.non_field_errors;
+      delete fields.listing_id;
       setErrors(fields);
-      setError(summaryErrorFrom(cause, fields));
+      const detail = summary ?? summaryErrorFrom(cause, fields);
+      if (detail) toast({ tone: "error", title: "Application wasn’t sent", description: detail });
     } finally {
       setBusy(false);
     }
@@ -157,13 +178,13 @@ export default function ApplyPage() {
     return <main style={SHELL}><p className="type-caption">Preparing your application…</p></main>;
   }
   if (state.status === "unavailable") {
-    return <main style={SHELL}><Notice tone="error" title="We could not confirm your session." body="Check your connection and try again." /></main>;
+    return <ApplicationUnavailable title="We couldn’t confirm your session" message="Try again to reopen your application." action={<Button type="button" onClick={() => void refresh()}>Try again</Button>} />;
   }
   if (state.status === "signed_in" && !state.me.capabilities.tenant.workspace_access) {
     return <main style={SHELL}><h1 className="type-title-2">Apply with a renting account</h1><p className="type-body">Create your own renting account to continue with this application.</p><CreateRentingAccount /></main>;
   }
   if (workspaceError) {
-    return <main style={SHELL}><Notice tone="error" title={workspaceError} /></main>;
+    return <ApplicationUnavailable title="Your renting workspace didn’t open" message={workspaceError} action={<Button type="button" onClick={() => setWorkspaceError("")}>Try again</Button>} />;
   }
   if (
     switchingWorkspace
@@ -171,8 +192,8 @@ export default function ApplyPage() {
   ) {
     return <main style={SHELL}><p className="type-caption">Opening your tenant workspace…</p></main>;
   }
-  if (loadError) {
-    return <main style={SHELL}><Notice tone="error" title={loadError} /></main>;
+  if (loadError || !id) {
+    return <ApplicationUnavailable title="This rental couldn’t be opened" message={loadError || "Choose a rental in Explore to start an application."} action={<Link href="/rentals" className="btn btn-primary">Browse rentals</Link>} />;
   }
   if (!listing) {
     return <main style={SHELL}><p className="type-caption">Loading rental details…</p></main>;
@@ -180,147 +201,173 @@ export default function ApplyPage() {
 
   if (application) {
     return (
-      <main style={SHELL}>
-        <p className="type-label" style={{ color: "var(--color-kola-600)" }}>APPLICATION SENT</p>
-        <h1 className="type-display-2">The provider has your application</h1>
-        <Notice
-          tone="success"
-          title={`Status: ${application.status_display}`}
-          body={application.meets_advance
-            ? `You offered the ${application.advance_months_asked} months requested.`
-            : `Your offer is ${application.advance_shortfall_months} month${application.advance_shortfall_months === 1 ? "" : "s"} below the requested advance. The provider can see that clearly.`}
-        />
-        <p className="type-body" style={{ maxWidth: "55ch" }}>
-          Applying does not create a tenancy or lease. You can follow the provider&apos;s response in Applications.
-        </p>
-        <div style={ACTIONS}>
-          <Link href="/applications" className="type-body-strong">View application status →</Link>
-          <Link href={`/record/listing?id=${listing.id}` as never} className="type-caption">Back to the rental</Link>
-        </div>
+      <main className={styles.page}>
+        <Link href={`/record/listing?id=${listing.id}` as never} className={styles.back}>← Back to rental</Link>
+        <section className={styles.receipt} aria-labelledby="application-sent">
+          <p className={styles.status}><Icon name="check" /> {application.status_display}</p>
+          <h1 id="application-sent" tabIndex={-1} ref={focusReceipt}>Application sent</h1>
+          <p className={styles.lede}>The provider has received your application for <strong>{listing.headline}</strong>.</p>
+          <dl className={styles.receiptFacts}>
+            <div><dt>Advance offered</dt><dd>{months(application.advance_months_offered)}</dd></div>
+            <div><dt>Advance requested</dt><dd>{months(application.advance_months_asked)}</dd></div>
+          </dl>
+          {!application.meets_advance ? <p className={styles.receiptNote}>Your offer is {months(application.advance_shortfall_months)} below the requested advance. The provider can still consider it.</p> : null}
+          <div className={styles.next}>
+            <h2>What happens next</h2>
+            <p>Follow the provider’s response in Applications.</p>
+            {state.status === "signed_in" && !state.me.is_phone_verified && state.me.email ? <p>{state.me.is_email_verified ? "We’ll send updates by email." : "Verify your email to receive updates there."}</p> : null}
+          </div>
+          <Link href={`/applications?application=${encodeURIComponent(application.id)}` as never} className="btn btn-primary">View application status</Link>
+        </section>
       </main>
     );
   }
 
   const offered = advanceMonths === "" ? null : Number(advanceMonths);
-  const shortfall = offered === null || Number.isNaN(offered)
+  const shortfall = offered === null || !Number.isInteger(offered) || offered < 0 || offered > 36
     ? null
     : Math.max(listing.advance_months - offered, 0);
+  const rentalPath = `/record/listing?id=${listing.id}` as const;
+  const area = [listing.locality_name, listing.district_name].filter(Boolean).join(", ");
+  const photo = listing.cover_url || listing.gallery.find((item) => item.download_url)?.download_url;
 
   return (
-    <main style={SHELL}>
-      <p className="type-label" style={{ color: "var(--color-kola-600)" }}>REQUEST TENANCY</p>
-      <h1 className="type-display-2" style={{ marginBottom: "var(--space-2)" }}>
-        Apply for {listing.headline}
-      </h1>
-      <p className="type-body" style={{ color: "var(--color-ink-700)", marginTop: 0 }}>
-        {listing.rent_formatted} per {listing.rent_period === "yearly" ? "year" : "month"} · {listing.advance_label} advance
-      </p>
+    <main className={styles.page}>
+      <Link href={rentalPath} className={styles.back}>← Back to rental</Link>
+      <header className={styles.intro}>
+        <p className={styles.kicker}>Rentals / Apply</p>
+        <h1>Rental application</h1>
+        <p className={styles.lede}>Tell the provider what you can offer and when you’d like to move.</p>
+      </header>
 
-      <Notice
-        tone="info"
-        title="This is an application, not a tenancy"
-      />
+      <div className={styles.layout}>
+        <aside className={styles.summary} aria-label="Rental summary">
+          <div className={`${styles.photo}${photo ? "" : ` ${styles.noPhoto}`}`}>
+            {photo ? (
+              // Signed listing images are served directly from the files service.
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={photo} alt="" />
+            ) : <Icon name="home" />}
+          </div>
+          <div className={styles.summaryBody}>
+            <p className={styles.kicker}>Your rental</p>
+            <h2>{listing.headline}</h2>
+            {area ? <p className={styles.meta}><Icon name="pin" /> {area}</p> : null}
+            <dl className={styles.terms}>
+              <div><dt>Rent</dt><dd>{listing.rent_formatted ? `${listing.rent_formatted} / ${listing.rent_period === "yearly" ? "year" : "month"}` : "On request"}</dd></div>
+              <div><dt>Advance requested</dt><dd>{listing.advance_label}</dd></div>
+            </dl>
+          </div>
+        </aside>
 
-      <form onSubmit={submit} style={FORM} noValidate>
-        <section style={SECTION}>
-          <h2 className="type-title-2" style={{ margin: 0 }}>Your move and advance</h2>
-          <Field
-            label="How many months can you pay in advance?"
-            hint={`The provider asks for ${listing.advance_months} month${listing.advance_months === 1 ? "" : "s"}. Enter 0 if you cannot pay an advance now.`}
-            error={errors.advance_months_offered}
-            type="number"
-            min={0}
-            max={36}
-            step={1}
-            required
-            value={advanceMonths}
-            onChange={(event) => setAdvanceMonths(event.target.value)}
-          />
-          {shortfall !== null ? (
-            <Notice
-              tone={shortfall === 0 ? "success" : "info"}
-              title={shortfall === 0
-                ? "Your offer meets the requested advance"
-                : `${shortfall} month${shortfall === 1 ? "" : "s"} below the requested advance`}
-              body="This difference is shown to both you and the provider; it does not block your application."
+        <form ref={formRef} onSubmit={submit} className={styles.form} noValidate>
+          <section className={styles.section} aria-labelledby="move-title">
+            <SectionHeading number="01" id="move-title" title="Your offer" description="Only the rent advance is required." />
+            <Field
+              label="Advance you can offer (months)"
+              hint="Enter 0 if you can’t pay any rent in advance."
+              error={errors.advance_months_offered}
+              type="number" inputMode="numeric" min={0} max={36} step={1} required
+              value={advanceMonths} onChange={(event) => setAdvanceMonths(event.target.value)}
             />
-          ) : null}
-          <Field label="Preferred move-in date" error={errors.move_in_from} type="date" value={moveInFrom} onChange={(event) => setMoveInFrom(event.target.value)} />
-          <Field label="How many people would live here?" error={errors.household_size} type="number" min={1} max={30} step={1} value={householdSize} onChange={(event) => setHouseholdSize(event.target.value)} />
-        </section>
+            <div aria-live="polite">
+              {shortfall !== null ? (
+                <p className={`${styles.offer} ${shortfall ? styles.offerShort : ""}`}>
+                  <Icon name={shortfall ? "info" : "check"} />
+                  <span>{shortfall
+                    ? `${shortfall} month${shortfall === 1 ? "" : "s"} below the requested advance. You can still apply.`
+                    : "Your offer meets the requested advance."}</span>
+                </p>
+              ) : null}
+            </div>
+            <div className={styles.fields}>
+              <Field label="Preferred move-in date" error={errors.move_in_from} type="date" value={moveInFrom} onChange={(event) => setMoveInFrom(event.target.value)} />
+              <Field label="Household size" error={errors.household_size} type="number" inputMode="numeric" min={1} max={30} step={1} placeholder="Number of people" value={householdSize} onChange={(event) => setHouseholdSize(event.target.value)} />
+            </div>
+          </section>
 
-        <section style={SECTION}>
-          <h2 className="type-title-2" style={{ margin: 0 }}>About your situation</h2>
-          <Field label="Occupation" error={errors.occupation} value={occupation} onChange={(event) => setOccupation(event.target.value)} maxLength={120} />
-          <Field label="Employer" error={errors.employer} value={employer} onChange={(event) => setEmployer(event.target.value)} maxLength={160} />
-          <Select label="Monthly income range" value={incomeBand} onChange={setIncomeBand} options={INCOME_BANDS} hint={errors.income_band || "Optional. Select a range."} />
-        </section>
+          <section className={styles.section} aria-labelledby="context-title">
+            <SectionHeading number="02" id="context-title" title="About your household" description="These details are optional. Share what you’re comfortable providing." />
+            <div className={styles.disclosures}>
+          <OptionalSection icon="account" title="Work and income">
+            <div className={styles.fields}>
+              <Field label="Occupation" error={errors.occupation} value={occupation} onChange={(event) => setOccupation(event.target.value)} maxLength={120} />
+              <Field label="Employer" error={errors.employer} value={employer} onChange={(event) => setEmployer(event.target.value)} maxLength={160} />
+            </div>
+            <Select label="Monthly income range" value={incomeBand} onChange={setIncomeBand} options={INCOME_BANDS} error={errors.income_band} />
+          </OptionalSection>
 
-        <section style={SECTION}>
-          <h2 className="type-title-2" style={{ margin: 0 }}>Guarantor, if you have one</h2>
-          <Field label="Guarantor name" error={errors.guarantor_name} value={guarantorName} onChange={(event) => setGuarantorName(event.target.value)} maxLength={160} />
-          <Field label="Guarantor mobile number" hint="Use a Ghana mobile number." error={errors.guarantor_phone} type="tel" value={guarantorPhone} onChange={(event) => setGuarantorPhone(event.target.value)} maxLength={20} />
-          <Field label="Relationship to you" error={errors.guarantor_relationship} value={guarantorRelationship} onChange={(event) => setGuarantorRelationship(event.target.value)} maxLength={60} />
-        </section>
+          <OptionalSection icon="users" title="Guarantor">
+            <div className={styles.fields}>
+              <Field label="Guarantor name" error={errors.guarantor_name} value={guarantorName} onChange={(event) => setGuarantorName(event.target.value)} maxLength={160} />
+              <Field label="Relationship to you" error={errors.guarantor_relationship} value={guarantorRelationship} onChange={(event) => setGuarantorRelationship(event.target.value)} maxLength={60} />
+            </div>
+            <Field label="Guarantor mobile number" hint="Use a Ghana mobile number." error={errors.guarantor_phone} type="tel" value={guarantorPhone} onChange={(event) => setGuarantorPhone(event.target.value)} maxLength={20} />
+          </OptionalSection>
 
-        <label style={{ display: "grid", gap: "var(--space-2)" }}>
-          <span className="type-caption" style={{ color: "var(--color-ink-700)" }}>Message to the provider</span>
-          <textarea
-            value={message}
-            onChange={(event) => setMessage(event.target.value)}
-            maxLength={1000}
-            rows={5}
-            aria-invalid={Boolean(errors.message)}
-            style={TEXTAREA}
-          />
-          {errors.message ? <span role="alert" className="type-caption" style={{ color: "var(--color-laterite-600)" }}>{errors.message}</span> : null}
-        </label>
+          <OptionalSection icon="mail" title="Note to the provider">
+            <textarea
+              aria-label="Note to the provider"
+              aria-describedby={errors.message ? "apply-note-error" : undefined}
+              aria-invalid={Boolean(errors.message)}
+              className={styles.note} value={message} onChange={(event) => setMessage(event.target.value)}
+              placeholder="For example, let them know if your move-in date is flexible."
+              maxLength={1000} rows={4}
+            />
+            <div className={styles.noteMeta}>
+              {errors.message ? <span id="apply-note-error" role="alert" className="type-caption field-error">{errors.message}</span> : null}
+              <span className="type-caption">{message.length} / 1,000</span>
+            </div>
+          </OptionalSection>
+            </div>
+          </section>
 
-        {error ? <Notice tone="error" title={error} /> : null}
-        <div style={ACTIONS}>
-          <Button type="submit" busy={busy}>Submit application</Button>
-          <Button type="button" variant="secondary" onClick={() => router.push(`/record/listing?id=${listing.id}` as never)}>Back to rental</Button>
-        </div>
-      </form>
+          <div className={styles.submit}>
+            <p><Icon name="info" /> The provider will receive these details for review. Sending an application doesn’t commit you to a tenancy.</p>
+            <Button type="submit" busy={busy} busyLabel="Sending…">Submit application</Button>
+          </div>
+        </form>
+      </div>
     </main>
   );
+}
+
+function SectionHeading({ number, id, title, description }: { number: string; id: string; title: string; description: string }) {
+  return <header className={styles.sectionHeading}>
+    <span className={styles.number} aria-hidden="true">{number}</span>
+    <div><h2 id={id}>{title}</h2><p>{description}</p></div>
+  </header>;
+}
+
+function OptionalSection({ icon, title, children }: { icon: IconName; title: string; children: ReactNode }) {
+  return <details className={styles.optional}>
+    <summary>
+      <Icon name={icon} />
+      <strong>{title}</strong>
+      <Icon name="chevron-down" />
+    </summary>
+    <div className={styles.optionalBody}>{children}</div>
+  </details>;
+}
+
+function months(count: number) {
+  return `${count} month${count === 1 ? "" : "s"}`;
+}
+
+function focusReceipt(node: HTMLHeadingElement | null) {
+  node?.focus();
+}
+
+function ApplicationUnavailable({ title, message, action }: { title: string; message: string; action: ReactNode }) {
+  return <main style={SHELL}>
+    <h1 className="type-title-2">{title}</h1>
+    <Notice tone="error" title={title} body={message} />
+    <div className={styles.recovery}>{action}</div>
+  </main>;
 }
 
 const SHELL: React.CSSProperties = {
   maxWidth: "44rem",
   margin: "0 auto",
   padding: "var(--space-8) var(--space-5) var(--space-12)",
-};
-
-const FORM: React.CSSProperties = {
-  display: "grid",
-  gap: "var(--space-6)",
-  marginTop: "var(--space-7)",
-};
-
-const SECTION: React.CSSProperties = {
-  display: "grid",
-  gap: "var(--space-4)",
-  padding: "var(--space-5)",
-  background: "var(--color-field-0)",
-  border: "var(--border-hairline) solid var(--color-field-200)",
-  borderRadius: "var(--radius-md)",
-};
-
-const ACTIONS: React.CSSProperties = {
-  display: "flex",
-  flexWrap: "wrap",
-  alignItems: "center",
-  gap: "var(--space-3)",
-};
-
-const TEXTAREA: React.CSSProperties = {
-  width: "100%",
-  boxSizing: "border-box",
-  padding: "var(--space-3)",
-  background: "var(--color-field-0)",
-  border: "var(--border-hairline) solid var(--color-field-300)",
-  borderRadius: "var(--radius-md)",
-  color: "var(--color-ink-900)",
-  resize: "vertical",
 };

@@ -17,6 +17,7 @@ import {
 } from "@/components/management/ManagementUI";
 import { managementFetch, useManagement } from "@/lib/management";
 import { MFAConfiguration } from "@/components/management/MFAConfiguration";
+import { PlanConfiguration } from "@/components/management/PlanConfiguration";
 
 type ConfigurationField = {
   key: string;
@@ -53,8 +54,10 @@ export default function ConfigurationPage() {
   const [dirtySections, setDirtySections] = useState<Set<string>>(new Set());
   const sections = resource.data?.sections ?? [];
   const mayManage = can("manage_configuration");
+  const mayEditPlans = can("manage_billing");
   const tabs = [
     ...(mayManage ? [{ id: "mfa", label: "Two-factor authentication" }] : []),
+    ...(mayEditPlans ? [{ id: "plans", label: "Plan inclusions" }] : []),
     ...sections.map((section) => ({ id: sectionId(section.name), label: section.name, marked: dirtySections.has(sectionId(section.name)) })),
   ];
   const active = tabs.some((tab) => tab.id === stored) ? stored : tabs[0]?.id ?? "";
@@ -66,6 +69,11 @@ export default function ConfigurationPage() {
       />
       {tabs.length ? <Tabs label="Configuration sections" tabs={tabs} active={active} onChange={setSection} /> : null}
       <div className="management-configuration">
+        {mayEditPlans ? (
+          <TabPanel id="plans" active={active}>
+            {active === "plans" ? <PlanConfiguration /> : null}
+          </TabPanel>
+        ) : null}
         {mayManage ? (
           <TabPanel id="mfa" active={active}>
             <MFAConfiguration />

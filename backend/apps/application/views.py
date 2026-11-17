@@ -13,6 +13,7 @@ from rest_framework.views import APIView
 
 from apps.core.exceptions import NotFound
 from apps.idempotency.services import idempotent_mutation
+from apps.identity.permissions import require_property_request_contact
 
 from . import services
 from .models import OPEN_STATUSES, RentalApplication
@@ -43,11 +44,9 @@ class MyApplicationsView(APIView):
 
     @idempotent_mutation(resource_type="rental_application")
     def post(self, request):
-        from apps.identity.permissions import IsPhoneVerified
         from apps.listing.models import Listing
 
-        if not IsPhoneVerified().has_permission(request, self):
-            raise NotFound("Confirm your phone number before applying for a place.")
+        require_property_request_contact(request.user)
 
         payload = SubmitApplicationSerializer(data=request.data)
         payload.is_valid(raise_exception=True)
@@ -77,18 +76,19 @@ class HostApplicationsView(APIView):
         """`?organization=<id>` scopes this to one Portfolio, decided here."""
         from apps.organization.services import properties_in_scope
 
-        applications = (
-            RentalApplication.objects.filter(
-                unit__property__in=properties_in_scope(
-                    user=request.user, organization=request.query_params.get("organization")
-                ),
-                superseded_by__isnull=True,
-            )
-            .select_related(*SELECT)
-            .prefetch_related(*PREFETCH)
+        applications = RentalApplication.objects.filter(
+            unit__property__in=properties_in_scope(
+                user=request.user, organization=request.query_params.get("organization")
+            ),
+            superseded_by__isnull=True,
         )
         if request.query_params.get("open") == "true":
             applications = applications.filter(status__in=OPEN_STATUSES)
+        if request.query_params.get("view") == "count":
+            return Response(
+                {"count": applications.count()}, headers={"Cache-Control": "private, no-store"}
+            )
+        applications = applications.select_related(*SELECT).prefetch_related(*PREFETCH)
         return Response(RentalApplicationSerializer(applications, many=True).data)
 
 

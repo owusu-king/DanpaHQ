@@ -55,7 +55,7 @@ def test_changed_object_is_not_sent(monkeypatch, settings):
     settings.CLOUDMERSIVE_API_KEY = "test-key"
     monkeypatch.setattr(scanner, "get_storage", lambda: MemoryObject(b"changed"))
     monkeypatch.setattr(scanner.requests, "post", lambda *args, **kwargs: pytest.fail("sent"))
-    with pytest.raises(scanner.ScanError, match="changed"):
+    with pytest.raises(scanner.ScanError, match="checksum_mismatch"):
         scanner.scan_with_cloudmersive(stored_file(b"original"))
 
 
@@ -71,7 +71,7 @@ def test_ambiguous_verdict_stays_pending(monkeypatch, settings, payload):
             raise_for_status=lambda: None, json=lambda: payload
         ),
     )
-    with pytest.raises(scanner.ScanError, match="definitive"):
+    with pytest.raises(scanner.ScanError, match="invalid_verdict"):
         scanner.scan_with_cloudmersive(stored_file(data))
 
 
@@ -84,7 +84,7 @@ def test_network_failure_stays_pending(monkeypatch, settings):
         raise requests.Timeout()
 
     monkeypatch.setattr(scanner.requests, "post", fail)
-    with pytest.raises(scanner.ScanError, match="valid response"):
+    with pytest.raises(scanner.ScanError, match="provider_timeout"):
         scanner.scan_with_cloudmersive(stored_file(data))
 
 
@@ -93,5 +93,25 @@ def test_provider_size_limit_applies_before_read(monkeypatch, settings):
     monkeypatch.setattr(scanner, "get_storage", lambda: pytest.fail("read"))
     stored = stored_file(b"original")
     stored.size_bytes = scanner.CLOUDMERSIVE_MAX_BYTES + 1
-    with pytest.raises(scanner.ScanError, match="size limit"):
+    with pytest.raises(scanner.ScanError, match="size_limit"):
         scanner.scan_with_cloudmersive(stored)
+
+
+@pytest.mark.parametrize("status,reason,retryable", [
+    (402, "billing_required", False),
+    (413, "size_limit", False),
+    (429, "rate_or_quota_limit", True),
+    (503, "provider_http_error", True),
+])
+def test_provider_http_failures_are_classified(monkeypatch, settings, status, reason, retryable):
+    data = b"test image bytes"
+    settings.CLOUDMERSIVE_API_KEY = "test-key"
+    monkeypatch.setattr(scanner, "get_storage", lambda: MemoryObject(data))
+    response = requests.Response()
+    response.status_code = status
+    monkeypatch.setattr(scanner.requests, "post", lambda *args, **kwargs: response)
+    with pytest.raises(scanner.ScanError) as caught:
+        scanner.scan_with_cloudmersive(stored_file(data))
+    assert caught.value.reason == reason
+    assert caught.value.status == status
+    assert caught.value.retryable is retryable

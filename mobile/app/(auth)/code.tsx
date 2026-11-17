@@ -220,7 +220,7 @@ export default function CodeScreen() {
         }
         const account = result.user;
 
-        if (account.registration_state !== "complete") {
+        if (resolveEntryRoute(account) === "/(auth)/register") {
           if (requestedIntent) await rememberOnboardingIntent(requestedIntent);
           await signIn(result as Parameters<typeof signIn>[0]);
           router.replace({ pathname: "/(auth)/register", params: { workspace } });

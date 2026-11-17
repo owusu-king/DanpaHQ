@@ -1,0 +1,68 @@
+# Danpa HQ authenticated staging performance
+
+November 9, 2026. Observed the deployed web app in desktop Chrome using the supplied tenant and provider sessions. The provider portfolio had two properties and two units with no active tenancies. Measurements are from one workstation with no CPU or network throttling and normal browser caching. These are individual observations. They establish the shape and magnitude of the delays, with no population percentile implied.
+
+Chrome DevTools supplied Network waterfalls, request Timing and response `Server-Timing` headers, Performance recordings, local paint and interaction metrics, and console observations. The report omits session material, record identifiers and response bodies. Only navigation and inspection were performed. There were no application-code or deployment changes.
+
+## What people waited for
+
+Times for requests in the table are relative to the DevTools recording or navigation origin. API completion is a data readiness proxy. LCP is a measured paint and can occur before secondary data or thumbnails finish.
+
+| Role and journey | Measured result | What was on the path |
+|---|---|---|
+| Provider Home, regular reload | DOMContentLoaded **217 ms**, browser load **378 ms**. Portfolio summary completed around **3.71 s**, slowest measured Home detail around **5.37 s**, Network finish **5.64 s**. | Refresh, account preflight and `/me/`, then the portfolio summary and five detail reads. The shell also fetched notification history. |
+| Provider Home, separate Performance reload | **2.58 s LCP**, **0.17 CLS**. About **493 ms scripting** across the 5.37 s trace, including extension activity. | Account and data responses remained on the trace. Browser load metrics and LCP do not establish when all dashboard sections finished. |
+| Provider Finance → Home, warm | **2.55 s soft-navigation LCP**, **0 CLS**, and **24 ms** local interaction to next paint for the click. The Home summary request took **2.12 s**, and the Viewings detail took **2.22 s** in the Network list. | Six business reads recurred without another refresh or account read in the sample. RSC route resources took **43–71 ms** each. The page showed the summary while its attention status still said it was checking. |
+| Provider Home → Properties | The scoped list completed around **2.38 s**. Thumbnails continued afterward. | Static route data **43 ms**, organizations **444 ms**, then properties **1.03 s** after a **218 ms** browser scheduling interval. |
+| Provider Properties → Finance | Portfolio data completed around **4.01 s**. Expenses returned later, around **4.35 s** on the waterfall. A skeleton was visible while data was pending. | Organizations **475 ms**, followed by full portfolio **2.08 s**, properties **1.02 s**, and expenses **2.34 s** in the Network list. Finance waits for all three before replacing the skeleton. |
+| Tenant Home, two reloads | Browser load **323–326 ms**. LCP **1.87 s** in live metrics and **2.71 s** in the recorded reload, both **0 CLS**. Network finish **2.67–3.31 s**, including prefetch. | Refresh **401–567 ms**, then `/me/` **1.02–1.03 s**, then five tenant Home reads plus the badge. `/me/tenancies/` took **506–756 ms**. The recorded reload spent about **150 ms** scripting. |
+| Tenant Artisans → Home | Network activity completed around **1.4 s**. | Five Home reads ranged from **476 ms to 1.02 s**, including a **625 ms** tenancies request. |
+| Tenant Home → Payments | Main requests completed around **0.56 s**. The account had no rent account. | Route data **113 ms**, tenancy ledger projection **290 ms**, payment intents **416 ms**. |
+| Tenant Payments → Viewings | Viewings data completed around **0.85 s** and the empty state rendered. | Route data **194 ms**, viewings API **298 ms**, plus route and record-link prefetch. |
+| Tenant Viewings → Updates | Notification list completed around **0.48 s** and rendered. | Notification history **336 ms**. No record or mark-read control was opened. |
+| Tenant Updates → Explore | Sales **541 ms**, rental search **778 ms**, with an additional **1.00 s** account read on the transition. Listing cards rendered. | Shared-route account handling, catalogue reads and media. A paint milestone was not recorded for this sample. |
+
+Provider Properties and Finance were measured on actual in-app sidebar clicks. Finance and Payments share the URL and had substantially different workloads by role. The observed provider dataset was small and cannot establish how cost scales across larger portfolios.
+
+## Request evidence and bottlenecks
+
+| Staging request | Chrome timing | Django `app` timing | Interpretation |
+|---|---:|---:|---|
+| Provider Home `GET /api/v1/me/` | Queued **1.05 s**, started **1.45 s**, about **1.43 s** waiting after start | **1.20 s** | Measured **406 ms** scheduling before the GET, coinciding with a **405 ms** preflight. Home business requests queued at **2.90 s** after account data. |
+| Tenant Home `GET /api/v1/me/` | **1.03 s** | **847 ms** | The account projection dominated the first warm network reload even on the smaller tenant view. |
+| Tenant Home `GET /api/v1/me/tenancies/` | **506 ms** | **101 ms** | The small application interval leaves substantial wait outside Django. The compressed body was **6 bytes**. |
+| Provider Home `GET /api/portfolio-home/<id>` | Queued **2.90 s**, started **2.91 s**, about **800 ms** total | **359 ms** | The same-origin proxy is active. It served 200 with private, no-store caching and only **2.5 ms** of Chrome scheduling in this sample. |
+| Provider Home scoped `GET /me/viewing-requests/` | Queued **2.90 s**, started **3.35 s**, **2.02 s** waiting after start, **2.47 s** with scheduling | **273 ms** | The compressed body was **6 bytes**. About **1.75 s** of post-send waiting falls outside the reported Django interval. |
+| Provider Home scoped Properties read | **1.69 s** in the Network list | **846 ms** | Property projection work is meaningful even for two properties. |
+| Provider Properties list | Queued **1.13 s**, started **1.35 s**, **1.03 s** waiting after start | **820 ms** | It starts after an organizations lookup even though the session exposes the selected portfolio. |
+| Provider Finance `GET /organizations/<id>/portfolio/` | Queued **905 ms**, started **1.93 s**, **2.08 s** waiting after start | **1.87 s** | This full projection is expensive in Django. Chrome also recorded **1.02 s** of pre-send scheduling. The expense request kept the initial screen waiting after this response. |
+
+**The strongest confirmed cause is the order of data dependencies.** A document reload must restore the session and finish `/me/` before page requests. Warm navigation removes that barrier, but provider Home still fans out to six endpoints, while Properties and Finance fetch organizations again before starting their primary reads. The page sources show the awaited lookup and Finance's `Promise.all`. Portal route prefetch and some 302s on record-link RSC requests added background traffic. Those requests were not the multi-second critical business reads. [Properties](../web/app/properties/page.tsx) · [Finance](../web/app/payments/page.tsx) · [Home](../web/app/home/page.tsx)
+
+**The host may amplify the fan-out.** Provider Viewings spent **273 ms** inside Django but **2.02 s** waiting after the GET started. Concurrent Home requests completed over a wide range even with tiny responses. The repository's staging profile specifies one synchronous Gunicorn request slot. That is consistent with upstream queueing, but the residual also includes transport and edge/proxy time. Chrome's pre-send Queueing number is a different interval, and `app` includes application work and database calls together. No Render process metrics, worker accept times or PostgreSQL statement timings were inspected. These observations came from an already responding service and do not measure an idle cold start. [Staging configuration](../render.staging.yaml) · [Runtime profile](../backend/scripts/render-supervise.py) · [Server-Timing middleware](../backend/apps/core/middleware.py)
+
+**Frontend work exists alongside the network delays.** The provider trace flagged a layout shift and potential image and cache savings of **324 KB** and **344 KB** respectively. These are Chrome estimates and can overlap. The provider browser had extensions, including extension-origin scripts in the trace. Whole-browser transfer totals and main-thread time cannot be attributed entirely to Danpa HQ. The tenant trace had about **150 ms** of scripting with multi-second data waits. The Console showed no visible application error after the provider reload at default levels. Earlier DevTools issue badges were present and were not attributed to the application. The tested business requests succeeded.
+
+## Public landing redirect
+
+Opening `/` with the real provider session displayed the landing page, restored the session and **did navigate to Properties**. The returning-user path resolves the selected portfolio's route, which can be Properties. The network log contained a **724 ms** refresh, two successful `/me/` rows of roughly **1.65 s** each, an organizations request of **1.89 s**, and the scoped property list at **1.06 s**. The waterfall ran to roughly **7 s** with the property cards and thumbnails eventually visible. Staging served the sampled root and destination RSC resources successfully.
+
+That path starts with a valid session. The earlier audit's timeout was during a simulated *new* sign-in. Source review found two possible navigation owners on `/`: the root `EntryRedirect` reacts when the session becomes signed in and may choose the selected portfolio route, while the sign-in dialog separately calls `router.replace` with the login or return destination. Competing replacements are a concrete hypothesis for the earlier timeout, with no causal confirmation from the returning-user trace. [Root redirect](../web/src/components/EntryRedirect.tsx) · [Auth dialog navigation](../web/src/components/auth/AuthDialog.tsx)
+
+In the follow-up, the provider signed out of the regular Chrome session and signed in again from the staging landing page. The signed-in tab was verified at `/properties` with the provider's property list rendered. The earlier redirect timeout did not reproduce in this attempt. When inspected, DevTools had Keep log enabled but contained only two notification polls, so the login request, redirect sequence and elapsed time could not be measured.
+
+## Comparison with the local audit
+
+- The **2–3 second** delay is reproduced on deployed provider Home during warm navigation. This is the first authenticated staging baseline in the audit. The earlier **1.42 s** public Home LCP was a signed-out gate, and the **1.36 s → 0.85 s** comparison was an intercepted sign-in through the Home gate.
+- The staging Home proxy from the earlier repository baseline is active. The deployed portal still calls plain `/me/notifications/` for the badge instead of the candidate's `?view=badge` route. The local working-tree candidate is a separate build and was not deployed as part of either audit. No exact deployed SHA or like-for-like candidate trace was obtained.
+- The local SQL-count changes do not quantify hosted database savings. The staging evidence identifies much longer account and full-portfolio work than the synthetic fixtures showed. A signed-in reload and a warm route visit also do not exercise the candidate's fresh-sign-in change.
+
+## Recommended order of work
+
+1. **Profile the measured server intervals.** Correlate staging request IDs with the Django, Render and Postgres timing for `/me/`, scoped properties, the full Finance portfolio, and the late Viewings request. Break down database round trips, CPU, connection/edge overhead and upstream wait. Compare warmed single requests with a realistic Home fan-out. If upstream queueing dominates, test one controlled staging run with a larger or concurrent runtime while holding the release, account and workload fixed.
+2. **Remove avoidable serial reads.** Use the already validated session portfolio context to start the primary scoped request where the route can do so safely. Keep server-side membership checks and a fallback when no valid context is available. In Finance, separate the initial Rent Due projection from expenses, property selectors and deeper tabs when they are not required for first use.
+3. **Reduce Home contention.** Prioritize the summary and measure whether consolidating or deferring ancillary reads shortens both first useful paint and the tail. Verify why the portal refreshes `/me/` again across public and shared route boundaries. Preserve a deliberate revalidation path for changes in access or context.
+4. **Verify landing entry and the candidate under matched conditions.** Capture an extension-free fresh login from `/` with Network Preserve log and the actual final URL, then compare it with `/home` gate sign-in, a reload, and warm in-app navigation. If competing replacements reproduce, give one component ownership of the destination and test MFA, the intended return URL, and provider versus tenant defaults. Compare the candidate with the verified deployed baseline on the same browser, role, data, region and warm/cold condition before drawing a staging improvement conclusion.
+5. **Retest presentation separately.** Inspect the provider layout-shift culprit and the image identified by Chrome, then repeat with extensions disabled and a representative Ghana connection. Use enough runs to report p50 and p95 for first usable dashboard content and for all required data to settle.
+
+[Previous local and public baseline audit](performance-audit.md)

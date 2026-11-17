@@ -13,6 +13,7 @@ type GoogleAccounts = {
       callback: (response: CredentialResponse) => void;
       ux_mode: "popup";
       auto_select: boolean;
+      use_fedcm_for_button: boolean;
     }) => void;
     renderButton: (
       parent: HTMLElement,
@@ -50,6 +51,7 @@ function initializeGoogle() {
     client_id: CLIENT_ID,
     ux_mode: "popup",
     auto_select: false,
+    use_fedcm_for_button: true,
     callback: (response) => {
       if (response.credential) activeReceiver?.(response.credential);
     },

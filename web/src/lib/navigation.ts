@@ -23,7 +23,9 @@ import type { Me, Workspace } from "./session";
  */
 export function resolveWebEntry(me: Me, activeContext?: string | null): string {
   if (me.account_status !== "active") return "/restricted";
-  if (me.registration_state !== "complete") return "/register";
+  if (me.registration_state !== "complete") {
+    return me.entry_routes.web === "/settings/security" ? me.entry_routes.web : "/register";
+  }
 
   const detailed = me.contexts.find((context) => context.id === activeContext);
   if (

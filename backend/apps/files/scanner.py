@@ -17,21 +17,27 @@ CLOUDMERSIVE_URL = "https://api.cloudmersive.com/virus/scan/file"
 class ScanError(Exception):
     """The provider could not give a trustworthy verdict."""
 
+    def __init__(self, reason, *, status=None, retryable=True):
+        self.reason = reason
+        self.status = status
+        self.retryable = retryable
+        super().__init__(reason)
+
 
 def scan_with_cloudmersive(stored) -> bool:
     """Return True only for an explicit clean verdict; never send filenames or keys."""
     api_key = getattr(settings, "CLOUDMERSIVE_API_KEY", "")
     if not api_key:
-        raise ScanError("Cloudmersive API key is not configured")
+        raise ScanError("missing_configuration", retryable=False)
     if not stored.size_bytes or stored.size_bytes > CLOUDMERSIVE_MAX_BYTES:
-        raise ScanError("File exceeds the configured scanner's size limit")
+        raise ScanError("size_limit", retryable=False)
 
     try:
         data = get_storage().read(key=stored.storage_key, length=CLOUDMERSIVE_MAX_BYTES + 1)
     except StorageError as exc:
-        raise ScanError("Uploaded object could not be read") from exc
+        raise ScanError("storage_read_failed") from exc
     if len(data) != stored.size_bytes or hashlib.sha256(data).hexdigest() != stored.checksum_sha256:
-        raise ScanError("Uploaded object changed after validation")
+        raise ScanError("checksum_mismatch", retryable=False)
 
     suffix = Path(stored.storage_key).suffix or ".bin"
     try:
@@ -42,16 +48,30 @@ def scan_with_cloudmersive(stored) -> bool:
             timeout=(5, 45),
         )
         response.raise_for_status()
+    except requests.HTTPError as exc:
+        status = exc.response.status_code if exc.response is not None else 0
+        reason = {
+            401: "credentials_rejected", 402: "billing_required", 403: "access_denied",
+            413: "size_limit", 415: "unsupported_file", 429: "rate_or_quota_limit",
+        }.get(status, "provider_http_error")
+        raise ScanError(
+            reason, status=status, retryable=status >= 500 or status in {0, 408, 429},
+        ) from None
+    except requests.Timeout:
+        raise ScanError("provider_timeout") from None
+    except requests.RequestException:
+        raise ScanError("provider_connection_failed") from None
+    try:
         verdict = response.json()
-    except (requests.RequestException, ValueError) as exc:
-        raise ScanError("Malware scanner did not return a valid response") from exc
+    except ValueError:
+        raise ScanError("invalid_verdict") from None
 
     if not isinstance(verdict, dict) or type(verdict.get("CleanResult")) is not bool:
-        raise ScanError("Malware scanner response has no definitive verdict")
+        raise ScanError("invalid_verdict")
     # Cloudmersive returns null for the threat list on a clean scan.
     found = verdict.get("FoundViruses")
     if found is not None and not isinstance(found, list):
-        raise ScanError("Malware scanner response has an invalid threat list")
+        raise ScanError("invalid_threat_list")
     if found and verdict["CleanResult"]:
-        raise ScanError("Malware scanner returned contradictory verdicts")
+        raise ScanError("contradictory_verdict")
     return verdict["CleanResult"]

@@ -58,6 +58,7 @@ export function AllExplore({
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const request = useRef(0);
+  const paging = useRef(false);
 
   // Typing settles before it searches, the way Rent's area box does.
   useEffect(() => {
@@ -70,23 +71,39 @@ export function AllExplore({
     setPreviousQuery(q);
     setListings(null);
     setSales(null);
+    setNextListings(null);
+    setNextSales(null);
     setError("");
+    setLoadingMore(false);
   }
 
   function load(query: string) {
     const id = ++request.current;
     const filters = query ? { q: query } : {};
-    return Promise.allSettled([searchListings(filters), searchSales(filters)]).then(([rent, sale]) => {
-      if (id !== request.current) return;
-      setListings(rent.status === "fulfilled" ? rent.value.results : []);
-      setNextListings(rent.status === "fulfilled" ? rent.value.next : null);
-      setSales(sale.status === "fulfilled" ? sale.value.results : []);
-      setNextSales(sale.status === "fulfilled" ? sale.value.next : null);
-      const failed = [rent, sale].find((row) => row.status === "rejected") as PromiseRejectedResult | undefined;
-      setError(failed
-        ? failed.reason instanceof ApiFailure ? failed.reason.error.message : "Some places could not be loaded."
-        : "");
-    });
+    paging.current = false;
+    function failed(reason: unknown) {
+      if (id === request.current) {
+        setError(reason instanceof ApiFailure ? reason.error.message : "Some places could not be loaded.");
+      }
+    }
+    return Promise.all([
+      searchListings(filters).then((rent) => {
+        if (id !== request.current) return;
+        setListings(rent.results);
+        setNextListings(rent.next);
+      }, (reason) => {
+        if (id === request.current) setListings([]);
+        failed(reason);
+      }),
+      searchSales(filters).then((sale) => {
+        if (id !== request.current) return;
+        setSales(sale.results);
+        setNextSales(sale.next);
+      }, (reason) => {
+        if (id === request.current) setSales([]);
+        failed(reason);
+      }),
+    ]);
   }
 
   useEffect(() => {
@@ -94,29 +111,39 @@ export function AllExplore({
     return () => { request.current += 1; };
   }, [q]);
 
+  const querying = listings === null || sales === null;
+
   async function loadMore() {
-    if (loadingMore || !(nextListings || nextSales)) return;
+    if (querying || paging.current || !(nextListings || nextSales)) return;
+    paging.current = true;
     setLoadingMore(true);
     const id = request.current;
-    try {
-      const [rent, sale] = await Promise.all([
-        nextListings ? searchListingsPage(nextListings) : Promise.resolve(null),
-        nextSales ? searchSalesPage(nextSales) : Promise.resolve(null),
-      ]);
-      if (id !== request.current) return;
-      if (rent) { setListings((current) => [...(current ?? []), ...rent.results]); setNextListings(rent.next); }
-      if (sale) { setSales((current) => [...(current ?? []), ...sale.results]); setNextSales(sale.next); }
-    } catch {
-      // A failed page must never empty the ones already scrolled past.
-    } finally {
-      setLoadingMore(false);
+    const pages = await Promise.allSettled([
+      nextListings ? searchListingsPage(nextListings).then((rent) => {
+        if (id !== request.current) return;
+        setListings((current) => [...(current ?? []), ...rent.results]);
+        setNextListings(rent.next);
+      }) : null,
+      nextSales ? searchSalesPage(nextSales).then((sale) => {
+        if (id !== request.current) return;
+        setSales((current) => [...(current ?? []), ...sale.results]);
+        setNextSales(sale.next);
+      }) : null,
+    ]);
+    if (id !== request.current) return;
+    if (pages.some((page) => page.status === "rejected")) {
+      setError("We could not load more places.");
+    } else {
+      setError((previous) => previous === "We could not load more places." ? "" : previous);
     }
+    paging.current = false;
+    setLoadingMore(false);
   }
 
-  const items = useMemo(() => (listings && sales ? merge(listings, sales) : null), [listings, sales]);
+  const items = useMemo(() => (listings || sales ? merge(listings ?? [], sales ?? []) : null), [listings, sales]);
   const line = items === null
     ? "Finding places…"
-    : !q || error ? "Explore properties" : `${listings?.length ?? 0}${nextListings ? "+" : ""} to rent · ${sales?.length ?? 0}${nextSales ? "+" : ""} for sale`;
+    : !q || querying || error ? "Explore properties" : `${listings?.length ?? 0}${nextListings ? "+" : ""} to rent · ${sales?.length ?? 0}${nextSales ? "+" : ""} for sale`;
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.color.field["50"] }}>
@@ -147,7 +174,17 @@ export function AllExplore({
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={async () => { setRefreshing(true); setListings(null); setSales(null); setError(""); await load(q); setRefreshing(false); }}
+            onRefresh={async () => {
+              setRefreshing(true);
+              setListings(null);
+              setSales(null);
+              setNextListings(null);
+              setNextSales(null);
+              setError("");
+              setLoadingMore(false);
+              await load(q);
+              setRefreshing(false);
+            }}
             tintColor={theme.color.kola["600"]}
           />
         }
@@ -155,7 +192,7 @@ export function AllExplore({
           <View style={{ gap: space[2] }}>
             <ExploreResults
               mode="all"
-              busy={items === null}
+              busy={querying}
               line={line}
               detail="To rent and to buy, every one verified"
             />
@@ -177,7 +214,7 @@ export function AllExplore({
         onEndReached={() => void loadMore()}
         ListFooterComponent={loadingMore ? <ActivityIndicator style={{ paddingVertical: space[5] }} color={theme.color.kola["600"]} /> : null}
         ListEmptyComponent={
-          items === null || error ? null : (
+          querying || error ? null : (
             <View style={{ paddingVertical: space[8], gap: space[2] }}>
               <Type variant="bodyStrong">{q ? "No places match your search" : "No places yet"}</Type>
               {q ? <Button label="Clear search" onPress={() => setText("")} /> : null}

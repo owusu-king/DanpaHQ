@@ -8,15 +8,23 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+from apps.core.exceptions import DomainError
+
 from .validation import FileValidationError
 
 VIDEO_PURPOSES = frozenset({"property_video", "unit_video"})
-MAX_DURATION_MS = 10_000
+MAX_DURATION_MS = 15_000
 MAX_PLAYBACK_BYTES = 3_300_000
 VIDEO_SCALE = (
     "scale=w='min(1280,iw)':h='min(1280,ih)':"
     "force_original_aspect_ratio=decrease:force_divisible_by=2:flags=bilinear"
 )
+
+
+class VideoProcessingUnavailable(DomainError):
+    code = "video_processing_unavailable"
+    status_code = 503
+    message = "Video processing is unavailable. Retry the upload shortly."
 
 
 def _run(args: list[str], *, timeout: int = 35) -> bytes:
@@ -29,8 +37,14 @@ def _run(args: list[str], *, timeout: int = 35) -> bytes:
         ).stdout
     except FileNotFoundError as exc:
         # Deployment failures must fail closed rather than accept unchecked media.
-        raise FileValidationError("Video processing is unavailable. Try again later.") from exc
-    except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
+        raise VideoProcessingUnavailable() from exc
+    except subprocess.TimeoutExpired as exc:
+        raise VideoProcessingUnavailable(
+            "Video processing timed out. Retry the upload or choose a smaller video."
+        ) from exc
+    except subprocess.CalledProcessError as exc:
+        if exc.returncode < 0:
+            raise VideoProcessingUnavailable() from exc
         raise FileValidationError(
             "This video could not be processed. Choose another video."
         ) from exc
@@ -76,7 +90,7 @@ def prepare_video(source: bytes) -> tuple[bytes, dict]:
     Input size is bounded by the upload lifecycle before this runs. No URLs or
     client-supplied paths reach the tools; execution and output are bounded too.
     Only the canonical copy is scanned, sealed and made usable. A forged source
-    duration cannot hide a longer clip: decoding is capped just beyond ten
+    duration cannot hide a longer clip: decoding is capped just beyond fifteen
     seconds and the resulting stream duration is checked independently.
     """
     with tempfile.TemporaryDirectory(prefix="danpa-video-") as directory:
@@ -84,7 +98,7 @@ def prepare_video(source: bytes) -> tuple[bytes, dict]:
         raw.write_bytes(source)
         duration, streams = _probe(raw, allow_unknown=True)
         if duration > MAX_DURATION_MS / 1000:
-            raise FileValidationError("Choose a video of 10 seconds or less.")
+            raise FileValidationError("Choose a video of 15 seconds or less.")
         video = next(s for s in streams if s.get("codec_type") == "video")
         if (
             not 0 < int(video.get("width", 0)) <= 7680
@@ -108,7 +122,7 @@ def prepare_video(source: bytes) -> tuple[bytes, dict]:
                 "-map",
                 "0:a:0?",
                 "-t",
-                "10.1",
+                str(MAX_DURATION_MS / 1000 + 0.1),
                 "-map_metadata",
                 "-1",
                 "-map_chapters",
@@ -126,11 +140,11 @@ def prepare_video(source: bytes) -> tuple[bytes, dict]:
                 "-pix_fmt",
                 "yuv420p",
                 "-b:v",
-                "1800k",
+                "1350k",
                 "-maxrate",
-                "2000k",
+                "1450k",
                 "-bufsize",
-                "2000k",
+                "1450k",
                 "-c:a",
                 "aac",
                 "-b:a",
@@ -138,7 +152,7 @@ def prepare_video(source: bytes) -> tuple[bytes, dict]:
                 "-ac",
                 "2",
                 "-af",
-                "atrim=duration=9.95,asetpts=PTS-STARTPTS",
+                f"atrim=duration={MAX_DURATION_MS / 1000 - 0.05},asetpts=PTS-STARTPTS",
                 "-movflags",
                 "+faststart",
                 "-fs",
@@ -149,7 +163,7 @@ def prepare_video(source: bytes) -> tuple[bytes, dict]:
         )
         actual_duration, actual_streams = _probe(output)
         if actual_duration > MAX_DURATION_MS / 1000:
-            raise FileValidationError("Choose a video of 10 seconds or less.")
+            raise FileValidationError("Choose a video of 15 seconds or less.")
         content = output.read_bytes()
         if not content or len(content) > MAX_PLAYBACK_BYTES:
             raise FileValidationError("This video could not be compressed. Choose a smaller video.")

@@ -177,7 +177,9 @@ test("both Homes open on the green hero, which hands over to the header on scrol
   assert.match(code(read("src/components/nav/TabHeader.tsx")), /<HeaderChromeBackground edge=\{!continues\} leading=\{!continues\} \/>/);
 
   assert.match(code(read("app/(app)/(tabs)/index.tsx")), /<HomeHeroScroll title=\{greeting\(displayName\)\}/);
-  assert.equal((code(read("app/(app)/(provider-tabs)/index.tsx")).match(/<HomeHeroScroll/g) ?? []).length, 3);
+  const provider = code(read("app/(app)/(provider-tabs)/index.tsx"));
+  assert.equal((provider.match(/<HomeHeroScroll/g) ?? []).length, 4);
+  assert.match(provider, /if \(error && !summary\) \{\s*return \(\s*<HomeHeroScroll/);
   for (const path of ["app/(app)/(tabs)/_layout.tsx", "app/(app)/(provider-tabs)/_layout.tsx"]) {
     assert.match(code(read(path)), /name="index" options=\{\{ title: "Home", headerShadowVisible: false,/);
   }

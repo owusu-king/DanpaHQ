@@ -37,6 +37,7 @@ class MyTenanciesView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        include_ledger = request.query_params.get("include_ledger") == "1"
         statuses = list(CURRENT_STATUSES)
         if request.query_params.get("include_ended") in {"1", "true", "yes"}:
             statuses.append("ended")
@@ -52,11 +53,61 @@ class MyTenanciesView(APIView):
             .prefetch_related("occupancies", "leases", "unit__media__file")
             .order_by("-started_on", "-created_at")
         )
-        return Response([_tenancy(row) for row in rows])
+        from apps.rent.models import RentCharge
+
+        tenancies = [(row, _display_lease(row)) for row in rows]
+        lease_ids = {lease.id for _, lease in tenancies if lease is not None}
+        charges = RentCharge.objects.filter(lease_id__in=lease_ids)
+        if include_ledger:
+            from apps.rent.services import with_disputed_payment
+
+            charges = with_disputed_payment(charges.prefetch_related("adjustments__actor"))
+        else:
+            charges = charges.prefetch_related("adjustments")
+
+        charges_by_lease: dict = {}
+        for charge in charges:
+            charges_by_lease.setdefault(charge.lease_id, []).append(charge)
+
+        portfolio = [
+            _tenancy(row, lease, charges_by_lease.get(lease.id, []) if lease else [])
+            for row, lease in tenancies
+        ]
+        if include_ledger:
+            _add_ledgers(request, tenancies, charges_by_lease, portfolio)
+        return Response(portfolio)
 
 
-def _tenancy(tenancy) -> dict:
-    """One tenancy, with everything a portfolio row or a detail page needs."""
+def _add_ledgers(request, tenancies, charges_by_lease, portfolio) -> None:
+    from apps.lease.models import LeaseStatus
+    from apps.rent.models import RentPayment
+    from apps.rent.serializers import RentChargeSerializer, RentPaymentSerializer
+    from apps.rent.services import ledger_payments
+
+    owned_leases = {
+        lease.id for _, lease in tenancies
+        if lease is not None and lease.tenant_id == request.user.id
+    }
+    payments_by_lease: dict[object, list[RentPayment]] = {}
+    for payment in ledger_payments(owned_leases):
+        payments_by_lease.setdefault(payment.lease_id, []).append(payment)
+
+    for (_, lease), entry in zip(tenancies, portfolio, strict=True):
+        entry["ledger"] = None
+        if lease is None or lease.id not in owned_leases:
+            continue
+        charges = charges_by_lease.get(lease.id, [])
+        if lease.status == LeaseStatus.AWAITING_ACTIVATION:
+            charges = [charge for charge in charges if charge.due_on == lease.starts_on]
+        entry["ledger"] = {
+            "charges": RentChargeSerializer(charges, many=True).data,
+            "payments": RentPaymentSerializer(
+                payments_by_lease.get(lease.id, []), many=True, context={"request": request}
+            ).data,
+        }
+
+
+def _display_lease(tenancy):
     # Function scope, not module scope: which statuses count as live is the
     # lease domain's vocabulary, and importing its models at the top of this
     # file would put an edge into the module graph that ADR 0002 forbids.
@@ -81,6 +132,11 @@ def _tenancy(tenancy) -> dict:
     )
     if lease is None and tenancy.status == "ended":
         lease = next((row for row in leases if row.status == LeaseStatus.ENDED), None)
+    return lease
+
+
+def _tenancy(tenancy, lease, charges) -> dict:
+    """One tenancy, with everything a portfolio row or a detail page needs."""
     occupancy = next(
         (row for row in tenancy.occupancies.all() if row.ended_at is None),
         None,
@@ -117,7 +173,7 @@ def _tenancy(tenancy) -> dict:
         # primary photograph rather than any campaign cover.
         "photo_url": _photo(tenancy.unit),
         "lease": _lease(lease) if lease else None,
-        "rent": _rent(lease) if lease else None,
+        "rent": _rent(charges) if lease else None,
     }
 
 
@@ -139,16 +195,13 @@ def _lease(lease) -> dict:
     }
 
 
-def _rent(lease) -> dict | None:
+def _rent(charges) -> dict:
     """What is owed, soonest first.
 
     Overdue is counted separately rather than folded into a balance: a single
     figure hides whether the money is late, and late is the part that changes
     what someone does today.
     """
-    from apps.rent.models import RentCharge
-
-    charges = list(RentCharge.objects.filter(lease=lease).order_by("due_on"))
     unpaid = [c for c in charges if c.outstanding_minor > 0]
     if not unpaid:
         return {

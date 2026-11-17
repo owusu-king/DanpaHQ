@@ -1,9 +1,9 @@
 "use client";
-import { ProfitLoss } from "@/components/payments/ProfitLoss";
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/Button";
 import { Field } from "@/components/Field";
@@ -41,7 +41,12 @@ import {
   type RecentPayment,
 } from "@/lib/rentDisplay";
 import { useSession } from "@/lib/session";
+import { selectedPortfolio } from "@/lib/sessionPolicy";
 import { getLeaseLedger, type LeaseLedger } from "@/lib/tenant";
+
+const ProfitLoss = dynamic(() => import("@/components/payments/ProfitLoss").then((module) => module.ProfitLoss), {
+  loading: () => <section className="ws-panel" aria-busy="true"><PanelSkeleton rows={5} round /></section>,
+});
 
 type PaymentsView = "balances" | "records" | "payouts" | "expenses" | "pnl";
 type BalanceFilter = "all" | "overdue" | "outstanding" | "current";
@@ -85,7 +90,7 @@ function PaymentsLoading() {
 }
 
 function PaymentsWorkspace() {
-  const { state } = useSession();
+  const { state, activeContext } = useSession();
   // A receipt, from a link (the retired receipt page and the payment return
   // send `?receipt=`), read in its sheet over whichever side of Payments this is.
   const [receiptId, setReceiptId] = useDeepLinkedModal("receipt");
@@ -96,7 +101,7 @@ function PaymentsWorkspace() {
   const inProvider = state.me.capabilities.active_workspace === "provider"
     && (state.me.capabilities.provider.workspace_access || state.me.capabilities.provider.exists);
   return <>
-    {inProvider ? <ProviderPaymentsContent /> : <TenantPaymentsWorkspace />}
+    {inProvider ? <ProviderPaymentsContent key={activeContext} /> : <TenantPaymentsWorkspace />}
     <ReceiptModal receiptId={receiptId || null} onClose={() => setReceiptId("")} />
   </>;
 }
@@ -111,17 +116,21 @@ function PaymentsWorkspace() {
  * against it. Every row that has an account opens it at its own address.
  */
 function ProviderPaymentsContent() {
-  const { activeContext } = useSession();
-  const [organizations, setOrganizations] = useState<Organization[] | null>(null);
-  const [organizationId, setOrganizationId] = useState("");
+  const { state, activeContext } = useSession();
+  const context = selectedPortfolio(state.status === "signed_in" ? state.me : null, activeContext);
+  const [fallback, setFallback] = useState<Organization | null>();
+  const organizationId = context?.organization_id ?? fallback?.id ?? "";
+  const scopePending = !context && fallback === undefined;
   const [summary, setSummary] = useState<OrganizationPortfolio | null>(null);
-  const [properties, setProperties] = useState<Property[]>([]);
-  const [expenses, setExpenses] = useState<PropertyExpense[]>([]);
+  const [summaryPending, setSummaryPending] = useState(true);
+  const [properties, setProperties] = useState<Property[] | null>(null);
+  const [expenses, setExpenses] = useState<PropertyExpense[] | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [error, setError] = useState("");
   const [retrying, setRetrying] = useState(false);
   const [recording, setRecording] = useState(false);
   const [recordingPayment, setRecordingPayment] = useState(false);
+  const loadSequence = useRef(0);
 
   const { toast } = useToast();
   const router = useRouter();
@@ -160,26 +169,38 @@ function ProviderPaymentsContent() {
   const setQuery = useCallback((next: string) => setParams({ q: next }), [setParams]);
 
   useEffect(() => {
+    if (!scopePending) return;
     let cancelled = false;
     listOrganizations().then((rows) => {
       if (cancelled) return;
-      const preferred = activeContext?.startsWith("organization:") ? activeContext.slice("organization:".length) : "";
-      setOrganizations(rows);
-      setOrganizationId((current) => rows.find((row) => row.id === current)?.id ?? rows.find((row) => row.id === preferred)?.id ?? rows[0]?.id ?? "");
+      setFallback(rows[0] ?? null);
     }).catch((cause) => { if (!cancelled) setError(cause instanceof ApiFailure ? cause.error.message : "Could not load your Portfolios."); });
     return () => { cancelled = true; };
-  }, [activeContext]);
+  }, [scopePending, reloadKey]);
 
   const load = useCallback(async () => {
     if (!organizationId) return;
-    try {
-      const [portfolio, propertyRows, expenseRows] = await Promise.all([
-        getOrganizationPortfolio(organizationId),
-        listOrganizationProperties(organizationId),
-        listPropertyExpenses(organizationId),
-      ]);
-      setSummary(portfolio); setProperties(propertyRows); setExpenses(expenseRows); setError("");
-    } catch (cause) { setError(cause instanceof ApiFailure ? cause.error.message : "Could not load payments."); }
+    const started = ++loadSequence.current;
+    setError("");
+    setSummaryPending(true);
+    async function read<T>(request: Promise<T>, apply: (value: T) => void) {
+      try {
+        const value = await request;
+        if (started === loadSequence.current) apply(value);
+      } catch (cause) {
+        if (started === loadSequence.current) {
+          setError((previous) => previous || (cause instanceof ApiFailure ? cause.error.message : "Could not load payments."));
+        }
+      }
+    }
+    const reads = [
+      read(getOrganizationPortfolio(organizationId), setSummary).finally(() => {
+        if (started === loadSequence.current) setSummaryPending(false);
+      }),
+      read(listOrganizationProperties(organizationId), setProperties),
+      read(listPropertyExpenses(organizationId), setExpenses),
+    ];
+    await Promise.all(reads);
   }, [organizationId]);
 
   useEffect(() => { setSummary(null); void load(); }, [load, reloadKey]);
@@ -208,8 +229,8 @@ function ProviderPaymentsContent() {
     const needle = query.trim().toLocaleLowerCase("en-GH");
     return (summary?.recent_settlements ?? []).filter((settlement) => !needle || `${settlement.tenant_name} ${settlement.property_title} ${settlement.unit_label} ${settlement.status_display}`.toLocaleLowerCase("en-GH").includes(needle));
   }, [query, summary]);
-  const activeOrganization = organizations?.find((row) => row.id === organizationId);
-  const canManagePayouts = activeOrganization?.current_user_role === "owner" || activeOrganization?.current_user_role === "admin";
+  const role = context?.role ?? fallback?.current_user_role;
+  const canManagePayouts = role === "owner" || role === "admin";
 
   const balanceCounts = useMemo(() => {
     const tenants = summary?.tenants ?? [];
@@ -222,13 +243,18 @@ function ProviderPaymentsContent() {
   }, [summary]);
 
   async function retry() {
+    if (scopePending) {
+      setError("");
+      setReloadKey((value) => value + 1);
+      return;
+    }
     setRetrying(true);
     setError("");
     await load();
     setRetrying(false);
   }
 
-  const loading = organizations === null || (Boolean(organizationId) && !summary && !error);
+  const loading = (scopePending && !error) || (Boolean(organizationId) && !summary && summaryPending);
   const hasAttention = Boolean(summary && (summary.money.overdue_minor > 0 || summary.money.payment_records_awaiting_you > 0 || summary.money.settlement_attention_minor > 0));
 
   return <div className="ws-page rent-workspace payments-page">
@@ -237,7 +263,7 @@ function ProviderPaymentsContent() {
       title="Finance"
       actions={summary ? (
         <>
-          <button type="button" className="ws-action is-red-outline" onClick={() => setRecording(true)}><PlusGlyph />Record expense</button>
+          <button type="button" className="ws-action is-red-outline" disabled={!properties} onClick={() => setRecording(true)}><PlusGlyph />Record expense</button>
           <button type="button" className="ws-action is-primary" onClick={() => setRecordingPayment(true)}><PlusGlyph />Record payment</button>
         </>
       ) : null}
@@ -253,7 +279,7 @@ function ProviderPaymentsContent() {
       </section>
     ) : null}
 
-    {organizations?.length === 0 ? (
+    {!scopePending && !organizationId ? (
       <section className="ws-panel" aria-label="Finance">
         <PanelState icon="properties" title="Add a Property first" action={<Link href="/properties" className="btn btn-quiet btn-sm">Open Properties</Link>} />
       </section>
@@ -353,11 +379,14 @@ function ProviderPaymentsContent() {
         </div> : <PanelState icon="payments" title={query ? "No matching payouts" : "No online payouts yet"} />}
       </section> : null}
 
-      {view === "expenses" ? <ExpensesSection expenses={expenses} onRecord={() => setRecording(true)} /> : null}
+      {view === "expenses" && expenses ? <ExpensesSection expenses={expenses} canRecord={properties !== null} onRecord={() => setRecording(true)} /> : null}
 
       {/* Refreshed through `load`, not `reloadKey`: that blanks the page, and
           the record would close under the person who just confirmed it. */}
-      {view === "pnl" ? <ProfitLoss report={summary.profit_loss} organizationId={organizationId} organizationName={summary.organization.name} properties={properties} /> : null}
+      {view === "pnl" && properties ? <ProfitLoss report={summary.profit_loss} organizationId={organizationId} organizationName={summary.organization.name} properties={properties} /> : null}
+      {((view === "expenses" && !expenses) || (view === "pnl" && !properties)) && !error
+        ? <section className="ws-panel" aria-busy="true"><PanelSkeleton rows={5} round /></section>
+        : null}
 
       <RentDueModal
         tenant={openedDue}
@@ -380,7 +409,7 @@ function ProviderPaymentsContent() {
       <ExpenseDialog
         open={recording}
         organizationId={organizationId}
-        properties={properties}
+        properties={properties ?? []}
         onClose={() => setRecording(false)}
         onDone={async () => { setRecording(false); setReloadKey((current) => current + 1); }}
       />
@@ -477,7 +506,7 @@ function SettlementRow({ settlement }: { settlement: Settlement }) {
 
 const EXPENSE_ICON: Record<string, IconName> = { maintenance: "amenities", utilities: "details", staff: "users", tax: "landmark", supplies: "shop", other: "reports" };
 
-function ExpensesSection({ expenses, onRecord }: { expenses: PropertyExpense[]; onRecord: () => void }) {
+function ExpensesSection({ expenses, canRecord, onRecord }: { expenses: PropertyExpense[]; canRecord: boolean; onRecord: () => void }) {
   const total = expenses.reduce((sum, item) => sum + item.amount_minor, 0);
   return <section id="expense-history" role="tabpanel" aria-labelledby="expense-history-tab" className="ws-panel payments-panel">
     <div className="ws-panel-head payments-panel-head">
@@ -489,7 +518,7 @@ function ExpensesSection({ expenses, onRecord }: { expenses: PropertyExpense[]; 
       <div><strong>{expense.category_display}</strong><span>{expense.property_title}</span></div>
       <span>{formatDate(expense.incurred_on)}{expense.note ? ` · ${expense.note}` : ""}</span>
       <strong className="expense-amount">{expense.amount_formatted}</strong>
-    </li>)}</ul> : <PanelState icon="reports" title="No expenses recorded" action={<Button variant="quiet" size="sm" onClick={onRecord}>Record the first expense</Button>} />}
+    </li>)}</ul> : <PanelState icon="reports" title="No expenses recorded" action={<Button variant="quiet" size="sm" disabled={!canRecord} onClick={onRecord}>Record the first expense</Button>} />}
   </section>;
 }
 

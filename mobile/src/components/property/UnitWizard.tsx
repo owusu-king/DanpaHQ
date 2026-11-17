@@ -111,11 +111,11 @@ export function UnitWizard({
       const ok = commitRef.current ? await commitRef.current() : true;
       if (!ok) return;
       setVisited((current) => new Set(current).add(step));
-      const next = await reload();
+      const next = step === "details" ? (created.current ?? unit) : await reload();
       if (step === "review") {
         const current = next ?? unit;
         if (!current) return;
-        if (ready && !sent) {
+        if (current.verification.editable && current.verification.can_submit && current.permitted_actions.submit_for_verification?.allowed === true) {
           await submitForReview("unit", current.id);
           onFinished(await getUnit(current.id));
         } else {
@@ -267,7 +267,7 @@ function DetailsStep({
       entrance_note: entrance.trim(),
     };
     if (unit) {
-      if (editable) await updateUnit(unit.id, fields);
+      if (editable) onCreated(await updateUnit(unit.id, fields));
       return true;
     }
     onCreated(await createUnit(property.id, { ...fields, space_type: spaceType }));

@@ -13,16 +13,47 @@ from django.db.models import (
     F,
     IntegerField,
     OuterRef,
+    Prefetch,
     Q,
     QuerySet,
     Value,
     When,
+    prefetch_related_objects,
 )
 from django.db.models.functions import Abs
 
 from apps.occupancy.models import Occupancy, OccupancyStatus
 
-from .models import Listing, ListingStatus, RentPeriod
+from .models import Listing, ListingMedia, ListingStatus, RentPeriod
+
+
+def _media_relations():
+    from apps.property.models import UnitMedia
+
+    return (
+        Prefetch("media", queryset=ListingMedia.objects.select_related("file")),
+        Prefetch("unit__media", queryset=UnitMedia.objects.select_related("file")),
+    )
+
+
+def prepare_listing_detail(listing: Listing) -> None:
+    prefetch_related_objects([listing], *_media_relations())
+
+
+def with_listing_cards(queryset: QuerySet[Listing]) -> QuerySet[Listing]:
+    """Load card photos with their file metadata in the same relation reads."""
+    return (
+        queryset.select_related(
+            "unit__property__address__locality__district",
+            "unit__property__address__locality__region",
+            "created_by",
+        )
+        .defer("unit__property__address__locality__district__boundary")
+        .prefetch_related(
+            *_media_relations(),
+            "highlighted_amenities",
+        )
+    )
 
 
 def public_listings() -> QuerySet[Listing]:
@@ -39,13 +70,11 @@ def public_listings() -> QuerySet[Listing]:
             status=ListingStatus.ACTIVE, moderation_state="approved",
             publication_state="published", availability_state="available",
         )
-        .annotate(unit_is_occupied=Exists(active_occupancy))
-        .filter(unit_is_occupied=False)
+        .filter(~Exists(active_occupancy))
         # A unit above its Portfolio's plan allowance takes no new tenants, so it
         # is offered to nobody. The listing itself is left exactly as it was, and
         # is back in discovery the moment the unit is deliberately reactivated.
-        .annotate(unit_is_restricted=billing.restricted_unit_exists("unit_id"))
-        .filter(unit_is_restricted=False)
+        .filter(~billing.restricted_unit_exists("unit_id"))
     )
 
 
@@ -190,7 +219,7 @@ def related_listings(listing: Listing, *, limit: int = 4) -> QuerySet[Listing]:
             property_amenity_overlap=Value(0, output_field=IntegerField())
         )
 
-    return (
+    return with_listing_cards(
         candidates.annotate(
             location_score=location_score,
             affordability_score=affordability_score,
@@ -207,11 +236,5 @@ def related_listings(listing: Listing, *, limit: int = 4) -> QuerySet[Listing]:
                 output_field=IntegerField(),
             )
         )
-        .select_related(
-            "unit__property__address__locality__district",
-            "unit__property__address__locality__region",
-            "created_by",
-        )
-        .prefetch_related("media__file", "unit__media__file", "highlighted_amenities")
         .order_by("-relevance_score", "rent_distance", "-created_at")[:limit]
     )

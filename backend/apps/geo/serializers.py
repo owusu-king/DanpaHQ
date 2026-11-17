@@ -216,7 +216,10 @@ class CreateAddressSerializer(serializers.Serializer):
     place_name = serializers.CharField(max_length=160, required=False)
     place_context = serializers.CharField(max_length=160, required=False, allow_blank=True)
     place = AddressPlaceSerializer(required=False)
-    digital_address = serializers.CharField(max_length=12, required=False, allow_blank=True)
+    # Allow room for pasted separators before normalising to the stored format.
+    digital_address = serializers.CharField(
+        max_length=64, required=False, allow_blank=True, allow_null=True
+    )
     street = serializers.CharField(max_length=160, required=False, allow_blank=True)
     house_number = serializers.CharField(max_length=32, required=False, allow_blank=True)
     landmark = serializers.CharField(max_length=200, required=False, allow_blank=True)
@@ -237,7 +240,7 @@ class CreateAddressSerializer(serializers.Serializer):
         max_value=Decimal("180"),
     )
 
-    def validate_digital_address(self, value: str) -> str:
+    def validate_digital_address(self, value: str | None) -> str:
         """Normalise here rather than letting the model field raise.
 
         The field validates on save, but a Django ValidationError escaping a
@@ -245,7 +248,7 @@ class CreateAddressSerializer(serializers.Serializer):
         deserves the same clear message as any other.
         """
         if not value:
-            return value
+            return ""
         try:
             return normalise_digital_address(value).value
         except DigitalAddressError as exc:

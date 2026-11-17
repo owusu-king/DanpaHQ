@@ -78,7 +78,7 @@ test("payment attention counts only the claims the provider still owes an answer
 test("tenant Payments keeps ended rent accounts reachable", () => {
   const workspace = read("web/src/components/payments/TenantPayments.tsx");
   const tenancyApi = read("web/src/lib/tenancy.ts");
-  assert.match(workspace, /listMyTenancies\(true\)/);
+  assert.match(workspace, /listTenantRentAccounts\(\)/);
   assert.match(tenancyApi, /include_ended=1/);
 });
 

@@ -19,7 +19,9 @@ import type { Me, Workspace } from "@/auth";
  */
 export function resolveEntryRoute(me: Me, activeContext?: string | null): string {
   if (me.account_status !== "active") return "/(app)/restricted";
-  if (me.registration_state !== "complete") return "/(auth)/register";
+  if (me.registration_state !== "complete") {
+    return me.entry_routes.mobile === "/(app)/security" ? me.entry_routes.mobile : "/(auth)/register";
+  }
 
   const detailed = me.contexts.find((context) => context.id === activeContext);
   if (
@@ -81,7 +83,10 @@ export function appAccessRedirect(me: Me | null, segments: readonly string[]): s
   if (me.account_status !== "active") {
     return screen === "restricted" ? null : "/(app)/restricted";
   }
-  if (me.registration_state !== "complete") return "/(auth)/register";
+  if (me.registration_state !== "complete") {
+    const destination = resolveEntryRoute(me);
+    return destination === "/(app)/security" && screen === "security" ? null : destination;
+  }
   const capabilities = me.capabilities;
   const pending = (capabilities.active_workspace === "provider" && !capabilities.provider.workspace_access)
     || (capabilities.active_workspace === "artisan" && !capabilities.artisan.workspace_access);

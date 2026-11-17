@@ -28,6 +28,7 @@ export function ModalSheet({
   meta,
   size = "md",
   closeLabel = "Close",
+  closeDisabled = false,
   dismissible = true,
   className,
   bodyBusy,
@@ -47,6 +48,7 @@ export function ModalSheet({
   /** `sm` fits a short form; `md` a document. */
   size?: "sm" | "md";
   closeLabel?: string;
+  closeDisabled?: boolean;
   /** Creation flows require an explicit close button. */
   dismissible?: boolean;
   className?: string;
@@ -123,9 +125,10 @@ export function ModalSheet({
   }, [open, closing]);
 
   const requestClose = useCallback(() => {
+    if (closeDisabled) return;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) { onClose(); return; }
     setClosing(true);
-  }, [onClose]);
+  }, [closeDisabled, onClose]);
 
   return (
     <dialog
@@ -149,7 +152,7 @@ export function ModalSheet({
             {meta ? <p>{meta}</p> : null}
           </div>
           {headerAction ? <div className="doc-modal-head-action">{headerAction}</div> : null}
-          <button type="button" className="doc-modal-close" aria-label={closeLabel} onClick={requestClose}><Icon name="close" /></button>
+          <button type="button" className="doc-modal-close" aria-label={closeLabel} disabled={closeDisabled} onClick={requestClose}><Icon name="close" /></button>
         </header>
         <div className="doc-modal-body" aria-busy={bodyBusy || undefined}>
           {typeof children === "function" ? children(requestClose) : children}

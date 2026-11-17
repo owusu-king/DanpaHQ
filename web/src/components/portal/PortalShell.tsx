@@ -1,17 +1,18 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { IntelMark } from "@/components/IntelMark";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
-import { listNotifications } from "@/lib/console";
+import { getUnreadNotificationCount } from "@/lib/console";
 import { useSession, type Me } from "@/lib/session";
 import { useGlide } from "@/lib/useGlide";
 import { activeHref, artisansEntry, enquiriesEntry, portalSections, type PortalSection } from "@/lib/portalNav";
 
-import { OPEN_ARTISANS, artisansHref, type ArtisansRequest } from "@/components/artisan/ArtisansWorkspace";
-import { EnquiriesInbox, OPEN_ENQUIRIES, openEnquiries, type EnquiriesRequest } from "@/components/enquiries/EnquiriesInbox";
+import { OPEN_ARTISANS, artisansHref, type ArtisansRequest } from "@/components/artisan/artisanNavigation";
+import { OPEN_ENQUIRIES, openEnquiries, type EnquiriesRequest } from "@/components/enquiries/enquiryEvents";
 
 import { AccountMenu } from "./AccountMenu";
 import { PortalGate } from "./PortalGate";
@@ -37,6 +38,10 @@ import { Icon } from "./icons";
 
 const COLLAPSE_KEY = "portal.sidebar";
 
+const EnquiriesInbox = dynamic(() =>
+  import("@/components/enquiries/EnquiriesInbox").then((module) => module.EnquiriesInbox),
+);
+
 export function PortalShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { state, activeContext } = useSession();
@@ -45,7 +50,8 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
   const [unread, setUnread] = useState(0);
   // The enquiries inbox opens over whatever page is showing, from Enquiries or
   // from anywhere that calls `openEnquiries()` (a notification, a sale page).
-  const [inbox, setInbox] = useState<{ open: boolean; request: EnquiriesRequest }>({ open: false, request: {} });
+  // After first use it stays mounted so closing the native dialog restores focus.
+  const [inbox, setInbox] = useState<{ open: boolean; request: EnquiriesRequest } | null>(null);
 
   // `/enquiries` and `/record/enquiry?id=…` are still addresses (notifications and
   // sale pages link to them), but not pages: arriving at one opens the inbox at
@@ -172,17 +178,26 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (state.status !== "signed_in") return;
     let cancelled = false;
-    const read = () =>
-      listNotifications()
-        .then((page) => !cancelled && setUnread(page.unread_count))
-        .catch(() => undefined);
+    let revision = 0;
+    const read = async () => {
+      const requested = ++revision;
+      try {
+        const count = await getUnreadNotificationCount();
+        if (!cancelled && requested === revision) setUnread(count);
+      } catch {
+        // Keep the last confirmed count until the next read.
+      }
+    };
     void read();
     const timer = setInterval(read, 60_000);
     // Updates announces its own count changes, so the badge agrees with the
     // page the moment something is read rather than a minute later.
     const onUnread = (event: Event) => {
       const count = (event as CustomEvent<number>).detail;
-      if (typeof count === "number") setUnread(count);
+      if (typeof count === "number") {
+        revision += 1;
+        setUnread(count);
+      }
     };
     window.addEventListener("danpahq:unread", onUnread);
     return () => { cancelled = true; clearInterval(timer); window.removeEventListener("danpahq:unread", onUnread); };
@@ -301,7 +316,7 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
                 className="portal-header-updates portal-header-intel"
                 title="Danpa Intel"
                 aria-haspopup="dialog"
-                aria-expanded={inbox.open}
+                aria-expanded={inbox?.open ?? false}
                 aria-label="Danpa Intel"
                 onClick={() => openEnquiries()}
               >
@@ -326,26 +341,19 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
           screen cannot show the Portfolio somebody has just left while the next
           one loads. Page state is about that Portfolio, and it goes with it.
         */}
-        <EnquiriesInbox
-          open={inbox.open}
-          request={inbox.request}
-          canSell={canSell}
-          onClose={() => setInbox((current) => ({ ...current, open: false }))}
-        />
+        {inbox ? (
+          <EnquiriesInbox
+            open={inbox.open}
+            request={inbox.request}
+            canSell={canSell}
+            onClose={() => setInbox({ open: false, request: {} })}
+          />
+        ) : null}
 
         <main id="main" tabIndex={-1} className="portal-main" key={activeContext ?? "no-context"}>
-          {!me.is_phone_verified && pathname !== "/rentals" ? (
-            <aside className="portal-phone-reminder" aria-label="Phone verification reminder">
-              <span>
-                <strong>Add a verified phone when you’re ready.</strong>
-                <small>It is needed for phone-sensitive actions and SMS alerts, not for browsing your account.</small>
-              </span>
-              <Link href={"/settings/security#phone-verification" as never}>Verify phone</Link>
-            </aside>
-          ) : null}
           {state.stale ? (
             <p className="portal-stale" role="status">
-              Showing your last confirmed details — we could not reach the service just now.
+              Showing your last confirmed details. We couldn’t refresh your account right now.
             </p>
           ) : null}
           {children}

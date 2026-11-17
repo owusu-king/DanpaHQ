@@ -129,7 +129,7 @@ export function AuthorityClaim({
         const stored = await uploadFile(upload.file, "property_document");
         if (!stored.is_usable) {
           setError(
-            stored.rejection_reason || `${upload.file.name} could not be accepted.`,
+            stored.rejection_reason || stored.status_message || `${upload.file.name} could not be accepted.`,
           );
           return;
         }

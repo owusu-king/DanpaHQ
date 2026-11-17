@@ -419,12 +419,31 @@ class TestOrganizationAuthorization:
         assert [row["tenancy_id"] for row in past] == [str(second_lease.tenancy_id)]
         assert past[0]["ended_at"]
 
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        portfolio_url = f"/api/v1/organizations/{organization.id}/portfolio/"
+        with CaptureQueriesContext(connection) as full_queries:
+            full = owner_api.get(portfolio_url)
+        with CaptureQueriesContext(connection) as home_queries:
+            home = owner_api.get(f"{portfolio_url}?view=home")
+        assert home.status_code == 200
+        assert home["Cache-Control"] == "private, no-store"
+        for field in ("organization", "counts", "money", "rent_collection", "recent_activity"):
+            assert home.data[field] == full.data[field]
+        assert "past_tenants" not in home.data
+        assert "tenant_access" not in home.data
+        assert "profit_loss" not in home.data
+        assert len(home_queries) < len(full_queries)
+        assert len(home_queries) <= 17
+
         outsider_api = APIClient()
         sign_in_as(outsider_api, user=stranger)
         assert (
             outsider_api.get(f"/api/v1/organizations/{organization.id}/portfolio/").status_code
             == 404
         )
+        assert outsider_api.get(f"{portfolio_url}?view=home").status_code == 404
 
     def test_payment_attention_counts_only_claims_the_provider_still_owes(
         self, address, approve_provider, registered, sign_in_as
@@ -560,7 +579,8 @@ class TestOrganizationAuthorization:
 
         owner_api = APIClient()
         sign_in_as(owner_api, user=owner)
-        response = owner_api.get(f"/api/v1/organizations/{organization.id}/units/")
+        url = f"/api/v1/organizations/{organization.id}/units/"
+        response = owner_api.get(url)
         assert response.status_code == 200
 
         labels = [row["label"] for row in response.data]
@@ -571,6 +591,17 @@ class TestOrganizationAuthorization:
         assert first["property_title"] == "Legon House"
         for field in ("availability", "verification", "publication", "primary_photo"):
             assert field in first
+        cards = owner_api.get(f"{url}?view=cards")
+        assert cards.status_code == 200
+        assert cards["Cache-Control"] == "private, no-store"
+        assert len(cards.content) < len(response.content)
+        card_fields = {
+            "id", "property_id", "property_title", "label", "space_type_label",
+            "verification", "publication", "availability", "primary_photo",
+        }
+        assert cards.data == [
+            {key: row[key] for key in card_fields} for row in response.data
+        ]
 
         # A member assigned to one Property sees only its Units.
         membership = organization_services.add_membership(
@@ -592,6 +623,9 @@ class TestOrganizationAuthorization:
         scoped = manager_api.get(f"/api/v1/organizations/{organization.id}/units/")
         assert scoped.status_code == 200
         assert {row["property_title"] for row in scoped.data} == {"Osu Court"}
+        scoped_cards = manager_api.get(f"{url}?view=cards")
+        assert scoped_cards.status_code == 200
+        assert {row["id"] for row in scoped_cards.data} == {row["id"] for row in scoped.data}
 
         stranger = registered("0202000082", first_name="Outside")
         outsider_api = APIClient()

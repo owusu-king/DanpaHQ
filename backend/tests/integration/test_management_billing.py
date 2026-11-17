@@ -68,6 +68,75 @@ def portfolio(landlord):
     )
 
 
+class TestPlanInclusions:
+    path = "/api/v1/management/configuration/plans/"
+
+    def _free(self, client):
+        response = client.get(self.path)
+        assert response.status_code == 200
+        return next(plan for plan in response.data["plans"] if plan["code"] == "FREE")
+
+    def test_saved_inclusions_reach_existing_portfolios_and_public_catalogue(self, portfolio):
+        from apps.audit.models import AuditLog
+        from apps.billing import catalogue
+        from apps.billing.models import Plan
+        from apps.billing.services import entitlement_service
+
+        actor = management_user()
+        client = signed_in_client(actor)
+        plan = self._free(client)
+        key = catalogue.AUTOMATED_RENT_REMINDERS
+        assert not entitlement_service.can(organization=portfolio, key=key)  # warm the cache
+        price = Plan.objects.get(code="FREE").monthly_price_minor
+        response = client.patch(f"{self.path}FREE/", {
+            "revision": plan["revision"], "reason": "Include reminders and more units",
+            "updates": [
+                {"key": key, "value": True, "unlimited": False},
+                {"key": catalogue.UNIT_LIMIT, "value": 12, "unlimited": False},
+            ],
+        }, format="json")
+        assert response.status_code == 200, response.data
+        assert response.data["revision"] != plan["revision"]
+        assert entitlement_service.can(organization=portfolio, key=key)
+        assert entitlement_service.limit(organization=portfolio, key=catalogue.UNIT_LIMIT) == 12
+        public = APIClient().get("/api/v1/plans/").data["plans"]
+        free = next(plan for plan in public if plan["code"] == "FREE")
+        assert free["entitlements"][key]["value"] is True
+        assert free["monthly_price_minor"] == price
+        assert AuditLog.objects.filter(
+            aggregate_type="billing_plan", management_actor_id=actor.id,
+            metadata__reason="Include reminders and more units",
+        ).exists()
+
+        stale = client.patch(f"{self.path}FREE/", {
+            "revision": plan["revision"], "reason": "Old change",
+            "updates": [{"key": key, "value": False, "unlimited": False}],
+        }, format="json")
+        assert stale.status_code == 409
+        assert entitlement_service.can(organization=portfolio, key=key)
+
+    @pytest.mark.parametrize("key,value", [
+        ("API_ACCESS", True), ("UNIT_LIMIT", 1), ("TEAM_MANAGEMENT", "false"),
+    ])
+    def test_unsupported_or_unsafe_changes_do_not_save_any_rows(self, key, value):
+        client = signed_in_client(management_user())
+        before = self._free(client)
+        response = client.patch(f"{self.path}FREE/", {
+            "revision": before["revision"], "reason": "Change inclusions",
+            "updates": [
+                {"key": "AUTOMATED_RENT_REMINDERS", "value": True, "unlimited": False},
+                {"key": key, "value": value, "unlimited": False},
+            ],
+        }, format="json")
+        assert response.status_code == 422, response.data
+        assert self._free(client) == before
+
+    def test_support_cannot_read_or_change_plan_inclusions(self):
+        client = signed_in_client(management_user(role=ManagementRole.SUPPORT_ADMIN))
+        assert client.get(self.path).status_code == 403
+        assert client.patch(f"{self.path}FREE/", {}, format="json").status_code == 403
+
+
 class TestReading:
     def test_the_list_shows_the_plan_beside_what_is_actually_used(self, portfolio):
         client = signed_in_client(management_user())

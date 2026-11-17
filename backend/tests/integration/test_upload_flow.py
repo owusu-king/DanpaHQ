@@ -186,14 +186,14 @@ class TestCompleteUpload:
 
         def replace_before_full_read(*, key, length=None):
             reads.append(length)
-            if len(reads) == 2:
+            if len(reads) == 1:
                 storage.write(key=key, data=original(key=key) + b"replacement")
             return original(key=key, length=length)
 
         monkeypatch.setattr(storage, "read", replace_before_full_read)
         response = api.post(f"/api/v1/files/uploads/{file_id}/complete/", format="json")
         assert response.status_code == 422
-        assert reads[-1] == 1005  # original JPEG length plus one detection byte
+        assert reads == [1005]  # original JPEG length plus one detection byte
         stored.refresh_from_db()
         assert stored.upload_status == "rejected"
         assert storage.exists(key=stored.storage_key) is False

@@ -176,12 +176,14 @@ test("the Provider Properties page is one Portfolio at a time", () => {
   // houses into a company's roster.
   assert.match(api, /query\.set\("organization", scope\.organization\)/);
   assert.match(view, /properties_in_scope\(/);
-  assert.match(page, /listProperties\(\{ organization: scope\.id \}\)/);
+  assert.match(page, /listProperties\(\{ organization: id \}\)/);
   assert.doesNotMatch(page, /listProperties\(\)/);
 
   // The scope is the shared session context, so switching Portfolio anywhere
   // switches this page too…
-  assert.match(page, /const preferred = activeContext\?\.startsWith\("organization:"\)/);
+  assert.match(page, /selectedPortfolio\(me, activeContext\)/);
+  assert.match(page, /preferred \?\? \(await listOrganizations\(\)\)/);
+  assert.match(page, /<PropertiesContent key=\{activeContext\} \/>/);
   assert.match(page, /\}, \[preferred\]\);/);
   // …and the Portfolio being left takes its Properties off the screen with it.
   assert.match(page, /setProperties\(null\);/);
@@ -223,8 +225,8 @@ test("every provider list is about the Portfolio on screen", () => {
 
   // Home asked for everything and sifted it by Unit id — and viewings by
   // Property *title*, which two Properties can share.
-  assert.match(home, /listReceivedApplications\(true, scope\)/);
-  assert.match(home, /listHostViewings\(true, scope\)/);
+  assert.match(home, /countOpenApplications\(scope\)/);
+  assert.match(home, /getHostViewingAgenda\(scope\)/);
   assert.doesNotMatch(home, /propertyTitles/);
 });
 
@@ -260,11 +262,11 @@ test("provider Home is a control center that only states what it can calculate",
   assert.match(providerHome, /label="Properties"/);
   assert.match(providerHome, /className="home-hero"/);
   assert.match(providerHome, /Coming up/);
-  assert.match(providerHome, /function agendaOf\(viewings: Viewing\[\], tenants: ProviderTenant\[\]\)/);
+  assert.match(providerHome, /function agendaOf\(viewings: ViewingAgendaEntry\[\], tenants: PortfolioHomeTenant\[\]\)/);
   assert.match(providerHome, /viewing\.status !== "confirmed" \|\| !viewing\.confirmed_starts_at/);
   // Enquiries are read only where the role operates Properties, and open over
   // the page rather than leaving it.
-  assert.match(providerHome, /readsEnquiries \? listEnquiries\("seller"\)/);
+  assert.match(providerHome, /readsEnquiries \? section\(listEnquiries\("seller"\)/);
   assert.match(providerHome, /openEnquiries\(\{ id: row\.id, side: "seller" \}\)/);
   assert.match(providerHome, /<PortfolioRing/);
   assert.match(providerHome, /share=\{unitCount \? occupied \/ unitCount : 0\}/);
@@ -357,7 +359,8 @@ test("a Portfolio with nothing in it gets a beginning, not a wall of zeroes", ()
   const home = read("web/app/home/page.tsx");
   const providerHome = home.slice(home.indexOf("function ProviderHome"));
 
-  assert.match(providerHome, /properties\.length === 0/);
+  assert.match(providerHome, /const propertyCount = counts\?\.properties/);
+  assert.match(providerHome, /if \(propertyCount === 0\)/);
   assert.match(providerHome, /Your Portfolio starts here/);
   // The empty state returns before the figures, so none of them render at zero.
   const empty = providerHome.indexOf("Your Portfolio starts here");

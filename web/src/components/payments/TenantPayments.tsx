@@ -24,11 +24,10 @@ import { NextUp, PanelSkeleton, PanelState, WorkspaceHead } from "@/components/w
 import { ApiFailure } from "@/lib/api";
 import { listPaymentIntents, type PaymentIntent } from "@/lib/payments";
 import { formatDate, paymentStatus } from "@/lib/rentDisplay";
-import { getLeaseLedger, type LeaseLedger, type RentCharge, type RentPayment } from "@/lib/tenant";
-import { listMyTenancies, tenancyLabel, type Tenancy } from "@/lib/tenancy";
+import { type RentCharge, type RentPayment } from "@/lib/tenant";
+import { listTenantRentAccounts, tenancyLabel, type TenantRentAccount as Account } from "@/lib/tenancy";
 
 type View = "due" | "history" | "accounts";
-type Account = { tenancy: Tenancy; ledger: LeaseLedger };
 type DueRow = { account: Account; charge: RentCharge; intent: PaymentIntent | null };
 type HistoryRow = { account: Account; payment: RentPayment; receiptId: string | null };
 
@@ -71,12 +70,8 @@ export function TenantPaymentsWorkspace() {
   const load = useCallback(async () => {
     try {
       // Ended tenancies too: a closed rent account is still somebody's record.
-      const [tenancies, paymentIntents] = await Promise.all([listMyTenancies(true), listPaymentIntents()]);
-      const withLease = tenancies.filter((tenancy) => tenancy.lease?.id);
-      const ledgers = await Promise.all(
-        withLease.map(async (tenancy) => ({ tenancy, ledger: await getLeaseLedger(tenancy.lease!.id) })),
-      );
-      setAccounts(ledgers);
+      const [rows, paymentIntents] = await Promise.all([listTenantRentAccounts(), listPaymentIntents()]);
+      setAccounts(rows);
       setIntents(paymentIntents);
       setError("");
     } catch (cause) {

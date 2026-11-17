@@ -2,7 +2,7 @@ import { useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
 
 import { useAuth } from "@/auth";
-import { listNotifications } from "@/notifications";
+import { getUnreadNotificationCount } from "@/notifications";
 
 /**
  * How many updates are unread, for the bell in a tab's header.
@@ -13,22 +13,22 @@ import { listNotifications } from "@/notifications";
  */
 export function useUnreadUpdates(): number {
   const { state } = useAuth();
-  const signedIn = state.status === "signed_in";
-  const [unread, setUnread] = useState(0);
+  const userId = state.status === "signed_in" ? state.me.id : null;
+  const [badge, setBadge] = useState<{ userId: string; count: number } | null>(null);
 
   useFocusEffect(useCallback(() => {
     let live = true;
-    if (!signedIn) {
-      setUnread(0);
+    if (!userId) {
+      setBadge(null);
       return;
     }
-    void listNotifications(true)
-      .then((page) => { if (live) setUnread(page.unread_count); })
-      .catch(() => { if (live) setUnread(0); });
+    void getUnreadNotificationCount()
+      .then((count) => { if (live) setBadge({ userId, count }); })
+      .catch(() => { if (live) setBadge(null); });
     return () => {
       live = false;
     };
-  }, [signedIn]));
+  }, [userId]));
 
-  return unread;
+  return badge?.userId === userId ? badge.count : 0;
 }

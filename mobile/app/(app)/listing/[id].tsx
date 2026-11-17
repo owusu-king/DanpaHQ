@@ -345,7 +345,7 @@ export default function ListingDetailScreen() {
                 </Type>
               </View>
               <Fact label="Advance" value={listing.advance_label} />
-              {listing.caution_months ? <Fact label="Deposit" value={months(listing.caution_months)} /> : null}
+              {listing.caution_months ? <Fact label="Separate deposit" value={months(listing.caution_months)} /> : null}
               {listing.agency_fee_months ? <Fact label="Agency fee" value={months(listing.agency_fee_months)} /> : null}
               <Fact label="To move in" value={moveIn} tone="action" />
             </RecordPanel>

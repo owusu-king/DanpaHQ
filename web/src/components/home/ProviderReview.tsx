@@ -50,9 +50,9 @@ const REVIEWS: Record<string, Review> = {
     tone: "action",
     icon: "passport",
     status: "Not started",
-    title: "Send one document to begin",
+    title: "Provider verification",
     steps: ["current", "todo", "todo"],
-    act: "Start verification",
+    act: "Begin verification",
   },
   pending: {
     tone: "waiting",
@@ -97,7 +97,7 @@ const REVIEWS: Record<string, Review> = {
 };
 
 const STEPS = [
-  { title: "Documents sent", line: "Your identity, once" },
+  { title: "Application" },
   // No promise of a time: the review takes what it takes, and a number here would be one.
   { title: "Review", line: "Checked by our team" },
   { title: "Property tools open", line: "Properties, Units, tenants" },
@@ -122,8 +122,10 @@ export function ProviderReview({ me }: { me: Me }) {
   // stands, and only when it has moved reload the session — which turns this
   // page into the Portfolio once approved, or rewords it if something is asked.
   useEffect(() => {
+    if (status !== "pending" && status !== "needs_more_info") return;
     let live = true;
     const timer = setInterval(() => {
+      if (document.hidden) return;
       getProviderStanding()
         .then((standing) => {
           if (!live) return;
@@ -196,7 +198,6 @@ export function ProviderReview({ me }: { me: Me }) {
             <span className="review-door-icon"><Icon name="verification" /></span>
             <span className="review-door-text">
               <strong>{review.act}</strong>
-              <small>{review.icon === "handset" ? "A code to your phone, then your application" : "Your application and its documents"}</small>
             </span>
             <span className="review-door-go" aria-hidden="true">→</span>
           </Link>

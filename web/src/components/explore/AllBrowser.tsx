@@ -24,7 +24,7 @@ import { ListingCard } from "@/components/listings/ListingCard";
 import { Icon } from "@/components/portal/icons";
 import { PageHeader } from "@/components/portal/PageHeader";
 import { SaleCard } from "@/components/sales/SaleCard";
-import { ApiFailure, isAborted } from "@/lib/api";
+import { ApiFailure } from "@/lib/api";
 import { saleDetailPath } from "@/lib/exploreReturn";
 import type { Listing } from "@/lib/console";
 import {
@@ -111,9 +111,11 @@ export function AllBrowser() {
   const [nextListings, setNextListings] = useState<string | null>(null);
   const [nextSales, setNextSales] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [querying, setQuerying] = useState(false);
+  const querying = listings === null || sales === null;
   const [error, setError] = useState("");
   const request = useRef(0);
+  const paging = useRef(false);
+  const hasSearched = useRef(false);
   const stick = useRef<HTMLElement | null>(null);
   const [stuck, setStuck] = useState(false);
 
@@ -131,29 +133,50 @@ export function AllBrowser() {
   useEffect(() => {
     if (new URLSearchParams(paramsKey).has("bbox") && !query.bbox) update({ bbox: null });
   }, [paramsKey, query.bbox, update]);
+  const resultKey = JSON.stringify([search, saleKey]);
+  const [previousQuery, setPreviousQuery] = useState(resultKey);
+  if (previousQuery !== resultKey) {
+    setPreviousQuery(resultKey);
+    setError("");
+    setListings(null);
+    setSales(null);
+    setNextListings(null);
+    setNextSales(null);
+    setLoadingMore(false);
+  }
+
   // Both sides follow the controls; a slower earlier answer never replaces a newer one.
   useEffect(() => {
     const id = ++request.current;
     const controller = new AbortController();
-    setQuerying(true);
-    const timer = setTimeout(async () => {
-      const [rent, sale] = await Promise.allSettled([
-        searchListingsFor(new URLSearchParams(search), controller.signal),
-        searchSales(JSON.parse(saleKey) as SaleFilters),
-      ]);
-      if (id !== request.current) return;
-      if (rent.status === "rejected" && isAborted(rent.reason)) return;
-      setListings(rent.status === "fulfilled" ? rent.value.results : (current) => current ?? []);
-      setNextListings(rent.status === "fulfilled" ? rent.value.next : null);
-      setSales(sale.status === "fulfilled" ? sale.value.results : (current) => current ?? []);
-      setNextSales(sale.status === "fulfilled" ? sale.value.next : null);
-      const failed = [rent, sale].find((row) => row.status === "rejected") as PromiseRejectedResult | undefined;
-      setError(failed
-        ? failed.reason instanceof ApiFailure ? failed.reason.error.message : "Some places could not be loaded."
-        : "");
-      setQuerying(false);
-    }, 220);
+    const current = () => id === request.current && !controller.signal.aborted;
+    function failed(reason: unknown) {
+      if (current()) {
+        setError(reason instanceof ApiFailure ? reason.error.message : "Some places could not be loaded.");
+      }
+    }
+    paging.current = false;
+    const timer = setTimeout(() => {
+      hasSearched.current = true;
+      void searchListingsFor(new URLSearchParams(search), controller.signal).then((rent) => {
+        if (!current()) return;
+        setListings(rent.results);
+        setNextListings(rent.next);
+      }, (reason) => {
+        if (current()) setListings([]);
+        failed(reason);
+      });
+      void searchSales(JSON.parse(saleKey) as SaleFilters, controller.signal).then((sale) => {
+        if (!current()) return;
+        setSales(sale.results);
+        setNextSales(sale.next);
+      }, (reason) => {
+        if (current()) setSales([]);
+        failed(reason);
+      });
+    }, hasSearched.current ? 220 : 0);
     return () => {
+      request.current += 1;
       clearTimeout(timer);
       controller.abort();
     };
@@ -200,22 +223,33 @@ export function AllBrowser() {
   }
 
   async function loadMore() {
+    if (querying || paging.current || !(nextListings || nextSales)) return;
+    paging.current = true;
     setLoadingMore(true);
-    try {
-      const [rent, sale] = await Promise.all([
-        nextListings ? searchPublicListingsPage(nextListings) : Promise.resolve(null),
-        nextSales ? searchSalesPage(nextSales) : Promise.resolve(null),
-      ]);
-      if (rent) { setListings((current) => [...(current ?? []), ...rent.results]); setNextListings(rent.next); }
-      if (sale) { setSales((current) => [...(current ?? []), ...sale.results]); setNextSales(sale.next); }
-    } catch {
+    const id = request.current;
+    const pages = await Promise.allSettled([
+      nextListings ? searchPublicListingsPage(nextListings).then((rent) => {
+        if (id !== request.current) return;
+        setListings((current) => [...(current ?? []), ...rent.results]);
+        setNextListings(rent.next);
+      }) : null,
+      nextSales ? searchSalesPage(nextSales).then((sale) => {
+        if (id !== request.current) return;
+        setSales((current) => [...(current ?? []), ...sale.results]);
+        setNextSales(sale.next);
+      }) : null,
+    ]);
+    if (id !== request.current) return;
+    if (pages.some((page) => page.status === "rejected")) {
       setError("We could not load more places.");
-    } finally {
-      setLoadingMore(false);
+    } else {
+      setError((previous) => previous === "We could not load more places." ? "" : previous);
     }
+    paging.current = false;
+    setLoadingMore(false);
   }
 
-  const items = useMemo(() => (listings && sales ? merge(listings, sales) : null), [listings, sales]);
+  const items = useMemo(() => (listings || sales ? merge(listings ?? [], sales ?? []) : null), [listings, sales]);
   const rentCount = listings?.length ?? 0;
   const saleCount = sales?.length ?? 0;
   const more = Boolean(nextListings || nextSales);
@@ -287,7 +321,7 @@ export function AllBrowser() {
             search={search}
             area={query.area}
             listings={listings}
-            next={nextListings}
+            next={querying ? null : nextListings}
             loadingMore={loadingMore}
             querying={querying}
             savedIds={new Set()}
@@ -320,7 +354,7 @@ export function AllBrowser() {
 
             {more ? (
               <p style={{ marginTop: "var(--space-6)" }}>
-                <button type="button" className="explore-more" disabled={loadingMore} onClick={() => void loadMore()}>
+                <button type="button" className="explore-more" disabled={loadingMore || querying} onClick={() => void loadMore()}>
                   {loadingMore ? "Loading…" : "Show more"}
                 </button>
               </p>

@@ -79,11 +79,11 @@ def test_actual_video_is_normalized_for_web_and_mobile(tmp_path, container):
     assert len(content) <= 3_300_000
 
 
-def test_ten_second_boundary_and_long_video_are_checked_from_bytes(tmp_path):
-    _, metadata = prepare_video(clip(tmp_path, 10, audio=True))
-    assert metadata["duration_ms"] <= 10_000
-    with pytest.raises(FileValidationError, match="10 seconds"):
-        prepare_video(clip(tmp_path, 10.2))
+def test_fifteen_second_boundary_and_long_video_are_checked_from_bytes(tmp_path):
+    _, metadata = prepare_video(clip(tmp_path, 15, audio=True))
+    assert metadata["duration_ms"] <= 15_000
+    with pytest.raises(FileValidationError, match="15 seconds"):
+        prepare_video(clip(tmp_path, 15.2))
 
 
 def test_corrupt_container_and_disallowed_types_fail_closed():
@@ -217,7 +217,7 @@ def test_reservation_retry_reuses_file_row(landlord):
 def test_forged_duration_is_checked_again_after_decoding(tmp_path, monkeypatch):
     from apps.files import videos
 
-    raw = clip(tmp_path, 11)
+    raw = clip(tmp_path, 16)
     original = videos._probe
 
     def forged(path, **kwargs):
@@ -225,7 +225,7 @@ def test_forged_duration_is_checked_again_after_decoding(tmp_path, monkeypatch):
         return (1, streams) if path.name == "source" else (duration, streams)
 
     monkeypatch.setattr(videos, "_probe", forged)
-    with pytest.raises(FileValidationError, match="10 seconds"):
+    with pytest.raises(FileValidationError, match="15 seconds"):
         videos.prepare_video(raw)
 
 
@@ -274,6 +274,27 @@ def test_failed_scan_can_retry_the_same_upload(
     assert queued == [str(file.id)]
     assert file.scan_status == ScanStatus.PENDING
     assert not file.is_usable
+
+
+def test_expired_video_presign_cleans_a_late_source_without_touching_playback(landlord, storage):
+    from datetime import timedelta
+
+    from django.utils import timezone
+
+    from apps.files.tasks import expire_abandoned_uploads
+
+    file = ready(landlord)
+    original = "video/raw.mp4"
+    file.storage_key = f"{original}.prepared.mp4.ready"
+    file.metadata = {**file.metadata, "source_cleanup_pending": True}
+    file.upload_expires_at = timezone.now() - timedelta(minutes=1)
+    file.save()
+    storage.write(key=original, data=b"late replacement")
+    storage.write(key=file.storage_key, data=b"clean playback")
+    assert expire_abandoned_uploads()["video_sources_removed"] == 1
+    assert not storage.exists(key=original)
+    assert storage.read(key=file.storage_key) == b"clean playback"
+    assert expire_abandoned_uploads()["video_sources_removed"] == 0
 
 
 def test_submission_freezes_optional_video_for_the_reviewer(records, landlord, monkeypatch):

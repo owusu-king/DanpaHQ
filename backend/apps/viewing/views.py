@@ -8,6 +8,7 @@ moments.
 
 from __future__ import annotations
 
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -17,7 +18,7 @@ from apps.core.exceptions import NotFound
 from apps.idempotency.services import idempotent_mutation
 
 from . import services
-from .models import OPEN_STATUSES, ViewingRequest
+from .models import OPEN_STATUSES, ViewingRequest, ViewingStatus
 from .serializers import (
     AttendanceReportSerializer,
     AttendanceResponseSerializer,
@@ -29,6 +30,7 @@ from .serializers import (
     PostViewingActionSerializer,
     RequestViewingSerializer,
     ValidateCheckInSerializer,
+    ViewingAgendaSerializer,
     ViewingRequestSerializer,
 )
 from .throttling import ViewingCheckInIpThrottle, ViewingCheckInUserThrottle
@@ -39,7 +41,7 @@ BASE_SELECT = (
     "tenant",
     "confirmed_slot",
     "responded_by",
-    "current_appointment",
+    "current_appointment__attendance_resolution",
 )
 
 
@@ -106,12 +108,37 @@ class HostViewingsView(APIView):
         """`?organization=<id>` scopes this to one Portfolio, decided here."""
         from apps.organization.services import properties_in_scope
 
-        viewings = (
-            ViewingRequest.objects.filter(
-                listing__unit__property__in=properties_in_scope(
-                    user=request.user, organization=request.query_params.get("organization")
-                )
+        viewings = ViewingRequest.objects.filter(
+            listing__unit__property__in=properties_in_scope(
+                user=request.user, organization=request.query_params.get("organization")
             )
+        )
+        if request.query_params.get("open") == "true":
+            viewings = viewings.filter(status__in=OPEN_STATUSES)
+        if request.query_params.get("view") == "home":
+            # Home merges these with rent and lease dates and renders at most seven entries.
+            upcoming = (
+                viewings.filter(
+                    status=ViewingStatus.CONFIRMED, confirmed_slot__starts_at__gte=timezone.now(),
+                )
+                .select_related("confirmed_slot", "tenant", "listing__unit__property")
+                .only(
+                    "id", "status", "confirmed_slot__starts_at", "listing__headline",
+                    "listing__unit__label", "listing__unit__property__title",
+                    "tenant__preferred_name", "tenant__first_name", "tenant__last_name",
+                    "tenant__phone", "tenant__email",
+                )
+                .order_by("confirmed_slot__starts_at", "-created_at")
+            )[:7]
+            return Response(
+                {
+                    "count": viewings.count(),
+                    "upcoming": ViewingAgendaSerializer(upcoming, many=True).data,
+                },
+                headers={"Cache-Control": "private, no-store"},
+            )
+        viewings = (
+            viewings
             .select_related(*BASE_SELECT)
             .prefetch_related(
                 "slots",
@@ -120,8 +147,6 @@ class HostViewingsView(APIView):
                 "listing__unit__media__file",
             )
         )
-        if request.query_params.get("open") == "true":
-            viewings = viewings.filter(status__in=OPEN_STATUSES)
         return Response(
             ViewingRequestSerializer(viewings, many=True, context={"request": request}).data
         )

@@ -6,9 +6,15 @@ from pathlib import Path
 
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
-from django.db.models import Count, F, Q
+from django.db.models import Count, F, Func, IntegerField, Q, Sum
 
-from apps.geo.importing import build_snapshot, import_snapshot, obtain, validate_document
+from apps.geo.importing import (
+    build_snapshot,
+    import_snapshot,
+    obtain,
+    seed_fingerprint,
+    validate_document,
+)
 from apps.geo.models import District, Locality, Region
 
 
@@ -26,9 +32,13 @@ class Command(BaseCommand):
         parser.add_argument(
             "--dry-run", action="store_true", help="Validate snapshot without DB writes"
         )
+        parser.add_argument("--skip-if-current", action="store_true", help="Reuse a completed seed")
 
     def handle(self, *args, **options):
         try:
+            fingerprint = None
+            if options["skip_if_current"] and (options["download"] or options["build_snapshot"]):
+                raise CommandError("--skip-if-current requires an existing snapshot.")
             if options["download"]:
                 obtain(options["data_dir"])
             if options["download"] or options["build_snapshot"]:
@@ -40,6 +50,8 @@ class Command(BaseCommand):
                 if len(content) > 128 * 1024 * 1024:
                     raise ValueError("Snapshot exceeds the 128 MB decompressed limit")
                 document = json.loads(content)
+                if options["skip_if_current"]:
+                    fingerprint = seed_fingerprint(content)
             validate_document(document)
             self.stdout.write(
                 json.dumps(
@@ -57,16 +69,26 @@ class Command(BaseCommand):
             )
             if options["dry_run"]:
                 return
-            result = import_snapshot(document)
+            result = import_snapshot(document, fingerprint=fingerprint)
+            if result is None:
+                self.stdout.write(json.dumps({"skipped": True, "fingerprint": fingerprint}))
+                return
             rows = Locality.objects.all()
             result.update(
                 {
                     "regions_total": Region.objects.count(),
                     "districts_total": District.objects.count(),
                     "localities_total": rows.count(),
-                    "aliases_total": sum(
-                        len(row) for row in rows.values_list("aliases", flat=True)
-                    ),
+                    "aliases_total": rows.aggregate(
+                        total=Sum(
+                            Func(
+                                "aliases",
+                                function="jsonb_array_length",
+                                output_field=IntegerField(),
+                            ),
+                            default=0,
+                        )
+                    )["total"],
                     "unknown_district": rows.filter(district__isnull=True).count(),
                     "unknown_region": rows.filter(region__isnull=True).count(),
                     "inconsistent_parents": rows.filter(district__isnull=False)

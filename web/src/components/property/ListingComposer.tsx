@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 
+import { Check } from "@/components/Check";
 import { Button } from "@/components/Button";
 import { Field } from "@/components/Field";
 import { Notice } from "@/components/Notice";
@@ -23,7 +24,8 @@ export function ListingComposer({
   const [description, setDescription] = useState(listing?.description ?? "");
   const [rent, setRent] = useState(listing?.rent_minor != null ? String(listing.rent_minor / 100) : "");
   const [advance, setAdvance] = useState(String(listing?.advance_months ?? 6));
-  const [caution, setCaution] = useState(String(listing?.caution_months ?? 0));
+  const [caution, setCaution] = useState(listing?.caution_months ? String(listing.caution_months) : "");
+  const [hasDeposit, setHasDeposit] = useState(Boolean(listing?.caution_months));
   const [agencyFee, setAgencyFee] = useState(String(listing?.agency_fee_months ?? 0));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -33,22 +35,24 @@ export function ListingComposer({
   const published = useRef(false);
   const editable = !listing || ["draft", "rejected", "flagged"].includes(listing.status);
   const rentMinor = Math.round(Number(rent || 0) * 100);
-  const months = Number(advance || 0) + Number(caution || 0) + Number(agencyFee || 0);
-  const moveIn = rentMinor * months;
+  const deposit = hasDeposit ? Number(caution) : 0;
+  const depositInvalid = hasDeposit && (!Number.isInteger(deposit) || deposit < 1 || deposit > 12);
+  const monthlyMinor = listing?.rent_period === "yearly" ? Math.floor(rentMinor / 12) : rentMinor;
+  const moveIn = monthlyMinor * (Number(advance || 0) + deposit + Number(agencyFee || 0));
 
   return (
     <form
       style={{ display: "grid", gap: "var(--space-4)", minWidth: 0 }}
       onSubmit={async (event) => {
         event.preventDefault();
-        if (pending.current) return;
+        if (pending.current || depositInvalid) return;
         pending.current = true;
         setBusy(true); onBusyChange?.(true);
         setError("");
         try {
           const input = {
             rent_minor: rentMinor, headline: headline.trim(), description: description.trim(),
-            advance_months: Number(advance || 0), caution_months: Number(caution || 0), agency_fee_months: Number(agencyFee || 0),
+            advance_months: Number(advance || 0), caution_months: deposit, agency_fee_months: Number(agencyFee || 0),
           };
           if (!published.current) {
             if (!savedId.current) {
@@ -98,21 +102,23 @@ export function ListingComposer({
         <div style={GRID}>
           <Field label={listing?.rent_period === "yearly" ? "Yearly rent (GH₵)" : "Monthly rent (GH₵)"} inputMode="decimal" value={rent} onChange={(event) => setRent(event.target.value.replace(/[^0-9.]/g, ""))} />
           <Field label="Advance (months)" type="number" min={0} max={36} inputMode="numeric" value={advance} onChange={(event) => setAdvance(event.target.value.replace(/\D/g, ""))} />
-          <Field label="Deposit (months)" inputMode="numeric" value={caution} onChange={(event) => setCaution(event.target.value.replace(/\D/g, ""))} />
+          {hasDeposit ? <Field label="Separate deposit (months)" type="number" min={1} max={12} required inputMode="numeric" value={caution} onChange={(event) => setCaution(event.target.value.replace(/\D/g, ""))} /> : null}
           <Field label="Agency fee (months)" inputMode="numeric" value={agencyFee} onChange={(event) => setAgencyFee(event.target.value.replace(/\D/g, ""))} />
         </div>
-        {rentMinor > 0 ? (
+        <Check checked={hasDeposit} onChange={setHasDeposit} label="Add a separate deposit" />
+        {!hasDeposit ? <p className="type-caption">The advance is counted once. No separate deposit is due.</p> : null}
+        {rentMinor > 0 && !depositInvalid ? (
           <Notice
             tone="info"
             title={`Move-in amount: GH₵${(moveIn / 100).toLocaleString("en-GH", { minimumFractionDigits: 2 })}`}
-            body={`${advance || 0} months advance + ${caution || 0} deposit + ${agencyFee || 0} agency fee.`}
+            body={`${advance || 0} months advance${deposit ? ` + ${deposit} months separate deposit` : ""}${Number(agencyFee) ? ` + ${agencyFee} months agency fee` : ""}.`}
           />
         ) : null}
       </section>
 
       </fieldset>
       {error ? <Notice tone="error" title={error} /> : null}
-      <div><Button type="submit" busy={busy} busyLabel="Publishing…" disabled={!headline.trim() || !description.trim() || rentMinor <= 0}>Publish to Explore</Button></div>
+      <div><Button type="submit" busy={busy} busyLabel="Publishing…" disabled={!headline.trim() || !description.trim() || rentMinor <= 0 || depositInvalid}>Publish to Explore</Button></div>
     </form>
   );
 }

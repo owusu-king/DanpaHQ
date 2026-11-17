@@ -21,7 +21,7 @@ import requests
 from django.contrib.gis.geos import GEOSGeometry, MultiPolygon, Point
 from django.db import connection, transaction
 
-from .models import District, GeoDataset, Locality, LocationSourceRecord, Region
+from .models import District, GeoDataset, GeoSeedState, Locality, LocationSourceRecord, Region
 from .search import normalize_name
 
 HDX = "https://data.humdata.org/api/3/action/package_show?id=cod-ab-gha"
@@ -451,12 +451,26 @@ def distance(a, lat, lon):
     )
 
 
+def seed_fingerprint(snapshot: bytes) -> str:
+    """Include the reconciliation code and crosswalk as well as the input data."""
+    importer = Path(__file__).resolve()
+    crosswalk = importer.parents[2] / "data/geography/admin-crosswalk.json"
+    digest = hashlib.sha256(hashlib.sha256(snapshot).digest())
+    inputs = (importer, importer.with_name("models.py"), importer.with_name("search.py"), crosswalk)
+    for path in inputs:
+        digest.update(hashlib.sha256(path.read_bytes()).digest())
+    return digest.hexdigest()
+
+
 @transaction.atomic
-def import_snapshot(document):
+def import_snapshot(document, *, fingerprint=None):
     validate_document(document)
     # Serialize writers. A reader sees either the old reference set or the committed update.
     with connection.cursor() as cursor:
         cursor.execute("SELECT pg_advisory_xact_lock(%s)", [2026102801])
+    seed_state = GeoSeedState.objects.filter(pk=1)
+    if fingerprint is not None and seed_state.filter(fingerprint=fingerprint).exists():
+        return None
     counts = defaultdict(int)
     datasets = {}
     for key, source in document["sources"].items():
@@ -509,7 +523,7 @@ def import_snapshot(document):
         district = source.district if source else None
         candidates = [
             d
-            for d in District.objects.filter(region=region)
+            for d in District.objects.filter(region=region).defer("boundary")
             if district_key(d.name) == district_key(item["name"])
         ]
         legacy = [d for d in candidates if d.id != stable_id(source_key, item["source_id"])]
@@ -559,10 +573,17 @@ def import_snapshot(document):
                 "data": {k: v for k, v in item.items() if k != "geometry"},
             },
         )
-    existing = list(Locality.objects.select_related("district__region", "region"))
+    # Search preparation needs the administrative names. The boundary would
+    # repeat the same large polygon on every locality in its district.
+    existing = list(
+        Locality.objects.select_related("district__region", "region")
+        .defer("district__boundary")
+    )
     identities = {
         (r.dataset_id, r.source_id): r
-        for r in LocationSourceRecord.objects.filter(locality__isnull=False)
+        for r in LocationSourceRecord.objects.filter(locality__isnull=False).only(
+            "dataset_id", "source_id", "locality_id", "data"
+        )
     }
     by_id = {row.id: row for row in existing}
     by_name = defaultdict(list)
@@ -698,4 +719,9 @@ def import_snapshot(document):
             "source_records_updated": len(source_changes),
         }
     )
+    if fingerprint is None:
+        # A manual import can change the dataset the release last seeded.
+        seed_state.delete()
+    else:
+        GeoSeedState.objects.update_or_create(pk=1, defaults={"fingerprint": fingerprint})
     return dict(counts)

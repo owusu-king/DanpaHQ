@@ -293,7 +293,9 @@ class OrganizationPropertyView(APIView):
         # The mobile Properties tab, reading the same serializer.
         with memoized():
             return Response(
-                PropertySerializer(rows, many=True, context={"user": request.user}).data
+                PropertySerializer(
+                    rows, many=True, context={"user": request.user, "request": request}
+                ).data
             )
 
     def post(self, request, pk):
@@ -328,7 +330,11 @@ class OrganizationPortfolioView(APIView):
     def get(self, request, pk):
         organization = services.get_organization_or_404(pk, request.user)
         response = Response(
-            services.portfolio_summary(organization=organization, user=request.user)
+            services.portfolio_summary(
+                organization=organization,
+                user=request.user,
+                home_only=request.query_params.get("view") == "home",
+            )
         )
         response["Cache-Control"] = "private, no-store"
         return response
@@ -370,7 +376,7 @@ class OrganizationUnitView(APIView):
 
     def get(self, request, pk):
         from apps.property.models import Unit
-        from apps.property.serializers import UnitSerializer
+        from apps.property.serializers import UnitCardSerializer, UnitSerializer
 
         organization = services.get_organization_or_404(pk, request.user)
         # The same scoping the Portfolio summary uses: a member with Property
@@ -380,16 +386,21 @@ class OrganizationUnitView(APIView):
                 organization=organization, user=request.user
             ).values_list("id", flat=True)
         )
+        cards = request.query_params.get("view") == "cards"
         units = (
             Unit.objects.filter(property_id__in=property_ids, is_active=True)
             .select_related(
                 "property__address__locality__district__region",
                 "property__address__locality__region",
             )
-            .prefetch_related("media__file", "unit_amenities__amenity", "beds")
+            .defer("property__address__locality__district__boundary")
+            .prefetch_related("media__file")
             .order_by("property__title", "label")
         )
-        response = Response(UnitSerializer(units, many=True, context={"user": request.user}).data)
+        if not cards:
+            units = units.prefetch_related("unit_amenities__amenity", "beds")
+        serializer = UnitCardSerializer if cards else UnitSerializer
+        response = Response(serializer(units, many=True, context={"user": request.user}).data)
         response["Cache-Control"] = "private, no-store"
         return response
 

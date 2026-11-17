@@ -31,12 +31,12 @@ test("only the handle drags it, as WhatsApp's sheets do", () => {
   // height, and — when there is no title — the close button's row too (owner,
   // 2026-09-28). It claims any vertical drag that starts there.
   assert.match(source, /const grab = usePanResponder\(\{/);
-  assert.match(source, /onMoveShouldSetPanResponderCapture: \(_, gesture\) => vertical\(gesture\)/);
+  assert.match(source, /onMoveShouldSetPanResponderCapture: \(_, gesture\) => dismissible && vertical\(gesture\)/);
   // It owns the touch from the moment it lands, as Explore's grabber does. Taken
   // only on the first move, a handle with nothing under the finger to take it
   // from never began a drag inside the sheet's modal on a phone (owner,
   // 2026-09-28: "all the other filters don't allow handle swipe down").
-  assert.match(source, /onStartShouldSetPanResponder: \(\) => true,/);
+  assert.match(source, /onStartShouldSetPanResponder: \(\) => dismissible,/);
   assert.equal((source.match(/\{\.\.\.grab\}/g) ?? []).length, 1);
   assert.match(source, /<View collapsable=\{false\} style=\{\[styles\.handle, hideTitle \? styles\.handleWithClose : null\]\} \{\.\.\.grab\}>/);
   assert.match(source, /const HANDLE_HEIGHT = 28;/);
@@ -65,7 +65,7 @@ test("it lets go past a quarter of itself or on a flick, and otherwise returns",
   assert.match(source, /const DISMISS_DISTANCE = 160;/);
   assert.match(source, /const DISMISS_VELOCITY = 0\.8;/);
   assert.match(source, /const letGo = Math\.min\(travel\.current \* DISMISS_SHARE, DISMISS_DISTANCE\);/);
-  assert.match(source, /if \(position > letGo \|\| \(gesture\.vy > DISMISS_VELOCITY && gesture\.dy > 0\)\) \{/);
+  assert.match(source, /if \(dismissible && \(position > letGo \|\| \(gesture\.vy > DISMISS_VELOCITY && gesture\.dy > 0\)\)\) \{/);
   assert.match(source, /releaseSpeed\.current = Math\.max\(0, gesture\.vy\);\s*onClose\(\);/);
 
   // Short of that it springs home carrying the finger's speed, and never past home.
@@ -102,8 +102,9 @@ test("it is safe at every edge and closable every way", () => {
   assert.match(source, /behavior=\{Platform\.OS === "ios" \? "padding" : undefined\}/);
 
   // The back button, the scrim, the close button and VoiceOver's escape all close it.
-  assert.match(source, /onRequestClose=\{onClose\}/);
-  assert.match(source, /onAccessibilityEscape=\{onClose\}/);
+  assert.match(source, /const requestClose = \(\) => \{ if \(dismissible\) onClose\(\); \};/);
+  assert.match(source, /onRequestClose=\{requestClose\}/);
+  assert.match(source, /onAccessibilityEscape=\{requestClose\}/);
   assert.match(source, /accessibilityViewIsModal/);
   // The scrim, and the close button in whichever row it sits: beside the title,
   // or on the handle's row when the title is not drawn.
@@ -133,6 +134,6 @@ test("a stray tap on the scrim never throws away what was being typed", () => {
   assert.match(source, /onPress=\{pressScrim\}/);
   // A fresh opening starts un-typed, and the deliberate ways out still close it.
   assert.match(source, /if \(wasVisible !== visible\) \{\s*setWasVisible\(visible\);\s*if \(visible\) setMounted\(true\);\s*else \{\s*setTyping\(false\);/);
-  assert.match(source, /onRequestClose=\{onClose\}/);
-  assert.match(source, /onAccessibilityEscape=\{onClose\}/);
+  assert.match(source, /onRequestClose=\{requestClose\}/);
+  assert.match(source, /onAccessibilityEscape=\{requestClose\}/);
 });

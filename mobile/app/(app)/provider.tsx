@@ -48,14 +48,14 @@ export default function ProviderStandingScreen() {
       {height >= 480 ? <View style={[styles.mark, { backgroundColor: pending ? theme.color.gold["50"] : theme.color.field["0"] }]}><Ionicons name={approved ? "checkmark-circle-outline" : pending ? "time-outline" : "shield-checkmark-outline"} size={24} color={pending ? theme.color.gold["600"] : theme.color.kola["800"]} /></View> : null}
       <View style={styles.heading}>
         <Type variant="title1" accessibilityRole="header" style={styles.centered}>{standing ? title : "Provider approval"}</Type>
-        <Type variant="body" style={styles.description}>{needsPhone ? "Verify your phone by OTP before submitting for review." : pending ? "Your application is with Management. Your provider tools will open once it is approved." : approved ? "Your provider workspace is ready." : status === "needs_more_info" ? "Review Management’s note and update your profile." : "Review the provider agreement, then submit your application."}</Type>
+        <Type variant="body" style={styles.description}>{needsPhone ? "Verify your phone by OTP before submitting for review." : pending ? "Your application is with Management. Your provider tools will open once it is approved." : approved ? "Your provider workspace is ready." : status === "needs_more_info" ? "Review Management’s note and update your profile." : null}</Type>
       </View>
       {error ? <><Notice tone="error" title={error} /><Button label="Try again" variant="quiet" onPress={() => void load()} /></> : null}
       {standing?.decision_note ? <Notice tone="info" title="From Management" body={standing.decision_note} /> : null}
       {needsPhone ? <SignInMethods /> : pending ? <View style={styles.progress} accessibilityLabel="Application progress: profile complete, phone verified, management review pending">
         {([['Profile', 'checkmark-circle-outline'], ['Phone', 'checkmark-circle-outline'], ['Review', 'time-outline']] as const).map(([label, icon]) => <View key={label} style={styles.step}><Ionicons name={icon} size={18} color={label === "Review" ? theme.color.gold["600"] : theme.color.kola["600"]} /><Type variant="caption">{label}</Type></View>)}
       </View> : null}
-      {canSubmit ? <View style={{ gap: space[3] }}><ProviderTermsConsent value={terms} onChange={setTerms} /><Button label="Request approval" disabled={!terms} busy={busy} onPress={() => void submit()} /></View> : null}
+      {canSubmit ? <View style={{ gap: space[3] }}><ProviderTermsConsent value={terms} onChange={setTerms} /><Button label="Begin verification" disabled={!terms} busy={busy} onPress={() => void submit()} /></View> : null}
       {approved ? <Button label="Open provider workspace" onPress={async () => { await chooseWorkspace("provider"); await refreshMe(); router.replace("/(app)/(provider-tabs)"); }} /> : null}
       {pending || approved ? <Type variant="caption" style={styles.note}>Each property is verified separately.</Type> : null}
     </View>

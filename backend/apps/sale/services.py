@@ -19,6 +19,7 @@ from __future__ import annotations
 from decimal import Decimal, InvalidOperation
 
 from django.db import transaction
+from django.db.models import OuterRef, Q, Subquery
 from django.utils import timezone
 
 from apps.audit.models import AuditAction
@@ -396,7 +397,9 @@ def _clean_body(body: str) -> str:
 
 
 @transaction.atomic
-def start_enquiry(*, sale_id, buyer, body: str = "") -> SaleEnquiry:
+def start_enquiry(
+    *, sale_id, buyer, body: str = "", contact_phone: str = "", contact_email: str = ""
+) -> SaleEnquiry:
     """Record interest in an advertised property, once per buyer and sale.
 
     Message-bearing requests remain compatible with older installed clients;
@@ -414,8 +417,20 @@ def start_enquiry(*, sale_id, buyer, body: str = "") -> SaleEnquiry:
     text = _clean_body(body) if body else ""
 
     enquiry, created = SaleEnquiry.objects.select_for_update().get_or_create(
-        sale=sale, buyer=buyer, defaults={"status": EnquiryStatus.OPEN}
+        sale=sale,
+        buyer=buyer,
+        defaults={
+            "status": EnquiryStatus.OPEN,
+            "contact_phone": contact_phone,
+            "contact_email": contact_email,
+        },
     )
+    if contact_phone and contact_email and (enquiry.contact_phone, enquiry.contact_email) != (
+        contact_phone, contact_email
+    ):
+        enquiry.contact_phone = contact_phone
+        enquiry.contact_email = contact_email
+        enquiry.save(update_fields=["contact_phone", "contact_email", "updated_at"])
     reopening = enquiry.status == EnquiryStatus.CLOSED
     if reopening:
         enquiry.status = EnquiryStatus.OPEN
@@ -462,6 +477,38 @@ def enquiry_for(*, enquiry_id, user) -> SaleEnquiry:
 
 
 @transaction.atomic
+def propose_call(*, enquiry_id, user, proposed_call_at) -> SaleEnquiry:
+    enquiry = enquiry_for(enquiry_id=enquiry_id, user=user)
+    if enquiry.buyer_id == user.id:
+        raise PermissionDenied("Only the provider can offer a call time.")
+    # Sale transitions take the sale lock before closing any enquiry rows.
+    sale = SaleListing.objects.select_for_update().get(pk=enquiry.sale_id)
+    current = SaleEnquiry.objects.select_for_update().get(pk=enquiry.pk)
+    if sale.status != SaleStatus.ACTIVE or current.status != EnquiryStatus.OPEN:
+        raise Conflict("This property interest is closed to new call times.")
+    if current.proposed_call_at == proposed_call_at:
+        enquiry.proposed_call_at = current.proposed_call_at
+        return enquiry
+    now = timezone.now()
+    if proposed_call_at <= now:
+        raise ValidationFailed("Choose a call time in the future.")
+    enquiry.proposed_call_at = proposed_call_at
+    enquiry.last_message_at = now
+    enquiry.seller_read_at = now
+    enquiry.save(update_fields=[
+        "proposed_call_at", "last_message_at", "seller_read_at", "updated_at",
+    ])
+    emit(DomainEvent(
+        "sale.call_proposed.v1", "sale_enquiry", str(enquiry.id),
+        {
+            "proposed_call_at": proposed_call_at.isoformat(),
+            "rescheduled": current.proposed_call_at is not None,
+        },
+    ))
+    return enquiry
+
+
+@transaction.atomic
 def reply(*, enquiry_id, user, body: str) -> SaleEnquiryMessage:
     """Either side answers. A sold property's conversation is closed."""
     enquiry = enquiry_for(enquiry_id=enquiry_id, user=user)
@@ -498,16 +545,35 @@ def _post(enquiry: SaleEnquiry, *, author, body: str, from_buyer: bool) -> SaleE
 
 def mark_enquiry_read(*, enquiry: SaleEnquiry, user) -> None:
     field = "buyer_read_at" if enquiry.buyer_id == user.id else "seller_read_at"
-    SaleEnquiry.objects.filter(id=enquiry.id).update(**{field: timezone.now()})
+    # Mark only the activity this response contains, even if new activity races it.
+    if enquiry.last_message_at is not None and (
+        getattr(enquiry, field) is None or getattr(enquiry, field) < enquiry.last_message_at
+    ):
+        SaleEnquiry.objects.filter(id=enquiry.id).filter(
+            Q(**{f"{field}__isnull": True}) | Q(**{f"{field}__lt": enquiry.last_message_at})
+        ).update(**{field: enquiry.last_message_at})
+        setattr(enquiry, field, enquiry.last_message_at)
+
+
+def _enquiry_inbox_rows():
+    latest = SaleEnquiryMessage.objects.filter(enquiry_id=OuterRef("pk")).order_by(
+        "-created_at", "-id"
+    )
+    return (
+        SaleEnquiry.objects.select_related("sale__property__address__locality", "buyer")
+        .annotate(
+            preview_body=Subquery(latest.values("body")[:1]),
+            preview_author_id=Subquery(latest.values("author_id")[:1]),
+        )
+        .order_by("-last_message_at", "-created_at")
+    )
 
 
 def enquiries_for_seller(user):
     """Every enquiry on a property this person may sell, newest conversation first."""
     from apps.organization.services import can_manage_property
 
-    rows = SaleEnquiry.objects.select_related(
-        "sale__property__address__locality", "buyer"
-    ).order_by("-last_message_at", "-created_at")
+    rows = _enquiry_inbox_rows()
     # Managing a property is decided per property (Portfolio roles, assignments),
     # so this narrows to the sales first and asks once per property.
     sale_ids = [
@@ -521,8 +587,4 @@ def enquiries_for_seller(user):
 
 
 def enquiries_for_buyer(user):
-    return (
-        SaleEnquiry.objects.select_related("sale__property__address__locality", "buyer")
-        .filter(buyer=user)
-        .order_by("-last_message_at", "-created_at")
-    )
+    return _enquiry_inbox_rows().filter(buyer=user)

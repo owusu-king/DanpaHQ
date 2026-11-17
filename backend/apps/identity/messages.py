@@ -49,6 +49,10 @@ def otp_recover_account(code: str) -> str:
     return f"{code} is your {BRAND} code to reset your password. Expires in 5 minutes."
 
 
+def otp_create_password(code: str) -> str:
+    return f"{code} is your {BRAND} code to create a password. Expires in 5 minutes."
+
+
 def password_changed() -> str:
     """Sent after any password change, including a reset.
 
@@ -92,6 +96,7 @@ BY_PURPOSE = {
     "sign_up": otp_sign_up,
     "change_phone": otp_change_phone,
     "recover_account": otp_recover_account,
+    "create_password": otp_create_password,
 }
 
 

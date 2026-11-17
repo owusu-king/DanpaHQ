@@ -96,6 +96,8 @@ def test_an_abandoned_claim_is_reclaimed_and_delivered():
     assert result["published"] == 1
     assert len(received) == 1
     assert OutboxEvent.objects.get().status == OutboxStatus.PUBLISHED
+    assert tasks.dispatch_pending() == {"published": 0, "failed": 0, "reclaimed": 0}
+    assert len(received) == 1
 
 
 def test_a_live_claim_is_left_alone():

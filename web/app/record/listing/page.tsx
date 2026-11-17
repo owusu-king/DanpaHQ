@@ -8,7 +8,7 @@ import { useEffect, useRef, useState } from "react";
 import { useAuthDialog } from "@/components/auth/AuthDialog";
 import { usePageTitle } from "@/components/PageTitle";
 import { Button } from "@/components/Button";
-import { Notice } from "@/components/Notice";
+import { useToast } from "@/components/toast/Toaster";
 import { PropertyAsk } from "@/components/listings/PropertyAsk";
 import { rentalIntelContext } from "@/lib/propertyIntel";
 import { Icon, type IconName } from "@/components/portal/icons";
@@ -54,6 +54,7 @@ export default function PublicListingPage() {
   const router = useRouter();
   const { open: openAuth } = useAuthDialog();
   const { state } = useSession();
+  const { toast } = useToast();
   const [listing, setListing] = useState<ListingDetail | null>(null);
   const [related, setRelated] = useState<Awaited<ReturnType<typeof getRelatedListings>> | null>(null);
   const [error, setError] = useState("");
@@ -120,7 +121,7 @@ export default function PublicListingPage() {
           <PanelState
             icon="listings"
             title="This rental isn’t available"
-            body={error}
+            body="It may no longer be listed, or we couldn’t load its details."
             action={<Link href="/rentals" className="ws-action is-primary"><Icon name="explore" />Back to Explore</Link>}
           />
         </section>
@@ -178,8 +179,13 @@ export default function PublicListingPage() {
     setSaved(!was);
     try {
       await (was ? unsavePublicListing(listing!.id) : savePublicListing(listing!.id));
-    } catch {
+    } catch (cause) {
       setSaved(was);
+      toast({
+        tone: "error",
+        title: was ? "Couldn’t remove this rental" : "Couldn’t save this rental",
+        description: cause instanceof ApiFailure ? cause.error.message : "Please try again.",
+      });
     }
   }
 
@@ -200,7 +206,7 @@ export default function PublicListingPage() {
       window.setTimeout(() => setShareFeedback(null), 2000);
     } catch (cause) {
       if (cause instanceof DOMException && cause.name === "AbortError") return;
-      setError("We could not open sharing. Please try again.");
+      toast({ tone: "error", title: "Couldn’t share this rental", description: "Please try again." });
     }
   }
 
@@ -208,12 +214,15 @@ export default function PublicListingPage() {
     if (viewing) { router.push("/viewings"); return; }
     if (!signedIn) return requireAccount(`/record/listing?id=${listing!.id}`);
     setBusy("viewing");
-    setError("");
     try {
       await requestPublicViewing(listing!.id);
       setViewing("requested");
     } catch (cause) {
-      setError(cause instanceof ApiFailure ? cause.error.message : "We could not send your request.");
+      toast({
+        tone: "error",
+        title: "Viewing request wasn’t sent",
+        description: cause instanceof ApiFailure ? cause.error.message : "Please try again.",
+      });
     } finally {
       setBusy(null);
     }
@@ -333,7 +342,6 @@ export default function PublicListingPage() {
             ) : null}
           </div>
 
-          {error ? <Notice tone="error" title={error} /> : null}
 
           {taken ? (
             <p className="listing-taken"><Icon name="info" />This place has been taken. Keep looking for something similar.</p>
@@ -394,6 +402,7 @@ export default function PublicListingPage() {
           <div className="listing-receipt">
             <small>To move in</small>
             <strong>{cedis(listing.total_move_in_minor)}</strong>
+            {listing.caution_months ? <small>Includes {listing.caution_months} {listing.caution_months === 1 ? "month" : "months"} as a separate deposit.</small> : null}
           </div>
 
           <ListingProviderCard listing={listing} />

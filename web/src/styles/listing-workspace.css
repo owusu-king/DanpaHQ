@@ -634,7 +634,6 @@ ul.listing-trust-stamps { display: grid; gap: 2px; padding: var(--space-1); back
   .listing-actions .btn,
   .listing-gallery-all,
   .listing-readmore { min-height: 44px; }
-  .listing .sale-enquiry textarea { font-size: 1rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {

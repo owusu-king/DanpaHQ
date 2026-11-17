@@ -138,11 +138,9 @@ test("notifications are not a second attention block", () => {
 });
 
 test("a missing count never costs somebody their rent summary", () => {
-  // The counts ride along with the existing tolerant batch, each with its own
-  // catch, so neither can fail the load that Home actually exists for.
   const screen = code(mobileScreen());
   assert.match(screen, /listNotifications\(\)\.catch\(\(\) => \(\{ unread_count: 0/);
-  assert.match(screen, /listMyTenancies\(\),/);
+  assert.match(screen, /listMyTenancies\(\)\.then\(\(homes\)/);
   // One read, two jobs: the unread count and the activity feed.
   assert.match(screen, /setUnreadNotifications\(updates\.unread_count\)/);
   assert.match(screen, /setRecentActivity\(updates\.results\)/);

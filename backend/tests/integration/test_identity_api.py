@@ -438,6 +438,13 @@ class TestPasswordSignIn:
         )
         assert completed.status_code == 200
 
+        replay = api.post("/api/v1/auth/password-reset/complete/", {
+            "reset_token": verified.data["reset_token"],
+            "new_password": "another-entirely-fresh-secret",
+            "platform": "android",
+        }, format="json")
+        assert replay.status_code == 403
+
         signed_in = api.post(
             "/api/v1/auth/sign-in/",
             {

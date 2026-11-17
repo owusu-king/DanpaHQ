@@ -17,7 +17,8 @@
  * leaves the address on the front door, the way every other modal's link does.
  */
 
-import { useRouter, useSearchParams } from "next/navigation";
+import dynamic from "next/dynamic";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   createContext,
   useCallback,
@@ -31,11 +32,9 @@ import {
 } from "react";
 
 import { authHref, type AuthParams, type AuthView } from "@/components/auth/authTypes";
-import { ForgotPasswordFlow } from "@/components/auth/flows/ForgotPasswordFlow";
-import { RegisterFlow } from "@/components/auth/flows/RegisterFlow";
-import { SignInFlow } from "@/components/auth/flows/SignInFlow";
-import { WelcomeFlow } from "@/components/auth/flows/WelcomeFlow";
 import { FrontDoor } from "@/components/landing/FrontDoor";
+import { Button } from "@/components/Button";
+import { PageLoading } from "@/components/workspace/PageLoading";
 import { resolveWebEntry } from "@/lib/navigation";
 import { safeInternalPath } from "@/lib/safeRedirect";
 import { useSession } from "@/lib/session";
@@ -43,30 +42,38 @@ import { useSession } from "@/lib/session";
 type AuthDialogValue = {
   open: (view: AuthView, params?: AuthParams) => void;
   close: () => void;
+  handlesNavigation: boolean;
 };
 
 const AuthDialogContext = createContext<AuthDialogValue | null>(null);
 
 const FLOWS = {
-  "sign-in": SignInFlow,
-  register: RegisterFlow,
-  "forgot-password": ForgotPasswordFlow,
-  welcome: WelcomeFlow,
+  "sign-in": dynamic(() => import("./flows/SignInFlow").then((module) => module.SignInFlow)),
+  register: dynamic(() => import("./flows/RegisterFlow").then((module) => module.RegisterFlow)),
+  "forgot-password": dynamic(() => import("./flows/ForgotPasswordFlow").then((module) => module.ForgotPasswordFlow)),
+  welcome: dynamic(() => import("./flows/WelcomeFlow").then((module) => module.WelcomeFlow)),
 } as const;
 
 export function AuthDialogProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
+  const pathname = usePathname();
   // `key` remounts the flow on every switch, so each screen starts clean.
   const [current, setCurrent] = useState<{ view: AuthView; params: AuthParams; key: number } | null>(null);
+  const [landingFrom, setLandingFrom] = useState<string | null>(null);
 
   const open = useCallback((view: AuthView, params: AuthParams = {}) => {
     setCurrent((previous) => ({ view, params, key: (previous?.key ?? 0) + 1 }));
   }, []);
   const close = useCallback(() => setCurrent(null), []);
   const land = useCallback((route: string) => {
+    setLandingFrom(pathname);
     setCurrent(null);
     router.replace(route as never);
-  }, [router]);
+  }, [pathname, router]);
+
+  useEffect(() => {
+    if (landingFrom !== pathname) setLandingFrom(null);
+  }, [landingFrom, pathname]);
 
   // Back or Forward with the dialog up is the person leaving; the dialog goes
   // with the page it was over rather than hanging over the next one.
@@ -76,7 +83,8 @@ export function AuthDialogProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("popstate", close);
   }, [current, close]);
 
-  const value = useMemo(() => ({ open, close }), [open, close]);
+  const handlesNavigation = Boolean(current) || landingFrom === pathname;
+  const value = useMemo(() => ({ open, close, handlesNavigation }), [open, close, handlesNavigation]);
   const Flow = current ? FLOWS[current.view] : null;
 
   return (
@@ -98,6 +106,7 @@ export function useAuthDialog(): AuthDialogValue {
   return value ?? {
     open: (view, params) => window.location.assign(authHref(view, params)),
     close: () => undefined,
+    handlesNavigation: false,
   };
 }
 
@@ -144,12 +153,12 @@ export function AuthLink({
 export function AuthEntry({ view }: { view: AuthView }) {
   const router = useRouter();
   const search = useSearchParams();
-  const { state } = useSession();
+  const { state, refresh, activeContext } = useSession();
   const { open } = useAuthDialog();
   const handled = useRef(false);
 
   useEffect(() => {
-    if (handled.current || state.status === "loading") return;
+    if (handled.current || state.status === "loading" || state.status === "unavailable") return;
     handled.current = true;
     const workspace = search.get("workspace");
     const params: AuthParams = {
@@ -162,21 +171,31 @@ export function AuthEntry({ view }: { view: AuthView }) {
       const me = state.me;
       // An account left unfinished finishes itself in the sign-up; the front
       // door would only send it straight back here.
-      if (view === "register" && me.registration_state !== "complete") {
+      const destination = resolveWebEntry(me, activeContext);
+      if (view === "register" && destination === "/register") {
         open("register", params);
         return;
       }
+      // Recovery must also work for a signed-in person who forgot their password.
+      if (view === "forgot-password") open("forgot-password", params);
       // An old welcome link shows the welcome once, over the dashboard.
       if (view === "welcome") open("welcome", params);
-      router.replace((params.next ?? resolveWebEntry(me)) as never);
+      router.replace((destination === "/settings/security" ? destination : params.next ?? destination) as never);
       return;
     }
 
     // There is nothing to welcome a signed-out visitor to.
     open(view === "welcome" ? "sign-in" : view, params);
     router.replace("/");
-  }, [open, router, search, state, view]);
+  }, [activeContext, open, router, search, state, view]);
 
   // The page the dialog opens over, until the address moves to the front door.
-  return <FrontDoor />;
+  if (state.status === "signed_out") return <FrontDoor />;
+  if (state.status === "unavailable") {
+    return <section className="page-loading">
+      <p role="alert">Danpa HQ couldn’t check your session.</p>
+      <Button onClick={() => void refresh()}>Try again</Button>
+    </section>;
+  }
+  return <PageLoading label="Opening Danpa HQ" />;
 }

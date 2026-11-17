@@ -168,6 +168,9 @@ class SaleEnquiry(BaseModel):
     buyer = models.ForeignKey(
         "identity.User", on_delete=models.CASCADE, related_name="sale_enquiries"
     )
+    contact_phone = models.CharField(max_length=16, blank=True)
+    contact_email = models.EmailField(blank=True)
+    proposed_call_at = models.DateTimeField(null=True, blank=True)
     status = models.CharField(
         max_length=8, choices=EnquiryStatus.choices, default=EnquiryStatus.OPEN
     )

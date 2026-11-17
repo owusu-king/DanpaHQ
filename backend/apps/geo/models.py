@@ -163,7 +163,7 @@ class Address(SoftDeleteModel):
     # separate from the property's private latitude/longitude.
     place_latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     place_longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
-    digital_address = DigitalAddressField(blank=True, db_index=True)
+    digital_address = DigitalAddressField(max_length=14, blank=True, db_index=True)
     street = models.CharField(max_length=160, blank=True)
     house_number = models.CharField(max_length=32, blank=True)
     landmark = models.CharField(
@@ -233,6 +233,16 @@ class GeoDataset(models.Model):
 
     def __str__(self):
         return self.id
+
+
+class GeoSeedState(models.Model):
+    """Receipt for a completed, release-managed geography import."""
+
+    id = models.PositiveSmallIntegerField(primary_key=True)
+    fingerprint = models.CharField(max_length=64)
+
+    def __str__(self):
+        return self.fingerprint
 
 
 class LocationSourceRecord(models.Model):

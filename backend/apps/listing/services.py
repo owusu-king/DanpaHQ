@@ -24,12 +24,16 @@ from .models import (
 )
 
 
-def get_listing_or_404(pk) -> Listing:
-    listing = (
-        Listing.objects.filter(id=pk)
-        .select_related("unit__property__address__locality", "created_by")
-        .first()
+def get_listing_or_404(pk, *, detail=False) -> Listing:
+    rows = Listing.objects.filter(id=pk).select_related(
+        "unit__property__address__locality", "created_by"
     )
+    if detail:
+        rows = rows.select_related(
+            "unit__property__address__locality__district__region",
+            "unit__property__address__locality__region",
+        ).defer("unit__property__address__locality__district__boundary")
+    listing = rows.first()
     if listing is None or listing.deleted_at is not None:
         raise NotFound("We could not find that listing.")
     return listing

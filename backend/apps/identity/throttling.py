@@ -61,6 +61,26 @@ class OtpVerifyThrottle(CacheAwareRateThrottle):
         return self.cache_format % {"scope": self.scope, "ident": self.get_ident(request)}
 
 
+class OtpSendIPThrottle(OtpVerifyThrottle):
+    scope = "otp_send_ip"
+
+
+class PasswordResetIdentifierThrottle(PhoneNumberThrottle):
+    def get_cache_key(self, request, view):
+        raw = (request.data or {}).get("identifier")
+        if not raw:
+            return super().get_cache_key(request, view)
+        identifier = str(raw).strip().lower()
+        if "@" in identifier:
+            identifier = sha256(identifier.encode()).hexdigest()
+        else:
+            try:
+                identifier = normalise_ghana_msisdn(identifier)
+            except Exception:
+                return None
+        return self.cache_format % {"scope": self.scope, "ident": identifier}
+
+
 class GoogleAuthThrottle(CacheAwareRateThrottle):
     """Bound public-key verification work and repeated session creation by IP."""
 

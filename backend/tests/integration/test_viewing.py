@@ -1010,6 +1010,20 @@ class TestApi:
         assert host_view.data["contact"]["role"] == "Tenant"
         assert host_view.data["viewing_directions"]["street"] == "Oxford Street"
 
+        summary_url = "/api/v1/me/viewing-requests/?open=true&view=home"
+        agenda = host_api.get(summary_url)
+        assert agenda.status_code == 200, agenda.data
+        assert agenda["Cache-Control"] == "private, no-store"
+        assert agenda.data == {
+            "count": 1,
+            "upcoming": [{key: host_view.data[key] for key in (
+                "id", "status", "confirmed_starts_at", "listing_headline", "tenant_name",
+                "property_title", "unit_label",
+            )}],
+        }
+        assert len(agenda.content) < len(host_api.get("/api/v1/me/viewing-requests/").content)
+        assert tenant_api.get(summary_url).data == {"count": 0, "upcoming": []}
+
         viewing = services.get_request_or_404(viewing_id)
         viewing.confirmed_slot.starts_at = timezone.now()
         viewing.confirmed_slot.save(update_fields=["starts_at", "updated_at"])

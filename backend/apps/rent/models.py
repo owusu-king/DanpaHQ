@@ -259,6 +259,9 @@ class RentCharge(BaseModel):
 
     @property
     def has_dispute(self) -> bool:
+        annotated = getattr(self, "_has_disputed_payment", None)
+        if annotated is not None:
+            return bool(annotated)
         return self.payments.filter(status=PaymentStatus.DISPUTED).exists()
 
     @property

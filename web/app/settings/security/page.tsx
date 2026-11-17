@@ -36,7 +36,7 @@ import {
  */
 export default function SecuritySettingsPage() {
   const router = useRouter();
-  const { state } = useSession();
+  const { state, refresh } = useSession();
   const { toast } = useToast();
   const [devices, setDevices] = useState<SignedInDevice[] | null>(null);
   const [ending, setEnding] = useState<string | null>(null);
@@ -65,18 +65,28 @@ export default function SecuritySettingsPage() {
     }
   }, []);
 
-  useEffect(() => { void load(); void loadDeletion(); }, [load, loadDeletion]);
+  const me = state.status === "signed_in" ? state.me : null;
+  const complete = me?.registration_state === "complete";
+  useEffect(() => {
+    if (complete) { void load(); void loadDeletion(); }
+  }, [complete, load, loadDeletion]);
 
   const pending = deletion?.request?.status === "pending" ? deletion.request : null;
   const declined = deletion?.request?.status === "declined" ? deletion.request : null;
+  const hasPassword = me?.has_password;
+  const passwordCard = me ? (
+    <SettingsCard className="settings-security-card" title={typeof hasPassword !== "boolean" ? "Password" : hasPassword ? "Change password" : "Set password"} description="8+ characters. Avoid all digits or your phone number.">
+      {typeof hasPassword === "boolean" ? <PasswordSection key={me.id} hasPassword={hasPassword} /> : <>
+        <p>We couldn’t confirm whether a password is set. Refresh your account to continue.</p>
+        <Button variant="secondary" onClick={() => void refresh()}>Refresh account</Button>
+      </>}
+    </SettingsCard>
+  ) : null;
+  if (!complete) return passwordCard;
 
   return (
     <>
-      {state.status === "signed_in" && state.me.authentication_methods.includes("phone") ? (
-        <SettingsCard className="settings-security-card" title="Password" description="8+ characters. Avoid all digits or your phone number.">
-          <PasswordSection />
-        </SettingsCard>
-      ) : null}
+      {passwordCard}
 
       <SettingsCard
         id="phone-verification"

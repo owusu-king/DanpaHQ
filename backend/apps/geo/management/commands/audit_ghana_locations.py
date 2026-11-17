@@ -17,7 +17,12 @@ class Command(BaseCommand):
         parser.add_argument("--show-candidates", action="store_true")
 
     def handle(self, *args, **options):
-        rows = list(Locality.objects.all())
+        rows = list(
+            Locality.objects.only(
+                "normalized_name", "district_id", "region_id", "latitude",
+                "longitude", "name", "aliases",
+            )
+        )
         grouped = defaultdict(list)
         nearby = []
         for row in rows:
@@ -28,8 +33,8 @@ class Command(BaseCommand):
                         nearby.append({"name": row.name, "ids": [str(other.id), str(row.id)]})
                 grouped[key].append(row)
         districts = defaultdict(int)
-        for row in District.objects.all():
-            districts[row.region_id, district_key(row.name)] += 1
+        for region_id, name in District.objects.values_list("region_id", "name"):
+            districts[region_id, district_key(name)] += 1
         result = {
             "regions": Region.objects.count(),
             "districts": District.objects.count(),

@@ -10,6 +10,6 @@ esac
 python manage.py check --deploy --fail-level WARNING
 python manage.py migrate --noinput
 python manage.py provision_runtime_database
-python manage.py seed_geo
+python manage.py seed_geo --skip-if-current
 python manage.py seed_amenities
 python manage.py bootstrap_superuser

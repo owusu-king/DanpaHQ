@@ -16,6 +16,31 @@ def test_five_digit_unique_code_is_valid():
     assert normalise_digital_address("AK-039-51234").value == "AK-039-51234"
 
 
+@pytest.mark.parametrize(
+    ("raw", "canonical"),
+    [
+        ("ER-0254-2310", "ER-0254-2310"),
+        (" er \u2013 0254 \u2013 2310 ", "ER-0254-2310"),
+        ("AKW 0254 2310", "AKW-0254-2310"),
+        ("e2-0254-2310", "E2-0254-2310"),
+        ("AKW025423100", "AKW-0254-23100"),
+    ],
+)
+def test_longer_area_and_district_codes_normalise(raw, canonical):
+    assert normalise_digital_address(raw).value == canonical
+
+
+@pytest.mark.parametrize("prefix", ["HA", "ME", "OG", "SB", "TT", "YS"])
+def test_newer_regions_are_accepted(prefix):
+    raw = f"{prefix}-0254-2310"
+    assert normalise_digital_address(raw).value == raw
+
+
+def test_ambiguous_compact_code_asks_for_hyphens():
+    with pytest.raises(DigitalAddressError, match="Use the hyphens"):
+        normalise_digital_address("ER02542310")
+
+
 @pytest.mark.parametrize("raw", ["", "GA-54-0125", "ZZ-543-0125", "543-0125", "GA-543-012"])
 def test_malformed_addresses_are_rejected(raw):
     with pytest.raises(DigitalAddressError):

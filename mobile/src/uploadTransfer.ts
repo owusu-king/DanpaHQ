@@ -12,13 +12,19 @@ export async function readUploadSource(uri: string): Promise<Blob> {
   return (await fetch(uri)).blob();
 }
 
-export async function transferUpload(reservation: UploadReservation, prepared: PreparedUpload) {
+export type TransferOptions = {
+  signal?: AbortSignal;
+  onProgress?: (sent: number, total: number) => void;
+};
+
+export async function transferUpload(reservation: UploadReservation, prepared: PreparedUpload, options?: TransferOptions) {
+  const signal = options?.signal;
   const file = prepared.blob.type === prepared.mime
     ? prepared.blob
     : new Blob([prepared.blob], { type: prepared.mime });
   if (reservation.method === "PUT") {
     return fetch(reservation.url, {
-      method: "PUT",
+      method: "PUT", signal,
       headers: { ...reservation.headers, "Content-Type": prepared.mime },
       body: file,
     });
@@ -26,5 +32,5 @@ export async function transferUpload(reservation: UploadReservation, prepared: P
   const form = new FormData();
   for (const [key, value] of Object.entries(reservation.fields ?? {})) form.append(key, value);
   form.append("file", file, prepared.filename);
-  return fetch(reservation.url, { method: "POST", body: form });
+  return fetch(reservation.url, { method: "POST", body: form, signal });
 }

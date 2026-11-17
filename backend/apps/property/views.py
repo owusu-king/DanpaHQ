@@ -198,7 +198,9 @@ class PropertyListCreateView(APIView):
         # nothing else. See `apps.core.memo`.
         with memoized():
             return Response(
-                PropertySerializer(props, many=True, context={"user": request.user}).data
+                PropertySerializer(
+                    props, many=True, context={"user": request.user, "request": request}
+                ).data
             )
 
     def post(self, request):

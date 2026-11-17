@@ -2,6 +2,7 @@
 
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { CheckCircle2, Info, TriangleAlert, X } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
 import {
   createContext,
   useCallback,
@@ -14,6 +15,7 @@ import {
 } from "react";
 
 import { cn } from "@/lib/utils";
+import { ErrorDialog, type ErrorAction, type ErrorMessage } from "./ErrorDialog";
 
 /**
  * Toasts, built here rather than pulled in.
@@ -23,14 +25,11 @@ import { cn } from "@/lib/utils";
  * is competing with a slow connection: a save that silently succeeds and a save
  * that silently failed look identical, and the person taps again.
  *
- * So: every toast is announced. The live region is polite for confirmations and
- * assertive for failures, because "we could not reach the service" is worth
- * interrupting for and "Saved" is not. Failures also do not auto-dismiss —
- * a message you must read within four seconds is a message for somebody who was
- * already looking.
+ * Confirmations stay in a polite live region; operation failures are presented
+ * separately and stay open until the person can read and act on them.
  */
 
-type ToastTone = "success" | "error" | "info";
+type ToastTone = "success" | "warning" | "info";
 
 type Toast = {
   id: number;
@@ -42,10 +41,11 @@ type Toast = {
 };
 
 type ToastInput = {
-  tone?: ToastTone;
+  tone?: ToastTone | "error";
   title: string;
   description?: string;
   duration?: number | null;
+  action?: ErrorAction;
 };
 
 type ToastApi = {
@@ -71,7 +71,7 @@ const NO_OP: ToastApi = { toast: () => -1, dismiss: () => {} };
 
 const TONE: Record<ToastTone, { icon: typeof Info; className: string }> = {
   success: { icon: CheckCircle2, className: "text-brand" },
-  error: { icon: TriangleAlert, className: "text-destructive" },
+  warning: { icon: TriangleAlert, className: "text-muted-foreground" },
   info: { icon: Info, className: "text-muted-foreground" },
 };
 
@@ -79,21 +79,47 @@ const TONE: Record<ToastTone, { icon: typeof Info; className: string }> = {
 const DEFAULT_DURATION: Record<ToastTone, number | null> = {
   success: 4000,
   info: 5000,
-  // Read at the reader's pace, not on a timer.
-  error: null,
+  warning: 6500,
 };
 
 export function ToastProvider({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
+  const router = useRouter();
+  const [feedbackPath, setFeedbackPath] = useState(pathname);
+  const [errors, setErrors] = useState<ErrorMessage[]>([]);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const nextId = useRef(1);
 
+  if (feedbackPath !== pathname) {
+    setFeedbackPath(pathname);
+    setErrors([]);
+  }
+
   const dismiss = useCallback((id: number) => {
     setToasts((current) => current.filter((item) => item.id !== id));
+    setErrors((current) => current.filter((item) => item.id !== id));
   }, []);
 
   const toast = useCallback((input: ToastInput) => {
     const id = nextId.current++;
     const tone = input.tone ?? "info";
+    if (tone === "error") {
+      const detail = input.description ?? input.title;
+      // The viewing endpoint returns this requirement as a 404. Recognize
+      // its existing copy until the API exposes a dedicated error code.
+      const needsPhone = /^confirm your phone number (?:first\.?$|before\b)/i.test(detail);
+      const error: ErrorMessage = {
+        id,
+        title: needsPhone ? "Verify your phone number" : input.description ? input.title : "Action couldn’t be completed",
+        description: detail,
+        action: input.action ?? (needsPhone ? {
+          label: "Verify phone number",
+          onSelect: () => router.push("/settings/security#phone-verification"),
+        } : undefined),
+      };
+      setErrors((current) => [...current, error]);
+      return id;
+    }
     setToasts((current) => [
       // Newest first, and never more than three. A stack that grows without
       // limit covers the thing it is reporting on.
@@ -102,7 +128,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       ...current,
     ].slice(0, 3));
     return id;
-  }, []);
+  }, [router]);
 
   const api = useMemo(() => ({ toast, dismiss }), [toast, dismiss]);
 
@@ -110,6 +136,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     <ToastContext.Provider value={api}>
       {children}
       <ToastViewport toasts={toasts} onDismiss={dismiss} />
+      {errors[0] ? <ErrorDialog key={errors[0].id} error={errors[0]} onDismiss={dismiss} /> : null}
     </ToastContext.Provider>
   );
 }
@@ -123,8 +150,7 @@ function ToastViewport({
 }) {
   return (
     <div
-      // Not a live region itself: each toast announces its own text with the
-      // urgency its tone deserves.
+      // Each toast announces its own text.
       className="pointer-events-none fixed inset-x-0 bottom-0 z-[100] flex flex-col items-center gap-2 p-4 sm:inset-x-auto sm:right-0 sm:items-end sm:p-6"
     >
       <AnimatePresence initial={false}>
@@ -150,7 +176,6 @@ function ToastRow({ toast, onDismiss }: { toast: Toast; onDismiss: (id: number) 
     <motion.div
       layout={!still}
       role="status"
-      aria-live={toast.tone === "error" ? "assertive" : "polite"}
       initial={still ? { opacity: 1 } : { opacity: 0, y: 16, scale: 0.96 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={still ? { opacity: 0 } : { opacity: 0, y: 8, scale: 0.97 }}

@@ -19,6 +19,7 @@ import uuid
 from dataclasses import asdict
 
 from django.conf import settings
+from django.db.models import Prefetch
 from django.http import StreamingHttpResponse
 from rest_framework import status
 from rest_framework.pagination import PageNumberPagination
@@ -115,7 +116,18 @@ class LocationSearchView(APIView):
         )
         if len(data["q"].strip()) < 2:
             rows = rows.none()
-        rows = rows.prefetch_related("source_records__dataset")
+        rows = rows.prefetch_related(
+            Prefetch(
+                "source_records",
+                queryset=LocationSourceRecord.objects.select_related("dataset").only(
+                    "locality_id",
+                    "dataset_id",
+                    "source_id",
+                    "dataset__license",
+                    "dataset__attribution",
+                ),
+            )
+        )
         pagination = PageNumberPagination()
         pagination.page_size = data["limit"]
         page = pagination.paginate_queryset(rows, request, view=self)

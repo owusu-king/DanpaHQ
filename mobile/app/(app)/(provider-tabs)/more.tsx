@@ -7,9 +7,9 @@ import { ApiFailure } from "@/api";
 import { useAuth, type Workspace } from "@/auth";
 import { Identity, YouPage, type YouItem, type YouSection } from "@/components/account/YouParts";
 import { useProfilePhoto } from "@/components/nav/TabHeaderControls";
+import { useUnreadUpdates } from "@/components/nav/useUnreadUpdates";
 import { Button, Field, Type, space, Notice } from "@/components/ui";
 import { resolveEntryRoute } from "@/navigation";
-import { listNotifications } from "@/notifications";
 import { listMyPortfolioInvitations } from "@/organizations";
 import { chooseWorkspace } from "@/workspace";
 import { ProviderTabFrame } from "@/components/nav/NativeTabFrame";
@@ -36,13 +36,11 @@ function ProviderMoreScreen() {
   const [rentText, setRentText] = useState("");
   const [leaving, setLeaving] = useState(false);
   const [error, setError] = useState("");
-  const [unread, setUnread] = useState(0);
+  const unread = useUnreadUpdates();
   const [invitations, setInvitations] = useState(0);
 
   useFocusEffect(
     useCallback(() => {
-      // A failed badge must never break the screen behind it.
-      void listNotifications().then((page) => setUnread(page.unread_count)).catch(() => undefined);
       // One account can be invited into a second Portfolio, so the way in
       // belongs on this index too — and only while one is waiting.
       void listMyPortfolioInvitations()

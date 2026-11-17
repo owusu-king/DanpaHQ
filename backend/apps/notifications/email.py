@@ -16,6 +16,11 @@ from .services import alert_wanted, preferences_for
 
 logger = logging.getLogger("notifications")
 
+PROPERTY_REQUEST_UPDATES = frozenset({
+    "application.under_review", "application.accepted", "application.rejected",
+    "sale.enquiry_replied",
+})
+
 
 def send_email_alert(notification_id) -> None:
     from apps.operations.configuration import value
@@ -27,7 +32,12 @@ def send_email_alert(notification_id) -> None:
     if not user.is_active or not user.email or not user.is_email_verified:
         return
     preference = preferences_for(user)
-    if not preference.email_enabled or not alert_wanted(preference, notification.kind):
+    email_only_request = (
+        not user.is_phone_verified and notification.kind in PROPERTY_REQUEST_UPDATES
+    )
+    if (not preference.email_enabled and not email_only_request) or not alert_wanted(
+        preference, notification.kind
+    ):
         return
 
     def failed(reason):

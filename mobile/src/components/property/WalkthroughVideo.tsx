@@ -20,6 +20,7 @@ export function WalkthroughUpload({ subject, id, editable, onBusy }: { subject: 
   const [saved, setSaved] = useState<WalkthroughVideo | null>(null);
   const [preview, setPreview] = useState("");
   const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState("");
   const [error, setError] = useState("");
   const [retryAvailable, setRetryAvailable] = useState(false);
   const retry = useRef<(() => Promise<string>) | null>(null);
@@ -30,10 +31,11 @@ export function WalkthroughUpload({ subject, id, editable, onBusy }: { subject: 
     if (running.current) return;
     running.current = true; setBusy(true); onBusy?.(true); setError("");
     try { await run(); } catch (cause) { setError(cause instanceof ApiFailure ? cause.error.message : cause instanceof Error ? cause.message : "Video upload failed. Try again."); }
-    finally { running.current = false; setBusy(false); onBusy?.(false); }
+    finally { running.current = false; setBusy(false); setProgress(""); onBusy?.(false); }
   }
   async function save() {
     const fileId = await retry.current!();
+    setProgress("Saving video…");
     const next = await apiFetch<WalkthroughVideo>(videoPath(subject, id), { method: "PUT", body: { file_id: fileId } });
     version.current++; setSaved(next); setPreview(""); retry.current = null; setRetryAvailable(false);
   }
@@ -41,23 +43,27 @@ export function WalkthroughUpload({ subject, id, editable, onBusy }: { subject: 
     await act(async () => {
       const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permission.granted) throw new Error("Allow video access in Settings to choose a video.");
-      const picked = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["videos"], videoQuality: ImagePicker.UIImagePickerControllerQualityType.Medium, videoMaxDuration: 10 });
-      if (picked.canceled || !picked.assets[0]) return;
+      const picked = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["videos"], videoQuality: ImagePicker.UIImagePickerControllerQualityType.Medium });
+      if (picked.canceled) return;
+      if (!picked.assets[0]) throw new Error("The selected video could not be opened. Choose it again.");
+      setPreview(""); retry.current = null; setRetryAvailable(false);
+      setProgress("Checking selected video…");
       const prepared = await prepareVideo(picked.assets[0]);
-      setPreview(prepared.uri); retry.current = videoUpload(prepared, subject); setRetryAvailable(true);
+      setPreview(prepared.uri); retry.current = videoUpload(prepared, subject, setProgress); setRetryAvailable(true);
       await save();
     });
   }
   if (!editable && !saved && !preview && !error) return null;
   return <View style={{ gap: space[2] }}>
     <Type variant="bodyStrong">Video (optional)</Type>
-    <Type variant="caption">Up to 10 seconds · 30MB · MP4, MOV or WebM</Type>
+    <Type variant="caption">Up to 15 seconds · 30MB · MP4, MOV or WebM</Type>
     {preview ? <Playback uri={preview} label="Video preview" /> : <VideoPlayer video={saved} label={`${subject === "property" ? "Property" : "Unit"} video`} />}
+    {progress ? <Type variant="caption" accessibilityLiveRegion="polite">{progress}</Type> : null}
     {error ? <Notice tone="error" title={error} /> : null}
     {editable ? <View style={{ gap: space[2] }}>
       <Button variant="secondary" label={preview || saved ? "Replace video" : "Add video"} disabled={busy} busy={busy} onPress={() => void choose()} />
       {error && retryAvailable ? <Button variant="secondary" label="Retry" disabled={busy} onPress={() => void act(save)} /> : null}
-      {preview || saved ? <Button variant="quiet" label="Remove video" disabled={busy} onPress={() => void act(async () => { await apiFetch(videoPath(subject, id), { method: "DELETE" }); version.current++; setSaved(null); setPreview(""); retry.current = null; setRetryAvailable(false); })} /> : null}
+      {preview ? <Button variant="quiet" label="Discard selected video" disabled={busy} onPress={() => { setPreview(""); retry.current = null; setRetryAvailable(false); setError(""); }} /> : saved ? <Button variant="quiet" label="Remove video" disabled={busy} onPress={() => void act(async () => { await apiFetch(videoPath(subject, id), { method: "DELETE" }); version.current++; setSaved(null); setPreview(""); retry.current = null; setRetryAvailable(false); })} /> : null}
     </View> : null}
   </View>;
 }

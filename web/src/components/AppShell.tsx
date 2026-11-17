@@ -30,11 +30,11 @@ import { SessionProvider, useSession } from "@/lib/session";
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   if (pathname.startsWith("/management")) {
-    return children;
+    return <ToastProvider>{children}</ToastProvider>;
   }
 
   return (
-    <SessionProvider requireSession={isPortalRoute(pathname)}>
+    <SessionProvider requireSession={pathname === "/" || isPortalRoute(pathname) || AUTH_ENTRY.has(pathname)}>
       <ToastProvider>
         {/* Above the chrome, so the dialog survives the move from an old auth
             address to the front door, and from any page to the dashboard. */}
@@ -55,6 +55,7 @@ function PublicIntel({ pathname }: { pathname: string }) {
 
 /** Screens that carry their own full-page layout and want no header at all. */
 const BARE = ["/sign-in", "/register", "/welcome", "/forgot-password", "/restricted", "/shared-passport"];
+const AUTH_ENTRY = new Set(["/sign-in", "/register", "/welcome", "/forgot-password"]);
 
 function ConsumerChrome({
   pathname,
@@ -64,6 +65,10 @@ function ConsumerChrome({
   children: React.ReactNode;
 }) {
   const { state } = useSession();
+
+  if (pathname === "/" && state.status !== "signed_out") {
+    return <main id="main" tabIndex={-1}>{children}</main>;
+  }
 
   if (BARE.some((route) => pathname === route || pathname.startsWith(`${route}/`))) {
     return <main id="main" tabIndex={-1}>{children}</main>;

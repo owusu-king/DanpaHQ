@@ -4,6 +4,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.core.exceptions import NotFound
+from apps.core.memo import memoized
 from apps.core.pagination import StandardCursorPagination
 from apps.files.models import StoredFile
 from apps.identity.permissions import IsPhoneVerified
@@ -37,15 +38,7 @@ class ListingSearchView(APIView):
 
         # One definition of the search for the list and the map: see `search`.
         area = search.resolve_area(data)
-        qs = (
-            search.filtered_listings(data, area)
-            .select_related(
-                "unit__property__address__locality__district",
-                "unit__property__address__locality__region",
-                "created_by",
-            )
-            .prefetch_related("media__file", "unit__media__file", "highlighted_amenities")
-        )
+        qs = read_models.with_listing_cards(search.filtered_listings(data, area))
 
         # The cursor *is* the ordering, so a sort choice has to move the
         # paginator with it. Every option ends in `-created_at` so the cursor
@@ -100,7 +93,7 @@ class ListingDetailView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request, pk):
-        listing = services.get_listing_or_404(pk)
+        listing = services.get_listing_or_404(pk, detail=True)
         from apps.occupancy.services import unit_is_occupied
 
         managed = request.user.is_authenticated and listing.unit.property.is_managed_by(
@@ -109,7 +102,9 @@ class ListingDetailView(APIView):
 
         if (not listing.is_live or unit_is_occupied(listing.unit)) and not managed:
             raise NotFound("We could not find that listing.")
-        return Response(ListingDetailSerializer(listing).data)
+        read_models.prepare_listing_detail(listing)
+        with memoized():
+            return Response(ListingDetailSerializer(listing).data)
 
 
 class RelatedListingsView(APIView):
@@ -136,8 +131,11 @@ class MyListingsView(APIView):
     def get(self, request):
         listings = (
             Listing.objects.filter(created_by=request.user)
-            .select_related("unit__property")
-            .prefetch_related("media__file", "unit__media__file")
+            .select_related(
+                "unit__property__address__locality__district",
+                "unit__property__address__locality__region",
+            )
+            .prefetch_related("media__file", "unit__media__file", "highlighted_amenities")
             .order_by("-created_at")
         )
         response = Response(ListingSerializer(listings, many=True).data)

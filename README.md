@@ -22,6 +22,18 @@ docker compose up -d --build
 
 On macOS/Linux, use `cp .env.example .env` for the copy. The development defaults work without additional configuration. Startup applies migrations, seeds geography/amenities and prepares uploads. Source changes reload automatically.
 
+On Windows with Docker Desktop, run Next.js on the host for faster route compilation and reloads. Keep the API, PostgreSQL, Redis, and media services in Docker. The web app uses `http://localhost:8000/api/v1` by default, and port 3000 preserves the API's local CORS configuration.
+
+```powershell
+docker compose stop web
+docker compose up -d api worker beat
+cd web
+npm ci
+npm run dev -- --webpack --hostname localhost
+```
+
+If you use Google sign-in or custom map tiles locally, put the corresponding public `NEXT_PUBLIC_*` settings in `web/.env.local` for the host process.
+
 | Open | Address |
 |---|---|
 | Web app | http://localhost:3000 |

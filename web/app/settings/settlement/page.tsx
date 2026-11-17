@@ -87,8 +87,10 @@ function PayoutAccountContent() {
   }, [mayManage, organizationId]);
 
   useEffect(() => { setState(null); void loadState(); }, [loadState]);
+  const checking = state?.provisioning?.checking === true;
+  const setupVisible = Boolean(state && !checking && (showSetup || state.profiles.length === 0));
   useEffect(() => {
-    if (!organizationId || !mayManage) { setInstitutions([]); return; }
+    if (!organizationId || !mayManage || !setupVisible) { setInstitutions([]); return; }
     let cancelled = false;
     setInstitutions([]); setBankCode(""); setResolved(null);
     listPayoutInstitutions(organizationId, method).then((rows) => {
@@ -97,8 +99,7 @@ function PayoutAccountContent() {
       if (!cancelled) setError(cause instanceof ApiFailure ? cause.error.message : "Could not load payout institutions.");
     });
     return () => { cancelled = true; };
-  }, [mayManage, method, organizationId]);
-  const checking = state?.provisioning?.checking === true;
+  }, [mayManage, method, organizationId, setupVisible]);
   const institutionOptions = useMemo<readonly (readonly [string, string])[]>(
     () => [
       ["", method === "bank" ? "Choose a bank" : "Choose a mobile money network"] as const,
@@ -202,7 +203,7 @@ function PayoutAccountContent() {
       {state.profiles.length > 0 && !state.active_profile ? <Notice tone="warning" title="Choose an account for new payments" body="Online rent payments remain unavailable until a verified account is selected." /> : null}
       {statusNote ? <Notice tone="info" title="Settlement account updated" body={statusNote} /> : null}
       {checking ? <Notice tone="info" title="Checking with Paystack" body="Your request may have completed. Wait for this check before retrying." /> : null}
-      {!checking && (showSetup || state.profiles.length === 0) ? <section className="payout-setup" aria-labelledby="payout-setup-title">
+      {setupVisible ? <section className="payout-setup" aria-labelledby="payout-setup-title">
         <h3 id="payout-setup-title" className="settings-subhead">Add a receiving account</h3>
         <div className="payout-methods" role="group" aria-label="Settlement account type">
           {(["bank", "mobile_money"] as const).map((value) => <button key={value} type="button" aria-pressed={method === value} onClick={() => { setMethod(value); setAccountNumber(""); setResolved(null); }}>{value === "bank" ? "Bank account" : "Mobile Money"}</button>)}

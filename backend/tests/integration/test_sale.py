@@ -50,6 +50,19 @@ def api():
     return APIClient()
 
 
+def test_google_tenant_can_express_interest_without_phone(api, verified_land, monkeypatch):
+    from tests.integration.test_google_auth import register_google
+
+    api.force_authenticate(user=None)
+    created = register_google(api, monkeypatch)
+    assert created.status_code == 201, created.data
+    assert not created.data["user"]["is_phone_verified"]
+    api.credentials(HTTP_AUTHORIZATION=f"Bearer {created.data['access_token']}")
+    response = api.post(f"/api/v1/sales/{verified_land.sale.id}/enquiries/", {}, format="json")
+    assert response.status_code == 201, response.data
+    assert api.get(f"/api/v1/sale-enquiries/{response.data['id']}/").status_code == 200
+
+
 @pytest.fixture
 def seller(db):
     from apps.identity.models import Role, User
@@ -566,7 +579,7 @@ class TestEnquiries:
         preference = preferences_for(seller)
         preference.push_enabled = push_enabled
         preference.email_enabled = email_enabled
-        preference.alerts = {topic: False for topic in muted_topics}
+        preference.alerts = dict.fromkeys(muted_topics, False)
         preference.save()
         phone = Device.objects.create(
             user=seller, fingerprint="seller-interest-phone", platform="android",
@@ -810,6 +823,105 @@ class TestEnquiries:
 
         api.force_authenticate(user=stranger)
         assert api.get(f"/api/v1/sale-enquiries/{enquiry_id}/").status_code == 404
+
+    def test_buyer_shares_contact_in_the_private_interest_record(
+        self, api, verified_land, buyer, seller, stranger
+    ):
+        from apps.outbox.models import OutboxEvent
+
+        sale_id = verified_land.sale.id
+        path = f"/api/v1/sales/{sale_id}/enquiries/"
+        api.force_authenticate(user=buyer)
+        invalid = api.post(
+            path, {"contact_phone": "call me", "contact_email": "invalid"}, format="json"
+        )
+        assert invalid.status_code == 422, invalid.data
+        assert set(invalid.data["error"]["details"]["fields"]) == {"contact_phone", "contact_email"}
+        assert api.post(path, {"contact_phone": "024 123 4567"}, format="json").status_code == 422
+        assert api.get("/api/v1/me/sale-enquiries/", {"as": "buyer"}).data == []
+
+        contact = {"contact_phone": "024 123 4567", "contact_email": "callback@example.com"}
+        result = api.post(path, contact, format="json")
+        assert result.status_code == 201, result.data
+        assert result.data["contact_phone"] == "+233241234567"
+        assert result.data["contact_email"] == contact["contact_email"]
+        assert result.data["messages"] == []
+        enquiry_id = result.data["id"]
+        assert api.post(path, {}, format="json").data["contact_email"] == contact["contact_email"]
+        assert api.post(path, contact, format="json").data["id"] == enquiry_id
+        event = OutboxEvent.objects.get(name="sale.enquiry_received.v1", aggregate_id=enquiry_id)
+        assert contact["contact_email"] not in str(event.payload)
+
+        detail_path = f"/api/v1/sale-enquiries/{enquiry_id}/"
+        api.force_authenticate(user=seller)
+        inbox = api.get("/api/v1/me/sale-enquiries/", {"as": "seller"}).data
+        assert [row["id"] for row in inbox] == [enquiry_id]
+        assert not {"contact_phone", "contact_email"}.intersection(inbox[0])
+        detail = api.get(detail_path).data
+        assert detail["contact_phone"] == "+233241234567"
+        assert detail["contact_email"] == contact["contact_email"]
+
+        api.force_authenticate(user=stranger)
+        assert api.get(detail_path).status_code == 404
+        api.force_authenticate(user=None)
+        public = api.get(f"/api/v1/sales/{sale_id}/")
+        assert public.status_code == 200
+        assert not {"contact_phone", "contact_email"}.intersection(public.data)
+
+    def test_only_the_provider_can_accept_interest_and_offer_a_call(
+        self, api, verified_land, buyer, seller, stranger
+    ):
+        from datetime import timedelta
+
+        from django.utils import timezone
+        from django.utils.dateparse import parse_datetime
+
+        from apps.notifications.handlers import on_sale_call_proposed
+        from apps.notifications.models import Notification
+        from apps.outbox.models import OutboxEvent
+        from apps.sale import services
+
+        api.force_authenticate(user=buyer)
+        result = api.post(f"/api/v1/sales/{verified_land.sale.id}/enquiries/", {}, format="json")
+        enquiry_id = result.data["id"]
+        detail_path = f"/api/v1/sale-enquiries/{enquiry_id}/"
+        call_path = detail_path + "call/"
+        first_time = timezone.now() + timedelta(days=2)
+        payload = {"proposed_call_at": first_time.isoformat()}
+        assert api.post(call_path, payload, format="json").status_code == 403
+
+        api.force_authenticate(user=stranger)
+        assert api.post(call_path, payload, format="json").status_code == 404
+
+        api.force_authenticate(user=seller)
+        past = {"proposed_call_at": (timezone.now() - timedelta(days=1)).isoformat()}
+        assert api.post(call_path, past, format="json").status_code == 422
+        accepted = api.post(call_path, payload, format="json")
+        assert accepted.status_code == 200, accepted.data
+        assert parse_datetime(accepted.data["proposed_call_at"]) == first_time
+        assert api.post(call_path, payload, format="json").status_code == 200
+        events = OutboxEvent.objects.filter(name="sale.call_proposed.v1", aggregate_id=enquiry_id)
+        assert events.count() == 1
+
+        second_time = first_time + timedelta(hours=1)
+        changed = api.post(call_path, {"proposed_call_at": second_time.isoformat()}, format="json")
+        assert changed.status_code == 200, changed.data
+        for event in events.order_by("created_at"):
+            on_sale_call_proposed(event)
+        notification = Notification.objects.get(kind="sale.call_proposed", target_id=enquiry_id)
+        assert notification.user == buyer
+        assert notification.target_type == "sale_enquiry"
+
+        api.force_authenticate(user=buyer)
+        inbox = api.get("/api/v1/me/sale-enquiries/", {"as": "buyer"}).data
+        assert inbox[0]["unread"] is True
+        detail = api.get(detail_path).data
+        assert parse_datetime(detail["proposed_call_at"]) == second_time
+        assert detail["unread"] is False
+
+        services.mark_sold(prop=verified_land, user=seller)
+        api.force_authenticate(user=seller)
+        assert api.post(call_path, payload, format="json").status_code == 409
 
     def test_nobody_enquires_about_what_is_not_for_sale(
         self, api, seller, portfolio, address, upload, buyer, verified_land

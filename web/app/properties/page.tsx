@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { CircleAlert, CircleHelp, Clock3, ShieldCheck } from "lucide-react";
 import { useSearchParams } from "next/navigation";
@@ -8,9 +9,6 @@ import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, use
 import { Button } from "@/components/Button";
 import { Notice } from "@/components/Notice";
 import { Icon } from "@/components/portal/icons";
-import { EditPropertyModal } from "@/components/property/EditPropertyModal";
-import { PropertyWizardModal } from "@/components/property/PropertyWizard";
-import { UnitWizardModal } from "@/components/property/UnitWizard";
 import { propertyStatus } from "@/components/property/WorkspacePatterns";
 import { useToast } from "@/components/toast/Toaster";
 import {
@@ -25,12 +23,16 @@ import { ApiFailure } from "@/lib/api";
 import {
   listOrganizations,
   listProperties,
-  type Organization,
   type Property,
 } from "@/lib/console";
 import { propertyNextStep } from "@/lib/providerSetup";
 import { inPlace } from "@/lib/inPlace";
 import { useSession } from "@/lib/session";
+import { selectedPortfolio } from "@/lib/sessionPolicy";
+
+const EditPropertyModal = dynamic(() => import("@/components/property/EditPropertyModal").then((module) => module.EditPropertyModal));
+const PropertyWizardModal = dynamic(() => import("@/components/property/PropertyWizard").then((module) => module.PropertyWizardModal));
+const UnitWizardModal = dynamic(() => import("@/components/property/UnitWizard").then((module) => module.UnitWizardModal));
 
 /** Where someone was when they opened a Property, so Back lands them there. */
 const RETURN_KEY = "properties.return";
@@ -95,13 +97,13 @@ function PropertiesContent() {
   // Two ways to be allowed: an approved provider adding to anything of theirs,
   // or a Portfolio administrator adding to the Portfolio that invited them —
   // which its own standing and their identity check decide, on the backend.
-  const portfolioAccess = me?.contexts.find(
-    (context) => context.type === "organization" && context.id === activeContext,
-  )?.access ?? me?.contexts.find((context) => context.type === "organization")?.access ?? null;
+  const context = selectedPortfolio(me, activeContext);
+  const portfolioAccess = context?.access
+    ?? me?.contexts.find((context) => context.type === "organization")?.access ?? null;
   const canCreateProperty =
     (provider?.can_create_property ?? false) || Boolean(portfolioAccess?.can.create_properties);
   const [properties, setProperties] = useState<Property[] | null>(null);
-  const [organizations, setOrganizations] = useState<Organization[] | null>(null);
+  const [fallbackId, setFallbackId] = useState("");
   const [error, setError] = useState("");
   const [retrying, setRetrying] = useState(false);
   const [query, setQuery] = useState("");
@@ -121,25 +123,22 @@ function PropertiesContent() {
   // the backend, which decides the scope from the membership behind it. This
   // page used to read the account-wide list, which is how one provider's
   // personal houses turned up in a company's roster.
-  const preferred = activeContext?.startsWith("organization:")
-    ? activeContext.slice("organization:".length)
-    : "";
+  const preferred = context?.organization_id;
 
   const load = useCallback(async (preserveContent = false) => {
     // Blank first: a switch must never leave the previous Portfolio's
     // Properties on screen while the next Portfolio's are still in flight.
     if (!preserveContent) setProperties(null);
     try {
-      const orgs = await listOrganizations();
-      setOrganizations(orgs);
-      const scope = orgs.find((organization) => organization.id === preferred) ?? orgs[0] ?? null;
-      setProperties(scope ? await listProperties({ organization: scope.id }) : []);
+      const id = preferred ?? (await listOrganizations())[0]?.id ?? "";
+      if (!preferred) setFallbackId(id);
+      setProperties(id ? await listProperties({ organization: id }) : []);
       setError("");
     } catch (cause) {
       setError(cause instanceof ApiFailure ? cause.error.message : "Could not load properties.");
       if (!preserveContent) {
         setProperties([]);
-        setOrganizations([]);
+        setFallbackId("");
       }
     }
   }, [preferred]);
@@ -169,19 +168,15 @@ function PropertiesContent() {
     if (justCreated) toast({ tone: "success", title: "Property added", description: "It is private until you choose to verify and publish its Units." });
   }, [justCreated, toast]);
 
-  const activeOrganization =
-    organizations?.find((organization) => organization.id === preferred)
-    ?? organizations?.[0]
-    ?? null;
-  const organizationId = activeOrganization?.id ?? "";
+  const organizationId = preferred ?? fallbackId;
   // A role whose reach is decided by assignment has a different empty state
   // from an owner's: there is nothing for them to add, and somebody else
   // decides what they see.
   const assignedOnly = portfolioAccess ? portfolioAccess.scope !== "portfolio_wide" : false;
-  const loading = properties === null || organizations === null;
+  const loading = properties === null;
   const next = propertyNextStep({
     canCreateProperty,
-    hasWorkspace: (organizations?.length ?? 0) > 0,
+    hasWorkspace: Boolean(organizationId),
     organizationId,
   });
 
@@ -354,7 +349,7 @@ function PropertiesContent() {
               title={
                 assignedOnly
                   ? "No Property is assigned to you"
-                  : organizations.length ? "No Properties yet" : "Add your first Property"
+                  : organizationId ? "No Properties yet" : "Add your first Property"
               }
               body={assignedOnly ? undefined : next.reason || undefined}
             />
@@ -363,7 +358,7 @@ function PropertiesContent() {
             // so the empty state is already the shape of the page to come.
             <div className="ws-canvas properties-canvas">
               <div className="properties-first">
-                <h2>{organizations.length ? "No Properties yet" : "Add your first Property"}</h2>
+                <h2>{organizationId ? "No Properties yet" : "Add your first Property"}</h2>
               </div>
               <ul className="property-grid">
                 <li className="property-card-item"><AddPropertyCard href={next.href} onClick={openCreate} /></li>
@@ -404,34 +399,35 @@ function PropertiesContent() {
         ) : null}
       </section>
 
-      <PropertyWizardModal
-        open={sheet?.kind === "property"}
-        propertyId={sheet?.kind === "property" ? (sheet.propertyId ?? null) : null}
+      {sheet?.kind === "property" ? <PropertyWizardModal
+        open
+        propertyId={sheet.propertyId ?? null}
         onClose={() => setSheet(null)}
         onChanged={() => void load(true)}
         onFinished={() => void load(true)}
-      />
+      /> : null}
       {sheet?.kind === "edit" ? <EditPropertyModal
         open
         property={sheet.property}
         onClose={() => setSheet(null)}
         onSaved={() => void load(true)}
       /> : null}
-      <UnitWizardModal
-        open={sheet?.kind === "unit"}
-        propertyId={sheet?.kind === "unit" ? sheet.propertyId : ""}
+      {sheet?.kind === "unit" ? <UnitWizardModal
+        open
+        propertyId={sheet.propertyId}
         onClose={() => setSheet(null)}
         onChanged={() => void load(true)}
         onFinished={(unit) => toast({ tone: "success", title: `${unit.label || "Unit"} saved`, description: unit.verification.state_label })}
-      />
+      /> : null}
     </div>
   );
 }
 
 export default function PropertiesPage() {
+  const { activeContext } = useSession();
   return (
     <Suspense fallback={<div className="ws-page properties-workspace"><WorkspaceHead icon="properties" title="Properties" /><section className="ws-panel is-canvas" aria-busy="true"><PropertyCardsSkeleton /></section></div>}>
-      <PropertiesContent />
+      <PropertiesContent key={activeContext} />
     </Suspense>
   );
 }
@@ -500,6 +496,7 @@ function PropertyCard({
         </span>
         <div className="property-card-heading">
           <Link
+            prefetch={false}
             href={`/record/property?id=${property.id}` as never}
             className="property-card-link"
             data-property-id={property.id}
@@ -545,7 +542,7 @@ function PropertyCard({
             </svg>
           </span>
           {canAddUnit ? (
-            <Link href={`/record/space-new?propertyId=${property.id}` as never} className="property-card-action" onClick={inPlace(onAddUnit)}>
+            <Link prefetch={false} href={`/record/space-new?propertyId=${property.id}` as never} className="property-card-action" onClick={inPlace(onAddUnit)}>
               <PlusGlyph />Add Unit
             </Link>
           ) : null}
@@ -560,7 +557,7 @@ function PropertyCard({
           {/* Signed media URLs are supplied at runtime by the API and are not
               stable Next image-loader resources. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          {property.cover_url ? <img src={property.cover_url} alt="" loading="lazy" /> : <Icon name="properties" />}
+          {property.cover_url ? <img src={property.cover_thumbnail_url ?? property.cover_url} alt="" loading="lazy" decoding="async" /> : <Icon name="properties" />}
         </span>
       </div>
     </li>
@@ -578,7 +575,7 @@ function AddPropertyCard({
   onClick?: (event: React.MouseEvent<HTMLAnchorElement>) => void;
 }) {
   return (
-    <Link href={href as never} className="property-add" onClick={onClick}>
+    <Link href={href as never} prefetch={false} className="property-add" onClick={onClick}>
       <span className="property-add-ghost" aria-hidden="true">
         <span className="property-add-ghost-line is-title" />
         <span className="property-add-ghost-line" />

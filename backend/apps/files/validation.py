@@ -71,12 +71,12 @@ LIMITS: dict[str, PurposeLimits] = {
     "property_video": PurposeLimits(
         max_bytes=30 * MB,
         content_types=frozenset({"video/mp4", "video/quicktime", "video/webm"}),
-        human="an MP4, MOV or WebM video up to 10 seconds and 30MB",
+        human="an MP4, MOV or WebM video up to 15 seconds and 30MB",
     ),
     "unit_video": PurposeLimits(
         max_bytes=30 * MB,
         content_types=frozenset({"video/mp4", "video/quicktime", "video/webm"}),
-        human="an MP4, MOV or WebM video up to 10 seconds and 30MB",
+        human="an MP4, MOV or WebM video up to 15 seconds and 30MB",
     ),
     "property_photo": PurposeLimits(
         max_bytes=12 * MB,

@@ -111,7 +111,7 @@ export function SaleDetailsForm({
       setError(
         cause instanceof ApiFailure
           ? cause.error.message
-          : "Could not save: check your connection and try again.",
+          : "Could not save the sale details. Try again.",
       );
       return null;
     } finally {

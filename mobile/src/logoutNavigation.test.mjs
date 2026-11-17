@@ -53,6 +53,7 @@ function authHarness() {
   const states = [];
   const routes = [];
   let request = async () => { throw new Error("Unexpected API request"); };
+  let write = (key, value) => store.set(key, value);
   let tokenProvider;
   const react = {
     createContext: () => ({ Provider: "provider" }), useContext: () => null,
@@ -64,7 +65,7 @@ function authHarness() {
     react, "react/jsx-runtime": { jsx: (_, props) => props.value },
     "expo-router": { useRouter: () => ({ canDismiss: () => true, dismissAll: () => routes.push("reset"), replace: (route) => routes.push(route) }) },
     "@/api": { apiFetch: (...args) => request(...args), ApiFailure: class extends Error {}, setAuthTokenProvider: (fn) => { tokenProvider = fn; } },
-    "@/secure": { secure: { get: async (k) => store.get(k) ?? null, set: async (k, v) => store.set(k, v), clear: async (k) => store.delete(k) } },
+    "@/secure": { secure: { get: async (k) => store.get(k) ?? null, set: async (k, v) => write(k, v), clear: async (k) => store.delete(k) } },
     "@/photo": { forgetPhotoUrls() {} }, "@/navigation": navigation,
     "@/onboardingIntent": { clearPendingOnboardingIntent: async () => {} },
     "@/registrationDraft": { clearRegistrationDraft() {}, finishAccountWelcome() {} },
@@ -73,7 +74,8 @@ function authHarness() {
     "@/googleIdentity": { clearGoogleIdentity: async () => {} },
   });
   return { api: auth.AuthProvider({ children: null }), store, states, routes,
-    request: (fn) => { request = fn; }, token: (...args) => tokenProvider(...args) };
+    request: (fn) => { request = fn; }, write: (fn) => { write = fn; },
+    token: (...args) => tokenProvider(...args) };
 }
 
 test("logout clears credentials and cached account data, then login retains pending verification", async () => {
@@ -118,4 +120,21 @@ test("a refresh finishing during logout cannot republish credentials", async () 
   await Promise.all([refreshing, leaving]);
   assert.equal(await h.token(), null);
   assert.equal(h.store.size, 0);
+});
+
+test("a temporary secure-store failure never reuses the spent refresh credential", async () => {
+  const h = authHarness();
+  await h.api.signIn({ access_token: "a", refresh_token: "r", user: me("tenant") });
+  let rotations = 0;
+  h.request(async () => {
+    rotations++;
+    return { access_token: "new", refresh_token: "successor", expires_in: 900 };
+  });
+  h.write(() => { throw new Error("Keychain unavailable"); });
+  await assert.rejects(h.token(true), /Keychain unavailable/);
+  assert.equal(h.store.get("auth.refresh_token"), "r");
+  h.write((key, value) => h.store.set(key, value));
+  assert.equal(await h.token(true), "new");
+  assert.equal(h.store.get("auth.refresh_token"), "successor");
+  assert.equal(rotations, 1);
 });

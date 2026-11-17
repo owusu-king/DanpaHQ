@@ -377,6 +377,7 @@ REST_FRAMEWORK = {
         "anon": "60/min",
         "user": "600/min",
         "otp": "5/hour",
+        "otp_send_ip": "20/hour",
         "otp_verify": "30/hour",
         "google_auth": "30/min",
         "payment": "20/min",

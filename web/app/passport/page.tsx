@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
-import { openEnquiries } from "@/components/enquiries/EnquiriesInbox";
+import { openEnquiries } from "@/components/enquiries/enquiryEvents";
 import { CorrectionSheet, type CorrectionTarget } from "@/components/passport/CorrectionSheet";
 import {
   HousingRecord,

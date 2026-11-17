@@ -323,7 +323,13 @@ class S3StorageBackend(StorageBackend):
             aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
             # SigV4 so presigned URLs work against every S3-compatible
             # implementation, not just AWS.
-            config=Config(signature_version="s3v4", retries={"max_attempts": 3}),
+            config=Config(
+                signature_version="s3v4", connect_timeout=3, read_timeout=12,
+                retries={"total_max_attempts": 2},
+                # R2 presigns must keep the existing headers and exact length.
+                request_checksum_calculation="when_required",
+                response_checksum_validation="when_required",
+            ),
         )
 
     @property
@@ -474,7 +480,7 @@ class S3StorageBackend(StorageBackend):
         try:
             head = self.client.head_object(Bucket=self.bucket, Key=key)
         except Exception as exc:
-            raise ObjectNotFound(key) from exc
+            raise self._read_error(key, exc) from exc
         return head["ContentLength"], head.get("ETag", "").strip('"')
 
     def read(self, *, key, length=None):
@@ -483,9 +489,23 @@ class S3StorageBackend(StorageBackend):
             params["Range"] = f"bytes=0-{length - 1}"
         try:
             response = self.client.get_object(**params)
+            body = response["Body"]
+            try:
+                return body.read()
+            finally:
+                body.close()
         except Exception as exc:
-            raise ObjectNotFound(key) from exc
-        return response["Body"].read()
+            raise self._read_error(key, exc) from exc
+
+    @staticmethod
+    def _read_error(key, exc):
+        from botocore.exceptions import ClientError
+
+        if isinstance(exc, ClientError):
+            code = exc.response.get("Error", {}).get("Code")
+            if code in {"404", "NoSuchKey", "NotFound"}:
+                return ObjectNotFound(key)
+        return StorageError("Could not read the file from object storage.")
 
     def write(self, *, key: str, data: bytes) -> None:
         try:

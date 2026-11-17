@@ -15,6 +15,8 @@
 
 import { authedFetch } from "./auth";
 
+import type { LeaseLedger } from "./tenant";
+
 export type TenancyLease = {
   id: string;
   status: string;
@@ -68,6 +70,16 @@ export type Tenancy = {
   lease: TenancyLease | null;
   rent: TenancyRent | null;
 };
+
+type RentLedgerSummary = Pick<LeaseLedger, "charges" | "payments">;
+export type TenantRentAccount = { tenancy: Tenancy; ledger: RentLedgerSummary };
+
+export async function listTenantRentAccounts(): Promise<TenantRentAccount[]> {
+  const tenancies = await authedFetch<Array<Tenancy & { ledger: RentLedgerSummary | null }>>(
+    "/me/tenancies/?include_ended=1&include_ledger=1",
+  );
+  return tenancies.flatMap((tenancy) => tenancy.ledger ? [{ tenancy, ledger: tenancy.ledger }] : []);
+}
 
 export function listMyTenancies(includeEnded = false) {
   return authedFetch<Tenancy[]>(`/me/tenancies/${includeEnded ? "?include_ended=1" : ""}`);

@@ -56,6 +56,7 @@ type BottomSheetProps = {
   hideTitle?: boolean;
   /** What closing does — "Close filters" — for the close button and the scrim. */
   closeLabel: string;
+  dismissible?: boolean;
   /** Actions pinned under the scrolling body, above the home indicator. */
   footer?: ReactNode;
   children: ReactNode;
@@ -94,7 +95,7 @@ type BottomSheetProps = {
  * keyboard down, and after that does nothing: the close button, the handle, the
  * back button and VoiceOver's escape still close it, deliberately.
  */
-export function BottomSheet({ visible, onClose, title, hideTitle = false, closeLabel, footer, children }: BottomSheetProps) {
+export function BottomSheet({ visible, onClose, title, hideTitle = false, closeLabel, dismissible = true, footer, children }: BottomSheetProps) {
   const { height: windowHeight } = useWindowDimensions();
   const reduceMotion = useReduceMotion();
 
@@ -197,8 +198,11 @@ export function BottomSheet({ visible, onClose, title, hideTitle = false, closeL
     };
   }, [visible]);
 
+  const requestClose = () => { if (dismissible) onClose(); };
+
   /** The scrim: the keyboard goes first, and a sheet being typed into stays. */
   const pressScrim = () => {
+    if (!dismissible) return;
     if (keyboardUp) {
       Keyboard.dismiss();
       return;
@@ -227,7 +231,7 @@ export function BottomSheet({ visible, onClose, title, hideTitle = false, closeL
     setDragging(false);
     const position = dragBase.current + gesture.dy;
     const letGo = Math.min(travel.current * DISMISS_SHARE, DISMISS_DISTANCE);
-    if (position > letGo || (gesture.vy > DISMISS_VELOCITY && gesture.dy > 0)) {
+    if (dismissible && (position > letGo || (gesture.vy > DISMISS_VELOCITY && gesture.dy > 0))) {
       releaseSpeed.current = Math.max(0, gesture.vy);
       onClose();
       return;
@@ -248,8 +252,8 @@ export function BottomSheet({ visible, onClose, title, hideTitle = false, closeL
     // to take it from, and inside the sheet's modal on a phone the drag then
     // never began. The close button, deeper in the same row, still claims
     // its own tap first; a drag that starts on it is taken on the move.
-    onStartShouldSetPanResponder: () => true,
-    onMoveShouldSetPanResponderCapture: (_, gesture) => vertical(gesture),
+    onStartShouldSetPanResponder: () => dismissible,
+    onMoveShouldSetPanResponderCapture: (_, gesture) => dismissible && vertical(gesture),
     onPanResponderGrant: () => {
       Keyboard.dismiss();
       setDragging(true);
@@ -280,7 +284,7 @@ export function BottomSheet({ visible, onClose, title, hideTitle = false, closeL
   if (!mounted) return null;
 
   return (
-    <Modal visible transparent animationType="none" statusBarTranslucent navigationBarTranslucent onRequestClose={onClose}>
+    <Modal visible transparent animationType="none" statusBarTranslucent navigationBarTranslucent onRequestClose={requestClose}>
       {/* The sheet opens in its own window, which measures its own edges. */}
       <ModalSafeArea>
         <SafeInsets
@@ -290,7 +294,7 @@ export function BottomSheet({ visible, onClose, title, hideTitle = false, closeL
                 {/* Held open, it stops offering itself to a screen reader as a way
                     out; the close button is the way then. */}
                 <Pressable
-                  accessible={!typing}
+                  accessible={dismissible && !typing}
                   accessibilityRole="button"
                   accessibilityLabel={closeLabel}
                   onPress={pressScrim}
@@ -301,7 +305,7 @@ export function BottomSheet({ visible, onClose, title, hideTitle = false, closeL
                 <Animated.View
                   accessibilityViewIsModal
                   accessibilityLabel={hideTitle ? title : undefined}
-                  onAccessibilityEscape={onClose}
+                  onAccessibilityEscape={requestClose}
                   onLayout={measure}
                   style={[
                     styles.sheet,
@@ -320,6 +324,7 @@ export function BottomSheet({ visible, onClose, title, hideTitle = false, closeL
                       {hideTitle ? <View style={styles.handleClose}><Pressable
                             accessibilityRole="button"
                             accessibilityLabel={closeLabel}
+                            disabled={!dismissible}
                             hitSlop={6}
                             onPress={onClose}
                             {...pressableFeedback(theme.color.field["200"])}
@@ -334,6 +339,7 @@ export function BottomSheet({ visible, onClose, title, hideTitle = false, closeL
                         <Pressable
                           accessibilityRole="button"
                           accessibilityLabel={closeLabel}
+                          disabled={!dismissible}
                           hitSlop={6}
                           onPress={onClose}
                           {...pressableFeedback(theme.color.field["200"])}

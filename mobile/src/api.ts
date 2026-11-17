@@ -98,14 +98,24 @@ const TIMEOUT_MS = 20_000;
 
 /** Set by AuthProvider. Kept as a callback rather than a stored string so the
  *  client always gets a fresh (or freshly refreshed) token. */
-type AuthTokenProvider = (forceRefresh?: boolean) => Promise<string | null>;
+type AuthTokenProvider = (forceRefresh?: boolean, rejectedToken?: string | null) => Promise<string | null>;
 
 let authTokenProvider: AuthTokenProvider | null = null;
 
 export function setAuthTokenProvider(provider: AuthTokenProvider | null) {
   authTokenProvider = provider;
 }
-const RETRYABLE_STATUS = new Set([408, 429, 500, 502, 503, 504]);
+const RETRYABLE_STATUS = new Set([502, 503, 504]);
+
+function fallbackError(status: number) {
+  if (status === 408 || status === 504) return { code: "request_timeout", message: "The request timed out. Try again." };
+  if (status === 502 || status === 503) return { code: "service_unavailable", message: "Danpa HQ is temporarily unavailable. Try again shortly." };
+  if (status >= 500) return { code: "server_error", message: "Danpa HQ couldn’t complete this request. Try again shortly." };
+  if (status === 429) return { code: "rate_limited", message: "Too many requests. Wait a moment and try again." };
+  if (status === 401) return { code: "not_authenticated", message: "Sign in to continue." };
+  if (status === 403) return { code: "permission_denied", message: "Your account can’t perform this action." };
+  return { code: "request_failed", message: "That request did not work. Try again." };
+}
 
 export type ApiError = {
   code: string;
@@ -184,6 +194,7 @@ export async function apiFetch<T>(
     const follow = () => controller.abort();
     options.signal?.addEventListener("abort", follow, { once: true });
     const timer = setTimeout(() => controller.abort(), options.timeoutMs ?? TIMEOUT_MS);
+    let recoveringBearer = false;
 
     try {
       const response = await fetch(`${BASE_URL}${path}`, {
@@ -199,15 +210,22 @@ export async function apiFetch<T>(
         body: body ? JSON.stringify(body) : undefined,
       });
 
-      const payload = response.status === 204 ? null : await response.json().catch(() => null);
-
+      if (response.status === 204) return null as T;
+      const payload = await response.json().catch((cause: unknown) => {
+        if (controller.signal.aborted) throw cause;
+        if (response.ok) throw new ApiFailure({
+          code: "invalid_response", message: "Danpa HQ returned an unexpected response. Try again.", details: {}, requestId,
+        }, response.status);
+        return null;
+      });
       if (response.ok) return payload as T;
 
       const envelope = (payload as { error?: Partial<ApiError> } | null)?.error;
+      const fallback = fallbackError(response.status);
       lastError = new ApiFailure(
         {
-          code: envelope?.code ?? "request_failed",
-          message: envelope?.message ?? "That did not work. Try again.",
+          code: envelope?.code ?? fallback.code,
+          message: envelope?.message ?? fallback.message,
           details: envelope?.details ?? {},
           requestId,
         },
@@ -227,7 +245,8 @@ export async function apiFetch<T>(
         && authTokenProvider
       ) {
         retriedAfterUnauthorized = true;
-        const refreshed = await authTokenProvider(true);
+        recoveringBearer = true;
+        const refreshed = await authTokenProvider(true, token);
         if (refreshed) {
           token = refreshed;
           attempt -= 1;
@@ -237,20 +256,20 @@ export async function apiFetch<T>(
 
       if (!RETRYABLE_STATUS.has(response.status)) throw lastError;
     } catch (cause) {
-      if (options.signal?.aborted) throw cause;
+      if (options.signal?.aborted || recoveringBearer) throw cause;
       if (cause instanceof ApiFailure && !RETRYABLE_STATUS.has(cause.status)) throw cause;
-      lastError =
-        cause instanceof ApiFailure
-          ? cause
-          : new ApiFailure(
-              {
-                code: "network_error",
-                message: "We could not reach the service. Check your connection.",
-                details: {},
-                requestId,
-              },
-              0,
-            );
+      if (!(cause instanceof ApiFailure)) {
+        throw new ApiFailure(
+          {
+            code: controller.signal.aborted ? "request_timeout" : "network_error",
+            message: controller.signal.aborted ? "The request timed out. Try again." : "Couldn’t connect to Danpa HQ. Try again shortly.",
+            details: {},
+            requestId,
+          },
+          0,
+        );
+      }
+      lastError = cause;
     } finally {
       clearTimeout(timer);
       options.signal?.removeEventListener("abort", follow);
@@ -274,7 +293,7 @@ export async function apiFetchBytes(path: string): Promise<Uint8Array<ArrayBuffe
   let token = await authTokenProvider?.();
   let response = await send(token ?? null);
   if (response.status === 401 && authTokenProvider) {
-    token = await authTokenProvider(true);
+    token = await authTokenProvider(true, token);
     response = await send(token ?? null);
   }
   if (!response.ok) {

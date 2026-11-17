@@ -30,6 +30,7 @@ def send_message_alert(notification_id, sender_name: str) -> None:
     headers = {"Accept": "application/json"}
     if settings.EXPO_ACCESS_TOKEN:
         headers["Authorization"] = f"Bearer {settings.EXPO_ACCESS_TOKEN}"
+    property_interest = notification.kind in {"sale.enquiry_received", "sale.call_proposed"}
     for device in signed_in_devices(notification.user).exclude(push_token=""):
         token = device.push_token
         if not token.startswith(("ExpoPushToken[", "ExponentPushToken[")):
@@ -41,11 +42,11 @@ def send_message_alert(notification_id, sender_name: str) -> None:
                 json={
                     "to": token,
                     "title": (
-                        notification.title if notification.kind == "sale.enquiry_received"
+                        notification.title if property_interest
                         else f"New message from {sender_name[:80]}"
                     ),
                     "body": (
-                        notification.body if notification.kind == "sale.enquiry_received"
+                        notification.body if property_interest
                         else ""
                     ),
                     "sound": "default",
