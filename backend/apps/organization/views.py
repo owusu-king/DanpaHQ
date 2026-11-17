@@ -329,11 +329,13 @@ class OrganizationPortfolioView(APIView):
 
     def get(self, request, pk):
         organization = services.get_organization_or_404(pk, request.user)
+        view = request.query_params.get("view")
         response = Response(
             services.portfolio_summary(
                 organization=organization,
                 user=request.user,
-                home_only=request.query_params.get("view") == "home",
+                home_only=view == "home",
+                finance_only=view == "finance",
             )
         )
         response["Cache-Control"] = "private, no-store"

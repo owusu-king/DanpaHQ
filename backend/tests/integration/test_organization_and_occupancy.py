@@ -437,6 +437,21 @@ class TestOrganizationAuthorization:
         assert len(home_queries) < len(full_queries)
         assert len(home_queries) <= 17
 
+        with CaptureQueriesContext(connection) as finance_queries:
+            finance = owner_api.get(f"{portfolio_url}?view=finance")
+        assert finance.status_code == 200
+        assert finance["Cache-Control"] == "private, no-store"
+        finance_fields = (
+            "organization", "counts", "money", "tenants", "profit_loss",
+            "verification", "recent_payments", "recent_settlements",
+        )
+        for field in finance_fields:
+            assert finance.data[field] == full.data[field]
+        assert all(finance.data[key] == [] for key in (
+            "past_tenants", "tenant_access", "tenancy_requests",
+        ))
+        assert len(finance_queries) < len(full_queries)
+
         outsider_api = APIClient()
         sign_in_as(outsider_api, user=stranger)
         assert (
@@ -444,6 +459,7 @@ class TestOrganizationAuthorization:
             == 404
         )
         assert outsider_api.get(f"{portfolio_url}?view=home").status_code == 404
+        assert outsider_api.get(f"{portfolio_url}?view=finance").status_code == 404
 
     def test_payment_attention_counts_only_claims_the_provider_still_owes(
         self, address, approve_provider, registered, sign_in_as

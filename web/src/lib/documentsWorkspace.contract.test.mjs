@@ -48,6 +48,14 @@ test("contracts keep Danpa HQ's wording controlled and a Portfolio's own terms s
   assert.match(read("backend/apps/lease/documents.py"), /fill_placeholders\(str\(custom\.get\("body"\)/);
 });
 
+test("provider leases wait for portfolio scope before mounting the reader", () => {
+  const page = code(read("web/app/documents/page.tsx"));
+  assert.match(page, /selectedPortfolio\(/);
+  assert.match(page, /if \(!provider \|\| preferred\) return/);
+  assert.match(page, /if \(organizationId === undefined\) return <DocumentsLoading \/>/);
+  assert.match(page, /<LeasesView\s+key=\{organizationId\}/);
+});
+
 test("a modal dims the page, not the app, and blurs nothing behind it", () => {
   for (const sheet of ["web/src/styles/enquiries-inbox.css", "web/src/styles/doc-modal.css"]) {
     const css = read(sheet);

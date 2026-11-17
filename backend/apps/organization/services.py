@@ -522,8 +522,10 @@ def properties_in_scope(*, user, organization=None):
 PAST_TENANTS_SHOWN = 200
 
 
-def portfolio_summary(*, organization: Organization, user, home_only: bool = False) -> dict:
-    """Read the scoped Portfolio, with a smaller projection for Home."""
+def portfolio_summary(
+    *, organization: Organization, user, home_only: bool = False, finance_only: bool = False,
+) -> dict:
+    """Read the scoped Portfolio and omit unrelated detail for Home or Finance."""
     from apps.lease.models import Lease, LeaseStatus
     from apps.occupancy.models import (
         JoinRequestStatus,
@@ -644,7 +646,7 @@ def portfolio_summary(*, organization: Organization, user, home_only: bool = Fal
     join_requests = PropertyJoinRequest.objects.filter(property_id__in=property_ids)
     tenancy_request_rows = (
         []
-        if home_only
+        if home_only or finance_only
         else list(
             join_requests.filter(
                 status__in={JoinRequestStatus.PENDING, JoinRequestStatus.APPROVED}
@@ -653,7 +655,7 @@ def portfolio_summary(*, organization: Organization, user, home_only: bool = Fal
     )
     pending_requests = (
         join_requests.filter(status=JoinRequestStatus.PENDING).count()
-        if home_only
+        if home_only or finance_only
         else sum(row.status == JoinRequestStatus.PENDING for row in tenancy_request_rows)
     )
 
@@ -811,7 +813,7 @@ def portfolio_summary(*, organization: Organization, user, home_only: bool = Fal
     # allocations in these properties, most recent first, each with whatever
     # rent is still owed on its lease — a tenant who left owing is still worth
     # finding. Capped: an archive is looked through, not reported on.
-    past_occupancies = list(
+    past_occupancies = [] if finance_only else list(
         Occupancy.objects.filter(property_id__in=property_ids, status=OccupancyStatus.ENDED)
         .select_related(
             "user", "user__profile__avatar", "property", "unit", "bed", "tenancy", "lease"
@@ -873,7 +875,7 @@ def portfolio_summary(*, organization: Organization, user, home_only: bool = Fal
     from apps.trust.condition import snapshot as condition_snapshot
 
     tenant_access = []
-    for unit in unit_rows:
+    for unit in (() if finance_only else unit_rows):
         code = access_codes.snapshot(unit)
         for field in ("expires_at", "issued_at"):
             if code[field] is not None:

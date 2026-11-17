@@ -1346,9 +1346,9 @@ export function getOrganizationHome(organizationId: string) {
   return authedFetch<PortfolioHomeSummary>(`/organizations/${organizationId}/portfolio/?view=home`, { cache: "no-store" });
 }
 
-export function getOrganizationPortfolio(organizationId: string) {
+export function getOrganizationPortfolio(organizationId: string, view?: "finance") {
   return authedFetch<OrganizationPortfolio>(
-    `/organizations/${organizationId}/portfolio/`,
+    `/organizations/${organizationId}/portfolio/${view ? "?view=finance" : ""}`,
     { cache: "no-store" },
   );
 }

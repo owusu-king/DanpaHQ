@@ -21,12 +21,12 @@ import { useDeepLinkedModal } from "@/lib/deepLinkedModal";
 import {
   getOrganizationPortfolio,
   listOrganizations,
-  type Organization,
   type OrganizationPortfolio,
   type ProviderTenant,
   type ProviderTenantAccess,
 } from "@/lib/console";
 import { useSession } from "@/lib/session";
+import { selectedPortfolio } from "@/lib/sessionPolicy";
 import { paymentHeadline, shortDate, tenancyState, tenantHome } from "@/lib/tenancyDisplay";
 
 type TenantView = "tenants" | "access";
@@ -62,8 +62,11 @@ function ProviderTenants() {
   // still a link to `/tenants/<id>` for a new tab. `?tenant=` from Home or a
   // rent account opens it once.
   const [openId, setOpenTenant] = useDeepLinkedModal("tenant");
-  const [organizations, setOrganizations] = useState<Organization[] | null>(null);
-  const [organizationId, setOrganizationId] = useState("");
+  const [fallbackOrganization, setFallbackOrganization] = useState<string | null>();
+  const preferred = selectedPortfolio(
+    state.status === "signed_in" ? state.me : null, activeContext,
+  )?.organization_id;
+  const organizationId = preferred ?? fallbackOrganization;
   const [portfolio, setPortfolio] = useState<OrganizationPortfolio | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   /** Which Portfolio is currently painted, so a refresh does not blank it. */
@@ -108,28 +111,21 @@ function ProviderTenants() {
   }, []);
 
   useEffect(() => {
-    if (state.status !== "signed_in") return;
+    if (state.status !== "signed_in" || preferred) return;
     let cancelled = false;
     listOrganizations()
       .then((rows) => {
         if (cancelled) return;
-        const preferred = activeContext?.startsWith("organization:")
-          ? activeContext.slice("organization:".length)
-          : "";
-        setOrganizations(rows);
-        // The header says which Portfolio this is, so this page follows it
-        // rather than remembering a choice of its own. Keeping the local one
-        // was how Tenants stayed on the Portfolio somebody had switched out of.
-        setOrganizationId(rows.find((row) => row.id === preferred)?.id ?? rows[0]?.id ?? "");
+        setFallbackOrganization(rows[0]?.id ?? null);
         setError("");
       })
       .catch((cause) => {
         if (cancelled) return;
-        setOrganizations([]);
+        setFallbackOrganization(null);
         setError(cause instanceof ApiFailure ? cause.error.message : "Could not load your Portfolios.");
       });
     return () => { cancelled = true; };
-  }, [activeContext, state.status, reloadKey]);
+  }, [preferred, state.status, reloadKey]);
 
   useEffect(() => {
     if (!organizationId) {
@@ -215,10 +211,10 @@ function ProviderTenants() {
     return () => window.clearTimeout(timer);
   }, [portfolio]);
 
-  const loadingOrganizations = organizations === null;
+  const loadingOrganizations = organizationId === undefined;
   const loadingPortfolio = Boolean(organizationId) && portfolio === null && !error;
   const loading = loadingOrganizations || loadingPortfolio;
-  const noPortfolio = !loadingOrganizations && organizations?.length === 0 && !error;
+  const noPortfolio = organizationId === null && !error;
   const failed = Boolean(error) && !portfolio;
   const refreshPortfolio = async () => setReloadKey((current) => current + 1);
 
