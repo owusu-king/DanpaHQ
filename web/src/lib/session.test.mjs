@@ -35,8 +35,8 @@ function load(name) {
   return modules.get(name);
 }
 const { ApiFailure } = load("./api");
-const { authedFetch, setAccessToken, clearAccessToken, isSessionRefusal: isRefusal } = load("./auth");
-const { shouldRestoreSession, stateAfterFailure } = load("./sessionPolicy");
+const { authedFetch, setAccessToken, clearAccessToken, restoreAccount, isSessionRefusal: isRefusal } = load("./auth");
+const { selectedPortfolio, shouldRestoreSession, stateAfterFailure } = load("./sessionPolicy");
 const failure = (status, code, details = {}) => new ApiFailure({ code, details, message: code, requestId: "" }, status);
 const reply = (status, body) => new Response(JSON.stringify(body), { status });
 const deny = (status, code) => reply(status, { error: { code } });
@@ -135,6 +135,41 @@ test("public startup restores only a browser that has a session hint", () => {
   assert.equal(shouldRestoreSession(true, null), true, "protected routes always verify once");
 });
 
+test("bootstrap uses the account returned by the cookie rotation", async () => {
+  setAccessToken("previous", 900);
+  clearAccessToken();
+  const calls = [];
+  send = async (url) => {
+    calls.push(new URL(url).pathname + new URL(url).search);
+    return reply(200, { access_token: "new", expires_in: 900, user: { id: "account" } });
+  };
+  assert.equal((await restoreAccount()).id, "account");
+  assert.deepEqual(calls, ["/auth/refresh/?view=session"]);
+});
+
+test("bootstrap still works with a token-only refresh response", async () => {
+  setAccessToken("previous", 900);
+  clearAccessToken();
+  send = async (url, init) => {
+    if (url.endsWith("/auth/refresh/?view=session")) {
+      return reply(200, { access_token: "legacy", expires_in: 900 });
+    }
+    assert.ok(url.endsWith("/me/"));
+    assert.equal(init.headers.Authorization, "Bearer legacy");
+    return reply(200, { id: "legacy-account" });
+  };
+  assert.equal((await restoreAccount()).id, "legacy-account");
+});
+
+test("only an organization in the account's active context can scope a portfolio read", () => {
+  const portfolio = { id: "organization:1", type: "organization", organization_id: "1" };
+  const me = { contexts: [portfolio, { id: "home", type: "occupancy" }] };
+  assert.equal(selectedPortfolio(me, "organization:1"), portfolio);
+  assert.equal(selectedPortfolio(me, "organization:stale"), undefined);
+  assert.equal(selectedPortfolio(me, "home"), undefined);
+  assert.equal(selectedPortfolio(null, "organization:1"), undefined);
+});
+
 test("a profile 403 leaves the bearer usable for the next protected page", async () => {
   setAccessToken("valid", 900);
   send = async (url, init) => {
@@ -192,7 +227,7 @@ test("a failed refresh preserves the session until the server explicitly ends it
   send = async () => deny(401, "session_ended");
   await assert.rejects(authedFetch("/me/"), { status: 401 });
   assert.equal(invalidations, 1);
-  assert.equal(storage.get("session.logged_out"), "1");
+  assert.equal(storage.has("session.logged_out"), false);
 });
 
 test("a client deadline and invalid gateway response have separate errors", async () => {

@@ -17,3 +17,9 @@ export function stateAfterFailure(cause: unknown, current: SessionState): Sessio
 export function shouldRestoreSession(requireSession: boolean, hint: string | null): boolean {
   return requireSession || hint === "1";
 }
+
+export function selectedPortfolio(me: Me | null, activeContext: string | null) {
+  return me?.contexts.find((context) =>
+    context.type === "organization" && context.id === activeContext && context.organization_id,
+  );
+}

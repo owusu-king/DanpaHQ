@@ -18,6 +18,7 @@ from django.db.models import (
     QuerySet,
     Value,
     When,
+    prefetch_related_objects,
 )
 from django.db.models.functions import Abs
 
@@ -26,18 +27,32 @@ from apps.occupancy.models import Occupancy, OccupancyStatus
 from .models import Listing, ListingMedia, ListingStatus, RentPeriod
 
 
-def with_listing_cards(queryset: QuerySet[Listing]) -> QuerySet[Listing]:
-    """Load card photos with their file metadata in the same relation reads."""
+def _media_relations():
     from apps.property.models import UnitMedia
 
-    return queryset.select_related(
-        "unit__property__address__locality__district",
-        "unit__property__address__locality__region",
-        "created_by",
-    ).prefetch_related(
+    return (
         Prefetch("media", queryset=ListingMedia.objects.select_related("file")),
         Prefetch("unit__media", queryset=UnitMedia.objects.select_related("file")),
-        "highlighted_amenities",
+    )
+
+
+def prepare_listing_detail(listing: Listing) -> None:
+    prefetch_related_objects([listing], *_media_relations())
+
+
+def with_listing_cards(queryset: QuerySet[Listing]) -> QuerySet[Listing]:
+    """Load card photos with their file metadata in the same relation reads."""
+    return (
+        queryset.select_related(
+            "unit__property__address__locality__district",
+            "unit__property__address__locality__region",
+            "created_by",
+        )
+        .defer("unit__property__address__locality__district__boundary")
+        .prefetch_related(
+            *_media_relations(),
+            "highlighted_amenities",
+        )
     )
 
 

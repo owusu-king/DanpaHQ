@@ -18,9 +18,10 @@ import { ApiFailure } from "@/lib/api";
 import {
   listOrganizations,
   listPortfolioUnits,
-  type Unit,
+  type PortfolioUnitCard,
 } from "@/lib/console";
 import { useSession } from "@/lib/session";
+import { selectedPortfolio } from "@/lib/sessionPolicy";
 
 type View = "all" | "available" | "public" | "occupied" | "attention";
 type Sort = "property" | "label" | "state";
@@ -45,7 +46,7 @@ type ReturnPoint = { view: View; query: string; propertyId: string; sort: Sort; 
  * it filters on `status == "active"`. Reading both fields is what makes the
  * count on this tab the same set a tenant can actually find.
  */
-const isPublic = (unit: Unit) =>
+const isPublic = (unit: PortfolioUnitCard) =>
   unit.publication.state === "published" &&
   unit.publication.listing_status === "active";
 
@@ -60,8 +61,12 @@ const isPublic = (unit: Unit) =>
  */
 export default function UnitsPage() {
   const { activeContext } = useSession();
+  return <UnitsContent key={activeContext} />;
+}
 
-  const [units, setUnits] = useState<Unit[] | null>(null);
+function UnitsContent() {
+  const { state, activeContext } = useSession();
+  const [units, setUnits] = useState<PortfolioUnitCard[] | null>(null);
   const [hasPortfolio, setHasPortfolio] = useState<boolean | null>(null);
   const [query, setQuery] = useState("");
   const [propertyId, setPropertyId] = useState("");
@@ -72,23 +77,14 @@ export default function UnitsPage() {
   const [returnedTo, setReturnedTo] = useState<string | null>(null);
   const pendingReturn = useRef<ReturnPoint | null>(null);
 
-  const activeId = activeContext?.startsWith("organization:")
-    ? activeContext.slice("organization:".length)
-    : "";
+  const signedIn = state.status === "signed_in";
+  const activeId = selectedPortfolio(state.status === "signed_in" ? state.me : null, activeContext)?.organization_id;
 
   const load = useCallback(async () => {
     try {
-      const organizations = await listOrganizations();
-
-      setHasPortfolio(organizations.length > 0);
-
-      const chosen =
-        organizations.find((row) => row.id === activeId) ??
-        organizations[0];
-
-      setUnits(
-        chosen ? await listPortfolioUnits(chosen.id) : [],
-      );
+      const organizationId = activeId ?? (await listOrganizations())[0]?.id;
+      setHasPortfolio(Boolean(organizationId));
+      setUnits(organizationId ? await listPortfolioUnits(organizationId) : []);
 
       setError("");
     } catch (cause) {
@@ -120,8 +116,8 @@ export default function UnitsPage() {
   }, []);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    if (signedIn) void load();
+  }, [load, signedIn]);
 
   const properties = useMemo(() => {
     const seen = new Map<string, string>();
@@ -222,7 +218,7 @@ export default function UnitsPage() {
     return () => window.clearTimeout(timer);
   }, [units]);
 
-  function remember(unit: Unit) {
+  function remember(unit: PortfolioUnitCard) {
     try {
       const point: ReturnPoint = { view, query, propertyId, sort, id: unit.id, y: window.scrollY, at: Date.now() };
       window.sessionStorage.setItem(RETURN_KEY, JSON.stringify(point));
@@ -381,10 +377,10 @@ function UnitCard({
   returned,
   onOpen,
 }: {
-  unit: Unit;
+  unit: PortfolioUnitCard;
   order: number;
   returned: boolean;
-  onOpen: (unit: Unit) => void;
+  onOpen: (unit: PortfolioUnitCard) => void;
 }) {
   const photo =
     unit.primary_photo?.download_url ?? null;
@@ -497,7 +493,7 @@ const moveUnitFocus = gridKeyNavigation(".unit-card");
  * A private Unit is a normal, deliberate state and
  * should not be treated as an attention state.
  */
-function needsAttention(unit: Unit) {
+function needsAttention(unit: PortfolioUnitCard) {
   return (
     [
       "changes_requested",
@@ -509,7 +505,7 @@ function needsAttention(unit: Unit) {
   );
 }
 
-function attentionLabel(unit: Unit) {
+function attentionLabel(unit: PortfolioUnitCard) {
   if (
     unit.verification.state === "changes_requested"
   ) {

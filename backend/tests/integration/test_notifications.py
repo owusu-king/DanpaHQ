@@ -628,6 +628,23 @@ class TestStaleNotificationsAgeOut:
         mark_read(user=user, notification_ids=[reminder.id])
         assert not Notification.objects.filter(id=reminder.id).exists()
 
+    def test_repeated_badge_polls_only_read_once_per_poll(self, api, user):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        self._make(user, days_old=30, kind="rent.payment_overdue", key="old-alert")
+        self._make(user, days_old=1, key="recent-activity")
+        api.force_authenticate(user=user)
+
+        with CaptureQueriesContext(connection) as captured:
+            for _ in range(3):
+                response = api.get("/api/v1/me/notifications/?view=badge")
+                assert response.data == {"unread_count": 2, "results": [], "next_cursor": None}
+
+        queries = [entry["sql"] for entry in captured if '"notification"' in entry["sql"]]
+        assert len(queries) == 3
+        assert all(query.startswith("SELECT ") for query in queries)
+
     def test_the_daily_sweep_covers_everyone(self, user, registered):
         from apps.notifications.tasks import age_out_stale
 

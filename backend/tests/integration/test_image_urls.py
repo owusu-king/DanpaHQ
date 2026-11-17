@@ -80,6 +80,27 @@ def live_listing(landlord):
 
 
 class TestPhotographsRender:
+    def test_listing_detail_reuses_photo_reads(
+        self, client, live_listing, landlord, django_assert_max_num_queries
+    ):
+        from apps.listing.models import ListingMedia
+        from apps.property.models import UnitMedia
+
+        unit_photo = _file(landlord, "space.jpg")
+        campaign_photo = _file(landlord, "campaign.jpg")
+        UnitMedia.objects.create(unit=live_listing.unit, file=unit_photo)
+        ListingMedia.objects.create(listing=live_listing, file=campaign_photo, is_cover=True)
+
+        with django_assert_max_num_queries(21):
+            response = client.get(f"/api/v1/listings/{live_listing.id}/")
+        assert response.status_code == 200
+        detail = response.json()
+        assert [photo["file_id"] for photo in detail["card_media"]] == [
+            str(unit_photo.id), str(campaign_photo.id),
+        ]
+        assert detail["space"]["photos"][0]["file_id"] == str(unit_photo.id)
+        assert detail["gallery"][0]["file_id"] == str(campaign_photo.id)
+
     def test_a_photograph_is_handed_out_as_something_an_img_can_load(self, landlord):
         from apps.files.photos import inline_image_url
 

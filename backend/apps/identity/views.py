@@ -242,6 +242,11 @@ class RefreshView(APIView):
         data = payload.validated_data
         ctx = get_context()
 
+        include_account = (
+            _is_browser(request)
+            and request.query_params.get("view") == "session"
+            and not request.data.get("refresh_token")
+        )
         result = services.rotate_session(
             refresh_token=token,
             ip_address=ctx.ip_address,
@@ -251,15 +256,18 @@ class RefreshView(APIView):
             device_label=data.get("device_label", ""),
             app_version=data.get("app_version", ""),
             os_version=data.get("os_version", ""),
+            account_projection=(lambda user: MeSerializer(user).data) if include_account else None,
         )
-        return _token_response(
-            request,
-            {
-                "access_token": result["access_token"],
-                "refresh_token": result["refresh_token"],
-                "expires_in": result["expires_in"],
-            },
-        )
+        payload = {
+            "access_token": result["access_token"],
+            "refresh_token": result["refresh_token"],
+            "expires_in": result["expires_in"],
+        }
+        if include_account:
+            payload["user"] = result["user"]
+        response = _token_response(request, payload)
+        response["Cache-Control"] = "private, no-store"
+        return response
 
 
 class SignOutView(APIView):

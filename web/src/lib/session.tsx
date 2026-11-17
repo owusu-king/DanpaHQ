@@ -18,6 +18,7 @@ import {
   clearAccessToken,
   endSession,
   isSessionRefusal,
+  restoreAccount,
   SESSION_INVALID_EVENT,
   SESSION_LOGOUT_KEY,
   setAccessToken,
@@ -234,6 +235,8 @@ export function SessionProvider({
   const [state, setState] = useState<SessionState>({ status: "loading" });
   const [activeContext, setActiveContextState] = useState<string | null>(null);
   const generation = useRef(0);
+  const accountLoaded = useRef(false);
+  const restoring = useRef(false);
 
   const applyAccount = useCallback((me: Me, preferredContext?: string) => {
     let stored: string | null = null;
@@ -250,6 +253,7 @@ export function SessionProvider({
       try { window.localStorage.setItem("account.active_context", context); }
       catch { /* The selected context is still available in memory. */ }
     }
+    accountLoaded.current = true;
     setState({ status: "signed_in", me });
     rememberSignedIn(true);
   }, []);
@@ -261,19 +265,24 @@ export function SessionProvider({
     applyAccount(result.user);
   }, [applyAccount]);
 
-  const refresh = useCallback(async (preferredContext?: string) => {
+  const refreshAccount = useCallback(async (preferredContext?: string, restoringSession = false) => {
     const started = generation.current;
     try {
-      const me = await authedFetch<Me>("/me/");
+      const me = restoringSession ? await restoreAccount() : await authedFetch<Me>("/me/");
       if (started !== generation.current) return;
       applyAccount(me, preferredContext);
     } catch (cause) {
       if (started !== generation.current) return;
-      if (isSessionRefusal(cause)) clearAccessToken();
+      if (isSessionRefusal(cause)) {
+        accountLoaded.current = false;
+        clearAccessToken();
+      }
       setState((current) => stateAfterFailure(cause, current));
       if (isSessionRefusal(cause)) rememberSignedIn(false);
     }
   }, [applyAccount]);
+
+  const refresh = useCallback((preferredContext?: string) => refreshAccount(preferredContext), [refreshAccount]);
 
   const setActiveContext = useCallback((context: string) => {
     if (state.status !== "signed_in" || !validContextIds(state.me).includes(context)) return;
@@ -285,6 +294,7 @@ export function SessionProvider({
   useEffect(() => {
     const invalidated = () => {
       generation.current += 1;
+      accountLoaded.current = false;
       clearAccessToken();
       forgetPhotoUrls();
       setActiveContextState(null);
@@ -303,17 +313,21 @@ export function SessionProvider({
   }, []);
 
   useEffect(() => {
+    // The app shell survives client-side navigation between public and portal routes.
+    if (accountLoaded.current || restoring.current) return;
     let hint: string | null = null;
     try { hint = window.localStorage.getItem(SESSION_HINT_KEY); } catch { /* storage is optional */ }
     if (!shouldRestoreSession(requireSession, hint)) {
       setState({ status: "signed_out" });
       return;
     }
-    void refresh();
-  }, [refresh, requireSession]);
+    restoring.current = true;
+    void refreshAccount(undefined, true).finally(() => { restoring.current = false; });
+  }, [refreshAccount, requireSession]);
 
   const signOut = useCallback(async () => {
       generation.current += 1;
+    accountLoaded.current = false;
       const ending = endSession();
       setState({ status: "loading" });
       // A resolved photo URL outliving the session is a leak, and on a shared
@@ -336,7 +350,6 @@ export function SessionProvider({
       startTransition(() => {
         setState({ status: "signed_out" });
         router.replace("/");
-        router.refresh();
       });
   }, [router]);
 

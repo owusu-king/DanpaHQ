@@ -38,12 +38,10 @@ class NotificationListView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        # Older activity leaves the unread badge, but remains in the history.
-        services.age_out(user=request.user)
         if request.query_params.get("view") == "badge":
             response = Response(
                 {
-                    "unread_count": services.unread_count(user=request.user),
+                    "unread_count": services.badge_unread_count(user=request.user),
                     "results": [],
                     "next_cursor": None,
                 }
@@ -51,6 +49,8 @@ class NotificationListView(APIView):
             response["Cache-Control"] = "private, no-store"
             return response
 
+        # Older activity leaves the unread badge, but remains in the history.
+        services.age_out(user=request.user)
         queryset = Notification.objects.filter(user=request.user)
         if request.query_params.get("unread") == "true":
             queryset = queryset.filter(read_at__isnull=True)

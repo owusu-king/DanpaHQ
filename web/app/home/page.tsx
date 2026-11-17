@@ -15,15 +15,14 @@ import { ApiFailure } from "@/lib/api";
 import {
   listOrganizations,
   listOrganizationProperties,
-  listReceivedApplications,
+  countOpenApplications,
   listGrantedLeases,
-  listHostViewings,
+  getHostViewingAgenda,
   getOrganizationHome,
   type PortfolioHomeSummary,
   type PortfolioHomeTenant,
   type Property,
-  type RentalApplication,
-  type Viewing,
+  type ViewingAgendaEntry,
 } from "@/lib/console";
 import { propertyNextStep } from "@/lib/providerSetup";
 import { ArtisanHome } from "@/components/artisan/ArtisanWorkspace";
@@ -887,8 +886,8 @@ function ProviderHome({ me, activeContext }: { me: Me; activeContext: string | n
   const access = portfolioContext?.access ?? null;
   const [properties, setProperties] = useState<Property[]>([]);
   const [organization, setOrganization] = useState<{ id: string; name: string } | null>(null);
-  const [applications, setApplications] = useState<RentalApplication[]>([]);
-  const [viewings, setViewings] = useState<Viewing[]>([]);
+  const [applicationCount, setApplicationCount] = useState(0);
+  const [viewings, setViewings] = useState<{ count: number; upcoming: ViewingAgendaEntry[] }>({ count: 0, upcoming: [] });
   const [grantedLeases, setGrantedLeases] = useState<Lease[]>([]);
   const [portfolio, setPortfolio] = useState<PortfolioHomeSummary | null>(null);
   const [enquiries, setEnquiries] = useState<Enquiry[]>([]);
@@ -929,8 +928,8 @@ function ProviderHome({ me, activeContext }: { me: Me; activeContext: string | n
         // Each section can render as soon as its own response arrives.
         void Promise.all([
           section(listOrganizationProperties(selected.id), setProperties),
-          section(listReceivedApplications(true, scope), setApplications),
-          section(listHostViewings(true, scope), setViewings),
+          section(countOpenApplications(scope), setApplicationCount),
+          section(getHostViewingAgenda(scope), setViewings),
           section(listGrantedLeases(scope), setGrantedLeases),
           readsEnquiries ? section(listEnquiries("seller"), setEnquiries) : undefined,
         ]).then(() => { if (!cancelled) setDetailsLoading(false); });
@@ -972,7 +971,7 @@ function ProviderHome({ me, activeContext }: { me: Me; activeContext: string | n
     ["changes_required", "rejected", "suspended", "expired"].includes(row.verification.review_state),
   );
   const paymentsAwaitingYou = money?.payment_records_awaiting_you ?? 0;
-  const tenancyRequestCount = applications.length + (counts?.pending_join_requests ?? 0);
+  const tenancyRequestCount = applicationCount + (counts?.pending_join_requests ?? 0);
   const drafts = grantedLeases.filter((lease) => lease.status === "draft");
   const unreadEnquiries = enquiries.filter((row) => row.unread).length;
 
@@ -986,7 +985,7 @@ function ProviderHome({ me, activeContext }: { me: Me; activeContext: string | n
     propertiesNeedingAction.length ? { label: "Property needs an update", meta: "Read the note, then resubmit", value: String(propertiesNeedingAction.length), action: "Resubmit", href: "/properties", icon: "verification", tone: "danger" } : null,
     paymentsAwaitingYou ? { label: "Payments to confirm", meta: "Confirm or dispute what was recorded", value: String(paymentsAwaitingYou), action: "Confirm", href: "/payments", icon: "payments", tone: "warning" } : null,
     tenancyRequestCount ? { label: "Tenancy requests", meta: "Decide who rents", value: String(tenancyRequestCount), action: "Decide", href: "/applications", icon: "applications", tone: "warning" } : null,
-    viewings.length ? { label: "Viewing requests", meta: "Offer times or reply", value: String(viewings.length), action: "Reply", href: "/viewings", icon: "viewings", tone: "warning" } : null,
+    viewings.count ? { label: "Viewing requests", meta: "Offer times or reply", value: String(viewings.count), action: "Reply", href: "/viewings", icon: "viewings", tone: "warning" } : null,
     drafts.length ? { label: "Agreements to send", meta: "Saved but not yet offered", value: String(drafts.length), action: "Send", href: "/documents?view=leases&show=send", icon: "leases", tone: "warning" } : null,
   ].filter((item): item is ProviderAttention => item !== null);
 
@@ -996,7 +995,7 @@ function ProviderHome({ me, activeContext }: { me: Me; activeContext: string | n
     || left.title.localeCompare(right.title),
   );
   const featuredProperty = ranked[0] ?? null;
-  const agenda = agendaOf(viewings, portfolio?.tenants ?? []);
+  const agenda = agendaOf(viewings.upcoming, portfolio?.tenants ?? []);
 
   if (loading) {
     return (
@@ -1171,7 +1170,7 @@ function ProviderHome({ me, activeContext }: { me: Me; activeContext: string | n
 }
 
 /** The next 30 days, from what the backend has dated. */
-function agendaOf(viewings: Viewing[], tenants: PortfolioHomeTenant[]): AgendaItem[] {
+function agendaOf(viewings: ViewingAgendaEntry[], tenants: PortfolioHomeTenant[]): AgendaItem[] {
   const now = new Date();
   const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const horizon = new Date(start.getTime() + 31 * 86_400_000);

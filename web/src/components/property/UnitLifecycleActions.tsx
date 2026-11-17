@@ -68,7 +68,6 @@ export function UnitLifecycleActions({ unit }: { unit: UnitDetail }) {
                     if (deleting) await deleteUnit(unit.id, reason.trim());
                     else await archiveUnit(unit.id, reason.trim());
                     router.replace(`/record/property?id=${unit.property_id}` as never);
-                    router.refresh();
                   } catch (cause) {
                     setError(
                       cause instanceof ApiFailure

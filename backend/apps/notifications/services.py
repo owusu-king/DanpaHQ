@@ -12,7 +12,7 @@ import logging
 from datetime import timedelta
 
 from django.db import IntegrityError, transaction
-from django.db.models import Q
+from django.db.models import Count, Q
 from django.utils import timezone
 
 from .models import Notification, NotificationKey, NotificationPreference
@@ -285,6 +285,12 @@ def prune(*, user) -> int:
 STALE_AFTER_DAYS = 14
 
 
+def _stale_activity(now):
+    return Q(created_at__lt=now - timedelta(days=STALE_AFTER_DAYS)) & ~Q(
+        kind__in=INFORMATIONAL_KINDS
+    )
+
+
 def age_out(*, user=None) -> int:
     """Mark notifications unread for longer than ``STALE_AFTER_DAYS`` as read.
 
@@ -292,9 +298,8 @@ def age_out(*, user=None) -> int:
     or dismissal, regardless of age. For one person on each read of their
     list, and for everyone in the daily sweep. Returns how many were aged out.
     """
-    cutoff = timezone.now() - timedelta(days=STALE_AFTER_DAYS)
-    stale = Notification.objects.filter(read_at__isnull=True, created_at__lt=cutoff).exclude(
-        kind__in=INFORMATIONAL_KINDS
+    stale = Notification.objects.filter(
+        _stale_activity(timezone.now()), read_at__isnull=True
     )
     if user is not None:
         stale = stale.filter(user=user)
@@ -312,3 +317,14 @@ def age_out(*, user=None) -> int:
 
 def unread_count(*, user) -> int:
     return Notification.objects.filter(user=user, read_at__isnull=True).count()
+
+
+def badge_unread_count(*, user) -> int:
+    counts = Notification.objects.filter(user=user, read_at__isnull=True).aggregate(
+        unread=Count("pk"),
+        stale=Count("pk", filter=_stale_activity(timezone.now())),
+    )
+    if counts["stale"]:
+        age_out(user=user)
+        return unread_count(user=user)
+    return counts["unread"]

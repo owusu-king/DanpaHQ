@@ -411,6 +411,15 @@ class UnitSerializer(serializers.ModelSerializer):
         )
 
 
+class UnitCardSerializer(UnitSerializer):
+    class Meta(UnitSerializer.Meta):
+        fields = [
+            "id", "property_id", "property_title", "label", "space_type_label",
+            "verification", "publication", "availability", "primary_photo",
+        ]
+        read_only_fields = fields
+
+
 class UnitDetailSerializer(UnitSerializer):
     """One space, with every photograph and the property it sits in.
 

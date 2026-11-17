@@ -96,7 +96,7 @@ test("the no-cookie refresh contract invalidates once and does not loop", async 
   await assert.rejects(h.api.getAccessToken(), { status: 401 });
   assert.equal(calls, 1, "an ended session must not submit the missing cookie again");
   assert.deepEqual(h.events, ["danpahq:session-invalid"]);
-  assert.equal(h.storage.get("session.logged_out"), "1");
+  assert.equal(h.storage.has("session.logged_out"), false, "a missing cookie is not explicit logout");
 });
 
 test("an expired or invalid refresh credential ends the session", async () => {

@@ -481,6 +481,12 @@ class TestApi:
         inbox = host_api.get("/api/v1/me/received-applications/?open=true")
         assert [item["id"] for item in inbox.data] == [applied.data["id"]]
         assert inbox.data[0]["guarantor_name"] == "Kwame Mensah"
+        summary_url = "/api/v1/me/received-applications/?open=true&view=count"
+        count = host_api.get(summary_url)
+        assert count.data == {"count": 1}
+        assert count["Cache-Control"] == "private, no-store"
+        assert len(count.content) < len(inbox.content)
+        assert tenant_api.get(summary_url).data == {"count": 0}
 
         reviewing = host_api.post(
             f"/api/v1/applications/{applied.data['id']}/review/", {}, format="json"

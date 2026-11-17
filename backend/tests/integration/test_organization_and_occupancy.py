@@ -579,7 +579,8 @@ class TestOrganizationAuthorization:
 
         owner_api = APIClient()
         sign_in_as(owner_api, user=owner)
-        response = owner_api.get(f"/api/v1/organizations/{organization.id}/units/")
+        url = f"/api/v1/organizations/{organization.id}/units/"
+        response = owner_api.get(url)
         assert response.status_code == 200
 
         labels = [row["label"] for row in response.data]
@@ -590,6 +591,17 @@ class TestOrganizationAuthorization:
         assert first["property_title"] == "Legon House"
         for field in ("availability", "verification", "publication", "primary_photo"):
             assert field in first
+        cards = owner_api.get(f"{url}?view=cards")
+        assert cards.status_code == 200
+        assert cards["Cache-Control"] == "private, no-store"
+        assert len(cards.content) < len(response.content)
+        card_fields = {
+            "id", "property_id", "property_title", "label", "space_type_label",
+            "verification", "publication", "availability", "primary_photo",
+        }
+        assert cards.data == [
+            {key: row[key] for key in card_fields} for row in response.data
+        ]
 
         # A member assigned to one Property sees only its Units.
         membership = organization_services.add_membership(
@@ -611,6 +623,9 @@ class TestOrganizationAuthorization:
         scoped = manager_api.get(f"/api/v1/organizations/{organization.id}/units/")
         assert scoped.status_code == 200
         assert {row["property_title"] for row in scoped.data} == {"Osu Court"}
+        scoped_cards = manager_api.get(f"{url}?view=cards")
+        assert scoped_cards.status_code == 200
+        assert {row["id"] for row in scoped_cards.data} == {row["id"] for row in scoped.data}
 
         stranger = registered("0202000082", first_name="Outside")
         outsider_api = APIClient()

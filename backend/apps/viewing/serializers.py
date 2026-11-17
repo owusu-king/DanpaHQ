@@ -400,6 +400,15 @@ class ViewingRequestSerializer(serializers.ModelSerializer):
         }
 
 
+class ViewingAgendaSerializer(ViewingRequestSerializer):
+    class Meta(ViewingRequestSerializer.Meta):
+        fields = [
+            "id", "status", "confirmed_starts_at", "listing_headline", "tenant_name",
+            "property_title", "unit_label",
+        ]
+        read_only_fields = fields
+
+
 class RequestViewingSerializer(serializers.Serializer):
     listing_id = serializers.UUIDField()
     message = serializers.CharField(max_length=600, required=False, allow_blank=True)

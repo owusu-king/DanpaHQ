@@ -608,8 +608,13 @@ export function listUnits(propertyId: string) {
  * portfolio meant a request per Property. Same serializer, same scoping — a
  * member with Property assignments sees theirs, not the Portfolio's.
  */
+export type PortfolioUnitCard = Pick<Unit,
+  "id" | "property_id" | "property_title" | "label" | "space_type_label" |
+  "verification" | "publication" | "availability" | "primary_photo"
+>;
+
 export function listPortfolioUnits(organizationId: string) {
-  return authedFetch<Unit[]>(`/organizations/${organizationId}/units/`, { cache: "no-store" });
+  return authedFetch<PortfolioUnitCard[]>(`/organizations/${organizationId}/units/?view=cards`, { cache: "no-store" });
 }
 
 export function createUnit(
@@ -1762,6 +1767,20 @@ export function listHostViewings(openOnly = false, scope?: PortfolioScope) {
   );
 }
 
+export type ViewingAgendaEntry = Pick<Viewing,
+  "id" | "status" | "confirmed_starts_at" | "listing_headline" | "tenant_name" |
+  "property_title" | "unit_label"
+>;
+
+export async function getHostViewingAgenda(scope: PortfolioScope) {
+  const result = await authedFetch<{ count: number; upcoming: ViewingAgendaEntry[] } | Viewing[]>(
+    `/me/viewing-requests/${scopeQuery(scope, { open: "true", view: "home" })}`,
+    { cache: "no-store" },
+  );
+  // An older API ignores the projection while the web and API releases overlap.
+  return Array.isArray(result) ? { count: result.length, upcoming: result } : result;
+}
+
 export function offerSlots(
   viewingId: string,
   input: {
@@ -1908,6 +1927,14 @@ export function listReceivedApplications(openOnly = false, scope?: PortfolioScop
     `/me/received-applications/${scopeQuery(scope, openOnly ? { open: "true" } : undefined)}`,
     { cache: "no-store" },
   );
+}
+
+export async function countOpenApplications(scope: PortfolioScope) {
+  const result = await authedFetch<{ count: number } | RentalApplication[]>(
+    `/me/received-applications/${scopeQuery(scope, { open: "true", view: "count" })}`,
+    { cache: "no-store" },
+  );
+  return Array.isArray(result) ? result.length : result.count;
 }
 
 export function applicationAction(

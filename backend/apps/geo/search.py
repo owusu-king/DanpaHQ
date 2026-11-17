@@ -17,7 +17,11 @@ def normalize_name(value):
 def search_localities(query="", *, district=None, region=None):
     from .models import Locality
 
-    rows = Locality.objects.filter(is_active=True).select_related("district__region", "region")
+    rows = (
+        Locality.objects.filter(is_active=True)
+        .select_related("district__region", "region")
+        .defer("district__boundary")
+    )
     if district:
         rows = rows.filter(district_id=district)
     if region:

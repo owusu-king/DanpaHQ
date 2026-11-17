@@ -235,6 +235,16 @@ class GeoDataset(models.Model):
         return self.id
 
 
+class GeoSeedState(models.Model):
+    """Receipt for a completed, release-managed geography import."""
+
+    id = models.PositiveSmallIntegerField(primary_key=True)
+    fingerprint = models.CharField(max_length=64)
+
+    def __str__(self):
+        return self.fingerprint
+
+
 class LocationSourceRecord(models.Model):
     """Stable external identity and original facts; several sources can share one place."""
 

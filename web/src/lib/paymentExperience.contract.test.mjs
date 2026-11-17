@@ -12,7 +12,7 @@ test("web Payments is role-aware and gives tenants a first-class destination", (
   const tenant = read("web/src/components/payments/TenantPayments.tsx");
   const navigation = read("web/src/lib/portalNav.ts");
 
-  assert.match(route, /\{inProvider \? <ProviderPaymentsContent \/> : <TenantPaymentsWorkspace \/>\}/);
+  assert.match(route, /\{inProvider \? <ProviderPaymentsContent key=\{activeContext\} \/> : <TenantPaymentsWorkspace \/>\}/);
   assert.match(navigation, /href: "\/payments", label: "Payments"/);
   assert.match(tenant, /Due now/);
   assert.match(tenant, /Pay rent/);

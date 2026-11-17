@@ -88,7 +88,7 @@ test("Public means on Explore, not merely offered to it", () => {
   // reviewer flagged it, or once Management suspended it — public search shows
   // none of those. Reading only `publication.state` would count them all.
   for (const source of [page, mobile]) {
-    assert.match(source, /const isPublic = \(unit: Unit\) =>/);
+    assert.match(source, /const isPublic = \(unit: (?:Unit|PortfolioUnitCard)\) =>/);
     assert.match(source, /unit\.publication\.state === "published"/);
     assert.match(source, /unit\.publication\.listing_status === "active"/);
   }

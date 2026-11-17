@@ -672,6 +672,22 @@ class TestWebRefreshCookie:
         assert refreshed.data["access_token"]
         assert "refresh_token" not in refreshed.data
 
+    def test_browser_bootstrap_returns_the_same_account_as_me(self, sms):
+        client, _ = self._register_as("web", sms)
+        refreshed = client.post(
+            "/api/v1/auth/refresh/?view=session", {}, format="json", HTTP_X_CLIENT="web"
+        )
+        assert refreshed.status_code == 200
+        assert refreshed["Cache-Control"] == "private, no-store"
+        assert refreshed.cookies["danpahq_refresh"]["httponly"]
+        assert "refresh_token" not in refreshed.data
+
+        account = client.get(
+            "/api/v1/me/", HTTP_AUTHORIZATION=f"Bearer {refreshed.data['access_token']}"
+        )
+        assert account.status_code == 200
+        assert refreshed.data["user"] == account.data
+
     def test_foreign_origin_cannot_rotate_the_browser_cookie(self, sms):
         client, signed_in = self._register_as("web", sms)
         refused = client.post(

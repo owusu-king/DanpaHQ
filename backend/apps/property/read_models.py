@@ -116,6 +116,7 @@ def property_list_queryset(queryset, *, user):
             "owner",
             "provider_application",
         )
+        .defer("address__locality__district__boundary")
         .prefetch_related(
             "media__file",
             Prefetch(

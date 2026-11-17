@@ -92,3 +92,48 @@ The badge showed a clear payload and local latency reduction. The other API chan
 - **Separate idle startup from warm queueing.** Render Free spins down after 15 minutes of inactivity. The measured sample used a responding service. The configured single synchronous API worker can serialize the dashboard's concurrent calls, with no spare HTTP slot during a long request. Use Render instance metrics and request logs to distinguish CPU, memory, queueing and cold starts before changing plans. If cold starts or queueing dominate, compare a paid always-on staging instance with the standard runtime profile and enough memory for the worker and scheduler. [Render Free instance behavior](https://render.com/docs/free)
 - **Confirm database and asset delivery from staging.** Check slow statements, plans, index usage, pool connections and lock waits on representative data. The full portfolio still made 42 statements on the small fixture, with per-unit access and condition work remaining. That is the next candidate if signed-in traces show this read dominates. Inspect cache headers and transfer sizes for hashed scripts, fonts and public thumbnails separately from private media and account responses.
 - **Release status.** Changes are local. No authenticated staging account or operator metrics were available for this audit, and the candidate was not deployed. The reported 2–3 second staging dashboard delay therefore has no verified staging after-measurement.
+
+## November 17 follow-up
+
+- **Request flow.** Cloudflare serves the Next.js export. Session restoration and dashboard data requests run in the browser. Expo calls the same Django API. Render's free staging profile has one synchronous HTTP slot, a Celery solo worker, and an advisory-locked scheduler. Redis carries tasks and sessions. Django and the separate owner release job use the Supabase session pooler. The Render liveness probe uses `/healthz`. The geography import runs in the owner release job.
+- **Public listing detail.** On the same two-photo local fixture, 30 warm requests before and after changed SQL calls from 37 to 21. Median/p95/p99 moved from 33.8/35.9/37.2 ms to 24.2/26.1/26.1 ms. The response was 3,786 bytes in both runs. Reuse is confined to the authorized detail serialization. Query coverage is in `test_image_urls.py`.
+- **Provider Home.** The same authenticated local viewing fixture went from 11 SQL calls and 2,510 response bytes to three calls and 266 bytes. Applications went from eight calls and 1,039 bytes to two calls and 11 bytes. The new projections use the original server-side portfolio scope. Chrome verified the agenda and attention cards with both the new and legacy response shapes. The number of Home HTTP calls is still six.
+- **Release egress.** On local PostGIS with the packaged 24,095-locality snapshot, a forced repeat took about 3.64 seconds and 1,964 SQL executions. Two unchanged receipt checks took 269–285 ms and two SQL executions apiece, including the advisory lock. A separate capture measured 29,690,266 bytes in 56,170 result rows for a forced repeat, and one byte in two rows for the unchanged seed. These are raw result values before protocol overhead. The first release applies the geography and writes the receipt atomically. Staging query statistics still showed 17 and 4,437 calls to the old polygon-bearing queries as of November 17. The receipt table was absent in staging.
+- **Verify after release.** Observe one initial release and one unchanged release. Check for `"skipped": true`, compare actual Shared Pooler Egress, and check that the old polygon query counters stop growing. Repeat authenticated Home, Finance, Applications, Viewings, and listing-detail journeys. Record cold-start, warm browser, and Django timings separately. If concurrent requests still spend most of their time waiting outside Django, compare the same workload against an always-on staging runtime before changing worker counts or plans.
+
+## Local development follow-up
+
+Django in the running `danpa-api` container used `config.settings.local` and PostgreSQL at `db:5432`, the project's local PostGIS container. Native and Docker Next.js both ran Webpack and used the same API at `http://localhost:8000/api/v1`. The Docker path also used polling and a Windows bind mount. The container log contained historical Watchpack scan errors. Route compilation, development JavaScript, and the host-to-container file path all differ from the static staging build.
+
+For each route, use a fresh Chrome context for four visits, wait for load, and sample paint and CPU counters over the next 1.8 seconds. Report the first document TTFB for routes that had yet to compile and the median of the next three browser contexts. Use CDP `Performance.getMetrics`, the Navigation and Resource Timing APIs, and the existing Django `Server-Timing` header. The local deployments were sampled sequentially using their existing caches, so first-visit values show observed delays rather than controlled clean-cache compiler benchmarks.
+
+| Rentals | Docker Next dev | Native Windows Next dev | Deployed staging |
+|---|---:|---:|---:|
+| First sampled document TTFB | 19.07 s | 1.67 s | 0.20 s |
+| Warm median DOMContentLoaded | 3.45 s | 0.10 s | 0.27 s |
+| Warm median LCP | 4.74 s | 1.32 s | 1.63 s |
+| Warm median Chrome script CPU | 317 ms | 293 ms | 85 ms |
+| Warm encoded route JavaScript in this sample | 7.39 MB | 7.43 MB | 0.32 MB |
+
+Warm signed-out Home LCP was 0.97 s in Docker, 0.66 s native, and 1.10 s on staging. The landing page was already compiled on Docker before the browser sample. Its warm LCP was 0.17 s in Docker, 0.12 s native, and 0.37 s on staging. The staging catalogue included listings while the local development catalogue was sparse. The Home samples show the sign-in gate.
+
+On the actual development API, Rentals' two catalogue calls started responding in around 35–40 ms. A separate warm geography HTTP probe returned in about 67 ms locally and 481 ms on staging, with approximately 64 ms and 184 ms inside Django respectively. The local stack uses PostGIS directly. The staging residual includes network, proxy and possible worker wait, and the Django intervals include their respective database calls.
+
+The same ranked geography request (`q=Kumasi&limit=12`) was also profiled in-process on the actual local database (23,312 localities) and an isolated database with the packaged reference snapshot (24,095). Both used local PostGIS. The result sets have comparable sizes and different source rows. Each p50 uses 20 warmed requests.
+
+| Local Django layer | Current dev database | Isolated packaged fixture |
+|---|---:|---:|
+| Total in-process request | 47.86 ms | 53.01 ms |
+| View, including SQL and serialization | 46.65 ms | 51.48 ms |
+| Client-observed SQL execution, destination result buffered | 40.93 ms | 44.52 ms |
+| DRF authentication and throttling | 0.58 ms | 0.71 ms |
+| List serializer | 0.61 ms | 0.75 ms |
+| JSON renderer | 0.10 ms | 0.15 ms |
+| Remaining middleware, dispatch and test client | 0.56 ms | 0.71 ms |
+| Fresh PostgreSQL connection, separate repeated probe | 4.30 ms | 4.63 ms |
+
+For the dev database's main ranked query, PostgreSQL planning plus execution was 21.05 ms versus 21.66 ms through the client, with 8,388 bytes of values. The difference is a rough estimate of the residual, which includes result formatting, transfer, driver work, and differences between ordinary execution and `EXPLAIN ANALYZE`. A React devtools-hook probe on a warmed native Rentals route placed the first commit with React render timings around 0.82–0.91 s after navigation. React reported roughly 24–26 ms for that render and 5 ms for the next timed update. The Chrome script totals above include startup, parsing and all other scripts during the sample.
+
+**Changes.** The README now gives a native Windows frontend path. The ranked geography endpoint uses one joined projection for source attribution, dropping from five SQL reads and 15,325 bytes of result values to four reads and 10,460 bytes on a paired local test. API bodies matched byte-for-byte. The paired p50 was 48.47 ms before and 46.94 ms after. The strongest reproduced improvement was moving the development frontend to the host. An experimental portal-shell split reduced initial script bytes but changed dialog focus restoration in Chrome, so it was reverted.
+
+The isolated comparison covers the API workload. Full browser journeys against an isolated dataset and matched authenticated staging accounts, and device render profiles, remain open. Preserve the geography release egress verification before evaluating a Render concurrency change.

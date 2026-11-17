@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/Button";
@@ -55,6 +56,7 @@ export default function ProviderTenantsPage() {
 }
 
 function ProviderTenants() {
+  const router = useRouter();
   const { state, activeContext } = useSession();
   // A plain click reads the tenancy in a sheet over the cards; the card is
   // still a link to `/tenants/<id>` for a new tab. `?tenant=` from Home or a
@@ -77,13 +79,16 @@ function ProviderTenants() {
   useEffect(() => {
     const applyHash = () => {
       const next = window.location.hash.slice(1);
-      if (next === "requests") window.location.replace("/applications");
+      if (next === "requests") {
+        router.replace("/applications");
+        return;
+      }
       setView(next === "access" ? "access" : "tenants");
     };
     applyHash();
     window.addEventListener("hashchange", applyHash);
     return () => window.removeEventListener("hashchange", applyHash);
-  }, []);
+  }, [router]);
 
   useEffect(() => {
     // Restored in an effect rather than initial state, so the server render and

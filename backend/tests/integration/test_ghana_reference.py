@@ -5,6 +5,9 @@ import hashlib
 import json
 
 import pytest
+from django.core.management import call_command
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 from rest_framework.test import APIClient
 
 from apps.geo.importing import import_snapshot, write_snapshot
@@ -64,6 +67,75 @@ def test_import_is_repeatable_and_external_ids_are_stable(document):
     assert second["localities_enriched"] == second["source_records_updated"] == 0
     assert Locality.objects.get().pk == original_id
     assert LocationSourceRecord.objects.filter(locality=row).get().source_id == "QA-1"
+
+
+def test_repeat_import_omits_polygons_from_bulk_reads(document, tmp_path, capsys):
+    import_snapshot(document)
+    snapshot = tmp_path / "test.json.gz"
+    write_snapshot(document, snapshot)
+    with CaptureQueriesContext(connection) as captured:
+        call_command("import_ghana_locations", snapshot=snapshot)
+    locality_join = [
+        entry["sql"] for entry in captured
+        if 'FROM "geo_locality" LEFT OUTER JOIN "geo_district"' in entry["sql"]
+    ]
+    assert len(locality_join) == 1
+    assert '"geo_district"."boundary"' not in locality_join[0]
+    candidates = [
+        entry["sql"] for entry in captured
+        if 'FROM "geo_district" WHERE "geo_district"."region_id" =' in entry["sql"]
+    ]
+    assert len(candidates) == 1
+    assert '"geo_district"."boundary"' not in candidates[0]
+    assert json.loads(capsys.readouterr().out.splitlines()[-1])["aliases_total"] == 1
+    assert District.objects.get().boundary is not None
+
+
+def test_release_seed_skips_equal_snapshot_and_reconciles_after_manual_import(
+    document, tmp_path, capsys
+):
+    snapshot = tmp_path / "release.json.gz"
+    write_snapshot(document, snapshot)
+    call_command("import_ghana_locations", snapshot=snapshot, skip_if_current=True)
+    assert json.loads(capsys.readouterr().out.splitlines()[-1])["localities_created"] == 1
+
+    with CaptureQueriesContext(connection) as captured:
+        call_command("import_ghana_locations", snapshot=snapshot, skip_if_current=True)
+    assert json.loads(capsys.readouterr().out.splitlines()[-1])["skipped"] is True
+    sql = " ".join(entry["sql"] for entry in captured)
+    assert "pg_advisory_xact_lock" in sql
+    assert "geo_geoseedstate" in sql
+    assert all(table not in sql for table in ("geo_locality", "geo_district", "geo_geodataset"))
+
+    import_snapshot(document)
+    call_command("import_ghana_locations", snapshot=snapshot, skip_if_current=True)
+    assert json.loads(capsys.readouterr().out.splitlines()[-1])["localities_created"] == 0
+
+    changed = {**document, "rejected": {"unmatched": 1}}
+    write_snapshot(changed, snapshot)
+    call_command("import_ghana_locations", snapshot=snapshot, skip_if_current=True)
+    assert json.loads(capsys.readouterr().out.splitlines()[-1])["localities_created"] == 0
+
+
+@pytest.mark.parametrize("endpoint", ["locations", "localities"])
+def test_locality_lookup_returns_district_labels_without_loading_polygons(document, endpoint):
+    import_snapshot(document)
+    with CaptureQueriesContext(connection) as captured:
+        response = APIClient().get(f"/api/v1/geo/{endpoint}/", {"q": "Kumasi", "limit": 12})
+
+    assert response.status_code == 200
+    rows = response.data["results"] if endpoint == "locations" else response.data
+    assert [row["district_name"] for row in rows] == ["QA District"]
+    assert any('"geo_district"' in entry["sql"] for entry in captured)
+    assert all('"geo_district"."boundary"' not in entry["sql"] for entry in captured)
+    if endpoint == "locations":
+        assert rows[0]["sources"][0]["source_id"] == "QA-1"
+        source_reads = [
+            entry["sql"] for entry in captured if 'FROM "geo_locationsourcerecord"' in entry["sql"]
+        ]
+        assert len(source_reads) == 1
+        assert 'JOIN "geo_geodataset"' in source_reads[0]
+        assert '"geo_locationsourcerecord"."data"' not in source_reads[0]
 
 
 def test_staged_snapshot_has_a_matching_manifest_without_changing_packaged_manifest(

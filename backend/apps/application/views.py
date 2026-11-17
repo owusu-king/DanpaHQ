@@ -76,18 +76,19 @@ class HostApplicationsView(APIView):
         """`?organization=<id>` scopes this to one Portfolio, decided here."""
         from apps.organization.services import properties_in_scope
 
-        applications = (
-            RentalApplication.objects.filter(
-                unit__property__in=properties_in_scope(
-                    user=request.user, organization=request.query_params.get("organization")
-                ),
-                superseded_by__isnull=True,
-            )
-            .select_related(*SELECT)
-            .prefetch_related(*PREFETCH)
+        applications = RentalApplication.objects.filter(
+            unit__property__in=properties_in_scope(
+                user=request.user, organization=request.query_params.get("organization")
+            ),
+            superseded_by__isnull=True,
         )
         if request.query_params.get("open") == "true":
             applications = applications.filter(status__in=OPEN_STATUSES)
+        if request.query_params.get("view") == "count":
+            return Response(
+                {"count": applications.count()}, headers={"Cache-Control": "private, no-store"}
+            )
+        applications = applications.select_related(*SELECT).prefetch_related(*PREFETCH)
         return Response(RentalApplicationSerializer(applications, many=True).data)
 
 

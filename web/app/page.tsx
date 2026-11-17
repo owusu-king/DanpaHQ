@@ -12,9 +12,8 @@ import { FrontDoor } from "@/components/landing/FrontDoor";
  */
 export default function Page() {
   return (
-    <>
-      <EntryRedirect />
+    <EntryRedirect>
       <FrontDoor />
-    </>
+    </EntryRedirect>
   );
 }

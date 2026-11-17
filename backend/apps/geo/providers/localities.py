@@ -67,6 +67,7 @@ class LocalityProvider:
         row = (
             Locality.objects.filter(id=locality_id, is_active=True)
             .select_related("district__region", "region")
+            .defer("district__boundary")
             .first()
         )
         if row is None or row.latitude is None or row.longitude is None:

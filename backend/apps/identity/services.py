@@ -1092,6 +1092,7 @@ def rotate_session(
     device_label: str = "",
     app_version: str = "",
     os_version: str = "",
+    account_projection=None,
 ):
     """Exchange a refresh token for a new pair, detecting reuse.
 
@@ -1199,6 +1200,9 @@ def rotate_session(
             )
             if session.device_id:
                 Device.objects.filter(id=session.device_id).update(last_seen_at=timezone.now())
+            # Build the optional bootstrap projection before committing the
+            # rotation so a failed read leaves the current cookie usable.
+            account = account_projection(session.user) if account_projection else None
 
     if reuse_detected:
         # Raised after the revocation has committed.
@@ -1209,6 +1213,7 @@ def rotate_session(
         "access_token": issue_access_token(session.user, successor),
         "refresh_token": token,
         "expires_in": ACCESS_TOKEN_TTL_SECONDS,
+        **({"user": account} if account is not None else {}),
     }
 
 

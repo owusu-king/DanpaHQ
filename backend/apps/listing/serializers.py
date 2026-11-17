@@ -399,8 +399,11 @@ class ListingDetailSerializer(ListingSerializer):
         gallery: list[dict] = []
 
         if snapshot(obj.unit)["state"] == ConditionState.VERIFIED:
-            unit_photos = obj.unit.media.select_related("file").order_by(
-                "-is_primary", "sort_order", "created_at", "id"
+            unit_photos = sorted(
+                obj.unit.media.all(),
+                key=lambda photo: (
+                    not photo.is_primary, photo.sort_order, photo.created_at, photo.id
+                ),
             )
             for media in unit_photos:
                 file_id = str(media.file_id)
@@ -421,8 +424,9 @@ class ListingDetailSerializer(ListingSerializer):
                     }
                 )
 
-        for media in obj.media.select_related("file").order_by(
-            "-is_cover", "sort_order", "created_at", "id"
+        for media in sorted(
+            obj.media.all(),
+            key=lambda photo: (not photo.is_cover, photo.sort_order, photo.created_at, photo.id),
         ):
             file_id = str(media.file_id)
             url = _listing_photo_url(media.file, public=public)
@@ -489,7 +493,7 @@ class ListingDetailSerializer(ListingSerializer):
                 many=True,
             ).data,
             "photos": UnitMediaSerializer(
-                unit.media.select_related("file"),
+                unit.media.all(),
                 many=True,
                 # Presigned and short-lived. The listing is public, so its
                 # space's photographs are readable without an account — the same

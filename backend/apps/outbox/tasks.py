@@ -51,15 +51,17 @@ def reclaim_stale_processing() -> int:
     """
     cutoff = timezone.now() - timedelta(minutes=STALE_PROCESSING_MINUTES)
     with transaction.atomic():
-        stale = list(
-            OutboxEvent.objects.select_for_update(skip_locked=True).filter(
+        stale_ids = list(
+            OutboxEvent.objects.select_for_update(skip_locked=True)
+            .filter(
                 status=OutboxStatus.PROCESSING,
                 updated_at__lte=cutoff,
-            )[:BATCH_SIZE]
+            )
+            .values_list("id", flat=True)[:BATCH_SIZE]
         )
-        if not stale:
+        if not stale_ids:
             return 0
-        OutboxEvent.objects.filter(id__in=[event.id for event in stale]).update(
+        OutboxEvent.objects.filter(id__in=stale_ids).update(
             status=OutboxStatus.FAILED,
             available_at=timezone.now(),
             last_error="reclaimed: dispatcher stopped while the event was being processed",
@@ -67,9 +69,9 @@ def reclaim_stale_processing() -> int:
         )
     logger.warning(
         "outbox reclaimed abandoned events",
-        extra={"event": "outbox_reclaimed", "count": len(stale)},
+        extra={"event": "outbox_reclaimed", "count": len(stale_ids)},
     )
-    return len(stale)
+    return len(stale_ids)
 
 
 @shared_task(name="outbox.dispatch_pending")

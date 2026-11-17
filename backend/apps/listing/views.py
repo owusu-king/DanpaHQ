@@ -4,6 +4,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.core.exceptions import NotFound
+from apps.core.memo import memoized
 from apps.core.pagination import StandardCursorPagination
 from apps.files.models import StoredFile
 from apps.identity.permissions import IsPhoneVerified
@@ -92,7 +93,7 @@ class ListingDetailView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request, pk):
-        listing = services.get_listing_or_404(pk)
+        listing = services.get_listing_or_404(pk, detail=True)
         from apps.occupancy.services import unit_is_occupied
 
         managed = request.user.is_authenticated and listing.unit.property.is_managed_by(
@@ -101,7 +102,9 @@ class ListingDetailView(APIView):
 
         if (not listing.is_live or unit_is_occupied(listing.unit)) and not managed:
             raise NotFound("We could not find that listing.")
-        return Response(ListingDetailSerializer(listing).data)
+        read_models.prepare_listing_detail(listing)
+        with memoized():
+            return Response(ListingDetailSerializer(listing).data)
 
 
 class RelatedListingsView(APIView):

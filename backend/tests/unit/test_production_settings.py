@@ -54,10 +54,10 @@ def production_env(**extra: str) -> dict[str, str]:
     return env
 
 
-def load(**extra: str) -> subprocess.CompletedProcess:
+def load(*, probe: str = PROBE, **extra: str) -> subprocess.CompletedProcess:
     # Our own interpreter running a fixed probe; nothing here is untrusted input.
     return subprocess.run(  # noqa: S603
-        [sys.executable, "-c", PROBE],
+        [sys.executable, "-c", probe],
         cwd=BACKEND,
         env=production_env(**extra),
         capture_output=True,
@@ -72,6 +72,20 @@ def test_render_names_the_host_so_it_need_not_be_repeated():
     assert settings["hosts"] == ["danpahq-api.onrender.com"]
     assert settings["csrf"] == ["https://danpahq-api.onrender.com"]
     assert settings["environment"] == "production"
+
+
+def test_staging_dispatches_outbox_less_often_without_changing_production():
+    result = load(
+        RENDER_EXTERNAL_HOSTNAME="danpahq-api-staging.onrender.com",
+        probe=(
+            "from config.settings import production, staging; "
+            "for_envs = (staging, production); "
+            "print(*(s.CELERY_BEAT_SCHEDULE['outbox-dispatch']['schedule'].total_seconds() "
+            "for s in for_envs))"
+        ),
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.split() == ["15.0", "5.0"]
 
 
 def test_a_custom_domain_is_kept_beside_the_render_host():

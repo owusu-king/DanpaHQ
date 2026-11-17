@@ -14,10 +14,12 @@
 
 import { apiBaseUrl, apiFetch, ApiFailure, type ApiRequestInit } from "./api";
 import { getWebDeviceContext } from "./device";
+import type { Me } from "./session";
 
+type Rotation = { access_token: string; expires_in: number; user?: Me };
 let accessToken: string | null = null;
 let expiresAt = 0;
-let inFlight: Promise<string> | null = null;
+let inFlight: Promise<Rotation> | null = null;
 let generation = 0;
 let loggedOut = false;
 export const SESSION_LOGOUT_KEY = "session.logged_out";
@@ -47,7 +49,6 @@ export function isSessionRefusal(cause: unknown): boolean {
 
 function invalidateSession() {
   loggedOut = true;
-  try { window.localStorage.setItem(SESSION_LOGOUT_KEY, "1"); } catch { /* memory still protects this tab */ }
   clearAccessToken();
   window.dispatchEvent(new Event(SESSION_INVALID_EVENT));
 }
@@ -87,7 +88,7 @@ export function clearAccessToken() {
  * simply could not reach it. Everything downstream then had to guess, and it
  * guessed "signed out" — so an unreachable API logged people out.
  */
-async function refresh(): Promise<string> {
+async function refresh(includeAccount = false): Promise<Rotation> {
   if (sessionEnded()) throw endedError();
   if (inFlight) return inFlight;
   const started = generation;
@@ -96,8 +97,8 @@ async function refresh(): Promise<string> {
     try {
       const rotate = () => {
         if (started !== generation || sessionEnded()) throw endedError();
-        return apiFetch<{ access_token: string; expires_in: number }>(
-          "/auth/refresh/",
+        return apiFetch<Rotation>(
+          includeAccount ? "/auth/refresh/?view=session" : "/auth/refresh/",
           { method: "POST", body: JSON.stringify(getWebDeviceContext()) },
         );
       };
@@ -114,7 +115,7 @@ async function refresh(): Promise<string> {
       }
       accessToken = result.access_token;
       expiresAt = Date.now() + result.expires_in * 1000;
-      return result.access_token;
+      return result;
     } catch (cause) {
       // Refused: the refresh token is spent, revoked or absent. That is a real
       // sign-out and the memory copy goes with it. Unreachable, malformed and
@@ -141,14 +142,22 @@ export async function getAccessToken(): Promise<string> {
   if (sessionEnded()) throw endedError();
   // Refresh a minute early so a token cannot expire mid-request.
   if (accessToken && Date.now() < expiresAt - 60_000) return accessToken;
-  return refresh();
+  return (await refresh()).access_token;
 }
 
 /** Rotate now, whatever the clock says. Single-flight, like every refresh. */
 export async function forceRefresh(rejectedToken?: string): Promise<string> {
   if (sessionEnded()) throw endedError();
   return rejectedToken && accessToken && rejectedToken !== accessToken
-    ? accessToken : refresh();
+    ? accessToken : (await refresh()).access_token;
+}
+
+export async function restoreAccount(): Promise<Me> {
+  if (!accessToken || Date.now() >= expiresAt - 60_000) {
+    const result = await refresh(true);
+    if (result.user) return result.user;
+  }
+  return authedFetch<Me>("/me/");
 }
 
 /**
