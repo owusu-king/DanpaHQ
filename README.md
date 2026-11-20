@@ -13,24 +13,15 @@ DanpaHQ covers rental/sale discovery, property and provider verification, viewin
 
 Install Git and Docker Desktop, then open a terminal in this repository. Windows users should enable Docker’s WSL 2 backend.
 
-**First run:** copy the example settings only if `.env` does not already exist, then start:
+**Start everything with one command** (Windows, PowerShell):
 
 ```powershell
-Copy-Item .env.example .env
-docker compose up -d --build
+.\dev.ps1
 ```
 
-On macOS/Linux, use `cp .env.example .env` for the copy. The development defaults work without additional configuration. Startup applies migrations, seeds geography/amenities and prepares uploads. Source changes reload automatically.
+It starts PostgreSQL, Redis, media storage, the API, the worker and the scheduler in Docker, then runs the web app on this machine with Turbopack. It copies `.env.example` to `.env` on the first run and installs web dependencies whenever `web/package-lock.json` changes. Add `-Build` to rebuild the Docker images. Ctrl+C stops the web app; `docker compose stop` stops the services. The development defaults work without additional configuration. Startup applies migrations, seeds geography/amenities and prepares uploads. Source changes reload automatically.
 
-On Windows with Docker Desktop, run Next.js on the host. The `web` container has to use webpack with file polling across the Docker file share; on the host, `npm run dev` uses Turbopack with native file events, and pages compile and reload many times faster. Keep the API, PostgreSQL, Redis, and media services in Docker. The web app uses `http://localhost:8000/api/v1` by default, and port 3000 preserves the API's local CORS configuration.
-
-```powershell
-docker compose stop web
-docker compose up -d api worker beat
-cd web
-npm ci
-npm run dev -- --hostname localhost
-```
+The web app runs on the host because, in a container on a Windows or macOS file share, Next.js has to poll for changes with webpack and pages take seconds to compile. For the same reason `docker compose up` no longer starts the `web` container; it is opt-in with `docker compose --profile docker-web up -d`, or `COMPOSE_PROFILES=docker-web` in `.env`. On macOS/Linux without PowerShell, run `docker compose up -d`, then `npm ci` and `npm run dev -- --hostname localhost` in `web`. The web app uses `http://localhost:8000/api/v1` by default, and port 3000 preserves the API's local CORS configuration.
 
 The local API runs under Gunicorn with `--reload`, as production does, rather than Django's `runserver`; it restarts itself within a second of a Python change.
 
@@ -76,9 +67,9 @@ Run Docker commands from the repository root.
 
 | Task | Command |
 |---|---|
-| Start / stop | `docker compose up -d` / `docker compose down` |
+| Start / stop | `.\dev.ps1` (Ctrl+C stops the web app) / `docker compose stop` |
 | Diagnose startup | `docker compose ps`; `docker compose logs api --tail 100` |
-| Rebuild dependencies | `docker compose up -d --build` |
+| Rebuild dependencies | `.\dev.ps1 -Build` |
 | Reload changed background tasks | `docker compose restart worker beat` |
 | Backend tests / lint | `docker compose exec -T api pytest`; `docker compose exec -T api ruff check .` |
 | Check migration drift | `docker compose exec -T api python manage.py makemigrations --check --dry-run` |
@@ -113,7 +104,7 @@ The production domains are **danpahq.com** and **api.danpahq.com**. Repository f
 ## Operations and troubleshooting
 
 - **Uploads/OTP/maps:** check API/worker logs, object URLs and provider configuration. Local bucket repair: `docker compose exec api python manage.py ensure_bucket`. Missing map configuration falls back to lists/localities.
-- **Windows/reload:** rebuild `web` for dependency changes; restart `api` for missed reloads and `worker beat` after task changes. Check host port conflicts on 3000/5432/6379/8000/9000/9001. Keep shell scripts LF-encoded.
+- **Windows/reload:** `dev.ps1` reinstalls web dependencies when the lockfile changes; restart `api` for missed reloads and `worker beat` after task changes. Check host port conflicts on 3000/5432/6379/8000/9000/9001. Keep shell scripts LF-encoded.
 - **Payment incidents:** configure `PAYMENT_ALERT_OWNER` and `PAYMENT_ALERT_WEBHOOK_URL`, or monitor structured logs. Review reconciliation exceptions in Management; ageing/breach defaults are 4/24 hours (`PAYMENT_RECONCILIATION_AGEING_HOURS`, `PAYMENT_RECONCILIATION_BREACH_HOURS`). Escalate breached/stalled exceptions and provider/alert delivery failures.
 - **Recovery:** preserve request/exception IDs, deployment SHA and sanitized evidence. A reconciliation decision records a note/status; it does not repair balances or settlements. Never edit financial/audit history to silence an alert. Investigate `outbox_dead` / `outbox_reclaimed` effects and confirm idempotency before replaying work. Database/object backups are separate; rollback must remain schema-compatible.
 
