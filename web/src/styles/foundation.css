@@ -181,10 +181,19 @@
 
 /* Ink, not the brand hue. The ring has to be legible against gold fills and
    green verified states alike, and only ink is legible against all of them. */
-:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+:where(a, button, [tabindex], input:is([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="button"], [type="submit"], [type="reset"], [type="color"])):focus-visible {
   outline: var(--border-emphasis) solid var(--color-ink-900);
   outline-offset: 2px;
   border-radius: var(--radius-xs);
+}
+
+/* Somewhere to type or choose is a field, not a control: its focus hugs its
+   own edge in the field colour, and its shape stays its own. A ring two
+   pixels out, in ink, made every bare input look like a button. Fields built
+   from `forms.css` draw a fuller ring on their frame. */
+:where(input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="button"], [type="submit"], [type="reset"], [type="color"]), select, textarea):focus-visible {
+  outline: var(--border-emphasis) solid var(--color-kola-600);
+  outline-offset: 0;
 }
 
 .on-ink :where(a, button, [tabindex]):focus-visible {

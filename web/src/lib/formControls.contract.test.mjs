@@ -93,9 +93,12 @@ test("a field says when it has focus", () => {
   // It did not. The input set `outline: none` and nothing replaced it, so
   // tabbing through a form moved a cursor nobody could see.
   const focus = rule(forms(), ".field-shell:focus-within");
-  assert.match(focus, /border-color:/);
-  assert.match(focus, /outline: 2px solid var\(--color-kola-600\)/);
-  assert.match(focus, /outline-offset: 2px/);
+  assert.match(focus, /border-color: var\(--color-kola-600\)/);
+  // The ring hugs the frame as a shadow. An outline offset from the border
+  // drew a second ring with a gap, which read as a button, not a field.
+  assert.match(focus, /box-shadow: var\(--focus-ring-field\)/);
+  assert.doesNotMatch(focus, /outline-offset/);
+  assert.match(forms(), /--focus-ring-field: 0 0 0 1px var\(--color-kola-600\), 0 0 0 4px/);
 
   // Failing is not the same as being focused, and both are visible.
   assert.match(rule(forms(), ".field-shell-error, .field-shell-error:hover"), /--color-laterite-600/);
@@ -257,10 +260,12 @@ test("an input that is drawn as something else does not also draw a focus box", 
   // as a square green rectangle over a rounded control. On the property type
   // tiles the input is stretched to `inset: 0`, so it framed the whole tile.
   const foundation = read("web/src/styles/foundation.css");
-  assert.match(foundation, /:where\([^)]*input[^)]*\):focus-visible/);
+  // One level of nesting is allowed: `:where(input:not([type="checkbox"]))`.
+  const globalInputFocus = /:where\((?:[^()]|\([^()]*\))*input(?:[^()]|\([^()]*\))*\):focus-visible/;
+  assert.match(foundation, globalInputFocus);
   // And only there, so nothing can quietly reintroduce a second global ring
   // that the suppressions below were never written against.
-  assert.doesNotMatch(read("web/app/globals.css"), /:where\([^)]*input[^)]*\):focus-visible/);
+  assert.doesNotMatch(read("web/app/globals.css"), globalInputFocus);
 
   // Doubled, to weigh (0,3,0): pages scope their own rings at (0,2,0) and later
   // in the cascade (`.home-workspace :focus-visible`), and a single class lost
@@ -279,7 +284,7 @@ test("an input that is drawn as something else does not also draw a focus box", 
 
   // And the thing that replaced it still shows focus, so nothing was merely
   // switched off.
-  assert.match(rule(forms(), ".field-shell:focus-within"), /outline:/);
+  assert.match(rule(forms(), ".field-shell:focus-within"), /box-shadow:/);
   assert.match(rule(forms(), ".control-input:focus-visible + .control-box"), /box-shadow/);
   assert.match(
     rule(read("web/src/styles/property-workspace.css"), ".type-choice-option input:focus-visible + .type-choice-face"),

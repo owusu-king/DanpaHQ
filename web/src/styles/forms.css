@@ -16,6 +16,15 @@
 
 /* --- the frame around a value ---------------------------------------------- */
 
+/* A field shows focus by its own edge turning green, with a soft halo outside
+   it. The halo hugs the frame: an outline drawn two pixels away from the
+   border left a second ring with a gap, which read as a button rather than a
+   place to type. */
+:root {
+  --focus-ring-field: 0 0 0 1px var(--color-kola-600), 0 0 0 4px color-mix(in srgb, var(--color-kola-600) 16%, transparent);
+  --focus-ring-field-error: 0 0 0 1px var(--color-laterite-600), 0 0 0 4px color-mix(in srgb, var(--color-laterite-600) 16%, transparent);
+}
+
 .field { display: grid; gap: var(--space-2); min-width: 0; }
 .field :is(input, textarea, select) { max-width: 100%; }
 .field-label { color: var(--color-ink-700); font-size: .8125rem; font-weight: 500; }
@@ -41,17 +50,16 @@
 
 .field-shell:hover { border-color: var(--form-control-hover, var(--color-ink-300)); }
 
-/* The outline surrounds the shell without changing its dimensions. */
+/* The ring is a shadow, so it surrounds the shell without changing its size. */
 .field-shell:focus-within {
   border-color: var(--color-kola-600);
-  outline: 2px solid var(--color-kola-600);
-  outline-offset: 2px;
+  box-shadow: var(--focus-ring-field);
 }
 
 .field-shell-error, .field-shell-error:hover { border-color: var(--color-laterite-600); }
 .field-shell-error:focus-within {
   border-color: var(--color-laterite-600);
-  outline-color: var(--color-laterite-600);
+  box-shadow: var(--focus-ring-field-error);
 }
 
 .field-shell-disabled {
@@ -147,8 +155,8 @@
 .select-control:hover { border-color: var(--form-control-hover, var(--color-ink-300)); }
 .select-control:focus-visible {
   border-color: var(--color-kola-600);
-  outline: 2px solid var(--color-kola-600);
-  outline-offset: 2px;
+  outline: none;
+  box-shadow: var(--focus-ring-field);
 }
 .select-control:disabled {
   background: var(--color-field-100);
@@ -166,15 +174,18 @@
   background: var(--color-field-0);
   color: var(--color-ink-900);
   resize: vertical;
+  transition:
+    border-color var(--motion-duration-fast) var(--motion-easing-standard),
+    box-shadow var(--motion-duration-fast) var(--motion-easing-standard);
 }
 .field-textarea:hover:not(:disabled) { border-color: var(--form-control-hover, var(--color-ink-300)); }
 .field-textarea:focus-visible {
   border-color: var(--color-kola-600);
-  outline: 2px solid var(--color-kola-600);
-  outline-offset: 2px;
+  outline: none;
+  box-shadow: var(--focus-ring-field);
 }
 :is(.select-control, .field-textarea)[aria-invalid="true"] { border-color: var(--color-laterite-600); }
-:is(.select-control, .field-textarea)[aria-invalid="true"]:focus-visible { outline-color: var(--color-laterite-600); }
+:is(.select-control, .field-textarea)[aria-invalid="true"]:focus-visible { box-shadow: var(--focus-ring-field-error); }
 .field-textarea:disabled { background: var(--color-field-100); color: var(--color-ink-500); cursor: not-allowed; }
 
 /* --- ticking something ------------------------------------------------------ */

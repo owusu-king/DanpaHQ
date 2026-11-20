@@ -151,17 +151,24 @@ export default function PublicListingPage() {
     ? listing.available_from
     : null;
 
-  // Unit essentials and shared property utilities, together at a glance.
-  const facts: Array<{ icon: IconName; label: string; value: string }> = [
-    { icon: "properties", label: "Type", value: space.space_type_label },
-    { icon: "bed", label: "Bedrooms", value: space.bedrooms === 0 ? "Single room" : String(space.bedrooms) },
-    ...(space.bathrooms ? [{ icon: "bath" as const, label: "Bathrooms", value: String(space.bathrooms) }] : []),
+  // The space itself, in the measures a renter compares first.
+  const area = space.floor_area_sqm ? Number(space.floor_area_sqm) : 0;
+  const specs: Array<{ icon: IconName; label: string; value: string }> = [
+    space.bedrooms === 0
+      ? { icon: "bed", label: "Bedrooms", value: "Single room" }
+      : { icon: "bed", label: space.bedrooms === 1 ? "Bedroom" : "Bedrooms", value: String(space.bedrooms) },
+    ...(space.bathrooms ? [{ icon: "bath" as const, label: space.bathrooms === 1 ? "Bathroom" : "Bathrooms", value: String(space.bathrooms) }] : []),
+    ...(area > 0 ? [{ icon: "tiles" as const, label: "Floor area", value: `${area.toLocaleString("en-GH")} m²` }] : []),
     { icon: "sofa", label: "Furnishing", value: space.is_furnished ? "Furnished" : "Unfurnished" },
-    { icon: "water", label: "Water", value: place.features.water_source_label },
-    { icon: "power", label: "Power", value: place.features.power_meter_label },
-    { icon: "home", label: "Compound", value: place.features.compound_label },
-    ...place.amenities.map(row => ({ icon: "amenities" as const, label: "Shared", value: row.name })),
   ];
+
+  // What the building provides: the Ghana questions — water, power, the
+  // compound — answered once, as a reference list rather than as chips.
+  const building: Array<{ icon: IconName; label: string; value: string }> = [
+    { icon: "water" as const, label: "Water", value: place.features.water_source_label },
+    { icon: "power" as const, label: "Power", value: place.features.power_meter_label },
+    { icon: "gate" as const, label: "Compound", value: place.features.compound_label },
+  ].filter((row) => row.value);
 
   // The space's own amenities and its private features are one list to a
   // tenant. Merged here, by name, so "Air conditioning" is never said twice.
@@ -175,8 +182,24 @@ export default function PublicListingPage() {
     Boolean(name) && all.findIndex((other) => other?.toLowerCase() === name!.toLowerCase()) === index,
   );
 
-  const cedis = (minor: number) => `GH₵${(minor / 100).toLocaleString("en-GH")}`;
+  // Pesewas, shown the way the rent itself is shown: always two decimals.
+  const cedis = (minor: number) => `GH₵${(minor / 100).toLocaleString("en-GH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const months = (count: number) => `${count} month${count === 1 ? "" : "s"}`;
+  const period = listing.rent_period === "yearly" ? "year" : "month";
+
+  // What the move-in total is made of, by the backend's own formula: monthly
+  // rent (a yearly rent divided by twelve) times each number of months. Shown
+  // only when the parts add up to the total the API sent.
+  const monthly = listing.rent_minor == null
+    ? null
+    : listing.rent_period === "yearly" ? Math.floor(listing.rent_minor / 12) : listing.rent_minor;
+  const moveIn = monthly == null ? [] : [
+    { label: "Advance rent", months: listing.advance_months },
+    { label: "Deposit", months: listing.caution_months },
+    { label: "Agency fee", months: listing.agency_fee_months },
+  ].filter((line) => line.months > 0).map((line) => ({ ...line, minor: monthly * line.months }));
+  const moveInAddsUp = moveIn.length > 0
+    && moveIn.reduce((sum, line) => sum + line.minor, 0) === listing.total_move_in_minor;
 
   const longDescription = space.description.length > 320;
   // Over this page, from state; signed in, the person comes back to it.
@@ -240,7 +263,7 @@ export default function PublicListingPage() {
   }
 
   return (
-    <main className="listing">
+    <main className="listing is-rental">
       <ListingPath headline={listing.headline} />
 
       <MediaGallery
@@ -287,25 +310,56 @@ export default function PublicListingPage() {
       <div className="listing-body">
         <div className="listing-main">
           <header className="listing-head">
+            <p className="listing-kind">
+              {[space.space_type_label, place.property_type_label].filter(Boolean).join(" · ")}
+            </p>
             <h1>{listing.headline}</h1>
-            <p><Icon name="pin" /><span>{[where, place.region_name].filter(Boolean).join(", ") || "Ghana"}{place.property_type_label ? ` | ${place.property_type_label}` : ""}</span></p>
+            <p className="listing-where"><Icon name="pin" /><span>{[where, place.region_name].filter(Boolean).join(", ") || "Ghana"}</span></p>
           </header>
 
-          <ul className="listing-facts" aria-label="At a glance">
-            {facts.map((fact) => (
-              <li key={`${fact.label}:${fact.value}`}>
-                <span className="listing-fact-mark" aria-hidden="true"><Icon name={fact.icon} /></span>
-                <span className="listing-fact-copy"><small>{fact.label}</small><strong>{fact.value}</strong></span>
-              </li>
+          <dl className="listing-specs" aria-label="At a glance">
+            {specs.map((spec) => (
+              <div key={spec.label}>
+                <dt><Icon name={spec.icon} /><span>{spec.label}</span></dt>
+                <dd>{spec.value}</dd>
+              </div>
             ))}
-          </ul>
+          </dl>
 
           {features.length ? (
             <section className="listing-section">
               <SectionTitle icon="amenities">What this space has</SectionTitle>
-              <ul className="listing-tags">
-                {features.map((name) => <li key={name} className="listing-tag"><Icon name="check" />{name}</li>)}
+              <ul className="listing-features">
+                {features.map((name) => (
+                  <li key={name}><span aria-hidden="true"><Icon name={featureIcon(name)} /></span>{name}</li>
+                ))}
               </ul>
+            </section>
+          ) : null}
+
+          {building.length || place.amenities.length ? (
+            <section className="listing-section">
+              <SectionTitle icon="properties">The building</SectionTitle>
+              {building.length ? (
+                <dl className="listing-building">
+                  {building.map((row) => (
+                    <div key={row.label}>
+                      <dt><span aria-hidden="true"><Icon name={row.icon} /></span>{row.label}</dt>
+                      <dd>{row.value}</dd>
+                    </div>
+                  ))}
+                </dl>
+              ) : null}
+              {place.amenities.length ? (
+                <div className="listing-shared">
+                  <h3>Shared with the building</h3>
+                  <ul className="listing-features is-shared">
+                    {place.amenities.map((row) => (
+                      <li key={row.id}><span aria-hidden="true"><Icon name={featureIcon(row.name)} /></span>{row.name}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
             </section>
           ) : null}
 
@@ -328,11 +382,11 @@ export default function PublicListingPage() {
 
         <aside className="listing-panel" aria-label="Rent and next steps">
           <div className="listing-pricing">
-            <p className="listing-rent">{listing.rent_formatted} <span>/ month</span></p>
             <p className={`listing-status ${taken ? "is-taken" : opensLater ? "is-later" : "is-available"}`}>
               <i aria-hidden="true" />
               {taken ? "No longer available" : opensLater ? `Available from ${onDate(opensLater)}` : "Available now"}
             </p>
+            <p className="listing-rent">{listing.rent_formatted} <span>/ {period}</span></p>
             {listing.minimum_lease_months ? (
               <p className="listing-minimum"><Icon name="clock" />{months(listing.minimum_lease_months)} minimum stay</p>
             ) : null}
@@ -401,11 +455,20 @@ export default function PublicListingPage() {
             </div>
           )}
 
-          <div className="listing-receipt">
-            <small>To move in</small>
-            <strong>{cedis(listing.total_move_in_minor)}</strong>
-            {listing.caution_months ? <small>Includes {listing.caution_months} {listing.caution_months === 1 ? "month" : "months"} as a separate deposit.</small> : null}
-          </div>
+          <section className="listing-movein" aria-labelledby="listing-movein-title">
+            <h2 id="listing-movein-title">Cost to move in</h2>
+            {moveInAddsUp ? (
+              <dl>
+                {moveIn.map((line) => (
+                  <div key={line.label}>
+                    <dt>{line.label}<span>{months(line.months)}</span></dt>
+                    <dd>{cedis(line.minor)}</dd>
+                  </div>
+                ))}
+              </dl>
+            ) : null}
+            <p className="listing-movein-total"><span>Total</span><strong>{cedis(listing.total_move_in_minor)}</strong></p>
+          </section>
 
           <ListingProviderCard listing={listing} />
 
@@ -449,6 +512,30 @@ function ListingPath({ headline }: { headline?: string }) {
       />
     </div>
   );
+}
+
+/** A recognisable glyph for a named feature; a tick when there is none. */
+function featureIcon(name: string): IconName {
+  const value = name.toLowerCase();
+  const glyphs: Array<[RegExp, IconName]> = [
+    [/kitchen|cook/, "kitchen"],
+    [/toilet|\bwc\b/, "toilet"],
+    [/bath|shower/, "bath"],
+    [/air.?condition|\ba\/?c\b|cooling/, "snow"],
+    [/wi-?fi|internet/, "wifi"],
+    [/wardrobe|closet/, "wardrobe"],
+    [/balcon|terrace|veranda/, "balcony"],
+    [/parking|garage|\bcar\b/, "car"],
+    [/pool/, "pool"],
+    [/gym|fitness/, "dumbbell"],
+    [/wash|laundry/, "washer"],
+    [/borehole|water|tank/, "tank"],
+    [/security|guard|gate|cctv/, "shield"],
+    [/garden|lawn/, "tree"],
+    [/desk|study|office/, "desk"],
+    [/power|generator|solar|electric/, "power"],
+  ];
+  return glyphs.find(([pattern]) => pattern.test(value))?.[1] ?? "check";
 }
 
 /** A section's heading with its glyph, so the page scans by mark as well as word. */

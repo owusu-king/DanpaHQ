@@ -59,7 +59,8 @@
 .lease-record-evidence code { display: block; max-width: 100%; overflow-wrap: anywhere; color: var(--color-ink-500); font-size: .75rem; }
 .lease-record-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .lease-record-confirm { display: grid; gap: var(--space-3); }
-.leases-search input:focus-visible, .leases-filters button:focus-visible, .lease-row:focus-visible { outline: 3px solid var(--color-lagoon-600); outline-offset: 2px; }
+.leases-filters button:focus-visible, .lease-row:focus-visible { outline: 3px solid var(--color-lagoon-600); outline-offset: 2px; }
+.leases-search input:focus-visible { border-color: var(--color-kola-600); outline: none; box-shadow: var(--focus-ring-field); }
 @media (max-width: 900px) {
   .lease-row { grid-template-columns: minmax(0, 1fr) minmax(9rem, auto) 1.5rem; }
   .lease-row-person { grid-column: 1; grid-row: 1; }
