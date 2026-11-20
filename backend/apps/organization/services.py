@@ -7,7 +7,7 @@ from datetime import date, timedelta
 
 from django.core import signing
 from django.db import transaction
-from django.db.models import Count, Q, QuerySet, Sum
+from django.db.models import Count, Exists, OuterRef, Q, QuerySet, Sum
 from django.db.models.functions import TruncMonth
 from django.utils import timezone
 
@@ -522,8 +522,10 @@ def properties_in_scope(*, user, organization=None):
 PAST_TENANTS_SHOWN = 200
 
 
-def portfolio_summary(*, organization: Organization, user, home_only: bool = False) -> dict:
-    """Read the scoped Portfolio, with a smaller projection for Home."""
+def portfolio_summary(
+    *, organization: Organization, user, home_only: bool = False, finance_only: bool = False,
+) -> dict:
+    """Read the scoped Portfolio and omit unrelated detail for Home or Finance."""
     from apps.lease.models import Lease, LeaseStatus
     from apps.occupancy.models import (
         JoinRequestStatus,
@@ -551,7 +553,15 @@ def portfolio_summary(*, organization: Organization, user, home_only: bool = Fal
     property_ids = [row.id for row in property_rows]
     units = Unit.objects.filter(property_id__in=property_ids, is_active=True)
     units = units.only("id") if home_only else units.select_related("property")
-    unit_rows = list(units)
+    if home_only or finance_only:
+        unit_rows = list(units)
+    else:
+        # The tenant-access rows below read each Unit's condition review,
+        # amenities, listing and occupancy. Load those as collections, exactly
+        # as the Units screen does, instead of about six queries per Unit.
+        from apps.property.read_models import prepare_unit_card_rows
+
+        unit_rows = prepare_unit_card_rows(units)
     unit_ids = [row.id for row in unit_rows]
     occupancies = list(
         Occupancy.objects.filter(
@@ -644,7 +654,7 @@ def portfolio_summary(*, organization: Organization, user, home_only: bool = Fal
     join_requests = PropertyJoinRequest.objects.filter(property_id__in=property_ids)
     tenancy_request_rows = (
         []
-        if home_only
+        if home_only or finance_only
         else list(
             join_requests.filter(
                 status__in={JoinRequestStatus.PENDING, JoinRequestStatus.APPROVED}
@@ -653,7 +663,7 @@ def portfolio_summary(*, organization: Organization, user, home_only: bool = Fal
     )
     pending_requests = (
         join_requests.filter(status=JoinRequestStatus.PENDING).count()
-        if home_only
+        if home_only or finance_only
         else sum(row.status == JoinRequestStatus.PENDING for row in tenancy_request_rows)
     )
 
@@ -805,13 +815,37 @@ def portfolio_summary(*, organization: Organization, user, home_only: bool = Fal
         "recent_activity": activities[:8],
     }
     if home_only:
+        from apps.application.models import ApplicationStatus, RentalApplication
+        from apps.property.read_models import property_management_expression
+
+        manageable_properties = properties.alias(
+            can_prepare_agreements=property_management_expression(user=user)
+        ).filter(can_prepare_agreements=True).values("pk")
+        accepted_applications = RentalApplication.objects.filter(
+            unit__property_id__in=manageable_properties,
+            status=ApplicationStatus.ACCEPTED,
+            concluded_at__isnull=True,
+            superseded_by__isnull=True,
+        ).filter(~Exists(
+            Lease.objects.filter(application_id=OuterRef("pk")).exclude(status=LeaseStatus.CANCELLED)
+        ))
+        approved_requests = join_requests.filter(
+            property_id__in=manageable_properties,
+            status=JoinRequestStatus.APPROVED,
+            lease__isnull=True,
+        )
+        payload["agreements_to_prepare"] = (
+            accepted_applications.order_by().values("pk")
+            .union(approved_requests.order_by().values("pk"), all=True)
+            .count()
+        )
         return payload
 
     # Past tenants, for the Tenants page's Archive (owner, 2026-10-05). Ended
     # allocations in these properties, most recent first, each with whatever
     # rent is still owed on its lease — a tenant who left owing is still worth
     # finding. Capped: an archive is looked through, not reported on.
-    past_occupancies = list(
+    past_occupancies = [] if finance_only else list(
         Occupancy.objects.filter(property_id__in=property_ids, status=OccupancyStatus.ENDED)
         .select_related(
             "user", "user__profile__avatar", "property", "unit", "bed", "tenancy", "lease"
@@ -873,7 +907,7 @@ def portfolio_summary(*, organization: Organization, user, home_only: bool = Fal
     from apps.trust.condition import snapshot as condition_snapshot
 
     tenant_access = []
-    for unit in unit_rows:
+    for unit in (() if finance_only else unit_rows):
         code = access_codes.snapshot(unit)
         for field in ("expires_at", "issued_at"):
             if code[field] is not None:

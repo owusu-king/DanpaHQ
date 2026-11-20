@@ -35,6 +35,7 @@ export type MoveInput = {
   maintenanceAlerts: number;
   requests: number;
   viewingRequests: number;
+  agreementsToPrepare: number;
   draftAgreements: number;
   propertiesToUpdate: number;
   unreadEnquiries: number;
@@ -69,6 +70,16 @@ export function nextMoves(input: MoveInput): NextMove[] {
       : null,
     input.viewingRequests > 0
       ? { key: "viewings", title: `${input.viewingRequests} viewing ${plural(input.viewingRequests, "request", "requests")}`, act: "Set viewing times", icon: "calendar-outline", tone: "warning", to: "/(app)/provider-viewings" }
+      : null,
+    input.agreementsToPrepare > 0
+      ? {
+        key: "prepare-agreements",
+        title: `${input.agreementsToPrepare} ${plural(input.agreementsToPrepare, "agreement", "agreements")} to prepare`,
+        act: plural(input.agreementsToPrepare, "Prepare agreement", "Prepare agreements"),
+        icon: "document-text-outline",
+        tone: "warning",
+        to: "/(app)/provider-applications",
+      }
       : null,
     input.draftAgreements > 0
       ? { key: "drafts", title: `${input.draftAgreements} ${plural(input.draftAgreements, "agreement", "agreements")} to send`, act: "Send agreements", icon: "create-outline", tone: "calm", to: "/(app)/leases" }

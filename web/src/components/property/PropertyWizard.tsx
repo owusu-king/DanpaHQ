@@ -4,8 +4,7 @@
  * Creating a property, in one modal (owner, 2026-10-20).
  *
  * The property → details → documents → amenities → photos → review, walked in
- * the agreement wizard's frame: a rail of steps that turn green as they are
- * finished, the step, and one footer whose button does whatever the step needs —
+ * a shared frame with progress checkpoints and a footer that saves the current step —
  * create the record, save the answers, keep the document, store the amenities.
  *
  * **Amenities come before Photos** because each shared amenity offers a
@@ -14,22 +13,21 @@
  * **The last step creates; it sends nothing.** Asking for verification stays a
  * separate decision made from the property. Everything is written as it is
  * finished — the record at step one, then a PATCH, a draft claim, a PUT — so
- * closing the modal at any point loses only the step on screen.
+ * unfinished edits stay available until the wizard closes.
  *
- * The same component renders in a sheet over Properties and on the
- * `/record/property-new` and `/record/property-setup` routes, so a link from an
- * email or a notification opens the same flow.
+ * Portfolio actions and direct setup links open the same modal.
  */
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/Button";
-import { Field } from "@/components/Field";
+import { Field, Textarea } from "@/components/Field";
 import { Notice } from "@/components/Notice";
 import { Select } from "@/components/Select";
-import { ChoiceTiles, ReviewLine, WizardShell, type WizardStep } from "@/components/creation/WizardShell";
-import { Icon, type IconName } from "@/components/portal/icons";
+import { ChoiceTiles, FormSection, ReviewLine, WizardShell, type WizardStep } from "@/components/creation/WizardShell";
+import { useWizardDraft, type CloseGuard } from "@/components/creation/useWizardDraft";
+import type { IconName } from "@/components/portal/icons";
 import { AuthorityClaim } from "@/components/property/AuthorityClaim";
 import { SaleDetailsForm } from "@/components/property/SaleDetailsForm";
 import { SpaceAmenities } from "@/components/property/SpaceAmenities";
@@ -83,10 +81,13 @@ export function PropertyWizard({
   startAt = null,
   purpose: initialPurpose = "letting",
   organizationId: requestedOrganization = null,
+  edit = false,
   onClose,
   onFinished,
   onTitle,
   onChanged,
+  closeGuardRef,
+  onBusyChange,
 }: {
   /** An existing property to carry on with; none starts a new one. */
   propertyId?: string | null;
@@ -94,6 +95,7 @@ export function PropertyWizard({
   startAt?: string | null;
   purpose?: "letting" | "sale";
   organizationId?: string | null;
+  edit?: boolean;
   /** Leave. Everything finished so far is already saved. */
   onClose: () => void;
   /** "Create property" (or "Done" for a correction) was pressed. */
@@ -102,6 +104,8 @@ export function PropertyWizard({
   onTitle?: (title: string) => void;
   /** Notify successful writes, never dismissal. */
   onChanged?: () => void;
+  closeGuardRef?: CloseGuard;
+  onBusyChange?: (busy: boolean) => void;
 }) {
   const [id, setId] = useState<string | null>(initialId);
   const [property, setProperty] = useState<Property | null>(null);
@@ -118,7 +122,6 @@ export function PropertyWizard({
   const [draftPurpose, setDraftPurpose] = useState<"letting" | "sale">(initialPurpose);
   const [draftType, setDraftType] = useState("");
   // What the step on screen does when the footer's button is pressed.
-  const commitRef = useRef<Commit | null>(null);
   // Set by the first step the moment the record exists, before React has
   // re-rendered with the new id — `advance` reads it in the same call.
   const createdId = useRef<string | null>(null);
@@ -186,47 +189,50 @@ export function PropertyWizard({
     setStep(asked ?? (resumeAt(setup) as StepKey));
   }, [property, keys, setup, startAt]);
 
-  const shown: StepKey = keys.includes(step) ? step : keys[0]!;
+  const locked = property ? property.permitted_actions.edit?.allowed === false : false;
+  const shown: StepKey = edit && locked ? "basics" : keys.includes(step) ? step : keys[0]!;
   const at = keys.indexOf(shown);
+  const draft = useWizardDraft(Object.keys(LOOK) as StepKey[], shown, busy || mediaBusy, closeGuardRef, onBusyChange);
   const settled = property
     ? ["changes_requested", "rejected", "expired"].includes(property.verification.state)
     : false;
-  const locked = property ? property.permitted_actions.edit?.allowed === false : false;
   const outstanding = setup.filter((row) => !row.terminal && !row.optional && row.status !== "done");
 
-  const railSteps: WizardStep[] = setup.map((row) => {
+  const checkpoints: WizardStep[] = setup.map((row) => {
     const key = row.key as StepKey;
     return {
       key,
       ...LOOK[key],
-      summary: railSummary(key, row, property, amenities),
       done: row.status === "done" && !row.terminal,
-      reachable: !mediaBusy && (Boolean(id) && !busy ? true : key === "basics"),
+      reachable: !mediaBusy && !busy && (Boolean(property) || key === "basics") && (!(edit && locked) || key === "basics"),
     };
   });
 
   function go(key: StepKey) {
     if (mediaBusy) return;
     setError("");
-    commitRef.current = null;
     setStep(key);
   }
 
   async function advance() {
-    if (mediaBusy) return;
+    if (busy || mediaBusy) return;
+    if (shown === "review" && !draft.confirmFinish()) return;
     setBusy(true);
     setError("");
     try {
       // The record may already exist if only the follow-up read failed.
       const alreadyCreated = shown === "basics" && !property && createdId.current;
-      const ok = alreadyCreated || !commitRef.current || await commitRef.current();
+      const commit = draft.commits[shown].current;
+      const ok = alreadyCreated || !commit || await commit();
       if (!ok) return;
+      draft.markSaved();
       onChanged?.();
       const current = id ?? createdId.current;
       if (shown === "review") {
         if (current) onFinished(current);
         return;
       }
+      let next = keys[at + 1];
       if (current) {
         if (shown === "basics" && !property) await load(current);
         else if (shown === "amenities") {
@@ -234,10 +240,14 @@ export function PropertyWizard({
           setProperty(updated);
           setAmenities(selection.chosen);
         } else if (shown === "basics" || shown === "details" || shown === "photos") {
-          setProperty(await getProperty(current));
+          const updated = await getProperty(current);
+          setProperty(updated);
+          if (shown === "basics" && updated.property_type !== property?.property_type) {
+            const updatedSteps = describePropertySetup(toSetupInput(updated, photos, amenities?.length ?? null));
+            next = updatedSteps.find((row) => row.key !== "basics")?.key as StepKey | undefined;
+          }
         }
       }
-      const next = keys[at + 1];
       if (next) go(next);
     } catch (cause) {
       setError(cause instanceof ApiFailure ? cause.error.message : "That did not save. Try again.");
@@ -250,7 +260,7 @@ export function PropertyWizard({
   const recorded = property ? property.verification.authority.state !== "draft" : false;
   const primary =
     shown === "review"
-      ? settled ? "Done" : "Create property"
+      ? settled || edit ? "Done" : "Create property"
       : shown === "documents" && !recorded && !documentReady && property?.purpose !== "sale"
         ? "Skip for now"
         : shown === "basics" && !id
@@ -259,6 +269,7 @@ export function PropertyWizard({
 
   const footer = (
     <>
+      {!locked ? <Button variant="quiet" disabled={busy || mediaBusy} onClick={onClose}>Cancel</Button> : null}
       {at > 0 ? (
         <Button variant="quiet" disabled={busy || mediaBusy} onClick={() => go(keys[at - 1]!)}>
           Back
@@ -272,7 +283,7 @@ export function PropertyWizard({
         <Button
           busy={busy}
           busyLabel="Saving…"
-          disabled={mediaBusy || (shown === "review" && !settled && outstanding.length > 0)}
+          disabled={mediaBusy || (shown === "review" && !edit && !settled && outstanding.length > 0)}
           onClick={() => void advance()}
         >
           {primary}
@@ -284,7 +295,7 @@ export function PropertyWizard({
   if (initialId && !property) {
     return (
       <div className="cw-loading">
-        {error ? <Notice tone="error" title={error} /> : <p className="type-caption">Loading this property…</p>}
+        {error ? <Notice tone="error" inline title={error} /> : <p className="type-caption">Loading this property…</p>}
       </div>
     );
   }
@@ -292,88 +303,74 @@ export function PropertyWizard({
   return (
     <WizardShell
       label="Property steps"
-      steps={railSteps}
+      steps={checkpoints}
       current={shown}
       onGo={(key) => go(key as StepKey)}
       footer={footer}
-    >
-      {locked && property ? (
-        <Notice
-          tone="info"
-          title="This property is with our team or verified"
-        />
-      ) : null}
-
-      {shown === "basics" ? (
-        property ? (
-          <NameStep property={property} vocabulary={vocabulary} commitRef={commitRef} />
-        ) : (
-          <NewPropertyStep
+      dirty={draft.dirty}
+      busy={busy}
+      onEdit={draft.markEdited}
+      panels={{
+        basics: (
+          <PropertyBasicsStep
+            key={property?.id ?? "new"}
+            property={property}
             vocabulary={vocabulary}
-            purpose={draftPurpose}
-            onPurpose={(next) => { setDraftPurpose(next); setDraftType(""); }}
-            propertyType={draftType}
+            purpose={property?.purpose ?? draftPurpose}
+            onPurpose={(next) => { if (next !== draftPurpose) { setDraftPurpose(next); setDraftType(""); } }}
             onType={setDraftType}
             requestedOrganization={requestedOrganization}
-            commitRef={commitRef}
+            commitRef={draft.commits.basics}
+            onEdit={draft.markEdited}
             onCreated={(created) => {
               createdId.current = created.id;
               setId(created.id);
             }}
           />
-        )
-      ) : null}
-
-      {shown === "details" && property ? (
-        <DetailsStep property={property} vocabulary={vocabulary} commitRef={commitRef} />
-      ) : null}
-
-      {shown === "sale" && property && sale ? (
-        <SaleStep propertyId={property.id} sale={sale} commitRef={commitRef} onSale={setSale} />
-      ) : null}
-
-      {shown === "documents" && property ? (
-        <DocumentsStep
-          property={property}
-          saleKind={property.purpose === "sale" ? (sale?.kind ?? null) : null}
-          onReady={setDocumentReady}
-          commitRef={commitRef}
-          reload={async () => {
-            const next = await getProperty(property.id);
-            setProperty(next);
-            return next;
-          }}
-        />
-      ) : null}
-
-      {shown === "amenities" && property ? <AmenitiesStep propertyId={property.id} commitRef={commitRef} /> : null}
-
-      {shown === "photos" && property ? (
-        <VerificationPanel
-          subject="property"
-          id={property.id}
-          title="This property"
-          onMediaBusy={setMediaBusy}
-          showSubmit={false}
-          onState={setPhotos}
-          onChanged={onChanged}
-        />
-      ) : null}
-
-      {shown === "review" && property ? (
-        <ReviewStep
-          property={property}
-          vocabulary={vocabulary}
-          amenities={amenities}
-          photos={photos}
-          sale={sale}
-          outstanding={outstanding}
-          settled={settled}
-          onGo={(key) => go(key as StepKey)}
-        />
-      ) : null}
-
-      {error ? <Notice tone="error" title={error} /> : null}
+        ),
+        details: property && <DetailsStep property={property} vocabulary={vocabulary} commitRef={draft.commits.details} />,
+        sale: property && sale && <SaleStep propertyId={property.id} sale={sale} commitRef={draft.commits.sale} onSale={setSale} />,
+        documents: property && (
+          <DocumentsStep
+            property={property}
+            saleKind={property.purpose === "sale" ? (sale?.kind ?? null) : null}
+            onReady={setDocumentReady}
+            commitRef={draft.commits.documents}
+            reload={async () => {
+              const next = await getProperty(property.id);
+              setProperty(next);
+              return next;
+            }}
+          />
+        ),
+        amenities: property && <AmenitiesStep propertyId={property.id} commitRef={draft.commits.amenities} />,
+        photos: property && (
+          <VerificationPanel
+            subject="property"
+            id={property.id}
+            title="This property"
+            onMediaBusy={setMediaBusy}
+            showSubmit={false}
+            onState={setPhotos}
+            onChanged={onChanged}
+          />
+        ),
+        review: property && (
+          <ReviewStep
+            property={property}
+            vocabulary={vocabulary}
+            amenities={amenities}
+            photos={photos}
+            sale={sale}
+            outstanding={outstanding}
+            settled={settled}
+            onGo={(key) => go(key as StepKey)}
+          />
+        ),
+      }}
+    >
+      {locked && property ? <Notice tone="info" title="This property is with our team or verified" /> : null}
+      {error ? <Notice tone="error" inline title={error} /> : null}
     </WizardShell>
   );
 }
@@ -385,6 +382,8 @@ export function PropertyWizardModal({
   propertyId = null,
   startAt = null,
   purpose = "letting",
+  organizationId = null,
+  edit = false,
   onClose,
   onFinished,
   onChanged,
@@ -395,11 +394,15 @@ export function PropertyWizardModal({
   propertyId?: string | null;
   startAt?: string | null;
   purpose?: "letting" | "sale";
+  organizationId?: string | null;
+  edit?: boolean;
   onClose: () => void;
   onChanged?: () => void;
   onFinished: (propertyId: string) => void;
 }) {
   const [title, setTitle] = useState("");
+  const closeGuardRef = useRef<(() => boolean) | null>(null);
+  const [closeBusy, setCloseBusy] = useState(false);
   const [savingSale, setSavingSale] = useState(false);
   const saleSubmit = useRef<(() => Promise<SellerSale | null>) | null>(null);
   useEffect(() => {
@@ -411,24 +414,32 @@ export function PropertyWizardModal({
       onClose={onClose}
       size="sm"
       icon="properties"
-      title={sale ? "Edit sale details" : title || (propertyId ? "Property setup" : purpose === "sale" ? "Sell a property" : "New property")}
+      title={sale ? "Edit sale details" : edit ? "Edit Property" : title || (propertyId ? "Property setup" : purpose === "sale" ? "Sell a property" : "New property")}
       meta={sale ? "Verified details stay locked" : "Saved as you go"}
       className={`lease-wizard-sheet is-wizard creation-sheet property-creation-sheet${sale ? " is-sale-edit" : ""}`}
       closeLabel={sale ? "Close sale details" : "Close property setup"}
       dismissible={false}
+      escapeCloses
+      restoreFocus
+      closeDisabled={closeBusy}
+      beforeClose={() => closeGuardRef.current?.() ?? true}
       footer={sale ? () => <Button busy={savingSale} busyLabel="Saving…" onClick={async () => { setSavingSale(true); try { await saleSubmit.current?.(); } finally { setSavingSale(false); } }}>Save changes</Button> : undefined}
     >
       {(close) => (
         sale && propertyId ? <SaleDetailsForm propertyId={propertyId} sale={sale} submitRef={saleSubmit} saveLabel="Save changes" onSaved={() => { onChanged?.(); close(); }} /> : <PropertyWizard
           propertyId={propertyId}
-          startAt={startAt}
+          startAt={startAt ?? (edit ? "basics" : null)}
+          edit={edit}
           purpose={purpose}
+          organizationId={organizationId}
           onClose={close}
           onTitle={setTitle}
+          closeGuardRef={closeGuardRef}
+          onBusyChange={setCloseBusy}
           onChanged={onChanged}
           onFinished={(id) => {
             onFinished(id);
-            close();
+            onClose();
           }}
         />
       )}
@@ -450,41 +461,48 @@ function useCommit(commitRef: CommitRef, run: Commit) {
   }, [commitRef]);
 }
 
-function NewPropertyStep({
+function PropertyBasicsStep({
+  property,
   vocabulary,
   purpose,
   onPurpose,
-  propertyType,
   onType,
   requestedOrganization,
   commitRef,
+  onEdit,
   onCreated,
 }: {
+  property: Property | null;
   vocabulary: PropertyVocabulary | null;
   purpose: "letting" | "sale";
   onPurpose: (purpose: "letting" | "sale") => void;
-  propertyType: string;
   onType: (value: string) => void;
   requestedOrganization: string | null;
   commitRef: CommitRef;
+  onEdit: () => void;
   onCreated: (property: Property) => void;
 }) {
   const { activeContext } = useSession();
   const [organizations, setOrganizations] = useState<Organization[] | null>(null);
   const [organizationId, setOrganizationId] = useState(requestedOrganization ?? "");
-  const [title, setTitle] = useState("");
-  const [query, setQuery] = useState("");
+  const [propertyType, setPropertyType] = useState(property?.property_type ?? "");
+  const [title, setTitle] = useState(property?.title ?? "");
+  const [notes, setNotes] = useState(property?.notes ?? "");
+  const [query, setQuery] = useState(property?.address?.locality_name ?? "");
   const [location, setLocation] = useState<LocationReference | null>(null);
   const [areaFocus, setAreaFocus] = useState<PinLocation>(null);
-  const [city, setCity] = useState("");
-  const [pin, setPin] = useState<PinLocation>(null);
-  const [digitalAddress, setDigitalAddress] = useState("");
-  const [street, setStreet] = useState("");
-  const [landmark, setLandmark] = useState("");
+  const [city, setCity] = useState(property?.address?.district_name ?? "");
+  const [pin, setPin] = useState<PinLocation>(() => pinFromAddress(property?.address ?? null));
+  const [digitalAddress, setDigitalAddress] = useState(property?.address?.digital_address ?? "");
+  const [street, setStreet] = useState(property?.address?.street ?? "");
+  const [houseNumber, setHouseNumber] = useState(property?.address?.house_number ?? "");
+  const [landmark, setLandmark] = useState(property?.address?.landmark ?? "");
   const [missing, setMissing] = useState<Record<string, string>>({});
   const savedAddress = useRef<{ fingerprint: string; id: string } | null>(null);
+  const locked = property?.permitted_actions.edit?.allowed === false;
 
   useEffect(() => {
+    if (property) return;
     void listOrganizations()
       .then((rows) => {
         setOrganizations(rows);
@@ -495,30 +513,51 @@ function NewPropertyStep({
         setOrganizationId((current) => current || rows.find((row) => row.id === preferred)?.id || rows[0]?.id || "");
       })
       .catch(() => setOrganizations([]));
-  }, [activeContext]);
+  }, [activeContext, property]);
 
   useCommit(commitRef, async () => {
+    if (locked) return false;
     const problems: Record<string, string> = {};
     if (!title.trim()) problems.title = "Give it a name only you will see.";
     if (!propertyType) problems.type = "Choose what kind of property it is.";
     if (!query.trim()) problems.place = "Enter the town or neighbourhood.";
     setMissing(problems);
     if (Object.keys(problems).length) return false;
+    const original = property?.address;
+    const sameArea = query.trim() === (original?.locality_name ?? "") && city.trim() === (original?.district_name ?? "");
+    const localityId = location?.id ?? (sameArea ? original?.locality : null);
+    const coordinates = { latitude: pin?.latitude ?? null, longitude: pin?.longitude ?? null };
     const addressInput = {
-      ...(location ? { locality_id: location.id } : { place_name: query.trim() }),
+      ...(localityId ? { locality_id: localityId } : { place_name: query.trim() }),
       place_context: city.trim(),
-      latitude: pin?.latitude ?? null,
-      longitude: pin?.longitude ?? null,
-      digital_address: digitalAddress.trim() || undefined,
-      street: street || undefined,
-      landmark: landmark || undefined,
+      ...coordinates,
+      digital_address: digitalAddress.trim(),
+      street: street.trim(),
+      house_number: houseNumber.trim(),
+      landmark: landmark.trim(),
     };
+    if (property) {
+      const writtenChanged = !sameArea || (location !== null && location.id !== original?.locality)
+        || addressInput.digital_address !== (original?.digital_address ?? "")
+        || addressInput.street !== (original?.street ?? "")
+        || addressInput.house_number !== (original?.house_number ?? "")
+        || addressInput.landmark !== (original?.landmark ?? "");
+      const previousPin = pinFromAddress(original ?? null);
+      const moved = coordinates.latitude !== (previousPin?.latitude ?? null) || coordinates.longitude !== (previousPin?.longitude ?? null);
+      await updateProperty(property.id, {
+        title: title.trim(),
+        notes,
+        ...(propertyType !== property.property_type ? { property_type: propertyType } : {}),
+        ...(writtenChanged ? { address: addressInput } : moved ? { location: coordinates } : {}),
+      });
+      return true;
+    }
     const fingerprint = JSON.stringify(addressInput);
     if (savedAddress.current?.fingerprint !== fingerprint) {
       const address = await createAddress(addressInput);
       savedAddress.current = { fingerprint, id: address.id };
     }
-    const input = { title: title.trim(), property_type: propertyType, address_id: savedAddress.current.id, purpose };
+    const input = { title: title.trim(), property_type: propertyType, address_id: savedAddress.current.id, purpose, notes };
     const created = organizationId
       ? await createPrivateProperty(organizationId, input)
       : await createPersonalPortfolioProperty(input);
@@ -529,120 +568,99 @@ function NewPropertyStep({
   const types = purpose === "sale" ? (vocabulary?.sale_types ?? []) : (vocabulary?.property_types ?? []);
 
   return (
-    <div className="cw-form">
-      <div className="lw-field">
-        <span className="lw-label">What is it for?</span>
-        <div className="lw-seg is-wide" role="radiogroup" aria-label="What is it for?">
-          {(
-            [
-              ["letting", "To let"],
-              ["sale", "For sale"],
-            ] as const
-          ).map(([value, text]) => (
-            <button key={value} type="button" role="radio" aria-checked={purpose === value} onClick={() => onPurpose(value)}>
-              {text}
-            </button>
-          ))}
+    <fieldset className="cw-form property-basics-fields" disabled={locked}>
+      <FormSection title="Classification">
+        <div className="lw-field">
+          <span className="lw-label">What is it for?</span>
+          <div className="lw-seg is-wide" role="radiogroup" aria-label="What is it for?">
+            {(
+              [
+                ["letting", "To let"],
+                ["sale", "For sale"],
+              ] as const
+            ).map(([value, text]) => (
+              <button key={value} type="button" role="radio" aria-checked={purpose === value} disabled={Boolean(property)} onClick={() => {
+                if (purpose !== value) { setPropertyType(""); onPurpose(value); }
+              }}>
+                {text}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
 
-      {types.length ? (
-        <ChoiceTiles
-          label="What kind?"
-          value={propertyType}
-          columns={types.length}
-          onChange={(value) => {
-            onType(value);
-            setMissing((current) => ({ ...current, type: "" }));
-          }}
-          options={types.map((row) => ({
-            value: row.value,
-            label: row.label.replace(/ property$/i, ""),
-            icon: TYPE_GLYPHS[row.value] ?? "properties",
-          }))}
-        />
-      ) : (
-        <p className="type-caption">Loading the kinds of property…</p>
-      )}
-      {missing.type ? <p className="cw-missing">{missing.type}</p> : null}
-
-      <div className="cw-location-layout">
-        <div className="cw-location-fields">
-          <Field
-            label="Name"
-            placeholder="e.g. Adom Court"
-            value={title}
-            error={missing.title || undefined}
-            onChange={(event) => {
-              setTitle(event.target.value);
-              setMissing((current) => ({ ...current, title: "" }));
+        {types.length ? (
+          <ChoiceTiles
+            label="What kind?"
+            value={propertyType}
+            disabled={locked}
+            columns={types.length}
+            onChange={(value) => {
+              setPropertyType(value);
+              onType(value);
+              setMissing((current) => ({ ...current, type: "" }));
             }}
+            options={types.map((row) => ({
+              value: row.value,
+              label: row.label.replace(/ property$/i, ""),
+              icon: TYPE_GLYPHS[row.value] ?? "properties",
+            }))}
           />
-          {organizations && organizations.length > 1 ? (
-            <Select
-              label="Portfolio"
-              value={organizationId}
-              onChange={setOrganizationId}
-              options={organizations.map((row) => [row.id, row.name] as const)}
+        ) : (
+          <p className="type-caption">Loading the kinds of property…</p>
+        )}
+        {missing.type ? <p className="cw-missing" role="alert">{missing.type}</p> : null}
+
+      </FormSection>
+
+      <FormSection title="Name and location">
+        <div className="cw-location-layout">
+          <div className="cw-location-fields">
+            <Field
+              label="Name"
+              required
+              onBlur={() => { if (!title.trim()) setMissing((current) => ({ ...current, title: "Give it a name only you will see." })); }}
+              placeholder="e.g. Adom Court"
+              value={title}
+              error={missing.title || undefined}
+              onChange={(event) => {
+                setTitle(event.target.value);
+                setMissing((current) => ({ ...current, title: "" }));
+              }}
             />
-          ) : null}
+            {organizations && organizations.length > 1 ? (
+              <Select
+                label="Portfolio"
+                value={organizationId}
+                onChange={setOrganizationId}
+                options={organizations.map((row) => [row.id, row.name] as const)}
+              />
+            ) : null}
 
-          <LocationAutocomplete minimal value={query} selected={location} error={missing.place || undefined}
-            onChange={(text) => { setQuery(text); setLocation(null); setPin(null); setAreaFocus(null); setMissing((current) => ({ ...current, place: "" })); }}
-            onSelect={(row) => {
-              setLocation(row); setQuery(row.name); setCity(row.district_name);
-              const area = referenceArea(row);
-              const selectedPin = area ? { latitude: area.lat, longitude: area.lng } : null;
-              setPin(selectedPin); setAreaFocus(selectedPin);
-            }}
-            onSubmit={() => { setLocation(null); setPin(null); setAreaFocus(null); }}
-            onShowArea={(row) => { const area = referenceArea(row); if (area) setAreaFocus({ latitude: area.lat, longitude: area.lng }); }} />
-          <Field label="City or district" value={city} onChange={(event) => { setCity(event.target.value); setLocation(null); setPin(null); setAreaFocus(null); }} />
+            <LocationAutocomplete minimal required value={query} selected={location} error={missing.place || undefined}
+              onFieldBlur={() => { if (!query.trim()) setMissing((current) => ({ ...current, place: "Enter the town or neighbourhood." })); }}
+              onChange={(text) => { setQuery(text); setLocation(null); setPin(null); setAreaFocus(null); setMissing((current) => ({ ...current, place: "" })); }}
+              onSelect={(row) => {
+                setLocation(row); setQuery(row.name); setCity(row.district_name);
+                const area = referenceArea(row);
+                const selectedPin = area ? { latitude: area.lat, longitude: area.lng } : null;
+                setPin(selectedPin); setAreaFocus(selectedPin);
+              }}
+              onSubmit={() => { setLocation(null); setPin(null); setAreaFocus(null); }}
+              onShowArea={(row) => { const area = referenceArea(row); if (area) setAreaFocus({ latitude: area.lat, longitude: area.lng }); }} />
+            <Field label="City or district" value={city} onChange={(event) => { setCity(event.target.value); setLocation(null); setPin(null); setAreaFocus(null); }} />
+          </div>
+          <LocationPicker value={pin} onChange={(next) => { onEdit(); setPin(next); }} focus={areaFocus} disabled={locked} />
         </div>
-        <LocationPicker value={pin} onChange={setPin} focus={areaFocus} />
-      </div>
 
-      <div className="lw-grid cw-grid-3">
-        <Field label="GhanaPost GPS" hint="Optional" placeholder="ER-0254-2310" value={digitalAddress} onChange={(event) => setDigitalAddress(event.target.value)} />
-        <Field label="Street" hint="Optional" value={street} onChange={(event) => setStreet(event.target.value)} />
-        <Field label="Landmark" hint="Optional" value={landmark} onChange={(event) => setLandmark(event.target.value)} />
-      </div>
-    </div>
-  );
-}
-
-/** The property once it exists: its name may change, its address may not. */
-function NameStep({
-  property,
-  vocabulary,
-  commitRef,
-}: {
-  property: Property;
-  vocabulary: PropertyVocabulary | null;
-  commitRef: CommitRef;
-}) {
-  const [title, setTitle] = useState(property.title);
-  const [pin, setPin] = useState<PinLocation>(() => pinFromAddress(property.address));
-  const editable = property.permitted_actions.edit?.allowed !== false;
-
-  useCommit(commitRef, async () => {
-    if (!editable) return true;
-    if (title.trim() === property.title && JSON.stringify(pin) === JSON.stringify(pinFromAddress(property.address))) return true;
-    if (!title.trim()) return false;
-    await updateProperty(property.id, { title: title.trim(), location: { latitude: pin?.latitude ?? null, longitude: pin?.longitude ?? null } });
-    return true;
-  });
-
-  return (
-    <div className="cw-form">
-      <Field label="Name" hint="Only you see this." value={title} disabled={!editable} onChange={(event) => setTitle(event.target.value)} />
-      <LocationPicker value={pin} onChange={setPin} disabled={!editable} />
-      <dl className="cw-review">
-        <ReviewLine icon={TYPE_GLYPHS[property.property_type] ?? "properties"} term="Kind" value={typeLabel(property, vocabulary)} />
-        <ReviewLine icon="pin" term="Where" value={addressLine(property)} />
-      </dl>
-      <p className="lw-quiet"><Icon name="lock" />The written address stays fixed when you adjust the map pin.</p>
-    </div>
+        <div className="lw-grid cw-grid-3">
+          <Field label="GhanaPost GPS" placeholder="ER-0254-2310" value={digitalAddress} onChange={(event) => setDigitalAddress(event.target.value)} />
+          <Field label="Street" value={street} onChange={(event) => setStreet(event.target.value)} />
+          <Field label="House number" value={houseNumber} onChange={(event) => setHouseNumber(event.target.value)} />
+          <Field label="Landmark" value={landmark} onChange={(event) => setLandmark(event.target.value)} />
+        </div>
+        <Textarea label="Notes" rows={3} value={notes} onChange={(event) => setNotes(event.target.value)} />
+      </FormSection>
+    </fieldset>
   );
 }
 
@@ -906,21 +924,4 @@ function addressLine(property: Property): string {
   return [address.house_number, address.street, address.locality_name, address.district_name]
     .filter(Boolean)
     .join(", ");
-}
-
-function railSummary(
-  key: StepKey,
-  row: SetupStep,
-  property: Property | null,
-  amenities: SpaceAmenity[] | null,
-): string | undefined {
-  if (!property) return undefined;
-  if (key === "basics") return property.title || undefined;
-  if (key === "details" && row.status === "done") {
-    return [property.water_source_label, property.compound_label].map(shortFactLabel).join(" · ");
-  }
-  if (key === "amenities" && amenities !== null && property.amenities_confirmed_at) {
-    return amenities.length ? `${amenities.length} shared` : "None shared";
-  }
-  return row.detail;
 }

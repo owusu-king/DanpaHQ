@@ -1,61 +1,36 @@
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useMemo, useState } from "react";
-import { Pressable, ScrollView, View } from "react-native";
+import { useEffect, useMemo, useState } from "react";
+import { Alert, Keyboard, StyleSheet, View } from "react-native";
 
 import { ApiFailure } from "@/api";
-import { Button, Chip, Choice, Field, Notice, Surface, Type, space } from "@/components/ui";
-import { useSafeBottom } from "@/platform";
+import { ReviewLine, ReviewList, WizardFrame, type WizardStep } from "@/components/creation/WizardFrame";
+import { Select } from "@/components/form/Select";
+import { useStackHeaderHeight } from "@/components/nav/StackHeader";
+import { Pill, RecordPanel } from "@/components/record/RecordSurfaces";
+import { Chip, Choice, Field, Notice, Type, radius, space } from "@/components/ui";
 import {
   draftLease,
+  getLease,
   leaseAction,
   updateLease,
   type Lease,
   type LeaseStructuredTerms,
   type RenderedAgreement,
 } from "@/leases";
+import { formatMinor } from "@/listings";
+import { formatLeaseDate } from "@/providerLeaseMeaning";
 import { theme } from "@/theme";
 
-/**
- * Preparing a tenancy agreement, on a phone.
- *
- * This is the highest-trust thing a provider does in Danpa HQ, and the screen it
- * replaced was a modal with a rent box and one free-text field that sent the
- * offer the moment it was submitted. The difference is not decoration:
- *
- * **The provider supplies terms; Danpa HQ writes the agreement.** Nobody drafts
- * a tenancy agreement here. The seven stops below collect structured values and
- * the backend renders them into the versioned Ghana template. That is what
- * makes the standard clauses controlled rather than editable, and it is why
- * "Generate agreement" is a server round-trip and not a client-side preview.
- *
- * **Nothing already known is asked for again.** The parties and the rental
- * space arrive on the accepted request; the first two stops say so rather than
- * asking. They exist because a person walking a seven-step journey needs to see
- * what is already settled, not because there is anything to fill in.
- *
- * **Review shows the real document.** Not a summary of the inputs — the exact
- * rendered agreement that will be frozen, with the reference number and the
- * template version it came from. The edit links go back to the structured
- * section that owns each part, never into the wording.
- *
- * **Ready and Sent are two different acts.** Reaching Review marks the lease
- * Ready; sending is a separate deliberate press. An offer is the provider's
- * acceptance, so it should not be a side effect of finishing a form.
- *
- * The advance is *recorded* rather than policed. Whether Act 220's limit binds
- * a given tenancy is a legal question the backend's `advance_policy` answers
- * under a configured stance — see `docs/legal/`. A form is not the place to
- * decide it.
- */
 const STEPS = [
-  "Parties",
-  "Property & Unit",
-  "Term",
-  "Rent & payments",
-  "Responsibilities",
-  "Additional terms",
-  "Review",
-] as const;
+  { key: "overview", label: "Tenancy details", icon: "home-outline" },
+  { key: "term", label: "Tenancy term", icon: "calendar-outline" },
+  { key: "payments", label: "Rent & payments", icon: "wallet-outline" },
+  { key: "duties", label: "Responsibilities", icon: "construct-outline" },
+  { key: "additions", label: "Additional terms", icon: "list-outline", hint: "Optional terms for this tenancy." },
+  { key: "review", label: "Review agreement", icon: "document-text-outline", hint: "Read the agreement before sending it to the tenant." },
+] as const satisfies readonly Omit<WizardStep, "done" | "reachable">[];
+type Step = (typeof STEPS)[number]["key"];
 const PROVIDER_RESPONSIBILITIES = [
   ["structural_repairs", "Structural repairs"],
   ["shared_areas", "Shared areas"],
@@ -88,55 +63,102 @@ type FormState = {
 };
 
 export default function LeaseBuilderScreen() {
-  const pageBottom = useSafeBottom(space[12]);
-  const router = useRouter();
   const params = useLocalSearchParams<Record<string, string | string[]>>();
-  const [step, setStep] = useState(0);
-  const [lease, setLease] = useState<Lease | null>(null);
+  const leaseId = one(params.leaseId);
+  if (!leaseId) return <LeaseBuilder params={params} />;
+  return <SavedLeaseBuilder key={leaseId} leaseId={leaseId} params={params} />;
+}
+
+type BuilderParams = Record<string, string | string[]>;
+
+function SavedLeaseBuilder({ leaseId, params }: { leaseId: string; params: BuilderParams }) {
+  const [saved, setSaved] = useState<Lease | null>(null);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let current = true;
+    void getLease(leaseId).then((lease) => {
+      if (!current) return;
+      if (lease.workflow_version === "canonical_v1" && (lease.status === "draft" || lease.status === "ready")) {
+        setSaved(lease);
+      } else {
+        setError("This agreement is no longer editable.");
+      }
+    }).catch((cause) => {
+      if (current) setError(cause instanceof ApiFailure ? cause.error.message : "Could not load the agreement.");
+    });
+    return () => { current = false; };
+  }, [leaseId]);
+
+  if (saved) return <LeaseBuilder params={params} saved={saved} />;
+  return (
+    <View style={styles.panel}>
+      {error ? <Notice tone="error" title={error} /> : <Type variant="caption">Loading agreement…</Type>}
+    </View>
+  );
+}
+
+function LeaseBuilder({ params, saved }: { params: BuilderParams; saved?: Lease }) {
+  const router = useRouter();
+  const headerHeight = useStackHeaderHeight();
+  const [step, setStep] = useState<Step>(saved ? "term" : "overview");
+  const [lease, setLease] = useState<Lease | null>(saved ?? null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const at = STEPS.findIndex((item) => item.key === step);
+  const tenantName = saved?.tenant_name || one(params.tenantName);
+  const rentalLabel = saved
+    ? [saved.property_title, saved.unit_label, saved.bed_label].filter(Boolean).join(" · ")
+    : one(params.rentalLabel);
+  const document = lease?.builder_preview?.rendered_document ?? null;
+  const savedTerms = saved?.structured_terms;
+  const rentCurrency = saved?.rent_currency ?? "GHS";
   const [form, setForm] = useState<FormState>({
-    rent: Number(one(params.rentMinor)) > 0 ? String(Number(one(params.rentMinor)) / 100) : "",
-    rentPeriod: "monthly",
-    advance: one(params.advanceMonths) || "1",
-    deposit: "0",
-    agencyFee: "0",
-    startsOn: "",
-    term: "12",
-    paymentDue: "on the first day of each rental period",
-    water: "tenant",
-    electricity: "tenant",
-    providerResponsibilities: PROVIDER_RESPONSIBILITIES.map(([value]) => value),
-    tenantResponsibilities: TENANT_RESPONSIBILITIES.map(([value]) => value),
-    occupants: "",
-    conditions: "",
-    customTitle: "",
-    customBody: "",
+    rent: saved ? String(saved.rent_minor / 100) : Number(one(params.rentMinor)) > 0 ? String(Number(one(params.rentMinor)) / 100) : "",
+    rentPeriod: saved?.rent_period === "yearly" ? "yearly" : "monthly",
+    advance: saved ? String(saved.advance_months) : one(params.advanceMonths) || "1",
+    deposit: String(saved?.deposit_months ?? 0),
+    agencyFee: String(saved?.agency_fee_months ?? 0),
+    startsOn: saved?.starts_on ?? "",
+    term: String(saved?.term_months ?? 12),
+    paymentDue: savedTerms?.payment_due ?? "on the first day of each rental period",
+    water: savedTerms?.utilities?.water ?? "tenant",
+    electricity: savedTerms?.utilities?.electricity ?? "tenant",
+    providerResponsibilities: savedTerms?.provider_responsibilities ?? PROVIDER_RESPONSIBILITIES.map(([value]) => value),
+    tenantResponsibilities: savedTerms?.tenant_responsibilities ?? TENANT_RESPONSIBILITIES.map(([value]) => value),
+    occupants: savedTerms?.occupants?.map(({ name }) => name).join("\n") ?? "",
+    conditions: saved?.conditions ?? "",
+    customTitle: savedTerms?.additional_terms?.[0]?.title ?? "",
+    customBody: savedTerms?.additional_terms?.[0]?.body ?? "",
   });
   const structured = useMemo<LeaseStructuredTerms>(
     () => ({
       payment_due: form.paymentDue,
-      utilities: { water: form.water, electricity: form.electricity },
+      utilities: { ...savedTerms?.utilities, water: form.water, electricity: form.electricity },
       occupants: form.occupants
         .split("\n")
         .map((name) => name.trim())
         .filter(Boolean)
-        .map((name) => ({ name })),
+        .map((name) => savedTerms?.occupants?.find((occupant) => occupant.name === name) ?? { name }),
       provider_responsibilities: form.providerResponsibilities,
       tenant_responsibilities: form.tenantResponsibilities,
-      notice_channels: ["Danpa HQ", "written notice"],
-      additional_terms:
-        form.customTitle.trim() && form.customBody.trim()
+      notice_channels: savedTerms?.notice_channels ?? ["Danpa HQ", "written notice"],
+      additional_terms: [
+        ...(form.customTitle.trim() && form.customBody.trim()
           ? [{ title: form.customTitle.trim(), body: form.customBody.trim() }]
-          : [],
+          : []),
+        ...(savedTerms?.additional_terms?.slice(1) ?? []),
+      ],
     }),
-    [form],
+    [form, savedTerms],
   );
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
+    setError("");
     setForm((current) => ({ ...current, [key]: value }));
   }
   function toggle(key: "providerResponsibilities" | "tenantResponsibilities", value: string) {
+    setError("");
     setForm((current) => ({
       ...current,
       [key]: current[key].includes(value)
@@ -145,31 +167,31 @@ export default function LeaseBuilderScreen() {
     }));
   }
   function issue() {
-    if (step === 2 && !form.startsOn) return "Choose when the tenancy starts.";
-    if (step === 2 && Number(form.term) < 1) return "Enter a valid term.";
-    if (step === 3 && Number(form.rent) <= 0) return "Enter the rent amount.";
-    if (step === 3 && (!Number.isInteger(Number(form.advance || 0)) || Number(form.advance || 0) > 36 || Number(form.advance || 0) < 0)) {
-      return "Advance: enter between 0 and 36 months.";
+    if (step === "term" && !validStartDate(form.startsOn)) return "Enter a valid start date in YYYY-MM-DD format.";
+    if (step === "term" && (Number(form.term) < 1 || Number(form.term) > 120)) return "Enter a term from 1 to 120 months.";
+    if (step === "payments") {
+      const rent = Number(form.rent);
+      if (!/^\d*(?:\.\d{0,2})?$/.test(form.rent) || rent <= 0 || !Number.isSafeInteger(Math.round(rent * 100))) {
+        return "Enter a rent amount with up to two decimal places.";
+      }
+      if (Number(form.advance) > 36) return "Enter an advance from 0 to 36 months.";
+      if (Number(form.deposit) > 12) return "Enter a deposit from 0 to 12 months.";
+      if (Number(form.agencyFee) > 6) return "Enter an agency fee from 0 to 6 months.";
     }
     if (
-      step === 4 &&
+      step === "duties" &&
       (!form.providerResponsibilities.length || !form.tenantResponsibilities.length)
     )
       return "Choose responsibilities for both parties.";
-    if (step === 5 && Boolean(form.customTitle.trim()) !== Boolean(form.customBody.trim()))
+    if (step === "additions" && Boolean(form.customTitle.trim()) !== Boolean(form.customBody.trim()))
       return "Give the additional term both a title and its complete wording.";
     return "";
   }
 
   async function prepareReview() {
-    const problem = issue();
-    if (problem) {
-      setError(problem);
-      return;
-    }
     const payload = {
       rent_minor: Math.round(Number(form.rent) * 100),
-      rent_currency: "GHS",
+      rent_currency: rentCurrency,
       rent_period: form.rentPeriod,
       advance_months: Number(form.advance || 0),
       deposit_months: Number(form.deposit || 0),
@@ -199,10 +221,15 @@ export default function LeaseBuilderScreen() {
           ...(one(params.listingId) ? { listing_id: one(params.listingId) } : {}),
           ...payload,
         });
+      // Keep the saved draft if requesting the preview fails.
+      setLease(current);
       current = await leaseAction(current.id, "ready");
       setLease(current);
-      setStep(6);
+      setStep("review");
     } catch (cause) {
+      if (cause instanceof ApiFailure && cause.error.details.reason === "lease_term_expired") {
+        setStep("term");
+      }
       setError(
         cause instanceof ApiFailure
           ? cause.error.message
@@ -214,13 +241,16 @@ export default function LeaseBuilderScreen() {
   }
 
   async function send() {
-    if (!lease) return;
+    if (!lease || !document || busy) return;
     setBusy(true);
     setError("");
     try {
       const sent = await leaseAction(lease.id, "offer");
       router.replace({ pathname: "/(app)/provider-lease", params: { leaseId: sent.id } } as never);
     } catch (cause) {
+      if (cause instanceof ApiFailure && cause.error.details.reason === "lease_term_expired") {
+        setStep("term");
+      }
       setError(
         cause instanceof ApiFailure ? cause.error.message : "We could not send the agreement.",
       );
@@ -234,49 +264,79 @@ export default function LeaseBuilderScreen() {
       setError(problem);
       return;
     }
+    if (step === "additions") {
+      Keyboard.dismiss();
+      void prepareReview();
+    } else {
+      const nextStep = STEPS[at + 1];
+      if (nextStep) goTo(nextStep.key);
+    }
+  }
+
+  function goTo(target: Step) {
+    if (busy) return;
+    Keyboard.dismiss();
     setError("");
-    if (step === 5) void prepareReview();
-    else setStep((current) => Math.min(current + 1, 6));
+    setStep(target);
+  }
+
+  function confirmSend() {
+    Alert.alert(
+      "Send this agreement?",
+      "The tenant will receive the agreement for review and acceptance.",
+      [{ text: "Keep reviewing", style: "cancel" }, { text: "Send", onPress: () => void send() }],
+    );
   }
 
   return (
-    <ScrollView
-      keyboardShouldPersistTaps="handled"
-      contentContainerStyle={{ padding: space[5], paddingBottom: pageBottom, gap: space[5] }}
+    <WizardFrame
+      current={step}
+      keyboardOffset={headerHeight}
+      steps={STEPS.map((item, index) => ({
+        ...item,
+        done: index < at,
+        reachable: index < at && !busy,
+      }))}
+      onGo={(key) => {
+        const target = STEPS.find((item) => item.key === key);
+        if (target) goTo(target.key);
+      }}
+      feedback={error ? <Notice tone="error" title={error} /> : null}
+      footer={
+        <>
+          {at > 0 ? (
+            <Pill label="Back" tone="quiet" disabled={busy} onPress={() => goTo(STEPS[at - 1]!.key)} />
+          ) : null}
+          <Pill
+            grow
+            icon={step === "review" ? "send-outline" : step === "additions" ? "document-text-outline" : "arrow-forward"}
+            label={step === "review" ? "Send to tenant" : step === "additions" ? "Generate agreement" : "Continue"}
+            busy={busy}
+            busyLabel={step === "review" ? "Sending…" : "Generating…"}
+            disabled={step === "review" && !document}
+            onPress={step === "review" ? confirmSend : next}
+          />
+        </>
+      }
     >
-      <View style={{ gap: space[2] }}>
-        <Type variant="label">AGREEMENT BUILDER</Type>
-        <Type variant="display2" accessibilityRole="header">
-          Prepare the tenancy agreement
-        </Type>
-      </View>
-      <Checkpoint step={step} />
-      <View style={{ gap: space[1] }}>
-        <Type variant="caption">
-          {step + 1} of {STEPS.length}
-        </Type>
-        <Type variant="title1" accessibilityRole="header">
-          {STEPS[step]}
-        </Type>
-      </View>
-      {step === 0 ? (
-        <Known
-          title="Parties are already known"
-        />
+      {step === "overview" ? (
+        <ReviewList>
+          <ReviewLine first icon="person-outline" term="Tenant" value={tenantName || "Tenant linked to this agreement"} />
+          <ReviewLine icon="home-outline" term="Rental space" value={rentalLabel || "Rental space linked to this agreement"} />
+        </ReviewList>
       ) : null}
-      {step === 1 ? (
-        <Known
-          title="The home stays connected"
-        />
-      ) : null}
-      {step === 2 ? (
-        <View style={{ gap: space[4] }}>
+      {step === "term" ? (
+        <RecordPanel style={styles.panel}>
           <Field
-            label="Tenancy starts (YYYY-MM-DD)"
+            label="Start date"
             value={form.startsOn}
-            onChangeText={(value) => update("startsOn", value)}
-            autoCapitalize="none"
-            placeholder="2026-09-01"
+            onChangeText={(value) => {
+              const digits = value.replace(/\D/g, "").slice(0, 8);
+              update("startsOn", [digits.slice(0, 4), digits.slice(4, 6), digits.slice(6)].filter(Boolean).join("-"));
+            }}
+            keyboardType="number-pad"
+            placeholder="YYYY-MM-DD"
+            maxLength={10}
           />
           <Field
             label="Length (months)"
@@ -284,201 +344,102 @@ export default function LeaseBuilderScreen() {
             onChangeText={(value) => update("term", value.replace(/\D/g, ""))}
             keyboardType="number-pad"
           />
-        </View>
+        </RecordPanel>
       ) : null}
-      {step === 3 ? (
-        <View style={{ gap: space[4] }}>
-          <Field
-            label="Rent (GH₵)"
-            value={form.rent}
-            onChangeText={(value) => update("rent", value.replace(/[^0-9.]/g, ""))}
-            keyboardType="decimal-pad"
-          />
-          <Choice
-            label="Payment frequency"
-            value={form.rentPeriod}
-            options={[
-              { value: "monthly", label: "Monthly" },
-              { value: "yearly", label: "Yearly" },
-            ]}
-            onChange={(value) => update("rentPeriod", value)}
-          />
-          <Field
-            label="Advance months"
-            value={form.advance}
-            onChangeText={(value) => update("advance", value.replace(/\D/g, ""))}
-            keyboardType="number-pad"
-          />
-          <Field
-            label="Deposit months"
-            value={form.deposit}
-            onChangeText={(value) => update("deposit", value.replace(/\D/g, ""))}
-            keyboardType="number-pad"
-          />
-          <Field
-            label="Agency fee months"
-            value={form.agencyFee}
-            onChangeText={(value) => update("agencyFee", value.replace(/\D/g, ""))}
-            keyboardType="number-pad"
-          />
-          <Field
-            label="Payment due"
-            value={form.paymentDue}
-            onChangeText={(value) => update("paymentDue", value)}
-          />
-        </View>
+      {step === "payments" ? (
+        <>
+          <RecordPanel style={styles.panel}>
+            <Type variant="bodyStrong">Rent schedule</Type>
+            <Field
+              label="Rent amount"
+              prefix={rentCurrency === "GHS" ? "GH₵" : rentCurrency}
+              value={form.rent}
+              onChangeText={(value) => update("rent", value.replace(/[^0-9.]/g, ""))}
+              keyboardType="decimal-pad"
+            />
+            <Choice
+              label="Payment frequency"
+              value={form.rentPeriod}
+              options={[
+                { value: "monthly", label: "Monthly" },
+                { value: "yearly", label: "Yearly" },
+              ]}
+              onChange={(value) => update("rentPeriod", value)}
+            />
+            <Field label="Payment due" value={form.paymentDue} onChangeText={(value) => update("paymentDue", value)} />
+          </RecordPanel>
+          <RecordPanel style={styles.panel}>
+            <Type variant="bodyStrong">Upfront payments</Type>
+            {([
+              ["advance", "Advance (months)"],
+              ["deposit", "Deposit (months)"],
+              ["agencyFee", "Agency fee (months)"],
+            ] as const).map(([key, label]) => (
+              <Field
+                key={key}
+                label={label}
+                value={form[key]}
+                onChangeText={(value) => update(key, value.replace(/\D/g, ""))}
+                keyboardType="number-pad"
+              />
+            ))}
+          </RecordPanel>
+        </>
       ) : null}
-      {step === 4 ? <Responsibilities form={form} update={update} toggle={toggle} /> : null}
-      {step === 5 ? (
-        <View style={{ gap: space[4] }}>
-          <Field
-            label="Other permitted occupants (one per line)"
-            value={form.occupants}
-            onChangeText={(value) => update("occupants", value)}
-            multiline
-            numberOfLines={4}
-            textAlignVertical="top"
-            style={{ minHeight: 92 }}
-          />
-          <Field
-            label="Practical conditions (optional)"
-            value={form.conditions}
-            onChangeText={(value) => update("conditions", value)}
-            multiline
-            numberOfLines={4}
-            textAlignVertical="top"
-            style={{ minHeight: 92 }}
-          />
-          <View style={{ height: 1, backgroundColor: theme.color.field["300"] }} />
-          <Type variant="bodyStrong">Additional custom term</Type>
-          <Type variant="caption">
-            Provider-supplied wording is labelled separately from Danpa HQ standard clauses.
-          </Type>
-          <Field
-            label="Term title"
-            value={form.customTitle}
-            onChangeText={(value) => update("customTitle", value)}
-          />
-          <Field
-            label="Complete wording"
-            value={form.customBody}
-            onChangeText={(value) => update("customBody", value)}
-            multiline
-            numberOfLines={5}
-            textAlignVertical="top"
-            style={{ minHeight: 110 }}
-          />
-        </View>
+      {step === "duties" ? <Responsibilities form={form} update={update} toggle={toggle} /> : null}
+      {step === "additions" ? (
+        <>
+          <RecordPanel style={styles.panel}>
+            <Field
+              label="Other permitted occupants"
+              hint="Enter one name per line."
+              value={form.occupants}
+              onChangeText={(value) => update("occupants", value)}
+              editable={!busy}
+              multiline
+              numberOfLines={4}
+              textAlignVertical="top"
+              style={styles.multiline}
+            />
+            <Field
+              label="Practical conditions"
+              value={form.conditions}
+              onChangeText={(value) => update("conditions", value)}
+              editable={!busy}
+              multiline
+              numberOfLines={4}
+              textAlignVertical="top"
+              style={styles.multiline}
+            />
+          </RecordPanel>
+          <RecordPanel style={styles.panel}>
+            <Type variant="bodyStrong">Custom clause</Type>
+            <Field
+              label="Term title"
+              value={form.customTitle}
+              onChangeText={(value) => update("customTitle", value)}
+              editable={!busy}
+            />
+            <Field
+              label="Complete wording"
+              value={form.customBody}
+              onChangeText={(value) => update("customBody", value)}
+              editable={!busy}
+              multiline
+              numberOfLines={5}
+              textAlignVertical="top"
+              style={styles.multiline}
+            />
+          </RecordPanel>
+        </>
       ) : null}
-      {step === 6 ? (
-        <AgreementPreview
-          document={lease?.builder_preview?.rendered_document ?? null}
-          onEdit={setStep}
-        />
+      {step === "review" ? (
+        <AgreementPreview document={document} form={form} currency={rentCurrency} onEdit={busy ? undefined : goTo} />
       ) : null}
-      {error ? <Notice tone="error" title={error} /> : null}
-      <View
-        style={{
-          gap: space[2],
-          paddingTop: space[4],
-          borderTopWidth: 1,
-          borderTopColor: theme.color.field["200"],
-        }}
-      >
-        {step < 6 ? (
-          <Button
-            label={step === 5 ? "Generate agreement" : "Continue"}
-            busy={busy}
-            busyLabel="Generating preview…"
-            onPress={next}
-          />
-        ) : (
-          <Button
-            label="Send to tenant"
-            busy={busy}
-            busyLabel="Sending…"
-            onPress={() => void send()}
-          />
-        )}
-        {step > 0 ? (
-          <Button
-            label="Back"
-            variant="quiet"
-            disabled={busy}
-            onPress={() => setStep((current) => current - 1)}
-          />
-        ) : (
-          <Button label="Exit builder" variant="quiet" onPress={() => router.back()} />
-        )}
-      </View>
-    </ScrollView>
+    </WizardFrame>
   );
 }
 
-function Checkpoint({ step }: { step: number }) {
-  const previous = STEPS[Math.max(step - 1, 0)];
-  const current = STEPS[step];
-  const next = STEPS[Math.min(step + 1, STEPS.length - 1)];
-  return (
-    <View
-      accessible
-      accessibilityLabel={`Step ${step + 1} of ${STEPS.length}, ${current}`}
-      style={{
-        paddingVertical: space[4],
-        borderTopWidth: 1,
-        borderBottomWidth: 1,
-        borderColor: theme.color.field["200"],
-        gap: space[2],
-      }}
-    >
-      <View
-        style={{
-          flexDirection: "row",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: space[2],
-        }}
-      >
-        <Type variant="caption" style={{ flex: 1 }}>
-          {step > 0 ? `✓ ${previous}` : "Start"}
-        </Type>
-        <View
-          style={{
-            width: 10,
-            height: 10,
-            borderRadius: 5,
-            backgroundColor: theme.color.kola["600"],
-          }}
-        />
-        <Type variant="bodyStrong" style={{ flex: 1, textAlign: "center" }}>
-          {current}
-        </Type>
-        <View
-          style={{
-            width: 10,
-            height: 10,
-            borderRadius: 5,
-            borderWidth: 1,
-            borderColor: theme.color.field["300"],
-          }}
-        />
-        <Type variant="caption" style={{ flex: 1, textAlign: "right" }}>
-          {step < 6 ? next : "Ready"}
-        </Type>
-      </View>
-      <Type variant="label" style={{ textAlign: "center" }}>
-        {step + 1} OF {STEPS.length}
-      </Type>
-    </View>
-  );
-}
-function Known({ title }: { title: string }) {
-  return (
-    <Surface style={{ gap: space[2], borderRadius: 2 }}>
-      <Type variant="title2">{title}</Type>
-    </Surface>
-  );
-}
 function Responsibilities({
   form,
   update,
@@ -496,22 +457,15 @@ function Responsibilities({
     { value: "not_applicable" as const, label: "N/A" },
   ];
   return (
-    <View style={{ gap: space[5] }}>
-      <Choice
-        label="Water"
-        value={form.water}
-        options={utilities}
-        onChange={(value) => update("water", value)}
-      />
-      <Choice
-        label="Electricity"
-        value={form.electricity}
-        options={utilities}
-        onChange={(value) => update("electricity", value)}
-      />
-      <View style={{ gap: space[2] }}>
+    <>
+      <RecordPanel style={styles.panel}>
+        <Type variant="bodyStrong">Who pays for utilities?</Type>
+        <Select label="Water" value={form.water} options={utilities} onChange={(value) => update("water", value)} />
+        <Select label="Electricity" value={form.electricity} options={utilities} onChange={(value) => update("electricity", value)} />
+      </RecordPanel>
+      <RecordPanel style={styles.panel}>
         <Type variant="bodyStrong">Provider responsibilities</Type>
-        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: space[2] }}>
+        <View style={styles.chips}>
           {PROVIDER_RESPONSIBILITIES.map(([value, label]) => (
             <Chip
               key={value}
@@ -521,10 +475,10 @@ function Responsibilities({
             />
           ))}
         </View>
-      </View>
-      <View style={{ gap: space[2] }}>
+      </RecordPanel>
+      <RecordPanel style={styles.panel}>
         <Type variant="bodyStrong">Tenant responsibilities</Type>
-        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: space[2] }}>
+        <View style={styles.chips}>
           {TENANT_RESPONSIBILITIES.map(([value, label]) => (
             <Chip
               key={value}
@@ -534,76 +488,98 @@ function Responsibilities({
             />
           ))}
         </View>
-      </View>
-    </View>
+      </RecordPanel>
+    </>
   );
 }
 function AgreementPreview({
   document,
+  form,
+  currency,
   onEdit,
 }: {
   document: RenderedAgreement | null;
-  onEdit: (step: number) => void;
+  form: FormState;
+  currency: string;
+  onEdit?: (step: Step) => void;
 }) {
-  if (!document) return <Type variant="caption">Generating agreement…</Type>;
+  if (!document) {
+    return <Notice tone="error" title="The agreement preview is unavailable" body="Go back and generate the agreement again." />;
+  }
+  const editRows = [
+    ["term", "Tenancy term", `${formatLeaseDate(form.startsOn)} · ${form.term} months`],
+    ["payments", "Rent & payments", `${formatMinor(Math.round(Number(form.rent) * 100), currency)} per ${form.rentPeriod === "yearly" ? "year" : "month"}`],
+    ["duties", "Responsibilities", "Utilities and each party’s duties"],
+    ["additions", "Additional terms", form.customTitle.trim() || "Occupants, conditions and clauses"],
+  ] as const;
   return (
-    <View style={{ gap: space[5] }}>
-      <Surface style={{ borderRadius: 2, gap: space[3] }}>
-        <Type variant="label" style={{ textAlign: "center" }}>
-          {document.reference_number}
-        </Type>
-        <Type variant="title1" style={{ textAlign: "center" }}>
-          {document.title}
-        </Type>
-        <Type variant="caption" style={{ textAlign: "center" }}>
-          Template {document.template.version}
-        </Type>
-        {document.production_notice ? (
-          <Notice
-            tone="warning"
-            title="Pre-production legal review"
-            body={document.production_notice}
+    <>
+      <ReviewList>
+        {editRows.map(([target, label, value], index) => (
+          <ReviewLine
+            key={target}
+            first={index === 0}
+            icon={STEPS.find((item) => item.key === target)!.icon}
+            term={label}
+            value={value}
+            onEdit={onEdit ? () => onEdit(target) : undefined}
           />
-        ) : null}
-        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: space[1] }}>
-          {[
-            [2, "Edit term"],
-            [3, "Edit payments"],
-            [4, "Edit duties"],
-            [5, "Edit additions"],
-          ].map(([target, label]) => (
-            <Pressable
-              key={String(label)}
-              accessibilityRole="button"
-              onPress={() => onEdit(Number(target))}
-              style={{ minHeight: 44, justifyContent: "center", paddingHorizontal: space[2] }}
-            >
-              <Type variant="bodyStrong" style={{ color: theme.color.kola["600"] }}>
-                {label}
-              </Type>
-            </Pressable>
-          ))}
-        </View>
-        {document.sections.map((section) => (
-          <View
-            key={section.id}
-            style={{
-              gap: space[2],
-              paddingTop: space[4],
-              borderTopWidth: 1,
-              borderTopColor: theme.color.field["200"],
-            }}
-          >
-            <Type variant="bodyStrong">{section.title}</Type>
-            <Type variant="body" selectable style={{ lineHeight: 26 }}>
-              {section.body}
+        ))}
+      </ReviewList>
+      <RecordPanel style={styles.document}>
+        <View style={styles.documentHeader}>
+          <View style={styles.documentIcon}>
+            <Ionicons name="document-text-outline" color={theme.color.kola["800"]} size={23} />
+          </View>
+          <View style={styles.documentHeading}>
+            <Type variant="title2" accessibilityRole="header">{document.title}</Type>
+            <Type variant="caption" selectable>
+              {document.reference_number} · Template {document.template.version}
             </Type>
           </View>
+        </View>
+        {document.production_notice ? (
+          <Notice tone="warning" title="Pre-production legal review" body={document.production_notice} />
+        ) : null}
+        {document.sections.map((section) => (
+          <View key={section.id} style={styles.clause}>
+            <Type variant="bodyStrong" accessibilityRole="header">{section.title}</Type>
+            <Type variant="body" selectable>{section.body}</Type>
+          </View>
         ))}
-      </Surface>
-    </View>
+      </RecordPanel>
+    </>
   );
 }
+function validStartDate(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || value.startsWith("0000")) return false;
+  const date = new Date(`${value}T00:00:00Z`);
+  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value;
+}
+
+const styles = StyleSheet.create({
+  panel: { padding: space[4], gap: space[4] },
+  multiline: { minHeight: 100 },
+  chips: { flexDirection: "row", flexWrap: "wrap", gap: space[2] },
+  document: { padding: space[4], gap: space[4] },
+  documentHeader: { flexDirection: "row", alignItems: "center", gap: space[3] },
+  documentHeading: { flex: 1, gap: space[1] },
+  documentIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: radius.md,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: theme.color.kola["50"],
+  },
+  clause: {
+    gap: space[2],
+    paddingTop: space[4],
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: theme.color.field["300"],
+  },
+});
+
 function one(value: string | string[] | undefined) {
   return Array.isArray(value) ? (value[0] ?? "") : (value ?? "");
 }

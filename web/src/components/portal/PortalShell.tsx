@@ -188,8 +188,15 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
         // Keep the last confirmed count until the next read.
       }
     };
-    void read();
-    const timer = setInterval(read, 60_000);
+    let timer: ReturnType<typeof setInterval> | undefined;
+    const syncPolling = () => {
+      clearInterval(timer);
+      if (document.hidden) return;
+      void read();
+      timer = setInterval(read, 60_000);
+    };
+    syncPolling();
+    document.addEventListener("visibilitychange", syncPolling);
     // Updates announces its own count changes, so the badge agrees with the
     // page the moment something is read rather than a minute later.
     const onUnread = (event: Event) => {
@@ -200,7 +207,12 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
       }
     };
     window.addEventListener("danpahq:unread", onUnread);
-    return () => { cancelled = true; clearInterval(timer); window.removeEventListener("danpahq:unread", onUnread); };
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", syncPolling);
+      window.removeEventListener("danpahq:unread", onUnread);
+    };
   }, [state.status]);
 
   if (state.status !== "signed_in") {

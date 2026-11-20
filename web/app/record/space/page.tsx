@@ -19,7 +19,6 @@
  *   than after it.
  */
 
-import { VideoPlayer } from "@/components/property/WalkthroughVideo";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
@@ -33,7 +32,7 @@ import { Icon, type IconName } from "@/components/portal/icons";
 import { ListingComposer } from "@/components/property/ListingComposer";
 import { UnitPrivateAccess } from "@/components/property/UnitPrivateAccess";
 import { UnitLifecycleActions } from "@/components/property/UnitLifecycleActions";
-import { UnitWizardModal } from "@/components/property/UnitWizard";
+import { UnitWizardModal } from "@/components/property/UnitWizardModal";
 import {
   DetailSection,
   DetailDisclosure,
@@ -136,7 +135,7 @@ export default function SpaceWorkspacePage() {
         />
       ) : null}
 
-      <RecordHero key={space.id} title={space.label || "Unit"} photos={photos.map((row) => ({ id: row.id, url: row.download_url!, label: row.caption || space.label || "Unit photo" }))}>
+      <RecordHero key={space.id} title={space.label || "Unit"} video={space.video} videoLabel="Unit video" photos={photos.map((row) => ({ id: row.id, url: row.download_url!, label: row.caption || space.label || "Unit photo" }))}>
         <WhatIsNext space={space} listing={listing} propertyId={propertyId} onChanged={load} />
         <div className="record-secondary-actions"><Link href={"/tenants#access" as never} className="btn btn-secondary record-tenancy-action"><Icon name="users" />Tenancy requests and tenancies</Link></div>
       </RecordHero>
@@ -160,7 +159,6 @@ export default function SpaceWorkspacePage() {
 
       </RecordSection>
 
-      <VideoPlayer video={space.video} label="Unit video" />
       <div className="record-detail-grid is-unit-record">
       <section className="record-section" aria-labelledby="unit-manage-heading">
         <h2 id="unit-manage-heading" className="record-section-title">Unit details</h2>
@@ -228,6 +226,7 @@ function WhatIsNext({
 
   const publish = space.permitted_actions.publish;
   const recheck = space.permitted_actions.recheck;
+  const resumeStep = space.verification.can_submit ? "review" : "amenities";
 
   async function run(action: () => Promise<unknown>) {
     setBusy(true);
@@ -256,13 +255,13 @@ function WhatIsNext({
   return (
     <section className="record-workflow" data-tone={space.verification.state !== "verified" ? "check" : (space.publication.state === "published" && space.publication.listing_status === "active") ? "public" : "private"}>
       <UnitWizardModal
+        mode="edit"
         open={setupStep !== null}
         propertyId={space.property.id}
         unitId={space.id}
         startAt={setupStep}
         onClose={() => setSetupStep(null)}
         onChanged={() => void onChanged()}
-        onFinished={() => { setSetupStep(null); void onChanged(); }}
       />
       <ModalSheet open={composing} onClose={() => { if (!busy) { setComposing(false); void onChanged(); } }} title="Publish to Explore" icon="units" size="sm" dismissible={false} className="compact-action-sheet">
         {composing ? <ListingComposer unitId={space.id} listing={listing} onBusyChange={setBusy} onCreated={async () => { setComposing(false); await onChanged(); }} /> : null}
@@ -293,15 +292,22 @@ function WhatIsNext({
           </p>
 
           {space.verification.editable && space.permitted_actions.edit?.allowed ? (
-            <Link
-              href={`/record/space-new?propertyId=${propertyId}&unitId=${space.id}&step=${
-                space.verification.can_submit ? "review" : "amenities"
-              }` as never}
-              className="btn btn-secondary"
-              onClick={inPlace(() => setSetupStep(space.verification.can_submit ? "review" : "amenities"))}
-            >
-              Continue setup
-            </Link>
+            <div className="pd-next-actions">
+              <Link
+                href={`/record/space-new?propertyId=${propertyId}&unitId=${space.id}&step=details` as never}
+                className="btn btn-secondary"
+                onClick={inPlace(() => setSetupStep("details"))}
+              >
+                Edit Unit
+              </Link>
+              <Link
+                href={`/record/space-new?propertyId=${propertyId}&unitId=${space.id}&step=${resumeStep}` as never}
+                className="btn btn-secondary"
+                onClick={inPlace(() => setSetupStep(resumeStep))}
+              >
+                Continue setup
+              </Link>
+            </div>
           ) : null}
 
           <SubmitForChecking

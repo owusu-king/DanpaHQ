@@ -43,6 +43,7 @@ export function daysUntilEnd(lease: Lease, now = Date.now()): number | null {
 }
 
 export function laneOf(lease: Lease, now = Date.now()): Lane {
+  if (lease.offer_expired) return "yours";
   if (lease.status === "draft" || lease.status === "ready" || lease.status === "tenant_accepted") return "yours";
   if (lease.status === "offered" || lease.status === "awaiting_activation") return "signing";
   if (lease.status === "active") {
@@ -72,21 +73,22 @@ export function stepsDone(lease: Pick<Lease, "status">): number {
 }
 
 /** The one thing to do, where it is the provider's. Both happen on the agreement. */
-export function nextAct(lease: Pick<Lease, "status">): { label: "Send agreement" | "Confirm move-in"; icon: "send-outline" | "checkmark-done-outline" } | null {
+export function nextAct(lease: Pick<Lease, "status" | "offer_expired">): { label: string; icon: "document-text-outline" | "send-outline" | "checkmark-done-outline" } | null {
+  if (lease.offer_expired) return { label: "Review expired offer", icon: "document-text-outline" };
   if (lease.status === "draft" || lease.status === "ready") return { label: "Send agreement", icon: "send-outline" };
   if (lease.status === "tenant_accepted") return { label: "Confirm move-in", icon: "checkmark-done-outline" };
   return null;
 }
 
 /** Where it stands, said as the next thing that happens. */
-export function signingLine(lease: Pick<Lease, "status" | "activation_requirement" | "upfront_payment_enabled">): string {
+export function signingLine(lease: Pick<Lease, "status" | "activation_requirement" | "upfront_payment_enabled" | "offer_expired">): string {
   switch (lease.status) {
     case "draft":
       return "Draft — not sent yet";
     case "ready":
       return "Ready — not sent yet";
     case "offered":
-      return "Sent — tenant is reviewing";
+      return lease.offer_expired ? "Offer expired · corrected dates needed" : "Sent — tenant is reviewing";
     case "tenant_accepted":
       return "Tenant accepted — confirm to start";
     case "awaiting_activation":

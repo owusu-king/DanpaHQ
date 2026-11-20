@@ -246,8 +246,8 @@
 .listing-ask-continue:hover { text-decoration: underline; text-underline-offset: 3px; }
 .listing-ask button:focus-visible { outline: 2px solid var(--color-kola-600); outline-offset: 3px; }
 
-.listing-discovery-tools { display: flex; align-items: center; gap: 12px; min-width: 0; }
-.listing-discovery-tools > .listing-ask { flex: 1; }
+.listing-discovery-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; min-width: 0; }
+.listing-discovery-tools > .listing-ask { flex: 1 1 16rem; }
 .listing-discovery-tools > .listing-secondary { flex: 0 0 auto; gap: 8px; margin-left: auto; }
 .listing-discovery-tools .listing-secondary > button { flex: 0 0 auto; position: relative; min-height: 40px; padding: 8px 12px; border: 1px solid var(--color-field-200); border-radius: 8px; background: #fff; box-shadow: none; font-size: .8125rem; line-height: 1.4; }
 
@@ -543,9 +543,9 @@ ul.listing-trust-stamps { display: grid; gap: 2px; padding: var(--space-1); back
 
 /* Where deep exploration belongs. Contained rather than edge to edge, so the
    photograph is large without the page feeling like a slideshow. */
-.listing-lightbox { width: min(64rem, calc(100vw - 2rem)); max-width: none; padding: 0; margin: auto; background: transparent; border: 0; }
-.listing-lightbox::backdrop { background: rgb(12 20 16 / .86); backdrop-filter: blur(6px); }
-.listing-lightbox-stage { position: relative; display: grid; place-items: center; }
+.listing-lightbox { width: min(64rem, calc(100vw - 2rem)); max-width: none; padding: 0; margin: auto; color: var(--color-ink-900); background: var(--color-field-0); border: 1px solid var(--color-field-200); border-radius: 16px; }
+.listing-lightbox::backdrop { background: color-mix(in srgb, var(--color-field-200) 74%, transparent); backdrop-filter: blur(6px); }
+.listing-lightbox-stage { position: relative; display: grid; place-items: center; background: var(--color-field-100); }
 .listing-lightbox-stage img { display: block; width: 100%; max-height: min(calc(100vh - 16rem), 40rem); object-fit: contain; border-radius: var(--radius-lg); }
 
 /* Restrained: sized for the thumb, not for the picture. */
@@ -572,26 +572,27 @@ ul.listing-trust-stamps { display: grid; gap: 2px; padding: var(--space-1); back
 .listing-lightbox-step.is-prev { left: var(--space-3); }
 .listing-lightbox-step.is-next { right: var(--space-3); }
 
-.listing-lightbox-bar { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-3) 0; color: var(--color-field-0); }
-.listing-lightbox-bar button { min-width: 48px; min-height: 48px; color: var(--color-field-0); font-size: 1.25rem; background: transparent; border: 0; border-radius: 50%; cursor: pointer; }
-.listing-lightbox-bar button:hover { background: rgba(255, 255, 255, .1); }
+.listing-lightbox-bar { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-2) var(--space-4); color: var(--color-ink-700); }
+.listing-lightbox-bar button { min-width: 48px; min-height: 48px; color: var(--color-ink-900); font-size: 1.25rem; background: transparent; border: 0; border-radius: 50%; cursor: pointer; }
+.listing-lightbox-bar button:hover { background: var(--color-field-100); }
 
 /* Eight photographs should not mean eight clicks to reach the last one. */
-.listing-lightbox-thumbs { display: flex; gap: var(--space-2); padding-bottom: var(--space-2); overflow-x: auto; scrollbar-width: thin; }
+.listing-lightbox-thumbs { display: flex; gap: var(--space-2); padding: var(--space-1) var(--space-4) var(--space-3); overflow-x: auto; scrollbar-width: thin; }
 .listing-lightbox-thumb { flex: 0 0 auto; width: 74px; height: 56px; padding: 0; background: none; border: 2px solid transparent; border-radius: var(--radius-sm); opacity: .5; cursor: pointer; overflow: hidden; transition: opacity 120ms ease; }
 .listing-lightbox-thumb img { width: 100%; height: 100%; object-fit: cover; border-radius: 2px; }
-.listing-lightbox-thumb[aria-current="true"] { border-color: var(--color-kola-300, var(--color-field-0)); opacity: 1; }
+.listing-lightbox-thumb[aria-current="true"] { border-color: var(--color-kola-600); opacity: 1; }
 .listing-lightbox-thumb:hover { opacity: .85; }
 
 /* The two groups are separated once, rather than every photograph carrying a
    label. */
 .listing-lightbox-thumb.starts-group { margin-left: var(--space-5); position: relative; }
-.listing-lightbox-thumb.starts-group::before { content: ""; position: absolute; top: 0; bottom: 0; left: calc(var(--space-3) * -1); width: 1px; background: color-mix(in srgb, var(--color-field-0) 40%, transparent); }
+.listing-lightbox-thumb.starts-group::before { content: ""; position: absolute; top: 0; bottom: 0; left: calc(var(--space-3) * -1); width: 1px; background: var(--color-field-300); }
 
 .listing-gallery > button:focus-visible,
 .listing-gallery-all:focus-visible,
 .listing-lightbox-thumb:focus-visible,
 .listing-lightbox-step:focus-visible,
+.listing-lightbox-bar button:focus-visible,
 .listing-readmore:focus-visible,
 .listing-trust summary:focus-visible {
   outline: 3px solid var(--color-kola-600);
@@ -619,6 +620,7 @@ ul.listing-trust-stamps { display: grid; gap: 2px; padding: var(--space-1); back
   .listing-gallery-all { right: var(--space-2); bottom: var(--space-2); min-height: 2.75rem; padding: 0 var(--space-3); }
   .listing-head h1 { font-size: 1.5rem; }
   .listing-discovery-tools { gap: 8px; }
+  .listing-discovery-tools > .listing-ask { flex-basis: 100%; max-width: none; }
   .listing-discovery-tools > .listing-secondary { gap: 6px; }
   .listing-discovery-tools .listing-secondary > button { width: 44px; min-height: 44px; padding: 8px; }
   .listing-discovery-tools .listing-action-label { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }

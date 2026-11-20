@@ -54,18 +54,20 @@ SUSPENDED = "suspended"
 
 def artisan_verification(user):
     """The newest decision on this person's artisan application, if any."""
-    from apps.trust.models import SubjectType, Verification, VerificationKind, VerificationStatus
+    from apps.trust.models import SubjectType, VerificationKind
+    from apps.trust.services import latest_for
 
-    return (
-        Verification.objects.for_subject(SubjectType.USER, user.id)
-        .filter(kind=VerificationKind.ARTISAN)
-        .exclude(status=VerificationStatus.SUPERSEDED)
-        .first()
-    )
+    return latest_for(SubjectType.USER, user.id, VerificationKind.ARTISAN)
 
 
 def profile_for(user) -> ArtisanProfile | None:
-    return ArtisanProfile.objects.filter(user=user).first()
+    """Memoized only inside a declared read; see `apps.core.memo`."""
+    from apps.core.memo import cached
+
+    return cached(
+        ("artisan.profile", str(user.pk)),
+        lambda: ArtisanProfile.objects.filter(user=user).first(),
+    )
 
 
 def _status(verification, profile) -> str:

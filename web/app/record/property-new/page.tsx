@@ -5,14 +5,13 @@
  *
  * The flow normally opens as a sheet over Properties. This route keeps a direct
  * link working — "Create property" in setup checklists, the tenants page — and
- * renders the same wizard in the page, so the journey never depends on which
- * way in was used.
+ * opens the same modal as the Portfolio.
  */
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 
-import { PropertyWizard } from "@/components/property/PropertyWizard";
+import { PropertyWizardModal } from "@/components/property/PropertyWizard";
 import { WorkspaceHead } from "@/components/workspace/Workspace";
 
 export default function NewPropertyPage() {
@@ -34,14 +33,13 @@ function NewProperty() {
         icon="properties"
         title={selling ? "Sell a property" : "New property"}
       />
-      <section className="ws-panel creation-frame property-creation-frame">
-        <PropertyWizard
-          purpose={selling ? "sale" : "letting"}
-          organizationId={search.get("organization")}
-          onClose={() => router.push("/properties" as never)}
-          onFinished={() => router.replace("/properties")}
-        />
-      </section>
+      <PropertyWizardModal
+        open
+        purpose={selling ? "sale" : "letting"}
+        organizationId={search.get("organization")}
+        onClose={() => router.replace("/properties")}
+        onFinished={() => undefined}
+      />
     </div>
   );
 }

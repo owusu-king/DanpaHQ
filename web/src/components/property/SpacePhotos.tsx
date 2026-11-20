@@ -45,7 +45,13 @@ export function SpacePhotos({
   const [slots, setSlots] = useState<EvidenceSlot[]>([]);
   const [photos, setPhotos] = useState<SpacePhoto[]>([]);
   const [busySlot, setBusySlot] = useState("");
+  const [videoBusy, setVideoBusy] = useState(false);
+  const [updating, setUpdating] = useState(false);
+  const mediaBusy = videoBusy || updating || Boolean(busySlot);
+
+  useEffect(() => { onMediaBusy?.(mediaBusy); }, [mediaBusy, onMediaBusy]);
   const [error, setError] = useState("");
+  const [fileError, setFileError] = useState<{ slot: string; message: string } | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -70,28 +76,28 @@ export function SpacePhotos({
   }, [load]);
 
   async function add(slotKey: string, file: File | undefined) {
-    if (!file) return;
+    if (!file || mediaBusy) return;
     setBusySlot(slotKey);
     setError("");
+    setFileError(null);
     try {
       const stored = await uploadFile(file, "property_photo");
       if (!stored.is_usable) {
-        setError(stored.rejection_reason || stored.status_message || "That photo could not be accepted.");
+        setFileError({ slot: slotKey, message: stored.rejection_reason || stored.status_message || "That photo could not be accepted." });
         return;
       }
       await attachUnitPhoto(unitId, { file_id: stored.id, slot_key: slotKey });
       await load();
       await onChanged?.();
     } catch (cause) {
-      setError(
-        cause instanceof Error ? cause.message : "Could not add that photo.",
-      );
+      setFileError({ slot: slotKey, message: cause instanceof Error ? cause.message : "Could not add that photo." });
     } finally {
       setBusySlot("");
     }
   }
 
   async function act(run: () => Promise<unknown>) {
+    setUpdating(true);
     setError("");
     try {
       await run();
@@ -99,6 +105,8 @@ export function SpacePhotos({
       await onChanged?.();
     } catch (cause) {
       setError(cause instanceof ApiFailure ? cause.error.message : "That did not work.");
+    } finally {
+      setUpdating(false);
     }
   }
 
@@ -114,9 +122,10 @@ export function SpacePhotos({
 
   return (
     <div style={{ display: "grid", gap: "var(--space-4)" }}>
-      <WalkthroughUpload subject="unit" id={unitId} editable={editable} onBusy={onMediaBusy} />
+      <WalkthroughUpload subject="unit" id={unitId} editable={editable} onBusy={setVideoBusy} />
       {error ? <Notice tone="error" title={error} /> : null}
       {editable ? <p className="type-caption">The main view and each selected amenity need a photo. The two context views are optional.</p> : null}
+      {editable && slots.length ? <p className="type-caption">Choose or drop a JPEG, PNG or WebP photo on its matching slot. Up to 25 MB per original.</p> : null}
 
       <ul className="evidence-slots">
         {rows.map(({ slot, photo }, index) => (
@@ -125,7 +134,7 @@ export function SpacePhotos({
               slot={{ label: slot?.label || photo?.caption || `Photo ${index + 1}`, provided: Boolean(photo), preview_url: photo?.download_url ?? null }}
               locked={!editable || Boolean(photo)}
               busy={busySlot === slot?.key}
-              disabled={Boolean(busySlot)}
+              disabled={mediaBusy}
               onChoose={(file) => void add(slot?.key ?? "", file)}
             />
             <div className="evidence-slot-what">
@@ -133,9 +142,11 @@ export function SpacePhotos({
                 {photo?.is_primary ? "First image · " : ""}{slot?.label || photo?.caption || `Photo ${index + 1}`}{slot && !slot.required ? " (optional)" : ""}
               </p>
               {slot ? <p className="type-caption" style={{ margin: 0 }}>{slot.why}</p> : null}
+              {busySlot && busySlot === slot?.key ? <span className="type-caption" role="status">Uploading photo…</span> : null}
+              {fileError && fileError.slot === slot?.key ? <span className="type-caption field-error" role="alert">{fileError.message}</span> : null}
               {!editable || !photo ? null : <div style={{ display: "flex", gap: "var(--space-3)", flexWrap: "wrap" }}>
-                {!photo.is_primary ? <button type="button" className="type-caption evidence-slot-remove" disabled={Boolean(busySlot)} onClick={() => void act(() => setPrimaryUnitPhoto(unitId, photo.id))}>Make it first</button> : null}
-                <button type="button" className="type-caption evidence-slot-remove" disabled={Boolean(busySlot)} onClick={() => void act(() => removeUnitPhoto(unitId, photo.id))}>Remove</button>
+                {!photo.is_primary ? <button type="button" className="type-caption evidence-slot-remove" disabled={mediaBusy} onClick={() => void act(() => setPrimaryUnitPhoto(unitId, photo.id))}>Make it first</button> : null}
+                <button type="button" className="type-caption evidence-slot-remove" disabled={mediaBusy} onClick={() => void act(() => removeUnitPhoto(unitId, photo.id))}>Remove</button>
               </div>}
             </div>
           </li>

@@ -194,7 +194,7 @@ function ProviderPaymentsContent() {
       }
     }
     const reads = [
-      read(getOrganizationPortfolio(organizationId), setSummary).finally(() => {
+      read(getOrganizationPortfolio(organizationId, "finance"), setSummary).finally(() => {
         if (started === loadSequence.current) setSummaryPending(false);
       }),
       read(listOrganizationProperties(organizationId), setProperties),

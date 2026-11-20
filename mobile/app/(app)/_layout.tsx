@@ -87,7 +87,7 @@ export default function AppLayout() {
       <Stack.Screen name="payment-status" options={{ title: "Payment status" }} />
       <Stack.Screen name="payment-receipt" options={{ title: "Payment receipt" }} />
       <Stack.Screen name="payout-account" options={{ title: "Settlement account" }} />
-      <Stack.Screen name="apply/[id]" options={{ title: "Apply" }} />
+      <Stack.Screen name="apply/[id]" options={{ title: "Apply", presentation: "modal", headerLeft: closeHeaderLeft }} />
       {/* The title comes from the listing itself once it loads. */}
       <Stack.Screen name="listing/[id]" options={{ title: "" }} />
       <Stack.Screen name="trust" options={{ title: "Verification" }} />

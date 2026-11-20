@@ -4,6 +4,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { FlatList, Pressable, RefreshControl, StyleSheet, View } from "react-native";
 
 import { ApiFailure } from "@/api";
+import { leaseForApplication } from "@/applicationMeaning";
 import { type RentalApplication, listReceivedApplications } from "@/applications";
 import { useAuth } from "@/auth";
 import { IndexGround } from "@/components/account/IndexRows";
@@ -176,13 +177,19 @@ export default function ProviderApplicationsScreen() {
   }, [seenKey]));
 
   const items = useMemo<RequestItem[]>(() => {
-    const leaseByApplication = new Map(leases.filter((lease) => lease.application).map((lease) => [lease.application!, lease]));
+    const leasesByApplication = new Map<string, Lease[]>();
+    for (const lease of leases) {
+      if (!lease.application) continue;
+      const current = leasesByApplication.get(lease.application);
+      if (current) current.push(lease);
+      else leasesByApplication.set(lease.application, [lease]);
+    }
     return [
       ...(applications ?? []).map((application) => ({
         key: `application:${application.id}`,
         kind: "application" as const,
         application,
-        lease: leaseByApplication.get(application.id) ?? null,
+        lease: leaseForApplication(application, leasesByApplication.get(application.id) ?? []),
         viewing: viewingFor(application, viewings),
       })),
       ...(summaries ?? []).flatMap((summary) => summary.tenancy_requests.map((request) => ({ key: `private:${request.id}`, kind: "private" as const, request, organizationId: summary.organization.id }))),

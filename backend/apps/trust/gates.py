@@ -101,6 +101,14 @@ def property_verification_ok(prop) -> bool:
 
 
 def space_condition_ok(unit) -> bool:
+    # A Unit loaded by `prepare_unit_card_rows` already carries its
+    # non-superseded condition reviews; "current" is the same approved and
+    # unexpired test `_current` applies in SQL.
+    prepared = getattr(unit, "_condition_reviews", None)
+    if prepared is not None:
+        return any(
+            row.kind == VerificationKind.SPACE_CONDITION and row.is_current for row in prepared
+        )
     return _current(SubjectType.SPACE, unit.id, VerificationKind.SPACE_CONDITION) is not None
 
 

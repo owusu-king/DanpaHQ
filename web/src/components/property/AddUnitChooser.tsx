@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 
 import { Notice } from "@/components/Notice";
 import { LoadingRows } from "@/components/portal/PageHeader";
-import { UnitWizardModal } from "./UnitWizard";
+import { UnitWizardModal } from "./UnitWizardModal";
 import { inPlace } from "@/lib/inPlace";
 import { ApiFailure } from "@/lib/api";
 import { listOrganizations, listOrganizationProperties, type Property } from "@/lib/console";
@@ -46,12 +46,12 @@ export function AddUnitButton({ className, children, propertyId: initialProperty
         {children}
       </button>
       <UnitWizardModal
+        mode="create"
         open={open}
         propertyId={selectedProperty}
         propertyPicker={<PropertyChoices choices={choices} onChoose={(property) => setSelectedProperty(property.id)} />}
         onClose={close}
         onChanged={onChanged}
-        onFinished={() => undefined}
       />
     </>
   );
@@ -64,22 +64,27 @@ export function usePropertyChoices() {
   const { activeContext } = useSession();
   const [properties, setProperties] = useState<Property[] | null>(null);
   const [error, setError] = useState("");
+  const pending = useRef(0);
 
   const activeId = activeContext?.startsWith("organization:")
     ? activeContext.slice("organization:".length)
     : "";
+  useEffect(() => () => { pending.current += 1; }, [activeId]);
 
   const load = useCallback(async (): Promise<Property[]> => {
+    const request = ++pending.current;
     setProperties(null);
     setError("");
     try {
       const organizations = await listOrganizations();
       const chosen = organizations.find((row) => row.id === activeId) ?? organizations[0];
-      const rows = chosen ? await listOrganizationProperties(chosen.id) : [];
+      const rows = chosen ? eligibleOf(await listOrganizationProperties(chosen.id)) : [];
+      if (request !== pending.current) return [];
       setProperties(rows);
       setError("");
-      return eligibleOf(rows);
+      return rows;
     } catch (cause) {
+      if (request !== pending.current) return [];
       setProperties([]);
       setError(cause instanceof ApiFailure ? cause.error.message : "Could not load your Properties.");
       return [];
@@ -108,8 +113,10 @@ export function PropertyChoices({ choices, onChoose }: { choices: Choices; onCho
 
   const eligible = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase("en-GH");
-    return eligibleOf(properties ?? []).filter((property) => !needle
-      || `${property.title} ${property.address?.locality_name ?? ""}`.toLocaleLowerCase("en-GH").includes(needle));
+    const rows = properties ?? [];
+    if (!needle) return rows;
+    return rows.filter((property) =>
+      `${property.title} ${property.address?.locality_name ?? ""}`.toLocaleLowerCase("en-GH").includes(needle));
   }, [properties, query]);
 
   if (error) return <Notice tone="error" title={error} />;
@@ -117,7 +124,7 @@ export function PropertyChoices({ choices, onChoose }: { choices: Choices; onCho
 
   return (
     <div className="unit-chooser">
-      {eligibleOf(properties).length > 6 ? (
+      {properties.length > 6 ? (
         <label className="units-search">
           <span className="sr-only">Search Properties</span>
           <input

@@ -34,7 +34,8 @@ test("the setup journey walks the steps this property has, not a fixed list", ()
   const setup = code(read("web/src/components/property/PropertyWizard.tsx"));
   assert.match(setup, /const keys = setup\.map\(\(row\) => row\.key as StepKey\);/);
   // Moving on reads the property's own steps, so land skips details and amenities.
-  assert.match(setup, /const next = keys\[at \+ 1\];/);
+  assert.match(setup, /let next = keys\[at \+ 1\];/);
+  assert.match(setup, /updated\.property_type !== property\?\.property_type/);
   assert.doesNotMatch(setup, /go\("(documents|photos|amenities)"\)/);
   assert.match(setup, /toSetupInput\([\s\S]*?sale \? sale\.missing\.length : null,/);
   // Before the record exists the outline already follows the chosen purpose and kind.

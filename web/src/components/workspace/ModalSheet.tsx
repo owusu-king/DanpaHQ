@@ -29,7 +29,10 @@ export function ModalSheet({
   size = "md",
   closeLabel = "Close",
   closeDisabled = false,
+  beforeClose,
   dismissible = true,
+  escapeCloses = dismissible,
+  restoreFocus = false,
   className,
   bodyBusy,
   titleId,
@@ -49,8 +52,12 @@ export function ModalSheet({
   size?: "sm" | "md";
   closeLabel?: string;
   closeDisabled?: boolean;
+  beforeClose?: () => boolean;
   /** Creation flows require an explicit close button. */
   dismissible?: boolean;
+  escapeCloses?: boolean;
+  /** Use the dialog's native close before unmounting to release its focus trap. */
+  restoreFocus?: boolean;
   className?: string;
   bodyBusy?: boolean;
   /** A stable id for the title, when two sheets are mounted at once and something names it. */
@@ -66,12 +73,17 @@ export function ModalSheet({
   footer?: (close: () => void) => ReactNode;
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const invokerRef = useRef<HTMLElement | null>(null);
   const [closing, setClosing] = useState(false);
   const generatedId = useId();
   const labelId = titleId ?? generatedId;
   // Read inside the opening effect without making it re-run on every render.
   const closeRef = useRef(onClose);
   useEffect(() => { closeRef.current = onClose; }, [onClose]);
+  const finishClose = useCallback(() => {
+    if (restoreFocus) dialogRef.current?.close();
+    closeRef.current();
+  }, [restoreFocus]);
 
   // Modals live in page state, so Back to a page normally finds it remounted
   // with every sheet shut. The browser can instead hand the whole page back
@@ -104,6 +116,7 @@ export function ModalSheet({
     const release = holdModalInWorkspace(dialog);
     if (!dialog.open) {
       const invoker = document.activeElement;
+      invokerRef.current = invoker instanceof HTMLElement ? invoker : null;
       // A leftover exit class would hold the sheet at the end of its exit
       // animation for the first frame of the next opening: a blink.
       dialog.classList.remove("is-closing");
@@ -115,27 +128,34 @@ export function ModalSheet({
     return () => {
       release();
       stopGliding();
+      queueMicrotask(() => {
+        const invoker = invokerRef.current;
+        if (!dialog.isConnected && invoker?.isConnected && document.activeElement === document.body) {
+          invoker.focus({ preventScroll: true });
+        }
+      });
     };
   }, [open]);
 
   useEffect(() => {
     if (!open || !closing) return;
-    const timer = window.setTimeout(() => closeRef.current(), CLOSE_MS);
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const timer = window.setTimeout(finishClose, reducedMotion ? 0 : CLOSE_MS);
     return () => window.clearTimeout(timer);
-  }, [open, closing]);
+  }, [open, closing, finishClose]);
 
   const requestClose = useCallback(() => {
-    if (closeDisabled) return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) { onClose(); return; }
+    if (closeDisabled || beforeClose?.() === false) return;
+    if (!restoreFocus && window.matchMedia("(prefers-reduced-motion: reduce)").matches) { onClose(); return; }
     setClosing(true);
-  }, [closeDisabled, onClose]);
+  }, [beforeClose, closeDisabled, onClose, restoreFocus]);
 
   return (
     <dialog
       ref={dialogRef}
       className={`doc-modal is-${size}${closing ? " is-closing" : ""}${className ? ` ${className}` : ""}`}
       aria-labelledby={labelId}
-      onCancel={(event) => { event.preventDefault(); if (dismissible) requestClose(); }}
+      onCancel={(event) => { event.preventDefault(); if (escapeCloses) requestClose(); }}
       onClick={(event) => { if (dismissible && isBackdropClick(dialogRef.current, event)) requestClose(); }}
     >
       {open ? <>
@@ -152,7 +172,7 @@ export function ModalSheet({
             {meta ? <p>{meta}</p> : null}
           </div>
           {headerAction ? <div className="doc-modal-head-action">{headerAction}</div> : null}
-          <button type="button" className="doc-modal-close" aria-label={closeLabel} disabled={closeDisabled} onClick={requestClose}><Icon name="close" /></button>
+          <button type="button" className="doc-modal-close" aria-label={closeLabel} title={closeLabel} disabled={closeDisabled} onClick={requestClose}><Icon name="close" /></button>
         </header>
         <div className="doc-modal-body" aria-busy={bodyBusy || undefined}>
           {typeof children === "function" ? children(requestClose) : children}

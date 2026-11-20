@@ -8,6 +8,8 @@ orchestrator to kill healthy pods and turn a degradation into an outage.
 
 from __future__ import annotations
 
+import os
+import re
 import time
 
 from django.conf import settings
@@ -48,7 +50,14 @@ def _check_cache() -> None:
 
 
 def healthz(request):
-    return JsonResponse({"status": "ok", "version": settings.APP_VERSION})
+    response = JsonResponse({"status": "ok", "version": settings.APP_VERSION})
+    if settings.ENVIRONMENT == "staging":
+        commit = os.environ.get("RENDER_GIT_COMMIT", "")
+        if re.fullmatch(r"[0-9a-f]{40}", commit):
+            response["X-Danpa-Release"] = commit
+        schedule = settings.CELERY_BEAT_SCHEDULE["outbox-dispatch"]["schedule"]
+        response["X-Danpa-Outbox-Interval"] = str(int(schedule.total_seconds()))
+    return response
 
 
 def readyz(request):

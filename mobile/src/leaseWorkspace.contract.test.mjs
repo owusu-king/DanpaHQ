@@ -55,3 +55,20 @@ test("mobile provider Home surfaces saved agreements that still need sending", (
   assert.match(moves, /to: "\/\(app\)\/leases"/);
   assert.doesNotMatch(home, /function LeasingPosition|function FlowStage/);
 });
+
+test("an expired offer needs provider attention and a withdrawn offer leaves an open application", async () => {
+  const { standing: agreementStanding } = await import("./agreementMeaning.ts");
+  const { standing: applicationStanding } = await import("./applicationMeaning.ts");
+  const { laneOf, nextAct } = await import("./agreementWork.ts");
+  const application = { id: "request", status: "accepted", concluded_at: null };
+  const expired = { id: "lease", application: application.id, status: "offered", offer_expired: true };
+
+  assert.equal(agreementStanding(expired).decisionOpen, false);
+  assert.equal(applicationStanding(application, [expired]).stage, "open");
+  assert.equal(laneOf(expired), "yours");
+  assert.equal(nextAct(expired)?.label, "Review expired offer");
+
+  const withdrawn = { ...expired, status: "cancelled", offer_expired: false };
+  assert.equal(applicationStanding(application, [withdrawn]).leaseId, null);
+  assert.equal(applicationStanding({ ...application, concluded_at: "2026-11-18" }, [withdrawn]).stage, "past");
+});

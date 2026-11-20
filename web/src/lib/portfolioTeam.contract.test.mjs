@@ -81,7 +81,10 @@ test("the Portfolio switcher is the header's navigation context", () => {
     );
   }
   // Tenants follows the header rather than remembering a Portfolio of its own.
-  assert.match(code(read("web/app/tenants/page.tsx")), /rows\.find\(\(row\) => row\.id === preferred\)\?\.id \?\? rows\[0\]\?\.id/);
+  const tenants = code(read("web/app/tenants/page.tsx"));
+  assert.match(tenants, /selectedPortfolio\(/);
+  assert.match(tenants, /organizationId = preferred \?\? fallbackOrganization/);
+  assert.match(tenants, /if \(state\.status !== "signed_in" \|\| preferred\) return/);
 
   // Hover, press, focus and selected are all drawn, not left to the browser.
   for (const state of [":hover", ":active", ":focus-visible", '\\[data-active="true"\\]']) {
@@ -193,7 +196,7 @@ test("the Provider Properties page is one Portfolio at a time", () => {
   // the house lands in a roster its provider was not looking at.
   const form = code(read("web/src/components/property/PropertyWizard.tsx"));
   assert.match(form, /rows\.find\(\(row\) => row\.id === preferred\)\?\.id \|\| rows\[0\]\?\.id/);
-  assert.match(form, /\}, \[activeContext\]\);/);
+  assert.match(form, /\}, \[activeContext, property\]\);/);
 });
 
 test("every provider list is about the Portfolio on screen", () => {
@@ -373,7 +376,7 @@ test("provider Payments is first-class navigation and an actionable destination"
   const payments = read("web/app/payments/page.tsx");
 
   assert.match(nav, /href: "\/payments", label: "Payments", icon: "payments"/);
-  assert.match(payments, /getOrganizationPortfolio/);
+  assert.match(payments, /getOrganizationPortfolio\(organizationId, "finance"\)/);
   assert.match(payments, /recent_payments/);
   assert.match(payments, /money\.overdue_minor/);
   assert.match(payments, /listPropertyExpenses/);

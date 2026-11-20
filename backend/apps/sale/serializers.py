@@ -43,7 +43,7 @@ def _public_photo_types() -> tuple[set, dict]:
     return set(order), {kind: index for index, kind in enumerate(order)}
 
 
-def sale_photos(sale: SaleListing, *, public: bool = True) -> list[dict]:
+def sale_photos(sale: SaleListing, *, public: bool = True, limit: int | None = None) -> list[dict]:
     from apps.listing.serializers import verified_property_photos
 
     allowed, priority = _public_photo_types()
@@ -53,6 +53,7 @@ def sale_photos(sale: SaleListing, *, public: bool = True) -> list[dict]:
         allowed=allowed,
         priority=priority,
         source_label="This property",
+        limit=limit,
     )
     if photos:
         photos[0] = {**photos[0], "is_primary": True}
@@ -82,6 +83,9 @@ def _seller_label(prop) -> str:
     name is still the honest answer, because a sale is only public once the
     property itself is verified (`read_models.public_sales`).
     """
+    prepared = getattr(prop, "_sale_seller_label", None)
+    if prepared is not None:
+        return prepared
     relationships = prop.organization_relationships.filter(ended_at__isnull=True).select_related(
         "organization"
     )
@@ -168,7 +172,7 @@ class SaleCardSerializer(serializers.ModelSerializer):
         return self._address(obj).region_label or None
 
     def get_cover_url(self, obj) -> str | None:
-        photos = sale_photos(obj)
+        photos = sale_photos(obj, limit=1)
         return photos[0]["download_url"] if photos else None
 
     def get_location(self, obj) -> dict | None:

@@ -176,7 +176,7 @@ def build_schedule(lease) -> list[RentCharge]:
     if (
         lease.status == LeaseStatus.ENDED
         or lease.ended_on is not None
-        or (lease.ends_on is not None and timezone.localdate() > lease.ends_on)
+        or lease.term_has_expired
     ):
         raise Conflict("An ended or expired agreement cannot generate new rent obligations.")
 

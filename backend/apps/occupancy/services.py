@@ -30,6 +30,13 @@ def _validate_space(*, prop, unit, bed=None) -> None:
         assert_accepts_bed_spaces(unit=unit)
 
 
+def unit_occupying_allocations():
+    return Occupancy.objects.filter(
+        status__in=[OccupancyStatus.PENDING_LEASE, OccupancyStatus.ACTIVE],
+        ended_at__isnull=True,
+    )
+
+
 def unit_is_occupied(unit) -> bool:
     """Return the authoritative whole-Unit availability boundary.
 
@@ -37,11 +44,7 @@ def unit_is_occupied(unit) -> bool:
     Consequently any active allocation inside the Unit makes that Unit
     unavailable for public advertising or another possession credential.
     """
-    return Occupancy.objects.filter(
-        unit=unit,
-        status__in=[OccupancyStatus.PENDING_LEASE, OccupancyStatus.ACTIVE],
-        ended_at__isnull=True,
-    ).exists()
+    return unit_occupying_allocations().filter(unit=unit).exists()
 
 
 def assert_space_is_free(*, unit, bed=None, starts_on=None, ends_on=None, exclude=None) -> None:

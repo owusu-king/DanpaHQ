@@ -4,7 +4,7 @@ import test from "node:test";
 import vm from "node:vm";
 import ts from "typescript";
 
-function dialog(dismissible) {
+function dialog(dismissible, beforeClose, escapeCloses) {
   let closed = 0;
   let prevented = false;
   const jsx = (type, props) => ({ type, props });
@@ -24,7 +24,7 @@ function dialog(dismissible) {
   } }).outputText, {
     exports, require: (name) => imports[name], window: { matchMedia: () => ({ matches: true }) },
   });
-  const tree = exports.ModalSheet({ open: true, dismissible, onClose: () => { closed++; }, title: "Creation", icon: "properties", children: "Form" });
+  const tree = exports.ModalSheet({ open: true, dismissible, escapeCloses, beforeClose, onClose: () => { closed++; }, title: "Creation", icon: "properties", children: "Form" });
   return { tree, cancel: () => tree.props.onCancel({ preventDefault: () => { prevented = true; } }), closed: () => closed, prevented: () => prevented };
 }
 
@@ -34,13 +34,36 @@ function nodes(node) {
   return [node, ...(Array.isArray(children) ? children : [children]).flatMap(nodes)];
 }
 
-test("creation dialog ignores backdrop and Escape but its X still closes", () => {
+test("an explicit-close dialog ignores backdrop and Escape by default", () => {
   const modal = dialog(false);
   modal.cancel();
   modal.tree.props.onClick({});
   assert.equal(modal.prevented(), true);
   assert.equal(modal.closed(), 0);
   nodes(modal.tree).find((node) => node.props?.className === "doc-modal-close").props.onClick();
+  assert.equal(modal.closed(), 1);
+});
+
+test("creation dialogs can enable guarded Escape while ignoring backdrop clicks", () => {
+  let accepted = false;
+  const modal = dialog(false, () => accepted, true);
+  modal.cancel();
+  assert.equal(modal.closed(), 0);
+  accepted = true;
+  modal.tree.props.onClick({});
+  assert.equal(modal.closed(), 0);
+  modal.cancel();
+  assert.equal(modal.closed(), 1);
+});
+
+test("a guarded close keeps a draft open until dismissal is accepted", () => {
+  let accepted = false;
+  const modal = dialog(false, () => accepted);
+  const close = nodes(modal.tree).find((node) => node.props?.className === "doc-modal-close").props.onClick;
+  close();
+  assert.equal(modal.closed(), 0);
+  accepted = true;
+  close();
   assert.equal(modal.closed(), 1);
 });
 

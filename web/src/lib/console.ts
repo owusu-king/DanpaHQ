@@ -27,6 +27,7 @@ export type Locality = {
 
 export type Address = {
   id: string;
+  locality?: string | null;
   locality_name: string;
   district_name: string;
   region_name: string;
@@ -569,6 +570,8 @@ export function updateProperty(
   id: string,
   input: Partial<{
     title: string;
+    property_type: string;
+    address: Omit<Parameters<typeof createAddress>[0], "place">;
     location: { latitude: number | null; longitude: number | null };
     water_source: string;
     power_meter_type: string;
@@ -1346,9 +1349,9 @@ export function getOrganizationHome(organizationId: string) {
   return authedFetch<PortfolioHomeSummary>(`/organizations/${organizationId}/portfolio/?view=home`, { cache: "no-store" });
 }
 
-export function getOrganizationPortfolio(organizationId: string) {
+export function getOrganizationPortfolio(organizationId: string, view?: "finance") {
   return authedFetch<OrganizationPortfolio>(
-    `/organizations/${organizationId}/portfolio/`,
+    `/organizations/${organizationId}/portfolio/${view ? "?view=finance" : ""}`,
     { cache: "no-store" },
   );
 }
@@ -1441,6 +1444,7 @@ export function listOrganizationProperties(organizationId: string) {
 
 export function createPrivateProperty(organizationId: string, input: {
   title: string;
+  notes?: string;
   property_type: string;
   address_id: string;
   /** Omitted means letting, as every property before sales was. */
@@ -1454,6 +1458,7 @@ export function createPrivateProperty(organizationId: string, input: {
 
 export function createPersonalPortfolioProperty(input: {
   title: string;
+  notes?: string;
   property_type: string;
   address_id: string;
   /** Omitted means letting, as every property before sales was. */
@@ -1998,6 +2003,7 @@ export function markNotificationsRead(ids?: string[]) {
 // --- leases ------------------------------------------------------------------
 
 export type Lease = {
+  offer_expired?: boolean;
   id: string;
   workflow_version: "legacy" | "canonical_v1";
   status: "draft" | "ready" | "offered" | "tenant_accepted" | "awaiting_activation" | "active" | "declined" | "cancelled" | "ended";

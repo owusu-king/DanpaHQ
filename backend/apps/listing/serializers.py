@@ -646,6 +646,7 @@ def verified_property_photos(
     allowed: set | None = None,
     priority: dict | None = None,
     source_label: str = "The wider property",
+    limit: int | None = None,
 ) -> list[dict]:
     """Photographs that support a Property's current successful review.
 
@@ -694,11 +695,19 @@ def verified_property_photos(
             EvidenceType.INTERIOR_OVERVIEW: 4,
             EvidenceType.WATER_SOURCE_VIEW: 5,
         }
-    evidence = list(
-        review.evidence.select_related("file")
-        .filter(file__isnull=False, evidence_type__in=allowed)
-        .order_by("collected_at", "id")
-    )
+    prepared = getattr(review, "_prefetched_objects_cache", {}).get("evidence")
+    if prepared is not None and all(
+        row.file_id is None or "file" in row._state.fields_cache for row in prepared
+    ):
+        evidence = [
+            row for row in prepared if row.file_id and row.evidence_type in allowed
+        ]
+    else:
+        evidence = list(
+            review.evidence.select_related("file")
+            .filter(file__isnull=False, evidence_type__in=allowed)
+            .order_by("collected_at", "id")
+        )
     evidence.sort(
         key=lambda row: (
             priority.get(row.evidence_type, 99),
@@ -727,6 +736,8 @@ def verified_property_photos(
                 "download_url": url,
             }
         )
+        if limit is not None and len(photos) >= limit:
+            break
     return photos
 
 

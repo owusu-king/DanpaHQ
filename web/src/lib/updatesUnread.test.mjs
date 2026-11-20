@@ -126,3 +126,39 @@ test("a failed load leaves the shell unread badge unchanged", async () => {
   await load(h);
   assert.deepEqual(h.events, []);
 });
+
+test("the portal pauses unread polling while hidden and refreshes once when visible again", () => {
+  const source = readFileSync(new URL("../components/portal/PortalShell.tsx", import.meta.url), "utf8");
+  const start = source.indexOf("  // Polled rather than pushed");
+  const end = source.indexOf('  if (state.status !== "signed_in") {', start);
+  const effect = ts.transpileModule(source.slice(start, end), { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
+  const document = Object.assign(new EventTarget(), { hidden: false });
+  const timers = new Map();
+  let requests = 0;
+  let dispose;
+  vm.runInNewContext(effect, {
+    document, window: new EventTarget(), state: { status: "signed_in" },
+    useEffect: (callback) => { dispose = callback(); },
+    setInterval(callback, interval) {
+      assert.equal(interval, 60_000);
+      timers.set(1, callback);
+      return 1;
+    },
+    clearInterval: (id) => timers.delete(id),
+    getUnreadNotificationCount: async () => ++requests,
+    setUnread() {},
+  });
+  assert.equal(requests, 1);
+  document.hidden = true;
+  document.dispatchEvent(new Event("visibilitychange"));
+  assert.equal(timers.size, 0);
+  assert.equal(requests, 1);
+  document.hidden = false;
+  document.dispatchEvent(new Event("visibilitychange"));
+  assert.equal(timers.size, 1);
+  assert.equal(requests, 2);
+  dispose();
+  document.dispatchEvent(new Event("visibilitychange"));
+  assert.equal(timers.size, 0);
+  assert.equal(requests, 2);
+});

@@ -11,7 +11,9 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useRef } from "react";
 
 import { Notice } from "@/components/Notice";
-import { UnitWizardModal } from "@/components/property/UnitWizard";
+import { usePageTitle } from "@/components/PageTitle";
+import { UnitWizard } from "@/components/property/UnitWizard";
+import { UnitWizardModal } from "@/components/property/UnitWizardModal";
 import { WorkspaceHead } from "@/components/workspace/Workspace";
 
 export default function NewSpacePage() {
@@ -26,12 +28,15 @@ function NewSpace() {
   const router = useRouter();
   const search = useSearchParams();
   const propertyId = search.get("propertyId") ?? "";
+  const unitId = search.get("unitId");
   const finishedUnit = useRef<string | null>(null);
+  const title = unitId ? "Edit Unit" : "Add Unit";
+  usePageTitle(title);
 
   const returnToRecord = () => {
-    const unitId = finishedUnit.current ?? search.get("unitId");
-    router.replace((unitId
-      ? `/record/space?propertyId=${propertyId}&spaceId=${unitId}`
+    const destinationUnit = finishedUnit.current ?? unitId;
+    router.replace((destinationUnit
+      ? `/record/space?propertyId=${propertyId}&spaceId=${destinationUnit}`
       : `/record/property?id=${propertyId}`) as never);
   };
 
@@ -46,14 +51,14 @@ function NewSpace() {
 
   return (
     <div className="ws-page lease-wizard-page">
-      <WorkspaceHead icon="units" title={search.get("unitId") ? "Unit setup" : "Add Unit"} />
+      <WorkspaceHead icon="units" title={title} />
       <UnitWizardModal
         open
         propertyId={propertyId}
-        unitId={search.get("unitId")}
-        startAt={search.get("step")}
+        wizard={UnitWizard}
+        {...(unitId ? { mode: "edit", unitId, startAt: search.get("step") } : { mode: "create" })}
         onClose={returnToRecord}
-        onFinished={(unit) => { finishedUnit.current = unit.id; returnToRecord(); }}
+        onFinished={(unit) => { finishedUnit.current = unit.id; }}
       />
     </div>
   );

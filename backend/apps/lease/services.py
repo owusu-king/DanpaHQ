@@ -60,7 +60,7 @@ def assert_participant(lease: Lease, user) -> None:
     is_manager = lease.unit.property.is_managed_by(user)
     if not is_tenant and not is_manager:
         raise PermissionDenied("You do not have access to that agreement.")
-    if is_tenant and lease.status == LeaseStatus.DRAFT:
+    if is_tenant and lease.status in (LeaseStatus.DRAFT, LeaseStatus.READY):
         raise PermissionDenied("This agreement has not been sent to you.")
 
 
@@ -406,6 +406,15 @@ def _assert_builder_complete(lease: Lease) -> None:
             raise ValidationFailed(message)
 
 
+def _assert_offer_term(lease: Lease) -> None:
+    if lease.term_has_expired:
+        raise ValidationFailed(
+            "This agreement has already ended. Update the start date or term "
+            "so it ends today or later.",
+            details={"reason": "lease_term_expired"},
+        )
+
+
 @transaction.atomic
 def ready_lease(*, lease: Lease, user) -> Lease:
     lease.refresh_from_db(from_queryset=Lease.objects.select_for_update())
@@ -418,6 +427,7 @@ def ready_lease(*, lease: Lease, user) -> Lease:
     if template is None:
         raise ValidationFailed("A canonical agreement requires its template.")
     _assert_builder_complete(lease)
+    _assert_offer_term(lease)
     lease.status = LeaseStatus.READY
     lease.ready_at = timezone.now()
     lease.save(update_fields=["status", "ready_at", "updated_at"])
@@ -453,6 +463,7 @@ def offer_lease(*, lease: Lease, user, request=None) -> Lease:
     )
     if lease.status != required_status:
         raise Conflict("That agreement has already been sent.")
+    _assert_offer_term(lease)
     if (
         lease.workflow_version == LeaseWorkflow.CANONICAL
         and getattr(settings, "LEASE_TEMPLATE_REQUIRE_APPROVAL", False)
@@ -518,6 +529,8 @@ def record_tenant_review(*, lease: Lease, user) -> Lease:
     """Record the first deliberate opening of the complete frozen offer."""
     lease.refresh_from_db(from_queryset=Lease.objects.select_for_update())
     assert_tenant(lease, user)
+    if lease.status in (LeaseStatus.DRAFT, LeaseStatus.READY):
+        raise PermissionDenied("This agreement has not been sent to you.")
     if lease.status not in (LeaseStatus.OFFERED, LeaseStatus.TENANT_ACCEPTED):
         return lease
     if lease.tenant_reviewed_at is not None:
@@ -921,6 +934,7 @@ def cancel_lease(*, lease: Lease, user, reason: str = "") -> Lease:
         raise Conflict("An agreement that is already live cannot be cancelled. End it instead.")
 
     previous = lease.status
+    expired_offer = previous == LeaseStatus.OFFERED and lease.term_has_expired
     lease.status = LeaseStatus.CANCELLED
     lease.cancelled_at = timezone.now()
     lease.decline_reason = reason[:300]
@@ -936,7 +950,14 @@ def cancel_lease(*, lease: Lease, user, reason: str = "") -> Lease:
     # not import each other at module scope.
     from apps.application.services import conclude_for_lease
 
-    conclude_for_lease(lease)
+    if expired_offer:
+        # Keep the accepted request available for corrected terms. The frozen
+        # offer and its application link remain on the withdrawn lease.
+        from apps.occupancy.models import PropertyJoinRequest
+
+        PropertyJoinRequest.objects.filter(lease=lease).update(lease=None)
+    else:
+        conclude_for_lease(lease)
 
     record(
         action=AuditAction.UPDATE,

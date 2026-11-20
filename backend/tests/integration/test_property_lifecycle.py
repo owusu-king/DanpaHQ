@@ -345,13 +345,23 @@ class TestHidingIsNotEnforcing:
     been shown in the wrong state — which is exactly what was happening.
     """
 
-    def test_a_property_with_a_reviewer_cannot_be_edited(self, factory, landlord, api, sign_in_as):
+    @pytest.mark.parametrize(
+        "payload",
+        [
+            {"water_source": "borehole_pump"},
+            {"property_type": "commercial"},
+            {"address": {"place_name": "Adum"}},
+        ],
+    )
+    def test_a_property_with_a_reviewer_cannot_be_edited(
+        self, factory, landlord, api, sign_in_as, payload
+    ):
         prop = factory(PropertyVerificationState.SUBMITTED)
         sign_in_as(api, user=landlord)
 
         response = api.patch(
             f"/api/v1/properties/{prop.id}/",
-            {"water_source": "borehole_pump"},
+            payload,
             format="json",
         )
 
@@ -392,6 +402,8 @@ class TestHidingIsNotEnforcing:
             ("compound_type", "walled_gated"),
             ("title", "Renamed after approval"),
             ("notes", "Gate code changed."),
+            ("property_type", "commercial"),
+            ("address", {"place_name": "Adum"}),
         ):
             refused = api.patch(f"/api/v1/properties/{prop.id}/", {field: value}, format="json")
             assert refused.status_code == 409, f"{field} should be fixed once verified"

@@ -18,7 +18,7 @@ test("record flows do not request malformed API paths when their route id is abs
     ["web/app/record/property/page.tsx", /if \(!id\) return;/],
     // The setup and new-Unit routes render the wizards, which fetch only with an id.
     ["web/src/components/property/PropertyWizard.tsx", /if \(!initialId\) return;/],
-    ["web/src/components/property/UnitWizard.tsx", /if \(!initialUnit\) return;/],
+    ["web/src/components/property/UnitWizard.tsx", /if \(!propertyId \|\| \(mode === "edit" && !unitId\)\) return;/],
     ["web/src/components/property/PropertyVerification.tsx", /if \(!id\) return;/],
     ["web/app/record/space-new/page.tsx", /if \(!propertyId\) \{/],
     ["web/app/record/space-listing/page.tsx", /if \(!spaceId\) return;/],

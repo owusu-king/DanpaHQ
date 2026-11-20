@@ -16,6 +16,19 @@ def test_liveness_does_not_touch_dependencies(client):
     assert client.get("/healthz").status_code == 200
 
 
+def test_staging_liveness_identifies_render_release(client, settings, monkeypatch):
+    from datetime import timedelta
+
+    settings.ENVIRONMENT = "staging"
+    settings.CELERY_BEAT_SCHEDULE = {"outbox-dispatch": {"schedule": timedelta(seconds=15)}}
+    monkeypatch.setenv("RENDER_GIT_COMMIT", "a" * 40)
+    response = client.get("/healthz")
+    assert response["X-Danpa-Release"] == "a" * 40
+    assert response["X-Danpa-Outbox-Interval"] == "15"
+    settings.ENVIRONMENT = "production"
+    assert "X-Danpa-Release" not in client.get("/healthz").headers
+
+
 def test_readiness_reports_each_dependency(client):
     body = client.get("/readyz").json()
     assert set(body["checks"]) == {"database", "cache"}

@@ -69,6 +69,7 @@ test("the search lives in the address bar, and the list and the map ask it the s
   // Both chromes host `Explore`, which reads `mode` and hands Rent to the
   // listing browser and Buy to the sale browser — inside that same boundary.
   assert.equal(page.match(/<Suspense fallback=\{<ExploreFallback \/>\}>\s*<Explore \/>/g)?.length, 2);
+  assert.match(page, /state\.status === "loading" \? <ExploreFallback \/> : \(\s*<Suspense fallback=\{<ExploreFallback \/>\}>\s*<Explore \/>/);
   // Explore opens on All; the console’s Show chip chooses Rent or Buy (owner, 2026-10-05).
   assert.match(page, /if \(asked === "buy"\) return <SaleBrowser \/>;/);
   assert.match(page, /if \(asked === "rent"\) return <ListingBrowser \/>;/);

@@ -2180,14 +2180,10 @@ def provider_verification(user):
     Superseded rows are skipped: they are history, and a re-check in progress
     should read as in progress rather than as whatever it replaced.
     """
-    from apps.trust.models import SubjectType, Verification, VerificationKind, VerificationStatus
+    from apps.trust.models import SubjectType, VerificationKind
+    from apps.trust.services import latest_for
 
-    return (
-        Verification.objects.for_subject(SubjectType.USER, user.id)
-        .filter(kind=VerificationKind.PROVIDER)
-        .exclude(status=VerificationStatus.SUPERSEDED)
-        .first()
-    )
+    return latest_for(SubjectType.USER, user.id, VerificationKind.PROVIDER)
 
 
 @transaction.atomic

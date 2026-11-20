@@ -260,18 +260,38 @@ class User(AbstractBaseUser, PermissionsMixin):
             if assignment.revoked_at is None
         }
 
+    def _prefetched_live_roles(self) -> list | None:
+        """Live assignments from a prefetch the caller already made, if any.
+
+        `roles` has always read through a prefetch; these two did not, so a
+        serializer that prefetched once still asked the database again on every
+        `primary_role` and `has_role`. Without a prefetch they query as before.
+        """
+        cache = getattr(self, "_prefetched_objects_cache", {})
+        if "role_assignments" not in cache:
+            return None
+        return [a for a in cache["role_assignments"] if a.revoked_at is None]
+
     @property
     def primary_role(self) -> str | None:
-        assignment = (
-            self.role_assignments.filter(revoked_at__isnull=True)
-            .order_by("-is_primary", "granted_at")
-            .first()
-        )
+        live = self._prefetched_live_roles()
+        if live is not None:
+            ordered = sorted(live, key=lambda a: (not a.is_primary, a.granted_at))
+            assignment = ordered[0] if ordered else None
+        else:
+            assignment = (
+                self.role_assignments.filter(revoked_at__isnull=True)
+                .order_by("-is_primary", "granted_at")
+                .first()
+            )
         # No grant means no role. Pretending that it means tenant makes an
         # interrupted onboarding indistinguishable from a completed tenant.
         return assignment.role if assignment else None
 
     def has_role(self, role: str) -> bool:
+        live = self._prefetched_live_roles()
+        if live is not None:
+            return any(a.role == role for a in live)
         return self.role_assignments.filter(role=role, revoked_at__isnull=True).exists()
 
     def mark_phone_verified(self) -> None:

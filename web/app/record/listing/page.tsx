@@ -1,6 +1,7 @@
 "use client";
 
-import { VideoPlayer } from "@/components/property/WalkthroughVideo";
+import { MediaGallery } from "@/components/property/MediaGallery";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -31,6 +32,8 @@ import { useSession } from "@/lib/session";
 import { listMyApplications, listMyViewings, listSavedListings } from "@/lib/tenant";
 import { onDate } from "@/lib/time";
 
+const RentalApplication = dynamic(() => import("../apply/RentalApplication").then((module) => module.RentalApplication));
+
 /**
  * The page a tenant decides on.
  *
@@ -60,15 +63,23 @@ export default function PublicListingPage() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState<"save" | "viewing" | null>(null);
   const [application, setApplication] = useState<string | null>(null);
+  const [applyingTo, setApplyingTo] = useState<string | null>(null);
+  const applyTrigger = useRef<HTMLButtonElement | null>(null);
+  const restoreApplyFocus = useRef(false);
   const [viewing, setViewing] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [confirmingViewing, setConfirmingViewing] = useState(false);
   const [shareFeedback, setShareFeedback] = useState<"shared" | "copied" | null>(null);
   const [expanded, setExpanded] = useState(false);
-  const [lightbox, setLightbox] = useState<number | null>(null);
   usePageTitle(listing?.headline);
 
   const signedIn = state.status === "signed_in";
+
+  useEffect(() => {
+    if (applyingTo || !restoreApplyFocus.current) return;
+    restoreApplyFocus.current = false;
+    applyTrigger.current?.focus({ preventScroll: true });
+  }, [applyingTo]);
 
   useEffect(() => {
     let current = true;
@@ -232,61 +243,46 @@ export default function PublicListingPage() {
     <main className="listing">
       <ListingPath headline={listing.headline} />
 
-      {/* One lead photograph and up to four supporting views. */}
-      {photos.length ? (
-        <div className="listing-photos">
-          <div className={`listing-gallery${photos.length === 1 ? " listing-gallery-solo" : ""}`} data-count={Math.min(photos.length, 5)}>
-            {photos.slice(0, 5).map((photo, index) => (
-              <button
-                key={photo.id}
-                type="button"
-                aria-label={`Open photographs at ${index + 1} of ${photos.length}`}
-                onClick={() => setLightbox(index)}
-              >
-                {/* Short-lived signed URLs from the files service. */}
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={photo.download_url ?? ""} alt={photo.caption || listing.headline} />
-              </button>
-            ))}
-          </div>
-          {photos.length > 1 ? (
-            <button type="button" className="listing-gallery-all" onClick={() => setLightbox(0)}>
-              <Icon name="photos" />
-              View all {photos.length} photos
-            </button>
-          ) : null}
-        </div>
-      ) : (
-        <div className="listing-gallery-empty">
-          <Icon name="photos" />
-          <span>Photos pending</span>
-        </div>
-      )}
-
-      <VideoPlayer video={listing.space.video} label="Unit video" caption />
-      <VideoPlayer video={listing.property_context.video} label="Property video" caption />
-      <div className="listing-discovery-tools">
-        <PropertyAsk property={rentalIntelContext(listing)} />
-        {!taken ? (
-          <div className="listing-secondary">
-            <Button
-              variant="quiet"
-              aria-pressed={saved}
-              onClick={() => void toggleSave()}
-            >
-              <Icon name="bookmark" />
-              <span className="listing-action-label">{saved ? "Saved" : "Save"}</span>
-            </Button>
-            <Button
-              variant="quiet"
-              onClick={() => void shareListing()}
-            >
-              <Icon name="share" />
-              <span className="listing-action-label">{shareFeedback === "shared" ? "Shared" : shareFeedback === "copied" ? "Link copied" : "Share"}</span>
-            </Button>
-          </div>
-        ) : null}
-      </div>
+      <MediaGallery
+        key={listing.id}
+        layout="listing"
+        title={listing.headline}
+        photos={photos.map((photo) => ({
+          id: photo.id,
+          url: photo.download_url!,
+          label: photo.caption || listing.headline,
+          sourceLabel: photo.source_label,
+        }))}
+        videos={[
+          { label: "Unit video", video: listing.space.video },
+          { label: "Property video", video: listing.property_context.video },
+        ]}
+        empty={<div className="listing-gallery-empty"><Icon name="photos" /><span>Property media pending</span></div>}
+        tools={(
+          <>
+            <PropertyAsk property={rentalIntelContext(listing)} />
+            {!taken ? (
+              <div className="listing-secondary">
+                <Button
+                  variant="quiet"
+                  aria-pressed={saved}
+                  onClick={() => void toggleSave()}
+                >
+                  <Icon name="bookmark" />
+                  <span className="listing-action-label">{saved ? "Saved" : "Save"}</span>
+                </Button>
+                <Button
+                  variant="quiet"
+                  onClick={() => void shareListing()}
+                >
+                  <Icon name="share" />
+                  <span className="listing-action-label">{shareFeedback === "shared" ? "Shared" : shareFeedback === "copied" ? "Link copied" : "Share"}</span>
+                </Button>
+              </div>
+            ) : null}
+          </>
+        )}
+      />
 
       <div className="listing-body">
         <div className="listing-main">
@@ -350,11 +346,17 @@ export default function PublicListingPage() {
               {/* Applying leads. It is the thing this page exists to produce,
                   and it was the secondary button under a viewing request. */}
               <Button
+                ref={applyTrigger}
                 onClick={() => {
                   if (application) { router.push("/applications"); return; }
                   const next = `/record/apply?id=${listing.id}`;
                   if (!signedIn) return requireAccount(next);
-                  router.push(next as never);
+                  if (state.me.capabilities.active_workspace === "tenant" && state.me.capabilities.tenant.workspace_access) {
+                    restoreApplyFocus.current = true;
+                    setApplyingTo(listing.id);
+                  } else {
+                    router.push(next as never);
+                  }
                 }}
               >{application ? "Application sent — open it" : "Apply to rent"}</Button>
 
@@ -426,12 +428,11 @@ export default function PublicListingPage() {
         ) : null}
       </div>
 
-      <Lightbox
-        photos={photos}
-        index={lightbox}
-        onClose={() => setLightbox(null)}
-        onMove={(next) => setLightbox(next)}
-      />
+      {applyingTo === listing.id ? (
+        <RentalApplication key={listing.id} id={listing.id} initialListing={listing}
+          onClose={() => setApplyingTo(null)}
+          onSent={(created) => setApplication(created.status)} />
+      ) : null}
     </main>
   );
 }
@@ -491,93 +492,3 @@ function ListingSkeleton() {
  * backend orders the Unit's own photographs first and the building after; the
  * strip marks that change once instead of labelling every thumbnail.
  */
-function Lightbox({
-  photos,
-  index,
-  onClose,
-  onMove,
-}: {
-  photos: ListingDetail["gallery"];
-  index: number | null;
-  onClose: () => void;
-  onMove: (index: number) => void;
-}) {
-  const ref = useRef<HTMLDialogElement>(null);
-  const strip = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const dialog = ref.current;
-    if (!dialog) return;
-    if (index !== null && !dialog.open) dialog.showModal();
-    if (index === null && dialog.open) dialog.close();
-  }, [index]);
-
-  // Stepping past the edge of the strip should not leave the current
-  // photograph off screen.
-  useEffect(() => {
-    if (index === null) return;
-    strip.current
-      ?.querySelector<HTMLElement>('[aria-current="true"]')
-      ?.scrollIntoView({ block: "nearest", inline: "nearest" });
-  }, [index]);
-
-  const photo = index === null ? null : photos[index];
-  const step = (by: number) => onMove(((index ?? 0) + by + photos.length) % photos.length);
-  const secondGroup = photos.findIndex((row) => row.source_label !== photos[0]?.source_label);
-
-  return (
-    <dialog
-      ref={ref}
-      className="listing-lightbox"
-      aria-label="Photographs"
-      onClose={onClose}
-      onCancel={(event) => { event.preventDefault(); onClose(); }}
-      onClick={(event) => { if (event.target === ref.current) onClose(); }}
-      onKeyDown={(event) => {
-        if (index === null) return;
-        if (event.key === "ArrowRight") step(1);
-        if (event.key === "ArrowLeft") step(-1);
-      }}
-    >
-      {photo ? (
-        <>
-          <div className="listing-lightbox-stage">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={photo.download_url ?? ""} alt={photo.caption || photo.source_label} />
-            {photos.length > 1 ? (
-              <>
-                <button type="button" className="listing-lightbox-step is-prev" aria-label="Previous photo" onClick={() => step(-1)}>‹</button>
-                <button type="button" className="listing-lightbox-step is-next" aria-label="Next photo" onClick={() => step(1)}>›</button>
-              </>
-            ) : null}
-          </div>
-
-          <div className="listing-lightbox-bar">
-            <span className="type-caption" style={{ color: "inherit" }}>
-              {photo.source_label} · {index! + 1} of {photos.length}
-            </span>
-            <button type="button" aria-label="Close photographs" onClick={onClose}>✕</button>
-          </div>
-
-          {photos.length > 1 ? (
-            <div className="listing-lightbox-thumbs" ref={strip}>
-              {photos.map((row, position) => (
-                <button
-                  key={row.id}
-                  type="button"
-                  className={`listing-lightbox-thumb${position === secondGroup ? " starts-group" : ""}`}
-                  aria-current={position === index}
-                  aria-label={`${row.source_label}. Photo ${position + 1} of ${photos.length}`}
-                  onClick={() => onMove(position)}
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={row.download_url ?? ""} alt="" />
-                </button>
-              ))}
-            </div>
-          ) : null}
-        </>
-      ) : null}
-    </dialog>
-  );
-}

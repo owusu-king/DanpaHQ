@@ -4,6 +4,7 @@ import { StyleSheet, ScrollView, View } from "react-native";
 
 import { decideApplication, getApplication, type RentalApplication } from "@/applications";
 import { apiFetch, ApiFailure, idempotentMutation } from "@/api";
+import { leaseForApplication } from "@/applicationMeaning";
 import { Bone } from "@/components/billing/BillingParts";
 import { EntityHeader, StatusLine, type StatusTone } from "@/components/property/WorkspacePatterns";
 import {
@@ -67,7 +68,7 @@ export default function ProviderApplicationDetailScreen() {
     const read = async () => {
       if (kind === "application") {
         const [nextApplication, leases] = await Promise.all([getApplication(id), listGrantedLeases()]);
-        return { application: nextApplication, request: null, lease: leases.find((row) => row.application === id) ?? null };
+        return { application: nextApplication, request: null, lease: leaseForApplication(nextApplication, leases) };
       }
       if (!organizationId) throw new Error("Portfolio missing");
       const summary = await getPortfolioSummary(organizationId);
@@ -120,8 +121,8 @@ export default function ProviderApplicationDetailScreen() {
   const open = application ? ["submitted", "under_review"].includes(application.status) : request!.status === "pending";
   const mayManage = request ? request.can_manage : true;
   const agreementNeeded = application
-    ? application.status === "accepted" && (!lease || lease.status === "draft")
-    : request!.status === "approved" && (!request!.lease_id || request!.lease_status === "draft");
+    ? application.status === "accepted" && !application.concluded_at && (!lease || ["draft", "ready"].includes(lease.status))
+    : request!.status === "approved" && (!request!.lease_id || ["draft", "ready"].includes(request!.lease_status ?? ""));
   const message = application?.message || request?.message || "";
   const decided = (application?.decision_note && !open) || request?.decision_note;
   // Only an open request someone here may answer can be decided, whatever the link asked for.
@@ -241,11 +242,12 @@ export default function ProviderApplicationDetailScreen() {
                       listingId={application.listing_id}
                       unitId={application.unit_id}
                       tenantId={application.tenant_id}
+                      tenantName={who}
+                      rentalLabel={place}
                       rentMinor={application.rent_minor}
                       advanceMonths={application.advance_months_offered}
                       leaseId={lease?.id ?? null}
                       leaseStatus={lease?.status ?? null}
-                      onChanged={() => load()}
                     />
                   ) : (
                     <RequestLeaseActions
@@ -253,9 +255,10 @@ export default function ProviderApplicationDetailScreen() {
                       unitId={request!.unit_id}
                       bedId={request!.bed_id}
                       tenantId={request!.requester_id}
+                      tenantName={who}
+                      rentalLabel={place}
                       leaseId={request!.lease_id}
                       leaseStatus={request!.lease_status}
-                      onChanged={() => load()}
                     />
                   )}
                 </RecordPanel>

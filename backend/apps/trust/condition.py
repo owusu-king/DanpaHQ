@@ -208,7 +208,9 @@ def current_review(subject) -> Verification | None:
     from apps.core.memo import cached
 
     def produce():
-        prepared = getattr(subject, "_property_list_verifications", None)
+        prepared = getattr(subject, "_condition_reviews", None)
+        if prepared is None:
+            prepared = getattr(subject, "_property_list_verifications", None)
         if prepared is not None:
             return next(
                 (row for row in prepared if row.kind == kind and row.status in OPEN_STATUSES),
@@ -238,7 +240,9 @@ def settled_review(subject) -> Verification | None:
     from apps.core.memo import cached
 
     def produce():
-        prepared = getattr(subject, "_property_list_verifications", None)
+        prepared = getattr(subject, "_condition_reviews", None)
+        if prepared is None:
+            prepared = getattr(subject, "_property_list_verifications", None)
         if prepared is not None:
             candidates = [
                 row

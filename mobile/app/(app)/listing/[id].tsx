@@ -1,7 +1,8 @@
-import { VideoPlayer } from "@/components/property/WalkthroughVideo";
+import { MediaGallery } from "@/components/property/MediaGallery";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import * as Linking from "expo-linking";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { StatusBar } from "expo-status-bar";
 import { useEffect, useRef, useState } from "react";
 import {
   Alert,
@@ -248,10 +249,13 @@ export default function ListingDetailScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: shell.record }}>
       <ScrollView contentContainerStyle={{ paddingBottom: pageBottom }}>
-        {photos.length ? (
+        <MediaGallery key={listing.id}
+          videos={[{ label: "Unit video", video: listing.space.video }, { label: "Property video", video: listing.property_context.video }]}
+          photos={photos.length ? (
           <View>
             <ScrollView
               ref={heroScroll}
+              contentOffset={{ x: photoIndex * width, y: 0 }}
               horizontal
               pagingEnabled
               showsHorizontalScrollIndicator={false}
@@ -295,11 +299,12 @@ export default function ListingDetailScreen() {
               </Pressable>
             ) : null}
           </View>
-        ) : (
+        ) : null}
+          empty={(
           <View style={{ height: heroHeight, alignItems: "center", justifyContent: "center", backgroundColor: theme.color.field["100"] }}>
             <Ionicons name="image-outline" size={30} color={theme.color.ink["300"]} />
           </View>
-        )}
+        )} />
 
         {/*
           Organised the way a tenant decides (owner, 2026-09-28): what it is and
@@ -307,8 +312,6 @@ export default function ListingDetailScreen() {
           landlord's own words, then the building around it. Each is one white
           card on the ivory page, so the eye can find a section by its shape.
         */}
-      <VideoPlayer video={listing.space.video} label="Unit video" caption />
-      <VideoPlayer video={listing.property_context.video} label="Property video" caption />
         <View style={styles.page}>
           <View style={styles.identity}>
             <Type variant="display2" accessibilityRole="header">{listing.headline}</Type>
@@ -440,26 +443,29 @@ export default function ListingDetailScreen() {
           {related?.length ? (
             <Section title="Related rentals">
               <Type variant="caption" style={styles.muted}>Nearby options at a similar rent.</Type>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                decelerationRate="fast"
-                snapToInterval={Math.min(Math.round(width * 0.78), 300) + space[3]}
-                contentContainerStyle={{ gap: space[3], paddingRight: space[5] }}
-              >
-                {related.map((item) => (
-                  <View key={item.id} style={{ width: Math.min(Math.round(width * 0.78), 300) }}>
-                    <ListingCard
-                      listing={item}
-                      photoSwipe={false}
-                      onPress={() => router.push({
-                        pathname: "/(app)/listing/[id]",
-                        params: { id: item.id },
-                      } as never)}
-                    />
-                  </View>
-                ))}
-              </ScrollView>
+              <View style={styles.relatedGrid}>
+                {Array.from({ length: Math.ceil(related.length / 2) }, (_, rowIndex) => {
+                  const row = related.slice(rowIndex * 2, rowIndex * 2 + 2);
+                  return (
+                    <View key={row[0]!.id} style={styles.relatedRow}>
+                      {row.map((item) => (
+                        <View key={item.id} style={styles.relatedCell}>
+                          <ListingCard
+                            listing={item}
+                            tile
+                            photoSwipe={false}
+                            onPress={() => router.push({
+                              pathname: "/(app)/listing/[id]",
+                              params: { id: item.id },
+                            } as never)}
+                          />
+                        </View>
+                      ))}
+                      {row.length === 1 ? <View style={styles.relatedCell} /> : null}
+                    </View>
+                  );
+                })}
+              </View>
             </Section>
           ) : null}
 
@@ -531,7 +537,8 @@ export default function ListingDetailScreen() {
       <Modal visible={zoomed} animationType="fade" onRequestClose={closePhotos}>
         {/* Its own window, so it measures its own edges rather than the page's. */}
         <ModalSafeArea>
-        <SafeAreaView edges={["top", "bottom"]} style={{ flex: 1, backgroundColor: "#0b110e" }}>
+        {zoomed ? <StatusBar style="dark" /> : null}
+        <SafeAreaView edges={["top", "bottom"]} style={{ flex: 1, backgroundColor: theme.color.field["0"] }}>
           <View style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: space[2] }}>
             <Pressable
               accessibilityRole="button"
@@ -539,9 +546,9 @@ export default function ListingDetailScreen() {
               onPress={closePhotos}
               style={{ width: 48, height: 48, alignItems: "center", justifyContent: "center" }}
             >
-              <Ionicons name="close" size={26} color={theme.color.field["0"]} />
+              <Ionicons name="close" size={26} color={theme.color.ink["900"]} />
             </Pressable>
-            <Type variant="caption" style={{ flex: 1, textAlign: "center", color: theme.color.field["0"] }}>
+            <Type variant="caption" style={{ flex: 1, textAlign: "center", color: theme.color.ink["700"] }}>
               {browsingPhotos ? `${photos.length} photos` : `${photoIndex + 1} of ${photos.length}`}
             </Type>
             {photos.length > 1 ? (
@@ -554,7 +561,7 @@ export default function ListingDetailScreen() {
                 <Ionicons
                   name={browsingPhotos ? "image-outline" : "grid-outline"}
                   size={22}
-                  color={theme.color.field["0"]}
+                  color={theme.color.ink["900"]}
                 />
               </Pressable>
             ) : <View style={{ width: 48 }} />}
@@ -564,7 +571,7 @@ export default function ListingDetailScreen() {
             <ScrollView contentContainerStyle={{ padding: space[3], gap: space[5] }}>
               {photoGroups.map((group) => (
                 <View key={group.label} style={{ gap: space[2] }}>
-                  <Type variant="caption" style={{ color: "rgba(255,255,255,0.65)" }}>
+                  <Type variant="caption" style={{ color: theme.color.ink["700"] }}>
                     {group.label} · {group.items.length}
                   </Type>
                   <View style={{ flexDirection: "row", flexWrap: "wrap", gap: space[2] }}>
@@ -598,7 +605,7 @@ export default function ListingDetailScreen() {
                 onMomentumScrollEnd={(event: NativeSyntheticEvent<NativeScrollEvent>) =>
                   setPhotoIndex(Math.round(event.nativeEvent.contentOffset.x / width))
                 }
-                style={{ flex: 1 }}
+                style={{ flex: 1, backgroundColor: theme.color.field["100"] }}
               >
                 {photos.map((photo) => (
                   <View key={photo.id} style={{ width, flex: 1, justifyContent: "center" }}>
@@ -612,7 +619,7 @@ export default function ListingDetailScreen() {
               </ScrollView>
               <Type
                 variant="caption"
-                style={{ paddingVertical: space[4], textAlign: "center", color: "rgba(255,255,255,0.65)" }}
+                style={{ paddingVertical: space[4], textAlign: "center", color: theme.color.ink["700"] }}
               >
                 {photos[photoIndex]?.source_label}
               </Type>
@@ -663,6 +670,9 @@ function Tag({ label }: { label: string }) {
 }
 
 const styles = StyleSheet.create({
+  relatedGrid: { gap: space[3] },
+  relatedRow: { flexDirection: "row", gap: space[3] },
+  relatedCell: { flex: 1, minWidth: 0 },
   page: {
     gap: space[5],
     paddingHorizontal: space[4],

@@ -180,7 +180,7 @@ const styles = StyleSheet.create({
   },
   /** The same frame a `Field` wears, so a form reads as one set of controls. */
   trigger: {
-    minHeight: 52,
+    minHeight: theme.targetMin,
     flexDirection: "row",
     alignItems: "center",
     gap: space[3],

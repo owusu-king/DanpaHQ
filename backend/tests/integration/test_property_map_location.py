@@ -90,6 +90,35 @@ def test_owner_can_move_and_clear_pin_without_changing_address(api, draft):
     assert draft.address.latitude is None and draft.address.longitude is None
 
 
+def test_owner_can_change_type_and_written_address_on_a_draft(api, draft):
+    original = draft.address
+    response = api.patch(
+        f"/api/v1/properties/{draft.id}/",
+        {
+            "property_type": PropertyType.COMMERCIAL,
+            "address": {
+                "place_name": "Adum",
+                "place_context": "Kumasi",
+                "street": "Market Road",
+                "house_number": "32",
+                "latitude": "6.700123",
+                "longitude": "-1.620456",
+            },
+        },
+        format="json",
+    )
+    assert response.status_code == 200, response.data
+    draft.refresh_from_db()
+    assert draft.property_type == PropertyType.COMMERCIAL
+    assert draft.address.place_name == "Adum"
+    assert draft.address.street == "Market Road"
+    assert draft.address.house_number == "32"
+    assert draft.address.latitude == Decimal("6.700123")
+    original.refresh_from_db()
+    assert original.street == "12 Original Road"
+    assert original.latitude is None
+
+
 @pytest.mark.parametrize(
     "point",
     [{"latitude": 91, "longitude": 0}, {"latitude": 6}, {"latitude": None, "longitude": -1}],

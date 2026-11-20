@@ -1,5 +1,7 @@
 "use client";
 
+import { FieldFrame } from "./Field";
+
 /**
  * A labelled select that meets the same 48px target rule as Field and Button.
  *
@@ -28,13 +30,14 @@ export function Select({
   disabled?: boolean;
 }) {
   return (
-    <label className="field">
-      <span className="type-caption field-label">{label}</span>
-      <span className={disabled ? "select-shell select-shell-disabled" : "select-shell"}>
+    <FieldFrame label={label} hint={hint} error={error}>
+      {(id, describedBy) => <span className={disabled ? "select-shell select-shell-disabled" : "select-shell"}>
         <select
+          id={id}
           value={value}
           disabled={disabled}
           aria-invalid={Boolean(error)}
+          aria-describedby={describedBy}
           onChange={(event) => onChange(event.target.value)}
           className="type-body select-control"
         >
@@ -44,14 +47,7 @@ export function Select({
             </option>
           ))}
         </select>
-      </span>
-      {error ? (
-        <span role="alert" className="type-caption field-error">
-          {error}
-        </span>
-      ) : hint ? (
-        <span className="type-caption field-hint">{hint}</span>
-      ) : null}
-    </label>
+      </span>}
+    </FieldFrame>
   );
 }

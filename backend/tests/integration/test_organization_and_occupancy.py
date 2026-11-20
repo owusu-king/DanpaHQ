@@ -280,6 +280,37 @@ class TestOrganizationAuthorization:
         assert response.data["tenancy_requests"][0]["id"] == str(join_request.id)
         assert response.data["tenant_access"][0]["access_code"]["state"] == "active"
 
+        from apps.application.models import ApplicationStatus, RentalApplication
+        from apps.lease import services as lease_services
+        from apps.listing.models import Listing
+
+        home_url = f"/api/v1/organizations/{organization.id}/portfolio/?view=home"
+        assert api.get(home_url).data["agreements_to_prepare"] == 0
+
+        occupancy_services.decide_join_request(
+            join_request=join_request, actor=owner, approved=True,
+        )
+        assert api.get(home_url).data["agreements_to_prepare"] == 1
+
+        listing = Listing.objects.create(unit=unit, created_by=owner, rent_minor=120000)
+        application = RentalApplication.objects.create(
+            listing=listing, unit=unit, tenant=tenant, status=ApplicationStatus.ACCEPTED,
+        )
+        assert api.get(home_url).data["agreements_to_prepare"] == 2
+
+        application.concluded_at = timezone.now()
+        application.save(update_fields=["concluded_at"])
+        assert api.get(home_url).data["agreements_to_prepare"] == 1
+
+        lease_services.draft_lease(
+            user=owner,
+            unit=unit,
+            tenant=tenant,
+            join_request=join_request,
+            data={"rent_minor": 120000, "starts_on": timezone.localdate(), "term_months": 12},
+        )
+        assert api.get(home_url).data["agreements_to_prepare"] == 0
+
     def test_portfolio_tenant_rows_follow_each_occupancys_lease_and_tenancy(
         self, address, approve_provider, registered, sign_in_as
     ):
@@ -435,7 +466,22 @@ class TestOrganizationAuthorization:
         assert "tenant_access" not in home.data
         assert "profit_loss" not in home.data
         assert len(home_queries) < len(full_queries)
-        assert len(home_queries) <= 17
+        assert len(home_queries) <= 18
+
+        with CaptureQueriesContext(connection) as finance_queries:
+            finance = owner_api.get(f"{portfolio_url}?view=finance")
+        assert finance.status_code == 200
+        assert finance["Cache-Control"] == "private, no-store"
+        finance_fields = (
+            "organization", "counts", "money", "tenants", "profit_loss",
+            "verification", "recent_payments", "recent_settlements",
+        )
+        for field in finance_fields:
+            assert finance.data[field] == full.data[field]
+        assert all(finance.data[key] == [] for key in (
+            "past_tenants", "tenant_access", "tenancy_requests",
+        ))
+        assert len(finance_queries) < len(full_queries)
 
         outsider_api = APIClient()
         sign_in_as(outsider_api, user=stranger)
@@ -444,6 +490,7 @@ class TestOrganizationAuthorization:
             == 404
         )
         assert outsider_api.get(f"{portfolio_url}?view=home").status_code == 404
+        assert outsider_api.get(f"{portfolio_url}?view=finance").status_code == 404
 
     def test_payment_attention_counts_only_claims_the_provider_still_owes(
         self, address, approve_provider, registered, sign_in_as
@@ -546,6 +593,9 @@ class TestOrganizationAuthorization:
         respect the same scoping as everything else: a member assigned to one
         Property sees that Property's Units, not the Portfolio's.
         """
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
         from apps.organization import services as organization_services
         from apps.property import services as property_services
 
@@ -591,7 +641,8 @@ class TestOrganizationAuthorization:
         assert first["property_title"] == "Legon House"
         for field in ("availability", "verification", "publication", "primary_photo"):
             assert field in first
-        cards = owner_api.get(f"{url}?view=cards")
+        with CaptureQueriesContext(connection) as initial:
+            cards = owner_api.get(f"{url}?view=cards")
         assert cards.status_code == 200
         assert cards["Cache-Control"] == "private, no-store"
         assert len(cards.content) < len(response.content)
@@ -633,6 +684,47 @@ class TestOrganizationAuthorization:
         assert (
             outsider_api.get(f"/api/v1/organizations/{organization.id}/units/").status_code == 404
         )
+
+        for index in range(4):
+            property_services.add_unit(
+                prop=osu, user=owner,
+                data={
+                    "label": f"Additional flat {index}",
+                    "space_type": "apartment",
+                    "bedrooms": 1,
+                },
+            )
+        with CaptureQueriesContext(connection) as expanded:
+            expanded_cards = owner_api.get(f"{url}?view=cards")
+        assert expanded_cards.status_code == 200
+        assert len(expanded_cards.data) == 7
+        assert len(expanded) <= len(initial)
+
+        from apps.listing import services as listing_services
+        from apps.listing.models import ListingStatus
+        from apps.occupancy.models import Occupancy
+
+        occupied, expired = units_by_property["Osu Court"]
+        verify_space(occupied)
+        for unit, status in ((occupied, ListingStatus.ACTIVE), (expired, ListingStatus.EXPIRED)):
+            listing = listing_services.create_listing(
+                user=owner,
+                unit=unit,
+                data={"rent_minor": 150000, "headline": "Fixture flat", "description": "Fixture"},
+            )
+            listing.adopt_status(status)
+            listing.save()
+        Occupancy.objects.create(user=manager, property=osu, unit=occupied)
+
+        full = owner_api.get(url)
+        cards = owner_api.get(f"{url}?view=cards")
+        assert full.status_code == cards.status_code == 200
+        assert cards.data == [{key: row[key] for key in card_fields} for row in full.data]
+        by_id = {row["id"]: row for row in cards.data}
+        assert by_id[str(occupied.pk)]["verification"]["state"] == "verified"
+        assert by_id[str(occupied.pk)]["availability"]["state"] == "occupied"
+        assert by_id[str(occupied.pk)]["publication"]["state"] == "withdrawn"
+        assert by_id[str(expired.pk)]["availability"]["state"] == "expired"
 
     def test_private_property_and_draft_do_not_require_publication_trust(self, address):
         from apps.core.exceptions import PermissionDenied

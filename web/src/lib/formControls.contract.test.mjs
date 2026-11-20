@@ -94,13 +94,11 @@ test("a field says when it has focus", () => {
   // tabbing through a form moved a cursor nobody could see.
   const focus = rule(forms(), ".field-shell:focus-within");
   assert.match(focus, /border-color:/);
-  assert.match(focus, /box-shadow:/);
-
-  // The ring is a shadow, so gaining focus moves nothing on the page.
-  assert.match(focus, /box-shadow: 0 0 0 3px/);
+  assert.match(focus, /outline: 2px solid var\(--color-kola-600\)/);
+  assert.match(focus, /outline-offset: 2px/);
 
   // Failing is not the same as being focused, and both are visible.
-  assert.match(rule(forms(), ".field-shell-error"), /--color-laterite-600/);
+  assert.match(rule(forms(), ".field-shell-error, .field-shell-error:hover"), /--color-laterite-600/);
 
   // On the phone there is no :focus, so the state has to be held.
   assert.match(code(mobileUi()), /const \[focused, setFocused\] = useState\(false\)/);
@@ -269,7 +267,6 @@ test("an input that is drawn as something else does not also draw a focus box", 
   // to them — a gold or green second border around a focused field.
   for (const [sheet, selector] of [
     ["forms.css", ".field-input.field-input:focus-visible"],
-    ["forms.css", ".select-control.select-control:focus-visible"],
     ["forms.css", ".control-input.control-input:focus-visible"],
     ["property-workspace.css", ".type-choice-option input:focus-visible"],
   ]) {
@@ -282,7 +279,7 @@ test("an input that is drawn as something else does not also draw a focus box", 
 
   // And the thing that replaced it still shows focus, so nothing was merely
   // switched off.
-  assert.match(rule(forms(), ".field-shell:focus-within"), /box-shadow/);
+  assert.match(rule(forms(), ".field-shell:focus-within"), /outline:/);
   assert.match(rule(forms(), ".control-input:focus-visible + .control-box"), /box-shadow/);
   assert.match(
     rule(read("web/src/styles/property-workspace.css"), ".type-choice-option input:focus-visible + .type-choice-face"),

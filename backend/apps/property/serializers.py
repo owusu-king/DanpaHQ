@@ -128,9 +128,13 @@ def unit_publication(unit) -> dict:
     """
     from apps.listing.models import Listing, PublicationState
 
-    listing = (
-        Listing.objects.filter(unit=unit).exclude(status="rejected").order_by("-created_at").first()
-    )
+    prepared = getattr(unit, "_unit_card_publication", None)
+    if prepared is None:
+        listing = (
+            Listing.objects.filter(unit=unit).exclude(status="rejected").order_by("-created_at").first()
+        )
+    else:
+        listing, occupied, visible = prepared
     if listing is None:
         return {
             "state": "private",
@@ -148,14 +152,16 @@ def unit_publication(unit) -> dict:
 
     if state == "published" and listing.derived_status() != "active":
         state, label = "private", listing.get_status_display()
-    if state == "published" and unit_is_occupied(unit):
+    if state == "published" and (unit_is_occupied(unit) if prepared is None else occupied):
         # Defence for legacy/inconsistent rows. Public search applies the same
         # occupancy exclusion and new occupancies reconcile the listing itself.
         state, label = "withdrawn", "Not public while occupied"
     if state == "published":
         from apps.listing.read_models import public_listings
 
-        if not public_listings().filter(pk=listing.pk).exists():
+        if prepared is None:
+            visible = public_listings().filter(pk=listing.pk).exists()
+        if not visible:
             state, label = "private", "Not currently public"
     return {
         "state": state,
@@ -175,16 +181,21 @@ def unit_availability(unit) -> dict:
     """
     from apps.occupancy.services import unit_is_occupied
 
-    if unit_is_occupied(unit):
+    prepared = getattr(unit, "_unit_card_availability", None)
+    occupied = unit_is_occupied(unit) if prepared is None else prepared[0]
+    if occupied:
         return {"state": "occupied", "label": "Occupied"}
 
     from apps.listing.models import AvailabilityState, Listing
 
-    listing = (
-        Listing.objects.filter(unit=unit, publication_state="published")
-        .order_by("-created_at")
-        .first()
-    )
+    if prepared is None:
+        listing = (
+            Listing.objects.filter(unit=unit, publication_state="published")
+            .order_by("-created_at")
+            .first()
+        )
+    else:
+        listing = prepared[1]
     if listing is not None and listing.availability_state == AvailabilityState.EXPIRED:
         return {"state": "expired", "label": "Listing expired"}
     return {"state": "available", "label": "Available"}
@@ -369,13 +380,8 @@ class UnitSerializer(serializers.ModelSerializer):
         return cast(list[dict], UnitAmenitySerializer(rows, many=True).data)
 
     def get_primary_photo(self, obj) -> dict | None:
-        photo = (
-            next(
-                (row for row in obj.media.all() if row.is_primary),
-                None,
-            )
-            or obj.media.all().first()
-        )
+        photos = list(obj.media.all())
+        photo = next((row for row in photos if row.is_primary), photos[0] if photos else None)
         if photo is None:
             return None
         return UnitMediaSerializer(photo, context=self.context).data

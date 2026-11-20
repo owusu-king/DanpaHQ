@@ -15,31 +15,29 @@ test("photographs lead, and say where they came from", () => {
     assert.match(source, /gallery/);
     assert.match(source, /source_label/);
   }
-  // Web opens a lightbox; mobile swipes and goes full screen.
-  assert.match(web(), /listing-lightbox/);
-  assert.match(web(), /ArrowRight/);
+  // Web shares one media viewer; mobile swipes and goes full screen.
+  const gallery = read("web/src/components/property/MediaGallery.tsx");
+  assert.match(web(), /<MediaGallery/);
+  assert.match(gallery, /<dialog/);
+  assert.match(gallery, /ArrowRight/);
   assert.match(mobile(), /pagingEnabled/);
   assert.match(mobile(), /\{photoIndex \+ 1\} \/ \{photos\.length\}/);
 });
 
 test("photographs preview the place; they do not take the page", () => {
-  const css = read("web/src/styles/listing-workspace.css");
+  const css = read("web/src/styles/property-detail.css");
+  const gallery = read("web/src/components/property/MediaGallery.tsx");
 
-  // A 16/9 mosaic across a 76rem page stands about 680px tall — a laptop's
-  // whole first screen, before a word has been read.
-  assert.doesNotMatch(css, /[.]listing-gallery [{][^}]*aspect-ratio/);
-  assert.match(css, /[.]listing-gallery [{][^}]*height: clamp[(]/);
-
-  // One control that says what it does, rather than a badge on the third tile
-  // that a tenant has to guess is clickable.
-  assert.match(web(), /listing-gallery-all/);
-  assert.match(web(), /View all [{]photos[.]length[}] photos/);
+  // The listing mosaic stays bounded on wide screens.
+  assert.match(css, /height: clamp[(]22rem, 46vh, 31rem[)]/);
+  assert.match(gallery, /detail-media-count/);
+  assert.match(gallery, /Expand property media/);
   assert.doesNotMatch(web(), /listing-gallery-more|listing-gallery-source/);
 
   // Reaching the eighth photograph is one move, not seven: a strip on web, an
   // overview grid on mobile.
-  assert.match(web(), /listing-lightbox-thumbs/);
-  assert.match(css, /[.]listing-lightbox-thumb [{]/);
+  assert.match(gallery, /detail-media-thumbnails/);
+  assert.match(css, /[.]detail-media-thumbnails button [{]/);
   assert.match(mobile(), /const heroHeight = Math[.]min[(]/);
   assert.match(mobile(), /photoGroups[.]map/);
   assert.match(mobile(), /grid-outline/);
@@ -75,7 +73,9 @@ test("applying leads, and a viewing request is asked for rather than sent", () =
   const applyAt = code.indexOf("Apply to rent");
   const viewingAt = code.indexOf("Request a viewing");
   assert.ok(applyAt > 0 && applyAt < viewingAt, "Apply to rent must come first");
-  assert.match(source, /<Button\s*\n\s*onClick=\{\(\) => \{[\s\S]{0,200}\/record\/apply\?id=/);
+  assert.match(source, /const next = `\/record\/apply\?id=\$\{listing\.id\}`/);
+  assert.match(source, /setApplyingTo\(listing\.id\)/);
+  assert.match(source, /<RentalApplication[^>]*initialListing=\{listing\}/);
 
   // The request reaches a real person and cannot be taken back. The guard is
   // the *call site*: there must be exactly one, and it must be the confirm.

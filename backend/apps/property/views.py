@@ -217,12 +217,16 @@ class PropertyDetailView(APIView):
     def get(self, request, pk):
         prop = services.get_property_or_404(pk, request.user)
         services.assert_can_manage(prop, request.user)
-        return Response(PropertySerializer(prop, context={"user": request.user}).data)
+        # One read: the detail asks the list's questions too. See `apps.core.memo`.
+        with memoized():
+            return Response(PropertySerializer(prop, context={"user": request.user}).data)
 
     def patch(self, request, pk):
         prop = services.get_property_or_404(pk, request.user)
         prop = services.update_property(prop=prop, user=request.user, data=request.data)
-        return Response(PropertySerializer(prop, context={"user": request.user}).data)
+        # Opened after the write has finished, so the read cannot outlive it.
+        with memoized():
+            return Response(PropertySerializer(prop, context={"user": request.user}).data)
 
 
 class UnitListCreateView(APIView):
@@ -232,7 +236,8 @@ class UnitListCreateView(APIView):
         prop = services.get_property_or_404(property_pk, request.user)
         services.assert_can_manage(prop, request.user)
         units = _unit_queryset().filter(property=prop, is_active=True)
-        return Response(UnitSerializer(units, many=True, context={"user": request.user}).data)
+        with memoized():
+            return Response(UnitSerializer(units, many=True, context={"user": request.user}).data)
 
     def post(self, request, property_pk):
         prop = services.get_property_or_404(property_pk, request.user)
@@ -255,7 +260,10 @@ class UnitDetailView(APIView):
 
     def get(self, request, pk):
         unit = spaces.get_space_or_404(pk, request.user)
-        return Response(UnitDetailSerializer(unit, context={"user": request.user}).data)
+        # The space's actions, verification and gates repeat the same checks.
+        # One read collapses them; see `apps.core.memo`.
+        with memoized():
+            return Response(UnitDetailSerializer(unit, context={"user": request.user}).data)
 
     def patch(self, request, pk):
         unit = spaces.get_space_or_404(pk, request.user)
@@ -270,7 +278,8 @@ class UnitDetailView(APIView):
             unit = spaces.change_space_type(unit=unit, user=request.user, space_type=space_type)
         if data:
             unit = spaces.update_space(unit=unit, user=request.user, data=data)
-        return Response(UnitDetailSerializer(unit, context={"user": request.user}).data)
+        with memoized():
+            return Response(UnitDetailSerializer(unit, context={"user": request.user}).data)
 
 
 class UnitAccessCodeRotateView(APIView):

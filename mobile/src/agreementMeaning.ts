@@ -87,9 +87,10 @@ export type AgreementLike = {
  * Only `offered` is open to the tenant — `OPEN_TO_TENANT` in the backend
  * policies. Everything else is a state to be read, not answered.
  */
-export function standing(lease: { status: string }): AgreementStanding {
+export function standing(lease: { status: string; offer_expired?: boolean }): AgreementStanding {
   switch (lease.status) {
     case "offered":
+      if (lease.offer_expired) return { stage: "past", line: "Offer expired · ask the provider for a corrected agreement", decisionOpen: false };
       return { stage: "action", line: "Waiting for your decision", decisionOpen: true };
     case "tenant_accepted":
       return { stage: "active", line: "You accepted — provider confirmation needed", decisionOpen: false };

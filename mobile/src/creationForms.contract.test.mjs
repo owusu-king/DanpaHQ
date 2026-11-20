@@ -70,9 +70,9 @@ test("one act is pinned where a thumb is, and the way back is quiet", () => {
   for (const path of Object.values(WIZARDS)) {
     const source = read(path);
     assert.match(source, /footer=\{/);
-    assert.match(source, /<QuietAct label="Back" icon="chevron-back"/);
-    assert.doesNotMatch(source, /<QuietAct label="Cancel"/);
-    assert.doesNotMatch(source, /<Button\s+label=/, `${path} still stacks slabs`);
+    assert.match(source, /<Button label="Back" variant="quiet"/);
+    assert.match(source, /<Button label="Cancel" variant="quiet"/);
+    assert.equal((source.match(/<Button label=\{primary\}/g) ?? []).length, 1);
   }
   // A Documents step with nothing chosen says it skips, rather than "Save".
   assert.match(read(WIZARDS.property), /"Skip for now"/);

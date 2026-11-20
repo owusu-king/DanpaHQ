@@ -5,10 +5,11 @@ import { Field } from "@/components/Field";
 import { Icon } from "@/components/portal/icons";
 import { searchLocations, type LocationReference } from "@/lib/locations";
 
-export function LocationAutocomplete({ value, onChange, onSelect, onSubmit, onClear, onShowArea, selected, compact = false, minimal = false, label = "Town or neighbourhood", error }: {
+export function LocationAutocomplete({ value, onChange, onSelect, onSubmit, onClear, onShowArea, onFieldBlur, selected, compact = false, minimal = false, required = false, label = "Town or neighbourhood", error }: {
   value: string; onChange: (value: string) => void; onSelect: (row: LocationReference) => void;
   onSubmit?: (value: string) => void; onClear?: () => void; onShowArea?: (row: LocationReference) => void;
-  selected?: LocationReference | null; compact?: boolean; minimal?: boolean; label?: string; error?: string;
+  selected?: LocationReference | null; compact?: boolean; minimal?: boolean; required?: boolean; label?: string; error?: string;
+  onFieldBlur?: () => void;
 }) {
   const id = useId();
   const root = useRef<HTMLDivElement>(null);
@@ -59,12 +60,13 @@ export function LocationAutocomplete({ value, onChange, onSelect, onSubmit, onCl
   }, [value, open]);
   const choose = (row: LocationReference) => { setOpen(false); onSelect(row); };
   const props = {
-    value, role: "combobox", "aria-autocomplete": "list" as const, "aria-expanded": open,
+    value, required, role: "combobox", "aria-autocomplete": "list" as const, "aria-expanded": open,
     "aria-controls": `${id}-options`, "aria-activedescendant": open && visibleRows[active] ? `${id}-${active}` : undefined,
     autoComplete: "off", placeholder: "Search Ghana's towns and communities…",
+    onBlur: onFieldBlur,
     onFocus: () => setOpen(true), onChange: (event: React.ChangeEvent<HTMLInputElement>) => { onChange(event.target.value); setActive(-1); setOpen(true); },
     onKeyDown: (event: React.KeyboardEvent<HTMLInputElement>) => {
-      if (event.key === "Escape") { setOpen(false); event.stopPropagation(); }
+      if (event.key === "Escape" && open) { event.preventDefault(); setOpen(false); event.stopPropagation(); }
       if (event.key === "ArrowDown" && visibleRows.length) { event.preventDefault(); setOpen(true); setActive((current) => (current + 1) % visibleRows.length); }
       if (event.key === "ArrowUp" && visibleRows.length) { event.preventDefault(); setActive((current) => current < 0 ? visibleRows.length - 1 : (current - 1 + visibleRows.length) % visibleRows.length); }
       if (event.key === "Enter") { event.preventDefault(); if (open && active >= 0 && visibleRows[active]) choose(visibleRows[active]); else { setOpen(false); if (!selected || compact) onSubmit?.(value.trim()); } }

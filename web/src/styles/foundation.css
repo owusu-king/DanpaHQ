@@ -47,7 +47,7 @@
 
 .btn {
   position: relative;
-  min-height: 2.625rem;
+  min-height: 40px;
   padding: 0 var(--space-4);
   display: inline-flex;
   align-items: center;
@@ -57,8 +57,7 @@
   border-radius: var(--radius-md);
   font-family: var(--font-body);
   font-size: 0.875rem;
-  font-weight: 650;
-  letter-spacing: -0.005em;
+  font-weight: 500;
   line-height: 1;
   white-space: nowrap;
   text-decoration: none;
@@ -69,15 +68,27 @@
     background-color var(--motion-duration-fast) var(--motion-easing-standard),
     border-color var(--motion-duration-fast) var(--motion-easing-standard),
     color var(--motion-duration-fast) var(--motion-easing-standard),
-    translate var(--motion-duration-instant) var(--motion-easing-standard);
+    transform var(--motion-duration-fast) var(--motion-easing-standard);
 }
 
 /* The press. One pixel, on every variant, so the whole product agrees about
    what being pressed feels like. */
-.btn:not(:disabled):active { translate: 0 1px; }
+.btn:not(:disabled):active { transform: scale(.98); }
 
 .btn:disabled { cursor: not-allowed; opacity: 0.45; }
 .btn[aria-busy="true"] { cursor: wait; }
+.btn-busy-width { display: inline-flex; align-items: center; gap: var(--space-2); visibility: hidden; }
+.btn-spinner {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  border: 2px solid currentColor;
+  border-inline-end-color: transparent;
+  border-radius: 50%;
+  animation: btn-spin 680ms linear infinite;
+}
+@keyframes btn-spin { to { transform: rotate(1turn); } }
+@media (prefers-reduced-motion: reduce) { .btn-spinner { animation: none; } }
 
 .btn-primary {
   background: var(--color-kola-600);

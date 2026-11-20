@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
 
 import { AuthLink } from "@/components/auth/AuthDialog";
-import { Reveal } from "@/components/motion/Reveal";
+import { LazyReveal as Reveal } from "@/components/motion/LazyReveal";
 import { Button } from "@/components/ui/button";
 
 const SECTION = "px-5 sm:px-8 lg:px-12";

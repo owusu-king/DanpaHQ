@@ -10,6 +10,7 @@ from datetime import date, timedelta
 
 import pytest
 from django.test import override_settings
+from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.core.exceptions import Conflict, NotFound, PermissionDenied, ValidationFailed
@@ -212,6 +213,98 @@ CANONICAL_TERMS = {
         "additional_terms": [{"title": "Courtyard", "body": "Keep the shared courtyard clear."}],
     },
 }
+
+
+@pytest.mark.parametrize("canonical", [False, True])
+def test_ended_terms_are_blocked_before_sending(landlord, user, unit, canonical):
+    from apps.outbox.models import OutboxEvent
+
+    terms = CANONICAL_TERMS if canonical else TERMS
+    lease = services.draft_lease(
+        user=landlord,
+        unit=unit,
+        tenant=user,
+        data={**terms, "starts_on": timezone.localdate() - timedelta(days=90), "term_months": 1},
+    )
+    advance = services.ready_lease if canonical else services.offer_lease
+    with pytest.raises(ValidationFailed, match="Update the start date or term"):
+        advance(lease=lease, user=landlord)
+    lease.refresh_from_db()
+    assert lease.status == LeaseStatus.DRAFT
+    assert not hasattr(lease, "agreement")
+    assert not OutboxEvent.objects.filter(
+        name="lease.offered.v1", aggregate_id=str(lease.id)
+    ).exists()
+
+
+@pytest.mark.parametrize("source", ["application", "join_request"])
+def test_expired_offer_can_be_withdrawn_and_replaced(
+    landlord, user, unit, sign_in_as, monkeypatch, source,
+):
+    from apps.application.models import ApplicationStatus, RentalApplication
+    from apps.lease.serializers import LeaseSerializer
+    from apps.listing.models import Listing
+    from apps.occupancy.models import JoinRequestStatus, PropertyJoinRequest
+
+    if source == "application":
+        listing = Listing.objects.create(unit=unit, created_by=landlord, rent_minor=150000)
+        request = RentalApplication.objects.create(
+            unit=unit, listing=listing, tenant=user, status=ApplicationStatus.ACCEPTED,
+        )
+    else:
+        request = PropertyJoinRequest.objects.create(
+            property=unit.property, unit=unit, requester=user, status=JoinRequestStatus.APPROVED,
+        )
+    terms = {
+        **CANONICAL_TERMS, "starts_on": timezone.localdate() - timedelta(days=2), "term_months": 1,
+    }
+    lease = services.draft_lease(
+        user=landlord, unit=unit, tenant=user, data=terms, **{source: request},
+    )
+    services.ready_lease(lease=lease, user=landlord)
+    api = APIClient()
+    sign_in_as(api, user=user)
+    assert api.get(f"/api/v1/leases/{lease.id}/").status_code == 403
+    assert api.post(f"/api/v1/leases/{lease.id}/review/", {}, format="json").status_code == 403
+
+    end = lease.ends_on
+    monkeypatch.setattr(timezone, "localdate", lambda *args, **kwargs: end + timedelta(days=1))
+    with pytest.raises(ValidationFailed, match="Update the start date or term"):
+        services.offer_lease(lease=lease, user=landlord)
+
+    # Backdating is valid as long as the term still covers the day of sending.
+    monkeypatch.setattr(timezone, "localdate", lambda *args, **kwargs: end)
+    services.offer_lease(lease=lease, user=landlord)
+    assert LeaseSerializer(lease).data["offer_expired"] is False
+    content_hash = lease.agreement.content_hash
+
+    monkeypatch.setattr(timezone, "localdate", lambda *args, **kwargs: end + timedelta(days=1))
+    assert LeaseSerializer(lease).data["offer_expired"] is True
+    response = api.post(f"/api/v1/leases/{lease.id}/accept/", {}, format="json")
+    assert response.status_code == 409
+    assert "send a corrected agreement" in response.data["error"]["message"]
+    lease.refresh_from_db()
+    assert lease.tenant_accepted_at is None
+    assert not lease.charges.exists()
+
+    services.cancel_lease(lease=lease, user=landlord, reason="Correcting the agreement dates.")
+    request.refresh_from_db()
+    if source == "application":
+        assert request.concluded_at is None
+    else:
+        assert request.lease_id is None
+    assert lease.agreement.content_hash == content_hash
+
+    replacement = services.draft_lease(
+        user=landlord, unit=unit, tenant=user,
+        data={**terms, "term_months": 12},
+        **{source: request},
+    )
+    services.ready_lease(lease=replacement, user=landlord)
+    services.offer_lease(lease=replacement, user=landlord)
+    services.accept_lease(lease=replacement, user=user)
+    assert replacement.status == LeaseStatus.TENANT_ACCEPTED
+    assert replacement.charges.exists()
 
 
 class TestCanonicalAgreementBuilder:

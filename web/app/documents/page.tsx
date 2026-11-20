@@ -11,6 +11,7 @@ import { listOrganizations } from "@/lib/console";
 import { useDeepLinkedModal } from "@/lib/deepLinkedModal";
 import { LEASE_FILTERS, type LeaseFilter } from "@/lib/leaseMeaning";
 import { useSession } from "@/lib/session";
+import { selectedPortfolio } from "@/lib/sessionPolicy";
 
 /**
  * Documents: the agreements a Portfolio makes, and what they are made from.
@@ -49,7 +50,7 @@ function Documents() {
   const router = useRouter();
   const pathname = usePathname();
   const search = useSearchParams();
-  const [organizationId, setOrganizationId] = useState<string | null>(null);
+  const [fallbackOrganization, setFallbackOrganization] = useState<string | null>();
   const [creating, setCreating] = useState(false);
   const [totals, setTotals] = useState<LeaseTotals | null>(null);
 
@@ -62,6 +63,10 @@ function Documents() {
   const provider = state.status === "signed_in"
     && state.me.capabilities.active_workspace === "provider"
     && state.me.capabilities.provider.workspace_access;
+  const preferred = selectedPortfolio(
+    state.status === "signed_in" ? state.me : null, activeContext,
+  )?.organization_id;
+  const organizationId = preferred ?? fallbackOrganization;
 
   // A tenant's agreements are theirs, at /leases; Documents is the provider's.
   useEffect(() => {
@@ -70,15 +75,13 @@ function Documents() {
 
   // Templates belong to a Portfolio: the one being operated, else the first.
   useEffect(() => {
-    if (!provider) return;
-    const preferred = activeContext?.startsWith("organization:") ? activeContext.slice("organization:".length) : "";
-    if (preferred) { setOrganizationId(preferred); return; }
+    if (!provider || preferred) return;
     let cancelled = false;
     void listOrganizations()
-      .then((rows) => { if (!cancelled) setOrganizationId(rows[0]?.id ?? null); })
-      .catch(() => { if (!cancelled) setOrganizationId(null); });
+      .then((rows) => { if (!cancelled) setFallbackOrganization(rows[0]?.id ?? null); })
+      .catch(() => { if (!cancelled) setFallbackOrganization(null); });
     return () => { cancelled = true; };
-  }, [activeContext, provider]);
+  }, [preferred, provider]);
 
   // `replace`, so filtering and opening leave no history trail to walk back through.
   const setParams = useCallback((changes: Record<string, string>) => {
@@ -95,6 +98,7 @@ function Documents() {
 
   if (state.status === "loading" || (state.status === "signed_in" && !provider)) return <DocumentsLoading />;
   if (state.status !== "signed_in") return null;
+  if (organizationId === undefined) return <DocumentsLoading />;
 
   return (
     <div className="ws-page docs-workspace">
@@ -135,6 +139,7 @@ function Documents() {
           <ContractsView organizationId={organizationId} creating={creating} onCreatingChange={setCreating} />
         ) : (
           <LeasesView
+            key={organizationId}
             organizationId={organizationId}
             stage={stage}
             query={query}

@@ -196,7 +196,7 @@ function ProviderHome() {
   const needsUpdate = properties.filter((row) =>
     ["changes_required", "rejected", "suspended", "expired"].includes(row.verification?.review_state ?? ""),
   ).length;
-  const drafts = leases.filter((lease) => lease.status === "draft").length;
+  const drafts = leases.filter((lease) => lease.status === "draft" || lease.status === "ready").length;
 
   const moves = nextMoves({
     overdueMinor: money?.overdue_minor ?? 0,
@@ -206,6 +206,7 @@ function ProviderHome() {
     maintenanceAlerts: counts?.maintenance_alerts ?? 0,
     requests: applications + (counts?.pending_join_requests ?? 0),
     viewingRequests: viewings.filter((row) => !row.confirmed_starts_at).length,
+    agreementsToPrepare: summary?.agreements_to_prepare ?? 0,
     draftAgreements: drafts,
     propertiesToUpdate: needsUpdate,
     unreadEnquiries,
