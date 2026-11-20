@@ -79,14 +79,14 @@ test("mobile Unit detail can archive or delete without a modal workflow", () => 
   assert.match(api, /\/spaces\/\$\{unitId\}\/archive\//);
 });
 
-test("Units uses two columns while Property details uses compact shared rows", () => {
+test("Units and Property details use the same two-column tiles", () => {
   const tile = read("mobile/src/components/property/UnitTile.tsx");
   const screens = [
     read("mobile/app/(app)/units.tsx"),
+    read("mobile/app/(app)/provider-property.tsx"),
   ];
 
   assert.match(tile, /export const UNIT_COLUMNS = 2;/);
-  assert.match(read("mobile/app/(app)/provider-property.tsx"), /<RecordUnitRow/);
   for (const screen of screens) {
     assert.match(screen, /numColumns=\{UNIT_COLUMNS\}/);
     assert.match(screen, /columnWrapperStyle=\{\{ gap: UNIT_TILE_GAP \}\}/);

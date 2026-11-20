@@ -44,15 +44,18 @@ export function CountStepper({
   min = 0,
   max = 20,
   format,
+  disabled = false,
 }: {
   label: string;
-  value: number;
+  value: number | null;
   onChange: (next: number) => void;
   min?: number;
   max?: number;
   /** How the number reads, e.g. 0 → "Ground". */
   format?: (value: number) => string;
+  disabled?: boolean;
 }) {
+  const display = value === null ? "Not set" : format?.(value) ?? value;
   return (
     <div className="count-stepper" role="group" aria-label={label}>
       <span className="type-caption count-stepper-label">{label}</span>
@@ -60,19 +63,19 @@ export function CountStepper({
         <button
           type="button"
           aria-label={`Fewer: ${label}`}
-          disabled={value <= min}
-          onClick={() => onChange(Math.max(min, value - 1))}
+          disabled={disabled || value === null || value <= min}
+          onClick={() => { if (value !== null) onChange(Math.max(min, value - 1)); }}
         >
           −
         </button>
-        <output aria-live="polite" data-word={format && Number.isNaN(Number(format(value))) ? "" : undefined}>
-          {format ? format(value) : value}
+        <output aria-live="polite" data-word={Number.isNaN(Number(display)) ? "" : undefined}>
+          {display}
         </output>
         <button
           type="button"
           aria-label={`More: ${label}`}
-          disabled={value >= max}
-          onClick={() => onChange(Math.min(max, value + 1))}
+          disabled={disabled || (value !== null && value >= max)}
+          onClick={() => onChange(value === null ? min : Math.min(max, value + 1))}
         >
           +
         </button>
@@ -86,10 +89,12 @@ export function YesNo({
   label,
   value,
   onChange,
+  disabled = false,
 }: {
   label: string;
   value: boolean;
   onChange: (next: boolean) => void;
+  disabled?: boolean;
 }) {
   return (
     <div className="count-stepper" role="radiogroup" aria-label={label}>
@@ -101,6 +106,7 @@ export function YesNo({
             type="button"
             role="radio"
             aria-checked={value === option}
+            disabled={disabled}
             onClick={() => onChange(option)}
           >
             {option ? "Yes" : "No"}

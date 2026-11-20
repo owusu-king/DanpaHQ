@@ -5,9 +5,30 @@ import { authedFetch } from "@/lib/auth";
 import { ApiFailure } from "@/lib/api";
 import { validateVideo, videoPath, videoUpload, type VideoSubject, type WalkthroughVideo } from "@/lib/propertyVideo";
 
-export function VideoPlayer({ video, label = "Video", caption = false }: { video?: WalkthroughVideo | null; label?: string; caption?: boolean }) {
+export function VideoPlayer({ video, label = "Video", caption = false, expanded = false }: { video?: WalkthroughVideo | null; label?: string; caption?: boolean; expanded?: boolean }) {
   if (!video) return null;
-  const player = <video key={video.url} controls playsInline preload="metadata" aria-label={label} src={video.url} style={{ display: "block", width: "100%", maxHeight: 360, background: "#17291f", borderRadius: "var(--radius-md)", objectFit: "contain" }} />;
+  const player = (
+    <video
+      key={video.url}
+      controls
+      playsInline
+      preload="metadata"
+      aria-label={label}
+      src={video.url}
+      style={{
+        display: "block",
+        width: expanded ? "auto" : "100%",
+        height: expanded ? "auto" : undefined,
+        maxWidth: "100%",
+        maxHeight: expanded ? "100%" : 360,
+        minWidth: 0,
+        minHeight: 0,
+        background: expanded ? "transparent" : "var(--color-field-100)",
+        borderRadius: expanded ? "var(--detail-media-radius, 16px)" : "var(--radius-md)",
+        objectFit: "contain",
+      }}
+    />
+  );
   return caption ? <figure style={{ margin: 0, display: "grid", gap: "var(--space-2)" }}><figcaption className="type-caption">{label}</figcaption>{player}</figure> : player;
 }
 

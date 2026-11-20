@@ -1,6 +1,6 @@
 "use client";
 
-import type { ButtonHTMLAttributes, ReactNode } from "react";
+import type { ButtonHTMLAttributes, ReactNode, Ref } from "react";
 
 type Variant = "primary" | "secondary" | "quiet" | "accent" | "destructive";
 type Size = "sm" | "md" | "lg";
@@ -38,6 +38,7 @@ export function Button({
   busy?: boolean;
   busyLabel?: string;
   block?: boolean;
+  ref?: Ref<HTMLButtonElement>;
   children: ReactNode;
 }) {
   const classes = [
@@ -53,9 +54,13 @@ export function Button({
       {...props}
       disabled={props.disabled || busy}
       aria-busy={busy}
+      aria-label={busy ? busyLabel : props["aria-label"]}
       className={classes}
     >
-      {busy ? busyLabel : children}
+      {busy ? <>
+        <span className="btn-busy-width" aria-hidden="true">{children}</span>
+        <span className="btn-spinner" aria-hidden="true" />
+      </> : children}
     </button>
   );
 }

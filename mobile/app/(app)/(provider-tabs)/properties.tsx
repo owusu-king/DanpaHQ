@@ -28,6 +28,7 @@ import {
 } from "@/components/portfolio/PortfolioList";
 import { Notice, Type, space } from "@/components/ui";
 import { propertyStatus } from "@/components/property/WorkspacePatterns";
+import { propertyCardPresentation } from "@/propertyCard";
 import {
   listOrganizationProperties,
   listOrganizations,
@@ -85,7 +86,7 @@ const FILTER_TONE: Record<Exclude<PropertyFilter, "all">, string> = {
 
 /** One Property's stage, read from the combined verification the server serves. */
 function stageOf(property: ManagedProperty): Exclude<PropertyFilter, "all"> {
-  const { tone } = propertyStatus(property.verification);
+  const { tone } = propertyCardPresentation(property);
   return tone === "good" ? "verified" : tone === "waiting" ? "review" : tone === "attention" ? "attention" : "setup";
 }
 

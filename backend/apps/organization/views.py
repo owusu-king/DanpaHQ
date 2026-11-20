@@ -330,14 +330,22 @@ class OrganizationPortfolioView(APIView):
     def get(self, request, pk):
         organization = services.get_organization_or_404(pk, request.user)
         view = request.query_params.get("view")
-        response = Response(
-            services.portfolio_summary(
-                organization=organization,
-                user=request.user,
-                home_only=view == "home",
-                finance_only=view == "finance",
-            )
-        )
+        # A pure read that asks each unit's review and verification questions
+        # several times over. One declared read collapses them; see `apps.core.memo`.
+        with memoized():
+            if view == "requests":
+                # Applications reads only the private tenancy requests.
+                summary = services.portfolio_tenancy_requests(
+                    organization=organization, user=request.user
+                )
+            else:
+                summary = services.portfolio_summary(
+                    organization=organization,
+                    user=request.user,
+                    home_only=view == "home",
+                    finance_only=view == "finance",
+                )
+        response = Response(summary)
         response["Cache-Control"] = "private, no-store"
         return response
 

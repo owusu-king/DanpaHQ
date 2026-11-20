@@ -13,8 +13,8 @@ import type { AgreedTerms } from "@/agreementMeaning";
 
 export type TenantLane = "decide" | "finalising" | "home" | "past";
 
-export function laneOf(lease: { status: string }): TenantLane {
-  if (lease.status === "offered") return "decide";
+export function laneOf(lease: { status: string; offer_expired?: boolean }): TenantLane {
+  if (lease.status === "offered" && !lease.offer_expired) return "decide";
   if (lease.status === "tenant_accepted" || lease.status === "awaiting_activation") return "finalising";
   if (lease.status === "active") return "home";
   return "past";

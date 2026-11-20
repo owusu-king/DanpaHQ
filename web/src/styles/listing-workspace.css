@@ -234,22 +234,26 @@
 .listing-location .listing-location-map { border-radius: var(--radius-md); overflow: hidden; }
 
 /* A property-scoped entry into the existing Danpa Intel conversation. */
-.listing-ask { display: flex; align-items: center; gap: 8px; width: 100%; max-width: 36rem; min-width: 0; min-height: 40px; margin: 0; padding: 4px 6px 4px 12px; border: 1px solid var(--color-field-300); border-radius: 22px; background: #fff; }
-.listing-ask:focus-within { border-color: var(--color-kola-600); outline: 2px solid var(--color-kola-50); outline-offset: 2px; }
+.listing-ask { display: flex; align-items: center; gap: 8px; width: 100%; max-width: 36rem; min-width: 0; min-height: 44px; margin: 0; padding: 5px 6px 5px 16px; border: 1px solid var(--color-field-200); border-radius: 999px; background: #fff; box-shadow: 0 1px 2px rgba(33, 26, 21, .04); transition: border-color var(--motion-duration-fast) var(--ws-ease), box-shadow var(--motion-duration-fast) var(--ws-ease); }
+.listing-ask:hover { border-color: var(--color-ink-300); }
+.listing-ask:focus-within { border-color: var(--color-kola-600); outline: none; box-shadow: var(--focus-ring-field); }
 .listing-ask input { flex: 1; width: 0; min-width: 0; min-height: 30px; padding: 0; border: 0; border-radius: 0; background: transparent; color: var(--color-ink-900); font: inherit; font-size: .875rem; outline: none; box-shadow: none; }
 .listing-ask input:focus, .listing-ask input:focus-visible { outline: none; box-shadow: none; }
 .listing-ask button { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; gap: 6px; min-height: 28px; border: 0; font: inherit; font-size: .75rem; font-weight: 600; cursor: pointer; }
-.listing-ask-send { width: 28px; padding: 5px; border-radius: 50%; background: var(--color-kola-600); color: #fff; }
+.listing-ask-send { width: 32px; height: 32px; padding: 6px; border-radius: 50%; background: var(--color-kola-600); color: #fff; transition: background-color var(--motion-duration-fast) var(--ws-ease), opacity var(--motion-duration-fast) var(--ws-ease); }
+.listing-ask-send:not(:disabled):hover { background: var(--color-kola-800); }
 .listing-ask-send svg { width: 18px; height: 18px; }
 .listing-ask-send:disabled { opacity: .45; cursor: default; }
 .listing-ask-continue { padding: 4px 6px; border-radius: 6px; background: transparent; color: var(--color-kola-800); white-space: nowrap; }
 .listing-ask-continue:hover { text-decoration: underline; text-underline-offset: 3px; }
 .listing-ask button:focus-visible { outline: 2px solid var(--color-kola-600); outline-offset: 3px; }
 
-.listing-discovery-tools { display: flex; align-items: center; gap: 12px; min-width: 0; }
-.listing-discovery-tools > .listing-ask { flex: 1; }
+.listing-discovery-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; min-width: 0; }
+.listing-discovery-tools > .listing-ask { flex: 1 1 16rem; }
 .listing-discovery-tools > .listing-secondary { flex: 0 0 auto; gap: 8px; margin-left: auto; }
-.listing-discovery-tools .listing-secondary > button { flex: 0 0 auto; position: relative; min-height: 40px; padding: 8px 12px; border: 1px solid var(--color-field-200); border-radius: 8px; background: #fff; box-shadow: none; font-size: .8125rem; line-height: 1.4; }
+.listing-discovery-tools .listing-secondary > button { flex: 0 0 auto; position: relative; min-height: 44px; padding: 8px 16px; border: 1px solid var(--color-field-200); border-radius: 999px; background: #fff; box-shadow: 0 1px 2px rgba(33, 26, 21, .04); font-size: .8125rem; line-height: 1.4; }
+.listing-discovery-tools .detail-media-all { min-height: 44px; padding: 8px 16px; border-radius: 999px; box-shadow: 0 1px 2px rgba(33, 26, 21, .04); }
+.listing-discovery-tools .detail-media-all:hover { background: var(--color-kola-50); }
 
 /* --- the decision panel ------------------------------------------------------------- */
 
@@ -320,10 +324,6 @@
 .listing-terms dt { color: var(--color-ink-500); font-size: .875rem; }
 .listing-terms dd { margin: 0; color: var(--color-ink-900); font-size: .875rem; font-weight: 650; text-align: right; font-variant-numeric: tabular-nums; }
 
-/* The actual move-in total, kept in one compact row. */
-.listing-receipt { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px 12px; padding: 12px 16px; color: var(--color-ink-900); background: color-mix(in srgb, var(--color-kola-50) 55%, #fff); border: 1px solid color-mix(in srgb, var(--color-kola-600) 12%, #fff); border-radius: 10px; }
-.listing-receipt > small { color: var(--color-kola-800); font-size: .6875rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
-.listing-receipt > strong { font-family: var(--font-display); font-size: 1.375rem; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -.02em; overflow-wrap: anywhere; }
 
 /* --- actions --- */
 
@@ -543,9 +543,9 @@ ul.listing-trust-stamps { display: grid; gap: 2px; padding: var(--space-1); back
 
 /* Where deep exploration belongs. Contained rather than edge to edge, so the
    photograph is large without the page feeling like a slideshow. */
-.listing-lightbox { width: min(64rem, calc(100vw - 2rem)); max-width: none; padding: 0; margin: auto; background: transparent; border: 0; }
-.listing-lightbox::backdrop { background: rgb(12 20 16 / .86); backdrop-filter: blur(6px); }
-.listing-lightbox-stage { position: relative; display: grid; place-items: center; }
+.listing-lightbox { width: min(64rem, calc(100vw - 2rem)); max-width: none; padding: 0; margin: auto; color: var(--color-ink-900); background: var(--color-field-0); border: 1px solid var(--color-field-200); border-radius: 16px; }
+.listing-lightbox::backdrop { background: color-mix(in srgb, var(--color-field-200) 74%, transparent); backdrop-filter: blur(6px); }
+.listing-lightbox-stage { position: relative; display: grid; place-items: center; background: var(--color-field-100); }
 .listing-lightbox-stage img { display: block; width: 100%; max-height: min(calc(100vh - 16rem), 40rem); object-fit: contain; border-radius: var(--radius-lg); }
 
 /* Restrained: sized for the thumb, not for the picture. */
@@ -572,31 +572,116 @@ ul.listing-trust-stamps { display: grid; gap: 2px; padding: var(--space-1); back
 .listing-lightbox-step.is-prev { left: var(--space-3); }
 .listing-lightbox-step.is-next { right: var(--space-3); }
 
-.listing-lightbox-bar { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-3) 0; color: var(--color-field-0); }
-.listing-lightbox-bar button { min-width: 48px; min-height: 48px; color: var(--color-field-0); font-size: 1.25rem; background: transparent; border: 0; border-radius: 50%; cursor: pointer; }
-.listing-lightbox-bar button:hover { background: rgba(255, 255, 255, .1); }
+.listing-lightbox-bar { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-2) var(--space-4); color: var(--color-ink-700); }
+.listing-lightbox-bar button { min-width: 48px; min-height: 48px; color: var(--color-ink-900); font-size: 1.25rem; background: transparent; border: 0; border-radius: 50%; cursor: pointer; }
+.listing-lightbox-bar button:hover { background: var(--color-field-100); }
 
 /* Eight photographs should not mean eight clicks to reach the last one. */
-.listing-lightbox-thumbs { display: flex; gap: var(--space-2); padding-bottom: var(--space-2); overflow-x: auto; scrollbar-width: thin; }
+.listing-lightbox-thumbs { display: flex; gap: var(--space-2); padding: var(--space-1) var(--space-4) var(--space-3); overflow-x: auto; scrollbar-width: thin; }
 .listing-lightbox-thumb { flex: 0 0 auto; width: 74px; height: 56px; padding: 0; background: none; border: 2px solid transparent; border-radius: var(--radius-sm); opacity: .5; cursor: pointer; overflow: hidden; transition: opacity 120ms ease; }
 .listing-lightbox-thumb img { width: 100%; height: 100%; object-fit: cover; border-radius: 2px; }
-.listing-lightbox-thumb[aria-current="true"] { border-color: var(--color-kola-300, var(--color-field-0)); opacity: 1; }
+.listing-lightbox-thumb[aria-current="true"] { border-color: var(--color-kola-600); opacity: 1; }
 .listing-lightbox-thumb:hover { opacity: .85; }
 
 /* The two groups are separated once, rather than every photograph carrying a
    label. */
 .listing-lightbox-thumb.starts-group { margin-left: var(--space-5); position: relative; }
-.listing-lightbox-thumb.starts-group::before { content: ""; position: absolute; top: 0; bottom: 0; left: calc(var(--space-3) * -1); width: 1px; background: color-mix(in srgb, var(--color-field-0) 40%, transparent); }
+.listing-lightbox-thumb.starts-group::before { content: ""; position: absolute; top: 0; bottom: 0; left: calc(var(--space-3) * -1); width: 1px; background: var(--color-field-300); }
 
 .listing-gallery > button:focus-visible,
 .listing-gallery-all:focus-visible,
 .listing-lightbox-thumb:focus-visible,
 .listing-lightbox-step:focus-visible,
+.listing-lightbox-bar button:focus-visible,
 .listing-readmore:focus-visible,
 .listing-trust summary:focus-visible {
   outline: 3px solid var(--color-kola-600);
   outline-offset: 2px;
 }
+
+/* --- a rental --------------------------------------------------------------------- */
+
+/* What it is, then its name, then where. The type moved out of the location
+   line, where it read as part of the address. */
+.listing.is-rental .listing-head { gap: 6px; padding: var(--space-1) 0 0; }
+.listing.is-rental .listing-head .listing-kind { color: var(--color-kola-800); font-size: .75rem; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; }
+.listing.is-rental .listing-head h1 { font-size: clamp(1.75rem, 1.25rem + 1.4vw, 2.25rem); font-weight: 700; letter-spacing: -.03em; line-height: 1.12; text-wrap: balance; }
+.listing.is-rental .listing-head .listing-where { align-items: center; color: var(--color-ink-600); font-size: .9375rem; }
+.listing.is-rental .listing-head .listing-where .portal-icon { margin-top: 0; }
+
+/* The space in four measures, one row of equal cells. The dividers are the
+   container showing through a one-pixel gap, so they stay right however the
+   row wraps; growing cells leave no empty one behind. */
+.listing-specs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1px;
+  margin: 0;
+  overflow: hidden;
+  background: var(--color-field-200);
+  border: 1px solid var(--color-field-200);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 1px 2px rgba(33, 26, 21, .04), 0 16px 32px -28px rgba(33, 26, 21, .45);
+}
+.listing-specs > div { display: grid; flex: 1 1 8.5rem; gap: 6px; min-width: 0; padding: 16px 20px; background: #fff; }
+.listing-specs dt { display: flex; align-items: center; gap: 6px; color: var(--color-ink-500); font-size: .75rem; font-weight: 500; }
+.listing-specs dt .portal-icon { flex: 0 0 auto; width: 16px; height: 16px; color: var(--color-kola-600); }
+.listing-specs dd { margin: 0; color: var(--color-ink-900); font-family: var(--font-display); font-size: 1.125rem; font-weight: 650; font-variant-numeric: tabular-nums; letter-spacing: -.01em; line-height: 1.25; overflow-wrap: anywhere; }
+
+.listing.is-rental .listing-section { gap: var(--space-4); padding: var(--space-6); }
+.listing.is-rental .listing-section h2 { font-size: 1.0625rem; }
+
+/* Features as a scannable two-column list, each with its own mark. */
+.listing-features { display: grid; grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr)); gap: 12px 24px; margin: 0; padding: 0; list-style: none; }
+.listing-features li { display: flex; align-items: center; gap: 12px; min-width: 0; color: var(--color-ink-800); font-size: .875rem; font-weight: 500; line-height: 1.4; }
+.listing-features li > span { display: grid; flex: 0 0 auto; place-items: center; width: 36px; height: 36px; color: var(--color-kola-600); background: color-mix(in srgb, var(--color-kola-50) 80%, #fff); border-radius: 10px; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-kola-600) 12%, transparent); }
+.listing-features .portal-icon { width: 18px; height: 18px; color: inherit; }
+/* What the whole building shares is quieter than what this space has. */
+.listing-features.is-shared li > span { color: var(--color-ink-600); background: var(--color-field-100); box-shadow: inset 0 0 0 1px rgba(33, 26, 21, .06); }
+
+/* The building as a reference list: label on the left, answer on the right. */
+.listing-building { display: grid; margin: 0; }
+.listing-building > div { display: flex; flex-wrap: wrap; align-items: center; gap: 6px var(--space-4); padding: 12px 0; border-top: 1px solid var(--color-field-200); }
+.listing-building > div:first-child { padding-top: 0; border-top: 0; }
+.listing-building > div:last-child { padding-bottom: 0; }
+.listing-building dt { display: flex; flex: 0 0 9.5rem; align-items: center; gap: 10px; color: var(--color-ink-600); font-size: .8125rem; font-weight: 500; }
+.listing-building dt > span { display: grid; flex: 0 0 auto; place-items: center; width: 30px; height: 30px; color: var(--color-ink-600); background: var(--color-field-100); border-radius: 8px; }
+.listing-building dt .portal-icon { width: 16px; height: 16px; color: inherit; }
+.listing-building dd { flex: 1 1 12rem; min-width: 0; margin: 0; color: var(--color-ink-900); font-size: .875rem; font-weight: 600; overflow-wrap: anywhere; }
+.listing-shared { display: grid; gap: var(--space-3); }
+.listing-building + .listing-shared { padding-top: var(--space-4); border-top: 1px solid var(--color-field-200); }
+.listing-shared h3 { margin: 0; color: var(--color-ink-500); font-size: .75rem; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; }
+
+/* The decision panel: availability, the rent, the actions stacked full width,
+   then what it costs to move in, line by line. */
+.listing.is-rental .listing-panel { gap: var(--space-5); padding: var(--space-6); }
+.listing.is-rental .listing-pricing { gap: 10px; }
+.listing.is-rental .listing-rent { font-size: 2rem; font-weight: 700; letter-spacing: -.03em; line-height: 1.1; }
+.listing.is-rental .listing-rent span { font-size: .875rem; }
+.listing.is-rental .listing-actions.is-rental { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+.listing.is-rental .listing-actions .btn { min-height: 48px; border-radius: 12px; font-size: .9375rem; }
+
+.listing-movein { display: grid; gap: var(--space-3); padding: 16px 18px; background: color-mix(in srgb, var(--color-field-50) 70%, #fff); border: 1px solid var(--color-field-200); border-radius: 14px; }
+.listing-movein h2 { margin: 0; color: var(--color-ink-900); font-size: .875rem; font-weight: 650; }
+.listing-movein dl { display: grid; gap: 8px; margin: 0; }
+.listing-movein dl > div { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); }
+.listing-movein dt { min-width: 0; color: var(--color-ink-600); font-size: .8125rem; }
+.listing-movein dt span { color: var(--color-ink-500); }
+.listing-movein dt span::before { content: " · "; }
+.listing-movein dd { flex: 0 0 auto; margin: 0; color: var(--color-ink-900); font-size: .8125rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.listing-movein-total { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); margin: 0; padding-top: var(--space-3); border-top: 1px solid var(--color-field-300); }
+.listing-movein h2 + .listing-movein-total { padding-top: 0; border-top: 0; }
+.listing-movein-total span { color: var(--color-ink-800); font-size: .875rem; font-weight: 650; }
+.listing-movein-total strong { color: var(--color-ink-900); font-family: var(--font-display); font-size: 1.25rem; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -.02em; overflow-wrap: anywhere; }
+
+/* Who is behind it, as a quiet card with a proper way into the profile. */
+.listing.is-rental .listing-provider { padding: 16px 18px; border-radius: 14px; }
+.listing.is-rental .listing-provider-avatar { border-radius: 50%; }
+/* The profile link moves under the name rather than squeezing it. */
+.listing.is-rental .listing-provider-summary { display: flex; flex-wrap: wrap; justify-content: space-between; }
+.listing.is-rental .listing-provider-summary > .listing-provider-people { flex: 1 1 10rem; min-width: 0; }
+.listing.is-rental .listing-provider-profile { max-width: none; min-height: 36px; padding: 6px 14px; border: 1px solid var(--color-field-200); border-radius: 999px; white-space: nowrap; }
+.listing.is-rental .listing-provider-profile:hover { text-decoration: none; background: var(--color-kola-50); }
 
 @media (max-width: 960px) {
   .listing-body {
@@ -619,11 +704,15 @@ ul.listing-trust-stamps { display: grid; gap: 2px; padding: var(--space-1); back
   .listing-gallery-all { right: var(--space-2); bottom: var(--space-2); min-height: 2.75rem; padding: 0 var(--space-3); }
   .listing-head h1 { font-size: 1.5rem; }
   .listing-discovery-tools { gap: 8px; }
+  .listing-discovery-tools > .listing-ask { flex-basis: 100%; max-width: none; }
   .listing-discovery-tools > .listing-secondary { gap: 6px; }
   .listing-discovery-tools .listing-secondary > button { width: 44px; min-height: 44px; padding: 8px; }
   .listing-discovery-tools .listing-action-label { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .listing-location-where strong { overflow-wrap: anywhere; }
   .listing-facts li { padding: 8px 10px; gap: 8px; }
+  .listing-specs > div { flex-basis: 40%; padding: 14px 16px; }
+  .listing.is-rental .listing-section { padding: var(--space-4); }
+  .listing.is-rental .listing-panel { padding: var(--space-4); }
   .listing-section { padding: var(--space-4); }
   .listing-panel { padding: var(--space-4); border-radius: var(--radius-lg); }
   .listing-skeleton-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }

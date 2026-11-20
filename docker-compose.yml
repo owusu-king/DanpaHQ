@@ -72,13 +72,13 @@ services:
     # give you; it is defence in depth, so a failure must not block startup.
     # The subshell keeps that tolerance local - a failed migrate still stops
     # everything after it, which is the point of the chain.
+    # Gunicorn, not runserver: runserver starts a thread per request, so every
+    # call reconnects to PostgreSQL and roughly doubles local API time. These
+    # threads are reused, as in production. --reload polls for code changes,
+    # which also works on Windows bind mounts.
     command: >
-      sh -c "python manage.py migrate &&
-             (python manage.py harden_database || true) &&
-             python manage.py seed_geo &&
-             python manage.py seed_amenities &&
-             python manage.py ensure_bucket &&
-             python manage.py runserver 0.0.0.0:8000"
+      sh -c "python manage.py prepare_local &&
+             exec gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 1 --threads 8 --timeout 120 --reload"
     ports: ["8000:8000"]
     depends_on:
       db: {condition: service_healthy}
@@ -102,7 +102,13 @@ services:
     command: celery -A config beat -l info --schedule /tmp/celerybeat-schedule
     healthcheck: {disable: true}
 
+  # Opt-in. `docker compose up` starts everything except this: on a Windows or
+  # macOS file share the container must poll for changes with webpack, and
+  # pages take seconds to compile. `./dev.ps1` runs the web app on the host
+  # instead. To use this container anyway: `docker compose --profile docker-web
+  # up -d`, or set COMPOSE_PROFILES=docker-web in .env.
   web:
+    profiles: ["docker-web"]
     container_name: danpa-web
     image: danpahq-web-dev
     build:

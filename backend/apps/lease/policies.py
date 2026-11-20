@@ -54,6 +54,11 @@ def can_accept_offer(*, actor, target, elevated: bool = False) -> Decision:
             "This offer is no longer open. Ask the landlord to send a new one.",
         )
 
+    if target.term_has_expired:
+        return deny(
+            WRONG_STATE, "This offer has expired. Ask the provider to send a corrected agreement."
+        )
+
     # Confirmation, not a reason: they are agreeing, and there is nothing to
     # explain to anyone. But it is binding on them, so it should not happen on
     # a mis-tap.

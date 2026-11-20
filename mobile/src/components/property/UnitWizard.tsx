@@ -21,8 +21,8 @@ import { ChoiceTiles, ReviewLine, ReviewList, WizardFrame, type WizardStep } fro
 import { CountStepper, YesNo } from "@/components/form/CountStepper";
 import { SpaceAmenities } from "@/components/property/SpaceAmenities";
 import { SpacePhotos } from "@/components/property/SpacePhotos";
-import { Footnote, LATERITE, Pill, QuietAct } from "@/components/record/RecordSurfaces";
-import { Field, Notice, Type, space } from "@/components/ui";
+import { Footnote, LATERITE } from "@/components/record/RecordSurfaces";
+import { Button, Field, Notice, Type, space } from "@/components/ui";
 import { SPACE_GLYPHS, type Glyph } from "@/creationGlyphs";
 import { loadPropertyTypes, spaceTypesFor, type SpaceTypeOption } from "@/propertyTypes";
 import { createUnit, getProperty, getUnit, updateUnit, type Property, type UnitDetail } from "@/provider";
@@ -43,6 +43,7 @@ export function UnitWizard({
   propertyId,
   unitId: initialUnit = null,
   startAt = null,
+  onClose,
   onFinished,
 }: {
   propertyId: string;
@@ -162,18 +163,14 @@ export function UnitWizard({
       onGo={(key) => go(key as StepKey)}
       footer={
         <>
+          <Button label="Cancel" variant="quiet" disabled={busy || mediaBusy} onPress={onClose} />
           {at > 0 ? (
-            <QuietAct label="Back" icon="chevron-back" disabled={busy || mediaBusy} onPress={() => go(STEPS[at - 1]!.key)} />
+            <Button label="Back" variant="quiet" disabled={busy || mediaBusy} onPress={() => go(STEPS[at - 1]!.key)} />
           ) : null}
-          <Pill
-            label={primary}
-            disabled={mediaBusy}
-            icon={step === "review" ? (ready && !sent ? "shield-checkmark-outline" : "checkmark") : "arrow-forward"}
-            busy={busy}
-            busyLabel={step === "review" && ready ? "Sending" : "Saving"}
-            grow
-            onPress={() => void advance()}
-          />
+          <View style={{ flex: 1 }}>
+            <Button label={primary} disabled={mediaBusy} busy={busy}
+              busyLabel={step === "review" && ready ? "Sending…" : "Saving…"} onPress={() => void advance()} />
+          </View>
         </>
       }
     >

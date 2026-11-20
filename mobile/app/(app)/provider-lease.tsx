@@ -126,6 +126,8 @@ export default function ProviderLeaseScreen() {
   const conditions = terms?.conditions ?? lease.conditions;
   const rendered = lease.agreement?.rendered_document;
   const primary = primaryAct(lease);
+  const editable = lease.workflow_version === "canonical_v1" && (lease.status === "draft" || lease.status === "ready");
+  const editAgreement = () => router.push({ pathname: "/(app)/lease-builder", params: { leaseId: lease.id } } as never);
   const closing = lease.status === "draft" || lease.status === "ready" || lease.status === "offered" || lease.status === "active";
   const focused = confirmation !== null;
 
@@ -140,6 +142,14 @@ export default function ProviderLeaseScreen() {
         />
 
         {error ? <Notice tone="error" title={error} /> : null}
+
+        {lease.offer_expired ? (
+          <Notice
+            tone="warning"
+            title="The offer has expired"
+            body="Withdraw it from More, then prepare an agreement with corrected dates from Tenancy Requests."
+          />
+        ) : null}
 
         {lease.advance_notice ? (
           <Notice
@@ -333,7 +343,9 @@ export default function ProviderLeaseScreen() {
 
       {!focused && (primary || closing) ? (
         <ActionBar>
-          {primary ? (
+          {lease.status === "draft" && editable ? (
+            <Pill grow icon="create-outline" label="Continue preparing" onPress={editAgreement} />
+          ) : primary ? (
             <Pill
               grow
               icon={primary.icon}
@@ -344,7 +356,7 @@ export default function ProviderLeaseScreen() {
             />
           ) : null}
           {closing ? (
-            <View style={primary ? null : styles.soleAct}>
+            <View style={primary || editable ? null : styles.soleAct}>
               <QuietAct icon="ellipsis-horizontal" label="More" onPress={() => setExits(true)} />
             </View>
           ) : null}
@@ -354,9 +366,17 @@ export default function ProviderLeaseScreen() {
       <BottomSheet visible={exits} onClose={() => setExits(false)} title="More" closeLabel="Close options">
         <View style={styles.sheetBody}>
           <RecordPanel>
-            {lease.status === "draft" || lease.status === "ready" ? (
+            {editable ? (
               <LinkRow
                 first
+                icon="create-outline"
+                label="Edit agreement"
+                onPress={() => { setExits(false); editAgreement(); }}
+              />
+            ) : null}
+            {lease.status === "draft" || lease.status === "ready" ? (
+              <LinkRow
+                first={!editable}
                 icon="trash-outline"
                 tone="alert"
                 label="Discard draft"
@@ -393,7 +413,7 @@ export default function ProviderLeaseScreen() {
 
 /** The one act the status is waiting on, if there is one. */
 function primaryAct(lease: Lease): { action: "offer" | "confirm" | "activate"; label: string; icon: "send-outline" | "checkmark-done-outline" } | null {
-  if (lease.status === "draft" || lease.status === "ready") {
+  if (lease.status === "ready" || (lease.status === "draft" && lease.workflow_version !== "canonical_v1")) {
     return { action: "offer", label: "Send agreement", icon: "send-outline" };
   }
   if (lease.status === "tenant_accepted") {

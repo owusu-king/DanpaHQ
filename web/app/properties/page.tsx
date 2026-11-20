@@ -2,13 +2,13 @@
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { CircleAlert, CircleHelp, Clock3, ShieldCheck } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/Button";
 import { Notice } from "@/components/Notice";
 import { Icon } from "@/components/portal/icons";
+import { UnitWizardModal } from "@/components/property/UnitWizardModal";
 import { propertyStatus } from "@/components/property/WorkspacePatterns";
 import { useToast } from "@/components/toast/Toaster";
 import {
@@ -26,13 +26,12 @@ import {
   type Property,
 } from "@/lib/console";
 import { propertyNextStep } from "@/lib/providerSetup";
+import { propertyCardActionLabels, propertyCardPresentation } from "@/lib/propertyCard";
 import { inPlace } from "@/lib/inPlace";
 import { useSession } from "@/lib/session";
 import { selectedPortfolio } from "@/lib/sessionPolicy";
 
-const EditPropertyModal = dynamic(() => import("@/components/property/EditPropertyModal").then((module) => module.EditPropertyModal));
 const PropertyWizardModal = dynamic(() => import("@/components/property/PropertyWizard").then((module) => module.PropertyWizardModal));
-const UnitWizardModal = dynamic(() => import("@/components/property/UnitWizard").then((module) => module.UnitWizardModal));
 
 /** Where someone was when they opened a Property, so Back lands them there. */
 const RETURN_KEY = "properties.return";
@@ -81,10 +80,8 @@ function occupancyOf(property: Property) {
 /**
  * The Portfolio's Properties, as cards.
  *
- * A Property is recognized by its picture and its name, so each card leads with
- * the name and lets the photograph sit in its corner; the few numbers a
- * manager scans for sit beside dots. What can be done to a Property appears
- * when the card is reached for, and the way to add one is a card of its own,
+ * A Property is recognized by its picture and its name. Its status, occupancy
+ * and available actions are visible at a glance. The way to add one is a card of its own,
  * shaped like the Property it will become.
  */
 function PropertiesContent() {
@@ -114,7 +111,7 @@ function PropertiesContent() {
   // Creating opens in place (owner, 2026-10-20): a sheet over this page, held
   // in page state like every other modal here.
   const [sheet, setSheet] = useState<
-    { kind: "property"; propertyId?: string } | { kind: "unit"; propertyId: string } | { kind: "edit"; property: Property } | null
+    { kind: "property"; propertyId?: string } | { kind: "unit"; propertyId: string } | null
   >(null);
   const pendingReturn = useRef<ReturnPoint | null>(null);
 
@@ -391,7 +388,6 @@ function PropertiesContent() {
                   returned={returnedTo === property.id}
                   onOpen={remember}
                   onAddUnit={() => setSheet({ kind: "unit", propertyId: property.id })}
-                  onEdit={() => setSheet({ kind: "edit", property })}
                 />
               ))}
             </ul>
@@ -406,18 +402,12 @@ function PropertiesContent() {
         onChanged={() => void load(true)}
         onFinished={() => void load(true)}
       /> : null}
-      {sheet?.kind === "edit" ? <EditPropertyModal
-        open
-        property={sheet.property}
-        onClose={() => setSheet(null)}
-        onSaved={() => void load(true)}
-      /> : null}
       {sheet?.kind === "unit" ? <UnitWizardModal
         open
+        mode="create"
         propertyId={sheet.propertyId}
         onClose={() => setSheet(null)}
         onChanged={() => void load(true)}
-        onFinished={(unit) => toast({ tone: "success", title: `${unit.label || "Unit"} saved`, description: unit.verification.state_label })}
       /> : null}
     </div>
   );
@@ -443,123 +433,79 @@ function PropertyCard({
   returned,
   onOpen,
   onAddUnit,
-  onEdit,
 }: {
   property: Property;
   order: number;
   returned: boolean;
   onOpen: (property: Property) => void;
   onAddUnit: () => void;
-  onEdit: () => void;
 }) {
-  const status = propertyStatus(property);
-  const location = property.address
-    ? `${property.address.locality_name}, ${property.address.district_name}`
-    : "Address unavailable";
-  // A property for sale has no Units to count; its price and whether buyers
-  // can see it are what its seller scans the list for.
-  const sale = property.purpose === "sale" ? property.sale : null;
-  const units = sale
-    ? (sale.price_formatted || "Price not set")
-    : `${property.unit_count} ${property.unit_count === 1 ? "Unit" : "Units"}`;
-  const occupancy = sale
-    ? sale.status === "active"
-      ? sale.is_public
-        ? "Public"
-        : "Not public yet"
-      : sale.status_label
-    : property.unit_count
-      ? `${property.occupied_unit_count} occupied · ${property.vacant_unit_count} available`
-      : "No Units added";
-
-  // The same rule the Property's own page uses before it offers "Add Unit".
-  const access = property.billing_access;
-  const restricted = Boolean(access && access.state !== "full");
-  const canAddUnit = !sale
-    && (property.capabilities.private_inventory?.allowed ?? false)
-    && !restricted
-    && ["verified", "pending_verification"].includes(property.verification.review_state);
-  const canEdit = property.permitted_actions.edit?.allowed ?? false;
-  const occupiedShare = !sale && property.unit_count ? property.occupied_unit_count / property.unit_count : 0;
+  const { badge, tone, action } = propertyCardPresentation(property);
+  const location = [property.address?.locality_name, property.address?.district_name].filter(Boolean).join(", ");
+  const title = property.title || "Untitled property";
+  const selling = property.purpose === "sale";
+  const sale = property.sale;
+  const saleStatus = sale?.status === "active" ? sale.is_public ? "Public" : "Not public yet" : sale?.status_label;
+  const review = property.verification.review_state;
+  const canAddUnit = !selling && property.capabilities.private_inventory?.allowed
+    && (!property.billing_access || property.billing_access.state === "full")
+    && (review === "verified" || review === "pending_verification");
+  const details = "/record/property?id=" + encodeURIComponent(property.id);
+  const href = {
+    view: details,
+    details,
+    continue: "/record/property-setup?propertyId=" + encodeURIComponent(property.id),
+    submit: "/record/property-verify?id=" + encodeURIComponent(property.id),
+  }[action];
 
   return (
-    <li
-      className={`property-card-item${returned ? " is-returned" : ""}`}
-      style={{ "--property-order": Math.min(order, 12) } as React.CSSProperties}
-    >
-      <div className="property-card" data-tone={status.tone} data-purpose={property.purpose}>
-        <span className="property-card-verification" role="img" aria-label={status.label} title={status.label}>
-          {status.tone === "good" ? <ShieldCheck aria-hidden="true" />
-            : status.tone === "attention" ? <CircleAlert aria-hidden="true" />
-            : status.tone === "waiting" ? <Clock3 aria-hidden="true" />
-            : <CircleHelp aria-hidden="true" />}
-        </span>
-        <div className="property-card-heading">
-          <Link
-            prefetch={false}
-            href={`/record/property?id=${property.id}` as never}
-            className="property-card-link"
-            data-property-id={property.id}
-            onClick={() => onOpen(property)}
-            aria-label={`${property.title || "Untitled property"}${property.purpose === "sale" ? ", for sale" : ""}, ${location}. ${status.label}. ${units}, ${occupancy}.`}
-          >
-            <span className="property-card-name">{property.title || "Untitled property"}</span>
-          </Link>
-
-          {property.purpose === "sale" ? <span className="property-card-sale" aria-hidden="true">For sale</span> : null}
-
-          <p className="property-card-where">{location}</p>
-        </div>
-
-        <div className="property-card-summary">
-          <ul className="property-card-stats" aria-hidden="true">
-            {sale ? (
-              <>
-                <li data-dot="gold"><strong>{units}</strong></li>
-                <li data-dot={sale.is_public ? "kola" : "ink"}>{occupancy}</li>
-              </>
-            ) : property.unit_count ? (
-              <>
-                <li data-dot="kola"><strong>{property.occupied_unit_count}/{property.unit_count}</strong> occupied</li>
-                <li data-dot="lagoon"><strong>{property.vacant_unit_count}</strong> available</li>
-              </>
-            ) : (
-              <li data-dot="ink">No Units added</li>
-            )}
-          </ul>
-
-          {!sale && property.unit_count ? (
-            <span className="property-card-meter" aria-hidden="true">
-              <span style={{ transform: `scaleX(${occupiedShare})` }} />
-            </span>
-          ) : null}
-        </div>
-
-        <div className="property-card-actions">
-          <span className="property-card-go" aria-hidden="true">
-            <svg viewBox="0 0 16 16" width="16" height="16" focusable="false">
-              <path d="M3.5 8h9M8.5 4l4 4-4 4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </span>
-          {canAddUnit ? (
-            <Link prefetch={false} href={`/record/space-new?propertyId=${property.id}` as never} className="property-card-action" onClick={inPlace(onAddUnit)}>
-              <PlusGlyph />Add Unit
-            </Link>
-          ) : null}
-          {canEdit ? (
-            <button type="button" className="property-card-action" onClick={onEdit}>
-              Edit details
-            </button>
-          ) : null}
-        </div>
-
-        <span className="property-card-photo" aria-hidden="true">
-          {/* Signed media URLs are supplied at runtime by the API and are not
-              stable Next image-loader resources. */}
+    <li className={`property-card-item${returned ? " is-returned" : ""}`}
+      style={{ "--property-order": Math.min(order, 12) } as React.CSSProperties}>
+      <article className="property-card" data-tone={tone} data-purpose={selling ? "sale" : "rent"}>
+        <div className="property-card-photo" aria-hidden="true">
+          {/* The API supplies signed media URLs at runtime. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           {property.cover_url ? <img src={property.cover_thumbnail_url ?? property.cover_url} alt="" loading="lazy" decoding="async" /> : <Icon name="properties" />}
-        </span>
-      </div>
+        </div>
+        <div className="property-card-heading">
+          <div className="property-card-badges">
+            {selling ? <span className="property-card-sale">For sale</span> : null}
+            <span className="property-card-verification" aria-label={badge} title={badge}>
+              <Icon name={tone === "good" ? "verification" : "shield"} />
+            </span>
+          </div>
+          <Link prefetch={false} href={details as never} className="property-card-link" data-property-id={property.id} onClick={() => onOpen(property)}>
+            <span className="property-card-name">{title}</span>
+          </Link>
+          <p className="property-card-where">{location || "Address unavailable"}</p>
+        </div>
+        <div className="property-card-stats">
+          {selling ? (
+            <>
+              <span className="property-card-stat is-price"><strong>{sale?.price_formatted ?? "Price not set"}</strong></span>
+              {saleStatus ? <span className="property-card-stat">{saleStatus}</span> : null}
+            </>
+          ) : (
+            <>
+              <span className="property-card-stat"><strong>{property.occupied_unit_count}/{property.unit_count}</strong> occupied</span>
+              <span className="property-card-stat is-available"><strong>{property.vacant_unit_count}</strong> available</span>
+              <span className="property-card-occupancy" aria-hidden="true">
+                <span style={{ width: `${property.unit_count ? Math.min(100, property.occupied_unit_count / property.unit_count * 100) : 0}%` }} />
+              </span>
+            </>
+          )}
+        </div>
+        <div className="property-card-actions">
+          {action === "continue" || action === "submit" ? (
+            <Link prefetch={false} href={href as never} className="property-card-action property-card-setup">
+              {propertyCardActionLabels[action]}
+            </Link>
+          ) : canAddUnit ? (
+            <Link prefetch={false} href={("/record/space-new?propertyId=" + encodeURIComponent(property.id)) as never}
+              className="property-card-action property-card-add-unit" onClick={inPlace(onAddUnit)}><Icon name="plus" />Add Unit</Link>
+          ) : <span className="property-card-arrow" aria-hidden="true">→</span>}
+        </div>
+      </article>
     </li>
   );
 }
@@ -582,7 +528,7 @@ function AddPropertyCard({
         <span className="property-add-ghost-dots"><i /><i /><i /></span>
         <span className="property-add-ghost-photo" />
       </span>
-      <span className="property-add-plus" aria-hidden="true"><PlusGlyph /></span>
+      <span className="property-add-plus" aria-hidden="true"><Icon name="plus" /></span>
       <strong>Add a Property</strong>
     </Link>
   );
@@ -595,26 +541,19 @@ function PropertyCardsSkeleton() {
         {Array.from({ length: 4 }).map((_, index) => (
           <li key={index} className="property-card-item" style={{ "--property-order": index } as React.CSSProperties}>
             <div className="property-card is-skeleton">
-              <span className="ws-skeleton-block" style={{ width: "55%", height: "1.1rem" }} />
-              <span className="ws-skeleton-block is-thin" style={{ width: "40%" }} />
-              <span className="ws-skeleton-lines" style={{ marginTop: "var(--space-3)" }}>
-                <span className="ws-skeleton-block is-thin" style={{ width: "46%" }} />
-                <span className="ws-skeleton-block is-thin" style={{ width: "36%" }} />
-              </span>
               <span className="property-card-photo is-skeleton-photo" />
+              <div className="property-card-heading">
+                <span className="ws-skeleton-block is-thin" style={{ width: "28%" }} />
+                <span className="ws-skeleton-block" style={{ width: "55%" }} />
+                <span className="ws-skeleton-block is-thin" style={{ width: "40%" }} />
+                <span className="ws-skeleton-block is-thin" style={{ width: "46%" }} />
+              </div>
+              <div className="property-card-actions"><span className="ws-skeleton-block" style={{ width: "36%", height: "var(--property-action-height)" }} /></div>
             </div>
           </li>
         ))}
       </ul>
     </div>
-  );
-}
-
-function PlusGlyph() {
-  return (
-    <svg className="portal-icon" viewBox="0 0 20 20" width="16" height="16" aria-hidden="true" focusable="false">
-      <path d="M10 4.5v11M4.5 10h11" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-    </svg>
   );
 }
 

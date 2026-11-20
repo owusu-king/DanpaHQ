@@ -23,7 +23,14 @@ from .serializers import (
     SubmitApplicationSerializer,
 )
 
-SELECT = ("unit__property__address__locality", "unit__property__owner", "listing", "tenant")
+#: `locality_name` is read through the listing's own Unit, so that path is
+#: joined too; without it each row cost four more queries.
+SELECT = (
+    "unit__property__address__locality",
+    "unit__property__owner",
+    "listing__unit__property__address__locality",
+    "tenant",
+)
 # The photograph and the Unit's identity are read for every row, so they are
 # fetched with the rows rather than one query per application.
 PREFETCH = ("listing__media__file", "unit__media__file")

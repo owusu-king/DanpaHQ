@@ -9,11 +9,53 @@ the number of buildings a provider manages.
 from __future__ import annotations
 
 
+def property_management_expression(*, user):
+    from django.db.models import BooleanField, Case, Exists, OuterRef, Value, When
+
+    from apps.organization.models import MembershipRole, OrganizationMembership, PropertyAssignment
+    from apps.organization.services import FULL_ORGANIZATION_ROLES
+
+    from .models import PropertyRelationship, PropertyRelationshipType
+
+    actor_id = getattr(user, "pk", None)
+    actor_relationships = PropertyRelationship.objects.filter(
+        property_id=OuterRef("pk"),
+        user_id=actor_id,
+        ended_at__isnull=True,
+        relationship_type__in=PropertyRelationshipType.management_types(),
+    )
+    full_membership = OrganizationMembership.objects.filter(
+        user_id=actor_id,
+        ended_at__isnull=True,
+        role__in=FULL_ORGANIZATION_ROLES,
+        organization__is_active=True,
+        organization__property_relationships__property_id=OuterRef("pk"),
+        organization__property_relationships__ended_at__isnull=True,
+    )
+    assignment = PropertyAssignment.objects.filter(
+        property_id=OuterRef("pk"),
+        ended_at__isnull=True,
+        membership__user_id=actor_id,
+        membership__ended_at__isnull=True,
+        membership__organization__is_active=True,
+        membership__organization__property_relationships__property_id=OuterRef("pk"),
+        membership__organization__property_relationships__ended_at__isnull=True,
+        membership__role__in=[MembershipRole.PROPERTY_MANAGER, MembershipRole.STAFF],
+    )
+    return Case(
+        When(owner_id=actor_id, then=Value(True)),
+        When(managed_by_id=actor_id, then=Value(True)),
+        When(condition=Exists(actor_relationships), then=Value(True)),
+        When(condition=Exists(full_membership), then=Value(True)),
+        When(condition=Exists(assignment), then=Value(True)),
+        default=Value(bool(getattr(user, "is_staff", False))),
+        output_field=BooleanField(),
+    )
+
+
 def property_list_queryset(queryset, *, user):
     """Add every relational value the Property collection reads."""
     from django.db.models import (
-        BooleanField,
-        Case,
         Count,
         Exists,
         IntegerField,
@@ -21,7 +63,6 @@ def property_list_queryset(queryset, *, user):
         Prefetch,
         Subquery,
         Value,
-        When,
     )
     from django.db.models.functions import Coalesce
 
@@ -29,12 +70,9 @@ def property_list_queryset(queryset, *, user):
     from apps.listing.models import Listing
     from apps.occupancy.models import Occupancy
     from apps.organization.models import (
-        MembershipRole,
         OrganizationMembership,
         OrganizationPropertyRelationship,
-        PropertyAssignment,
     )
-    from apps.organization.services import FULL_ORGANIZATION_ROLES
 
     from .models import Bed, PropertyAmenity, PropertyRelationship, Unit
 
@@ -62,35 +100,6 @@ def property_list_queryset(queryset, *, user):
     )
 
     actor_id = getattr(user, "pk", None)
-    actor_relationships = PropertyRelationship.objects.filter(
-        property_id=OuterRef("pk"), user_id=actor_id, ended_at__isnull=True
-    )
-    full_membership = OrganizationMembership.objects.filter(
-        user_id=actor_id,
-        ended_at__isnull=True,
-        role__in=FULL_ORGANIZATION_ROLES,
-        organization__is_active=True,
-        organization__property_relationships__property_id=OuterRef("pk"),
-        organization__property_relationships__ended_at__isnull=True,
-    )
-    assignment = PropertyAssignment.objects.filter(
-        property_id=OuterRef("pk"),
-        ended_at__isnull=True,
-        membership__user_id=actor_id,
-        membership__ended_at__isnull=True,
-        membership__organization__is_active=True,
-        membership__role__in=[MembershipRole.PROPERTY_MANAGER, MembershipRole.STAFF],
-    )
-    can_manage = Case(
-        When(owner_id=actor_id, then=Value(True)),
-        When(managed_by_id=actor_id, then=Value(True)),
-        When(condition=Exists(actor_relationships), then=Value(True)),
-        When(condition=Exists(full_membership), then=Value(True)),
-        When(condition=Exists(assignment), then=Value(True)),
-        default=Value(bool(getattr(user, "is_staff", False))),
-        output_field=BooleanField(),
-    )
-
     actor_memberships = OrganizationMembership.objects.filter(
         user_id=actor_id,
         ended_at__isnull=True,
@@ -140,7 +149,7 @@ def property_list_queryset(queryset, *, user):
             ),
         )
         .annotate(
-            _property_list_can_manage=can_manage,
+            _property_list_can_manage=property_management_expression(user=user),
             _property_list_unit_count=related_count(active_units, "property_id"),
             _property_list_bed_count=related_count(active_beds, "unit__property_id"),
             _property_list_occupied_unit_count=related_count(

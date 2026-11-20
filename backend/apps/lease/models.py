@@ -378,6 +378,10 @@ class Lease(BaseModel):
         return anniversary - timedelta(days=1)
 
     @property
+    def term_has_expired(self) -> bool:
+        return self.ends_on is not None and self.ends_on < timezone.localdate()
+
+    @property
     def days_until_start(self) -> int | None:
         if self.starts_on is None:
             return None

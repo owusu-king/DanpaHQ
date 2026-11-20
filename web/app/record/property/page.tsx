@@ -1,7 +1,6 @@
 "use client";
 
 
-import { VideoPlayer } from "@/components/property/WalkthroughVideo";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
@@ -13,8 +12,7 @@ import { usePageTitle } from "@/components/PageTitle";
 import { Empty, LoadingRows } from "@/components/portal/PageHeader";
 import { Icon, type IconName } from "@/components/portal/icons";
 import { PropertyLifecycle, PropertyMore } from "@/components/property/PropertyLifecycle";
-import { EditPropertyModal } from "@/components/property/EditPropertyModal";
-import { UnitWizardModal } from "@/components/property/UnitWizard";
+import { UnitWizardModal } from "@/components/property/UnitWizardModal";
 import { SalePanel } from "@/components/property/SalePanel";
 import {
   EntityPath,
@@ -154,7 +152,7 @@ export default function PropertyDetailPage() {
           body={`${access.message} Manage this in Settings → Plan & billing.`}
         />
       ) : null}
-      <RecordHero key={property.id} title={property.title || "Property"} photos={property.cover_url ? [{ id: property.id, url: property.cover_url, label: property.title || "Property" }] : []}>
+      <RecordHero key={property.id} title={property.title || "Property"} video={property.video} videoLabel="Property video" photos={property.cover_url ? [{ id: property.id, url: property.cover_url, label: property.title || "Property" }] : []}>
         <PropertyLifecycle property={property} steps={steps} onChanged={load} compact onEdit={() => setSheet({ kind: "property" })} onSetup={() => setSheet({ kind: "setup" })} />
         {selling ? sale ? <SalePanel propertyId={property.id} sale={sale} verified={property.verification.review_state === "verified"} onChanged={load} /> : null : <>
           <h2 className="record-action-title">Property management</h2>
@@ -163,10 +161,9 @@ export default function PropertyDetailPage() {
         </>}
       </RecordHero>
 
-      <VideoPlayer video={property.video} label="Property video" />
       <div className="record-detail-grid">
         <div className="record-side-sections">
-        {land ? <div className="record-side-sections">{locationSection}{property.notes ? <RecordSection title="Description"><p className="record-description">{property.notes}</p></RecordSection> : null}</div> : <RecordSection title="Overview" actions={edit?.allowed ? <Button type="button" variant="quiet" onClick={() => setSheet({ kind: "property" })}><Icon name="pencil" />Edit</Button> : undefined}>
+        {land ? <div className="record-side-sections">{locationSection}{property.notes ? <RecordSection title="Description"><p className="record-description">{property.notes}</p></RecordSection> : null}</div> : <RecordSection title="Overview" actions={edit?.allowed || edit?.code === "wrong_state" ? <Button type="button" variant="quiet" onClick={() => setSheet({ kind: "property" })}>{edit.allowed ? <><Icon name="pencil" />Edit</> : "View details"}</Button> : undefined}>
           <dl className="record-fields">
             <Fact icon="properties" label="Type" value={propertyTypeLabel(property.property_type)} />
             {land ? null : <><Fact icon="water" label="Water" value={property.water_source_label} /><Fact icon="power" label="Power meter" value={property.power_meter_label} /><Fact icon="home" label="Compound" value={property.compound_label} /></>}
@@ -202,13 +199,15 @@ export default function PropertyDetailPage() {
         </div>
       </div>
 
-      <EditPropertyModal
-        open={sheet?.kind === "property"}
-        property={property}
-        amenitiesOnly={sheet?.kind === "property" && sheet.step === "amenities"}
+      {sheet?.kind === "property" ? <PropertyWizardModal
+        open
+        edit
+        propertyId={property.id}
+        startAt={sheet.step}
         onClose={() => setSheet(null)}
-        onSaved={() => void load()}
-      />
+        onChanged={() => void load()}
+        onFinished={() => undefined}
+      /> : null}
       <PropertyWizardModal
         open={sheet?.kind === "setup"}
         propertyId={property.id}
@@ -217,11 +216,11 @@ export default function PropertyDetailPage() {
         onFinished={() => undefined}
       />
       <UnitWizardModal
+        mode="create"
         open={sheet?.kind === "unit"}
         propertyId={property.id}
         onClose={() => setSheet(null)}
         onChanged={() => void load()}
-        onFinished={() => undefined}
       />
     </div>
   );

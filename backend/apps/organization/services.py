@@ -7,7 +7,7 @@ from datetime import date, timedelta
 
 from django.core import signing
 from django.db import transaction
-from django.db.models import Count, Q, QuerySet, Sum
+from django.db.models import Count, Exists, OuterRef, Q, QuerySet, Sum
 from django.db.models.functions import TruncMonth
 from django.utils import timezone
 
@@ -522,6 +522,54 @@ def properties_in_scope(*, user, organization=None):
 PAST_TENANTS_SHOWN = 200
 
 
+def _open_tenancy_request_rows(property_ids) -> list:
+    from apps.occupancy.models import JoinRequestStatus, PropertyJoinRequest
+
+    return list(
+        PropertyJoinRequest.objects.filter(
+            property_id__in=property_ids,
+            status__in={JoinRequestStatus.PENDING, JoinRequestStatus.APPROVED},
+        ).select_related("requester", "property", "unit", "bed", "lease")
+    )
+
+
+def _tenancy_request_payload(row, user) -> dict:
+    return {
+        "id": str(row.id),
+        "requester_id": str(row.requester_id),
+        "requester_display": row.requester.display_name,
+        "property_id": str(row.property_id),
+        "property_title": row.property.title,
+        "unit_id": str(row.unit_id),
+        "unit_label": row.unit.label or "Unit",
+        "bed_id": str(row.bed_id) if row.bed_id else None,
+        "bed_label": row.bed.label if row.bed else None,
+        "status": row.status,
+        "message": row.message,
+        "decision_note": row.decision_note,
+        "lease_id": str(row.lease_id) if row.lease_id else None,
+        "lease_status": row.lease.status if row.lease else None,
+        "created_at": row.created_at.isoformat(),
+        "can_manage": row.property.is_managed_by(user),
+    }
+
+
+def portfolio_tenancy_requests(*, organization: Organization, user) -> dict:
+    """Only the Portfolio's private tenancy requests, as `portfolio_summary` lists them.
+
+    The Applications screen needs these and the Portfolio's name, nothing else,
+    and used to read the whole Portfolio summary for them.
+    """
+    properties = properties_for_organization_member(organization=organization, user=user)
+    property_ids = list(properties.values_list("id", flat=True))
+    return {
+        "organization": {"id": str(organization.id), "name": organization.name},
+        "tenancy_requests": [
+            _tenancy_request_payload(row, user) for row in _open_tenancy_request_rows(property_ids)
+        ],
+    }
+
+
 def portfolio_summary(
     *, organization: Organization, user, home_only: bool = False, finance_only: bool = False,
 ) -> dict:
@@ -553,7 +601,15 @@ def portfolio_summary(
     property_ids = [row.id for row in property_rows]
     units = Unit.objects.filter(property_id__in=property_ids, is_active=True)
     units = units.only("id") if home_only else units.select_related("property")
-    unit_rows = list(units)
+    if home_only or finance_only:
+        unit_rows = list(units)
+    else:
+        # The tenant-access rows below read each Unit's condition review,
+        # amenities, listing and occupancy. Load those as collections, exactly
+        # as the Units screen does, instead of about six queries per Unit.
+        from apps.property.read_models import prepare_unit_card_rows
+
+        unit_rows = prepare_unit_card_rows(units)
     unit_ids = [row.id for row in unit_rows]
     occupancies = list(
         Occupancy.objects.filter(
@@ -645,13 +701,7 @@ def portfolio_summary(
     ]
     join_requests = PropertyJoinRequest.objects.filter(property_id__in=property_ids)
     tenancy_request_rows = (
-        []
-        if home_only or finance_only
-        else list(
-            join_requests.filter(
-                status__in={JoinRequestStatus.PENDING, JoinRequestStatus.APPROVED}
-            ).select_related("requester", "property", "unit", "bed", "lease")
-        )
+        [] if home_only or finance_only else _open_tenancy_request_rows(property_ids)
     )
     pending_requests = (
         join_requests.filter(status=JoinRequestStatus.PENDING).count()
@@ -807,6 +857,30 @@ def portfolio_summary(
         "recent_activity": activities[:8],
     }
     if home_only:
+        from apps.application.models import ApplicationStatus, RentalApplication
+        from apps.property.read_models import property_management_expression
+
+        manageable_properties = properties.alias(
+            can_prepare_agreements=property_management_expression(user=user)
+        ).filter(can_prepare_agreements=True).values("pk")
+        accepted_applications = RentalApplication.objects.filter(
+            unit__property_id__in=manageable_properties,
+            status=ApplicationStatus.ACCEPTED,
+            concluded_at__isnull=True,
+            superseded_by__isnull=True,
+        ).filter(~Exists(
+            Lease.objects.filter(application_id=OuterRef("pk")).exclude(status=LeaseStatus.CANCELLED)
+        ))
+        approved_requests = join_requests.filter(
+            property_id__in=manageable_properties,
+            status=JoinRequestStatus.APPROVED,
+            lease__isnull=True,
+        )
+        payload["agreements_to_prepare"] = (
+            accepted_applications.order_by().values("pk")
+            .union(approved_requests.order_by().values("pk"), all=True)
+            .count()
+        )
         return payload
 
     # Past tenants, for the Tenants page's Archive (owner, 2026-10-05). Ended
@@ -848,27 +922,7 @@ def portfolio_summary(
             .get("allowed", False)
         )
 
-    tenancy_requests = [
-        {
-            "id": str(row.id),
-            "requester_id": str(row.requester_id),
-            "requester_display": row.requester.display_name,
-            "property_id": str(row.property_id),
-            "property_title": row.property.title,
-            "unit_id": str(row.unit_id),
-            "unit_label": row.unit.label or "Unit",
-            "bed_id": str(row.bed_id) if row.bed_id else None,
-            "bed_label": row.bed.label if row.bed else None,
-            "status": row.status,
-            "message": row.message,
-            "decision_note": row.decision_note,
-            "lease_id": str(row.lease_id) if row.lease_id else None,
-            "lease_status": row.lease.status if row.lease else None,
-            "created_at": row.created_at.isoformat(),
-            "can_manage": row.property.is_managed_by(user),
-        }
-        for row in tenancy_request_rows
-    ]
+    tenancy_requests = [_tenancy_request_payload(row, user) for row in tenancy_request_rows]
 
     from apps.property import access_codes
     from apps.property.serializers import unit_availability

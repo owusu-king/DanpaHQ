@@ -5,7 +5,7 @@ import { Alert, StyleSheet, View } from "react-native";
 import { ApiFailure } from "@/api";
 import { MUTED, Pill } from "@/components/record/RecordSurfaces";
 import { Notice, Type, space } from "@/components/ui";
-import { endLease, offerLease } from "@/leases";
+import { endLease } from "@/leases";
 import { destructiveConfirmStyle } from "@/platform";
 
 /**
@@ -29,42 +29,34 @@ export function RequestLeaseActions({
   unitId,
   bedId,
   tenantId,
+  tenantName,
+  rentalLabel,
   leaseId,
   leaseStatus,
-  onChanged,
 }: {
   requestId: string;
   unitId: string;
   bedId: string | null;
   tenantId: string;
+  tenantName: string;
+  rentalLabel: string;
   leaseId: string | null;
   leaseStatus: LeaseStatus;
-  onChanged: () => Promise<void>;
 }) {
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
   if (!leaseId) {
-    return <LeaseComposer unitId={unitId} bedId={bedId} tenantId={tenantId} requestId={requestId} onChanged={onChanged} />;
-  }
-  if (leaseStatus === "draft") {
     return (
-      <View style={styles.stack}>
-        {error ? <Notice tone="error" title={error} /> : null}
-        <Pill
-          grow
-          icon="send-outline"
-          label="Send saved agreement"
-          busy={busy}
-          busyLabel="Sending…"
-          onPress={async () => {
-            setBusy(true); setError("");
-            try { await offerLease(leaseId); await onChanged(); }
-            catch (cause) { setError(cause instanceof ApiFailure ? cause.error.message : "Could not send the agreement."); }
-            finally { setBusy(false); }
-          }}
-        />
-      </View>
+      <LeaseComposer
+        unitId={unitId}
+        bedId={bedId}
+        tenantId={tenantId}
+        tenantName={tenantName}
+        rentalLabel={rentalLabel}
+        requestId={requestId}
+      />
     );
+  }
+  if (leaseStatus === "draft" || leaseStatus === "ready") {
+    return <OpenSavedAgreement leaseId={leaseId} />;
   }
   return <Standing>{settled(leaseStatus)}</Standing>;
 }
@@ -74,57 +66,41 @@ export function ApplicationLeaseActions({
   listingId,
   unitId,
   tenantId,
+  tenantName,
+  rentalLabel,
   rentMinor,
   advanceMonths,
   leaseId,
   leaseStatus,
-  onChanged,
 }: {
   applicationId: string;
   listingId: string;
   unitId: string;
   tenantId: string;
+  tenantName: string;
+  rentalLabel: string;
   rentMinor: number;
   advanceMonths: number;
   leaseId: string | null;
   leaseStatus: LeaseStatus;
-  onChanged: () => Promise<void>;
 }) {
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
   if (!leaseId) {
     return (
       <LeaseComposer
         unitId={unitId}
         bedId={null}
         tenantId={tenantId}
+        tenantName={tenantName}
+        rentalLabel={rentalLabel}
         applicationId={applicationId}
         listingId={listingId}
         initialRentMinor={rentMinor}
         initialAdvanceMonths={advanceMonths}
-        onChanged={onChanged}
       />
     );
   }
-  if (leaseStatus === "draft") {
-    return (
-      <View style={styles.stack}>
-        {error ? <Notice tone="error" title={error} /> : null}
-        <Pill
-          grow
-          icon="send-outline"
-          label="Send saved agreement"
-          busy={busy}
-          busyLabel="Sending…"
-          onPress={async () => {
-            setBusy(true); setError("");
-            try { await offerLease(leaseId); await onChanged(); }
-            catch (cause) { setError(cause instanceof ApiFailure ? cause.error.message : "Could not send the agreement."); }
-            finally { setBusy(false); }
-          }}
-        />
-      </View>
-    );
+  if (leaseStatus === "draft" || leaseStatus === "ready") {
+    return <OpenSavedAgreement leaseId={leaseId} />;
   }
   return <Standing>{settled(leaseStatus)}</Standing>;
 }
@@ -134,6 +110,7 @@ export function TenantLeaseActions({
   bedId,
   tenantId,
   tenantName,
+  rentalLabel,
   leaseId,
   leaseStatus,
   allowed,
@@ -143,6 +120,7 @@ export function TenantLeaseActions({
   bedId: string | null;
   tenantId: string;
   tenantName: string;
+  rentalLabel: string;
   leaseId: string | null;
   leaseStatus: LeaseStatus;
   allowed: boolean;
@@ -152,27 +130,12 @@ export function TenantLeaseActions({
   const [error, setError] = useState("");
 
   if (!allowed) return <Standing>Your Property permission does not allow agreement changes.</Standing>;
-  if (!leaseId) return <LeaseComposer unitId={unitId} bedId={bedId} tenantId={tenantId} onChanged={onChanged} />;
+  if (!leaseId) {
+    return <LeaseComposer unitId={unitId} bedId={bedId} tenantId={tenantId} tenantName={tenantName} rentalLabel={rentalLabel} />;
+  }
 
-  if (leaseStatus === "draft") {
-    return (
-      <View style={styles.stack}>
-        {error ? <Notice tone="error" title={error} /> : null}
-        <Pill
-          grow
-          icon="send-outline"
-          label="Send agreement"
-          busy={busy}
-          busyLabel="Sending…"
-          onPress={async () => {
-            setBusy(true); setError("");
-            try { await offerLease(leaseId); await onChanged(); }
-            catch (cause) { setError(cause instanceof ApiFailure ? cause.error.message : "Could not send the agreement."); }
-            finally { setBusy(false); }
-          }}
-        />
-      </View>
-    );
+  if (leaseStatus === "draft" || leaseStatus === "ready") {
+    return <OpenSavedAgreement leaseId={leaseId} />;
   }
   if (leaseStatus === "offered") return <Standing>{`Waiting for ${tenantName} to accept the agreement.`}</Standing>;
   if (leaseStatus === "awaiting_activation") return <Standing>The agreement is accepted and waiting for activation.</Standing>;
@@ -211,29 +174,42 @@ export function TenantLeaseActions({
   return <Standing>{`Agreement ${humanize(leaseStatus)}`}</Standing>;
 }
 
+function OpenSavedAgreement({ leaseId }: { leaseId: string }) {
+  const router = useRouter();
+  return (
+    <Pill
+      grow
+      icon="document-text-outline"
+      label="Open saved agreement"
+      onPress={() => router.push({ pathname: "/(app)/provider-lease", params: { leaseId } } as never)}
+    />
+  );
+}
+
 function LeaseComposer({
   unitId,
   bedId,
   tenantId,
+  tenantName,
+  rentalLabel,
   requestId,
   applicationId,
   listingId,
   initialRentMinor = 0,
   initialAdvanceMonths = 1,
-  onChanged,
 }: {
   unitId: string;
   bedId: string | null;
   tenantId: string;
+  tenantName: string;
+  rentalLabel: string;
   requestId?: string;
   applicationId?: string;
   listingId?: string;
   initialRentMinor?: number;
   initialAdvanceMonths?: number;
-  onChanged: () => Promise<void>;
 }) {
   const router = useRouter();
-  void onChanged;
 
   function openBuilder() {
     router.push({
@@ -241,6 +217,8 @@ function LeaseComposer({
       params: {
         unitId,
         tenantId,
+        tenantName,
+        rentalLabel,
         ...(bedId ? { bedId } : {}),
         ...(requestId ? { sourceKind: "join_request", sourceId: requestId } : {}),
         ...(applicationId ? { sourceKind: "application", sourceId: applicationId } : {}),

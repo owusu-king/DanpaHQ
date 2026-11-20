@@ -7,6 +7,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { getUnreadNotificationCount } from "@/lib/console";
+import { prefetchProviderRoute } from "@/lib/routePrefetch";
 import { useSession, type Me } from "@/lib/session";
 import { useGlide } from "@/lib/useGlide";
 import { activeHref, artisansEntry, enquiriesEntry, portalSections, type PortalSection } from "@/lib/portalNav";
@@ -188,8 +189,15 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
         // Keep the last confirmed count until the next read.
       }
     };
-    void read();
-    const timer = setInterval(read, 60_000);
+    let timer: ReturnType<typeof setInterval> | undefined;
+    const syncPolling = () => {
+      clearInterval(timer);
+      if (document.hidden) return;
+      void read();
+      timer = setInterval(read, 60_000);
+    };
+    syncPolling();
+    document.addEventListener("visibilitychange", syncPolling);
     // Updates announces its own count changes, so the badge agrees with the
     // page the moment something is read rather than a minute later.
     const onUnread = (event: Event) => {
@@ -200,7 +208,12 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
       }
     };
     window.addEventListener("danpahq:unread", onUnread);
-    return () => { cancelled = true; clearInterval(timer); window.removeEventListener("danpahq:unread", onUnread); };
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", syncPolling);
+      window.removeEventListener("danpahq:unread", onUnread);
+    };
   }, [state.status]);
 
   if (state.status !== "signed_in") {
@@ -439,6 +452,7 @@ function PortalNav({
   onNavigate?: () => void;
 }) {
   const nav = useRef<HTMLElement>(null);
+  const { activeContext } = useSession();
   const glide = useGlide(nav, {
     link: ".portal-nav-link",
     current: '.portal-nav-link[aria-current="page"]',
@@ -475,6 +489,9 @@ function PortalNav({
               aria-current={current === item.href ? "page" : undefined}
               title={collapsed ? item.label : undefined}
               onClick={onNavigate}
+              onPointerEnter={() => prefetchProviderRoute(item.href, activeContext)}
+              onFocus={() => prefetchProviderRoute(item.href, activeContext)}
+              onTouchStart={() => prefetchProviderRoute(item.href, activeContext)}
             >
               <Icon name={item.icon} />
               {/*

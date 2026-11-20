@@ -30,7 +30,17 @@ export const applicationFilters: readonly { id: ApplicationFilter; label: string
 ];
 
 /** Only the lease fields this join needs, so both clients can pass their own. */
-export type LeaseLink = { id: string; status: string; application: string | null };
+export type LeaseLink = { id: string; status: string; application: string | null; offer_expired?: boolean };
+
+export function leaseForApplication<T extends LeaseLink>(
+  application: { id: string; concluded_at?: string | null },
+  leases: readonly T[],
+): T | null {
+  return leases.find((row) =>
+    row.application === application.id &&
+    (application.concluded_at !== null || row.status !== "cancelled")
+  ) ?? null;
+}
 
 export type ApplicationStanding = {
   stage: ApplicationStage;
@@ -41,10 +51,10 @@ export type ApplicationStanding = {
 };
 
 export function standing(
-  application: { id: string; status: string },
+  application: { id: string; status: string; concluded_at?: string | null },
   leases: readonly LeaseLink[],
 ): ApplicationStanding {
-  const lease = leases.find((row) => row.application === application.id) ?? null;
+  const lease = leaseForApplication(application, leases);
   const leaseId = lease?.id ?? null;
 
   switch (application.status) {
@@ -64,6 +74,7 @@ export function standing(
 
   switch (lease?.status) {
     case "offered":
+      if (lease.offer_expired) return { stage: "open", line: "Offer expired · waiting for a corrected agreement", leaseId };
       return { stage: "action", line: "Agreement ready for you", leaseId };
     case "awaiting_activation":
       return { stage: "open", line: "Accepted — waiting to start", leaseId };
@@ -93,14 +104,14 @@ export function applicationBucket(
   application: { id: string; status: string; concluded_at?: string | null },
   leases: readonly LeaseLink[],
 ): ApplicationBucket {
-  const lease = leases.find((row) => row.application === application.id) ?? null;
+  const lease = leaseForApplication(application, leases);
 
   if (application.concluded_at) return "past";
   if (["rejected", "withdrawn"].includes(application.status)) return "past";
   if (["submitted", "under_review"].includes(application.status)) return "open";
   if (application.status !== "accepted") return "past";
 
-  if (lease?.status === "offered") return "action";
+  if (lease?.status === "offered" && !lease.offer_expired) return "action";
   if (["declined", "cancelled", "ended"].includes(lease?.status ?? "")) return "past";
   return "approved";
 }
@@ -180,7 +191,7 @@ export type TimelineStep = {
  * invented one.
  */
 export function timeline(
-  application: { id: string; status: string; created_at: string; decided_at: string | null },
+  application: { id: string; status: string; created_at: string; decided_at: string | null; concluded_at?: string | null },
   leases: readonly LeaseLink[],
 ): TimelineStep[] {
   const applied: TimelineStep = {
@@ -231,10 +242,10 @@ export function timeline(
     { id: "decision", label: "Accepted", state: "done", when: application.decided_at },
   ];
 
-  const lease = leases.find((row) => row.application === application.id) ?? null;
+  const lease = leaseForApplication(application, leases);
   switch (lease?.status) {
     case "offered":
-      return [...accepted, { id: "agreement", label: "Agreement ready for you", state: "current", when: null }];
+      return [...accepted, { id: "agreement", label: lease.offer_expired ? "Waiting for a corrected agreement" : "Agreement ready for you", state: "current", when: null }];
     case "awaiting_activation":
       return [...accepted, { id: "agreement", label: "Waiting for the tenancy to start", state: "current", when: null }];
     case "active":

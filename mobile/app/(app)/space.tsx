@@ -1,4 +1,3 @@
-import { VideoPlayer } from "@/components/property/WalkthroughVideo";
 import { RecordHeader, RecordHero, RecordFacts, RecordSection } from "@/components/property/RecordDetail";
 import { LocationPicker, pinFromAddress } from "@/components/property/LocationPicker";
 /**
@@ -136,10 +135,9 @@ export default function SpaceScreen() {
         ) : null}
 
         <RecordHeader title={unit.label || "Unnamed Unit"} context={where} status={<><StandingLine tone={recordTone(status.tone)} line={unit.verification.state === "verified" ? "Verified" : unit.verification.state_label} /><StandingLine line={published ? "Public" : "Private"} tone={published ? "good" : "quiet"} /><StandingLine line={unit.availability.label} /></>} />
-        <RecordHero photo={photo} title={unit.label || "Unit"} onPhotoPress={() => setSheet("photos")}>
+        <RecordHero photo={photo} key={unit.id} title={unit.label || "Unit"} video={unit.video} videoLabel="Unit video" onPhotoPress={() => setSheet("photos")}>
           <WhatIsNext unit={unit} listing={listing} onChanged={load} />
         </RecordHero>
-      <VideoPlayer video={unit.video} label="Unit video" />
         <RecordSection title="Overview"><RecordFacts rows={[{ label: "Type", value: unit.space_type_label }, { label: "Size", value: size || "Not recorded" }, { label: "Furnished", value: unit.is_furnished ? "Yes" : "No" }]} /></RecordSection>
         <RecordSection title="Location">
           <Type variant="body">{[unit.property.address?.locality_name, unit.property.address?.district_name].filter(Boolean).join(", ") || unit.property.title}</Type>

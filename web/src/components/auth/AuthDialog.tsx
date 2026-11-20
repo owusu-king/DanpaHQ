@@ -32,7 +32,6 @@ import {
 } from "react";
 
 import { authHref, type AuthParams, type AuthView } from "@/components/auth/authTypes";
-import { FrontDoor } from "@/components/landing/FrontDoor";
 import { Button } from "@/components/Button";
 import { PageLoading } from "@/components/workspace/PageLoading";
 import { resolveWebEntry } from "@/lib/navigation";
@@ -150,12 +149,19 @@ export function AuthLink({
  * opens over the front door and the address moves to `/`. Signed in, there is
  * nothing to sign in to: on to the dashboard, or to `next`.
  */
+/** The landing page, only needed behind a signed-out entry route. */
+const loadFrontDoor = () => import("@/components/landing/FrontDoor").then((module) => module.FrontDoor);
+const FrontDoor = dynamic(loadFrontDoor);
+
 export function AuthEntry({ view }: { view: AuthView }) {
   const router = useRouter();
   const search = useSearchParams();
   const { state, refresh, activeContext } = useSession();
   const { open } = useAuthDialog();
   const handled = useRef(false);
+
+  // Fetch the backdrop while the session is still being checked.
+  useEffect(() => { void loadFrontDoor(); }, []);
 
   useEffect(() => {
     if (handled.current || state.status === "loading" || state.status === "unavailable") return;

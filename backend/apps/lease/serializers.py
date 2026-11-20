@@ -12,7 +12,7 @@ from rest_framework import serializers
 from apps.core.money import Money
 
 from . import advance_policy
-from .models import Lease, LeaseWorkflow, TermsTemplate
+from .models import Lease, LeaseStatus, LeaseWorkflow, TermsTemplate
 
 UTILITY_PARTIES = ["tenant", "provider", "included", "shared", "not_applicable"]
 RESPONSIBILITIES = [
@@ -58,6 +58,7 @@ class StructuredTermsSerializer(serializers.Serializer):
 
 
 class LeaseSerializer(serializers.ModelSerializer):
+    offer_expired = serializers.SerializerMethodField()
     upfront_payment_enabled = serializers.SerializerMethodField()
     status_display = serializers.CharField(source="get_status_display", read_only=True)
 
@@ -90,6 +91,7 @@ class LeaseSerializer(serializers.ModelSerializer):
             "workflow_version",
             "status",
             "status_display",
+            "offer_expired",
             "activation_requirement",
             "upfront_payment_enabled",
             "unit",
@@ -143,6 +145,9 @@ class LeaseSerializer(serializers.ModelSerializer):
         if minor is None:
             return None
         return str(Money(minor, currency or "GHS"))
+
+    def get_offer_expired(self, obj) -> bool:
+        return obj.status == LeaseStatus.OFFERED and obj.term_has_expired
 
     def get_rent_formatted(self, obj) -> str | None:
         return self._money(obj.rent_minor, obj.rent_currency)

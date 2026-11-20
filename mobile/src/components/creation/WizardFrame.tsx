@@ -15,7 +15,7 @@
 
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Fragment, type ReactNode } from "react";
-import { Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from "react-native";
 
 import { ActionBar, EDGE, INK, KOLA, KOLA_DEEP, LATERITE, MUTED, PAPER, PRESSED } from "@/components/record/RecordSurfaces";
 import { Type, space } from "@/components/ui";
@@ -39,6 +39,8 @@ export function WizardFrame({
   current,
   onGo,
   footer,
+  feedback,
+  keyboardOffset = 0,
   children,
   compact = false,
 }: {
@@ -46,6 +48,8 @@ export function WizardFrame({
   current: string;
   onGo: (key: string) => void;
   footer: ReactNode;
+  feedback?: ReactNode;
+  keyboardOffset?: number;
   children: ReactNode;
   compact?: boolean;
 }) {
@@ -53,7 +57,11 @@ export function WizardFrame({
   const step = steps[at] ?? steps[0]!;
 
   return (
-    <View style={compact ? styles.compactScreen : styles.screen}>
+    <KeyboardAvoidingView
+      style={compact ? styles.compactScreen : styles.screen}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={Platform.OS === "ios" ? keyboardOffset : 0}
+    >
       <View style={[styles.top, compact && styles.compactTop]}>
         <View style={styles.strip} accessibilityRole="tablist">
           {steps.map((item, index) => {
@@ -103,8 +111,9 @@ export function WizardFrame({
         {children}
       </ScrollView>
 
+      {feedback ? <View style={styles.feedback}>{feedback}</View> : null}
       <ActionBar>{footer}</ActionBar>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -207,6 +216,7 @@ export function ReviewLine({
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: theme.color.field["50"] },
+  feedback: { paddingHorizontal: space[4], paddingBottom: space[2], backgroundColor: theme.color.field["50"] },
   compactScreen: { maxHeight: "100%", flexShrink: 1, backgroundColor: theme.color.field["50"] },
   compactBody: { flexGrow: 0, flexShrink: 1 },
   compactTop: { gap: space[3] },
@@ -252,12 +262,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: space[3],
     padding: space[3],
-    borderRadius: 14,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: EDGE,
     backgroundColor: PAPER,
   },
-  choiceOn: { borderWidth: 1.5, borderColor: KOLA, backgroundColor: theme.color.kola["50"] },
+  choiceOn: { borderColor: KOLA, backgroundColor: theme.color.kola["50"] },
   choiceMark: {
     width: 36,
     height: 36,

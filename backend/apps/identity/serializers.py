@@ -474,6 +474,39 @@ class MeSerializer(serializers.ModelSerializer):
             "date_of_birth",
         ]
 
+    def to_representation(self, instance):
+        """One declared read for the whole projection.
+
+        Most fields ask the same few questions — which roles, which checks on
+        this account — and each asked the database again: 34 statements for one
+        provider's `/me/`, which every app start and session refresh pays. The
+        roles and the account's checks are loaded once here; everything else
+        reuses them through `apps.core.memo`. Nothing in serialization writes,
+        and the role prefetch is removed again afterwards so a caller that goes
+        on to change roles never reads this snapshot.
+        """
+        from django.db.models import prefetch_related_objects
+
+        from apps.core.memo import memoized
+        from apps.trust.models import SubjectType, Verification
+        from apps.trust.services import prime_subject_verifications
+
+        cache = getattr(instance, "_prefetched_objects_cache", None) or {}
+        owns_prefetch = "role_assignments" not in cache
+        with memoized():
+            if owns_prefetch:
+                prefetch_related_objects([instance], "role_assignments")
+            try:
+                prime_subject_verifications(
+                    subject_type=SubjectType.USER,
+                    subject_ids=[instance.id],
+                    rows=Verification.objects.for_subject(SubjectType.USER, instance.id),
+                )
+                return super().to_representation(instance)
+            finally:
+                if owns_prefetch:
+                    instance._prefetched_objects_cache.pop("role_assignments", None)
+
     def get_capabilities(self, obj) -> dict:
         """The authorization surface clients render from."""
         from .services import account_capabilities
@@ -536,12 +569,18 @@ class MeSerializer(serializers.ModelSerializer):
             return "profile_required"
         return "intent_required"
 
-    def get_intents(self, obj) -> list[str]:
-        return list(
-            obj.intent_selections.order_by("-is_primary", "selected_at").values_list(
-                "intent", flat=True
+    def _intent_rows(self, obj) -> list:
+        """The person's stated journeys, primary first, read once per projection."""
+        if not hasattr(self, "_intent_cache"):
+            self._intent_cache: dict[UUID, list] = {}
+        if obj.pk not in self._intent_cache:
+            self._intent_cache[obj.pk] = list(
+                obj.intent_selections.order_by("-is_primary", "selected_at")
             )
-        )
+        return self._intent_cache[obj.pk]
+
+    def get_intents(self, obj) -> list[str]:
+        return [row.intent for row in self._intent_rows(obj)]
 
     def get_contexts(self, obj) -> list[dict]:
         if not hasattr(self, "_workspace_contexts"):
@@ -571,7 +610,7 @@ class MeSerializer(serializers.ModelSerializer):
         return contexts
 
     def get_default_context_id(self, obj) -> str | None:
-        selection = obj.intent_selections.filter(is_primary=True).first()
+        selection = next((row for row in self._intent_rows(obj) if row.is_primary), None)
         contexts = self.get_contexts(obj)
         if selection:
             prefix = {

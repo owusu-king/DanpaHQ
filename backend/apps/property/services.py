@@ -39,15 +39,10 @@ def provider_readiness(user, *, property_id=None) -> dict:
     from this workflow; public advertising begins only when the provider later
     invokes the listing publication workflow explicitly.
     """
-    from apps.trust.models import SubjectType, Verification, VerificationKind, VerificationStatus
-    from apps.trust.services import trust_summary
+    from apps.trust.models import SubjectType, VerificationKind
+    from apps.trust.services import latest_for, trust_summary
 
-    latest_identity = (
-        Verification.objects.for_subject(SubjectType.USER, user.id)
-        .filter(kind=VerificationKind.IDENTITY)
-        .exclude(status=VerificationStatus.SUPERSEDED)
-        .first()
-    )
+    latest_identity = latest_for(SubjectType.USER, user.id, VerificationKind.IDENTITY)
     application_rows = PropertyProviderApplication.objects.filter(applicant=user)
     if property_id is not None:
         application_rows = application_rows.filter(property_id=property_id)
@@ -1170,6 +1165,33 @@ def update_property(*, prop: Property, user, data: dict) -> Property:
     # to describe here — see the policy for why a verified name is as fixed as a
     # verified water source.
     enforce(can_edit_property(actor=user, target=prop))
+
+    if "address" in data:
+        from apps.geo.models import Address
+        from apps.geo.serializers import CreateAddressSerializer
+        from apps.listing.location import refresh_public_locations, refresh_public_sale_locations
+        from apps.listing.models import Listing
+        from apps.sale.models import SaleListing
+
+        if "location" in data:
+            raise ValidationFailed("Send the map pin with the written address.")
+        address_data = CreateAddressSerializer(data=data["address"])
+        address_data.is_valid(raise_exception=True)
+        values = dict(address_data.validated_data)
+        if "place" in values:
+            raise ValidationFailed("Enter a town or choose a Danpa HQ locality.")
+        previous = str(prop.address_id)
+        prop.address = Address.objects.create(**values)
+        prop.save(update_fields=["address", "updated_at"])
+        refresh_public_locations(Listing.objects.filter(unit__property=prop))
+        refresh_public_sale_locations(SaleListing.objects.filter(property=prop))
+        record(
+            action=AuditAction.UPDATE,
+            aggregate_type="property",
+            aggregate_id=prop.id,
+            actor=user,
+            changes={"address_id": [previous, str(prop.address_id)]},
+        )
 
     if "location" in data:
         from apps.geo.models import Address

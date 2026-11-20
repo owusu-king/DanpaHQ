@@ -6,24 +6,24 @@
  * The Unit → amenities → photos → review, in the same frame as creating a
  * property. The Unit is written when its details are saved, because amenities
  * and photographs need something to attach to; every later step writes to that
- * record, so closing the sheet loses only the step on screen.
+ * record. Unfinished edits stay available until the wizard closes.
  *
  * Review ends in **Send for checking** when the photographs are in and the
  * property's own check allows it, and otherwise in **Finish**: a Unit can wait
  * privately, and the review says plainly what it is waiting on.
  */
 
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 
 import { Button } from "@/components/Button";
-import { Field } from "@/components/Field";
+import { Field, Textarea } from "@/components/Field";
 import { Notice } from "@/components/Notice";
 import { CountStepper, YesNo } from "@/components/creation/StepActions";
-import { ChoiceTiles, ReviewLine, WizardShell, type WizardStep } from "@/components/creation/WizardShell";
+import { ChoiceTiles, FormSection, ReviewLine, WizardShell, type WizardStep } from "@/components/creation/WizardShell";
+import { useWizardDraft, type CloseGuard } from "@/components/creation/useWizardDraft";
 import { Icon, type IconName } from "@/components/portal/icons";
 import { SpaceAmenities } from "@/components/property/SpaceAmenities";
 import { SpacePhotos } from "@/components/property/SpacePhotos";
-import { ModalSheet } from "@/components/workspace/ModalSheet";
 import { ApiFailure } from "@/lib/api";
 import {
   createUnit,
@@ -33,12 +33,15 @@ import {
   type Property,
   type UnitDetail,
 } from "@/lib/console";
-import { loadPropertyTypes, spaceTypesFor, type SpaceTypeOption } from "@/lib/propertyTypes";
+import { loadPropertyTypes, spaceTypesFor, type PropertyTypeOption, type SpaceTypeOption } from "@/lib/propertyTypes";
 import { submitForReview } from "@/lib/verification";
 
 type StepKey = "details" | "amenities" | "photos" | "review";
 type Commit = () => Promise<boolean>;
 type CommitRef = { current: Commit | null };
+export type UnitWizardMode =
+  | { mode: "create"; unitId?: never; startAt?: never }
+  | { mode: "edit"; unitId: string; startAt?: string | null };
 
 const STEPS: { key: StepKey; label: string; icon: IconName }[] = [
   { key: "details", label: "The Unit", icon: "units" },
@@ -46,6 +49,7 @@ const STEPS: { key: StepKey; label: string; icon: IconName }[] = [
   { key: "photos", label: "Photos", icon: "photos" },
   { key: "review", label: "Review", icon: "eye" },
 ];
+const STEP_KEYS = STEPS.map((step) => step.key);
 
 const SPACE_GLYPHS: Record<string, IconName> = {
   apartment: "home",
@@ -60,87 +64,101 @@ const SPACE_GLYPHS: Record<string, IconName> = {
 };
 
 export function UnitWizard({
+  mode,
   propertyId,
-  unitId: initialUnit = null,
+  unitId,
   startAt = null,
   onFinished,
-  onTitle,
+  onCancel,
   onChanged,
-}: {
+  closeGuardRef,
+  onBusyChange,
+}: UnitWizardMode & {
   propertyId: string;
-  /** A Unit already saved, to carry on with. */
-  unitId?: string | null;
-  startAt?: string | null;
-  onClose: () => void;
   onFinished: (unit: UnitDetail) => void;
-  onTitle?: (title: string) => void;
+  onCancel?: () => void;
   /** Notify successful writes, never dismissal. */
   onChanged?: () => void;
+  closeGuardRef?: CloseGuard;
+  onBusyChange?: (busy: boolean) => void;
 }) {
   const [property, setProperty] = useState<Property | null>(null);
   const [unit, setUnit] = useState<UnitDetail | null>(null);
-  const [step, setStep] = useState<StepKey>("details");
+  const [step, setStep] = useState<StepKey>(() => STEP_KEYS.find((key) => key === startAt) ?? "details");
+  const [amenitiesSaved, setAmenitiesSaved] = useState(false);
   const [busy, setBusy] = useState(false);
   const [mediaBusy, setMediaBusy] = useState(false);
   const [error, setError] = useState("");
-  const commitRef = useRef<Commit | null>(null);
-  const created = useRef<UnitDetail | null>(null);
+  const [propertyTypes, setPropertyTypes] = useState<PropertyTypeOption[] | null>(null);
+  const [typesError, setTypesError] = useState("");
 
   useEffect(() => {
-    getProperty(propertyId)
-      .then(setProperty)
-      .catch((cause) => setError(cause instanceof ApiFailure ? cause.error.message : "Could not load this property."));
-  }, [propertyId]);
-
-  useEffect(() => {
-    if (!initialUnit) return;
-    getUnit(initialUnit)
-      .then((saved) => {
-        if (saved.property.id !== propertyId) {
+    if (!propertyId || (mode === "edit" && !unitId)) return;
+    let active = true;
+    Promise.all([getProperty(propertyId), unitId ? getUnit(unitId) : null])
+      .then(([record, saved]) => {
+        if (!active) return;
+        if (saved && (saved.id !== unitId || saved.property.id !== propertyId)) {
           setError("That Unit belongs to another Property.");
           return;
         }
+        setProperty(record);
         setUnit(saved);
-        const asked = STEPS.find((row) => row.key === startAt)?.key;
-        setStep(asked ?? "amenities");
       })
-      .catch((cause) => setError(cause instanceof ApiFailure ? cause.error.message : "Could not reopen this Unit."));
-  }, [initialUnit, propertyId, startAt]);
+      .catch((cause) => {
+        if (active) setError(cause instanceof ApiFailure ? cause.error.message : "Could not load Unit setup.");
+      });
+    return () => { active = false; };
+  }, [mode, propertyId, unitId]);
 
   useEffect(() => {
-    if (unit?.label) onTitle?.(unit.label);
-  }, [unit?.label, onTitle]);
+    if (step !== "details" || propertyTypes) return;
+    let active = true;
+    setTypesError("");
+    loadPropertyTypes()
+      .then((types) => { if (active) setPropertyTypes(types); })
+      .catch((cause) => {
+        if (active) setTypesError(cause instanceof ApiFailure ? cause.error.message : "Could not load the Unit types. Reopen setup to try again.");
+      })
+    return () => { active = false; };
+  }, [propertyTypes, step]);
 
   const reload = useCallback(async () => {
-    const current = unit ?? created.current;
-    if (!current) return null;
-    const next = await getUnit(current.id);
+    if (!unit) return null;
+    const next = await getUnit(unit.id);
     setUnit(next);
     return next;
   }, [unit]);
 
   const at = STEPS.findIndex((row) => row.key === step);
+  const draft = useWizardDraft(STEP_KEYS, step, busy || mediaBusy, closeGuardRef, onBusyChange);
+  const detailsEditable = !unit || unit.verification.editable;
   const ready = unit ? unit.verification.can_submit && unit.permitted_actions.submit_for_verification?.allowed === true : false;
   const sent = unit ? !unit.verification.editable : false;
 
   function go(key: StepKey) {
     if (mediaBusy) return;
     setError("");
-    commitRef.current = null;
     setStep(key);
   }
 
   async function advance() {
-    if (mediaBusy) return;
+    if (busy || mediaBusy) return;
+    if (step === "review" && !draft.confirmFinish()) return;
     setBusy(true);
     setError("");
     try {
-      const ok = commitRef.current ? await commitRef.current() : true;
+      const commit = draft.commits[step].current;
+      const ok = commit ? await commit() : true;
       if (!ok) return;
-      onChanged?.();
-      const next = step === "details" ? (created.current ?? unit) : await reload();
+      draft.markSaved();
+      if (step === "amenities") {
+        setAmenitiesSaved(true);
+        onChanged?.();
+        await reload();
+      }
       if (step === "review") {
-        const current = next ?? unit;
+        const current = (await reload()) ?? unit;
         if (!current) return;
         if (current.verification.editable && current.verification.can_submit && current.permitted_actions.submit_for_verification?.allowed === true) {
           await submitForReview("unit", current.id);
@@ -160,134 +178,79 @@ export function UnitWizard({
     }
   }
 
-  if (!property || property.id !== propertyId || (initialUnit && (!unit || unit.id !== initialUnit || unit.property.id !== propertyId))) {
+  if (!property || property.id !== propertyId || (mode === "edit" && (!unit || unit.id !== unitId || unit.property.id !== propertyId))) {
     return (
       <div className="cw-loading">
-        {error ? <Notice tone="error" title={error} /> : <p className="type-caption">Loading…</p>}
+        {error ? <Notice tone="error" inline title={error} /> : <p className="type-caption">Loading…</p>}
       </div>
     );
   }
+  const options = propertyTypes ? spaceTypesFor(propertyTypes, property.property_type) : null;
 
   const photosDone = unit ? unit.verification.required_outstanding === 0 : false;
-  const railSteps: WizardStep[] = STEPS.map((row) => ({
+  const checkpoints: WizardStep[] = STEPS.map((row) => ({
     ...row,
     done:
       row.key === "details" ? Boolean(unit)
-        : row.key === "amenities" ? Boolean(unit) && at > 1
+        : row.key === "amenities" ? amenitiesSaved
           : row.key === "photos" ? photosDone
             : false,
     reachable: !busy && !mediaBusy && (row.key === "details" || Boolean(unit)),
-    summary:
-      row.key === "details" ? unit?.label
-        : row.key === "amenities" && unit ? (unit.amenities.length ? `${unit.amenities.length} chosen` : undefined)
-          : row.key === "photos" && unit ? `${unit.photo_count} added`
-            : undefined,
   }));
 
   const primary =
     step === "review"
       ? ready && !sent ? "Send for checking" : "Finish"
-      : step === "details" && !unit ? "Save and continue" : "Continue";
+      : step === "details" && detailsEditable ? "Save and continue" : "Continue";
 
   return (
     <WizardShell
       label="Unit steps"
-      steps={railSteps}
+      steps={checkpoints}
       current={step}
       onGo={(key) => go(key as StepKey)}
-      railFoot={<><Icon name="properties" />In {property.title || "this property"}</>}
+      context={`In ${property.title || "this property"}`}
+      dirty={draft.dirty}
+      busy={busy}
+      onEdit={draft.markEdited}
       footer={
         <>
+          {onCancel ? <Button variant="quiet" disabled={busy || mediaBusy} onClick={onCancel}>Cancel</Button> : null}
           {at > 0 ? (
             <Button variant="quiet" disabled={busy || mediaBusy} onClick={() => go(STEPS[at - 1]!.key)}>Back</Button>
           ) : null}
           <span className="lw-foot-spacer" />
 
           {step === "review" && ready && !sent ? (
-            <Button variant="quiet" disabled={busy} onClick={() => unit && onFinished(unit)}>Not yet</Button>
+            <Button variant="quiet" disabled={busy} onClick={() => { if (unit && draft.confirmFinish()) onFinished(unit); }}>Not yet</Button>
           ) : null}
-          <Button disabled={mediaBusy} busy={busy} busyLabel={step === "review" && ready ? "Sending…" : "Saving…"} onClick={() => void advance()}>
+          <Button disabled={mediaBusy || (step === "details" && !options)} busy={busy} busyLabel={step === "review" && ready ? "Sending…" : "Saving…"} onClick={() => void advance()}>
             {primary}
           </Button>
         </>
       }
+      panels={{
+        details: options ? (
+          <DetailsStep
+            property={property}
+            unit={unit}
+            options={options}
+            commitRef={draft.commits.details}
+            onSaved={(next) => {
+              setUnit(next);
+              onChanged?.();
+            }}
+          />
+        ) : typesError ? <Notice tone="error" inline title={typesError} /> : <p className="type-caption">Loading…</p>,
+        amenities: unit && <AmenitiesStep unitId={unit.id} commitRef={draft.commits.amenities} />,
+        photos: unit && (
+          <SpacePhotos onMediaBusy={setMediaBusy} unitId={unit.id} editable={unit.verification.editable} onChanged={async () => { onChanged?.(); await reload(); }} />
+        ),
+        review: unit && <ReviewStep unit={unit} ready={ready} sent={sent} onGo={go} />,
+      }}
     >
-      {step === "details" ? (
-        <DetailsStep
-          property={property}
-          unit={unit}
-          commitRef={commitRef}
-          onCreated={(next) => {
-            created.current = next;
-            setUnit(next);
-          }}
-        />
-      ) : null}
-
-      {step === "amenities" && unit ? <AmenitiesStep unitId={unit.id} commitRef={commitRef} /> : null}
-
-      {step === "photos" && unit ? (
-        <SpacePhotos onMediaBusy={setMediaBusy} unitId={unit.id} editable={unit.verification.editable} onChanged={async () => { onChanged?.(); await reload(); }} />
-      ) : null}
-
-      {step === "review" && unit ? <ReviewStep unit={unit} ready={ready} sent={sent} onGo={go} /> : null}
-
-      {error ? <Notice tone="error" title={error} /> : null}
+      {error ? <Notice tone="error" inline title={error} /> : null}
     </WizardShell>
-  );
-}
-
-/** The wizard in its sheet. */
-export function UnitWizardModal({
-  open,
-  propertyId,
-  propertyPicker,
-  unitId = null,
-  startAt = null,
-  onClose,
-  onFinished,
-  onChanged,
-}: {
-  open: boolean;
-  propertyId: string | null;
-  propertyPicker?: ReactNode;
-  unitId?: string | null;
-  startAt?: string | null;
-  onClose: () => void;
-  onChanged?: () => void;
-  onFinished: (unit: UnitDetail) => void;
-}) {
-  const [title, setTitle] = useState("");
-  useEffect(() => {
-    if (!open) setTitle("");
-  }, [open]);
-  return (
-    <ModalSheet
-      open={open}
-      onClose={onClose}
-      size="sm"
-      icon="units"
-      title={title || "Add Unit"}
-      meta={propertyId ? "Saved as you go" : "Choose its Property"}
-      className={propertyId ? "lease-wizard-sheet is-wizard creation-sheet" : "unit-chooser-sheet"}
-      closeLabel="Close Unit setup"
-      dismissible={false}
-    >
-      {(close) => propertyId ? (
-        <UnitWizard
-          propertyId={propertyId}
-          unitId={unitId}
-          startAt={startAt}
-          onClose={close}
-          onTitle={setTitle}
-          onChanged={onChanged}
-          onFinished={(unit) => {
-            onFinished(unit);
-            close();
-          }}
-        />
-      ) : propertyPicker}
-    </ModalSheet>
   );
 }
 
@@ -305,41 +268,40 @@ function useCommit(commitRef: CommitRef, run: Commit) {
 function DetailsStep({
   property,
   unit,
+  options,
   commitRef,
-  onCreated,
+  onSaved,
 }: {
   property: Property;
   unit: UnitDetail | null;
+  options: SpaceTypeOption[];
   commitRef: CommitRef;
-  onCreated: (unit: UnitDetail) => void;
+  onSaved: (unit: UnitDetail) => void;
 }) {
-  const [options, setOptions] = useState<SpaceTypeOption[]>([]);
-  const [spaceType, setSpaceType] = useState(unit?.space_type ?? "");
+  const [spaceType, setSpaceType] = useState(unit?.space_type ?? (options.length === 1 ? options[0]!.value : ""));
   const [label, setLabel] = useState(unit?.label ?? "");
-  const [bedrooms, setBedrooms] = useState(unit?.bedrooms || 1);
+  const [bedrooms, setBedrooms] = useState(unit?.bedrooms ?? 1);
   const [bathrooms, setBathrooms] = useState(unit?.bathrooms ?? 1);
-  const [floor, setFloor] = useState(unit?.floor_level ?? 0);
+  const [floor, setFloor] = useState(unit ? unit.floor_level : 0);
   const [wing, setWing] = useState(unit?.wing ?? "");
   const [entrance, setEntrance] = useState(unit?.entrance_note ?? "");
   const [description, setDescription] = useState(unit?.description ?? "");
   const [missing, setMissing] = useState<{ type?: string; name?: string }>({});
   const editable = unit ? unit.verification.editable : true;
 
-  useEffect(() => {
-    void loadPropertyTypes()
-      .then((types) => {
-        const allowed = spaceTypesFor(types, property.property_type);
-        setOptions(allowed);
-        // Chosen for somebody only when there is nothing to choose.
-        if (allowed.length === 1) setSpaceType((current) => current || allowed[0]!.value);
-      })
-      .catch(() => setOptions([]));
-  }, [property.property_type]);
-
   const chosen = options.find((option) => option.value === spaceType) ?? null;
-  const asks = chosen?.asks ?? null;
+  const asks = chosen?.asks ?? unit?.asks;
+  const tiles = options.map((option) => ({
+    value: option.value,
+    label: option.label,
+    icon: SPACE_GLYPHS[option.value] ?? "units",
+  }));
+  if (unit && !chosen) {
+    tiles.push({ value: unit.space_type, label: unit.space_type_label, icon: SPACE_GLYPHS[unit.space_type] ?? "units" });
+  }
 
   useCommit(commitRef, async () => {
+    if (!editable) return true;
     const problems = {
       type: spaceType ? undefined : "Choose what is being let.",
       name: label.trim() ? undefined : "Give it a name, e.g. Flat A or Room 3.",
@@ -349,111 +311,107 @@ function DetailsStep({
     const fields = {
       label: label.trim(),
       description: description.trim(),
-      bedrooms: asks?.bedrooms ? bedrooms : 0,
+      bedrooms: asks?.bedrooms === false ? 0 : bedrooms,
       bathrooms: asks?.bathrooms === "none" ? 0 : bathrooms,
-      floor_level: asks?.floor ? floor : null,
+      floor_level: asks?.floor === false ? null : floor,
       wing: wing.trim(),
       entrance_note: entrance.trim(),
     };
-    if (unit) {
-      if (editable) onCreated(await updateUnit(unit.id, fields));
-      return true;
-    }
-    onCreated(await createUnit(property.id, { ...fields, space_type: spaceType }));
+    onSaved(unit
+      ? await updateUnit(unit.id, fields)
+      : await createUnit(property.id, { ...fields, space_type: spaceType }));
     return true;
   });
 
   return (
     <div className="cw-form">
-      {options.length ? (
+      {tiles.length ? (
         <ChoiceTiles
           label="What is being let?"
           value={spaceType}
-          columns={Math.min(options.length, 4)}
+          columns={Math.min(tiles.length, 4)}
+          disabled={Boolean(unit)}
           onChange={(value) => {
-            // The type decides what is asked and photographed, so it is fixed
-            // once the Unit exists.
-            if (unit) return;
             setSpaceType(value);
             setMissing((current) => ({ ...current, type: undefined }));
           }}
-          options={options.map((option) => ({
-            value: option.value,
-            label: option.label,
-            icon: SPACE_GLYPHS[option.value] ?? "units",
-          }))}
+          options={tiles}
         />
       ) : (
-        <p className="type-caption">Loading what this property can hold…</p>
+        <Notice tone="error" inline title="This Property has no available Unit types." />
       )}
-      {missing.type ? <p className="cw-missing">{missing.type}</p> : null}
+      {missing.type ? <p className="cw-missing" role="alert">{missing.type}</p> : null}
 
-      <div className="lw-grid">
-        <Field
-          label="Name"
-          placeholder="e.g. Flat A, Room 3"
-          maxLength={40}
-          value={label}
-          disabled={!editable}
-          error={missing.name}
-          onChange={(event) => {
-            setLabel(event.target.value);
-            setMissing((current) => ({ ...current, name: undefined }));
-          }}
-        />
-        <Field
-          label="Block or wing"
-          hint="Optional"
-          placeholder="e.g. Block B"
-          maxLength={40}
-          value={wing}
-          disabled={!editable}
-          onChange={(event) => setWing(event.target.value)}
-        />
-      </div>
-
-      {asks && (asks.bedrooms || asks.bathrooms !== "none" || asks.floor) ? (
-        <div className="count-row">
-          {asks.bedrooms ? <CountStepper label="Bedrooms" value={bedrooms} onChange={setBedrooms} min={1} /> : null}
-          {asks.bathrooms === "count" ? (
-            <CountStepper label="Bathrooms" value={bathrooms} onChange={setBathrooms} />
-          ) : asks.bathrooms === "yes_no" ? (
-            <YesNo label="Own bathroom" value={bathrooms > 0} onChange={(yes) => setBathrooms(yes ? 1 : 0)} />
-          ) : null}
-          {asks.floor ? (
-            <CountStepper
-              label="Floor"
-              value={floor}
-              onChange={setFloor}
-              max={60}
-              format={(value) => (value === 0 ? "Ground" : String(value))}
-            />
-          ) : null}
+      <FormSection title="Identify the unit">
+        <div className="lw-grid">
+          <Field
+            label="Name"
+            required
+            placeholder="e.g. Flat A, Room 3"
+            maxLength={40}
+            value={label}
+            autoFocus
+            disabled={!editable}
+            error={missing.name}
+            onBlur={() => { if (!label.trim()) setMissing((current) => ({ ...current, name: "Give it a name, e.g. Flat A or Room 3." })); }}
+            onChange={(event) => {
+              setLabel(event.target.value);
+              setMissing((current) => ({ ...current, name: undefined }));
+            }}
+          />
+          <Field
+            label="Block or wing"
+            placeholder="e.g. Block B"
+            maxLength={40}
+            value={wing}
+            disabled={!editable}
+            onChange={(event) => setWing(event.target.value)}
+          />
         </div>
-      ) : null}
 
-      <Field
-        label="How to find its door"
-        hint="Optional. Shared only after a confirmed viewing."
-        placeholder="e.g. Blue door, top of the outside stairs"
-        maxLength={200}
-        value={entrance}
-        disabled={!editable}
-        onChange={(event) => setEntrance(event.target.value)}
-      />
+      </FormSection>
 
-      <label className="lw-field">
-        <span className="lw-label">Description <small>Optional</small></span>
-        <textarea
-          className="lw-textarea"
-          rows={3}
-          maxLength={1500}
-          value={description}
+      <FormSection title="Layout and access">
+        {asks && (asks.bedrooms || asks.bathrooms !== "none" || asks.floor) ? (
+          <div className="count-row">
+            {asks.bedrooms ? <CountStepper label="Bedrooms" value={bedrooms} onChange={setBedrooms} min={1} disabled={!editable} /> : null}
+            {asks.bathrooms === "count" ? (
+              <CountStepper label="Bathrooms" value={bathrooms} onChange={setBathrooms} disabled={!editable} />
+            ) : asks.bathrooms === "yes_no" ? (
+              <YesNo label="Own bathroom" value={bathrooms > 0} onChange={(yes) => setBathrooms(yes ? 1 : 0)} disabled={!editable} />
+            ) : null}
+            {asks.floor ? (
+              <CountStepper
+                label="Floor"
+                value={floor}
+                onChange={setFloor}
+                disabled={!editable}
+                max={60}
+                format={(value) => (value === 0 ? "Ground" : String(value))}
+              />
+            ) : null}
+          </div>
+        ) : null}
+
+        <Field
+          label="How to find its door"
+          hint="Shared only after a confirmed viewing."
+          placeholder="e.g. Blue door, top of the outside stairs"
+          maxLength={200}
+          value={entrance}
           disabled={!editable}
-          onChange={(event) => setDescription(event.target.value)}
+          onChange={(event) => setEntrance(event.target.value)}
         />
-      </label>
 
+          <Textarea
+            label="Description"
+            rows={3}
+            maxLength={1500}
+            value={description}
+            disabled={!editable}
+            onChange={(event) => setDescription(event.target.value)}
+          />
+      </FormSection>
     </div>
   );
 }

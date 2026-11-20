@@ -279,6 +279,44 @@ class TestOrganizationAuthorization:
         assert response.status_code == 200
         assert response.data["tenancy_requests"][0]["id"] == str(join_request.id)
         assert response.data["tenant_access"][0]["access_code"]["state"] == "active"
+        # Applications reads the lean projection; it must list the same requests.
+        requests_view = api.get(f"/api/v1/organizations/{organization.id}/portfolio/?view=requests")
+        assert requests_view.status_code == 200
+        assert requests_view.data == {
+            "organization": response.data["organization"],
+            "tenancy_requests": response.data["tenancy_requests"],
+        }
+
+        from apps.application.models import ApplicationStatus, RentalApplication
+        from apps.lease import services as lease_services
+        from apps.listing.models import Listing
+
+        home_url = f"/api/v1/organizations/{organization.id}/portfolio/?view=home"
+        assert api.get(home_url).data["agreements_to_prepare"] == 0
+
+        occupancy_services.decide_join_request(
+            join_request=join_request, actor=owner, approved=True,
+        )
+        assert api.get(home_url).data["agreements_to_prepare"] == 1
+
+        listing = Listing.objects.create(unit=unit, created_by=owner, rent_minor=120000)
+        application = RentalApplication.objects.create(
+            listing=listing, unit=unit, tenant=tenant, status=ApplicationStatus.ACCEPTED,
+        )
+        assert api.get(home_url).data["agreements_to_prepare"] == 2
+
+        application.concluded_at = timezone.now()
+        application.save(update_fields=["concluded_at"])
+        assert api.get(home_url).data["agreements_to_prepare"] == 1
+
+        lease_services.draft_lease(
+            user=owner,
+            unit=unit,
+            tenant=tenant,
+            join_request=join_request,
+            data={"rent_minor": 120000, "starts_on": timezone.localdate(), "term_months": 12},
+        )
+        assert api.get(home_url).data["agreements_to_prepare"] == 0
 
     def test_portfolio_tenant_rows_follow_each_occupancys_lease_and_tenancy(
         self, address, approve_provider, registered, sign_in_as
@@ -435,7 +473,22 @@ class TestOrganizationAuthorization:
         assert "tenant_access" not in home.data
         assert "profit_loss" not in home.data
         assert len(home_queries) < len(full_queries)
-        assert len(home_queries) <= 17
+        assert len(home_queries) <= 18
+
+        with CaptureQueriesContext(connection) as finance_queries:
+            finance = owner_api.get(f"{portfolio_url}?view=finance")
+        assert finance.status_code == 200
+        assert finance["Cache-Control"] == "private, no-store"
+        finance_fields = (
+            "organization", "counts", "money", "tenants", "profit_loss",
+            "verification", "recent_payments", "recent_settlements",
+        )
+        for field in finance_fields:
+            assert finance.data[field] == full.data[field]
+        assert all(finance.data[key] == [] for key in (
+            "past_tenants", "tenant_access", "tenancy_requests",
+        ))
+        assert len(finance_queries) < len(full_queries)
 
         with CaptureQueriesContext(connection) as finance_queries:
             finance = owner_api.get(f"{portfolio_url}?view=finance")

@@ -34,10 +34,8 @@ import {
   LATERITE,
   MUTED,
   PAPER,
-  Pill,
-  QuietAct,
 } from "@/components/record/RecordSurfaces";
-import { Field, Notice, Type, space } from "@/components/ui";
+import { Button, Field, Notice, Type, space } from "@/components/ui";
 import { FACT_GLYPHS, FACT_HINTS, TYPE_GLYPHS, shortFactLabel, type Glyph } from "@/creationGlyphs";
 import {
   createPersonalPortfolioProperty,
@@ -265,22 +263,17 @@ export function PropertyWizard({
       onGo={(key) => go(key as StepKey)}
       footer={
         <>
+          {!locked ? <Button label="Cancel" variant="quiet" disabled={busy || mediaBusy} onPress={onClose} /> : null}
           {at > 0 ? (
-            <QuietAct label="Back" icon="chevron-back" disabled={busy || mediaBusy} onPress={() => go(keys[at - 1]!)} />
+            <Button label="Back" variant="quiet" disabled={busy || mediaBusy} onPress={() => go(keys[at - 1]!)} />
           ) : null}
-          {locked ? (
-            <Pill label="Close" grow onPress={onClose} />
-          ) : (
-            <Pill
-              label={primary}
-              icon={shown === "review" ? "checkmark" : "arrow-forward"}
-              busy={busy}
-              busyLabel="Saving"
-              disabled={mediaBusy || (shown === "review" && !settled && outstanding.length > 0)}
-              grow
-              onPress={() => void advance()}
-            />
-          )}
+          <View style={{ flex: 1 }}>
+            {locked ? <Button label="Close" onPress={onClose} /> : (
+              <Button label={primary} busy={busy} busyLabel="Saving…"
+                disabled={mediaBusy || (shown === "review" && !settled && outstanding.length > 0)}
+                onPress={() => void advance()} />
+            )}
+          </View>
         </>
       }
     >

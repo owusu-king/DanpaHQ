@@ -29,6 +29,7 @@ export type ManagedProperty = {
   verification: PropertyVerification;
   /** What this person may do to it, decided by the backend (ADR 0021). */
   permitted_actions: Record<string, PermittedAction>;
+  billing_access?: import("@/billing").BillingAccess;
   /** Kept for older builds. `verification.authority.state` is the fuller one. */
   authority_state: string;
   /** Kept for older builds. `verification.photos.state` is the fuller one. */
@@ -479,7 +480,7 @@ export function createPersonalPortfolioProperty(input: {
 export type PortfolioHomeSummary = Pick<
   PortfolioSummary,
   "organization" | "counts" | "money" | "rent_collection" | "recent_payments" | "recent_activity"
->;
+> & { agreements_to_prepare?: number };
 
 export function getPortfolioHome(organizationId: string) {
   return apiFetch<PortfolioHomeSummary>(`/organizations/${organizationId}/portfolio/?view=home`);

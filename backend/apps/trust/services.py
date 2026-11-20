@@ -80,6 +80,23 @@ def _current_for(subject_type: str, subject_id, kind: str) -> Verification | Non
     )
 
 
+def latest_for(subject_type: str, subject_id, kind: str) -> Verification | None:
+    """The newest check of one kind on one subject, whatever it decided.
+
+    Superseded rows are history and are skipped. Memoized only inside a
+    declared read, like :func:`current_for`.
+    """
+    from apps.core.memo import cached
+
+    return cached(
+        ("trust.latest", subject_type, str(subject_id), kind),
+        lambda: Verification.objects.for_subject(subject_type, subject_id)
+        .filter(kind=kind)
+        .exclude(status=VerificationStatus.SUPERSEDED)
+        .first(),
+    )
+
+
 def trust_summary(subject_type: str, subject_id) -> dict[str, dict]:
     """The stamps to show for a subject, including the ones that do not exist.
 
@@ -141,6 +158,15 @@ def prime_subject_verifications(*, subject_type: str, subject_ids, rows) -> None
                 None,
             )
             prime(("trust.current", subject_type, subject_id, kind), current)
+            latest = next(
+                (
+                    row
+                    for row in subject_rows
+                    if row.kind == kind and row.status != VerificationStatus.SUPERSEDED
+                ),
+                None,
+            )
+            prime(("trust.latest", subject_type, subject_id, kind), latest)
 
 
 @transaction.atomic

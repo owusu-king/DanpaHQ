@@ -359,9 +359,14 @@ class UnitSerializer(serializers.ModelSerializer):
         if user is None or not getattr(user, "is_authenticated", False):
             return {**code, "can_rotate": False, "can_revoke": False, "can_manage": False}
 
-        allowed = property_capabilities(prop=obj.property, user=user)[
-            PropertyCapability.TENANT_ACCESS.value
-        ]["allowed"]
+        from apps.core.memo import cached
+
+        allowed = cached(
+            ("property.tenant_access_allowed", str(obj.property_id), str(user.pk)),
+            lambda: property_capabilities(prop=obj.property, user=user)[
+                PropertyCapability.TENANT_ACCESS.value
+            ]["allowed"],
+        )
         return {
             **code,
             "can_rotate": bool(code["can_rotate"] and allowed),
@@ -376,7 +381,11 @@ class UnitSerializer(serializers.ModelSerializer):
         return unit_availability(obj)
 
     def get_amenities(self, obj) -> list:
-        rows = obj.unit_amenities.filter(removed_at__isnull=True).select_related("amenity")
+        prefetched = getattr(obj, "_prefetched_objects_cache", {}).get("unit_amenities")
+        if prefetched is None:
+            rows = obj.unit_amenities.filter(removed_at__isnull=True).select_related("amenity")
+        else:
+            rows = [row for row in prefetched if row.removed_at is None]
         return cast(list[dict], UnitAmenitySerializer(rows, many=True).data)
 
     def get_primary_photo(self, obj) -> dict | None:
@@ -883,6 +892,7 @@ class PropertySerializer(serializers.ModelSerializer):
         return billing.access_payload(
             states["properties"].get(str(obj.id), "full"), noun="property"
         )
+
 
 
 class ProviderApplicationSerializer(serializers.ModelSerializer):

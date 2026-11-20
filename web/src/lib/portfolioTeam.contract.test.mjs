@@ -196,7 +196,7 @@ test("the Provider Properties page is one Portfolio at a time", () => {
   // the house lands in a roster its provider was not looking at.
   const form = code(read("web/src/components/property/PropertyWizard.tsx"));
   assert.match(form, /rows\.find\(\(row\) => row\.id === preferred\)\?\.id \|\| rows\[0\]\?\.id/);
-  assert.match(form, /\}, \[activeContext\]\);/);
+  assert.match(form, /\}, \[activeContext, property\]\);/);
 });
 
 test("every provider list is about the Portfolio on screen", () => {
@@ -219,7 +219,7 @@ test("every provider list is about the Portfolio on screen", () => {
 
   // Tenancy requests used to be every Portfolio's, flattened into one list.
   assert.doesNotMatch(hook, /organizations\.map\(\(organization\) => getOrganizationPortfolio/);
-  assert.match(hook, /getOrganizationPortfolio\(scope\.id\)/);
+  assert.match(hook, /getOrganizationTenancyRequests\(scope\.id\)/);
   assert.match(hook, /listReceivedApplications\(false, \{ organization: scope\.id \}\)/);
   assert.match(hook, /\}, \[preferred\]\);/);
 

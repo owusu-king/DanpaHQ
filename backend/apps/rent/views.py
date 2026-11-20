@@ -8,6 +8,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.core.exceptions import NotFound
+from apps.core.memo import memoized
 from apps.idempotency.services import idempotent_mutation
 
 from . import services
@@ -89,6 +90,12 @@ class LeaseChargesView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
+        # A pure read; the permission, capability and payment-availability
+        # checks repeat the same verification reads. See `apps.core.memo`.
+        with memoized():
+            return self._ledger(request, pk)
+
+    def _ledger(self, request, pk):
         lease = _lease_or_404(pk, request.user)
         charges = services.with_disputed_payment(
             RentCharge.objects.filter(lease=lease).prefetch_related("adjustments__actor")

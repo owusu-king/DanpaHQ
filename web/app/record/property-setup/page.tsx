@@ -10,10 +10,10 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense } from "react";
+import { Suspense, useRef } from "react";
 
 import { Notice } from "@/components/Notice";
-import { PropertyWizard } from "@/components/property/PropertyWizard";
+import { PropertyWizardModal } from "@/components/property/PropertyWizard";
 import { WorkspaceHead } from "@/components/workspace/Workspace";
 
 export default function PropertySetupPage() {
@@ -27,6 +27,7 @@ export default function PropertySetupPage() {
 function PropertySetup() {
   const router = useRouter();
   const search = useSearchParams();
+  const finished = useRef<string | null>(null);
   const propertyId = search.get("propertyId") ?? "";
 
   if (!propertyId) {
@@ -38,18 +39,19 @@ function PropertySetup() {
     );
   }
 
-  const back = () => router.push(`/record/property?id=${propertyId}` as never);
+  const back = () => router.push((finished.current
+    ? `/record/property-verify?id=${encodeURIComponent(finished.current)}`
+    : `/record/property?id=${propertyId}`) as never);
   return (
     <div className="ws-page lease-wizard-page">
       <WorkspaceHead icon="properties" title="Property setup" />
-      <section className="ws-panel creation-frame">
-        <PropertyWizard
-          propertyId={propertyId}
-          startAt={search.get("step")}
-          onClose={back}
-          onFinished={(id) => router.push(`/record/property-verify?id=${encodeURIComponent(id)}` as never)}
-        />
-      </section>
+      <PropertyWizardModal
+        open
+        propertyId={propertyId}
+        startAt={search.get("step")}
+        onClose={back}
+        onFinished={(id) => { finished.current = id; }}
+      />
     </div>
   );
 }

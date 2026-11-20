@@ -26,7 +26,8 @@ export function providerLeaseStage(lease: Pick<Lease, "status">): ProviderLeaseS
       : "history";
 }
 
-export function providerLeaseStatus(lease: Pick<Lease, "status">): string {
+export function providerLeaseStatus(lease: Pick<Lease, "status" | "offer_expired">): string {
+  if (lease.offer_expired) return "Offer expired";
   return (
     {
       draft: "Draft",
@@ -42,7 +43,8 @@ export function providerLeaseStatus(lease: Pick<Lease, "status">): string {
   )[lease.status];
 }
 
-export function providerLeaseTone(lease: Pick<Lease, "status">): ProviderLeaseTone {
+export function providerLeaseTone(lease: Pick<Lease, "status" | "offer_expired">): ProviderLeaseTone {
+  if (lease.offer_expired) return "attention";
   return lease.status === "active"
     ? "good"
     : ["draft", "tenant_accepted"].includes(lease.status)

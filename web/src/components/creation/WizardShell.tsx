@@ -1,109 +1,125 @@
 "use client";
 
-/**
- * The frame a creation flow walks in: a rail of steps, the step, one footer.
- *
- * The agreement wizard's layout (owner, 2026-10-20: "in a modal, like agreement
- * creation"), shared by creating a Property and creating a Unit so the two feel
- * like one product. What differs from the agreement rail is the mark: every step
- * keeps its own glyph, and a finished one turns kola green behind it rather than
- * swapping the glyph for a tick — a column of identical ticks says nothing about
- * which step is which.
- *
- * Steps decide nothing here. Each flow says which steps it has, which are done
- * and which may be opened; this draws that and reports where somebody pressed.
- */
-
-import type { CSSProperties, ReactNode } from "react";
+import { useEffect, useId, useRef, type CSSProperties, type ReactNode } from "react";
 
 import { Icon, type IconName } from "@/components/portal/icons";
 
 export type WizardStep = {
   key: string;
   label: string;
-  /** One line under the stage title. */
-  hint?: string;
   icon: IconName;
-  /** What was chosen there, said back on the rail. */
-  summary?: string;
   done: boolean;
-  /** Whether pressing it on the rail opens it. */
   reachable: boolean;
 };
 
-export function WizardShell({
-  label,
-  steps,
-  current,
-  onGo,
-  railFoot,
-  footer,
-  children,
-}: {
-  /** Names the rail for assistive technology, e.g. "Property steps". */
+export function StepProgress({ label, steps, current, onGo }: {
   label: string;
   steps: WizardStep[];
   current: string;
   onGo: (key: string) => void;
-  railFoot?: ReactNode;
-  footer: ReactNode;
-  children: ReactNode;
 }) {
-  const at = Math.max(0, steps.findIndex((step) => step.key === current));
-  const step = steps[at] ?? steps[0]!;
+  return (
+    <nav className="cw-progress" aria-label={label}>
+      <ol>
+        {steps.map((step) => {
+          const active = step.key === current;
+          return (
+            <li key={step.key}>
+              <button
+                type="button"
+                data-state={active ? "current" : step.done ? "done" : "upcoming"}
+                aria-current={active ? "step" : undefined}
+                aria-label={step.done && !active ? `${step.label}, complete` : step.label}
+                title={step.label}
+                disabled={active || !step.reachable}
+                onClick={() => onGo(step.key)}
+              >
+                <span className="cw-checkpoint" aria-hidden="true"><Icon name={step.done && !active ? "check" : step.icon} /></span>
+                <span className="cw-checkpoint-label">{step.label}</span>
+              </button>
+            </li>
+          );
+        })}
+      </ol>
+    </nav>
+  );
+}
+
+export function WizardShell({
+  label, steps, current, onGo, context, footer, panels, dirty, onEdit, busy, children,
+}: {
+  label: string;
+  steps: WizardStep[];
+  current: string;
+  onGo: (key: string) => void;
+  context?: ReactNode;
+  footer: ReactNode;
+  panels: Record<string, ReactNode>;
+  dirty: ReadonlySet<string>;
+  onEdit: () => void;
+  busy: boolean;
+  children?: ReactNode;
+}) {
+  const titleId = useId();
+  const title = useRef<HTMLHeadingElement>(null);
+  const body = useRef<HTMLDivElement>(null);
+  const lastStep = useRef(current);
+  const wasBusy = useRef(busy);
+  const at = steps.findIndex((step) => step.key === current);
+
+  useEffect(() => {
+    const finished = wasBusy.current && !busy;
+    wasBusy.current = busy;
+    if (finished) body.current?.querySelector<HTMLElement>(':scope > div:not([hidden]) [aria-invalid="true"]')?.focus();
+  }, [busy]);
+
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      body.current?.querySelector<HTMLElement>(":scope > div:not([hidden]) :is(input:not([type=hidden]), select, textarea):enabled")?.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, []);
+
+  useEffect(() => {
+    if (lastStep.current === current) return;
+    lastStep.current = current;
+    if (body.current) body.current.scrollTop = 0;
+    title.current?.focus({ preventScroll: true });
+  }, [current]);
 
   return (
-    <div className="lw is-iconic" data-step={step.key}>
-      <nav className="lw-rail" aria-label={label}>
-        <ol>
-          {steps.map((item) => {
-            const state = item.key === step.key ? "current" : item.done ? "done" : "todo";
-            return (
-              <li key={item.key}>
-                <button
-                  type="button"
-                  className="lw-rail-step"
-                  data-state={state}
-                  aria-label={`${item.label}${item.done ? ", done" : ""}`}
-                  title={item.label}
-                  aria-current={item.key === step.key ? "step" : undefined}
-                  disabled={!item.reachable}
-                  onClick={() => onGo(item.key)}
-                >
-                  <span className="lw-rail-mark" aria-hidden="true">
-                    <Icon name={item.icon} />
-                  </span>
-                  <span className="lw-rail-copy">
-                    <strong>{item.label}</strong>
-                    <small data-summary={Boolean(item.summary) || undefined}>{item.summary || (item.done ? "Done" : state === "current" ? "Now" : "To do")}</small>
-                  </span>
-                  {item.done ? <span className="sr-only">, done</span> : null}
-                </button>
-              </li>
-            );
-          })}
-        </ol>
-        {railFoot ? <p className="lw-rail-foot">{railFoot}</p> : null}
-      </nav>
-
-      <section className="lw-stage" aria-labelledby="wizard-step-title">
-        <header className="lw-stage-head">
-          <span className="lw-stage-count">Step {at + 1} of {steps.length}</span>
-          <h3 id="wizard-step-title">{step.label}</h3>
-          {step.hint ? <p>{step.hint}</p> : null}
-          <span className="lw-progress" aria-hidden="true">
-            <i style={{ width: `${((at + 1) / steps.length) * 100}%` }} />
-          </span>
-        </header>
-
-        <div className="lw-stage-body" key={step.key}>
+    <div className="cw-shell" data-step={current}>
+      <StepProgress label={label} steps={steps} current={current} onGo={onGo} />
+      <section className="cw-stage" aria-labelledby={titleId}>
+        <div className="cw-stage-body" ref={body} aria-busy={busy || undefined}>
+          <header className="cw-stage-heading">
+            <h3 id={titleId} ref={title} tabIndex={-1}>{steps[at]?.label}</h3>
+            <span>Step {at + 1} of {steps.length}</span>
+            {context ? <p>{context}</p> : null}
+          </header>
           {children}
+          {steps.map(({ key }) => key === current || dirty.has(key) ? (
+            <div
+              key={key}
+              hidden={key !== current}
+              inert={busy}
+              onChangeCapture={onEdit}
+              onClickCapture={(event) => {
+                if (event.target instanceof Element && event.target.closest("[role=radio]:not([aria-checked=true]), button[aria-pressed], .count-stepper button, [role=option]")) onEdit();
+              }}
+            >
+              {panels[key]}
+            </div>
+          ) : null)}
         </div>
-
-        <footer className="lw-foot">{footer}</footer>
+        <footer className="lw-foot cw-footer">{footer}</footer>
       </section>
     </div>
   );
+}
+
+export function FormSection({ title, children }: { title: string; children: ReactNode }) {
+  return <section className="cw-section"><h4>{title}</h4>{children}</section>;
 }
 
 /**
@@ -119,6 +135,7 @@ export function ChoiceTiles({
   options,
   onChange,
   columns,
+  disabled = false,
 }: {
   label: string;
   value: string;
@@ -126,6 +143,7 @@ export function ChoiceTiles({
   onChange: (value: string) => void;
   /** How many fit across on a wide stage; the grid wraps below that. */
   columns?: number;
+  disabled?: boolean;
 }) {
   return (
     <fieldset className="cw-choices">
@@ -143,6 +161,7 @@ export function ChoiceTiles({
             role="radio"
             aria-checked={value === option.value}
             className="cw-choice"
+            disabled={disabled}
             onClick={() => onChange(option.value)}
           >
             <span className="cw-choice-mark" aria-hidden="true"><Icon name={option.icon} /></span>

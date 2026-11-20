@@ -30,9 +30,8 @@ type IconName = keyof typeof Ionicons.glyphMap;
  * trust closes the card rather than competing with the photograph.
  *
  * Photos page by swiping, and the dots say where you are: on a phone the swipe
- * is the control. The swipe is off wherever another gesture owns the same
- * direction — inside a horizontal related-rentals rail, and in Explore's results
- * sheet until it fills the screen.
+ * is the control. Related rentals show the cover photograph, and Explore's
+ * results sheet enables swiping once it fills the screen.
  */
 export function ListingCard({
   listing,
@@ -41,6 +40,7 @@ export function ListingCard({
   onSave,
   photoSwipe = true,
   compact = false,
+  tile = false,
 }: {
   listing: Listing;
   onPress: () => void;
@@ -50,6 +50,7 @@ export function ListingCard({
   photoSwipe?: boolean;
   /** Explore's list: a shorter photograph, so more of the list is in view. */
   compact?: boolean;
+  tile?: boolean;
 }) {
   const { width: viewportWidth } = useWindowDimensions();
   const photos = cardPhotos(listing);
@@ -84,7 +85,7 @@ export function ListingCard({
     <View style={styles.lift}>
       <View style={styles.card}>
         <View
-          style={[styles.media, compact ? styles.mediaCompact : null]}
+          style={[styles.media, compact || tile ? styles.mediaCompact : null]}
           onLayout={(event) => {
             const nextWidth = Math.round(event.nativeEvent.layout.width);
             if (nextWidth > 0 && nextWidth !== mediaWidth) setMediaWidth(nextWidth);
@@ -174,19 +175,19 @@ export function ListingCard({
           accessibilityLabel={accessibleSummary}
           onPress={onPress}
           {...pressableFeedback(theme.color.field["100"])}
-          style={({ pressed }) => [styles.body, pressed && styles.bodyPressed]}
+          style={({ pressed }) => [styles.body, tile && styles.tileBody, pressed && styles.bodyPressed]}
         >
-          <View style={styles.priceRow}>
+          <View style={[styles.priceRow, tile && styles.tilePriceRow]}>
             <Type
               variant="title2"
               numberOfLines={1}
               adjustsFontSizeToFit
               minimumFontScale={0.84}
-              style={styles.price}
+              style={[styles.price, tile && styles.tilePrice]}
             >
               {rent}<Type variant="caption" style={styles.period}> / {period}</Type>
             </Type>
-            <View style={styles.advance}>
+            <View style={[styles.advance, tile && styles.tileAdvance]}>
               <Type variant="captionStrong" numberOfLines={1} style={styles.advanceText}>{advance}</Type>
             </View>
           </View>
@@ -210,7 +211,7 @@ export function ListingCard({
           ) : null}
 
           {verified ? (
-            <View style={styles.trust}>
+            <View style={[styles.trust, tile && styles.tileTrust]}>
               <View style={styles.verifiedRow}>
                 <View style={styles.shield}>
                   <Ionicons name="shield-checkmark" size={13} color={theme.color.kola["800"]} />
@@ -218,7 +219,7 @@ export function ListingCard({
                 <Type variant="captionStrong" style={styles.verified}>Verified rental</Type>
               </View>
               {listing.provider_label ? (
-                <Type variant="caption" numberOfLines={1} style={styles.provider}>{listing.provider_label}</Type>
+                <Type variant="caption" numberOfLines={1} style={[styles.provider, tile && styles.tileProvider]}>{listing.provider_label}</Type>
               ) : null}
             </View>
           ) : null}
@@ -329,9 +330,12 @@ const styles = StyleSheet.create({
   photoDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: "rgba(255,255,255,0.6)" },
   photoDotActive: { width: 14, borderRadius: radius.pill, backgroundColor: theme.color.field["0"] },
   body: { gap: space[2], paddingHorizontal: space[4], paddingTop: space[4], paddingBottom: space[4] },
+  tileBody: { paddingHorizontal: space[2], paddingTop: space[2], paddingBottom: space[2] },
   bodyPressed: { opacity: 0.9 },
   priceRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: space[3] },
   price: { flex: 1, fontSize: 22, lineHeight: 28, letterSpacing: -0.4, color: theme.color.ink["950"], fontVariant: ["tabular-nums"] },
+  tilePriceRow: { flexDirection: "column", alignItems: "stretch", gap: space[1] },
+  tilePrice: { flex: 0, fontSize: 17, lineHeight: 22 },
   period: { color: theme.color.ink["500"], fontWeight: "400", letterSpacing: 0 },
   // The advance, as a chip: its own shape beside the rent, not a footnote to it.
   advance: {
@@ -344,6 +348,7 @@ const styles = StyleSheet.create({
     backgroundColor: theme.color.kola["50"],
   },
   advanceText: { color: theme.color.kola["800"], fontSize: 12, lineHeight: 16 },
+  tileAdvance: { alignSelf: "flex-start", maxWidth: "100%" },
   headline: { fontSize: 16, color: theme.color.ink["900"], lineHeight: 22 },
   location: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: -4 },
   locationText: { flex: 1, color: theme.color.ink["700"] },
@@ -382,4 +387,6 @@ const styles = StyleSheet.create({
   },
   verified: { color: theme.color.kola["800"], fontSize: 12.5 },
   provider: { flex: 1, textAlign: "right", fontSize: 12, color: theme.color.ink["500"] },
+  tileTrust: { flexDirection: "column", alignItems: "stretch", gap: space[1] },
+  tileProvider: { flex: 0, textAlign: "left" },
 });

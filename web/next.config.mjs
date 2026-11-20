@@ -16,6 +16,7 @@ const nextConfig = {
     root: path.join(webRoot, ".."),
   },
   experimental: {
+    agentUpgrade: "security",
     // The shared root has its own package boundary; the web app owns the
     // Tailwind/PostCSS pipeline, so its nearby config must win for its CSS.
     turbopackLocalPostcssConfig: true,

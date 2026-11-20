@@ -19,6 +19,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/Button";
 import { Notice } from "@/components/Notice";
+import { Icon } from "@/components/portal/icons";
 import { ApiFailure } from "@/lib/api";
 import { uploadFile } from "@/lib/console";
 import { WalkthroughUpload } from "./WalkthroughVideo";
@@ -56,9 +57,13 @@ export function VerificationPanel({
 }) {
   const [state, setState] = useState<VerificationProgress | null>(null);
   const [error, setError] = useState("");
+  const [fileError, setFileError] = useState<{ slot: string; message: string } | null>(null);
   const [busySlot, setBusySlot] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [videoBusy, setVideoBusy] = useState(false);
+  const mediaBusy = videoBusy || Boolean(busySlot);
+
+  useEffect(() => { onMediaBusy?.(mediaBusy); }, [mediaBusy, onMediaBusy]);
 
   // Held in a ref rather than depended on: a caller passing an inline arrow
   // would otherwise change `load` on every render, and the effect below would
@@ -86,13 +91,14 @@ export function VerificationPanel({
   }, [load]);
 
   async function choose(slotKey: string, file: File | undefined) {
-    if (!file) return;
+    if (!file || mediaBusy) return;
     setBusySlot(slotKey);
     setError("");
+    setFileError(null);
     try {
       const stored = await uploadFile(file, "property_photo");
       if (!stored.is_usable) {
-        setError(stored.rejection_reason || stored.status_message || "That photo could not be accepted.");
+        setFileError({ slot: slotKey, message: stored.rejection_reason || stored.status_message || "That photo could not be accepted." });
         return;
       }
       const next = await attachEvidence(subject, id, {
@@ -103,9 +109,7 @@ export function VerificationPanel({
       report.current?.(next);
       onChanged?.();
     } catch (cause) {
-      setError(
-        cause instanceof Error ? cause.message : "Could not add that photo.",
-      );
+      setFileError({ slot: slotKey, message: cause instanceof Error ? cause.message : "Could not add that photo." });
     } finally {
       setBusySlot("");
     }
@@ -166,7 +170,7 @@ export function VerificationPanel({
 
   return (
     <div style={{ display: "grid", gap: "var(--space-4)", minWidth: 0 }}>
-      {subject === "property" ? <WalkthroughUpload subject="property" id={id} editable={Boolean(state.editable)} onBusy={value => { setVideoBusy(value); onMediaBusy?.(value); }} /> : null}
+      {subject === "property" ? <WalkthroughUpload subject="property" id={id} editable={Boolean(state.editable)} onBusy={setVideoBusy} /> : null}
       {state.submitted ? (
         <Notice
           tone="info"
@@ -187,6 +191,7 @@ export function VerificationPanel({
       ) : null}
       {error ? <Notice tone="error" title={error} /> : null}
 
+      {!state.submitted && state.slots.length ? <p className="type-caption">Choose or drop a JPEG, PNG or WebP photo on its matching slot. Up to 25 MB per original.</p> : null}
       <ul className="evidence-slots">
         {state.slots.map((slot) => (
           <li key={slot.key} className="evidence-slot">
@@ -194,7 +199,7 @@ export function VerificationPanel({
               slot={slot}
               locked={state.submitted}
               busy={busySlot === slot.key}
-              disabled={Boolean(busySlot)}
+              disabled={mediaBusy}
               onChoose={(file) => void choose(slot.key, file)}
             />
             <div className="evidence-slot-what">
@@ -205,13 +210,15 @@ export function VerificationPanel({
               <p className="type-caption" style={{ margin: 0 }}>
                 {slot.why}
               </p>
+              {busySlot === slot.key ? <span className="type-caption" role="status">Updating photo…</span> : null}
+              {fileError?.slot === slot.key ? <span className="type-caption field-error" role="alert">{fileError.message}</span> : null}
               {slot.provided && state.submitted ? (
                 <span className="type-caption evidence-slot-sent">Sent</span>
               ) : slot.provided ? (
                 <button
                   type="button"
                   onClick={() => void remove(slot.key)}
-                  disabled={Boolean(busySlot)}
+                  disabled={mediaBusy}
                   className="type-caption evidence-slot-remove"
                 >
                   Remove
@@ -224,7 +231,7 @@ export function VerificationPanel({
 
       {state.submitted || !showSubmit ? null : (
         <div>
-          <Button onClick={submit} busy={submitting} disabled={videoBusy || !state.can_submit}>
+          <Button onClick={submit} busy={submitting} disabled={mediaBusy || !state.can_submit}>
             Send for review
           </Button>
         </div>
@@ -281,7 +288,7 @@ export function EvidenceTile({
       />
     ) : (
       <span className="evidence-tile-mark" aria-hidden="true">
-        {slot.provided ? "✓" : "+"}
+        <Icon name={slot.provided ? "check" : "upload"} />
       </span>
     );
 
@@ -293,6 +300,14 @@ export function EvidenceTile({
     <label
       className={slot.provided ? "evidence-tile" : "evidence-tile evidence-tile-empty"}
       style={{ cursor: disabled ? "progress" : "pointer" }}
+      onDragOver={(event) => {
+        if (event.dataTransfer.types.includes("Files")) event.preventDefault();
+      }}
+      onDrop={(event) => {
+        if (!event.dataTransfer.types.includes("Files")) return;
+        event.preventDefault();
+        if (!disabled) onChoose(event.dataTransfer.files[0]);
+      }}
     >
       {busy ? (
         <span className="evidence-tile-mark" aria-hidden="true">

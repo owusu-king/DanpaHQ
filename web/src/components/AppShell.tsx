@@ -1,10 +1,10 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { usePathname } from "next/navigation";
 
 import { AuthDialogProvider } from "@/components/auth/AuthDialog";
 import { SiteNav } from "@/components/SiteNav";
-import { DanpaIntel } from "@/components/landing/DanpaIntel";
 import { ToastProvider } from "@/components/toast/Toaster";
 import { PortalShell } from "@/components/portal/PortalShell";
 import { PageLoading } from "@/components/workspace/PageLoading";
@@ -46,6 +46,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     </SessionProvider>
   );
 }
+
+/** Guests only, so it is not part of the bundle a signed-in workspace loads. */
+const DanpaIntel = dynamic(() => import("@/components/landing/DanpaIntel").then((module) => module.DanpaIntel), { ssr: false });
 
 /** Detail pages mount their own property-scoped assistant for guests and members. */
 function PublicIntel({ pathname }: { pathname: string }) {

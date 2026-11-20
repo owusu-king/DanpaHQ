@@ -32,6 +32,20 @@ const mobileUnitWizard = () => read("mobile/src/components/property/UnitWizard.t
 const webChoice = () => read("web/src/components/property/PropertyTypeChoice.tsx");
 const mobileChoice = () => read("mobile/src/components/property/PropertyTypeChoice.tsx");
 
+test("Property records use the creation wizard for editing and cards navigate to details", () => {
+  const properties = code(read("web/app/properties/page.tsx"));
+  const record = code(read("web/app/record/property/page.tsx"));
+  assert.match(record, /<PropertyWizardModal\s+open\s+edit\s+propertyId=/);
+  assert.doesNotMatch(record, /EditPropertyModal/);
+  assert.doesNotMatch(properties, /<PropertyWizardModal\s+open\s+edit\b/);
+  assert.match(properties, /href=\{details as never\} className="property-card-link"/);
+  assert.doesNotMatch(properties, /property-card-details/);
+  const source = code(wizard());
+  assert.match(source, /<PropertyBasicsStep\s+key=.+\s+property=\{property\}/);
+  assert.match(source, /<fieldset className="cw-form property-basics-fields" disabled=\{locked\}>/);
+  assert.match(source, /writtenChanged \? \{ address: addressInput \} : moved \? \{ location: coordinates \}/);
+});
+
 test("the kind of property is one compact choice on each platform", () => {
   // Web: drawn tiles in the wizard, one per category the API serves (owner,
   // 2026-10-20: a powerful, concise modal). Mobile keeps its Select sheet.
@@ -75,7 +89,7 @@ test("choosing looks chosen, and moves nothing", () => {
 test("creating a property is not submitting it for verification", () => {
   // Two different acts, and the flow used to end in a button that could be
   // read as either.
-  assert.match(code(wizard()), /settled \? "Done" : "Create property"/);
+  assert.match(code(wizard()), /settled \|\| edit \? "Done" : "Create property"/);
   assert.match(code(mobileWizard()), /settled \? "Done" : "Create property"/);
   assert.doesNotMatch(code(mobileWizard()), /submitForReview|submitPropertyForVerification/);
   // The wizard's last step finishes; nothing in it asks for a review.
@@ -92,12 +106,12 @@ test("mobile creation keeps the compact journey without the desktop step block",
   assert.doesNotMatch(code(mobileWizard()), /<SetupSteps/);
   // Web is one wizard behind every way in: the sheet and the three routes.
   assert.match(code(webStep()), /<PropertyWizard/);
-  assert.match(code(read("web/app/record/property-setup/page.tsx")), /<PropertyWizard\s+propertyId=\{propertyId\}/);
+  assert.match(code(read("web/app/record/property-setup/page.tsx")), /<PropertyWizardModal\s+open\s+propertyId=\{propertyId\}/);
   assert.match(code(read("web/app/record/space-new/page.tsx")), /<UnitWizard/);
   assert.match(code(wizard()), /<WizardShell/);
-  // The rail jumps between steps once the record exists to hold them.
-  assert.match(code(wizard()), /reachable: !mediaBusy && \(Boolean\(id\) && !busy \? true : key === "basics"\)/);
-  assert.match(shell(), /aria-current=\{item\.key === step\.key \? "step" : undefined\}/);
+  // Checkpoints become reachable once the record exists.
+  assert.match(code(wizard()), /reachable: !mediaBusy && !busy && \(Boolean\(property\) \|\| key === "basics"\)/);
+  assert.match(shell(), /aria-current=\{active \? "step" : undefined\}/);
 });
 
 test("the review shows the property, not a progress table", () => {
@@ -297,8 +311,8 @@ test("phones show nearby checkpoint context without squeezing the whole journey"
 test("Property and Unit creation speak the same checkpoint language", () => {
   // Web: both wizards walk the same frame, so a Unit is added the way a
   // Property is created.
-  for (const source of [wizard(), unitWizard()]) {
-    assert.match(code(source), /<WizardShell/);
+  for (const source of [wizard(), unitWizard()]) assert.match(code(source), /<WizardShell/);
+  for (const source of [wizard(), read("web/src/components/property/UnitWizardModal.tsx")]) {
     assert.match(code(source), /lease-wizard-sheet is-wizard creation-sheet/);
   }
   for (const source of [mobileWizard(), mobileUnitWizard()]) {
@@ -312,11 +326,11 @@ test("Property and Unit creation speak the same checkpoint language", () => {
   }
 });
 
-test("a finished step keeps its glyph and turns green, never a bare tick", () => {
+test("progress uses a checkmark for complete steps and labels the current step", () => {
   const source = code(shell());
-  assert.match(source, /<span className="lw-rail-mark" aria-hidden="true">\s*<Icon name=\{item\.icon\} \/>/);
-  assert.doesNotMatch(source, /<Icon name="check" \/>/);
+  assert.match(source, /name=\{step.done && !active \? "check" : step.icon\}/);
+  assert.match(source, /aria-current=\{active \? "step" : undefined\}/);
+  assert.doesNotMatch(source, /lw-rail/);
   const css = read("web/src/styles/creation-wizard.css");
-  const done = css.slice(css.indexOf('.lw.is-iconic .lw-rail-step[data-state="done"] .lw-rail-mark {'));
-  assert.match(done.slice(0, done.indexOf("}")), /background: var\(--color-kola-600\)/);
+  assert.match(css, /\.cw-progress ol \{ display: flex;/);
 });

@@ -16,10 +16,20 @@
 
 /* --- the frame around a value ---------------------------------------------- */
 
+/* A field shows focus by its own edge turning green, with a soft halo outside
+   it. The halo hugs the frame: an outline drawn two pixels away from the
+   border left a second ring with a gap, which read as a button rather than a
+   place to type. */
+:root {
+  --focus-ring-field: 0 0 0 1px var(--color-kola-600), 0 0 0 4px color-mix(in srgb, var(--color-kola-600) 16%, transparent);
+  --focus-ring-field-error: 0 0 0 1px var(--color-laterite-600), 0 0 0 4px color-mix(in srgb, var(--color-laterite-600) 16%, transparent);
+}
+
 .field { display: grid; gap: var(--space-2); min-width: 0; }
 .field :is(input, textarea, select) { max-width: 100%; }
-.field-label { color: var(--color-ink-700); }
-.field-hint { color: var(--color-ink-500); }
+.field-label { color: var(--color-ink-700); font-size: .8125rem; font-weight: 500; }
+.field-required, .field-hint { color: var(--color-ink-500); }
+.field-hint, .field-error { font-size: .75rem; }
 .field-error { color: var(--color-laterite-600); }
 
 .field-shell {
@@ -31,27 +41,25 @@
   min-width: 0;
   min-height: var(--target-min);
   background: var(--color-field-0);
-  border: var(--border-hairline) solid var(--color-field-300);
+  border: var(--border-hairline) solid var(--form-control-edge, var(--color-field-300));
   border-radius: var(--radius-md);
   transition:
     border-color var(--motion-duration-fast) var(--motion-easing-standard),
     box-shadow var(--motion-duration-fast) var(--motion-easing-standard);
 }
 
-.field-shell:hover { border-color: var(--color-ink-300); }
+.field-shell:hover { border-color: var(--form-control-hover, var(--color-ink-300)); }
 
-/* A soft ring rather than a hard outline: it reads as the control coming
-   forward instead of as the browser drawing on top of it, and because it is a
-   shadow it moves nothing on the page. */
+/* The ring is a shadow, so it surrounds the shell without changing its size. */
 .field-shell:focus-within {
   border-color: var(--color-kola-600);
-  box-shadow: 0 0 0 3px var(--color-kola-50);
+  box-shadow: var(--focus-ring-field);
 }
 
-.field-shell-error { border-color: var(--color-laterite-600); }
+.field-shell-error, .field-shell-error:hover { border-color: var(--color-laterite-600); }
 .field-shell-error:focus-within {
   border-color: var(--color-laterite-600);
-  box-shadow: 0 0 0 3px var(--color-laterite-100);
+  box-shadow: var(--focus-ring-field-error);
 }
 
 .field-shell-disabled {
@@ -84,19 +92,11 @@
    fighting the rounded frame around it; once the input was stretched to fill
    that frame, the rectangle landed right on its edges.
 
-   The field's focus indicator is the ring on the shell. The control inside it
-   must not draw a second one, and saying so needs a pseudo-class to outweigh
-   the pseudo-class it is answering.
-
-   Pages scope their own rings the same way — `.home-workspace :focus-visible`,
-   `.management-login-page :focus-visible` — at (0,2,0) and later in the
-   cascade, so each one drew that second border again around a focused field
-   (the Join a home code, the Management authenticator code). The class is
-   doubled to weigh (0,3,0): a page's ring never reaches a control that draws
-   its own. The select and the tick box below are guarded the same way. */
+   The shell draws the field's focus indicator. Doubling the input class keeps
+   later page rules from drawing a second outline inside it. */
 .field-input.field-input:focus-visible { outline: none; }
 
-.field-input::placeholder { color: var(--color-ink-300); }
+.field-input::placeholder, .field-textarea::placeholder { color: var(--color-ink-500); }
 .field-input:disabled { color: var(--color-ink-500); cursor: not-allowed; }
 .field-visibility { display: grid; align-self: center; flex: none; place-items: center; width: 36px; height: 36px; margin-right: 4px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--color-ink-500); cursor: pointer; }
 .field-visibility svg { width: 17px; height: 17px; stroke-width: 1.6; }
@@ -135,7 +135,6 @@
   pointer-events: none;
 }
 .select-shell-disabled::after { border-color: var(--color-ink-300); }
-.select-control[aria-invalid="true"] { border-color: var(--color-laterite-600); }
 
 .select-control {
   -webkit-appearance: none;
@@ -145,7 +144,7 @@
   min-height: var(--target-min);
   padding: 0 calc(var(--space-4) * 2 + 7px) 0 var(--space-3);
   background: var(--color-field-0);
-  border: var(--border-hairline) solid var(--color-field-300);
+  border: var(--border-hairline) solid var(--form-control-edge, var(--color-field-300));
   border-radius: var(--radius-md);
   color: var(--color-ink-900);
   cursor: pointer;
@@ -153,18 +152,41 @@
     border-color var(--motion-duration-fast) var(--motion-easing-standard),
     box-shadow var(--motion-duration-fast) var(--motion-easing-standard);
 }
-.select-control:hover { border-color: var(--color-ink-300); }
+.select-control:hover { border-color: var(--form-control-hover, var(--color-ink-300)); }
 .select-control:focus-visible {
   border-color: var(--color-kola-600);
-  box-shadow: 0 0 0 3px var(--color-kola-50);
+  outline: none;
+  box-shadow: var(--focus-ring-field);
 }
-.select-control.select-control:focus-visible { outline: none; }
 .select-control:disabled {
   background: var(--color-field-100);
   border-color: var(--color-field-200);
   color: var(--color-ink-500);
   cursor: not-allowed;
 }
+
+.field-textarea {
+  width: 100%;
+  min-height: 72px;
+  padding: 8px 12px;
+  border: 1px solid var(--form-control-edge, var(--color-field-300));
+  border-radius: var(--radius-md);
+  background: var(--color-field-0);
+  color: var(--color-ink-900);
+  resize: vertical;
+  transition:
+    border-color var(--motion-duration-fast) var(--motion-easing-standard),
+    box-shadow var(--motion-duration-fast) var(--motion-easing-standard);
+}
+.field-textarea:hover:not(:disabled) { border-color: var(--form-control-hover, var(--color-ink-300)); }
+.field-textarea:focus-visible {
+  border-color: var(--color-kola-600);
+  outline: none;
+  box-shadow: var(--focus-ring-field);
+}
+:is(.select-control, .field-textarea)[aria-invalid="true"] { border-color: var(--color-laterite-600); }
+:is(.select-control, .field-textarea)[aria-invalid="true"]:focus-visible { box-shadow: var(--focus-ring-field-error); }
+.field-textarea:disabled { background: var(--color-field-100); color: var(--color-ink-500); cursor: not-allowed; }
 
 /* --- ticking something ------------------------------------------------------ */
 

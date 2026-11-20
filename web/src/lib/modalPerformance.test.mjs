@@ -74,20 +74,20 @@ test("dismissing Add Unit invalidates pending selection without refreshing data"
   assert.deepEqual(states, [false]);
 });
 
-test("unit save notification follows successful commit, not a failed validation", async () => {
+test("Unit setup only advances after a successful commit", async () => {
   const unitSource = readFileSync(new URL("../components/property/UnitWizard.tsx", import.meta.url), "utf8");
   const advanceSource = unitSource.match(/async function advance\(\) \{([\s\S]*?)\n  \}/)[1];
   const output = ts.transpileModule('async function advance() {' + advanceSource + '}', { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
   for (const valid of [false, true]) {
     const calls = [];
-    const advance = new Function("mediaBusy", "setBusy", "setError", "commitRef", "onChanged", "reload", "step", "STEPS", "at", "go", "created", "unit", output + '; return advance;')(
-      false, () => {}, message => { if (message) throw new Error(message); },
-      { current: async () => { calls.push("commit"); return valid; } },
+    const advance = new Function("busy", "mediaBusy", "setBusy", "setError", "draft", "setAmenitiesSaved", "onChanged", "reload", "step", "STEPS", "at", "go", output + '; return advance;')(
+      false, false, () => {}, message => { if (message) throw new Error(message); },
+      { commits: { details: { current: async () => { calls.push("commit"); return valid; } } }, markSaved: () => calls.push("saved") }, () => {},
       () => calls.push("changed"), async () => { calls.push("reload"); return {}; },
-      "details", [{ key: "details" }, { key: "amenities" }], 0, key => calls.push(key), { current: {} }, null,
+      "details", [{ key: "details" }, { key: "amenities" }], 0, key => calls.push(key),
     );
     await advance();
-    assert.deepEqual(calls, valid ? ["commit", "changed", "amenities"] : ["commit"]);
+    assert.deepEqual(calls, valid ? ["commit", "saved", "amenities"] : ["commit"]);
   }
 });
 

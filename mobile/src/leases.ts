@@ -12,6 +12,7 @@ export type Lease = {
   id: string;
   workflow_version: "legacy" | "canonical_v1";
   status: "draft" | "ready" | "offered" | "tenant_accepted" | "awaiting_activation" | "active" | "declined" | "cancelled" | "ended";
+  offer_expired?: boolean;
   status_display: string;
   upfront_payment_enabled?: boolean;
   activation_requirement: "lease_accepted" | "initial_payment";

@@ -129,6 +129,7 @@ export default function ProviderTenancyScreen() {
               bedId={tenant.bed_id}
               tenantId={tenant.user_id}
               tenantName={tenant.name}
+              rentalLabel={`${tenant.property_title} · ${home}`}
               leaseId={tenant.lease_id}
               leaseStatus={tenant.lease_status as Parameters<typeof TenantLeaseActions>[0]["leaseStatus"]}
               allowed={property?.capabilities?.leases?.allowed ?? false}

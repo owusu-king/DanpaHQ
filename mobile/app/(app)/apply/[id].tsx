@@ -1,17 +1,27 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from "react-native";
 
-import { ApiFailure } from "@/api";
+import { ApiFailure, apiFetch } from "@/api";
 import { useAuth } from "@/auth";
 import { submitApplication, type IncomeBand } from "@/applications";
 import { Button, Choice, Field, Notice, Surface, Type, space } from "@/components/ui";
 import { fieldErrorsFrom, summaryErrorFrom, type FieldErrors } from "@/formErrors";
 import { useSafeBottom } from "@/platform";
-import { getListing, type Listing } from "@/listings";
+import { getListingDetail, type ListingDetail } from "@/listings";
 import { shell } from "@/shell";
 import { theme } from "@/theme";
+
+const INCOME_OPTIONS: { value: IncomeBand; label: string }[] = [
+  { value: "", label: "Not provided" },
+  { value: "under_1000", label: "Under GH₵1,000" },
+  { value: "1000_3000", label: "GH₵1k–3k" },
+  { value: "3000_6000", label: "GH₵3k–6k" },
+  { value: "6000_10000", label: "GH₵6k–10k" },
+  { value: "over_10000", label: "Over GH₵10k" },
+  { value: "prefer_not_to_say", label: "Prefer not to say" },
+];
 
 /**
  * Applying for a place.
@@ -26,11 +36,13 @@ export default function ApplyScreen() {
   // Android draws edge-to-edge: the last row would sit under the
   // navigation buttons, which then look as though the page showed through.
   const pageBottom = useSafeBottom(space[8]);
+  const actionBottom = useSafeBottom(space[3]);
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { state } = useAuth();
+  const touched = useRef(new Set<string>());
 
-  const [listing, setListing] = useState<Listing | null>(null);
+  const [listing, setListing] = useState<ListingDetail | null>(null);
   const [advance, setAdvance] = useState("");
   const [household, setHousehold] = useState("");
   const [moveInFrom, setMoveInFrom] = useState("");
@@ -50,7 +62,7 @@ export default function ApplyScreen() {
   const [loadError, setLoadError] = useState("");
 
   const load = useCallback((signal?: AbortSignal) => {
-    getListing(id)
+    getListingDetail(id)
       .then((value) => {
         if (signal?.aborted) return;
         setListing(value);
@@ -77,12 +89,34 @@ export default function ApplyScreen() {
   const asked = listing?.advance_months ?? 0;
   const offered = Number(advance || 0);
   const shortfall = Math.max(asked - offered, 0);
+  const householdSize = household ? Number(household) : undefined;
+  const tenantId = state.status === "signed_in" ? state.me.id : null;
+  useEffect(() => {
+    if (!tenantId) return;
+    let active = true;
+    void apiFetch<{
+      occupation: string; employer: string; income_band: string;
+      household_size: number | null; move_in_from: string | null;
+    }>("/me/profile/tenant/").then((profile) => {
+      if (!active) return;
+      if (!touched.current.has("occupation")) setOccupation(profile.occupation || "");
+      if (!touched.current.has("employer")) setEmployer(profile.employer || "");
+      if (!touched.current.has("household_size") && profile.household_size && profile.household_size <= 30) setHousehold(String(profile.household_size));
+      if (!touched.current.has("move_in_from")) setMoveInFrom(profile.move_in_from || "");
+      const income = INCOME_OPTIONS.find((option) => option.value === profile.income_band);
+      if (!touched.current.has("income_band") && income) setIncomeBand(income.value);
+    }).catch(() => { /* The application can be completed manually. */ });
+    return () => { active = false; };
+  }, [tenantId]);
 
-  async function submit() {
-    if (busy || !listing) return;
+  function track<T extends string>(field: string, value: T, set: (value: T) => void) {
+    touched.current.add(field);
+    set(value);
+  }
+
+  function validate() {
     const fields: FieldErrors = {};
     if (!advance || !Number.isInteger(offered) || offered < 0 || offered > 36) fields.advance_months_offered = "Enter a whole number from 0 to 36.";
-    const householdSize = household ? Number(household) : undefined;
     if (householdSize !== undefined && (!Number.isInteger(householdSize) || householdSize < 1 || householdSize > 30)) {
       fields.household_size = "Enter a household size from 1 to 30.";
     }
@@ -92,6 +126,22 @@ export default function ApplyScreen() {
         fields.move_in_from = "Enter a valid date in YYYY-MM-DD format.";
       }
     }
+    return fields;
+  }
+
+  function validateField(field: string) {
+    const error = validate()[field];
+    setErrors((current) => {
+      const next = { ...current };
+      if (error) next[field] = error;
+      else delete next[field];
+      return next;
+    });
+  }
+
+  async function submit() {
+    if (busy || !listing) return;
+    const fields = validate();
     if (Object.keys(fields).length) {
       setErrors(fields);
       setError("Check the highlighted fields above.");
@@ -148,11 +198,18 @@ export default function ApplyScreen() {
   const rent = listing.rent_formatted
     ? `${listing.rent_formatted} / ${listing.rent_period === "yearly" ? "year" : "month"}`
     : "On request";
+  const applyTitle = `Apply for ${listing.space?.label || listing.headline}`;
+  const validation = validate();
+  const valid = Object.keys(validation).length === 0;
+  const cancel = () => {
+    if (router.canGoBack()) router.back();
+    else router.replace({ pathname: "/(app)/listing/[id]", params: { id } });
+  };
 
   return (
-    <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-      <Stack.Screen options={{ title: "Rental application" }} />
-      <ScrollView key={sent ? "sent" : "application"} keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.page, { paddingBottom: pageBottom }]}>
+    <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+      <Stack.Screen options={{ title: sent ? "Application sent" : applyTitle, gestureEnabled: !busy }} />
+      <ScrollView key={sent ? "sent" : "application"} keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.page, sent && { paddingBottom: pageBottom }]}>
         {sent ? (
           <Surface style={styles.card}>
             <View style={styles.mark}><Ionicons name="checkmark" size={23} color={theme.color.kola["800"]} /></View>
@@ -164,12 +221,6 @@ export default function ApplyScreen() {
           </Surface>
         ) : (
           <>
-            <View style={styles.heading}>
-              <Type variant="label" style={styles.eyebrow}>RENT WITH DANPA HQ</Type>
-              <Type variant="display2" accessibilityRole="header">Rental application</Type>
-              <Type variant="body">Tell the provider when you’d like to move and what you can offer.</Type>
-            </View>
-
             <Surface style={styles.property}>
               <View style={styles.propertyTop}>
                 <View style={styles.thumbnail}>
@@ -178,7 +229,6 @@ export default function ApplyScreen() {
                     : <Ionicons name="home-outline" size={24} color={theme.color.kola["800"]} />}
                 </View>
                 <View style={styles.propertyTitle}>
-                  <Type variant="label" style={styles.eyebrow}>YOU’RE APPLYING FOR</Type>
                   <Type variant="bodyStrong">{listing.headline}</Type>
                   {area ? <Type variant="caption">{area}</Type> : null}
                 </View>
@@ -186,13 +236,14 @@ export default function ApplyScreen() {
               <View style={styles.terms}>
                 <Type variant="caption">Rent <Type variant="captionStrong">{rent}</Type></Type>
                 <Type variant="caption">Advance requested <Type variant="captionStrong">{listing.advance_label}</Type></Type>
+                {moveInFrom && !validation.move_in_from ? <Type variant="caption">Move-in date {moveInFrom}</Type> : null}
               </View>
             </Surface>
 
             <Surface style={styles.card}>
               <SectionHeading icon="home-outline" title="Move-in details" description="Start with the amount you can pay in advance. The date and household size are optional." />
               <Field label="Advance you can offer (months)" hint={`The provider asks for ${asked}. Enter 0 if you cannot pay an advance.`}
-                value={advance} onChangeText={(value) => setAdvance(value.replace(/\D/g, ""))} keyboardType="number-pad" maxLength={2} error={errors.advance_months_offered} />
+                value={advance} onChangeText={(value) => setAdvance(value.replace(/\D/g, ""))} onBlur={() => validateField("advance_months_offered")} keyboardType="number-pad" maxLength={2} error={errors.advance_months_offered} />
               {advance && offered <= 36 ? (
                 <View style={styles.offer}>
                   <Ionicons name={shortfall ? "information-circle-outline" : "checkmark-circle-outline"} size={18} color={theme.color.kola["800"]} />
@@ -204,26 +255,19 @@ export default function ApplyScreen() {
               <Field label="Preferred move-in date" placeholder="YYYY-MM-DD" hint="Year, month, day" value={moveInFrom}
                 onChangeText={(value) => {
                   const digits = value.replace(/\D/g, "").slice(0, 8);
-                  setMoveInFrom([digits.slice(0, 4), digits.slice(4, 6), digits.slice(6)].filter(Boolean).join("-"));
-                }} keyboardType="number-pad" maxLength={10} error={errors.move_in_from} />
-              <Field label="Household size" placeholder="Number of people" value={household} onChangeText={(value) => setHousehold(value.replace(/\D/g, ""))}
-                keyboardType="number-pad" maxLength={2} error={errors.household_size} />
+                  track("move_in_from", [digits.slice(0, 4), digits.slice(4, 6), digits.slice(6)].filter(Boolean).join("-"), setMoveInFrom);
+                }} onBlur={() => validateField("move_in_from")} keyboardType="number-pad" maxLength={10} error={errors.move_in_from} />
+              <Field label="Household size" placeholder="Number of people" value={household}
+                onChangeText={(value) => track("household_size", value.replace(/\D/g, ""), setHousehold)}
+                onBlur={() => validateField("household_size")} keyboardType="number-pad" maxLength={2} error={errors.household_size} />
             </Surface>
 
             <OptionalSection icon="briefcase-outline" title="Work and income" open={workOpen} onToggle={() => setWorkOpen(!workOpen)}>
-              <Field label="Occupation" value={occupation} onChangeText={setOccupation} maxLength={120} error={errors.occupation} />
-              <Field label="Employer" value={employer} onChangeText={setEmployer} maxLength={160} error={errors.employer} />
+              <Field label="Occupation" value={occupation} onChangeText={(value) => track("occupation", value, setOccupation)} maxLength={120} error={errors.occupation} />
+              <Field label="Employer" value={employer} onChangeText={(value) => track("employer", value, setEmployer)} maxLength={160} error={errors.employer} />
               <Choice
-                label="Monthly income range" value={incomeBand} onChange={setIncomeBand}
-                options={[
-                  { value: "", label: "Not provided" },
-                  { value: "under_1000", label: "Under GH₵1,000" },
-                  { value: "1000_3000", label: "GH₵1k–3k" },
-                  { value: "3000_6000", label: "GH₵3k–6k" },
-                  { value: "6000_10000", label: "GH₵6k–10k" },
-                  { value: "over_10000", label: "Over GH₵10k" },
-                  { value: "prefer_not_to_say", label: "Prefer not to say" },
-                ]}
+                label="Monthly income range" value={incomeBand} onChange={(value) => track("income_band", value, setIncomeBand)}
+                options={INCOME_OPTIONS}
               />
               {errors.income_band ? <Notice tone="error" title={errors.income_band} /> : null}
             </OptionalSection>
@@ -250,11 +294,16 @@ export default function ApplyScreen() {
               {state.status === "signed_in" && !state.me.is_phone_verified && state.me.email ? (
                 <Type variant="caption">{state.me.is_email_verified ? "We’ll send updates by email." : "Verify your email to receive updates there."}</Type>
               ) : null}
-              <Button label="Submit application" busy={busy} busyLabel="Sending…" onPress={() => void submit()} />
             </View>
           </>
         )}
       </ScrollView>
+      {!sent ? (
+        <View style={[styles.actionBar, { paddingBottom: actionBottom }]}>
+          <Button label="Cancel" variant="quiet" disabled={busy} onPress={cancel} />
+          <Button label="Submit application" busy={busy} disabled={!valid} busyLabel="Sending…" onPress={() => void submit()} />
+        </View>
+      ) : null}
     </KeyboardAvoidingView>
   );
 }
@@ -289,7 +338,6 @@ function OptionalSection({ icon, title, open, onToggle, children }: {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: shell.record },
   page: { width: "100%", maxWidth: 560, alignSelf: "center", padding: space[5], gap: space[3] },
-  heading: { gap: space[2], paddingBottom: space[3] },
   eyebrow: { color: theme.color.kola["800"] },
   property: { gap: space[3], padding: space[4], marginBottom: space[2] },
   propertyTop: { flexDirection: "row", alignItems: "center", gap: space[3] },
@@ -306,4 +354,15 @@ const styles = StyleSheet.create({
   pressed: { backgroundColor: theme.color.field["100"] },
   optionalBody: { borderTopWidth: StyleSheet.hairlineWidth, borderColor: theme.color.field["300"], padding: space[4], gap: space[4] },
   submit: { gap: space[3], paddingTop: space[3] },
+  actionBar: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: space[2],
+    padding: space[3],
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: theme.color.field["200"],
+    backgroundColor: theme.color.field["0"],
+  },
 });

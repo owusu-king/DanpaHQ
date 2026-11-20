@@ -23,7 +23,8 @@ test("unknown and invalid reference coordinates never become map targets", () =>
 });
 test("manual location remains an explicit option and area navigation leaves the pin alone", () => {
   const picker = readFileSync(new URL("../components/property/PropertyWizard.tsx", import.meta.url), "utf8");
-  assert.match(picker, /locality_id: location\.id/);
+  assert.match(picker, /const localityId = location\?\.id/);
+  assert.match(picker, /locality_id: localityId/);
   assert.match(picker, /place_name: query\.trim\(\)/);
   const callback = picker.slice(picker.indexOf("onShowArea="), picker.indexOf("onShowArea=") + 200);
   assert.match(callback, /setAreaFocus/);

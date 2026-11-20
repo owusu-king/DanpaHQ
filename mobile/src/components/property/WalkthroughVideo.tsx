@@ -5,10 +5,11 @@ import { View } from "react-native";
 import { apiFetch, ApiFailure } from "@/api";
 import { Button, Notice, Type, space } from "@/components/ui";
 import { prepareVideo, videoPath, videoUpload, type VideoSubject, type WalkthroughVideo } from "@/propertyVideo";
+import { theme } from "@/theme";
 
 function Playback({ uri, label }: { uri: string; label: string }) {
   const player = useVideoPlayer(uri);
-  return <VideoView player={player} nativeControls contentFit="contain" accessibilityLabel={label} style={{ width: "100%", height: 230, backgroundColor: "#17291f", borderRadius: 8 }} />;
+  return <VideoView player={player} nativeControls contentFit="contain" accessibilityLabel={label} style={{ width: "100%", height: 230, backgroundColor: theme.color.field["100"], borderRadius: 8 }} />;
 }
 export function VideoPlayer({ video, label = "Video", caption = false }: { video?: WalkthroughVideo | null; label?: string; caption?: boolean }) {
   if (!video) return null;

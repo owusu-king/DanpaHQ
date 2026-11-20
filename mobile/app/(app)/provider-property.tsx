@@ -1,5 +1,5 @@
-import { VideoPlayer } from "@/components/property/WalkthroughVideo";
-import { RecordHeader, RecordHero, RecordFacts, RecordSection, RecordUnitRow } from "@/components/property/RecordDetail";
+import { RecordHeader, RecordHero, RecordFacts, RecordSection } from "@/components/property/RecordDetail";
+import { UnitTile, UNIT_COLUMNS, UNIT_TILE_GAP } from "@/components/property/UnitTile";
 import { LocationPicker, pinFromAddress } from "@/components/property/LocationPicker";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { FlatList, StyleSheet, View } from "react-native";
@@ -21,10 +21,9 @@ import {
 import { BottomSheet } from "@/components/sheet/BottomSheet";
 import { Button, Notice, Type, space } from "@/components/ui";
 import { PropertyLifecycle, PropertyMore, PropertyRemoval, propertyRemoval } from "@/components/property/PropertyLifecycle";
-import { propertyStatus, spaceStatus } from "@/components/property/WorkspacePatterns";
+import { propertyStatus } from "@/components/property/WorkspacePatterns";
 import { SaleDetailsForm } from "@/components/property/SaleDetailsForm";
 import { SalePanel, saleVisibility } from "@/components/property/SalePanel";
-import { UNIT_TILE_GAP } from "@/components/property/UnitTile";
 import { useSafeBottom } from "@/platform";
 import { describePropertySetup, toSetupInput } from "@/propertySetup";
 import {
@@ -145,13 +144,13 @@ export default function ProviderPropertyScreen() {
       <FlatList
         data={units}
         keyExtractor={(unit) => unit.id}
-
+        numColumns={UNIT_COLUMNS}
+        columnWrapperStyle={{ gap: UNIT_TILE_GAP }}
         contentContainerStyle={[styles.page, { paddingBottom: offerUnit ? space[6] : pageBottom }]}
         keyboardShouldPersistTaps="handled"
         renderItem={({ item }) => (
-          <RecordUnitRow title={item.label || "Unit"} photo={item.primary_photo?.download_url} meta={item.space_type_label}
-            status={<StandingLine tone={spaceStatus(item).tone === "good" ? "good" : "quiet"} line={spaceStatus(item).label} />}
-            onPress={() => router.push({ pathname: "/(app)/space", params: { unitId: item.id } })}
+          <UnitTile unit={item} meta={item.space_type_label}
+            onOpen={() => router.push({ pathname: "/(app)/space", params: { unitId: item.id } })}
           />
         )}
         ListHeaderComponent={
@@ -165,7 +164,7 @@ export default function ProviderPropertyScreen() {
             ) : null}
 
             <RecordHeader title={property.title || "Untitled Property"} context={`${propertyTypeLabel(property.property_type)} · ${property.address.locality_name}`} status={<StandingLine tone={tone} line={status.label} />} />
-            <RecordHero photo={property.cover_url} title={property.title || "Property"}>
+            <RecordHero key={property.id} photo={property.cover_url} title={property.title || "Property"} video={property.video} videoLabel="Property video">
               <PropertyLifecycle property={property} steps={steps} onChanged={load} compact />
               {selling ? <>
                 <Type variant="caption">Asking price</Type><Type variant="title2">{sale?.price_formatted ?? "No price yet"}</Type>
@@ -184,7 +183,6 @@ export default function ProviderPropertyScreen() {
               </View>}
             </RecordHero>
             {!land || property.notes ? <RecordSection title={land ? "Description" : "Overview"}>{!land ? <RecordFacts rows={[{ label: "Type", value: propertyTypeLabel(property.property_type) }, { label: "Water", value: property.water_source_label }, { label: "Power", value: property.power_meter_label }, { label: "Compound", value: property.compound_label }]} /> : null}{property.notes ? <Type variant="body">{property.notes}</Type> : null}</RecordSection> : null}
-      <VideoPlayer video={property.video} label="Property video" />
             <RecordSection title="Location">
               <Type variant="body">{fullAddress || "Address not recorded"}</Type>
               {property.address.digital_address ? <Type variant="caption">{property.address.digital_address}</Type> : null}

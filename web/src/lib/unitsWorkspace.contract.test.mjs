@@ -141,16 +141,17 @@ test("global creation chooses a Property, then reuses the flow that exists", () 
 test("Unit creation can be left safely and resumed with amenity photo evidence", () => {
   const route = read("web/app/record/space-new/page.tsx");
   const create = read("web/src/components/property/UnitWizard.tsx");
+  const modal = read("web/src/components/property/UnitWizardModal.tsx");
   const detail = read("web/app/record/space/page.tsx");
   const amenities = read("web/src/components/property/SpaceAmenities.tsx");
   const photos = read("web/src/components/property/SpacePhotos.tsx");
   const policy = read("backend/apps/trust/evidence_policy.py");
 
   // A half-finished Unit reopens where it was left, and every step can be left.
-  assert.match(route, /unitId=\{search\.get\("unitId"\)\}/);
-  assert.match(create, /getUnit\(initialUnit\)/);
-  assert.match(create, /dismissible=\{false\}/);
-  assert.match(create, /closeLabel="Close Unit setup"/);
+  assert.match(route, /mode: "edit", unitId, startAt: search\.get\("step"\)/);
+  assert.match(create, /unitId \? getUnit\(unitId\) : null/);
+  assert.match(modal, /dismissible=\{false\}/);
+  assert.match(modal, /closeLabel="Close Unit setup"/);
   assert.match(detail, /Continue setup/);
   assert.match(detail, /unitId=\$\{space\.id\}/);
 

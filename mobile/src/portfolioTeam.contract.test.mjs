@@ -215,7 +215,7 @@ test("mobile Property and Unit screens mirror the operational hierarchy", () => 
   // Unit looks the same whether it is reached through its Property or
   // through Units; the rule that this screen renders Units through a
   // component rather than inline is unchanged.
-  assert.match(property, /<RecordUnitRow/);
+  assert.match(property, /<UnitTile/);
   assert.doesNotMatch(property, /function Unit(Row|Tile)/);
   assert.match(property, /label="Tenant access and tenancies"/);
   assert.doesNotMatch(property, /function SpaceCard/);
@@ -254,7 +254,7 @@ test("mobile Property and Unit screens mirror the operational hierarchy", () => 
   assert.match(lifecycle, /This returns the submission to you/);
   assert.match(patterns, /availability\.state === "occupied"/);
   assert.match(patterns, /publication\.state === "published" && publication\.listing_status === "active" \? "Verified · Public · Available"/);
-  assert.match(primitives, /paddingVertical: space\[3\]/);
+  assert.match(primitives, /button: \{[\s\S]*?minHeight: theme\.targetMin[\s\S]*?paddingVertical: space\[2\]/);
   assert.match(primitives, /flexShrink: 1, textAlign: "center"/);
   assert.match(layout, /name="space" options=\{\{ title: "Unit" \}\}/);
 });
@@ -407,15 +407,20 @@ test("mobile Home's moves are ordered by what waiting costs", async () => {
   const money = (minor) => `GH₵${minor / 100}`;
   const all = nextMoves({
     overdueMinor: 120000, settlementAttentionMinor: 5000, recordsToConfirm: 2, maintenanceAlerts: 1,
-    requests: 3, viewingRequests: 4, draftAgreements: 1, propertiesToUpdate: 1, unreadEnquiries: 2, money,
+    requests: 3, viewingRequests: 4, agreementsToPrepare: 2, draftAgreements: 1, propertiesToUpdate: 1, unreadEnquiries: 2, money,
   });
-  assert.deepEqual(all.map((move) => move.key), ["overdue", "payout", "records", "repairs", "requests", "viewings", "drafts", "properties", "enquiries"]);
-  assert.deepEqual(all.map((move) => move.tone), ["danger", "danger", "warning", "warning", "warning", "warning", "calm", "calm", "calm"]);
+  assert.deepEqual(all.map((move) => move.key), ["overdue", "payout", "records", "repairs", "requests", "viewings", "prepare-agreements", "drafts", "properties", "enquiries"]);
+  assert.deepEqual(all.map((move) => move.tone), ["danger", "danger", "warning", "warning", "warning", "warning", "warning", "calm", "calm", "calm"]);
   assert.equal(all[0].title, "GH₵1200 overdue");
   assert.equal(all[2].title, "2 payment records to confirm");
-  assert.equal(all[6].title, "1 agreement to send");
-  // Nothing waiting is no moves at all, not a list of zeroes.
-  assert.deepEqual(nextMoves({ overdueMinor: 0, settlementAttentionMinor: 0, recordsToConfirm: 0, maintenanceAlerts: 0, requests: 0, viewingRequests: 0, draftAgreements: 0, propertiesToUpdate: 0, unreadEnquiries: 0, money }), []);
+  assert.equal(all[6].title, "2 agreements to prepare");
+  assert.equal(all[7].title, "1 agreement to send");
+  const empty = { overdueMinor: 0, settlementAttentionMinor: 0, recordsToConfirm: 0, maintenanceAlerts: 0, requests: 0, viewingRequests: 0, agreementsToPrepare: 0, draftAgreements: 0, propertiesToUpdate: 0, unreadEnquiries: 0, money };
+  assert.deepEqual(nextMoves(empty), []);
+  const [accepted] = nextMoves({ ...empty, agreementsToPrepare: 1 });
+  assert.equal(accepted.title, "1 agreement to prepare");
+  assert.equal(accepted.act, "Prepare agreement");
+  assert.equal(accepted.to, "/(app)/provider-applications");
 
   // Highlights say what follows, and only when there is something to say.
   // This month's collection is the rent ring's to say, never a highlight as well.

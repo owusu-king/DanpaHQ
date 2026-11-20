@@ -2,6 +2,8 @@ import { Image, Pressable, StyleSheet, View, useWindowDimensions } from "react-n
 import type { ReactNode as Content } from "react";
 import { Type, space } from "@/components/ui";
 import { theme } from "@/theme";
+import type { WalkthroughVideo } from "@/propertyVideo";
+import { MediaGallery } from "./MediaGallery";
 
 export function RecordHeader({ title, context, status }: { title: string; context: string; status: Content }) {
   return <View style={styles.header}>
@@ -11,11 +13,20 @@ export function RecordHeader({ title, context, status }: { title: string; contex
   </View>;
 }
 
-export function RecordHero({ photo, title, onPhotoPress, children }: { photo?: string | null; title: string; onPhotoPress?: () => void; children: Content }) {
+export function RecordHero({ photo, title, onPhotoPress, video, videoLabel = "Video", children }: {
+  photo?: string | null; title: string; onPhotoPress?: () => void; video?: WalkthroughVideo | null; videoLabel?: string; children: Content;
+}) {
   const { width } = useWindowDimensions();
-  const media = photo ? <Image source={{ uri: photo }} accessibilityLabel={title} style={styles.image} resizeMode="cover" /> : <View style={styles.empty}><Type variant="caption">No photo on file</Type></View>;
+  const photoFrame = [styles.media, width >= 700 && styles.photoWide];
+  const media = photo ? <Image source={{ uri: photo }} accessibilityLabel={title} style={styles.image} resizeMode="cover" />
+    : <View style={styles.empty}><Type variant="caption">No photo on file</Type></View>;
+  const photoView = onPhotoPress ? <Pressable onPress={onPhotoPress} accessibilityRole="button" accessibilityLabel={photo ? `View photos of ${title}` : `Manage photos of ${title}`} style={photoFrame}>
+    {media}
+  </Pressable> : <View style={photoFrame}>{media}</View>;
   return <View style={[styles.hero, width >= 700 && styles.heroWide]}>
-    {onPhotoPress ? <Pressable onPress={onPhotoPress} accessibilityRole="button" accessibilityLabel={`View photos of ${title}`} style={[styles.media, width >= 700 && styles.mediaWide]}>{media}</Pressable> : <View style={[styles.media, width >= 700 && styles.mediaWide]}>{media}</View>}
+    <View style={width >= 700 && styles.mediaWide}>
+      <MediaGallery photos={photo ? photoView : null} empty={photoView} videos={[{ label: videoLabel, video }]} />
+    </View>
     <View style={[styles.actions, width >= 700 && { flex: 1 }]}>{children}</View>
   </View>;
 }
@@ -44,7 +55,7 @@ const styles = StyleSheet.create({
   hero: { gap: 12, paddingBottom: 16, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.color.field["200"] },
   heroWide: { flexDirection: "row", alignItems: "flex-start", gap: 20 },
   media: { height: 180, overflow: "hidden", borderRadius: 8, backgroundColor: theme.color.field["100"] },
-  mediaWide: { width: 280, height: 210 }, image: { width: "100%", height: "100%" },
+  mediaWide: { width: 280 }, photoWide: { height: 210 }, image: { width: "100%", height: "100%" },
   empty: { flex: 1, justifyContent: "center", alignItems: "center" }, actions: { minWidth: 0, gap: 10 },
   section: { gap: 10, padding: space[3], borderWidth: StyleSheet.hairlineWidth, borderColor: theme.color.field["200"], borderRadius: 8, backgroundColor: theme.color.field["0"] },
   facts: { flexDirection: "row", flexWrap: "wrap", gap: 12 }, fact: { flexGrow: 1, flexBasis: 130, gap: 3 },
