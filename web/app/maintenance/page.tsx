@@ -212,10 +212,16 @@ function ProviderMaintenance() {
 
   useEffect(() => {
     let live = true;
+    // The session's Portfolio is already validated by the API; the list is only
+    // for an account that has not chosen one.
+    const preferred = activeContext?.startsWith("organization:") ? activeContext.slice("organization:".length) : "";
+    if (preferred) {
+      setOrganizationId(preferred);
+      return () => { live = false; };
+    }
     listOrganizations().then((rows) => {
       if (!live) return;
-      const preferred = activeContext?.startsWith("organization:") ? activeContext.slice("organization:".length) : "";
-      const chosen = rows.find((row) => row.id === preferred)?.id ?? rows[0]?.id ?? "";
+      const chosen = rows[0]?.id ?? "";
       setOrganizationId(chosen);
       if (!chosen) setRequests([]);
     }).catch((cause) => { if (live) { setRequests([]); setError(cause instanceof ApiFailure ? cause.error.message : "Could not load your Portfolios."); } });

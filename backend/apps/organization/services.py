@@ -522,6 +522,54 @@ def properties_in_scope(*, user, organization=None):
 PAST_TENANTS_SHOWN = 200
 
 
+def _open_tenancy_request_rows(property_ids) -> list:
+    from apps.occupancy.models import JoinRequestStatus, PropertyJoinRequest
+
+    return list(
+        PropertyJoinRequest.objects.filter(
+            property_id__in=property_ids,
+            status__in={JoinRequestStatus.PENDING, JoinRequestStatus.APPROVED},
+        ).select_related("requester", "property", "unit", "bed", "lease")
+    )
+
+
+def _tenancy_request_payload(row, user) -> dict:
+    return {
+        "id": str(row.id),
+        "requester_id": str(row.requester_id),
+        "requester_display": row.requester.display_name,
+        "property_id": str(row.property_id),
+        "property_title": row.property.title,
+        "unit_id": str(row.unit_id),
+        "unit_label": row.unit.label or "Unit",
+        "bed_id": str(row.bed_id) if row.bed_id else None,
+        "bed_label": row.bed.label if row.bed else None,
+        "status": row.status,
+        "message": row.message,
+        "decision_note": row.decision_note,
+        "lease_id": str(row.lease_id) if row.lease_id else None,
+        "lease_status": row.lease.status if row.lease else None,
+        "created_at": row.created_at.isoformat(),
+        "can_manage": row.property.is_managed_by(user),
+    }
+
+
+def portfolio_tenancy_requests(*, organization: Organization, user) -> dict:
+    """Only the Portfolio's private tenancy requests, as `portfolio_summary` lists them.
+
+    The Applications screen needs these and the Portfolio's name, nothing else,
+    and used to read the whole Portfolio summary for them.
+    """
+    properties = properties_for_organization_member(organization=organization, user=user)
+    property_ids = list(properties.values_list("id", flat=True))
+    return {
+        "organization": {"id": str(organization.id), "name": organization.name},
+        "tenancy_requests": [
+            _tenancy_request_payload(row, user) for row in _open_tenancy_request_rows(property_ids)
+        ],
+    }
+
+
 def portfolio_summary(
     *, organization: Organization, user, home_only: bool = False, finance_only: bool = False,
 ) -> dict:
@@ -653,13 +701,7 @@ def portfolio_summary(
     ]
     join_requests = PropertyJoinRequest.objects.filter(property_id__in=property_ids)
     tenancy_request_rows = (
-        []
-        if home_only or finance_only
-        else list(
-            join_requests.filter(
-                status__in={JoinRequestStatus.PENDING, JoinRequestStatus.APPROVED}
-            ).select_related("requester", "property", "unit", "bed", "lease")
-        )
+        [] if home_only or finance_only else _open_tenancy_request_rows(property_ids)
     )
     pending_requests = (
         join_requests.filter(status=JoinRequestStatus.PENDING).count()
@@ -880,27 +922,7 @@ def portfolio_summary(
             .get("allowed", False)
         )
 
-    tenancy_requests = [
-        {
-            "id": str(row.id),
-            "requester_id": str(row.requester_id),
-            "requester_display": row.requester.display_name,
-            "property_id": str(row.property_id),
-            "property_title": row.property.title,
-            "unit_id": str(row.unit_id),
-            "unit_label": row.unit.label or "Unit",
-            "bed_id": str(row.bed_id) if row.bed_id else None,
-            "bed_label": row.bed.label if row.bed else None,
-            "status": row.status,
-            "message": row.message,
-            "decision_note": row.decision_note,
-            "lease_id": str(row.lease_id) if row.lease_id else None,
-            "lease_status": row.lease.status if row.lease else None,
-            "created_at": row.created_at.isoformat(),
-            "can_manage": row.property.is_managed_by(user),
-        }
-        for row in tenancy_request_rows
-    ]
+    tenancy_requests = [_tenancy_request_payload(row, user) for row in tenancy_request_rows]
 
     from apps.property import access_codes
     from apps.property.serializers import unit_availability

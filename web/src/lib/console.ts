@@ -1349,6 +1349,17 @@ export function getOrganizationHome(organizationId: string) {
   return authedFetch<PortfolioHomeSummary>(`/organizations/${organizationId}/portfolio/?view=home`, { cache: "no-store" });
 }
 
+/**
+ * Only the Portfolio's private tenancy requests and its name. An older API
+ * ignores the view and returns the whole summary, which contains both.
+ */
+export function getOrganizationTenancyRequests(organizationId: string) {
+  return authedFetch<Pick<OrganizationPortfolio, "organization" | "tenancy_requests">>(
+    `/organizations/${organizationId}/portfolio/?view=requests`,
+    { cache: "no-store" },
+  );
+}
+
 export function getOrganizationPortfolio(organizationId: string, view?: "finance") {
   return authedFetch<OrganizationPortfolio>(
     `/organizations/${organizationId}/portfolio/${view ? "?view=finance" : ""}`,

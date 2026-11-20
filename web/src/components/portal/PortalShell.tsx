@@ -7,6 +7,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { getUnreadNotificationCount } from "@/lib/console";
+import { prefetchProviderRoute } from "@/lib/routePrefetch";
 import { useSession, type Me } from "@/lib/session";
 import { useGlide } from "@/lib/useGlide";
 import { activeHref, artisansEntry, enquiriesEntry, portalSections, type PortalSection } from "@/lib/portalNav";
@@ -451,6 +452,7 @@ function PortalNav({
   onNavigate?: () => void;
 }) {
   const nav = useRef<HTMLElement>(null);
+  const { activeContext } = useSession();
   const glide = useGlide(nav, {
     link: ".portal-nav-link",
     current: '.portal-nav-link[aria-current="page"]',
@@ -487,6 +489,9 @@ function PortalNav({
               aria-current={current === item.href ? "page" : undefined}
               title={collapsed ? item.label : undefined}
               onClick={onNavigate}
+              onPointerEnter={() => prefetchProviderRoute(item.href, activeContext)}
+              onFocus={() => prefetchProviderRoute(item.href, activeContext)}
+              onTouchStart={() => prefetchProviderRoute(item.href, activeContext)}
             >
               <Icon name={item.icon} />
               {/*

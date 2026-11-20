@@ -43,7 +43,13 @@ def unit_is_occupied(unit) -> bool:
     Listings and access credentials belong to a Unit, not to an individual bed.
     Consequently any active allocation inside the Unit makes that Unit
     unavailable for public advertising or another possession credential.
+
+    A Unit loaded by `property.read_models.prepare_unit_card_rows` already
+    carries this answer from the same predicate, read once for the collection.
     """
+    prepared = getattr(unit, "_unit_card_availability", None)
+    if prepared is not None:
+        return prepared[0]
     return unit_occupying_allocations().filter(unit=unit).exists()
 
 

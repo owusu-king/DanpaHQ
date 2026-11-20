@@ -235,7 +235,18 @@ class UnitListCreateView(APIView):
     def get(self, request, property_pk):
         prop = services.get_property_or_404(property_pk, request.user)
         services.assert_can_manage(prop, request.user)
-        units = _unit_queryset().filter(property=prop, is_active=True)
+        from .read_models import prepare_unit_card_rows
+
+        # The Units screen's batched read: reviews, amenities, photos, listings
+        # and occupancy as collections, not about twenty-five queries per Unit.
+        units = prepare_unit_card_rows(
+            Unit.objects.select_related(
+                "property__address__locality__district__region",
+                "property__address__locality__region",
+            )
+            .prefetch_related("beds")
+            .filter(property=prop, is_active=True)
+        )
         with memoized():
             return Response(UnitSerializer(units, many=True, context={"user": request.user}).data)
 

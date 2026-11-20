@@ -157,7 +157,7 @@ test("provider tenant acquisition separates request decisions from active tenant
   // in with the public applications — for the Portfolio being operated, not for
   // every Portfolio the account belongs to flattened into one list, which is
   // what this used to pin.
-  assert.match(loader, /getOrganizationPortfolio\(scope\.id\)/);
+  assert.match(loader, /getOrganizationTenancyRequests\(scope\.id\)/);
   assert.match(loader, /portfolio\.tenancy_requests\.map\(/);
   assert.doesNotMatch(loader, /organizations\.map\(\(organization\) => getOrganizationPortfolio/);
   assert.match(record, /decidePropertyJoinRequest/);

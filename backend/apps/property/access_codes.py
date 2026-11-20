@@ -91,14 +91,12 @@ def state(unit: Unit, *, now=None) -> str:
     from apps.trust.gates import property_verification_ok, space_condition_ok
 
     current = now or timezone.now()
-    # Prepared Unit reads (`prepare_unit_card_rows`) already know occupancy.
-    prepared = getattr(unit, "_unit_card_availability", None)
     if (
         not unit.is_active
         or unit.property.deleted_at is not None
         or not property_verification_ok(unit.property)
         or not space_condition_ok(unit)
-        or (prepared[0] if prepared is not None else unit_is_occupied(unit))
+        or unit_is_occupied(unit)
         or not billing.accepts_new_activity(unit=unit)
     ):
         return "unavailable"

@@ -72,9 +72,13 @@ services:
     # give you; it is defence in depth, so a failure must not block startup.
     # The subshell keeps that tolerance local - a failed migrate still stops
     # everything after it, which is the point of the chain.
+    # Gunicorn, not runserver: runserver starts a thread per request, so every
+    # call reconnects to PostgreSQL and roughly doubles local API time. These
+    # threads are reused, as in production. --reload polls for code changes,
+    # which also works on Windows bind mounts.
     command: >
       sh -c "python manage.py prepare_local &&
-             exec python manage.py runserver 0.0.0.0:8000"
+             exec gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 1 --threads 8 --timeout 120 --reload"
     ports: ["8000:8000"]
     depends_on:
       db: {condition: service_healthy}

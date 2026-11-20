@@ -279,6 +279,13 @@ class TestOrganizationAuthorization:
         assert response.status_code == 200
         assert response.data["tenancy_requests"][0]["id"] == str(join_request.id)
         assert response.data["tenant_access"][0]["access_code"]["state"] == "active"
+        # Applications reads the lean projection; it must list the same requests.
+        requests_view = api.get(f"/api/v1/organizations/{organization.id}/portfolio/?view=requests")
+        assert requests_view.status_code == 200
+        assert requests_view.data == {
+            "organization": response.data["organization"],
+            "tenancy_requests": response.data["tenancy_requests"],
+        }
 
         from apps.application.models import ApplicationStatus, RentalApplication
         from apps.lease import services as lease_services

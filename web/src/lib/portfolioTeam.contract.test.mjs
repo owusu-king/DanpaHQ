@@ -219,7 +219,7 @@ test("every provider list is about the Portfolio on screen", () => {
 
   // Tenancy requests used to be every Portfolio's, flattened into one list.
   assert.doesNotMatch(hook, /organizations\.map\(\(organization\) => getOrganizationPortfolio/);
-  assert.match(hook, /getOrganizationPortfolio\(scope\.id\)/);
+  assert.match(hook, /getOrganizationTenancyRequests\(scope\.id\)/);
   assert.match(hook, /listReceivedApplications\(false, \{ organization: scope\.id \}\)/);
   assert.match(hook, /\}, \[preferred\]\);/);
 

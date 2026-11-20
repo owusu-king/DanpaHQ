@@ -333,12 +333,18 @@ class OrganizationPortfolioView(APIView):
         # A pure read that asks each unit's review and verification questions
         # several times over. One declared read collapses them; see `apps.core.memo`.
         with memoized():
-            summary = services.portfolio_summary(
-                organization=organization,
-                user=request.user,
-                home_only=view == "home",
-                finance_only=view == "finance",
-            )
+            if view == "requests":
+                # Applications reads only the private tenancy requests.
+                summary = services.portfolio_tenancy_requests(
+                    organization=organization, user=request.user
+                )
+            else:
+                summary = services.portfolio_summary(
+                    organization=organization,
+                    user=request.user,
+                    home_only=view == "home",
+                    finance_only=view == "finance",
+                )
         response = Response(summary)
         response["Cache-Control"] = "private, no-store"
         return response

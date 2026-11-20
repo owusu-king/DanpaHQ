@@ -175,7 +175,63 @@ export async function restoreAccount(): Promise<Me> {
  * or rotated by another tab between being read and being used, and a single
  * stale token should not surface as a failure the person has to act on.
  */
-export async function authedFetch<T>(path: string, init: ApiRequestInit = {}): Promise<T> {
+export function authedFetch<T>(path: string, init: ApiRequestInit = {}): Promise<T> {
+  const method = (init.method ?? "GET").toUpperCase();
+  if (method !== "GET") {
+    // Any change may alter what a prefetched read would have said.
+    prefetched.clear();
+    return sendAuthed<T>(path, init);
+  }
+  const key = `${init.sameOrigin ? "same-origin:" : ""}${path}`;
+  const now = Date.now();
+  const entry = prefetched.get(key);
+  const fresh = entry !== undefined && entry.generation === generation && now - entry.at < PREFETCH_TTL_MS;
+  if (collecting) {
+    if (fresh) return entry.promise as Promise<T>;
+    const promise = sendAuthed<T>(path, init);
+    prefetched.set(key, { promise, at: now, generation });
+    promise.catch(() => {
+      if (prefetched.get(key)?.promise === promise) prefetched.delete(key);
+    });
+    return promise;
+  }
+  if (entry !== undefined) {
+    prefetched.delete(key);
+    if (fresh) return (entry.promise as Promise<T>).catch(() => sendAuthed<T>(path, init));
+  }
+  return sendAuthed<T>(path, init);
+}
+
+/**
+ * Reads started because the person is about to open a screen.
+ *
+ * Hovering, focusing or touching a navigation link starts that screen's GET
+ * requests; when the screen mounts and asks for the same paths it receives the
+ * responses already in flight instead of starting from nothing. Each one is
+ * used once, only within a few seconds and the same session, and any mutation
+ * discards them all, so a screen never shows an answer older than its click by
+ * more than that window.
+ */
+type Prefetched = { promise: Promise<unknown>; at: number; generation: number };
+const PREFETCH_TTL_MS = 5_000;
+const prefetched = new Map<string, Prefetched>();
+let collecting = false;
+
+/** Run `load` so the authenticated GETs it starts are kept for the screen it serves. */
+export function prefetchReads(load: () => unknown): void {
+  if (sessionEnded()) return;
+  collecting = true;
+  try {
+    const result = load();
+    if (result instanceof Promise) result.catch(() => undefined);
+  } catch {
+    // A prefetch is an optimisation; its failure is the screen's to report.
+  } finally {
+    collecting = false;
+  }
+}
+
+async function sendAuthed<T>(path: string, init: ApiRequestInit): Promise<T> {
   const started = generation;
   const token = await getAccessToken();
   if (started !== generation) throw endedError();

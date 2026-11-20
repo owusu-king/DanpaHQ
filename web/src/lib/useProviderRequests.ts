@@ -16,7 +16,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { ApiFailure } from "@/lib/api";
 import {
-  getOrganizationPortfolio,
+  getOrganizationTenancyRequests,
   listGrantedLeases,
   listOrganizations,
   listReceivedApplications,
@@ -48,8 +48,9 @@ export function useProviderRequests() {
     if (loadedFor.current !== preferred) setItems(null);
     loadedFor.current = preferred;
     try {
-      const organizations = await listOrganizations();
-      const scope = organizations.find((row) => row.id === preferred) ?? organizations[0] ?? null;
+      // The session's Portfolio is already validated by the API; the list is
+      // only for an account that has not chosen one.
+      const scope = preferred ? { id: preferred } : (await listOrganizations())[0] ?? null;
       if (!scope) {
         setItems([]);
         setError("");
@@ -58,7 +59,7 @@ export function useProviderRequests() {
       const [applications, leases, portfolio] = await Promise.all([
         listReceivedApplications(false, { organization: scope.id }),
         listGrantedLeases({ organization: scope.id }),
-        getOrganizationPortfolio(scope.id),
+        getOrganizationTenancyRequests(scope.id),
       ]);
 
       const leaseByApplication = new Map<string, Lease>(
